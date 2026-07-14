@@ -1,0 +1,14 @@
+[
+  {
+    "id": "default-fl901",
+    "name": "FL-901 手机取证塔",
+    "model": "美亚FL-901",
+    "description": "美亚柏科手机取证塔，支持主流手机数据提取"
+  },
+  {
+    "id": "ceb0f77f",
+    "name": "测试设备",
+    "model": "1",
+    "description": "1"
+  }
+]

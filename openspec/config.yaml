@@ -1,0 +1,50 @@
+schema: spec-driven
+
+openspec_version: "1.5.0"
+
+context: |
+  # 笔录自检平台（文枢）
+
+  电子数据检查笔录自动生成平台，支持基于 HTML 取证报告和 Word 模板自动生成检查笔录，
+  并提供人工调节修改功能，面向民警使用。后续扩展至专业化勘查报告、电子数据鉴定文书、
+  传统现场三录、现场检查笔录、法医鉴定文书等 6 类文书。
+
+  技术栈：
+  - 前端框架: React 18 + TypeScript
+  - 前端UI库: Ant Design 5
+  - 前端构建: Vite
+  - 后端框架: FastAPI (Python 3.11)
+  - 文档操作: officecli (模板 merge + DOM 编辑)
+  - HTML解析: BeautifulSoup4
+  - 异步任务: Celery + Redis
+  - 文件存储: 本地文件系统
+
+  架构概述：
+  全栈应用：React + TypeScript 前端 → RESTful API → FastAPI Python 后端 →
+  本地文件系统存储。HTML 取证报告输入 → BeautifulSoup 解析 → officecli merge 模板 →
+  .docx 笔录输出。
+
+  开发约定：
+  - 依赖方向严格单向，8个架构层级（0→1→2，10→11→12，20→21→22→23）
+  - 文件行数上限 250 行，建议 200 行以内
+  - 命名：TypeScript 使用 camelCase / PascalCase，Python 使用 snake_case
+  - 前后端通过 SharedTypes API 契约通信，禁止跨边界直接引用
+  - 测试：pytest (后端) + Vitest (前端) + React Testing Library (组件) + Playwright (E2E)
+
+# rules 定义的是"OpenSpec 内容的质量标准"（如 spec 应包含哪些要素）。
+# 执行流程类约束（如"连续失败 3 次停止"、架构依赖方向）属于 Harness，应写入 harness/ 文件。
+rules:
+  proposal:
+    - 必须包含"Non-Goals"章节
+    - 必须包含 Capabilities（新增/修改的能力列表）
+    - 必须包含 Impact（影响范围）
+  specs:
+    - 每条 Requirement 至少包含一个可测试的 Scenario
+    - 同时覆盖正常路径和异常路径
+    - 使用 WHEN/THEN 格式描述场景
+  design:
+    - 每个技术决策必须包含决策理由
+    - 关键决策需列出备选方案及拒绝理由
+  tasks:
+    - 每个任务指向具体的文件路径
+    - 每个任务附带验证方式

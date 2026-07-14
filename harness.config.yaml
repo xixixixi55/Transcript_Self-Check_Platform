@@ -1,0 +1,179 @@
+meta:
+  template_version: "1.0.2"
+  openspec_version: "1.5.0"
+
+project:
+  name: "笔录自检平台（文枢）"
+  root: "笔录自检平台（文枢）"
+  description: >
+    电子数据检查笔录自动生成平台，支持基于 HTML 取证报告和 Word 模板自动生成检查笔录，
+    并提供人工调节修改功能，面向民警使用。后续扩展至专业化勘查报告、电子数据鉴定文书、
+    传统现场三录、现场检查笔录、法医鉴定文书等 6 类文书。
+  architecture_summary: >
+    全栈应用：React + TypeScript 前端 → RESTful API → FastAPI Python 后端 →
+    本地文件系统存储。HTML 取证报告输入 → BeautifulSoup 解析 → officecli merge 模板 →
+    .docx 笔录输出。
+  doc_language: zh-CN
+
+tech_stack:
+  - category: "前端框架"
+    value: "React 18 + TypeScript"
+  - category: "前端UI库"
+    value: "Ant Design 5"
+  - category: "前端构建"
+    value: "Vite"
+  - category: "后端框架"
+    value: "FastAPI (Python 3.11)"
+  - category: "文档操作"
+    value: "officecli (模板 merge + DOM 编辑)"
+  - category: "HTML解析"
+    value: "BeautifulSoup4"
+  - category: "异步任务"
+    value: "Celery + Redis"
+  - category: "文件存储"
+    value: "本地文件系统"
+
+architecture:
+  shared_layers:
+    - name: SharedTypes
+      layer: 0
+      dir: packages/shared/types/
+      file_types: [".ts"]
+      description: "前后端共享的类型定义（实体、DTO、API 契约）"
+      allowed_deps: []
+    - name: SharedConstants
+      layer: 1
+      dir: packages/shared/constants/
+      file_types: [".ts"]
+      description: "前后端共享的常量（错误码、文书类型枚举等）"
+      allowed_deps: [SharedTypes]
+    - name: SharedUtils
+      layer: 2
+      dir: packages/shared/utils/
+      file_types: [".ts"]
+      description: "前后端共享的纯函数工具（校验、格式化等）"
+      allowed_deps: [SharedTypes, SharedConstants]
+
+  frontend_layers:
+    - name: FE_Hooks
+      layer: 10
+      dir: packages/frontend/src/hooks/
+      file_types: [".ts", ".tsx"]
+      description: "前端状态管理与业务逻辑封装"
+      allowed_deps: [SharedTypes, SharedConstants, SharedUtils, FE_Hooks]
+    - name: FE_Components
+      layer: 11
+      dir: packages/frontend/src/components/
+      file_types: [".tsx"]
+      description: "前端 UI 组件"
+      allowed_deps: [SharedTypes, SharedConstants, FE_Hooks, FE_Components]
+    - name: FE_Pages
+      layer: 12
+      dir: packages/frontend/src/pages/
+      file_types: [".tsx"]
+      description: "前端页面路由"
+      allowed_deps: [SharedTypes, SharedConstants, FE_Hooks, FE_Components]
+
+  backend_layers:
+    - name: BE_Repository
+      layer: 20
+      dir: packages/backend/app/repository/
+      file_types: [".py"]
+      description: "后端数据访问层（文件读写、模板管理、HTML 解析）"
+      allowed_deps: [SharedTypes, SharedConstants, SharedUtils]
+    - name: BE_Services
+      layer: 21
+      dir: packages/backend/app/services/
+      file_types: [".py"]
+      description: "后端业务逻辑层（文书生成编排、officecli 调用）"
+      allowed_deps: [SharedTypes, SharedConstants, SharedUtils, BE_Repository]
+    - name: BE_Controllers
+      layer: 22
+      dir: packages/backend/app/controllers/
+      file_types: [".py"]
+      description: "后端请求处理层（参数校验、调用 Service、构造响应）"
+      allowed_deps: [SharedTypes, SharedConstants, BE_Services]
+    - name: BE_Routes
+      layer: 23
+      dir: packages/backend/app/routes/
+      file_types: [".py"]
+      description: "后端路由定义与中间件编排"
+      allowed_deps: [SharedTypes, SharedConstants, BE_Controllers]
+
+  file_max_lines: 250
+  file_warn_lines: 200
+  crosscut_strategies:
+    - "SharedTypes 定义 API 契约接口，前后端各自实现"
+    - "中间件注入（错误处理、认证、日志）"
+
+storage:
+  technology: "本地文件系统"
+  migration_rule: "模板文件按文书类型分目录存储，生成的文书按日期+案件编号归档"
+  derived_data_rule: "HTML 解析结果缓存为 JSON，避免重复解析"
+
+testing:
+  unit_tool: "pytest (后端) + Vitest (前端)"
+  component_tool: "React Testing Library"
+  e2e_tool: "Playwright"
+  test_file_pattern: "<name>.test.ts(x) / test_<name>.py"
+
+commands:
+  dev: "concurrently \"pnpm --filter frontend dev\" \"pnpm --filter backend dev\""
+  build: "pnpm --filter frontend build"
+  lint_arch: "npx tsx scripts/lint-arch.ts"
+  verify: "npm run lint:arch && npm run typecheck && npm run build"
+  test: "pnpm --filter frontend test && pnpm --filter backend test"
+  check_docs: "npx tsx scripts/check-docs.ts"
+  pre_commit: "npm run verify && npm run test && npm run check-docs"
+
+naming:
+  conventions:
+    - type: "文件名（通用）"
+      rule: "kebab-case / snake_case"
+      example: "record-service.ts / record_service.py"
+    - type: "React 组件文件"
+      rule: "PascalCase"
+      example: "RecordEditor.tsx"
+      lint_check:
+        dir_prefix: "components/"
+        extension: ".tsx"
+        pattern: "^[A-Z][a-zA-Z0-9]*$"
+    - type: "Hook 文件"
+      rule: "use 前缀 + camelCase"
+      example: "useRecordGenerate.ts"
+      lint_check:
+        dir_prefix: "hooks/"
+        extension: ".ts"
+        pattern: "^use[A-Z][a-zA-Z0-9]*$"
+    - type: "Python Controller 文件"
+      rule: "snake_case + _controller 后缀"
+      example: "record_controller.py"
+      lint_check:
+        dir_prefix: "controllers/"
+        extension: ".py"
+        pattern: "^[a-z][a-z0-9_]*_controller$"
+    - type: "Python Service 文件"
+      rule: "snake_case + _service 后缀"
+      example: "record_service.py"
+      lint_check:
+        dir_prefix: "services/"
+        extension: ".py"
+        pattern: "^[a-z][a-z0-9_]*_service$"
+    - type: "TypeScript 函数/方法"
+      rule: "camelCase"
+      example: "fetchRecordData"
+    - type: "Python 函数/方法"
+      rule: "snake_case"
+      example: "generate_record"
+    - type: "类型/接口"
+      rule: "PascalCase"
+      example: "InspectionRecord"
+    - type: "常量"
+      rule: "UPPER_SNAKE_CASE"
+      example: "MAX_FILE_SIZE"
+
+features:
+  context_isolation: true
+  enhanced_verification: false
+  prompt_templates: false
+  code_review_agent: true

@@ -1,0 +1,30 @@
+{
+  "name": "biji-zijian-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "笔录自检平台（文枢）— 电子数据检查笔录自动生成平台",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter @biji/frontend dev\" \"pnpm --filter @biji/backend dev\"",
+    "build": "pnpm --filter @biji/frontend build",
+    "typecheck": "pnpm --filter @biji/shared typecheck && pnpm --filter @biji/frontend typecheck",
+    "lint:arch": "npx tsx scripts/lint-arch.ts",
+    "verify": "npm run lint:arch && npm run typecheck && npm run build",
+    "test": "pnpm --filter @biji/frontend test && pnpm --filter @biji/backend test",
+    "check-docs": "npx tsx scripts/check-docs.ts",
+    "pre-commit": "npm run verify && npm run test && npm run check-docs",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@pxp995/harness-ospx": "^1.0.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "husky": "^9.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

@@ -1,0 +1,105 @@
+// Layer 11: FE_Components — 硬件设备管理组件
+import React, { useState, useEffect } from 'react'
+import { Table, Button, Modal, Form, Input, Space, Popconfirm, message } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import axios from 'axios'
+import { API_ENDPOINTS } from '@biji/shared/constants'
+import type { HardwareDevice } from '@biji/shared/types'
+
+export default function DeviceManager() {
+  const [devices, setDevices] = useState<HardwareDevice[]>([])
+  const [loading, setLoading] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<HardwareDevice | null>(null)
+  const [form] = Form.useForm()
+
+  const fetchDevices = async () => {
+    setLoading(true)
+    try {
+      const { data } = await axios.get(API_ENDPOINTS.DEVICES)
+      setDevices(data.data || [])
+    } catch {
+      message.error('获取设备列表失败')
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchDevices() }, [])
+
+  const handleSave = async () => {
+    const values = await form.validateFields()
+    try {
+      if (editing) {
+        await axios.put(API_ENDPOINTS.DEVICES + '/' + editing.id, values)
+        message.success('已更新')
+      } else {
+        await axios.post(API_ENDPOINTS.DEVICES, values)
+        message.success('已添加')
+      }
+      setModalOpen(false)
+      setEditing(null)
+      form.resetFields()
+      fetchDevices()
+    } catch {
+      message.error('操作失败')
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await axios.delete(API_ENDPOINTS.DEVICES + '/' + id)
+      message.success('已删除')
+      fetchDevices()
+    } catch {
+      message.error('删除失败')
+    }
+  }
+
+  const columns = [
+    { title: '设备名称', dataIndex: 'name', key: 'name' },
+    { title: '型号', dataIndex: 'model', key: 'model' },
+    { title: '描述', dataIndex: 'description', key: 'description' },
+    {
+      title: '操作', key: 'action',
+      render: (_: any, record: HardwareDevice) => (
+        <Space>
+          <Button type="link" icon={<EditOutlined />} onClick={() => {
+            setEditing(record)
+            form.setFieldsValue(record)
+            setModalOpen(true)
+          }}>编辑</Button>
+          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(record.id)}>
+            <Button type="link" danger icon={<DeleteOutlined />}>删除</Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
+
+  return (
+    <div>
+      <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+        setEditing(null)
+        form.resetFields()
+        setModalOpen(true)
+      }} style={{ marginBottom: 16 }}>添加设备</Button>
+
+      <Table columns={columns} dataSource={devices} rowKey="id" loading={loading} size="small" />
+
+      <Modal title={editing ? '编辑设备' : '添加设备'} open={modalOpen}
+        onOk={handleSave} onCancel={() => { setModalOpen(false); setEditing(null) }}>
+        <Form form={form} layout="vertical">
+          <Form.Item name="name" label="设备名称" rules={[{ required: true, message: '请输入设备名称' }]}>
+            <Input placeholder="如 FL-901 手机取证塔" />
+          </Form.Item>
+          <Form.Item name="model" label="型号" rules={[{ required: true, message: '请输入型号' }]}>
+            <Input placeholder="如 美亚FL-901" />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={2} placeholder="可选描述" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  )
+}

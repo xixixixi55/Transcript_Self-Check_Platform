@@ -1,0 +1,64 @@
+// Layer 11: FE_Components — 检材情况编辑器
+import React from 'react'
+import { Button, Space, Typography } from 'antd'
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import type { EvidenceItem } from '@biji/shared/types'
+import EditableField from './EditableField'
+
+const { Text } = Typography
+
+interface Props {
+  items: EvidenceItem[]
+  onChange: (items: EvidenceItem[]) => void
+}
+
+export default function EvidenceEditor({ items, onChange }: Props) {
+  const addItem = () => {
+    onChange([...items, {
+      id: String(Date.now()),
+      device_type: '',
+      model: '',
+      imei1: '',
+      imei2: '',
+      serial_number: '',
+      evidence_number: '',
+    }])
+  }
+
+  const updateItem = (idx: number, field: string, value: string) => {
+    const list = items.map((item, i) => i === idx ? { ...item, [field]: value } : item)
+    onChange(list)
+  }
+
+  const removeItem = (idx: number) => {
+    onChange(items.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div>
+      {items.map((item, idx) => (
+        <div key={item.id || idx}
+          style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: 12, marginBottom: 12, position: 'relative' }}>
+          <Button type="text" danger size="small" icon={<DeleteOutlined />}
+            style={{ position: 'absolute', top: 4, right: 4 }}
+            onClick={() => removeItem(idx)} />
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <div><Text strong>设备名称：</Text><EditableField type="text"
+              placeholder="如 HUAWEI Pura 70 Pro" value={item.device_type || item.model || ''}
+              onChange={value => updateItem(idx, 'device_type', value)} /></div>
+            <div><Text strong>IMEI1：</Text><EditableField type="text" value={item.imei1 || ''}
+              onChange={value => updateItem(idx, 'imei1', value)} /></div>
+            <div><Text strong>IMEI2：</Text><EditableField type="text" value={item.imei2 || ''}
+              onChange={value => updateItem(idx, 'imei2', value)} /></div>
+            <div><Text strong>序列号：</Text><EditableField type="text" value={item.serial_number || ''}
+              onChange={value => updateItem(idx, 'serial_number', value)} /></div>
+            <div><Text strong>检材编号：</Text><EditableField type="text"
+              placeholder="如 SYN-JC00000001" value={item.evidence_number}
+              onChange={value => updateItem(idx, 'evidence_number', value)} /></div>
+          </Space>
+        </div>
+      ))}
+      <Button type="dashed" icon={<PlusOutlined />} onClick={addItem} block>添加检材</Button>
+    </div>
+  )
+}

@@ -1,0 +1,239 @@
+"""
+Layer 20: BE_Repository — 文件存取模块
+
+处理报告上传、JSON 缓存读写、RAR 生成、压缩包解压。
+"""
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import zipfile
+from datetime import datetime
+from typing import Optional
+
+# WinRAR 安装路径（常见位置）
+_WINRAR_PATHS = [
+    r"C:\Program Files\WinRAR\WinRAR.exe",
+    r"C:\Program Files (x86)\WinRAR\WinRAR.exe",
+]
+
+
+def _find_winrar() -> Optional[str]:
+    """查找 WinRAR.exe 路径，未找到返回 None"""
+    for p in _WINRAR_PATHS:
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def detect_winrar_version() -> Optional[str]:
+    """检测已安装的 WinRAR 版本号（如 "6.24"），未找到返回 None"""
+    winrar = _find_winrar()
+    if not winrar:
+        return None
+    try:
+        result = subprocess.run(
+            [winrar], capture_output=True, text=True, timeout=10,
+        )
+        output = result.stdout + result.stderr
+        match = re.search(r"(?:WinRAR|版本)\s*(\d+\.\d+)", output)
+        if match:
+            return match.group(1)
+    except Exception:
+        pass
+    return None
+
+
+def ensure_dir(path: str) -> str:
+    """确保目录存在，返回目录路径"""
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def save_upload_dir(source_dir: str, dest_root: str) -> str:
+    """
+    保存上传的报告目录到项目存储区。
+    返回目标目录路径。
+    """
+    dirname = os.path.basename(source_dir)
+    dest_dir = os.path.join(dest_root, dirname)
+
+    # 如果目标已存在，加时间戳后缀
+    if os.path.exists(dest_dir):
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        dest_dir = os.path.join(dest_root, f"{dirname}_{timestamp}")
+
+    ensure_dir(os.path.dirname(dest_dir))
+    shutil.copytree(source_dir, dest_dir)
+    return dest_dir
+
+
+def save_json(data: dict, filepath: str) -> None:
+    """保存 JSON 到文件"""
+    ensure_dir(os.path.dirname(filepath))
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def read_json(filepath: str) -> dict:
+    """读取 JSON 文件，不存在时返回空 dict"""
+    if not os.path.exists(filepath):
+        return {}
+    with open(filepath, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def is_cache_valid(cache_path: str, source_dir: str) -> bool:
+    """检查缓存是否有效（缓存存在且比源文件新）"""
+    if not os.path.exists(cache_path):
+        return False
+    cache_time = os.path.getmtime(cache_path)
+    # 检查源目录中最新的 JSON 文件
+    data_dir = os.path.join(source_dir, "data")
+    if not os.path.exists(data_dir):
+        return False
+    latest_source = cache_time
+    for root, _dirs, files in os.walk(data_dir):
+        for f in files:
+            if f.endswith(".json"):
+                mtime = os.path.getmtime(os.path.join(root, f))
+                if mtime > latest_source:
+                    latest_source = mtime
+    return cache_time >= latest_source
+
+
+def file_exists_and_valid(filepath: str) -> bool:
+    """检查文件是否存在且大小 > 0"""
+    return os.path.exists(filepath) and os.path.getsize(filepath) > 0
+
+
+def compute_md5(filepath: str) -> str:
+    """计算文件的 MD5 哈希值"""
+    hasher = hashlib.md5()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def create_rar(source_dir: str, output_dir: str, archive_name: str,
+               force: bool = False, skip: bool = False) -> dict:
+    """压缩目录为 RAR/ZIP。skip=True 时跳过压缩返回空 rar_info。REQ-012: 已存在则复用。"""
+    if skip:
+        return {
+            "filename": "",
+            "filepath": "",
+            "md5": "",
+            "size_bytes": 0,
+            "size_display": "",
+        }
+
+    ensure_dir(output_dir)
+    rar_path = os.path.join(output_dir, f"{archive_name}.rar")
+    zip_path = os.path.join(output_dir, f"{archive_name}.zip")
+
+    # REQ-012: 已有文件则跳过压缩
+    existing = rar_path if os.path.exists(rar_path) else (zip_path if os.path.exists(zip_path) else None)
+    if existing and not force and os.path.getsize(existing) > 0:
+        return {
+            "filename": os.path.basename(existing),
+            "filepath": existing,
+            "md5": compute_md5(existing),
+            "size_bytes": os.path.getsize(existing),
+            "size_display": _format_size(os.path.getsize(existing)),
+        }
+
+    winrar = _find_winrar()
+    if winrar:
+        subprocess.run(
+            [winrar, "a", "-r", "-ep1", rar_path, source_dir],
+            capture_output=True,
+            timeout=300,
+        )
+    else:
+        # 降级为 ZIP
+        zip_path = os.path.join(output_dir, f"{archive_name}.zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, dirs, files in os.walk(source_dir):
+                for f in files:
+                    filepath = os.path.join(root, f)
+                    arcname = os.path.relpath(filepath, os.path.dirname(source_dir))
+                    zf.write(filepath, arcname)
+        rar_path = zip_path
+
+    size_bytes = os.path.getsize(rar_path)
+    md5 = compute_md5(rar_path)
+
+    return {
+        "filename": os.path.basename(rar_path),
+        "filepath": rar_path,
+        "md5": md5,
+        "size_bytes": size_bytes,
+        "size_display": _format_size(size_bytes),
+    }
+
+
+def extract_archive(archive_path: str, output_dir: str) -> str:
+    """解压 .rar/.zip 到指定目录，返回解压后的根目录路径。失败抛出 ValueError。"""
+    ensure_dir(output_dir)
+    ext = os.path.splitext(archive_path)[1].lower()
+    if ext == ".zip":
+        return _extract_zip(archive_path, output_dir)
+    elif ext == ".rar":
+        return _extract_rar(archive_path, output_dir)
+    else:
+        raise ValueError(f"不支持的压缩格式: {ext}，仅支持 .rar 和 .zip")
+
+
+def _extract_zip(zip_path: str, output_dir: str) -> str:
+    """解压 .zip 文件，返回根目录路径"""
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        names = zf.namelist()
+        root_prefix = _common_prefix(names)
+        zf.extractall(output_dir)
+    return os.path.join(output_dir, root_prefix) if root_prefix else output_dir
+
+
+def _extract_rar(rar_path: str, output_dir: str) -> str:
+    """使用 WinRAR CLI 解压 .rar 文件，返回根目录路径"""
+    winrar = _find_winrar()
+    if not winrar:
+        raise ValueError("WinRAR 未安装，无法解压 .rar 文件。请安装 WinRAR 或使用 .zip 格式。")
+    # 列出内容以确定根目录
+    list_result = subprocess.run(
+        [winrar, "vb", rar_path], capture_output=True, text=True, timeout=30)
+    root_prefix = _common_prefix(list_result.stdout.strip().split("\n"))
+    # 解压
+    result = subprocess.run(
+        [winrar, "x", "-y", rar_path, output_dir],
+        capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        raise ValueError(f"RAR 解压失败: {result.stderr or result.stdout}")
+    return os.path.join(output_dir, root_prefix) if root_prefix else output_dir
+
+
+def _common_prefix(paths: list[str]) -> str:
+    """找到路径列表的公共根目录前缀（最外层文件夹名）"""
+    paths = [p.replace("\\", "/").strip("/") for p in paths if p]
+    if not paths:
+        return ""
+    top_dir = paths[0].split("/")[0]
+    for p in paths:
+        if not p.startswith(top_dir):
+            return ""
+    return top_dir
+
+
+def _format_size(bytes_val: int) -> str:
+    """格式化字节数"""
+    if bytes_val < 1024:
+        return f"{bytes_val} 字节"
+    elif bytes_val < 1024 * 1024:
+        return f"{bytes_val / 1024:.1f} KB"
+    elif bytes_val < 1024 * 1024 * 1024:
+        return f"{bytes_val / (1024 * 1024):.1f} MB"
+    return f"{bytes_val / (1024 * 1024 * 1024):.1f} GB"
