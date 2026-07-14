@@ -53,10 +53,20 @@ pnpm --filter @biji/backend dev    # 后端 http://localhost:30010
 ### 验证
 
 ```bash
-pnpm verify        # 架构约束 + 类型检查 + 构建
-pnpm test          # 运行全部测试
-pnpm check-docs    # 文档一致性检查
-pnpm pre-commit    # 提交前完整门控
+# 快速验证（提交前推荐）
+pnpm verify:quick         # 架构约束 + 类型检查 + 文档检查（默认模式）
+
+# 模块验证
+pnpm verify:frontend      # 前端类型检查 + 测试
+pnpm verify:backend       # 后端测试
+
+# 完整验证（推送前 / CI 推荐）
+pnpm verify:full          # 全部检查 + 构建 + 全部测试 + 严格文档检查
+
+# 旧命令（保持兼容）
+pnpm verify               # → 等同于 verify:full
+pnpm test                 # → 运行全部测试
+pnpm check-docs           # → 文档检查（严格模式，11 项）
 ```
 
 ## 项目结构

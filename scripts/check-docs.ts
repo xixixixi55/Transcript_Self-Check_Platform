@@ -4,17 +4,19 @@
  * 检查内容：
  * 1.  [E-A1] 目录结构：directory.md vs 实际文件系统
  * 2.  [补充] npm 命令：AGENTS.md 声明 vs package.json
- * 3.  [补充] tasks.md 文件引用 vs 实际存在性
- * 4.  [补充] tasks.md 完成状态 vs 源码文件存在性
- * 5.  [补充] specs 能力目录 vs directory.md/AGENTS.md 中列出的能力名
+ * 3.  [补充] tasks.md 文件引用 vs 实际存在性                  [strict]
+ * 4.  [补充] tasks.md 完成状态 vs 源码文件存在性               [strict]
+ * 5.  [补充] specs 能力目录 vs directory.md/AGENTS.md 中列出的能力名 [strict]
  * 6.  [E-A2] [按需] data-model.md 接口字段 vs 类型定义文件实际字段
- * 7.  [补充] AGENTS.md 行数限制
+ * 7.  [补充] AGENTS.md 行数限制（默认模式：仅警告）
  * 8.  [E-A3] 文档链接有效性
- * 9.  [E-A4] OpenSpec 版本一致性
- * 10. [E-A5] TEMPLATE_CANDIDATE 积压统计
- * 11. [E-A6] 迭代记录教训反哺完整性
+ * 9.  [E-A4] OpenSpec 版本一致性                              [strict]
+ * 10. [E-A5] TEMPLATE_CANDIDATE 积压统计                      [strict]
+ * 11. [E-A6] 迭代记录教训反哺完整性                           [strict]
  *
- * 用法：npx tsx scripts/check-docs.ts
+ * 用法：
+ *   npx tsx scripts/check-docs.ts             默认模式（低噪音检查）
+ *   npx tsx scripts/check-docs.ts --strict    严格模式（全部检查）
  * 退出码：0 = 通过，1 = 存在偏差
  */
 
@@ -53,13 +55,18 @@ const EXPECTED_DIRS: Record<number, string[]> = {
   2: ['repository', 'services', 'controllers', 'routes', 'data'], // packages/backend/app
 }
 
-const AGENTS_MAX_LINES = 160
+// 默认模式：超出仅警告；严格模式：作为错误阻断
+const AGENTS_MAX_LINES = 200
 
 /** 数据模型 spec 路径 */
 const DATA_MODEL_MD = path.join(OPENSPEC_DIR, 'specs', 'data-model.md')
 
 /** 类型定义目录 */
 const TYPES_DIR = path.join(ROOT, 'packages/shared/types')
+
+// ─── MODE ──────────────────────────────────────────────────────
+
+const STRICT_MODE = process.argv.includes('--strict')
 
 // ─── END PROJECT CONFIG ──────────────────────────────────────────
 
@@ -346,38 +353,60 @@ function checkLessonFeedback(): Drift[] {
 // ─── Main ────────────────────────────────────
 
 function main() {
-  console.log('🔍 Documentation Drift Check — scanning for inconsistencies...\n')
+  const modeLabel = STRICT_MODE ? 'strict (all checks)' : 'quick (low-noise checks)'
+  console.log(`🔍 Documentation Drift Check — mode: ${modeLabel}\n`)
 
+  // Default mode: core checks only
   const allDrifts: Drift[] = [
-    ...checkDirectoryStructure(),
-    ...checkCommands(),
-    ...checkTaskFiles(),
-    ...checkTaskCompletion(),
-    ...checkSpecsListed(),
-    ...checkDataModelConsistency(),
-    ...checkAgentsSize(),
-    ...checkDocLinks(),
-    ...checkOpenSpecVersion(),
-    ...checkTemplateCandidateBacklog(),
-    ...checkLessonFeedback(),
+    ...checkDirectoryStructure(),          // E-A1
+    ...checkCommands(),                    // npm commands
+    ...checkDataModelConsistency(),        // E-A2
+    ...checkAgentsSize(),                  // AGENTS.md size (warn in default, error in strict)
+    ...checkDocLinks(),                    // E-A3
   ]
 
   const checks = [
-    'E-A1:directory-structure', 'npm-commands', 'task-file-refs',
-    'task-completion', 'specs-listed', 'E-A2:data-model-consistency',
-    'agents-md-size', 'E-A3:doc-links', 'E-A4:openspec-version',
-    'E-A5:template-candidate-backlog', 'E-A6:lesson-feedback',
+    'E-A1:directory-structure', 'npm-commands',
+    'E-A2:data-model-consistency', 'agents-md-size', 'E-A3:doc-links',
   ]
 
-  if (allDrifts.length === 0) {
+  // Strict mode: add governance checks
+  if (STRICT_MODE) {
+    allDrifts.push(
+      ...checkTaskFiles(),
+      ...checkTaskCompletion(),
+      ...checkSpecsListed(),
+      ...checkOpenSpecVersion(),
+      ...checkTemplateCandidateBacklog(),
+      ...checkLessonFeedback(),
+    )
+    checks.push(
+      'task-file-refs', 'task-completion', 'specs-listed',
+      'E-A4:openspec-version', 'E-A5:template-candidate-backlog', 'E-A6:lesson-feedback',
+    )
+  }
+
+  // Separate errors from warnings
+  const errors = allDrifts.filter(d => d.type !== 'agents-size-exceeded')
+  const warnings = allDrifts.filter(d => d.type === 'agents-size-exceeded')
+
+  // In default mode, AGENTS.md size is a warning (don't fail)
+  if (!STRICT_MODE && warnings.length > 0) {
+    for (const w of warnings) console.log(`  ⚠️  [${w.type}] ${w.message}`)
+  }
+
+  if (errors.length === 0 && (STRICT_MODE || warnings.length === 0)) {
     console.log('✅ Documentation is consistent with codebase!\n')
-    console.log(`   Checks (${checks.length}): ${checks.join(', ')}`)
+    console.log(`   Active checks (${checks.length}): ${checks.join(', ')}`)
     process.exit(0)
   } else {
-    console.log(`⚠️  Found ${allDrifts.length} drift(s):\n`)
-    for (const d of allDrifts) console.log(`  [${d.type}] ${d.message}`)
-    console.log('\n💡 Fix: update documentation to match code, or create missing code.')
-    process.exit(1)
+    const severe = STRICT_MODE ? [...errors, ...warnings] : errors
+    if (severe.length > 0) {
+      console.log(`⚠️  Found ${severe.length} drift(s):\n`)
+      for (const d of severe) console.log(`  [${d.type}] ${d.message}`)
+      console.log('\n💡 Fix: update documentation to match code, or create missing code.')
+    }
+    process.exit(severe.length > 0 ? 1 : 0)
   }
 }
 

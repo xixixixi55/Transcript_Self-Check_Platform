@@ -1,31 +1,23 @@
 #!/usr/bin/env bash
-# pre-commit.sh — 提交前自动检查
+# pre-commit.sh — 提交前快速检查
 #
-# 用法：npm run pre-commit
-# 由 .husky/pre-commit 自动触发
+# 用法：bash scripts/pre-commit.sh（或通过 npm run pre-commit）
+# 执行快速验证：架构检查 + 类型检查 + 文档检查（默认模式）
+#
+# 注意：Husky (.husky/pre-commit) 现在直接调用 npm run verify:quick，
+# 不再经过本脚本。本脚本保留作为 legacy wrapper，供习惯直接调用的开发者使用。
 
 set -e
 
 echo "═══════════════════════════════════════"
-echo "  🚦 Pre-commit Check"
+echo "  🚦 Pre-commit Check (快速验证)"
 echo "═══════════════════════════════════════"
 echo ""
 
-# 1. 架构约束 + 类型 + 构建
-echo "▶ [1/3] 代码验证..."
-bash scripts/verify.sh
-echo ""
-
-# 2. 自动化测试
-echo "▶ [2/3] 自动化测试..."
-pnpm test
-echo ""
-
-# 3. 文档一致性
-echo "▶ [3/3] 文档一致性检查..."
-npx tsx scripts/check-docs.ts
+bash scripts/verify.sh quick
 echo ""
 
 echo "═══════════════════════════════════════"
-echo "  ✅ Pre-commit 全部通过，可以提交！"
+echo "  ✅ Pre-commit 通过！"
+echo "  💡 推送前建议运行：npm run verify:full"
 echo "═══════════════════════════════════════"
