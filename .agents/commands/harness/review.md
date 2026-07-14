@@ -5,6 +5,7 @@ argument-hint: "[变更包名称]"
 ---
 
 三维度验证：完整性 + 正确性 + 一致性。融合 OpenSpec verify spec（[opsx-verify-skill](https://github.com/Fission-AI/OpenSpec/blob/main/openspec/specs/opsx-verify-skill/spec.md)）的验证模型，并增加 Harness 架构约束检查。
+**不覆盖根目录 AGENTS.md 的级别规则。** 本命令服务于 Level 3 需求验证（Level 2 可选）。
 
 与 `/harness:verify`（工程验证）互补：verify 检查结构（自动化脚本），review 检查语义（Agent 审查）。
 

@@ -3,7 +3,7 @@ name: harness-review
 description: "三维度验证（完整性+正确性+一致性）代码实现的需求覆盖性。融合 OpenSpec verify spec 验证模型。当用户想要检查需求覆盖、验证 spec 是否实现、说'对照需求检查'、'review'、'spec 验证'、'verify spec'时触发。"
 ---
 
-读取项目根目录的 `.codebuddy/commands/harness/review.md` 获取详细执行协议，按其步骤执行 `/harness:review` 的完整流程。
+读取项目根目录的 `.claude/commands/harness/review.md` 获取详细执行协议，按其步骤执行 `/harness:review` 的完整流程。
 
 **快速参考**（完整步骤见命令文件）：
 1. 维度一：完整性 — 任务完成度 + spec 需求覆盖率

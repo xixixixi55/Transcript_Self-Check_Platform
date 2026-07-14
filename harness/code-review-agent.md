@@ -1,6 +1,10 @@
 # 独立 Code Review Agent（Supplement）
 
 > 实现 Harness Engineering「生成者与评估者分离」原则，解决同一 Agent 自审的乐观偏见问题。
+>
+> **适用范围**：独立 Code Review Agent 默认用于 **Level 3**，或涉及公共接口、核心数据模型、安全边界和高风险跨模块行为的 Level 2 任务。
+> **Level 1 不要求启动独立审查 Agent。**
+> 默认关闭，按需启用（`harness.config.yaml` 中 `code_review_agent: false`）。
 
 ---
 
@@ -15,7 +19,13 @@
 
 ## 触发时机
 
-在 `/harness:apply` 的开发节奏中，每个 Task 的步骤 e（测试有效性验证通过）之后、步骤 f（标记 `[x]`）之前：
+**Level 3**：在 `/harness:apply` 的开发节奏中，每个 Task 的步骤 e（测试有效性验证通过）之后、步骤 f（标记 `[x]`）之前可选择启用。
+
+**Level 2**：仅当涉及公共接口、核心数据模型、安全边界或高风险跨模块行为时手动启用。
+
+**Level 1**：不要求启动。
+
+启用时的流程：
 
 ```
 a. 写代码

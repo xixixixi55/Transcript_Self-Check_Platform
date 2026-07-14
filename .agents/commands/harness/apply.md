@@ -4,8 +4,9 @@ description: "按任务清单开发，遵循 Harness 开发节奏和门控约束
 argument-hint: "[变更包名称]"
 ---
 
-按 Harness Engineering 迭代闭环的 ④ 步骤执行开发。
+按 Harness Engineering 迭代闭环的 ④ 步骤执行开发（Level 3 完整开发节奏）。
 内部调用 OpenSpec apply 选择变更包和读取上下文，并在其上注入 Harness 开发节奏和门控。
+**不覆盖根目录 AGENTS.md 的级别规则。**
 
 **前置读取**（MUST 在开始前阅读）：
 - `AGENTS.md` — 架构约束、命名约定、验证硬限制

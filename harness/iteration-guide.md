@@ -1,11 +1,16 @@
 # 🔄 Harness Engineering + OpenSpec 迭代流程
 
-> 本文档定义了基于 Harness Engineering + OpenSpec 进行功能迭代的标准流程。
+> **适用范围**：本指南默认用于 **Level 3 重大变更**。
+> Level 1 和 Level 2 按仓库根目录 `AGENTS.md` 的轻量工作流执行。
+> 本文件与 `AGENTS.md` 冲突时，以 `AGENTS.md` 为准。
+>
 > **OpenSpec** 负责需求规划与管理（做什么），**Harness** 负责约束与验证（做对）。
 
 ---
 
 ## 迭代闭环（6 步）
+
+> **仅 Level 3 重大变更执行完整六步闭环。** Level 1 和 Level 2 按 `AGENTS.md` 的轻量路径执行。
 
 ```
 ① 需求定义 (OpenSpec)  →  ② 影响分析 (OpenSpec)  →  ③ 任务拆解 (OpenSpec)
@@ -101,7 +106,7 @@ openspec/changes/<功能名>/
 
 ---
 
-## ④ Agent 开发（OpenSpec: `/opsx:apply` + Harness 约束）
+## ④ Agent 开发（Level 3 完整开发节奏）
 
 **执行**：运行 `/opsx:apply` 或手动按 tasks.md 顺序实现
 
@@ -109,13 +114,13 @@ openspec/changes/<功能名>/
 - 详见 `AGENTS.md`（架构依赖方向、命名约定）+ `harness/architecture.md`（文件大小限制、导出规则、测试规则）
 
 
-**前置条件**（MUST 在写第一个 Task 代码前完成）：
+**前置条件**（Level 3 MUST 在写第一个 Task 代码前完成）：
 - 确认测试基础设施可用（测试框架配置、环境 mock、路径别名）
 - 前端迭代：MUST 先配置 DOM 测试环境 + 框架测试插件 + setup 文件（mock 运行时环境差异）
 - 后端迭代：MUST 确认数据库测试环境可用
 - 运行一个最小测试确认测试链路通畅后再开始正式开发
 
-**开发节奏**（每个 Task）：
+**开发节奏**（Level 3 的每个 Task）：
 1. Agent 写代码
 2. Agent **MUST** 运行架构检查 + 类型检查
    - 失败 → Agent 阅读错误信息，自主修复，重新运行，直到通过
@@ -124,10 +129,11 @@ openspec/changes/<功能名>/
 4. Agent **MUST** 运行测试
    - 失败 → Agent 阅读错误信息，自主修复，重新运行，直到通过
    - **MUST**: 连续失败 3 次 → 停止，报告问题，请求人类介入
-5. Agent **MUST** 验证测试有效性：在源码中注释掉本次新增/修改的核心逻辑，重新运行测试
+5. Agent **SHOULD** 验证测试有效性（**Level 3 核心业务逻辑为 MUST**）：在源码中注释掉本次新增/修改的核心逻辑，重新运行测试
    - 测试失败 → 好，测试有效，恢复源码，进入下一步
    - 测试仍通过 → 测试无效，Agent 补充更有意义的断言，回到第 4 步
    - 完成后 **MUST** 恢复源码到注释前的状态
+   - **风险分级**：核心业务逻辑、关键 Hook、权限、安全、数据转换和高风险算法为 MUST；普通组件、页面、Repository、样式、文案和低风险适配代码为 SHOULD
 6. 标记 Task 为 `[x]`，进入下一个
 
 **硬性终止条件**：
@@ -201,7 +207,7 @@ npx tsx scripts/check-docs.ts  # 文档一致性检查
 
 ---
 
-## ⑥ 归档同步（OpenSpec: `/opsx:archive` + Harness: `check-docs`）
+## ⑥ 归档同步（Level 3 — OpenSpec: `/opsx:archive` + Harness: `check-docs`）
 
 **核心原则**：信息只存在一处（DRY），其他地方用链接引用。
 
@@ -279,14 +285,25 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 
 ### 场景 C：修 Bug
 
+**Level 1（局部 Bug 修复）**：
 ```
-① /harness:fix "修复 XX Bug"（小改动用简化流程）
-   → 复杂 Bug 使用 /harness:propose
+① 检查 Git 状态，阅读直接相关代码和测试
+② 搜索调用范围
+③ 实施最小修改
+④ 运行针对性测试或 lint:arch + typecheck
+⑤ 检查 git diff
+⑥ 汇报结果，不创建 OpenSpec change
+```
+
+**Level 2/3（复杂 Bug，影响范围较大）**：
+```
+① /harness:fix "修复 XX Bug"（Level 2：仅 tasks.md）
+   → 复杂 Bug 使用 /harness:propose（Level 3：完整变更包）
 ② 定位到具体文件和层级
 ③ 通常 1-2 个任务
-④ Agent 修复（仍遵循开发节奏）
+④ Agent 修复（仍遵循对应级别的开发节奏）
 ⑤ /harness:verify — 验证 Bug 已修复
-⑥ 自动归档（fix 流程内置）
+⑥ Level 2 默认不强制完整归档门控
 ```
 
 ### 场景 D：从现有项目接入 OpenSpec

@@ -4,8 +4,9 @@ description: "归档已完成的变更包，包含 Harness 熵治理门控和迭
 argument-hint: "[变更包名称]"
 ---
 
-按 Harness Engineering 迭代闭环的 ⑥ 步骤执行归档同步。
+按 Harness Engineering 迭代闭环的 ⑥ 步骤执行归档同步（Level 3 完整归档）。
 内部调用 OpenSpec archive 完成 specs 合并和文件迁移，并在其上注入 Harness 熵治理阻断机制。
+**不覆盖根目录 AGENTS.md 的级别规则。Level 1 不执行归档。**
 
 **前置读取**（MUST 在开始前阅读）：
 - `harness/iteration-guide.md` — ⑥ 归档同步流程

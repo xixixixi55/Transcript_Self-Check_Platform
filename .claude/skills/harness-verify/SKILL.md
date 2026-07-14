@@ -3,7 +3,7 @@ name: harness-verify
 description: "运行工程验证门控（架构检查 + 类型 + 构建 + 测试 + 文档一致性）。当用户想要验证代码、检查是否通过、运行门控、说'跑一下检查'、'verify'、'验证'时触发。"
 ---
 
-读取项目根目录的 `.codebuddy/commands/harness/verify.md` 获取详细执行协议，按其步骤执行 `/harness:verify` 的完整流程。
+读取项目根目录的 `.claude/commands/harness/verify.md` 获取详细执行协议，按其步骤执行 `/harness:verify` 的完整流程。
 
 **快速参考**（完整步骤见命令文件）：
 1. 运行综合验证（架构检查 + 类型检查 + 构建）

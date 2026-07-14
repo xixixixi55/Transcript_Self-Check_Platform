@@ -1,156 +1,157 @@
 # AGENTS.md — 笔录自检平台（文枢）
 
-> Agent 工作导航。所有规则均可通过 npm run pre-commit 自动检查。
+> Agent 项目级工作规则入口。工具专属命令、Skill、Harness 指南与本文件冲突时以本文件为准。
 
-## 项目上下文
+---
 
-详见 `openspec/config.yaml`（技术栈、开发约定、需求规则）。
+## 1. 项目目标
 
-## 架构 — 分层依赖规则
+电子数据检查笔录自动生成平台（React 18 + TypeScript + FastAPI + officecli），面向民警使用。
 
-```
-共享基础层:
-  SharedTypes (0) → SharedConstants (1) → SharedUtils (2)
-                                              ↓
-前端分支 (10-12):                         后端分支 (20-23):
-  FE_Hooks (10)                            BE_Repository (20)
-    ↓                                        ↓
-  FE_Components (11)                       BE_Services (21)
-    ↓                                        ↓
-  FE_Pages (12)                            BE_Controllers (22)
-                                              ↓
-                                           BE_Routes (23)
-```
+---
 
-**MUST**: 依赖方向严格单向，高层可引用低层，反之禁止。
-**MUST**: 前端和后端只能通过 SharedTypes 中定义的 API 契约通信，不能直接引用对方的层。
+## 2. 规则优先级
 
-详见 `harness/architecture.md`（依赖矩阵、横切关注点规则）。
+**工作流程规则**（冲突时按此顺序）：
+1. 安全与法律合规 — 不可覆盖
+2. 根目录 AGENTS.md — Agent 工作流程最高规则来源
+3. Harness 运营文档（`harness/`）— 架构约束、熵治理详情
+4. 工具命令与 Skill（`.claude/`、`.agents/`）— 快捷入口，不得覆盖以上
 
-## 目录结构
+**行为预期**：当前任务要求 + 有效 OpenSpec / 产品文档描述预期行为。
+**实现事实**：代码、Git 状态、测试、构建和实际运行结果为当前实现状态的判断依据。
 
-详见 `harness/directory.md`（目录结构）。
+规格与实现冲突 → 报告差异，根据任务决定修改实现还是更新规格。不确定时暂停请求人类判定。
 
-| 目录路径 | 层级 | 允许的文件类型 |
-|---------|------|-------------|
-| `packages/shared/types/` | Layer 0 (SharedTypes) | `.ts` |
-| `packages/shared/constants/` | Layer 1 (SharedConstants) | `.ts` |
-| `packages/shared/utils/` | Layer 2 (SharedUtils) | `.ts` |
-| `packages/frontend/src/hooks/` | Layer 10 (FE_Hooks) | `.ts`, `.tsx` |
-| `packages/frontend/src/components/` | Layer 11 (FE_Components) | `.tsx` |
-| `packages/frontend/src/pages/` | Layer 12 (FE_Pages) | `.tsx` |
-| `packages/backend/app/repository/` | Layer 20 (BE_Repository) | `.py` |
-| `packages/backend/app/services/` | Layer 21 (BE_Services) | `.py` |
-| `packages/backend/app/controllers/` | Layer 22 (BE_Controllers) | `.py` |
-| `packages/backend/app/routes/` | Layer 23 (BE_Routes) | `.py` |
+---
 
-## 命名约定
+## 3. 任务开始前检查
 
-| 类型 | 规则 | 示例 |
-|------|------|------|
-| 文件名（通用） | kebab-case / snake_case | `record-service.ts` / `record_service.py` |
-| React 组件文件 | PascalCase | `RecordEditor.tsx` |
-| Hook 文件 | use 前缀 + camelCase | `useRecordGenerate.ts` |
-| Python Controller 文件 | snake_case + _controller 后缀 | `record_controller.py` |
-| Python Service 文件 | snake_case + _service 后缀 | `record_service.py` |
-| TypeScript 函数/方法 | camelCase | `fetchRecordData` |
-| Python 函数/方法 | snake_case | `generate_record` |
-| 类型/接口 | PascalCase | `InspectionRecord` |
-| 常量 | UPPER_SNAKE_CASE | `MAX_FILE_SIZE` |
+按需读取，不得一次性加载所有 `harness/` 和 `openspec/`：
 
-## 规则
+| 优先级 | 内容 | 何时读取 |
+|:------:|------|---------|
+| P0 | 直接相关源文件和测试 | 每个任务 |
+| P1 | `harness/architecture.md` | 涉及新建文件或跨层引用 |
+| P2 | 本文件的级别判断规则 | 不确定级别时 |
+| P3 | 其他 `harness/` 详情 | 仅明确需要时 |
 
-### 代码
-- 详见 `harness/architecture.md`（文件大小限制、导出规则等）
-- **MUST**: 依赖方向严格单向，高层可引用低层，反之禁止
-- **MUST**: React 组件使用函数式组件 + Hooks，每个组件文件只导出一个组件
-- **MUST**: FastAPI Controller 每个函数处理一个端点，参数使用 Pydantic 模型校验
-- **MUST**: Python Service 不直接接触 HTTP 请求/响应对象，通过 Controller 传入纯数据
-- **MUST**: officecli 调用统一封装在 BE_Services 层，其他层不直接调用 CLI
+---
 
-### 文档
-- **MUST**: 修改代码后运行 npm run pre-commit，不通过不能提交
-- **MUST**: 新增**目录**后更新 `harness/directory.md`（目录结构唯一真相源，文件级别无需逐一列出）
-- **MUST**: 新增 type/interface 后更新 `openspec/specs/data-model.md`
-- **MUST**: 任何代码变更前，先更新对应的 OpenSpec proposal.md 和 spec.md——不经 Spec 直接改代码是违规操作
-- **MUST NOT**: 文档中硬编码会变的数字——写完后自检：这个数字将来会变吗？会 → 删掉
-- **MUST NOT**: 多个文件中复制同一信息——用"详见 xxx"代替
+## 4. 任务级别判断
 
-### 测试
-- **MUST**: 新增/修改的代码必须有配套测试
-- **MUST**: 测试覆盖范围由 Spec 场景驱动（E2E/组件），底层测试由 Agent 自主补充
-- **MUST**: 冲突时以 Spec 为仲裁——代码不符合 Spec 改代码，测试不符合 Spec 改测试
-- 测试框架：pytest（后端单元测试）+ Vitest（前端单元测试）+ React Testing Library（组件测试）+ Playwright（E2E 测试）
+根据行为变化、影响范围、公共契约、调用范围和回滚风险判断，不得根据文件数量或代码行数机械判断。新增局部字段（即使改 3 个文件）可能仍是 Level 1；修改公共组件（影响多个页面）可能是 Level 2；修改核心 Schema 或公共 API 可能是 Level 3。
 
-### 验证硬限制
-- **MUST**: 单步连续失败达到上限 → 停止，报告问题，请求人类介入
-- **MUST**: 单 Task 总验证循环达到上限 → 立即停止并生成问题摘要
-- 具体阈值和升级策略详见 `harness/iteration-guide.md`（④开发节奏 — 硬性终止条件）
+**无法明确判断时默认采用较轻级别。**
 
-## 工作协议
+以下内容判断前**必须先搜索调用范围**：公共组件、公共接口、核心数据模型、共享类型、跨模块行为、鉴权和安全边界、持久化数据格式、模板公共语法。确认影响范围较大或回滚风险显著时才升级。级别可在实施中调整，升级时只补充真正必要的治理材料。
 
-**每次对话开始时** MUST 阅读本文件了解项目上下文和约束。
-**开始新功能/迭代时** MUST 先阅读 `harness/iteration-guide.md`，按 6 步迭代闭环执行。
+---
 
-### Harness 命令
+## 5. Level 1 — 轻量修改
 
-| 命令 | 阶段 | 做什么 | 核心约束 |
-|------|------|--------|---------|
-| `/harness:propose "描述"` | ① ② ③ | 需求定义 + 影响分析 + 任务拆解 | tasks 按架构层级排序；影响分析按分层矩阵 |
-| `/harness:apply` | ④ | 按任务开发 | 开发节奏：写码→验证→测试→有效性；失败 3 次停止 |
-| `/harness:verify` | ⑤-工程 | 运行门控脚本 | npm run verify + npm run test + npm run check-docs |
-| `/harness:review` | ⑤-需求 | 三维度验证 | 完整性 + 正确性 + 一致性；CRITICAL 阻断归档 |
-| `/harness:archive` | ⑥ | 归档同步 | 自动化门控（E-A1~A6）→ Agent 自治修复（E-M1/M3/M4）→ 人工确认（E-M2/M5）→ 迭代记录 |
-| `/harness:status` | — | 展示项目状态 | — |
-| `/harness:continue` | — | 从中断恢复 | — |
-| `/harness:fix "描述"` | 快捷 | 快速修 Bug | 简化流程，仍 MUST 有测试 |
-| `/harness:code-review` | ④-审查 | 独立 Sub-Agent 代码审查 | 独立上下文，5 维度审查，最多 2 轮修复-重审 |
+**适用**：局部 Bug、文案、样式、错误提示、配置默认值、局部字段映射、模板占位符调整、单模块小重构、不改变公共接口和架构的修改。
 
-详细执行协议见 `.claude/commands/harness/` 下对应文件（如命令不可用，按上表核心约束 + `harness/iteration-guide.md` 执行）。
+**流程**：检查 Git → 读相关代码和测试 → 搜索调用范围 → 最小修改 → 针对性验证（相关测试或 `lint:arch` + `typecheck`）→ 检查 diff → 汇报。不创建 OpenSpec change、proposal/spec/design、迭代记录。不要求读取 `iteration-guide.md`、独立 Code Review Agent、归档。
 
-## 工程命令
+---
 
-```bash
-npm run dev         # 启动开发服务器（前端 + 后端）
-npm run build       # 构建前端生产版本
-npm run lint:arch   # 架构约束检查
-npm run verify      # 综合验证（lint:arch + typecheck + build）
-npm run test        # 运行全部测试（前端 + 后端）
-npm run check-docs  # 文档一致性检查
-npm run pre-commit  # 提交前门控（verify + test + check-docs）
-```
+## 6. Level 2 — 普通功能或中等影响修改
 
-## 文档索引
+**适用**：引入新的可观察行为或扩大现有能力，影响范围中等，但仍保持现有公共契约和总体架构。模块数和文件数仅作参考。
 
-### Harness 运营文档（流程 + 约束 + 验证）
+**默认创建** `openspec/changes/<name>/tasks.md`（含目标、验收标准、任务列表、必要说明）。设计说明写入 tasks.md，不自动扩大为变更包。默认不强制 proposal.md、独立 spec.md、design.md、完整归档门控。
 
-| 类型 | 路径 | 描述 |
-|------|------|------|
-| 🔄 迭代指南 | `harness/iteration-guide.md` | **迭代时首先阅读** |
-| 📐 架构约束 | `harness/architecture.md` | 分层规则、依赖矩阵 |
-| 💾 数据建模约束 | `harness/data-model.md` | 数据建模规则（具体模型详见 OpenSpec） |
-| ✅ 任务管理规则 | `harness/tasks.md` | 任务流程约束 + 模板 |
-| 🗂️ 目录结构 | `harness/directory.md` | 目录结构（目录维度） |
-| 🧹 熵治理 | `harness/entropy-rules.md` | 文档一致性、规则冲突、教训沉淀 |
-| 🔒 上下文管理 | `harness/context-management.md` | 上下文架构（信息分层 + 延迟加载）+ 上下文隔离（任务级边界） |
-| 🔎 Code Review Agent | `harness/code-review-agent.md` | 独立 Sub-Agent 代码审查（生成者与评估者分离） |
+---
 
-### OpenSpec 需求文档（需求 + 设计 + 任务）
+## 7. Level 3 — 重大变更
 
-| 类型 | 路径 | 描述 |
-|------|------|------|
-| 🔧 项目配置 | `openspec/config.yaml` | 技术栈、开发约定、需求规则 |
-| 📋 需求规格 | `openspec/specs/` | **能力 spec（单一真相源）** |
-| 💾 数据模型 | `openspec/specs/data-model.md` | 实体定义、数据结构 |
+**适用**：公共 API 变化、核心 Schema 变化、架构变化、跨模块大规模重构、框架/引擎更换、数据库/队列引入、部署方式重大变化、安全边界变化、持久化格式迁移。
 
-### 信息查找指引
+**完整流程**：proposal → spec → design → tasks → implementation → verify → review → archive。默认读取完整 Harness 迭代、评审和熵治理文档。
 
-| 想找什么 | 去哪里 |
-|---------|-------|
-| 某次迭代的变更包（proposal/specs/design/tasks） | `openspec/changes/archive/<日期-功能名>/` |
-| 某次迭代的经验教训和问题复盘 | `harness/archive/iterations/<功能名>.md` |
-| 当前生效的需求规格 | `openspec/specs/<能力>/spec.md` |
-| 当前的架构规则和约束 | `harness/architecture.md` |
-| 当前的数据模型定义 | `openspec/specs/data-model.md` |
+---
 
-> 归档文件中的路径以归档时为准，可能与当前目录结构不一致。Agent 不应信赖归档中的路径引用。
+## 8. 测试有效性验证（所有级别按风险判断）
+
+| 风险 | 范围 | 要求 |
+|------|------|:----:|
+| 高 | 核心业务逻辑、权限、安全、关键数据转换、高风险算法 | **MUST** |
+| 低 | 普通 UI、样式、文案、低风险适配 | **SHOULD** |
+
+验证方式：注释核心逻辑 → 跑测试确认失败 → 恢复代码。
+
+---
+
+## 9. Code Review Agent
+
+| 级别 | 要求 |
+|:----:|------|
+| Level 1 | 默认不启用 |
+| Level 2 | 高风险任务（公共接口/核心数据/安全边界）按需启用 |
+| Level 3 | 默认启用；可在重要实现完成后统一审查，不要求每 Task 启动 |
+
+默认关闭（`harness.config.yaml` → `code_review_agent: false`）。详见 `harness/code-review-agent.md`。
+
+---
+
+## 10. 验证与治理范围
+
+| 级别 | 验证命令 | OpenSpec | 归档 |
+|:----:|------|---------|:----:|
+| Level 1 | `verify:quick`（lint:arch + typecheck + docs:quick） | 不创建 | 不归档 |
+| Level 2 | `verify:quick` + `verify:frontend` 或 `verify:backend` | 仅 tasks.md | 不强制 |
+| Level 3 | `verify:full`（全部检查 + build + 严格文档） | 完整变更包 | 完整归档协议 |
+
+不推荐常规使用 `git commit --no-verify`（仅限人工确认后的异常处理）。
+`verify:quick` → 默认模式文档检查；`verify:docs:strict` → 严格模式（Level 3/归档）。
+
+---
+
+## 11. 工具兼容 + 旧变更包迁移
+
+- `.claude/`、`.agents/` 下命令和 Skill 是工具快捷入口，不得维护与本文件冲突的流程规则。
+- `/harness:fix` 支持 Level 1（不创建 OpenSpec change）。
+- **现有活跃变更包**不自动删除或降级，继续按原约定处理或后续逐个评估迁移。新三级规则默认适用于新任务。
+
+---
+
+## 12. 架构约束（摘要）
+
+详见 `harness/architecture.md`。
+
+**分层方向**：SharedTypes(0)→Constants(1)→Utils(2)；FE Hooks(10)→Components(11)→Pages(12)；BE Repo(20)→Services(21)→Controllers(22)→Routes(23)。前后端仅通过 SharedTypes API 契约通信。
+
+**文件**：≤250 行、命名导出、TS camelCase/PascalCase、Python snake_case。新增目录后更新 `harness/directory.md`。
+
+**测试**：Utils/Repo/Services → 单元测试；Hooks/Components → Vitest+RTL；Pages/Routes → E2E；Controllers → 集成测试。
+
+---
+
+## 13. 任务完成标准
+
+- lint:arch + typecheck 通过 / 针对本次修改的测试通过 / `git diff` 仅含预期变更
+- Level 2：tasks.md 标记完成；Level 3：完整门控通过
+
+---
+
+## 14. 禁止事项
+
+- ❌ 以文件数量或代码行数作为风险判断标准
+- ❌ 不确定时自动扩大流程 / 在工具命令中独立定义流程规则
+- ❌ 多个文件复制同一信息（用"详见 xxx"）/ 硬编码会变的数字
+- ❌ 假设代码或 Spec 任一方天然正确 / 批量跳过测试
+
+---
+
+## 15. 文档索引
+
+| 路径 | 用途 |
+|------|------|
+| `harness/iteration-guide.md` | 六步闭环详情（Level 3） |
+| `harness/architecture.md` | 分层规则、依赖矩阵 |
+| `harness/entropy-rules.md` | 归档门控、教训反哺（Level 3） |
+| `harness/code-review-agent.md` | 审查维度和流程 |
+| `harness/directory.md` | 目录结构 |
+| `openspec/specs/` | 能力 spec |
+| `openspec/specs/data-model.md` | 实体定义 |

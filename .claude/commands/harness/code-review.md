@@ -6,6 +6,7 @@ argument-hint: "[Task ID 或文件路径]"
 
 启动独立的 Code Review Sub-Agent，对当前或指定 Task 的代码变更进行审查。
 实现 Harness Engineering「生成者与评估者分离」原则。
+**不覆盖根目录 AGENTS.md 的级别规则。** Level 1 默认不启用；Level 2 高风险任务按需启用；Level 3 默认启用。
 
 **前置读取**（MUST 在开始前阅读）：
 - `harness/code-review-agent.md` — 审查清单和输出格式

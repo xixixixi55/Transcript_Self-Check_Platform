@@ -4,7 +4,8 @@ description: "运行工程验证门控（架构检查 + 类型检查 + 构建 + 
 argument-hint: ""
 ---
 
-运行 Harness 工程验证门控。纯自动化检查，验证代码的结构正确性。
+运行 Harness 工程验证门控（Level 3 全量验证；Level 1/2 按 AGENTS.md 验证分级执行）。
+纯自动化检查，验证代码的结构正确性。**不覆盖根目录 AGENTS.md 的级别规则。**
 
 与 `/harness:review`（语义验证）互补：verify 检查结构，review 检查需求覆盖。
 
@@ -12,19 +13,20 @@ argument-hint: ""
 
 **步骤**
 
-1. **架构约束 + 类型检查 + 构建**
+1. **快速验证（Level 1/2）**
    ```
-   npm run verify
-   ```
-
-2. **自动化测试**
-   ```
-   pnpm test
+   npm run verify:quick
    ```
 
-3. **文档一致性检查**
+2. **模块验证**
    ```
-   npx tsx scripts/check-docs.ts
+   npm run verify:frontend    # 前端：typecheck + test
+   npm run verify:backend     # 后端：pytest
+   ```
+
+3. **完整验证（Level 3）**
+   ```
+   npm run verify:full        # 架构 + 类型 + build + 全量测试 + 严格文档
    ```
 
 4. **报告结果**

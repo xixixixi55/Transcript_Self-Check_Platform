@@ -1,0 +1,4 @@
+interface:
+  display_name: "OfficeCLI 文档生成"
+  short_description: "在项目中安全使用 officecli 生成和校验 DOCX"
+  default_prompt: "Use $officecli to generate or inspect a DOCX through the project's officecli service workflow."

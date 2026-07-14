@@ -3,7 +3,7 @@ name: harness-propose
 description: "创建需求变更包并按 Harness 架构约束编排。当用户想要开发新功能、提出新需求、开始新迭代、说'我要做 XX 功能'、'新增 XX'、'propose'时触发。"
 ---
 
-读取项目根目录的 `.codebuddy/commands/harness/propose.md` 获取详细执行协议，按其步骤执行 `/harness:propose` 的完整流程。
+读取项目根目录的 `.agents/commands/harness/propose.md` 获取详细执行协议，按其步骤执行 `/harness:propose` 的完整流程。
 
 **快速参考**（完整步骤见命令文件）：
 1. 读取 `AGENTS.md` + `harness/iteration-guide.md` + `harness/architecture.md`

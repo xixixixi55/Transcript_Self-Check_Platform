@@ -4,8 +4,9 @@ description: "创建需求变更包（需求定义 + 影响分析 + 任务拆解
 argument-hint: "<功能描述>"
 ---
 
-按 Harness Engineering 迭代闭环的 ① ② ③ 步骤创建需求变更包。
+按 Harness Engineering 迭代闭环的 ① ② ③ 步骤创建需求变更包（Level 3 完整流程入口）。
 内部调用 OpenSpec propose 完成变更包创建，并在其上注入 Harness 架构约束。
+**不覆盖根目录 AGENTS.md 的级别规则。**
 
 **前置读取**（MUST 在开始前阅读）：
 - `AGENTS.md` — 项目上下文、架构分层、命名约定

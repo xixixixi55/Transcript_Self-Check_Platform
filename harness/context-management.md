@@ -2,6 +2,10 @@
 
 > 可选增强模块。覆盖 Harness Engineering 两大支柱：**上下文架构**（支柱 1）+ **上下文隔离**（支柱 4）。
 > 适用场景：多 Agent 协作、长对话上下文管理、大型项目信息治理。
+>
+> **与命令读取的关系**：命令或 Skill 中的"前置读取"要求也必须遵守 `AGENTS.md` 的级别规则。
+> Level 1 不得因工具命令而被迫读取完整 Harness 和变更包。
+> Level 3 可以按完整前置列表读取。
 
 ---
 
@@ -16,20 +20,21 @@
 
 ### 信息优先级分层
 
-Agent 读取项目文件时 MUST 遵循以下优先级：
+Agent 读取项目文件时遵循以下优先级（按 `AGENTS.md` 的级别规则）：
 
 | 优先级 | 信息类型 | 示例 | 何时读取 |
 |:------:|---------|------|---------|
-| P0 | 当前 Task 的 Spec + 直接相关源文件 | spec.md, 目标文件 | 每个 Task 开始时 |
-| P1 | 架构约束 + 数据模型约束 | architecture.md, data-model.md | 每个 Phase 开始时 |
-| P2 | 项目导航 + 命名约定 | AGENTS.md | 每次对话开始时 |
-| P3 | 迭代记录 + 归档 | archive/ | 仅在排查问题时按需读取 |
+| P0 | 当前任务直接相关的源文件和测试 | 目标文件 | 每个任务开始时（全部级别） |
+| P1 | 架构约束（如涉及架构） | architecture.md | 涉及新建文件或跨层引用时 |
+| P2 | 项目导航 + 级别判断 | AGENTS.md | 不确定任务级别时 |
+| P3 | 完整 Harness 指南 + 迭代记录 | iteration-guide.md, archive/ | 仅 Level 3 或排查问题时按需 |
 
-### 延迟加载原则
+### 延迟加载原则（按级别）
 
-- **MUST**: 不要在 Task 开始时一次性读取所有 `harness/` 和 `openspec/` 文件
-- **MUST**: 先读取 `AGENTS.md` 导航，再按需读取具体文件
-- **SHOULD**: 每个 Task 只读取 P0 + P1 优先级的文件，P2 已在对话初始化时加载
+- **Level 1**：只读取直接相关代码和测试。不读取 `harness/iteration-guide.md` 或变更包文件。
+- **Level 2**：读取 `AGENTS.md` + 变更包 `tasks.md` + 按需读取 `harness/architecture.md`。
+- **Level 3**：按命令定义的前置读取列表完整加载。
+- **通用原则**：不要在 Task 开始时一次性读取所有 `harness/` 和 `openspec/` 文件；先读取 `AGENTS.md` 导航，再按需读取具体文件。
 
 ### 上下文健康指标（参考）
 

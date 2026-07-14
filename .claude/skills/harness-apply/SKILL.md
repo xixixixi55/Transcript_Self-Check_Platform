@@ -3,7 +3,7 @@ name: harness-apply
 description: "按任务清单开发，遵循 Harness 开发节奏和门控。当用户想要开始开发、执行任务、实现功能、说'开始写代码'、'apply'、'按任务开发'时触发。"
 ---
 
-读取项目根目录的 `.codebuddy/commands/harness/apply.md` 获取详细执行协议，按其步骤执行 `/harness:apply` 的完整流程。
+读取项目根目录的 `.claude/commands/harness/apply.md` 获取详细执行协议，按其步骤执行 `/harness:apply` 的完整流程。
 
 **快速参考**（完整步骤见命令文件）：
 1. 读取变更包 tasks.md + specs/ + design.md

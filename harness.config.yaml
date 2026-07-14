@@ -176,4 +176,5 @@ features:
   context_isolation: true
   enhanced_verification: false
   prompt_templates: false
-  code_review_agent: true
+  # 默认关闭。Level 3 或高风险任务（公共接口/核心数据模型/安全边界）可手动启用。
+  code_review_agent: false
