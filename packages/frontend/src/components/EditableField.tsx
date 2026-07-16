@@ -49,6 +49,13 @@ export default function EditableField({
     setDraft(value)
   }
 
+  const handleDisplayKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      enterEdit()
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && type !== 'textarea') save()
     if (e.key === 'Escape') cancel()
@@ -59,19 +66,12 @@ export default function EditableField({
     const isEmpty = !value
     return (
       <Text
+        className={`review-editable-display ${isEmpty ? 'review-editable-display--empty' : ''}`}
         onClick={enterEdit}
-        style={{
-          cursor: 'pointer',
-          padding: '4px 8px',
-          borderRadius: 4,
-          border: '1px solid transparent',
-          display: 'inline-block',
-          minWidth: 60,
-          color: isEmpty ? '#bfbfbf' : undefined,
-          fontStyle: isEmpty ? 'italic' : undefined,
-        }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = '#d9d9d9' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent' }}
+        onKeyDown={handleDisplayKeyDown}
+        tabIndex={0}
+        role="button"
+        aria-label={`${display}，按 Enter 编辑`}
       >
         {display} <EditOutlined style={{ fontSize: 12, marginLeft: 4, opacity: 0.4 }} />
       </Text>

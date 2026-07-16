@@ -6,7 +6,7 @@ import type { InspectionReport } from '@biji/shared/types'
 import { getDefaultExportFileName, normalizeDataSummary, normalizeExportFileName } from '@biji/shared/utils'
 
 interface UseRecordExportReturn {
-  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string) => Promise<void>
+  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string) => Promise<boolean>
   exporting: boolean
 }
 
@@ -50,8 +50,10 @@ export function useRecordExport(): UseRecordExportReturn {
       a.download = resolveExportFileName(report.document_number, fileName)
       a.click()
       window.URL.revokeObjectURL(url)
+      return true
     } catch (e: any) {
       alert('导出失败: ' + (e.response?.data?.detail || e.message))
+      return false
     } finally {
       setExporting(false)
     }

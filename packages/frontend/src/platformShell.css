@@ -1,0 +1,334 @@
+:root {
+  --review-primary: #2f6fa3;
+  --review-sidebar: #1e344c;
+  --review-page-bg: #f5f7fa;
+  --review-surface: #ffffff;
+  --review-border: #d9e0e7;
+  --review-text: #233142;
+  --review-muted: #667085;
+  --review-success: #36845a;
+  --review-warning: #a66a00;
+  --review-error: #b42318;
+  --review-focus: rgba(47, 111, 163, 0.24);
+}
+
+.platform-shell {
+  --platform-sidebar-width: 240px;
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--review-page-bg);
+}
+
+.platform-shell--collapsed {
+  --platform-sidebar-width: 64px;
+}
+
+.platform-shell__main {
+  height: 100vh;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  margin-left: var(--platform-sidebar-width);
+  overflow: hidden;
+  background: var(--review-page-bg);
+  transition: margin-left 160ms ease;
+}
+
+.platform-shell__topbar {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 28px;
+  color: var(--review-text);
+  background: var(--review-surface);
+  border-bottom: 1px solid var(--review-border);
+  flex-shrink: 0;
+}
+
+.platform-shell__topbar-context {
+  color: var(--review-muted);
+  font-size: 13px;
+}
+
+.platform-shell__topbar-title {
+  padding-left: 16px;
+  border-left: 1px solid var(--review-border);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.platform-shell__content {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  background: var(--review-page-bg);
+  position: relative;
+}
+
+.platform-sidebar {
+  position: fixed !important;
+  inset: 0 auto 0 0;
+  z-index: 100;
+  height: 100vh !important;
+  min-height: 100vh;
+  background: var(--review-sidebar) !important;
+}
+
+.platform-sidebar .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.platform-sidebar__brand {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.platform-sidebar__brand-mark {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.platform-sidebar .ant-menu {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 8px;
+  background: transparent;
+  border-inline-end: 0;
+}
+
+.platform-sidebar .ant-menu-item,
+.platform-sidebar .ant-menu-submenu-title {
+  min-height: 42px;
+  height: auto;
+  line-height: 20px;
+  display: flex;
+  align-items: center;
+  margin-block: 4px;
+  border-radius: 6px;
+}
+
+.platform-sidebar .ant-menu-item-selected,
+.platform-sidebar .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  background: var(--review-primary) !important;
+}
+
+.platform-sidebar .ant-menu-item-selected::after {
+  display: none;
+}
+
+.platform-sidebar .ant-menu-item-disabled {
+  opacity: 0.62;
+}
+
+.platform-sidebar a {
+  color: inherit;
+}
+
+.platform-sidebar__module-title {
+  display: inline-block;
+  width: 100%;
+}
+
+.platform-sidebar__unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
+
+.platform-sidebar__unavailable small {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.platform-sidebar__footer {
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.platform-sidebar__footer .ant-btn {
+  width: 100%;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.platform-sidebar__footer .ant-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.platform-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.platform-flow-page {
+  min-height: 100%;
+  padding: 32px;
+}
+
+.platform-page__eyebrow {
+  margin-bottom: 8px;
+  color: var(--review-muted);
+  font-size: 13px;
+}
+
+.platform-page h1 {
+  margin: 0 0 12px;
+  color: var(--review-text);
+  font-size: 28px;
+  line-height: 38px;
+}
+
+.platform-page__description {
+  max-width: 680px;
+  color: var(--review-muted);
+  font-size: 14px;
+}
+
+.platform-home__heading {
+  margin-bottom: 36px;
+}
+
+.platform-home__heading h1 {
+  max-width: 680px;
+}
+
+.platform-home__section-title {
+  margin: 0 0 16px !important;
+  color: var(--review-text) !important;
+  font-size: 18px !important;
+}
+
+.platform-feature-card,
+.platform-entry-card {
+  height: 100%;
+  border-color: var(--review-border);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(31, 52, 73, 0.05);
+}
+
+.platform-feature-card__link {
+  display: block;
+  height: 100%;
+  color: inherit;
+}
+
+.platform-feature-card__link:hover {
+  color: inherit;
+}
+
+.platform-feature-card--available:hover,
+.platform-entry-card:hover {
+  border-color: #a9c3d8;
+}
+
+.platform-feature-card .ant-card-body,
+.platform-entry-card .ant-card-body {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px;
+}
+
+.platform-feature-card h3,
+.platform-entry-card h3 {
+  margin: 10px 0 8px;
+  color: var(--review-text);
+  font-size: 16px;
+}
+
+.platform-feature-card p,
+.platform-entry-card p {
+  min-height: 42px;
+  margin-bottom: 16px;
+  color: var(--review-muted);
+  font-size: 13px;
+}
+
+.platform-feature-card__icon,
+.platform-entry-card__icon {
+  color: var(--review-primary);
+  font-size: 22px;
+}
+
+.platform-feature-card--unavailable {
+  background: #fafbfc;
+}
+
+.platform-feature-card--unavailable .platform-feature-card__icon,
+.platform-feature-card--unavailable h3 {
+  color: #8a95a3;
+}
+
+.platform-feature-card__status {
+  margin-top: auto;
+  color: var(--review-muted);
+  font-size: 12px;
+}
+
+.platform-module-page__entries {
+  margin-top: 28px;
+}
+
+.platform-device-page .ant-table-wrapper {
+  overflow-x: auto;
+}
+
+@media (max-width: 1050px) {
+  .platform-shell:not(.platform-shell--collapsed) .platform-sidebar {
+    width: 240px !important;
+  }
+
+  .platform-page {
+    padding: 24px;
+  }
+
+  .platform-flow-page {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 760px) {
+  .platform-shell__topbar {
+    padding-inline: 18px;
+  }
+
+  .platform-shell__topbar-context {
+    display: none;
+  }
+
+  .platform-shell__topbar-title {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .platform-page {
+    padding: 20px 16px;
+  }
+
+  .platform-flow-page {
+    padding: 20px 16px;
+  }
+}

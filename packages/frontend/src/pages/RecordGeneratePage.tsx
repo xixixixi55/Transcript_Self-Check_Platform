@@ -1,11 +1,12 @@
-// Layer 12: FE_Pages — 笔录生成主页面
-// REQ-007/017/018/019: click-to-edit 全字段审核编辑
-import React, { useState, useEffect } from 'react'
-import { Layout, Steps, Spin } from 'antd'
+// Layer 12: FE_Pages - 笔录生成主页面
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Spin, Steps } from 'antd'
 import type { InspectionReport } from '@biji/shared/types'
 import type { UploadFile } from 'antd'
 import { useReportParser } from '../hooks/useReportParser'
 import { useRecordExport } from '../hooks/useRecordExport'
+import { getReviewPendingItems } from '../hooks/useReviewChecklist'
+import { useReviewWorkspaceShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
 import {
   generateDocumentNumber,
   getDefaultExportFileName,
@@ -16,6 +17,10 @@ import {
 } from '@biji/shared/utils'
 import ReportUploadStep from '../components/ReportUploadStep'
 import RecordEditorForm from '../components/RecordEditorForm'
+import { ReviewPageHeader } from '../components/ReviewPageHeader'
+import { ReviewPendingSummary } from '../components/ReviewPendingSummary'
+import { ReviewPreviewDrawer } from '../components/ReviewPreviewDrawer'
+import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 
@@ -33,6 +38,10 @@ export default function RecordGeneratePage() {
   const [customFileName, setCustomFileName] = useState(false)
   const [exportFileName, setExportFileName] = useState('')
   const [exportFileNameError, setExportFileNameError] = useState('')
+  const [reviewStatus, setReviewStatus] = useState<ReviewPageStatus>('尚未修改')
+  const [hasPageChanges, setHasPageChanges] = useState(false)
+  const [saveBusy, setSaveBusy] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
     axios.get(API_ENDPOINTS.DEVICES).then(r => setDevices(r.data.data || []))
@@ -55,6 +64,9 @@ export default function RecordGeneratePage() {
       setExportFileName(getDefaultExportFileName(r.document_number))
       setCustomFileName(false)
       setExportFileNameError('')
+      setReviewStatus('尚未修改')
+      setHasPageChanges(false)
+      setPreviewOpen(false)
       setCurrentStep(1)
     }
   }, [result])
@@ -64,8 +76,8 @@ export default function RecordGeneratePage() {
     if (dirPath) await parseReport(dirPath, compress)
   }
 
-  const handleExport = () => {
-    if (!report) return
+  const handleExport = async () => {
+    if (!report || exporting) return false
 
     const dateErrors = [
       !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
@@ -73,8 +85,9 @@ export default function RecordGeneratePage() {
       report.attachments?.burning_date && !isValidDateFieldValue(report.attachments.burning_date) && '附件3刻录时间',
     ].filter(Boolean)
     if (dateErrors.length > 0) {
+      setReviewStatus('导出失败')
       alert(`请修正以下日期时间字段后再导出：${dateErrors.join('、')}`)
-      return
+      return false
     }
 
     const requestedFileName = customFileName ? exportFileName : getDefaultExportFileName(report.document_number)
@@ -82,13 +95,22 @@ export default function RecordGeneratePage() {
       const error = validateExportFileName(exportFileName)
       if (error) {
         setExportFileNameError(error)
+        setReviewStatus('导出失败')
         alert(error)
-        return
+        return false
       }
     }
 
-    const files = photoFiles.filter(f => f.originFileObj).map(f => f.originFileObj as File)
-    exportDocx(report, report.attachments?.photo_ids || [], files.length > 0 ? files : undefined, requestedFileName)
+    const files = photoFiles.filter(file => file.originFileObj).map(file => file.originFileObj as File)
+    setReviewStatus('导出中')
+    const success = await exportDocx(
+      report,
+      report.attachments?.photo_ids || [],
+      files.length > 0 ? files : undefined,
+      requestedFileName,
+    )
+    setReviewStatus(success ? '导出成功' : '导出失败')
+    return success
   }
 
   const handleCustomFileNameChange = (enabled: boolean) => {
@@ -109,46 +131,97 @@ export default function RecordGeneratePage() {
   const updateReport = (path: string, value: any) => {
     if (!report) return
     const keys = path.split('.')
-    const newReport = JSON.parse(JSON.stringify(report))
-    let obj: any = newReport
-    for (let i = 0; i < keys.length - 1; i++) obj = obj[keys[i]]
-    obj[keys[keys.length - 1]] = value
+    const newReport = JSON.parse(JSON.stringify(report)) as InspectionReport
+    let target: any = newReport
+    for (let index = 0; index < keys.length - 1; index += 1) target = target[keys[index]]
+    target[keys[keys.length - 1]] = value
     setReport(newReport)
+    setHasPageChanges(true)
+    setReviewStatus('存在未导出修改')
   }
 
-  // ─── Step 0: 上传 ───
+  const handleSave = useCallback(() => {
+    if (saveBusy) return
+    setSaveBusy(true)
+    setReviewStatus('当前页面修改已更新')
+    window.setTimeout(() => setSaveBusy(false), 350)
+  }, [saveBusy])
+
+  const handleBackToUpload = () => {
+    if (hasPageChanges && !window.confirm('当前页面存在未导出修改，确定返回重新上传吗？')) return
+    setPreviewOpen(false)
+    setReviewStatus('尚未修改')
+    setHasPageChanges(false)
+    setCurrentStep(0)
+  }
+
+  const pendingItems = useMemo(() => {
+    return report ? getReviewPendingItems(report, customFileName ? exportFileNameError : undefined) : []
+  }, [customFileName, exportFileNameError, report])
+
+  const navigateToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  useReviewWorkspaceShortcuts({
+    onSave: handleSave,
+    previewOpen,
+    onClosePreview: () => setPreviewOpen(false),
+    enabled: Boolean(report && currentStep === 1),
+  })
+
   if (currentStep === 0) {
     return (
-      <ReportUploadStep uploadMode={uploadMode} onModeChange={setUploadMode}
-        compress={compress} onCompressChange={setCompress} parsing={parsing} result={result}
-        onFolderUpload={handleFolderUpload}
-        onArchiveUpload={async (file) => { await parseArchive(file); return false }} />
+      <div className="platform-flow-page">
+        <ReportUploadStep
+          uploadMode={uploadMode}
+          onModeChange={setUploadMode}
+          compress={compress}
+          onCompressChange={setCompress}
+          parsing={parsing}
+          result={result}
+          onFolderUpload={handleFolderUpload}
+          onArchiveUpload={async file => { await parseArchive(file); return false }}
+        />
+      </div>
     )
   }
 
-  if (!report) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
+  if (!report) return <div className="platform-flow-page"><Spin size="large" style={{ display: 'block', margin: '100px auto' }} /></div>
 
-  // ─── Step 1: 审核编辑 ───
   return (
-    <Layout.Content style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-      <Steps current={1} style={{ marginBottom: 16 }}>
-        <Steps.Step title="上传报告" /><Steps.Step title="审核编辑" /><Steps.Step title="导出Word" />
-      </Steps>
-      <RecordEditorForm
-        report={report}
-        updateReport={updateReport}
-        onExport={handleExport}
-        exporting={exporting}
-        onBackToUpload={() => setCurrentStep(0)}
-        deviceOptions={devices.map(d => ({ label: d.name + ' (' + d.model + ')', value: d.name }))}
-        photoFiles={photoFiles}
-        onPhotoFilesChange={setPhotoFiles}
-        exportFileName={exportFileName}
-        customFileName={customFileName}
-        exportFileNameError={exportFileNameError}
-        onCustomFileNameChange={handleCustomFileNameChange}
-        onExportFileNameChange={handleExportFileNameChange}
-      />
-    </Layout.Content>
+    <>
+      <div className="review-page">
+        <ReviewPageHeader report={report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
+        <div className="review-steps" aria-label="当前步骤">
+          <Steps current={1}>
+            <Steps.Step title="上传报告" />
+            <Steps.Step title="审核编辑" />
+            <Steps.Step title="导出 Word" />
+          </Steps>
+        </div>
+        <ReviewPendingSummary items={pendingItems} onNavigate={navigateToSection} />
+        <RecordEditorForm
+          report={report}
+          updateReport={updateReport}
+          onExport={handleExport}
+          exporting={exporting || reviewStatus === '导出中'}
+          onBackToUpload={handleBackToUpload}
+          deviceOptions={devices.map(device => ({ label: `${device.name} (${device.model})`, value: device.name }))}
+          photoFiles={photoFiles}
+          onPhotoFilesChange={setPhotoFiles}
+          exportFileName={exportFileName}
+          customFileName={customFileName}
+          exportFileNameError={exportFileNameError}
+          onCustomFileNameChange={handleCustomFileNameChange}
+          onExportFileNameChange={handleExportFileNameChange}
+          saveStatus={reviewStatus}
+          saveBusy={saveBusy}
+          onSave={handleSave}
+          pendingItems={pendingItems}
+        />
+      </div>
+      <ReviewPreviewDrawer open={previewOpen} report={report} onClose={() => setPreviewOpen(false)} />
+    </>
   )
 }

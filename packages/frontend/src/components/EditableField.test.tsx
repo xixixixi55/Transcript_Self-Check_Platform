@@ -80,4 +80,12 @@ describe('EditableField', () => {
     render(<EditableField type="text" value="" onChange={vi.fn()} />)
     expect(screen.getByText('点击编辑')).toBeTruthy()
   })
+
+  it('展示态字段可通过 Tab 聚焦并用 Enter 进入编辑', () => {
+    render(<EditableField type="text" value="原始值" onChange={vi.fn()} />)
+    const display = screen.getByRole('button', { name: /原始值/ })
+    expect(display.getAttribute('tabindex')).toBe('0')
+    fireEvent.keyDown(display, { key: 'Enter' })
+    expect(screen.getByDisplayValue('原始值')).toBeTruthy()
+  })
 })

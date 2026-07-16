@@ -1,21 +1,20 @@
-// Layer 11: FE_Components — 笔录审核编辑表单
-// 从 RecordGeneratePage 提取，解决页面文件大小超标
+// Layer 11: FE_Components - 笔录审核编辑表单
 import React from 'react'
-import { Button, Checkbox, Input, Space, Steps, Typography, Divider, Alert } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { Alert, Checkbox, Input, Typography } from 'antd'
 import type { InspectionReport } from '@biji/shared/types'
 import type { UploadFile } from 'antd'
+import { ReviewActionBar } from './ReviewActionBar'
+import { ReviewAttachmentsSection } from './ReviewAttachmentsSection'
+import { ReviewField } from './ReviewField'
+import { ReviewInspectionSection } from './ReviewInspectionSection'
+import { ReviewIntroductionSection } from './ReviewIntroductionSection'
+import { ReviewSection } from './ReviewSection'
+import type { ReviewPageStatus } from './reviewWorkspaceTypes'
+import { REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
+import type { ReviewPendingItem } from '../hooks/useReviewChecklist'
 import EditableField from './EditableField'
-import EvidenceEditor from './EvidenceEditor'
-import InspectorEditor from './InspectorEditor'
-import ProcessStepsEditor from './ProcessStepsEditor'
-import SoftwareToolsList from './SoftwareToolsList'
-import ExtractListEditor from './ExtractListEditor'
-import ImageUploader from './ImageUploader'
-import { DateTimeField } from './DateTimeField'
-import { normalizeDataSummary } from '@biji/shared/utils'
 
-const { Title, Text } = Typography
+const { Title } = Typography
 
 interface Props {
   report: InspectionReport
@@ -31,145 +30,87 @@ interface Props {
   exportFileNameError?: string
   onCustomFileNameChange: (enabled: boolean) => void
   onExportFileNameChange: (value: string) => void
+  saveStatus?: ReviewPageStatus
+  saveBusy?: boolean
+  onSave?: () => void
+  pendingItems?: ReviewPendingItem[]
 }
 
-export default function RecordEditorForm(props: Props) {
-  const {
-    report, updateReport, onExport, exporting, onBackToUpload, deviceOptions, photoFiles, onPhotoFilesChange,
-    exportFileName, customFileName, exportFileNameError, onCustomFileNameChange, onExportFileNameChange,
-  } = props
-  const intro = report.introduction
-  const insp = report.inspection
-  const attach = report.attachments || { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' }
-
-  const sectionLabel: React.CSSProperties = { fontWeight: 600, marginBottom: 4, marginTop: 12 }
-  const sectionPad: React.CSSProperties = { padding: '4px 0 12px 0' }
-
-  const resultFields = [
-    ['检材编号', 'evidence_number'], ['软件名称', 'software_name'],
-    ['软件版本', 'software_version'], ['数据摘要', 'data_summary'],
-    ['RAR 文件名', 'rar_filename'], ['MD5 哈希', 'md5_hash'],
-    ['文件大小', 'file_size'],
-  ]
+export default function RecordEditorForm({
+  report,
+  updateReport,
+  onExport,
+  exporting,
+  onBackToUpload,
+  deviceOptions,
+  photoFiles,
+  onPhotoFilesChange,
+  exportFileName,
+  customFileName,
+  exportFileNameError,
+  onCustomFileNameChange,
+  onExportFileNameChange,
+  saveStatus = '尚未修改',
+  saveBusy = false,
+  onSave = () => undefined,
+  pendingItems = [],
+}: Props) {
+  const introduction = report.introduction
+  const attachments = report.attachments || { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' }
+  const countFor = (sectionId: string) => pendingItems.filter(item => item.sectionId === sectionId).length
 
   return (
-    <div style={{ background: '#fff', padding: 32, borderRadius: 8 }}>
-      <Title level={2} style={{ textAlign: 'center' }}>{report.title || '电子数据检查笔录'}</Title>
-
-      <div style={sectionLabel}>文号</div>
-      <EditableField type="text" value={report.document_number} onChange={v => updateReport('document_number', v)} />
-      <Alert message="注意修改文号！" type="warning" showIcon closable style={{ marginTop: 8, marginBottom: 8 }} />
-
-      <div style={sectionLabel}>导出文件名</div>
-      <Space direction="vertical" style={{ width: '100%' }} size={4}>
-        <Checkbox checked={customFileName} onChange={event => onCustomFileNameChange(event.target.checked)}>
-          自定义文件名
-        </Checkbox>
-        <Input
-          aria-label="导出文件名"
-          value={exportFileName}
-          disabled={!customFileName}
-          status={exportFileNameError ? 'error' : undefined}
-          onChange={event => onExportFileNameChange(event.target.value)}
-          placeholder="请输入不含或包含 .docx 的文件名"
-        />
-        {exportFileNameError && <Text type="danger">{exportFileNameError}</Text>}
-      </Space>
-
-      <Divider>一、绪论</Divider>
-      <LabeledField label="（一）委托单位" type="text" value={intro.entrust_unit}
-        onChange={v => updateReport('introduction.entrust_unit', v)} />
-      <LabeledField label="（二）委 托 人" type="text" value={(intro.entrust_persons || []).join('、')}
-        onChange={v => updateReport('introduction.entrust_persons', v.split(/[,，、]/).map(s => s.trim()).filter(Boolean))} />
-      <DateTimeField label="（三）委托时间" precision="date" value={intro.entrust_time}
-        onChange={v => updateReport('introduction.entrust_time', v)} />
-      <LabeledField label="（四）案件简要情况" type="textarea" value={intro.case_summary}
-        onChange={v => updateReport('introduction.case_summary', v)} />
-
-      <div style={sectionLabel}>（五）检材情况</div>
-      <div style={sectionPad}><EvidenceEditor items={intro.evidence_list || []}
-        onChange={v => updateReport('introduction.evidence_list', v)} /></div>
-
-      <LabeledField label="（六）检查要求" type="textarea" value={intro.inspection_requirement}
-        onChange={v => updateReport('introduction.inspection_requirement', v)} />
-      <DateTimeField label="（七）检查起止时间" precision="minute-range" value={intro.inspection_time_range}
-        onChange={v => updateReport('introduction.inspection_time_range', v)} />
-
-      <div style={sectionLabel}>（八）检查人员</div>
-      <div style={sectionPad}><InspectorEditor inspectors={intro.inspectors || []}
-        onChange={v => updateReport('introduction.inspectors', v)} /></div>
-
-      <LabeledField label="（九）检查地点" type="text" value={intro.inspection_place}
-        onChange={v => updateReport('introduction.inspection_place', v)} />
-
-      <Divider>二、检查</Divider>
-      <LabeledField label="（一）检查方法" type="textarea" value={insp.method}
-        onChange={v => updateReport('inspection.method', v)} />
-
-      <div style={sectionLabel}>（二）检查设备</div>
-      <div style={sectionPad}>
-        <Text strong style={{ display: 'block', marginBottom: 4 }}>1、硬件设备</Text>
-        <EditableField type="select" value={insp.hardware_device}
-          onChange={v => updateReport('inspection.hardware_device', v)} options={deviceOptions} />
-        <Text strong style={{ display: 'block', marginBottom: 4, marginTop: 12 }}>
-          {insp.software_tools?.length ? `2～${insp.software_tools.length + 1}、软件工具` : '2、软件工具'}
-        </Text>
-        <SoftwareToolsList tools={insp.software_tools || []}
-          onChange={v => updateReport('inspection.software_tools', v)} />
+    <div className="review-editor-form">
+      <div className="review-editor-form__title-row">
+        <div>
+          <Title level={2}>审核编辑</Title>
+          <p>请核对解析内容，点击字段值即可编辑；当前页面不会自动写入服务器。</p>
+        </div>
+        <span className="review-editor-form__document-number">文号：{report.document_number || '未填写'}</span>
       </div>
 
-      <div style={sectionLabel}>（三）检查过程</div>
-      <div style={sectionPad}><ProcessStepsEditor steps={insp.process_steps || []}
-        onChange={v => updateReport('inspection.process_steps', v)} /></div>
+      <ReviewSection id={REVIEW_SECTION_IDS.document} title="文书信息与导出设置" pendingCount={countFor(REVIEW_SECTION_IDS.document)}>
+        <ReviewField label="文号" type="text" value={report.document_number}
+          onChange={value => updateReport('document_number', value)} />
+        <Alert message="请谨慎修改文号，导出文件名会使用当前文号生成。" type="warning" showIcon />
+        <div className="review-export-settings">
+          <div className="review-field__label">导出文件名</div>
+          <Checkbox checked={customFileName} onChange={event => onCustomFileNameChange(event.target.checked)}>
+            自定义文件名
+          </Checkbox>
+          <Input
+            aria-label="导出文件名"
+            value={exportFileName}
+            disabled={!customFileName}
+            status={exportFileNameError ? 'error' : undefined}
+            onChange={event => onExportFileNameChange(event.target.value)}
+            placeholder="请输入不含或包含 .docx 的文件名"
+          />
+          {exportFileNameError && <span className="review-field__error">{exportFileNameError}</span>}
+        </div>
+      </ReviewSection>
 
-      <div style={sectionLabel}>（四）检查结果</div>
-      <div style={{ padding: '8px 16px', background: '#fafafa', borderRadius: 6 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size={8}>
-          {resultFields.map(([label, key]) => (
-            <div key={key}>
-              <Text type="secondary">{label}：</Text>
-              <EditableField type="text"
-                value={key === 'data_summary'
-                  ? normalizeDataSummary((insp.result as any)?.[key])
-                  : (insp.result as any)?.[key] || ''}
-                onChange={v => updateReport(`inspection.result.${key}`,
-                  key === 'data_summary' ? normalizeDataSummary(v) : v)} />
-            </div>
-          ))}
-        </Space>
-      </div>
+      <ReviewSection id={REVIEW_SECTION_IDS.introduction} title="一、绪论" pendingCount={countFor(REVIEW_SECTION_IDS.introduction)}>
+        <ReviewIntroductionSection introduction={introduction} updateReport={updateReport} />
+      </ReviewSection>
 
-      <Divider>附件</Divider>
-      <div style={sectionLabel}>附件1：电子数据提取固定清单</div>
-      <div style={sectionPad}><ExtractListEditor
-        tableData={attach.extract_list || { columns: [], rows: [] }}
-        onChange={v => updateReport('attachments.extract_list', v)} /></div>
+      <ReviewSection id={REVIEW_SECTION_IDS.inspection} title="二、检查" pendingCount={countFor(REVIEW_SECTION_IDS.inspection)}>
+        <ReviewInspectionSection inspection={report.inspection} updateReport={updateReport} deviceOptions={deviceOptions} />
+      </ReviewSection>
 
-      <div style={sectionLabel}>附件2：检材照片</div>
-      <div style={sectionPad}><ImageUploader photos={photoFiles} onChange={onPhotoFilesChange} /></div>
+      <ReviewSection id={REVIEW_SECTION_IDS.attachments} title="附件" pendingCount={countFor(REVIEW_SECTION_IDS.attachments)}>
+        <ReviewAttachmentsSection attachments={attachments} photoFiles={photoFiles}
+          onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport} />
+      </ReviewSection>
 
-      <LabeledField label="附件3：光盘编号" type="text" value={attach.disc_number}
-        onChange={v => updateReport('attachments.disc_number', v)} />
-      <DateTimeField label="附件3：刻录时间" precision="date" value={attach.burning_date || ''}
-        onChange={v => updateReport('attachments.burning_date', v)} />
-
-      <Divider />
-      <Space>
-        <Button type="primary" size="large" icon={<DownloadOutlined />}
-          onClick={onExport} loading={exporting}>导出 Word (.docx)</Button>
-        <Button size="large" onClick={onBackToUpload}>返回重新上传</Button>
-      </Space>
+      <ReviewActionBar
+        status={saveStatus}
+        saveBusy={saveBusy}
+        exporting={exporting}
+        onSave={onSave}
+        onBack={onBackToUpload}
+        onExport={onExport}
+      />
     </div>
   )
-}
-
-/** 局部辅助：标签 + EditableField 组合 */
-function LabeledField({ label, type, value, onChange, placeholder }: {
-  label: string; type: 'text' | 'textarea'; value: string;
-  onChange: (v: string) => void; placeholder?: string;
-}) {
-  return <>
-    <div style={{ fontWeight: 600, marginBottom: 4, marginTop: 12 }}>{label}</div>
-    <EditableField type={type} value={value} onChange={onChange} placeholder={placeholder} />
-  </>
 }

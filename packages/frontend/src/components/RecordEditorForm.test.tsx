@@ -21,7 +21,16 @@ vi.mock('antd', () => ({
   },
 }))
 
-vi.mock('@ant-design/icons', () => ({ DownloadOutlined: () => null }))
+vi.mock('@ant-design/icons', () => ({
+  CheckCircleOutlined: () => null,
+  DownloadOutlined: () => null,
+  EditOutlined: () => null,
+  ExclamationCircleOutlined: () => null,
+  InfoCircleOutlined: () => null,
+  LoadingOutlined: () => null,
+  SaveOutlined: () => null,
+  WarningOutlined: () => null,
+}))
 vi.mock('./EditableField', () => ({ default: (props: { value?: string; onChange?: (value: string) => void }) => (
   <input data-testid="editable-field" value={props.value || ''}
     onChange={event => props.onChange?.(event.target.value)} />
