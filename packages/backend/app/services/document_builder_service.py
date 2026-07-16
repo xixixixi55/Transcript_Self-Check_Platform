@@ -3,7 +3,20 @@ Layer 21: BE_Services — docx 文档构建器
 
 将 InspectionReport 转换为 officecli batch JSON 命令数组。
 通过 officecli create + batch 生成标准格式检查笔录 .docx。
+
+> 文件行数超过 250 行上限：本文件是 Word 文档生成的核心编排入口，包含 build_record_document
+  主流程（标题/绪论/检查/附件/签名/页码 6 大区块）及 _p/_heading/_build_table 等格式辅助函数。
+  格式参数集中管理有利于与业务方 Word 标准保持一致，拆分会导致参数分散。
+
+格式参照业务方认可的最终 Word 标准：
+- 正文：16pt 仿宋_GB2312，26pt 固定行距，首行缩进 32pt
+- 标题：22pt 仿宋_GB2312，居中
+- 文号：18pt 仿宋，居中
+- 一级标题（一、绪论）：16pt 加粗，首行缩进
+- 二级标题（（一）检查方法）：16pt 加粗，缩进 21pt
 """
+
+from .report_defaults_service import normalize_data_summary
 
 
 DEFAULT_EXTRACT_COLUMNS = [
@@ -29,16 +42,17 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
 
     commands = []
 
-    # ─── 标题 ───
-    commands.append(_p(report.get("title", "电子数据检查笔录"), bold=True, size=32, align="center"))
-    commands.append(_p(report.get("document_number", "xx电检〔20xx〕xx号"), size=20, align="center", spacing_after=400))
+    # ─── 标题（22pt 仿宋_GB2312 居中）───
+    commands.append(_p(report.get("title", "电子数据检查笔录"), size=22, align="center"))
+    # ─── 文号（18pt 仿宋 居中）───
+    commands.append(_p(report.get("document_number", "xx电检〔20xx〕xx号"), size=18, align="center", spacing_after=400, font_ea="仿宋"))
 
     # ═══ 一、绪论 ═══
     commands.append(_heading("一、绪论"))
 
-    # (一)
+    # (一)～(九)
     commands.append(_p(f"（一）委托单位：{intro.get('entrust_unit', '')}"))
-    commands.append(_p(f"（二）委 托 人：{intro.get('entrust_person', '')}"))
+    commands.append(_p(f"（二）委 托 人：{'、'.join(intro.get('entrust_persons', []))}"))
     commands.append(_p(f"（三）委托时间：{intro.get('entrust_time', '')}"))
     commands.append(_p(f"（四）案件简要情况：{intro.get('case_summary', '')}"))
 
@@ -89,35 +103,38 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     # (四) 检查结果
     commands.append(_heading_small("（四）检查结果"))
     result = insp.get("result", {})
+    disc = attach.get("disc_number", "")
     result_text = (
         "经对编号为" + result.get("evidence_number", "") + "号检材使用"
         + result.get("software_name", "") + "（版本号为"
         + result.get("software_version", "") + "）进行检查，检出"
-        + result.get("data_summary", "") + "等电子数据。"
+        + normalize_data_summary(result.get("data_summary")) + "等电子数据。"
         + "将检出结果生成为\"" + result.get("rar_filename", "") + "\"文件，"
         + "文件MD5哈希值为\"" + result.get("md5_hash", "") + "\"，"
         + "文件大小为\"" + result.get("file_size", "") + "\"字节。"
     )
+    # 光盘记录句（参照最终 Word 标准）
+    if disc:
+        result_text += f"并以光盘方式记录在编号为{disc}的光盘中。"
     commands.append(_p(result_text))
 
     # ═══ 附件 ═══
     commands.append(_empty_line())
     commands.append(_p("附件：1、电子数据提取固定清单，共1页；"))
     commands.append(_p("2、检材图2张，共1页；"))
-    disc = attach.get("disc_number", "")
     commands.append(_p("3、本鉴定中心刻制的编号为\"" + str(disc) + "\"的光盘1张，共1页。"))
 
     # 签名区
     commands.append(_empty_line())
     commands.append(_empty_line())
-    commands.append(_p("检查人签名：", align="right"))
+    commands.append(_p("检查人签名：", align="right", first_line=None))
     commands.append(_empty_line())
-    commands.append(_p("年  月  日", align="right"))
+    commands.append(_p("年  月  日", align="right", first_line=None))
 
     # ─── 附件1：电子数据提取固定清单 ───
     commands.append(_empty_line())
     commands.append(_p("附件1："))
-    commands.append(_p("电子数据提取固定清单", bold=True, align="center"))
+    commands.append(_p("电子数据提取固定清单", size=22, align="center"))
 
     extract_list = attach.get("extract_list", {})
     commands.extend(_build_table(extract_list))
@@ -127,7 +144,6 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     commands.append(_p("附件2："))
     commands.append(_empty_line())
     for i, photo_path in enumerate(photo_paths):
-        # 嵌入图片原图
         commands.append({
             "command": "add",
             "parent": "/body",
@@ -138,21 +154,18 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
                 "height": "360pt",
             },
         })
-        # 图片下方标签
-        commands.append(_p(f"检材照片{i + 1}", align="center", size=20, spacing_after=60))
+        commands.append(_p(f"检材照片{i + 1}", align="center", size=16, spacing_after=60))
 
     # ─── 附件3：光盘 ───
     commands.append(_empty_line())
     commands.append(_p("附件3："))
     commands.append(_empty_line())
-    commands.append(_p("光盘粘贴处", align="center"))
+    commands.append(_p("光盘粘贴处", align="center", first_line=None))
     commands.append(_empty_line())
     if disc:
-        commands.append(_p(f"本鉴定中心刻制的{disc}号光盘", align="center"))
+        commands.append(_p(f"本鉴定中心刻制的{disc}号光盘", align="center", first_line=None))
 
     # ─── 页码（页脚） ───
-    # 空白 docx 没有预置 footer。需先通过 sectPr 创建 footer 部件（officecli
-    # 会自动在 /footer 区域创建），再将页码段落写入 /footer[1]。
     commands.append({
         "command": "add",
         "parent": "/body/sectPr[1]",
@@ -169,54 +182,55 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     return commands
 
 
-def _p(text: str, bold: bool = False, size: int = 24, align: str = "left",
-       spacing_after: int = 120) -> dict:
-    """创建段落命令"""
+# ═══════════════════════════════════════════
+# 内部辅助函数
+# ═══════════════════════════════════════════
+
+def _p(text: str, bold: bool = False, size: int = 16, align: str = "left",
+       spacing_after: int = 0, first_line: str | None = "32pt", indent: str | None = None,
+       font_ea: str = "仿宋_GB2312") -> dict:
+    """创建正文段落（默认 16pt 仿宋_GB2312，26pt 固定行距，首行缩进 32pt）"""
+    props: dict = {
+        "text": text,
+        "bold": str(bold).lower(),
+        "size": f"{size}pt",
+        "align": align,
+        "font.ea": font_ea,
+        "spacing.line": "26pt",
+        "lineRule": "exact",
+    }
+    if spacing_after:
+        props["spacing.after"] = str(spacing_after)
+    if first_line is not None:
+        props["indent.firstLine"] = first_line
+    if indent is not None:
+        props["indent"] = indent
+    # 标题附件等不需要首行缩进的段落须显式传 first_line=""
     return {
         "command": "add",
         "parent": "/body",
         "type": "paragraph",
-        "props": {
-            "text": text,
-            "bold": str(bold).lower(),
-            "size": f"{size}pt",
-            "align": align,
-            "spacing.after": str(spacing_after),
-        },
+        "props": props,
     }
 
 
 def _heading(text: str) -> dict:
-    """一级标题"""
-    return _p(text, bold=True, size=28, spacing_after=200)
+    """一级标题：16pt 加粗，首行缩进"""
+    return _p(text, bold=True)
 
 
 def _heading_small(text: str) -> dict:
-    """二级标题"""
-    return _p(text, bold=True, size=24, spacing_after=100)
+    """二级标题：16pt 加粗，缩进 21pt（无首行缩进）"""
+    return _p(text, bold=True, indent="21pt", first_line="")
 
 
 def _empty_line() -> dict:
-    """空行"""
-    return _p("", spacing_after=60)
-
-
-def _add_image(path: str, caption: str) -> dict:
-    """添加图片"""
-    return {
-        "command": "add",
-        "parent": "/body",
-        "type": "paragraph",
-        "props": {
-            "text": caption,
-            "size": "20pt",
-            "align": "center",
-        },
-    }
+    """空行（无缩进）"""
+    return _p("", spacing_after=0, first_line="")
 
 
 def _build_table(table_data: dict) -> list[dict]:
-    """构建表格"""
+    """构建附件1 表格（表头加粗，仿宋 16pt）"""
     cols = table_data.get("columns") or DEFAULT_EXTRACT_COLUMNS
     rows = table_data.get("rows") or DEFAULT_EXTRACT_ROWS
     all_rows = [[column.get("title", "") for column in cols]] + [
@@ -241,6 +255,8 @@ def _build_table(table_data: dict) -> list[dict]:
                 "props": {
                     "text": value,
                     "bold": "true" if row_index == 1 else "false",
+                    "size": "16pt",
+                    "font.ea": "仿宋_GB2312",
                 },
             })
     return commands

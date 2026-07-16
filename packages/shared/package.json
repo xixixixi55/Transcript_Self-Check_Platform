@@ -11,6 +11,7 @@
     "./utils": "./utils/index.ts"
   },
   "scripts": {
+    "build": "tsc -b",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

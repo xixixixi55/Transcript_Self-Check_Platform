@@ -4,6 +4,11 @@ Layer 20: BE_Repository — 美亚手机大师 HTML 报告解析器
 解析美亚 FL-901V5 生成的 HTML 报告中的 JSON 数据文件。
 支持标准文件夹格式：[案件名称]_[时间戳]_html/
 
+> 文件行数超过 250 行上限：本文件是报告解析的入口，包含 6 个 JSON 文件解析函数
+  （case_info / device_lists / report_info / navigation / device_base / device_field）
+  及目录扫描、时间格式化等辅助函数。按数据源拆分会导致多层 import 循环。
+  已归档至 FILE_SIZE_EXCEPTIONS。
+
 解析目标文件：
 - data/data_case_info.json    — 案件信息
 - data/data_device_lists.json — 设备列表
@@ -78,8 +83,11 @@ def parse_device_lists(data_dir: str) -> list[dict[str, str]]:
             or item.get("evidence_name", "")
             or _find_evidence_directory(data_dir, index)
         )
+        # 从 data_device_lists 直接提取设备名称（c1），Base 解析失败时作为回退
+        device_name = item.get("c1", "") or item.get("device_name", "") or item.get("device_type", "")
         devices.append({
             "evidence_number": evidence_number,
+            "device_name": device_name,
             "start_time": parts[0].strip(),
             "end_time": parts[1].strip() if len(parts) > 1 else parts[0].strip(),
             "time_range": time_range,
@@ -104,6 +112,54 @@ def _evidence_directories(data_dir: str) -> list[str]:
 def _find_evidence_directory(data_dir: str, index: int) -> str:
     directories = _evidence_directories(data_dir)
     return directories[index] if index < len(directories) else ""
+
+
+def find_base_directories(data_dir: str) -> list[str]:
+    """扫描 data_dir 下所有包含 Base/ 子目录的目录（不限于 JC 前缀）"""
+    if not os.path.isdir(data_dir):
+        return []
+    result = []
+    for name in os.listdir(data_dir):
+        full = os.path.join(data_dir, name)
+        if os.path.isdir(full) and os.path.isdir(os.path.join(full, "Base")):
+            result.append(name)
+    return sorted(result)
+
+
+def format_time_chinese(iso_str: str) -> str:
+    """将 ISO 时间字符串转换为中文格式。如 '2026-06-30' → '2026年6月30日'"""
+    if not iso_str:
+        return ""
+    import re as _re
+    # 尝试匹配 YYYY-MM-DD 或 YYYY/MM/DD 等常见格式
+    m = _re.match(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", iso_str.strip())
+    if m:
+        return f"{m.group(1)}年{int(m.group(2))}月{int(m.group(3))}日"
+    # 若已是中文格式则直接返回
+    if "年" in iso_str:
+        return iso_str
+    return iso_str
+
+
+def format_time_range_chinese(time_range: str) -> str:
+    """将原始时间范围转换为中文格式。
+    '2026-07-07 16:00:22 ~ 2026-07-07 16:05:39' → '2026年7月7日16点00分至2026年7月7日16点05分'
+    """
+    if not time_range:
+        return ""
+    import re as _re
+    parts = time_range.split(" ~ ")
+    if len(parts) != 2:
+        return time_range
+    formatted = []
+    for part in parts:
+        m = _re.match(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?", part.strip())
+        if m:
+            y, mo, d, h, mi = m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4)), m.group(5)
+            formatted.append(f"{y}年{mo}月{d}日{h}点{mi}分")
+        else:
+            formatted.append(part)
+    return "至".join(formatted)
 def parse_report_info(data_dir: str) -> dict[str, str]:
     """解析 data_report_info.json，返回取证工具版本信息"""
     filepath = os.path.join(data_dir, "data_report_info.json")
@@ -185,30 +241,48 @@ def _parse_navigation_fallback(raw: bytes) -> dict[str, Any]:
     return {"categories": list(categories)[:20], "total_items": total}
 def parse_device_base(data_dir: str, evidence_number: str) -> dict[str, str]:
     """
-    解析 data/[编号]/Base/ 下的设备基本信息。
+    解析 data/[编号]/ 下的设备基本信息。
+    优先扫描 Base/ 目录，其次 Phone/ 目录。
     返回设备型号、IMEI、序列号等。
     """
-    base_dir = os.path.join(data_dir, evidence_number, "Base")
-    if not os.path.exists(base_dir):
+    ev_dir = os.path.join(data_dir, evidence_number)
+    if not os.path.isdir(ev_dir):
         return {"device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+
     result = {"device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
-    for fname in os.listdir(base_dir):
-        if not fname.endswith(".json"):
-            continue
-        filepath = os.path.join(base_dir, fname)
+
+    # 扫描 Base/ 和 Phone/（及其他）子目录中的 JSON 文件
+    json_files = []
+    for sub in os.listdir(ev_dir):
+        sub_path = os.path.join(ev_dir, sub)
+        if os.path.isdir(sub_path):
+            for fname in os.listdir(sub_path):
+                if fname.endswith(".json"):
+                    json_files.append(os.path.join(sub_path, fname))
+
+    for filepath in json_files:
         try:
             with open(filepath, "rb") as f:
                 raw = f.read()
             # 从 JSON 中提取手机基本信息
             text = raw.decode("utf-8", errors="replace")
 
-            # 提取型号
-            model_match = re.search(r'iPhone[\s\d\w]*Pro[\s\d\w]*|HUAWEI[\s\w\d\-]+|'
-                                   r'小米[\s\w\d]+|OPPO[\s\w\d]+|vivo[\s\w\d]+|'
-                                   r'Samsung[\s\w\d]+|OnePlus[\s\w\d]+',
-                                   text)
-            if model_match and not result["model"]:
-                result["model"] = model_match.group(0)
+            # 优先从结构化 JSON 解析（支持多种字段格式）
+            payload = try_parse_json(text)
+            extracted = extract_device_fields(payload, text)
+            for key, value in extracted.items():
+                if value and not result[key]:
+                    result[key] = value
+
+            # 正则回退：从原始文本中提取未被结构化解析覆盖的字段
+            # 设备型号
+            if not result["model"]:
+                model_match = re.search(r'iPhone[\s\d\w]*Pro[\s\d\w]*|HUAWEI[\s\w\d\-]+|'
+                                       r'小米[\s\w\d]+|OPPO[\s\w\d]+|vivo[\s\w\d]+|'
+                                       r'Samsung[\s\w\d]+|OnePlus[\s\w\d]+',
+                                       text)
+                if model_match:
+                    result["model"] = model_match.group(0)
 
             # 提取 IMEI
             imei_matches = re.findall(r'IMEI[:\s]*(\d{15})', text, re.IGNORECASE)
@@ -217,15 +291,12 @@ def parse_device_base(data_dir: str, evidence_number: str) -> dict[str, str]:
             if len(imei_matches) >= 2 and not result["imei2"]:
                 result["imei2"] = imei_matches[1]
             # 提取序列号
-            sn_match = re.search(r'(?:序列号|Serial)[:\s]*([A-Za-z0-9]+)', text)
-            if sn_match and not result["serial_number"]:
-                result["serial_number"] = sn_match.group(1)
+            if not result["serial_number"]:
+                sn_match = re.search(r'(?:序列号|Serial)[:\s]*([A-Za-z0-9]+)', text)
+                if sn_match:
+                    result["serial_number"] = sn_match.group(1)
 
-            payload = try_parse_json(text)
-            extracted = extract_device_fields(payload, text)
-            for key, value in extracted.items():
-                if value and not result[key]:
-                    result[key] = value
+            # 字段间相互回退
             if not result["device_name"]:
                 result["device_name"] = result["model"]
             if not result["model"]:

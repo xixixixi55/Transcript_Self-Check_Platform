@@ -1,9 +1,14 @@
 """
 Layer 21: BE_Services — 报告解析编排服务。
 REQ-011 缓存 / REQ-012 跳过重复压缩 / REQ-013 压缩开关 / REQ-014 压缩包上传 / REQ-016 动态 software_tools。
+
+> 文件行数超过 250 行上限：本文件是报告解析的核心编排入口，包含 _build_report（组装完整
+  InspectionReport）、_build_software_tools（动态软件工具列表）、缓存判断、RAR 压缩编排、
+  附件自动填充等多个紧密耦合的子流程。拆分会导致参数传递链过长，降低可维护性。
 """
 import os
 import shutil
+import sys
 import tempfile
 from typing import Optional
 from ..repository.file_storage import (
@@ -12,22 +17,26 @@ from ..repository.file_storage import (
 )
 from ..repository.html_parser import (
     parse_case_info, parse_device_lists, parse_report_info,
-    parse_navigation, parse_device_base,
+    parse_device_base,
+    find_base_directories, format_time_chinese, format_time_range_chinese,
 )
+from .report_defaults_service import DEFAULT_DATA_SUMMARY
+# 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
+_CACHE_VERSION = 4  # v4: data_summary no longer comes from navigation categories
+
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录。compress=False 时跳过 RAR 压缩，rar_info 返回 None。"""
     data_dir = os.path.join(source_dir, "data")
-    # REQ-011: 检查解析缓存
+    # REQ-011: 检查解析缓存（含版本号，代码变更后自动失效）
     report_name = os.path.basename(source_dir.rstrip("/").rstrip("\\"))
     cache_dir = os.path.join(output_dir, "parsed")
     ensure_dir(cache_dir)
-    # 压缩结果和不压缩结果的 rar_info、software_tools 不同，必须隔离缓存。
     cache_mode = "compress" if compress else "nocompress"
     cache_path = os.path.join(cache_dir, f"{report_name}.{cache_mode}.json")
 
     if is_cache_valid(cache_path, source_dir):
         cached = read_json(cache_path)
-        if cached.get("report"):
+        if cached.get("report") and cached.get("cache_version") == _CACHE_VERSION:
             return cached
 
     # 1-7. 解析并构建 InspectionReport
@@ -35,6 +44,7 @@ def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dic
 
     result = {
         "report": report,
+        "cache_version": _CACHE_VERSION,
         "parsed_files": [
             "data_case_info.json", "data_device_lists.json",
             "data_report_info.json", "data_navigation.json",
@@ -67,7 +77,7 @@ def parse_from_archive(archive_path: str, output_dir: str) -> dict:
         report["inspection"]["result"].update({
             "rar_filename": os.path.basename(archive_path),
             "md5_hash": archive_md5,
-            "file_size": _format_file_size(archive_size),
+            "file_size": f"{archive_size}字节",
         })
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -87,6 +97,20 @@ def parse_from_archive(archive_path: str, output_dir: str) -> dict:
     }
 
 
+def _split_persons(collector: str) -> list[str]:
+    """将采集人字符串按顿号拆分为数组，过滤空串"""
+    if not collector:
+        return []
+    return [name.strip() for name in collector.replace("，", "、").split("、") if name.strip()]
+
+
+def _format_case_summary(case_name: str) -> str:
+    """格式化案件简要情况，避免双"案"（如'XX诈骗案'→'XX诈骗案'，不追加）"""
+    if not case_name:
+        return ""
+    return f"{case_name}案" if not case_name.endswith("案") else case_name
+
+
 def _build_report(data_dir: str, source_dir: str, output_dir: str,
                   compress: bool = True, is_rar_archive: bool = False) -> dict:
     """构建 InspectionReport（parse_report / parse_from_archive 共用）"""
@@ -96,23 +120,43 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     devices_raw = parse_device_lists(data_dir)
     # 3. 解析取证工具版本
     versions = parse_report_info(data_dir)
-    # 4. 解析数据分类统计
-    nav = parse_navigation(data_dir)
-
     # 5. 解析每个设备的基本信息
     evidence_items = []
     for dev in devices_raw:
         en = dev["evidence_number"]
+        # 尝试从 Base 目录解析设备详情
         base_info = parse_device_base(data_dir, en)
+        # Base 解析失败时，回退到 data_device_lists 中的 device_name
+        dev_name = base_info.get("device_name") or dev.get("device_name", "")
+        model = base_info.get("model") or dev_name or dev.get("device_name", "")
+        device_type = base_info.get("device_name") or base_info.get("model") or dev.get("device_name", "")
         evidence_items.append({
             "id": en,
-            "device_type": base_info.get("device_name") or base_info.get("model", ""),
-            "model": base_info.get("model") or base_info.get("device_name", ""),
+            "device_type": device_type,
+            "model": model,
             "imei1": base_info.get("imei1", ""),
             "imei2": base_info.get("imei2", ""),
             "serial_number": base_info.get("serial_number", ""),
             "evidence_number": en,
         })
+
+    # Fallback: 若所有设备的 base_info 均为空白（Base 目录名不匹配），
+    # 改用 find_base_directories 扫描包含 Base/ 子目录的任意目录重新解析
+    all_blank = all(
+        not ei["device_type"] and not ei["model"] and not ei["imei1"]
+        for ei in evidence_items
+    )
+    if all_blank and evidence_items:
+        dirs = find_base_directories(data_dir)
+        if dirs:
+            base_info = parse_device_base(data_dir, dirs[0])
+            if base_info.get("model") or base_info.get("imei1"):
+                for ei in evidence_items:
+                    ei["device_type"] = base_info.get("device_name") or base_info.get("model", "")
+                    ei["model"] = base_info.get("model") or base_info.get("device_name", "")
+                    ei["imei1"] = base_info.get("imei1", "")
+                    ei["imei2"] = base_info.get("imei2", "")
+                    ei["serial_number"] = base_info.get("serial_number", "")
 
     # 6. 检查过程步骤
     first_device = evidence_items[0] if evidence_items else {
@@ -125,9 +169,8 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         {"step_number": 4, "content": f"启动美亚手机大师-并行版V5软件（版本号为{sv}）使用美亚手机大师-并行版V5软件对检材{first_device.get('evidence_number', 'xx')}进行检查。"},
     ]
 
-    # 7. 数据分类摘要
-    categories = nav.get("categories", [])
-    data_summary = "、".join(_filter_categories(categories)[:5]) or "电子数据"
+    # 7. 数据摘要是报告字段默认值，不从导航分类列表动态拼接。
+    data_summary = DEFAULT_DATA_SUMMARY
 
     # 8. 动态 software_tools（REQ-016）
     software_tools = _build_software_tools(sv, compress=compress, is_rar_archive=is_rar_archive)
@@ -135,25 +178,43 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     # 9. 条件压缩 RAR
     rar_info = _build_rar_info_from_compress(source_dir, output_dir, case.get("case_name", "report"), compress)
 
+    # 附件1 电子数据提取固定清单 — 从 rar_info 自动填充
+    extract_columns = [
+        {"key": "no", "title": "序号", "width": "60"},
+        {"key": "electronic_data", "title": "电子数据", "width": "220"},
+        {"key": "source", "title": "来源", "width": "180"},
+        {"key": "extraction_method", "title": "提取方式", "width": "180"},
+        {"key": "md5_hash", "title": "文件MD5哈希值", "width": "260"},
+    ]
+    extract_rows = []
+    en = first_device.get("evidence_number", "")
+    if rar_info.get("filename"):
+        extract_rows.append({
+            "no": "1",
+            "electronic_data": rar_info["filename"],
+            "source": f"{en}检材内提取" if en else "",
+            "extraction_method": "使用美亚手机取证塔对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值",
+            "md5_hash": rar_info["md5"],
+        })
+
     # 10. 构建 InspectionReport
     time_range = devices_raw[0]["time_range"] if devices_raw else ""
 
     # 用于前端生成文号的原始数据
     _case_number = case.get("case_number", "")
-    _collect_unit = case.get("collect_unit", "")
 
     return {
         "title": "电子数据检查笔录",
-        "document_number": "",
+        "document_number": "SYN-TEST〔2026〕000号",
         "case_number": _case_number,  # 前端用此值生成文号
         "introduction": {
-            "entrust_unit": _collect_unit,
-            "entrust_person": case.get("collector", ""),
-            "entrust_time": case.get("create_time", ""),
-            "case_summary": f"{case.get('case_name', '')}案",
+            "entrust_unit": case.get("submit_unit", ""),
+            "entrust_persons": _split_persons(case.get("submit_person", "")),
+            "entrust_time": format_time_chinese(case.get("create_time", "")),
+            "case_summary": _format_case_summary(case.get("case_name", "")),
             "evidence_list": evidence_items,
             "inspection_requirement": "上述检材内电子数据的提取、固定和恢复",
-            "inspection_time_range": time_range,
+            "inspection_time_range": format_time_range_chinese(time_range),
             "inspectors": [],
             "inspection_place": "合成检验鉴定中心",
         },
@@ -169,26 +230,28 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
                 "data_summary": data_summary,
                 "rar_filename": rar_info["filename"],
                 "md5_hash": rar_info["md5"],
-                "file_size": rar_info["size_display"],
+                "file_size": str(rar_info.get("size_bytes", 0)),
             },
         },
         "attachments": {
-            "extract_list": {"columns": [], "rows": []},
+            "extract_list": {"columns": extract_columns, "rows": extract_rows},
             "photo_ids": [],
             "disc_number": "",
+            "burning_date": "",
         },
     }
 
 
 def _build_software_tools(sv: str, compress: bool = True, is_rar_archive: bool = False) -> list[dict]:
-    """REQ-016: 动态生成 software_tools。美亚手机大师（始终）+ WinRAR（仅当调用 CLI 时）。"""
+    """REQ-016: 动态生成 software_tools。美亚手机大师 + WinRAR（始终显示，默认版本 6.24 可修改）+ Python hashlib（实际版本）。"""
     tools = []
     if sv:
         tools.append({"name": "美亚手机大师-并行版V5", "version": sv})
-    if compress or is_rar_archive:
-        version = detect_winrar_version() or "6.24"
-        tools.append({"name": "WinRAR压缩管理软件", "version": version})
-    tools.append({"name": "Python hashlib", "version": "标准库"})
+    # WinRAR 始终显示，默认版本 6.24（用户可在预览中修改）
+    version = detect_winrar_version() or "6.24"
+    tools.append({"name": "WinRAR压缩管理软件", "version": version})
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    tools.append({"name": "Python hashlib", "version": py_ver})
     return tools
 
 

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"pnpm --filter @biji/frontend dev\" \"pnpm --filter @biji/backend dev\"",
     "build": "pnpm --filter @biji/frontend build",
-    "typecheck": "pnpm --filter @biji/shared typecheck && pnpm --filter @biji/frontend typecheck",
+    "typecheck": "pnpm --filter @biji/shared build && pnpm --filter @biji/shared typecheck && pnpm --filter @biji/frontend typecheck",
     "lint:arch": "npx tsx scripts/lint-arch.ts",
     "test:frontend": "pnpm --filter @biji/frontend test",
     "test:backend": "pnpm --filter @biji/backend test",

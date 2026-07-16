@@ -3,20 +3,39 @@ import { useState, useCallback } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import type { InspectionReport } from '@biji/shared/types'
+import { getDefaultExportFileName, normalizeDataSummary, normalizeExportFileName } from '@biji/shared/utils'
 
 interface UseRecordExportReturn {
-  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[]) => Promise<void>
+  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string) => Promise<void>
   exporting: boolean
+}
+
+export function resolveExportFileName(documentNumber: string, requestedFileName?: string): string {
+  return requestedFileName
+    ? normalizeExportFileName(requestedFileName)
+    : getDefaultExportFileName(documentNumber)
 }
 
 export function useRecordExport(): UseRecordExportReturn {
   const [exporting, setExporting] = useState(false)
 
-  const exportDocx = useCallback(async (report: InspectionReport, photoIds: string[], photoFiles?: File[]) => {
+  const exportDocx = useCallback(async (
+    report: InspectionReport,
+    photoIds: string[],
+    photoFiles?: File[],
+    fileName?: string,
+  ) => {
     setExporting(true)
     try {
       const formData = new FormData()
-      formData.append('report_json', JSON.stringify({ ...report, attachments: { ...report.attachments, photo_ids: photoIds } }))
+      const normalizedReport = JSON.parse(JSON.stringify(report)) as InspectionReport
+      normalizedReport.inspection.result.data_summary = normalizeDataSummary(
+        normalizedReport.inspection.result.data_summary,
+      )
+      formData.append('report_json', JSON.stringify({
+        ...normalizedReport,
+        attachments: { ...normalizedReport.attachments, photo_ids: photoIds },
+      }))
       // 附加图片文件
       if (photoFiles) {
         photoFiles.forEach(f => formData.append('photos', f))
@@ -28,7 +47,7 @@ export function useRecordExport(): UseRecordExportReturn {
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const a = document.createElement('a')
       a.href = url
-      a.download = `${report.document_number || '检查笔录'}.docx`
+      a.download = resolveExportFileName(report.document_number, fileName)
       a.click()
       window.URL.revokeObjectURL(url)
     } catch (e: any) {

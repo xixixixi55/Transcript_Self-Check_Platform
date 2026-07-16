@@ -73,7 +73,7 @@ export interface InspectionReport {
   case_number?: string                   // 案件编号（从报告解析），用于生成文号
   introduction: {
     entrust_unit: string                 // (一) 委托单位
-    entrust_person: string               // (二) 委托人
+    entrust_persons: string[]            // (二) 委托人（多人，顿号分隔展示）
     entrust_time: string                 // (三) 委托时间
     case_summary: string                 // (四) 案件简要情况
     evidence_list: EvidenceItem[]        // (五) 检材情况
@@ -93,6 +93,7 @@ export interface InspectionReport {
     extract_list: TableData              // 附件1: 电子数据提取固定清单
     photo_ids: string[]                  // 附件2: 已上传检材照片 ID 列表
     disc_number: string                  // 附件3: 光盘编号
+    burning_date?: string                // 附件3: 刻录时间（民警填写）
   }
 }
 

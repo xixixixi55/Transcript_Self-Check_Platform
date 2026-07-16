@@ -1,7 +1,7 @@
 // Layer 11: FE_Components — 笔录审核编辑表单
 // 从 RecordGeneratePage 提取，解决页面文件大小超标
 import React from 'react'
-import { Button, Space, Steps, Typography, Divider, Alert } from 'antd'
+import { Button, Checkbox, Input, Space, Steps, Typography, Divider, Alert } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import type { InspectionReport } from '@biji/shared/types'
 import type { UploadFile } from 'antd'
@@ -12,6 +12,8 @@ import ProcessStepsEditor from './ProcessStepsEditor'
 import SoftwareToolsList from './SoftwareToolsList'
 import ExtractListEditor from './ExtractListEditor'
 import ImageUploader from './ImageUploader'
+import { DateTimeField } from './DateTimeField'
+import { normalizeDataSummary } from '@biji/shared/utils'
 
 const { Title, Text } = Typography
 
@@ -24,10 +26,18 @@ interface Props {
   deviceOptions: { label: string; value: string }[]
   photoFiles: UploadFile[]
   onPhotoFilesChange: (files: UploadFile[]) => void
+  exportFileName: string
+  customFileName: boolean
+  exportFileNameError?: string
+  onCustomFileNameChange: (enabled: boolean) => void
+  onExportFileNameChange: (value: string) => void
 }
 
 export default function RecordEditorForm(props: Props) {
-  const { report, updateReport, onExport, exporting, onBackToUpload, deviceOptions, photoFiles, onPhotoFilesChange } = props
+  const {
+    report, updateReport, onExport, exporting, onBackToUpload, deviceOptions, photoFiles, onPhotoFilesChange,
+    exportFileName, customFileName, exportFileNameError, onCustomFileNameChange, onExportFileNameChange,
+  } = props
   const intro = report.introduction
   const insp = report.inspection
   const attach = report.attachments || { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' }
@@ -50,13 +60,29 @@ export default function RecordEditorForm(props: Props) {
       <EditableField type="text" value={report.document_number} onChange={v => updateReport('document_number', v)} />
       <Alert message="注意修改文号！" type="warning" showIcon closable style={{ marginTop: 8, marginBottom: 8 }} />
 
+      <div style={sectionLabel}>导出文件名</div>
+      <Space direction="vertical" style={{ width: '100%' }} size={4}>
+        <Checkbox checked={customFileName} onChange={event => onCustomFileNameChange(event.target.checked)}>
+          自定义文件名
+        </Checkbox>
+        <Input
+          aria-label="导出文件名"
+          value={exportFileName}
+          disabled={!customFileName}
+          status={exportFileNameError ? 'error' : undefined}
+          onChange={event => onExportFileNameChange(event.target.value)}
+          placeholder="请输入不含或包含 .docx 的文件名"
+        />
+        {exportFileNameError && <Text type="danger">{exportFileNameError}</Text>}
+      </Space>
+
       <Divider>一、绪论</Divider>
       <LabeledField label="（一）委托单位" type="text" value={intro.entrust_unit}
         onChange={v => updateReport('introduction.entrust_unit', v)} />
-      <LabeledField label="（二）委 托 人" type="text" value={intro.entrust_person}
-        onChange={v => updateReport('introduction.entrust_person', v)} />
-      <LabeledField label="（三）委托时间" type="text" value={intro.entrust_time}
-        onChange={v => updateReport('introduction.entrust_time', v)} placeholder="如: 2026年7月7日" />
+      <LabeledField label="（二）委 托 人" type="text" value={(intro.entrust_persons || []).join('、')}
+        onChange={v => updateReport('introduction.entrust_persons', v.split(/[,，、]/).map(s => s.trim()).filter(Boolean))} />
+      <DateTimeField label="（三）委托时间" precision="date" value={intro.entrust_time}
+        onChange={v => updateReport('introduction.entrust_time', v)} />
       <LabeledField label="（四）案件简要情况" type="textarea" value={intro.case_summary}
         onChange={v => updateReport('introduction.case_summary', v)} />
 
@@ -66,7 +92,7 @@ export default function RecordEditorForm(props: Props) {
 
       <LabeledField label="（六）检查要求" type="textarea" value={intro.inspection_requirement}
         onChange={v => updateReport('introduction.inspection_requirement', v)} />
-      <LabeledField label="（七）检查起止时间" type="text" value={intro.inspection_time_range}
+      <DateTimeField label="（七）检查起止时间" precision="minute-range" value={intro.inspection_time_range}
         onChange={v => updateReport('introduction.inspection_time_range', v)} />
 
       <div style={sectionLabel}>（八）检查人员</div>
@@ -102,8 +128,12 @@ export default function RecordEditorForm(props: Props) {
           {resultFields.map(([label, key]) => (
             <div key={key}>
               <Text type="secondary">{label}：</Text>
-              <EditableField type="text" value={(insp.result as any)?.[key] || ''}
-                onChange={v => updateReport(`inspection.result.${key}`, v)} />
+              <EditableField type="text"
+                value={key === 'data_summary'
+                  ? normalizeDataSummary((insp.result as any)?.[key])
+                  : (insp.result as any)?.[key] || ''}
+                onChange={v => updateReport(`inspection.result.${key}`,
+                  key === 'data_summary' ? normalizeDataSummary(v) : v)} />
             </div>
           ))}
         </Space>
@@ -120,6 +150,8 @@ export default function RecordEditorForm(props: Props) {
 
       <LabeledField label="附件3：光盘编号" type="text" value={attach.disc_number}
         onChange={v => updateReport('attachments.disc_number', v)} />
+      <DateTimeField label="附件3：刻录时间" precision="date" value={attach.burning_date || ''}
+        onChange={v => updateReport('attachments.burning_date', v)} />
 
       <Divider />
       <Space>

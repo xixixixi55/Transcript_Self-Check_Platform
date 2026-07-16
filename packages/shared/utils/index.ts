@@ -1,4 +1,7 @@
 // Layer 2: SharedUtils — 前后端共享的纯函数工具
+import { DEFAULT_DATA_SUMMARY } from '../constants'
+export * from './exportFileNameUtils'
+export * from './dateTimeUtils'
 
 /** 验证是否为有效的 ISO 8601 日期字符串 */
 export function isValidISODate(str: string): boolean {
@@ -69,9 +72,14 @@ function pad(n: number): string {
  * 根据设备数量和数据分类统计生成数据摘要
  * 如: "即时通讯、手机信息"
  */
-export function generateDataSummary(categories: string[]): string {
-  const unique = [...new Set(categories)].filter(Boolean)
-  return unique.slice(0, 5).join('、') || '电子数据'
+export function normalizeDataSummary(value: unknown): string {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  return normalized || DEFAULT_DATA_SUMMARY
+}
+
+/** 数据分类导航不属于用户编辑的摘要字段，默认摘要固定为甲方要求值。 */
+export function generateDataSummary(_categories: string[]): string {
+  return DEFAULT_DATA_SUMMARY
 }
 
 /**

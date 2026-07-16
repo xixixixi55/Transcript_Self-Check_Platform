@@ -33,6 +33,9 @@ export const SUPPORTED_INPUT_FORMATS = ['.html', '.htm']
 /** 输出文件格式 */
 export const OUTPUT_FORMAT = '.docx'
 
+/** 数据摘要默认值：仅用于缺失或空白输入，数据分类列表不直接映射到该字段 */
+export const DEFAULT_DATA_SUMMARY = '即时通讯、手机信息'
+
 /** 支持的图片上传格式 */
 export const SUPPORTED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png']
 

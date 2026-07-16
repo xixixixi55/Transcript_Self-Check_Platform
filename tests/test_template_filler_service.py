@@ -1,0 +1,150 @@
+"""模板填充回归测试：VML、默认数据摘要和附件分页。"""
+
+import os
+import struct
+import sys
+import zipfile
+import zlib
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
+
+from app.services.template_filler_service import _flatten_report, fill_template
+
+
+_ROOT = Path(__file__).parents[1]
+_TEMPLATE = _ROOT / "word_templates" / "template.docx"
+_DEFAULT_SUMMARY = "即时通讯、手机信息"
+
+
+def _report(data_summary_marker=...):
+    result = {
+        "evidence_number": "JC01",
+        "software_name": "测试工具",
+        "software_version": "1.0",
+        "rar_filename": "case.rar",
+        "md5_hash": "a" * 32,
+        "file_size": "123",
+    }
+    if data_summary_marker is not ...:
+        result["data_summary"] = data_summary_marker
+    return {
+        "title": "电子数据检查笔录",
+        "document_number": "SYN-TEST〔2026〕000号",
+        "introduction": {
+            "entrust_unit": "测试单位",
+            "entrust_persons": ["测试人员"],
+            "entrust_time": "2026年7月16日",
+            "case_summary": "测试案件",
+            "evidence_list": [{"evidence_number": "JC01", "device_type": "测试手机"}],
+            "inspection_requirement": "测试要求",
+            "inspection_time_range": "2026年7月16日",
+            "inspectors": [],
+            "inspection_place": "测试鉴定中心",
+        },
+        "inspection": {
+            "method": "测试方法",
+            "hardware_device": "测试设备",
+            "software_tools": [],
+            "process_steps": [],
+            "result": result,
+        },
+        "attachments": {
+            "extract_list": {"rows": []},
+            "photo_ids": [],
+            "disc_number": "TEST-DISC",
+            "burning_date": "2026年7月16日",
+        },
+    }
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_data_summary_blank_values_use_fixed_default(value):
+    report = _report(value)
+    assert _flatten_report(report)["data_summary"] == _DEFAULT_SUMMARY
+
+
+def test_data_summary_missing_uses_fixed_default():
+    assert _flatten_report(_report())["data_summary"] == _DEFAULT_SUMMARY
+
+
+def test_data_summary_normal_value_is_preserved():
+    assert _flatten_report(_report("  通讯录  "))["data_summary"] == "通讯录"
+
+
+def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path):
+    output = tmp_path / "filled.docx"
+    fill_template(_report(), str(_TEMPLATE), str(output))
+
+    with zipfile.ZipFile(output) as package:
+        assert package.testzip() is None
+        document_xml = package.read("word/document.xml").decode("utf-8")
+
+    assert document_xml.count("<w:pict") >= 2
+    assert document_xml.count("<v:textbox") == 2
+    assert document_xml.count("<w:txbxContent") == 2
+    assert "检验单位：测试鉴定中心" in document_xml
+    assert _DEFAULT_SUMMARY in document_xml
+    assert "<w:pageBreakBefore" not in document_xml
+    assert document_xml.count('w:type="page"') == 4
+
+
+def _write_png(path: Path, width: int, height: int, color=(50, 120, 200)):
+    """使用标准库生成可被 Word 读取的真实 PNG 样例。"""
+    raw = b"".join(b"\x00" + bytes(color) * width for _ in range(height))
+
+    def chunk(kind, data):
+        return (struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
+
+    payload = b"\x89PNG\r\n\x1a\n"
+    payload += chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+    payload += chunk(b"IDAT", zlib.compress(raw, 1))
+    payload += chunk(b"IEND", b"")
+    path.write_bytes(payload)
+
+
+@pytest.mark.parametrize("sizes", [
+    [],
+    [(1600, 900)],       # 1张横图
+    [(900, 1600)],       # 1张竖图
+    [(4000, 4000)],      # 1张超出页面可用区域的图
+    [(1600, 900), (900, 1600)],  # 2张横/竖图
+    [(4000, 4000), (4000, 4000)],  # 2张超尺寸图
+])
+def test_photo_regression_scenarios_keep_images_and_page_xml(tmp_path, sizes):
+    photos = []
+    for index, (width, height) in enumerate(sizes):
+        path = tmp_path / f"photo-{index}.png"
+        _write_png(path, width, height, color=(50 + index * 20, 120, 200))
+        photos.append(str(path))
+
+    output = tmp_path / "photos.docx"
+    fill_template(_report(), str(_TEMPLATE), str(output), photos)
+
+    with zipfile.ZipFile(output) as package:
+        assert package.testzip() is None
+        document_xml = package.read("word/document.xml").decode("utf-8")
+        root = ET.fromstring(document_xml)
+
+    assert document_xml.count("<w:drawing") == len(photos)
+    doc_pr_ids = [doc_pr.get("id") for doc_pr in root.findall(
+        ".//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}docPr")]
+    assert len(doc_pr_ids) == len(set(doc_pr_ids))
+    extents = [
+        (int(extent.get("cx")), int(extent.get("cy")))
+        for extent in root.findall(
+            ".//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}extent")
+    ]
+    for (source_width, source_height), (render_width, render_height) in zip(sizes, extents):
+        if source_width != source_height:
+            assert (render_width > render_height) == (source_width > source_height)
+    assert document_xml.count('w:type="page"') == 4
+    assert 'w:type="oddPage"' not in document_xml
+    assert 'w:type="evenPage"' not in document_xml
+    assert "w:pageBreakBefore" not in document_xml
+    assert "w:keepNext" not in document_xml
+    assert "w:keepLines" not in document_xml

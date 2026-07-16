@@ -20,7 +20,7 @@ def _report():
         "document_number": "SYN-TEST〔2026〕000000号",
         "introduction": {
             "entrust_unit": "单位",
-            "entrust_person": "人员",
+            "entrust_persons": ["人员"],
             "entrust_time": "",
             "case_summary": "案件",
             "evidence_list": [{
@@ -89,6 +89,8 @@ def test_generate_docx_rejects_empty_output(tmp_path: Path):
             Path(args[1]).touch()
         return CompletedProcess(args, 0, "", "")
 
-    with patch("app.services.record_generator_service._run_officecli", side_effect=fake_run):
+    # 使用不存在的模板路径，强制回退到 batch 模式
+    with patch("app.services.record_generator_service._TEMPLATE_PATH", "/nonexistent/template.docx"), \
+         patch("app.services.record_generator_service._run_officecli", side_effect=fake_run):
         with pytest.raises(RuntimeError, match="为空"):
             generate_docx(_report(), output_dir=str(tmp_path))

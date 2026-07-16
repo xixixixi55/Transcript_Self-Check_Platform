@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import type { ParseReportResponse } from '@biji/shared/types'
+import { normalizeDataSummary } from '@biji/shared/utils'
 
 interface UseReportParserReturn {
   parseReport: (dirPath: string, compress?: boolean) => Promise<ParseReportResponse | null>
@@ -10,6 +11,15 @@ interface UseReportParserReturn {
   loading: boolean
   error: string | null
   result: ParseReportResponse | null
+}
+
+/** 解析响应进入页面状态前统一规范化数据摘要，避免分类列表泄漏到编辑页。 */
+export function normalizeParsedReport(response: ParseReportResponse): ParseReportResponse {
+  const normalized = JSON.parse(JSON.stringify(response)) as ParseReportResponse
+  normalized.report.inspection.result.data_summary = normalizeDataSummary(
+    normalized.report.inspection.result.data_summary,
+  )
+  return normalized
 }
 
 export function useReportParser(): UseReportParserReturn {
@@ -27,8 +37,9 @@ export function useReportParser(): UseReportParserReturn {
       const { data } = await axios.post<{ success: boolean; data: ParseReportResponse }>(
         API_ENDPOINTS.PARSE_REPORT, formData,
       )
-      setResult(data.data)
-      return data.data
+      const normalized = normalizeParsedReport(data.data)
+      setResult(normalized)
+      return normalized
     } catch (e: any) {
       setError(e.response?.data?.detail || e.message || '解析失败')
       return null
@@ -46,8 +57,9 @@ export function useReportParser(): UseReportParserReturn {
       const { data } = await axios.post<{ success: boolean; data: ParseReportResponse }>(
         API_ENDPOINTS.PARSE_REPORT, formData,
       )
-      setResult(data.data)
-      return data.data
+      const normalized = normalizeParsedReport(data.data)
+      setResult(normalized)
+      return normalized
     } catch (e: any) {
       setError(e.response?.data?.detail || e.message || '压缩包解析失败')
       return null

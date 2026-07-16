@@ -9,27 +9,58 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
 
 from app.services.report_parser_service import (
-    parse_report, parse_from_archive, _build_software_tools,
+    parse_report, parse_from_archive, _build_report, _build_software_tools,
 )
+from app.services.report_defaults_service import DEFAULT_DATA_SUMMARY, normalize_data_summary
+
+
+@pytest.mark.parametrize("value", [None, "", "   ", "\t\n"])
+def test_backend_data_summary_blank_values_use_fixed_default(value):
+    assert normalize_data_summary(value) == DEFAULT_DATA_SUMMARY
+
+
+def test_backend_data_summary_preserves_non_empty_value():
+    assert normalize_data_summary("  通讯录、文件  ") == "通讯录、文件"
+
+
+def test_parser_default_is_not_built_from_navigation_categories():
+    """导航分类（如录音/微信/抖音）不能覆盖报告摘要默认值。"""
+    with patch("app.services.report_parser_service.parse_case_info", return_value={
+        "case_name": "测试", "case_number": "", "submit_unit": "", "submit_person": "", "create_time": "",
+    }), patch("app.services.report_parser_service.parse_device_lists", return_value=[{
+        "evidence_number": "JC01", "device_name": "测试手机", "time_range": "",
+    }]), patch("app.services.report_parser_service.parse_report_info", return_value={}), \
+        patch("app.services.report_parser_service.parse_device_base", return_value={}), \
+        patch("app.services.report_parser_service._build_software_tools", return_value=[]), \
+        patch("app.services.report_parser_service._build_rar_info_from_compress", return_value={
+            "filename": "", "md5": "", "size_bytes": 0,
+        }):
+        report = _build_report("data", "source", "output", compress=False)
+
+    assert report["inspection"]["result"]["data_summary"] == DEFAULT_DATA_SUMMARY
 
 
 # ─── T008: _build_software_tools 动态生成 (REQ-016) ───
 
 def test_software_tools_with_compress():
-    """compress=True → software_tools 含 WinRAR"""
+    """compress=True → software_tools 含 WinRAR（始终显示）"""
     tools = _build_software_tools("V3.2.12922", compress=True, is_rar_archive=False)
     names = [t["name"] for t in tools]
     assert "美亚手机大师-并行版V5" in names
     assert "WinRAR压缩管理软件" in names
     assert "Python hashlib" in names
+    # Python hashlib 版本应为实际 Python 版本号（如 3.11.0）
+    hash_tool = next(t for t in tools if t["name"] == "Python hashlib")
+    import re
+    assert re.match(r"\d+\.\d+\.\d+", hash_tool["version"]), f"Expected semver, got: {hash_tool['version']}"
 
 
 def test_software_tools_without_compress():
-    """compress=False + 非 rar → software_tools 不含 WinRAR"""
+    """compress=False → WinRAR 始终显示（用户可手动修改版本号）"""
     tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=False)
     names = [t["name"] for t in tools]
     assert "美亚手机大师-并行版V5" in names
-    assert "WinRAR压缩管理软件" not in names
+    assert "WinRAR压缩管理软件" in names
     assert "Python hashlib" in names
 
 
@@ -41,10 +72,10 @@ def test_software_tools_rar_archive():
 
 
 def test_software_tools_zip_archive():
-    """上传 .zip → software_tools 不含 WinRAR（用 zipfile 解压）"""
+    """上传 .zip → WinRAR 始终显示"""
     tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=False)
     names = [t["name"] for t in tools]
-    assert "WinRAR压缩管理软件" not in names
+    assert "WinRAR压缩管理软件" in names
 
 
 def test_software_tools_empty_version():
@@ -62,7 +93,7 @@ _MOCK_REPORT = {
     "title": "电子数据检查笔录",
     "document_number": "",
     "introduction": {
-        "entrust_unit": "测试公安局", "entrust_person": "张三",
+        "entrust_unit": "测试公安局", "entrust_persons": ["张三"],
         "entrust_time": "", "case_summary": "测试案件案",
         "evidence_list": [{"id": "JC01", "device_type": "", "model": "iPhone 14",
             "imei1": "1", "imei2": "2", "serial_number": "", "evidence_number": "JC01"}],

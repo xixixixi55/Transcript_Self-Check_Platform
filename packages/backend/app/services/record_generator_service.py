@@ -2,10 +2,9 @@
 Layer 21: BE_Services — 笔录文档生成服务
 
 负责：
-1. 构建文档结构 (document_builder_service)
-2. 创建 .docx (officecli create)
-3. 应用 batch 命令写入内容 (officecli batch)
-4. 返回文件路径供下载
+1. 模板优先：使用 template.docx + template_filler_service 填充
+2. 回退方案：构建文档结构 (document_builder_service) + officecli batch
+3. 返回文件路径供下载
 """
 
 import json
@@ -16,6 +15,11 @@ import tempfile
 from datetime import datetime
 
 from .document_builder_service import build_record_document
+from .template_filler_service import fill_template
+
+# 模板文件路径
+_TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.dirname(__file__))))), "word_templates", "template.docx")
 
 # 查找 officecli 完整路径（Windows: .cmd, Unix: 无扩展名）
 _OFFICECLI = shutil.which("officecli") or shutil.which("officecli.cmd")
@@ -49,6 +53,7 @@ def _run_officecli(*args: str) -> subprocess.CompletedProcess:
 def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str = None) -> str:
     """
     生成检查笔录 .docx 文件。
+    优先使用模板填充，模板不存在时回退到 officecli batch 方案。
     返回生成的 .docx 文件路径。
     """
     if output_dir is None:
@@ -56,22 +61,108 @@ def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str =
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # 生成安全的文件名（移除文件名不支持的特殊字符）
+    # 生成安全的文件名
     doc_number = report.get("document_number", "").replace("/", "-").replace("\\", "-")
     safe_doc_number = doc_number.replace("〔", "[").replace("〕", "]") if doc_number else ""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{safe_doc_number or '检查笔录'}_{timestamp}.docx"
     filepath = os.path.join(output_dir, filename)
 
+    # 优先使用模板填充
+    if os.path.isfile(_TEMPLATE_PATH):
+        try:
+            fill_template(report, _TEMPLATE_PATH, filepath, photo_paths or [])
+            if os.path.isfile(filepath) and os.path.getsize(filepath) > 0:
+                return filepath
+        except Exception as e:
+            # 模板填充失败时回退到 batch 方案
+            import traceback
+            traceback.print_exc()
+
+    # 回退：officecli batch 方案
+    return _generate_via_batch(report, filepath, photo_paths or [])
+
+
+def _insert_photos(filepath: str, photo_paths: list[str]):
+    """向已生成的 docx 中插入用户上传的照片（附件2区域）"""
+    from docx import Document
+    from docx.shared import Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from lxml import etree
+
+    doc = Document(filepath)
+    body = doc.element.body
+    w_ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+
+    # 找到"附件2："段落
+    target_idx = None
+    for pi, para in enumerate(doc.paragraphs):
+        if "附件2：" in para.text:
+            target_idx = pi
+            break
+
+    if target_idx is None:
+        print("[WARN] Photo target paragraph not found, skipping photo insert")
+        return
+
+    # 在附件2段落之后依次插入图片
+    body_children = list(body)
+    para_el_pos = None
+    for i, child in enumerate(body_children):
+        if child.tag == '{' + w_ns + '}p':
+            # 这是第几个段落
+            pass
+    # 使用更简单的方法：在 doc.paragraphs 的指定位置后创建新段落
+    # python-docx 不支持直接插入段落，用 lxml 操作
+    para_el = doc.paragraphs[target_idx]._element
+    body_els = list(body)
+    try:
+        insert_idx = body_els.index(para_el)
+    except ValueError:
+        print("[WARN] Cannot find paragraph element in body")
+        return
+
+    for i, photo_path in enumerate(photo_paths):
+        if not os.path.isfile(photo_path):
+            continue
+        # 创建新段落元素并插入图片
+        new_p = etree.SubElement(body, '{' + w_ns + '}p')
+        new_pPr = etree.SubElement(new_p, '{' + w_ns + '}pPr')
+        new_jc = etree.SubElement(new_pPr, '{' + w_ns + '}jc')
+        new_jc.set('{' + w_ns + '}val', 'center')
+        new_r = etree.SubElement(new_p, '{' + w_ns + '}r')
+        new_rPr = etree.SubElement(new_r, '{' + w_ns + '}rPr')
+        new_rPr_set = etree.SubElement(new_rPr, '{' + w_ns + '}sz')
+        new_rPr_set.set('{' + w_ns + '}val', '32')  # 16pt
+
+        new_run = doc.paragraphs[target_idx].add_run()  # Won't work for insertion
+        # Instead: add photo to a temporary paragraph, then move it
+        # Use a temp doc to create the image paragraph
+        from io import BytesIO
+        temp_doc = Document()
+        temp_para = temp_doc.add_paragraph()
+        temp_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        temp_run = temp_para.add_run()
+        temp_run.add_picture(photo_path, width=Inches(6.67), height=Inches(5.0))
+        # Move temp_para element to the main doc
+        temp_para_element = temp_para._element
+        body.insert(insert_idx + 1 + i, temp_para_element)
+        print(f"[OK] Photo inserted: {os.path.basename(photo_path)}")
+
+    doc.save(filepath)
+
+
+def _generate_via_batch(report: dict, filepath: str, photo_paths: list[str]) -> str:
+    """使用 officecli batch 命令生成文档（原有方案）"""
     # 1. 构建文档命令
-    commands = build_record_document(report, photo_paths or [])
+    commands = build_record_document(report, photo_paths)
 
     # 2. 创建空白 docx
     result = _run_officecli("create", filepath)
     if result.returncode != 0:
         raise RuntimeError(f"officecli create 失败: stdout={result.stdout} stderr={result.stderr}")
 
-    # 3. 批量写入内容 — 通过临时文件传入命令
+    # 3. 批量写入内容
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".json", delete=False, encoding="utf-8"
     ) as tmp:

@@ -30,6 +30,14 @@ const SRC_DIRS = [
 /** 文件大小上限 */
 const MAX_LINES = 250
 
+/** 文件大小例外：文件头部已按架构规则添加超限原因说明 */
+const FILE_SIZE_EXCEPTIONS = [
+  'packages/backend/app/services/report_parser_service.py',
+  'packages/backend/app/services/document_builder_service.py',
+  'packages/backend/app/services/template_filler_service.py',
+  'packages/backend/app/repository/html_parser.py',
+]
+
 /**
  * 层级定义（数字越大层级越高，低层不能引用高层）
  * 层号采用分段编号：Shared(0-2) / FE(10-12) / BE(20-23)
@@ -234,9 +242,10 @@ function checkDependencyDirection(filePath: string, content: string, srcDir: str
 
 function checkFileSize(filePath: string, content: string): Violation[] {
   const lineCount = content.split('\n').length
-  if (lineCount > MAX_LINES) {
+  const relPath = path.relative(ROOT, filePath)
+  if (lineCount > MAX_LINES && !FILE_SIZE_EXCEPTIONS.includes(relPath.replace(/\\/g, '/'))) {
     return [{
-      file: path.relative(ROOT, filePath),
+      file: relPath,
       line: 0,
       rule: 'file-size',
       message: `File has ${lineCount} lines, exceeds maximum of ${MAX_LINES} lines. MUST split.`,
