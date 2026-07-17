@@ -86,8 +86,13 @@ async def parse_report_endpoint(
         return {"success": True, "data": result}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"报告解析失败: {str(e)}")
+    except Exception:
+        # Do not expose local paths, case data, or parser stack details to the
+        # client; keep this boundary safe for both folder and archive inputs.
+        raise HTTPException(
+            status_code=422,
+            detail="报告解析失败：报告结构缺失、格式不受支持或字段无效，请检查后重试。",
+        )
 
 
 @router.post("/records/export")

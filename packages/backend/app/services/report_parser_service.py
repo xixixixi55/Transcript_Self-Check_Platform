@@ -18,11 +18,12 @@ from ..repository.file_storage import (
 from ..repository.html_parser import (
     parse_case_info, parse_device_lists, parse_report_info,
     parse_device_base,
-    find_base_directories, format_time_chinese, format_time_range_chinese,
+    format_time_chinese, format_inspection_time_range,
 )
+from ..repository.report_format_adapter import require_supported_report_format
 from .report_defaults_service import DEFAULT_DATA_SUMMARY
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 4  # v4: data_summary no longer comes from navigation categories
+_CACHE_VERSION = 5  # v5: normalize new report fields and invalidate v4 caches
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录。compress=False 时跳过 RAR 压缩，rar_info 返回 None。"""
@@ -114,6 +115,8 @@ def _format_case_summary(case_name: str) -> str:
 def _build_report(data_dir: str, source_dir: str, output_dir: str,
                   compress: bool = True, is_rar_archive: bool = False) -> dict:
     """构建 InspectionReport（parse_report / parse_from_archive 共用）"""
+    # 在解析案件字段前确认核心结构；缺少核心文件时由既有 parser 给出具体错误。
+    require_supported_report_format(data_dir)
     # 1. 解析案件信息
     case = parse_case_info(data_dir)
     # 2. 解析设备列表
@@ -134,31 +137,15 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "id": en,
             "device_type": device_type,
             "model": model,
-            "imei1": base_info.get("imei1", ""),
-            "imei2": base_info.get("imei2", ""),
+            "imei1": dev.get("imei1", "") or base_info.get("imei1", ""),
+            "imei2": dev.get("imei2", "") or base_info.get("imei2", ""),
             "serial_number": base_info.get("serial_number", ""),
             "evidence_number": en,
         })
 
-    # Fallback: 若所有设备的 base_info 均为空白（Base 目录名不匹配），
-    # 改用 find_base_directories 扫描包含 Base/ 子目录的任意目录重新解析
-    all_blank = all(
-        not ei["device_type"] and not ei["model"] and not ei["imei1"]
-        for ei in evidence_items
-    )
-    if all_blank and evidence_items:
-        dirs = find_base_directories(data_dir)
-        if dirs:
-            base_info = parse_device_base(data_dir, dirs[0])
-            if base_info.get("model") or base_info.get("imei1"):
-                for ei in evidence_items:
-                    ei["device_type"] = base_info.get("device_name") or base_info.get("model", "")
-                    ei["model"] = base_info.get("model") or base_info.get("device_name", "")
-                    ei["imei1"] = base_info.get("imei1", "")
-                    ei["imei2"] = base_info.get("imei2", "")
-                    ei["serial_number"] = base_info.get("serial_number", "")
-
     # 6. 检查过程步骤
+    # The standard model preserves every evidence item, while the existing
+    # process/result sections remain single-primary-device fields.
     first_device = evidence_items[0] if evidence_items else {
         "model": "", "imei1": "", "imei2": "", "evidence_number": ""}
     sv = _extract_version(versions)
@@ -198,7 +185,10 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         })
 
     # 10. 构建 InspectionReport
-    time_range = devices_raw[0]["time_range"] if devices_raw else ""
+    # 标准检查时间只来自案件 JSON 的创建时间和报告时间；设备表时间段不参与。
+    time_range = format_inspection_time_range(
+        case.get("create_time", ""), case.get("report_time", "")
+    )
 
     # 用于前端生成文号的原始数据
     _case_number = case.get("case_number", "")
@@ -214,7 +204,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "case_summary": _format_case_summary(case.get("case_name", "")),
             "evidence_list": evidence_items,
             "inspection_requirement": "上述检材内电子数据的提取、固定和恢复",
-            "inspection_time_range": format_time_range_chinese(time_range),
+            "inspection_time_range": time_range,
             "inspectors": [],
             "inspection_place": "合成检验鉴定中心",
         },

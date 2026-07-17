@@ -77,3 +77,18 @@ def test_parse_invalid_format_returns_400(client):
         "archive_file": ("test.txt", fake_file, "text/plain"),
     })
     assert resp.status_code == 400
+
+
+def test_parse_structure_error_returns_safe_422(client):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        error_path = os.path.join(tmpdir, "data_case_info.json")
+        with patch(
+            "app.controllers.record_controller.parse_report",
+            side_effect=ValueError(f"invalid report at {error_path}"),
+        ):
+            resp = client.post("/api/v1/reports/parse", data={"report_dir": tmpdir})
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert "报告解析失败" in detail
+    assert tmpdir not in detail
+    assert "data_case_info.json" not in detail

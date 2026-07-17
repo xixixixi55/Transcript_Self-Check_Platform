@@ -11,6 +11,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.document_builder_service import build_record_document
+from app.services.report_parser_service import parse_report
 from app.services.record_generator_service import generate_docx
 
 
@@ -94,3 +95,50 @@ def test_generate_docx_rejects_empty_output(tmp_path: Path):
          patch("app.services.record_generator_service._run_officecli", side_effect=fake_run):
         with pytest.raises(RuntimeError, match="为空"):
             generate_docx(_report(), output_dir=str(tmp_path))
+
+
+def test_legacy_parsed_model_feeds_word_builder_and_export(tmp_path: Path):
+    data_dir = tmp_path / "legacy" / "data"
+    base_dir = data_dir / "JC-OLD" / "Base"
+    base_dir.mkdir(parents=True)
+
+    def write(path, payload):
+        import json
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    write(data_dir / "data_case_info.json", {"contents": [
+        {"tp": "\u6848\u4ef6\u540d\u79f0", "ct": "\u65e7\u683c\u5f0fWord\u6d4b\u8bd5"},
+        {"tp": "\u6848\u4ef6\u7f16\u53f7", "ct": "CASE-WORD-SYNTH"},
+        {"tp": "\u521b\u5efa\u65f6\u95f4", "ct": "2026-07-13 11:55:19"},
+        {"tp": "\u62a5\u544a\u65f6\u95f4", "ct": "2026-07-13 15:43:21"},
+    ]})
+    write(data_dir / "data_device_lists.json", {"contents": [{
+        "c1": "\u65e7\u8bbe\u5907", "c2": "JC-OLD", "c3": "2020-01-01 00:00:00",
+    }]})
+    write(data_dir / "data_report_info.json", {"contents": [{"value": "\u4ea7\u54c1\u7248\u672c：LegacyTool V3.2.1"}]})
+    (data_dir / "data_navigation.json").write_text(
+        "; static.mypico.json.navigation = []", encoding="utf-8"
+    )
+    write(base_dir / "device.json", {
+        "\u8bbe\u5907\u540d\u79f0": "Old Phone", "\u8bbe\u5907\u578b\u53f7": "Old-Model",
+        "IMEI1": "123456789012345", "\u5e8f\u5217\u53f7": "OLD-SN",
+    })
+
+    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+        parsed = parse_report(str(data_dir.parent), str(tmp_path / "parsed"), compress=False)["report"]
+    commands = build_record_document(parsed)
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in commands if command.get("type") == "paragraph"
+    )
+    assert parsed["introduction"]["evidence_list"][0]["model"] == "Old-Model"
+    assert parsed["case_number"] == "CASE-WORD-SYNTH"
+    assert "Old Phone" in paragraph_text
+    assert "123456789012345" in paragraph_text
+
+    def fake_fill_template(_report, _template, filepath, _photos):
+        Path(filepath).write_bytes(b"synthetic-docx")
+
+    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill_template):
+        output = generate_docx(parsed, output_dir=str(tmp_path / "exports"))
+    assert Path(output).is_file()
