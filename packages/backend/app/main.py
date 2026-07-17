@@ -8,6 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routes import router as api_router
+from .services.pipeline_runtime_service import load_pipeline_settings
+
+pipeline_settings = load_pipeline_settings()
 
 app = FastAPI(
     title="笔录自检平台（文枢）",

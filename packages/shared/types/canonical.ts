@@ -1,0 +1,120 @@
+/** Canonical domain types shared by the report migration boundary. */
+
+export type MaterialKind = 'phone' | 'tablet' | 'unconfirmed'
+
+export type IdentifierType = 'imei1' | 'imei2' | 'serial_number'
+
+export type SoftwareCategory =
+  | 'main_forensic'
+  | 'winrar'
+  | 'python_hashlib'
+  | 'unclassified'
+
+export type ConfirmationStatus = 'confirmed' | 'unconfirmed'
+
+export interface FieldProvenance {
+  source_type: string
+  source_file: string | null
+  json_path: string | null
+  adapter: string
+  confidence: number | null
+}
+
+export interface MaterialIdentifier {
+  type: IdentifierType
+  value: string
+  provenance: FieldProvenance[]
+}
+
+export interface Material {
+  id: string
+  evidence_number: string
+  type: MaterialKind
+  name: string
+  model: string
+  identifiers: MaterialIdentifier[]
+  provenance: FieldProvenance[]
+}
+
+export interface InspectorSnapshot {
+  inspector_id: string | null
+  name: string
+  unit: string
+  police_number: string
+  selected_order: number
+}
+
+export interface SoftwareTool {
+  category: SoftwareCategory
+  name: string
+  version: string
+  display_name: string
+  provenance: FieldProvenance[]
+  confirmation_status: ConfirmationStatus
+}
+
+export interface CanonicalCaseInfo {
+  title: string
+  document_number: string
+  case_number: string
+  case_name: string
+  introduction: {
+    entrust_unit: string
+    entrust_persons: string[]
+    entrust_time: string
+    case_summary: string
+    inspection_requirement: string
+    inspection_place: string
+  }
+}
+
+export interface CanonicalInspectionPeriod {
+  created_at: string
+  reported_at: string
+  time_range: string
+}
+
+export interface CanonicalInspectionResult {
+  evidence_number: string
+  data_summary: string
+  rar_filename: string
+  md5_hash: string
+  file_size: string
+}
+
+export interface CanonicalInspectionDetails {
+  method: string
+  hardware_device: string
+  process_steps: { step_number: number; content: string }[]
+  result: CanonicalInspectionResult
+}
+
+export interface PhotoReference {
+  id: string
+  provenance: FieldProvenance[]
+}
+
+export interface ArchiveManifestSummary {
+  manifest_id: string
+  status: 'pending' | 'validated' | 'unavailable'
+}
+
+export interface CanonicalAttachmentInputs {
+  extract_list: { columns: { key: string; title: string; width?: string }[]; rows: Record<string, string>[] }
+  photo_ids: string[]
+  disc_number: string
+  burning_date: string | null
+}
+
+export interface CanonicalInspectionCase {
+  case_info: CanonicalCaseInfo
+  inspection_period: CanonicalInspectionPeriod
+  materials: Material[]
+  inspectors: InspectorSnapshot[]
+  software_tools: SoftwareTool[]
+  photos: PhotoReference[]
+  archive_manifest: ArchiveManifestSummary | null
+  provenance: FieldProvenance[]
+  inspection: CanonicalInspectionDetails
+  attachments: CanonicalAttachmentInputs
+}

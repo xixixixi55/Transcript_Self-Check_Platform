@@ -1,27 +1,27 @@
 # Implementation Tasks: extensible-report-template-platform
 
-本清单对应根目录 `spec.md` 和 `design.md`。当前为架构冻结审查，所有任务保持未勾选；本阶段不执行任何业务代码任务。阶段一任务按 16 个可独立验证的工作包拆分，阶段二/三只保留契约和扩展点，不把通用能力纳入阶段一门槛。每个代码任务后紧跟测试任务。
+本清单对应根目录 `spec.md` 和 `design.md`。第一批基础实现已完成并验证 0.1、1.1、1.2、2.1、2.2 及其测试任务；其余阶段一任务保持未执行。阶段一任务按 16 个可独立验证的工作包拆分，阶段二/三只保留契约和扩展点，不把通用能力纳入阶段一门槛。每个代码任务后紧跟测试任务。
 
 ## 0. 变更前门禁
 
-- [ ] 0.1 读取并记录实现前 Git 状态、现有活跃 OpenSpec、模板/输出资产和测试基础设施；集中定义 `pipeline_mode`、schemaVersion、adapter/template/plan 版本，默认 `legacy`，不得删除或覆盖既有工作区内容。输入：当前仓库状态；输出：实现前门禁记录和配置契约；验收：状态快照、`git diff --check`、配置评审。
-- [ ] 0.1T 为 0.1 增加门禁测试和配置读取测试，确认默认值、非法 mode 拒绝、版本字段齐全且不读取分散的模块级开关；验收：最小配置单测。
+- [x] 0.1 读取并记录实现前 Git 状态、现有活跃 OpenSpec、模板/输出资产和测试基础设施；集中定义 `pipeline_mode`、schemaVersion、adapter/template/plan 版本，默认 `legacy`，不得删除或覆盖既有工作区内容。输入：当前仓库状态；输出：实现前门禁记录和配置契约；验收：状态快照、`git diff --check`、配置评审。
+- [x] 0.1T 为 0.1 增加门禁测试和配置读取测试，确认默认值、非法 mode 回退到 `legacy`、版本字段齐全且不读取分散的模块级开关；验收：最小配置单测。
 
 ## 1. Canonical 模型及兼容适配器（Layer 0/20/21）
 
-- [ ] 1.1 在 `packages/shared/types/` 和 `packages/backend/app/services/` 实现 `CanonicalInspectionCase`、`Material`、通用 `Identifier`、`InspectorSnapshot`、`SoftwareTool`、`FieldProvenance`、问题模型及 `ReportAdapter` 接口。输入：现有旧/新解析结果；输出：版本化 canonical case 和来源/置信信息；验收：主路径为 `ReportAdapter → CanonicalInspectionCase → InspectionReport`。
-- [ ] 1.1T 增加旧/新/混合/不支持报告 fixture、类型 round-trip 和 provenance 测试；验收：旧报告字段优先级不回归，缺失来源/字段明确进入 issue，真实案件不进入 fixture。
-- [ ] 1.2 实现 `canonical_to_inspection_report` 兼容投影和 `inspection_report_to_canonical` 旧 DTO 输入/历史迁移适配器。输入：canonical case 或旧 `InspectionReport`；输出：现有前端 DTO 或 best-effort canonical + issues；验收：不把反向路径描述为完整转换，明确标记字段来源、通用 identifiers、InspectorSnapshot、ArchiveManifest、TemplateProfile 等不可从旧 DTO 恢复的内容。
-- [ ] 1.2T 增加兼容投影测试，覆盖现有前端请求字段、未知扩展字段、不可表示字段 diagnostics 和历史迁移失败；验收：现有解析/导出 DTO 编译和接口回归通过。
+- [x] 1.1 在 `packages/shared/types/` 和 `packages/backend/app/services/` 实现 `CanonicalInspectionCase`、`Material`、通用 `Identifier`、`InspectorSnapshot`、`SoftwareTool`、`FieldProvenance`、问题模型及 `ReportAdapter` 接口。输入：现有旧/新解析结果；输出：版本化 canonical case 和来源/置信信息；验收：主路径为 `ReportAdapter → CanonicalInspectionCase → InspectionReport`。
+- [x] 1.1T 增加旧/新/混合/不支持报告 fixture、类型 round-trip 和 provenance 测试；验收：旧报告字段优先级不回归，缺失来源/字段明确进入 issue，真实案件不进入 fixture。
+- [x] 1.2 实现 `canonical_to_inspection_report` 兼容投影和 `inspection_report_to_canonical` 旧 DTO 输入/历史迁移适配器。输入：canonical case 或旧 `InspectionReport`；输出：现有前端 DTO 或 best-effort canonical + issues；验收：不把反向路径描述为完整转换，明确标记字段来源、通用 identifiers、InspectorSnapshot、ArchiveManifest、TemplateProfile 等不可从旧 DTO 恢复的内容。
+- [x] 1.2T 增加兼容投影测试，覆盖现有前端请求字段、未知扩展字段、不可表示字段 diagnostics 和历史迁移失败；验收：现有解析/导出 DTO 编译和接口回归通过。
 
 ## 2. Shadow 比较框架（Layer 21/22）
 
 Shadow 工作包的输出只能是隔离的规范化、规划和脱敏比较结果；不得调用 WinRAR、不得执行真实重复压缩，也不得把非执行性的清单投影当作最终 `ArchiveManifest`。
 
-- [ ] 2.1 实现集中 `pipeline_mode = legacy | shadow | canonical` 的运行时配置和 Shadow orchestration。输入：旧管线结果、canonical case、plans、隔离 staging manifest；输出：旧管线唯一正式输出和新管线比较输入；验收：legacy 只跑旧管线，shadow 不产生第二份正式 Word，canonical 只跑新管线。
-- [ ] 2.1T 增加 mode 行为、隔离目录、正式文件数量和缓存命名测试；验收：Shadow 结果不能被当作正式 Word/manifest 缓存。
-- [ ] 2.2 实现脱敏 `ShadowComparison`，比较案件字段、检材类型、IMEI1/IMEI2或序列号、检查时间、主软件、检查人员顺序、ArchiveManifest 和附件一/二/三页面数量。输入：两侧结构化结果；输出：字段名、一致性、脱敏来源、诊断代码；验收：日志不包含完整案件、人员、IMEI、序列号或原始 JSON。
-- [ ] 2.2T 为比较器增加字段差异、敏感值扫描和诊断代码测试；验收：每个指定比较维度均有可区分断言。
+- [x] 2.1 实现集中 `pipeline_mode = legacy | shadow | canonical` 的运行时配置和 Shadow orchestration。输入：旧管线结果、canonical case、plans、隔离 staging manifest；输出：旧管线唯一正式输出和新管线比较输入；验收：legacy 只跑旧管线，shadow 不产生第二份正式 Word，canonical 当前基础层显式保持未启用。
+- [x] 2.1T 增加 mode 行为、隔离目录、正式文件数量和缓存命名测试；验收：Shadow 结果不能被当作正式 Word/manifest 缓存。
+- [x] 2.2 实现脱敏 `ShadowComparison`，比较案件字段、检材类型、IMEI1/IMEI2或序列号、检查时间、主软件、检查人员顺序、ArchiveManifest 和附件一/二/三页面数量。输入：两侧结构化结果；输出：字段名、一致性、脱敏来源、诊断代码；验收：日志不包含完整案件、人员、IMEI、序列号或原始 JSON。
+- [x] 2.2T 为比较器增加字段差异、敏感值扫描和诊断代码测试；验收：每个指定比较维度均有可区分断言。
 
 ## 3. 手机/平板业务规则（Layer 2/21）
 

@@ -98,3 +98,5 @@ export const DEFAULT_INSPECTOR_COUNT = 2
 
 /** 附件数量 */
 export const ATTACHMENT_COUNT = 3
+
+export * from './exportGateCodes'
