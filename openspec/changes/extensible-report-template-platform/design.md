@@ -1,0 +1,369 @@
+# Design: Extensible Report and Template Platform
+
+## Context
+
+当前实现是“HTML/JSON 解析 → `InspectionReport` → 直接拼接正文或填充 `template.docx`”的单体流程：
+
+- `packages/backend/app/repository/report_format_adapter.py`、`html_parser.py` 和 `device_field_parser.py` 已经积累了旧/新报告识别、字段候选和回归保护。
+- `report_parser_service.py` 同时承担报告组装、默认软件、缓存、压缩和附件一首行填充。
+- `file_storage.py` 的 `create_rar()` 当前只生成单个 `.rar`/`.zip`，没有分卷规划和最终 manifest。
+- `document_builder_service.py` 是 officecli batch 回退；`template_filler_service.py` 同时承担字段扁平化、列表展开、表格、VML、照片、分页清理和保存。
+- `word_templates/template.docx` 是当前运行时模板，已有 VML 文本框、普通分页符、表格和动态占位符；`template-2026` 与 `docx-vml-pagination` 记录了其资产来源和回归约束。
+- `InspectionReport` 位于 SharedTypes，前端 `useReportParser`、`useRecordExport`、审核表单和导出测试直接依赖它。
+
+本变更是跨解析、领域规则、持久化、文件执行和 DOCX 的 Level 3 架构变更。设计目标是逐步建立稳定的领域内核，而不是一次性替换所有调用方。
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- 阶段一完整实现当前报告 + 当前模板的已确认规则，并保护新旧解析回归。
+- 让 parser 只负责发现/归一化候选，让业务层决定显示、编号、工具、压缩和分页。
+- 让压缩结果具有不可变 manifest，使附件一和附件三共享同一份卷数据。
+- 让模板成为可登记的 `TemplateProfile`，保留当前 OOXML/VML 资产并使渲染规则可测试。
+- 为阶段二的报告结构 Profile 和阶段三的可视化模板 Profile 提供版本化、人工确认、解释和回滚接口。
+
+**Non-Goals:**
+
+- 本设计阶段不修改业务代码、模板、输出、缓存或未跟踪文件。
+- 不在阶段一实现任意厂商 JSON 或任意 DOCX 的完整自动化。
+- 不引入数据库/云同步；单机存储是阶段一约束。
+- 不让推荐、低置信解析或未知模板静默进入最终导出。
+
+## Target Architecture
+
+```text
+Raw report directory/archive
+        │
+        ▼
+ReportProfile / ReportAdapter
+        │  candidates + FieldProvenance
+        ▼
+CanonicalInspectionCase
+        ├── InspectionReport projection → existing frontend/export contract
+        ├── Domain rules: material display / tools / inspectors / disc sequence
+        ├── ArchivePlanner → ArchivePlan → WinRarExecutor → ArchiveManifest
+        └── AttachmentPlanner → Attachment1/Photo/Attachment3 plans
+                                      │
+                                      ▼
+                              DocumentRenderPlan
+                                      │
+                              fixed TemplateProfile
+                                      │
+                              DOCX Renderer
+
+Legacy InspectionReport input/history ──► LegacyReportInputAdapter ──► CanonicalInspectionCase
+```
+
+职责边界：
+
+| 层 | 职责 | 禁止承担 |
+|---|---|---|
+| ReportAdapter/Repository | 识别结构、读取源文件、字段候选、来源和原始值 | 决定 Word 显示、附件分页、调用 WinRAR |
+| Canonicalizer/Service | 校验并形成规范化案件、分配稳定 ID、记录问题 | 直接写 OOXML |
+| Domain planning/Service | 手机/平板标识政策、软件工具、人员快照、光盘序列、压缩和附件页面 | 读取 Word XML |
+| Archive executor/Repository | 执行 WinRAR、读取卷、MD5、连续性和大小验证 | 计算案件业务字段 |
+| Render planner/Service | 把业务对象映射为模板无关的字段/块/图片/分页计划 | 直接猜模板 XML |
+| TemplateProfile/Repository | 保存模板资产、结构定位和约束 | 业务字段计算 |
+| DOCX Renderer/Service | 按 Profile 应用计划、保留 OOXML/VML 并校验输出 | 重新解析原始报告 |
+
+依赖方向遵守项目架构：SharedTypes → SharedConstants/Utils；后端 Repository → Services → Controllers → Routes；前端只通过 API DTO 通信。规划对象先放在后端领域服务和 SharedTypes 契约中，避免 React 组件直接依赖 Python 实现。主迁移方向是 `ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出`；legacy DTO 进入 canonical 只属于兼容/历史迁移路径。
+
+## Domain Models and Interfaces
+
+以下是实现阶段应落在 SharedTypes/后端领域模型中的最小契约。字段名可以按项目现有 Python/TypeScript 命名约定分别采用 snake_case/camelCase，但序列化名称必须稳定。
+
+### `CanonicalInspectionCase`
+
+```text
+CanonicalInspectionCase {
+  caseId: string
+  schemaVersion: string
+  source: { reportId, adapterId, profileId?, files[], fingerprint }
+  case: { name, number?, entrustUnit, entrustPersons[], summary }
+  times: { createdAt, reportedAt, inspectionStart, inspectionEnd, sourceRefs[] }
+  materials: Material[]
+  mainSoftware: SoftwareTool
+  softwareTools: SoftwareTool[]       // 规范化后只含允许的三类
+  inspectors: InspectorSnapshot[]      // 有序、不可变于本报告
+  requirements: { inspection, method, place }
+  rawFieldIssues: FieldIssue[]
+}
+```
+
+`inspectionStart/inspectionEnd` 明确取报告创建时间/报告时间；光盘日期只进入附件日期字段。`case.name` 同时作为归档基础名称，但在文件系统层必须经过安全文件名规范化，并保留原始案件名用于正文。
+
+### `Material` and generic identifiers
+
+```text
+Material {
+  materialId: string
+  evidenceNumber: string
+  kind: "phone" | "tablet" | "pending_confirmation"
+  name: string
+  model?: string
+  identifiers: Identifier[]
+  classification: { source, ruleId, confidence, confirmed }
+  provenance: FieldProvenance[]
+}
+
+Identifier {
+  type: "imei1" | "imei2" | "serialNumber" | string
+  value: string
+  normalizedValue: string
+  valid: boolean
+  source: FieldProvenance
+}
+```
+
+解析层可以保留未来标识类型，但阶段一的 `MaterialDisplayPolicy` 只输出手机的合法 IMEI1/IMEI2 或平板的合法序列号。分类必须优先使用报告明确且可靠的类型；无可靠类型时保持 `pending_confirmation`，由审核页面确认，不能仅根据 IMEI 存在与否推断手机。最终导出前每个材料必须是 `phone` 或 `tablet`；原始 identifiers 始终保留，不在渲染层补字段或删除数据。
+
+统一的 `ExportGate` 在审核保存和正式导出之间提供一致校验结果。它允许存在阻断项时继续上传、解析、审核和编辑，但只有材料类型、主取证软件、图片数量、光盘编号、WinRAR 可用性和最终归档清单全部满足要求时才允许正式导出；返回稳定阻断代码和可操作提示，不由各 parser/service/renderer 分散实现。
+
+### `Inspector`, `InspectorSnapshot`, `SoftwareTool`
+
+```text
+Inspector { inspectorId, name, unit, policeNumber, createdAt, updatedAt }
+InspectorSnapshot { inspectorId, name, unit, policeNumber, selectedOrder, capturedAt, sourceVersion }
+SoftwareTool {
+  toolId, role: "mainForensic" | "winrar" | "pythonHashlib"
+  name, version, source: "report" | "runtime"
+  provenance?: FieldProvenance
+}
+```
+
+`mainForensic` 的 `name` 和 `version` 都必须有报告来源；适配器低置信或缺失时标记为待确认，审核页面允许分别填写/修正名称和版本，确认前由 `ExportGate` 阻止正式导出。不得使用历史固定软件或从普通组件猜测；仅有 WinRAR/Python hashlib 时工具列表仍不完整。WinRAR 和 Python hashlib 只作为执行工具记录，可取运行时版本。`softwareTools` 由角色白名单去重，不能把报告中的其他软件直接带入模板。`InspectorSnapshot` 始终保持结构化的 `unit`、`name`、`police_number` 序列化字段，默认单文本框格式由 TemplateProfile 配置为 `单位　姓名（警号）`；多个单元格时由 Profile 分别绑定三字段。
+
+### `ReportProfile` and `FieldProvenance`
+
+```text
+ReportProfile {
+  profileId, version, vendor?, product?, productVersion?
+  structureFingerprint, adapterId, adapterVersion
+  fileSelectors: [{ logicalName, glob, required }]
+  fields: Record<CanonicalFieldPath, FieldMapping>
+  createdAt, updatedAt, status: "draft" | "confirmed" | "retired"
+}
+
+FieldMapping {
+  sourceFile, jsonPath, adaptationRuleId
+  normalize: string[], required: boolean
+  confidence: { score, level, evidence[] }
+  confirmation: "auto" | "userConfirmed" | "needsReview"
+}
+
+FieldProvenance {
+  sourceFile, jsonPath, rawValueHash?, adaptationRuleId
+  confidenceScore, confidenceLevel, evidence[], capturedAt
+}
+```
+
+`ReportAdapter` 接口分为 `detect(input)`, `discover(input)`, `parse(input, profile)` 三步。`discover` 只能生成候选和证据；`parse` 在 Profile 未确认或低置信字段上返回 issue。Profile 命中顺序为精确结构指纹 → 厂商/版本/结构兼容指纹 → 人工确认；不能以文件名、案件名称或目录顺序作为唯一识别。
+
+### `ArchivePlan`, `ArchivePart`, `DiscSequence`
+
+```text
+ArchivePlan {
+  planId, sourceRoot, caseName, safeBaseName
+  sourceBytes, tier: "4GB" | "22GB" | "45GB"
+  volumeBytes: 4000000000 | 22000000000 | 45000000000
+  expectedPartCount, maxPartCount: 2 | 3
+  maxReplanAttempts: 2
+  attempts[], status: "planned" | "executing" | "validated" | "blocked"
+}
+
+ArchivePart {
+  partId, ordinal, actualFilename, path, actualSizeBytes, md5, archiveFormat
+  discCapacityBytes, discNumber, burningDate, continuityCheck
+}
+
+ArchiveManifest {
+  manifestId, planId, finalTier, retryCount, parts: ArchivePart[]
+  totalBytes, continuityCheck, status: "validated", validatedAt
+}
+
+DiscSequence { firstNumber, issueDate, numericWidth, partNumbers[], formattedNumbers[] }
+```
+
+档位采用十进制字节值。规划初始候选由源目录逻辑大小计算：4GB 可覆盖最多两卷（≤8GB），随后是 22GB 最多两卷（≤44GB），最后 45GB 最多三卷（≤135GB）。`ArchivePlan` 只表示预计方案；WinRAR 执行和 validator 产生实际结果，最多允许 `maxReplanAttempts = 2` 次向上重试。只有归档结果绑定 `DiscSequence` 后才组装最终 `ArchiveManifest`，因此 manifest 中的光盘容量、光盘编号、刻录日期和连续性结果都是最终数据。实际结果超出计划且重试耗尽时阻止导出，不使用预计值生成 Word。
+
+`DiscSequence` 从 `GPyyyyMMdd-序号` 解析；后续序号只递增数字部分，按首编号位宽左补零，溢出即阻止。`ArchiveManifest.parts[i].ordinal` 是附件一、附件三唯一的关联键，光盘序号由 manifest 顺序映射，不由附件渲染器自行计数。附件一、附件三只接收最终 `ArchiveManifest`，不得接收 `ArchivePlan`。
+
+### Attachment plans
+
+```text
+Attachment1Plan {
+  pages: [{ pageIndex, showLabel, showHeader, rows[], sourceBox, extractionBox,
+            inspectorsBox?: InspectorSnapshot[], keepTogether }]
+}
+PhotoPagePlan {
+  pages: [{ pageIndex, layout: "two-centered" | "grid-2x2", photos[] }]
+  photoBox: { widthCm: 5.64, heightCm: 7.52, fit: "contain" }
+}
+Attachment3Plan {
+  pages: [{ pageIndex, showLabel, partId, filename, md5, discNumber, burningDate }]
+}
+```
+
+附件规划器只接收 final manifest、canonical case、光盘序列和 photo manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式合并框按页面生成，最后一页追加不可拆的人员框；人员较多时增加整框高度或为末页预留空间，不能拆分。附件二零张生成空 page plan 且不生成图片页，正数必须为偶数；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
+
+### `DocumentRenderPlan` and `TemplateProfile`
+
+```text
+DocumentRenderPlan {
+  planId, templateId: "current-template-v1", templateVersion
+  scalarFields: [{ fieldPath, value, formatRule, visibility }]
+  blocks: [{ blockId, source, repeat, condition, keepTogether }]
+  tables: [{ anchorId, rows, mergedCells, headerPolicy }]
+  imageAreas: [{ anchorId, photoPage, box, fit }]
+  pageBreaks: [{ beforeAnchor, kind: "ordinary" }]
+  attachments: { attachment1, photoPages, attachment3 }
+  archiveManifestId, generatedAt
+}
+
+TemplateProfile {
+  templateId, version, assetPath, assetSha256, recordType
+  anchors: [{ anchorId, kind: "paragraph" | "table" | "cell" | "contentControl" | "vmlTextbox",
+              selector, fingerprint, allowedFields[] }]
+  inspectorBindings: { unit, name, police_number, displayRule? }
+  repeatBlocks[], imageAreas[], pageRules[], colorPolicy, rendererVersion
+}
+```
+
+`selector` 不应只依赖表格序号；至少组合 OOXML part、结构指纹、邻近文本和稳定的 content control/shape 标识，并保存 fallback selector。VML 文本框记录所在 part、shape/textbox 结构和占位符路径。`current-template-v1` 的 Profile 指向现有模板资产，资产哈希变化即需要新模板 ID 或人工确认。
+
+## Key Decisions
+
+### 1. 领域规则放在业务规划层
+
+手机/平板的“显示哪些标识”不是解析事实，也不是模板偶然布局。解析层保存候选和来源；规范化层确定 `Material.kind`；业务层输出 `DisplayMaterial`、`Attachment*Plan` 和工具列表；渲染层只消费已决定的值。这样换模板不会改变法律/业务口径，换 JSON 结构也不会把业务规则复制到多个 parser。
+
+备选方案：在 parser 直接删除序列号/IMEI。拒绝原因：同一解析结果无法服务预览、导出和未来模板，也会把不确定分类静默当成事实；在模板层判断则会在不同模板中重复规则。
+
+### 2. 单向迁移与兼容 DTO 投影
+
+主迁移路径固定为：
+
+```text
+ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出
+```
+
+新增两个方向职责不同的适配器：
+
+- `canonical_to_inspection_report(case, renderContext)`：主路径的兼容投影，为现有预览/编辑页面生成 `InspectionReport`；不能表达的 archive parts/plan 通过扩展响应或服务端 manifest 保存。
+- `inspection_report_to_canonical(dto, context)`：仅处理旧前端提交和历史数据迁移，返回 best-effort canonical case + issues，不承诺完整回填。
+- 现有 `ParseReportResponse` 先保持 `report`, `parsed_files`, `rar_info` 字段；可选增加 `case_id`, `archive_manifest_id`, `warnings`，前端旧代码忽略未知字段。
+
+反向兼容输入可能缺少或无法恢复：字段来源和 JSON 路径、通用 `Identifier` 类型及其置信信息、有序 `InspectorSnapshot[]`、实际 `ArchiveManifest`（文件名/大小/MD5/连续性/光盘绑定）、`TemplateProfile`/模板版本、规划状态和未被 `InspectionReport` 表示的新字段。后端必须在 issues/diagnostics 中标记这些缺失，不能把默认值伪装成原始事实。后端导出入口在旧 DTO 模式下先转换为 canonical；待前端改用 canonical/plan API 并通过验收后，才考虑收紧公共契约。
+
+### 3. 单机人员库采用后端封装的版本化 JSON Repository
+
+阶段一使用操作系统应用数据目录中的 `inspectors.json`、`inspectors.json.bak` 和临时写入文件；目录不得位于仓库根目录，开发 fallback 也必须加入忽略规则，人员库内容不得进入 Git。只有后端 `InspectorRepository` 能访问该文件，Controller 通过服务接口调用，前端只能访问 HTTP DTO。写入前校验 schema、唯一 ID、姓名/单位/警号非空和基础长度/字符规则；写入采用临时文件、flush/fsync、原子 replace 和上一份备份。任何写入失败都保留原文件。报告 JSON/缓存中保存有序 `InspectorSnapshot[]`，不保存人员库路径。上层 `InspectorRepository` 接口保持稳定，未来替换为 SQLite 或服务端存储不改变 Service/Controller/前端契约。
+
+备选方案：直接把人员数组嵌入每份报告。拒绝原因：无法复用和维护人员；只用内存则重启丢失。SQLite 可作为未来多人并发迁移目标，但阶段一没有必要引入数据库和迁移成本。
+
+### 4. 压缩规划、执行、校验和最终清单四段式
+
+`ArchivePlanner` 纯函数只根据源大小和策略生成 `ArchivePlan`；`WinRarExecutor` 只负责 staging 中的命令执行；`ArchiveValidator` 只读取输出并生成实际卷结果；`ArchiveManifestAssembler` 在绑定 `DiscSequence` 后生成最终清单。执行命令使用精确十进制字节参数（例如 `-v4000000000b`），基础名来自安全化案件名，结果统一到 `case.part1.rar` 格式。WinRAR 不存在或无法调用时阶段一返回 `winrar_unavailable`，允许报告继续上传、解析和编辑，但禁用自动压缩、阻止最终导出且不创建任何 `ArchiveManifest`；不得使用 ZIP 降级。现有旧解析入口的 ZIP/RAR 上传解析能力保持不变，但不被当作自动分卷产物。
+
+每次尝试写到独立 staging 目录。validator 发现卷数超限、跳号、命名不符、卷大小异常、MD5 缺失或 part 数与计划冲突时，销毁该 staging 结果并在 `maxReplanAttempts = 2` 内执行下一档。重试仍失败时返回明确错误。最终 manifest 至少保存每卷实际文件名、实际大小、MD5、分卷序号、光盘容量、光盘编号、刻录日期和连续性校验结果；附件一和附件三只能消费该 manifest，不能消费 plan 或自行重新计算。
+
+### 5. 先页面计划、后模板渲染
+
+附件分页是可测试的业务布局，不应由 Word 自动分页“碰巧得到”。规划阶段输出 page index、显示条件、合并框、图片 fit、keepTogether 和普通分页点；renderer 将其应用到模板 Profile。这样可以在没有 Word GUI 的情况下验证卷数、图片 0/偶数/奇数规则、标题显示次数和跨页边界，再做 OOXML/人工视觉验收。无图片时不生成附件二页面，附件三仍从自身计划显示“附件3”，不重排编号。
+
+### 6. `current-template-v1` 是阶段一唯一固定 Profile
+
+阶段一只登记并使用固定的 `current-template-v1` 和固定 TemplateProfile；只允许当前 DOCX Renderer 的受控扩展。通用模板设计器、通用重复块 DSL、任意 DOCX 自动绑定、可视化模板编辑和无标记模板识别全部是阶段三接口预留，不在阶段一实现或静默启用。阶段一复制/读取现有模板并校验哈希，不修改 `word_templates/template.docx` 或甲方参考 DOCX。模板填充只在 Profile 允许的段落、表格、文本框和图片区内进行；保留 VML 宿主段落、关系、普通分页符和表格边框。
+
+`document_builder_service.py` 的 officecli batch 路径作为 `legacy` 正式路径保留；canonical 正式模式的 renderer 出错时直接返回明确失败，不能自动静默切回 legacy，也不能悄悄产出与 manifest/plan 不一致的附件。
+
+### 7. 阶段三推荐必须是可解释草稿
+
+模板解析器先建立 DOCX AST 和元素指纹，再按标签相似度、字段别名、表格列语义、邻近标题、段落样式、重复结构和图片区尺寸产生 `Recommendation`。每项保存评分分解和证据，输出 `TemplateProfileDraft`。用户确认/修正后才升为 active Profile；任何修改生成新版本，旧 Profile 可回滚。
+
+### 8. 集中式 pipeline mode 和 Shadow 比较
+
+`pipeline_mode` 由后端应用启动入口（计划放在现有 `packages/backend/app/main.py` 的应用配置初始化）从统一运行时配置读取，默认 `legacy`，可选 `shadow`、`canonical`；配置优先读取 `BIJI_PIPELINE_MODE`，再使用应用配置文件/默认值。Repository、Service 和 Renderer 接收同一 `PipelineSettings` 对象，不各自读取环境变量或维护布尔开关。该配置读取位置和 schemaVersion 在实现前门禁中固定。
+
+- `legacy`：旧管线产生唯一正式输出；不执行新 renderer。
+- `shadow`：旧管线产生唯一正式输出；新管线在隔离 staging 中生成 canonical、plans 和非执行性的清单投影，不生成第二份正式 Word，不替换正式归档，不调用 WinRAR，也不执行真实重复压缩。ArchiveManifest 比较使用既有正式结果与该投影，投影不得伪装成最终 manifest。
+- `canonical`：新管线产生唯一正式输出；数据正确性错误直接失败，不自动 fallback。人工运维将集中配置改回 `legacy` 才能回滚。
+
+Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号、检查时间、主软件、检查人员顺序、ArchiveManifest 和附件一/二/三页面数量。比较器只输出字段名、一致性、脱敏来源和诊断代码，严禁完整案件、人员、IMEI、序列号和原始 JSON 进入日志。
+
+## Migration Plan
+
+### Stage 0: Contracts and shadow pipeline
+
+1. 在不改变现有端点的前提下新增 SharedTypes、领域服务接口、schemaVersion 和集中 `pipeline_mode` 配置；默认 `legacy`。
+2. 按 `ReportAdapter → CanonicalInspectionCase → InspectionReport` 建立兼容投影；旧 DTO 输入/历史迁移只走 best-effort `LegacyReportInputAdapter`，不作为主路径。
+3. 为 `current-template-v1` 建立只读 Profile 和模板资产哈希；不替换运行时模板。
+4. 为压缩、附件规划和 renderer 增加纯函数测试、合成 fixture 和 XML 检查。
+
+### Stage 1: Required delivery
+
+1. 接入手机/平板显示政策、报告来源主软件、人员库/快照、光盘序列和分卷 manifest。
+2. 将附件一/二/三全部从 final manifest/page plans 渲染；保留旧 DTO 输入和 officecli fallback。
+3. 在 `shadow` 模式下由旧管线产生唯一正式输出，新管线只在隔离目录生成 canonical、plans、非执行性的 manifest 投影和脱敏比较结果；不得调用 WinRAR 或执行真实重复压缩，不产生第二份正式文书。
+4. Shadow 比较至少覆盖案件字段、检材类型、IMEI/序列号、检查时间、主软件、人员顺序、ArchiveManifest 和附件页数；人工确认正文、VML、分页、颜色、图片和附件。
+5. 通过阶段一门槛后把集中配置切换为 `canonical`；保留将同一配置改回 `legacy` 的人工回滚路径。
+
+### Stage 2: Arbitrary report, current template
+
+1. 增加结构发现 API、候选确认 UI、ReportProfile Repository 和 provenance 审计。
+2. 仅对已确认 Profile 自动适配同类报告；未知/低置信字段仍需确认。
+3. 将 canonical DTO/问题列表逐步暴露给前端，旧 `InspectionReport` 继续作为兼容投影。
+
+### Stage 3: Arbitrary report, arbitrary template
+
+1. 增加 DOCX AST、可视化元素选择、TemplateProfile 草稿和绑定编辑器。
+2. 增加重复区、图片区、显示条件、分页和 keepTogether 的可视化配置。
+3. 无标记模板只生成推荐草稿；用户确认后运行 renderer，支持版本化比较、撤销和回滚。
+
+### Rollback
+
+- 通过集中 `pipeline_mode=legacy|shadow|canonical` 回退；默认初始值为 `legacy`，配置从后端应用统一运行时设置读取，不能由各 parser/service/renderer 分别覆盖。
+- 原始解析缓存按 source fingerprint、adapter/schema/profile 版本复用；shadow/canonical 的 plan、manifest、render 和正式输出缓存按 pipeline mode、plan、template 版本隔离或失效。Shadow 结果永远不能作为正式 Word 缓存。
+- canonical 发生数据正确性错误时直接失败，不自动切回 legacy；人工运维修改集中配置后重新处理，避免自动回退掩盖错误。
+- 归档采用 staging + manifest 原子提交，任何规划/校验失败都不替换已有产物。
+- 模板 Profile 以 ID/版本和 sha256 选择；新 Profile 失败可切回 `current-template-v1`，未知资产不自动接管。
+- 解析缓存携带 canonical/adapter/profile/schema 版本，版本不匹配即重建，不复用旧语义缓存。
+
+## Risks / Trade-offs
+
+- [风险] 现有 `template_filler_service.py` 超过文件上限且承担多种职责。→ [缓解] 按 Repository/Service/Renderer/Plan 拆分，每个新模块 ≤250 行；旧文件仅作为迁移适配层逐步削薄。
+- [风险] WinRAR 输出命名、分卷边界和压缩比受版本/参数影响。→ [缓解] staging、精确字节参数、真实卷验证、升级重试和合成大文件测试；不以源字节数冒充最终卷大小。
+- [风险] VML/页眉/普通分页的 OOXML 被 python-docx 改写。→ [缓解] 资产哈希、ZIP/XML 回归、保留宿主段落、固定 renderer 版本和 Word 人工验收。
+- [风险] “手机/平板”分类在部分报告中不明确。→ [缓解] provenance + confidence；低置信时阻止导出并要求确认，不在模板层猜测。
+- [风险] 人员 JSON 损坏或多进程写入。→ [缓解] schema 校验、原子写、备份恢复和单机写锁；报告使用快照。
+- [风险] 新旧模型在 Shadow 比较中产生不一致。→ [缓解] canonical 作为新管线事实来源，兼容 DTO 只作为投影/旧输入；集中 Shadow 比较器只记录脱敏诊断，canonical 正式错误不自动 fallback。
+- [风险] Shadow 日志泄漏案件、人员或设备标识。→ [缓解] 比较器只允许字段名、一致性、脱敏来源和诊断代码，测试扫描日志中不得出现完整敏感值。
+- [风险] 自动模板推荐误绑字段。→ [缓解] 推荐必须可解释、人工确认、版本化和可回滚，未知绑定默认禁用。
+- [取舍] 阶段一暂不接受所有任意 JSON/DOCX，牺牲即时通用性换取当前模板和法律文书版式的可验证性。
+
+## Resolved Business Decisions
+
+- `0` 张图片允许导出且不生成附件二图片页；正偶数正常生成，奇数阻止导出；附件二缺失不重排附件三编号。
+- 检材阶段一只允许 `phone`/`tablet`；可靠类型可预选，无法可靠判断时在审核页确认，不得仅根据 IMEI 推断。
+- WinRAR 未安装或不可调用时允许上传、解析和编辑，但禁止自动压缩和最终正式导出，不生成 `ArchiveManifest`，不降级 ZIP。
+- 主取证软件正常由报告适配器识别；无法可靠识别时可在审核页填写/修正名称和版本，确认前禁止最终正式导出。
+
+## Remaining Implementation Questions
+
+1. 附件一“来源”和“提取方法”合并框的文字是否按每页第一卷、每页相同值，还是需要按卷/页分别编辑？
+2. 单机人员库的应用数据目录是否有甲方指定的受控路径和备份保留周期？
+
+## Expected File Changes During Implementation
+
+本次只创建当前变更包文档。后续实现预计新增/调整以下类别，路径是迁移计划而非本次已修改文件：
+
+- `packages/shared/types/`：canonical、plans、profiles、API DTO 类型。
+- `packages/shared/constants/` 与 `packages/shared/utils/`：档位、编号、图片和显示规则纯函数。
+- `packages/backend/app/repository/`：report adapters、inspector library、archive executor/validator、profile/template asset repository。
+- `packages/backend/app/services/`：canonicalizer、domain planners、render planner、profile confirmation orchestration、legacy adapter。
+- `packages/backend/app/main.py` 及集中运行时配置：只在应用启动时读取 `pipeline_mode` 和相关版本，不让下层模块自行读取环境变量。
+- `packages/backend/app/controllers/` 与 `routes/`：兼容端点扩展及阶段二/三新 API。
+- `packages/frontend/src/hooks|components|pages/`：人员选择、光盘号、规划错误、Profile 确认和模板可视化配置。
+- `tests/` 与前端同目录测试：模型/规划单元、后端集成、OOXML 回归、E2E 和人工验收记录。
+- `word_templates/`：只在实现阶段新增版本登记/资产元数据；当前正式模板本体不在本变更设计阶段修改。
