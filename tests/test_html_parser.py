@@ -10,6 +10,7 @@ from app.repository.html_parser import (
     parse_navigation,
     parse_device_base,
 )
+from app.repository.device_field_parser import extract_device_fields
 
 # 实际报告数据目录
 REPORT_DATA_DIR = r"D:\脱敏示例\SYNTHETIC案件SYNTHETIC当事人被诈骗案_20260707161248_html\data"
@@ -82,6 +83,7 @@ def test_parse_device_base_maps_label_value_records(tmp_path):
     base_dir.mkdir(parents=True)
     (base_dir / "device.json").write_text(
         '{"items":[{"name":"设备名称","value":"HUAWEI Pura 70 Pro"},'
+        '{"name":"型号","value":"HUAWEI Pura 70 Pro"},'
         '{"name":"IMEI1","value":"123456789012345"},'
         '{"name":"序列号","value":"SYN-SERIAL-00000001"}]}',
         encoding="utf-8",
@@ -90,5 +92,86 @@ def test_parse_device_base_maps_label_value_records(tmp_path):
     fields = parse_device_base(str(tmp_path / "data"), "JC01")
 
     assert fields["device_name"] == "HUAWEI Pura 70 Pro"
+    assert fields["model"] == "HUAWEI Pura 70 Pro"
     assert fields["imei1"] == "123456789012345"
     assert fields["serial_number"] == "SYN-SERIAL-00000001"
+
+
+def test_extract_device_fields_accepts_device_model_alias():
+    fields = extract_device_fields({"设备型号": "iPhone 15 Pro"}, "")
+
+    assert fields["model"] == "iPhone 15 Pro"
+    assert fields["device_name"] == "iPhone 15 Pro"
+
+
+def test_extract_device_fields_accepts_information_content_rows():
+    payload = {
+        "rows": [
+            {"信息": "设备型号", "内容": "HUAWEI Mate 60"},
+            {"信息": "IMEI1", "内容": "123456789012345"},
+        ]
+    }
+
+    fields = extract_device_fields(payload, "")
+
+    assert fields["model"] == "HUAWEI Mate 60"
+    assert fields["device_name"] == "HUAWEI Mate 60"
+    assert fields["imei1"] == "123456789012345"
+
+
+def test_extract_device_fields_accepts_c1_c2_table_rows():
+    payload = {
+        "rows": [
+            {"c1": "设备名称", "c2": "Google Pixel 8"},
+            {"c1": "设备型号", "c2": "Pixel 8"},
+            {"c1": "IMEI1", "c2": "543210987654321"},
+            {"c1": "序列号", "c2": "SN123456"},
+        ]
+    }
+
+    fields = extract_device_fields(payload, "")
+
+    assert fields == {
+        "device_name": "Google Pixel 8",
+        "model": "Pixel 8",
+        "imei1": "543210987654321",
+        "imei2": "",
+        "serial_number": "SN123456",
+    }
+
+
+def test_extract_device_fields_ignores_empty_missing_and_malformed_rows():
+    payload = [
+        {"信息": "设备型号", "内容": ""},
+        {"信息": "设备型号"},
+        {"c1": "设备型号"},
+        {"c1": "设备型号", "c2": {"nested": "not a scalar"}},
+        {"c2": "iPhone 15"},
+        "not a row",
+        None,
+    ]
+
+    fields = extract_device_fields(payload, "")
+
+    assert fields == {
+        "device_name": "",
+        "model": "",
+        "imei1": "",
+        "imei2": "",
+        "serial_number": "",
+    }
+
+
+def test_parse_device_base_keeps_phone_directory_compatibility(tmp_path):
+    phone_dir = tmp_path / "data" / "JC02" / "Phone"
+    phone_dir.mkdir(parents=True)
+    (phone_dir / "device.json").write_text(
+        '{"型号":"SM-S9180","IMEI1":"111111111111111"}',
+        encoding="utf-8",
+    )
+
+    fields = parse_device_base(str(tmp_path / "data"), "JC02")
+
+    assert fields["model"] == "SM-S9180"
+    assert fields["device_name"] == "SM-S9180"
+    assert fields["imei1"] == "111111111111111"

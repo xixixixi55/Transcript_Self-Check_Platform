@@ -30,7 +30,7 @@ def extract_device_fields(payload: Any, text: str) -> dict[str, str]:
         key = _normalise_key(label)
         if key in {"设备名称", "手机名称", "devicename", "phonename", "productname"}:
             result["device_name"] = result["device_name"] or value_text
-        elif key in {"型号", "model", "devicemodel", "phonemodel"}:
+        elif key in {"型号", "设备型号", "手机型号", "model", "devicemodel", "phonemodel"}:
             result["model"] = result["model"] or value_text
         elif key in {"imei1", "imei-1"}:
             result["imei1"] = result["imei1"] or value_text
@@ -78,8 +78,10 @@ def _iter_key_values(value: Any):
 
 def _iter_label_values(value: Any):
     if isinstance(value, dict):
-        label = value.get("name") or value.get("key") or value.get("label") or value.get("title")
-        content = value.get("value") or value.get("content") or value.get("text") or value.get("ct")
+        label = (value.get("name") or value.get("key") or value.get("label") or value.get("title")
+                 or value.get("信息") or value.get("c1"))
+        content = (value.get("value") or value.get("content") or value.get("text") or value.get("ct")
+                   or value.get("内容") or value.get("c2"))
         if label and content is not None:
             yield str(label), content
         for child in value.values():
