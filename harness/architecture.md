@@ -74,7 +74,8 @@
 
 - 每个文件 **MUST** 不超过 250 行
 - 超过 200 行时 **SHOULD** 考虑拆分
-- 如果确实需要超过上限，MUST 在文件头部添加注释说明原因
+- `scripts/lint-arch.ts` 当前以 `MAX_LINES = 250` 检查源码目录；超限文件只有在 `FILE_SIZE_EXCEPTIONS` 中显式列出时才会放行。
+- 项目约定超限文件同时在文件头部说明原因；该说明属于治理要求，脚本本身只按例外列表判定。当前例外为 `report_parser_service.py`、`document_builder_service.py`、`template_filler_service.py` 和 `html_parser.py`。
 
 ### 导出规则
 

@@ -19,8 +19,10 @@
 │   ├── data_device_lists.json       ← 必须：设备列表
 │   ├── data_report_info.json        ← 必须：工具版本
 │   ├── data_navigation.json         ← 必须：数据分类树
-│   └── [检材编号]/Base/             ← 必须：设备详情（型号/IMEI）
-├── assets/  md/  static/            ← 不解析，压缩 .rar 时原样打包
+│   └── [检材编号]/                  ← 设备详情（型号/IMEI/序列号）
+│       ├── Base/                     ← 传统格式（JSON 键值对）
+│       └── Phone/                    ← 表格格式（信息/内容 列）
+├── assets/  md/  static/            ← 不解析，生成归档时原样打包
 ```
 
 **Scenario: 选择文件夹上传（压缩默认勾选）**
@@ -28,7 +30,7 @@
 - AND "压缩为 .rar"复选框保持默认勾选
 - THEN 前端以 `webkitdirectory` 模式上传 data/ 目录下的所有 JSON 文件
 - AND 后端解析各 JSON 提取案件信息、设备信息、工具版本、数据分类统计
-- AND 后端将整个报告目录压缩为 `[案件名称].rar` 并计算 MD5
+- AND 后端将整个报告目录生成归档文件（优先使用 RAR，未检测到 WinRAR 时降级为 ZIP）并计算 MD5
 - AND 返回结构化解析结果（含 rar_info）
 
 **Scenario: 选择文件夹上传（取消压缩）**
@@ -68,10 +70,20 @@
 
 ### REQ-003: 解析设备信息
 
-**Scenario: 提取检材详情**
-- WHEN 解析 data_device_lists 和 data_navigation 中手机基本信息
-- THEN 提取设备型号（如 iPhone 13 Pro）、IMEI/序列号、取证时间范围
-- AND 返回结构化设备列表
+**Scenario: 从检材子目录提取设备详情**
+- WHEN 解析 `data/[检材编号]/` 下各直接子目录中的 JSON 文件（不限于 Base/，也包含 Phone/ 等）
+- THEN 优先从结构化 JSON 中提取设备字段
+- AND 支持多种 JSON 格式：
+  - `{"name": "设备名称", "value": "iPhone 13 Pro"}` 键值对格式
+  - `{"信息": "设备名称", "内容": "iPhone 13 Pro"}` 表格行格式
+  - `{"c1": "设备名称", "c2": "iPhone 13 Pro"}` 列标识格式
+- AND 识别以下字段别名：
+  - 设备名称：设备名称、手机名称、Device Name、productname
+  - 型号：型号、设备型号、手机型号、model
+  - 序列号：序列号、Serial、SN
+  - IMEI1/IMEI2
+- AND 结构化解析失败时回退到正则匹配
+- AND 返回结构化设备列表（含 device_type / model / imei1 / imei2 / serial_number / evidence_number）
 
 ### REQ-004: 解析取证工具信息
 
@@ -94,6 +106,7 @@
   - 二、检查（一～四）
   - 附件区域
   - 签名区
+- AND 网页预览是可编辑的结构化内容展示，不承诺等同于最终 Word 的分页和版式渲染
 
 **Scenario: 缺失字段留空**
 - WHEN 某个字段无法从 HTML 报告中提取（如检查人员、检查地点）
@@ -162,7 +175,8 @@
 
 **Scenario: 确认无误后导出**
 - WHEN 民警点击"导出 Word"按钮
-- THEN 系统将当前预览内容（含所有文本修改 + 附件图片）通过 officecli 生成 .docx
+- THEN 系统优先使用 `word_templates/template.docx` 和模板填充服务生成 .docx
+- AND 模板不存在或填充失败时，回退到 `document_builder_service.py` + officecli batch 生成 .docx
 - AND 附件2区域嵌入所有已上传的检材照片（原图嵌入）
 - AND 文件文号格式为 "xx电检〔YYYY〕xx号"
 - AND 自动触发浏览器下载
@@ -196,7 +210,8 @@
 **Scenario: 首次解析后缓存**
 - WHEN 首次解析某个报告目录成功
 - THEN 将完整解析结果（InspectionReport + rar_info）保存为 JSON 缓存文件
-- AND 缓存路径为 `output/parsed/[报告目录名].json`
+- AND 缓存路径按压缩模式区分为 `output/parsed/[报告目录名].compress.json` 或 `output/parsed/[报告目录名].nocompress.json`
+- AND 缓存载荷中的 `cache_version` 当前为 `4`
 
 **Scenario: 重复解析时复用缓存**
 - WHEN 再次请求解析相同的报告目录
@@ -217,12 +232,12 @@
 
 **Scenario: RAR 已存在且 compress=true 时跳过**
 - WHEN `compress=true`
-- AND `output/compressed/[案件名称].rar` 已存在且大小 > 0
-- THEN 跳过压缩步骤，直接使用现有 RAR 文件
+- AND `output/compressed/[案件名称].rar` 或 `.zip` 已存在且大小 > 0
+- THEN 跳过压缩步骤，直接使用现有归档文件并重新计算其 MD5 和大小
 
 **Scenario: RAR 不存在时正常压缩**
-- WHEN RAR 文件不存在
-- THEN 正常执行压缩 + MD5 计算
+- WHEN 可复用的归档文件不存在
+- THEN 正常执行归档生成 + MD5 计算
 
 ---
 
@@ -286,26 +301,52 @@
 
 ### REQ-016: 按实际操作生成 software_tools
 
-系统 MUST 根据实际调用的工具动态生成 software_tools 列表，禁止硬编码。
+系统 MUST 根据实际运行环境生成 software_tools 列表；列表数量取决于产品版本是否成功解析。
 
-| 流程路径 | 调用的外部工具 | software_tools |
-|------|:---:|------|
-| 文件夹 + 压缩 .rar | WinRAR CLI | 美亚手机大师-并行版V5、WinRAR压缩管理软件 |
-| 文件夹 + 不压缩 | 无 | 美亚手机大师-并行版V5 |
-| 上传 .rar | WinRAR CLI（解压） | 美亚手机大师-并行版V5、WinRAR压缩管理软件 |
-| 上传 .zip | Python zipfile | 美亚手机大师-并行版V5 |
+产品版本非空时包含三项；产品版本为空时省略美亚手机大师，保留 WinRAR 和 Python hashlib 两项：
 
-**Scenario: WinRAR 参与流程时追加**
-- WHEN 流程中调用了 WinRAR CLI
-- THEN `software_tools` 包含"WinRAR压缩管理软件"，版本号动态检测
+| 条件 | 名称 | 版本来源 |
+|:---:|------|---------|
+| product_version 非空 | 美亚手机大师-并行版V5 | `data_report_info.json` 的 product_version |
+| 始终 | WinRAR压缩管理软件 | `detect_winrar_version()`，未检测到则默认 "6.24"（用户可修改） |
+| 始终 | Python hashlib | `sys.version_info`（如 "3.11.0"） |
 
-**Scenario: 不压缩时不追加 WinRAR**
-- WHEN 流程中无 WinRAR CLI 调用
-- THEN `software_tools` 不包含 WinRAR
+**Scenario: WinRAR 始终显示**
+- WHEN 生成 software_tools
+- THEN 始终包含"WinRAR压缩管理软件"
+- AND 版本号为实际检测值或默认 "6.24"
+- AND 用户可在预览中修改版本号
 
-**Scenario: 移除虚构的 Hash 工具**
-- WHEN 系统计算 MD5
-- THEN 通过 Python hashlib 标准库，不添加虚构的"Hash"软件条目
+**Scenario: Python hashlib 显示实际 Python 版本**
+- WHEN 生成 software_tools
+- THEN 包含"Python hashlib"，版本号为当前运行 Python 解释器的实际版本（如 "3.11.0"）
+
+**Scenario: 产品版本为空时省略美亚工具**
+- WHEN `data_report_info.json` 未提供产品版本
+- THEN `software_tools` 不包含"美亚手机大师-并行版V5"
+- AND 仍包含 WinRAR 和 Python hashlib
+
+---
+
+## CAP-010: 附件1 电子数据提取固定清单自动填充
+
+### REQ-017: 从 rar_info 自动填充提取清单
+
+**Scenario: 压缩后自动填充附件1**
+- WHEN 目录解析启用压缩且生成了归档文件
+- THEN `attachments.extract_list` 自动填充一行数据：
+  - 列结构固定为：序号、电子数据、来源、提取方式、文件MD5哈希值
+  - 电子数据 = 归档文件名
+  - 来源 = `[检材编号]检材内提取`（检材编号为空时为空）
+  - 提取方式 = "使用美亚手机取证塔对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值"
+  - 文件MD5哈希值 = 归档文件的 MD5 哈希值
+- AND 用户可继续编辑或添加行
+
+**Scenario: 未压缩时附件1留空**
+- WHEN 压缩开关关闭、未生成 RAR 文件
+- THEN `attachments.extract_list` 仍有标准 5 列表头但无数据行
+- AND 用户可手动填写
+- AND 直接上传 `.rar/.zip` 时，归档文件信息写入检查结果和 `rar_info`，当前实现不自动补附件1数据行
 
 ---
 
@@ -313,8 +354,8 @@
 
 | 用途 | 路径 |
 |------|------|
-| 解析缓存 | `output/parsed/[报告目录名].json` |
-| RAR 压缩包 | `output/compressed/[案件名称].rar` |
+| 解析缓存 | `output/parsed/[报告目录名].compress.json` 或 `.nocompress.json` |
+| 归档文件 | `output/compressed/[案件名称].rar`，无 WinRAR 时为 `.zip` |
 | 导出 .docx | `output/exports/[文号].docx` |
 | 硬件设备配置 | `packages/backend/app/data/hardware_devices.json` |
 
@@ -322,8 +363,12 @@
 
 - **MUST**: API 响应字段名用 camelCase，Python 内部用 snake_case，Controller 层做转换
 - **MUST**: officecli 调用仅存在于 BE_Services 层
-- **MUST**: 生成的 .docx 遵循标准检查笔录格式（参照 templates/ 中的样例文档）
+- **MUST**: 生成的 .docx 使用项目模板或回退构建器的标准检查笔录结构；与业务方参考 DOCX 的最终视觉一致性需要人工文档验收
 - **MUST**: 不能跳过 spec 直接修改代码——任何代码变更必须先更新 spec 再实现
 - **MUST**: `rar_info` 在 ParseReportResponse 中为可选字段（`RarInfo | null`）
 - **MUST**: 解压操作仅存在于 BE_Repository 层（`file_storage.py`）
-- **MUST**: `software_tools` 列表由后端根据实际调用的工具动态生成，禁止硬编码
+- **MUST**: 软件工具列表由后端根据实际运行环境生成；WinRAR 和 Python hashlib 始终显示，产品版本为空时省略美亚手机大师
+- **MUST**: `entrust_time`（委托时间）使用中文格式（如 `2026年6月30日`），由 `format_time_chinese()` 转换
+- **MUST**: `file_size` 保持后端当前字符串语义；目录压缩为字节数文本，压缩包直传为带“字节”后缀的文本
+- **MUST**: 设备解析时优先结构化 JSON，再正则回退；扫描检材目录下各直接子目录（不限于 Base/），支持 `设备型号`、`信息/内容` 和 `c1/c2`
+- **MUST**: DOCX 生成格式遵循项目模板/构建器定义的标准结构；自动化验证不替代人工视觉验收

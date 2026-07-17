@@ -93,10 +93,10 @@
 |------|------|------|
 | id | string | 唯一标识 |
 | device_type | string | 设备类型 |
-| model | string | 具体型号 |
-| imei1 | string | IMEI1 |
-| imei2 | string | IMEI2 |
-| serial_number | string | 序列号 |
+| model | string（可选） | 具体型号 |
+| imei1 | string（可选） | IMEI1 |
+| imei2 | string（可选） | IMEI2 |
+| serial_number | string（可选） | 序列号 |
 | evidence_number | string | 检材编号 |
 
 ### 检查人员（Inspector）
@@ -131,18 +131,18 @@
 | data_summary | string | 数据分类摘要 |
 | rar_filename | string | RAR文件名 |
 | md5_hash | string | MD5哈希值 |
-| file_size | string | 文件大小 |
+| file_size | string | 文件大小字符串；目录压缩时为字节数文本，压缩包直传时为带“字节”后缀的文本，具体展示由生成路径处理 |
 
 ### 表格数据（TableData）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| columns | ColumnDef[] | 列定义 |
-| rows | RowData[] | 行数据 |
+| columns | `{ key: string; title: string; width?: string }[]` | 列定义；附件1 默认五列：序号、电子数据、来源、提取方式、文件MD5哈希值 |
+| rows | `Record<string, string>[]` | 行数据；目录解析启用压缩且生成归档文件时自动填充首行，未压缩或压缩包直传时当前实现不自动补附件1行，用户可编辑 |
 
 ### 检查笔录全文（InspectionReport）
 
-顶层结构，包含 title + document_number + introduction(9字段) + inspection(4字段) + attachments(3字段)。
+顶层结构，包含 title、document_number、可选 case_number、introduction（9字段）、inspection（4字段）和 attachments（3个必需字段及可选 burning_date）。
 
 ### RAR/压缩包文件信息（RarInfo）
 
@@ -152,6 +152,8 @@
 | md5 | string | MD5 哈希值（32位十六进制） |
 | size_bytes | number | 文件大小（字节） |
 | size_display | string | 格式化后的文件大小（如 "11.77 MB"） |
+
+目录解析和压缩包直传的来源不同：目录解析的 `rar_info` 从检查结果重建，当前 `size_bytes` 为 0、`size_display` 使用检查结果中的文件大小文本；压缩包直传返回原始上传文件的实际字节数和格式化大小。
 
 ### API 响应（ParseReportResponse）
 
