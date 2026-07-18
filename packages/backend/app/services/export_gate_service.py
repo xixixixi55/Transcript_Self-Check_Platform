@@ -42,6 +42,7 @@ class ExportGateInput:
     winrar_available: bool = True
     archive_manifest_required: bool = False
     archive_manifest_present: bool = True
+    material_type_fields: tuple[str, ...] = ()
     warnings: tuple[ExportGateIssue, ...] = field(default_factory=tuple)
 
 
@@ -55,12 +56,14 @@ def evaluate_export_gate(
     facts = facts or ExportGateInput()
     blockers: list[ExportGateIssue] = []
     if not facts.material_types_confirmed:
-        blockers.append(
+        fields = facts.material_type_fields or ("materials",)
+        blockers.extend(
             ExportGateIssue(
                 ExportGateCode.MATERIAL_TYPE_UNCONFIRMED,
-                "materials",
-                "所有检材类型必须先确认。",
+                field,
+                "检材类型必须先确认手机或平板。",
             )
+            for field in fields
         )
     if not facts.primary_software_confirmed:
         blockers.append(

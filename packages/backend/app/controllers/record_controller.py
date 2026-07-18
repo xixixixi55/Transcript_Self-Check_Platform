@@ -15,6 +15,9 @@ from fastapi.responses import FileResponse
 
 from ..services.report_parser_service import parse_report, parse_from_archive
 from ..services.record_generator_service import generate_docx
+from ..services.export_gate_service import ExportGateInput, evaluate_export_gate
+from ..services.inspector_service import apply_inspector_snapshot_compatibility
+from ..services.material_policy_service import enrich_report_material_types, unconfirmed_material_fields
 
 router = APIRouter()
 
@@ -83,6 +86,7 @@ async def parse_report_endpoint(
                 raise HTTPException(status_code=404, detail=f"报告目录不存在: {report_dir}")
             result = parse_report(report_dir, OUTPUT_BASE, compress=compress)
 
+        result["report"] = enrich_report_material_types(result["report"])
         return {"success": True, "data": result}
     except HTTPException:
         raise
@@ -112,6 +116,31 @@ async def export_record_endpoint(
         report = json.loads(report_json)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
+
+    material_fields = unconfirmed_material_fields(report)
+    gate = evaluate_export_gate(
+        ExportGateInput(
+            material_types_confirmed=not material_fields,
+            material_type_fields=material_fields,
+        )
+    )
+    if not gate.allowed:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "EXPORT_BLOCKED",
+                "blockers": [
+                    {
+                        "code": issue.code.value if hasattr(issue.code, "value") else issue.code,
+                        "field": issue.field,
+                        "message": issue.message,
+                    }
+                    for issue in gate.blockers
+                ],
+            },
+        )
+
+    report = apply_inspector_snapshot_compatibility(report)
 
     # 保存上传的图片到临时目录
     photo_paths = []

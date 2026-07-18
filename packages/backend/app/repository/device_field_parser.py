@@ -31,7 +31,7 @@ def extract_device_fields(
     ``tt/ct`` 只有在调用方已经确认当前对象是键值表时才启用；默认保持
     旧格式的 ``信息/内容``、``c1/c2`` 和明确字段名行为。
     """
-    result = {"device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+    result = {"device_type": "", "device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
 
     def assign(label: str, value: Any):
         if value is None or isinstance(value, (dict, list)):
@@ -40,7 +40,9 @@ def extract_device_fields(
         if not value_text:
             return
         key = _normalise_key(label)
-        if key in {"设备名称", "手机名称", "devicename", "phonename", "productname"}:
+        if key in {"device_type", "devicetype", "materialtype", "设备类型", "检材类型"}:
+            result["device_type"] = result["device_type"] or value_text
+        elif key in {"设备名称", "手机名称", "devicename", "phonename", "productname"}:
             result["device_name"] = result["device_name"] or value_text
         elif key in {"型号", "设备型号", "产品型号", "手机型号", "model", "devicemodel", "productmodel", "phonemodel"}:
             result["model"] = result["model"] or value_text
@@ -63,6 +65,7 @@ def extract_device_fields(
             "serial_number": r"序列号|serial[_ ]?number|serial|sn",
             "device_name": r"设备名称|手机名称|device[_ ]?name|phone[_ ]?name",
             "model": r"型号|model",
+            "device_type": r"设备类型|检材类型|device[_ ]?type|material[_ ]?type",
         }.items():
             match = re.search(
                 rf"(?:{aliases})\D{{0,20}}([A-Za-z0-9][A-Za-z0-9 ._-]{{2,60}})",
@@ -141,7 +144,7 @@ def _contains_key_value_table(value: Any, *, allow_tt_ct: bool) -> bool:
 
 
 def _empty_fields() -> dict[str, str]:
-    return {"device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+    return {"device_type": "", "device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
 
 
 def normalise_imei(value: Any) -> str:

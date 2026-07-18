@@ -1,11 +1,17 @@
 // Layer 11: FE_Components — 检材情况编辑器
 import React from 'react'
-import { Button, Space, Typography } from 'antd'
+import { Alert, Button, Select, Space, Typography } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { EvidenceItem } from '@biji/shared/types'
 import EditableField from './EditableField'
 
 const { Text } = Typography
+
+const MATERIAL_TYPE_OPTIONS = [
+  { label: '手机', value: 'phone' },
+  { label: '平板', value: 'tablet' },
+  { label: '待确认', value: 'unconfirmed' },
+]
 
 interface Props {
   items: EvidenceItem[]
@@ -34,6 +40,16 @@ export default function EvidenceEditor({ items, onChange }: Props) {
     onChange(items.filter((_, i) => i !== idx))
   }
 
+  const updateMaterialType = (idx: number, value: 'phone' | 'tablet' | 'unconfirmed') => {
+    onChange(items.map((item, i) => i === idx ? {
+      ...item,
+      material_type: value,
+      material_type_status: value === 'unconfirmed' ? 'unconfirmed' : 'confirmed_by_user',
+      material_type_source: 'user',
+      material_type_diagnostic: undefined,
+    } : item))
+  }
+
   return (
     <div>
       {items.map((item, idx) => (
@@ -46,6 +62,25 @@ export default function EvidenceEditor({ items, onChange }: Props) {
             <div><Text strong>设备名称：</Text><EditableField type="text"
               placeholder="如 HUAWEI Pura 70 Pro" value={item.device_type || item.model || ''}
               onChange={value => updateItem(idx, 'device_type', value)} /></div>
+            <div>
+              <Text strong>检材类型：</Text>
+              <Select
+                aria-label={`检材${idx + 1}类型`}
+                value={item.material_type || 'unconfirmed'}
+                options={MATERIAL_TYPE_OPTIONS}
+                onChange={(value: 'phone' | 'tablet' | 'unconfirmed') => updateMaterialType(idx, value)}
+                style={{ minWidth: 140 }}
+              />
+              {item.material_type_status === 'confirmed_by_report' && (
+                <Text type="secondary">（报告明确字段候选）</Text>
+              )}
+              {item.material_type_status === 'confirmed_by_user' && (
+                <Text type="secondary">（用户已确认）</Text>
+              )}
+            </div>
+            {(!item.material_type || item.material_type === 'unconfirmed' || item.material_type_status === 'unconfirmed') && (
+              <Alert type="warning" showIcon message="请确认检材类型；未确认时不能导出。" />
+            )}
             <div><Text strong>IMEI1：</Text><EditableField type="text" value={item.imei1 || ''}
               onChange={value => updateItem(idx, 'imei1', value)} /></div>
             <div><Text strong>IMEI2：</Text><EditableField type="text" value={item.imei2 || ''}

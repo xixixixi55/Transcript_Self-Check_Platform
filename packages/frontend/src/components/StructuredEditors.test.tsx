@@ -6,10 +6,18 @@ import ExtractListEditor from './ExtractListEditor'
 import InspectorEditor from './InspectorEditor'
 
 vi.mock('antd', () => ({
-  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button onClick={onClick}>{children}</button>
+  Alert: ({ message }: { message: React.ReactNode }) => <div>{message}</div>,
+  Button: ({ children, onClick, ...props }: { children: React.ReactNode; onClick?: () => void; [key: string]: unknown }) => (
+    <button {...props} onClick={onClick}>{children}</button>
   ),
   Space: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Select: ({ value, options, onChange, mode, 'aria-label': ariaLabel }: any) => (
+    <select aria-label={ariaLabel} multiple={mode === 'multiple'} value={value} onChange={event => onChange(mode === 'multiple' ? [event.target.value] : event.target.value)}>
+      {options.map((option: { label: string; value: string }) => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  ),
   Table: ({ columns, dataSource }: any) => (
     <div>{columns.map((column: any) => (
       <div key={column.key}>
@@ -25,7 +33,12 @@ vi.mock('antd', () => ({
   Typography: { Text: ({ children }: { children: React.ReactNode }) => <span>{children}</span> },
 }))
 
-vi.mock('@ant-design/icons', () => ({ PlusOutlined: () => null, DeleteOutlined: () => null }))
+vi.mock('@ant-design/icons', () => ({
+  PlusOutlined: () => null,
+  DeleteOutlined: () => null,
+  UpOutlined: () => null,
+  DownOutlined: () => null,
+}))
 vi.mock('./EditableField', () => ({
   default: ({ value, placeholder, onChange }: { value: string; placeholder?: string; onChange: (value: string) => void }) => (
     <button onClick={() => onChange('已修改')}>{value || placeholder || '点击编辑'}</button>
@@ -43,13 +56,72 @@ describe('结构化编辑器', () => {
     ]))
   })
 
+  it('检材类型选择写入用户确认状态', () => {
+    const onChange = vi.fn()
+    render(<EvidenceEditor items={[{
+      id: '1', device_type: '合成设备', model: '', evidence_number: 'JC01',
+      material_type: 'unconfirmed', material_type_status: 'unconfirmed',
+    }]} onChange={onChange} />)
+
+    fireEvent.change(screen.getByLabelText('检材1类型'), { target: { value: 'tablet' } })
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({
+        material_type: 'tablet',
+        material_type_status: 'confirmed_by_user',
+        material_type_source: 'user',
+      }),
+    ])
+  })
+
   it('检查人员字段通过 EditableField 回调更新数据', () => {
     const onChange = vi.fn()
-    render(<InspectorEditor inspectors={[{ name: '张三', unit: '单位', badge_number: '001' }]} onChange={onChange} />)
+    render(<InspectorEditor
+      snapshots={[]}
+      availableInspectors={[{
+        id: 'inspector-1', name: '张三', unit: '单位', police_number: '001',
+        enabled: true, created_at: 'now', updated_at: 'now',
+      }]}
+      onChange={onChange}
+    />)
 
-    fireEvent.click(screen.getByText('张三'))
+    fireEvent.change(screen.getByLabelText('选择检查人员'), { target: { value: 'inspector-1' } })
     expect(onChange).toHaveBeenCalledWith([
-      { name: '已修改', unit: '单位', badge_number: '001' },
+      expect.objectContaining({ inspector_id: 'inspector-1', name: '张三', unit: '单位', police_number: '001', selected_order: 0 }),
+    ])
+  })
+
+  it('检查人员快照支持上移、下移和移除且保持顺序', () => {
+    const onChange = vi.fn()
+    render(<InspectorEditor
+      snapshots={[
+        { inspector_id: 'one', name: '甲', unit: '单位甲', police_number: '001', selected_order: 0 },
+        { inspector_id: 'two', name: '乙', unit: '单位乙', police_number: '002', selected_order: 1 },
+      ]}
+      availableInspectors={[]}
+      onChange={onChange}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: '下移1' }))
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ inspector_id: 'two', selected_order: 0 }),
+      expect.objectContaining({ inspector_id: 'one', selected_order: 1 }),
+    ])
+  })
+
+  it('停用人员仍保留在当前快照中，启用列表不展示该人员', () => {
+    const onChange = vi.fn()
+    render(<InspectorEditor
+      snapshots={[{ inspector_id: 'disabled', name: '停用甲', unit: '单位甲', police_number: '001' }]}
+      availableInspectors={[{ id: 'active', name: '启用乙', unit: '单位乙', police_number: '002', enabled: true, created_at: 'now', updated_at: 'now' }]}
+      onChange={onChange}
+    />)
+
+    expect(screen.queryByText('停用甲')).toBeTruthy()
+    expect(screen.queryByRole('option', { name: /停用甲/ })).toBeNull()
+    fireEvent.change(screen.getByLabelText('选择检查人员'), { target: { value: 'active' } })
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ inspector_id: 'disabled' }),
+      expect.objectContaining({ inspector_id: 'active', selected_order: 1 }),
     ])
   })
 

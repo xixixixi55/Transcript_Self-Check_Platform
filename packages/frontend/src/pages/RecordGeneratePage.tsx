@@ -1,7 +1,7 @@
 // Layer 12: FE_Pages - 笔录生成主页面
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Spin, Steps } from 'antd'
-import type { InspectionReport } from '@biji/shared/types'
+import type { InspectorLibraryRecord, InspectionReport, InspectorSnapshot } from '@biji/shared/types'
 import type { UploadFile } from 'antd'
 import { useReportParser } from '../hooks/useReportParser'
 import { useRecordExport } from '../hooks/useRecordExport'
@@ -30,6 +30,9 @@ export default function RecordGeneratePage() {
   const { parseReport, parseArchive, loading: parsing, result } = useReportParser()
   const { exportDocx, exporting } = useRecordExport()
   const [devices, setDevices] = useState<{ id: string; name: string; model: string }[]>([])
+  const [inspectors, setInspectors] = useState<InspectorLibraryRecord[]>([])
+  const [inspectorLoading, setInspectorLoading] = useState(false)
+  const [inspectorError, setInspectorError] = useState<string | null>(null)
   const [uploadMode, setUploadMode] = useState<UploadMode>('folder')
   const [compress, setCompress] = useState(true)
   const [report, setReport] = useState<InspectionReport | null>(null)
@@ -46,7 +49,16 @@ export default function RecordGeneratePage() {
   useEffect(() => {
     axios.get(API_ENDPOINTS.DEVICES).then(r => setDevices(r.data.data || []))
   }, [])
-
+  useEffect(() => {
+    setInspectorLoading(true)
+    axios.get(API_ENDPOINTS.INSPECTORS, { params: { enabled_only: true } })
+      .then(r => {
+        setInspectors(r.data.data || [])
+        setInspectorError(null)
+      })
+      .catch(() => setInspectorError('获取启用检查人员失败，请稍后重试。'))
+      .finally(() => setInspectorLoading(false))
+  }, [])
   useEffect(() => {
     if (result?.report) {
       const r = JSON.parse(JSON.stringify(result.report))
@@ -135,6 +147,13 @@ export default function RecordGeneratePage() {
     let target: any = newReport
     for (let index = 0; index < keys.length - 1; index += 1) target = target[keys[index]]
     target[keys[keys.length - 1]] = value
+    if (path === 'introduction.inspector_snapshots') {
+      newReport.introduction.inspectors = (value as InspectorSnapshot[]).map(snapshot => ({
+        name: snapshot.name,
+        unit: snapshot.unit,
+        badge_number: snapshot.police_number,
+      }))
+    }
     setReport(newReport)
     setHasPageChanges(true)
     setReviewStatus('存在未导出修改')
@@ -208,6 +227,9 @@ export default function RecordGeneratePage() {
           exporting={exporting || reviewStatus === '导出中'}
           onBackToUpload={handleBackToUpload}
           deviceOptions={devices.map(device => ({ label: `${device.name} (${device.model})`, value: device.name }))}
+          availableInspectors={inspectors}
+          inspectorLoading={inspectorLoading}
+          inspectorError={inspectorError}
           photoFiles={photoFiles}
           onPhotoFilesChange={setPhotoFiles}
           exportFileName={exportFileName}

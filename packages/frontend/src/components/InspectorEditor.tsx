@@ -1,50 +1,115 @@
-// Layer 11: FE_Components — 检查人员编辑器
+// Layer 11: FE_Components — 检查人员库多选和有序快照编辑器
 import React from 'react'
-import { Button, Space, Typography } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
-import type { Inspector } from '@biji/shared/types'
-import EditableField from './EditableField'
+import { Alert, Button, Select, Space, Typography } from 'antd'
+import { DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons'
+import type { InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
 
 const { Text } = Typography
 
 interface Props {
-  inspectors: Inspector[]
-  onChange: (inspectors: Inspector[]) => void
+  snapshots: InspectorSnapshot[]
+  availableInspectors: InspectorLibraryRecord[]
+  loading?: boolean
+  error?: string | null
+  onChange: (snapshots: InspectorSnapshot[]) => void
 }
 
-export default function InspectorEditor({ inspectors, onChange }: Props) {
-  const addInspector = () => {
-    onChange([...inspectors, { name: '', unit: '', badge_number: '' }])
+function normalizeOrder(snapshots: InspectorSnapshot[]): InspectorSnapshot[] {
+  return snapshots.map((snapshot, index) => ({ ...snapshot, selected_order: index }))
+}
+
+function snapshotFromRecord(record: InspectorLibraryRecord): InspectorSnapshot {
+  return {
+    inspector_id: record.id,
+    name: record.name,
+    unit: record.unit,
+    police_number: record.police_number,
+  }
+}
+
+export default function InspectorEditor({
+  snapshots,
+  availableInspectors,
+  loading = false,
+  error = null,
+  onChange,
+}: Props) {
+  const selectedIds = snapshots
+    .map(snapshot => snapshot.inspector_id)
+    .filter((id): id is string => Boolean(id))
+
+  const handleSelect = (ids: string[]) => {
+    const existing = new Map<string, InspectorSnapshot>()
+    snapshots.forEach(snapshot => {
+      if (snapshot.inspector_id) existing.set(snapshot.inspector_id, snapshot)
+    })
+    const records = new Map<string, InspectorLibraryRecord>(availableInspectors.map(record => [record.id, record]))
+    const unavailableSelectedIds = snapshots.flatMap(snapshot => {
+      const id = snapshot.inspector_id
+      return id && !records.has(id) ? [id] : []
+    })
+    const selectedIds: string[] = [...unavailableSelectedIds, ...ids]
+    const next = [...new Set(selectedIds)].map(id => {
+      const existingSnapshot = existing.get(id)
+      if (existingSnapshot) return existingSnapshot
+      const record = records.get(id)
+      return record ? snapshotFromRecord(record) : null
+    })
+      .filter((snapshot): snapshot is InspectorSnapshot => Boolean(snapshot))
+    onChange(normalizeOrder(next))
   }
 
-  const updateInspector = (idx: number, field: string, value: string) => {
-    const list = inspectors.map((ins, i) => i === idx ? { ...ins, [field]: value } : ins)
-    onChange(list)
+  const move = (index: number, offset: number) => {
+    const target = index + offset
+    if (target < 0 || target >= snapshots.length) return
+    const next = [...snapshots]
+    const [item] = next.splice(index, 1)
+    next.splice(target, 0, item)
+    onChange(normalizeOrder(next))
   }
 
-  const removeInspector = (idx: number) => {
-    onChange(inspectors.filter((_, i) => i !== idx))
+  const remove = (index: number) => {
+    onChange(normalizeOrder(snapshots.filter((_, itemIndex) => itemIndex !== index)))
   }
 
   return (
-    <div>
-      {inspectors.map((ins, idx) => (
-        <div key={idx}
-          style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: 12, marginBottom: 12, position: 'relative' }}>
-          <Button type="text" danger size="small" icon={<DeleteOutlined />}
-            style={{ position: 'absolute', top: 4, right: 4 }}
-            onClick={() => removeInspector(idx)} />
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <div><Text strong>姓名：</Text><EditableField type="text" placeholder="姓名" value={ins.name}
-              onChange={value => updateInspector(idx, 'name', value)} /></div>
-            <div><Text strong>单位：</Text><EditableField type="text" placeholder="单位" value={ins.unit}
-              onChange={value => updateInspector(idx, 'unit', value)} /></div>
-            <div><Text strong>警号：</Text><EditableField type="text" placeholder="警号" value={ins.badge_number}
-              onChange={value => updateInspector(idx, 'badge_number', value)} /></div>
-          </Space>
-        </div>
-      ))}
-      <Button type="dashed" icon={<PlusOutlined />} onClick={addInspector} block>添加检查人员</Button>
+    <div className="inspector-selector">
+      {error && <Alert type="error" showIcon message={error} />}
+      <Select
+        mode="multiple"
+        aria-label="选择检查人员"
+        value={selectedIds}
+        loading={loading}
+        disabled={loading || Boolean(error)}
+        placeholder={loading ? '正在加载启用人员…' : '请选择启用人员'}
+        options={availableInspectors.map(record => ({
+          label: `${record.name}｜${record.unit}｜${record.police_number}`,
+          value: record.id,
+        }))}
+        onChange={handleSelect}
+        style={{ width: '100%' }}
+      />
+      {!loading && !error && availableInspectors.length === 0 && (
+        <Text type="secondary">暂无可选择的启用人员，请先在检查人员管理中添加或启用人员。</Text>
+      )}
+      <div className="inspector-selector__selected" aria-label="已选择检查人员">
+        {snapshots.map((snapshot, index) => (
+          <div className="inspector-selector__item" key={`${snapshot.inspector_id || 'legacy'}-${index}`}>
+            <span className="inspector-selector__order">{index + 1}</span>
+            <Space direction="vertical" size={0}>
+              <Text>{snapshot.name}</Text>
+              <Text type="secondary">单位：{snapshot.unit}</Text>
+              <Text type="secondary">警号：{snapshot.police_number}</Text>
+            </Space>
+            <Space>
+              <Button aria-label={`上移${index + 1}`} icon={<UpOutlined />} disabled={index === 0} onClick={() => move(index, -1)} />
+              <Button aria-label={`下移${index + 1}`} icon={<DownOutlined />} disabled={index === snapshots.length - 1} onClick={() => move(index, 1)} />
+              <Button aria-label={`移除${index + 1}`} danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
+            </Space>
+          </div>
+        ))}
+      </div>
+      {snapshots.length === 0 && !loading && !error && <Text type="secondary">当前报告尚未选择检查人员，可选择任意数量。</Text>}
     </div>
   )
 }

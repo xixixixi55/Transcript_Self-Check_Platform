@@ -81,11 +81,22 @@ export function getReviewPendingItems(
   introduction?.evidence_list?.forEach((item, index) => {
     addBlankItem(items, REVIEW_SECTION_IDS.introduction, '一、绪论', `检材${index + 1}设备类型`, item.device_type)
     addBlankItem(items, REVIEW_SECTION_IDS.introduction, '一、绪论', `检材${index + 1}编号`, item.evidence_number)
+    if (item.material_type !== 'phone' && item.material_type !== 'tablet'
+      || item.material_type_status !== 'confirmed_by_report' && item.material_type_status !== 'confirmed_by_user'
+      || item.material_type_source !== 'report' && item.material_type_source !== 'user') {
+      addInvalidItem(items, REVIEW_SECTION_IDS.introduction, '一、绪论', `检材${index + 1}类型`, '必须确认检材为手机或平板后才能导出。')
+    }
   })
-  introduction?.inspectors?.forEach((item, index) => {
+  const inspectorSnapshots = introduction?.inspector_snapshots
+    || (introduction?.inspectors || []).map(item => ({
+      name: item.name,
+      unit: item.unit,
+      police_number: item.badge_number,
+    }))
+  inspectorSnapshots.forEach((item, index) => {
     addBlankItem(items, REVIEW_SECTION_IDS.introduction, '一、绪论', `检查人员${index + 1}姓名`, item.name)
     addBlankItem(items, REVIEW_SECTION_IDS.introduction, '一、绪论', `检查人员${index + 1}单位`, item.unit)
-    addBlankItem(items, REVIEW_SECTION_IDS.introduction, '一、绪论', `检查人员${index + 1}警号`, item.badge_number)
+    addBlankItem(items, REVIEW_SECTION_IDS.introduction, '一、绪论', `检查人员${index + 1}警号`, item.police_number)
   })
 
   addBlankItem(items, REVIEW_SECTION_IDS.inspection, '二、检查', '检查方法', inspection?.method)

@@ -1,7 +1,7 @@
 // Layer 11: FE_Components - 笔录审核编辑表单
 import React from 'react'
 import { Alert, Checkbox, Input, Typography } from 'antd'
-import type { InspectionReport } from '@biji/shared/types'
+import type { InspectorLibraryRecord, InspectionReport } from '@biji/shared/types'
 import type { UploadFile } from 'antd'
 import { ReviewActionBar } from './ReviewActionBar'
 import { ReviewAttachmentsSection } from './ReviewAttachmentsSection'
@@ -23,6 +23,9 @@ interface Props {
   exporting: boolean
   onBackToUpload: () => void
   deviceOptions: { label: string; value: string }[]
+  availableInspectors?: InspectorLibraryRecord[]
+  inspectorLoading?: boolean
+  inspectorError?: string | null
   photoFiles: UploadFile[]
   onPhotoFilesChange: (files: UploadFile[]) => void
   exportFileName: string
@@ -43,6 +46,9 @@ export default function RecordEditorForm({
   exporting,
   onBackToUpload,
   deviceOptions,
+  availableInspectors = [],
+  inspectorLoading = false,
+  inspectorError = null,
   photoFiles,
   onPhotoFilesChange,
   exportFileName,
@@ -91,7 +97,13 @@ export default function RecordEditorForm({
       </ReviewSection>
 
       <ReviewSection id={REVIEW_SECTION_IDS.introduction} title="一、绪论" pendingCount={countFor(REVIEW_SECTION_IDS.introduction)}>
-        <ReviewIntroductionSection introduction={introduction} updateReport={updateReport} />
+        <ReviewIntroductionSection
+          introduction={introduction}
+          updateReport={updateReport}
+          availableInspectors={availableInspectors}
+          inspectorLoading={inspectorLoading}
+          inspectorError={inspectorError}
+        />
       </ReviewSection>
 
       <ReviewSection id={REVIEW_SECTION_IDS.inspection} title="二、检查" pendingCount={countFor(REVIEW_SECTION_IDS.inspection)}>

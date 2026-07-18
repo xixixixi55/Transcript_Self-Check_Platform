@@ -1,5 +1,5 @@
 import React from 'react'
-import type { InspectionReport } from '@biji/shared/types'
+import type { InspectorLibraryRecord, InspectionReport, InspectorSnapshot } from '@biji/shared/types'
 import EditableField from './EditableField'
 import EvidenceEditor from './EvidenceEditor'
 import InspectorEditor from './InspectorEditor'
@@ -9,9 +9,27 @@ import { ReviewField } from './ReviewField'
 interface ReviewIntroductionSectionProps {
   introduction: InspectionReport['introduction']
   updateReport: (path: string, value: any) => void
+  availableInspectors: InspectorLibraryRecord[]
+  inspectorLoading: boolean
+  inspectorError: string | null
 }
 
-export function ReviewIntroductionSection({ introduction, updateReport }: ReviewIntroductionSectionProps) {
+function toSnapshots(introduction: InspectionReport['introduction']): InspectorSnapshot[] {
+  if (Array.isArray(introduction.inspector_snapshots)) return introduction.inspector_snapshots
+  return (introduction.inspectors || []).map(inspector => ({
+    name: inspector.name,
+    unit: inspector.unit,
+    police_number: inspector.badge_number,
+  }))
+}
+
+export function ReviewIntroductionSection({
+  introduction,
+  updateReport,
+  availableInspectors,
+  inspectorLoading,
+  inspectorError,
+}: ReviewIntroductionSectionProps) {
   return (
     <>
       <ReviewField label="（一）委托单位" type="text" value={introduction.entrust_unit}
@@ -33,8 +51,13 @@ export function ReviewIntroductionSection({ introduction, updateReport }: Review
         onChange={value => updateReport('introduction.inspection_time_range', value)} />
       <div className="review-editor-block">
         <div className="review-field__label">（八）检查人员</div>
-        <InspectorEditor inspectors={introduction.inspectors || []}
-          onChange={value => updateReport('introduction.inspectors', value)} />
+        <InspectorEditor
+          snapshots={toSnapshots(introduction)}
+          availableInspectors={availableInspectors}
+          loading={inspectorLoading}
+          error={inspectorError}
+          onChange={value => updateReport('introduction.inspector_snapshots', value)}
+        />
       </div>
       <ReviewField label="（九）检查地点" type="text" value={introduction.inspection_place}
         onChange={value => updateReport('introduction.inspection_place', value)} />

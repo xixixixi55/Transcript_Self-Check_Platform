@@ -1,5 +1,6 @@
 """T010: record_controller 集成测试"""
 import io
+import json
 import os
 import sys
 import tempfile
@@ -92,3 +93,38 @@ def test_parse_structure_error_returns_safe_422(client):
     assert "报告解析失败" in detail
     assert tmpdir not in detail
     assert "data_case_info.json" not in detail
+
+
+def test_export_blocks_each_unconfirmed_material_with_stable_field_path(client):
+    report = {
+        "introduction": {
+            "evidence_list": [
+                {
+                    "id": "material-1",
+                    "device_type": "手机",
+                    "material_type": "phone",
+                    "material_type_status": "confirmed_by_report",
+                    "material_type_source": "report",
+                },
+                {
+                    "id": "material-2",
+                    "device_type": "未知设备",
+                    "material_type": "unconfirmed",
+                    "material_type_status": "unconfirmed",
+                    "material_type_source": "report",
+                },
+            ]
+        }
+    }
+    response = client.post(
+        "/api/v1/records/export",
+        data={"report_json": json.dumps(report, ensure_ascii=False)},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "EXPORT_BLOCKED"
+    assert detail["blockers"] == [{
+        "code": "MATERIAL_TYPE_UNCONFIRMED",
+        "field": "introduction.evidence_list[id=material-2].material_type",
+        "message": "检材类型必须先确认手机或平板。",
+    }]

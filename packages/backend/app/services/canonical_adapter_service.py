@@ -13,9 +13,9 @@ from .canonical_models_service import (
     FieldProvenance,
     InspectorSnapshot,
     Material,
-    MaterialIdentifier,
     SoftwareTool,
 )
+from .material_policy_service import material_from_legacy_item
 
 
 class ReportAdapter(Protocol):
@@ -76,6 +76,10 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
             "imei2": _first_identifier(material, "imei2"),
             "serial_number": _first_identifier(material, "serial_number"),
             "evidence_number": material.evidence_number,
+            "material_type": material.type,
+            "material_type_status": material.classification.status,
+            "material_type_source": material.classification.source,
+            "material_type_diagnostic": material.classification.diagnostic_code,
         }
         for material in case.materials
     ]
@@ -102,6 +106,14 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
             "inspection_requirement": intro.inspection_requirement,
             "inspection_time_range": case.inspection_period.time_range,
             "inspectors": inspectors,
+            "inspector_snapshots": [
+                {
+                    "name": inspector.name,
+                    "unit": inspector.unit,
+                    "police_number": inspector.police_number,
+                }
+                for inspector in case.inspectors
+            ],
             "inspection_place": intro.inspection_place,
         },
         "inspection": {
@@ -128,14 +140,6 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
     }
 
 
-def _provenance(path: str) -> FieldProvenance:
-    return FieldProvenance(
-        source_type="legacy_migration",
-        adapter="legacy-report-input",
-        json_path=path,
-    )
-
-
 def inspection_report_to_canonical(
     report: Mapping[str, Any],
 ) -> LegacyMigrationResult:
@@ -144,31 +148,26 @@ def inspection_report_to_canonical(
     introduction = report.get("introduction") or {}
     inspection = report.get("inspection") or {}
     raw_evidence = introduction.get("evidence_list") or []
-    materials: list[Material] = []
-    for index, item in enumerate(raw_evidence):
-        identifiers: list[MaterialIdentifier] = []
-        for identifier_type in ("imei1", "imei2", "serial_number"):
-            value = _text(item.get(identifier_type))
-            if value:
-                identifiers.append(
-                    MaterialIdentifier(
-                        type=identifier_type,
-                        value=value,
-                        provenance=[_provenance(f"introduction.evidence_list[{index}].{identifier_type}")],
-                    )
-                )
-        materials.append(
-            Material(
-                id=_text(item.get("id"), f"legacy-material-{index + 1}"),
-                evidence_number=_text(item.get("evidence_number")),
-                name=_text(item.get("device_type")),
-                model=_text(item.get("model")),
-                identifiers=identifiers,
-                provenance=[_provenance(f"introduction.evidence_list[{index}].device_type")],
-            )
-        )
+    materials = [
+        material_from_legacy_item(item, index)
+        for index, item in enumerate(raw_evidence)
+        if isinstance(item, Mapping)
+    ]
 
-    inspectors = [
+    raw_snapshots = introduction.get("inspector_snapshots")
+    if isinstance(raw_snapshots, list):
+        inspectors = [
+            InspectorSnapshot(
+                name=_text(item.get("name")),
+                unit=_text(item.get("unit")),
+                police_number=_text(item.get("police_number")),
+                selected_order=index,
+            )
+            for index, item in enumerate(raw_snapshots)
+            if isinstance(item, Mapping)
+        ]
+    else:
+        inspectors = [
         InspectorSnapshot(
             name=_text(item.get("name")),
             unit=_text(item.get("unit")),
@@ -176,7 +175,8 @@ def inspection_report_to_canonical(
             selected_order=index,
         )
         for index, item in enumerate(introduction.get("inspectors") or [])
-    ]
+        if isinstance(item, Mapping)
+        ]
     software_tools = [
         SoftwareTool(
             category="unclassified",

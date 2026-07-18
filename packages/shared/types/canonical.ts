@@ -1,6 +1,8 @@
 /** Canonical domain types shared by the report migration boundary. */
 
 export type MaterialKind = 'phone' | 'tablet' | 'unconfirmed'
+export type MaterialClassificationStatus = 'confirmed_by_report' | 'confirmed_by_user' | 'unconfirmed'
+export type MaterialClassificationSource = 'report' | 'user' | 'none'
 
 export type IdentifierType = 'imei1' | 'imei2' | 'serial_number'
 
@@ -26,6 +28,13 @@ export interface MaterialIdentifier {
   provenance: FieldProvenance[]
 }
 
+export interface MaterialClassification {
+  status: MaterialClassificationStatus
+  source: MaterialClassificationSource
+  rule_id?: string
+  diagnostic_code?: string
+}
+
 export interface Material {
   id: string
   evidence_number: string
@@ -34,14 +43,17 @@ export interface Material {
   model: string
   identifiers: MaterialIdentifier[]
   provenance: FieldProvenance[]
+  classification?: MaterialClassification
 }
 
 export interface InspectorSnapshot {
-  inspector_id: string | null
+  inspector_id?: string | null
   name: string
   unit: string
   police_number: string
-  selected_order: number
+  selected_order?: number
+  captured_at?: string
+  source_version?: string
 }
 
 export interface SoftwareTool {

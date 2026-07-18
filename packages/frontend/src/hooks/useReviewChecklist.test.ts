@@ -27,4 +27,32 @@ describe('getReviewPendingItems', () => {
     const items = getReviewPendingItems({ ...report, document_number: '文号' }, '文件名格式错误')
     expect(items.some(item => item.fieldLabel === '导出文件名' && item.reason === '文件名格式错误')).toBe(true)
   })
+
+  it('未确认检材类型时生成导出阻断提示', () => {
+    const items = getReviewPendingItems({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{
+          id: 'material-1', device_type: '合成设备', evidence_number: 'E-1',
+          material_type: 'unconfirmed', material_type_status: 'unconfirmed',
+        }],
+      },
+    })
+    expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
+  })
+
+  it('确认状态缺少合法来源时仍生成导出阻断提示', () => {
+    const items = getReviewPendingItems({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{
+          id: 'material-1', device_type: '手机', evidence_number: 'E-1',
+          material_type: 'phone', material_type_status: 'confirmed_by_report', material_type_source: 'none',
+        }],
+      },
+    })
+    expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
+  })
 })

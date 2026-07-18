@@ -132,10 +132,12 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         # Base 解析失败时，回退到 data_device_lists 中的 device_name
         dev_name = base_info.get("device_name") or dev.get("device_name", "")
         model = base_info.get("model") or dev_name or dev.get("device_name", "")
-        device_type = base_info.get("device_name") or base_info.get("model") or dev.get("device_name", "")
+        explicit_device_type = base_info.get("device_type") or dev.get("device_type", "")
+        device_type = explicit_device_type or base_info.get("device_name") or base_info.get("model") or dev.get("device_name", "")
         evidence_items.append({
             "id": en,
             "device_type": device_type,
+            "device_type_source": "report_field" if explicit_device_type else "legacy_display",
             "model": model,
             "imei1": dev.get("imei1", "") or base_info.get("imei1", ""),
             "imei2": dev.get("imei2", "") or base_info.get("imei2", ""),

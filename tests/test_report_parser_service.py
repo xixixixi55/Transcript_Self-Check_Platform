@@ -42,6 +42,25 @@ def test_parser_default_is_not_built_from_navigation_categories():
     assert report["inspection"]["result"]["data_summary"] == DEFAULT_DATA_SUMMARY
 
 
+def test_parser_does_not_promote_device_name_or_model_to_device_type():
+    with patch("app.services.report_parser_service.parse_case_info", return_value={}), \
+        patch("app.services.report_parser_service.parse_device_lists", return_value=[{
+            "evidence_number": "JC01", "device_name": "iPhone 15", "time_range": "",
+        }]), patch("app.services.report_parser_service.parse_report_info", return_value={}), \
+        patch("app.services.report_parser_service.parse_device_base", return_value={
+            "device_name": "iPhone 15", "model": "iPhone 15",
+        }), patch("app.services.report_parser_service.require_supported_report_format", return_value=ReportFormat.LEGACY), \
+        patch("app.services.report_parser_service._build_software_tools", return_value=[]), \
+        patch("app.services.report_parser_service._build_rar_info_from_compress", return_value={
+            "filename": "", "md5": "", "size_bytes": 0,
+        }):
+        report = _build_report("data", "source", "output", compress=False)
+
+    evidence = report["introduction"]["evidence_list"][0]
+    assert evidence["device_type"] == "iPhone 15"
+    assert evidence["device_type_source"] == "legacy_display"
+
+
 # ─── T008: _build_software_tools 动态生成 (REQ-016) ───
 
 def test_software_tools_with_compress():

@@ -8,6 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 MaterialKind = Literal["phone", "tablet", "unconfirmed"]
+MaterialClassificationStatus = Literal[
+    "confirmed_by_report", "confirmed_by_user", "unconfirmed"
+]
+MaterialClassificationSource = Literal["report", "user", "none"]
 IdentifierType = Literal["imei1", "imei2", "serial_number"]
 SoftwareCategory = Literal[
     "main_forensic", "winrar", "python_hashlib", "unclassified"
@@ -33,6 +37,13 @@ class MaterialIdentifier(CanonicalBaseModel):
     provenance: list[FieldProvenance] = Field(default_factory=list)
 
 
+class MaterialClassification(CanonicalBaseModel):
+    status: MaterialClassificationStatus = "unconfirmed"
+    source: MaterialClassificationSource = "none"
+    rule_id: str | None = None
+    diagnostic_code: str | None = None
+
+
 class Material(CanonicalBaseModel):
     id: str
     evidence_number: str
@@ -41,6 +52,7 @@ class Material(CanonicalBaseModel):
     model: str = ""
     identifiers: list[MaterialIdentifier] = Field(default_factory=list)
     provenance: list[FieldProvenance] = Field(default_factory=list)
+    classification: MaterialClassification = Field(default_factory=MaterialClassification)
 
 
 class InspectorSnapshot(CanonicalBaseModel):

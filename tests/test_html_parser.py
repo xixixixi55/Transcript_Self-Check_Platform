@@ -134,7 +134,7 @@ def test_new_fixture_uses_tb2_and_strong_device_table(tmp_path):
     assert device["time_range"] == ""
     fields = parse_device_base(str(data_dir), "JC01")
     assert fields == {
-        "device_name": "合成新手机", "model": "Model-NEW",
+        "device_type": "", "device_name": "合成新手机", "model": "Model-NEW",
         "imei1": "", "imei2": "999999999999999", "serial_number": "SN-NEW",
     }
 
@@ -165,6 +165,8 @@ def test_inspection_time_uses_case_start_and_end_only():
 
 
 def test_extract_device_fields_supports_confirmed_aliases_and_tables():
+    assert extract_device_fields({"device_type": "iPhone"}, "")["device_type"] == "iPhone"
+    assert extract_device_fields({"model": "iPhone"}, "")["device_type"] == ""
     assert extract_device_fields({"设备型号": "Model-A"}, "")["model"] == "Model-A"
     info_content = {"rows": [{"信息": "设备型号", "内容": "Model-B"}]}
     assert extract_device_fields(info_content, "")["model"] == "Model-B"

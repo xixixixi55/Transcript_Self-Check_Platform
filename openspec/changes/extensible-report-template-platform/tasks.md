@@ -27,17 +27,19 @@ Shadow 工作包的输出只能是隔离的规范化、规划和脱敏比较结�
 
 阶段一最终类型只允许 `phone`/`tablet`；报告明确且可靠时可预选，否则审核页面保持待确认。不得仅根据 IMEI 推断手机；审核保存可继续，但统一导出门控要求每个检材完成确认。
 
-- [ ] 3.1 实现 `Material.kind` 分类确认和 `MaterialDisplayPolicy`。输入：ReportAdapter 的原始标识候选、设备类型来源和置信度；输出：手机只保留 IMEI1/IMEI2、平板只保留序列号的结构化展示数据；验收：规则位于业务规划层，parser 不删除候选，renderer 不重新判断。
-- [ ] 3.1T 增加手机、平板、缺失标识、非法标识、冲突分类和低置信阻止测试；验收：不出现两组标识混排，错误可解释且阻止导出。
+- [x] 3.1 实现 `Material.kind` 分类确认和 `MaterialDisplayPolicy`。自动候选只能读取报告明确的 `device_type` 语义字段，经全半角/大小写归一化后匹配受控词表：`手机`、`智能手机`、`phone`、`smartphone`、`iPhone` → `phone`；`平板`、`平板电脑`、`tablet`、`iPad` → `tablet`。同一字段同时命中两类或未命中时为 `unconfirmed`；分类记录报告来源、诊断和 `confirmed_by_report`/`confirmed_by_user`/`unconfirmed` 状态，不使用 IMEI、序列号、型号、案件名、文件名或全文搜索。输入：ReportAdapter 的原始标识候选、设备类型来源和确认状态；输出：手机只保留 IMEI1/IMEI2、平板只保留序列号的结构化展示数据和 `select_display_identifiers(material)` 结果；验收：规则位于业务规划层，parser 不删除候选，renderer 不重新判断。
+- [x] 3.1T 增加手机、平板、大小写/全半角、首尾空白、缺失标识、非法标识、冲突分类、低置信阻止和人工确认状态测试；验收：不出现两组标识混排，错误可解释且 `unconfirmed` 阻止导出，多检材 blocker 指向稳定材料 ID/字段路径。
 
 ## 4. 检查人员 Repository 与有序快照（Layer 20/21）
 
 当前模板按快照顺序一人一行；附件一人员整框只在最后一页，人员过多时必须通过增加整框高度或预留末页空间保持整框不可拆。
 
-- [ ] 4.1 实现后端 `InspectorRepository` 和服务接口，数据放在操作系统应用数据目录，使用唯一 ID、姓名/单位/警号基础校验、临时文件、flush/fsync、原子替换和备份恢复；输入：后端 CRUD 请求；输出：版本化人员记录；验收：前端不能直接访问 JSON，仓库目录不进入 Git，写入失败保留原文件。
-- [ ] 4.1T 增加 Repository 单测，覆盖空白/超长/非法字段、唯一 ID、损坏文件、临时文件清理、原子替换失败和备份恢复；验收：失败路径不改变原文件。
-- [ ] 4.2 实现按报告选择顺序生成 `InspectorSnapshot[]`，人员库后续变化不重新读取历史报告；输入：有序人员 ID；输出：有序快照；验收：Word 顺序只由快照顺序决定，未来替换 SQLite/服务端时上层接口不变。
-- [ ] 4.2T 增加任意人数、重复选择、顺序、人员库修改和历史重导出测试；验收：快照中 `unit`、`name`、`police_number` 可独立绑定。
+- [x] 4.1 实现后端 `InspectorRepository` 和服务接口，数据优先使用 `BIJI_APP_DATA_DIR`，否则使用 Windows `%LOCALAPPDATA%\\文枢\\data`，再进入不暴露完整用户主目录的安全回退目录；正式文件为 `inspectors.json`，最近有效备份为 `inspectors.json.bak`。使用唯一 ID、姓名/单位/警号基础校验、临时文件、flush/fsync、原子替换、单进程写锁和备份恢复；输入：后端 CRUD 请求；输出：带 `schema_version` 的版本化人员记录；验收：前端不能直接访问 JSON，仓库目录不进入 Git，写入失败保留原文件，损坏 JSON 不被静默覆盖。
+- [x] 4.1T 增加 Repository 单测，覆盖空白/超长/非法字段、唯一 ID、损坏文件、临时文件清理、原子替换失败、备份恢复、UTF-8 中文、配置目录覆盖和并发写入；验收：失败路径不改变原文件，测试只使用临时目录。
+- [x] 4.2 实现按报告选择顺序生成 `introduction.inspector_snapshots?: InspectorSnapshot[]`，以快照作为唯一权威数据源，并自动派生现有 `introduction.inspectors` 的 legacy 投影（`police_number → badge_number`）；旧 DTO 仅有 `inspectors` 时按原顺序 best-effort 转为快照，不伪造人员库 ID/确认来源。人员库后续变化不重新读取历史报告；输入：有序人员 ID；输出：有序快照；验收：Word 顺序只由快照顺序决定，未来替换 SQLite/服务端时上层接口不变。
+- [x] 4.2T 增加任意人数、重复选择、顺序、人员库修改、历史重导出、快照与兼容投影冲突和前端管理/审核选择测试；验收：快照中 `unit`、`name`、`police_number` 可独立绑定，停用/删除人员不改变已生成快照。
+
+阶段一验收边界说明：当前检查人员库数据持久化到本地应用数据目录。报告中的 `InspectorSnapshot[]` 在当前审核会话和最终导出请求中保持有序；当前系统尚无独立报告草稿持久化接口，因此刷新页面或重新进入页面后，未正式保存的整个报告编辑状态不会自动恢复。该限制不属于人员库缺陷，不作为本轮验收项；可登记为后续“本地报告草稿/任务持久化”候选任务，本轮不实现。
 
 ## 5. 主取证软件归一化（Layer 20/21）
 

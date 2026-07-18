@@ -16,6 +16,26 @@ export function resolveExportFileName(documentNumber: string, requestedFileName?
     : getDefaultExportFileName(documentNumber)
 }
 
+async function resolveExportErrorMessage(error: any): Promise<string> {
+  const responseData = error.response?.data
+  if (responseData instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await responseData.text())
+      const blockers = parsed.detail?.blockers
+      if (Array.isArray(blockers) && blockers.length > 0) {
+        return blockers.map((item: { message?: string }) => item.message || '导出门控未通过').join('；')
+      }
+      if (typeof parsed.detail === 'string') return parsed.detail
+    } catch {
+      // Fall through to the generic Axios error below.
+    }
+  }
+  const detail = responseData?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail?.blockers)) return detail.blockers.map((item: { message?: string }) => item.message || '导出门控未通过').join('；')
+  return error.message || '导出失败'
+}
+
 export function useRecordExport(): UseRecordExportReturn {
   const [exporting, setExporting] = useState(false)
 
@@ -52,7 +72,7 @@ export function useRecordExport(): UseRecordExportReturn {
       window.URL.revokeObjectURL(url)
       return true
     } catch (e: any) {
-      alert('导出失败: ' + (e.response?.data?.detail || e.message))
+      alert('导出失败: ' + await resolveExportErrorMessage(e))
       return false
     } finally {
       setExporting(false)

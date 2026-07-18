@@ -229,3 +229,20 @@
 `type ExportGateBlockerCode`、`interface ExportGateIssue`、`interface ExportGateResult`、
 `type PipelineMode`、`interface RuntimeVersions`、`interface PipelineSettings`、
 `type PipelineRunStatus`、`interface ShadowDifference`、`interface ShadowComparisonResult`。
+
+### 检材类型确认与检查人员库
+
+`MaterialClassificationStatus` 取 `confirmed_by_report`、`confirmed_by_user` 或
+`unconfirmed`；`MaterialClassificationSource` 取 `report`、`user` 或 `none`。
+`MaterialClassification` 保存检材类型确认状态、来源、规则版本和非敏感诊断码。
+自动候选只读取报告明确的 `device_type` 字段，并使用受控词表归一化；未确认的
+检材类型由导出门控阻止。
+
+`InspectorLibraryRecord` 表示当前可选择的人员库记录，包含唯一 `id`、`name`、
+`unit`、`police_number`、`enabled` 以及创建和更新时间。人员库记录与报告中的
+`InspectorSnapshot` 分离；快照保存报告生成时的姓名、单位、警号和顺序，不随人员库
+后续修改而变化。旧 `introduction.inspectors` 仅作为由快照派生的 legacy 投影。
+
+类型索引追加：`type MaterialClassificationStatus`、
+`type MaterialClassificationSource`、`interface MaterialClassification`、
+`interface InspectorLibraryRecord`。

@@ -33,6 +33,7 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
   const isModulePath = location.pathname.startsWith('/electronic-inspection')
     || location.pathname === '/generate'
     || location.pathname === '/devices'
+    || location.pathname === '/inspectors'
   const [openKeys, setOpenKeys] = useState<string[]>(isModulePath ? [moduleKey] : [])
 
   useEffect(() => {
@@ -61,6 +62,9 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
     }
     if (location.pathname === '/electronic-inspection/devices' || location.pathname === '/devices') {
       return 'electronic-inspection-devices'
+    }
+    if (location.pathname === '/electronic-inspection/inspectors' || location.pathname === '/inspectors') {
+      return 'electronic-inspection-inspectors'
     }
     if (location.pathname === '/electronic-inspection') return 'electronic-inspection-home'
     if (isModulePath) return moduleKey
@@ -104,6 +108,9 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
           </Menu.Item>
           <Menu.Item key="electronic-inspection-devices" title="电子设备管理">
             <Link to="/electronic-inspection/devices">电子设备管理</Link>
+          </Menu.Item>
+          <Menu.Item key="electronic-inspection-inspectors" title="检查人员管理">
+            <Link to="/electronic-inspection/inspectors">检查人员管理</Link>
           </Menu.Item>
         </Menu.SubMenu>
         <Menu.Item key="professional-report" icon={<FileSearchOutlined />} disabled title="专业化勘查报告（暂未开放）">

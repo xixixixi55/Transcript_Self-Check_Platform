@@ -1,5 +1,7 @@
 // Layer 0: SharedTypes — 前后端共享的类型定义（实体、DTO、API 契约）
 
+import type { InspectorSnapshot, MaterialClassificationStatus } from './canonical'
+
 /** 文书类型枚举 */
 export enum RecordType {
   ELECTRONIC_INSPECTION = 'electronic_inspection',
@@ -22,12 +24,17 @@ export enum RecordStatus {
 /** 检材条目 */
 export interface EvidenceItem {
   id: string
-  device_type: string         // 设备类型，如"iPhone 13 Pro"
+  device_type: string         // 报告明确的设备类型字段；具体型号单独放在 model
+  device_type_source?: 'report_field' | 'legacy_display'
   model?: string              // 具体型号
   imei1?: string
   imei2?: string
   serial_number?: string
   evidence_number: string     // 检材编号，如 SYN-JC00000001
+  material_type?: 'phone' | 'tablet' | 'unconfirmed'
+  material_type_status?: MaterialClassificationStatus
+  material_type_source?: 'report' | 'user' | 'none'
+  material_type_diagnostic?: string
 }
 
 /** 检查人员 */
@@ -35,6 +42,17 @@ export interface Inspector {
   name: string
   unit: string
   badge_number: string
+}
+
+/** 检查人员库记录，仅代表当前可管理/选择的人员。 */
+export interface InspectorLibraryRecord {
+  id: string
+  name: string
+  unit: string
+  police_number: string
+  enabled: boolean
+  created_at: string
+  updated_at: string
 }
 
 /** 软件工具 */
@@ -79,7 +97,8 @@ export interface InspectionReport {
     evidence_list: EvidenceItem[]        // (五) 检材情况
     inspection_requirement: string       // (六) 检查要求
     inspection_time_range: string        // (七) 检查起止时间
-    inspectors: Inspector[]              // (八) 检查人员
+    inspectors: Inspector[]              // (八) 检查人员 legacy 投影
+    inspector_snapshots?: InspectorSnapshot[]
     inspection_place: string             // (九) 检查地点
   }
   inspection: {

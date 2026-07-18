@@ -8,9 +8,11 @@ from fastapi import APIRouter
 
 from ..controllers.record_controller import router as record_router
 from ..controllers.device_controller import router as device_router
+from ..controllers.inspector_controller import router as inspector_router
 
 router = APIRouter()
 
 # 注册子路由（record_controller 内部已定义完整路径 /reports/parse /records/export）
 router.include_router(record_router, tags=["检查笔录"])
 router.include_router(device_router, tags=["硬件设备"])
+router.include_router(inspector_router, tags=["检查人员"])

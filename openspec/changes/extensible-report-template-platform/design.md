@@ -349,10 +349,17 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 - WinRAR 未安装或不可调用时允许上传、解析和编辑，但禁止自动压缩和最终正式导出，不生成 `ArchiveManifest`，不降级 ZIP。
 - 主取证软件正常由报告适配器识别；无法可靠识别时可在审核页填写/修正名称和版本，确认前禁止最终正式导出。
 
+### Stage-one implementation clarifications
+
+- 检材自动候选只读取报告明确的 `device_type` 语义字段，不搜索报告全文，也不读取案件名称、单位、文件名、目录名、设备型号、IMEI 或序列号作为分类依据。字段值先去除首尾空白并做必要的全半角/英文大小写归一化，再匹配固定词表：`手机`、`智能手机`、`phone`、`smartphone`、`iPhone` 映射 `phone`；`平板`、`平板电脑`、`tablet`、`iPad` 映射 `tablet`。同一字段同时命中两类或没有命中时保持 `unconfirmed`。自动候选的来源和诊断必须保留，状态与人工确认严格区分为 `confirmed_by_report`、`confirmed_by_user`、`unconfirmed`。
+- `MaterialDisplayPolicy` 是业务规划层的唯一标识显示决策：`phone` 只返回合法 `imei1`/`imei2`，`tablet` 只返回合法 `serial_number`，`unconfirmed` 不返回推测标识；Canonical/解析层始终完整保留原始 identifiers，Renderer 不重新判断。
+- 单机人员库正式使用 `BIJI_APP_DATA_DIR` 覆盖目录；未设置时 Windows 使用 `%LOCALAPPDATA%\\文枢\\data`，默认目录由后端创建，正式文件为 `inspectors.json`，最近有效备份为 `inspectors.json.bak`。写入采用同目录临时文件、flush/fsync、原子替换和进程内锁；测试必须显式传入临时目录，日志和错误不得暴露完整用户主目录。
+- `InspectionReport.introduction.inspector_snapshots` 是新增可选的唯一权威快照字段。新审核页只编辑该数组，保存时按其顺序派生 legacy `introduction.inspectors` 投影，字段映射为 `police_number` → `badge_number`。读取旧 DTO 时，若没有快照但有 `inspectors`，按原顺序 best-effort 转换，不伪造人员库 ID、确认来源或当前人员库关系；两者冲突时快照优先并重建兼容投影。人员库变化不反向修改既有快照。
+- 当前检查人员库数据持久化到本地应用数据目录。报告中的 `InspectorSnapshot[]` 在当前审核会话和最终导出请求中保持有序；当前系统尚无独立报告草稿持久化接口，因此刷新页面或重新进入页面后，未正式保存的整个报告编辑状态不会自动恢复。该限制不属于人员库缺陷，也不作为 Task 3.1 → 4.2 的验收项；可登记为后续“本地报告草稿/任务持久化”候选任务，本轮不实现。
+
 ## Remaining Implementation Questions
 
 1. 附件一“来源”和“提取方法”合并框的文字是否按每页第一卷、每页相同值，还是需要按卷/页分别编辑？
-2. 单机人员库的应用数据目录是否有甲方指定的受控路径和备份保留周期？
 
 ## Expected File Changes During Implementation
 
