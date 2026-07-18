@@ -189,6 +189,21 @@ DiscSequence { firstNumber, issueDate, numericWidth, partNumbers[], formattedNum
 
 `DiscSequence` 从 `GPyyyyMMdd-序号` 解析；后续序号只递增数字部分，按首编号位宽左补零，溢出即阻止。`ArchiveManifest.parts[i].ordinal` 是附件一、附件三唯一的关联键，光盘序号由 manifest 顺序映射，不由附件渲染器自行计数。附件一、附件三只接收最终 `ArchiveManifest`，不得接收 `ArchivePlan`。
 
+### Archive input authorization and context boundary
+
+归档输入采用双轨授权模型，具体案件目录不要求统一搬迁到一个总目录，也不要求系统移动、复制或删除用户原始取证数据：
+
+1. 配置型固定允许根目录：`UPLOAD_BASE` 始终加入允许集合，部署者可用 Windows 分号分隔的 `BIJI_ALLOWED_INPUT_ROOTS` 增加多个数据父目录。每个案件目录必须是配置根目录的真实、严格子目录；不因盘符相同而信任整盘，也默认拒绝直接选择允许根目录本身。
+2. 本机用户主动选择产生的短期精确目录授权：未来受控桌面桥接可以为一个具体目录签发不可预测、短 TTL、一次性令牌。令牌只绑定该目录，不绑定父目录或磁盘。当前架构没有可信本机目录选择桥，因此没有普通 HTTP 发令牌接口；根目录外的普通 `report_dir` 必须返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`，不能伪造本机授权能力。
+
+固定根目录配置在进程启动时统一读取一次：Windows 分号分隔，空项忽略，真实路径按大小写不敏感方式去重。不存在、不可访问、不是目录、相对路径或特殊路径配置不会扩大授权范围；该项被忽略并记录不含路径的 `ARCHIVE_CONFIGURED_ROOT_INVALID` 安全 warning。若所有配置根目录都无效，普通案件目录仍全部拒绝，不会退化为任意路径允许。
+
+`report_dir` 只作为 deprecated 的一次性上下文创建兼容参数。后端先做绝对路径、规范真实路径、Windows 大小写不敏感的父子关系和输入/输出/staging/cache 隔离检查，再建立随机 UUID `archive_context_id`。后续 `ArchivePlan`、WinRAR、分卷校验、MD5、`ArchiveManifest`、失败重试和 DOCX 导出只接受该上下文标识，不再接受或信任 `report_dir`。公共响应只包含上下文标识、文件数、总字节数、状态和创建/过期时间；不返回案件目录、允许根目录、用户主目录或 WinRAR 安装路径。
+
+输入根目录及清单中的每一级目录和文件都拒绝 symlink、junction、mount point、其他 reparse point、UNC、`\\?\\` 和 `\\.\\` 设备路径。路径关系使用真实路径相对关系而不是字符串前缀。输入目录不能与输出、staging 或缓存区域互相包含，RAR、DOCX、缓存和临时生成物不能递归回到输入清单。上下文建立时和 WinRAR 调用前各做一次快照/指纹校验；新增、删除、大小/修改指纹变化、链接变化或授权范围变化均返回稳定错误并且不调用 WinRAR。
+
+上下文当前只保存在进程内存中：过期返回 `ARCHIVE_CONTEXT_EXPIRED`，不存在返回 `ARCHIVE_CONTEXT_NOT_FOUND`，同一上下文并发返回 `ARCHIVE_CONTEXT_BUSY`；服务重启后不伪造恢复能力，旧上下文按不存在处理，要求重新解析。清理只删除系统元数据和系统生成的临时目录，不删除精确授权的原始案件目录。Word 失败时保留已验证 Manifest 和同一次成功归档供安全重试，但输入快照、首个光盘编号或审核数据变化后不得复用旧 Manifest。
+
 ### Attachment plans
 
 ```text
@@ -264,9 +279,11 @@ ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端�
 
 ### 4. 压缩规划、执行、校验和最终清单四段式
 
-`ArchivePlanner` 纯函数只根据源大小和策略生成 `ArchivePlan`；`WinRarExecutor` 只负责 staging 中的命令执行；`ArchiveValidator` 只读取输出并生成实际卷结果；`ArchiveManifestAssembler` 在绑定 `DiscSequence` 后生成最终清单。执行命令使用精确十进制字节参数（例如 `-v4000000000b`），基础名来自安全化案件名，结果统一到 `case.part1.rar` 格式。WinRAR 不存在或无法调用时阶段一返回 `winrar_unavailable`，允许报告继续上传、解析和编辑，但禁用自动压缩、阻止最终导出且不创建任何 `ArchiveManifest`；不得使用 ZIP 降级。现有旧解析入口的 ZIP/RAR 上传解析能力保持不变，但不被当作自动分卷产物。
+`ArchivePlanner` 纯函数只根据源大小和策略生成 `ArchivePlan`；`WinRarExecutor` 只负责 staging 中的命令执行；`ArchiveValidator` 只读取输出并生成实际卷结果；`ArchiveManifestAssembler` 在绑定 `DiscSequence` 后生成最终清单。解析阶段只建立带随机 `archive_context_id` 的后端输入快照，不执行真实压缩；审核完成后由导出动作按 `execute_archive → export_document` 顺序同步执行。执行命令使用精确十进制字节参数（例如 `-v4000000000b`），基础名来自安全化案件名，结果统一到 `case.part1.rar` 格式。WinRAR 不存在或无法调用时阶段一返回 `winrar_unavailable`，允许报告继续上传、解析和编辑，但禁用自动压缩、阻止最终导出且不创建任何 `ArchiveManifest`；不得使用 ZIP 降级。现有旧解析入口的 ZIP/RAR 上传解析能力保持不变，但不被当作自动分卷产物。
 
-每次尝试写到独立 staging 目录。validator 发现卷数超限、跳号、命名不符、卷大小异常、MD5 缺失或 part 数与计划冲突时，销毁该 staging 结果并在 `maxReplanAttempts = 2` 内执行下一档。重试仍失败时返回明确错误。最终 manifest 至少保存每卷实际文件名、实际大小、MD5、分卷序号、光盘容量、光盘编号、刻录日期和连续性校验结果；附件一和附件三只能消费该 manifest，不能消费 plan 或自行重新计算。
+公共 `ArchivePlan` 只发布业务决策和脱敏输入条目：计划 ID、案件展示名、安全基础名、相对路径、大小、容量档位、预计卷数、预计光盘编号、状态和安全诊断。输入绝对路径、输出目录、staging 目录、缓存目录、WinRAR 安装路径以及运行时文件映射只存在于后端执行上下文，不能进入 Shared 类型、Controller 响应、前端状态、日志、异常或 Shadow 比较。
+
+每次尝试写到独立 staging 目录。分卷大小采用非对称规则：每个实际分卷必须满足 `0 < actual_size <= volume_size_bytes`，允许合法的向下偏差，不设置人为最小填充比例或固定向下误差；任何超过容量上限的分卷均返回 `ARCHIVE_PARTS_INVALID`。validator 还必须解析数字卷号、校验从 `part1` 开始连续且无重复/缺号、确认实际卷数不超过当前档位上限，并对第一卷执行 WinRAR `t` 完整性测试；不能仅根据进程退出码或文件大小推断归档完整。卷数超限、跳号、命名不符、卷大小异常、完整性测试失败或 MD5 缺失时，销毁该 staging 结果并在 `maxReplanAttempts = 2` 内执行下一档；实际卷数少于预计卷数但满足连续性、非零、容量和完整性要求时按实际卷数接受。重试仍失败时返回明确错误。最终 manifest 至少保存每卷实际文件名、实际大小、MD5、分卷序号、光盘容量、光盘编号、刻录日期和连续性校验结果；附件一和附件三只能消费该 manifest，不能消费 plan 或自行重新计算。
 
 ### 5. 先页面计划、后模板渲染
 

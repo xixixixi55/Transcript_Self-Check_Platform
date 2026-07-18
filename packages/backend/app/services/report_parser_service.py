@@ -1,6 +1,6 @@
 """
 Layer 21: BE_Services — 报告解析编排服务。
-REQ-011 缓存 / REQ-012 跳过重复压缩 / REQ-013 压缩开关 / REQ-014 压缩包上传 / REQ-016 动态 software_tools。
+REQ-011 缓存 / REQ-013 兼容压缩开关 / REQ-014 压缩包上传 / REQ-016 动态 software_tools。
 
 > 文件行数超过 250 行上限：本文件是报告解析的核心编排入口，包含 _build_report（组装完整
   InspectionReport）、_build_software_tools（动态软件工具列表）、缓存判断、RAR 压缩编排、
@@ -13,7 +13,7 @@ import tempfile
 from typing import Optional
 from ..repository.file_storage import (
     is_cache_valid, save_json, read_json, ensure_dir,
-    create_rar, extract_archive, compute_md5, detect_winrar_version,
+    extract_archive, compute_md5, detect_winrar_version,
 )
 from ..repository.html_parser import (
     parse_case_info, parse_device_lists, parse_report_info,
@@ -23,10 +23,10 @@ from ..repository.html_parser import (
 from ..repository.report_format_adapter import require_supported_report_format
 from .report_defaults_service import DEFAULT_DATA_SUMMARY
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 5  # v5: normalize new report fields and invalidate v4 caches
+_CACHE_VERSION = 6  # v6: parse no longer performs or reuses compression side effects
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
-    """解析报告目录。compress=False 时跳过 RAR 压缩，rar_info 返回 None。"""
+    """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
     data_dir = os.path.join(source_dir, "data")
     # REQ-011: 检查解析缓存（含版本号，代码变更后自动失效）
     report_name = os.path.basename(source_dir.rstrip("/").rstrip("\\"))
@@ -57,14 +57,21 @@ def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dic
     return result
 
 
-def parse_from_archive(archive_path: str, output_dir: str) -> dict:
-    """从上传的 .rar/.zip 压缩包解析。解压→解析→计算原始压缩包 MD5。REQ-014。"""
+def parse_from_archive(
+    archive_path: str,
+    output_dir: str,
+    *,
+    retain_source: bool = False,
+) -> dict:
+    """解析上传压缩包；需要后续归档时由调用方保留受控源目录。"""
     ext = os.path.splitext(archive_path)[1].lower()
     archive_md5 = compute_md5(archive_path)
     archive_size = os.path.getsize(archive_path)
 
     # 解压到临时目录
-    tmp_dir = tempfile.mkdtemp(prefix="report_extract_")
+    tmp_dir = tempfile.mkdtemp(prefix="biji_archive_context_")
+    extracted_root = ""
+    succeeded = False
     try:
         extracted_root = extract_archive(archive_path, tmp_dir)
         # 构建 InspectionReport（compress=False 因为已是压缩包）
@@ -80,10 +87,12 @@ def parse_from_archive(archive_path: str, output_dir: str) -> dict:
             "md5_hash": archive_md5,
             "file_size": f"{archive_size}字节",
         })
+        succeeded = True
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if not retain_source or not succeeded:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    return {
+    result = {
         "report": report,
         "parsed_files": [
             "data_case_info.json", "data_device_lists.json",
@@ -96,6 +105,10 @@ def parse_from_archive(archive_path: str, output_dir: str) -> dict:
             "size_display": _format_file_size(archive_size),
         },
     }
+    if retain_source:
+        result["_archive_source_root"] = extracted_root
+        result["_archive_source_cleanup_root"] = tmp_dir
+    return result
 
 
 def _split_persons(collector: str) -> list[str]:
@@ -278,14 +291,18 @@ def _build_software_tools(
             "display_name": " ".join(filter(None, [main_name or "", sv])),
             "confirmation_status": main_status,
         })
-    # WinRAR 始终显示，默认版本 6.24（用户可在预览中修改）
-    version = detect_winrar_version() or "6.24"
+    # Keep the compatibility entry, but report the actual discovery result.
+    detected_version = detect_winrar_version()
+    version = detected_version or ""
     tools.append({
         "category": "winrar",
         "name": "WinRAR压缩管理软件",
         "version": version,
-        "display_name": f"WinRAR压缩管理软件 {version}",
-        "confirmation_status": "confirmed",
+        "display_name": (
+            f"WinRAR压缩管理软件 {version}"
+            if detected_version else "WinRAR压缩管理软件（未检测到）"
+        ),
+        "confirmation_status": "confirmed" if detected_version else "unconfirmed",
     })
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     tools.append({
@@ -300,9 +317,18 @@ def _build_software_tools(
 
 def _build_rar_info_from_compress(source_dir: str, output_dir: str,
                                    case_name: str, compress: bool) -> dict:
-    """根据 compress 参数决定是否压缩，返回 rar_info"""
-    compressed_dir = os.path.join(output_dir, "compressed")
-    return create_rar(source_dir, compressed_dir, case_name, skip=not compress)
+    """Deprecated compatibility hook: parsing no longer has compression side effects.
+
+    The controller creates an opaque archive context; execute_archive performs the
+    gated WinRAR run only after review supplies a valid first disc number.
+    """
+    return {
+        "filename": "",
+        "filepath": "",
+        "md5": "",
+        "size_bytes": 0,
+        "size_display": "",
+    }
 
 
 def _build_rar_info(report: dict) -> Optional[dict]:

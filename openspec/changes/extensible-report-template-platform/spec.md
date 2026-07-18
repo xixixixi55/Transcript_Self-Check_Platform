@@ -153,11 +153,46 @@
 - **WHEN** 首编号不符合 `GPyyyyMMdd-序号`、日期无效或序号溢出
 - **THEN** 系统在规划前返回字段级错误，不执行压缩、不生成 DOCX
 
+### Requirement: Archive input authorization uses opaque contexts
+
+系统 MUST 支持多个配置型允许根目录：`UPLOAD_BASE` 加部署者配置的 `BIJI_ALLOWED_INPUT_ROOTS`。案件目录 MUST 是允许根目录的真实严格子目录，默认不得直接把允许根目录本身作为一个案件输入；不同磁盘和不同案件父目录可以并存，系统不得要求搬迁或复制既有案件。
+
+普通远程请求提交 `report_dir` MUST 不能自动获得信任。当前没有受控本机目录选择桥时，根目录外目录 MUST 返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`。未来精确目录授权只能由受控本机操作产生短期、不可预测、绑定单一具体目录的一次性令牌，令牌不能扩大到父目录、相邻目录或整盘，普通前端不能自行构造。
+
+路径校验 MUST 拒绝空/相对/穿越/UNC/设备路径、symlink、junction、mount point 和其他 reparse point，并检查目录链和每个清单文件；输入目录与输出、staging、cache 互相包含时 MUST 返回 `ARCHIVE_INPUT_OUTPUT_OVERLAP`。创建上下文和调用 WinRAR 前 MUST 再次校验文件清单和指纹；变化返回 `ARCHIVE_INPUT_CHANGED`，不得继续执行。
+
+`report_dir` MUST 标记为 deprecated，仅允许用于创建带随机 UUID 的 `archive_context_id`。上下文公共摘要只能包含标识、文件数、总字节数、状态和时间，不得包含完整本地路径。规划、WinRAR、验证、MD5、Manifest、重试和 DOCX 接口 MUST 只接受 `archive_context_id`；上下文过期、不存在和并发分别返回 `ARCHIVE_CONTEXT_EXPIRED`、`ARCHIVE_CONTEXT_NOT_FOUND` 和 `ARCHIVE_CONTEXT_BUSY`。当前上下文只保存在进程内存中，服务重启后按不存在处理；清理不得删除用户原始输入。
+
+#### Scenario: 配置根目录下不同案件目录
+
+- **WHEN** 用户选择 `UPLOAD_BASE` 或 `BIJI_ALLOWED_INPUT_ROOTS` 下的具体案件子目录
+- **THEN** 系统建立上下文并返回不含路径的公共摘要
+- **AND** 其他案件目录仍可独立选择，不共享案件授权范围
+
+#### Scenario: 根目录外普通 report_dir
+
+- **WHEN** 普通 API 提交不在配置根目录内的 `report_dir` 且没有受控精确授权令牌
+- **THEN** 系统返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`
+- **AND** 不建立上下文、不扫描目录、不调用 WinRAR
+
+#### Scenario: 无效的固定根目录配置
+
+- **WHEN** `UPLOAD_BASE` 或 `BIJI_ALLOWED_INPUT_ROOTS` 中包含不存在、相对、不可访问或非目录项
+- **THEN** 系统忽略该配置项并记录不含路径的 `ARCHIVE_CONFIGURED_ROOT_INVALID` 安全 warning
+- **AND** 不会因为配置无效而放宽为任意 `report_dir`，未获其他根目录授权的案件仍返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`
+
+#### Scenario: 后续接口只接受 archive_context_id
+
+- **WHEN** 归档或 DOCX 导出请求提交客户端路径而没有有效上下文
+- **THEN** 系统阻止请求并且错误响应不包含该路径
+
 ### Requirement: Archive planning and WinRAR execution are separate
 
 阶段一自动分卷只支持 WinRAR RAR 分卷。未检测到或无法调用 WinRAR 时，系统 MUST 允许上传、解析、审核和编辑报告，但 MUST 禁止自动压缩和最终正式导出；错误提示 MUST 说明需要安装并确保 WinRAR 可调用。系统不得降级生成 ZIP，不得生成虚假的或占位的 `ArchiveManifest`。现有 ZIP/RAR 上传解析能力保持不变，但不替代本次自动分卷产物。
 
 系统 MUST 先生成可审计的 `ArchivePlan`，再由独立执行器调用 WinRAR。`ArchivePlan` 只表示执行前预计档位、预计卷数和目标容量，不能作为 Word 数据来源。分卷档位 MUST 使用十进制 4GB、22GB、45GB：从 4GB 开始，若预计超过 2 卷则升级；45GB 档最多 3 卷；超过 135GB MUST 在执行前阻止处理。案件名称 MUST 作为归档基础名称，分卷 MUST 使用 `.part1.rar` 等标准命名。系统 MUST 设定 `maxReplanAttempts = 2`，表示初始执行后最多允许两次向上重新规划。
+
+公共可序列化 `ArchivePlan` MUST 只包含业务决策、相对输入条目和安全诊断；不得包含输入绝对路径、输出/staging/cache 目录、WinRAR 安装路径或运行时文件映射。上述路径只允许存在于后端内部执行上下文。
 
 #### Scenario: 档位选择
 

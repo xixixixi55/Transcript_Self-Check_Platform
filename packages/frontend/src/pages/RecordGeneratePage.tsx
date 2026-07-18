@@ -24,19 +24,18 @@ import { ReviewPreviewDrawer } from '../components/ReviewPreviewDrawer'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-
 type UploadMode = 'folder' | 'archive'
 
 export default function RecordGeneratePage() {
-  const { parseReport, parseArchive, loading: parsing, result } = useReportParser()
-  const { exportDocx, exporting } = useRecordExport()
+  const { parseReport, parseArchive, loading: parsing, error, errorCode, result } = useReportParser()
+  const { exportDocx, exporting, archiveStatus } = useRecordExport()
   const [devices, setDevices] = useState<{ id: string; name: string; model: string }[]>([])
   const [inspectors, setInspectors] = useState<InspectorLibraryRecord[]>([])
   const [inspectorLoading, setInspectorLoading] = useState(false)
   const [inspectorError, setInspectorError] = useState<string | null>(null)
   const [uploadMode, setUploadMode] = useState<UploadMode>('folder')
-  const [compress, setCompress] = useState(true)
   const [report, setReport] = useState<InspectionReport | null>(null)
+  const [archiveContextId, setArchiveContextId] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [photoFiles, setPhotoFiles] = useState<UploadFile[]>([])
   const [customFileName, setCustomFileName] = useState(false)
@@ -74,6 +73,7 @@ export default function RecordGeneratePage() {
         r.document_number = generateDocumentNumber(caseNum || '000000', undefined, prefix)
       }
       setReport(r)
+      setArchiveContextId(result.archive_context_id || null)
       setExportFileName(getDefaultExportFileName(r.document_number))
       setCustomFileName(false)
       setExportFileNameError('')
@@ -86,7 +86,7 @@ export default function RecordGeneratePage() {
 
   const handleFolderUpload = async () => {
     const dirPath = prompt('请输入报告目录路径:')
-    if (dirPath) await parseReport(dirPath, compress)
+    if (dirPath) await parseReport(dirPath)
   }
   const handleExport = async () => {
     if (!report || exporting) return false
@@ -114,16 +114,30 @@ export default function RecordGeneratePage() {
     }
 
     const files = photoFiles.filter(file => file.originFileObj).map(file => file.originFileObj as File)
-    setReviewStatus('导出中')
+    setReviewStatus('归档规划中')
     const success = await exportDocx(
       report,
       report.attachments?.photo_ids || [],
       files.length > 0 ? files : undefined,
       requestedFileName,
+      archiveContextId,
     )
     setReviewStatus(success ? '导出成功' : '导出失败')
     return success
   }
+
+  useEffect(() => {
+    if (!exporting) return
+    const statusLabels = {
+      planning: '归档规划中',
+      compressing: '归档执行中',
+      validating: '归档校验中',
+      hashing: '归档哈希中',
+      completed: '导出中',
+    } as const
+    const label = statusLabels[archiveStatus as keyof typeof statusLabels]
+    if (label) setReviewStatus(label)
+  }, [archiveStatus, exporting])
   const handleCustomFileNameChange = (enabled: boolean) => {
     setCustomFileName(enabled)
     setExportFileNameError('')
@@ -181,17 +195,16 @@ export default function RecordGeneratePage() {
         <ReportUploadStep
           uploadMode={uploadMode}
           onModeChange={setUploadMode}
-          compress={compress}
-          onCompressChange={setCompress}
           parsing={parsing}
           result={result}
+          error={error}
+          errorCode={errorCode}
           onFolderUpload={handleFolderUpload}
           onArchiveUpload={async file => { await parseArchive(file); return false }}
         />
       </div>
     )
   }
-
   if (!report) return <div className="platform-flow-page"><Spin size="large" style={{ display: 'block', margin: '100px auto' }} /></div>
 
   return (

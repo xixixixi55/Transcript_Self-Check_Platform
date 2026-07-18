@@ -9,10 +9,26 @@ from typing import Iterable
 
 class ExportGateCode(str, Enum):
     WINRAR_UNAVAILABLE = "WINRAR_UNAVAILABLE"
+    ARCHIVE_INPUT_EMPTY = "ARCHIVE_INPUT_EMPTY"
+    ARCHIVE_INPUT_CHANGED = "ARCHIVE_INPUT_CHANGED"
+    ARCHIVE_TOO_LARGE = "ARCHIVE_TOO_LARGE"
+    ARCHIVE_PLAN_INVALID = "ARCHIVE_PLAN_INVALID"
+    ARCHIVE_EXECUTION_FAILED = "ARCHIVE_EXECUTION_FAILED"
+    ARCHIVE_PARTS_INVALID = "ARCHIVE_PARTS_INVALID"
+    ARCHIVE_MANIFEST_MISSING = "ARCHIVE_MANIFEST_MISSING"
+    ARCHIVE_REPLAN_EXHAUSTED = "ARCHIVE_REPLAN_EXHAUSTED"
+    ARCHIVE_INPUT_ROOT_NOT_ALLOWED = "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
+    ARCHIVE_INPUT_PATH_INVALID = "ARCHIVE_INPUT_PATH_INVALID"
+    ARCHIVE_INPUT_LINK_NOT_ALLOWED = "ARCHIVE_INPUT_LINK_NOT_ALLOWED"
+    ARCHIVE_INPUT_OUTPUT_OVERLAP = "ARCHIVE_INPUT_OUTPUT_OVERLAP"
+    ARCHIVE_CONTEXT_NOT_FOUND = "ARCHIVE_CONTEXT_NOT_FOUND"
+    ARCHIVE_CONTEXT_EXPIRED = "ARCHIVE_CONTEXT_EXPIRED"
+    ARCHIVE_CONTEXT_BUSY = "ARCHIVE_CONTEXT_BUSY"
+    ARCHIVE_AUTHORIZATION_INVALID = "ARCHIVE_AUTHORIZATION_INVALID"
+    ARCHIVE_AUTHORIZATION_EXPIRED = "ARCHIVE_AUTHORIZATION_EXPIRED"
     MATERIAL_TYPE_UNCONFIRMED = "MATERIAL_TYPE_UNCONFIRMED"
     PRIMARY_SOFTWARE_UNCONFIRMED = "PRIMARY_SOFTWARE_UNCONFIRMED"
     ODD_PHOTO_COUNT = "ODD_PHOTO_COUNT"
-    ARCHIVE_MANIFEST_MISSING = "ARCHIVE_MANIFEST_MISSING"
     DISC_SEQUENCE_INVALID = "DISC_SEQUENCE_INVALID"
     FIRST_DISC_NUMBER_MISSING = "FIRST_DISC_NUMBER_MISSING"
     FIRST_DISC_NUMBER_INVALID = "FIRST_DISC_NUMBER_INVALID"
@@ -44,7 +60,9 @@ class ExportGateInput:
     automatic_archive_required: bool = False
     winrar_available: bool = True
     archive_manifest_required: bool = False
-    archive_manifest_present: bool = True
+    archive_manifest_present: bool = False
+    archive_manifest_valid: bool = True
+    archive_blocker_code: str | None = None
     material_type_fields: tuple[str, ...] = ()
     warnings: tuple[ExportGateIssue, ...] = field(default_factory=tuple)
 
@@ -106,12 +124,28 @@ def evaluate_export_gate(
                 "WinRAR 不可用，无法执行自动分卷。",
             )
         )
+    if facts.archive_blocker_code:
+        blockers.append(
+            ExportGateIssue(
+                facts.archive_blocker_code,
+                "archive",
+                _archive_message(facts.archive_blocker_code),
+            )
+        )
     if facts.archive_manifest_required and not facts.archive_manifest_present:
         blockers.append(
             ExportGateIssue(
                 ExportGateCode.ARCHIVE_MANIFEST_MISSING,
                 "archive_manifest",
                 "缺少已验证的最终归档清单。",
+            )
+        )
+    if facts.archive_manifest_required and facts.archive_manifest_present and not facts.archive_manifest_valid:
+        blockers.append(
+            ExportGateIssue(
+                ExportGateCode.ARCHIVE_PARTS_INVALID,
+                "archive_manifest",
+                "归档清单与实际分卷不一致，请重新生成归档。",
             )
         )
 
@@ -121,3 +155,16 @@ def evaluate_export_gate(
         blockers=tuple(blockers),
         warnings=all_warnings,
     )
+
+
+def _archive_message(code: str) -> str:
+    messages = {
+        "ARCHIVE_INPUT_EMPTY": "归档输入不能为空。",
+        "ARCHIVE_INPUT_CHANGED": "归档输入在执行前已变化，请重新解析。",
+        "ARCHIVE_TOO_LARGE": "归档输入超过 135GB 容量上限。",
+        "ARCHIVE_PLAN_INVALID": "归档计划无效，请重新解析并检查案件名称。",
+        "ARCHIVE_EXECUTION_FAILED": "WinRAR 归档执行失败，请检查后重试。",
+        "ARCHIVE_PARTS_INVALID": "归档分卷校验失败，请重新生成归档。",
+        "ARCHIVE_REPLAN_EXHAUSTED": "归档重规划次数已用尽，请检查输入文件。",
+    }
+    return messages.get(code, "归档门控未通过，请检查后重试。")

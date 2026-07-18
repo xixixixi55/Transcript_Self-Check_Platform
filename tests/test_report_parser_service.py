@@ -1,6 +1,7 @@
 """T008: report_parser_service 测试 — compress 参数 + 动态 software_tools"""
 import copy
 import os
+import shutil
 import sys
 import tempfile
 import zipfile
@@ -288,7 +289,7 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 5
+    assert result["cache_version"] == 6
     assert report["introduction"]["inspection_time_range"] == (
         "2026年7月13日11点55分至2026年7月13日15点43分"
     )
@@ -320,8 +321,8 @@ def test_cache_version_five_does_not_reuse_v4(tmp_path):
          patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
          patch("app.services.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 5
-    assert result["cache_version"] == 5
+    assert _CACHE_VERSION == 6
+    assert result["cache_version"] == 6
     mock_build.assert_called_once()
 
 
@@ -345,6 +346,21 @@ def test_parse_from_archive_zip():
         assert result["rar_info"]["filename"] == "test.zip"
         assert len(result["rar_info"]["md5"]) == 32
         assert result["rar_info"]["size_bytes"] > 0
+
+
+def test_parse_from_archive_can_retain_private_source_for_archive_context():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zip_path = os.path.join(tmpdir, "test.zip")
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("dummy.txt", "test")
+        with patch("app.services.report_parser_service.extract_archive", return_value=tmpdir), \
+             patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT):
+            result = parse_from_archive(zip_path, os.path.join(tmpdir, "output"), retain_source=True)
+        cleanup_root = result["_archive_source_cleanup_root"]
+        assert result["_archive_source_root"] == tmpdir
+        assert os.path.basename(cleanup_root).startswith("biji_archive_context_")
+        assert os.path.isdir(cleanup_root)
+        shutil.rmtree(cleanup_root, ignore_errors=True)
 
 
 def _write_legacy_service_fixture(root):

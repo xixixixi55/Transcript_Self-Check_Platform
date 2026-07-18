@@ -55,17 +55,21 @@ Shadow 工作包的输出只能是隔离的规范化、规划和脱敏比较结�
 
 ## 7. ArchivePlanner（Layer 2/21）
 
-- [ ] 7.1 实现纯函数 `ArchivePlanner`，生成只含预计方案的 `ArchivePlan`。输入：案件名、源目录逻辑大小和策略；输出：4GB/22GB/45GB 档位、预计卷数、十进制容量、`maxReplanAttempts=2`；验收：4GB最多2卷、22GB最多2卷、45GB最多3卷，超过135GB预先阻止。
-- [ ] 7.1T 增加 8GB、8GB+1、44GB、44GB+1、135GB、135GB+1 边界测试；验收：不调用 WinRAR 即可验证档位和上限。
+- [x] 7.1 实现纯函数 `ArchivePlanner`，生成只含预计方案的 `ArchivePlan`。输入：案件名、源目录逻辑大小和策略；输出：4GB/22GB/45GB 档位、预计卷数、十进制容量、`maxReplanAttempts=2`；验收：4GB最多2卷、22GB最多2卷、45GB最多3卷，超过135GB预先阻止。
+- [x] 7.1T 增加 8GB、8GB+1、44GB、44GB+1、135GB、135GB+1 边界测试；验收：不调用 WinRAR 即可验证档位和上限。
 
 ## 8. WinRAR Executor 及最终 ArchiveManifest（Layer 20/21）
 
 WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核和编辑，禁止自动压缩和最终正式导出，不生成 `ArchiveManifest`，不降级 ZIP，并返回可操作的安装/调用错误。
 
-- [ ] 8.1 实现 `WinRarExecutor`、`ArchiveValidator` 和 `ArchiveManifestAssembler`。输入：ArchivePlan、WinRAR staging 结果和 DiscSequence；输出：最终不可变 `ArchiveManifest`；验收：附件一/三只引用 manifest，manifest 至少含实际文件名、实际大小、MD5、分卷序号、光盘容量、光盘编号、刻录日期和连续性校验结果。
-- [ ] 8.1T 增加 mock/真实小 fixture 测试，覆盖 `-v...b`、`.partN.rar`、跳号、卷数、大小、MD5、连续性和 staging 清理；验收：预计文件名/大小/卷数不能进入 Word。
-- [ ] 8.2 实现实际结果不符合计划时的有限重规划：最多两次重试，重试仍失败返回明确错误且不提交归档/Word。输入：执行结果与 ArchivePlan；输出：最终 manifest 或阻止错误；验收：4→22→45 的升级和耗尽路径可回归。
-- [ ] 8.2T 增加压缩比导致少卷、超卷、无下一档和重试耗尽测试；验收：不会静默降级 ZIP 或自动回退 legacy。
+- [x] 8.1 实现 `WinRarExecutor`、`ArchiveValidator` 和 `ArchiveManifestAssembler`。输入：ArchivePlan、WinRAR staging 结果和 DiscSequence；输出：最终不可变 `ArchiveManifest`；验收：manifest 至少含实际文件名、实际大小、MD5、分卷序号、光盘容量、光盘编号、刻录日期和连续性校验结果；附件一/三渲染仍由后续任务负责。
+- [x] 8.1T 增加 mock/真实小 fixture 测试，覆盖 `-v...b`、`.partN.rar`、跳号、卷数、大小、MD5、连续性和 staging 清理；验收：预计文件名/大小/卷数不能进入最终 Manifest。
+- [x] 8.2 实现实际结果不符合计划时的有限重规划：最多两次重试，重试仍失败返回明确错误且不提交归档/Word。输入：执行结果与 ArchivePlan；输出：最终 manifest 或阻止错误；验收：4→22→45 的升级和耗尽路径可回归。
+- [x] 8.2T 增加压缩比导致少卷、超卷、无下一档和重试耗尽测试；验收：不会静默降级 ZIP 或自动回退 legacy。
+- [x] 8.3 实现归档输入双轨授权与不透明 `archive_context_id` 生命周期：`UPLOAD_BASE` 加 `BIJI_ALLOWED_INPUT_ROOTS` 只允许具体案件目录；根目录外普通 `report_dir` 拒绝；精确目录令牌仅保留为受控本机桥接预留，不提供普通 API 发令牌；后续规划、执行、Manifest 和 DOCX 只接受上下文标识；上下文过期、输入变化、并发和服务重启行为返回稳定代码。
+- [x] 8.3T 增加固定根目录、前缀相邻目录、大小写、相对/穿越、链接/reparse、UNC/设备路径、输入输出重叠、精确授权令牌、上下文摘要/过期/并发/清理、解析接口稳定错误码和前端提示测试；验收：公共响应和错误不包含完整本地路径，原始案件不会被清理。
+
+8.3/8.3T 的完成边界：本轮完成固定根目录生产能力、精确目录授权安全模型/令牌验证/拒绝边界及其自动化测试；未完成且不得宣称完成的是本机目录选择器或可信桌面桥接签发入口，以及精确授权端到端人工验收。两项未接线能力不另增本轮任务计数，保留为后续工作边界。
 
 ## 9. 附件一页面计划（Layer 21）
 

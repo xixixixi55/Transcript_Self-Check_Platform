@@ -9,10 +9,8 @@ import os
 import shutil
 import tempfile
 from typing import Optional
-
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-
 from ..services.report_parser_service import parse_report, parse_from_archive
 from ..services.record_generator_service import generate_docx
 from ..services.export_gate_service import ExportGateInput, evaluate_export_gate
@@ -23,31 +21,35 @@ from ..services.software_policy_service import (
     normalize_primary_software_projection,
 )
 from ..services.disc_sequence_service import parse_disc_sequence
-
+from ..services.archive_execution_service import (
+    ArchiveGateError,
+    create_archive_context,
+    get_valid_manifest,
+)
+from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
+from ..services.archive_authorization_service import ArchiveAuthorizationError, ArchiveAuthorizationService
 router = APIRouter()
-
 # 存储路径（项目根目录）
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 UPLOAD_BASE = os.path.join(_PROJECT_ROOT, "uploads")
 OUTPUT_BASE = os.path.join(_PROJECT_ROOT, "output")
 ARCHIVE_MAX_SIZE = 500 * 1024 * 1024  # 500MB
-
-
+ARCHIVE_AUTHORIZATION_SERVICE = ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
 @router.post("/reports/parse")
 async def parse_report_endpoint(
     report_dir: str = Form(""),
     archive_file: Optional[UploadFile] = File(None),
     compress: bool = Form(True),
+    directory_grant_token: str = Form(""),
 ):
     """
     解析 HTML 报告（文件夹模式或压缩包模式）。
-    - 文件夹模式：提供 report_dir，compress 控制是否生成 RAR
+    - 文件夹模式：提供 report_dir；compress 保留兼容但仅控制是否建立归档上下文，解析阶段不压缩
     - 压缩包模式：提供 archive_file（.rar/.zip），自动解压解析
     """
     # 校验：两种模式不能同时提供或同时为空
     has_dir = bool(report_dir)
     has_file = archive_file is not None and archive_file.filename
-
     if has_dir and has_file:
         raise HTTPException(status_code=400, detail="不能同时提供 report_dir 和 archive_file")
     if not has_dir and not has_file:
@@ -62,6 +64,7 @@ async def parse_report_endpoint(
             raise HTTPException(status_code=400, detail="请提供 report_dir 或上传压缩包文件")
 
     try:
+        authorized_input = None
         if has_file:
             # ─── 压缩包模式（REQ-014） ───
             # 校验文件格式
@@ -79,20 +82,46 @@ async def parse_report_endpoint(
 
             with open(tmp_path, "wb") as f:
                 f.write(content)
-
             try:
-                result = parse_from_archive(tmp_path, OUTPUT_BASE)
+                result = parse_from_archive(tmp_path, OUTPUT_BASE, retain_source=True)
             finally:
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
         else:
             # ─── 文件夹模式 ───
-            if not os.path.exists(report_dir):
-                raise HTTPException(status_code=404, detail=f"报告目录不存在: {report_dir}")
-            result = parse_report(report_dir, OUTPUT_BASE, compress=compress)
+            authorized_input = ARCHIVE_AUTHORIZATION_SERVICE.authorize_report_directory(
+                report_dir, directory_grant_token or None,
+            )
+            result = parse_report(
+                str(authorized_input.resolved_input_root), OUTPUT_BASE, compress=compress,
+            )
 
         result["report"] = enrich_report_material_types(result["report"])
+        result["archive_context_id"] = None
+        source_root = result.pop("_archive_source_root", None)
+        cleanup_root = result.pop("_archive_source_cleanup_root", None)
+        if source_root:
+            authorized_input = ARCHIVE_AUTHORIZATION_SERVICE.authorize_server_source(
+                source_root, cleanup_root or source_root,
+            )
+        if not has_file or source_root:
+            result["archive_context_id"] = create_archive_context(
+                authorized_input,
+                result["report"],
+                output_root=OUTPUT_BASE,
+                cleanup_root=cleanup_root,
+            )
+            result["archive_context"] = ARCHIVE_RUNTIME_STORE.get_context_summary(
+                result["archive_context_id"],
+            )
+        result["archive_context_deprecated_compress"] = True
+        result["archive_status"] = "idle"
         return {"success": True, "data": result}
+    except ArchiveAuthorizationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": error.code, "message": error.safe_message},
+        )
     except HTTPException:
         raise
     except Exception:
@@ -102,11 +131,11 @@ async def parse_report_endpoint(
             status_code=422,
             detail="报告解析失败：报告结构缺失、格式不受支持或字段无效，请检查后重试。",
         )
-
-
 @router.post("/records/export")
 async def export_record_endpoint(
     report_json: str = Form(""),
+    archive_context_id: str = Form(""),
+    manifest_id: str = Form(""),
     photos: list[UploadFile] = File(default=[]),
 ):
     """
@@ -138,6 +167,17 @@ async def export_record_endpoint(
     else:
         attachments.pop("disc_sequence", None)
     material_fields = unconfirmed_material_fields(report)
+    manifest_valid = False
+    manifest_blocker_code = None
+    if archive_context_id and manifest_id:
+        try:
+            get_valid_manifest(archive_context_id, manifest_id, report)
+            manifest_valid = True
+        except ArchiveRuntimeError as error:
+            manifest_blocker_code = error.code
+        except ArchiveGateError as error:
+            manifest_blocker_code = str(error.blockers[0].code) if error.blockers else "ARCHIVE_PARTS_INVALID"
+            manifest_valid = False
     gate = evaluate_export_gate(
         ExportGateInput(
             material_types_confirmed=not material_fields,
@@ -145,6 +185,10 @@ async def export_record_endpoint(
             primary_software_confirmed=is_primary_software_confirmed(report),
             disc_sequence_valid=disc_result.valid,
             disc_sequence_error_code=disc_result.error_code,
+            archive_manifest_required=True,
+            archive_manifest_present=bool(archive_context_id and manifest_id and not manifest_blocker_code),
+            archive_manifest_valid=manifest_valid,
+            archive_blocker_code=manifest_blocker_code,
         )
     )
     if not gate.allowed:
@@ -190,5 +234,11 @@ async def export_record_endpoint(
             filename=filename,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"文档生成失败: {str(e)}")
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "DOCUMENT_EXPORT_FAILED",
+                "message": "文档生成失败，请检查模板后重试。",
+            },
+        )

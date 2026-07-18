@@ -18,6 +18,7 @@ export const API_PREFIX = '/api/v1'
 /** API 端点 */
 export const API_ENDPOINTS = {
   PARSE_REPORT: `${API_PREFIX}/reports/parse`,
+  EXECUTE_ARCHIVE: `${API_PREFIX}/records/archive`,
   EXPORT_RECORD: `${API_PREFIX}/records/export`,
   DEVICES: `${API_PREFIX}/devices`,
   INSPECTORS: `${API_PREFIX}/inspectors`,
@@ -103,3 +104,4 @@ export const DEFAULT_INSPECTOR_COUNT = 2
 export const ATTACHMENT_COUNT = 3
 
 export * from './exportGateCodes'
+export * from './archiveConstants'

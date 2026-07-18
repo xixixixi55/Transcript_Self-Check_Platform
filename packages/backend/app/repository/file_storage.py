@@ -7,7 +7,6 @@ Layer 20: BE_Repository — 文件存取模块
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -15,37 +14,18 @@ import zipfile
 from datetime import datetime
 from typing import Optional
 
-# WinRAR 安装路径（常见位置）
-_WINRAR_PATHS = [
-    r"C:\Program Files\WinRAR\WinRAR.exe",
-    r"C:\Program Files (x86)\WinRAR\WinRAR.exe",
-]
-
+from .winrar_discovery_repository import discover_winrar
 
 def _find_winrar() -> Optional[str]:
-    """查找 WinRAR.exe 路径，未找到返回 None"""
-    for p in _WINRAR_PATHS:
-        if os.path.exists(p):
-            return p
-    return None
+    """使用统一发现策略查找已验证的 WinRAR/RAR 可执行文件。"""
+    capability = discover_winrar()
+    return capability.executable_path if capability.available else None
 
 
 def detect_winrar_version() -> Optional[str]:
     """检测已安装的 WinRAR 版本号（如 "6.24"），未找到返回 None"""
-    winrar = _find_winrar()
-    if not winrar:
-        return None
-    try:
-        result = subprocess.run(
-            [winrar], capture_output=True, text=True, timeout=10,
-        )
-        output = result.stdout + result.stderr
-        match = re.search(r"(?:WinRAR|版本)\s*(\d+\.\d+)", output)
-        if match:
-            return match.group(1)
-    except Exception:
-        pass
-    return None
+    capability = discover_winrar()
+    return capability.version if capability.available else None
 
 
 def ensure_dir(path: str) -> str:
@@ -122,7 +102,7 @@ def compute_md5(filepath: str) -> str:
 
 def create_rar(source_dir: str, output_dir: str, archive_name: str,
                force: bool = False, skip: bool = False) -> dict:
-    """压缩目录为 RAR/ZIP。skip=True 时跳过压缩返回空 rar_info。REQ-012: 已存在则复用。"""
+    """Deprecated single-volume helper; never falls back to ZIP."""
     if skip:
         return {
             "filename": "",
@@ -131,50 +111,7 @@ def create_rar(source_dir: str, output_dir: str, archive_name: str,
             "size_bytes": 0,
             "size_display": "",
         }
-
-    ensure_dir(output_dir)
-    rar_path = os.path.join(output_dir, f"{archive_name}.rar")
-    zip_path = os.path.join(output_dir, f"{archive_name}.zip")
-
-    # REQ-012: 已有文件则跳过压缩
-    existing = rar_path if os.path.exists(rar_path) else (zip_path if os.path.exists(zip_path) else None)
-    if existing and not force and os.path.getsize(existing) > 0:
-        return {
-            "filename": os.path.basename(existing),
-            "filepath": existing,
-            "md5": compute_md5(existing),
-            "size_bytes": os.path.getsize(existing),
-            "size_display": _format_size(os.path.getsize(existing)),
-        }
-
-    winrar = _find_winrar()
-    if winrar:
-        subprocess.run(
-            [winrar, "a", "-r", "-ep1", rar_path, source_dir],
-            capture_output=True,
-            timeout=300,
-        )
-    else:
-        # 降级为 ZIP
-        zip_path = os.path.join(output_dir, f"{archive_name}.zip")
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, dirs, files in os.walk(source_dir):
-                for f in files:
-                    filepath = os.path.join(root, f)
-                    arcname = os.path.relpath(filepath, os.path.dirname(source_dir))
-                    zf.write(filepath, arcname)
-        rar_path = zip_path
-
-    size_bytes = os.path.getsize(rar_path)
-    md5 = compute_md5(rar_path)
-
-    return {
-        "filename": os.path.basename(rar_path),
-        "filepath": rar_path,
-        "md5": md5,
-        "size_bytes": size_bytes,
-        "size_display": _format_size(size_bytes),
-    }
+    raise ValueError("ARCHIVE_PLAN_INVALID")
 
 
 def extract_archive(archive_path: str, output_dir: str) -> str:

@@ -1,7 +1,7 @@
 // Layer 11: FE_Components — 报告上传步骤
 // 提取自 RecordGeneratePage 以控制文件大小
 import React from 'react'
-import { Button, Card, Checkbox, Radio, Steps, Typography, Alert, Upload, message } from 'antd'
+import { Button, Card, Radio, Steps, Typography, Alert, Upload, message } from 'antd'
 import { UploadOutlined, InboxOutlined } from '@ant-design/icons'
 import FileInfoCard from './FileInfoCard'
 import type { ParseReportResponse } from '@biji/shared/types'
@@ -15,17 +15,17 @@ type UploadMode = 'folder' | 'archive'
 interface Props {
   uploadMode: UploadMode
   onModeChange: (mode: UploadMode) => void
-  compress: boolean
-  onCompressChange: (v: boolean) => void
   parsing: boolean
   result: ParseReportResponse | null
+  error?: string | null
+  errorCode?: string | null
   onFolderUpload: () => void
   onArchiveUpload: (file: File) => Promise<boolean>
 }
 
 export default function ReportUploadStep({
-  uploadMode, onModeChange, compress, onCompressChange,
-  parsing, result, onFolderUpload, onArchiveUpload,
+  uploadMode, onModeChange,
+  parsing, result, error, errorCode, onFolderUpload, onArchiveUpload,
 }: Props) {
   const handleArchive = async (file: File) => {
     const ext = '.' + file.name.split('.').pop()?.toLowerCase()
@@ -39,6 +39,12 @@ export default function ReportUploadStep({
   return (
     <div style={{ padding: 48, maxWidth: 800, margin: '0 auto' }}>
       <Card>
+        {error && <Alert
+          type="error"
+          message={errorCode ? `${errorCode}: ${error}` : error}
+          showIcon
+          style={{ marginBottom: 16 }}
+        />}
         <Title level={3}>电子数据检查笔录 — 自动生成</Title>
         <Steps current={0} style={{ marginBottom: 24 }}>
           <Steps.Step title="上传报告"/><Steps.Step title="审核编辑"/><Steps.Step title="导出Word"/>
@@ -56,10 +62,6 @@ export default function ReportUploadStep({
 
         {uploadMode === 'folder' ? (
           <>
-            <Checkbox checked={compress} onChange={e => onCompressChange(e.target.checked)}
-              style={{ marginBottom: 12, display: 'block' }}>
-              压缩为 .rar
-            </Checkbox>
             <Button type="primary" size="large" icon={<UploadOutlined />}
               onClick={onFolderUpload} loading={parsing} block>
               选择报告目录并解析

@@ -133,6 +133,9 @@ export interface ParseReportResponse {
   report: InspectionReport
   parsed_files: string[]
   rar_info: RarInfo | null
+  archive_context_id?: string | null
+  archive_context?: import('./archive').ArchiveContextSummary | null
+  archive_status?: import('./archive').ArchiveExecutionStatus
 }
 
 /** 导出笔录请求 */
@@ -207,6 +210,7 @@ export interface RecordListResponse {
 }
 
 export * from './canonical'
+export * from './archive'
 export * from './discSequence'
 export * from './exportGate'
 export * from './pipeline'

@@ -162,6 +162,9 @@
 | report | InspectionReport | 解析生成的笔录全文 |
 | parsed_files | string[] | 已解析的源文件列表 |
 | rar_info | RarInfo \| null | RAR文件信息（MD5/大小），取消压缩时为 null |
+| archive_context_id | string \| null | 后端生成的不可预测归档上下文标识；不包含本地路径 |
+| archive_context | `ArchiveContextSummary` \| null | 仅含上下文标识、文件数、总字节数、状态、创建时间和过期时间；不含案件目录、允许根目录或安装路径 |
+| archive_status | ArchiveExecutionStatus \| null | 归档执行阶段 |
 
 ### API 请求（ExportRecordRequest）
 
@@ -249,6 +252,28 @@
 `DiscSequence` 保存首个光盘编号解析结果的 `prefix`、真实日期、首序号、输入位宽
 和规范化首编号；`generateDiscNumbers` 只根据该结构和最终卷数派生后续编号，不能
 根据目录位置或预估卷数伪造正式清单。
+
+### 归档规划与最终清单
+
+归档输入授权采用配置根目录与未来受控本机精确目录授权双轨模型。`report_dir` 仅是 deprecated 的一次性上下文创建参数；根目录外普通提交不得自动信任，后续接口只接受 `archive_context_id`。当前上下文只在进程内存中保存，服务重启后按 `ARCHIVE_CONTEXT_NOT_FOUND` 处理；过期/忙碌分别返回稳定错误，清理只删除系统元数据和系统临时产物。
+
+解析阶段只建立 `archive_context_id` 和后端输入快照，不执行压缩。审核完成并通过
+执行前门禁后，`ArchivePlan` 记录案件展示名、安全归档基础名、相对输入文件清单、
+十进制字节总量、固定分卷档位、预计与最大卷数、首个光盘编号、重规划上限和诊断。
+生产档位为 4GB、22GB、45GB，容量单位为十进制 GB；计划模型不保存输入绝对路径。
+
+`ArchiveExecutionStatus` 表示 idle、planning、blocked、compressing、validating、
+hashing、completed 或 failed。WinRAR 成功退出不直接产生清单；只有当前执行目录中的
+分卷按数字连续、非零且满足 `0 < actual_size <= volume_size_bytes`，并且首卷通过
+WinRAR 完整性测试后，才能使用 Python `hashlib` 流式计算 MD5 并构建 `ArchiveManifest`。
+Manifest 的 parts 按实际文件系统结果排序，保存文件名、实际大小、MD5、光盘编号和首卷
+日期，不保存绝对路径。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。
+
+类型索引追加：`interface ArchiveContextSummary`、`type ArchiveVolumeTier`、`type ArchivePlanStatus`、
+`type ArchiveValidationStatus`、`type ArchiveExecutionStatus`、
+`interface ArchiveSourceEntry`、`interface ArchiveDiagnostic`、
+`interface ArchiveCapability`、`interface ArchivePlan`、`interface ArchivePart`、
+`interface ArchiveManifest`、`interface ArchiveExecutionResponse`。
 
 类型索引追加：`type MaterialClassificationStatus`、
 `type MaterialClassificationSource`、`interface MaterialClassification`、

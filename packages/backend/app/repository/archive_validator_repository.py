@@ -1,0 +1,120 @@
+"""Validate real WinRAR volume output and run a first-volume integrity test."""
+
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Protocol
+
+from .winrar_discovery_repository import WinRarCapability
+
+
+class ValidatorPlan(Protocol):
+    archive_base_name: str
+    volume_size_bytes: int
+    max_part_count: int
+
+
+@dataclass(frozen=True)
+class ValidatedArchivePart:
+    part_number: int
+    filename: str
+    path: Path
+    size_bytes: int
+
+
+@dataclass(frozen=True)
+class ArchiveValidationResult:
+    valid: bool
+    parts: tuple[ValidatedArchivePart, ...] = ()
+    diagnostic_code: str | None = None
+    safe_message: str = ""
+    observed_part_count: int = 0
+    replan_allowed: bool = False
+
+
+IntegrityRunner = Callable[..., subprocess.CompletedProcess[str]]
+
+
+def _invalid(
+    code: str,
+    message: str,
+    *,
+    observed_part_count: int = 0,
+    replan_allowed: bool = False,
+) -> ArchiveValidationResult:
+    return ArchiveValidationResult(
+        False, (), code, message, observed_part_count, replan_allowed,
+    )
+
+
+def validate_archive_parts(
+    staging_dir: str | os.PathLike[str],
+    plan: ValidatorPlan,
+    capability: WinRarCapability,
+    *,
+    integrity_runner: IntegrityRunner = subprocess.run,
+    timeout_seconds: int = 120,
+) -> ArchiveValidationResult:
+    """Accept only numeric, continuous, non-empty `.partN.rar` output."""
+
+    root = Path(staging_dir)
+    if not root.is_dir():
+        return _invalid("ARCHIVE_PARTS_INVALID", "归档临时产物目录无效。")
+    pattern = re.compile(
+        rf"^{re.escape(plan.archive_base_name)}\.part([1-9][0-9]*)\.rar$"
+    )
+    parts: dict[int, ValidatedArchivePart] = {}
+    names_seen: set[str] = set()
+    for entry in root.iterdir():
+        if not entry.is_file():
+            continue
+        if re.search(r"\.r\d+$", entry.name, re.IGNORECASE):
+            return _invalid("ARCHIVE_PARTS_INVALID", "归档不接受旧式分卷命名。")
+        if entry.suffix.casefold() != ".rar":
+            continue
+        if entry.is_symlink():
+            return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷不能是链接文件。")
+        name_key = entry.name.casefold()
+        if name_key in names_seen:
+            return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷存在重复文件名。")
+        names_seen.add(name_key)
+        match = pattern.fullmatch(entry.name)
+        if not match:
+            return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷文件名不符合计划。")
+        number = int(match.group(1))
+        if number in parts:
+            return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷编号重复。")
+        size = entry.stat().st_size
+        if size <= 0 or size > plan.volume_size_bytes:
+            return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷大小超出容量规则。")
+        parts[number] = ValidatedArchivePart(number, entry.name, entry, size)
+
+    if 1 not in parts:
+        return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷缺少 part1。")
+    if len(parts) > plan.max_part_count:
+        return _invalid(
+            "ARCHIVE_PARTS_INVALID", "归档实际分卷数超过当前档位限制。",
+            observed_part_count=len(parts), replan_allowed=True,
+        )
+    numbers = sorted(parts)
+    if numbers != list(range(1, len(numbers) + 1)):
+        return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷编号不连续。")
+    if not capability.available or not capability.executable_path:
+        return _invalid("WINRAR_UNAVAILABLE", "WinRAR 不可用，无法校验归档。")
+
+    first = parts[1]
+    try:
+        result = integrity_runner(
+            [capability.executable_path, "t", "-inul", "-y", first.filename],
+            cwd=str(root), capture_output=True, text=True,
+            timeout=timeout_seconds, shell=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return _invalid("ARCHIVE_PARTS_INVALID", "WinRAR 完整性测试失败。")
+    if result.returncode != 0:
+        return _invalid("ARCHIVE_PARTS_INVALID", "WinRAR 完整性测试失败。")
+    return ArchiveValidationResult(True, tuple(parts[number] for number in numbers))

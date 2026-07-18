@@ -18,7 +18,7 @@ export function ReviewSaveStatus({ status }: ReviewSaveStatusProps) {
     ? <CheckCircleOutlined />
     : status === '存在未导出修改'
       ? <EditOutlined />
-      : status === '导出中'
+      : ['归档规划中', '归档执行中', '归档校验中', '归档哈希中', '导出中'].includes(status)
         ? <LoadingOutlined />
         : status === '导出成功'
           ? <CheckCircleOutlined />
@@ -30,8 +30,10 @@ export function ReviewSaveStatus({ status }: ReviewSaveStatusProps) {
     ? '仅更新当前页面状态，未写入服务器'
     : status === '存在未导出修改'
       ? '请导出 Word 以生成文件'
-      : status === '导出中'
-        ? '正在调用现有 Word 导出服务'
+      : ['归档规划中', '归档执行中', '归档校验中', '归档哈希中'].includes(status)
+        ? '正在生成并校验归档分卷'
+        : status === '导出中'
+          ? '归档已完成，正在生成 Word'
         : status === '导出成功'
           ? '文件已生成并触发下载'
           : status === '导出失败'
