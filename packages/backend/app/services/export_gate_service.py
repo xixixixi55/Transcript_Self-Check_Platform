@@ -14,6 +14,8 @@ class ExportGateCode(str, Enum):
     ODD_PHOTO_COUNT = "ODD_PHOTO_COUNT"
     ARCHIVE_MANIFEST_MISSING = "ARCHIVE_MANIFEST_MISSING"
     DISC_SEQUENCE_INVALID = "DISC_SEQUENCE_INVALID"
+    FIRST_DISC_NUMBER_MISSING = "FIRST_DISC_NUMBER_MISSING"
+    FIRST_DISC_NUMBER_INVALID = "FIRST_DISC_NUMBER_INVALID"
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,7 @@ class ExportGateInput:
     primary_software_confirmed: bool = True
     photo_count_valid: bool = True
     disc_sequence_valid: bool = True
+    disc_sequence_error_code: str | None = None
     automatic_archive_required: bool = False
     winrar_available: bool = True
     archive_manifest_required: bool = False
@@ -69,7 +72,7 @@ def evaluate_export_gate(
         blockers.append(
             ExportGateIssue(
                 ExportGateCode.PRIMARY_SOFTWARE_UNCONFIRMED,
-                "main_software",
+                "inspection.primary_software",
                 "主取证软件名称和版本必须先确认。",
             )
         )
@@ -82,11 +85,17 @@ def evaluate_export_gate(
             )
         )
     if not facts.disc_sequence_valid:
+        code = facts.disc_sequence_error_code or ExportGateCode.DISC_SEQUENCE_INVALID
+        message = (
+            "首个光盘编号不能为空。"
+            if code == ExportGateCode.FIRST_DISC_NUMBER_MISSING
+            else "首个光盘编号必须符合 GPyyyyMMdd-序号 格式并通过日期校验。"
+        )
         blockers.append(
             ExportGateIssue(
-                ExportGateCode.DISC_SEQUENCE_INVALID,
-                "disc_sequence",
-                "光盘编号必须先通过格式和连续性校验。",
+                code,
+                "attachments.disc_number",
+                message,
             )
         )
     if facts.automatic_archive_required and not facts.winrar_available:

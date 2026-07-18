@@ -1,5 +1,7 @@
 /** Canonical domain types shared by the report migration boundary. */
 
+import type { DiscSequence } from './discSequence'
+
 export type MaterialKind = 'phone' | 'tablet' | 'unconfirmed'
 export type MaterialClassificationStatus = 'confirmed_by_report' | 'confirmed_by_user' | 'unconfirmed'
 export type MaterialClassificationSource = 'report' | 'user' | 'none'
@@ -12,7 +14,7 @@ export type SoftwareCategory =
   | 'python_hashlib'
   | 'unclassified'
 
-export type ConfirmationStatus = 'confirmed' | 'unconfirmed'
+export type ConfirmationStatus = 'confirmed_by_report' | 'confirmed_by_user' | 'unconfirmed' | 'confirmed'
 
 export interface FieldProvenance {
   source_type: string
@@ -63,6 +65,20 @@ export interface SoftwareTool {
   display_name: string
   provenance: FieldProvenance[]
   confirmation_status: ConfirmationStatus
+}
+
+export interface PrimarySoftwareCandidate {
+  name: string
+  version: string
+}
+
+export interface PrimarySoftware {
+  name: string
+  version: string
+  display_name: string
+  confirmation_status: ConfirmationStatus
+  provenance: FieldProvenance[]
+  candidates?: PrimarySoftwareCandidate[]
 }
 
 export interface CanonicalCaseInfo {
@@ -116,6 +132,7 @@ export interface CanonicalAttachmentInputs {
   photo_ids: string[]
   disc_number: string
   burning_date: string | null
+  disc_sequence?: DiscSequence
 }
 
 export interface CanonicalInspectionCase {
@@ -123,6 +140,7 @@ export interface CanonicalInspectionCase {
   inspection_period: CanonicalInspectionPeriod
   materials: Material[]
   inspectors: InspectorSnapshot[]
+  primary_software?: PrimarySoftware
   software_tools: SoftwareTool[]
   photos: PhotoReference[]
   archive_manifest: ArchiveManifestSummary | null

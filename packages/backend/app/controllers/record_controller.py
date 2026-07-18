@@ -18,6 +18,11 @@ from ..services.record_generator_service import generate_docx
 from ..services.export_gate_service import ExportGateInput, evaluate_export_gate
 from ..services.inspector_service import apply_inspector_snapshot_compatibility
 from ..services.material_policy_service import enrich_report_material_types, unconfirmed_material_fields
+from ..services.software_policy_service import (
+    is_primary_software_confirmed,
+    normalize_primary_software_projection,
+)
+from ..services.disc_sequence_service import parse_disc_sequence
 
 router = APIRouter()
 
@@ -117,11 +122,29 @@ async def export_record_endpoint(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
 
+    report = normalize_primary_software_projection(report)
+    attachments = report.setdefault("attachments", {})
+    disc_result = parse_disc_sequence(attachments.get("disc_number"))
+    if disc_result.valid and disc_result.sequence is not None:
+        year, month, day = disc_result.sequence.date.split("-")
+        attachments["burning_date"] = f"{year}年{int(month)}月{int(day)}日"
+        attachments["disc_sequence"] = {
+            "prefix": disc_result.sequence.prefix,
+            "date": disc_result.sequence.date,
+            "start_number": disc_result.sequence.start_number,
+            "number_width": disc_result.sequence.number_width,
+            "first_disc_number": disc_result.sequence.first_disc_number,
+        }
+    else:
+        attachments.pop("disc_sequence", None)
     material_fields = unconfirmed_material_fields(report)
     gate = evaluate_export_gate(
         ExportGateInput(
             material_types_confirmed=not material_fields,
             material_type_fields=material_fields,
+            primary_software_confirmed=is_primary_software_confirmed(report),
+            disc_sequence_valid=disc_result.valid,
+            disc_sequence_error_code=disc_result.error_code,
         )
     )
     if not gate.allowed:

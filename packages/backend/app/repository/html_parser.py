@@ -28,7 +28,8 @@ from .device_field_parser import extract_device_fields, try_parse_json
 from .navigation_parser import parse_navigation
 from .json_loader import load_js_json
 from .report_format_adapter import (
-    ReportFormat, extract_main_software_version, require_supported_report_format,
+    ReportFormat, extract_main_software_candidate, extract_main_software_version,
+    require_supported_report_format,
 )
 class ReportParseError(Exception): pass
 def _load_js_json(filepath: str) -> Any:
@@ -235,6 +236,9 @@ def parse_report_info(data_dir: str) -> dict[str, str]:
     main_version = extract_main_software_version(contents)
     if main_version:
         versions["product_version"] = main_version
+
+    main_software = extract_main_software_candidate(contents)
+    versions["main_software"] = main_software
 
     return versions
 def parse_navigation(data_dir: str) -> dict[str, Any]:

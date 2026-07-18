@@ -16,7 +16,9 @@ IdentifierType = Literal["imei1", "imei2", "serial_number"]
 SoftwareCategory = Literal[
     "main_forensic", "winrar", "python_hashlib", "unclassified"
 ]
-ConfirmationStatus = Literal["confirmed", "unconfirmed"]
+ConfirmationStatus = Literal[
+    "confirmed_by_report", "confirmed_by_user", "unconfirmed", "confirmed"
+]
 
 
 class CanonicalBaseModel(BaseModel):
@@ -72,6 +74,20 @@ class SoftwareTool(CanonicalBaseModel):
     confirmation_status: ConfirmationStatus = "unconfirmed"
 
 
+class PrimarySoftwareCandidate(CanonicalBaseModel):
+    name: str
+    version: str
+
+
+class PrimarySoftware(CanonicalBaseModel):
+    name: str = ""
+    version: str = ""
+    display_name: str = ""
+    confirmation_status: ConfirmationStatus = "unconfirmed"
+    provenance: list[FieldProvenance] = Field(default_factory=list)
+    candidates: list[PrimarySoftwareCandidate] = Field(default_factory=list)
+
+
 class CanonicalCaseIntroduction(CanonicalBaseModel):
     entrust_unit: str = ""
     entrust_persons: list[str] = Field(default_factory=list)
@@ -124,11 +140,20 @@ class ArchiveManifestSummary(CanonicalBaseModel):
     status: Literal["pending", "validated", "unavailable"]
 
 
+class DiscSequence(CanonicalBaseModel):
+    prefix: str
+    date: str
+    start_number: int = Field(ge=1)
+    number_width: int = Field(ge=1)
+    first_disc_number: str
+
+
 class CanonicalAttachmentInputs(CanonicalBaseModel):
     extract_list: dict[str, object] = Field(default_factory=dict)
     photo_ids: list[str] = Field(default_factory=list)
     disc_number: str = ""
     burning_date: str | None = None
+    disc_sequence: DiscSequence | None = None
 
 
 class CanonicalInspectionCase(CanonicalBaseModel):
@@ -138,6 +163,7 @@ class CanonicalInspectionCase(CanonicalBaseModel):
     )
     materials: list[Material] = Field(default_factory=list)
     inspectors: list[InspectorSnapshot] = Field(default_factory=list)
+    primary_software: PrimarySoftware | None = None
     software_tools: list[SoftwareTool] = Field(default_factory=list)
     photos: list[PhotoReference] = Field(default_factory=list)
     archive_manifest: ArchiveManifestSummary | None = None

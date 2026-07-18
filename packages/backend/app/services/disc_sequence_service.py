@@ -1,0 +1,83 @@
+"""Pure validation and generation rules for the first disc number."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from datetime import date
+
+_MAX_SAFE_INTEGER = 2**53 - 1
+
+
+@dataclass(frozen=True)
+class DiscSequence:
+    prefix: str
+    date: str
+    start_number: int
+    number_width: int
+    first_disc_number: str
+
+
+@dataclass(frozen=True)
+class DiscSequenceParseResult:
+    sequence: DiscSequence | None
+    error_code: str | None = None
+
+    @property
+    def valid(self) -> bool:
+        return self.sequence is not None
+
+
+_PATTERN = re.compile(r"^(GP)(\d{4})(\d{2})(\d{2})-(\d+)$", re.IGNORECASE)
+
+
+def parse_disc_sequence(value: str | None) -> DiscSequenceParseResult:
+    if not value:
+        return DiscSequenceParseResult(None, "FIRST_DISC_NUMBER_MISSING")
+    if not isinstance(value, str):
+        return DiscSequenceParseResult(None, "FIRST_DISC_NUMBER_INVALID")
+    if value != value.strip():
+        return DiscSequenceParseResult(None, "FIRST_DISC_NUMBER_INVALID")
+    match = _PATTERN.fullmatch(value)
+    if not match:
+        return DiscSequenceParseResult(None, "FIRST_DISC_NUMBER_INVALID")
+    year, month, day = (int(match.group(index)) for index in (2, 3, 4))
+    try:
+        date(year, month, day)
+    except ValueError:
+        return DiscSequenceParseResult(None, "FIRST_DISC_DATE_INVALID")
+    raw_number = match.group(5)
+    start_number = int(raw_number)
+    if start_number < 1 or start_number > _MAX_SAFE_INTEGER:
+        return DiscSequenceParseResult(None, "FIRST_DISC_SEQUENCE_INVALID")
+    sequence = DiscSequence(
+        prefix="GP",
+        date=f"{year:04d}-{month:02d}-{day:02d}",
+        start_number=start_number,
+        number_width=len(raw_number),
+        first_disc_number=f"GP{year:04d}{month:02d}{day:02d}-{raw_number}",
+    )
+    return DiscSequenceParseResult(sequence)
+
+
+def generate_disc_numbers(
+    first_disc_number: str | DiscSequence,
+    count: int,
+) -> list[str]:
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("FIRST_DISC_SEQUENCE_INVALID")
+    parsed = (
+        parse_disc_sequence(first_disc_number)
+        if isinstance(first_disc_number, str)
+        else DiscSequenceParseResult(first_disc_number)
+    )
+    if not parsed.valid or parsed.sequence is None:
+        raise ValueError(parsed.error_code or "FIRST_DISC_NUMBER_INVALID")
+    sequence = parsed.sequence
+    if sequence.start_number + max(count - 1, 0) > _MAX_SAFE_INTEGER:
+        raise ValueError("FIRST_DISC_SEQUENCE_INVALID")
+    return [
+        f"{sequence.prefix}{sequence.date.replace('-', '')}-"
+        f"{sequence.start_number + index:0{sequence.number_width}d}"
+        for index in range(count)
+    ]

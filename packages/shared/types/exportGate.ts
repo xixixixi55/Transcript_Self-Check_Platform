@@ -5,6 +5,8 @@ export type ExportGateBlockerCode =
   | 'ODD_PHOTO_COUNT'
   | 'ARCHIVE_MANIFEST_MISSING'
   | 'DISC_SEQUENCE_INVALID'
+  | 'FIRST_DISC_NUMBER_MISSING'
+  | 'FIRST_DISC_NUMBER_INVALID'
 
 export interface ExportGateIssue {
   code: ExportGateBlockerCode | string

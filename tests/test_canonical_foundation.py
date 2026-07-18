@@ -193,3 +193,34 @@ def test_legacy_migration_does_not_turn_missing_values_into_literal_none():
     assert result.canonical_case.case_info.title == ""
     assert result.canonical_case.case_info.document_number == ""
     assert result.canonical_case.materials == []
+
+
+def test_legacy_disc_number_best_effort_migration_derives_sequence_and_date():
+    result = inspection_report_to_canonical({
+        "title": "Synthetic inspection",
+        "document_number": "DOC-001",
+        "attachments": {
+            "disc_number": "gp20260706-09",
+            "burning_date": "2099年1月1日",
+        },
+    })
+
+    sequence = result.canonical_case.attachments.disc_sequence
+    assert sequence is not None
+    assert sequence.first_disc_number == "GP20260706-09"
+    assert sequence.date == "2026-07-06"
+    assert result.canonical_case.attachments.burning_date == "2026年7月6日"
+
+
+def test_legacy_invalid_disc_number_does_not_preserve_manual_date():
+    result = inspection_report_to_canonical({
+        "title": "Synthetic inspection",
+        "document_number": "DOC-001",
+        "attachments": {
+            "disc_number": "GP20260230-01",
+            "burning_date": "2026年2月30日",
+        },
+    })
+
+    assert result.canonical_case.attachments.disc_sequence is None
+    assert result.canonical_case.attachments.burning_date is None

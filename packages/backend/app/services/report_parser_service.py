@@ -150,19 +150,31 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     # process/result sections remain single-primary-device fields.
     first_device = evidence_items[0] if evidence_items else {
         "model": "", "imei1": "", "imei2": "", "evidence_number": ""}
-    sv = _extract_version(versions)
+    main_software = versions.get("main_software") or {}
+    main_name = str(main_software.get("name", "")).strip()
+    main_version = str(main_software.get("version", "")).strip()
+    main_status = main_software.get("status", "unconfirmed")
+    main_candidates = main_software.get("candidates", [])
+    sv = main_version or _extract_version(versions)
+    main_display = " ".join(filter(None, [main_name, main_version]))
     process_steps = [
         {"step_number": 1, "content": f"将{first_device.get('device_type') or first_device.get('model', '未知设备')}（IMEI1：{first_device.get('imei1', 'xx')}；IMEI2：{first_device.get('imei2', 'xx')}）编号为{first_device.get('evidence_number', 'xx')}。"},
         {"step_number": 2, "content": f"对检材{first_device.get('evidence_number', 'xx')}进行拍照。"},
         {"step_number": 3, "content": "启动美亚FL-901手机取证塔，Windows 10 64位企业版操作系统启动正常，使用火绒安全软件（版本号为6.0.6.1）对取证塔进行杀毒，未发现病毒，完毕后退出火绒安全软件。"},
-        {"step_number": 4, "content": f"启动美亚手机大师-并行版V5软件（版本号为{sv}）使用美亚手机大师-并行版V5软件对检材{first_device.get('evidence_number', 'xx')}进行检查。"},
+        {"step_number": 4, "content": f"启动{main_display or '待确认主取证软件'}（版本号为{main_version or '待确认'}）对检材{first_device.get('evidence_number', 'xx')}进行检查。"},
     ]
 
     # 7. 数据摘要是报告字段默认值，不从导航分类列表动态拼接。
     data_summary = DEFAULT_DATA_SUMMARY
 
     # 8. 动态 software_tools（REQ-016）
-    software_tools = _build_software_tools(sv, compress=compress, is_rar_archive=is_rar_archive)
+    software_tools = _build_software_tools(
+        sv,
+        compress=compress,
+        is_rar_archive=is_rar_archive,
+        main_name=main_name,
+        main_status=main_status,
+    )
 
     # 9. 条件压缩 RAR
     rar_info = _build_rar_info_from_compress(source_dir, output_dir, case.get("case_name", "report"), compress)
@@ -213,11 +225,25 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         "inspection": {
             "method": "采用 GA/T 1069-2021《法庭科学电子物证手机检验技术规范》进行检查。",
             "hardware_device": "美亚FL-901手机取证塔",
+            "primary_software": {
+                "name": main_name,
+                "version": main_version,
+                "display_name": main_display,
+                "confirmation_status": main_status,
+                "provenance": [{
+                    "source_type": "report",
+                    "source_file": "data_report_info.json",
+                    "json_path": "contents",
+                    "adapter": "legacy-report-adapter",
+                    "confidence": 1 if main_status == "confirmed_by_report" else None,
+                }],
+                "candidates": main_candidates,
+            },
             "software_tools": software_tools,
             "process_steps": process_steps,
             "result": {
                 "evidence_number": first_device.get("evidence_number", ""),
-                "software_name": "美亚手机大师-并行版V5",
+                "software_name": main_name,
                 "software_version": sv,
                 "data_summary": data_summary,
                 "rar_filename": rar_info["filename"],
@@ -234,16 +260,41 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     }
 
 
-def _build_software_tools(sv: str, compress: bool = True, is_rar_archive: bool = False) -> list[dict]:
-    """REQ-016: 动态生成 software_tools。美亚手机大师 + WinRAR（始终显示，默认版本 6.24 可修改）+ Python hashlib（实际版本）。"""
+def _build_software_tools(
+    sv: str,
+    compress: bool = True,
+    is_rar_archive: bool = False,
+    *,
+    main_name: str | None = None,
+    main_status: str = "unconfirmed",
+) -> list[dict]:
+    """Build only the report primary tool plus the two allowed runtime tools."""
     tools = []
-    if sv:
-        tools.append({"name": "美亚手机大师-并行版V5", "version": sv})
+    if main_name and sv:
+        tools.append({
+            "category": "main_forensic",
+            "name": main_name or "",
+            "version": sv,
+            "display_name": " ".join(filter(None, [main_name or "", sv])),
+            "confirmation_status": main_status,
+        })
     # WinRAR 始终显示，默认版本 6.24（用户可在预览中修改）
     version = detect_winrar_version() or "6.24"
-    tools.append({"name": "WinRAR压缩管理软件", "version": version})
+    tools.append({
+        "category": "winrar",
+        "name": "WinRAR压缩管理软件",
+        "version": version,
+        "display_name": f"WinRAR压缩管理软件 {version}",
+        "confirmation_status": "confirmed",
+    })
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    tools.append({"name": "Python hashlib", "version": py_ver})
+    tools.append({
+        "category": "python_hashlib",
+        "name": "Python hashlib",
+        "version": py_ver,
+        "display_name": f"Python hashlib {py_ver}",
+        "confirmation_status": "confirmed",
+    })
     return tools
 
 

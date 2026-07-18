@@ -9,9 +9,10 @@ import type { SoftwareItem } from '@biji/shared/types'
 interface Props {
   tools: SoftwareItem[]
   onChange: (tools: SoftwareItem[]) => void
+  readOnly?: boolean
 }
 
-export default function SoftwareToolsList({ tools, onChange }: Props) {
+export default function SoftwareToolsList({ tools, onChange, readOnly = false }: Props) {
   const update = (idx: number, field: keyof SoftwareItem, val: string) => {
     onChange(tools.map((t, i) => i === idx ? { ...t, [field]: val } : t))
   }
@@ -34,9 +35,9 @@ export default function SoftwareToolsList({ tools, onChange }: Props) {
             onClick={() => remove(idx)} />
         </div>
       ))}
-      <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={add}>
+      {!readOnly && <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={add}>
         添加软件工具
-      </Button>
+      </Button>}
     </Space>
   )
 }

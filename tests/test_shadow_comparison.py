@@ -3,7 +3,7 @@
 import json
 import os
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
@@ -42,6 +42,85 @@ def test_shadow_comparison_matches_minimum_non_sensitive_facts():
     assert result.matched
     assert result.differences == ()
     assert "Synthetic inspector" not in repr(snapshot_from_legacy_report(report))
+
+
+def test_shadow_primary_status_is_not_fabricated_for_legacy_dto():
+    report = _legacy_report()
+
+    snapshot = snapshot_from_legacy_report(report)
+
+    assert snapshot.primary_software_status == "not_comparable"
+
+
+def test_shadow_comparison_compares_equal_primary_statuses():
+    report = _legacy_report()
+    legacy = replace(
+        snapshot_from_legacy_report(report),
+        primary_software_status="confirmed_by_report",
+    )
+    canonical = replace(
+        snapshot_from_legacy_report(report),
+        primary_software_status="confirmed_by_report",
+    )
+
+    result = compare_shadow_snapshots(legacy, canonical)
+
+    assert result.matched
+
+
+def test_shadow_comparison_reports_different_primary_statuses():
+    report = _legacy_report()
+    legacy = replace(
+        snapshot_from_legacy_report(report),
+        primary_software_status="confirmed_by_report",
+    )
+    canonical = replace(
+        snapshot_from_legacy_report(report),
+        primary_software_status="confirmed_by_user",
+    )
+
+    result = compare_shadow_snapshots(legacy, canonical)
+
+    assert not result.matched
+    assert "PRIMARY_SOFTWARE_STATUS_MISMATCH" in result.diagnostic_codes
+
+
+def test_shadow_comparison_compares_software_presence_facts():
+    report = _legacy_report()
+    report["inspection"]["result"] = {
+        "software_name": "Synthetic tool",
+        "software_version": "1.0",
+    }
+    legacy = snapshot_from_legacy_report(report)
+    canonical = replace(
+        legacy,
+        primary_software_version_present=False,
+    )
+
+    result = compare_shadow_snapshots(legacy, canonical)
+
+    assert legacy.primary_software_name_present
+    assert legacy.primary_software_version_present
+    assert result.diagnostic_codes == (
+        "PRIMARY_SOFTWARE_VERSION_PRESENCE_MISMATCH",
+    )
+
+
+def test_shadow_comparison_compares_disc_validity_and_date_presence():
+    report = _legacy_report()
+    report["attachments"] = {"disc_number": "GP20260706-09"}
+    legacy = snapshot_from_legacy_report(report)
+    canonical = replace(legacy, disc_date_present=False)
+
+    result = compare_shadow_snapshots(legacy, canonical)
+
+    assert legacy.first_disc_number_valid
+    assert legacy.disc_date_present
+    assert result.diagnostic_codes == ("DISC_DATE_PRESENCE_MISMATCH",)
+
+    invalid = replace(legacy, first_disc_number_valid=False)
+    invalid_result = compare_shadow_snapshots(legacy, invalid)
+    assert invalid_result.diagnostic_codes == ("FIRST_DISC_NUMBER_VALIDITY_MISMATCH",)
 
 
 def test_shadow_comparison_reports_codes_without_sensitive_values():

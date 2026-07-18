@@ -10,6 +10,17 @@ interface UseRecordExportReturn {
   exporting: boolean
 }
 
+const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
+  PRIMARY_SOFTWARE_UNCONFIRMED: '主取证软件名称和版本必须先确认。',
+  FIRST_DISC_NUMBER_MISSING: '首个光盘编号不能为空。',
+  FIRST_DISC_NUMBER_INVALID: '首个光盘编号格式或日期无效。',
+  DISC_SEQUENCE_INVALID: '光盘编号必须先通过校验。',
+}
+
+function formatExportBlockers(blockers: Array<{ code?: string }>): string {
+  return blockers.map(item => EXPORT_BLOCKER_MESSAGES[item.code || ''] || '导出门控未通过。').join('；')
+}
+
 export function resolveExportFileName(documentNumber: string, requestedFileName?: string): string {
   return requestedFileName
     ? normalizeExportFileName(requestedFileName)
@@ -23,7 +34,7 @@ async function resolveExportErrorMessage(error: any): Promise<string> {
       const parsed = JSON.parse(await responseData.text())
       const blockers = parsed.detail?.blockers
       if (Array.isArray(blockers) && blockers.length > 0) {
-        return blockers.map((item: { message?: string }) => item.message || '导出门控未通过').join('；')
+        return formatExportBlockers(blockers)
       }
       if (typeof parsed.detail === 'string') return parsed.detail
     } catch {
@@ -32,7 +43,7 @@ async function resolveExportErrorMessage(error: any): Promise<string> {
   }
   const detail = responseData?.detail
   if (typeof detail === 'string') return detail
-  if (Array.isArray(detail?.blockers)) return detail.blockers.map((item: { message?: string }) => item.message || '导出门控未通过').join('；')
+  if (Array.isArray(detail?.blockers)) return formatExportBlockers(detail.blockers)
   return error.message || '导出失败'
 }
 

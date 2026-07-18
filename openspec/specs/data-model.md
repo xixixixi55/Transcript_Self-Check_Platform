@@ -222,6 +222,7 @@
 类型索引：`type MaterialKind`、`type IdentifierType`、`type SoftwareCategory`、
 `type ConfirmationStatus`、`interface FieldProvenance`、`interface MaterialIdentifier`、
 `interface Material`、`interface InspectorSnapshot`、`interface SoftwareTool`、
+`interface PrimarySoftware`、`interface DiscSequence`、
 `interface CanonicalCaseInfo`、`interface CanonicalInspectionPeriod`、
 `interface CanonicalInspectionResult`、`interface CanonicalInspectionDetails`、
 `interface PhotoReference`、`interface ArchiveManifestSummary`、
@@ -232,7 +233,9 @@
 
 ### 检材类型确认与检查人员库
 
-`MaterialClassificationStatus` 取 `confirmed_by_report`、`confirmed_by_user` 或
+`PrimarySoftware` 保存名称、版本、派生显示值、来源和确认状态；`primary_software`
+是审核页唯一可编辑的主取证软件结构，兼容的 `software_name`、`software_version`
+和 `software_tools` 从它派生。`MaterialClassificationStatus` 取 `confirmed_by_report`、`confirmed_by_user` 或
 `unconfirmed`；`MaterialClassificationSource` 取 `report`、`user` 或 `none`。
 `MaterialClassification` 保存检材类型确认状态、来源、规则版本和非敏感诊断码。
 自动候选只读取报告明确的 `device_type` 字段，并使用受控词表归一化；未确认的
@@ -243,6 +246,16 @@
 `InspectorSnapshot` 分离；快照保存报告生成时的姓名、单位、警号和顺序，不随人员库
 后续修改而变化。旧 `introduction.inspectors` 仅作为由快照派生的 legacy 投影。
 
+`DiscSequence` 保存首个光盘编号解析结果的 `prefix`、真实日期、首序号、输入位宽
+和规范化首编号；`generateDiscNumbers` 只根据该结构和最终卷数派生后续编号，不能
+根据目录位置或预估卷数伪造正式清单。
+
 类型索引追加：`type MaterialClassificationStatus`、
 `type MaterialClassificationSource`、`interface MaterialClassification`、
 `interface InspectorLibraryRecord`。
+
+### Additional migration support types
+
+`PrimarySoftwareCandidate` stores an explicit report candidate pair. `DiscSequenceErrorCode` identifies first-disc parsing failures, and `DiscSequenceParseResult` stores the validation result, parsed sequence, and diagnostic code.
+
+Type index: `type PrimarySoftwareCandidate`, `type DiscSequenceErrorCode`, `interface DiscSequenceParseResult`.

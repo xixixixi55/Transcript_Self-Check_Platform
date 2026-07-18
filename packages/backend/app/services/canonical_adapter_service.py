@@ -13,10 +13,12 @@ from .canonical_models_service import (
     FieldProvenance,
     InspectorSnapshot,
     Material,
+    PrimarySoftware,
     SoftwareTool,
 )
+from .canonical_attachment_adapter_service import migrate_legacy_attachments
 from .material_policy_service import material_from_legacy_item
-
+from .software_policy_service import migrate_legacy_software
 
 class ReportAdapter(Protocol):
     """Future adapter contract for report structure discovery and parsing."""
@@ -47,21 +49,30 @@ def _first_identifier(material: Material, identifier_type: str) -> str:
         if identifier.type == identifier_type:
             return identifier.value
     return ""
-
-
-def _software_tools(case: CanonicalInspectionCase) -> list[dict[str, str]]:
-    return [
-        {"name": tool.name, "version": tool.version}
-        for tool in case.software_tools
-    ]
-
-
-def _primary_software(case: CanonicalInspectionCase) -> tuple[str, str]:
+def _primary_software(case: CanonicalInspectionCase) -> PrimarySoftware | None:
+    if case.primary_software is not None:
+        return case.primary_software
     for tool in case.software_tools:
         if tool.category == "main_forensic":
-            return tool.name, tool.version
-    return "", ""
-
+            return PrimarySoftware(
+                name=tool.name,
+                version=tool.version,
+                display_name=tool.display_name,
+                confirmation_status=tool.confirmation_status,
+                provenance=tool.provenance,
+            )
+    return None
+def _software_tools(case: CanonicalInspectionCase) -> list[dict[str, str]]:
+    primary = _primary_software(case)
+    tools: list[dict[str, str]] = []
+    if primary is not None and (primary.name or primary.version):
+        tools.append({"name": primary.name, "version": primary.version})
+    tools.extend(
+        {"name": tool.name, "version": tool.version}
+        for tool in case.software_tools
+        if tool.category in {"winrar", "python_hashlib"}
+    )
+    return tools
 
 def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, Any]:
     """Create the existing public DTO projection without applying display rules."""
@@ -92,7 +103,9 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
         for inspector in case.inspectors
     ]
     result = case.inspection.result
-    primary_software_name, primary_software_version = _primary_software(case)
+    primary_software = _primary_software(case)
+    primary_software_name = primary_software.name if primary_software else ""
+    primary_software_version = primary_software.version if primary_software else ""
     return {
         "title": case.case_info.title,
         "document_number": case.case_info.document_number,
@@ -119,6 +132,9 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
         "inspection": {
             "method": case.inspection.method,
             "hardware_device": case.inspection.hardware_device,
+            "primary_software": (
+                primary_software.model_dump() if primary_software else None
+            ),
             "software_tools": _software_tools(case),
             "process_steps": list(case.inspection.process_steps),
             "result": {
@@ -136,10 +152,12 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
             "photo_ids": list(case.attachments.photo_ids),
             "disc_number": case.attachments.disc_number,
             "burning_date": case.attachments.burning_date,
+            "disc_sequence": (
+                case.attachments.disc_sequence.model_dump()
+                if case.attachments.disc_sequence else None
+            ),
         },
     }
-
-
 def inspection_report_to_canonical(
     report: Mapping[str, Any],
 ) -> LegacyMigrationResult:
@@ -177,27 +195,8 @@ def inspection_report_to_canonical(
         for index, item in enumerate(introduction.get("inspectors") or [])
         if isinstance(item, Mapping)
         ]
-    software_tools = [
-        SoftwareTool(
-            category="unclassified",
-            name=_text(item.get("name")),
-            version=_text(item.get("version")),
-            display_name=_text(item.get("name")),
-        )
-        for item in inspection.get("software_tools") or []
-    ]
     result = inspection.get("result") or {}
-    result_software_name = _text(result.get("software_name"))
-    result_software_version = _text(result.get("software_version"))
-    if result_software_name and not software_tools:
-        software_tools.append(
-            SoftwareTool(
-                category="main_forensic",
-                name=result_software_name,
-                version=result_software_version,
-                display_name=result_software_name,
-            )
-        )
+    primary_software, software_tools = migrate_legacy_software(inspection, result)
     case_info = CanonicalCaseInfo(
         title=_text(report.get("title")),
         document_number=_text(report.get("document_number")),
@@ -220,6 +219,7 @@ def inspection_report_to_canonical(
         ),
         materials=materials,
         inspectors=inspectors,
+        primary_software=primary_software,
         software_tools=software_tools,
         inspection=CanonicalInspectionDetails(
             method=_text(inspection.get("method")),
@@ -233,7 +233,7 @@ def inspection_report_to_canonical(
                 "file_size": _text(result.get("file_size")),
             },
         ),
-        attachments=dict(report.get("attachments") or {}),
+        attachments=migrate_legacy_attachments(report),
     )
     return LegacyMigrationResult(
         canonical_case=case,

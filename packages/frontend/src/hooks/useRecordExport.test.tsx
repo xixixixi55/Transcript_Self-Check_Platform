@@ -58,6 +58,26 @@ describe('useRecordExport', () => {
     expect(window.alert).toHaveBeenCalled()
     vi.restoreAllMocks()
   })
+
+  it('uses stable blocker codes instead of backend messages', async () => {
+    post.mockRejectedValueOnce({
+      response: {
+        data: {
+          detail: {
+            blockers: [{ code: 'PRIMARY_SOFTWARE_UNCONFIRMED', message: 'raw backend detail' }],
+          },
+        },
+      },
+    })
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    const onResult = vi.fn()
+    render(<ExportHarness onResult={onResult} />)
+    fireEvent.click(screenButton())
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(false))
+    expect(alert).toHaveBeenCalledWith(expect.stringContaining('主取证软件名称和版本必须先确认。'))
+    expect(alert).not.toHaveBeenCalledWith(expect.stringContaining('raw backend detail'))
+    vi.restoreAllMocks()
+  })
 })
 
 function screenButton(): HTMLButtonElement {

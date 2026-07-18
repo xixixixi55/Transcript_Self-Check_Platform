@@ -1,6 +1,6 @@
 // Layer 0: SharedTypes — 前后端共享的类型定义（实体、DTO、API 契约）
 
-import type { InspectorSnapshot, MaterialClassificationStatus } from './canonical'
+import type { InspectorSnapshot, MaterialClassificationStatus, PrimarySoftware } from './canonical'
 
 /** 文书类型枚举 */
 export enum RecordType {
@@ -104,6 +104,7 @@ export interface InspectionReport {
   inspection: {
     method: string                       // (一) 检查方法
     hardware_device: string              // 硬件设备名称
+    primary_software?: PrimarySoftware   // 主取证软件唯一权威编辑结构
     software_tools: SoftwareItem[]       // (二) 检查设备 — 软件
     process_steps: ProcessStep[]         // (三) 检查过程
     result: InspectionResult             // (四) 检查结果
@@ -113,6 +114,7 @@ export interface InspectionReport {
     photo_ids: string[]                  // 附件2: 已上传检材照片 ID 列表
     disc_number: string                  // 附件3: 光盘编号
     burning_date?: string                // 附件3: 刻录时间（民警填写）
+    disc_sequence?: import('./discSequence').DiscSequence
   }
 }
 
@@ -205,6 +207,7 @@ export interface RecordListResponse {
 }
 
 export * from './canonical'
+export * from './discSequence'
 export * from './exportGate'
 export * from './pipeline'
 export * from './shadow'

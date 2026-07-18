@@ -18,7 +18,27 @@ _MOCK_RESPONSE = {
     "report": _MOCK_REPORT,
     "parsed_files": ["data_case_info.json"],
     "rar_info": {"filename": "test.rar", "md5": "a" * 32, "size_bytes": 1024, "size_display": "1.0 KB"},
-}
+     }
+
+
+def test_export_rejects_non_string_disc_number_with_stable_code(client):
+    report = {
+        "attachments": {"disc_number": 9},
+        "inspection": {"primary_software": {
+            "name": "脱敏主取证软件",
+            "version": "V1.0",
+            "confirmation_status": "confirmed_by_user",
+        }},
+    }
+    response = client.post(
+        "/api/v1/records/export",
+        data={"report_json": json.dumps(report, ensure_ascii=False)},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert [item["code"] for item in detail["blockers"]] == [
+        "FIRST_DISC_NUMBER_INVALID",
+    ]
 
 
 @pytest.fixture
@@ -123,8 +143,13 @@ def test_export_blocks_each_unconfirmed_material_with_stable_field_path(client):
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert detail["code"] == "EXPORT_BLOCKED"
-    assert detail["blockers"] == [{
+    assert [item["code"] for item in detail["blockers"]] == [
+        "MATERIAL_TYPE_UNCONFIRMED",
+        "PRIMARY_SOFTWARE_UNCONFIRMED",
+        "FIRST_DISC_NUMBER_MISSING",
+    ]
+    assert detail["blockers"][0] == {
         "code": "MATERIAL_TYPE_UNCONFIRMED",
         "field": "introduction.evidence_list[id=material-2].material_type",
         "message": "检材类型必须先确认手机或平板。",
-    }]
+    }

@@ -65,9 +65,9 @@ def test_parser_does_not_promote_device_name_or_model_to_device_type():
 
 def test_software_tools_with_compress():
     """compress=True → software_tools 含 WinRAR（始终显示）"""
-    tools = _build_software_tools("V3.2.12922", compress=True, is_rar_archive=False)
+    tools = _build_software_tools("V3.2.12922", compress=True, is_rar_archive=False, main_name="脱敏主取证软件")
     names = [t["name"] for t in tools]
-    assert "美亚手机大师-并行版V5" in names
+    assert "脱敏主取证软件" in names
     assert "WinRAR压缩管理软件" in names
     assert "Python hashlib" in names
     # Python hashlib 版本应为实际 Python 版本号（如 3.11.0）
@@ -78,23 +78,23 @@ def test_software_tools_with_compress():
 
 def test_software_tools_without_compress():
     """compress=False → WinRAR 始终显示（用户可手动修改版本号）"""
-    tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=False)
+    tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=False, main_name="脱敏主取证软件")
     names = [t["name"] for t in tools]
-    assert "美亚手机大师-并行版V5" in names
+    assert "脱敏主取证软件" in names
     assert "WinRAR压缩管理软件" in names
     assert "Python hashlib" in names
 
 
 def test_software_tools_rar_archive():
     """上传 .rar → software_tools 含 WinRAR"""
-    tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=True)
+    tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=True, main_name="脱敏主取证软件")
     names = [t["name"] for t in tools]
     assert "WinRAR压缩管理软件" in names
 
 
 def test_software_tools_zip_archive():
     """上传 .zip → WinRAR 始终显示"""
-    tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=False)
+    tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=False, main_name="脱敏主取证软件")
     names = [t["name"] for t in tools]
     assert "WinRAR压缩管理软件" in names
 
@@ -103,9 +103,14 @@ def test_software_tools_empty_version():
     """无版本号 → 只含基础工具"""
     tools = _build_software_tools("", compress=True, is_rar_archive=False)
     names = [t["name"] for t in tools]
-    # 空版本号不追加美亚大师，但 WinRAR 仍需存在
-    assert "美亚手机大师-并行版V5" not in names
+    # 空版本号不追加主软件，但 WinRAR 仍需存在
+    assert all(name not in {"美亚手机大师-并行版V5", "脱敏主取证软件"} for name in names)
     assert "WinRAR压缩管理软件" in names
+
+
+def test_software_tools_never_use_historical_primary_name_fallback():
+    tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=False)
+    assert [tool["name"] for tool in tools] == ["WinRAR压缩管理软件", "Python hashlib"]
 
 
 # ─── parse_report 集成测试（mock html_parser） ───
@@ -294,7 +299,8 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     assert evidence["imei2"] == "222222222222222"
     assert evidence["serial_number"] == "SN-NEW"
     assert {tool["name"] for tool in report["inspection"]["software_tools"]} == {
-        "美亚手机大师-并行版V5", "WinRAR压缩管理软件", "Python hashlib",
+        report["inspection"]["primary_software"]["name"],
+        "WinRAR压缩管理软件", "Python hashlib",
     }
 
 

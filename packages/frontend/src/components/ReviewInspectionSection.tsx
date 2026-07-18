@@ -2,6 +2,7 @@ import React from 'react'
 import type { InspectionReport } from '@biji/shared/types'
 import { Typography } from 'antd'
 import { normalizeDataSummary } from '@biji/shared/utils'
+import type { PrimarySoftware } from '@biji/shared/types'
 import EditableField from './EditableField'
 import ProcessStepsEditor from './ProcessStepsEditor'
 import SoftwareToolsList from './SoftwareToolsList'
@@ -16,8 +17,15 @@ interface ReviewInspectionSectionProps {
 }
 
 export function ReviewInspectionSection({ inspection, updateReport, deviceOptions }: ReviewInspectionSectionProps) {
+  const primarySoftware: PrimarySoftware = inspection.primary_software || {
+    name: inspection.result?.software_name || '',
+    version: inspection.result?.software_version || '',
+    display_name: '',
+    confirmation_status: 'unconfirmed',
+    provenance: [],
+  }
   const resultFields: [string, keyof InspectionReport['inspection']['result']][] = [
-    ['检材编号', 'evidence_number'], ['软件名称', 'software_name'], ['软件版本', 'software_version'],
+    ['检材编号', 'evidence_number'],
     ['数据摘要', 'data_summary'], ['RAR 文件名', 'rar_filename'], ['MD5 哈希', 'md5_hash'], ['文件大小', 'file_size'],
   ]
 
@@ -35,7 +43,21 @@ export function ReviewInspectionSection({ inspection, updateReport, deviceOption
         <div className="review-subfield">
           <Text strong>{inspection.software_tools?.length ? `2-${inspection.software_tools.length + 1}、软件工具` : '2、软件工具'}</Text>
           <SoftwareToolsList tools={inspection.software_tools || []}
-            onChange={value => updateReport('inspection.software_tools', value)} />
+            onChange={() => undefined} readOnly />
+        </div>
+        <div className="review-subfield review-primary-software" aria-label="主取证软件">
+          <Text strong>主取证软件</Text>
+          <span className={`review-primary-software__status ${primarySoftware.confirmation_status === 'unconfirmed' ? 'review-primary-software__status--pending' : ''}`}>
+            {primarySoftware.confirmation_status === 'confirmed_by_user' ? '人工确认' :
+              primarySoftware.confirmation_status === 'confirmed_by_report' ? '报告自动识别' : '待确认'}
+          </span>
+          <ReviewField label="主取证软件名称" type="text" value={primarySoftware.name}
+            onChange={value => updateReport('inspection.primary_software.name', value)} placeholder="请输入主取证软件名称" />
+          <ReviewField label="主取证软件版本" type="text" value={primarySoftware.version}
+            onChange={value => updateReport('inspection.primary_software.version', value)} placeholder="请输入主取证软件版本" />
+          {primarySoftware.candidates && primarySoftware.candidates.length > 1 ? (
+            <Text type="secondary">报告候选存在冲突，请分别确认名称和版本后再导出。</Text>
+          ) : null}
         </div>
       </div>
       <div className="review-editor-block">

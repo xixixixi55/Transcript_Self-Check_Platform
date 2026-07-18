@@ -1,7 +1,7 @@
 // Layer 12: FE_Pages - 笔录生成主页面
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Spin, Steps } from 'antd'
-import type { InspectorLibraryRecord, InspectionReport, InspectorSnapshot } from '@biji/shared/types'
+import type { InspectorLibraryRecord, InspectionReport } from '@biji/shared/types'
 import type { UploadFile } from 'antd'
 import { useReportParser } from '../hooks/useReportParser'
 import { useRecordExport } from '../hooks/useRecordExport'
@@ -13,6 +13,7 @@ import {
   isValidDateFieldValue,
   isValidMinuteTimeRangeValue,
   normalizeDataSummary,
+  applyReportEdit,
   validateExportFileName,
 } from '@biji/shared/utils'
 import ReportUploadStep from '../components/ReportUploadStep'
@@ -87,7 +88,6 @@ export default function RecordGeneratePage() {
     const dirPath = prompt('请输入报告目录路径:')
     if (dirPath) await parseReport(dirPath, compress)
   }
-
   const handleExport = async () => {
     if (!report || exporting) return false
 
@@ -124,13 +124,11 @@ export default function RecordGeneratePage() {
     setReviewStatus(success ? '导出成功' : '导出失败')
     return success
   }
-
   const handleCustomFileNameChange = (enabled: boolean) => {
     setCustomFileName(enabled)
     setExportFileNameError('')
     if (!enabled && report) setExportFileName(getDefaultExportFileName(report.document_number))
   }
-
   const handleExportFileNameChange = (value: string) => {
     setExportFileName(value)
     setExportFileNameError('')
@@ -139,21 +137,9 @@ export default function RecordGeneratePage() {
   useEffect(() => {
     if (report && !customFileName) setExportFileName(getDefaultExportFileName(report.document_number))
   }, [report?.document_number, customFileName])
-
   const updateReport = (path: string, value: any) => {
     if (!report) return
-    const keys = path.split('.')
-    const newReport = JSON.parse(JSON.stringify(report)) as InspectionReport
-    let target: any = newReport
-    for (let index = 0; index < keys.length - 1; index += 1) target = target[keys[index]]
-    target[keys[keys.length - 1]] = value
-    if (path === 'introduction.inspector_snapshots') {
-      newReport.introduction.inspectors = (value as InspectorSnapshot[]).map(snapshot => ({
-        name: snapshot.name,
-        unit: snapshot.unit,
-        badge_number: snapshot.police_number,
-      }))
-    }
+    const newReport = applyReportEdit(report, path, value)
     setReport(newReport)
     setHasPageChanges(true)
     setReviewStatus('存在未导出修改')

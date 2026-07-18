@@ -162,3 +162,50 @@ def extract_main_software_version(contents: Any) -> str:
     if not saw_main_record or not candidates or len(set(candidates)) != 1:
         return ""
     return candidates[0][1]
+
+
+def extract_main_software_candidate(contents: Any) -> dict[str, Any]:
+    """Return a report-bound software candidate without using runtime defaults."""
+    if not isinstance(contents, list):
+        return {"name": "", "version": "", "status": "unconfirmed", "candidates": []}
+
+    candidates: list[tuple[str, str]] = []
+    saw_marker = False
+    invalid = False
+    for item in contents:
+        if not isinstance(item, dict):
+            continue
+        value = str(item.get("value", "")).strip()
+        if not value or not any(marker in value for marker in _SOFTWARE_MARKERS):
+            continue
+        saw_marker = True
+        matches = list(_EXPLICIT_SOFTWARE_RE.finditer(value))
+        matches.extend(_REPORT_USES_SOFTWARE_RE.finditer(value))
+        if not matches or any(
+            bracket in match.group(0)
+            for match in matches
+            for bracket in _BRACKETS
+        ):
+            invalid = True
+            continue
+        for match in matches:
+            fragment = match.group(0)
+            if len(_VERSION_RE.findall(fragment)) != 1:
+                invalid = True
+                continue
+            name = " ".join(match.group("name").split()).strip(" :：，,；;。")
+            version = match.group("version").replace(" ", "")
+            if name and version:
+                candidates.append((name, version))
+            else:
+                invalid = True
+
+    unique = list(dict.fromkeys(candidates))
+    status = "confirmed_by_report" if saw_marker and len(unique) == 1 and not invalid else "unconfirmed"
+    name, version = unique[0] if status == "confirmed_by_report" else ("", "")
+    return {
+        "name": name,
+        "version": version,
+        "status": status,
+        "candidates": [{"name": item[0], "version": item[1]} for item in unique],
+    }

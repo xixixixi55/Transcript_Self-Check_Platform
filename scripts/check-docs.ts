@@ -164,6 +164,7 @@ function checkTaskFiles(): Drift[] {
     const fileRefs = withoutCodeBlocks.match(/`[^`]+\.[a-z]+`/g) || []
     for (const ref of fileRefs) {
       const filePath = ref.replace(/`/g, '')
+      if (filePath.includes('*') || filePath.includes('<')) continue
       if (filePath.includes('/') && !fs.existsSync(path.join(ROOT, filePath)))
         drifts.push({ type: 'missing-in-code', message: `tasks.md references "${filePath}" but file does not exist` })
     }

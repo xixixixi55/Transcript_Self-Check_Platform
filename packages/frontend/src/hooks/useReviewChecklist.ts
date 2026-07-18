@@ -1,5 +1,5 @@
 import type { InspectionReport } from '@biji/shared/types'
-import { isValidDateFieldValue, isValidMinuteTimeRangeValue } from '@biji/shared/utils'
+import { isValidDateFieldValue, isValidMinuteTimeRangeValue, parseDiscSequence } from '@biji/shared/utils'
 
 export type ReviewPendingSeverity = 'warning' | 'error'
 
@@ -105,13 +105,18 @@ export function getReviewPendingItems(
     addBlankItem(items, REVIEW_SECTION_IDS.inspection, '二、检查', `软件工具${index + 1}名称`, item.name)
     addBlankItem(items, REVIEW_SECTION_IDS.inspection, '二、检查', `软件工具${index + 1}版本`, item.version)
   })
+  const primarySoftware = inspection?.primary_software
+  addBlankItem(items, REVIEW_SECTION_IDS.inspection, '二、检查', '主取证软件名称', primarySoftware?.name)
+  addBlankItem(items, REVIEW_SECTION_IDS.inspection, '二、检查', '主取证软件版本', primarySoftware?.version)
+  if (primarySoftware?.confirmation_status !== 'confirmed_by_report'
+    && primarySoftware?.confirmation_status !== 'confirmed_by_user') {
+    addInvalidItem(items, REVIEW_SECTION_IDS.inspection, '二、检查', '主取证软件确认状态', '主取证软件名称和版本必须确认后才能导出。')
+  }
   inspection?.process_steps?.forEach((item, index) => {
     addBlankItem(items, REVIEW_SECTION_IDS.inspection, '二、检查', `检查步骤${index + 1}`, item.content)
   })
   ;[
     ['检材编号', result?.evidence_number],
-    ['软件名称', result?.software_name],
-    ['软件版本', result?.software_version],
     ['数据摘要', result?.data_summary],
     ['RAR 文件名', result?.rar_filename],
     ['MD5 哈希', result?.md5_hash],
@@ -119,6 +124,9 @@ export function getReviewPendingItems(
   ].forEach(([label, value]) => addBlankItem(items, REVIEW_SECTION_IDS.inspection, '二、检查', label, value))
 
   addBlankItem(items, REVIEW_SECTION_IDS.attachments, '附件', '光盘编号', attachments?.disc_number)
+  if (attachments?.disc_number && !parseDiscSequence(attachments.disc_number).valid) {
+    addInvalidItem(items, REVIEW_SECTION_IDS.attachments, '附件', '光盘编号', '首个光盘编号必须符合 GPyyyyMMdd-序号 格式且日期真实有效。')
+  }
   if (exportFileNameError) {
     items.push({
       id: 'review-export-file-name',
