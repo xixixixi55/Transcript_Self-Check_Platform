@@ -92,6 +92,56 @@ def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path
     assert document_xml.count('w:type="page"') == 4
 
 
+def test_generated_docx_removes_comments_and_nonessential_metadata(tmp_path):
+    output = tmp_path / "sanitized.docx"
+    fill_template(_report(), str(_TEMPLATE), str(output))
+
+    with zipfile.ZipFile(output) as package:
+        names = set(package.namelist())
+        assert "word/comments.xml" not in names
+        assert "word/commentsExtended.xml" not in names
+        assert "word/people.xml" not in names
+        assert "docProps/custom.xml" not in names
+        xml_parts = {
+            name: package.read(name).decode("utf-8")
+            for name in names
+            if name.endswith(".xml") or name.endswith(".rels")
+        }
+        document_xml = xml_parts["word/document.xml"]
+        settings_xml = xml_parts["word/settings.xml"]
+        core = ET.fromstring(xml_parts["docProps/core.xml"])
+        content_types = xml_parts["[Content_Types].xml"]
+        package_rels = xml_parts["_rels/.rels"]
+
+    assert "commentRangeStart" not in document_xml
+    assert "commentRangeEnd" not in document_xml
+    assert "commentReference" not in document_xml
+    assert "comments.xml" not in "".join(xml_parts.values())
+    assert "commentsExtended.xml" not in "".join(xml_parts.values())
+    assert "people.xml" not in "".join(xml_parts.values())
+    assert "docVars" not in settings_xml
+    assert "custom.xml" not in content_types
+    assert "custom.xml" not in package_rels
+    tracked_change_names = {"ins", "del", "moveFrom", "moveTo"}
+    for xml in xml_parts.values():
+        root = ET.fromstring(xml)
+        assert not any(
+            node.tag.rsplit("}", 1)[-1] in tracked_change_names
+            for node in root.iter()
+        )
+
+    core_values = {
+        node.tag.rsplit("}", 1)[-1]: node.text or ""
+        for node in core
+    }
+    assert core_values["creator"] == "文枢"
+    assert core_values["lastModifiedBy"] == "文枢"
+    assert core_values["revision"] == "1"
+    assert "lastPrinted" not in core_values
+    assert "subject" not in core_values
+    assert "keywords" not in core_values
+
+
 def _write_png(path: Path, width: int, height: int, color=(50, 120, 200)):
     """使用标准库生成可被 Word 读取的真实 PNG 样例。"""
     raw = b"".join(b"\x00" + bytes(color) * width for _ in range(height))

@@ -73,29 +73,29 @@ WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核�
 
 ## 9. 附件一页面计划（Layer 21）
 
-人员整框是附件一最后页的 `keepTogether` 块；人员数量超出默认空间时，页面计划必须输出增高或末页空间调整结果，不允许把人员框拆到两页。
+附件一固定手写行是甲方模板的最后结束区域，不属于动态检查人员渲染；正文仍保留有序 `InspectorSnapshot[]`。
 
-- [ ] 9.1 实现 `Attachment1Plan`，只接收 final ArchiveManifest。输入：manifest、canonical case、快照；输出：每页最多4项、第一页 label/header、每页来源/提取方法合并框、最后页不可拆人员框；验收：行数严格等于 manifest 卷数且不重复表头。
-- [ ] 9.1T 增加四项边界、跨页 fixture、归档未验证阻止、标题/表头次数和人员框 keepTogether 测试；验收：不读取 ArchivePlan 或原始目录。
+- [x] 9.1 实现 `Attachment1Plan`，只接收 final ArchiveManifest。输入：manifest、报告来源/工具和模板 Profile；输出：第一页标题、后续页无标题、每页完整来源/提取方法、最后页保留模板固定手写行所需容量；验收：行数严格等于 manifest 卷数，不生成 `inspector_final` 或 `INSPECTOR_BLOCK_OVERFLOW`。
+- [x] 9.1T 增加 1/2/4/5/8/9 卷边界、固定手写行复制、动态人员仅正文、标题/清单文字可见次数和无附件二章节测试；验收：不读取 ArchivePlan 或原始目录。
 
 ## 10. 附件二图片页面计划（Layer 21）
 
-0 张图片输出空页面计划且不生成附件二页面；正偶数正常分页并仅首个附件二页面显示“附件2”；奇数返回导出阻断。附件二缺失时附件三仍显示“附件3”，不重排编号。
+0 张图片不生成附件二页面；现有图片 renderer 的回归范围只确认有效图片章节独立起页、附件三仍显示“附件3”和关系完整性，不在本轮扩展任意偶数图片布局。
 
 - [ ] 10.1 实现 `PhotoPagePlan`，支持零张兼容、任意正偶数、每页最多4张、4张2×2、2张左右上下居中和 5.64cm×7.52cm contain 框。输入：照片 manifest；输出：页面/布局/尺寸计划；验收：奇数直接阻止导出。
 - [ ] 10.1T 增加 0/1/2/3/4/8 张、横图/竖图/超尺寸图和比例完整显示测试；验收：不裁剪、不拉伸。
 
 ## 11. 附件三页面计划（Layer 21）
 
-- [ ] 11.1 实现 `Attachment3Plan`，只接收 final ArchiveManifest。输入：manifest 和 DiscSequence；输出：一卷一页、第一页显示“附件3”、每页对应实际文件/MD5/光盘号/刻录日期；验收：不重新扫描目录或计算卷列表。
-- [ ] 11.1T 增加一卷、三卷、重规划后 manifest 绑定和附件一/三 partId 一致性测试；验收：只有第一页有标题且页面数量等于 manifest 卷数。
+- [x] 11.1 实现 `Attachment3Plan`，只接收 final ArchiveManifest。输入：manifest 和 DiscSequence；输出：一卷一页、第一页显示“附件3”、每页五行上下元数据、每页对应实际文件/MD5/光盘号/刻录日期和底部光盘说明；验收：不重新扫描目录或计算卷列表。
+- [x] 11.1T 增加一卷、三卷、重规划后 manifest 绑定、分卷日期和附件一/三 partId 一致性测试；验收：只有第一页有标题、每页底部编号与当前 part 一致且页面数量等于 manifest 卷数。
 
 ## 12. current-template-v1 受控渲染（Layer 21）
 
 Renderer 只能消费统一导出门控通过的 `DocumentRenderPlan`；待确认检材类型/主软件、奇数图片、WinRAR 不可用或缺少最终 manifest 时不得正式渲染。
 
-- [ ] 12.1 建立固定 `current-template-v1` TemplateProfile 和资产 hash/anchor 检查；实现当前 DOCX Renderer 对 `DocumentRenderPlan`、结构化检查人员字段、表格、VML、图片和普通分页的受控扩展。输入：canonical、final manifest、三类 page plan、固定模板；输出：唯一正式 DOCX；验收：阶段一不实现通用设计器、DSL、任意 DOCX 自动绑定、可视化编辑或无标记识别。
-- [ ] 12.1T 增加模板 ZIP/XML、资产漂移、VML 宿主段落、关系、分页、结构化人员绑定和页面计划渲染测试；验收：固定 Profile 之外的模板被阻止。
+- [x] 12.1 建立固定 `current-template-v1` TemplateProfile 和资产 hash/anchor 检查；实现当前 DOCX Renderer 对 `DocumentRenderPlan`、正文结构化检查人员字段、固定手写行、表格、VML、图片、章节独立起页和普通分页的受控扩展。输入：canonical、final manifest、三类 page plan、固定模板；输出：唯一正式 DOCX；验收：阶段一不实现通用设计器、DSL、任意 DOCX 自动绑定、可视化编辑或无标记识别。
+- [x] 12.1T 增加模板 ZIP/XML、资产漂移、VML 宿主段落、关系、PAGE/NUMPAGES、`updateFields=true`、章节分页、固定手写行、摘要 manifest 计数和页面计划渲染测试；验收：固定 Profile 之外的模板被阻止，manifest/renderer 错误不回退 legacy。
 
 ## 13. 全黑字体策略（Layer 21）
 
@@ -113,6 +113,10 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 
 - [ ] 15.1 准备阶段一脱敏人工验收矩阵：手机/平板标识、人员顺序、主软件、正文/光盘日期、4/22/45GB档位、重规划、附件一/二/三、VML、黑字、图片比例、分页和模板 hash。输入：通过自动化门禁的唯一正式 DOCX；输出：甲方可审阅验收记录；验收：人工打开 Word 确认版式和可读性。
 - [ ] 15.1T 固化人工验收证据清单和失败复现入口；验收：未通过项不会标记阶段一完成或切换 canonical。
+
+人工验收记录（2026-07-19）：甲方已在 Microsoft Word GUI 打开 `01-1part-2inspectors.docx`、`02-5parts-0photos.docx`、`03-5parts-2photos.docx`、`04-9parts-0photos.docx` 和 `05-1part-0inspectors.docx`。记录结果为：无 Word 修复提示；附件章节独立起页规则、附件1标题/固定清单、固定手写行、正文动态检查人员、附件3五项上下元数据、逐页底部光盘说明、摘要数量/页数、PAGE/NUMPAGES、VML、无空白页和无末尾空白页均通过。稳定材料位于被 Git 忽略的 `output/acceptance.docx/attachment-manifest-word-20260719-round4/`，清单为其中的 `ACCEPTANCE-CHECKLIST.md`。
+
+15.1/15.1T 暂不勾选：任务原文还包含 4/22/45GB 档位、重规划、全局黑字策略、图片比例等本次五份 Word 样例未逐项人工验收的范围；本记录不将这些未验收范围伪装为已完成，也不改变附件二偶数布局、canonical、Shadow E2E、桌面桥接或阶段一全部完成状态。
 
 ## 16. canonical 切换和回滚演练（跨层）
 

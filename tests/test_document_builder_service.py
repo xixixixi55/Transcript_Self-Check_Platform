@@ -97,6 +97,13 @@ def test_generate_docx_rejects_empty_output(tmp_path: Path):
             generate_docx(_report(), output_dir=str(tmp_path))
 
 
+def test_manifest_render_failure_does_not_fallback_to_legacy(tmp_path: Path):
+    with patch("app.services.record_generator_service.fill_template", side_effect=ValueError("render failed")), \
+         patch("app.services.record_generator_service._generate_via_batch", side_effect=AssertionError("legacy fallback")):
+        with pytest.raises(ValueError, match="render failed"):
+            generate_docx(_report(), output_dir=str(tmp_path), archive_manifest={})
+
+
 def test_legacy_parsed_model_feeds_word_builder_and_export(tmp_path: Path):
     data_dir = tmp_path / "legacy" / "data"
     base_dir = data_dir / "JC-OLD" / "Base"

@@ -1,0 +1,187 @@
+"""Pure attachment planning from a validated ArchiveManifest."""
+
+from __future__ import annotations
+
+import re
+from pathlib import PurePath, PureWindowsPath
+from typing import Any, Mapping
+
+from .disc_sequence_service import parse_disc_sequence
+from .attachment_plan_models_service import (
+    Attachment1PagePlan,
+    Attachment2State,
+    Attachment3PagePlan,
+    AttachmentPartRow,
+    AttachmentPlan,
+    AttachmentSummaryPlan,
+)
+from .template_profile_service import current_template_profile
+
+PROFILE_ID = "current-template-v1"
+MAX_PART_ROWS_PER_PAGE = 4
+ARCHIVE_ROWS_PAGE_KIND = "archive_rows"
+_TEMPLATE_PROFILE = current_template_profile()
+_MD5_PATTERN = re.compile(r"^[0-9a-fA-F]{32}$")
+_CONFIRMED_SOFTWARE = {"confirmed", "confirmed_by_report", "confirmed_by_user"}
+
+
+class AttachmentPlanError(ValueError):
+    """Stable error raised when a final manifest cannot produce a plan."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.safe_message = message
+
+
+def build_attachment_plan(
+    manifest: Mapping[str, Any], report: Mapping[str, Any],
+) -> AttachmentPlan:
+    """Build all stage-one attachment pages without I/O or Word side effects."""
+    manifest_id, parts = _validated_parts(manifest)
+    source_text = _source_text(report)
+    extraction_method = _extraction_method(report)
+    first_disc = parts[0]["disc_number"]
+    disc_result = parse_disc_sequence(first_disc)
+    if not disc_result.valid or disc_result.sequence is None:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "首个光盘编号无法解析日期。")
+    inspection_date = disc_result.sequence.date
+    disc_numbers = tuple(str(item["disc_number"]) for item in parts)
+    rows = tuple(_part_row(item) for item in parts)
+    attachment1 = _attachment1_pages(rows, source_text, extraction_method)
+    attachment3 = tuple(
+        Attachment3PagePlan(
+            page_number=index,
+            show_attachment_title=index == 1,
+            part_id=str(item["part_id"]),
+            part_number=int(item["part_number"]),
+            filename=str(item["filename"]),
+            md5=str(item["md5"]),
+            disc_number=str(item["disc_number"]),
+            burning_date=str(item["disc_date"]),
+        )
+        for index, item in enumerate(parts, 1)
+    )
+    return AttachmentPlan(
+        profile_id=PROFILE_ID,
+        archive_manifest_id=manifest_id,
+        attachment_summary=AttachmentSummaryPlan(
+            inspection_date, len(parts), disc_numbers,
+        ),
+        attachment1_pages=tuple(attachment1),
+        attachment2_state=Attachment2State(len(_photos(report))),
+        attachment3_pages=attachment3,
+        diagnostics=(),
+        status="ready",
+    )
+
+
+def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str, Any]]]:
+    manifest_id = _text(manifest.get("manifest_id"))
+    if not manifest_id or manifest.get("validation_status") != "validated":
+        raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档清单未通过后端验证。")
+    raw_parts = manifest.get("parts")
+    if not isinstance(raw_parts, list) or not raw_parts:
+        raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档清单必须包含实际分卷。")
+    parts: list[Mapping[str, Any]] = []
+    numbers: list[int] = []
+    for item in raw_parts:
+        if not isinstance(item, Mapping):
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷结构无效。")
+        number = item.get("part_number")
+        filename = _text(item.get("filename"))
+        md5 = _text(item.get("md5"))
+        disc_date = _text(item.get("disc_date"))
+        if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷序号无效。")
+        if not filename or _unsafe_filename(filename):
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档文件名无效。")
+        if not _MD5_PATTERN.fullmatch(md5):
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷 MD5 无效。")
+        if not disc_date:
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷缺少刻录日期。")
+        if not _text(item.get("part_id")) or not _text(item.get("disc_number")):
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷缺少绑定字段。")
+        disc = parse_disc_sequence(str(item["disc_number"]))
+        if not disc.valid:
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档光盘编号无效。")
+        parts.append(item)
+        numbers.append(number)
+    parts.sort(key=lambda item: int(item["part_number"]))
+    if len(numbers) != len(set(numbers)) or [int(item["part_number"]) for item in parts] != list(range(1, len(parts) + 1)):
+        raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷序号不连续。")
+    return manifest_id, parts
+
+
+def _attachment1_pages(rows, source_text, extraction_method):
+    if len(rows) <= 1:
+        page_rows = [rows]
+    else:
+        page_rows = [rows[index:min(index + MAX_PART_ROWS_PER_PAGE, len(rows) - 1)]
+                     for index in range(0, len(rows) - 1, MAX_PART_ROWS_PER_PAGE)]
+        page_rows.append(rows[-1:])
+    pages = []
+    for index, page_rows in enumerate(page_rows, 1):
+        pages.append(Attachment1PagePlan(
+            page_number=index,
+            page_kind=ARCHIVE_ROWS_PAGE_KIND,
+            show_attachment_title=index == 1,
+            serial_rows=tuple(page_rows),
+            source_text=source_text,
+            extraction_method=extraction_method,
+        ))
+    return pages
+
+
+def _source_text(report: Mapping[str, Any]) -> str:
+    values = []
+    for item in (report.get("introduction") or {}).get("evidence_list") or []:
+        if not isinstance(item, Mapping):
+            continue
+        value = _text(item.get("evidence_number"))
+        if value and value not in values:
+            values.append(value)
+    if not values:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "缺少有效检材编号，无法生成来源。")
+    return "、".join(values) + "内提取"
+
+
+def _extraction_method(report: Mapping[str, Any]) -> str:
+    inspection = report.get("inspection") or {}
+    primary = inspection.get("primary_software")
+    if not isinstance(primary, Mapping):
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "主取证软件未确认。")
+    name, version = _text(primary.get("name")), _text(primary.get("version"))
+    if not name or not version or primary.get("confirmation_status") not in _CONFIRMED_SOFTWARE:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "主取证软件未确认。")
+    runtime = {
+        _text(tool.get("name")): _text(tool.get("version"))
+        for tool in inspection.get("software_tools") or []
+        if isinstance(tool, Mapping) and _text(tool.get("name"))
+    }
+    winrar = next((key for key in runtime if key.casefold() in {"winrar", "winrar压缩管理软件"}), None)
+    hashlib_name = next((key for key in runtime if key.casefold() == "python hashlib"), None)
+    if not winrar or not hashlib_name:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "归档工具来源未确认。")
+    return f"使用{name}（版本号为{version}）提取数据，使用{winrar}压缩，使用{hashlib_name}计算MD5值"
+
+
+def _part_row(item: Mapping[str, Any]) -> AttachmentPartRow:
+    return AttachmentPartRow(
+        part_id=str(item["part_id"]), part_number=int(item["part_number"]),
+        filename=str(item["filename"]), md5=str(item["md5"]),
+    )
+
+
+def _photos(report: Mapping[str, Any]) -> list[Any]:
+    value = (report.get("attachments") or {}).get("photo_ids") or []
+    return value if isinstance(value, list) else []
+
+
+def _unsafe_filename(value: str) -> bool:
+    return (PurePath(value).name != value or PureWindowsPath(value).name != value
+            or value in {".", ".."} or "/" in value or "\\" in value)
+
+
+def _text(value: Any) -> str:
+    return "" if value is None else str(value).strip()

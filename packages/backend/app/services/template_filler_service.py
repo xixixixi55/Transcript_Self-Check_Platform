@@ -10,17 +10,27 @@ Layer 21: BE_Services — 模板填充服务。
 import copy
 import os
 import re
+import tempfile
 from datetime import datetime
+from collections.abc import Mapping
 from docx import Document
 from docx.oxml.ns import qn
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from .report_defaults_service import normalize_data_summary
+from .attachment_plan_service import build_attachment_plan
+from .attachment_docx_renderer_service import render_attachment_plan
+from .docx_output_sanitizer_service import sanitize_generated_docx
+from .template_profile_service import (
+    validate_current_template_profile,
+    validate_template_package_fingerprint,
+)
 
 
 def fill_template(report: dict, template_path: str, output_path: str,
-                  photo_paths: list[str] = None) -> str:
+                  photo_paths: list[str] = None,
+                  archive_manifest: Mapping | None = None) -> str:
     """
     用 InspectionReport 数据填充模板，生成输出文档。
     返回 output_path。
@@ -28,23 +38,40 @@ def fill_template(report: dict, template_path: str, output_path: str,
     if photo_paths is None:
         photo_paths = []
 
+    plan = None
+    profile = None
+    if archive_manifest is not None:
+        plan_report = copy.deepcopy(report)
+        plan_report.setdefault("attachments", {})["photo_ids"] = list(photo_paths)
+        plan = build_attachment_plan(archive_manifest, plan_report)
+        validate_template_package_fingerprint(template_path)
     doc = Document(template_path)
+    if archive_manifest is not None:
+        profile = validate_current_template_profile(template_path, doc)
     flat = _flatten_report(report)
     flat["photo_count"] = str(len(photo_paths))
+    if plan is not None:
+        flat["disc_number"] = plan.attachment_summary.disc_numbers[0]
+        flat["burning_date"] = _format_plan_date(plan.attachment_summary.inspection_date)
 
     # 1. 展开列表块（必须先做，因为会复制段落）
     _expand_all_lists(doc, report)
 
     # 2. 展开表格提取清单
-    _expand_extract_table(doc, report)
+    if plan is None:
+        _expand_extract_table(doc, report)
 
     # 3. 替换简单 {{key}} 占位符
     _replace_placeholders(doc, flat)
 
     # 3.5 替换页眉/页脚占位符
     _replace_header_footer(doc, flat)
+    _enable_dynamic_page_fields(doc)
 
-    # 3.6 替换 VML 文本框占位符
+    # 3.6 固定模板附件区域必须先由可信 manifest 计划渲染，再替换剩余 VML 占位符。
+    if plan is not None:
+        render_attachment_plan(doc, plan, profile, report)
+        _update_attachment_summary(doc, plan)
     _replace_vml_textbox_placeholders(doc, flat)
 
     # 4. 处理照片附件
@@ -57,8 +84,74 @@ def fill_template(report: dict, template_path: str, output_path: str,
     _remove_comments(doc)
 
     # 5. 保存
-    doc.save(output_path)
+    output_path = os.fspath(output_path)
+    output_dir = os.path.dirname(output_path) or None
+    staged_fd, staged_path = tempfile.mkstemp(
+        prefix=".docx-stage-", suffix=".docx", dir=output_dir
+    )
+    os.close(staged_fd)
+    os.unlink(staged_path)
+    try:
+        doc.save(staged_path)
+        sanitize_generated_docx(staged_path)
+        os.replace(staged_path, output_path)
+    finally:
+        if os.path.exists(staged_path):
+            os.unlink(staged_path)
     return output_path
+
+
+def _format_plan_date(value: str) -> str:
+    year, month, day = value.split("-")
+    return f"{year}年{int(month)}月{int(day)}日"
+
+
+def _update_attachment_summary(doc: Document, plan) -> None:
+    """Write the disc summary from the validated manifest-derived plan."""
+    disc_numbers = plan.attachment_summary.disc_numbers
+    count = len(plan.attachment3_pages)
+    first, last = disc_numbers[0], disc_numbers[-1]
+    if count == 1:
+        disc_text = f"编号为“{first}”的光盘1张，共1页。"
+    else:
+        disc_text = f"编号为“{first}”至“{last}”的光盘{count}张，共{count}页。"
+    summary = f"3、本鉴定中心刻制的{disc_text}"
+    for paragraph in doc.paragraphs:
+        if "3、本鉴定中心刻制的" in paragraph.text:
+            nodes = paragraph._element.findall(
+                ".//{%s}t" % "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            )
+            if nodes:
+                nodes[0].text = summary
+                for node in nodes[1:]:
+                    node.text = ""
+            return
+
+
+def _enable_dynamic_page_fields(doc: Document) -> None:
+    """Ask Word to refresh PAGE/NUMPAGES fields when opening or printing."""
+    w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    settings = doc.settings.element
+    update_fields = settings.find("./{%s}updateFields" % w_ns)
+    if update_fields is None:
+        update_fields = settings.makeelement("{%s}updateFields" % w_ns)
+        anchor = settings.find("./{%s}hdrShapeDefaults" % w_ns)
+        if anchor is None:
+            anchor = settings.find("./{%s}footnotePr" % w_ns)
+        if anchor is None:
+            anchor = settings.find("./{%s}compat" % w_ns)
+        if anchor is None:
+            settings.append(update_fields)
+        else:
+            settings.insert(settings.index(anchor), update_fields)
+    update_fields.set("{%s}val" % w_ns, "true")
+    for relationship in doc.part.rels.values():
+        if relationship.reltype != RT.FOOTER:
+            continue
+        for field in relationship.target_part.element.findall(
+                ".//{%s}fldChar" % w_ns):
+            if field.get("{%s}fldCharType" % w_ns) == "begin":
+                field.set("{%s}dirty" % w_ns, "true")
 
 
 # ═══════════════════════════════════════════
@@ -558,7 +651,16 @@ def _cleanup_attachment_spacing(doc: Document):
 
     attachment2_index = find_paragraph_index('附件2：')
     attachment3_index = find_paragraph_index('附件3：')
-    if attachment2_index is None or attachment3_index is None:
+    if attachment2_index is None:
+        if attachment3_index is None:
+            return
+        children = list(body)
+        while attachment3_index > 0 and is_empty_paragraph(children[attachment3_index - 1]):
+            body.remove(children[attachment3_index - 1])
+            attachment3_index -= 1
+            children = list(body)
+        return
+    if attachment3_index is None:
         return
 
     # 表格后的宿主空段落不能留在分页点之前，否则附件2的分页符会制造空白页。

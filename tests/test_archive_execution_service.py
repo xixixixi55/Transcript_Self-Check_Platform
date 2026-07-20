@@ -162,3 +162,35 @@ def test_unavailable_winrar_blocks_before_execution_without_manifest(tmp_path):
         )
     assert error.value.blockers[0].code == "WINRAR_UNAVAILABLE"
     assert fake.calls == []
+
+
+def test_manifest_context_mismatch_is_a_stable_authority_error(tmp_path):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    result = execute_archive(
+        context_id, valid_report(), output_root=str(output), policy=policy(4),
+        capability=capability, executor=fake, integrity_runner=integrity_ok,
+    )
+    with pytest.raises(ArchiveGateError) as error:
+        get_valid_manifest("other-context", result.manifest_id, valid_report())
+    assert error.value.blockers[0].code == "ARCHIVE_MANIFEST_CONTEXT_MISMATCH"
+
+
+def test_manifest_part_missing_and_changed_are_distinguished(tmp_path):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    result = execute_archive(
+        context_id, valid_report(), output_root=str(output), policy=policy(4),
+        capability=capability, executor=fake, integrity_runner=integrity_ok,
+    )
+    part = next((output / "compressed" / context_id / result.manifest_id).glob("*.rar"))
+    part.write_bytes(b"changed")
+    with pytest.raises(ArchiveGateError) as error:
+        get_valid_manifest(context_id, result.manifest_id, valid_report())
+    assert error.value.blockers[0].code == "ARCHIVE_MANIFEST_PART_CHANGED"
+    part.unlink()
+    with pytest.raises(ArchiveGateError) as error:
+        get_valid_manifest(context_id, result.manifest_id, valid_report())
+    assert error.value.blockers[0].code == "ARCHIVE_MANIFEST_PART_MISSING"

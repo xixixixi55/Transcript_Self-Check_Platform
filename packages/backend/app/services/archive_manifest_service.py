@@ -68,7 +68,7 @@ def assemble_archive_manifest(
     return manifest, internal_paths
 
 
-def validate_published_manifest(record) -> bool:
+def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None = None) -> bool:
     """Re-check the same-run files before DOCX generation or retry."""
 
     root = Path(record.final_dir).resolve(strict=False)
@@ -111,7 +111,8 @@ def validate_published_manifest(record) -> bool:
             return False
         if isinstance(volume_size, int) and (size > volume_size or volume_size <= 0):
             return False
-        if compute_md5_streaming(path, root) != item.get("md5"):
+        md5 = verified_md5s.get(filename) if verified_md5s is not None else compute_md5_streaming(path, root)
+        if md5 != item.get("md5"):
             return False
         actual_total += size
     if sorted(numbers) != list(range(1, len(numbers) + 1)):
@@ -128,3 +129,49 @@ def validate_published_manifest(record) -> bool:
     if archive_names != filenames:
         return False
     return actual_total == manifest.get("actual_archive_bytes")
+
+
+def validate_manifest_files(record) -> str | None:
+    """Return a stable integrity error code for the published manifest files."""
+    manifest = record.public_manifest
+    if manifest.get("manifest_id") != record.manifest_id or manifest.get("validation_status") != "validated":
+        return "ARCHIVE_MANIFEST_INVALID"
+    parts = manifest.get("parts")
+    root = Path(record.final_dir).resolve(strict=False)
+    if not isinstance(parts, list) or not parts or not root.is_dir():
+        return "ARCHIVE_MANIFEST_PART_MISSING"
+    verified_md5s: dict[str, str] = {}
+    for item in parts:
+        if not isinstance(item, dict):
+            return "ARCHIVE_MANIFEST_INVALID"
+        filename = item.get("filename")
+        md5 = item.get("md5")
+        size_bytes = item.get("size_bytes")
+        if (
+            not isinstance(filename, str)
+            or Path(filename).name != filename
+            or not isinstance(md5, str)
+            or not re.fullmatch(r"[0-9a-fA-F]{32}", md5)
+            or not isinstance(size_bytes, int)
+            or isinstance(size_bytes, bool)
+            or size_bytes <= 0
+            or not isinstance(item.get("disc_number"), str)
+            or not isinstance(item.get("disc_date"), str)
+            or not item.get("disc_date")
+        ):
+            return "ARCHIVE_MANIFEST_INVALID"
+        path = (root / filename).resolve(strict=False)
+        try:
+            path.relative_to(root)
+        except ValueError:
+            return "ARCHIVE_MANIFEST_INVALID"
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return "ARCHIVE_MANIFEST_PART_MISSING"
+        if size != size_bytes:
+            return "ARCHIVE_MANIFEST_PART_CHANGED"
+        verified_md5s[filename] = compute_md5_streaming(path, root)
+        if verified_md5s[filename] != md5:
+            return "ARCHIVE_MANIFEST_PART_CHANGED"
+    return None if validate_published_manifest(record, verified_md5s=verified_md5s) else "ARCHIVE_MANIFEST_INVALID"

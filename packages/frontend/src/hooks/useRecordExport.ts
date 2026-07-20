@@ -20,6 +20,10 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
   ARCHIVE_EXECUTION_FAILED: '归档执行失败，请检查后重试。',
   ARCHIVE_PARTS_INVALID: '归档分卷或完整性校验失败，请重新生成。',
   ARCHIVE_MANIFEST_MISSING: '缺少已验证的归档清单，请重新生成归档。',
+  ARCHIVE_MANIFEST_INVALID: '归档清单校验失败，请重新生成归档。',
+  ARCHIVE_MANIFEST_CONTEXT_MISMATCH: '归档清单不属于当前案件，请重新生成归档。',
+  ARCHIVE_MANIFEST_PART_MISSING: '归档分卷已缺失，请重新生成归档。',
+  ARCHIVE_MANIFEST_PART_CHANGED: '归档分卷已变化，请重新生成归档。',
   ARCHIVE_REPLAN_EXHAUSTED: '归档重规划次数已用尽，请检查输入文件。',
   ARCHIVE_CONTEXT_INVALID: '归档上下文已过期，请重新解析报告。',
   ARCHIVE_EXECUTION_IN_PROGRESS: '归档正在执行，请稍后重试。',
@@ -28,6 +32,9 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
   FIRST_DISC_NUMBER_INVALID: '首个光盘编号格式或日期无效。',
   DISC_SEQUENCE_INVALID: '光盘编号必须先通过校验。',
   DOCUMENT_EXPORT_FAILED: '文档生成失败，请检查模板后重试。',
+  ATTACHMENT_PLAN_INVALID: '附件页面计划无效，请重新生成归档。',
+  TEMPLATE_PROFILE_MISMATCH: '当前 Word 模板资产不匹配，请联系管理员。',
+  DOCX_RENDER_FAILED: 'Word 页面渲染失败，请检查模板后重试。',
 }
 
 const ARCHIVE_INPUT_MESSAGES: Record<string, string> = {

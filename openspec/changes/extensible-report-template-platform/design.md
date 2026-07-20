@@ -189,6 +189,8 @@ DiscSequence { firstNumber, issueDate, numericWidth, partNumbers[], formattedNum
 
 `DiscSequence` 从 `GPyyyyMMdd-序号` 解析；后续序号只递增数字部分，按首编号位宽左补零，溢出即阻止。`ArchiveManifest.parts[i].ordinal` 是附件一、附件三唯一的关联键，光盘序号由 manifest 顺序映射，不由附件渲染器自行计数。附件一、附件三只接收最终 `ArchiveManifest`，不得接收 `ArchivePlan`。
 
+导出前的首次 Manifest 校验必须对每个实际分卷执行存在性、大小和完整 MD5 校验；在同一次校验中，已得到的 MD5 传给后续结构校验，避免同一次导出把 135GB 分卷重复读取两遍。当前实现不使用大小、mtime 或文件标识替代哈希，也没有用不具备内容安全保证的快捷缓存：Word 失败后的同一请求不会重新执行 WinRAR，但新的导出请求复用 Manifest 时仍会重新读取并校验所有分卷 MD5。这样保留了“文件未变化”的内容级证据，代价是大分卷重试可能再次产生完整读取成本。后续若引入性能优化，必须保存受保护的文件身份快照并说明其安全边界，不能无条件跳过变化检测。
+
 ### Archive input authorization and context boundary
 
 归档输入采用双轨授权模型，具体案件目录不要求统一搬迁到一个总目录，也不要求系统移动、复制或删除用户原始取证数据：
@@ -208,8 +210,9 @@ DiscSequence { firstNumber, issueDate, numericWidth, partNumbers[], formattedNum
 
 ```text
 Attachment1Plan {
-  pages: [{ pageIndex, showLabel, showHeader, rows[], sourceBox, extractionBox,
-            inspectorsBox?: InspectorSnapshot[], keepTogether }]
+  pages: [{ pageIndex, pageKind: "archive_rows",
+            showLabel, showHeader, rows[], sourceBox, extractionBox,
+            keepTogether }]
 }
 PhotoPagePlan {
   pages: [{ pageIndex, layout: "two-centered" | "grid-2x2", photos[] }]
@@ -220,7 +223,7 @@ Attachment3Plan {
 }
 ```
 
-附件规划器只接收 final manifest、canonical case、光盘序列和 photo manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式合并框按页面生成，最后一页追加不可拆的人员框；人员较多时增加整框高度或为末页预留空间，不能拆分。附件二零张生成空 page plan 且不生成图片页，正数必须为偶数；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
+附件规划器只接收 final manifest、canonical case、光盘序列和 photo manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式按页生成，最后一张附件一表格复制模板固定手写行，不写入动态检查人员，也不创建人员专用页或人员数量错误。正文检查人员仍由有序 `InspectorSnapshot[]` 动态生成。附件二零张不生成附件二页面；本轮图片能力只保留现有图片章节回归，不扩展任意偶数布局；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
 
 ### `DocumentRenderPlan` and `TemplateProfile`
 
@@ -237,7 +240,8 @@ DocumentRenderPlan {
 }
 
 TemplateProfile {
-  templateId, version, assetPath, assetSha256, recordType
+  templateId, version, assetPath, fingerprintAlgorithm, packageFingerprint, recordType
+  rawAssetSha256Diagnostic?
   anchors: [{ anchorId, kind: "paragraph" | "table" | "cell" | "contentControl" | "vmlTextbox",
               selector, fingerprint, allowedFields[] }]
   inspectorBindings: { unit, name, police_number, displayRule? }
@@ -245,7 +249,15 @@ TemplateProfile {
 }
 ```
 
-`selector` 不应只依赖表格序号；至少组合 OOXML part、结构指纹、邻近文本和稳定的 content control/shape 标识，并保存 fallback selector。VML 文本框记录所在 part、shape/textbox 结构和占位符路径。`current-template-v1` 的 Profile 指向现有模板资产，资产哈希变化即需要新模板 ID 或人工确认。
+`selector` 不应只依赖表格序号；至少组合 OOXML part、结构指纹、邻近文本和稳定的 content control/shape 标识，并保存 fallback selector。VML 文本框记录所在 part、shape/textbox 结构和占位符路径。`current-template-v1` 的 Profile 指向现有模板资产，使用版本化 OOXML 包指纹而不是 ZIP 原始字节哈希。
+
+### DOCX 包指纹与输出副本卫生
+
+`current-template-v1` 使用 `ooxml-package-sha256-v1`。算法先安全读取有效 DOCX ZIP，拒绝加密、重复或大小写折叠冲突条目、绝对路径、反斜杠路径和 `..` 路径；然后按完整条目名称排序，将条目名称长度、名称、解压内容长度和解压后的原始内容与固定域标记一起计算 SHA-256。它忽略 ZIP 压缩参数、条目顺序和容器时间戳，但不忽略任何实际包部件，也不做 XML 语义归一化。原始 DOCX SHA-256 仅用于诊断，不参与 Profile 匹配。
+
+HEAD 模板与工作区中仅发生无语义 ZIP 重打包的模板具有相同包指纹；甲方认可参考文件作为视觉基准但因实际 OOXML 部件不同而不匹配 `current-template-v1`。本轮不修改正式模板源文件，不需要提交该无语义二进制差异。
+
+Renderer 先写入临时输出副本，再原子替换正式输出。输出副本完整删除评论部件、评论标记、评论关系和对应内容类型覆盖，删除未使用的自定义属性及关系，删除不依赖的 `docVars`，并将核心属性净化为通用系统名、空标题和重置 revision；不产生修订。模板中用于固定手写行布局的通用隐藏文字（一个“份”和四个空格）保留，不含业务数据；源模板中的孤立评论引用只在输出副本清理，不改动正文、VML、表格或模板资产。
 
 ## Key Decisions
 
@@ -288,6 +300,16 @@ ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端�
 ### 5. 先页面计划、后模板渲染
 
 附件分页是可测试的业务布局，不应由 Word 自动分页“碰巧得到”。规划阶段输出 page index、显示条件、合并框、图片 fit、keepTogether 和普通分页点；renderer 将其应用到模板 Profile。这样可以在没有 Word GUI 的情况下验证卷数、图片 0/偶数/奇数规则、标题显示次数和跨页边界，再做 OOXML/人工视觉验收。无图片时不生成附件二页面，附件三仍从自身计划显示“附件3”，不重排编号。
+
+#### 当前模板的附件分页与固定手写区域
+
+`Attachment1PagePlan` 只规划 `archive_rows`。附件一最后一页复制甲方认可模板的固定手写行（包括原始文字、单元格、合并、边框、字体、字号和留白），不写入 `InspectorSnapshot[]`，也不生成 `inspector_final` 页面或人员容量错误。为完整保留该固定行，当前模板按最后一页最多放一个分卷行规划序号：1、2、4、5、8、9 个分卷分别为 `[1]`、`[1,1]`、`[3,1]`、`[4,1]`、`[4,3,1]`、`[4,4,1]`。正文“（八）检查人员”仍由有序快照动态生成。
+
+章节起页唯一由 `AttachmentPlan → Renderer` 负责：摘要、附件一、存在图片时的附件二、附件三各自从新页开始；无图片时跳过附件二且附件三仍命名为“附件3”。每个边界只保留一个明确分页动作，不叠加模板残留分页符、`pageBreakBefore`、空段落撑页或重复分页。附件一续页不重复“附件1”和“电子数据提取固定清单”，附件三续页不重复标题。
+
+附件三每个 manifest part 对应一页，五项元数据沿用当前模板 VML 文本框的上下行样式，顺序为文件名、检验单位、光盘编号、文件哈希、刻录时间；每页末尾复制甲方模板的光盘说明锚点并替换为该页 `disc_number`。文件名、MD5、光盘编号和刻录日期均来自后端重新验证的 `ArchiveManifest.part`，不使用客户端或预计值。附件摘要第三项同样使用 manifest 首尾光盘编号、实际 part 数和附件三计划页数。
+
+页脚使用 `PAGE` 和 `NUMPAGES` 正式字段，并在输出副本的 `settings.xml` 设置 `updateFields=true`；不使用 `SECTIONPAGES` 或模板缓存数字。所有节的页码连续性仍需由 Word GUI 最终确认。VML 宿主段落、`v:textbox`、`w:txbxContent`、关系和唯一 shape ID 必须保留。
 
 ### 6. `current-template-v1` 是阶段一唯一固定 Profile
 
@@ -358,6 +380,12 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 - [风险] Shadow 日志泄漏案件、人员或设备标识。→ [缓解] 比较器只允许字段名、一致性、脱敏来源和诊断代码，测试扫描日志中不得出现完整敏感值。
 - [风险] 自动模板推荐误绑字段。→ [缓解] 推荐必须可解释、人工确认、版本化和可回滚，未知绑定默认禁用。
 - [取舍] 阶段一暂不接受所有任意 JSON/DOCX，牺牲即时通用性换取当前模板和法律文书版式的可验证性。
+
+### 人工 Word 验收证据记录（2026-07-19）
+
+- 正式模板源文件存在既有孤立 comment 引用；本轮不修改模板正文资产，Renderer 只在输出副本中清理无效 comment 引用。该清理不应影响正文、VML、表格或其他有效内容，必须由 Microsoft Word GUI 验收确认清理后无修复提示。
+- 同一次 Manifest 校验中每个实际 part 只计算一次 MD5：首次 DOCX 导出前验证文件存在性、大小和完整 MD5，并将已得到的 MD5 传给后续结构校验，避免同一请求重复读取同一 part。Word 生成失败后的重试可能再次验证大文件；最大 135GB 时重新读取全部分卷可能产生明显成本。
+- 当前正确性优先，不建设复杂持久化哈希缓存。未来如引入受控复用，必须基于安全文件身份、大小、mtime 和已验证 Manifest 设计，并保留实际变化检测；不得为了性能跳过变化检测。
 
 ## Resolved Business Decisions
 

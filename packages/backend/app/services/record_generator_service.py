@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import tempfile
 from datetime import datetime
+from collections.abc import Mapping
 
 from .document_builder_service import build_record_document
 from .template_filler_service import fill_template
@@ -50,7 +51,8 @@ def _run_officecli(*args: str) -> subprocess.CompletedProcess:
     )
 
 
-def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str = None) -> str:
+def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str = None,
+                  archive_manifest: Mapping | None = None) -> str:
     """
     生成检查笔录 .docx 文件。
     优先使用模板填充，模板不存在时回退到 officecli batch 方案。
@@ -71,10 +73,15 @@ def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str =
     # 优先使用模板填充
     if os.path.isfile(_TEMPLATE_PATH):
         try:
-            fill_template(report, _TEMPLATE_PATH, filepath, photo_paths or [])
+            if archive_manifest is None:
+                fill_template(report, _TEMPLATE_PATH, filepath, photo_paths or [])
+            else:
+                fill_template(report, _TEMPLATE_PATH, filepath, photo_paths or [], archive_manifest)
             if os.path.isfile(filepath) and os.path.getsize(filepath) > 0:
                 return filepath
         except Exception as e:
+            if archive_manifest is not None:
+                raise
             # 模板填充失败时回退到 batch 方案
             import traceback
             traceback.print_exc()

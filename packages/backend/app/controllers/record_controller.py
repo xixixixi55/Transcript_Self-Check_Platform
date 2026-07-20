@@ -4,7 +4,6 @@ Layer 22: BE_Controllers — 检查笔录 Controller
 处理笔录相关的 HTTP 请求：上传解析（文件夹/压缩包）、导出 docx。
 REQ-001/013/014: 支持文件夹上传（含压缩开关）+ 压缩包直接上传。
 """
-
 import os
 import shutil
 import tempfile
@@ -26,6 +25,9 @@ from ..services.archive_execution_service import (
     create_archive_context,
     get_valid_manifest,
 )
+from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report
+from ..services.attachment_plan_service import AttachmentPlanError
+from ..services.template_profile_service import TemplateProfileError
 from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
 from ..services.archive_authorization_service import ArchiveAuthorizationError, ArchiveAuthorizationService
 router = APIRouter()
@@ -62,7 +64,6 @@ async def parse_report_endpoint(
             has_dir = True
         else:
             raise HTTPException(status_code=400, detail="请提供 report_dir 或上传压缩包文件")
-
     try:
         authorized_input = None
         if has_file:
@@ -72,14 +73,12 @@ async def parse_report_endpoint(
             ext = os.path.splitext(filename)[1].lower()
             if ext not in (".rar", ".zip"):
                 raise HTTPException(status_code=400, detail="仅支持 .rar 和 .zip 格式的压缩包")
-
             # 保存到临时文件
             tmp_path = os.path.join(tempfile.gettempdir(), f"biji_upload_{os.urandom(8).hex()}{ext}")
             content = await archive_file.read()
             if len(content) > ARCHIVE_MAX_SIZE:
                 os.unlink(tmp_path)
                 raise HTTPException(status_code=400, detail=f"文件大小超过限制（{ARCHIVE_MAX_SIZE // 1024 // 1024}MB）")
-
             with open(tmp_path, "wb") as f:
                 f.write(content)
             try:
@@ -95,7 +94,6 @@ async def parse_report_endpoint(
             result = parse_report(
                 str(authorized_input.resolved_input_root), OUTPUT_BASE, compress=compress,
             )
-
         result["report"] = enrich_report_material_types(result["report"])
         result["archive_context_id"] = None
         source_root = result.pop("_archive_source_root", None)
@@ -145,12 +143,10 @@ async def export_record_endpoint(
     import json
     if not report_json:
         raise HTTPException(status_code=400, detail="请提供笔录数据")
-
     try:
         report = json.loads(report_json)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
-
     report = normalize_primary_software_projection(report)
     attachments = report.setdefault("attachments", {})
     disc_result = parse_disc_sequence(attachments.get("disc_number"))
@@ -169,15 +165,16 @@ async def export_record_endpoint(
     material_fields = unconfirmed_material_fields(report)
     manifest_valid = False
     manifest_blocker_code = None
+    validated_manifest = None
     if archive_context_id and manifest_id:
         try:
-            get_valid_manifest(archive_context_id, manifest_id, report)
+            validated_manifest = get_valid_manifest(archive_context_id, manifest_id, report)
             manifest_valid = True
-        except ArchiveRuntimeError as error:
-            manifest_blocker_code = error.code
         except ArchiveGateError as error:
             manifest_blocker_code = str(error.blockers[0].code) if error.blockers else "ARCHIVE_PARTS_INVALID"
             manifest_valid = False
+        except ArchiveRuntimeError as error:
+            manifest_blocker_code = error.code
     gate = evaluate_export_gate(
         ExportGateInput(
             material_types_confirmed=not material_fields,
@@ -206,9 +203,10 @@ async def export_record_endpoint(
                 ],
             },
         )
-
+    if validated_manifest is None:
+        raise HTTPException(status_code=422, detail={"code": "ARCHIVE_MANIFEST_MISSING"})
+    report = project_manifest_to_legacy_report(report, validated_manifest)
     report = apply_inspector_snapshot_compatibility(report)
-
     # 保存上传的图片到临时目录
     photo_paths = []
     if photos:
@@ -222,23 +220,29 @@ async def export_record_endpoint(
                     content = await photo.read()
                     f.write(content)
                 photo_paths.append(photo_path)
-
     try:
         output_dir = os.path.join(OUTPUT_BASE, "exports")
         os.makedirs(output_dir, exist_ok=True)
-        docx_path = generate_docx(report, photo_paths=photo_paths, output_dir=output_dir)
-
+        docx_path = generate_docx(
+            report, photo_paths=photo_paths, output_dir=output_dir,
+            archive_manifest=validated_manifest,
+        )
         filename = os.path.basename(docx_path)
         return FileResponse(
             path=docx_path,
             filename=filename,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
+    except (AttachmentPlanError, TemplateProfileError) as error:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": error.code, "message": error.safe_message},
+        ) from error
     except Exception:
         raise HTTPException(
             status_code=500,
             detail={
-                "code": "DOCUMENT_EXPORT_FAILED",
+                "code": "DOCX_RENDER_FAILED",
                 "message": "文档生成失败，请检查模板后重试。",
             },
         )

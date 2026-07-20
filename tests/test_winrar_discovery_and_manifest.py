@@ -15,6 +15,7 @@ from app.repository.winrar_discovery_repository import (  # noqa: E402
 )
 from app.services.archive_manifest_service import (  # noqa: E402
     assemble_archive_manifest,
+    validate_manifest_files,
     validate_published_manifest,
 )
 
@@ -154,3 +155,39 @@ def test_published_manifest_detects_modified_part(tmp_path):
     assert validate_published_manifest(record)
     part.write_bytes(b"changed!")
     assert not validate_published_manifest(record)
+
+
+def test_manifest_file_validation_hashes_each_part_once(monkeypatch, tmp_path):
+    first = tmp_path / "case.part1.rar"
+    second = tmp_path / "case.part2.rar"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+    manifest = {
+        "manifest_id": "manifest-1",
+        "validation_status": "validated",
+        "parts": [
+            {
+                "part_number": 1, "filename": first.name, "size_bytes": 5,
+                "md5": hashlib.md5(b"first").hexdigest(),
+                "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
+            },
+            {
+                "part_number": 2, "filename": second.name, "size_bytes": 6,
+                "md5": hashlib.md5(b"second").hexdigest(),
+                "disc_number": "GP20260718-02", "disc_date": "2026-07-18",
+            },
+        ],
+        "actual_archive_bytes": 11,
+    }
+    record = SimpleNamespace(
+        manifest_id="manifest-1", final_dir=tmp_path, public_manifest=manifest,
+    )
+    calls = []
+
+    def counted_md5(path, root):
+        calls.append(path.name)
+        return hashlib.md5(path.read_bytes()).hexdigest()
+
+    monkeypatch.setattr("app.services.archive_manifest_service.compute_md5_streaming", counted_md5)
+    assert validate_manifest_files(record) is None
+    assert calls == [first.name, second.name]

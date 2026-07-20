@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 import shutil
 import time
@@ -17,6 +15,11 @@ from ..repository.archive_validator_repository import validate_archive_parts
 from ..repository.winrar_discovery_repository import WinRarCapability, discover_winrar
 from ..repository.winrar_executor_repository import ArchiveExecutionError, WinRarExecutor
 from .archive_manifest_service import assemble_archive_manifest, validate_published_manifest
+from .archive_manifest_access_service import (
+    ArchiveGateError,
+    archive_report_fingerprint as _fingerprint,
+    get_valid_manifest,
+)
 from .archive_planner_service import (
     ArchiveDiagnostic,
     ArchivePlan,
@@ -29,7 +32,6 @@ from .archive_planner_service import (
 from .archive_runtime_service import (
     ARCHIVE_RUNTIME_STORE,
     ArchiveManifestRecord,
-    ArchiveRuntimeError,
 )
 from .export_gate_service import ExportGateInput, ExportGateIssue, ExportGateResult, evaluate_export_gate
 from .material_policy_service import unconfirmed_material_fields
@@ -43,11 +45,6 @@ class ArchiveExecutionOutcome:
     plan: ArchivePlan | None
     diagnostics: tuple[ArchiveDiagnostic, ...] = ()
     reused: bool = False
-
-class ArchiveGateError(ArchiveRuntimeError):
-    def __init__(self, blockers: tuple[ExportGateIssue, ...]):
-        super().__init__("EXPORT_BLOCKED", "导出门控未通过。")
-        self.blockers = blockers
 
 def create_archive_context(
     authorized_input: AuthorizedInputRoot,
@@ -87,14 +84,6 @@ def _with_archive_gate(result: ExportGateResult, capability: WinRarCapability) -
             winrar_available=capability.available and capability.supports_rar_volumes,
         )
     )
-
-def _fingerprint(report: dict, inventory, first_disc_number: str) -> str:
-    payload = {
-        "report": report,
-        "first_disc_number": first_disc_number,
-        "input": [item.public_entry() for item in inventory.files],
-    }
-    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
 
 def _raise_gate(result: ExportGateResult) -> None:
     if result.blockers:
@@ -225,24 +214,3 @@ def execute_archive(
             state=final_state if not success else "completed",
             successful_manifest_id=successful_manifest_id,
         )
-
-
-def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[str, object]:
-    record = ARCHIVE_RUNTIME_STORE.get_manifest(manifest_id)
-    if record.context_id != context_id or not validate_published_manifest(record):
-        raise ArchiveGateError((ExportGateIssue("ARCHIVE_PARTS_INVALID", "archive_manifest", "归档清单与实际分卷不一致。"),))
-    first_disc = str((report.get("attachments") or {}).get("disc_number"))
-    context = ARCHIVE_RUNTIME_STORE.acquire_context(context_id)
-    try:
-        if context.successful_manifest_id != manifest_id:
-            raise ArchiveGateError((ExportGateIssue("ARCHIVE_MANIFEST_MISSING", "archive_manifest", "归档清单不是当前上下文的成功结果。"),))
-        ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
-        try:
-            verify_input_inventory(context.inventory)
-        except ArchiveInputError as error:
-            raise ArchiveGateError((ExportGateIssue(error.code, "archive_manifest", "归档输入已变化，请重新解析。"),)) from error
-        if record.fingerprint != _fingerprint(report, context.inventory, first_disc):
-            raise ArchiveGateError((ExportGateIssue("ARCHIVE_MANIFEST_MISSING", "archive_manifest", "审核数据已变化，请重新生成归档。"),))
-    finally:
-        ARCHIVE_RUNTIME_STORE.release_context(context_id)
-    return record.public_manifest
