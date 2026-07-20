@@ -6,6 +6,17 @@ import re
 from pathlib import PurePath, PureWindowsPath
 from typing import Any, Mapping
 
+from .attachment2_plan_service import (
+    ATTACHMENT2_LAYOUT_FOUR_GRID,
+    ATTACHMENT2_LAYOUT_TWO_CENTERED,
+    ATTACHMENT2_MAX_IMAGES_PER_PAGE,
+    ATTACHMENT2_PAIR_SIZE,
+    build_attachment2_pages,
+    evidence_numbers,
+    material_photo_groups,
+    photo_values,
+)
+from .attachment_plan_errors_service import AttachmentPlanError
 from .disc_sequence_service import parse_disc_sequence
 from .attachment_plan_models_service import (
     Attachment1PagePlan,
@@ -24,16 +35,6 @@ _TEMPLATE_PROFILE = current_template_profile()
 _MD5_PATTERN = re.compile(r"^[0-9a-fA-F]{32}$")
 _CONFIRMED_SOFTWARE = {"confirmed", "confirmed_by_report", "confirmed_by_user"}
 
-
-class AttachmentPlanError(ValueError):
-    """Stable error raised when a final manifest cannot produce a plan."""
-
-    def __init__(self, code: str, message: str):
-        super().__init__(message)
-        self.code = code
-        self.safe_message = message
-
-
 def build_attachment_plan(
     manifest: Mapping[str, Any], report: Mapping[str, Any],
 ) -> AttachmentPlan:
@@ -49,6 +50,13 @@ def build_attachment_plan(
     disc_numbers = tuple(str(item["disc_number"]) for item in parts)
     rows = tuple(_part_row(item) for item in parts)
     attachment1 = _attachment1_pages(rows, source_text, extraction_method)
+    photos = photo_values(report)
+    if len(photos) % 2:
+        raise AttachmentPlanError(
+            "ATTACHMENT2_IMAGE_COUNT_ODD",
+            "附件图片数量必须为偶数，请补充或删除一张图片后重新导出。",
+        )
+    attachment2_pages = build_attachment2_pages(material_photo_groups(report))
     attachment3 = tuple(
         Attachment3PagePlan(
             page_number=index,
@@ -69,7 +77,8 @@ def build_attachment_plan(
             inspection_date, len(parts), disc_numbers,
         ),
         attachment1_pages=tuple(attachment1),
-        attachment2_state=Attachment2State(len(_photos(report))),
+            attachment2_state=Attachment2State(len(photos), "current-template-v1"),
+        attachment2_pages=attachment2_pages,
         attachment3_pages=attachment3,
         diagnostics=(),
         status="ready",
@@ -171,12 +180,6 @@ def _part_row(item: Mapping[str, Any]) -> AttachmentPartRow:
         part_id=str(item["part_id"]), part_number=int(item["part_number"]),
         filename=str(item["filename"]), md5=str(item["md5"]),
     )
-
-
-def _photos(report: Mapping[str, Any]) -> list[Any]:
-    value = (report.get("attachments") or {}).get("photo_ids") or []
-    return value if isinstance(value, list) else []
-
 
 def _unsafe_filename(value: str) -> bool:
     return (PurePath(value).name != value or PureWindowsPath(value).name != value

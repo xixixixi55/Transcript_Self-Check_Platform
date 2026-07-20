@@ -1,0 +1,211 @@
+"""Render the fixed current-template-v1 attachment-two image slots."""
+
+from __future__ import annotations
+
+import copy
+from typing import Any, Sequence
+
+from lxml import etree
+
+from .attachment2_image_service import Attachment2PhotoAsset
+from .attachment2_docx_xml_service import (
+    build_attachment2_drawing,
+    existing_drawing_ids,
+    find_attachment2_paragraph,
+    twips,
+)
+from .attachment_plan_models_service import Attachment2PagePlan, AttachmentPlan
+from .attachment_plan_service import AttachmentPlanError
+from .docx_attachment_xml_service import (
+    W_NS,
+    clone_page_break,
+    qn,
+    set_paragraph_text,
+    text_of,
+)
+from .template_profile_service import CurrentTemplateProfile, TemplateProfileError
+
+def render_attachment2(
+    doc: Any,
+    plan: AttachmentPlan,
+    profile: CurrentTemplateProfile,
+    assets: Sequence[Attachment2PhotoAsset],
+) -> None:
+    """Replace the template's attachment-two region with explicit page blocks."""
+    body = doc.element.body
+    label2 = find_attachment2_paragraph(body, profile.attachment2_label, exact=True)
+    label3 = find_attachment2_paragraph(body, profile.attachment3_label, exact=True)
+    if label2 is None or label3 is None:
+        raise TemplateProfileError("当前模板附件二或附件三锚点丢失。")
+    children = list(body)
+    start = children.index(label2)
+    end = children.index(label3)
+    caption = next(
+        (element for element in children[start + 1:end]
+         if element.tag == qn(W_NS, "p") and "照片" in text_of(element)),
+        None,
+    )
+    if caption is None:
+        raise TemplateProfileError("当前模板附件二图片说明锚点丢失。")
+    if not plan.attachment2_pages:
+        for element in children[start:end]:
+            body.remove(element)
+        return
+    _validate_assets(plan, assets)
+    page_break_anchor = copy.deepcopy(label2)
+    preserved_caption = copy.deepcopy(caption)
+    for element in children[start:end]:
+        body.remove(element)
+    nodes: list[Any] = []
+    used_drawing_ids = existing_drawing_ids(body)
+    for page_index, page in enumerate(plan.attachment2_pages):
+        nodes.append(label2 if page_index == 0 else clone_page_break(page_break_anchor))
+        nodes.append(_build_page_table(
+            doc, page, assets, profile, used_drawing_ids,
+            preserved_caption, page.inspection_result_material_numbers,
+        ))
+    for offset, node in enumerate(nodes):
+        body.insert(start + offset, node)
+
+
+def _build_page_table(
+    doc: Any,
+    page: Attachment2PagePlan,
+    assets: Sequence[Attachment2PhotoAsset],
+    profile: CurrentTemplateProfile,
+    used_drawing_ids: set[int],
+    caption_template: Any,
+    captions: Sequence[str],
+) -> Any:
+    _validate_material_groups(page)
+    grid = _page_grid(page)
+    column_count = len(grid[0])
+    expected_columns = (
+        profile.attachment2_two_image_table_columns
+        if page.layout == "two_centered"
+        else profile.attachment2_four_image_table_columns
+    )
+    if (column_count != expected_columns
+            or len(page.images) > profile.attachment2_max_images_per_page
+            or len(page.images) % profile.attachment2_pair_size):
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2页面槽位约束无效。")
+    slot_width_twips = twips(profile.attachment2_slot_width_emu)
+    table_width_twips = slot_width_twips * profile.attachment2_slot_columns
+    table = etree.Element(qn(W_NS, "tbl"))
+    tbl_pr = etree.SubElement(table, qn(W_NS, "tblPr"))
+    tbl_w = etree.SubElement(tbl_pr, qn(W_NS, "tblW"))
+    tbl_w.set(qn(W_NS, "w"), str(table_width_twips))
+    tbl_w.set(qn(W_NS, "type"), "dxa")
+    etree.SubElement(tbl_pr, qn(W_NS, "jc")).set(qn(W_NS, "val"), "center")
+    borders = etree.SubElement(tbl_pr, qn(W_NS, "tblBorders"))
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        etree.SubElement(borders, qn(W_NS, edge)).set(qn(W_NS, "val"), "nil")
+    etree.SubElement(tbl_pr, qn(W_NS, "tblLayout")).set(qn(W_NS, "type"), "fixed")
+    table_grid = etree.SubElement(table, qn(W_NS, "tblGrid"))
+    grid_widths = (
+        [table_width_twips]
+        if page.layout == "two_centered"
+        else [slot_width_twips] * column_count
+    )
+    for width in grid_widths:
+        etree.SubElement(table_grid, qn(W_NS, "gridCol")).set(
+            qn(W_NS, "w"), str(width),
+        )
+    if len(captions) != len(page.images) // profile.attachment2_pair_size:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2图片对缺少对应检材文字。")
+    for row_index, row_groups in enumerate(grid):
+        row = etree.SubElement(table, qn(W_NS, "tr"))
+        row_pr = etree.SubElement(row, qn(W_NS, "trPr"))
+        height = etree.SubElement(row_pr, qn(W_NS, "trHeight"))
+        height.set(qn(W_NS, "val"), str(profile.attachment2_slot_row_height_twips))
+        height.set(qn(W_NS, "hRule"), "exact")
+        for cell_index, image_group in enumerate(row_groups):
+            cell = etree.SubElement(row, qn(W_NS, "tc"))
+            cell_pr = etree.SubElement(cell, qn(W_NS, "tcPr"))
+            cell_width = grid_widths[cell_index]
+            etree.SubElement(cell_pr, qn(W_NS, "tcW"), {
+                qn(W_NS, "w"): str(cell_width),
+                qn(W_NS, "type"): "dxa",
+            })
+            etree.SubElement(cell_pr, qn(W_NS, "vAlign")).set(qn(W_NS, "val"), "center")
+            paragraph = etree.SubElement(cell, qn(W_NS, "p"))
+            paragraph_pr = etree.SubElement(paragraph, qn(W_NS, "pPr"))
+            etree.SubElement(paragraph_pr, qn(W_NS, "spacing"), {
+                qn(W_NS, "before"): "0", qn(W_NS, "after"): "0",
+            })
+            etree.SubElement(paragraph_pr, qn(W_NS, "jc")).set(qn(W_NS, "val"), "center")
+            for image in image_group:
+                asset = assets[image.sequence_number - 1]
+                run = etree.SubElement(paragraph, qn(W_NS, "r"))
+                run.append(build_attachment2_drawing(doc, asset, profile, used_drawing_ids))
+        caption = captions[row_index]
+        caption_row = etree.SubElement(table, qn(W_NS, "tr"))
+        caption_cell = etree.SubElement(caption_row, qn(W_NS, "tc"))
+        caption_pr = etree.SubElement(caption_cell, qn(W_NS, "tcPr"))
+        etree.SubElement(caption_pr, qn(W_NS, "tcW"), {
+            qn(W_NS, "w"): str(sum(grid_widths)), qn(W_NS, "type"): "dxa",
+        })
+        if column_count > 1:
+            etree.SubElement(caption_pr, qn(W_NS, "gridSpan")).set(
+                qn(W_NS, "val"), str(column_count),
+            )
+        etree.SubElement(caption_pr, qn(W_NS, "vAlign")).set(qn(W_NS, "val"), "center")
+        caption_node = copy.deepcopy(caption_template)
+        set_paragraph_text(caption_node, f"检材{caption}照片")
+        caption_cell.append(caption_node)
+    return table
+
+
+def _validate_material_groups(page: Attachment2PagePlan) -> None:
+    """Ensure the renderer consumes the planner's groups without re-pairing."""
+    if not 1 <= len(page.material_groups) <= 2:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2检材组数量约束无效。")
+    flattened = tuple(
+        image for group in page.material_groups for image in group.images
+    )
+    if flattened != page.images:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2检材组与图片计划不一致。")
+    expected_numbers = tuple(group.material_number for group in page.material_groups)
+    if page.inspection_result_material_numbers != expected_numbers:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2检查结果检材编号计划无效。")
+    for group in page.material_groups:
+        if (len(group.images) != 2
+                or any(image.evidence_number != group.material_number for image in group.images)):
+            raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2检材图片组必须固定为两张。")
+
+
+def _page_grid(page: Attachment2PagePlan) -> list[list[tuple[Any, ...]]]:
+    """Convert explicit slots into a fixed table grid, never Word auto-flow."""
+    by_slot = {image.slot: image for image in page.images}
+    if page.layout == "two_centered":
+        expected = ("left", "right")
+        if len(page.images) != 2 or set(by_slot) != set(expected):
+            raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2横向页面计划无效。")
+        # Both drawings stay in one centered cell so the two-image group is
+        # centered as a whole rather than centered independently in two cells.
+        return [[tuple(by_slot[slot] for slot in expected)]]
+    if page.layout == "four_grid":
+        expected = ("top-left", "top-right", "bottom-left", "bottom-right")
+        if len(page.images) != 4 or set(by_slot) != set(expected):
+            raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2四图页面计划无效。")
+        return [
+            [(by_slot["top-left"],), (by_slot["top-right"],)],
+            [(by_slot["bottom-left"],), (by_slot["bottom-right"],)],
+        ]
+    raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2页面布局类型无效。")
+
+
+def _validate_assets(plan: AttachmentPlan, assets: Sequence[Attachment2PhotoAsset]) -> None:
+    if len(assets) != plan.attachment2_state.photo_count:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件二图片计划与有效图片数量不一致。")
+    expected = [
+        image for page in plan.attachment2_pages
+        for image in page.images
+    ]
+    if [image.sequence_number for image in expected] != list(range(1, len(assets) + 1)):
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件二图片顺序计划无效。")
+    for page in plan.attachment2_pages:
+        _page_grid(page)
+
+
+__all__ = ["render_attachment2"]

@@ -18,8 +18,12 @@ class ArchiveGateError(ArchiveRuntimeError):
 
 
 def archive_report_fingerprint(report: dict, inventory, first_disc_number: str) -> str:
+    fingerprint_report = dict(report)
+    fingerprint_attachments = dict(fingerprint_report.get("attachments") or {})
+    fingerprint_attachments.pop("photo_ids", None)
+    fingerprint_report["attachments"] = fingerprint_attachments
     payload = {
-        "report": report,
+        "report": fingerprint_report,
         "first_disc_number": first_disc_number,
         "input": [item.public_entry() for item in inventory.files],
     }

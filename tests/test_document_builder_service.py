@@ -84,6 +84,21 @@ def test_build_document_contains_evidence_fields():
     assert "SYN-JC00000001" in paragraph_text
 
 
+def test_build_document_result_names_all_evidence_items():
+    report = _report()
+    report["introduction"]["evidence_list"].append({
+        "device_type": "平板",
+        "evidence_number": "SYN-JC00000002",
+    })
+    commands = build_record_document(report)
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in commands
+        if command.get("type") == "paragraph"
+    )
+    assert "经对编号为SYN-JC00000001、SYN-JC00000002号检材使用" in paragraph_text
+
+
 def test_generate_docx_rejects_empty_output(tmp_path: Path):
     def fake_run(*args):
         if args[0] == "create":

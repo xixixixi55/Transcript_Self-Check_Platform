@@ -12,6 +12,8 @@ interface UseRecordExportReturn {
 }
 
 const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
+  ATTACHMENT2_MATERIAL_IMAGE_COUNT_INVALID: '每个检材必须对应两张图片，请检查各检材的正反面照片。',
+  ATTACHMENT2_IMAGE_MAPPING_INVALID: '附件2图片与检材的归属或顺序无效，请在审核页重新确认检材分组。',
   WINRAR_UNAVAILABLE: 'WinRAR 不可用，请安装并确保可以调用。',
   ARCHIVE_INPUT_EMPTY: '归档输入为空，无法生成归档。',
   ARCHIVE_INPUT_CHANGED: '归档输入已变化，请重新解析报告后重试。',
@@ -32,6 +34,9 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
   FIRST_DISC_NUMBER_INVALID: '首个光盘编号格式或日期无效。',
   DISC_SEQUENCE_INVALID: '光盘编号必须先通过校验。',
   DOCUMENT_EXPORT_FAILED: '文档生成失败，请检查模板后重试。',
+  ATTACHMENT2_IMAGE_COUNT_ODD: '附件图片数量必须为偶数，请补充或删除一张图片后重新导出。',
+  ODD_PHOTO_COUNT: '附件图片数量必须为偶数，请补充或删除一张图片后重新导出。',
+  ATTACHMENT2_IMAGE_INVALID: '附件图片无法读取、解码或格式不受支持，请更换后重试。',
   ATTACHMENT_PLAN_INVALID: '附件页面计划无效，请重新生成归档。',
   TEMPLATE_PROFILE_MISMATCH: '当前 Word 模板资产不匹配，请联系管理员。',
   DOCX_RENDER_FAILED: 'Word 页面渲染失败，请检查模板后重试。',
@@ -82,6 +87,18 @@ async function resolveExportErrorMessage(error: any): Promise<string> {
   return error.message || '导出失败'
 }
 
+function buildMaterialPhotoGroups(report: InspectionReport, photoCount: number) {
+  const evidenceList = report.introduction?.evidence_list || []
+  const groupCount = Math.floor(photoCount / 2)
+  return evidenceList.slice(0, groupCount).map((item, index) => ({
+    material_id: item.id,
+    material_number: item.evidence_number,
+    display_text: `检材${item.evidence_number}照片`,
+    ordered_image_ids: [`photo-${index * 2 + 1}`, `photo-${index * 2 + 2}`] as [string, string],
+    source_order: index + 1,
+  }))
+}
+
 export function useRecordExport(): UseRecordExportReturn {
   const [exporting, setExporting] = useState(false)
   const [archiveStatus, setArchiveStatus] = useState<ArchiveExecutionStatus>('idle')
@@ -100,9 +117,15 @@ export function useRecordExport(): UseRecordExportReturn {
       normalizedReport.inspection.result.data_summary = normalizeDataSummary(
         normalizedReport.inspection.result.data_summary,
       )
+      const photoCount = photoIds.length
+      const runtimePhotoIds = photoIds.map((_, index) => `photo-${index + 1}`)
       const reportJson = JSON.stringify({
         ...normalizedReport,
-        attachments: { ...normalizedReport.attachments, photo_ids: photoIds },
+        attachments: {
+          ...normalizedReport.attachments,
+          photo_ids: runtimePhotoIds,
+          photo_groups: buildMaterialPhotoGroups(normalizedReport, photoCount),
+        },
       })
       const archiveForm = new FormData()
       archiveForm.append('report_json', reportJson)

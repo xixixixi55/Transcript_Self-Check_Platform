@@ -10,11 +10,26 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.services.attachment_plan_service import AttachmentPlanError, build_attachment_plan  # noqa: E402
 
 
-def report(inspector_count=2, evidence_numbers=None):
-    numbers = evidence_numbers or ["JC-A", "JC-B", "JC-C"]
+def report(inspector_count=2, evidence_numbers=None, photo_ids=None, photo_groups=None):
+    numbers = evidence_numbers or ["JC-A", "JC-B", "JC-C", "JC-D", "JC-E"]
+    evidence_list = [
+        {"id": f"material-{index + 1}", "evidence_number": value}
+        for index, value in enumerate(numbers)
+    ]
+    if photo_ids and photo_groups is None:
+        photo_groups = [
+            {
+                "material_id": evidence_list[index]["id"],
+                "material_number": evidence_list[index]["evidence_number"],
+                "display_text": f"检材{evidence_list[index]['evidence_number']}照片",
+                "ordered_image_ids": photo_ids[index * 2:index * 2 + 2],
+                "source_order": index + 1,
+            }
+            for index in range(len(photo_ids) // 2)
+        ]
     return {
         "introduction": {
-            "evidence_list": [{"evidence_number": value} for value in numbers],
+            "evidence_list": evidence_list,
             "inspector_snapshots": [
                 {"unit": "单位", "name": f"人员{index}", "police_number": f"P{index}"}
                 for index in range(inspector_count)
@@ -30,7 +45,7 @@ def report(inspector_count=2, evidence_numbers=None):
                 {"name": "Python hashlib", "version": "3.12"},
             ],
         },
-        "attachments": {"photo_ids": []},
+        "attachments": {"photo_ids": photo_ids or [], "photo_groups": photo_groups or []},
     }
 
 
@@ -131,3 +146,123 @@ def test_old_attachment_fields_cannot_replace_manifest_values():
     row = plan.attachment1_pages[0].serial_rows[0]
     assert row.filename == "case.part1.rar"
     assert row.md5 == "00000000000000000000000000000001"
+
+
+@pytest.mark.parametrize("photo_count", [0, 2, 4, 6, 8, 10])
+def test_attachment2_pages_use_pair_layouts_and_are_deterministic(photo_count):
+    photo_ids = [f"image-{index}" for index in range(1, photo_count + 1)]
+    evidence_numbers = [f"JC-{chr(65 + index)}" for index in range(photo_count // 2)]
+    first = build_attachment_plan(
+        manifest(1), report(evidence_numbers=evidence_numbers, photo_ids=photo_ids),
+    )
+    second = build_attachment_plan(
+        manifest(1), report(evidence_numbers=evidence_numbers, photo_ids=photo_ids),
+    )
+    assert first == second
+    assert len(first.attachment2_pages) == ((photo_count + 3) // 4 if photo_count else 0)
+    assert [page.show_attachment_title for page in first.attachment2_pages] == (
+        [True] + [False] * (len(first.attachment2_pages) - 1)
+        if photo_count else []
+    )
+    expected_page_sizes = {
+        0: [], 2: [2], 4: [4], 6: [4, 2], 8: [4, 4], 10: [4, 4, 2],
+    }[photo_count]
+    assert [len(page.images) for page in first.attachment2_pages] == expected_page_sizes
+    assert [page.layout for page in first.attachment2_pages] == [
+        "two_centered" if size == 2 else "four_grid"
+        for size in expected_page_sizes
+    ]
+    expected_evidence = {
+        0: [],
+        2: [("JC-A",)],
+        4: [("JC-A", "JC-B")],
+        6: [("JC-A", "JC-B"), ("JC-C",)],
+        8: [("JC-A", "JC-B"), ("JC-C", "JC-D")],
+        10: [("JC-A", "JC-B"), ("JC-C", "JC-D"), ("JC-E",)],
+    }[photo_count]
+    assert [page.evidence_numbers for page in first.attachment2_pages] == expected_evidence
+    planned = [image for page in first.attachment2_pages for image in page.images]
+    assert [image.source_image_id for image in planned] == photo_ids
+    if first.attachment2_pages:
+        assert [image.slot for image in first.attachment2_pages[0].images] == (
+            ["left", "right"] if photo_count == 2
+            else ["top-left", "top-right", "bottom-left", "bottom-right"]
+        )
+    assert all(
+        all(separator not in image.safe_display_name for separator in ("/", "\\", ":"))
+        for image in planned
+    )
+
+
+@pytest.mark.parametrize("photo_count", [1, 3, 5])
+def test_attachment2_odd_image_counts_are_stably_blocked(photo_count):
+    with pytest.raises(AttachmentPlanError) as error:
+        build_attachment_plan(
+            manifest(1),
+            report(photo_ids=[f"C:\\case\\photo-{index}.png" for index in range(photo_count)]),
+        )
+    assert error.value.code == "ATTACHMENT2_IMAGE_COUNT_ODD"
+    assert "图片数量必须为偶数" in error.value.safe_message
+    assert "C:\\" not in error.value.safe_message
+
+
+def test_attachment2_plan_never_exposes_client_path_values():
+    plan = build_attachment_plan(
+        manifest(1),
+        report(
+            evidence_numbers=["JC-A"],
+            photo_ids=[r"C:\case\横图.png", r"D:/case/竖图.png"],
+        ),
+    )
+    serialized = repr(plan)
+    assert "C:\\case" not in serialized
+    assert "D:/case" not in serialized
+    assert [image.source_image_id for page in plan.attachment2_pages for image in page.images] == [
+        "photo-1", "photo-2"
+    ]
+
+
+@pytest.mark.parametrize("bad_group", [
+    {"material_id": "material-1", "material_number": "JC-A", "display_text": "检材JC-A照片",
+     "ordered_image_ids": ["photo-1"], "source_order": 1},
+    {"material_id": "material-1", "material_number": "JC-A", "display_text": "检材JC-A照片",
+     "ordered_image_ids": ["photo-1", "photo-2", "photo-3"], "source_order": 1},
+    {"material_id": "missing", "material_number": "JC-A", "display_text": "检材JC-A照片",
+     "ordered_image_ids": ["photo-1", "photo-2"], "source_order": 1},
+    {"material_id": "material-1", "material_number": "", "display_text": "检材照片",
+     "ordered_image_ids": ["photo-1", "photo-2"], "source_order": 1},
+])
+def test_attachment2_rejects_invalid_explicit_material_mapping(bad_group):
+    with pytest.raises(AttachmentPlanError) as error:
+        build_attachment_plan(
+            manifest(1),
+            report(
+                evidence_numbers=["JC-A"],
+                photo_ids=["photo-1", "photo-2"],
+                photo_groups=[bad_group],
+            ),
+        )
+    assert error.value.code in {
+        "ATTACHMENT2_MATERIAL_IMAGE_COUNT_INVALID",
+        "ATTACHMENT2_IMAGE_MAPPING_INVALID",
+    }
+
+
+def test_attachment2_rejects_cross_material_or_reordered_photo_mapping():
+    with pytest.raises(AttachmentPlanError) as error:
+        build_attachment_plan(
+            manifest(1),
+            report(
+                evidence_numbers=["JC-A", "JC-B"],
+                photo_ids=["photo-1", "photo-2", "photo-3", "photo-4"],
+                photo_groups=[
+                    {"material_id": "material-1", "material_number": "JC-A",
+                     "display_text": "检材JC-A照片", "ordered_image_ids": ["photo-1", "photo-3"],
+                     "source_order": 1},
+                    {"material_id": "material-2", "material_number": "JC-B",
+                     "display_text": "检材JC-B照片", "ordered_image_ids": ["photo-2", "photo-4"],
+                     "source_order": 2},
+                ],
+            ),
+        )
+    assert error.value.code == "ATTACHMENT2_IMAGE_MAPPING_INVALID"

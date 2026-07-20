@@ -28,7 +28,12 @@ class ExportGateCode(str, Enum):
     ARCHIVE_AUTHORIZATION_EXPIRED = "ARCHIVE_AUTHORIZATION_EXPIRED"
     MATERIAL_TYPE_UNCONFIRMED = "MATERIAL_TYPE_UNCONFIRMED"
     PRIMARY_SOFTWARE_UNCONFIRMED = "PRIMARY_SOFTWARE_UNCONFIRMED"
-    ODD_PHOTO_COUNT = "ODD_PHOTO_COUNT"
+    ATTACHMENT2_IMAGE_COUNT_ODD = "ATTACHMENT2_IMAGE_COUNT_ODD"
+    ATTACHMENT2_MATERIAL_IMAGE_COUNT_INVALID = "ATTACHMENT2_MATERIAL_IMAGE_COUNT_INVALID"
+    ATTACHMENT2_IMAGE_MAPPING_INVALID = "ATTACHMENT2_IMAGE_MAPPING_INVALID"
+    ODD_PHOTO_COUNT = ATTACHMENT2_IMAGE_COUNT_ODD
+    ATTACHMENT2_IMAGE_INVALID = "ATTACHMENT2_IMAGE_INVALID"
+    ATTACHMENT_PLAN_INVALID = "ATTACHMENT_PLAN_INVALID"
     DISC_SEQUENCE_INVALID = "DISC_SEQUENCE_INVALID"
     FIRST_DISC_NUMBER_MISSING = "FIRST_DISC_NUMBER_MISSING"
     FIRST_DISC_NUMBER_INVALID = "FIRST_DISC_NUMBER_INVALID"
@@ -55,6 +60,12 @@ class ExportGateInput:
     material_types_confirmed: bool = True
     primary_software_confirmed: bool = True
     photo_count_valid: bool = True
+    photo_mapping_valid: bool = True
+    photo_mapping_error_code: str | None = None
+    photo_assets_valid: bool = True
+    photo_asset_error_code: str | None = None
+    attachment_plan_valid: bool = True
+    attachment_plan_error_code: str | None = None
     disc_sequence_valid: bool = True
     disc_sequence_error_code: str | None = None
     automatic_archive_required: bool = False
@@ -97,9 +108,33 @@ def evaluate_export_gate(
     if not facts.photo_count_valid:
         blockers.append(
             ExportGateIssue(
-                ExportGateCode.ODD_PHOTO_COUNT,
+                ExportGateCode.ATTACHMENT2_IMAGE_COUNT_ODD,
                 "photos",
-                "图片数量必须为零或正偶数。",
+                "附件图片数量必须为偶数，请补充或删除一张图片后重新导出。",
+            )
+        )
+    if not facts.photo_mapping_valid:
+        blockers.append(
+            ExportGateIssue(
+                facts.photo_mapping_error_code or ExportGateCode.ATTACHMENT2_IMAGE_MAPPING_INVALID,
+                "attachments.photo_groups",
+                "附件2图片必须明确归属检材，且每个检材对应两张图片。",
+            )
+        )
+    if not facts.photo_assets_valid:
+        blockers.append(
+            ExportGateIssue(
+                facts.photo_asset_error_code or ExportGateCode.ATTACHMENT2_IMAGE_INVALID,
+                "photos",
+                "附件图片无法读取、解码或格式不受支持。",
+            )
+        )
+    if not facts.attachment_plan_valid:
+        blockers.append(
+            ExportGateIssue(
+                facts.attachment_plan_error_code or ExportGateCode.ATTACHMENT_PLAN_INVALID,
+                "attachment_plan",
+                "附件页面计划无效，请重新生成归档后重试。",
             )
         )
     if not facts.disc_sequence_valid:

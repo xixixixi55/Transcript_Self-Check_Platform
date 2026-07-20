@@ -75,6 +75,31 @@ def test_data_summary_normal_value_is_preserved():
     assert _flatten_report(_report("  通讯录  "))["data_summary"] == "通讯录"
 
 
+def test_flatten_report_names_all_evidence_items_in_result():
+    report = _report()
+    report["introduction"]["evidence_list"].append({
+        "evidence_number": "JC02",
+        "device_type": "测试平板",
+    })
+    assert _flatten_report(report)["evidence_number"] == "JC01、JC02"
+
+
+def test_fill_template_combines_all_evidence_numbers_in_result_sentence(tmp_path):
+    report = _report()
+    report["introduction"]["evidence_list"].append({
+        "evidence_number": "JC02",
+        "device_type": "测试平板",
+    })
+    output = tmp_path / "combined-result.docx"
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    with zipfile.ZipFile(output) as package:
+        document_xml = package.read("word/document.xml").decode("utf-8")
+
+    assert "经对编号为JC01、JC02号检材使用测试工具" in document_xml
+    assert "；经对编号为JC02号检材" not in document_xml
+
+
 def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path):
     output = tmp_path / "filled.docx"
     fill_template(_report(), str(_TEMPLATE), str(output))

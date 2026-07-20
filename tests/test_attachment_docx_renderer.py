@@ -1,10 +1,13 @@
 """DOCX XML regression tests for the accepted fixed-template structure."""
 
 import base64
+import hashlib
 import os
+import struct
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
+import zlib
 from pathlib import Path
 import shutil
 
@@ -15,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.services.template_filler_service import fill_template  # noqa: E402
 from app.services.template_profile_service import (  # noqa: E402
     TemplateProfileError,
+    current_template_profile,
     validate_current_template_profile,
 )
 from docx import Document  # noqa: E402
@@ -26,9 +30,21 @@ W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 V_NS = "urn:schemas-microsoft-com:vml"
 WP_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+DOC_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 MINIMAL_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
+
+
+def png_bytes(width: int, height: int) -> bytes:
+    rows = b"".join(b"\x00" + b"\x30\x80\xc0\xff" * width for _ in range(height))
+
+    def chunk(name: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + name + data + struct.pack(">I", zlib.crc32(name + data) & 0xffffffff)
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
 
 
 def report(inspector_count=2):
@@ -78,6 +94,35 @@ def report(inspector_count=2):
     }
 
 
+def report_with_photo_count(photo_count: int) -> dict:
+    value = report()
+    value["introduction"]["evidence_list"] = [
+        {
+            "id": f"material-{index + 1}",
+            "evidence_number": f"JC-{chr(65 + index)}",
+            "device_type": "synthetic",
+        }
+        for index in range(photo_count // 2)
+    ] or value["introduction"]["evidence_list"]
+    set_photo_ids(value, [f"photo-{index + 1}" for index in range(photo_count)])
+    return value
+
+
+def set_photo_ids(report_value: dict, photo_ids: list[str]) -> None:
+    report_value["attachments"]["photo_ids"] = photo_ids
+    evidence_list = report_value["introduction"]["evidence_list"]
+    report_value["attachments"]["photo_groups"] = [
+        {
+            "material_id": evidence_list[index]["id"],
+            "material_number": evidence_list[index]["evidence_number"],
+            "display_text": f"检材{evidence_list[index]['evidence_number']}照片",
+            "ordered_image_ids": photo_ids[index * 2:index * 2 + 2],
+            "source_order": index + 1,
+        }
+        for index in range(len(photo_ids) // 2)
+    ]
+
+
 def manifest(count):
     return {
         "manifest_id": "manifest-xml",
@@ -113,6 +158,21 @@ def paragraph_text(paragraph):
 
 def attachment_tables(root):
     return root.findall("./{%s}body/{%s}tbl" % (W_NS, W_NS))
+
+
+def attachment2_tables(root):
+    return [
+        table for table in attachment_tables(root)
+        if [len(row.findall("./{%s}tc" % W_NS))
+            for row in table.findall("./{%s}tr" % W_NS)] in ([2], [2, 2])
+        or [len(row.findall("./{%s}tc" % W_NS))
+            for row in table.findall("./{%s}tr" % W_NS)] in ([1, 1], [2, 1, 2, 1])
+        or (
+            [len(row.findall("./{%s}tc" % W_NS))
+             for row in table.findall("./{%s}tr" % W_NS)] == [1]
+            and len(table.findall(".//{%s}drawing" % W_NS)) == 2
+        )
+    ]
 
 
 def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
@@ -184,7 +244,7 @@ def test_two_photos_start_attachment2_on_a_new_page(tmp_path):
     photo1.write_bytes(MINIMAL_PNG)
     photo2.write_bytes(MINIMAL_PNG)
     output = tmp_path / "attachment-2-two-photos.docx"
-    fill_template(report(), str(TEMPLATE), str(output), [str(photo1), str(photo2)], manifest(1))
+    fill_template(report_with_photo_count(2), str(TEMPLATE), str(output), [str(photo1), str(photo2)], manifest(1))
     root = document_root(output)
     paragraphs = body_paragraphs(root)
     label2 = next(p for p in paragraphs if paragraph_text(p) == "附件2：")
@@ -192,6 +252,195 @@ def test_two_photos_start_attachment2_on_a_new_page(tmp_path):
     assert page_breaks
     assert "附件2" in visible_text(output)
     assert "附件3" in visible_text(output)
+
+
+@pytest.mark.parametrize("photo_count", [2, 4, 6, 8])
+def test_attachment2_uses_fixed_pair_grids_and_preserves_order(tmp_path, photo_count):
+    current_report = report_with_photo_count(photo_count)
+    set_photo_ids(current_report, [
+        f"reviewed-{index}" for index in range(1, photo_count + 1)
+    ])
+    photo_paths = []
+    for index in range(1, photo_count + 1):
+        path = tmp_path / f"photo-{index}.png"
+        path.write_bytes(png_bytes(300 + index * 10, 500 + index * 7))
+        photo_paths.append(str(path))
+    output = tmp_path / f"attachment-2-{photo_count}.docx"
+
+    fill_template(current_report, str(TEMPLATE), str(output), photo_paths, manifest(1))
+    root = document_root(output)
+    tables = attachment2_tables(root)
+    assert len(tables) == (photo_count + 3) // 4
+    text = visible_text(output)
+    assert text.count("附件2") == 1
+    assert text.count("附件3") == 1
+    assert f"检材图{photo_count}张，共{len(tables)}页" in text
+    expected_captions = [f"检材JC-{chr(65 + index)}照片" for index in range(photo_count // 2)]
+    assert all(text.count(caption) == 1 for caption in expected_captions)
+    evidence_label = "、".join(
+        f"JC-{chr(65 + index)}" for index in range(photo_count // 2)
+    )
+    assert f"经对编号为{evidence_label}号检材使用主取证软件" in text
+    expected_shapes = [[1, 1]] if photo_count == 2 else (
+        [[2, 1, 2, 1]] * (photo_count // 4) + ([[1, 1]] if photo_count % 4 else [])
+    )
+    assert [
+        [len(row.findall("./{%s}tc" % W_NS))
+         for row in table.findall("./{%s}tr" % W_NS)]
+        for table in tables
+    ] == expected_shapes
+    assert [len(table.findall(".//{%s}drawing" % W_NS)) for table in tables] == [
+        2 if shape == [1, 1] else 4 for shape in expected_shapes
+    ]
+
+    with zipfile.ZipFile(output) as package:
+        rel_root = ET.fromstring(package.read("word/_rels/document.xml.rels"))
+        relationships = {
+            node.get("Id"): node.get("Target")
+            for node in rel_root.findall("./{%s}Relationship" % REL_NS)
+            if node.get("Type", "").endswith("/image")
+        }
+        media = sorted(
+            info.filename for info in package.infolist()
+            if info.filename.startswith("word/media/")
+        )
+        media_bytes = {
+            info.filename.removeprefix("word/"): package.read(info.filename)
+            for info in package.infolist()
+            if info.filename.startswith("word/media/")
+        }
+    assert len(media) == photo_count + 2
+    embeds = [
+        drawing.find(".//{%s}blip" % A_NS).get("{%s}embed" % DOC_REL_NS)
+        for table in tables
+        for drawing in table.findall(".//{%s}drawing" % W_NS)
+    ]
+    expected_sequence = list(range(1, photo_count + 1))
+    source_hashes = [
+        hashlib.sha256(Path(photo_paths[index - 1]).read_bytes()).digest()
+        for index in expected_sequence
+    ]
+    embedded_hashes = [
+        hashlib.sha256(media_bytes[relationships[relationship_id]]).digest()
+        for relationship_id in embeds
+    ]
+    assert embedded_hashes == source_hashes
+    drawing_ids = [
+        node.get("id") for node in root.iter()
+        if node.tag in {
+            "{%s}docPr" % WP_NS,
+            "{%s}cNvPr" % "http://schemas.openxmlformats.org/drawingml/2006/picture",
+        }
+    ]
+    assert len(drawing_ids) == len(set(drawing_ids))
+
+
+@pytest.mark.parametrize(("photo_count", "expected_rows"), [(2, 2), (4, 4)])
+def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
+    tmp_path, photo_count, expected_rows,
+):
+    current_report = report_with_photo_count(photo_count)
+    set_photo_ids(current_report, [f"center-{index}" for index in range(photo_count)])
+    paths = []
+    for index in range(photo_count):
+        path = tmp_path / f"center-{index}.png"
+        path.write_bytes(png_bytes(600 + index, 400 + index))
+        paths.append(str(path))
+    output = tmp_path / f"center-{photo_count}.docx"
+    fill_template(current_report, str(TEMPLATE), str(output), paths, manifest(1))
+    table = attachment2_tables(document_root(output))[0]
+    profile = current_template_profile()
+    slot_twips = round(profile.attachment2_slot_width_emu / 635)
+    table_width = table.find("./{%s}tblPr/{%s}tblW" % (W_NS, W_NS))
+    assert table_width.get("{%s}w" % W_NS) == str(slot_twips * 2)
+    expected_columns = 1 if photo_count == 2 else 2
+    assert len(table.findall("./{%s}tblGrid/{%s}gridCol" % (W_NS, W_NS))) == expected_columns
+    rows = table.findall("./{%s}tr" % W_NS)
+    assert len(rows) == expected_rows
+    for row in rows[::2]:
+        height = row.find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS))
+        assert height.get("{%s}val" % W_NS) == str(profile.attachment2_slot_row_height_twips)
+        assert height.get("{%s}hRule" % W_NS) == "exact"
+        for cell in row.findall("./{%s}tc" % W_NS):
+            assert cell.find("./{%s}tcPr/{%s}vAlign" % (W_NS, W_NS)).get("{%s}val" % W_NS) == "center"
+            paragraph_pr = cell.find("./{%s}p/{%s}pPr" % (W_NS, W_NS))
+            assert paragraph_pr.find("./{%s}spacing" % W_NS) is not None
+            assert paragraph_pr.find("./{%s}jc" % W_NS).get("{%s}val" % W_NS) == "center"
+    first_cell_runs = table.findall("./{%s}tr[1]/{%s}tc[1]/{%s}p/{%s}r" % (
+        W_NS, W_NS, W_NS, W_NS,
+    ))
+    assert len(first_cell_runs) == (2 if photo_count == 2 else 1)
+    captions = [
+        paragraph_text(paragraph)
+        for row in rows
+        for cell in row.findall("./{%s}tc" % W_NS)
+        for paragraph in cell.findall("./{%s}p" % W_NS)
+        if paragraph_text(paragraph)
+    ]
+    assert captions == (
+        ["检材JC-A照片"] if photo_count == 2
+        else ["检材JC-A照片", "检材JC-B照片"]
+    )
+
+
+def test_attachment2_continuation_titles_are_empty_break_paragraphs(tmp_path):
+    current_report = report_with_photo_count(6)
+    set_photo_ids(current_report, [
+        "one", "two", "three", "four", "five", "six",
+    ])
+    paths = []
+    for index in range(6):
+        path = tmp_path / f"continuation-{index}.png"
+        path.write_bytes(png_bytes(800 + index, 600 + index))
+        paths.append(str(path))
+    output = tmp_path / "attachment-2-continuation.docx"
+    fill_template(current_report, str(TEMPLATE), str(output), paths, manifest(1))
+    root = document_root(output)
+    paragraphs = body_paragraphs(root)
+    title_paragraphs = [p for p in paragraphs if paragraph_text(p) == "附件2："]
+    assert len(title_paragraphs) == 1
+    assert sum(
+        paragraph_text(p) == "" and any(
+            br.get("{%s}type" % W_NS) == "page"
+            for br in p.findall(".//{%s}br" % W_NS)
+        )
+        for p in paragraphs
+    ) >= 1
+    assert sum(
+        any(br.get("{%s}type" % W_NS) == "page" for br in p.findall(".//{%s}br" % W_NS))
+        for p in paragraphs
+    ) >= 2
+
+
+@pytest.mark.parametrize("photo_count", [1, 3, 5])
+def test_attachment2_odd_images_do_not_leave_a_docx(tmp_path, photo_count):
+    paths = []
+    for index in range(photo_count):
+        path = tmp_path / f"odd-{index}.png"
+        path.write_bytes(png_bytes(10, 10))
+        paths.append(str(path))
+    output = tmp_path / f"odd-{photo_count}.docx"
+
+    with pytest.raises(Exception) as error:
+        fill_template(report(), str(TEMPLATE), str(output), paths, manifest(1))
+
+    assert getattr(error.value, "code", None) == "ATTACHMENT2_IMAGE_COUNT_ODD"
+    assert not output.exists()
+
+
+def test_attachment2_invalid_images_do_not_leave_a_docx(tmp_path):
+    paths = []
+    for index in range(2):
+        path = tmp_path / f"invalid-{index}.png"
+        path.write_bytes(b"corrupt-image")
+        paths.append(str(path))
+    output = tmp_path / "invalid-images.docx"
+
+    with pytest.raises(Exception) as error:
+        fill_template(report_with_photo_count(2), str(TEMPLATE), str(output), paths, manifest(1))
+
+    assert getattr(error.value, "code", None) == "ATTACHMENT2_IMAGE_INVALID"
+    assert not output.exists()
 
 
 def test_attachment3_has_vertical_metadata_and_part_specific_bottom_anchor(tmp_path):

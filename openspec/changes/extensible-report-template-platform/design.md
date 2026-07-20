@@ -215,15 +215,21 @@ Attachment1Plan {
             keepTogether }]
 }
 PhotoPagePlan {
-  pages: [{ pageIndex, layout: "two-centered" | "grid-2x2", photos[] }]
+  pages: [{ pageIndex, layout: "two-centered" | "grid-2x2",
+            materialGroups: MaterialPhotoGroup[],
+            inspectionResultMaterialNumbers[] }]
   photoBox: { widthCm: 5.64, heightCm: 7.52, fit: "contain" }
+}
+MaterialPhotoGroup {
+  materialId, materialNumber, displayText,
+  images: [orderedImage1, orderedImage2], sourceOrder
 }
 Attachment3Plan {
   pages: [{ pageIndex, showLabel, partId, filename, md5, discNumber, burningDate }]
 }
 ```
 
-附件规划器只接收 final manifest、canonical case、光盘序列和 photo manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式按页生成，最后一张附件一表格复制模板固定手写行，不写入动态检查人员，也不创建人员专用页或人员数量错误。正文检查人员仍由有序 `InspectorSnapshot[]` 动态生成。附件二零张不生成附件二页面；本轮图片能力只保留现有图片章节回归，不扩展任意偶数布局；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
+附件规划器只接收 final manifest、canonical case、光盘序列和审核后的显式 photo group manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式按页生成，最后一张附件一表格复制模板固定手写行，不写入动态检查人员，也不创建人员专用页或人员数量错误。正文检查人员仍由有序 `InspectorSnapshot[]` 动态生成。附件二零张不生成附件二页面；有图片时先按 `MaterialPhotoGroup` 保持检材顺序，再按每页最多两组分页：一组为两张图片左右居中，两组为两行两列且每组图片左右相邻；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
 
 ### `DocumentRenderPlan` and `TemplateProfile`
 

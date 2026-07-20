@@ -114,10 +114,11 @@ export default function RecordGeneratePage() {
     }
 
     const files = photoFiles.filter(file => file.originFileObj).map(file => file.originFileObj as File)
+    const photoIds = files.map(file => file.name)
     setReviewStatus('归档规划中')
     const success = await exportDocx(
       report,
-      report.attachments?.photo_ids || [],
+      photoIds,
       files.length > 0 ? files : undefined,
       requestedFileName,
       archiveContextId,

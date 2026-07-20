@@ -37,10 +37,13 @@ export default function ImageUploader({ photos, onChange }: Props) {
         beforeUpload={beforeUpload}
         multiple
       >
-        {photos.length < 10 && <div><UploadOutlined /><div style={{ marginTop: 8 }}>上传照片</div></div>}
+        <div><UploadOutlined /><div style={{ marginTop: 8 }}>上传照片</div></div>
       </Upload>
       <p style={{ color: '#999', fontSize: 13, marginTop: 8 }}>
-        支持 .jpg / .png，单张不超过 10MB，最多 10 张。可拖拽排序。
+        支持 .jpg / .jpeg / .png，单张不超过 10MB，可拖拽排序。
+      </p>
+      <p style={{ color: '#999', fontSize: 13, marginTop: 4 }}>
+        每个检材都要拍摄正面、反面两张照片，所以照片数量必须为偶数；图片所属检材以审核后的检材信息为准。
       </p>
     </div>
   )

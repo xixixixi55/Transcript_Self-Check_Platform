@@ -63,6 +63,28 @@ def test_export_rejects_non_string_disc_number_with_stable_code(client):
     ]
 
 
+def test_export_blocks_odd_uploaded_attachment2_images_before_docx(client):
+    report = {
+        "attachments": {"disc_number": "GP20260720-01", "photo_ids": []},
+        "inspection": {"primary_software": {
+            "name": "脱敏主取证软件",
+            "version": "V1.0",
+            "confirmation_status": "confirmed_by_user",
+        }},
+    }
+    response = client.post(
+        "/api/v1/records/export",
+        data={"report_json": json.dumps(report, ensure_ascii=False)},
+        files={"photos": ("one.png", io.BytesIO(b"not-an-image"), "image/png")},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "EXPORT_BLOCKED"
+    assert detail["blockers"][0]["code"] == "ATTACHMENT2_IMAGE_COUNT_ODD"
+    assert "图片数量必须为偶数" in detail["blockers"][0]["message"]
+    assert "one.png" not in response.text
+
+
 def test_parse_folder_compress_true(client):
     """文件夹 + compress=true → 200"""
     with tempfile.TemporaryDirectory() as tmpdir:

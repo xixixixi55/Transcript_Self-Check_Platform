@@ -106,6 +106,9 @@ def test_successful_manifest_is_reused_only_for_same_snapshot_and_review(tmp_pat
     assert first.manifest_id == second.manifest_id
     assert second.reused
     assert fake.calls == [4]
+    corrected_photos = valid_report()
+    corrected_photos["attachments"]["photo_ids"] = ["photo-1", "photo-2"]
+    assert get_valid_manifest(context_id, first.manifest_id, corrected_photos)
 
 
 def test_manifest_reuse_rechecks_disc_review_and_input_snapshot(tmp_path):
@@ -148,6 +151,23 @@ def test_unconfirmed_review_data_blocks_before_executor(tmp_path):
     with pytest.raises(ArchiveGateError) as error:
         execute_archive(context_id, report, output_root=str(output), policy=policy(4), capability=None, executor=fake, integrity_runner=integrity_ok)
     assert error.value.blockers[0].code == "PRIMARY_SOFTWARE_UNCONFIRMED"
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("photo_count", [1, 3, 5])
+def test_odd_attachment2_photo_count_blocks_archive_before_executor(tmp_path, photo_count):
+    _, output, context_id = make_context(tmp_path)
+    report = valid_report()
+    report["attachments"]["photo_ids"] = [
+        f"photo-{index}" for index in range(photo_count)
+    ]
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    with pytest.raises(ArchiveGateError) as error:
+        execute_archive(
+            context_id, report, output_root=str(output), policy=policy(4),
+            capability=None, executor=fake, integrity_runner=integrity_ok,
+        )
+    assert error.value.blockers[0].code == "ATTACHMENT2_IMAGE_COUNT_ODD"
     assert fake.calls == []
 
 

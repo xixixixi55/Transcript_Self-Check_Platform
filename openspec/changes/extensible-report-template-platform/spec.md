@@ -290,6 +290,10 @@
 
 系统 MUST 先生成 `PhotoPagePlan` 再渲染附件二。0 张图片允许导出且不生成附件二图片页；正数图片数量 MUST 为偶数，否则禁止导出；每页最多四张；四张使用 2×2，二张使用左右布局且在页面上下居中；支持任意偶数数量。每张图片 MUST 在 5.64cm × 7.52cm 框内按比例完整显示，不裁剪、不拉伸。附件二多页时仅第一页显示“附件2”，后续页不重复标题但保持相同图片区域和版式；没有附件二时附件三仍显示“附件3”，不重新编号。
 
+当前模板 MUST 以检材组为附件2的领域单位。每个参与附件2的检材 MUST 绑定恰好两张有效图片；`PhotoPagePlan` MUST 先建立 `MaterialPhotoGroup` 再按检材组分页。每个 `MaterialPhotoGroup` MUST 包含 `material_id`、`material_number`、相关显示文字、两张有序图片和 `source_order`；同一检材的两张图片 MUST 同页左右排列，不得跨页或与其他检材图片交叉。每个 `Attachment2PagePlan` MUST 包含本页的 `material_groups`、`inspection_result_material_numbers` 和布局类型；每页最多两个检材组，每组固定两张图片，两个组按上下区域排列，剩余单组页使用同一可用区域居中布局。
+
+图片归属 MUST 来自审核后明确提交的 `photo_groups` 映射，而不是 Renderer 根据扁平数组位置、文件名或图片方向重新猜测。导出前 MUST 校验每张图片恰好归属一个检材、每组有且仅有两张图片、检材和组内图片顺序稳定、组内图片 ID 覆盖全部实际图片且无孤立图片。页面检查结果文字 MUST 只显示当前页 `inspection_result_material_numbers` 去重后的有序编号；两组时合并显示两个编号，单组页只显示该组编号。
+
 #### Scenario: 0 张图片不生成附件二
 
 - **WHEN** 报告没有图片

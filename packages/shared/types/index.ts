@@ -78,6 +78,15 @@ export interface InspectionResult {
   file_size: string
 }
 
+/** 附件2：一个检材的正反两张有序照片。 */
+export interface MaterialPhotoGroup {
+  material_id: string
+  material_number: string
+  display_text: string
+  ordered_image_ids: [string, string]
+  source_order: number
+}
+
 /** 表格数据 */
 export interface TableData {
   columns: { key: string; title: string; width?: string }[]
@@ -112,6 +121,7 @@ export interface InspectionReport {
   attachments: {
     extract_list: TableData              // 附件1: 电子数据提取固定清单
     photo_ids: string[]                  // 附件2: 已上传检材照片 ID 列表
+    photo_groups?: MaterialPhotoGroup[]  // 附件2: 显式检材-照片归属和组内顺序
     disc_number: string                  // 附件3: 光盘编号
     burning_date?: string                // 附件3: 刻录时间（民警填写）
     disc_sequence?: import('./discSequence').DiscSequence

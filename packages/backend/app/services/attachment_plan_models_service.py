@@ -37,6 +37,49 @@ class Attachment2State:
 
 
 @dataclass(frozen=True)
+class Attachment2ImagePlan:
+    source_image_id: str
+    sequence_number: int
+    safe_display_name: str
+    slot: str
+    evidence_number: str
+
+
+@dataclass(frozen=True)
+class MaterialPhotoGroup:
+    material_id: str
+    material_number: str
+    display_text: str
+    images: tuple[Attachment2ImagePlan, Attachment2ImagePlan]
+    source_order: int
+
+
+@dataclass(frozen=True)
+class Attachment2PagePlan:
+    page_number: int
+    show_attachment_title: bool
+    layout: str
+    images: tuple[Attachment2ImagePlan, ...]
+    material_groups: tuple[MaterialPhotoGroup, ...]
+    inspection_result_material_numbers: tuple[str, ...]
+
+    @property
+    def evidence_numbers(self) -> tuple[str, ...]:
+        """Compatibility accessor for the page's planned material numbers."""
+        return self.inspection_result_material_numbers
+
+    @property
+    def top_image(self) -> Attachment2ImagePlan:
+        """Compatibility accessor for the first image in the planned page."""
+        return self.images[0]
+
+    @property
+    def bottom_image(self) -> Attachment2ImagePlan:
+        """Compatibility accessor for the second image in the planned page."""
+        return self.images[1]
+
+
+@dataclass(frozen=True)
 class Attachment3PagePlan:
     page_number: int
     show_attachment_title: bool
@@ -55,6 +98,7 @@ class AttachmentPlan:
     attachment_summary: AttachmentSummaryPlan
     attachment1_pages: tuple[Attachment1PagePlan, ...]
     attachment2_state: Attachment2State
+    attachment2_pages: tuple[Attachment2PagePlan, ...]
     attachment3_pages: tuple[Attachment3PagePlan, ...]
     diagnostics: tuple[str, ...]
     status: str

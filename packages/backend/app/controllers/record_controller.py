@@ -19,7 +19,7 @@ from ..services.software_policy_service import (
     is_primary_software_confirmed,
     normalize_primary_software_projection,
 )
-from ..services.disc_sequence_service import parse_disc_sequence
+from ..services.disc_sequence_service import apply_disc_sequence_to_attachments
 from ..services.archive_execution_service import (
     ArchiveGateError,
     create_archive_context,
@@ -27,6 +27,8 @@ from ..services.archive_execution_service import (
 )
 from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report
 from ..services.attachment_plan_service import AttachmentPlanError
+from ..services.attachment2_plan_service import material_photo_groups
+from ..services.attachment2_image_service import Attachment2ImageError
 from ..services.template_profile_service import TemplateProfileError
 from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
 from ..services.archive_authorization_service import ArchiveAuthorizationError, ArchiveAuthorizationService
@@ -149,19 +151,17 @@ async def export_record_endpoint(
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
     report = normalize_primary_software_projection(report)
     attachments = report.setdefault("attachments", {})
-    disc_result = parse_disc_sequence(attachments.get("disc_number"))
-    if disc_result.valid and disc_result.sequence is not None:
-        year, month, day = disc_result.sequence.date.split("-")
-        attachments["burning_date"] = f"{year}年{int(month)}月{int(day)}日"
-        attachments["disc_sequence"] = {
-            "prefix": disc_result.sequence.prefix,
-            "date": disc_result.sequence.date,
-            "start_number": disc_result.sequence.start_number,
-            "number_width": disc_result.sequence.number_width,
-            "first_disc_number": disc_result.sequence.first_disc_number,
-        }
-    else:
-        attachments.pop("disc_sequence", None)
+    disc_result = apply_disc_sequence_to_attachments(attachments)
+    uploaded_photos = [photo for photo in photos if photo.filename]
+    attachments["photo_ids"] = [f"photo-{index}" for index in range(1, len(uploaded_photos) + 1)]
+    photo_mapping_valid = True
+    photo_mapping_error_code = None
+    if uploaded_photos:
+        try:
+            material_photo_groups(report)
+        except AttachmentPlanError as error:
+            photo_mapping_valid = False
+            photo_mapping_error_code = error.code
     material_fields = unconfirmed_material_fields(report)
     manifest_valid = False
     manifest_blocker_code = None
@@ -180,6 +180,9 @@ async def export_record_endpoint(
             material_types_confirmed=not material_fields,
             material_type_fields=material_fields,
             primary_software_confirmed=is_primary_software_confirmed(report),
+            photo_count_valid=len(uploaded_photos) % 2 == 0,
+            photo_mapping_valid=photo_mapping_valid,
+            photo_mapping_error_code=photo_mapping_error_code,
             disc_sequence_valid=disc_result.valid,
             disc_sequence_error_code=disc_result.error_code,
             archive_manifest_required=True,
@@ -208,32 +211,28 @@ async def export_record_endpoint(
     report = project_manifest_to_legacy_report(report, validated_manifest)
     report = apply_inspector_snapshot_compatibility(report)
     # 保存上传的图片到临时目录
-    photo_paths = []
-    if photos:
-        photo_dir = os.path.join(OUTPUT_BASE, "photos")
-        os.makedirs(photo_dir, exist_ok=True)
-        for photo in photos:
-            if photo.filename:
-                safe_name = os.path.basename(photo.filename)
-                photo_path = os.path.join(photo_dir, safe_name)
-                with open(photo_path, "wb") as f:
-                    content = await photo.read()
-                    f.write(content)
-                photo_paths.append(photo_path)
     try:
         output_dir = os.path.join(OUTPUT_BASE, "exports")
         os.makedirs(output_dir, exist_ok=True)
-        docx_path = generate_docx(
-            report, photo_paths=photo_paths, output_dir=output_dir,
-            archive_manifest=validated_manifest,
-        )
+        with tempfile.TemporaryDirectory(prefix="attachment2-images-") as photo_dir:
+            photo_paths = []
+            for index, photo in enumerate(uploaded_photos, 1):
+                suffix = os.path.splitext(photo.filename or "")[1].lower()
+                photo_path = os.path.join(photo_dir, f"photo-{index:04d}{suffix}")
+                with open(photo_path, "wb") as handle:
+                    handle.write(await photo.read())
+                photo_paths.append(photo_path)
+            docx_path = generate_docx(
+                report, photo_paths=photo_paths, output_dir=output_dir,
+                archive_manifest=validated_manifest,
+            )
         filename = os.path.basename(docx_path)
         return FileResponse(
             path=docx_path,
             filename=filename,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
-    except (AttachmentPlanError, TemplateProfileError) as error:
+    except (Attachment2ImageError, AttachmentPlanError, TemplateProfileError) as error:
         raise HTTPException(
             status_code=422,
             detail={"code": error.code, "message": error.safe_message},

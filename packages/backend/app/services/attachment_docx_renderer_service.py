@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import copy
 from datetime import date
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
+from .attachment2_docx_renderer_service import render_attachment2
+from .attachment2_image_service import Attachment2PhotoAsset
 from .attachment_plan_models_service import Attachment1PagePlan, AttachmentPlan
 from .docx_attachment_xml_service import (
     W_NS,
@@ -28,7 +30,7 @@ from .template_profile_service import (
 
 def render_attachment_plan(
     doc: Any, plan: AttachmentPlan, profile: CurrentTemplateProfile,
-    report: Mapping[str, Any],
+    report: Mapping[str, Any], photo_assets: Sequence[Attachment2PhotoAsset] = (),
 ) -> None:
     """Replace only the attachment regions described by current-template-v1."""
     body = doc.element.body
@@ -39,19 +41,7 @@ def render_attachment_plan(
     if label1 is None or heading1 is None or label3 is None or table is None:
         raise TemplateProfileError("当前模板附件锚点在渲染前丢失。")
     _render_attachment1(body, label1, heading1, table, plan, report)
-    if plan.attachment2_state.photo_count == 0:
-        label2 = _find_paragraph(body, profile.attachment2_label, exact=True)
-        if label2 is not None:
-            previous = label2.getprevious()
-            if previous is not None and _is_empty_boundary_paragraph(previous):
-                body.remove(previous)
-            body.remove(label2)
-        label3_after_skip = _find_paragraph(body, profile.attachment3_label)
-        while label3_after_skip is not None:
-            previous = label3_after_skip.getprevious()
-            if previous is None or not _is_empty_boundary_paragraph(previous):
-                break
-            body.remove(previous)
+    render_attachment2(doc, plan, profile, photo_assets)
     label3 = _find_paragraph(body, profile.attachment3_label)
     if label3 is None:
         raise TemplateProfileError("当前模板附件三锚点在渲染前丢失。")

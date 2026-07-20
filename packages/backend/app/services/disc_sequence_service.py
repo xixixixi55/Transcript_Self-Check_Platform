@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import date
+from typing import Any
 
 _MAX_SAFE_INTEGER = 2**53 - 1
 
@@ -58,6 +59,23 @@ def parse_disc_sequence(value: str | None) -> DiscSequenceParseResult:
         first_disc_number=f"GP{year:04d}{month:02d}{day:02d}-{raw_number}",
     )
     return DiscSequenceParseResult(sequence)
+
+
+def apply_disc_sequence_to_attachments(attachments: dict[str, Any]) -> DiscSequenceParseResult:
+    result = parse_disc_sequence(attachments.get("disc_number"))
+    if result.valid and result.sequence is not None:
+        year, month, day = result.sequence.date.split("-")
+        attachments["burning_date"] = f"{year}年{int(month)}月{int(day)}日"
+        attachments["disc_sequence"] = {
+            "prefix": result.sequence.prefix,
+            "date": result.sequence.date,
+            "start_number": result.sequence.start_number,
+            "number_width": result.sequence.number_width,
+            "first_disc_number": result.sequence.first_disc_number,
+        }
+    else:
+        attachments.pop("disc_sequence", None)
+    return result
 
 
 def generate_disc_numbers(

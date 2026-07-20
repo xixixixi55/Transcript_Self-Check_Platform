@@ -11,6 +11,10 @@ from .docx_package_service import (
     DocxPackageError,
     compute_ooxml_package_fingerprint,
 )
+from .attachment2_image_service import (
+    ATTACHMENT2_SLOT_HEIGHT_EMU,
+    ATTACHMENT2_SLOT_WIDTH_EMU,
+)
 
 CURRENT_TEMPLATE_PROFILE_ID = "current-template-v1"
 CURRENT_TEMPLATE_PACKAGE_FINGERPRINT = "616E3D1200C98DFD55C6DA7D5FB7DBB1C395BEF9FD78B1B6F59DC79BC4E814A7"
@@ -36,6 +40,16 @@ class CurrentTemplateProfile:
     attachment1_label: str = "附件1："
     attachment1_heading: str = "电子数据提取固定清单"
     attachment2_label: str = "附件2："
+    attachment2_caption_anchor: str = "检材{{first_evidence_number}}照片"
+    attachment2_slot_width_emu: int = ATTACHMENT2_SLOT_WIDTH_EMU
+    attachment2_slot_height_emu: int = ATTACHMENT2_SLOT_HEIGHT_EMU
+    attachment2_slot_row_height_twips: int = 4263
+    attachment2_slot_count: int = 2
+    attachment2_slot_columns: int = 2
+    attachment2_two_image_table_columns: int = 1
+    attachment2_four_image_table_columns: int = 2
+    attachment2_pair_size: int = 2
+    attachment2_max_images_per_page: int = 4
     attachment3_label: str = "附件3："
     attachment3_end_anchor: str = "本鉴定中心刻制的"
     expected_attachment1_columns: int = 5
@@ -78,10 +92,21 @@ def validate_current_template_profile(template_path: str, doc: Any) -> CurrentTe
         raise TemplateProfileError("当前模板缺少附件一定位锚点。")
     if _find_paragraph(body, profile.attachment1_heading, exact=True) is None:
         raise TemplateProfileError("当前模板缺少附件一标题锚点。")
-    if _find_paragraph(body, profile.attachment2_label, exact=True) is None:
+    label2 = _find_paragraph(body, profile.attachment2_label, exact=True)
+    label3 = _find_paragraph(body, profile.attachment3_label, exact=True)
+    caption2 = _find_paragraph(body, profile.attachment2_caption_anchor, exact=True)
+    if label2 is None:
         raise TemplateProfileError("当前模板缺少附件二定位锚点。")
-    if _find_paragraph(body, profile.attachment3_label, exact=True) is None:
+    if caption2 is None:
+        raise TemplateProfileError("当前模板缺少附件二图片说明锚点。")
+    if label3 is None:
         raise TemplateProfileError("当前模板缺少附件三定位锚点。")
+    children = list(body)
+    label2_index, caption2_index = children.index(label2), children.index(caption2)
+    if caption2_index <= label2_index or not _is_attachment2_region(children[label2_index + 1:caption2_index]):
+        raise TemplateProfileError("当前模板附件二图片区域结构不匹配。")
+    if _page_break_count(label2) != 1 or _page_break_count(label3) != 1:
+        raise TemplateProfileError("当前模板附件章节分页锚点不匹配。")
     tables = body.findall(".//{%s}tbl" % _W_NS)
     if len(tables) != 1:
         raise TemplateProfileError("当前模板附件一表格数量不匹配。")
@@ -127,3 +152,19 @@ def _find_paragraph(body: Any, anchor: str, exact: bool = False) -> Any | None:
         if (value == anchor if exact else anchor in value):
             return element
     return None
+
+
+def _is_attachment2_region(elements: list[Any]) -> bool:
+    if not elements:
+        return False
+    return all(
+        element.tag == "{%s}p" % _W_NS and not paragraph_text(element)
+        for element in elements
+    )
+
+
+def _page_break_count(element: Any) -> int:
+    return sum(
+        node.get("{%s}type" % _W_NS) == "page"
+        for node in element.findall(".//{%s}br" % _W_NS)
+    )

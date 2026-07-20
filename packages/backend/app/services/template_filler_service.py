@@ -13,12 +13,14 @@ import re
 import tempfile
 from datetime import datetime
 from collections.abc import Mapping
+from typing import Any
 from docx import Document
 from docx.oxml.ns import qn
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from .report_defaults_service import normalize_data_summary
+from .attachment2_image_service import validate_attachment2_photos
 from .attachment_plan_service import build_attachment_plan
 from .attachment_docx_renderer_service import render_attachment_plan
 from .docx_output_sanitizer_service import sanitize_generated_docx
@@ -40,16 +42,29 @@ def fill_template(report: dict, template_path: str, output_path: str,
 
     plan = None
     profile = None
+    photo_assets = ()
     if archive_manifest is not None:
+        raw_source_image_ids = (report.get("attachments") or {}).get("photo_ids") or []
+        if not isinstance(raw_source_image_ids, list):
+            raw_source_image_ids = []
+        source_image_ids = tuple(
+            str(value) for value in raw_source_image_ids
+            if value is not None
+        )
+        if len(source_image_ids) != len(photo_paths):
+            source_image_ids = tuple(
+                f"photo-{index}" for index in range(1, len(photo_paths) + 1)
+            )
         plan_report = copy.deepcopy(report)
-        plan_report.setdefault("attachments", {})["photo_ids"] = list(photo_paths)
+        plan_report.setdefault("attachments", {})["photo_ids"] = list(source_image_ids)
         plan = build_attachment_plan(archive_manifest, plan_report)
+        photo_assets = validate_attachment2_photos(photo_paths, source_image_ids)
         validate_template_package_fingerprint(template_path)
     doc = Document(template_path)
     if archive_manifest is not None:
         profile = validate_current_template_profile(template_path, doc)
     flat = _flatten_report(report)
-    flat["photo_count"] = str(len(photo_paths))
+    flat["photo_count"] = str(plan.attachment2_state.photo_count if plan else len(photo_paths))
     if plan is not None:
         flat["disc_number"] = plan.attachment_summary.disc_numbers[0]
         flat["burning_date"] = _format_plan_date(plan.attachment_summary.inspection_date)
@@ -63,6 +78,7 @@ def fill_template(report: dict, template_path: str, output_path: str,
 
     # 3. 替换简单 {{key}} 占位符
     _replace_placeholders(doc, flat)
+    _update_inspection_result(doc, report, flat)
 
     # 3.5 替换页眉/页脚占位符
     _replace_header_footer(doc, flat)
@@ -70,12 +86,13 @@ def fill_template(report: dict, template_path: str, output_path: str,
 
     # 3.6 固定模板附件区域必须先由可信 manifest 计划渲染，再替换剩余 VML 占位符。
     if plan is not None:
-        render_attachment_plan(doc, plan, profile, report)
+        render_attachment_plan(doc, plan, profile, report, photo_assets)
         _update_attachment_summary(doc, plan)
     _replace_vml_textbox_placeholders(doc, flat)
 
     # 4. 处理照片附件
-    _handle_photos(doc, photo_paths, report)
+    if plan is None:
+        _handle_photos(doc, photo_paths, report)
 
     # 4.3 清理附件间多余空段落
     _cleanup_attachment_spacing(doc)
@@ -108,6 +125,14 @@ def _format_plan_date(value: str) -> str:
 
 def _update_attachment_summary(doc: Document, plan) -> None:
     """Write the disc summary from the validated manifest-derived plan."""
+    photo_summary = (
+        f"2、检材图{plan.attachment2_state.photo_count}张，"
+        f"共{len(plan.attachment2_pages)}页；"
+    )
+    for paragraph in doc.paragraphs:
+        if "2、检材图" in paragraph.text:
+            _replace_paragraph_text(paragraph, photo_summary)
+            break
     disc_numbers = plan.attachment_summary.disc_numbers
     count = len(plan.attachment3_pages)
     first, last = disc_numbers[0], disc_numbers[-1]
@@ -126,6 +151,42 @@ def _update_attachment_summary(doc: Document, plan) -> None:
                 for node in nodes[1:]:
                     node.text = ""
             return
+
+
+def _update_inspection_result(doc: Document, report: dict, flat: dict) -> None:
+    """Render one result sentence with the reviewed evidence list."""
+    evidence_numbers = [
+        str(item.get("evidence_number")).strip()
+        for item in (report.get("introduction") or {}).get("evidence_list") or []
+        if isinstance(item, Mapping) and item.get("evidence_number")
+    ]
+    if len(evidence_numbers) < 2:
+        return
+    evidence_label = "、".join(evidence_numbers)
+    result_text = (
+        f"经对编号为{evidence_label}号检材使用{flat['software_name']}（版本号为"
+        f"{flat['software_version']}）进行检查，检出{flat['data_summary']}等电子数据。"
+        + f"将检出结果生成为“{flat['rar_filename']}”文件，"
+        + f"文件MD5哈希值为“{flat['md5_hash']}”，"
+        + f"文件大小为“{flat['file_size']}”字节。"
+    )
+    if flat.get("disc_number"):
+        result_text += f"结果以封盘方式刻录在编号为“{flat['disc_number']}”的光盘中。"
+    for paragraph in doc.paragraphs:
+        if "经对编号为" in paragraph.text:
+            _replace_paragraph_text(paragraph, result_text)
+            return
+
+
+def _replace_paragraph_text(paragraph: Any, value: str) -> None:
+    nodes = paragraph._element.findall(
+        ".//{%s}t" % "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    )
+    if not nodes:
+        return
+    nodes[0].text = value
+    for node in nodes[1:]:
+        node.text = ""
 
 
 def _enable_dynamic_page_fields(doc: Document) -> None:
@@ -165,6 +226,11 @@ def _flatten_report(report: dict) -> dict:
     result = insp.get("result", {})
     attach = report.get("attachments", {})
     evidence_list = intro.get("evidence_list", [])
+    evidence_numbers = tuple(
+        str(item.get("evidence_number")).strip()
+        for item in evidence_list
+        if isinstance(item, Mapping) and item.get("evidence_number")
+    )
 
     # 软件工具合并格式文本
     tools = insp.get("software_tools", [])
@@ -191,7 +257,7 @@ def _flatten_report(report: dict) -> dict:
         "method": insp.get("method", ""),
         "hardware_device": insp.get("hardware_device", ""),
         "software_tools_text": software_tools_text,
-        "evidence_number": result.get("evidence_number", ""),
+        "evidence_number": "、".join(evidence_numbers) or result.get("evidence_number", ""),
         "software_name": result.get("software_name", ""),
         "software_version": result.get("software_version", ""),
         "data_summary": normalize_data_summary(result.get("data_summary")),

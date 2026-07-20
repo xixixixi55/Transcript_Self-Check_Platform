@@ -140,9 +140,21 @@
 | columns | `{ key: string; title: string; width?: string }[]` | 列定义；附件1 默认五列：序号、电子数据、来源、提取方式、文件MD5哈希值 |
 | rows | `Record<string, string>[]` | 行数据；目录解析启用压缩且生成归档文件时自动填充首行，未压缩或压缩包直传时当前实现不自动补附件1行，用户可编辑 |
 
+### 检材照片组（MaterialPhotoGroup）
+
+附件2使用显式的检材-照片映射。每个检材必须有且只有两张按审核顺序排列的图片；`ordered_image_ids` 不得跨检材复用或由渲染器按扁平位置推断。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| material_id | string | 审核后检材的稳定标识 |
+| material_number | string | 检材编号 |
+| display_text | string | 对应图片组文字，当前模板为“检材{material_number}照片” |
+| ordered_image_ids | `[string, string]` | 该检材的正面、反面两张图片 ID，保持组内顺序 |
+| source_order | number | 审核后的检材组顺序，从1开始 |
+
 ### 检查笔录全文（InspectionReport）
 
-顶层结构，包含 title、document_number、可选 case_number、introduction（9字段）、inspection（4字段）和 attachments（3个必需字段及可选 burning_date）。
+顶层结构，包含 title、document_number、可选 case_number、introduction（9字段）、inspection（4字段）和 attachments（含 `photo_ids`、可选 `photo_groups`、光盘字段）。其中 `photo_groups` 存在图片时必须明确每个检材的两张图片归属和顺序。
 
 ### RAR/压缩包文件信息（RarInfo）
 

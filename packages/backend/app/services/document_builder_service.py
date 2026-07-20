@@ -103,9 +103,15 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     # (四) 检查结果
     commands.append(_heading_small("（四）检查结果"))
     result = insp.get("result", {})
+    evidence_numbers = [
+        str(item.get("evidence_number")).strip()
+        for item in evidence_list
+        if item.get("evidence_number")
+    ]
+    evidence_label = "、".join(evidence_numbers) or result.get("evidence_number", "")
     disc = attach.get("disc_number", "")
     result_text = (
-        "经对编号为" + result.get("evidence_number", "") + "号检材使用"
+        "经对编号为" + evidence_label + "号检材使用"
         + result.get("software_name", "") + "（版本号为"
         + result.get("software_version", "") + "）进行检查，检出"
         + normalize_data_summary(result.get("data_summary")) + "等电子数据。"
