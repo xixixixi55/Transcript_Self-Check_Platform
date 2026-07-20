@@ -61,6 +61,25 @@ def _report(data_summary_marker=...):
     }
 
 
+def _manifest(count=3):
+    return {
+        "manifest_id": "trusted-synthetic-manifest",
+        "validation_status": "validated",
+        "parts": [
+            {
+                "part_id": f"part-{index}",
+                "part_number": index,
+                "filename": f"synthetic.part{index}.rar",
+                "size_bytes": index * 100,
+                "md5": f"{index:032x}",
+                "disc_number": f"GP20260706-{index:02d}",
+                "disc_date": "2026-07-06",
+            }
+            for index in range(1, count + 1)
+        ],
+    }
+
+
 @pytest.mark.parametrize("value", [None, "", "   "])
 def test_data_summary_blank_values_use_fixed_default(value):
     report = _report(value)
@@ -98,6 +117,37 @@ def test_fill_template_combines_all_evidence_numbers_in_result_sentence(tmp_path
 
     assert "经对编号为JC01、JC02号检材使用测试工具" in document_xml
     assert "；经对编号为JC02号检材" not in document_xml
+
+
+def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
+    report = _report()
+    report["introduction"]["evidence_list"] = [
+        {"evidence_number": "JC-A", "device_type": "测试手机"},
+        {"evidence_number": "JC-B", "device_type": "测试手机"},
+        {"evidence_number": "JC-C", "device_type": "测试手机"},
+    ]
+    report["inspection"]["primary_software"] = {
+        "name": "已确认取证软件",
+        "version": "3.2",
+        "confirmation_status": "confirmed_by_report",
+    }
+    report["inspection"]["software_tools"] = [
+        {"name": "WinRAR压缩管理软件", "version": "6.24"},
+        {"name": "Python hashlib", "version": "3.12"},
+    ]
+    output = tmp_path / "manifest-result.docx"
+    fill_template(report, str(_TEMPLATE), str(output), [], _manifest())
+
+    with zipfile.ZipFile(output) as package:
+        document_xml = package.read("word/document.xml").decode("utf-8")
+
+    assert "经对编号为JC-A、JC-B、JC-C号检材使用已确认取证软件（版本号为3.2）" in document_xml
+    for index in range(1, 4):
+        assert f"synthetic.part{index}.rar" in document_xml
+        assert f"文件大小为“{index * 100}”字节" in document_xml
+        assert f"GP20260706-{index:02d}" in document_xml
+    assert "case.rar" not in document_xml
+    assert "client-value.rar" not in document_xml
 
 
 def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path):
@@ -165,6 +215,16 @@ def test_generated_docx_removes_comments_and_nonessential_metadata(tmp_path):
     assert "lastPrinted" not in core_values
     assert "subject" not in core_values
     assert "keywords" not in core_values
+
+    w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    for name, xml in xml_parts.items():
+        if not name.startswith("word/") or not name.endswith(".xml"):
+            continue
+        root = ET.fromstring(xml)
+        for run in root.findall(".//{%s}r" % w_ns):
+            color = run.find("./{%s}rPr/{%s}color" % (w_ns, w_ns))
+            assert color is not None
+            assert color.get("{%s}val" % w_ns) == "000000"
 
 
 def _write_png(path: Path, width: int, height: int, color=(50, 120, 200)):

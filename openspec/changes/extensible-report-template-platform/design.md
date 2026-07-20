@@ -210,9 +210,9 @@ DiscSequence { firstNumber, issueDate, numericWidth, partNumbers[], formattedNum
 
 ```text
 Attachment1Plan {
-  pages: [{ pageIndex, pageKind: "archive_rows",
+  pages: [{ pageIndex, pageKind: "archive_rows" | "inspector_final",
             showLabel, showHeader, rows[], sourceBox, extractionBox,
-            keepTogether }]
+            signatureBlankRowCount, keepTogether }]
 }
 PhotoPagePlan {
   pages: [{ pageIndex, layout: "two-centered" | "grid-2x2",
@@ -225,11 +225,12 @@ MaterialPhotoGroup {
   images: [orderedImage1, orderedImage2], sourceOrder
 }
 Attachment3Plan {
-  pages: [{ pageIndex, showLabel, partId, filename, md5, discNumber, burningDate }]
+  pages: [{ pageIndex, showLabel, partId, filename, sizeBytes, md5,
+            discNumber, burningDate }]
 }
 ```
 
-附件规划器只接收 final manifest、canonical case、光盘序列和审核后的显式 photo group manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式按页生成，最后一张附件一表格复制模板固定手写行，不写入动态检查人员，也不创建人员专用页或人员数量错误。正文检查人员仍由有序 `InspectorSnapshot[]` 动态生成。附件二零张不生成附件二页面；有图片时先按 `MaterialPhotoGroup` 保持检材顺序，再按每页最多两组分页：一组为两张图片左右居中，两组为两行两列且每组图片左右相邻；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
+附件规划器只接收 final manifest、canonical case、光盘序列和审核后的显式 photo group manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式按数据页生成。`signatureBlankRowCount` 由规划器明确写入：总分卷数为1时最后页为2，总分卷数为2时最后页为1，总分卷数至少3时所有页面为0；数据页恰好四行时追加一个不含分卷行的 `inspector_final` 页面且其值为0。因此 1、2、3、4、5、6、8、9 个分卷的数据页分别为 `[1]`、`[2]`、`[3]`、`[4]`、`[4,1]`、`[4,2]`、`[4,4]`、`[4,4,1]`，其中满四行数据页后的签字页单独计入附件一页数。固定手写行不写入动态检查人员，正文检查人员仍由有序 `InspectorSnapshot[]` 动态生成。正式检查结果由同一个 manifest-driven `AttachmentPlan` 提供有序检材编号和全部 part 的文件名、MD5、实际大小及光盘编号；Renderer 不得使用报告中的单个旧分卷字段覆盖 manifest。附件二零张不生成附件二页面；有图片时先按 `MaterialPhotoGroup` 保持检材顺序，再按每页最多两组分页：一组为两张图片左右居中，两组为两行两列且每组图片左右相邻；单组续页通过当前模板分页锚点的显式 after spacing 将图片组垂直居中，不依赖 Word 自动挤压或随机空段落；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
 
 ### `DocumentRenderPlan` and `TemplateProfile`
 
@@ -309,7 +310,7 @@ ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端�
 
 #### 当前模板的附件分页与固定手写区域
 
-`Attachment1PagePlan` 只规划 `archive_rows`。附件一最后一页复制甲方认可模板的固定手写行（包括原始文字、单元格、合并、边框、字体、字号和留白），不写入 `InspectorSnapshot[]`，也不生成 `inspector_final` 页面或人员容量错误。为完整保留该固定行，当前模板按最后一页最多放一个分卷行规划序号：1、2、4、5、8、9 个分卷分别为 `[1]`、`[1,1]`、`[3,1]`、`[4,1]`、`[4,3,1]`、`[4,4,1]`。正文“（八）检查人员”仍由有序快照动态生成。
+`Attachment1PagePlan` 规划 `archive_rows` 和必要的 `inspector_final`。附件一固定手写行复制甲方认可模板的原始文字、单元格、合并、边框、字体、字号和留白，不写入 `InspectorSnapshot[]`。`signatureBlankRowCount` 由规划器决定，Renderer 只按该值复制模板空白行：总分卷数至少3时始终为0；若总分卷数为1或2，最后数据页分别为2或1。若最后一个数据页恰好四条，则追加独立且无空白行的 `inspector_final` 页面。正文“（八）检查人员”仍由有序快照动态生成。
 
 章节起页唯一由 `AttachmentPlan → Renderer` 负责：摘要、附件一、存在图片时的附件二、附件三各自从新页开始；无图片时跳过附件二且附件三仍命名为“附件3”。每个边界只保留一个明确分页动作，不叠加模板残留分页符、`pageBreakBefore`、空段落撑页或重复分页。附件一续页不重复“附件1”和“电子数据提取固定清单”，附件三续页不重复标题。
 

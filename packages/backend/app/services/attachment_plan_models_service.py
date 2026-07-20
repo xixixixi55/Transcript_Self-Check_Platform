@@ -5,11 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+ARCHIVE_ROWS_PAGE_KIND = "archive_rows"
+INSPECTOR_FINAL_PAGE_KIND = "inspector_final"
+
+
 @dataclass(frozen=True)
 class AttachmentPartRow:
     part_id: str
     part_number: int
     filename: str
+    size_bytes: int
     md5: str
 
 
@@ -28,6 +33,7 @@ class Attachment1PagePlan:
     serial_rows: tuple[AttachmentPartRow, ...]
     source_text: str
     extraction_method: str
+    signature_blank_row_count: int
 
 
 @dataclass(frozen=True)
@@ -86,6 +92,7 @@ class Attachment3PagePlan:
     part_id: str
     part_number: int
     filename: str
+    size_bytes: int
     md5: str
     disc_number: str
     burning_date: str

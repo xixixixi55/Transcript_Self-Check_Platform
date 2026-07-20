@@ -78,7 +78,7 @@ def fill_template(report: dict, template_path: str, output_path: str,
 
     # 3. 替换简单 {{key}} 占位符
     _replace_placeholders(doc, flat)
-    _update_inspection_result(doc, report, flat)
+    _update_inspection_result(doc, report, flat, plan)
 
     # 3.5 替换页眉/页脚占位符
     _replace_header_footer(doc, flat)
@@ -125,6 +125,13 @@ def _format_plan_date(value: str) -> str:
 
 def _update_attachment_summary(doc: Document, plan) -> None:
     """Write the disc summary from the validated manifest-derived plan."""
+    attachment1_summary = (
+        f"1、电子数据提取固定清单，共{len(plan.attachment1_pages)}页；"
+    )
+    for paragraph in doc.paragraphs:
+        if "1、电子数据提取固定清单" in paragraph.text:
+            _replace_paragraph_text(paragraph, attachment1_summary)
+            break
     photo_summary = (
         f"2、检材图{plan.attachment2_state.photo_count}张，"
         f"共{len(plan.attachment2_pages)}页；"
@@ -153,29 +160,64 @@ def _update_attachment_summary(doc: Document, plan) -> None:
             return
 
 
-def _update_inspection_result(doc: Document, report: dict, flat: dict) -> None:
-    """Render one result sentence with the reviewed evidence list."""
-    evidence_numbers = [
-        str(item.get("evidence_number")).strip()
+def _update_inspection_result(
+    doc: Document, report: dict, flat: dict, plan=None,
+) -> None:
+    """Render the reviewed materials and trusted manifest part details."""
+    evidence_numbers = _ordered_unique(
+        item.get("evidence_number")
         for item in (report.get("introduction") or {}).get("evidence_list") or []
-        if isinstance(item, Mapping) and item.get("evidence_number")
-    ]
-    if len(evidence_numbers) < 2:
+        if isinstance(item, Mapping)
+    )
+    if not evidence_numbers:
         return
     evidence_label = "、".join(evidence_numbers)
-    result_text = (
-        f"经对编号为{evidence_label}号检材使用{flat['software_name']}（版本号为"
-        f"{flat['software_version']}）进行检查，检出{flat['data_summary']}等电子数据。"
-        + f"将检出结果生成为“{flat['rar_filename']}”文件，"
-        + f"文件MD5哈希值为“{flat['md5_hash']}”，"
-        + f"文件大小为“{flat['file_size']}”字节。"
+    primary = (report.get("inspection") or {}).get("primary_software")
+    software_name = (
+        str(primary.get("name")).strip()
+        if isinstance(primary, Mapping) and primary.get("name")
+        else flat["software_name"]
     )
-    if flat.get("disc_number"):
-        result_text += f"结果以封盘方式刻录在编号为“{flat['disc_number']}”的光盘中。"
+    software_version = (
+        str(primary.get("version")).strip()
+        if isinstance(primary, Mapping) and primary.get("version")
+        else flat["software_version"]
+    )
+    result_text = (
+        f"经对编号为{evidence_label}号检材使用{software_name}（版本号为"
+        f"{software_version}）进行检查，检出{flat['data_summary']}等电子数据。"
+    )
+    if plan is None:
+        result_text += (
+            f"将检出结果生成为“{flat['rar_filename']}”文件，"
+            f"文件MD5哈希值为“{flat['md5_hash']}”，"
+            f"文件大小为“{flat['file_size']}”字节。"
+        )
+        if flat.get("disc_number"):
+            result_text += f"结果以封盘方式刻录在编号为“{flat['disc_number']}”的光盘中。"
+    else:
+        parts = plan.attachment3_pages
+        part_text = "；".join(
+            f"“{part.filename}”文件，文件MD5哈希值为“{part.md5}”，"
+            f"文件大小为“{part.size_bytes}”字节"
+            for part in parts
+        )
+        disc_numbers = _ordered_unique(part.disc_number for part in parts)
+        result_text += f"将检出结果生成为{part_text}。"
+        result_text += f"结果以封盘方式刻录在编号为“{'、'.join(disc_numbers)}”的光盘中。"
     for paragraph in doc.paragraphs:
         if "经对编号为" in paragraph.text:
             _replace_paragraph_text(paragraph, result_text)
             return
+
+
+def _ordered_unique(values) -> list[str]:
+    result = []
+    for value in values:
+        text = "" if value is None else str(value).strip()
+        if text and text not in result:
+            result.append(text)
+    return result
 
 
 def _replace_paragraph_text(paragraph: Any, value: str) -> None:
@@ -227,9 +269,11 @@ def _flatten_report(report: dict) -> dict:
     attach = report.get("attachments", {})
     evidence_list = intro.get("evidence_list", [])
     evidence_numbers = tuple(
-        str(item.get("evidence_number")).strip()
-        for item in evidence_list
-        if isinstance(item, Mapping) and item.get("evidence_number")
+        _ordered_unique(
+            item.get("evidence_number")
+            for item in evidence_list
+            if isinstance(item, Mapping)
+        )
     )
 
     # 软件工具合并格式文本

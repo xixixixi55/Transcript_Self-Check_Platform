@@ -17,6 +17,7 @@ def report():
             "inspector_snapshots": [],
         },
         "inspection": {
+            "hardware_device": "测试设备",
             "primary_software": {
                 "name": "主取证软件", "version": "1.0",
                 "confirmation_status": "confirmed_by_report",
@@ -42,11 +43,13 @@ def manifest():
             {
                 "part_id": "part-1", "part_number": 1,
                 "filename": "server.part1.rar", "md5": "1" * 32,
+                "size_bytes": 100,
                 "disc_number": "GP20260706-01", "disc_date": "2026-07-06",
             },
             {
                 "part_id": "part-2", "part_number": 2,
                 "filename": "server.part2.rar", "md5": "2" * 32,
+                "size_bytes": 200,
                 "disc_number": "GP20260706-02", "disc_date": "2026-07-06",
             },
         ],

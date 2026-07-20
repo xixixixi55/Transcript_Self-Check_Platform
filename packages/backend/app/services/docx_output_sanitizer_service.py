@@ -11,6 +11,10 @@ from pathlib import Path
 from lxml import etree
 
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_RPR_QN = f"{{{_W_NS}}}rPr"
+_RUN_QN = f"{{{_W_NS}}}r"
+_COLOR_QN = f"{{{_W_NS}}}color"
+_COLOR_VALUE_QN = f"{{{_W_NS}}}val"
 _CP_NS = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
 _DC_NS = "http://purl.org/dc/elements/1.1/"
 _DCTERMS_NS = "http://purl.org/dc/terms/"
@@ -27,6 +31,20 @@ _COMMENT_NAMES = {
     "commentRangeEnd",
     "commentReference",
 }
+_RPR_CHILD_ORDER = {
+    name: index
+    for index, name in enumerate(
+        (
+            "rStyle", "rFonts", "b", "bCs", "i", "iCs", "caps", "smallCaps",
+            "strike", "dStrike", "outline", "shadow", "emboss", "imprint",
+            "noProof", "snapToGrid", "vanish", "webHidden", "color", "spacing",
+            "w", "kern", "position", "sz", "szCs", "highlight", "u", "effect",
+            "bdr", "shd", "fitText", "vertAlign", "rtl", "cs", "em", "lang",
+            "eastAsianLayout", "specVanish", "oMath", "rPrChange",
+        )
+    )
+}
+_COLOR_ORDER = _RPR_CHILD_ORDER["color"]
 
 
 def sanitize_generated_docx(path: str | Path) -> None:
@@ -61,6 +79,8 @@ def _sanitize_xml_parts(parts: dict[str, bytes]) -> dict[str, bytes]:
 
     for name, root in parsed.items():
         if name.endswith(".xml"):
+            if name.startswith("word/"):
+                _normalize_font_colors(root)
             _remove_comment_markers(root)
             if name == "[Content_Types].xml":
                 _remove_content_type_overrides(root)
@@ -77,6 +97,33 @@ def _sanitize_xml_parts(parts: dict[str, bytes]) -> dict[str, bytes]:
         if name in parsed:
             parts[name] = etree.tostring(parsed[name], encoding="UTF-8", xml_declaration=True)
     return parts
+
+
+def _normalize_font_colors(root: etree._Element) -> None:
+    """Make visible WordprocessingML run colors black in the output copy."""
+    for rpr in root.iter(_RPR_QN):
+        _set_black_color(rpr)
+    for run in root.iter(_RUN_QN):
+        if run.find(_RPR_QN) is None:
+            rpr = etree.Element(_RPR_QN)
+            run.insert(0, rpr)
+            _set_black_color(rpr)
+
+
+def _set_black_color(rpr: etree._Element) -> None:
+    for child in list(rpr):
+        if child.tag == _COLOR_QN:
+            rpr.remove(child)
+
+    color = etree.Element(_COLOR_QN)
+    color.set(_COLOR_VALUE_QN, "000000")
+    insert_at = len(rpr)
+    for index, child in enumerate(rpr):
+        child_order = _RPR_CHILD_ORDER.get(_local_name(child.tag), len(_RPR_CHILD_ORDER))
+        if child_order > _COLOR_ORDER:
+            insert_at = index
+            break
+    rpr.insert(insert_at, color)
 
 
 def _remove_comment_markers(root: etree._Element) -> None:

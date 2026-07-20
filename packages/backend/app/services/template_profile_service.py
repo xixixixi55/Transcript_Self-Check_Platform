@@ -44,6 +44,7 @@ class CurrentTemplateProfile:
     attachment2_slot_width_emu: int = ATTACHMENT2_SLOT_WIDTH_EMU
     attachment2_slot_height_emu: int = ATTACHMENT2_SLOT_HEIGHT_EMU
     attachment2_slot_row_height_twips: int = 4263
+    attachment2_single_group_center_after_twips: int = 3925
     attachment2_slot_count: int = 2
     attachment2_slot_columns: int = 2
     attachment2_two_image_table_columns: int = 1

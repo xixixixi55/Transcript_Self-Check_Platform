@@ -131,6 +131,7 @@ def manifest(count):
             {
                 "part_id": f"part-{index}", "part_number": index,
                 "filename": f"server.part{index}.rar", "md5": f"{index:032x}",
+                "size_bytes": index * 100,
                 "disc_number": f"GP20260706-{index:02d}", "disc_date": "2026-07-06",
             }
             for index in range(1, count + 1)
@@ -186,7 +187,8 @@ def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
     page_breaks = root.findall(".//{%s}br" % W_NS)
     assert any(br.get("{%s}type" % W_NS) == "page" for br in page_breaks)
     tables = attachment_tables(root)
-    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 5]
+    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 2]
+    assert "1、电子数据提取固定清单，共2页；" in text
     assert "人员0" not in "".join("".join(node.itertext()) for node in tables[-1].iter())
     signature = "".join("".join(node.itertext()) for node in tables[-1].findall("./{%s}tr" % W_NS)[-1].iter())
     assert "检查人员" in signature and "盖章" in signature
@@ -196,7 +198,13 @@ def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
     )
 
 
-@pytest.mark.parametrize(("count", "table_rows"), [(1, [6]), (4, [4, 5]), (8, [5, 3, 5]), (9, [5, 4, 5])])
+@pytest.mark.parametrize(
+    ("count", "table_rows"),
+    [
+        (1, [5]), (3, [5]), (4, [5, 1]), (5, [5, 2]),
+        (6, [5, 3]), (8, [5, 4, 1]), (9, [5, 4, 2]),
+    ],
+)
 def test_attachment1_final_page_keeps_template_signature_row(tmp_path, count, table_rows):
     output = tmp_path / f"attachment-{count}.docx"
     fill_template(report(20), str(TEMPLATE), str(output), [], manifest(count))
@@ -207,6 +215,73 @@ def test_attachment1_final_page_keeps_template_signature_row(tmp_path, count, ta
     final_text = "".join("".join(node.itertext()) for node in tables[-1].iter())
     assert "检查人员" in final_text
     assert "盖章" in final_text
+
+
+def test_attachment1_three_rows_match_customer_font_baseline(tmp_path):
+    output = tmp_path / "attachment-1-three.docx"
+    fill_template(report(), str(TEMPLATE), str(output), [], manifest(3))
+    table = attachment_tables(document_root(output))[0]
+    rows = table.findall("./{%s}tr" % W_NS)
+    assert len(rows) == 5
+    expected = [
+        ("\u6977\u4f53", "32"),
+        ("\u4eff\u5b8b_GB2312", "32"),
+        ("\u4eff\u5b8b_GB2312", "32"),
+        ("\u4eff\u5b8b_GB2312", "22"),
+        ("\u4eff\u5b8b_GB2312", "32"),
+    ]
+    cells = rows[1].findall("./{%s}tc" % W_NS)
+    for cell, (east_asia, size) in zip(cells, expected):
+        run = cell.find(".//{%s}r" % W_NS)
+        r_pr = run.find("./{%s}rPr" % W_NS)
+        fonts = r_pr.find("./{%s}rFonts" % W_NS)
+        assert fonts.get("{%s}eastAsia" % W_NS) == east_asia
+        assert r_pr.find("./{%s}sz" % W_NS).get("{%s}val" % W_NS) == size
+    assert "\u68c0\u67e5\u4eba\u5458" in "".join(rows[-1].itertext())
+
+
+def test_attachment1_four_rows_put_signature_on_new_page(tmp_path):
+    output = tmp_path / "attachment-1-four.docx"
+    fill_template(report(), str(TEMPLATE), str(output), [], manifest(4))
+    tables = attachment_tables(document_root(output))
+    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 1]
+    first_text = "".join(tables[0].itertext())
+    second_text = "".join(tables[1].itertext())
+    assert "server.part4.rar" in first_text
+    assert "\u68c0\u67e5\u4eba\u5458" not in first_text
+    assert "\u68c0\u67e5\u4eba\u5458" in second_text
+
+
+def test_attachment1_six_rows_use_one_blank_row_before_signature(tmp_path):
+    output = tmp_path / "attachment-1-six.docx"
+    fill_template(report(), str(TEMPLATE), str(output), [], manifest(6))
+    tables = attachment_tables(document_root(output))
+    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 3]
+    second_rows = tables[1].findall("./{%s}tr" % W_NS)
+    assert "server.part5.rar" in "".join(second_rows[0].itertext())
+    assert "server.part6.rar" in "".join(second_rows[1].itertext())
+    assert "\u68c0\u67e5\u4eba\u5458" in "".join(second_rows[2].itertext())
+
+
+@pytest.mark.parametrize(("count", "max_end_y"), [(1, 100), (2, 50)])
+def test_attachment1_blank_diagonal_stays_inside_blank_rows(tmp_path, count, max_end_y):
+    output = tmp_path / f"attachment-{count}-diagonal.docx"
+    fill_template(report(), str(TEMPLATE), str(output), [], manifest(count))
+    table = attachment_tables(document_root(output))[-1]
+    rows = table.findall("./{%s}tr" % W_NS)
+    lines = table.findall(".//{%s}line" % V_NS)
+
+    assert len(lines) == 1
+    end_y = float(lines[0].get("to").rsplit(",", 1)[1].removesuffix("pt"))
+    assert end_y < max_end_y
+    assert not rows[-1].findall(".//{%s}line" % V_NS)
+
+
+def test_attachment1_three_rows_do_not_copy_blank_diagonal(tmp_path):
+    output = tmp_path / "attachment-3-no-diagonal.docx"
+    fill_template(report(), str(TEMPLATE), str(output), [], manifest(3))
+    table = attachment_tables(document_root(output))[0]
+    assert not table.findall(".//{%s}line" % V_NS)
 
 
 def test_body_keeps_dynamic_inspector_snapshots_but_attachment1_does_not(tmp_path):
@@ -381,6 +456,27 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
         ["检材JC-A照片"] if photo_count == 2
         else ["检材JC-A照片", "检材JC-B照片"]
     )
+
+
+def test_three_material_attachment2_centers_single_group_continuation(tmp_path):
+    current_report = report_with_photo_count(6)
+    set_photo_ids(current_report, [f"center-three-{index}" for index in range(6)])
+    paths = []
+    for index in range(6):
+        path = tmp_path / f"center-three-{index}.png"
+        path.write_bytes(png_bytes(700 + index, 500 + index))
+        paths.append(str(path))
+    output = tmp_path / "attachment-2-three-materials.docx"
+    fill_template(current_report, str(TEMPLATE), str(output), paths, manifest(1))
+    root = document_root(output)
+    tables = attachment2_tables(root)
+    assert len(tables) == 2
+    assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[0].findall("./{%s}tr" % W_NS)] == [2, 1, 2, 1]
+    assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[1].findall("./{%s}tr" % W_NS)] == [1, 1]
+    body = root.find("./{%s}body" % W_NS)
+    previous = list(body)[list(body).index(tables[1]) - 1]
+    spacing = previous.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS))
+    assert spacing.get("{%s}after" % W_NS) == str(current_template_profile().attachment2_single_group_center_after_twips)
 
 
 def test_attachment2_continuation_titles_are_empty_break_paragraphs(tmp_path):

@@ -59,7 +59,12 @@ def render_attachment2(
     nodes: list[Any] = []
     used_drawing_ids = existing_drawing_ids(body)
     for page_index, page in enumerate(plan.attachment2_pages):
-        nodes.append(label2 if page_index == 0 else clone_page_break(page_break_anchor))
+        page_break = label2 if page_index == 0 else clone_page_break(page_break_anchor)
+        if page.layout == "two_centered":
+            _set_single_group_center_spacing(
+                page_break, profile.attachment2_single_group_center_after_twips,
+            )
+        nodes.append(page_break)
         nodes.append(_build_page_table(
             doc, page, assets, profile, used_drawing_ids,
             preserved_caption, page.inspection_result_material_numbers,
@@ -206,6 +211,16 @@ def _validate_assets(plan: AttachmentPlan, assets: Sequence[Attachment2PhotoAsse
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件二图片顺序计划无效。")
     for page in plan.attachment2_pages:
         _page_grid(page)
+
+
+def _set_single_group_center_spacing(paragraph: Any, after_twips: int) -> None:
+    p_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
+    if p_pr is None:
+        raise TemplateProfileError("当前模板附件二分页锚点缺少段落属性。")
+    spacing = p_pr.find("./%s" % qn(W_NS, "spacing"))
+    if spacing is None:
+        raise TemplateProfileError("当前模板附件二分页锚点缺少行距属性。")
+    spacing.set(qn(W_NS, "after"), str(after_twips))
 
 
 __all__ = ["render_attachment2"]

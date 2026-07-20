@@ -36,6 +36,7 @@ def report(inspector_count=2, evidence_numbers=None, photo_ids=None, photo_group
             ],
         },
         "inspection": {
+            "hardware_device": "测试设备",
             "primary_software": {
                 "name": "主取证软件", "version": "1.0",
                 "confirmation_status": "confirmed_by_user",
@@ -57,6 +58,7 @@ def manifest(count, *, start=1):
             {
                 "part_id": f"part-{number}", "part_number": number,
                 "filename": f"case.part{number}.rar",
+                "size_bytes": number * 100,
                 "md5": f"{number:032x}",
                 "disc_number": f"GP20260706-{start + number - 1:02d}",
                 "disc_date": "2026-07-06",
@@ -67,16 +69,28 @@ def manifest(count, *, start=1):
 
 
 @pytest.mark.parametrize(
-    ("count", "row_counts"),
-    [(1, [1]), (2, [1, 1]), (4, [3, 1]), (5, [4, 1]),
-     (8, [4, 3, 1]), (9, [4, 4, 1])],
+    ("count", "row_counts", "page_kinds"),
+    [
+        (1, [1], ["archive_rows"]),
+        (2, [2], ["archive_rows"]),
+        (3, [3], ["archive_rows"]),
+        (4, [4, 0], ["archive_rows", "inspector_final"]),
+        (5, [4, 1], ["archive_rows", "archive_rows"]),
+        (8, [4, 4, 0], ["archive_rows", "archive_rows", "inspector_final"]),
+        (9, [4, 4, 1], ["archive_rows", "archive_rows", "archive_rows"]),
+    ],
 )
-def test_attachment1_reserves_final_template_signature_row(count, row_counts):
+def test_attachment1_uses_manifest_rows_with_four_row_page_limit(
+    count, row_counts, page_kinds,
+):
     plan = build_attachment_plan(manifest(count), report(0))
     assert [len(page.serial_rows) for page in plan.attachment1_pages] == row_counts
     rows = [row for page in plan.attachment1_pages for row in page.serial_rows]
     assert [row.part_number for row in rows] == list(range(1, count + 1))
-    assert all(page.page_kind == "archive_rows" for page in plan.attachment1_pages)
+    assert [page.page_kind for page in plan.attachment1_pages] == page_kinds
+    assert [page.signature_blank_row_count for page in plan.attachment1_pages] == (
+        [2] if count == 1 else [1] if count == 2 else [0] * len(row_counts)
+    )
     assert [page.show_attachment_title for page in plan.attachment1_pages] == [True] + [False] * (len(row_counts) - 1)
     assert plan.attachment_summary.inspection_date == "2026-07-06"
 
@@ -84,9 +98,8 @@ def test_attachment1_reserves_final_template_signature_row(count, row_counts):
 def test_attachment1_has_complete_source_and_method_on_every_page():
     plan = build_attachment_plan(manifest(5), report(20, ["JC-A", "", "JC-A", "JC-B"]))
     assert all(page.source_text == "JC-A、JC-B内提取" for page in plan.attachment1_pages)
-    assert all("主取证软件" in page.extraction_method for page in plan.attachment1_pages)
-    assert all("WinRAR压缩管理软件" in page.extraction_method for page in plan.attachment1_pages)
-    assert all("Python hashlib" in page.extraction_method for page in plan.attachment1_pages)
+    assert all("使用测试设备对检材进行检查" in page.extraction_method for page in plan.attachment1_pages)
+    assert all("将检出数据生成报告" in page.extraction_method for page in plan.attachment1_pages)
 
 
 @pytest.mark.parametrize("inspector_count", [0, 1, 4, 5, 8, 20, 21])
@@ -95,6 +108,12 @@ def test_inspectors_do_not_change_attachment1_plan_or_create_overflow(inspector_
     assert [len(page.serial_rows) for page in plan.attachment1_pages] == [4, 1]
     assert all(page.page_kind == "archive_rows" for page in plan.attachment1_pages)
     assert not any(page.page_kind == "inspector_final" for page in plan.attachment1_pages)
+
+
+def test_four_manifest_rows_reserve_a_new_signature_page():
+    plan = build_attachment_plan(manifest(4), report(0))
+    assert [len(page.serial_rows) for page in plan.attachment1_pages] == [4, 0]
+    assert plan.attachment1_pages[-1].page_kind == "inspector_final"
 
 
 def test_attachment3_is_one_page_per_manifest_part_and_uses_manifest_values():
@@ -106,6 +125,7 @@ def test_attachment3_is_one_page_per_manifest_part_and_uses_manifest_values():
         "case.part1.rar", "case.part2.rar", "case.part3.rar",
     ]
     assert [page.md5 for page in plan.attachment3_pages] == [f"{i:032x}" for i in (1, 2, 3)]
+    assert [page.size_bytes for page in plan.attachment3_pages] == [100, 200, 300]
     assert [page.disc_number for page in plan.attachment3_pages] == [
         "GP20260706-01", "GP20260706-02", "GP20260706-03",
     ]
@@ -146,6 +166,7 @@ def test_old_attachment_fields_cannot_replace_manifest_values():
     row = plan.attachment1_pages[0].serial_rows[0]
     assert row.filename == "case.part1.rar"
     assert row.md5 == "00000000000000000000000000000001"
+    assert row.size_bytes == 100
 
 
 @pytest.mark.parametrize("photo_count", [0, 2, 4, 6, 8, 10])

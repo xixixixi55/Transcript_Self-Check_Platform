@@ -5,9 +5,10 @@ from __future__ import annotations
 import copy
 from typing import Any, Mapping
 
+from lxml import etree
+
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 V_NS = "urn:schemas-microsoft-com:vml"
-
 
 def qn(namespace: str, local: str) -> str:
     return "{%s}%s" % (namespace, local)
@@ -44,6 +45,33 @@ def set_cell_text(cell: Any, value: str) -> None:
         node.text = ""
     for paragraph in paragraphs[1:]:
         clear_text(paragraph)
+
+
+def set_element_font(element: Any, east_asia: str, size_half_points: int) -> None:
+    """Apply an explicit East Asia font and size to all runs in an OOXML element."""
+    for run in element.findall(".//%s" % qn(W_NS, "r")):
+        r_pr = run.find("./%s" % qn(W_NS, "rPr"))
+        if r_pr is None:
+            r_pr = etree.Element(qn(W_NS, "rPr"))
+            run.insert(0, r_pr)
+        r_fonts = r_pr.find("./%s" % qn(W_NS, "rFonts"))
+        if r_fonts is None:
+            r_fonts = etree.Element(qn(W_NS, "rFonts"))
+            r_pr.insert(0, r_fonts)
+        for local in ("asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme"):
+            r_fonts.attrib.pop(qn(W_NS, local), None)
+        for local, value in (
+            ("ascii", "Times New Roman"),
+            ("hAnsi", "Times New Roman"),
+            ("eastAsia", east_asia),
+            ("cs", east_asia),
+        ):
+            r_fonts.set(qn(W_NS, local), value)
+        for local in ("sz", "szCs"):
+            size = r_pr.find("./%s" % qn(W_NS, local))
+            if size is None:
+                size = etree.SubElement(r_pr, qn(W_NS, local))
+            size.set(qn(W_NS, "val"), str(size_half_points))
 
 
 def set_paragraph_text(element: Any, value: str) -> None:
@@ -96,6 +124,38 @@ def set_vertical_merge(cell: Any, restart: bool) -> None:
 def clear_table_rows(table: Any) -> None:
     for row in table.findall("./%s" % qn(W_NS, "tr")):
         table.remove(row)
+
+
+def trim_vml_line_vertical_span(region: Any, retained_rows: int, template_rows: int) -> None:
+    """Keep a copied blank-row diagonal inside the rows retained on the page."""
+    if retained_rows <= 0 or template_rows <= 0:
+        return
+    ratio = min(retained_rows, template_rows) / template_rows
+    for line in region.findall(".//%s" % qn(V_NS, "line")):
+        start = line.get("from")
+        end = line.get("to")
+        if not start or not end or "," not in start or "," not in end:
+            continue
+        start_y = _vml_point_y(start)
+        end_y = _vml_point_y(end)
+        if start_y is None or end_y is None:
+            continue
+        line.set("to", _replace_vml_point_y(end, start_y + (end_y - start_y) * ratio))
+
+
+def _vml_point_y(value: str) -> float | None:
+    y_value = value.rsplit(",", 1)[-1].strip()
+    unit = y_value[-2:] if y_value[-2:].isalpha() else ""
+    try:
+        return float(y_value.strip()[:-len(unit)] if unit else y_value.strip())
+    except (IndexError, ValueError):
+        return None
+
+
+def _replace_vml_point_y(value: str, y_value: float) -> str:
+    x_value, y_text = value.rsplit(",", 1)
+    unit = y_text.strip()[-2:] if y_text.strip()[-2:].isalpha() else ""
+    return "%s,%g%s" % (x_value, y_value, unit)
 
 
 def replace_vml_text(region: Any, values: Mapping[str, str], filename: str | None = None) -> None:

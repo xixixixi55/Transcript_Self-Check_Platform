@@ -8,7 +8,12 @@ from typing import Any, Mapping, Sequence
 
 from .attachment2_docx_renderer_service import render_attachment2
 from .attachment2_image_service import Attachment2PhotoAsset
-from .attachment_plan_models_service import Attachment1PagePlan, AttachmentPlan
+from .attachment_plan_models_service import (
+    ARCHIVE_ROWS_PAGE_KIND,
+    INSPECTOR_FINAL_PAGE_KIND,
+    Attachment1PagePlan,
+    AttachmentPlan,
+)
 from .docx_attachment_xml_service import (
     W_NS,
     clear_table_rows,
@@ -19,14 +24,15 @@ from .docx_attachment_xml_service import (
     replace_vml_text,
     set_paragraph_text,
     set_cell_text,
+    set_element_font,
     set_vertical_merge,
     text_of,
+    trim_vml_line_vertical_span,
 )
 from .template_profile_service import (
     CurrentTemplateProfile,
     TemplateProfileError,
 )
-
 
 def render_attachment_plan(
     doc: Any, plan: AttachmentPlan, profile: CurrentTemplateProfile,
@@ -64,9 +70,16 @@ def _render_attachment1(body: Any, label: Any, heading: Any, table: Any,
         nodes.append(label if page_index == 0 else clone_page_break(page_break_anchor))
         if page_index == 0:
             nodes.append(heading)
+        include_signature = (
+            page.page_kind == INSPECTOR_FINAL_PAGE_KIND
+            or (
+                page_index == len(plan.attachment1_pages) - 1
+                and page.page_kind == ARCHIVE_ROWS_PAGE_KIND
+            )
+        )
         nodes.append(_build_attachment1_table(
             original_table, template_rows, page, page_index == 0,
-            page_index == len(plan.attachment1_pages) - 1,
+            include_signature,
         ))
     for offset, node in enumerate(nodes):
         body.insert(start + offset, node)
@@ -74,8 +87,10 @@ def _render_attachment1(body: Any, label: Any, heading: Any, table: Any,
 
 def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1PagePlan,
                              include_header: bool, include_signature: bool) -> Any:
-    if page.page_kind != "archive_rows":
+    if page.page_kind not in {ARCHIVE_ROWS_PAGE_KIND, INSPECTOR_FINAL_PAGE_KIND}:
         raise TemplateProfileError("附件一页面类型不受 current-template-v1 支持。")
+    if page.page_kind == INSPECTOR_FINAL_PAGE_KIND and page.serial_rows:
+        raise TemplateProfileError("inspector final page cannot contain archive rows")
     table = copy.deepcopy(template)
     clear_table_rows(table)
     if include_header:
@@ -86,22 +101,31 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
         cells = row.findall("./%s" % qn(W_NS, "tc"))
         values = [str(item.part_number), item.filename, page.source_text,
                   page.extraction_method, item.md5]
-        for cell, value in zip(cells, values):
-            set_cell_text(cell, value)
+        for cell_index, (cell, value) in enumerate(zip(cells, values)):
+            _set_attachment1_cell_text(cell, value, cell_index)
         if len(cells) >= 4:
             set_vertical_merge(cells[2], index == 0)
             set_vertical_merge(cells[3], index == 0)
             if index:
-                set_cell_text(cells[2], "")
-                set_cell_text(cells[3], "")
+                _set_attachment1_cell_text(cells[2], "", 2)
+                _set_attachment1_cell_text(cells[3], "", 3)
         table.append(row)
     if include_signature:
-        for blank_row in rows[2:-1]:
-            table.append(copy.deepcopy(blank_row))
-        table.append(copy.deepcopy(rows[-1]))
+        blank_count = min(page.signature_blank_row_count, len(rows[2:-1]))
+        blank_copies = [copy.deepcopy(row) for row in rows[2:2 + blank_count]]
+        if blank_copies:
+            trim_vml_line_vertical_span(blank_copies[0], blank_count, len(rows[2:-1]))
+        table.extend(blank_copies)
+        signature_row = copy.deepcopy(rows[-1])
+        for cell in signature_row.findall("./%s" % qn(W_NS, "tc")):
+            set_element_font(cell, "仿宋_GB2312", 32)
+        table.append(signature_row)
     return table
-
-
+def _set_attachment1_cell_text(cell: Any, value: str, cell_index: int) -> None:
+    set_cell_text(cell, value)
+    east_asia = "楷体" if cell_index == 0 else "仿宋_GB2312"
+    size_half_points = 22 if cell_index == 3 else 32
+    set_element_font(cell, east_asia, size_half_points)
 def _render_attachment3(body: Any, label: Any, plan: AttachmentPlan,
                         report: Mapping[str, Any], end_anchor: str) -> None:
     children = body_children_from(body)

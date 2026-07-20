@@ -19,18 +19,19 @@ from .attachment2_plan_service import (
 from .attachment_plan_errors_service import AttachmentPlanError
 from .disc_sequence_service import parse_disc_sequence
 from .attachment_plan_models_service import (
+    ARCHIVE_ROWS_PAGE_KIND,
     Attachment1PagePlan,
     Attachment2State,
     Attachment3PagePlan,
     AttachmentPartRow,
     AttachmentPlan,
     AttachmentSummaryPlan,
+    INSPECTOR_FINAL_PAGE_KIND,
 )
 from .template_profile_service import current_template_profile
 
 PROFILE_ID = "current-template-v1"
 MAX_PART_ROWS_PER_PAGE = 4
-ARCHIVE_ROWS_PAGE_KIND = "archive_rows"
 _TEMPLATE_PROFILE = current_template_profile()
 _MD5_PATTERN = re.compile(r"^[0-9a-fA-F]{32}$")
 _CONFIRMED_SOFTWARE = {"confirmed", "confirmed_by_report", "confirmed_by_user"}
@@ -64,6 +65,7 @@ def build_attachment_plan(
             part_id=str(item["part_id"]),
             part_number=int(item["part_number"]),
             filename=str(item["filename"]),
+            size_bytes=int(item["size_bytes"]),
             md5=str(item["md5"]),
             disc_number=str(item["disc_number"]),
             burning_date=str(item["disc_date"]),
@@ -99,12 +101,16 @@ def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷结构无效。")
         number = item.get("part_number")
         filename = _text(item.get("filename"))
+        size_bytes = item.get("size_bytes")
         md5 = _text(item.get("md5"))
         disc_date = _text(item.get("disc_date"))
         if not isinstance(number, int) or isinstance(number, bool) or number < 1:
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷序号无效。")
         if not filename or _unsafe_filename(filename):
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档文件名无效。")
+        if (not isinstance(size_bytes, int) or isinstance(size_bytes, bool)
+                or size_bytes <= 0):
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷大小无效。")
         if not _MD5_PATTERN.fullmatch(md5):
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷 MD5 无效。")
         if not disc_date:
@@ -123,14 +129,15 @@ def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str
 
 
 def _attachment1_pages(rows, source_text, extraction_method):
-    if len(rows) <= 1:
-        page_rows = [rows]
-    else:
-        page_rows = [rows[index:min(index + MAX_PART_ROWS_PER_PAGE, len(rows) - 1)]
-                     for index in range(0, len(rows) - 1, MAX_PART_ROWS_PER_PAGE)]
-        page_rows.append(rows[-1:])
+    page_chunks = [rows[index:index + MAX_PART_ROWS_PER_PAGE]
+                   for index in range(0, len(rows), MAX_PART_ROWS_PER_PAGE)]
     pages = []
-    for index, page_rows in enumerate(page_rows, 1):
+    for index, page_rows in enumerate(page_chunks, 1):
+        is_last_data_page = index == len(page_chunks)
+        signature_blank_row_count = (
+            max(0, 3 - len(page_rows))
+            if is_last_data_page and len(rows) < 3 else 0
+        )
         pages.append(Attachment1PagePlan(
             page_number=index,
             page_kind=ARCHIVE_ROWS_PAGE_KIND,
@@ -138,6 +145,17 @@ def _attachment1_pages(rows, source_text, extraction_method):
             serial_rows=tuple(page_rows),
             source_text=source_text,
             extraction_method=extraction_method,
+            signature_blank_row_count=signature_blank_row_count,
+        ))
+    if len(rows) % MAX_PART_ROWS_PER_PAGE == 0:
+        pages.append(Attachment1PagePlan(
+            page_number=len(pages) + 1,
+            page_kind=INSPECTOR_FINAL_PAGE_KIND,
+            show_attachment_title=False,
+            serial_rows=(),
+            source_text=source_text,
+            extraction_method=extraction_method,
+            signature_blank_row_count=0,
         ))
     return pages
 
@@ -172,13 +190,15 @@ def _extraction_method(report: Mapping[str, Any]) -> str:
     hashlib_name = next((key for key in runtime if key.casefold() == "python hashlib"), None)
     if not winrar or not hashlib_name:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "归档工具来源未确认。")
-    return f"使用{name}（版本号为{version}）提取数据，使用{winrar}压缩，使用{hashlib_name}计算MD5值"
+    hardware = _text(inspection.get("hardware_device")) or "取证设备"
+    return f"使用{hardware}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值"
 
 
 def _part_row(item: Mapping[str, Any]) -> AttachmentPartRow:
     return AttachmentPartRow(
         part_id=str(item["part_id"]), part_number=int(item["part_number"]),
-        filename=str(item["filename"]), md5=str(item["md5"]),
+        filename=str(item["filename"]), size_bytes=int(item["size_bytes"]),
+        md5=str(item["md5"]),
     )
 
 def _unsafe_filename(value: str) -> bool:
