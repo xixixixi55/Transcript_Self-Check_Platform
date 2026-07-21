@@ -54,6 +54,7 @@ def manifest(count, *, start=1):
     return {
         "manifest_id": "manifest-synthetic",
         "validation_status": "validated",
+        "volume_size_bytes": 4_000_000_000,
         "parts": [
             {
                 "part_id": f"part-{number}", "part_number": number,
@@ -62,6 +63,8 @@ def manifest(count, *, start=1):
                 "md5": f"{number:032x}",
                 "disc_number": f"GP20260706-{start + number - 1:02d}",
                 "disc_date": "2026-07-06",
+                "disc_capacity_bytes": 4_000_000_000,
+                "volume_size_bytes": 4_000_000_000,
             }
             for number in range(1, count + 1)
         ],

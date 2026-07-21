@@ -39,18 +39,23 @@ def manifest():
     return {
         "manifest_id": "trusted-manifest",
         "validation_status": "validated",
+        "volume_size_bytes": 4_000_000_000,
         "parts": [
             {
                 "part_id": "part-1", "part_number": 1,
                 "filename": "server.part1.rar", "md5": "1" * 32,
                 "size_bytes": 100,
                 "disc_number": "GP20260706-01", "disc_date": "2026-07-06",
+                "disc_capacity_bytes": 4_000_000_000,
+                "volume_size_bytes": 4_000_000_000,
             },
             {
                 "part_id": "part-2", "part_number": 2,
                 "filename": "server.part2.rar", "md5": "2" * 32,
                 "size_bytes": 200,
                 "disc_number": "GP20260706-02", "disc_date": "2026-07-06",
+                "disc_capacity_bytes": 4_000_000_000,
+                "volume_size_bytes": 4_000_000_000,
             },
         ],
     }

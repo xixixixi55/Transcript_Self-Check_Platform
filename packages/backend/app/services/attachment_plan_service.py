@@ -49,7 +49,7 @@ def build_attachment_plan(
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "首个光盘编号无法解析日期。")
     inspection_date = disc_result.sequence.date
     disc_numbers = tuple(str(item["disc_number"]) for item in parts)
-    rows = tuple(_part_row(item) for item in parts)
+    rows = tuple(_part_row(item, manifest) for item in parts)
     attachment1 = _attachment1_pages(rows, source_text, extraction_method)
     photos = photo_values(report)
     if len(photos) % 2:
@@ -58,6 +58,7 @@ def build_attachment_plan(
             "附件图片数量必须为偶数，请补充或删除一张图片后重新导出。",
         )
     attachment2_pages = build_attachment2_pages(material_photo_groups(report))
+    manifest_volume_size = _positive_int(manifest.get("volume_size_bytes"))
     attachment3 = tuple(
         Attachment3PagePlan(
             page_number=index,
@@ -67,8 +68,10 @@ def build_attachment_plan(
             filename=str(item["filename"]),
             size_bytes=int(item["size_bytes"]),
             md5=str(item["md5"]),
+            disc_capacity_bytes=_positive_int(item.get("disc_capacity_bytes")),
             disc_number=str(item["disc_number"]),
             burning_date=str(item["disc_date"]),
+            volume_size_bytes=manifest_volume_size,
         )
         for index, item in enumerate(parts, 1)
     )
@@ -194,12 +197,19 @@ def _extraction_method(report: Mapping[str, Any]) -> str:
     return f"使用{hardware}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值"
 
 
-def _part_row(item: Mapping[str, Any]) -> AttachmentPartRow:
+def _part_row(item: Mapping[str, Any], manifest: Mapping[str, Any]) -> AttachmentPartRow:
     return AttachmentPartRow(
         part_id=str(item["part_id"]), part_number=int(item["part_number"]),
         filename=str(item["filename"]), size_bytes=int(item["size_bytes"]),
         md5=str(item["md5"]),
+        disc_capacity_bytes=_positive_int(item.get("disc_capacity_bytes")),
+        volume_size_bytes=_positive_int(manifest.get("volume_size_bytes", 0)),
     )
+
+
+def _positive_int(value: object) -> int:
+    v = int(value) if not isinstance(value, bool) else 0
+    return v if v >= 0 else 0
 
 def _unsafe_filename(value: str) -> bool:
     return (PurePath(value).name != value or PureWindowsPath(value).name != value

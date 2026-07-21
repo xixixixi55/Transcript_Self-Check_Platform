@@ -127,12 +127,15 @@ def manifest(count):
     return {
         "manifest_id": "manifest-xml",
         "validation_status": "validated",
+        "volume_size_bytes": 4_000_000_000,
         "parts": [
             {
                 "part_id": f"part-{index}", "part_number": index,
                 "filename": f"server.part{index}.rar", "md5": f"{index:032x}",
                 "size_bytes": index * 100,
                 "disc_number": f"GP20260706-{index:02d}", "disc_date": "2026-07-06",
+                "disc_capacity_bytes": 4_000_000_000,
+                "volume_size_bytes": 4_000_000_000,
             }
             for index in range(1, count + 1)
         ],
