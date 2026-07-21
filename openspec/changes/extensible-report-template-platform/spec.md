@@ -194,7 +194,9 @@
 
 阶段一自动分卷只支持 WinRAR RAR 分卷。未检测到或无法调用 WinRAR 时，系统 MUST 允许上传、解析、审核和编辑报告，但 MUST 禁止自动压缩和最终正式导出；错误提示 MUST 说明需要安装并确保 WinRAR 可调用。系统不得降级生成 ZIP，不得生成虚假的或占位的 `ArchiveManifest`。现有 ZIP/RAR 上传解析能力保持不变，但不替代本次自动分卷产物。
 
-系统 MUST 先生成可审计的 `ArchivePlan`，再由独立执行器调用 WinRAR。`ArchivePlan` 只表示执行前预计档位、预计卷数和目标容量，不能作为 Word 数据来源。分卷档位 MUST 使用十进制 4GB、22GB、45GB：从 4GB 开始，若预计超过 2 卷则升级；45GB 档最多 3 卷；超过 135GB MUST 在执行前阻止处理。案件名称 MUST 作为归档基础名称，分卷 MUST 使用 `.part1.rar` 等标准命名。系统 MUST 设定 `maxReplanAttempts = 2`，表示初始执行后最多允许两次向上重新规划。
+系统 MUST 先生成可审计的 `ArchivePlan`，再由独立执行器调用 WinRAR。`ArchivePlan` 只表示执行前预计档位、预计卷数和目标容量，不能作为 Word 数据来源。分卷档位 MUST 使用十进制 4GB、22GB、45GB：从 4GB 档开始，`ceil(total_bytes / tier_volume_bytes) <= max_part_count` 时选择该档位；若预计超过 2 卷（4GB 档）或超过 2 卷（22GB 档）则升级；45GB 档最多 3 卷；超过 135GB MUST 在执行前阻止处理。案件名称 MUST 作为归档基础名称，分卷 MUST 使用 `.part1.rar` 等标准命名。系统 MUST 设定 `max_replan_attempts = 2`，表示初始执行后最多允许两次向上重新规划。
+
+分卷档位（WinRAR `-v` 参数值）与每卷最终光盘容量是两个独立概念。档位由规划器在压缩前选定，光盘容量在 Manifest 组装时根据 WinRAR 实际输出的 `size_bytes` 独立计算。
 
 公共可序列化 `ArchivePlan` MUST 只包含业务决策、相对输入条目和安全诊断；不得包含输入绝对路径、输出/staging/cache 目录、WinRAR 安装路径或运行时文件映射。上述路径只允许存在于后端内部执行上下文。
 
@@ -223,7 +225,7 @@
 
 ### Requirement: Archive re-planning uses one final manifest
 
-系统 MUST 将规划和实际执行结果区分保存。若实际结果不符合当前计划，执行器 MUST 在最多 `maxReplanAttempts` 次内丢弃 staging 结果、升级到下一档并重新执行；若重试仍失败、没有可用下一档或达到重试上限，则阻止导出并返回明确错误。重新规划完成后 MUST 生成新的不可变 `ArchiveManifest`，后续附件一、附件三、正文和 DOCX MUST 只引用该 manifest，不得使用预计文件名、预计大小、预计卷数，也不得重新扫描目录或重新计算第二份卷列表。最终 manifest 至少 MUST 包含每卷实际文件名、实际大小、MD5、分卷序号、光盘容量、光盘编号、刻录日期和连续性校验结果。
+系统 MUST 将规划和实际执行结果区分保存。若实际结果不符合当前计划，执行器 MUST 在最多 `maxReplanAttempts` 次内丢弃 staging 结果、升级到下一档并重新执行；若重试仍失败、没有可用下一档或达到重试上限，则阻止导出并返回明确错误。重新规划完成后 MUST 生成新的不可变 `ArchiveManifest`，后续附件一、附件三、正文和 DOCX MUST 只引用该 manifest，不得使用预计文件名、预计大小、预计卷数，也不得重新扫描目录或重新计算第二份卷列表。最终 manifest 至少 MUST 包含每卷实际文件名、实际大小、MD5、分卷序号、**根据实际大小独立计算的光盘容量 (`disc_capacity_bytes`)**、WinRAR 分卷档位上限 (`volume_size_bytes`)、光盘编号、刻录日期和连续性校验结果。`disc_capacity_bytes` MUST 按 `size_bytes` 选择最小可容纳档位（≤4GB→4GB, ≤22GB→22GB, ≤45GB→45GB），超过 45GB 时返回验证失败；不得简单继承 manifest 级档位值。
 
 #### Scenario: 实际压缩结果超出规划
 
@@ -239,6 +241,42 @@
 
 - **WHEN** 实际结果在最大重试次数内仍不符合计划，或 45GB 档仍超过三卷
 - **THEN** 系统返回明确的归档规划错误，不生成 Word、不创建附件页面计划、不提交新的最终归档
+
+### Requirement: ArchivePart disc capacity is independent of tier volume
+
+系统 MUST 在生成最终 `ArchiveManifest` 时为每个 `ArchivePart` 独立计算 `disc_capacity_bytes`，不得使用 manifest 级 `volume_size_bytes`（WinRAR 分卷档位上限）替代。`disc_capacity_bytes` 只来源于该 part 的 `size_bytes`（WinRAR 实际输出文件大小），按最小可容纳档位规则计算：
+
+- `0 < size_bytes ≤ 4_000_000_000` → `4_000_000_000`
+- `4_000_000_000 < size_bytes ≤ 22_000_000_000` → `22_000_000_000`
+- `22_000_000_000 < size_bytes ≤ 45_000_000_000` → `45_000_000_000`
+- `size_bytes ≤ 0` 或 `size_bytes > 45_000_000_000` → 该 part 无效，Manifest 验证失败
+
+`disc_capacity_bytes` MUST 在 `assemble_archive_manifest()` 中计算、在 `validate_manifest_files()` 中重新推导核对、在 `validate_published_manifest()` 中再次校验。重规划后 MUST 随新 part 的 `size_bytes` 重新计算。系统 MUST 不接受客户端或旧数据传入的未经校验的容量值。
+
+#### Scenario: 两卷不同光盘容量
+
+- **WHEN** WinRAR 在 45GB 档位产生两卷，实际大小分别为 45GB 和 2GB
+- **THEN** Part 1 的 `disc_capacity_bytes = 45_000_000_000`，Part 2 的 `disc_capacity_bytes = 4_000_000_000`，两卷的 `volume_size_bytes` 均为 `45_000_000_000`
+
+#### Scenario: 22GB 档单卷对应 22GB 光盘
+
+- **WHEN** WinRAR 在 22GB 档位产生单卷，实际大小 9GB
+- **THEN** 该 part 的 `disc_capacity_bytes = 22_000_000_000`
+
+#### Scenario: 尾卷选择 4GB 光盘
+
+- **WHEN** WinRAR 在 22GB 档位产生两卷，实际大小分别为 22GB 和 1GB
+- **THEN** Part 1 的 `disc_capacity_bytes = 22_000_000_000`，Part 2 的 `disc_capacity_bytes = 4_000_000_000`
+
+#### Scenario: 篡改或不一致的光盘容量被拒绝
+
+- **WHEN** 已发布 Manifest 中某 part 的 `disc_capacity_bytes` 与从其 `size_bytes` 重新计算的值不一致
+- **THEN** `validate_published_manifest` 返回 false，`validate_manifest_files` 返回 `ARCHIVE_MANIFEST_INVALID`
+
+#### Scenario: 重规划后容量重新计算
+
+- **WHEN** 归档在 4GB 档执行失败后重规划到 22GB 档并产生新的实际 part
+- **THEN** 新 Manifest 中每个 part 的 `disc_capacity_bytes` 根据新 `size_bytes` 独立计算，不继承旧档位或旧 Manifest 的值
 
 ### Requirement: Pipeline mode and shadow comparison are centralized
 

@@ -164,7 +164,7 @@ FieldProvenance {
 
 ```text
 ArchivePlan {
-  planId, sourceRoot, caseName, safeBaseName
+  planId, caseName, safeBaseName
   sourceBytes, tier: "4GB" | "22GB" | "45GB"
   volumeBytes: 4000000000 | 22000000000 | 45000000000
   expectedPartCount, maxPartCount: 2 | 3
@@ -173,7 +173,7 @@ ArchivePlan {
 }
 
 ArchivePart {
-  partId, ordinal, actualFilename, path, actualSizeBytes, md5, archiveFormat
+  partId, ordinal, filename, actualSizeBytes, md5
   discCapacityBytes, discNumber, burningDate, continuityCheck
 }
 
@@ -185,9 +185,13 @@ ArchiveManifest {
 DiscSequence { firstNumber, issueDate, numericWidth, partNumbers[], formattedNumbers[] }
 ```
 
-档位采用十进制字节值。规划初始候选由源目录逻辑大小计算：4GB 可覆盖最多两卷（≤8GB），随后是 22GB 最多两卷（≤44GB），最后 45GB 最多三卷（≤135GB）。`ArchivePlan` 只表示预计方案；WinRAR 执行和 validator 产生实际结果，最多允许 `maxReplanAttempts = 2` 次向上重试。只有归档结果绑定 `DiscSequence` 后才组装最终 `ArchiveManifest`，因此 manifest 中的光盘容量、光盘编号、刻录日期和连续性结果都是最终数据。实际结果超出计划且重试耗尽时阻止导出，不使用预计值生成 Word。
+档位采用十进制字节值。规划初始候选由输入总字节数计算：`ceil(total / volume_size_bytes) <= max_part_count` 时选择该档位。4GB 档最多 2 卷（≤8GB），22GB 档最多 2 卷（≤44GB），45GB 档最多 3 卷（≤135GB）。`ArchivePlan` 只表示预计方案；WinRAR 执行和 validator 产生实际结果，最多允许 `maxReplanAttempts = 2` 次向上重试。
 
-`DiscSequence` 从 `GPyyyyMMdd-序号` 解析；后续序号只递增数字部分，按首编号位宽左补零，溢出即阻止。`ArchiveManifest.parts[i].ordinal` 是附件一、附件三唯一的关联键，光盘序号由 manifest 顺序映射，不由附件渲染器自行计数。附件一、附件三只接收最终 `ArchiveManifest`，不得接收 `ArchivePlan`。
+分卷档位（WinRAR `-v` 参数）与每卷光盘容量是两个独立概念。`discCapacityBytes` 在 Manifest 组装时根据每卷实际 `actualSizeBytes` 独立计算：≤4GB→4GB, ≤22GB→22GB, ≤45GB→45GB, >45GB→验证失败。不得用 manifest 级档位值替代。
+
+只有归档结果绑定 `DiscSequence` 后才组装最终 `ArchiveManifest`，因此 manifest 中的光盘容量、光盘编号、刻录日期和连续性结果都是最终数据。实际结果超出计划且重试耗尽时阻止导出，不使用预计值生成 Word。
+
+`DiscSequence` 从 `GPyyyyMMdd-序号` 解析；后续序号只递增数字部分，按首编号位宽左补零，溢出即阻止。`ArchiveManifest.parts[i].part_number` 是附件一、附件三唯一的关联键，光盘序号由 manifest 顺序映射，不由附件渲染器自行计数。附件一、附件三只接收最终 `ArchiveManifest`，不得接收 `ArchivePlan`。
 
 导出前的首次 Manifest 校验必须对每个实际分卷执行存在性、大小和完整 MD5 校验；在同一次校验中，已得到的 MD5 传给后续结构校验，避免同一次导出把 135GB 分卷重复读取两遍。当前实现不使用大小、mtime 或文件标识替代哈希，也没有用不具备内容安全保证的快捷缓存：Word 失败后的同一请求不会重新执行 WinRAR，但新的导出请求复用 Manifest 时仍会重新读取并校验所有分卷 MD5。这样保留了“文件未变化”的内容级证据，代价是大分卷重试可能再次产生完整读取成本。后续若引入性能优化，必须保存受保护的文件身份快照并说明其安全边界，不能无条件跳过变化检测。
 
