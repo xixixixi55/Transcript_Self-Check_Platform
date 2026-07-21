@@ -11,7 +11,7 @@
     "test:frontend": "pnpm --filter @biji/frontend test",
     "test:backend": "pnpm --filter @biji/backend test",
     "test": "npm run test:frontend && npm run test:backend",
-    "verify:quick": "npm run lint:arch && npm run typecheck && npm run verify:docs",
+    "verify:quick": "npm run lint:arch && npm run typecheck && npm run verify:docs && npm run check:repository-assets",
     "verify:frontend": "npm run typecheck && npm run test:frontend",
     "verify:frontend:build": "npm run build",
     "verify:backend": "npm run test:backend",
@@ -19,6 +19,7 @@
     "verify:docs:strict": "npx tsx scripts/check-docs.ts --strict",
     "verify:full": "npm run lint:arch && npm run typecheck && npm run test:frontend && npm run test:backend && npm run build && npm run verify:docs:strict",
     "verify": "npm run verify:full",
+    "check:repository-assets": "npx tsx scripts/check-repository-assets.ts",
     "check-docs": "npm run verify:docs:strict",
     "pre-commit": "npm run verify:quick",
     "prepare": "husky"

@@ -29,8 +29,20 @@ Thumbs.db
 .env.local
 .env.*.local
 
-# Output files
-output/*.docx
+# Output / generated assets — must never be tracked
+output/
+packages/output/
+**/output/
+
+# Archives and packages — local only
+*.rar
+*.zip
+
+# Word temporary lock files — must never be tracked
+~$*.doc
+~$*.docx
+*.tmp
+*.temp
 
 # Logs
 *.log
