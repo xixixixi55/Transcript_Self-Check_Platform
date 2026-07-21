@@ -73,6 +73,13 @@ pnpm check-docs           # → 文档检查（严格模式，11 项）
 
 详见 `harness/directory.md`（目录结构唯一真相源）。
 
+## 仓库资产
+
+详见 `harness/repository-assets.md`。关键规则：
+- 正式模板（`word_templates/template.docx`）是唯一跟踪的 Word 文件
+- 生成输出（`output/`, `packages/output/`）不进入 Git
+- 所有测试数据必须是明确合成数据
+
 ## 工作流程
 
 本项目使用 Harness Engineering + OpenSpec 方法论，详见 `AGENTS.md` 和 `harness/iteration-guide.md`。

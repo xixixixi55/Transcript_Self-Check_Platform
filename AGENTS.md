@@ -10,6 +10,18 @@
 
 ---
 
+## 1.1 仓库资产与合规
+
+**本仓库经过敏感数据清理（历史重写完成于 2026-07-21）。**
+
+- 仓库资产政策：`harness/repository-assets.md`
+- 所有测试数据必须是明确合成数据（使用 SYNTHETIC/TEST/FIXTURE 标记）
+- 禁止提交真实案件数据、人员信息、设备编号、生成输出
+- 资产检查门控：`npx tsx scripts/check-repository-assets.ts`（已接入 `verify:quick`）
+- **所有协作者必须从重写后的远端重新 clone**，禁止从旧 clone 推送
+
+---
+
 ## 2. 规则优先级
 
 **工作流程规则**（冲突时按此顺序）：
