@@ -23,6 +23,7 @@ export function ReviewInspectionSection({ inspection, updateReport, deviceOption
     display_name: '',
     confirmation_status: 'unconfirmed',
     provenance: [],
+    candidates: [],
   }
   const resultFields: [string, keyof InspectionReport['inspection']['result']][] = [
     ['检材编号', 'evidence_number'],

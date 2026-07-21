@@ -73,6 +73,7 @@ export interface ArchiveManifest {
   archive_base_name: string
   volume_size_bytes: number
   volume_tier_gb: number
+  max_part_count: number
   total_input_bytes: number
   actual_archive_bytes: number
   retry_count: number

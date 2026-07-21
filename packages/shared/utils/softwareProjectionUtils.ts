@@ -13,6 +13,7 @@ export function applyPrimarySoftwareEdit(
     display_name: '',
     confirmation_status: 'unconfirmed',
     provenance: [],
+    candidates: [],
   }
   next.inspection.primary_software[field] = value
   const primary = next.inspection.primary_software

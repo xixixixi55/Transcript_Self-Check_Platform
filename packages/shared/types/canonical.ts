@@ -18,10 +18,10 @@ export type ConfirmationStatus = 'confirmed_by_report' | 'confirmed_by_user' | '
 
 export interface FieldProvenance {
   source_type: string
-  source_file: string | null
-  json_path: string | null
+  source_file?: string | null
+  json_path?: string | null
   adapter: string
-  confidence: number | null
+  confidence?: number | null
 }
 
 export interface MaterialIdentifier {
@@ -45,7 +45,7 @@ export interface Material {
   model: string
   identifiers: MaterialIdentifier[]
   provenance: FieldProvenance[]
-  classification?: MaterialClassification
+  classification: MaterialClassification
 }
 
 export interface InspectorSnapshot {
@@ -78,7 +78,7 @@ export interface PrimarySoftware {
   display_name: string
   confirmation_status: ConfirmationStatus
   provenance: FieldProvenance[]
-  candidates?: PrimarySoftwareCandidate[]
+  candidates: PrimarySoftwareCandidate[]
 }
 
 export interface CanonicalCaseInfo {
@@ -127,11 +127,21 @@ export interface ArchiveManifestSummary {
   status: 'pending' | 'validated' | 'unavailable'
 }
 
+/** 附件2：一个检材的正反两张有序照片。 */
+export interface MaterialPhotoGroup {
+  material_id: string
+  material_number: string
+  display_text: string
+  ordered_image_ids: [string, string]
+  source_order: number
+}
+
 export interface CanonicalAttachmentInputs {
   extract_list: { columns: { key: string; title: string; width?: string }[]; rows: Record<string, string>[] }
   photo_ids: string[]
+  photo_groups?: MaterialPhotoGroup[]
   disc_number: string
-  burning_date: string | null
+  burning_date?: string | null
   disc_sequence?: DiscSequence
 }
 
@@ -143,7 +153,7 @@ export interface CanonicalInspectionCase {
   primary_software?: PrimarySoftware
   software_tools: SoftwareTool[]
   photos: PhotoReference[]
-  archive_manifest: ArchiveManifestSummary | null
+  archive_manifest?: ArchiveManifestSummary | null
   provenance: FieldProvenance[]
   inspection: CanonicalInspectionDetails
   attachments: CanonicalAttachmentInputs

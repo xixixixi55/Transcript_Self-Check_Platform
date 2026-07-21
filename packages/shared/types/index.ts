@@ -1,6 +1,6 @@
 // Layer 0: SharedTypes — 前后端共享的类型定义（实体、DTO、API 契约）
 
-import type { InspectorSnapshot, MaterialClassificationStatus, PrimarySoftware } from './canonical'
+import type { InspectorSnapshot, MaterialClassificationStatus, MaterialPhotoGroup, PrimarySoftware } from './canonical'
 
 /** 文书类型枚举 */
 export enum RecordType {
@@ -76,15 +76,6 @@ export interface InspectionResult {
   rar_filename: string
   md5_hash: string
   file_size: string
-}
-
-/** 附件2：一个检材的正反两张有序照片。 */
-export interface MaterialPhotoGroup {
-  material_id: string
-  material_number: string
-  display_text: string
-  ordered_image_ids: [string, string]
-  source_order: number
 }
 
 /** 表格数据 */
