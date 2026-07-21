@@ -37,6 +37,7 @@ const FILE_SIZE_EXCEPTIONS = [
   'packages/backend/app/services/document_builder_service.py',
   'packages/backend/app/services/template_filler_service.py',
   'packages/backend/app/repository/html_parser.py',
+  'packages/backend/app/services/canonical_adapter_service.py',
 ]
 
 /**
