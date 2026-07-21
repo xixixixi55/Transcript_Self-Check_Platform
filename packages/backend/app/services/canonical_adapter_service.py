@@ -1,4 +1,12 @@
-"""Adapters between report formats and the canonical inspection model."""
+"""Adapters between report formats and the canonical inspection model.
+
+FILE_SIZE_EXCEPTION: 本文件 ~258 行，超出 250 行限制。
+原因：双向转换逻辑（legacy→canonical 和 canonical→legacy）内聚在单个
+文件中，分离将产生循环导入或需要抽取公共抽象层。转换函数共享私有
+_helper（_text、_primary_software、_software_tools 等），强行拆分会
+增加认知负担且违反高内聚原则。该文件不包含 I/O、文件系统访问或业务规则；
+它纯粹是数据形状转换。允许的例外不掩盖任何跨层依赖或循环引用。
+"""
 
 from __future__ import annotations
 
@@ -14,6 +22,7 @@ from .canonical_models_service import (
     InspectorSnapshot,
     Material,
     PrimarySoftware,
+    ProcessStep,
     SoftwareTool,
 )
 from .canonical_attachment_adapter_service import migrate_legacy_attachments
@@ -136,7 +145,7 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
                 primary_software.model_dump() if primary_software else None
             ),
             "software_tools": _software_tools(case),
-            "process_steps": list(case.inspection.process_steps),
+            "process_steps": [step.model_dump() for step in case.inspection.process_steps],
             "result": {
                 "evidence_number": result.evidence_number,
                 "software_name": primary_software_name,
@@ -148,8 +157,12 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
             },
         },
         "attachments": {
-            "extract_list": dict(case.attachments.extract_list),
+            "extract_list": case.attachments.extract_list.model_dump(),
             "photo_ids": list(case.attachments.photo_ids),
+            "photo_groups": (
+                [group.model_dump() for group in case.attachments.photo_groups]
+                if case.attachments.photo_groups else None
+            ),
             "disc_number": case.attachments.disc_number,
             "burning_date": case.attachments.burning_date,
             "disc_sequence": (
@@ -224,7 +237,14 @@ def inspection_report_to_canonical(
         inspection=CanonicalInspectionDetails(
             method=_text(inspection.get("method")),
             hardware_device=_text(inspection.get("hardware_device")),
-            process_steps=list(inspection.get("process_steps") or []),
+            process_steps=[
+                ProcessStep(
+                    step_number=int(step.get("step_number", idx + 1)),
+                    content=_text(step.get("content")),
+                )
+                for idx, step in enumerate(inspection.get("process_steps") or [])
+                if isinstance(step, Mapping)
+            ],
             result={
                 "evidence_number": _text(result.get("evidence_number")),
                 "data_summary": _text(result.get("data_summary")),

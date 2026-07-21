@@ -33,7 +33,7 @@ from .archive_runtime_service import (
     ARCHIVE_RUNTIME_STORE,
     ArchiveManifestRecord,
 )
-from .export_gate_service import ExportGateInput, ExportGateIssue, ExportGateResult, evaluate_export_gate
+from .export_gate_service import ExportGateCode, ExportGateInput, ExportGateIssue, ExportGateResult, evaluate_export_gate
 from .material_policy_service import unconfirmed_material_fields
 from .software_policy_service import is_primary_software_confirmed
 from .disc_sequence_service import parse_disc_sequence
@@ -130,7 +130,7 @@ def execute_archive(
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         verify_input_inventory(context.inventory)
         if context.inventory.total_input_bytes <= 0:
-            raise ArchiveGateError((ExportGateIssue("ARCHIVE_INPUT_EMPTY", "archive", "归档输入不能为空。"),))
+            raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_INPUT_EMPTY, "archive", "归档输入不能为空。"),))
 
         fingerprint = _fingerprint(report, context.inventory, first_disc_number)
         reusable = ARCHIVE_RUNTIME_STORE.find_reusable(context_id, fingerprint)
@@ -165,7 +165,7 @@ def execute_archive(
                 raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
             if execution.returncode != 0:
                 active_executor.cleanup(execution)
-                raise ArchiveGateError((ExportGateIssue("ARCHIVE_EXECUTION_FAILED", "archive", "归档执行失败。"),))
+                raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_EXECUTION_FAILED, "archive", "归档执行失败。"),))
             validation_kwargs = {"integrity_runner": integrity_runner} if integrity_runner else {}
             context.execution_state = "validating"
             validation = validate_archive_parts(execution.staging_dir, plan, winrar, **validation_kwargs)
@@ -173,14 +173,14 @@ def execute_archive(
                 active_executor.cleanup(execution)
                 if validation.replan_allowed:
                     if retry_count >= plan.max_replan_attempts:
-                        raise ArchiveGateError((ExportGateIssue("ARCHIVE_REPLAN_EXHAUSTED", "archive", "归档重规划次数已用尽。"),))
+                        raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_REPLAN_EXHAUSTED, "archive", "归档重规划次数已用尽。"),))
                     next_plan = replan_to_next_tier(plan, policy)
                     if next_plan is None or next_plan.status != "planned":
-                        raise ArchiveGateError((ExportGateIssue("ARCHIVE_REPLAN_EXHAUSTED", "archive", "没有可用的更高归档档位。"),))
+                        raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_REPLAN_EXHAUSTED, "archive", "没有可用的更高归档档位。"),))
                     retry_count += 1
                     plan = next_plan
                     continue
-                raise ArchiveGateError((ExportGateIssue(validation.diagnostic_code or "ARCHIVE_PARTS_INVALID", "archive", validation.safe_message),))
+                raise ArchiveGateError((ExportGateIssue(validation.diagnostic_code or ExportGateCode.ARCHIVE_PARTS_INVALID, "archive", validation.safe_message),))
 
             try:
                 context.execution_state = "hashing"
@@ -202,7 +202,7 @@ def execute_archive(
             except Exception as error:
                 if execution.staging_dir.exists():
                     active_executor.cleanup(execution)
-                raise ArchiveGateError((ExportGateIssue("ARCHIVE_PARTS_INVALID", "archive", "归档清单生成失败。"),)) from error
+                raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_PARTS_INVALID, "archive", "归档清单生成失败。"),)) from error
             ARCHIVE_RUNTIME_STORE.save_manifest(record)
             success = True
             final_state = "completed"

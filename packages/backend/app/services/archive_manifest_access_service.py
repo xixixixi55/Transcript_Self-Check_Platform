@@ -8,7 +8,7 @@ import json
 from ..repository.archive_input_repository import ArchiveInputError, verify_input_inventory
 from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord, ArchiveRuntimeError
-from .export_gate_service import ExportGateIssue
+from .export_gate_service import ExportGateCode, ExportGateIssue
 
 
 class ArchiveGateError(ArchiveRuntimeError):
@@ -36,7 +36,7 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
     record = ARCHIVE_RUNTIME_STORE.get_manifest(manifest_id)
     if record.context_id != context_id:
         raise ArchiveGateError((ExportGateIssue(
-            "ARCHIVE_MANIFEST_CONTEXT_MISMATCH", "archive_manifest", "归档清单不属于当前归档上下文。",
+            ExportGateCode.ARCHIVE_MANIFEST_CONTEXT_MISMATCH, "archive_manifest", "归档清单不属于当前归档上下文。",
         ),))
     _raise_manifest_file_error(record)
     first_disc = str((report.get("attachments") or {}).get("disc_number"))
@@ -44,7 +44,7 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
     try:
         if context.successful_manifest_id != manifest_id:
             raise ArchiveGateError((ExportGateIssue(
-                "ARCHIVE_MANIFEST_MISSING", "archive_manifest", "归档清单不是当前上下文的成功结果。",
+                ExportGateCode.ARCHIVE_MANIFEST_MISSING, "archive_manifest", "归档清单不是当前上下文的成功结果。",
             ),))
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         try:

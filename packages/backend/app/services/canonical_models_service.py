@@ -62,7 +62,9 @@ class InspectorSnapshot(CanonicalBaseModel):
     name: str
     unit: str
     police_number: str
-    selected_order: int = Field(ge=0)
+    selected_order: int | None = Field(default=None, ge=0)
+    captured_at: str | None = None
+    source_version: str | None = None
 
 
 class SoftwareTool(CanonicalBaseModel):
@@ -121,10 +123,15 @@ class CanonicalInspectionResult(CanonicalBaseModel):
     file_size: str = ""
 
 
+class ProcessStep(CanonicalBaseModel):
+    step_number: int = Field(ge=1)
+    content: str
+
+
 class CanonicalInspectionDetails(CanonicalBaseModel):
     method: str = ""
     hardware_device: str = ""
-    process_steps: list[dict[str, str | int]] = Field(default_factory=list)
+    process_steps: list[ProcessStep] = Field(default_factory=list)
     result: CanonicalInspectionResult = Field(
         default_factory=CanonicalInspectionResult
     )
@@ -140,6 +147,14 @@ class ArchiveManifestSummary(CanonicalBaseModel):
     status: Literal["pending", "validated", "unavailable"]
 
 
+class MaterialPhotoGroup(CanonicalBaseModel):
+    material_id: str
+    material_number: str
+    display_text: str
+    ordered_image_ids: tuple[str, str]
+    source_order: int = Field(ge=1)
+
+
 class DiscSequence(CanonicalBaseModel):
     prefix: str
     date: str
@@ -148,9 +163,21 @@ class DiscSequence(CanonicalBaseModel):
     first_disc_number: str
 
 
+class ExtractListColumn(CanonicalBaseModel):
+    key: str
+    title: str
+    width: str | None = None
+
+
+class ExtractListTable(CanonicalBaseModel):
+    columns: list[ExtractListColumn] = Field(default_factory=list)
+    rows: list[dict[str, str]] = Field(default_factory=list)
+
+
 class CanonicalAttachmentInputs(CanonicalBaseModel):
-    extract_list: dict[str, object] = Field(default_factory=dict)
+    extract_list: ExtractListTable = Field(default_factory=ExtractListTable)
     photo_ids: list[str] = Field(default_factory=list)
+    photo_groups: list[MaterialPhotoGroup] | None = None
     disc_number: str = ""
     burning_date: str | None = None
     disc_sequence: DiscSequence | None = None
