@@ -46,6 +46,24 @@ def test_production_decimal_tier_boundaries(size, tier, expected, status):
         assert plan.diagnostics[0].code == "ARCHIVE_TOO_LARGE"
 
 
+@pytest.mark.parametrize(
+    ("size", "tier", "expected"),
+    [
+        (9 * GB, 22, 1),
+        (23 * GB, 22, 2),
+        (43 * GB, 22, 2),
+        (47 * GB, 45, 2),
+        (91 * GB, 45, 3),
+    ],
+)
+def test_named_capacity_planning(size, tier, expected):
+    """Planner selects tier and expected count from input bytes; no WinRAR call."""
+    plan = plan_archive("合成案件", entry(size), first_disc_number="GP20260718-01")
+    assert plan.volume_tier_gb == tier
+    assert plan.expected_part_count == expected
+    assert plan.status == "planned"
+
+
 def test_plan_records_selection_reason_and_disc_projection():
     plan = plan_archive("合成案件", entry(8 * GB), first_disc_number="GP20260718-09")
     assert plan.diagnostics[0].code == "ARCHIVE_TIER_SELECTED"

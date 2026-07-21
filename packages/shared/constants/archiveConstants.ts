@@ -9,3 +9,14 @@ export const ARCHIVE_VOLUME_TIERS = [
 
 export const ARCHIVE_MAX_INPUT_BYTES = 135 * ARCHIVE_GB_BYTES
 export const ARCHIVE_MAX_REPLAN_ATTEMPTS = 2
+
+/** Disc capacity tiers in ascending order; used to select the smallest
+ *  capacity that can hold a part's actual `size_bytes`. */
+export const DISC_CAPACITY_BYTES = [
+  4 * ARCHIVE_GB_BYTES,
+  22 * ARCHIVE_GB_BYTES,
+  45 * ARCHIVE_GB_BYTES,
+] as const
+
+/** Maximum disc capacity; a part exceeding this size is invalid. */
+export const DISC_MAX_CAPACITY_BYTES = 45 * ARCHIVE_GB_BYTES

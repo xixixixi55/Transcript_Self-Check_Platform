@@ -59,10 +59,16 @@ export interface ArchivePart {
   part_id: string
   part_number: number
   filename: string
+  /** WinRAR actual output file size in bytes. MUST be > 0 and ≤ tier limit. */
   size_bytes: number
   md5: string
   disc_number: string
   disc_date: string
+  /** Disc capacity in bytes computed from size_bytes at manifest assembly:
+   *  ≤ 4_000_000_000 → 4_000_000_000; ≤ 22_000_000_000 → 22_000_000_000;
+   *  ≤ 45_000_000_000 → 45_000_000_000. A part exceeding 45 GB is invalid. */
+  disc_capacity_bytes: number
+  /** WinRAR tier volume limit inherited from ArchiveManifest (compatibility). */
   volume_size_bytes: number
   continuity_check: 'passed'
 }
@@ -71,6 +77,7 @@ export interface ArchiveManifest {
   manifest_id: string
   plan_id: string
   archive_base_name: string
+  /** WinRAR tier volume limit in bytes (same value for all parts). */
   volume_size_bytes: number
   volume_tier_gb: number
   max_part_count: number

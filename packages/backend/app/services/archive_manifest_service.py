@@ -12,6 +12,27 @@ from ..repository.archive_validator_repository import ArchiveValidationResult
 from ..repository.winrar_discovery_repository import WinRarCapability
 from .disc_sequence_service import generate_disc_numbers
 
+# Disc capacity tiers (ascending decimal bytes).  A part's disc capacity is the
+# smallest tier that can hold its actual `size_bytes`.
+_DISC_CAPACITY_TIERS = (4_000_000_000, 22_000_000_000, 45_000_000_000)
+_DISC_MAX_CAPACITY: int = _DISC_CAPACITY_TIERS[-1]
+
+
+def compute_disc_capacity(size_bytes: int) -> int:
+    """Return the smallest disc capacity that can hold *size_bytes*.
+
+    Raises ValueError when *size_bytes* is non-positive or exceeds the
+    maximum disc capacity.
+    """
+    if not isinstance(size_bytes, int) or isinstance(size_bytes, bool):
+        raise ValueError("disc_capacity: size_bytes must be an integer")
+    if size_bytes <= 0:
+        raise ValueError("disc_capacity: size_bytes must be positive")
+    for tier in _DISC_CAPACITY_TIERS:
+        if size_bytes <= tier:
+            return tier
+    raise ValueError("disc_capacity: size_bytes exceeds maximum disc capacity")
+
 
 def _disc_date(first_disc_number: str) -> str:
     return f"{first_disc_number[2:6]}-{first_disc_number[6:8]}-{first_disc_number[8:10]}"
@@ -36,6 +57,7 @@ def assemble_archive_manifest(
     total_archive_bytes = 0
     for part, disc_number in zip(validation.parts, actual_disc_numbers, strict=True):
         md5 = compute_md5_streaming(part.path, validation.parts[0].path.parent)
+        disc_capacity = compute_disc_capacity(part.size_bytes)
         public_parts.append({
             "part_id": str(uuid4()),
             "part_number": part.part_number,
@@ -44,6 +66,7 @@ def assemble_archive_manifest(
             "md5": md5,
             "disc_number": disc_number,
             "disc_date": disc_date,
+            "disc_capacity_bytes": disc_capacity,
             "volume_size_bytes": plan.volume_size_bytes,
             "continuity_check": "passed",
         })
@@ -111,6 +134,22 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
             return False
         if isinstance(volume_size, int) and (size > volume_size or volume_size <= 0):
             return False
+        # Disc capacity must be the smallest tier ≥ actual size
+        try:
+            expected_cap = compute_disc_capacity(size)
+        except ValueError:
+            return False
+        actual_cap = item.get("disc_capacity_bytes")
+        if not isinstance(actual_cap, int) or isinstance(actual_cap, bool):
+            # Compatibility: derive from trusted size for old manifests
+            actual_cap = expected_cap
+        if actual_cap != expected_cap:
+            return False
+        # volume_size_bytes invariant: if present on both part and manifest, must match
+        part_vol = item.get("volume_size_bytes")
+        if isinstance(part_vol, int) and not isinstance(part_vol, bool) and isinstance(volume_size, int) and not isinstance(volume_size, bool):
+            if part_vol != volume_size:
+                return False
         md5 = verified_md5s.get(filename) if verified_md5s is not None else compute_md5_streaming(path, root)
         if md5 != item.get("md5"):
             return False
@@ -160,6 +199,26 @@ def validate_manifest_files(record) -> str | None:
             or not item.get("disc_date")
         ):
             return "ARCHIVE_MANIFEST_INVALID"
+        disc_cap = item.get("disc_capacity_bytes")
+        if not isinstance(disc_cap, int) or isinstance(disc_cap, bool):
+            # Compatibility: derive from trusted size_bytes for old manifests
+            try:
+                disc_cap = compute_disc_capacity(size_bytes)
+            except ValueError:
+                return "ARCHIVE_MANIFEST_INVALID"
+        try:
+            expected_cap = compute_disc_capacity(size_bytes)
+        except ValueError:
+            return "ARCHIVE_MANIFEST_INVALID"
+        if disc_cap != expected_cap:
+            return "ARCHIVE_MANIFEST_INVALID"
+        # volume_size_bytes invariant: if present on part, must match manifest level
+        part_volume = item.get("volume_size_bytes")
+        if isinstance(part_volume, int) and not isinstance(part_volume, bool):
+            manifest_vol = manifest.get("volume_size_bytes")
+            if isinstance(manifest_vol, int) and not isinstance(manifest_vol, bool):
+                if part_volume != manifest_vol:
+                    return "ARCHIVE_MANIFEST_INVALID"
         path = (root / filename).resolve(strict=False)
         try:
             path.relative_to(root)
