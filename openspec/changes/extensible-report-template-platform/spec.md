@@ -6,7 +6,11 @@
 
 ### Requirement: Canonical case normalization
 
-系统 MUST 将每份受支持报告先转换为 `CanonicalInspectionCase`，再进行业务规则计算和文档生成。主迁移方向 MUST 为 `ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出`：`InspectionReport` 是现有公共契约的兼容投影，不是新领域事实来源。规范化结果 MUST 具有稳定的 `caseId`、来源摘要、报告创建/报告时间、案件名称、检材列表、主取证软件、检查人员快照、归档清单和附件输入；原始文件路径和字段来源 MUST 保留在 provenance 中但不得泄漏到用户文书正文。
+当前 `pipeline_mode` 默认仍为 `legacy`，Canonical 模型、适配器、编排器和比较器已具备基础实现但尚未接入生产 Controller 主链。本规范描述 Canonical 迁移目标的完整合同，但实际行为按 `pipeline_mode` 分阶段生效。
+
+系统 SHOULD 将每份受支持报告转换为 `CanonicalInspectionCase`，再进行业务规则计算和文档生成。目标主迁移方向为 `ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出`：`InspectionReport` 是现有公共契约的兼容投影。规范化结果 SHOULD 具有稳定的 `caseId`、来源摘要、报告创建/报告时间、案件名称、检材列表、主取证软件、检查人员快照、归档清单和附件输入；原始文件路径和字段来源 SHOULD 保留在 provenance 中但不得泄漏到用户文书正文。
+
+当前生产状态：`pipeline_mode` 默认 `legacy`，现有 `InspectionReport` 管线产生唯一正式输出。`canonical_to_inspection_report` 和 `inspection_report_to_canonical` 已实现并可通过测试调用，但 Canonical/Shadow 不参与正式结果决策。不得把"类型存在"和"单元测试可调用"写成"生产已启用"。
 
 #### Scenario: 旧格式和新格式统一到同一内部模型
 

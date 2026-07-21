@@ -30,8 +30,9 @@
 - AND "压缩为 .rar"复选框保持默认勾选
 - THEN 前端以 `webkitdirectory` 模式上传 data/ 目录下的所有 JSON 文件
 - AND 后端解析各 JSON 提取案件信息、设备信息、工具版本、数据分类统计
-- AND 后端将整个报告目录生成归档文件（优先使用 RAR，未检测到 WinRAR 时降级为 ZIP）并计算 MD5
-- AND 返回结构化解析结果（含 rar_info）
+- AND 后端将整个报告目录建立 `ArchiveContext`（不在此阶段执行真实压缩）
+- AND 返回结构化解析结果（含 archive_context_id）
+- AND 后续归档执行由单独导出流程触发，解析与归档结果分离
 
 **Scenario: 选择文件夹上传（取消压缩）**
 - WHEN 用户取消勾选"压缩为 .rar"复选框
@@ -164,8 +165,9 @@
 
 **Scenario: 导出时图片嵌入 .docx**
 - WHEN 导出 .docx 时
-- THEN 附件2区域自动嵌入所有已上传的检材照片
-- AND 每张照片下方附带"检材[编号]照片"标签
+- THEN 附件2使用显式 `MaterialPhotoGroup`，每组绑定一个检材及其两张图片
+- AND Renderer 不得根据文件名或数组位置猜测检材归属
+- AND 当前排版规则：一个检材组左右两张图片居中，两个检材组上下两组
 
 ---
 
@@ -175,9 +177,9 @@
 
 **Scenario: 确认无误后导出**
 - WHEN 民警点击"导出 Word"按钮
-- THEN 系统优先使用 `word_templates/template.docx` 和模板填充服务生成 .docx
-- AND 模板不存在或填充失败时，回退到 `document_builder_service.py` + officecli batch 生成 .docx
-- AND 附件2区域嵌入所有已上传的检材照片（原图嵌入）
+- THEN 系统使用 `word_templates/template.docx`（唯一正式运行模板）和 `current-template-v1` TemplateProfile 生成 .docx
+- AND 渲染失败时必须明确失败，不得静默回退到旧输出路径
+- AND 附件2区域按 `MaterialPhotoGroup` 显式绑定检材和图片，不根据文件名或数组位置猜测归属
 - AND 文件文号格式为 "xx电检〔YYYY〕xx号"
 - AND 自动触发浏览器下载
 
@@ -354,17 +356,17 @@
 
 | 用途 | 路径 |
 |------|------|
-| 解析缓存 | `output/parsed/[报告目录名].compress.json` 或 `.nocompress.json` |
-| 归档文件 | `output/compressed/[案件名称].rar`，无 WinRAR 时为 `.zip` |
-| 导出 .docx | `output/exports/[文号].docx` |
+| 解析缓存 | `output/parsed/`（本地，不得进入 Git） |
+| 归档文件 | `output/compressed/`（本地，不得进入 Git） |
+| 导出 .docx | `output/exports/`（本地，不得进入 Git） |
 | 硬件设备配置 | `packages/backend/app/data/hardware_devices.json` |
 
 ## 跨功能约束
 
 - **MUST**: API 响应字段名用 camelCase，Python 内部用 snake_case，Controller 层做转换
-- **MUST**: officecli 调用仅存在于 BE_Services 层
-- **MUST**: 生成的 .docx 使用项目模板或回退构建器的标准检查笔录结构；与业务方参考 DOCX 的最终视觉一致性需要人工文档验收
-- **MUST**: 不能跳过 spec 直接修改代码——任何代码变更必须先更新 spec 再实现
+- **MUST**: officecli 作为旧版回退路径存在于 `record_generator_service.py`，当前正式渲染主路径为 `template_filler_service.py`
+- **MUST**: 生成的 .docx 使用唯一正式模板 `word_templates/template.docx`（`current-template-v1` TemplateProfile）；渲染失败时必须明确报错，不得静默回退
+- **MUST**: 基于 AGENTS.md 治理规则，Level 1 小修改无需 OpenSpec change；架构或公共合同变更仍需完整流程
 - **MUST**: `rar_info` 在 ParseReportResponse 中为可选字段（`RarInfo | null`）
 - **MUST**: 解压操作仅存在于 BE_Repository 层（`file_storage.py`）
 - **MUST**: 软件工具列表由后端根据实际运行环境生成；WinRAR 和 Python hashlib 始终显示，产品版本为空时省略美亚手机大师

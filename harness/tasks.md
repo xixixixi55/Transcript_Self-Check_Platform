@@ -7,10 +7,15 @@
 
 ## 任务管理流程
 
-1. **任务来源**：所有任务 MUST 通过 `/harness:propose` 生成到 `openspec/changes/<功能名>/tasks.md`
-2. **执行顺序**：遵循 `harness/architecture.md` 的分层架构，按层级从低到高执行
-3. **完成标记**：在变更包内的 tasks.md 中标记 `[x]`
-4. **归档**：变更完成后通过 `/harness:archive` 归档到 `openspec/changes/archive/`
+任务级别遵循 `AGENTS.md` 治理规则：
+
+- **Level 1**：小修改（局部 Bug 修复、文档修正、仓库卫生），无需 OpenSpec change。直接修改、验证、提交。
+- **Level 2**：普通功能，通常维护对应变更包内的 `tasks.md`。
+- **Level 3**：公共合同或架构变化，完整 OpenSpec 流程（propose → spec → tasks → apply → archive）。
+
+无法判断级别时默认采用较轻级别。安全约束和事实源修复优先。living spec 修正必须有明确代码或测试证据。活动 Level 3 变更中允许按治理规则同步合同。
+
+任务来源通过 `/harness:propose` 生成到 `openspec/changes/<功能名>/tasks.md`。执行顺序遵循 `harness/architecture.md` 的分层架构。完成标记在变更包内的 tasks.md 中标记 `[x]`。变更完成后通过 `/harness:archive` 归档。
 
 ---
 

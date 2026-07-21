@@ -61,7 +61,7 @@
 │           ├── controllers/               # Layer 22: 请求处理
 │           └── routes/                    # Layer 23: 路由定义
 │
-├── templates/                             # 📄 Word 文书模板（.docx，含 {{占位符}}）
+├── word_templates/                        # 📄 正式运行 Word 模板（template.docx）
 ├── reports/                               # 📥 HTML 取证报告（输入）
 ├── output/                                # 📤 生成输出
 │   ├── parsed/                            #    解析缓存 JSON
@@ -69,7 +69,7 @@
 │   └── exports/                           #    导出 .docx
 │
 ├── tests/                                 # 🧪 测试
-│   └── e2e/                               #    Playwright E2E 测试
+│   └── e2e/                               #    E2E 测试（规划中，Playwright 待建设）
 │
 ├── packages/shared/__tests__/              # 🧪 Shared 层测试
 ├── packages/frontend/src/__tests__/        # 🧪 前端测试

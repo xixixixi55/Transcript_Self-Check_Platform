@@ -1,6 +1,6 @@
 # Implementation Tasks: extensible-report-template-platform
 
-本清单对应根目录 `spec.md` 和 `design.md`。第一批基础实现已完成并验证 0.1、1.1、1.2、2.1、2.2 及其测试任务；其余阶段一任务保持未执行。阶段一任务按 16 个可独立验证的工作包拆分，阶段二/三只保留契约和扩展点，不把通用能力纳入阶段一门槛。每个代码任务后紧跟测试任务。
+本清单对应根目录 `spec.md` 和 `design.md`。当前 38/48 项已完成。第一批基础实现（0.1、1.1、1.2、2.1、2.2、3-13 及其测试任务）已完成并验证。14（Shadow 回归）、15（人工 Word 验收）、16（canonical 切换）和 17（阶段二/三接口预留）保持未完成。阶段二/三只保留契约和扩展点，不把通用能力纳入阶段一门槛。
 
 ## 0. 变更前门禁
 
@@ -75,7 +75,7 @@ WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核�
 
 附件一固定手写行是甲方模板的最后结束区域，不属于动态检查人员渲染；正文仍保留有序 `InspectorSnapshot[]`。
 
-- [x] 9.1 实现 `Attachment1Plan`，只接收 final ArchiveManifest。输入：manifest、报告来源/工具和模板 Profile；输出：第一页标题、后续页无标题、每页完整来源/提取方法、最后页保留模板固定手写行所需容量；验收：行数严格等于 manifest 卷数，不生成 `inspector_final` 或 `INSPECTOR_BLOCK_OVERFLOW`。
+- [x] 9.1 实现 `Attachment1Plan`，只接收 final ArchiveManifest。输入：manifest、报告来源/工具和模板 Profile；输出：第一页标题、后续页无标题、每页完整来源/提取方法、最后页保留模板固定手写行所需容量。`inspector_final` 是历史内部名称，当前语义为固定手写行最终页（不填充 InspectorSnapshot，不生成动态检查人员框）；建议后续重命名为 `handwritten_final` 或 `signature_final`。验收：行数严格等于 manifest 卷数，不生成 `INSPECTOR_BLOCK_OVERFLOW`。
 - [x] 9.1T 增加 1/2/4/5/8/9 卷边界、固定手写行复制、动态人员仅正文、标题/清单文字可见次数和无附件二章节测试；验收：不读取 ArchivePlan 或原始目录。
 
 ## 10. 附件二图片页面计划（Layer 21）
@@ -92,9 +92,11 @@ WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核�
 
 ## 12. current-template-v1 受控渲染（Layer 21）
 
-Renderer 只能消费统一导出门控通过的 `DocumentRenderPlan`；待确认检材类型/主软件、奇数图片、WinRAR 不可用或缺少最终 manifest 时不得正式渲染。
+Renderer 当前正式渲染输入为 `InspectionReport` 兼容数据 + `ArchiveManifest` + `AttachmentPlan` + `current-template-v1` TemplateProfile。`DocumentRenderPlan` 是后续统一渲染合同目标，当前尚未完成生产实现。
 
-- [x] 12.1 建立固定 `current-template-v1` TemplateProfile 和资产 hash/anchor 检查；实现当前 DOCX Renderer 对 `DocumentRenderPlan`、正文结构化检查人员字段、固定手写行、表格、VML、图片、章节独立起页和普通分页的受控扩展。输入：canonical、final manifest、三类 page plan、固定模板；输出：唯一正式 DOCX；验收：阶段一不实现通用设计器、DSL、任意 DOCX 自动绑定、可视化编辑或无标记识别。
+- [x] 12.1 建立固定 `current-template-v1` TemplateProfile 和资产 hash/anchor 检查；实现当前 DOCX Renderer 对正文结构化检查人员字段、固定手写行、表格、VML、图片、章节独立起页和普通分页的受控扩展。输入：canonical、final manifest、三类 page plan、固定模板；输出：唯一正式 DOCX；验收：阶段一不实现通用设计器、DSL、任意 DOCX 自动绑定、可视化编辑或无标记识别。
+
+已完成：AttachmentPlan 和 TemplateProfile 基础设施。未完成：统一 `DocumentRenderPlan` 类型、生产构造、Renderer 只消费 RenderPlan。
 - [x] 12.1T 增加模板 ZIP/XML、资产漂移、VML 宿主段落、关系、PAGE/NUMPAGES、`updateFields=true`、章节分页、固定手写行、摘要 manifest 计数和页面计划渲染测试；验收：固定 Profile 之外的模板被阻止，manifest/renderer 错误不回退 legacy。
 
 ## 13. 全黑字体策略（Layer 21）

@@ -251,7 +251,7 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 
 - ❌ 不要在多个文件中复制目录树（用 `详见 harness/directory.md` 代替）
 - ❌ 不要在 AGENTS.md 中写教育性内容（"为什么"放独立文档，AGENTS.md 只写"是什么"和"怎么做"）
-- ❌ 不要绕过 OpenSpec 直接在 `openspec/specs/` 中手动修改——通过变更包（changes/）走流程
+- ❌ Level 3 变更不要绕过 OpenSpec 直接在 `openspec/specs/` 中手动修改——通过变更包（changes/）走流程。Level 1/2 按 AGENTS.md 治理规则执行，事实源修复优先
 
 ---
 
@@ -320,18 +320,18 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 
 ## ⚠️ 迭代中的常见陷阱
 
-- **跳过 Spec 直接写代码** — 没有合同的开发等于盲写，Agent 会按自己理解来。**这是最常见的违规**：收到用户反馈后直接在代码中修改，不先更新 proposal.md 和 spec.md。正确流程：发现问题 → 更新变更包文档（proposal+spec+design）→ 代码实现 → 验证 → 归档
+- **Level 3 跳过 Spec 直接写代码** — 没有合同的架构级开发等于盲写，Agent 会按自己理解来。Level 3 变更的正确流程：发现问题 → 更新变更包文档（proposal+spec+design）→ 代码实现 → 验证 → 归档。Level 1 小修改和 Level 2 普通功能按 AGENTS.md 轻量路径执行
 - **忘记影响分析** — 新功能可能需要修改 Types，这会级联影响所有层
 - **积累多个功能一起验证** — 应该每个功能独立走完闭环再开始下一个
 - **不更新文档** — 下一次迭代时 Agent 读到过时文档会犯错
 - **修改现有文件时不先 read_file** — 修改比新建风险高。修改前 MUST 先读取文件确认当前内容
 - **对同一文件多次零散替换** — 应尽量合并为一次替换
-- **迭代教训只在聊天中说没有沉淀** — 每次迭代 MUST 写迭代记录到 `harness/archive/iterations/`
+- **迭代教训只在聊天中说没有沉淀** — Level 3 每次迭代 MUST 写迭代记录到 `harness/archive/iterations/`。Level 2 建议记录，Level 1 可选
 - **同一信息写在多个文件中（DRY 违反）** — 只能有一个真相源，其他用链接引用
 - **运营文档和学习文档混在一起** — 教育性内容和运营内容分离
 - **文档没有和代码同等级别的约束** — 数据模型与类型一致性等，全部由自动检查覆盖
 - **文档中硬编码会变的数字** — 只写"详见 xxx"的链接引用，或让脚本自己输出
-- **绕过 OpenSpec 直接改 specs/** — 所有 spec 变更必须通过变更包走流程
+- **绕过 OpenSpec 直接改 specs/** — Level 3 变更的所有 spec 变更必须通过变更包走流程。Level 1/2 事实源修复按 AGENTS.md 执行
 - **照搬 PRD 的数据模型建议** — PRD §数据模型是产品视角的参考，技术方案应从业务需求（用户要看什么/做什么/筛选什么）独立推导实体和关系，区分编译时常量 vs 运行时配置
 - **先写完所有代码再补测试** — 测试是每个 Task 的必须步骤（c/d/e），不是迭代末尾的"补充工作"。"类型检查覆盖"是借口，类型检查不验证行为。先把测试基础设施配好，再开始写代码
 - **Spec 要求抛出的错误被降级为 warn/log** — Spec 中 WHEN/THEN 明确要求 throw 的场景，代码 MUST 抛出对应错误，不可用 try-catch 吞掉或降级为日志。开发时 MUST 逐条对照 Spec 场景
@@ -340,7 +340,7 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 
 ## 📂 迭代记录规则
 
-每次功能迭代完成后，MUST 在 `harness/archive/iterations/` 下创建一份迭代记录。
+Level 3 功能迭代完成后，MUST 在 `harness/archive/iterations/` 下创建一份迭代记录。Level 2 建议记录，Level 1 可选。
 
 ### 迭代记录模板
 

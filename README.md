@@ -2,11 +2,30 @@
 
 电子数据检查笔录自动生成平台，面向民警使用。
 
-## 功能
+## 当前已实现
 
-- 📄 **电子数据检查笔录自动生成**：基于 HTML 取证报告 + Word 模板，自动生成 .docx 格式检查笔录
-- ✏️ **人工调节修改**：支持在线预览和编辑生成的文书
-- 📋 **6 类文书扩展**：预留专业化勘查报告、电子数据鉴定文书、传统现场三录、现场检查笔录、法医鉴定文书
+- 📄 **HTML/结构化报告解析**：新旧格式自动检测，案件信息/设备列表/软件版本提取
+- ✏️ **InspectionReport 兼容审核**：在线预览和编辑，检查人员管理，主软件确认
+- 📦 **ArchiveContext + WinRAR 规划与执行**：受控分卷归档，ArchiveManifest 生成
+- 🔢 **光盘序列**：自动编号、日期校验、连续性检查
+- 🖼️ **MaterialPhotoGroup**：附件2 显式检材-图片绑定，每组两张
+- 📋 **AttachmentPlan**：附件1/2/3 页面计划与 current-template-v1 渲染
+- 🎨 **OOXML/VML 渲染**：黑字策略、输出卫生、模板指纹验证
+
+## 迁移中
+
+- 🔄 **CanonicalInspectionCase**：统一内部模型（基础实现已完成，尚未生产接线）
+- 🔄 **pipeline_mode**：legacy/shadow/canonical 三模式（当前默认 legacy）
+- 🔄 **Shadow comparison**：新旧管线脱敏比较（基础实现已完成，未接 Controller）
+- 🔄 **DocumentRenderPlan**：统一渲染合同（设计完成，未实现生产类型）
+- 🔄 **ReportProfile / 通用 TemplateProfile**：后续扩展
+
+## 后续规划
+
+- 真实 4/22/45GB 档位验收
+- Canonical 生产切换
+- 更多报告/模板 Profile
+- 多类文书扩展
 
 ## 技术栈
 
@@ -14,9 +33,9 @@
 |---|------|
 | 前端 | React 18 + TypeScript + Ant Design 5 + Vite |
 | 后端 | FastAPI (Python 3.11) |
-| 文档操作 | officecli (模板 merge + DOM 编辑) |
+| 文档渲染 | python-docx + lxml（主路径），officecli（旧版回退） |
 | HTML 解析 | BeautifulSoup4 |
-| 异步任务 | Celery + Redis |
+| 归档压缩 | WinRAR CLI |
 | 存储 | 本地文件系统 |
 
 ## 快速开始
@@ -26,7 +45,7 @@
 - Node.js >= 18
 - pnpm >= 9
 - Python >= 3.11
-- Redis（Celery 异步任务依赖）
+- WinRAR（归档压缩依赖）
 
 ### 安装
 

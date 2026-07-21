@@ -97,11 +97,11 @@
 | Layer 2 (SharedUtils) | 单元测试 | Vitest | Agent 自主，MUST 覆盖边界 |
 | Layer 10 (FE_Hooks) | Hook 测试 | Vitest + React Testing Library | Agent 自主 |
 | Layer 11 (FE_Components) | 组件测试 | React Testing Library | Spec 场景驱动 |
-| Layer 12 (FE_Pages) | E2E | Playwright | Spec 场景驱动 |
+| Layer 12 (FE_Pages) | E2E | Playwright（规划中，当前未启用） | Spec 场景驱动 |
 | Layer 20 (BE_Repository) | 单元测试 | pytest | Agent 自主，MUST 覆盖边界 |
 | Layer 21 (BE_Services) | 单元测试 | pytest | Agent 自主 |
 | Layer 22 (BE_Controllers) | 集成测试 | pytest + httpx | Spec 场景驱动 |
-| Layer 23 (BE_Routes) | E2E | Playwright / pytest | Spec 场景驱动 |
+| Layer 23 (BE_Routes) | E2E | Playwright / pytest（规划中，当前未启用） | Spec 场景驱动 |
 
 ### 任务执行约束
 
