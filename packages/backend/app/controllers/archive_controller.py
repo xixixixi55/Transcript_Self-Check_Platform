@@ -12,7 +12,7 @@ from ..services.archive_execution_service import (
 )
 from ..services.archive_runtime_service import ArchiveRuntimeError
 from ..services.software_policy_service import normalize_primary_software_projection
-from .record_controller import OUTPUT_BASE
+from ..config import OUTPUT_BASE
 
 
 router = APIRouter()

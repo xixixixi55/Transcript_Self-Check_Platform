@@ -12,6 +12,7 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -66,10 +67,13 @@ const ALLOWED_DEPS: Record<string, string[]> = {
   'hooks': ['types', 'constants', 'utils', 'hooks'],
   'components': ['types', 'constants', 'hooks', 'components'],
   'pages': ['types', 'constants', 'hooks', 'components'],
-  'repository': ['types', 'constants', 'utils'],
-  'services': ['types', 'constants', 'utils', 'repository'],
+  'repository': ['types', 'constants', 'utils', 'repository'],
+  'services': ['types', 'constants', 'utils', 'repository', 'services'],
   'controllers': ['types', 'constants', 'services'],
   'routes': ['types', 'constants', 'controllers'],
+  // 组合根：app/*.py 负责创建 FastAPI 实例、注册路由、配置中间件。
+  // 仅允许应用组装所需的最小依赖集，不得在此层编写业务逻辑。
+  'bootstrap': ['types', 'constants', 'routes', 'controllers'],
 }
 
 /** 前端层与后端层禁止互相引用（跨边界检查） */
@@ -191,8 +195,8 @@ function checkDependencyDirection(filePath: string, content: string, srcDir: str
   const currentLayer = getLayer(filePath, srcDir)
   if (!currentLayer) return violations
 
-  // Python 文件只检查文件大小和命名，不检查 import 依赖方向
-  if (filePath.endsWith('.py')) return violations
+  // Python 依赖方向检查由 checkAllPythonDeps() 批量处理
+  if (filePath.endsWith('.py')) return []
 
   const allowed = ALLOWED_DEPS[currentLayer]
   if (!allowed) return violations
@@ -239,6 +243,129 @@ function checkDependencyDirection(filePath: string, content: string, srcDir: str
 
   return violations
 }
+
+// ─── Python 依赖方向检查 (AST-based) ──────────────────
+
+/** Python 包名到架构层的映射 */
+const PYTHON_LAYER_FROM_MODULE: Record<string, string> = {
+  'repository': 'repository',
+  'services': 'services',
+  'controllers': 'controllers',
+  'routes': 'routes',
+}
+
+/**
+ * 中立模块：纯基础设施，任何架构层均可安全导入。
+ *
+ * config — 路径常量（纯设置，无 I/O）与简单应用配置存取（硬件设备 JSON CRUD）。
+ *          配置存取使用标准库 json/os/uuid，不依赖业务模块。
+ *          不包含 archive/pdf 等复杂 I/O 编排逻辑。
+ */
+const PYTHON_NEUTRAL_MODULES = new Set(['config'])
+
+/**
+ * Python 依赖方向检查。
+ *
+ * 解析 `from ..X.Y import ...` 和 `from .X import ...` 的相对导入，
+ * 提取导入目标所在层，与当前文件所在层比较。
+ */
+function checkAllPythonDeps(pythonFiles: string[], srcDir: string): Violation[] {
+  const violations: Violation[] = []
+  if (pythonFiles.length === 0) return violations
+
+  let importMap: Record<string, any> = {}
+  try {
+    const result = execFileSync(
+      'python',
+      [path.resolve(ROOT, 'scripts/_python_imports.py'), ...pythonFiles],
+      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    importMap = JSON.parse(result)
+  } catch (err: any) {
+    console.error('Python AST 导入提取失败:', err.stderr || err.message)
+    process.exit(2)
+  }
+
+  // 语法错误文件 → 必须报告为违规
+  const errors: Array<{ file: string; error: string }> = importMap['__errors__'] || []
+  for (const e of errors) {
+    violations.push({
+      file: path.relative(ROOT, e.file),
+      line: 0,
+      rule: 'dependency-direction',
+      message: `Python 语法错误，无法解析导入: ${e.error}`,
+    })
+  }
+  delete importMap['__errors__']
+
+  for (const [filePath, imports] of Object.entries(importMap)) {
+    if (!imports || !Array.isArray(imports) || imports.length === 0) continue
+    const impList = imports as Array<{ line: number; level: number; module: string; absolute?: boolean }>
+
+    // app/*.py 作为组合根（bootstrap），可以导入任何 BE 层
+    let currentLayer = getLayer(filePath, srcDir)
+    if (!currentLayer) {
+      const relToSrc = path.relative(srcDir, filePath).replace(/\\/g, '/')
+      if (!relToSrc.includes('/')) currentLayer = 'bootstrap'
+    }
+    if (!currentLayer) continue
+
+    const allowed = ALLOWED_DEPS[currentLayer]
+    if (!allowed) continue
+
+    for (const imp of impList) {
+      const { line, level, module: modulePath } = imp
+
+      // 绝对导入 (level=0, absolute=true): 模块路径已去除 app. 前缀
+      // 相对导入 (level>=1): 模块路径为相对路径
+      const topModule = modulePath.split('.')[0]
+
+      let targetLayer: string | null = null
+      if (level === 1) {
+        targetLayer = currentLayer
+      } else if (level === 0 && imp.absolute) {
+        // 项目内部绝对导入: topModule 是 app 下的第一层包名
+        if (PYTHON_NEUTRAL_MODULES.has(topModule)) continue
+        targetLayer = PYTHON_LAYER_FROM_MODULE[topModule] || null
+      } else {
+        // level >= 2 相对导入
+        if (PYTHON_NEUTRAL_MODULES.has(topModule)) continue
+        targetLayer = PYTHON_LAYER_FROM_MODULE[topModule] || null
+      }
+      if (!targetLayer) continue
+
+      if (targetLayer === currentLayer) {
+        if (allowed.includes(targetLayer)) continue
+        violations.push({
+          file: path.relative(ROOT, filePath), line,
+          rule: 'dependency-direction',
+          message: `Layer "${currentLayer}" MUST NOT import from same layer "${targetLayer}". Allowed: [${allowed.join(', ')}]`,
+        })
+        continue
+      }
+
+      if (BE_LAYERS.has(currentLayer) && FE_LAYERS.has(targetLayer)) {
+        violations.push({
+          file: path.relative(ROOT, filePath), line,
+          rule: 'cross-boundary',
+          message: `BE layer "${currentLayer}" MUST NOT import from FE layer "${targetLayer}".`,
+        })
+        continue
+      }
+
+      if (!allowed.includes(targetLayer)) {
+        violations.push({
+          file: path.relative(ROOT, filePath), line,
+          rule: 'dependency-direction',
+          message: `Layer "${currentLayer}" MUST NOT import from "${targetLayer}". Allowed: [${allowed.join(', ')}]`,
+        })
+      }
+    }
+  }
+
+  return violations
+}
+
 
 function checkFileSize(filePath: string, content: string): Violation[] {
   const lineCount = content.split('\n').length
@@ -308,6 +435,7 @@ function main() {
 
   const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.py']
   const allViolations: Violation[] = []
+  const allPythonFiles: string[] = []
 
   for (const srcDir of SRC_DIRS) {
     const ext = srcDir.endsWith('app') ? ['.py'] : ['.ts', '.tsx']
@@ -321,7 +449,16 @@ function main() {
         ...checkFileSize(file, content),
         ...checkNamingConvention(file, srcDir),
       )
+      if (file.endsWith('.py')) {
+        allPythonFiles.push(file)
+      }
     }
+  }
+
+  // 批量 AST 解析所有 Python 文件的导入依赖
+  if (allPythonFiles.length > 0) {
+    const beSrcDir = SRC_DIRS.find(d => d.endsWith('app')) || SRC_DIRS[2]
+    allViolations.push(...checkAllPythonDeps(allPythonFiles, beSrcDir))
   }
 
   console.log('')

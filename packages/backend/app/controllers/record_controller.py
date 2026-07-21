@@ -32,12 +32,8 @@ from ..services.attachment2_image_service import Attachment2ImageError
 from ..services.template_profile_service import TemplateProfileError
 from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
 from ..services.archive_authorization_service import ArchiveAuthorizationError, ArchiveAuthorizationService
+from ..config import OUTPUT_BASE, UPLOAD_BASE, ARCHIVE_MAX_SIZE
 router = APIRouter()
-# 存储路径（项目根目录）
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-UPLOAD_BASE = os.path.join(_PROJECT_ROOT, "uploads")
-OUTPUT_BASE = os.path.join(_PROJECT_ROOT, "output")
-ARCHIVE_MAX_SIZE = 500 * 1024 * 1024  # 500MB
 ARCHIVE_AUTHORIZATION_SERVICE = ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
 @router.post("/reports/parse")
 async def parse_report_endpoint(

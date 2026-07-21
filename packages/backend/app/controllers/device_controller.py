@@ -4,7 +4,9 @@ Layer 22: BE_Controllers — 硬件设备管理 Controller
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from ..repository.device_config import list_devices, add_device, update_device, delete_device
+from ..services.device_config_service import (
+    list_devices, add_device, update_device, delete_device, DeviceConfigError,
+)
 
 router = APIRouter()
 
@@ -21,6 +23,15 @@ class DeviceUpdate(BaseModel):
     description: str = ""
 
 
+def _http_status(error: DeviceConfigError) -> int:
+    """将服务层错误映射到 HTTP 状态码。"""
+    if "不存在" in str(error):
+        return 404
+    if "已存在" in str(error):
+        return 409
+    return 400
+
+
 @router.get("/devices")
 async def get_devices():
     return {"success": True, "data": list_devices()}
@@ -28,20 +39,26 @@ async def get_devices():
 
 @router.post("/devices")
 async def create_device(body: DeviceCreate):
-    device = add_device(body.name, body.model, body.description)
+    try:
+        device = add_device(body.name, body.model, body.description)
+    except DeviceConfigError as e:
+        raise HTTPException(status_code=_http_status(e), detail=str(e))
     return {"success": True, "data": device}
 
 
 @router.put("/devices/{device_id}")
 async def update_device_endpoint(device_id: str, body: DeviceUpdate):
-    result = update_device(device_id, body.name, body.model, body.description)
-    if not result:
-        raise HTTPException(status_code=404, detail="设备不存在")
+    try:
+        result = update_device(device_id, body.name, body.model, body.description)
+    except DeviceConfigError as e:
+        raise HTTPException(status_code=_http_status(e), detail=str(e))
     return {"success": True, "data": result}
 
 
 @router.delete("/devices/{device_id}")
 async def delete_device_endpoint(device_id: str):
-    if not delete_device(device_id):
-        raise HTTPException(status_code=404, detail="设备不存在")
+    try:
+        delete_device(device_id)
+    except DeviceConfigError as e:
+        raise HTTPException(status_code=_http_status(e), detail=str(e))
     return {"success": True}
