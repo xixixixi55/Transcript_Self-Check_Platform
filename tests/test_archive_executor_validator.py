@@ -118,7 +118,7 @@ def test_executor_timeout_is_safe_and_cleans_staging(tmp_path):
     plan = SimpleNamespace(plan_id="plan-3", archive_base_name="案件", volume_size_bytes=4)
     with pytest.raises(ArchiveExecutionError) as error:
         executor.execute(plan, inventory.files, inventory.source_root, capability())
-    assert error.value.code == "ARCHIVE_EXECUTION_FAILED"
+    assert error.value.code == "ARCHIVE_EXECUTION_TIMEOUT"
     assert list((tmp_path / "staging").glob("archive-*")) == []
 
 

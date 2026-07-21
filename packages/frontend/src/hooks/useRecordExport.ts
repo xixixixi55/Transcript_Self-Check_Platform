@@ -20,6 +20,7 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
   ARCHIVE_TOO_LARGE: '归档输入超过 135GB 上限。',
   ARCHIVE_PLAN_INVALID: '归档计划无效，请检查案件名称和输入文件。',
   ARCHIVE_EXECUTION_FAILED: '归档执行失败，请检查后重试。',
+  ARCHIVE_EXECUTION_TIMEOUT: '归档执行超时，请确认系统资源充足后重试。',
   ARCHIVE_PARTS_INVALID: '归档分卷或完整性校验失败，请重新生成。',
   ARCHIVE_MANIFEST_MISSING: '缺少已验证的归档清单，请重新生成归档。',
   ARCHIVE_MANIFEST_INVALID: '归档清单校验失败，请重新生成归档。',
