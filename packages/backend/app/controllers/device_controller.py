@@ -23,15 +23,6 @@ class DeviceUpdate(BaseModel):
     description: str = ""
 
 
-def _http_status(error: DeviceConfigError) -> int:
-    """将服务层错误映射到 HTTP 状态码。"""
-    if "不存在" in str(error):
-        return 404
-    if "已存在" in str(error):
-        return 409
-    return 400
-
-
 @router.get("/devices")
 async def get_devices():
     return {"success": True, "data": list_devices()}
@@ -39,10 +30,7 @@ async def get_devices():
 
 @router.post("/devices")
 async def create_device(body: DeviceCreate):
-    try:
-        device = add_device(body.name, body.model, body.description)
-    except DeviceConfigError as e:
-        raise HTTPException(status_code=_http_status(e), detail=str(e))
+    device = add_device(body.name, body.model, body.description)
     return {"success": True, "data": device}
 
 
@@ -51,7 +39,7 @@ async def update_device_endpoint(device_id: str, body: DeviceUpdate):
     try:
         result = update_device(device_id, body.name, body.model, body.description)
     except DeviceConfigError as e:
-        raise HTTPException(status_code=_http_status(e), detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
     return {"success": True, "data": result}
 
 
@@ -60,5 +48,5 @@ async def delete_device_endpoint(device_id: str):
     try:
         delete_device(device_id)
     except DeviceConfigError as e:
-        raise HTTPException(status_code=_http_status(e), detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
     return {"success": True}

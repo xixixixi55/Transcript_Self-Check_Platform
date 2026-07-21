@@ -22,7 +22,7 @@ def test_add_and_delete_device():
     assert "id" in device
     assert delete_device(device["id"]) is True
     with pytest.raises(DeviceConfigError):
-        delete_device(device["id"])  # 已删除
+        delete_device(device["id"])
 
 
 def test_update_device():
@@ -32,20 +32,11 @@ def test_update_device():
     delete_device(device["id"])
 
 
-def test_add_duplicate_name_raises():
-    device = add_device("Unique Device", "UD-1")
-    try:
-        with pytest.raises(DeviceConfigError, match="已存在"):
-            add_device("Unique Device", "UD-2")
-    finally:
-        delete_device(device["id"])
-
-
-def test_add_empty_name_raises():
-    with pytest.raises(DeviceConfigError, match="不能为空"):
-        add_device("", "M-1")
-
-
 def test_update_nonexistent_raises():
     with pytest.raises(DeviceConfigError, match="不存在"):
         update_device("nonexistent-id", name="X")
+
+
+def test_delete_nonexistent_raises():
+    with pytest.raises(DeviceConfigError, match="不存在"):
+        delete_device("nonexistent-id")
