@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 
 from ..repository.archive_input_repository import ArchiveInputError, verify_input_inventory
-from .archive_manifest_service import validate_manifest_files
+from .archive_manifest_service import compute_disc_capacity, validate_manifest_files
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord, ArchiveRuntimeError
 from .export_gate_service import ExportGateCode, ExportGateIssue
 
@@ -59,7 +60,14 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
             ),))
     finally:
         ARCHIVE_RUNTIME_STORE.release_context(context_id)
-    return record.public_manifest
+    normalized = copy.deepcopy(record.public_manifest)
+    for part in normalized.get("parts", []):
+        if "disc_capacity_bytes" not in part:
+            try:
+                part["disc_capacity_bytes"] = compute_disc_capacity(part["size_bytes"])
+            except ValueError:
+                pass  # size_bytes already validated, should not happen
+    return normalized
 
 
 def _raise_manifest_file_error(record: ArchiveManifestRecord) -> None:

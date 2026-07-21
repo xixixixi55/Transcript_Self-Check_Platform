@@ -208,8 +208,15 @@ def _part_row(item: Mapping[str, Any], manifest: Mapping[str, Any]) -> Attachmen
 
 
 def _positive_int(value: object) -> int:
-    v = int(value) if not isinstance(value, bool) else 0
-    return v if v >= 0 else 0
+    if value is None:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件计划缺少必要容量字段。")
+    if isinstance(value, bool):
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件计划容量字段类型无效。")
+    if not isinstance(value, int):
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件计划容量字段类型无效。")
+    if value <= 0:
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件计划容量字段必须为正整数。")
+    return value
 
 def _unsafe_filename(value: str) -> bool:
     return (PurePath(value).name != value or PureWindowsPath(value).name != value

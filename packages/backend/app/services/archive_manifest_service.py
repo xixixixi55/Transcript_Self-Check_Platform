@@ -139,10 +139,14 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
             expected_cap = compute_disc_capacity(size)
         except ValueError:
             return False
-        actual_cap = item.get("disc_capacity_bytes")
-        if not isinstance(actual_cap, int) or isinstance(actual_cap, bool):
-            # Compatibility: derive from trusted size for old manifests
+        if "disc_capacity_bytes" not in item:
+            # Old manifest — key absent, derive from trusted size_bytes
             actual_cap = expected_cap
+        else:
+            actual_cap = item["disc_capacity_bytes"]
+            if (not isinstance(actual_cap, int) or isinstance(actual_cap, bool)
+                    or actual_cap <= 0):
+                return False
         if actual_cap != expected_cap:
             return False
         # volume_size_bytes invariant: if present on both part and manifest, must match
@@ -199,12 +203,16 @@ def validate_manifest_files(record) -> str | None:
             or not item.get("disc_date")
         ):
             return "ARCHIVE_MANIFEST_INVALID"
-        disc_cap = item.get("disc_capacity_bytes")
-        if not isinstance(disc_cap, int) or isinstance(disc_cap, bool):
-            # Compatibility: derive from trusted size_bytes for old manifests
+        if "disc_capacity_bytes" not in item:
+            # Old manifest — key absent, derive from trusted size_bytes
             try:
                 disc_cap = compute_disc_capacity(size_bytes)
             except ValueError:
+                return "ARCHIVE_MANIFEST_INVALID"
+        else:
+            disc_cap = item["disc_capacity_bytes"]
+            if (not isinstance(disc_cap, int) or isinstance(disc_cap, bool)
+                    or disc_cap <= 0):
                 return "ARCHIVE_MANIFEST_INVALID"
         try:
             expected_cap = compute_disc_capacity(size_bytes)

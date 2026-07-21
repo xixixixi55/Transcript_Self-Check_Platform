@@ -167,7 +167,8 @@ async def export_record_endpoint(
             validated_manifest = get_valid_manifest(archive_context_id, manifest_id, report)
             manifest_valid = True
         except ArchiveGateError as error:
-            manifest_blocker_code = str(error.blockers[0].code) if error.blockers else "ARCHIVE_PARTS_INVALID"
+            first_code = error.blockers[0].code if error.blockers else "ARCHIVE_PARTS_INVALID"
+            manifest_blocker_code = first_code.value if hasattr(first_code, "value") else str(first_code)
             manifest_valid = False
         except ArchiveRuntimeError as error:
             manifest_blocker_code = error.code

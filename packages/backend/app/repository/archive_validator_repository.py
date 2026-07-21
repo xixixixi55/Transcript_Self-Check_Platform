@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 from .winrar_discovery_repository import WinRarCapability
+from .winrar_timeout_policy import compute_integrity_timeout
 
 
 class ValidatorPlan(Protocol):
@@ -57,7 +58,7 @@ def validate_archive_parts(
     capability: WinRarCapability,
     *,
     integrity_runner: IntegrityRunner = subprocess.run,
-    timeout_seconds: int = 120,
+    timeout_seconds: int | None = None,
 ) -> ArchiveValidationResult:
     """Accept only numeric, continuous, non-empty `.partN.rar` output."""
 
@@ -107,12 +108,20 @@ def validate_archive_parts(
         return _invalid("WINRAR_UNAVAILABLE", "WinRAR 不可用，无法校验归档。")
 
     first = parts[1]
+    total_archive_bytes = sum(p.size_bytes for p in parts.values())
+    itimeout = (
+        timeout_seconds
+        if timeout_seconds is not None
+        else compute_integrity_timeout(total_archive_bytes)
+    )
     try:
         result = integrity_runner(
             [capability.executable_path, "t", "-inul", "-y", first.filename],
             cwd=str(root), capture_output=True, text=True,
-            timeout=timeout_seconds, shell=False,
+            timeout=itimeout, shell=False,
         )
+    except subprocess.TimeoutExpired:
+        return _invalid("ARCHIVE_INTEGRITY_TIMEOUT", "归档完整性校验超时。")
     except (OSError, subprocess.SubprocessError):
         return _invalid("ARCHIVE_PARTS_INVALID", "WinRAR 完整性测试失败。")
     if result.returncode != 0:

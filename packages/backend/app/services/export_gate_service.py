@@ -15,6 +15,7 @@ class ExportGateCode(str, Enum):
     ARCHIVE_PLAN_INVALID = "ARCHIVE_PLAN_INVALID"
     ARCHIVE_EXECUTION_FAILED = "ARCHIVE_EXECUTION_FAILED"
     ARCHIVE_EXECUTION_TIMEOUT = "ARCHIVE_EXECUTION_TIMEOUT"
+    ARCHIVE_INTEGRITY_TIMEOUT = "ARCHIVE_INTEGRITY_TIMEOUT"
     ARCHIVE_PARTS_INVALID = "ARCHIVE_PARTS_INVALID"
     ARCHIVE_MANIFEST_MISSING = "ARCHIVE_MANIFEST_MISSING"
     ARCHIVE_MANIFEST_INVALID = "ARCHIVE_MANIFEST_INVALID"
@@ -209,6 +210,8 @@ def _archive_message(code: str) -> str:
         "ARCHIVE_TOO_LARGE": "归档输入超过 135GB 容量上限。",
         "ARCHIVE_PLAN_INVALID": "归档计划无效，请重新解析并检查案件名称。",
         "ARCHIVE_EXECUTION_FAILED": "WinRAR 归档执行失败，请检查后重试。",
+        "ARCHIVE_EXECUTION_TIMEOUT": "归档执行超时，请确认系统资源充足后重试。",
+        "ARCHIVE_INTEGRITY_TIMEOUT": "归档完整性校验超时，请确认系统资源充足后重试。",
         "ARCHIVE_PARTS_INVALID": "归档分卷校验失败，请重新生成归档。",
         "ARCHIVE_REPLAN_EXHAUSTED": "归档重规划次数已用尽，请检查输入文件。",
     }
