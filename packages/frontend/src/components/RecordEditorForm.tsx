@@ -1,7 +1,12 @@
 // Layer 11: FE_Components - 笔录审核编辑表单
 import React from 'react'
-import { Alert, Checkbox, Input, Typography } from 'antd'
-import type { InspectorLibraryRecord, InspectionReport } from '@biji/shared/types'
+import { Alert, Button, Checkbox, Input, Space, Typography } from 'antd'
+import type {
+  ArchiveExecutionStatus,
+  ArchiveManifest,
+  InspectorLibraryRecord,
+  InspectionReport,
+} from '@biji/shared/types'
 import type { UploadFile } from 'antd'
 import { ReviewActionBar } from './ReviewActionBar'
 import { ReviewAttachmentsSection } from './ReviewAttachmentsSection'
@@ -13,6 +18,7 @@ import type { ReviewPageStatus } from './reviewWorkspaceTypes'
 import { REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
 import type { ReviewPendingItem } from '../hooks/useReviewChecklist'
 import EditableField from './EditableField'
+import { ArchiveStatusCard } from './ArchiveStatusCard'
 
 const { Title } = Typography
 
@@ -33,10 +39,19 @@ interface Props {
   exportFileNameError?: string
   onCustomFileNameChange: (enabled: boolean) => void
   onExportFileNameChange: (value: string) => void
+  hasReportDefaults?: boolean
+  defaultDiscPrefix?: string
+  onSaveReportDefaults?: () => void
+  onClearReportDefaults?: () => void
+  onDefaultDiscPrefixChange?: (value: string) => void
   saveStatus?: ReviewPageStatus
   saveBusy?: boolean
   onSave?: () => void
   pendingItems?: ReviewPendingItem[]
+  archiveContextId?: string | null
+  archiveStatus?: ArchiveExecutionStatus
+  archiveManifest?: ArchiveManifest | null
+  archiveError?: string | null
 }
 
 export default function RecordEditorForm({
@@ -56,10 +71,19 @@ export default function RecordEditorForm({
   exportFileNameError,
   onCustomFileNameChange,
   onExportFileNameChange,
+  hasReportDefaults = false,
+  defaultDiscPrefix = '',
+  onSaveReportDefaults = () => undefined,
+  onClearReportDefaults = () => undefined,
+  onDefaultDiscPrefixChange = () => undefined,
   saveStatus = '尚未修改',
   saveBusy = false,
   onSave = () => undefined,
   pendingItems = [],
+  archiveContextId = null,
+  archiveStatus = 'idle',
+  archiveManifest = null,
+  archiveError = null,
 }: Props) {
   const introduction = report.introduction
   const attachments = report.attachments || { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' }
@@ -78,6 +102,16 @@ export default function RecordEditorForm({
       <ReviewSection id={REVIEW_SECTION_IDS.document} title="文书信息与导出设置" pendingCount={countFor(REVIEW_SECTION_IDS.document)}>
         <ReviewField label="文号" type="text" value={report.document_number}
           onChange={value => updateReport('document_number', value)} />
+        <div className="review-export-settings">
+          <div className="review-field__label">常用字段默认设置</div>
+          <div>保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀</div>
+          <Input aria-label="默认光盘编号前缀" value={defaultDiscPrefix}
+            onChange={event => onDefaultDiscPrefixChange(event.target.value)} placeholder="例如 GP 或 测试公" />
+          <Space wrap>
+            <Button onClick={onSaveReportDefaults}>保存当前六项为默认值</Button>
+            {hasReportDefaults && <><span>已保存默认设置</span><Button onClick={onClearReportDefaults}>清除全部默认值</Button></>}
+          </Space>
+        </div>
         <Alert message="请谨慎修改文号，导出文件名会使用当前文号生成。" type="warning" showIcon />
         <div className="review-export-settings">
           <div className="review-field__label">导出文件名</div>
@@ -111,8 +145,15 @@ export default function RecordEditorForm({
       </ReviewSection>
 
       <ReviewSection id={REVIEW_SECTION_IDS.attachments} title="附件" pendingCount={countFor(REVIEW_SECTION_IDS.attachments)}>
+        <ArchiveStatusCard
+          contextId={archiveContextId}
+          status={archiveStatus}
+          manifest={archiveManifest}
+          error={archiveError}
+        />
         <ReviewAttachmentsSection attachments={attachments} photoFiles={photoFiles}
-          onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport} />
+          onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport}
+          defaultDiscPrefix={defaultDiscPrefix} />
       </ReviewSection>
 
       <ReviewActionBar

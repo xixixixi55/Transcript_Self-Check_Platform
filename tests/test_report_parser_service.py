@@ -10,7 +10,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
 
 from app.services.report_parser_service import (
-    _CACHE_VERSION, _build_report, _build_software_tools, parse_from_archive, parse_report,
+    _CACHE_VERSION, _build_report, _build_software_tools, _device_display_name,
+    parse_from_archive, parse_report,
 )
 from app.services.report_defaults_service import DEFAULT_DATA_SUMMARY, normalize_data_summary
 from app.repository.report_format_adapter import ReportFormat
@@ -19,6 +20,18 @@ from app.repository.report_format_adapter import ReportFormat
 @pytest.mark.parametrize("value", [None, "", "   ", "\t\n"])
 def test_backend_data_summary_blank_values_use_fixed_default(value):
     assert normalize_data_summary(value) == DEFAULT_DATA_SUMMARY
+
+
+@pytest.mark.parametrize(("brand", "model", "expected"), [
+    ("HUAWEI", "HBN-AL00", "HUAWEI HBN-AL00"),
+    ("HUAWEI", "HUAWEI HBN-AL00", "HUAWEI HBN-AL00"),
+    ("Apple", "", "Apple"),
+    ("", "Pixel 9", "Pixel 9"),
+])
+def test_device_display_name_uses_brand_and_model_without_duplication(
+    brand, model, expected,
+):
+    assert _device_display_name(brand, model, "手机") == expected
 
 
 def test_backend_data_summary_preserves_non_empty_value():
@@ -289,7 +302,7 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 6
+    assert result["cache_version"] == 7
     assert report["introduction"]["inspection_time_range"] == (
         "2026年7月13日11点55分至2026年7月13日15点43分"
     )
@@ -314,15 +327,15 @@ def test_new_report_unknown_main_software_version_stays_blank(tmp_path):
     assert names == {"WinRAR压缩管理软件", "Python hashlib"}
 
 
-def test_cache_version_five_does_not_reuse_v4(tmp_path):
+def test_cache_version_seven_does_not_reuse_old_payload(tmp_path):
     old_cache = {"report": _MOCK_REPORT, "cache_version": 4}
     with patch("app.services.report_parser_service.is_cache_valid", return_value=True), \
          patch("app.services.report_parser_service.read_json", return_value=old_cache), \
          patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
          patch("app.services.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 6
-    assert result["cache_version"] == 6
+    assert _CACHE_VERSION == 7
+    assert result["cache_version"] == 7
     mock_build.assert_called_once()
 
 

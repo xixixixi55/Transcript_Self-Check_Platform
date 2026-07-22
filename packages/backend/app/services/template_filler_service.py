@@ -20,6 +20,7 @@ from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from .report_defaults_service import normalize_data_summary
+from .material_policy_service import material_from_legacy_item, select_display_identifiers
 from .attachment2_image_service import validate_attachment2_photos
 from .attachment_plan_service import build_attachment_plan
 from .attachment_docx_renderer_service import render_attachment_plan
@@ -413,10 +414,14 @@ def _replace_in_element(element, list_name: str, item_template: str, item: dict)
 def _fill_evidence_item(text_elements, item_template: str, item: dict):
     """填充单个检材条目"""
     # 构建设备描述
-    device_type = item.get("device_type") or item.get("model", "")
-    imei1 = item.get("imei1", "")
-    imei2 = item.get("imei2", "")
-    serial = item.get("serial_number", "")
+    device_type = item.get("device_name") or item.get("model") or item.get("device_type", "")
+    display_identifiers = {
+        identifier.type: identifier.value
+        for identifier in select_display_identifiers(material_from_legacy_item(item, 0))
+    }
+    imei1 = display_identifiers.get("imei1", "")
+    imei2 = display_identifiers.get("imei2", "")
+    serial = display_identifiers.get("serial_number", "")
     evidence_number = item.get("evidence_number", "")
 
     # 构建描述文本（条件字段）

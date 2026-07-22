@@ -52,7 +52,7 @@ describe('结构化编辑器', () => {
 
     fireEvent.click(screen.getByText('iPhone'))
     expect(onChange).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ device_type: '已修改' }),
+      expect.objectContaining({ device_name: '已修改' }),
     ]))
   })
 
@@ -71,6 +71,23 @@ describe('结构化编辑器', () => {
         material_type_source: 'user',
       }),
     ])
+  })
+
+  it('手机只显示 IMEI，平板只显示序列号但保留原始字段', () => {
+    const phone = render(<EvidenceEditor items={[{
+      id: 'phone', device_type: '手机', material_type: 'phone', imei1: '111111111111111',
+      serial_number: 'PHONE-SERIAL', model: '', evidence_number: 'JC-PHONE',
+    }]} onChange={vi.fn()} />)
+    expect(screen.getByText('IMEI1：')).toBeTruthy()
+    expect(screen.queryByText('序列号：')).toBeNull()
+    phone.unmount()
+
+    render(<EvidenceEditor items={[{
+      id: 'tablet', device_type: '平板', material_type: 'tablet', imei1: '222222222222222',
+      serial_number: 'TABLET-SERIAL', model: '', evidence_number: 'JC-TABLET',
+    }]} onChange={vi.fn()} />)
+    expect(screen.getByText('序列号：')).toBeTruthy()
+    expect(screen.queryByText('IMEI1：')).toBeNull()
   })
 
   it('检查人员字段通过 EditableField 回调更新数据', () => {

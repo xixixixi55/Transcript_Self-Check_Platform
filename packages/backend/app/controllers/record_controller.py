@@ -44,7 +44,7 @@ async def parse_report_endpoint(
 ):
     """
     解析 HTML 报告（文件夹模式或压缩包模式）。
-    - 文件夹模式：提供 report_dir；compress 保留兼容但仅控制是否建立归档上下文，解析阶段不压缩
+    - 文件夹模式：提供 report_dir；compress 仅为兼容参数，不影响归档上下文，解析阶段不压缩
     - 压缩包模式：提供 archive_file（.rar/.zip），自动解压解析
     """
     # 校验：两种模式不能同时提供或同时为空

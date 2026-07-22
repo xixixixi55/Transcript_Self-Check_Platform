@@ -22,8 +22,9 @@ from ..repository.html_parser import (
 )
 from ..repository.report_format_adapter import require_supported_report_format
 from .report_defaults_service import DEFAULT_DATA_SUMMARY
+from .material_policy_service import material_from_legacy_item, select_display_identifiers
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 6  # v6: parse no longer performs or reuses compression side effects
+_CACHE_VERSION = 7  # v7: structured main-software and per-material device-name parsing
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
@@ -143,14 +144,18 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         # 尝试从 Base 目录解析设备详情
         base_info = parse_device_base(data_dir, en)
         # Base 解析失败时，回退到 data_device_lists 中的 device_name
-        dev_name = base_info.get("device_name") or dev.get("device_name", "")
-        model = base_info.get("model") or dev_name or dev.get("device_name", "")
+        dev_name = str(base_info.get("device_name") or dev.get("device_name", "")).strip()
+        brand = str(base_info.get("brand") or "").strip()
+        raw_model = str(base_info.get("model") or dev_name or dev.get("device_name", "")).strip()
+        model = _device_display_name(brand, raw_model, dev_name)
         explicit_device_type = base_info.get("device_type") or dev.get("device_type", "")
         device_type = explicit_device_type or base_info.get("device_name") or base_info.get("model") or dev.get("device_name", "")
         evidence_items.append({
             "id": en,
             "device_type": device_type,
             "device_type_source": "report_field" if explicit_device_type else "legacy_display",
+            "device_name": model,
+            "brand": brand,
             "model": model,
             "imei1": dev.get("imei1", "") or base_info.get("imei1", ""),
             "imei2": dev.get("imei2", "") or base_info.get("imei2", ""),
@@ -170,8 +175,13 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     main_candidates = main_software.get("candidates", [])
     sv = main_version or _extract_version(versions)
     main_display = " ".join(filter(None, [main_name, main_version]))
+    first_identifiers = select_display_identifiers(material_from_legacy_item(first_device, 0))
+    identifier_labels = {"imei1": "IMEI1", "imei2": "IMEI2", "serial_number": "序列号"}
+    identifier_text = "；".join(
+        f"{identifier_labels[item.type]}：{item.value}" for item in first_identifiers
+    ) or "设备标识待确认"
     process_steps = [
-        {"step_number": 1, "content": f"将{first_device.get('device_type') or first_device.get('model', '未知设备')}（IMEI1：{first_device.get('imei1', 'xx')}；IMEI2：{first_device.get('imei2', 'xx')}）编号为{first_device.get('evidence_number', 'xx')}。"},
+        {"step_number": 1, "content": f"将{first_device.get('device_name') or first_device.get('model') or first_device.get('device_type', '未知设备')}（{identifier_text}）编号为{first_device.get('evidence_number', 'xx')}。"},
         {"step_number": 2, "content": f"对检材{first_device.get('evidence_number', 'xx')}进行拍照。"},
         {"step_number": 3, "content": "启动美亚FL-901手机取证塔，Windows 10 64位企业版操作系统启动正常，使用火绒安全软件（版本号为6.0.6.1）对取证塔进行杀毒，未发现病毒，完毕后退出火绒安全软件。"},
         {"step_number": 4, "content": f"启动{main_display or '待确认主取证软件'}（版本号为{main_version or '待确认'}）对检材{first_device.get('evidence_number', 'xx')}进行检查。"},
@@ -271,6 +281,18 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "burning_date": "",
         },
     }
+
+
+def _device_display_name(brand: str, model: str, fallback_name: str = "") -> str:
+    """Build one stable device display name without duplicating its brand."""
+    brand_value = " ".join(str(brand).split())
+    model_value = " ".join(str(model).split())
+    fallback = " ".join(str(fallback_name).split())
+    if model_value:
+        if brand_value and brand_value.casefold() not in model_value.casefold():
+            return f"{brand_value} {model_value}"
+        return model_value
+    return brand_value or fallback
 
 
 def _build_software_tools(

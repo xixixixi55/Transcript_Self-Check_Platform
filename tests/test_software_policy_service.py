@@ -1,5 +1,6 @@
 import os
 import sys
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
@@ -18,6 +19,32 @@ def test_report_candidate_requires_one_semantic_name_version_pair():
     assert candidate["status"] == "confirmed_by_report"
     assert candidate["name"] == "合成取证工具"
     assert candidate["version"] == "V1.2.3"
+
+
+def test_bracketed_main_product_ignores_submodule_name_and_version():
+    candidate = extract_main_software_candidate([{
+        "value": (
+            "该报告采用【手机大师-并行版V5（FL-901 手机取证塔V5） "
+            "V3.2.12922 子模块MYReader V3.2.24111】生成。"
+        ),
+    }])
+    assert candidate == {
+        "name": "手机大师-并行版V5（FL-901 手机取证塔V5）",
+        "version": "V3.2.12922",
+        "status": "confirmed_by_report",
+        "candidates": [{
+            "name": "手机大师-并行版V5（FL-901 手机取证塔V5）",
+            "version": "V3.2.12922",
+        }],
+    }
+
+
+@pytest.mark.parametrize("marker", ["子模块", "插件", "组件"])
+def test_bracketed_main_product_supports_named_secondary_variants(marker):
+    candidate = extract_main_software_candidate([{
+        "value": f"该报告采用[合成主工具 Pro V2.4.6 {marker}Reader V9.8.7]生成。",
+    }])
+    assert (candidate["name"], candidate["version"]) == ("合成主工具 Pro", "V2.4.6")
 
 
 def test_conflicting_report_candidates_stay_unconfirmed():

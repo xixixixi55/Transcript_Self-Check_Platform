@@ -27,6 +27,15 @@ describe('disc sequence rules', () => {
     expect(generateDiscNumbers('GP20260718-09', 0)).toEqual([])
   })
 
+  it('preserves a configured Chinese prefix', () => {
+    const parsed = parseDiscSequence('测试公20260718-001')
+    expect(parsed.valid).toBe(true)
+    expect(parsed.sequence?.prefix).toBe('测试公')
+    expect(generateDiscNumbers(parsed.sequence!, 2)).toEqual([
+      '测试公20260718-001', '测试公20260718-002',
+    ])
+  })
+
   it('rejects negative and non-integer counts', () => {
     expect(() => generateDiscNumbers('GP20260718-01', -1)).toThrow('FIRST_DISC_SEQUENCE_INVALID')
     expect(() => generateDiscNumbers('GP20260718-01', 1.5)).toThrow('FIRST_DISC_SEQUENCE_INVALID')

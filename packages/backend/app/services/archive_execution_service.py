@@ -34,11 +34,7 @@ from .archive_runtime_service import (
     ArchiveManifestRecord,
 )
 from .export_gate_service import ExportGateCode, ExportGateInput, ExportGateIssue, ExportGateResult, evaluate_export_gate
-from .material_policy_service import unconfirmed_material_fields
-from .software_policy_service import is_primary_software_confirmed
 from .disc_sequence_service import parse_disc_sequence
-from .attachment2_plan_service import material_photo_groups
-from .attachment_plan_errors_service import AttachmentPlanError
 
 @dataclass(frozen=True)
 class ArchiveExecutionOutcome:
@@ -64,24 +60,8 @@ def create_archive_context(
 def _pre_archive_gate(report: dict) -> ExportGateResult:
     attachments = report.get("attachments") or {}
     disc_result = parse_disc_sequence(attachments.get("disc_number"))
-    photo_ids = attachments.get("photo_ids") or []
-    photo_mapping_valid = True
-    photo_mapping_error_code = None
-    if photo_ids:
-        try:
-            material_photo_groups(report)
-        except AttachmentPlanError as error:
-            photo_mapping_valid = False
-            photo_mapping_error_code = error.code
-    material_fields = unconfirmed_material_fields(report)
     return evaluate_export_gate(
         ExportGateInput(
-            material_types_confirmed=not material_fields,
-            material_type_fields=tuple(material_fields),
-            primary_software_confirmed=is_primary_software_confirmed(report),
-            photo_count_valid=isinstance(photo_ids, list) and len(photo_ids) % 2 == 0,
-            photo_mapping_valid=photo_mapping_valid,
-            photo_mapping_error_code=photo_mapping_error_code,
             disc_sequence_valid=disc_result.valid,
             disc_sequence_error_code=disc_result.error_code,
         )
@@ -146,8 +126,11 @@ def execute_archive(
             ArchiveSourceEntry(item.relative_path, item.size_bytes, item.modified_time_ns)
             for item in context.inventory.files
         )
+        case_display_name = str(
+            (report.get("introduction") or {}).get("case_summary") or ""
+        ).strip()
         plan = plan_archive(
-            context.case_display_name, entries,
+            case_display_name, entries,
             first_disc_number=first_disc_number, policy=policy,
         )
         if plan.status != "planned":
@@ -211,8 +194,7 @@ def execute_archive(
     except ArchiveGateError as error:
         blocked_codes = {
             "WINRAR_UNAVAILABLE", "ARCHIVE_INPUT_EMPTY", "ARCHIVE_INPUT_CHANGED",
-            "ARCHIVE_TOO_LARGE", "ARCHIVE_PLAN_INVALID", "MATERIAL_TYPE_UNCONFIRMED",
-            "PRIMARY_SOFTWARE_UNCONFIRMED", "ATTACHMENT2_IMAGE_COUNT_ODD", "DISC_SEQUENCE_INVALID",
+            "ARCHIVE_TOO_LARGE", "ARCHIVE_PLAN_INVALID", "DISC_SEQUENCE_INVALID",
             "FIRST_DISC_NUMBER_MISSING", "FIRST_DISC_NUMBER_INVALID",
         }
         codes = {str(item.code.value if hasattr(item.code, "value") else item.code) for item in error.blockers}

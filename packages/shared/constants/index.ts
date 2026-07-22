@@ -19,6 +19,10 @@ export const API_PREFIX = '/api/v1'
 export const API_ENDPOINTS = {
   PARSE_REPORT: `${API_PREFIX}/reports/parse`,
   EXECUTE_ARCHIVE: `${API_PREFIX}/records/archive`,
+  ARCHIVE_STATUS: (contextId: string) =>
+    `${API_PREFIX}/records/archive/${encodeURIComponent(contextId)}/status`,
+  ARCHIVE_PART: (contextId: string, manifestId: string, partId: string) =>
+    `${API_PREFIX}/records/archive/${encodeURIComponent(contextId)}/manifests/${encodeURIComponent(manifestId)}/parts/${encodeURIComponent(partId)}`,
   EXPORT_RECORD: `${API_PREFIX}/records/export`,
   DEVICES: `${API_PREFIX}/devices`,
   INSPECTORS: `${API_PREFIX}/inspectors`,

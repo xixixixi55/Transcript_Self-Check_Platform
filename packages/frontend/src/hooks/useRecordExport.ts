@@ -2,13 +2,12 @@
 import { useState, useCallback } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { ArchiveExecutionStatus, InspectionReport } from '@biji/shared/types'
+import type { InspectionReport } from '@biji/shared/types'
 import { getDefaultExportFileName, normalizeDataSummary, normalizeExportFileName } from '@biji/shared/utils'
 
 interface UseRecordExportReturn {
-  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string, archiveContextId?: string | null) => Promise<boolean>
+  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string, archiveContextId?: string | null, manifestId?: string | null) => Promise<boolean>
   exporting: boolean
-  archiveStatus: ArchiveExecutionStatus
 }
 
 const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
@@ -103,7 +102,6 @@ function buildMaterialPhotoGroups(report: InspectionReport, photoCount: number) 
 
 export function useRecordExport(): UseRecordExportReturn {
   const [exporting, setExporting] = useState(false)
-  const [archiveStatus, setArchiveStatus] = useState<ArchiveExecutionStatus>('idle')
 
   const exportDocx = useCallback(async (
     report: InspectionReport,
@@ -111,9 +109,9 @@ export function useRecordExport(): UseRecordExportReturn {
     photoFiles?: File[],
     fileName?: string,
     archiveContextId?: string | null,
+    manifestId?: string | null,
   ) => {
     setExporting(true)
-    setArchiveStatus('planning')
     try {
       const normalizedReport = JSON.parse(JSON.stringify(report)) as InspectionReport
       normalizedReport.inspection.result.data_summary = normalizeDataSummary(
@@ -129,17 +127,7 @@ export function useRecordExport(): UseRecordExportReturn {
           photo_groups: buildMaterialPhotoGroups(normalizedReport, photoCount),
         },
       })
-      const archiveForm = new FormData()
-      archiveForm.append('report_json', reportJson)
-      archiveForm.append('archive_context_id', archiveContextId || '')
-      setArchiveStatus('compressing')
-      const archiveResponse = await axios.post<{ data: { manifest_id: string } }>(
-        API_ENDPOINTS.EXECUTE_ARCHIVE, archiveForm,
-      )
-      const manifestId = archiveResponse.data.data.manifest_id
       if (!manifestId) throw new Error('ARCHIVE_MANIFEST_MISSING')
-      setArchiveStatus('validating')
-
       const formData = new FormData()
       formData.append('report_json', reportJson)
       formData.append('archive_context_id', archiveContextId || '')
@@ -158,10 +146,8 @@ export function useRecordExport(): UseRecordExportReturn {
       a.download = resolveExportFileName(report.document_number, fileName)
       a.click()
       window.URL.revokeObjectURL(url)
-      setArchiveStatus('completed')
       return true
     } catch (e: any) {
-      setArchiveStatus('failed')
       alert('导出失败: ' + await resolveExportErrorMessage(e))
       return false
     } finally {
@@ -169,5 +155,5 @@ export function useRecordExport(): UseRecordExportReturn {
     }
   }, [])
 
-  return { exportDocx, exporting, archiveStatus }
+  return { exportDocx, exporting }
 }

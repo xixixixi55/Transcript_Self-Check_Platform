@@ -47,7 +47,7 @@ class CurrentTemplateProfile:
     attachment2_single_group_center_after_twips: int = 3925
     attachment2_slot_count: int = 2
     attachment2_slot_columns: int = 2
-    attachment2_two_image_table_columns: int = 1
+    attachment2_two_image_table_columns: int = 2
     attachment2_four_image_table_columns: int = 2
     attachment2_pair_size: int = 2
     attachment2_max_images_per_page: int = 4

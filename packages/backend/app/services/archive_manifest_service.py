@@ -120,10 +120,14 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         if not isinstance(number, int) or isinstance(number, bool) or number < 1:
             return False
         numbers.append(number)
-        if isinstance(base_name, str) and not re.fullmatch(
-            rf"{re.escape(base_name)}\.part{number}\.rar", filename,
-        ):
-            return False
+        if isinstance(base_name, str):
+            expected_names = (
+                {f"{base_name}.rar", f"{base_name}.part1.rar"}
+                if len(parts) == 1 and number == 1
+                else {f"{base_name}.part{number}.rar"}
+            )
+            if filename not in expected_names:
+                return False
         path = (root / filename).resolve(strict=False)
         try:
             path.relative_to(root)

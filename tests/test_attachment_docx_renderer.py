@@ -168,7 +168,7 @@ def attachment2_tables(root):
     return [
         table for table in attachment_tables(root)
         if [len(row.findall("./{%s}tc" % W_NS))
-            for row in table.findall("./{%s}tr" % W_NS)] in ([2], [2, 2])
+            for row in table.findall("./{%s}tr" % W_NS)] in ([2], [2, 1], [2, 2])
         or [len(row.findall("./{%s}tc" % W_NS))
             for row in table.findall("./{%s}tr" % W_NS)] in ([1, 1], [2, 1, 2, 1])
         or (
@@ -359,8 +359,8 @@ def test_attachment2_uses_fixed_pair_grids_and_preserves_order(tmp_path, photo_c
         f"JC-{chr(65 + index)}" for index in range(photo_count // 2)
     )
     assert f"经对编号为{evidence_label}号检材使用主取证软件" in text
-    expected_shapes = [[1, 1]] if photo_count == 2 else (
-        [[2, 1, 2, 1]] * (photo_count // 4) + ([[1, 1]] if photo_count % 4 else [])
+    expected_shapes = [[2, 1]] if photo_count == 2 else (
+        [[2, 1, 2, 1]] * (photo_count // 4) + ([[2, 1]] if photo_count % 4 else [])
     )
     assert [
         [len(row.findall("./{%s}tc" % W_NS))
@@ -368,7 +368,7 @@ def test_attachment2_uses_fixed_pair_grids_and_preserves_order(tmp_path, photo_c
         for table in tables
     ] == expected_shapes
     assert [len(table.findall(".//{%s}drawing" % W_NS)) for table in tables] == [
-        2 if shape == [1, 1] else 4 for shape in expected_shapes
+        2 if shape == [2, 1] else 4 for shape in expected_shapes
     ]
 
     with zipfile.ZipFile(output) as package:
@@ -431,7 +431,7 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
     slot_twips = round(profile.attachment2_slot_width_emu / 635)
     table_width = table.find("./{%s}tblPr/{%s}tblW" % (W_NS, W_NS))
     assert table_width.get("{%s}w" % W_NS) == str(slot_twips * 2)
-    expected_columns = 1 if photo_count == 2 else 2
+    expected_columns = 2
     assert len(table.findall("./{%s}tblGrid/{%s}gridCol" % (W_NS, W_NS))) == expected_columns
     rows = table.findall("./{%s}tr" % W_NS)
     assert len(rows) == expected_rows
@@ -440,14 +440,22 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
         assert height.get("{%s}val" % W_NS) == str(profile.attachment2_slot_row_height_twips)
         assert height.get("{%s}hRule" % W_NS) == "exact"
         for cell in row.findall("./{%s}tc" % W_NS):
-            assert cell.find("./{%s}tcPr/{%s}vAlign" % (W_NS, W_NS)).get("{%s}val" % W_NS) == "center"
+            tc_pr = cell.find("./{%s}tcPr" % W_NS)
+            assert tc_pr.find("./{%s}vAlign" % W_NS).get("{%s}val" % W_NS) == "center"
+            margins = tc_pr.find("./{%s}tcMar" % W_NS)
+            assert margins is not None
+            assert list(tc_pr).index(margins) < list(tc_pr).index(tc_pr.find("./{%s}vAlign" % W_NS))
+            assert all(
+                item.get("{%s}w" % W_NS) == "0" for item in list(margins)
+            )
             paragraph_pr = cell.find("./{%s}p/{%s}pPr" % (W_NS, W_NS))
             assert paragraph_pr.find("./{%s}spacing" % W_NS) is not None
-            assert paragraph_pr.find("./{%s}jc" % W_NS).get("{%s}val" % W_NS) == "center"
+            alignment = paragraph_pr.find("./{%s}jc" % W_NS).get("{%s}val" % W_NS)
+            assert alignment in {"left", "right"} if photo_count == 2 else alignment == "center"
     first_cell_runs = table.findall("./{%s}tr[1]/{%s}tc[1]/{%s}p/{%s}r" % (
         W_NS, W_NS, W_NS, W_NS,
     ))
-    assert len(first_cell_runs) == (2 if photo_count == 2 else 1)
+    assert len(first_cell_runs) == 1
     captions = [
         paragraph_text(paragraph)
         for row in rows
@@ -475,7 +483,7 @@ def test_three_material_attachment2_centers_single_group_continuation(tmp_path):
     tables = attachment2_tables(root)
     assert len(tables) == 2
     assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[0].findall("./{%s}tr" % W_NS)] == [2, 1, 2, 1]
-    assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[1].findall("./{%s}tr" % W_NS)] == [1, 1]
+    assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[1].findall("./{%s}tr" % W_NS)] == [2, 1]
     body = root.find("./{%s}body" % W_NS)
     previous = list(body)[list(body).index(tables[1]) - 1]
     spacing = previous.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS))

@@ -312,7 +312,7 @@ def parse_device_base(data_dir: str, evidence_number: str) -> dict[str, str]:
     """
     resolved_dir = _resolve_evidence_directory(data_dir, evidence_number)
     if not resolved_dir:
-        return {"device_type": "", "device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+        return {"device_type": "", "device_name": "", "brand": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
 
     report_format = require_supported_report_format(data_dir)
     json_files = []
@@ -335,7 +335,7 @@ def parse_device_base(data_dir: str, evidence_number: str) -> dict[str, str]:
 
     # Keep the legacy explicit labels and text fallback. The fallback is
     # bounded by known labels and never scans arbitrary 15-digit numbers.
-    result = {"device_type": "", "device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+    result = {"device_type": "", "device_name": "", "brand": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
     for filepath in sorted(json_files):
         try:
             with open(filepath, "rb") as f:

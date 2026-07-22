@@ -69,6 +69,7 @@ def validate_archive_parts(
         rf"^{re.escape(plan.archive_base_name)}\.part([1-9][0-9]*)\.rar$"
     )
     parts: dict[int, ValidatedArchivePart] = {}
+    single: ValidatedArchivePart | None = None
     names_seen: set[str] = set()
     for entry in root.iterdir():
         if not entry.is_file():
@@ -83,6 +84,12 @@ def validate_archive_parts(
         if name_key in names_seen:
             return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷存在重复文件名。")
         names_seen.add(name_key)
+        if entry.name == f"{plan.archive_base_name}.rar":
+            if single is not None:
+                return _invalid("ARCHIVE_PARTS_INVALID", "单卷归档文件重复。")
+            size = entry.stat().st_size
+            single = ValidatedArchivePart(1, entry.name, entry, size)
+            continue
         match = pattern.fullmatch(entry.name)
         if not match:
             return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷文件名不符合计划。")
@@ -94,6 +101,12 @@ def validate_archive_parts(
             return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷大小超出容量规则。")
         parts[number] = ValidatedArchivePart(number, entry.name, entry, size)
 
+    if single is not None:
+        if parts:
+            return _invalid("ARCHIVE_PARTS_INVALID", "单卷和分卷归档不能同时存在。")
+        if single.size_bytes <= 0 or single.size_bytes > plan.volume_size_bytes:
+            return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷大小超出容量规则。")
+        parts[1] = single
     if 1 not in parts:
         return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷缺少 part1。")
     if len(parts) > plan.max_part_count:

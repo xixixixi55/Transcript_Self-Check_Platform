@@ -14,12 +14,15 @@ interface ReviewAttachmentsSectionProps {
   photoFiles: UploadFile[]
   onPhotoFilesChange: (files: UploadFile[]) => void
   updateReport: (path: string, value: any) => void
+  defaultDiscPrefix?: string
 }
 
-export function ReviewAttachmentsSection({ attachments, photoFiles, onPhotoFilesChange, updateReport }: ReviewAttachmentsSectionProps) {
+export function ReviewAttachmentsSection({ attachments, photoFiles, onPhotoFilesChange, updateReport, defaultDiscPrefix = '' }: ReviewAttachmentsSectionProps) {
   const discResult = parseDiscSequence(attachments.disc_number || '')
   const handleDiscNumberChange = (value: string) => {
-    updateReport('attachments.disc_number', value)
+    const normalized = defaultDiscPrefix && /^\d{8}-\d+$/.test(value)
+      ? `${defaultDiscPrefix}${value}` : value
+    updateReport('attachments.disc_number', normalized)
   }
 
   return (
@@ -34,7 +37,7 @@ export function ReviewAttachmentsSection({ attachments, photoFiles, onPhotoFiles
         <ImageUploader photos={photoFiles} onChange={onPhotoFilesChange} />
       </div>
       <ReviewField label="附件3：光盘编号" type="text" value={attachments.disc_number}
-        onChange={handleDiscNumberChange} placeholder="例如 GP20260718-001" />
+        onChange={handleDiscNumberChange} placeholder={`例如 ${defaultDiscPrefix || 'GP'}20260718-001`} />
       {discResult.valid && discResult.sequence ? (
         <div className="review-field">
           <div className="review-field__label">附件摘要/附件3日期</div>

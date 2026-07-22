@@ -152,6 +152,64 @@ def test_archive_endpoint_requires_opaque_context_and_does_not_accept_client_pat
     assert "C:\\sensitive" not in response.text
 
 
+def test_archive_endpoint_returns_manifest_derived_attachment1_preview(client):
+    from app.services.archive_execution_service import ArchiveExecutionOutcome
+
+    manifest = {"manifest_id": "manifest-1", "parts": []}
+    preview = {"columns": [{"key": "electronic_data", "title": "电子数据"}],
+               "rows": [{"electronic_data": "synthetic.rar", "md5_hash": "a" * 32}]}
+    record = MagicMock(public_manifest=manifest)
+    with patch("app.controllers.archive_controller.execute_archive",
+               return_value=ArchiveExecutionOutcome("completed", "manifest-1", None)), \
+         patch("app.controllers.archive_controller.ARCHIVE_RUNTIME_STORE.get_manifest", return_value=record), \
+         patch("app.controllers.archive_controller.project_manifest_to_legacy_report",
+               return_value={"attachments": {"extract_list": preview}}):
+        response = client.post("/api/v1/records/archive", data={
+            "archive_context_id": "context-1",
+            "report_json": json.dumps(_MOCK_REPORT, ensure_ascii=False),
+        })
+
+    assert response.status_code == 200
+    assert response.json()["data"]["attachment_preview"] == preview
+
+
+def test_archive_status_returns_only_public_context_fields(client):
+    summary = {
+        "archive_context_id": "context-1", "file_count": 2,
+        "total_input_bytes": 10, "status": "validating",
+        "created_at": "2026-07-22T00:00:00+00:00",
+        "expires_at": "2026-07-22T00:30:00+00:00",
+    }
+    with patch(
+        "app.controllers.archive_controller.ARCHIVE_RUNTIME_STORE.get_context_summary",
+        return_value=summary,
+    ):
+        response = client.get("/api/v1/records/archive/context-1/status")
+    assert response.status_code == 200
+    assert response.json()["data"] == summary
+    assert "absolute" not in response.text
+
+
+def test_archive_part_download_uses_opaque_ids_and_manifest_filename(client, tmp_path):
+    from app.services.archive_manifest_access_service import ArchiveDownload
+
+    part = tmp_path / "合成案件.rar"
+    payload = b"synthetic-rar"
+    part.write_bytes(payload)
+    with patch(
+        "app.controllers.archive_controller.get_manifest_part_download",
+        return_value=ArchiveDownload(part.name, part, len(payload)),
+    ) as resolver:
+        response = client.get(
+            "/api/v1/records/archive/context-1/manifests/manifest-1/parts/part-1",
+        )
+    assert response.status_code == 200
+    assert response.content == payload
+    assert response.headers["content-length"] == str(len(payload))
+    assert "filename*=utf-8''" in response.headers["content-disposition"].lower()
+    resolver.assert_called_once_with("context-1", "manifest-1", "part-1")
+
+
 def test_parse_archive_zip(client):
     """上传 .zip → 200"""
     with tempfile.TemporaryDirectory() as tmpdir:

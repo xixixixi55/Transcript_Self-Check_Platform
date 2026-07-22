@@ -134,7 +134,7 @@ def test_new_fixture_uses_tb2_and_strong_device_table(tmp_path):
     assert device["time_range"] == ""
     fields = parse_device_base(str(data_dir), "JC01")
     assert fields == {
-        "device_type": "", "device_name": "合成新手机", "model": "Model-NEW",
+        "device_type": "", "device_name": "合成新手机", "brand": "", "model": "Model-NEW",
         "imei1": "", "imei2": "999999999999999", "serial_number": "SN-NEW",
     }
 

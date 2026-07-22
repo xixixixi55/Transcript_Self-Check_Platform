@@ -3,6 +3,7 @@ export type ArchivePlanStatus = 'planned' | 'blocked'
 export type ArchiveValidationStatus = 'validated' | 'invalid'
 export type ArchiveExecutionStatus =
   | 'idle'
+  | 'waiting'
   | 'planning'
   | 'blocked'
   | 'compressing'
@@ -94,6 +95,11 @@ export interface ArchiveManifest {
 export interface ArchiveExecutionResponse {
   status: ArchiveExecutionStatus
   manifest_id: string | null
+  manifest: ArchiveManifest | null
   plan: ArchivePlan | null
   diagnostics: ArchiveDiagnostic[]
+  attachment_preview?: {
+    columns: { key: string; title: string; width?: string }[]
+    rows: Record<string, string>[]
+  } | null
 }

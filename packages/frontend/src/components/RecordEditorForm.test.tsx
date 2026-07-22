@@ -6,7 +6,7 @@ import RecordEditorForm from './RecordEditorForm'
 
 vi.mock('antd', () => ({
   Alert: () => <div>注意修改文号！</div>,
-  Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>,
   Checkbox: ({ checked, onChange, children }: { checked?: boolean; onChange?: (event: { target: { checked: boolean } }) => void; children: React.ReactNode }) => (
     <label><input type="checkbox" checked={checked} onChange={event => onChange?.({ target: { checked: event.target.checked } })} />{children}</label>
   ),
@@ -41,6 +41,7 @@ vi.mock('./ProcessStepsEditor', () => ({ default: () => <div data-testid="proces
 vi.mock('./SoftwareToolsList', () => ({ default: () => <div data-testid="software-tools-list" /> }))
 vi.mock('./ExtractListEditor', () => ({ default: () => <div data-testid="extract-list-editor" /> }))
 vi.mock('./ImageUploader', () => ({ default: () => <div data-testid="image-uploader" /> }))
+vi.mock('./ArchiveStatusCard', () => ({ ArchiveStatusCard: () => null }))
 
 const report: InspectionReport = {
   title: '电子数据检查笔录', document_number: 'SYN-TEST〔2026〕000001号',
@@ -77,6 +78,25 @@ describe('RecordEditorForm', () => {
     expect((screen.getByLabelText('导出文件名') as HTMLInputElement).disabled).toBe(false)
     fireEvent.change(screen.getByLabelText('导出文件名'), { target: { value: '新名称' } })
     expect(onExportFileNameChange).toHaveBeenCalledWith('新名称')
+  })
+
+  it('saves and clears the six report defaults and edits the disc prefix', () => {
+    const saveDefaults = vi.fn()
+    const clearDefaults = vi.fn()
+    const savePrefix = vi.fn()
+    render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
+      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
+      exportFileName="record.docx" customFileName={false} hasReportDefaults={true} defaultDiscPrefix="测试公"
+      onSaveReportDefaults={saveDefaults} onClearReportDefaults={clearDefaults}
+      onDefaultDiscPrefixChange={savePrefix} onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('保存当前六项为默认值'))
+    expect(saveDefaults).toHaveBeenCalled()
+    expect(screen.getByText('保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('默认光盘编号前缀'), { target: { value: '新前缀' } })
+    expect(savePrefix).toHaveBeenCalledWith('新前缀')
+    fireEvent.click(screen.getByText('清除全部默认值'))
+    expect(clearDefaults).toHaveBeenCalled()
   })
   it('集成所有审核编辑区域和附件编辑器', () => {
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}

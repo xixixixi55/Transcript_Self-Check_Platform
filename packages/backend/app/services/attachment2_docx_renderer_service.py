@@ -107,11 +107,7 @@ def _build_page_table(
         etree.SubElement(borders, qn(W_NS, edge)).set(qn(W_NS, "val"), "nil")
     etree.SubElement(tbl_pr, qn(W_NS, "tblLayout")).set(qn(W_NS, "type"), "fixed")
     table_grid = etree.SubElement(table, qn(W_NS, "tblGrid"))
-    grid_widths = (
-        [table_width_twips]
-        if page.layout == "two_centered"
-        else [slot_width_twips] * column_count
-    )
+    grid_widths = [slot_width_twips] * column_count
     for width in grid_widths:
         etree.SubElement(table_grid, qn(W_NS, "gridCol")).set(
             qn(W_NS, "w"), str(width),
@@ -132,13 +128,24 @@ def _build_page_table(
                 qn(W_NS, "w"): str(cell_width),
                 qn(W_NS, "type"): "dxa",
             })
+            margins = etree.SubElement(cell_pr, qn(W_NS, "tcMar"))
+            for edge in ("top", "left", "bottom", "right"):
+                etree.SubElement(margins, qn(W_NS, edge), {
+                    qn(W_NS, "w"): "0",
+                    qn(W_NS, "type"): "dxa",
+                })
             etree.SubElement(cell_pr, qn(W_NS, "vAlign")).set(qn(W_NS, "val"), "center")
             paragraph = etree.SubElement(cell, qn(W_NS, "p"))
             paragraph_pr = etree.SubElement(paragraph, qn(W_NS, "pPr"))
             etree.SubElement(paragraph_pr, qn(W_NS, "spacing"), {
                 qn(W_NS, "before"): "0", qn(W_NS, "after"): "0",
             })
-            etree.SubElement(paragraph_pr, qn(W_NS, "jc")).set(qn(W_NS, "val"), "center")
+            alignment = "center"
+            if page.layout == "two_centered":
+                alignment = "right" if cell_index == 0 else "left"
+            etree.SubElement(paragraph_pr, qn(W_NS, "jc")).set(
+                qn(W_NS, "val"), alignment,
+            )
             for image in image_group:
                 asset = assets[image.sequence_number - 1]
                 run = etree.SubElement(paragraph, qn(W_NS, "r"))
@@ -186,9 +193,7 @@ def _page_grid(page: Attachment2PagePlan) -> list[list[tuple[Any, ...]]]:
         expected = ("left", "right")
         if len(page.images) != 2 or set(by_slot) != set(expected):
             raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2横向页面计划无效。")
-        # Both drawings stay in one centered cell so the two-image group is
-        # centered as a whole rather than centered independently in two cells.
-        return [[tuple(by_slot[slot] for slot in expected)]]
+        return [[(by_slot["left"],), (by_slot["right"],)]]
     if page.layout == "four_grid":
         expected = ("top-left", "top-right", "bottom-left", "bottom-right")
         if len(page.images) != 4 or set(by_slot) != set(expected):

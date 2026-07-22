@@ -24,7 +24,7 @@ def test_inventory_sums_multiple_files_and_keeps_stable_relative_paths(tmp_path)
     assert all("absolute" not in item for item in inventory.public_entries())
 
 
-def test_inventory_excludes_output_and_generated_archive_files(tmp_path):
+def test_inventory_excludes_only_the_platform_output_subtree(tmp_path):
     (tmp_path / "data").mkdir()
     (tmp_path / "data" / "input.json").write_text("x", encoding="utf-8")
     output = tmp_path / "output"
@@ -32,7 +32,26 @@ def test_inventory_excludes_output_and_generated_archive_files(tmp_path):
     (output / "compressed" / "old.part1.rar").write_bytes(b"old")
     (tmp_path / "old.docx").write_bytes(b"docx")
     inventory = build_input_inventory(tmp_path, output_root=output)
-    assert [item.relative_path for item in inventory.files] == ["data/input.json"]
+    assert [item.relative_path for item in inventory.files] == [
+        "data/input.json", "old.docx",
+    ]
+
+
+def test_inventory_preserves_nested_and_empty_directories(tmp_path):
+    nested = tmp_path / "中文目录" / "带 空格" / "third"
+    nested.mkdir(parents=True)
+    (tmp_path / "empty").mkdir()
+    (nested / "same.txt").write_text("one", encoding="utf-8")
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "same.txt").write_text("two", encoding="utf-8")
+    inventory = build_input_inventory(tmp_path)
+    assert [item.relative_path for item in inventory.directories] == [
+        "empty", "other", "中文目录", "中文目录/带 空格", "中文目录/带 空格/third",
+    ]
+    assert [item.relative_path for item in inventory.files] == [
+        "other/same.txt", "中文目录/带 空格/third/same.txt",
+    ]
 
 
 def test_inventory_rejects_duplicate_case_insensitive_relative_paths(tmp_path):

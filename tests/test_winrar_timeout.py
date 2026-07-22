@@ -787,15 +787,15 @@ class TestNormalExecution:
         result = executor.execute(plan, inventory.files, inventory.source_root, capability())
         assert result.returncode == 0
         assert result.timed_out is False
-        assert (result.staging_dir / "case.part1.rar").is_file()
+        assert (result.staging_dir / "case.rar").is_file()
 
-    def test_single_volume_renamed(self, tmp_path):
+    def test_single_volume_uses_base_name(self, tmp_path):
         executor = WinRarExecutor(tmp_path / "staging", process_runner=_run_ok)
         inventory = _inventory(tmp_path, 512)
         plan = _make_plan()
         result = executor.execute(plan, inventory.files, inventory.source_root, capability())
-        assert (result.staging_dir / "case.part1.rar").is_file()
-        assert not (result.staging_dir / "case.rar").exists()
+        assert (result.staging_dir / "case.rar").is_file()
+        assert not (result.staging_dir / "case.part1.rar").exists()
 
     def test_multi_volume_untouched(self, tmp_path):
         def multi_runner(args, **kwargs):

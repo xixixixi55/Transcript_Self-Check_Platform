@@ -1,20 +1,16 @@
 // Layer 12: FE_Pages - 笔录生成主页面
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Spin, Steps } from 'antd'
+import { Spin, Steps, type UploadFile } from 'antd'
 import type { InspectorLibraryRecord, InspectionReport } from '@biji/shared/types'
-import type { UploadFile } from 'antd'
 import { useReportParser } from '../hooks/useReportParser'
 import { useRecordExport } from '../hooks/useRecordExport'
+import { usePreviewArchive } from '../hooks/useArchivePreparation'
+import { useReportDefaults } from '../hooks/useReportDefaults'
 import { getReviewPendingItems } from '../hooks/useReviewChecklist'
 import { useReviewWorkspaceShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
 import {
-  generateDocumentNumber,
-  getDefaultExportFileName,
-  isValidDateFieldValue,
-  isValidMinuteTimeRangeValue,
-  normalizeDataSummary,
-  applyReportEdit,
-  validateExportFileName,
+  applyReportEdit, generateDocumentNumber, getDefaultExportFileName, isValidDateFieldValue,
+  isValidMinuteTimeRangeValue, normalizeDataSummary, validateExportFileName,
 } from '@biji/shared/utils'
 import ReportUploadStep from '../components/ReportUploadStep'
 import RecordEditorForm from '../components/RecordEditorForm'
@@ -25,10 +21,10 @@ import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 type UploadMode = 'folder' | 'archive'
-
 export default function RecordGeneratePage() {
   const { parseReport, parseArchive, loading: parsing, error, errorCode, result } = useReportParser()
-  const { exportDocx, exporting, archiveStatus } = useRecordExport()
+  const { exportDocx, exporting } = useRecordExport()
+  const reportDefaults = useReportDefaults()
   const [devices, setDevices] = useState<{ id: string; name: string; model: string }[]>([])
   const [inspectors, setInspectors] = useState<InspectorLibraryRecord[]>([])
   const [inspectorLoading, setInspectorLoading] = useState(false)
@@ -45,7 +41,7 @@ export default function RecordGeneratePage() {
   const [hasPageChanges, setHasPageChanges] = useState(false)
   const [saveBusy, setSaveBusy] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
-
+  const archive = usePreviewArchive(report, setReport, archiveContextId)
   useEffect(() => {
     axios.get(API_ENDPOINTS.DEVICES).then(r => setDevices(r.data.data || []))
   }, [])
@@ -61,7 +57,7 @@ export default function RecordGeneratePage() {
   }, [])
   useEffect(() => {
     if (result?.report) {
-      const r = JSON.parse(JSON.stringify(result.report))
+      let r = JSON.parse(JSON.stringify(result.report))
       r.inspection = r.inspection || {}
       r.inspection.result = r.inspection.result || {}
       r.inspection.result.data_summary = normalizeDataSummary(r.inspection.result.data_summary)
@@ -72,8 +68,10 @@ export default function RecordGeneratePage() {
       if (!r.document_number || r.document_number.startsWith('xx电检')) {
         r.document_number = generateDocumentNumber(caseNum || '000000', undefined, prefix)
       }
+      r = reportDefaults.applyDefaults(r)
       setReport(r)
       setArchiveContextId(result.archive_context_id || null)
+      archive.reset()
       setExportFileName(getDefaultExportFileName(r.document_number))
       setCustomFileName(false)
       setExportFileNameError('')
@@ -82,7 +80,7 @@ export default function RecordGeneratePage() {
       setPreviewOpen(false)
       setCurrentStep(1)
     }
-  }, [result])
+  }, [result, archive.reset, reportDefaults.applyDefaults])
 
   const handleFolderUpload = async () => {
     const dirPath = prompt('请输入报告目录路径:')
@@ -90,6 +88,11 @@ export default function RecordGeneratePage() {
   }
   const handleExport = async () => {
     if (!report || exporting) return false
+    if (!archive.manifest || archive.status !== 'completed') {
+      setReviewStatus('导出失败')
+      alert('正式导出前必须等待真实 RAR 归档和校验完成。')
+      return false
+    }
 
     const dateErrors = [
       !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
@@ -122,23 +125,12 @@ export default function RecordGeneratePage() {
       files.length > 0 ? files : undefined,
       requestedFileName,
       archiveContextId,
+      archive.manifest.manifest_id,
     )
     setReviewStatus(success ? '导出成功' : '导出失败')
     return success
   }
 
-  useEffect(() => {
-    if (!exporting) return
-    const statusLabels = {
-      planning: '归档规划中',
-      compressing: '归档执行中',
-      validating: '归档校验中',
-      hashing: '归档哈希中',
-      completed: '导出中',
-    } as const
-    const label = statusLabels[archiveStatus as keyof typeof statusLabels]
-    if (label) setReviewStatus(label)
-  }, [archiveStatus, exporting])
   const handleCustomFileNameChange = (enabled: boolean) => {
     setCustomFileName(enabled)
     setExportFileNameError('')
@@ -237,10 +229,18 @@ export default function RecordGeneratePage() {
           exportFileNameError={exportFileNameError}
           onCustomFileNameChange={handleCustomFileNameChange}
           onExportFileNameChange={handleExportFileNameChange}
+          hasReportDefaults={reportDefaults.hasDefaults}
+          defaultDiscPrefix={reportDefaults.defaults.disc_number_prefix}
+          onSaveReportDefaults={() => reportDefaults.saveCurrentReport(report)}
+          onClearReportDefaults={reportDefaults.clearDefaults} onDefaultDiscPrefixChange={reportDefaults.saveDiscPrefix}
           saveStatus={reviewStatus}
           saveBusy={saveBusy}
           onSave={handleSave}
           pendingItems={pendingItems}
+          archiveContextId={archiveContextId}
+          archiveStatus={archive.status}
+          archiveManifest={archive.manifest}
+          archiveError={archive.error}
         />
       </div>
       <ReviewPreviewDrawer open={previewOpen} report={report} onClose={() => setPreviewOpen(false)} />

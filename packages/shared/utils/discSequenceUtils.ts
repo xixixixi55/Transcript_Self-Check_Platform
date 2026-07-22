@@ -1,6 +1,6 @@
 import type { DiscSequence, DiscSequenceParseResult } from '../types/discSequence'
 
-const FIRST_DISC_PATTERN = /^(GP)(\d{4})(\d{2})(\d{2})-(\d+)$/i
+const FIRST_DISC_PATTERN = /^([A-Za-z\u3400-\u9fff]{1,20})(\d{4})(\d{2})(\d{2})-(\d+)$/i
 
 function isRealDate(year: number, month: number, day: number): boolean {
   const date = new Date(Date.UTC(year, month - 1, day))
@@ -23,6 +23,7 @@ export function parseDiscSequence(value: string): DiscSequenceParseResult {
     return { valid: false, error_code: 'FIRST_DISC_DATE_INVALID' }
   }
   const rawNumber = match[5]
+  const prefix = /^[A-Za-z]+$/.test(match[1]) ? match[1].toUpperCase() : match[1]
   const startNumber = Number(rawNumber)
   if (!Number.isSafeInteger(startNumber) || startNumber < 1) {
     return { valid: false, error_code: 'FIRST_DISC_SEQUENCE_INVALID' }
@@ -30,11 +31,11 @@ export function parseDiscSequence(value: string): DiscSequenceParseResult {
   return {
     valid: true,
     sequence: {
-      prefix: 'GP',
+      prefix,
       date: `${match[2]}-${match[3]}-${match[4]}`,
       start_number: startNumber,
       number_width: rawNumber.length,
-      first_disc_number: `GP${match[2]}${match[3]}${match[4]}-${rawNumber}`,
+      first_disc_number: `${prefix}${match[2]}${match[3]}${match[4]}-${rawNumber}`,
     },
   }
 }

@@ -4,8 +4,8 @@ from typing import Any
 
 from .device_field_parser import extract_device_fields, normalise_imei
 
-_EMPTY_FIELDS = {"device_name": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
-_IDENTITY_FIELDS = {"device_name", "model", "serial_number"}
+_EMPTY_FIELDS = {"device_type": "", "device_name": "", "brand": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+_IDENTITY_FIELDS = {"device_name", "brand", "model", "serial_number"}
 
 
 def select_best_device_candidate(payloads: list[Any], *, allow_tt_ct: bool) -> dict[str, str]:
@@ -47,7 +47,8 @@ def _field_count(fields: dict[str, str]) -> int:
 
 def _candidate_score(fields: dict[str, str], structure: str) -> int:
     score = sum({
-        "serial_number": 4, "model": 3, "device_name": 3,
+        "serial_number": 4, "model": 3, "device_name": 3, "brand": 3,
+        "device_type": 1,
         "imei1": 3, "imei2": 3,
     }[key] for key in _EMPTY_FIELDS if fields[key])
     return score + (1 if structure == "mapping" else 2)
@@ -83,7 +84,8 @@ def _is_table_row(row: dict[str, Any], allow_tt_ct: bool) -> bool:
 def _is_device_label(label: Any) -> bool:
     key = "".join(str(label).split()).lower()
     return key in {
-        "设备名称", "设备型号", "产品型号", "手机型号", "型号",
+        "设备类型", "检材类型", "设备名称", "设备型号", "产品型号", "手机型号", "型号",
+        "手机品牌", "设备品牌", "品牌", "brand", "phonebrand", "devicebrand",
         "imei1", "imei2", "序列号", "serial", "serialnumber", "sn",
     }
 

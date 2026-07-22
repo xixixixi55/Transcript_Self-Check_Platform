@@ -9,15 +9,6 @@ from pathlib import Path
 
 
 MAX_SAFE_INTEGER = 2**53 - 1
-_EXCLUDED_DIR_NAMES = {
-    "output", "outputs", "compressed", "exports", "parsed", "cache", "caches",
-    "temp", "tmp", "__pycache__", ".git",
-}
-_EXCLUDED_SUFFIXES = {
-    ".rar", ".zip", ".r00", ".r01", ".r02", ".r03", ".docx", ".tmp", ".bak",
-}
-
-
 class ArchiveInputError(ValueError):
     """Safe, stable input diagnostics without filesystem paths."""
 
@@ -43,9 +34,23 @@ class InputFileSnapshot:
 
 
 @dataclass(frozen=True)
+class InputDirectorySnapshot:
+    relative_path: str
+    modified_time_ns: int
+
+    def public_entry(self) -> dict[str, int | str]:
+        return {
+            "relative_path": self.relative_path,
+            "modified_time_ns": self.modified_time_ns,
+            "entry_type": "directory",
+        }
+
+
+@dataclass(frozen=True)
 class InputInventory:
     source_root: Path
     files: tuple[InputFileSnapshot, ...]
+    directories: tuple[InputDirectorySnapshot, ...] = ()
     output_root: Path | None = None
 
     @property
@@ -53,7 +58,10 @@ class InputInventory:
         return sum(item.size_bytes for item in self.files)
 
     def public_entries(self) -> list[dict[str, int | str]]:
-        return [item.public_entry() for item in self.files]
+        return [
+            *[item.public_entry() for item in self.files],
+            *[item.public_entry() for item in self.directories],
+        ]
 
 
 def _is_reparse_point(path: Path) -> bool:
@@ -88,12 +96,7 @@ def _validate_relative_path(relative_path: str) -> None:
 
 
 def _should_skip(path: Path, source_root: Path, output_root: Path | None) -> bool:
-    if output_root and _is_within(path, output_root):
-        return True
-    relative_parts = path.relative_to(source_root).parts
-    if any(part.casefold() in _EXCLUDED_DIR_NAMES for part in relative_parts[:-1]):
-        return True
-    return path.suffix.casefold() in _EXCLUDED_SUFFIXES
+    return bool(output_root and _is_within(path, output_root))
 
 
 def build_input_inventory(
@@ -132,6 +135,7 @@ def build_input_inventory(
             output.mkdir(parents=True, exist_ok=True)
 
     snapshots: list[InputFileSnapshot] = []
+    directories: list[InputDirectorySnapshot] = []
     seen: set[str] = set()
     pending = [root]
     while pending:
@@ -142,6 +146,9 @@ def build_input_inventory(
                 raise ArchiveInputError("ARCHIVE_INPUT_LINK_NOT_ALLOWED", "归档输入不能包含符号链接或特殊路径。")
             if entry.is_dir(follow_symlinks=False):
                 if not _should_skip(path, root, output):
+                    relative = path.relative_to(root).as_posix()
+                    _validate_relative_path(relative)
+                    directories.append(InputDirectorySnapshot(relative, path.stat().st_mtime_ns))
                     pending.append(path)
                 continue
             if not entry.is_file(follow_symlinks=False) or _should_skip(path, root, output):
@@ -163,7 +170,8 @@ def build_input_inventory(
             snapshots.append(InputFileSnapshot(relative, path, info.st_size, info.st_mtime_ns))
 
     snapshots.sort(key=lambda item: item.relative_path.casefold())
-    return InputInventory(root, tuple(snapshots), output)
+    directories.sort(key=lambda item: item.relative_path.casefold())
+    return InputInventory(root, tuple(snapshots), tuple(directories), output)
 
 
 def verify_input_inventory(inventory: InputInventory) -> None:
@@ -180,7 +188,9 @@ def verify_input_inventory(inventory: InputInventory) -> None:
 
     expected_entries = [item.public_entry() for item in inventory.files]
     current_entries = [item.public_entry() for item in current_inventory.files]
-    if expected_entries != current_entries:
+    expected_directories = [item.public_entry() for item in inventory.directories]
+    current_directories = [item.public_entry() for item in current_inventory.directories]
+    if expected_entries != current_entries or expected_directories != current_directories:
         raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入在执行前已变化。")
 
     for expected in inventory.files:

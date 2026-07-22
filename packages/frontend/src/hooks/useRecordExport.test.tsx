@@ -25,20 +25,23 @@ const report: InspectionReport = {
 
 function ExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
   const { exportDocx } = useRecordExport()
-  return <button onClick={async () => onResult(await exportDocx(report, [], undefined, undefined, 'context-1'))}>导出</button>
+  return <button onClick={async () => onResult(await exportDocx(
+    report, [], undefined, undefined, 'context-1', 'manifest-1',
+  ))}>导出</button>
 }
 
 function PhotoExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
   const { exportDocx } = useRecordExport()
   const files = [1, 2, 3, 4].map(index => new File([`photo-${index}`], `photo-${index}.png`))
-  return <button onClick={async () => onResult(await exportDocx(report, files.map(file => file.name), files, undefined, 'context-1'))}>导出</button>
+  return <button onClick={async () => onResult(await exportDocx(
+    report, files.map(file => file.name), files, undefined, 'context-1', 'manifest-1',
+  ))}>导出</button>
 }
 
 describe('useRecordExport', () => {
   beforeEach(() => post.mockReset())
 
   it('保留现有下载链路并返回成功状态', async () => {
-    post.mockResolvedValueOnce({ data: { data: { manifest_id: 'manifest-1' } } })
     post.mockResolvedValueOnce({ data: new Blob(['docx']) })
     const createObjectURL = vi.fn().mockReturnValue('blob:test')
     const revokeObjectURL = vi.fn()
@@ -49,7 +52,7 @@ describe('useRecordExport', () => {
     render(<ExportHarness onResult={onResult} />)
     fireEvent.click(screenButton())
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(true))
-    expect(post).toHaveBeenCalledTimes(2)
+    expect(post).toHaveBeenCalledTimes(1)
     expect(createObjectURL).toHaveBeenCalled()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:test')
     expect(click).toHaveBeenCalled()
@@ -118,7 +121,6 @@ describe('explicit Attachment2 material mapping', () => {
   beforeEach(() => post.mockReset())
 
   it('sends explicit material photo groups with stable runtime image ids', async () => {
-    post.mockResolvedValueOnce({ data: { data: { manifest_id: 'manifest-1' } } })
     post.mockResolvedValueOnce({ data: new Blob(['docx']) })
     Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:test') })
     Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })

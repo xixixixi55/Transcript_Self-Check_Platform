@@ -17,6 +17,8 @@ from app.services.archive_execution_service import (  # noqa: E402
     get_valid_manifest,
 )
 from app.services.archive_runtime_service import ARCHIVE_RUNTIME_STORE  # noqa: E402
+from app.services.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
+from app.services.archive_manifest_access_service import get_manifest_part_download  # noqa: E402
 from app.services.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
 
 
@@ -47,8 +49,14 @@ class FakeExecutor:
         self.calls.append(plan.volume_tier_gb)
         staging = self.root / f"attempt-{len(self.calls)}"
         staging.mkdir(parents=True)
-        for number in range(1, self.count_for_tier(plan.volume_tier_gb) + 1):
-            (staging / f"{plan.archive_base_name}.part{number}.rar").write_bytes(b"x")
+        count = self.count_for_tier(plan.volume_tier_gb)
+        for number in range(1, count + 1):
+            filename = (
+                f"{plan.archive_base_name}.rar"
+                if count == 1
+                else f"{plan.archive_base_name}.part{number}.rar"
+            )
+            (staging / filename).write_bytes(b"x")
         return WinRarExecutionResult(plan.plan_id, staging, 0, False)
 
     @staticmethod
@@ -143,32 +151,35 @@ def test_replan_exhaustion_does_not_publish_manifest(tmp_path):
     assert ARCHIVE_RUNTIME_STORE.get_context_summary(context_id)["status"] == "failed"
 
 
-def test_unconfirmed_review_data_blocks_before_executor(tmp_path):
+def test_unconfirmed_review_data_does_not_block_preview_archive(tmp_path):
     _, output, context_id = make_context(tmp_path)
     report = valid_report()
     report["inspection"]["primary_software"]["confirmation_status"] = "unconfirmed"
     fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
-    with pytest.raises(ArchiveGateError) as error:
-        execute_archive(context_id, report, output_root=str(output), policy=policy(4), capability=None, executor=fake, integrity_runner=integrity_ok)
-    assert error.value.blockers[0].code == "PRIMARY_SOFTWARE_UNCONFIRMED"
-    assert fake.calls == []
+    result = execute_archive(
+        context_id, report, output_root=str(output), policy=policy(4),
+        capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+        executor=fake, integrity_runner=integrity_ok,
+    )
+    assert result.manifest_id
+    assert fake.calls == [4]
 
 
 @pytest.mark.parametrize("photo_count", [1, 3, 5])
-def test_odd_attachment2_photo_count_blocks_archive_before_executor(tmp_path, photo_count):
+def test_odd_attachment2_photo_count_does_not_block_preview_archive(tmp_path, photo_count):
     _, output, context_id = make_context(tmp_path)
     report = valid_report()
     report["attachments"]["photo_ids"] = [
         f"photo-{index}" for index in range(photo_count)
     ]
     fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
-    with pytest.raises(ArchiveGateError) as error:
-        execute_archive(
-            context_id, report, output_root=str(output), policy=policy(4),
-            capability=None, executor=fake, integrity_runner=integrity_ok,
-        )
-    assert error.value.blockers[0].code == "ATTACHMENT2_IMAGE_COUNT_ODD"
-    assert fake.calls == []
+    result = execute_archive(
+        context_id, report, output_root=str(output), policy=policy(4),
+        capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+        executor=fake, integrity_runner=integrity_ok,
+    )
+    assert result.manifest_id
+    assert fake.calls == [4]
 
 
 def test_unavailable_winrar_blocks_before_execution_without_manifest(tmp_path):
@@ -214,3 +225,25 @@ def test_manifest_part_missing_and_changed_are_distinguished(tmp_path):
     with pytest.raises(ArchiveGateError) as error:
         get_valid_manifest(context_id, result.manifest_id, valid_report())
     assert error.value.blockers[0].code == "ARCHIVE_MANIFEST_PART_MISSING"
+
+
+def test_download_resolves_only_current_opaque_part_and_revalidates_file(tmp_path):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    result = execute_archive(
+        context_id, valid_report(), output_root=str(output), policy=policy(4),
+        capability=capability, executor=fake, integrity_runner=integrity_ok,
+    )
+    manifest = ARCHIVE_RUNTIME_STORE.get_manifest(result.manifest_id).public_manifest
+    part = manifest["parts"][0]
+    download = get_manifest_part_download(context_id, result.manifest_id, part["part_id"])
+    assert download.filename == part["filename"]
+    assert download.size_bytes == part["size_bytes"]
+    with pytest.raises(ArchiveRuntimeError) as missing:
+        get_manifest_part_download(context_id, result.manifest_id, "../server-path")
+    assert missing.value.code == "ARCHIVE_PART_NOT_FOUND"
+    download.path.write_bytes(b"changed")
+    with pytest.raises(ArchiveGateError) as changed:
+        get_manifest_part_download(context_id, result.manifest_id, part["part_id"])
+    assert changed.value.blockers[0].code == "ARCHIVE_MANIFEST_PART_CHANGED"

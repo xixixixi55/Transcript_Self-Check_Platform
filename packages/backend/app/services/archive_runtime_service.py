@@ -190,6 +190,24 @@ class ArchiveRuntimeStore:
                 raise ArchiveRuntimeError("ARCHIVE_MANIFEST_MISSING", "Archive manifest is missing.")
             return record
 
+    def get_current_manifest(
+        self, context_id: str, manifest_id: str,
+    ) -> ArchiveManifestRecord:
+        with self._lock:
+            self.cleanup_expired()
+            context = self._contexts.get(context_id)
+            if context is None or context.expires_at <= time.time():
+                raise ArchiveRuntimeError("ARCHIVE_CONTEXT_EXPIRED", "Archive context has expired.")
+            record = self._manifests.get(manifest_id)
+            if record is None:
+                raise ArchiveRuntimeError("ARCHIVE_MANIFEST_MISSING", "Archive manifest is missing.")
+            if record.context_id != context_id or context.successful_manifest_id != manifest_id:
+                raise ArchiveRuntimeError(
+                    "ARCHIVE_MANIFEST_CONTEXT_MISMATCH",
+                    "Archive manifest does not belong to this context.",
+                )
+            return record
+
     def get_context_summary(self, context_id: str) -> dict[str, object]:
         with self._lock:
             record = self._contexts.get(context_id)

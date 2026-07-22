@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from dataclasses import dataclass
+from pathlib import Path
 
 from ..repository.archive_input_repository import ArchiveInputError, verify_input_inventory
 from .archive_manifest_service import compute_disc_capacity, validate_manifest_files
@@ -19,14 +21,12 @@ class ArchiveGateError(ArchiveRuntimeError):
 
 
 def archive_report_fingerprint(report: dict, inventory, first_disc_number: str) -> str:
-    fingerprint_report = dict(report)
-    fingerprint_attachments = dict(fingerprint_report.get("attachments") or {})
-    fingerprint_attachments.pop("photo_ids", None)
-    fingerprint_report["attachments"] = fingerprint_attachments
     payload = {
-        "report": fingerprint_report,
+        "archive_base_name": str(
+            (report.get("introduction") or {}).get("case_summary") or ""
+        ).strip(),
         "first_disc_number": first_disc_number,
-        "input": [item.public_entry() for item in inventory.files],
+        "input": inventory.public_entries(),
     }
     return hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode()
@@ -68,6 +68,38 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
             except ValueError:
                 pass  # size_bytes already validated, should not happen
     return normalized
+
+
+@dataclass(frozen=True)
+class ArchiveDownload:
+    filename: str
+    path: Path
+    size_bytes: int
+
+
+def get_manifest_part_download(
+    context_id: str, manifest_id: str, part_id: str,
+) -> ArchiveDownload:
+    """Resolve one opaque manifest part and revalidate it before download."""
+    record = ARCHIVE_RUNTIME_STORE.get_current_manifest(context_id, manifest_id)
+    _raise_manifest_file_error(record)
+    part = next(
+        (
+            item for item in record.public_manifest.get("parts", [])
+            if isinstance(item, dict) and item.get("part_id") == part_id
+        ),
+        None,
+    )
+    if part is None:
+        raise ArchiveRuntimeError("ARCHIVE_PART_NOT_FOUND", "归档分卷不存在。")
+    filename = str(part["filename"])
+    root = record.final_dir.resolve(strict=True)
+    path = (root / filename).resolve(strict=True)
+    try:
+        path.relative_to(root)
+    except ValueError as error:
+        raise ArchiveRuntimeError("ARCHIVE_PART_NOT_FOUND", "归档分卷不存在。") from error
+    return ArchiveDownload(filename, path, int(part["size_bytes"]))
 
 
 def _raise_manifest_file_error(record: ArchiveManifestRecord) -> None:

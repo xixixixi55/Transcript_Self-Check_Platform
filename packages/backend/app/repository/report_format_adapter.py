@@ -31,6 +31,12 @@ _REPORT_USES_SOFTWARE_RE = re.compile(
     rf"\s+(?P<version>{_VERSION_PATTERN})\s*\u751f\u6210",
     re.IGNORECASE,
 )
+_BRACKETED_REPORT_USES_SOFTWARE_RE = re.compile(
+    rf"\u62a5\u544a\u91c7\u7528\s*[\u3010\[]\s*"
+    rf"(?P<name>.+?)\s+(?P<version>{_VERSION_PATTERN})"
+    rf"(?=\s+(?:\u5b50\u6a21\u5757|\u63d2\u4ef6|\u7ec4\u4ef6)|\s*[\u3011\]])",
+    re.IGNORECASE,
+)
 _SOFTWARE_MARKERS = ("\u4e3b\u53d6\u8bc1\u8f6f\u4ef6", "\u62a5\u544a\u751f\u6210\u8f6f\u4ef6", "\u62a5\u544a\u91c7\u7528")
 _BRACKETS = "()\uff08\uff09[]\u3010\u3011"
 
@@ -144,15 +150,15 @@ def extract_main_software_version(contents: Any) -> str:
         if not any(marker in value for marker in _SOFTWARE_MARKERS):
             continue
         saw_main_record = True
-        matches = list(_EXPLICIT_SOFTWARE_RE.finditer(value))
-        matches.extend(_REPORT_USES_SOFTWARE_RE.finditer(value))
+        matches = _main_software_matches(value)
         if not matches:
             return ""
         for match in matches:
             fragment = match.group(0)
-            if any(bracket in fragment for bracket in _BRACKETS):
-                return ""
-            if len(_VERSION_RE.findall(fragment)) != 1:
+            if match.re is not _BRACKETED_REPORT_USES_SOFTWARE_RE and (
+                any(bracket in fragment for bracket in _BRACKETS)
+                or len(_VERSION_RE.findall(fragment)) != 1
+            ):
                 return ""
             name = " ".join(match.group("name").split()).strip(" :：，,；;。")
             version = match.group("version").replace(" ", "")
@@ -179,9 +185,9 @@ def extract_main_software_candidate(contents: Any) -> dict[str, Any]:
         if not value or not any(marker in value for marker in _SOFTWARE_MARKERS):
             continue
         saw_marker = True
-        matches = list(_EXPLICIT_SOFTWARE_RE.finditer(value))
-        matches.extend(_REPORT_USES_SOFTWARE_RE.finditer(value))
+        matches = _main_software_matches(value)
         if not matches or any(
+            match.re is not _BRACKETED_REPORT_USES_SOFTWARE_RE and
             bracket in match.group(0)
             for match in matches
             for bracket in _BRACKETS
@@ -190,7 +196,8 @@ def extract_main_software_candidate(contents: Any) -> dict[str, Any]:
             continue
         for match in matches:
             fragment = match.group(0)
-            if len(_VERSION_RE.findall(fragment)) != 1:
+            if (match.re is not _BRACKETED_REPORT_USES_SOFTWARE_RE
+                    and len(_VERSION_RE.findall(fragment)) != 1):
                 invalid = True
                 continue
             name = " ".join(match.group("name").split()).strip(" :：，,；;。")
@@ -209,3 +216,13 @@ def extract_main_software_candidate(contents: Any) -> dict[str, Any]:
         "status": status,
         "candidates": [{"name": item[0], "version": item[1]} for item in unique],
     }
+
+
+def _main_software_matches(value: str) -> list[re.Match[str]]:
+    """Prefer the explicit bracketed main-product segment over submodules."""
+    bracketed = list(_BRACKETED_REPORT_USES_SOFTWARE_RE.finditer(value))
+    if bracketed:
+        return bracketed
+    matches = list(_EXPLICIT_SOFTWARE_RE.finditer(value))
+    matches.extend(_REPORT_USES_SOFTWARE_RE.finditer(value))
+    return matches

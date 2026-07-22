@@ -147,20 +147,16 @@ class WinRarExecutor:
         try:
             self.staging_root.mkdir(parents=True, exist_ok=True)
             staging_dir = Path(tempfile.mkdtemp(prefix="archive-", dir=self.staging_root))
-            list_path = staging_dir / "source-list.txt"
-            list_path.write_text(
-                "\n".join(item.relative_path for item in inventory_files) + "\n",
-                encoding="utf-8")
             archive_path = staging_dir / f"{plan.archive_base_name}.rar"
             total_bytes = sum(item.absolute_path.stat().st_size for item in inventory_files)
             timeout = self._timeout_for(total_bytes)
-            args = [capability.executable_path, "a", "-r", "-ep1", "-y", "-inul",
-                    f"-v{plan.volume_size_bytes}b", str(archive_path), f"@{list_path}"]
+            args = [capability.executable_path, "a", "-r", "-y", "-inul",
+                    f"-v{plan.volume_size_bytes}b", str(archive_path), source_root.name]
 
             if self._process_runner is not None:
                 try:
                     result = self._process_runner(
-                        args, cwd=str(source_root), capture_output=True,
+                        args, cwd=str(source_root.parent), capture_output=True,
                         text=True, timeout=timeout, shell=False)
                 except subprocess.TimeoutExpired as error:
                     shutil.rmtree(staging_dir, ignore_errors=True)
@@ -176,12 +172,12 @@ class WinRarExecutor:
                     return WinRarExecutionResult(
                         plan.plan_id, staging_dir, result.returncode, False,
                         "ARCHIVE_EXECUTION_FAILED", "WinRAR 返回非零退出码。")
-                return self._finalize_result(plan, staging_dir, list_path)
+                return self._finalize_result(plan, staging_dir)
 
             # Production path — Popen with verified termination
             try:
                 process = subprocess.Popen(
-                    args, cwd=str(source_root),
+                    args, cwd=str(source_root.parent),
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     text=True, shell=False)
                 win_pid = process.pid  # saved for tree kill even if parent exits
@@ -210,7 +206,7 @@ class WinRarExecutor:
                 return WinRarExecutionResult(
                     plan.plan_id, staging_dir, process.returncode, False,
                     "ARCHIVE_EXECUTION_FAILED", "WinRAR 返回非零退出码。")
-            return self._finalize_result(plan, staging_dir, list_path)
+            return self._finalize_result(plan, staging_dir)
         except ArchiveExecutionError:
             raise
         except OSError as error:
@@ -222,17 +218,17 @@ class WinRarExecutor:
             self._release_plan(plan.plan_id)
 
     @staticmethod
-    def _finalize_result(plan: PlanLike, staging_dir: Path, list_path: Path,
-                         ) -> WinRarExecutionResult:
-        # Normalize single-volume `base.rar` → `base.part1.rar`
+    def _finalize_result(plan: PlanLike, staging_dir: Path) -> WinRarExecutionResult:
+        # A single physical volume uses `base.rar`; multi-volume output keeps
+        # WinRAR's `base.partN.rar` names.
         single_volume = staging_dir / f"{plan.archive_base_name}.rar"
         first_part = staging_dir / f"{plan.archive_base_name}.part1.rar"
-        if single_volume.is_file() and not first_part.exists():
-            rar_outputs = [path for path in staging_dir.iterdir()
-                           if path.is_file() and path.suffix.casefold() == ".rar"]
-            if rar_outputs == [single_volume]:
-                single_volume.rename(first_part)
-        list_path.unlink(missing_ok=True)
+        rar_outputs = [
+            path for path in staging_dir.iterdir()
+            if path.is_file() and path.suffix.casefold() == ".rar"
+        ]
+        if rar_outputs == [first_part] and not single_volume.exists():
+            first_part.rename(single_volume)
         return WinRarExecutionResult(plan.plan_id, staging_dir, 0, False)
 
     @staticmethod

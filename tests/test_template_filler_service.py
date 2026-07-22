@@ -122,6 +122,34 @@ def test_fill_template_combines_all_evidence_numbers_in_result_sentence(tmp_path
     assert "；经对编号为JC02号检材" not in document_xml
 
 
+def test_evidence_renderer_projects_identifiers_by_confirmed_material_type(tmp_path):
+    report = _report()
+    report["introduction"]["evidence_list"] = [
+        {
+            "id": "phone", "evidence_number": "JC-PHONE", "device_type": "手机",
+            "material_type": "phone", "material_type_status": "confirmed_by_user",
+            "material_type_source": "user", "imei1": "111111111111111",
+            "serial_number": "PHONE-SERIAL-MUST-NOT-RENDER",
+        },
+        {
+            "id": "tablet", "evidence_number": "JC-TABLET", "device_type": "平板",
+            "material_type": "tablet", "material_type_status": "confirmed_by_user",
+            "material_type_source": "user", "imei1": "222222222222222",
+            "serial_number": "TABLET-SERIAL-MUST-RENDER",
+        },
+    ]
+    output = tmp_path / "material-identifiers.docx"
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    with zipfile.ZipFile(output) as package:
+        document_xml = package.read("word/document.xml").decode("utf-8")
+
+    assert "111111111111111" in document_xml
+    assert "PHONE-SERIAL-MUST-NOT-RENDER" not in document_xml
+    assert "TABLET-SERIAL-MUST-RENDER" in document_xml
+    assert "222222222222222" not in document_xml
+
+
 def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
     report = _report()
     report["introduction"]["evidence_list"] = [

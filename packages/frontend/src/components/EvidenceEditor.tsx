@@ -23,6 +23,7 @@ export default function EvidenceEditor({ items, onChange }: Props) {
     onChange([...items, {
       id: String(Date.now()),
       device_type: '',
+      device_name: '',
       model: '',
       imei1: '',
       imei2: '',
@@ -60,8 +61,8 @@ export default function EvidenceEditor({ items, onChange }: Props) {
             onClick={() => removeItem(idx)} />
           <Space direction="vertical" style={{ width: '100%' }}>
             <div><Text strong>设备名称：</Text><EditableField type="text"
-              placeholder="如 HUAWEI Pura 70 Pro" value={item.device_type || item.model || ''}
-              onChange={value => updateItem(idx, 'device_type', value)} /></div>
+              placeholder="如 HUAWEI HBN-AL00" value={item.device_name || item.model || item.device_type || ''}
+              onChange={value => updateItem(idx, 'device_name', value)} /></div>
             <div>
               <Text strong>检材类型：</Text>
               <Select
@@ -81,12 +82,16 @@ export default function EvidenceEditor({ items, onChange }: Props) {
             {(!item.material_type || item.material_type === 'unconfirmed' || item.material_type_status === 'unconfirmed') && (
               <Alert type="warning" showIcon message="请确认检材类型；未确认时不能导出。" />
             )}
-            <div><Text strong>IMEI1：</Text><EditableField type="text" value={item.imei1 || ''}
-              onChange={value => updateItem(idx, 'imei1', value)} /></div>
-            <div><Text strong>IMEI2：</Text><EditableField type="text" value={item.imei2 || ''}
-              onChange={value => updateItem(idx, 'imei2', value)} /></div>
-            <div><Text strong>序列号：</Text><EditableField type="text" value={item.serial_number || ''}
-              onChange={value => updateItem(idx, 'serial_number', value)} /></div>
+            {item.material_type !== 'tablet' && <>
+              <div><Text strong>IMEI1：</Text><EditableField type="text" value={item.imei1 || ''}
+                onChange={value => updateItem(idx, 'imei1', value)} /></div>
+              <div><Text strong>IMEI2：</Text><EditableField type="text" value={item.imei2 || ''}
+                onChange={value => updateItem(idx, 'imei2', value)} /></div>
+            </>}
+            {item.material_type !== 'phone' && (
+              <div><Text strong>序列号：</Text><EditableField type="text" value={item.serial_number || ''}
+                onChange={value => updateItem(idx, 'serial_number', value)} /></div>
+            )}
             <div><Text strong>检材编号：</Text><EditableField type="text"
               placeholder="如 SYN-JC00000001" value={item.evidence_number}
               onChange={value => updateItem(idx, 'evidence_number', value)} /></div>

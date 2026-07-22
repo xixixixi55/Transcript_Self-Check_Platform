@@ -35,7 +35,7 @@
 - AND 后端授权并直接读取该本地目录，解析 JSON 以提取案件信息、设备信息、工具版本和数据分类统计
 - AND 解析成功后后端为该报告目录建立 `ArchiveContext` 并返回 `archive_context_id`
 - AND 解析阶段不调用 WinRAR、不生成最终 `ArchiveManifest`
-- AND 真实归档由导出时的独立归档入口执行，解析结果与最终归档结果分离
+- AND 进入审核预览后由独立归档入口异步执行真实归档，解析结果与最终归档结果分离
 
 **Scenario: deprecated compress 参数不控制解析归档**
 - WHEN 兼容请求传入任意 `compress` 值
@@ -115,6 +115,21 @@
 - WHEN 某个字段无法从 HTML 报告中提取（如检查人员、检查地点）
 - THEN 该字段在预览中显示为空白输入框，等待民警填写
 
+**Scenario: 按已确认检材类型显示设备标识**
+- WHEN 检材类型已由报告或用户确认为手机
+- THEN 审核预览、检查过程和正式 Word 只显示该检材存在且合法的 IMEI1/IMEI2，不显示序列号
+- WHEN 检材类型已由报告或用户确认为平板
+- THEN 审核预览、检查过程和正式 Word 只显示该检材序列号，不显示 IMEI
+- AND 原始解析字段继续保留，显示策略不得通过删除原始标识实现
+
+**Scenario: 预览阶段生成并核对真实归档**
+- WHEN 解析结果已建立 `ArchiveContext` 且首个光盘编号有效
+- THEN 页面异步启动真实 WinRAR 归档，不阻塞其他报告字段的审核和编辑
+- AND 归档区域按真实执行阶段显示等待开始、压缩中、完整性校验中、MD5计算中、已完成或失败
+- AND 已完成时只展示 validated `ArchiveManifest.parts` 中每个实际 RAR 的文件名、精确字节数、可读大小、MD5、分卷序号、光盘容量、状态和独立下载入口
+- AND 后端使用与 Word 相同的 Manifest→legacy附件投影生成附件1预览表格，前端显示每个 part 的文件名、审核后检材来源、当前固定提取方式和MD5；不得继续显示解析期空表或旧 `rar_info`
+- AND WinRAR 不可用或归档失败时仍允许继续审核和编辑，但正式 Word 导出保持阻止
+
 ### REQ-006: 检查过程自动生成
 
 **Scenario: 按模板生成检查过程**
@@ -131,6 +146,15 @@
 ## CAP-003: 全文在线编辑
 
 ### REQ-007: 任意字段可编辑
+
+**Scenario: 用户保存首批常用字段默认设置**
+- WHEN 用户在审核页选择“保存当前六项为默认值”
+- THEN 系统将当前文号、检查地点、检查方法、检查硬件设备、有序检查人员快照和光盘编号前缀保存在当前浏览器本地设置中
+- AND 设置区必须直接列出上述六项名称，不能只显示“六项”数量
+- AND 下次解析新报告进入审核页时优先套用这些用户默认值；案件、检材、设备标识和主软件等报告事实不受影响
+- AND 用户可以单独编辑光盘编号前缀，并可清除全部默认值
+- AND 光盘完整编号仍由前缀、有效日期和起始序号组成；用户只输入 `YYYYMMDD-NNN` 时可自动补入默认前缀
+- AND 当前报告仍可单独修改上述字段，保存默认值不是自动操作
 
 **Scenario: 点击字段进入编辑**
 - WHEN 民警在预览页面上点击任意文本字段
@@ -218,7 +242,7 @@
 - THEN 将完整解析结果（InspectionReport + rar_info）保存为 JSON 缓存文件
 - AND 缓存路径按压缩模式区分为 `output/parsed/[报告目录名].compress.json` 或 `output/parsed/[报告目录名].nocompress.json`
 - AND 路径中的 compress/nocompress 仅是 deprecated 参数留下的兼容命名空间，不代表执行过压缩
-- AND 缓存载荷中的 `cache_version` 当前为 `6`
+- AND 缓存载荷中的 `cache_version` 当前为 `7`，用于隔离主软件及逐检材设备名称新解析语义
 
 **Scenario: 重复解析时复用缓存**
 - WHEN 再次请求解析相同的报告目录
@@ -236,12 +260,20 @@
 **Scenario: 解析阶段不执行真实压缩**
 - WHEN 报告目录解析成功，无论 deprecated `compress` 参数为何值
 - THEN 解析阶段只建立不透明 `archive_context_id`，不调用 WinRAR、不生成占位 Manifest
-- AND 真实归档只由审核后的独立执行入口触发
+- AND 真实归档由进入审核预览后的独立执行入口触发；首光盘编号尚未填写时状态为等待开始
+
+**Scenario: 预览归档与正式导出分离**
+- WHEN 预览阶段已生成 validated `ArchiveManifest`
+- THEN 正式 Word 只消费该 Manifest，不再次调用 WinRAR
+- AND Word 导出前和每个 part 下载前都重新校验同一物理文件的存在性、精确大小和完整 MD5
+- AND 前端、Manifest、Word 与下载文件的文件名、字节数、MD5及分卷顺序必须一致
 
 **Scenario: 已验证 Manifest 的安全复用**
-- WHEN 同一归档上下文、输入指纹、首光盘编号和审核数据均未变化，且已有已验证 Manifest
+- WHEN 同一归档上下文、输入目录快照、案件归档基础名和首光盘编号均未变化，且已有已验证 Manifest
 - THEN 文书失败后的同次安全重试可以复用该归档结果而不重复执行 WinRAR
 - AND 新的导出请求仍重新验证实际 part 的存在性、大小和完整 MD5
+- AND 不影响归档输入的普通表单字段和附件2照片编辑不使 Manifest 失效
+- AND 重新解析案件、输入目录变化或案件归档基础名变化时旧 Manifest 必须失效
 
 ---
 
@@ -355,6 +387,9 @@
 - 初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 是档位每卷上限，`size_bytes` 是 WinRAR 实际 part 文件大小。
 - 每个 part 的 `disc_capacity_bytes` 必须只根据该 part 的 `size_bytes` 独立选择最小可容纳容量；不得继承 Manifest 档位值。
 - 最终 `ArchiveManifest` 是 Word 正文、附件1和附件3归档字段的唯一事实源。
+- RAR 外部基础名来自报告案件名称并清理 Windows 非法字符、结尾空格和点；单卷为 `<案件名>.rar`，多卷为 `<案件名>.partN.rar`。
+- WinRAR 以原始报告目录的父目录为工作目录、以原始报告根文件夹名为输入；归档内部保留该根文件夹、全部相对目录、多级嵌套、同名文件和业务空目录，不包含绝对路径、盘符、staging、cache、UUID或项目输出路径。
+- 每个 part 只能通过有效 `archive_context_id`、`manifest_id` 和不透明 `part_id` 下载；客户端不得提交服务器路径，下载前必须重新验证 Manifest 对应物理文件。
 
 **Scenario: 真实验收边界**
 - WHEN 判断当前归档生产验收状态
@@ -382,7 +417,9 @@
 - **MUST**: `rar_info` 是 ParseReportResponse 的旧兼容字段（`RarInfo | null`）；其 null/空值/零值不由 deprecated `compress` 参数可靠决定，也不代表最终归档状态
 - **MUST**: 解压操作仅存在于 BE_Repository 层（`file_storage.py`）
 - **MUST**: 软件工具列表由报告来源与运行环境共同生成；WinRAR 和 Python hashlib 始终显示，WinRAR 未检测到时不伪造默认版本，主软件候选不完整时保持未确认
+- **MUST**: 主软件只从 `data_report_info.json.contents[].value` 的明确主产品句式绑定名称和紧随其后的版本；括号可属于主名称，后续“子模块/插件/组件”的名称和版本不得覆盖主字段
 - **MUST**: `entrust_time`（委托时间）使用中文格式（如 `2026年6月30日`），由 `format_time_chinese()` 转换
 - **MUST**: legacy `InspectionResult.file_size` 在文件夹解析中只保留空值/零值兼容语义；压缩包直传的实际大小位于 `rar_info.size_bytes`，最终归档大小只以已验证 `ArchiveManifest.parts[].size_bytes` 为准
-- **MUST**: 设备解析时优先结构化 JSON，再正则回退；扫描检材目录下各直接子目录（不限于 Base/），支持 `设备型号`、`信息/内容` 和 `c1/c2`
+- **MUST**: 设备解析时优先结构化 JSON，再正则回退；按检材分别读取手机品牌及手机型号/设备型号，以单个空格生成设备名称，型号已含品牌时不重复；“手机”只作为检材类型，品牌和型号均缺失时才参与兜底
+- **MUST**: 当前模板附件2中同一检材的两张照片固定在同一表格行的左右两个槽位，单元格边距为零并分别向中间对齐；保持图片比例且不修改正式模板资产
 - **MUST**: DOCX 生成格式遵循项目模板/构建器定义的标准结构；自动化验证不替代人工视觉验收

@@ -45,13 +45,15 @@ def test_executor_uses_argument_array_and_dedicated_staging(tmp_path):
     result = executor.execute(plan, inventory.files, inventory.source_root, capability())
     args, kwargs = calls[0]
     assert kwargs["shell"] is False
-    assert kwargs["cwd"] == str(source.resolve())
+    assert kwargs["cwd"] == str(source.resolve().parent)
     assert "-v4b" in args
+    assert "-ep" not in " ".join(args)
+    assert args[-1] == source.name
     assert result.staging_dir.is_dir()
     assert not (result.staging_dir / "source-list.txt").exists()
 
 
-def test_executor_normalizes_single_volume_to_part1_name(tmp_path):
+def test_executor_keeps_single_volume_base_name(tmp_path):
     source = tmp_path / "source"
     source.mkdir()
     (source / "data.txt").write_text("synthetic", encoding="utf-8")
@@ -65,8 +67,8 @@ def test_executor_normalizes_single_volume_to_part1_name(tmp_path):
     executor = WinRarExecutor(tmp_path / "staging", process_runner=runner)
     plan = SimpleNamespace(plan_id="plan-single", archive_base_name="synthetic", volume_size_bytes=4)
     result = executor.execute(plan, inventory.files, inventory.source_root, capability())
-    assert (result.staging_dir / "synthetic.part1.rar").is_file()
-    assert not (result.staging_dir / "synthetic.rar").exists()
+    assert (result.staging_dir / "synthetic.rar").is_file()
+    assert not (result.staging_dir / "synthetic.part1.rar").exists()
 
 
 def test_executor_does_not_rename_when_staging_contains_extra_rar(tmp_path):
@@ -136,6 +138,15 @@ def test_validator_accepts_numeric_continuous_parts_and_integrity_test(tmp_path)
     result = validate_archive_parts(tmp_path, validator_plan(), capability(), integrity_runner=integrity_ok)
     assert result.valid
     assert [part.part_number for part in result.parts] == [1, 2]
+
+
+def test_validator_accepts_single_base_name(tmp_path):
+    (tmp_path / "案件.rar").write_bytes(b"one")
+    result = validate_archive_parts(
+        tmp_path, validator_plan(), capability(), integrity_runner=integrity_ok,
+    )
+    assert result.valid
+    assert result.parts[0].filename == "案件.rar"
 
 
 @pytest.mark.parametrize("names", [
