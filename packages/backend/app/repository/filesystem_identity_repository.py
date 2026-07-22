@@ -1,0 +1,100 @@
+"""Stable, path-free identities for authorized local directories."""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import stat
+from pathlib import Path
+
+
+class FilesystemIdentityError(ValueError):
+    """Safe filesystem identity diagnostics without exposing local paths."""
+
+
+def resolve_directory(path: str | os.PathLike[str]) -> Path:
+    """Resolve an existing directory and reject links or reparse points."""
+    raw = os.fspath(path)
+    candidate = Path(raw)
+    raw_windows = raw.replace("/", "\\")
+    if (
+        not raw.strip()
+        or "\x00" in raw
+        or not candidate.is_absolute()
+        or ".." in candidate.parts
+        or raw_windows.startswith(("\\\\", "\\\\?\\", "\\\\.\\"))
+        or not candidate.exists()
+        or not candidate.is_dir()
+    ):
+        raise FilesystemIdentityError("输入目录无效。")
+    current = candidate
+    while True:
+        if _is_unsafe_special_path(current):
+            raise FilesystemIdentityError("输入目录包含不支持的链接或特殊路径。")
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as error:
+        raise FilesystemIdentityError("输入目录无法访问。") from error
+    if not resolved.is_dir() or resolved == Path(resolved.anchor):
+        raise FilesystemIdentityError("输入目录无效。")
+    return resolved
+
+
+def normalized_directory_key(path: str | os.PathLike[str]) -> str:
+    """Return a case-insensitive, separator-insensitive opaque directory key."""
+    resolved = resolve_directory(path)
+    normalized = os.path.normcase(os.path.normpath(os.fspath(resolved))).casefold()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def directory_content_fingerprint(path: str | os.PathLike[str]) -> str:
+    """Hash relative entries and file bytes without storing their absolute path."""
+    root = resolve_directory(path)
+    entries: list[tuple[str, str, Path]] = []
+    pending = [root]
+    while pending:
+        current = pending.pop()
+        try:
+            children = list(os.scandir(current))
+        except OSError as error:
+            raise FilesystemIdentityError("输入目录无法读取。") from error
+        for entry in children:
+            item = Path(entry.path)
+            if _is_unsafe_special_path(item):
+                raise FilesystemIdentityError("输入目录包含不支持的链接或特殊路径。")
+            relative = item.relative_to(root).as_posix()
+            if entry.is_dir(follow_symlinks=False):
+                entries.append(("directory", relative, item))
+                pending.append(item)
+            elif entry.is_file(follow_symlinks=False):
+                entries.append(("file", relative, item))
+    entries.sort(key=lambda value: (value[1].casefold(), value[0]))
+    digest = hashlib.sha256()
+    for kind, relative, item in entries:
+        digest.update(kind.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(relative.replace("\\", "/").casefold().encode("utf-8"))
+        digest.update(b"\0")
+        if kind == "file":
+            try:
+                with item.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+            except OSError as error:
+                raise FilesystemIdentityError("输入文件无法读取。") from error
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _is_unsafe_special_path(path: Path) -> bool:
+    try:
+        if path.is_symlink():
+            return True
+        attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+        return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+    except OSError:
+        return True

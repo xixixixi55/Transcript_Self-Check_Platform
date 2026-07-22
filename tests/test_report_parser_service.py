@@ -198,8 +198,8 @@ def test_parse_report_compress_false():
         assert result["rar_info"] is None
 
 
-def test_parse_report_cache_isolated_by_compress_mode():
-    """同一报告切换压缩开关时，不得复用另一模式的缓存。"""
+def test_parse_report_cache_is_one_entry_per_directory_not_compress_mode():
+    """deprecated compress 参数不能把同一报告拆成两条缓存。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         data_dir = os.path.join(tmpdir, "data")
         os.makedirs(data_dir)
@@ -220,12 +220,12 @@ def test_parse_report_cache_isolated_by_compress_mode():
             compressed = parse_report(tmpdir, output_dir, compress=True)
             uncompressed = parse_report(tmpdir, output_dir, compress=False)
 
-        assert mock_build.call_count == 2
-        assert compressed["rar_info"] is not None
-        assert uncompressed["rar_info"] is None
-        cache_files = {name for name in os.listdir(os.path.join(output_dir, "parsed"))}
-        assert f"{os.path.basename(tmpdir)}.compress.json" in cache_files
-        assert f"{os.path.basename(tmpdir)}.nocompress.json" in cache_files
+            assert mock_build.call_count == 1
+            assert compressed["rar_info"] is not None
+            assert uncompressed == compressed
+            cache_files = {name for name in os.listdir(os.path.join(output_dir, "parsed"))}
+            assert len(cache_files) == 1
+            assert next(iter(cache_files)).endswith(".json")
 
 
 def _write_service_fixture(root, *, known_software=True):

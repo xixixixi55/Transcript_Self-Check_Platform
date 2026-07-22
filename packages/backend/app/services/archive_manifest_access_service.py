@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..repository.archive_input_repository import ArchiveInputError, verify_input_inventory
+from ..repository.filesystem_identity_repository import directory_content_fingerprint
 from .archive_manifest_service import compute_disc_capacity, validate_manifest_files
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord, ArchiveRuntimeError
 from .export_gate_service import ExportGateCode, ExportGateIssue
@@ -27,6 +28,7 @@ def archive_report_fingerprint(report: dict, inventory, first_disc_number: str) 
         ).strip(),
         "first_disc_number": first_disc_number,
         "input": inventory.public_entries(),
+        "input_content_fingerprint": directory_content_fingerprint(inventory.source_root),
     }
     return hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode()
@@ -35,7 +37,7 @@ def archive_report_fingerprint(report: dict, inventory, first_disc_number: str) 
 
 def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[str, object]:
     record = ARCHIVE_RUNTIME_STORE.get_manifest(manifest_id)
-    if record.context_id != context_id:
+    if not record.belongs_to(context_id):
         raise ArchiveGateError((ExportGateIssue(
             ExportGateCode.ARCHIVE_MANIFEST_CONTEXT_MISMATCH, "archive_manifest", "归档清单不属于当前归档上下文。",
         ),))

@@ -23,28 +23,27 @@ from ..repository.html_parser import (
 from ..repository.report_format_adapter import require_supported_report_format
 from .report_defaults_service import DEFAULT_DATA_SUMMARY
 from .material_policy_service import material_from_legacy_item, select_display_identifiers
+from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
 _CACHE_VERSION = 7  # v7: structured main-software and per-material device-name parsing
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
     data_dir = os.path.join(source_dir, "data")
-    # REQ-011: 检查解析缓存（含版本号，代码变更后自动失效）
-    report_name = os.path.basename(source_dir.rstrip("/").rstrip("\\"))
-    cache_dir = os.path.join(output_dir, "parsed")
-    ensure_dir(cache_dir)
-    cache_mode = "compress" if compress else "nocompress"
-    cache_path = os.path.join(cache_dir, f"{report_name}.{cache_mode}.json")
+    return REPORT_PARSING_CACHE_SERVICE.load_or_build(
+        source_dir,
+        os.path.join(output_dir, "parsed"),
+        _CACHE_VERSION,
+        lambda: _build_parse_result(source_dir, output_dir, compress),
+        fingerprint_dir=data_dir if os.path.isdir(data_dir) else source_dir,
+    )
 
-    if is_cache_valid(cache_path, source_dir):
-        cached = read_json(cache_path)
-        if cached.get("report") and cached.get("cache_version") == _CACHE_VERSION:
-            return cached
 
-    # 1-7. 解析并构建 InspectionReport
+def _build_parse_result(source_dir: str, output_dir: str, compress: bool) -> dict:
+    """Build one uncached parse result; cache metadata stays outside the payload."""
+    data_dir = os.path.join(source_dir, "data")
     report = _build_report(data_dir, source_dir, output_dir, compress=compress)
-
-    result = {
+    return {
         "report": report,
         "cache_version": _CACHE_VERSION,
         "parsed_files": [
@@ -53,9 +52,6 @@ def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dic
         ],
         "rar_info": _build_rar_info(report),
     }
-
-    save_json(result, cache_path)
-    return result
 
 
 def parse_from_archive(

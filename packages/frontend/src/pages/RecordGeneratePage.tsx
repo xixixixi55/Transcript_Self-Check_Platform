@@ -22,7 +22,7 @@ import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 type UploadMode = 'folder' | 'archive'
 export default function RecordGeneratePage() {
-  const { parseReport, parseArchive, loading: parsing, error, errorCode, result } = useReportParser()
+  const { parseReport, parseArchive, loading: parsing, error, errorCode, result, clearReportParsingCache, clearingCache, cacheClearMessage, cacheClearError } = useReportParser()
   const { exportDocx, exporting } = useRecordExport()
   const reportDefaults = useReportDefaults()
   const [devices, setDevices] = useState<{ id: string; name: string; model: string }[]>([])
@@ -93,7 +93,6 @@ export default function RecordGeneratePage() {
       alert('正式导出前必须等待真实 RAR 归档和校验完成。')
       return false
     }
-
     const dateErrors = [
       !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
       !isValidMinuteTimeRangeValue(report.introduction.inspection_time_range) && '检查起止时间',
@@ -130,7 +129,6 @@ export default function RecordGeneratePage() {
     setReviewStatus(success ? '导出成功' : '导出失败')
     return success
   }
-
   const handleCustomFileNameChange = (enabled: boolean) => {
     setCustomFileName(enabled)
     setExportFileNameError('')
@@ -194,6 +192,8 @@ export default function RecordGeneratePage() {
           errorCode={errorCode}
           onFolderUpload={handleFolderUpload}
           onArchiveUpload={async file => { await parseArchive(file); return false }}
+          onClearReportCache={clearReportParsingCache} clearingCache={clearingCache}
+          cacheClearMessage={cacheClearMessage} cacheClearError={cacheClearError}
         />
       </div>
     )

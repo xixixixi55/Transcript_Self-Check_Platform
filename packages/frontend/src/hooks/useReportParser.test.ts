@@ -1,7 +1,7 @@
 // T020: Hooks test — useReportParser
 import { describe, it, expect } from 'vitest'
 import type { ParseReportResponse } from '@biji/shared/types'
-import { normalizeParsedReport, resolveParseError } from './useReportParser'
+import { normalizeParsedReport, resolveCacheClearError, resolveParseError } from './useReportParser'
 
 const parsedResponse = {
   report: {
@@ -41,6 +41,12 @@ describe('useReportParser', () => {
     })
     expect(result.code).toBe('ARCHIVE_INPUT_ROOT_NOT_ALLOWED')
     expect(result.message).not.toContain('unsafe path')
+  })
+
+  it('maps cache clear failures to a safe actionable message', () => {
+    expect(resolveCacheClearError({
+      response: { data: { detail: { code: 'REPORT_PARSING_CACHE_CLEAR_FAILED' } } },
+    })).toBe('解析缓存清理失败，请重试。')
   })
 })
 

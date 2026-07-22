@@ -19,6 +19,7 @@ from app.services.archive_execution_service import (  # noqa: E402
 from app.services.archive_runtime_service import ARCHIVE_RUNTIME_STORE  # noqa: E402
 from app.services.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
 from app.services.archive_manifest_access_service import get_manifest_part_download  # noqa: E402
+from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 from app.services.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
 
 
@@ -247,3 +248,91 @@ def test_download_resolves_only_current_opaque_part_and_revalidates_file(tmp_pat
     with pytest.raises(ArchiveGateError) as changed:
         get_manifest_part_download(context_id, result.manifest_id, part["part_id"])
     assert changed.value.blockers[0].code == "ARCHIVE_MANIFEST_PART_CHANGED"
+
+
+def test_reparse_same_input_reuses_persisted_manifest_after_cache_clear(tmp_path):
+    source, output, context_id = make_context(tmp_path)
+    first_fake = FakeExecutor(tmp_path / "fake-staging-first", lambda tier: 1)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    first = execute_archive(
+        context_id, valid_report(), output_root=str(output), policy=policy(4),
+        capability=capability, executor=first_fake, integrity_runner=integrity_ok,
+    )
+    parsed = output / "parsed"
+    parsed.mkdir()
+    (parsed / "cache.json").write_text("{}", encoding="utf-8")
+    part = ARCHIVE_RUNTIME_STORE.get_manifest(first.manifest_id).public_manifest["parts"][0]
+
+    assert ReportParsingCacheService().clear_all(str(parsed)) == 1
+    second_context = create_archive_context(
+        AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "test-root"),
+        valid_report(), output_root=str(output),
+    )
+    second_fake = FakeExecutor(tmp_path / "fake-staging-second", lambda tier: 1)
+    second = execute_archive(
+        second_context, valid_report(), output_root=str(output), policy=policy(4),
+        capability=WinRarCapability(False, None, None, None, False), executor=second_fake,
+        integrity_runner=integrity_ok,
+    )
+
+    assert second.reused is True
+    assert second.manifest_id == first.manifest_id
+    download = get_manifest_part_download(second_context, second.manifest_id, part["part_id"])
+    assert download.path.is_file()
+    assert get_valid_manifest(second_context, second.manifest_id, valid_report())
+    assert (output / "compressed" / ".archive-manifest-index.json").is_file()
+
+
+def test_reparse_after_input_change_does_not_reuse_old_manifest(tmp_path):
+    source, output, context_id = make_context(tmp_path)
+    first_fake = FakeExecutor(tmp_path / "fake-staging-first", lambda tier: 1)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    execute_archive(
+        context_id, valid_report(), output_root=str(output), policy=policy(4),
+        capability=capability, executor=first_fake, integrity_runner=integrity_ok,
+    )
+    (source / "input.bin").write_bytes(b"changed!")
+    changed_context = create_archive_context(
+        AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "test-root"),
+        valid_report(), output_root=str(output),
+    )
+    second_fake = FakeExecutor(tmp_path / "fake-staging-second", lambda tier: 1)
+    outcome = execute_archive(
+        changed_context, valid_report(), output_root=str(output), policy=policy(4),
+        capability=capability, executor=second_fake, integrity_runner=integrity_ok,
+    )
+
+    assert outcome.reused is False
+    assert second_fake.calls == [4]
+
+
+@pytest.mark.parametrize("tamper", ["missing", "size", "md5"])
+def test_reparse_does_not_reuse_tampered_rar(tmp_path, tamper):
+    source, output, context_id = make_context(tmp_path)
+    first_fake = FakeExecutor(tmp_path / "fake-staging-first", lambda tier: 1)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    first = execute_archive(
+        context_id, valid_report(), output_root=str(output), policy=policy(4),
+        capability=capability, executor=first_fake, integrity_runner=integrity_ok,
+    )
+    record = ARCHIVE_RUNTIME_STORE.get_manifest(first.manifest_id)
+    part_path = next(record.final_dir.glob("*.rar"))
+    if tamper == "missing":
+        part_path.unlink()
+    elif tamper == "size":
+        part_path.write_bytes(b"changed-size")
+    else:
+        part_path.write_bytes(b"y")
+
+    second_context = create_archive_context(
+        AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "test-root"),
+        valid_report(), output_root=str(output),
+    )
+    second_fake = FakeExecutor(tmp_path / "fake-staging-second", lambda tier: 1)
+    outcome = execute_archive(
+        second_context, valid_report(), output_root=str(output), policy=policy(4),
+        capability=capability, executor=second_fake, integrity_runner=integrity_ok,
+    )
+
+    assert outcome.reused is False
+    assert second_fake.calls == [4]

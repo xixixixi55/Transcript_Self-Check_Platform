@@ -1,8 +1,8 @@
 // Layer 10: FE_Hooks - report parsing and safe authorization diagnostics.
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { ParseReportResponse } from '@biji/shared/types'
+import type { ClearReportParsingCacheResponse, ParseReportResponse } from '@biji/shared/types'
 import { normalizeDataSummary } from '@biji/shared/utils'
 
 interface UseReportParserReturn {
@@ -12,6 +12,10 @@ interface UseReportParserReturn {
   error: string | null
   errorCode: string | null
   result: ParseReportResponse | null
+  clearReportParsingCache: () => Promise<ClearReportParsingCacheResponse | null>
+  clearingCache: boolean
+  cacheClearMessage: string | null
+  cacheClearError: string | null
 }
 
 const PARSE_ERROR_MESSAGES: Record<string, string> = {
@@ -21,6 +25,10 @@ const PARSE_ERROR_MESSAGES: Record<string, string> = {
   ARCHIVE_INPUT_OUTPUT_OVERLAP: '所选目录与系统输出区域冲突，请重新选择。',
   ARCHIVE_AUTHORIZATION_INVALID: '目录授权无效，请重新选择案件目录。',
   ARCHIVE_AUTHORIZATION_EXPIRED: '目录授权已过期，请重新选择案件目录。',
+}
+
+const CACHE_CLEAR_ERROR_MESSAGES: Record<string, string> = {
+  REPORT_PARSING_CACHE_CLEAR_FAILED: '解析缓存清理失败，请重试。',
 }
 
 export interface ParseErrorInfo {
@@ -43,6 +51,15 @@ export function resolveParseError(error: any): ParseErrorInfo {
   }
 }
 
+export function resolveCacheClearError(error: any): string {
+  const detail = error?.response?.data?.detail
+  if (typeof detail === 'object' && detail !== null) {
+    const code = typeof detail.code === 'string' ? detail.code : ''
+    return CACHE_CLEAR_ERROR_MESSAGES[code] || '解析缓存清理失败，请重试。'
+  }
+  return '解析缓存清理失败，请重试。'
+}
+
 /** Normalize parsed data before it enters the editor, without exposing server paths. */
 export function normalizeParsedReport(response: ParseReportResponse): ParseReportResponse {
   const normalized = JSON.parse(JSON.stringify(response)) as ParseReportResponse
@@ -57,6 +74,10 @@ export function useReportParser(): UseReportParserReturn {
   const [error, setError] = useState<string | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const [result, setResult] = useState<ParseReportResponse | null>(null)
+  const [clearingCache, setClearingCache] = useState(false)
+  const [cacheClearMessage, setCacheClearMessage] = useState<string | null>(null)
+  const [cacheClearError, setCacheClearError] = useState<string | null>(null)
+  const clearBusy = useRef(false)
 
   const parseReport = useCallback(async (dirPath: string, compress: boolean = true) => {
     setLoading(true)
@@ -105,5 +126,34 @@ export function useReportParser(): UseReportParserReturn {
     }
   }, [])
 
-  return { parseReport, parseArchive, loading, error, errorCode, result }
+  const clearReportParsingCache = useCallback(async () => {
+    if (clearBusy.current) return null
+    clearBusy.current = true
+    setClearingCache(true)
+    setCacheClearMessage(null)
+    setCacheClearError(null)
+    try {
+      const { data } = await axios.delete<{
+        success: boolean
+        data: ClearReportParsingCacheResponse
+      }>(API_ENDPOINTS.CLEAR_REPORT_PARSING_CACHE)
+      const cleared = data.data?.cleared_count || 0
+      const clearResult = { cleared_count: cleared }
+      setCacheClearMessage(cleared > 0
+        ? `已清理 ${cleared} 条解析缓存。清空后下次需要重新解析报告。`
+        : '当前没有可清理的缓存。清空后下次需要重新解析报告。')
+      return clearResult
+    } catch (failure: any) {
+      setCacheClearError(resolveCacheClearError(failure))
+      return null
+    } finally {
+      clearBusy.current = false
+      setClearingCache(false)
+    }
+  }, [])
+
+  return {
+    parseReport, parseArchive, loading, error, errorCode, result,
+    clearReportParsingCache, clearingCache, cacheClearMessage, cacheClearError,
+  }
 }

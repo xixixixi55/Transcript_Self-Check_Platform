@@ -240,20 +240,35 @@
 **Scenario: 首次解析后缓存**
 - WHEN 首次解析某个报告目录成功
 - THEN 将完整解析结果（InspectionReport + rar_info）保存为 JSON 缓存文件
-- AND 缓存路径按压缩模式区分为 `output/parsed/[报告目录名].compress.json` 或 `output/parsed/[报告目录名].nocompress.json`
-- AND 路径中的 compress/nocompress 仅是 deprecated 参数留下的兼容命名空间，不代表执行过压缩
+- AND 缓存键由现有 Windows 路径规范化后的具体报告目录生成，同一目录不因大小写、尾部分隔符或 deprecated `compress` 参数产生重复记录
+- AND 缓存文件使用不透明键保存于 `output/parsed/`，记录包含源内容指纹、`cache_version` 和 `last_accessed_at`，不保存供前端展示的绝对路径
 - AND 缓存载荷中的 `cache_version` 当前为 `7`，用于隔离主软件及逐检材设备名称新解析语义
+- AND 有效解析缓存最多保留 5 条，按 LRU 规则淘汰最久未使用记录，淘汰顺序在访问时间相同或并发写入时保持稳定
 
 **Scenario: 重复解析时复用缓存**
 - WHEN 再次请求解析相同的报告目录
-- AND 缓存文件存在
-- THEN 直接返回缓存中的解析结果，跳过 JSON 读取和解析
+- AND 规范化目录键相同、缓存版本相同且源内容指纹未变化
+- THEN 直接返回缓存中的解析结果，跳过原始报告文件读取与解析
+- AND 命中时更新该记录的 `last_accessed_at`，不新增重复记录
 - AND 解析缓存与最终归档/Manifest 缓存彼此分离
 - AND 缓存命中不会在解析阶段执行 WinRAR，也不会复用或伪造 WinRAR 结果
 
 **Scenario: 缓存失效**
-- WHEN 报告目录的源 JSON 文件修改时间晚于缓存文件时间
+- WHEN 报告目录的源内容指纹变化、缓存损坏或缓存版本过期
 - THEN 重新解析并更新缓存
+- AND 无效记录在读取或淘汰时清除，不占用有效缓存上限
+
+**Scenario: LRU 淘汰**
+- WHEN 新建第 6 个不同报告目录的有效解析缓存
+- THEN 删除 `last_accessed_at` 最早的一条记录，并保留最近使用的 5 条
+- AND 淘汰只删除 `output/parsed/` 中的解析缓存文件，不调用归档文件删除逻辑
+
+**Scenario: 用户一键清空解析缓存**
+- WHEN 用户在阶段 1 主流程点击“清空解析缓存”并确认
+- THEN 调用 `DELETE /api/v1/cache/report-parsing`，返回 `cleared_count`
+- AND 清理中按钮禁止重复提交，成功、空缓存和失败均显示明确结果
+- AND 清空后下次解析报告必须重新读取原始目录；当前页面已加载到前端内存的报告和编辑内容不要求立即清除
+- AND 清空不删除 RAR、ArchiveManifest、归档下载文件、Word 导出、原始报告目录、默认设置或其他输出
 
 ## REQ-012: 解析与最终归档分离
 
@@ -274,6 +289,9 @@
 - AND 新的导出请求仍重新验证实际 part 的存在性、大小和完整 MD5
 - AND 不影响归档输入的普通表单字段和附件2照片编辑不使 Manifest 失效
 - AND 重新解析案件、输入目录变化或案件归档基础名变化时旧 Manifest 必须失效
+- AND 重新解析同一报告目录时，若原始输入内容指纹、归档审核指纹和已登记 Manifest 均未变化，且所有 RAR 分卷存在、大小和 MD5 校验有效，则允许跨新 archive context 复用已有 Manifest/RAR
+- AND 若 RAR 缺失、大小变化或 MD5 不一致，禁止复用并重新生成归档；旧归档文件由独立归档生命周期策略处理
+- AND 解析缓存被 LRU 淘汰或一键清空不会删除已验证 RAR、Manifest、当前页面下载或 Word 导出所需的运行时登记
 
 ---
 
@@ -405,6 +423,7 @@
 |------|------|
 | 解析缓存 | `output/parsed/`（本地，不得进入 Git） |
 | 归档文件 | `output/compressed/`（本地，不得进入 Git） |
+| 归档登记索引 | `output/compressed/.archive-manifest-index.json`（本地，不得进入 Git；与解析缓存独立） |
 | 导出 .docx | `output/exports/`（本地，不得进入 Git） |
 | 硬件设备配置 | `packages/backend/app/data/hardware_devices.json` |
 

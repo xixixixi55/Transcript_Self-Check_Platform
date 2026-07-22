@@ -180,6 +180,12 @@
 | archive_context | `ArchiveContextSummary` \| null | 仅含上下文标识、文件数、总字节数、状态、创建时间和过期时间；不含案件目录、允许根目录或安装路径 |
 | archive_status | ArchiveExecutionStatus \| null | 归档执行阶段 |
 
+### API 响应（ClearReportParsingCacheResponse）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| cleared_count | number | 本次删除的持久化报告解析缓存条数；空缓存时为 0 |
+
 ### API 请求（ExportRecordRequest）
 
 | 字段 | 类型 | 说明 |
@@ -269,10 +275,10 @@
 
 ### 归档规划与最终清单
 
-归档输入授权采用配置根目录与未来受控本机精确目录授权双轨模型。`report_dir` 仅是 deprecated 的一次性上下文创建参数；根目录外普通提交不得自动信任，后续接口只接受 `archive_context_id`。当前上下文只在进程内存中保存，服务重启后按 `ARCHIVE_CONTEXT_NOT_FOUND` 处理；过期/忙碌分别返回稳定错误，清理只删除系统元数据和系统临时产物。
+归档输入授权采用配置根目录与未来受控本机精确目录授权双轨模型。`report_dir` 仅是 deprecated 的一次性上下文创建参数；根目录外普通提交不得自动信任，后续接口只接受 `archive_context_id`。当前上下文只在进程内存中保存，服务重启后按 `ARCHIVE_CONTEXT_NOT_FOUND` 处理；过期/忙碌分别返回稳定错误，清理只删除系统元数据和系统临时产物。已验证的 ArchiveManifest/RAR 另有 `output/compressed/.archive-manifest-index.json` 登记，保存不透明目录键、输入/归档指纹和相对归档目录，不保存供前端展示的绝对路径；该登记与解析缓存独立，供后续独立归档清理策略识别未引用产物。
 
-解析阶段只建立 `archive_context_id` 和后端输入快照，不执行压缩。审核完成并通过
-执行前门禁后，`ArchivePlan` 记录案件展示名、安全归档基础名、相对输入文件清单、
+解析阶段只建立 `archive_context_id` 和后端输入快照，不执行压缩。报告解析缓存保存在
+`output/parsed/`，按规范化目录不透明键区分，记录源内容指纹和 `last_accessed_at`，有效记录最多 5 条并按 LRU 淘汰；其清理不触碰 `output/compressed/`。审核完成并通过执行前门禁后，`ArchivePlan` 记录案件展示名、安全归档基础名、相对输入文件清单、
 十进制字节总量、固定分卷档位、预计与最大卷数、首个光盘编号、重规划上限和诊断。
 生产档位为 4GB、22GB、45GB，容量单位为十进制 GB；计划模型不保存输入绝对路径。
 
@@ -282,7 +288,7 @@
 hashing、completed 或 failed。WinRAR 成功退出不直接产生清单；只有当前执行目录中的
 分卷按数字连续、非零且满足 `0 < actual_size <= volume_size_bytes`，并且首卷通过
 WinRAR 完整性测试后，才能使用 Python `hashlib` 流式计算 MD5 并构建 `ArchiveManifest`。
-Manifest 的 parts 按实际文件系统结果排序，保存文件名、`size_bytes`、MD5、光盘编号、刻录日期、`volume_size_bytes` 和 `disc_capacity_bytes`，不保存绝对路径。每个 part 的 `disc_capacity_bytes` 只按其 `size_bytes` 独立选择最小可容纳的十进制 4GB/22GB/45GB 容量；不得直接继承 Manifest 档位。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。
+Manifest 的 parts 按实际文件系统结果排序，保存文件名、`size_bytes`、MD5、光盘编号、刻录日期、`volume_size_bytes` 和 `disc_capacity_bytes`，不保存绝对路径。每个 part 的 `disc_capacity_bytes` 只按其 `size_bytes` 独立选择最小可容纳的十进制 4GB/22GB/45GB 容量；不得直接继承 Manifest 档位。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 MD5 校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
 
 当前生产 renderer 消费 `InspectionReport` 兼容数据、最终 `ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1` TemplateProfile。`DocumentRenderPlan` 是未来统一渲染合同，不属于当前生产模型。
 

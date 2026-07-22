@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import shutil
 import threading
 import time
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
-from ..repository.archive_input_repository import InputInventory, build_input_inventory
+from ..repository.archive_input_repository import build_input_inventory
+from ..repository.filesystem_identity_repository import (
+    directory_content_fingerprint,
+    normalized_directory_key,
+)
+from .archive_runtime_models_service import ArchiveContextRecord, ArchiveManifestRecord
 
 
 ARCHIVE_CONTEXT_TTL_SECONDS = 30 * 60
@@ -30,51 +31,6 @@ class ArchiveRuntimeError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.safe_message = message
-
-
-@dataclass
-class ArchiveContextRecord:
-    context_id: str
-    case_display_name: str
-    inventory: InputInventory
-    authorization_type: str
-    authorized_root_id: str
-    authorized_scope: Path | None
-    input_fingerprint: str
-    created_at: float
-    expires_at: float
-    cleanup_root: Path | None = None
-    execution_state: str = "idle"
-    active_execution_id: str | None = None
-    successful_manifest_id: str | None = None
-
-    @property
-    def executing(self) -> bool:
-        return self.active_execution_id is not None
-
-    def public_summary(self) -> dict[str, object]:
-        def iso(value: float) -> str:
-            return datetime.fromtimestamp(value, timezone.utc).isoformat()
-
-        return {
-            "archive_context_id": self.context_id,
-            "file_count": len(self.inventory.files),
-            "total_input_bytes": self.inventory.total_input_bytes,
-            "status": self.execution_state,
-            "created_at": iso(self.created_at),
-            "expires_at": iso(self.expires_at),
-        }
-
-
-@dataclass
-class ArchiveManifestRecord:
-    manifest_id: str
-    context_id: str
-    fingerprint: str
-    public_manifest: dict[str, object]
-    final_dir: Path
-    created_at: float
-    expires_at: float
 
 
 class ArchiveRuntimeStore:
@@ -100,9 +56,13 @@ class ArchiveRuntimeStore:
                 _cleanup_owned_source(Path(cleanup_root))
             raise
         now = time.time()
-        fingerprint = hashlib.sha256(
-            json.dumps(inventory.public_entries(), sort_keys=True).encode("utf-8")
-        ).hexdigest()
+        try:
+            source_key = normalized_directory_key(authorized_input.resolved_input_root)
+            fingerprint = directory_content_fingerprint(authorized_input.resolved_input_root)
+        except Exception:
+            if cleanup_root:
+                _cleanup_owned_source(Path(cleanup_root))
+            raise
         record = ArchiveContextRecord(
             context_id=str(uuid4()),
             case_display_name=case_display_name,
@@ -110,6 +70,7 @@ class ArchiveRuntimeStore:
             authorization_type=authorized_input.authorization_type,
             authorized_root_id=authorized_input.authorized_root_id,
             authorized_scope=authorized_input.authorized_scope,
+            source_key=source_key,
             input_fingerprint=fingerprint,
             created_at=now,
             expires_at=now + ARCHIVE_CONTEXT_TTL_SECONDS,
@@ -171,12 +132,28 @@ class ArchiveRuntimeStore:
             self.cleanup_expired()
             return next(
                 (item for item in self._manifests.values()
-                 if item.context_id == context_id and item.fingerprint == fingerprint),
+                 if item.belongs_to(context_id) and item.fingerprint == fingerprint),
                 None,
             )
 
+    def attach_manifest(
+        self, context_id: str, record: ArchiveManifestRecord,
+    ) -> ArchiveManifestRecord:
+        with self._lock:
+            context = self._contexts.get(context_id)
+            if context is None:
+                raise ArchiveRuntimeError("ARCHIVE_CONTEXT_NOT_FOUND", "Archive context was not found.")
+            existing = self._manifests.get(record.manifest_id)
+            if existing is None:
+                existing = record
+                self._manifests[record.manifest_id] = existing
+            existing.context_ids.add(context_id)
+            context.successful_manifest_id = existing.manifest_id
+            return existing
+
     def save_manifest(self, record: ArchiveManifestRecord) -> None:
         with self._lock:
+            record.context_ids.add(record.context_id)
             self._manifests[record.manifest_id] = record
             context = self._contexts.get(record.context_id)
             if context:
@@ -201,7 +178,7 @@ class ArchiveRuntimeStore:
             record = self._manifests.get(manifest_id)
             if record is None:
                 raise ArchiveRuntimeError("ARCHIVE_MANIFEST_MISSING", "Archive manifest is missing.")
-            if record.context_id != context_id or context.successful_manifest_id != manifest_id:
+            if not record.belongs_to(context_id) or context.successful_manifest_id != manifest_id:
                 raise ArchiveRuntimeError(
                     "ARCHIVE_MANIFEST_CONTEXT_MISMATCH",
                     "Archive manifest does not belong to this context.",

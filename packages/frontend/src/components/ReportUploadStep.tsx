@@ -21,11 +21,16 @@ interface Props {
   errorCode?: string | null
   onFolderUpload: () => void
   onArchiveUpload: (file: File) => Promise<boolean>
+  onClearReportCache: () => Promise<unknown>
+  clearingCache: boolean
+  cacheClearMessage?: string | null
+  cacheClearError?: string | null
 }
 
 export default function ReportUploadStep({
   uploadMode, onModeChange,
   parsing, result, error, errorCode, onFolderUpload, onArchiveUpload,
+  onClearReportCache, clearingCache, cacheClearMessage, cacheClearError,
 }: Props) {
   const handleArchive = async (file: File) => {
     const ext = '.' + file.name.split('.').pop()?.toLowerCase()
@@ -34,6 +39,12 @@ export default function ReportUploadStep({
       return false
     }
     return onArchiveUpload(file)
+  }
+
+  const handleClearReportCache = () => {
+    if (clearingCache) return
+    const confirmed = window.confirm('确定清空全部解析缓存吗？清空后下次需要重新解析报告。')
+    if (confirmed) void onClearReportCache()
   }
 
   return (
@@ -59,6 +70,29 @@ export default function ReportUploadStep({
           <Radio.Button value="folder">选择文件夹</Radio.Button>
           <Radio.Button value="archive">上传压缩包</Radio.Button>
         </Radio.Group>
+
+        <div style={{ marginBottom: 16 }}>
+          <Button
+            onClick={handleClearReportCache}
+            loading={clearingCache}
+            disabled={parsing || clearingCache}
+          >
+            清空解析缓存
+          </Button>
+        </div>
+        {cacheClearMessage && <Alert
+          type="success"
+          message={cacheClearMessage}
+          showIcon
+          style={{ marginBottom: 16 }}
+        />}
+        {cacheClearError && <Alert
+          type="error"
+          message={cacheClearError}
+          action={<Button size="small" onClick={handleClearReportCache}>重试</Button>}
+          showIcon
+          style={{ marginBottom: 16 }}
+        />}
 
         {uploadMode === 'folder' ? (
           <>
