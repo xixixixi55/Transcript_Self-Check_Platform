@@ -2,6 +2,10 @@
 
 本文件是本变更的规范合同。规范中的“系统”包括报告解析、业务规划、压缩、页面规划、模板渲染和现有兼容 API；阶段标记表示交付边界，不表示阶段二、三在阶段一中自动启用。
 
+文档真相源边界：本 `spec.md` 记录已批准的业务合同和目标行为；`design.md` 记录设计决策、字段语义与兼容策略；`tasks.md` 记录当前实现、自动化和人工验收状态；`openspec/specs/` 下的 living spec 只描述当前生产已经具备的能力。代码和测试是当前实现证据，用于发现文档漂移，但不会自动改写或取消本规范中已批准的业务规则。
+
+当前生产收口状态（2026-07-22）：正式输出仍由 `InspectionReport` legacy DTO 管线生成。Canonical 模型、适配器、编排器和比较器已有基础实现，但 Canonical/Shadow 尚未接入真实生产 Controller 主链；`DocumentRenderPlan` 尚无生产类型、构造器或消费方。本规范中以 canonical、shadow 或 `DocumentRenderPlan` 为前提的场景均是批准后的目标行为，只有对应 tasks、自动化、人工验收和生产接线完成后才视为生效；不得以类型存在或单元测试可调用替代生产启用证据。
+
 ## ADDED Requirements
 
 ### Requirement: Canonical case normalization
@@ -397,16 +401,19 @@
 #### Scenario: 附件一和附件三一致
 
 - **WHEN** 归档执行发生升级重规划
-- **THEN** 附件一的行和附件三的页面都引用同一 `ArchiveManifest.parts[].partId`，不会出现卷数、MD5、文件名或编号不一致
+- **THEN** 附件一的行和附件三的页面都引用同一 `ArchiveManifest.parts[].part_id`，不会出现卷数、MD5、文件名或编号不一致
 
 ### Requirement: Current template is a versioned profile
 
 系统 MUST 将正式模板登记为固定的 `current-template-v1`，由固定 `TemplateProfile` 描述其资产哈希、占位符、表格、VML 文本框、当前受控重复区、图片区、分页和保持完整约束。阶段一 MUST 只支持该 Profile 和当前 DOCX Renderer 的受控扩展；通用模板设计器、通用重复块 DSL、任意 DOCX 自动绑定、可视化模板编辑和无标记模板识别均属于阶段三，阶段一不得实现或静默启用这些能力。
 
+当前生产边界：`current-template-v1` TemplateProfile、`ArchiveManifest` 和 `AttachmentPlan` 已由 legacy DTO 渲染链消费；统一 `DocumentRenderPlan` 仍是未来合同目标，当前没有生产构造和消费。正式模板没有用于展示 `disc_capacity_bytes` 的独立位置，本变更不通过修改 Word 布局补充该位置。
+
 #### Scenario: 选择当前正式模板
 
 - **WHEN** 阶段一导出电子数据检查笔录
-- **THEN** `DocumentRenderPlan.templateId` 为 `current-template-v1`，渲染器按 Profile 定位字段并校验模板资产版本
+- **THEN** 当前生产链按 final `ArchiveManifest → AttachmentPlan → current-template-v1 TemplateProfile → 当前确定性 Renderer` 生成正式文书，并校验模板资产版本
+- **AND** 该场景不构造或消费未来的 `DocumentRenderPlan`
 
 #### Scenario: 模板资产被替换
 
@@ -425,7 +432,7 @@
 #### Scenario: Attachment pagination regression
 
 - **WHEN** 生成包含任意偶数图片和多卷附件三的文档
-- **THEN** 分页只按 `DocumentRenderPlan` 的普通分页点生效，不产生空白页、奇数页/偶数页分节符或被拆开的检查人员框
+- **THEN** 当前生产分页只按 final Manifest 派生的 `AttachmentPlan` 和固定 TemplateProfile 中的确定性分页规则生效，不产生空白页、奇数页/偶数页分节符或被拆开的检查人员框
 
 ### Requirement: InspectionReport compatibility boundary
 
@@ -434,7 +441,8 @@
 #### Scenario: 旧导出请求
 
 - **WHEN** 现有前端提交 `InspectionReport` 和照片 ID
-- **THEN** 后端将其转换为 canonical case，生成规划和 render plan 后导出，现有请求字段和响应下载行为保持兼容
+- **THEN** 在 canonical 生产切换完成后，后端将其转换为 canonical case，生成规划和 render plan 后导出，现有请求字段和响应下载行为保持兼容
+- **AND** 在切换前，生产 Controller 继续走 legacy DTO + final `ArchiveManifest` + `AttachmentPlan` 的正式路径，不得将兼容适配器可调用误报为 canonical 已接线
 
 #### Scenario: 新模型包含旧 DTO 不可表示内容
 
@@ -473,7 +481,9 @@
 
 ### Requirement: 电子数据检查笔录生成
 
-现有电子数据检查笔录 MUST 继续支持当前解析和导出入口。主迁移入口先按 `ReportAdapter → CanonicalInspectionCase → InspectionReport` 生成现有前端/导出兼容 DTO；canonical 管线的正式文档继续由 canonical case → plans → render plan → 固定 `current-template-v1` 生成。现有 `document_builder_service.py` officecli batch 路径在迁移期间作为 legacy 正式路径保留；默认管线切换前必须完成 Shadow 比较、两套输出回归和人工验收。
+现有电子数据检查笔录 MUST 继续支持当前解析和导出入口。主迁移入口先按 `ReportAdapter → CanonicalInspectionCase → InspectionReport` 生成现有前端/导出兼容 DTO；canonical 管线的正式文档目标继续由 canonical case → plans → render plan → 固定 `current-template-v1` 生成。officecli batch 只保留为无 Manifest 兼容分支；当前 `/records/export` 要求有效 Manifest，带 Manifest 渲染失败时不得回退 officecli。默认管线切换前必须完成 Shadow 比较、两套输出回归和人工验收。
+
+上述 canonical 生成链是批准目标而非当前生产事实。当前正式生产输出由 legacy `InspectionReport` DTO 管线生成，并消费已经验证的最终 `ArchiveManifest`、`AttachmentPlan` 和固定 TemplateProfile；Canonical/Shadow 未接入生产 Controller，`DocumentRenderPlan` 未生产实现。
 
 #### Scenario: 当前报告正常导出
 

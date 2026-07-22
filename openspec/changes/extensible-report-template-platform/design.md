@@ -2,12 +2,14 @@
 
 ## Context
 
-当前实现是“HTML/JSON 解析 → `InspectionReport` → 直接拼接正文或填充 `template.docx`”的单体流程：
+当前生产仍以“HTML/JSON 解析 → `InspectionReport` legacy DTO → 最终 Manifest 投影/附件计划 → 填充 `template.docx`”为正式输出主链：
 
 - `packages/backend/app/repository/report_format_adapter.py`、`html_parser.py` 和 `device_field_parser.py` 已经积累了旧/新报告识别、字段候选和回归保护。
-- `report_parser_service.py` 同时承担报告组装、默认软件、缓存、压缩和附件一首行填充。
-- `file_storage.py` 的 `create_rar()` 当前只生成单个 `.rar`/`.zip`，没有分卷规划和最终 manifest。
-- `document_builder_service.py` 是 officecli batch 回退；`template_filler_service.py` 同时承担字段扁平化、列表展开、表格、VML、照片、分页清理和保存。
+- `report_parser_service.py` 仍组装 legacy DTO 和解析缓存；解析阶段只建立 `ArchiveContext`，真实压缩由独立归档执行入口触发。
+- `ArchivePlanner`、WinRAR executor/validator、有限向上 replan 和最终 `ArchiveManifest` 已进入归档生产能力；D1 容量合同与 D2.1 超时、完整性、进程终止和 Manifest 兼容治理已经完成。
+- `record_controller.py` 仍接收 `InspectionReport`，校验最终 Manifest、投影 legacy 字段并调用 `template_filler_service.py`；`document_builder_service.py` 只保留为无 Manifest 场景的 officecli batch 回退，带 Manifest 的正式导出失败不会静默回退。
+- Canonical 模型、双向兼容适配器、`PipelineOrchestrator` 和 Shadow 比较器已有基础实现，但尚未接入真实生产 Controller 主链；canonical 分支仍显式保持未启用。
+- `AttachmentPlan` 与固定 `current-template-v1` TemplateProfile 已被当前 renderer 消费；`DocumentRenderPlan` 尚无生产类型、构造器或消费方。
 - `word_templates/template.docx` 是当前运行时模板，已有 VML 文本框、普通分页符、表格和动态占位符；`template-2026` 与 `docx-vml-pagination` 记录了其资产来源和回归约束。
 - `InspectionReport` 位于 SharedTypes，前端 `useReportParser`、`useRecordExport`、审核表单和导出测试直接依赖它。
 
@@ -164,34 +166,38 @@ FieldProvenance {
 
 ```text
 ArchivePlan {
-  planId, caseName, safeBaseName
-  sourceBytes, tier: "4GB" | "22GB" | "45GB"
-  volumeBytes: 4000000000 | 22000000000 | 45000000000
-  expectedPartCount, maxPartCount: 2 | 3
-  maxReplanAttempts: 2
-  attempts[], status: "planned" | "executing" | "validated" | "blocked"
+  plan_id, case_display_name, archive_base_name
+  source_entries[], total_input_bytes
+  volume_size_bytes, volume_tier_gb
+  expected_part_count, max_part_count
+  first_disc_number?, expected_disc_numbers[]
+  max_replan_attempts: 2
+  status: "planned" | "blocked", diagnostics[]
 }
 
 ArchivePart {
-  partId, ordinal, filename, actualSizeBytes, md5
-  discCapacityBytes, discNumber, burningDate, continuityCheck
+  part_id, part_number, filename, size_bytes, md5
+  disc_number, disc_date, disc_capacity_bytes, volume_size_bytes, continuity_check
 }
 
 ArchiveManifest {
-  manifestId, planId, finalTier, retryCount, parts: ArchivePart[]
-  totalBytes, continuityCheck, status: "validated", validatedAt
+  manifest_id, plan_id, archive_base_name
+  volume_size_bytes, volume_tier_gb, max_part_count
+  total_input_bytes, actual_archive_bytes, retry_count
+  parts: ArchivePart[], created_at, winrar_capability
+  validation_status, continuity_check
 }
 
-DiscSequence { firstNumber, issueDate, numericWidth, partNumbers[], formattedNumbers[] }
+DiscSequence { prefix, date, start_number, number_width, first_disc_number }
 ```
 
 档位采用十进制字节值。规划初始候选由输入总字节数计算：`ceil(total / volume_size_bytes) <= max_part_count` 时选择该档位。4GB 档最多 2 卷（≤8GB），22GB 档最多 2 卷（≤44GB），45GB 档最多 3 卷（≤135GB）。`ArchivePlan` 只表示预计方案；WinRAR 执行和 validator 产生实际结果，最多允许 `maxReplanAttempts = 2` 次向上重试。
 
-分卷档位（WinRAR `-v` 参数）与每卷光盘容量是两个独立概念。`discCapacityBytes` 在 Manifest 组装时根据每卷实际 `actualSizeBytes` 独立计算：≤4GB→4GB, ≤22GB→22GB, ≤45GB→45GB, >45GB→验证失败。不得用 manifest 级档位值替代。
+分卷档位（WinRAR `-v` 参数）与每卷光盘容量是两个独立概念。`volume_size_bytes` 表达本次档位的每卷上限，`size_bytes` 表达 WinRAR 实际 part 文件大小；`disc_capacity_bytes` 在 Manifest 组装时根据每卷 `size_bytes` 独立计算最小可容纳容量：≤4GB→4GB, ≤22GB→22GB, ≤45GB→45GB, >45GB→验证失败。不得用 manifest 级档位值替代。
 
-只有归档结果绑定 `DiscSequence` 后才组装最终 `ArchiveManifest`，因此 manifest 中的光盘容量、光盘编号、刻录日期和连续性结果都是最终数据。实际结果超出计划且重试耗尽时阻止导出，不使用预计值生成 Word。
+只有归档结果绑定 `DiscSequence` 后才组装最终 `ArchiveManifest`，因此 manifest 中的实际 part 大小、光盘容量、光盘编号、刻录日期和连续性结果都是最终数据。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源；实际结果超出计划且重试耗尽时阻止导出，不使用预计值或重新扫描所得的第二份卷列表生成 Word。
 
-`DiscSequence` 从 `GPyyyyMMdd-序号` 解析；后续序号只递增数字部分，按首编号位宽左补零，溢出即阻止。`ArchiveManifest.parts[i].part_number` 是附件一、附件三唯一的关联键，光盘序号由 manifest 顺序映射，不由附件渲染器自行计数。附件一、附件三只接收最终 `ArchiveManifest`，不得接收 `ArchivePlan`。
+`DiscSequence` 从 `GPyyyyMMdd-序号` 解析；后续序号只递增数字部分，按首编号位宽左补零，溢出即阻止。`ArchiveManifest.parts[i].part_id` 是附件一、附件三唯一的关联键，`part_number` 只表达卷顺序；光盘序号由 manifest 顺序映射，不由附件渲染器自行计数。附件一、附件三只接收最终 `ArchiveManifest`，不得接收 `ArchivePlan`。
 
 导出前的首次 Manifest 校验必须对每个实际分卷执行存在性、大小和完整 MD5 校验；在同一次校验中，已得到的 MD5 传给后续结构校验，避免同一次导出把 135GB 分卷重复读取两遍。当前实现不使用大小、mtime 或文件标识替代哈希，也没有用不具备内容安全保证的快捷缓存：Word 失败后的同一请求不会重新执行 WinRAR，但新的导出请求复用 Manifest 时仍会重新读取并校验所有分卷 MD5。这样保留了“文件未变化”的内容级证据，代价是大分卷重试可能再次产生完整读取成本。后续若引入性能优化，必须保存受保护的文件身份快照并说明其安全边界，不能无条件跳过变化检测。
 
@@ -229,14 +235,16 @@ MaterialPhotoGroup {
   images: [orderedImage1, orderedImage2], sourceOrder
 }
 Attachment3Plan {
-  pages: [{ pageIndex, showLabel, partId, filename, sizeBytes, md5,
-            discNumber, burningDate }]
+  pages: [{ page_index, show_label, part_id, filename, size_bytes, md5,
+            disc_number, disc_date }]
 }
 ```
 
 附件规划器只接收 final manifest、canonical case、光盘序列和审核后的显式 photo group manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式按数据页生成。`signatureBlankRowCount` 由规划器明确写入：总分卷数为1时最后页为2，总分卷数为2时最后页为1，总分卷数至少3时所有页面为0；数据页恰好四行时追加一个不含分卷行的 `inspector_final` 页面且其值为0。因此 1、2、3、4、5、6、8、9 个分卷的数据页分别为 `[1]`、`[2]`、`[3]`、`[4]`、`[4,1]`、`[4,2]`、`[4,4]`、`[4,4,1]`，其中满四行数据页后的签字页单独计入附件一页数。固定手写行不写入动态检查人员，正文检查人员仍由有序 `InspectorSnapshot[]` 动态生成。正式检查结果由同一个 manifest-driven `AttachmentPlan` 提供有序检材编号和全部 part 的文件名、MD5、实际大小及光盘编号；Renderer 不得使用报告中的单个旧分卷字段覆盖 manifest。附件二零张不生成附件二页面；有图片时先按 `MaterialPhotoGroup` 保持检材顺序，再按每页最多两组分页：一组为两张图片左右居中，两组为两行两列且每组图片左右相邻；单组续页通过当前模板分页锚点的显式 after spacing 将图片组垂直居中，不依赖 Word 自动挤压或随机空段落；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
 
 ### `DocumentRenderPlan` and `TemplateProfile`
+
+本节定义未来统一渲染合同。当前生产 renderer 的实际输入仍为 `InspectionReport` 兼容数据 + 最终 `ArchiveManifest` + `AttachmentPlan` + `current-template-v1` TemplateProfile；尚无生产 `DocumentRenderPlan` 构造与消费，不得把下列结构定义视为已启用能力。
 
 ```text
 DocumentRenderPlan {
@@ -326,7 +334,7 @@ ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端�
 
 阶段一只登记并使用固定的 `current-template-v1` 和固定 TemplateProfile；只允许当前 DOCX Renderer 的受控扩展。通用模板设计器、通用重复块 DSL、任意 DOCX 自动绑定、可视化模板编辑和无标记模板识别全部是阶段三接口预留，不在阶段一实现或静默启用。阶段一复制/读取现有模板并校验哈希，不修改 `word_templates/template.docx` 或甲方参考 DOCX。模板填充只在 Profile 允许的段落、表格、文本框和图片区内进行；保留 VML 宿主段落、关系、普通分页符和表格边框。
 
-`document_builder_service.py` 的 officecli batch 路径作为 `legacy` 正式路径保留；canonical 正式模式的 renderer 出错时直接返回明确失败，不能自动静默切回 legacy，也不能悄悄产出与 manifest/plan 不一致的附件。
+officecli batch 只保留为无 Manifest 的兼容分支；当前 `/records/export` 要求有效 Manifest，带 Manifest 的当前确定性 Renderer 失败时不得回退 officecli。未来 canonical 正式模式的 renderer 出错时同样直接返回明确失败，不能自动静默切回 legacy，也不能悄悄产出与 manifest/plan 不一致的附件。
 
 ### 7. 阶段三推荐必须是可解释草稿
 
@@ -344,6 +352,8 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 
 ## Migration Plan
 
+当前检查点（2026-07-22）：Stage 0 的模型/适配器/编排器/比较器具备基础实现，归档 D1 与 D2.1 已完成，但 Canonical/Shadow 尚未接入生产 Controller；正式输出仍是 legacy DTO 管线。`DocumentRenderPlan`、14.x 双管线回归、15.1/15.1T 完整人工验收和 16.x canonical 切换仍未完成。
+
 ### Stage 0: Contracts and shadow pipeline
 
 1. 在不改变现有端点的前提下新增 SharedTypes、领域服务接口、schemaVersion 和集中 `pipeline_mode` 配置；默认 `legacy`。
@@ -354,7 +364,7 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 ### Stage 1: Required delivery
 
 1. 接入手机/平板显示政策、报告来源主软件、人员库/快照、光盘序列和分卷 manifest。
-2. 将附件一/二/三全部从 final manifest/page plans 渲染；保留旧 DTO 输入和 officecli fallback。
+2. 将附件一/二/三全部从 final manifest/page plans 渲染；保留旧 DTO 输入，officecli batch 仅保留为无 Manifest 兼容分支。
 3. 在 `shadow` 模式下由旧管线产生唯一正式输出，新管线只在隔离目录生成 canonical、plans、非执行性的 manifest 投影和脱敏比较结果；不得调用 WinRAR 或执行真实重复压缩，不产生第二份正式文书。
 4. Shadow 比较至少覆盖案件字段、检材类型、IMEI/序列号、检查时间、主软件、人员顺序、ArchiveManifest 和附件页数；人工确认正文、VML、分页、颜色、图片和附件。
 5. 通过阶段一门槛后把集中配置切换为 `canonical`；保留将同一配置改回 `legacy` 的人工回滚路径。

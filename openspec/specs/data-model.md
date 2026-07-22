@@ -3,6 +3,8 @@
 > 本文档定义项目的数据模型，是类型定义的唯一真相源。
 > 新增 type/interface 后 MUST 同步更新本文档。
 > 一致性由 npx tsx scripts/check-docs.ts 自动检查。
+>
+> 本文件同时区分“类型已存在”和“生产已接线”：类型定义及单元测试只能证明基础实现存在，不能证明生产 Controller 已启用该管线。当前正式输出仍使用 `InspectionReport` legacy DTO；Canonical/Shadow 未接入生产 Controller，`DocumentRenderPlan` 尚无生产类型、构造和消费。
 
 ## 实体定义
 
@@ -129,16 +131,16 @@
 | software_name | string | 软件名称 |
 | software_version | string | 软件版本 |
 | data_summary | string | 数据分类摘要 |
-| rar_filename | string | RAR文件名 |
-| md5_hash | string | MD5哈希值 |
-| file_size | string | 文件大小字符串；目录压缩时为字节数文本，压缩包直传时为带“字节”后缀的文本，具体展示由生成路径处理 |
+| rar_filename | string | legacy 兼容字段；文件夹解析不生成最终归档文件名 |
+| md5_hash | string | legacy 兼容字段；文件夹解析不生成最终归档 MD5 |
+| file_size | string | legacy 兼容字段；文件夹解析当前仅保留空值/零值语义，不表达最终归档大小 |
 
 ### 表格数据（TableData）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | columns | `{ key: string; title: string; width?: string }[]` | 列定义；附件1 默认五列：序号、电子数据、来源、提取方式、文件MD5哈希值 |
-| rows | `Record<string, string>[]` | 行数据；目录解析启用压缩且生成归档文件时自动填充首行，未压缩或压缩包直传时当前实现不自动补附件1行，用户可编辑 |
+| rows | `Record<string, string>[]` | legacy 可编辑行数据；解析阶段的 `rar_info` 不驱动正式附件1，正式附件1由已验证 Manifest 派生的 AttachmentPlan 生成 |
 
 ### 检材照片组（MaterialPhotoGroup）
 
@@ -165,7 +167,7 @@
 | size_bytes | number | 文件大小（字节） |
 | size_display | string | 格式化后的文件大小（如 "11.77 MB"） |
 
-目录解析和压缩包直传的来源不同：目录解析的 `rar_info` 从检查结果重建，当前 `size_bytes` 为 0、`size_display` 使用检查结果中的文件大小文本；压缩包直传返回原始上传文件的实际字节数和格式化大小。
+`rar_info` 是旧解析响应兼容字段，不是最终归档事实源。文件夹解析不生成最终归档信息，当前返回从 legacy 检查结果重建的空值/零值兼容数据；这些值不得视为归档完成。压缩包直接上传时，`rar_info` 保存原始上传压缩包的实际文件名、MD5、字节数和格式化大小。字段类型仍兼容 null，但 deprecated `compress=false` 不再能可靠决定 `rar_info` 是否为 null。最终归档文件名、实际大小和 MD5 只以已验证 `ArchiveManifest.parts[]` 为准。
 
 ### API 响应（ParseReportResponse）
 
@@ -173,7 +175,7 @@
 |------|------|------|
 | report | InspectionReport | 解析生成的笔录全文 |
 | parsed_files | string[] | 已解析的源文件列表 |
-| rar_info | RarInfo \| null | RAR文件信息（MD5/大小），取消压缩时为 null |
+| rar_info | RarInfo \| null | 旧解析响应兼容字段；压缩包直传时含上传包实际信息，文件夹解析时仅可能为空/零兼容数据；不表达最终归档状态 |
 | archive_context_id | string \| null | 后端生成的不可预测归档上下文标识；不包含本地路径 |
 | archive_context | `ArchiveContextSummary` \| null | 仅含上下文标识、文件数、总字节数、状态、创建时间和过期时间；不含案件目录、允许根目录或安装路径 |
 | archive_status | ArchiveExecutionStatus \| null | 归档执行阶段 |
@@ -274,12 +276,15 @@
 十进制字节总量、固定分卷档位、预计与最大卷数、首个光盘编号、重规划上限和诊断。
 生产档位为 4GB、22GB、45GB，容量单位为十进制 GB；计划模型不保存输入绝对路径。
 
+档位合同为：4GB 与 22GB 档预计超过 2 卷时升级，45GB 档最多 3 卷，超过 135GB 在执行前阻止；初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 表达档位每卷上限，`ArchivePart.size_bytes` 表达实际 part 文件大小，两者不得混用。
+
 `ArchiveExecutionStatus` 表示 idle、planning、blocked、compressing、validating、
 hashing、completed 或 failed。WinRAR 成功退出不直接产生清单；只有当前执行目录中的
 分卷按数字连续、非零且满足 `0 < actual_size <= volume_size_bytes`，并且首卷通过
 WinRAR 完整性测试后，才能使用 Python `hashlib` 流式计算 MD5 并构建 `ArchiveManifest`。
-Manifest 的 parts 按实际文件系统结果排序，保存文件名、实际大小、MD5、光盘编号和首卷
-日期，不保存绝对路径。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。
+Manifest 的 parts 按实际文件系统结果排序，保存文件名、`size_bytes`、MD5、光盘编号、刻录日期、`volume_size_bytes` 和 `disc_capacity_bytes`，不保存绝对路径。每个 part 的 `disc_capacity_bytes` 只按其 `size_bytes` 独立选择最小可容纳的十进制 4GB/22GB/45GB 容量；不得直接继承 Manifest 档位。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。
+
+当前生产 renderer 消费 `InspectionReport` 兼容数据、最终 `ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1` TemplateProfile。`DocumentRenderPlan` 是未来统一渲染合同，不属于当前生产模型。
 
 类型索引追加：`interface ArchiveContextSummary`、`type ArchiveVolumeTier`、`type ArchivePlanStatus`、
 `type ArchiveValidationStatus`、`type ArchiveExecutionStatus`、

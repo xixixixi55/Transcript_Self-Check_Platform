@@ -4,6 +4,8 @@
 
 ## 当前已实现
 
+当前唯一正式输出仍由 `InspectionReport` legacy DTO 管线生成；该管线已经消费最终 `ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1` TemplateProfile。这里的“legacy”表示生产 DTO/Controller 主链，不能据此否定归档与受控渲染能力已经接入。
+
 - 📄 **HTML/结构化报告解析**：新旧格式自动检测，案件信息/设备列表/软件版本提取
 - ✏️ **InspectionReport 兼容审核**：在线预览和编辑，检查人员管理，主软件确认
 - 📦 **ArchiveContext + WinRAR 规划与执行**：受控分卷归档，ArchiveManifest 生成
@@ -17,12 +19,18 @@
 - 🔄 **CanonicalInspectionCase**：统一内部模型（基础实现已完成，尚未生产接线）
 - 🔄 **pipeline_mode**：legacy/shadow/canonical 三模式（当前默认 legacy）
 - 🔄 **Shadow comparison**：新旧管线脱敏比较（基础实现已完成，未接 Controller）
-- 🔄 **DocumentRenderPlan**：统一渲染合同（设计完成，未实现生产类型）
+- 🔄 **DocumentRenderPlan**：未来统一渲染合同（尚无生产类型、构造或消费）
 - 🔄 **ReportProfile / 通用 TemplateProfile**：后续扩展
+
+## 真实归档验收状态
+
+- 已通过：4GB 双卷、22GB 单卷
+- 延期：22GB 双卷、45GB 真实执行、真实向上 replan（不是失败、取消或完成）
+- 仍未完成：`15.1/15.1T` 完整人工验收
 
 ## 后续规划
 
-- 真实 4/22/45GB 档位验收
+- 完成延期的真实归档验收
 - Canonical 生产切换
 - 更多报告/模板 Profile
 - 多类文书扩展
