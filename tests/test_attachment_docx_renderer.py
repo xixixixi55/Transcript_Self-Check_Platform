@@ -16,6 +16,10 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.template_filler_service import fill_template  # noqa: E402
+from app.services.attachment2_image_service import (  # noqa: E402
+    ATTACHMENT2_SLOT_HEIGHT_EMU,
+    ATTACHMENT2_SLOT_WIDTH_EMU,
+)
 from app.services.template_profile_service import (  # noqa: E402
     TemplateProfileError,
     current_template_profile,
@@ -467,6 +471,39 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
         ["检材JC-A照片"] if photo_count == 2
         else ["检材JC-A照片", "检材JC-B照片"]
     )
+
+
+def test_attachment2_drawing_extents_are_fixed_for_landscape_and_portrait(
+    tmp_path,
+):
+    current_report = report_with_photo_count(2)
+    paths = []
+    for index, (width, height) in enumerate(((1600, 400), (400, 1600))):
+        path = tmp_path / f"SYNTHETIC-target-box-{index}.png"
+        path.write_bytes(png_bytes(width, height))
+        paths.append(str(path))
+
+    output = tmp_path / "SYNTHETIC-target-box.docx"
+    fill_template(current_report, str(TEMPLATE), str(output), paths, manifest(1))
+    tables = attachment2_tables(document_root(output))
+    extents = [
+        (int(extent.get("cx")), int(extent.get("cy")))
+        for extent in tables[0].findall(".//{%s}extent" % WP_NS)
+    ]
+    transform_extents = [
+        (int(extent.get("cx")), int(extent.get("cy")))
+        for extent in tables[0].findall(
+            ".//{%s}graphic//{%s}xfrm/{%s}ext" % (A_NS, A_NS, A_NS)
+        )
+    ]
+
+    assert len(tables) == 1
+    assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[0].findall("./{%s}tr" % W_NS)] == [2, 1]
+    assert extents == [
+        (ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU),
+        (ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU),
+    ]
+    assert transform_extents == extents
 
 
 def test_three_material_attachment2_centers_single_group_continuation(tmp_path):

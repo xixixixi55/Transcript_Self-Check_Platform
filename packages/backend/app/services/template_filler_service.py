@@ -21,7 +21,11 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from .report_defaults_service import normalize_data_summary
 from .material_policy_service import material_from_legacy_item, select_display_identifiers
-from .attachment2_image_service import validate_attachment2_photos
+from .attachment2_image_service import (
+    EMU_PER_INCH,
+    calculate_fixed_geometry,
+    validate_attachment2_photos,
+)
 from .attachment_plan_service import build_attachment_plan
 from .attachment_docx_renderer_service import render_attachment_plan
 from .docx_output_sanitizer_service import sanitize_generated_docx
@@ -615,7 +619,7 @@ def _make_single_image(doc, photo_path, w_ns):
         tmp_para = tmp_doc.add_paragraph()
         tmp_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         tmp_run = tmp_para.add_run()
-        width, height = _fit_image_size(photo_path, 3.5, 4.67)
+        width, height = _fit_image_size(photo_path)
         tmp_run.add_picture(photo_path, width=width, height=height)
         tmp_drawing = tmp_para._element.find('.//{' + w_ns + '}drawing')
         if tmp_drawing is None:
@@ -675,7 +679,7 @@ def _make_image_grid(doc, photo_paths, w_ns):
                     tmp_para = tmp_doc.add_paragraph()
                     tmp_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     tmp_run = tmp_para.add_run()
-                    width, height = _fit_image_size(photo_paths[pi], 2.5, 3.33)
+                    width, height = _fit_image_size(photo_paths[pi])
                     tmp_run.add_picture(photo_paths[pi], width=width, height=height)
                     tmp_drawing = tmp_para._element.find('.//{' + w_ns + '}drawing')
                     if tmp_drawing is not None:
@@ -725,18 +729,14 @@ def _assign_unique_docpr_id(doc: Document, drawing, used_ids: set[int]):
     used_ids.add(next_id)
 
 
-def _fit_image_size(photo_path: str, max_width_inches: float, max_height_inches: float):
+def _fit_image_size(photo_path: str):
     """按原图比例缩放到页面可用区域内，避免图片高度把后续附件推到空白页。"""
-    from docx.image.image import Image
-
-    image = Image.from_file(photo_path)
-    aspect_ratio = image.px_width / max(image.px_height, 1)
-    width = max_width_inches
-    height = width / aspect_ratio
-    if height > max_height_inches:
-        height = max_height_inches
-        width = height * aspect_ratio
-    return Inches(width), Inches(height)
+    asset = validate_attachment2_photos([photo_path])[0]
+    geometry = calculate_fixed_geometry(asset.width_px, asset.height_px)
+    return (
+        Inches(geometry.render_width_emu / EMU_PER_INCH),
+        Inches(geometry.render_height_emu / EMU_PER_INCH),
+    )
 
 
 def _cleanup_attachment_spacing(doc: Document):

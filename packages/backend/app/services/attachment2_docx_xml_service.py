@@ -9,7 +9,7 @@ from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.shared import Emu
 from lxml import etree
 
-from .attachment2_image_service import Attachment2PhotoAsset, calculate_contain_geometry
+from .attachment2_image_service import Attachment2PhotoAsset, calculate_fixed_geometry
 from .attachment_plan_service import AttachmentPlanError
 from .docx_attachment_xml_service import W_NS, qn, text_of
 from .template_profile_service import CurrentTemplateProfile
@@ -24,7 +24,7 @@ def build_attachment2_drawing(
     doc: Any, asset: Attachment2PhotoAsset, profile: CurrentTemplateProfile,
     used_drawing_ids: set[int],
 ) -> Any:
-    geometry = calculate_contain_geometry(
+    geometry = calculate_fixed_geometry(
         asset.width_px, asset.height_px,
         slot_width_emu=profile.attachment2_slot_width_emu,
         slot_height_emu=profile.attachment2_slot_height_emu,

@@ -13,6 +13,10 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.template_filler_service import _flatten_report, fill_template
+from app.services.attachment2_image_service import (
+    ATTACHMENT2_SLOT_HEIGHT_EMU,
+    ATTACHMENT2_SLOT_WIDTH_EMU,
+)
 
 
 _ROOT = Path(__file__).parents[1]
@@ -305,9 +309,10 @@ def test_photo_regression_scenarios_keep_images_and_page_xml(tmp_path, sizes):
         for extent in root.findall(
             ".//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}extent")
     ]
-    for (source_width, source_height), (render_width, render_height) in zip(sizes, extents):
-        if source_width != source_height:
-            assert (render_width > render_height) == (source_width > source_height)
+    for (render_width, render_height) in extents:
+        assert (render_width, render_height) == (
+            ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
+        )
     assert document_xml.count('w:type="page"') == 4
     assert 'w:type="oddPage"' not in document_xml
     assert 'w:type="evenPage"' not in document_xml

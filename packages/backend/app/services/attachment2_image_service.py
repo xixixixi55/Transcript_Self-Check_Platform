@@ -12,9 +12,12 @@ from typing import Sequence
 from docx.image.image import Image
 
 EMU_PER_INCH = 914400
+EMU_PER_CM = 360000
 DEFAULT_DISPLAY_DPI = 96
-ATTACHMENT2_SLOT_WIDTH_EMU = 2_030_400
-ATTACHMENT2_SLOT_HEIGHT_EMU = 2_707_200
+ATTACHMENT2_FIXED_WIDTH_CM = 5.64
+ATTACHMENT2_FIXED_HEIGHT_CM = 7.52
+ATTACHMENT2_SLOT_WIDTH_EMU = round(ATTACHMENT2_FIXED_WIDTH_CM * EMU_PER_CM)
+ATTACHMENT2_SLOT_HEIGHT_EMU = round(ATTACHMENT2_FIXED_HEIGHT_CM * EMU_PER_CM)
 SUPPORTED_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png"})
 
 
@@ -87,26 +90,19 @@ def validate_attachment2_photos(
     return tuple(assets)
 
 
-def calculate_contain_geometry(
+def calculate_fixed_geometry(
     width_px: int,
     height_px: int,
     *,
     slot_width_emu: int = ATTACHMENT2_SLOT_WIDTH_EMU,
     slot_height_emu: int = ATTACHMENT2_SLOT_HEIGHT_EMU,
-    display_dpi: int = DEFAULT_DISPLAY_DPI,
 ) -> Attachment2ImageGeometry:
-    """Fit by pixel aspect ratio, cap at the slot, and never upscale a small image."""
-    if width_px <= 0 or height_px <= 0 or display_dpi <= 0:
+    """Use one fixed drawing size for every valid Attachment2 image."""
+    if (width_px <= 0 or height_px <= 0
+            or slot_width_emu <= 0 or slot_height_emu <= 0):
         raise ValueError("image dimensions must be positive")
-    natural_width = width_px * EMU_PER_INCH / display_dpi
-    natural_height = height_px * EMU_PER_INCH / display_dpi
-    scale = min(slot_width_emu / natural_width, slot_height_emu / natural_height, 1.0)
-    render_width = max(1, round(natural_width * scale))
-    render_height = max(1, round(natural_height * scale))
     return Attachment2ImageGeometry(
-        render_width, render_height,
-        (slot_width_emu - render_width) // 2,
-        (slot_height_emu - render_height) // 2,
+        slot_width_emu, slot_height_emu, 0, 0,
     )
 
 
@@ -215,7 +211,7 @@ def _safe_display_name(value: str, sequence_number: int) -> str:
 
 
 __all__ = [
-    "ATTACHMENT2_SLOT_HEIGHT_EMU", "ATTACHMENT2_SLOT_WIDTH_EMU",
+    "ATTACHMENT2_SLOT_HEIGHT_EMU", "ATTACHMENT2_SLOT_WIDTH_EMU", "EMU_PER_INCH",
     "Attachment2ImageError", "Attachment2ImageGeometry", "Attachment2PhotoAsset",
-    "calculate_contain_geometry", "validate_attachment2_photos",
+    "calculate_fixed_geometry", "validate_attachment2_photos",
 ]

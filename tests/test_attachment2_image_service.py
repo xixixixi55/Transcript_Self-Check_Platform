@@ -1,4 +1,4 @@
-"""Precise attachment-two image validation and contain geometry tests."""
+"""Precise attachment-two image validation and fixed drawing geometry tests."""
 
 import os
 import base64
@@ -15,7 +15,7 @@ from app.services.attachment2_image_service import (  # noqa: E402
     ATTACHMENT2_SLOT_HEIGHT_EMU,
     ATTACHMENT2_SLOT_WIDTH_EMU,
     Attachment2ImageError,
-    calculate_contain_geometry,
+    calculate_fixed_geometry,
     validate_attachment2_photos,
 )
 
@@ -69,27 +69,50 @@ def test_validate_jpeg_and_reads_exif_orientation_marker(tmp_path):
     assert asset.orientation == 6
 
 
-@pytest.mark.parametrize("dimensions", [(4000, 1000), (1000, 4000), (2000, 2000)])
-def test_contain_geometry_preserves_ratio_and_stays_inside_slot(dimensions):
+def test_exif_orientation_is_used_when_calculating_render_geometry(tmp_path):
+    blob = bytearray(MINIMAL_JPEG)
+    sof = blob.index(b"\xff\xc0")
+    struct.pack_into(">H", blob, sof + 5, 4000)
+    struct.pack_into(">H", blob, sof + 7, 1000)
+    tiff = b"II" + struct.pack("<H", 42) + struct.pack("<I", 8)
+    tiff += struct.pack("<H", 1)
+    tiff += struct.pack("<HHI", 0x0112, 3, 1) + struct.pack("<H", 6) + b"\x00\x00"
+    tiff += struct.pack("<I", 0)
+    exif = b"Exif\x00\x00" + tiff
+    app1 = b"\xff\xe1" + struct.pack(">H", len(exif) + 2) + exif
+    path = tmp_path / "SYNTHETIC-oriented-landscape.jpg"
+    path.write_bytes(bytes(blob[:2]) + app1 + bytes(blob[2:]))
+
+    asset = validate_attachment2_photos([str(path)])[0]
+    geometry = calculate_fixed_geometry(asset.width_px, asset.height_px)
+
+    assert (asset.width_px, asset.height_px, asset.orientation) == (4000, 1000, 6)
+    assert (geometry.render_width_emu, geometry.render_height_emu) == (
+        ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
+    )
+    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 0)
+
+
+@pytest.mark.parametrize("dimensions", [(4000, 1000), (1000, 4000), (2000, 2000), (3000, 2000)])
+def test_fixed_geometry_uses_identical_dimensions_for_all_aspect_ratios(dimensions):
+    assert (ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU) == (
+        2_030_400, 2_707_200,
+    )
     width, height = dimensions
-    geometry = calculate_contain_geometry(width, height)
+    geometry = calculate_fixed_geometry(width, height)
 
-    assert geometry.render_width_emu <= ATTACHMENT2_SLOT_WIDTH_EMU
-    assert geometry.render_height_emu <= ATTACHMENT2_SLOT_HEIGHT_EMU
-    assert geometry.offset_x_emu >= 0 and geometry.offset_y_emu >= 0
-    assert abs(
-        geometry.render_width_emu * height - geometry.render_height_emu * width
-    ) <= max(width, height)
-    assert geometry.offset_x_emu * 2 + geometry.render_width_emu <= ATTACHMENT2_SLOT_WIDTH_EMU
-    assert geometry.offset_y_emu * 2 + geometry.render_height_emu <= ATTACHMENT2_SLOT_HEIGHT_EMU
+    assert (geometry.render_width_emu, geometry.render_height_emu) == (
+        ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
+    )
+    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 0)
 
 
-def test_small_images_are_not_upscaled_and_are_centered():
-    geometry = calculate_contain_geometry(96, 96)
-    assert geometry.render_width_emu == 914400
-    assert geometry.render_height_emu == 914400
-    assert geometry.offset_x_emu == (ATTACHMENT2_SLOT_WIDTH_EMU - 914400) // 2
-    assert geometry.offset_y_emu == (ATTACHMENT2_SLOT_HEIGHT_EMU - 914400) // 2
+def test_small_images_are_stretched_to_the_same_fixed_size():
+    geometry = calculate_fixed_geometry(96, 96)
+    assert (geometry.render_width_emu, geometry.render_height_emu) == (
+        ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
+    )
+    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 0)
 
 
 @pytest.mark.parametrize("filename,content", [
