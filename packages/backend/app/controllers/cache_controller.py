@@ -3,6 +3,7 @@
 import os
 
 from fastapi import APIRouter, HTTPException
+from starlette.concurrency import run_in_threadpool
 
 from ..config import OUTPUT_BASE
 from ..services.report_parsing_cache_service import (
@@ -18,7 +19,9 @@ router = APIRouter()
 async def clear_report_parsing_cache_endpoint():
     """Clear only the configured report parsing cache; no client path is accepted."""
     try:
-        cleared_count = clear_report_parsing_cache(os.path.join(OUTPUT_BASE, "parsed"))
+        cleared_count = await run_in_threadpool(
+            clear_report_parsing_cache, os.path.join(OUTPUT_BASE, "parsed"),
+        )
     except ReportParsingCacheError as error:
         raise HTTPException(
             status_code=500,

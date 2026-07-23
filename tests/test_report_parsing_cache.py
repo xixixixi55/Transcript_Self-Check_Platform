@@ -5,7 +5,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from threading import Lock
+from threading import Event, Lock
 
 import pytest
 
@@ -156,6 +156,70 @@ def test_concurrent_same_directory_builds_once_and_keeps_limit(tmp_path):
     assert len(list(cache_dir.glob("*.json"))) == 1
 
 
+def test_clear_during_inflight_build_invalidates_result_without_breaking_lock(tmp_path):
+    service = ReportParsingCacheService()
+    source = make_report(tmp_path, "inflight-clear-report")
+    cache_dir = tmp_path / "parsed"
+    started = Event()
+    release = Event()
+    calls = []
+
+    def build():
+        calls.append("built")
+        started.set()
+        assert release.wait(timeout=5)
+        return {"report": {"source": source.name}, "cache_version": 7}
+
+    def parse():
+        return service.load_or_build(str(source), str(cache_dir), 7, build)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first = pool.submit(parse)
+        assert started.wait(timeout=5)
+        assert service.clear_all(str(cache_dir)) == 0
+        release.set()
+        assert first.result()["report"]["source"] == source.name
+
+    # Clear invalidates the in-flight result, but the next request owns the
+    # same per-directory lock and rebuilds exactly once after it is released.
+    assert not list(cache_dir.glob("*.json"))
+    parse()
+    assert calls == ["built", "built"]
+    assert len(list(cache_dir.glob("*.json"))) == 1
+
+
+def test_clear_during_fingerprint_invalidates_request_started_before_clear(tmp_path):
+    service = ReportParsingCacheService()
+    source = make_report(tmp_path, "fingerprint-clear-report")
+    cache_dir = tmp_path / "parsed"
+    started = Event()
+    release = Event()
+
+    def fingerprint(_path):
+        started.set()
+        assert release.wait(timeout=5)
+        return "SYNTHETIC-FINGERPRINT"
+
+    def build():
+        return {"report": {"source": source.name}, "cache_version": 7}
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first = pool.submit(
+            service.load_or_build,
+            str(source),
+            str(cache_dir),
+            7,
+            build,
+            fingerprint=fingerprint,
+        )
+        assert started.wait(timeout=5)
+        assert service.clear_all(str(cache_dir)) == 0
+        release.set()
+        first.result()
+
+    assert not list(cache_dir.glob("*.json"))
+
+
 def test_clear_is_idempotent_and_never_deletes_archive_or_defaults(tmp_path):
     service = ReportParsingCacheService()
     cache_dir = tmp_path / "output" / "parsed"
@@ -177,3 +241,12 @@ def test_clear_is_idempotent_and_never_deletes_archive_or_defaults(tmp_path):
     assert rar.is_file()
     assert manifest.is_file()
     assert defaults.is_file()
+
+
+def test_cache_store_key_does_not_expose_local_path(tmp_path):
+    cache_dir = tmp_path / "parsed"
+
+    key = ReportParsingCacheService._store_key(str(cache_dir))
+
+    assert str(cache_dir) not in key
+    assert len(key) == 64

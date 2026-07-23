@@ -6,7 +6,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
@@ -97,6 +97,23 @@ def test_parse_folder_compress_true(client):
         assert resp.json()["data"]["archive_context_id"]
         assert resp.json()["data"]["archive_status"] == "idle"
         assert resp.json()["data"]["archive_context_deprecated_compress"] is True
+
+
+def test_parse_controller_offloads_blocking_work_from_event_loop(client):
+    from app.controllers import record_controller
+
+    async def run_sync(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    with tempfile.TemporaryDirectory() as tmpdir, \
+         patch.object(record_controller, "run_in_threadpool", new=AsyncMock(side_effect=run_sync)) as offload:
+        os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
+        response = client.post("/api/v1/reports/parse", data={"report_dir": tmpdir})
+
+    assert response.status_code == 200
+    called_functions = [call.args[0] for call in offload.await_args_list]
+    assert record_controller.parse_report in called_functions
+    assert record_controller.create_archive_context in called_functions
 
 
 def test_parse_folder_compress_false(client):
@@ -271,6 +288,18 @@ def test_clear_report_parsing_cache_failure_is_not_reported_as_success(client):
         "message": "解析缓存清理失败，请稍后重试。",
     }
     assert "private storage detail" not in response.text
+
+
+def test_clear_cache_controller_offloads_file_work(client):
+    from app.controllers import cache_controller
+
+    with patch.object(cache_controller, "clear_report_parsing_cache", return_value=0) as clear_fn, \
+         patch.object(cache_controller, "run_in_threadpool", new=AsyncMock(return_value=0)) as offload:
+        response = client.delete("/api/v1/cache/report-parsing")
+
+    assert response.status_code == 200
+    offload.assert_awaited_once()
+    assert offload.await_args.args[0] is clear_fn
 
 
 def test_parse_invalid_format_returns_400(client):

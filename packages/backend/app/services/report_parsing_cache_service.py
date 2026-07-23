@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+import weakref
 
 from ..config import REPORT_PARSING_CACHE_LIMIT
 from ..repository.filesystem_identity_repository import (
@@ -32,7 +34,7 @@ class ReportParsingCacheService:
         self.max_entries = max_entries
         self._clock = clock
         self._lock = threading.RLock()
-        self._key_locks: dict[str, threading.Lock] = {}
+        self._key_locks: weakref.WeakValueDictionary[str, threading.Lock] = weakref.WeakValueDictionary()
         self._stores: dict[str, ReportParsingCacheRepository] = {}
         self._inflight: dict[str, int] = {}
         self._generation = 0
@@ -45,9 +47,15 @@ class ReportParsingCacheService:
         builder: Callable[[], dict[str, object]],
         *,
         fingerprint_dir: str | None = None,
+        fingerprint: Callable[[str], str] = directory_content_fingerprint,
     ) -> dict[str, object]:
+        # Capture the cache generation before any potentially slow fingerprint
+        # work. A clear that starts after this request must invalidate its
+        # eventual write, even if fingerprinting has not reached the key lock.
+        with self._lock:
+            generation = self._generation
         cache_key = normalized_directory_key(source_dir)
-        source_fingerprint = directory_content_fingerprint(fingerprint_dir or source_dir)
+        source_fingerprint = fingerprint(fingerprint_dir or source_dir)
         store_key = self._store_key(cache_dir)
         operation_key = f"{store_key}\0{cache_key}"
         with self._key_lock(operation_key):
@@ -65,7 +73,6 @@ class ReportParsingCacheService:
                         return touched.result
                 elif entry:
                     store.remove(cache_key)
-                generation = self._generation
                 self._inflight[operation_key] = self._inflight.get(operation_key, 0) + 1
             try:
                 result = builder()
@@ -105,7 +112,10 @@ class ReportParsingCacheService:
 
     @staticmethod
     def _store_key(cache_dir: str) -> str:
-        return os.path.normcase(os.path.normpath(str(Path(cache_dir).resolve(strict=False)))).casefold()
+        normalized = os.path.normcase(
+            os.path.normpath(str(Path(cache_dir).resolve(strict=False)))
+        ).casefold()
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
     def _key_lock(self, operation_key: str) -> threading.Lock:
         with self._lock:
@@ -128,8 +138,12 @@ REPORT_PARSING_CACHE_SERVICE = ReportParsingCacheService()
 
 
 def clear_report_parsing_cache(cache_dir: str) -> int:
-    """Clear only the configured report parsing cache directory."""
-    return REPORT_PARSING_CACHE_SERVICE.clear_all(cache_dir)
+    """Clear report parse results without touching archive outputs."""
+    cleared = REPORT_PARSING_CACHE_SERVICE.clear_all(cache_dir)
+    # Archive parse reuse is memory-only and has no RAR/Manifest ownership.
+    from .archive_parse_runtime_service import clear_archive_parse_cache
+
+    return cleared + clear_archive_parse_cache()
 
 
 __all__ = [

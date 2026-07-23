@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import stat
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,6 +53,7 @@ class InputInventory:
     files: tuple[InputFileSnapshot, ...]
     directories: tuple[InputDirectorySnapshot, ...] = ()
     output_root: Path | None = None
+    metadata_fingerprint: str = ""
 
     @property
     def total_input_bytes(self) -> int:
@@ -103,8 +105,14 @@ def build_input_inventory(
     source_root: str | os.PathLike[str],
     *,
     output_root: str | os.PathLike[str] | None = None,
+    check_readability: bool = True,
 ) -> InputInventory:
-    """Walk only the allowed case root, without following links or junctions."""
+    """Walk the allowed case root without following links or junctions.
+
+    Context creation can request a metadata-only snapshot so preview does not
+    open every media file. Archive execution keeps the default readability
+    check before WinRAR starts.
+    """
 
     root = Path(source_root)
     if _is_unsafe_special_path(root):
@@ -161,8 +169,9 @@ def build_input_inventory(
             seen.add(key)
             try:
                 info = path.stat()
-                with path.open("rb"):
-                    pass
+                if check_readability:
+                    with path.open("rb"):
+                        pass
             except OSError as error:
                 raise ArchiveInputError("ARCHIVE_PLAN_INVALID", "归档输入存在不可读文件。") from error
             if info.st_size < 0 or info.st_size > MAX_SAFE_INTEGER:
@@ -171,7 +180,41 @@ def build_input_inventory(
 
     snapshots.sort(key=lambda item: item.relative_path.casefold())
     directories.sort(key=lambda item: item.relative_path.casefold())
-    return InputInventory(root, tuple(snapshots), tuple(directories), output)
+    return InputInventory(
+        root, tuple(snapshots), tuple(directories), output,
+        _inventory_metadata_fingerprint(snapshots, directories),
+    )
+
+
+def metadata_fingerprint_for_directory(
+    source_root: str | os.PathLike[str],
+    output_root: str | os.PathLike[str] | None = None,
+) -> str:
+    """Read only current paths and metadata for preview snapshot validation."""
+    from .archive_input_metadata_repository import metadata_fingerprint_for_directory as read_metadata
+
+    return read_metadata(source_root, output_root)
+
+
+def _inventory_metadata_fingerprint(
+    files: list[InputFileSnapshot], directories: list[InputDirectorySnapshot],
+) -> str:
+    digest = hashlib.sha256()
+    for item in directories:
+        digest.update(b"directory\0")
+        digest.update(item.relative_path.casefold().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(item.modified_time_ns).encode("ascii"))
+        digest.update(b"\0")
+    for item in files:
+        digest.update(b"file\0")
+        digest.update(item.relative_path.casefold().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(item.size_bytes).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(str(item.modified_time_ns).encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def verify_input_inventory(inventory: InputInventory) -> None:

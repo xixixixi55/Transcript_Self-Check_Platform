@@ -16,11 +16,13 @@ from ..repository.file_storage import (
     extract_archive, compute_md5, detect_winrar_version,
 )
 from ..repository.html_parser import (
+    _resolve_evidence_directory,
     parse_case_info, parse_device_lists, parse_report_info,
     parse_device_base,
     format_time_chinese, format_inspection_time_range,
 )
 from ..repository.report_format_adapter import require_supported_report_format
+from ..repository.filesystem_identity_repository import selected_files_content_fingerprint
 from .report_defaults_service import DEFAULT_DATA_SUMMARY
 from .material_policy_service import material_from_legacy_item, select_display_identifiers
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
@@ -36,7 +38,46 @@ def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dic
         _CACHE_VERSION,
         lambda: _build_parse_result(source_dir, output_dir, compress),
         fingerprint_dir=data_dir if os.path.isdir(data_dir) else source_dir,
+        fingerprint=_report_parser_dependency_fingerprint,
     )
+
+
+def _report_parser_dependency_fingerprint(data_dir: str) -> str:
+    """Fingerprint the JSON paths reached by the current Legacy parser.
+
+    Core report files are always read. Device-base JSON paths are discovered
+    from the report's device rows, matching ``parse_device_base`` instead of
+    hashing unrelated attachment and media JSON files.
+    """
+    dependency_files = [
+        "data_case_info.json",
+        "data_device_lists.json",
+        "data_report_info.json",
+    ]
+    existing_core_files = [
+        name for name in dependency_files
+        if os.path.isfile(os.path.join(data_dir, name))
+    ]
+    if len(existing_core_files) != len(dependency_files):
+        return selected_files_content_fingerprint(data_dir, existing_core_files)
+    for device in parse_device_lists(data_dir):
+        resolved_dir = _resolve_evidence_directory(
+            data_dir, device.get("evidence_number", ""),
+        )
+        if not resolved_dir:
+            continue
+        for name in sorted(os.listdir(resolved_dir)):
+            sub_dir = os.path.join(resolved_dir, name)
+            if not os.path.isdir(sub_dir):
+                continue
+            for filename in sorted(os.listdir(sub_dir)):
+                if filename.casefold().endswith(".json"):
+                    dependency_files.append(
+                        os.path.relpath(
+                            os.path.join(sub_dir, filename), data_dir,
+                        ),
+                    )
+    return selected_files_content_fingerprint(data_dir, dependency_files)
 
 
 def _build_parse_result(source_dir: str, output_dir: str, compress: bool) -> dict:
@@ -59,10 +100,11 @@ def parse_from_archive(
     output_dir: str,
     *,
     retain_source: bool = False,
+    archive_md5: str | None = None,
 ) -> dict:
     """解析上传压缩包；需要后续归档时由调用方保留受控源目录。"""
     ext = os.path.splitext(archive_path)[1].lower()
-    archive_md5 = compute_md5(archive_path)
+    archive_md5 = archive_md5 or compute_md5(archive_path)
     archive_size = os.path.getsize(archive_path)
 
     # 解压到临时目录

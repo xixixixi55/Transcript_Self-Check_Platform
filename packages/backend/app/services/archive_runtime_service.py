@@ -11,12 +11,13 @@ from uuid import uuid4
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
 from ..repository.archive_input_repository import build_input_inventory
 from ..repository.filesystem_identity_repository import (
-    directory_content_fingerprint,
     normalized_directory_key,
 )
 from .archive_runtime_models_service import (
     ArchiveContextRecord, ArchiveContextSnapshot, ArchiveManifestRecord,
 )
+from .archive_inventory_snapshot_service import ArchiveInventorySnapshotStore
+from .archive_inventory_snapshot_service import inventory_snapshot_is_current
 
 
 ARCHIVE_CONTEXT_TTL_SECONDS = 30 * 60
@@ -39,6 +40,9 @@ class ArchiveRuntimeStore:
     def __init__(self) -> None:
         self._contexts: dict[str, ArchiveContextRecord] = {}
         self._manifests: dict[str, ArchiveManifestRecord] = {}
+        self._inventory_snapshots = ArchiveInventorySnapshotStore(
+            ttl_seconds=ARCHIVE_CONTEXT_TTL_SECONDS,
+        )
         self._lock = threading.RLock()
 
     def create_context(
@@ -50,21 +54,27 @@ class ArchiveRuntimeStore:
         cleanup_root: str | None = None,
     ) -> ArchiveContextRecord:
         try:
-            inventory = build_input_inventory(
-                authorized_input.resolved_input_root, output_root=output_root,
+            source_key = normalized_directory_key(authorized_input.resolved_input_root)
+        except Exception:
+            if cleanup_root:
+                _cleanup_owned_source(Path(cleanup_root))
+            raise
+        inventory_key = ArchiveInventorySnapshotStore.cache_key(source_key, output_root)
+        try:
+            inventory = self._inventory_snapshots.get_or_build(
+                inventory_key,
+                lambda: build_input_inventory(
+                    authorized_input.resolved_input_root,
+                    output_root=output_root,
+                    check_readability=False,
+                ),
+                is_current=inventory_snapshot_is_current,
             )
         except Exception:
             if cleanup_root:
                 _cleanup_owned_source(Path(cleanup_root))
             raise
         now = time.time()
-        try:
-            source_key = normalized_directory_key(authorized_input.resolved_input_root)
-            fingerprint = directory_content_fingerprint(authorized_input.resolved_input_root)
-        except Exception:
-            if cleanup_root:
-                _cleanup_owned_source(Path(cleanup_root))
-            raise
         record = ArchiveContextRecord(
             context_id=str(uuid4()),
             case_display_name=case_display_name,
@@ -73,7 +83,9 @@ class ArchiveRuntimeStore:
             authorized_root_id=authorized_input.authorized_root_id,
             authorized_scope=authorized_input.authorized_scope,
             source_key=source_key,
-            input_fingerprint=fingerprint,
+            # The full input fingerprint is required only when archive
+            # execution starts; parsing must not hash multi-gigabyte media.
+            input_fingerprint="",
             created_at=now,
             expires_at=now + ARCHIVE_CONTEXT_TTL_SECONDS,
             cleanup_root=Path(cleanup_root) if cleanup_root else None,
@@ -218,6 +230,7 @@ class ArchiveRuntimeStore:
 
     def cleanup_expired(self, now: float | None = None) -> None:
         current = time.time() if now is None else now
+        self._inventory_snapshots.cleanup(current)
         expired_contexts = [
             key for key, item in self._contexts.items()
             if item.expires_at <= current and not item.executing
@@ -232,6 +245,5 @@ class ArchiveRuntimeStore:
             # Published successful archives are independent from in-memory
             # metadata; expiry must never delete their final output.
             self._manifests.pop(key)
-
 
 ARCHIVE_RUNTIME_STORE = ArchiveRuntimeStore()

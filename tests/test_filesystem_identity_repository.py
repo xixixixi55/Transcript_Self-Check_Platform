@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository.filesystem_identity_repository import (  # noqa: E402
     directory_content_fingerprint,
     normalized_directory_key,
+    selected_files_content_fingerprint,
 )
 
 
@@ -43,3 +44,22 @@ def test_content_fingerprint_changes_with_report_content(tmp_path):
     source.write_text("SYNTHETIC-TWO", encoding="utf-8")
 
     assert directory_content_fingerprint(report) != first
+
+
+def test_selected_content_fingerprint_reuses_unchanged_bytes_and_tracks_paths(tmp_path):
+    report = tmp_path / "report"
+    report.mkdir()
+    selected = report / "parser.json"
+    unrelated = report / "unrelated.json"
+    selected.write_text("SYNTHETIC-ONE", encoding="utf-8")
+    unrelated.write_text("SYNTHETIC-ONE", encoding="utf-8")
+
+    first = selected_files_content_fingerprint(str(report), ["parser.json"])
+    unrelated.write_text("SYNTHETIC-TWO", encoding="utf-8")
+    assert selected_files_content_fingerprint(str(report), ["parser.json"]) == first
+
+    selected.write_text("SYNTHETIC-TWO", encoding="utf-8")
+    assert selected_files_content_fingerprint(str(report), ["parser.json"]) != first
+    assert selected_files_content_fingerprint(
+        str(report), ["parser.json", "unrelated.json"],
+    ) != first

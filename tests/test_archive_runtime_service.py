@@ -1,13 +1,17 @@
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from uuid import UUID
 
 import pytest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
+from app.repository.archive_input_repository import ArchiveInputError, build_input_inventory  # noqa: E402
+from app.services.archive_inventory_snapshot_service import ArchiveInventorySnapshotStore  # noqa: E402
 from app.services.archive_runtime_service import (  # noqa: E402
     ArchiveRuntimeError,
     ArchiveRuntimeStore,
@@ -31,6 +35,7 @@ def make_context(tmp_path):
 def test_context_id_is_random_and_public_summary_has_no_paths(tmp_path):
     store, record, source = make_context(tmp_path)
     UUID(record.context_id)
+    assert record.input_fingerprint == ""
     summary = record.public_summary()
     assert set(summary) == {
         "archive_context_id", "file_count", "total_input_bytes", "status",
@@ -39,6 +44,14 @@ def test_context_id_is_random_and_public_summary_has_no_paths(tmp_path):
     assert str(source) not in str(summary)
     assert summary["file_count"] == 1
     assert summary["total_input_bytes"] == len(b"evidence")
+
+
+def test_inventory_snapshot_cache_key_does_not_expose_output_path(tmp_path):
+    output = tmp_path / "output"
+    key = ArchiveInventorySnapshotStore.cache_key("source-key", str(output))
+
+    assert str(output) not in key
+    assert len(key.split("\0", 1)[1]) == 64
 
 
 def test_context_busy_expired_and_not_found_codes(tmp_path):
@@ -68,6 +81,65 @@ def test_context_reads_recheck_authorization_boundary(tmp_path):
     with pytest.raises(ArchiveRuntimeError) as snapshot_error:
         store.get_context_snapshot(record.context_id)
     assert snapshot_error.value.code == "ARCHIVE_INPUT_CHANGED"
+
+
+def test_context_reuses_preview_inventory_but_formal_verify_detects_new_file(tmp_path):
+    source = tmp_path / "case"
+    source.mkdir()
+    (source / "evidence.bin").write_bytes(b"evidence")
+    output = tmp_path / "output"
+    store = ArchiveRuntimeStore()
+    authorized = AuthorizedInputRoot(
+        source.resolve(), "exact_directory_grant", "internal-test",
+    )
+
+    with patch(
+        "app.services.archive_runtime_service.build_input_inventory",
+        wraps=build_input_inventory,
+    ) as build_inventory:
+        first = store.create_context(authorized, "Synthetic case", output_root=str(output))
+        second = store.create_context(authorized, "Synthetic case", output_root=str(output))
+        assert build_inventory.call_count == 1
+        assert first.inventory is second.inventory
+
+        (source / "new-attachment.bin").write_bytes(b"new")
+        refreshed = store.create_context(
+            authorized, "Synthetic case", output_root=str(output),
+        )
+        assert build_inventory.call_count == 2
+        assert refreshed.inventory is not first.inventory
+
+    from app.repository.archive_input_repository import verify_input_inventory
+
+    with pytest.raises(ArchiveInputError) as error:
+        verify_input_inventory(first.inventory)
+    assert error.value.code == "ARCHIVE_INPUT_CHANGED"
+    verify_input_inventory(refreshed.inventory)
+
+
+def test_concurrent_context_creation_builds_one_snapshot(tmp_path):
+    source = tmp_path / "case"
+    source.mkdir()
+    (source / "evidence.bin").write_bytes(b"evidence")
+    output = tmp_path / "output"
+    store = ArchiveRuntimeStore()
+    authorized = AuthorizedInputRoot(
+        source.resolve(), "exact_directory_grant", "internal-test",
+    )
+
+    with patch(
+        "app.services.archive_runtime_service.build_input_inventory",
+        wraps=build_input_inventory,
+    ) as build_inventory, ThreadPoolExecutor(max_workers=4) as pool:
+        records = list(pool.map(
+            lambda _: store.create_context(
+                authorized, "Synthetic case", output_root=str(output),
+            ),
+            range(4),
+        ))
+
+    assert build_inventory.call_count == 1
+    assert len({id(record.inventory) for record in records}) == 1
 
 
 def test_cleanup_never_deletes_original_case_input(tmp_path):

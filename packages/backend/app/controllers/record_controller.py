@@ -5,7 +5,9 @@ import tempfile
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
-from ..services.report_parser_service import parse_report, parse_from_archive
+from starlette.concurrency import run_in_threadpool
+from ..services.report_parser_service import parse_report
+from ..services.archive_parse_runtime_service import parse_archive_with_reuse as parse_from_archive
 from ..services.record_generator_service import generate_docx
 from ..services.export_gate_service import ExportGateInput, evaluate_export_gate
 from ..services.inspector_service import apply_inspector_snapshot_compatibility
@@ -75,36 +77,23 @@ async def parse_report_endpoint(
             with open(tmp_path, "wb") as f:
                 f.write(content)
             try:
-                result = parse_from_archive(tmp_path, OUTPUT_BASE, retain_source=True)
+                result = await run_in_threadpool(parse_from_archive, tmp_path, OUTPUT_BASE, retain_source=True)
             finally:
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
         else:
             # ─── 文件夹模式 ───
-            authorized_input = ARCHIVE_AUTHORIZATION_SERVICE.authorize_report_directory(
-                report_dir, directory_grant_token or None,
-            )
-            result = parse_report(
-                str(authorized_input.resolved_input_root), OUTPUT_BASE, compress=compress,
-            )
+            authorized_input = await run_in_threadpool(ARCHIVE_AUTHORIZATION_SERVICE.authorize_report_directory, report_dir, directory_grant_token or None)
+            result = await run_in_threadpool(parse_report, str(authorized_input.resolved_input_root), OUTPUT_BASE, compress=compress)
         result["report"] = enrich_report_material_types(result["report"])
         result["archive_context_id"] = None
         source_root = result.pop("_archive_source_root", None)
         cleanup_root = result.pop("_archive_source_cleanup_root", None)
         if source_root:
-            authorized_input = ARCHIVE_AUTHORIZATION_SERVICE.authorize_server_source(
-                source_root, cleanup_root or source_root,
-            )
+            authorized_input = await run_in_threadpool(ARCHIVE_AUTHORIZATION_SERVICE.authorize_server_source, source_root, cleanup_root or source_root)
         if not has_file or source_root:
-            result["archive_context_id"] = create_archive_context(
-                authorized_input,
-                result["report"],
-                output_root=OUTPUT_BASE,
-                cleanup_root=cleanup_root,
-            )
-            result["archive_context"] = ARCHIVE_RUNTIME_STORE.get_context_summary(
-                result["archive_context_id"],
-            )
+            result["archive_context_id"] = await run_in_threadpool(create_archive_context, authorized_input, result["report"], output_root=OUTPUT_BASE, cleanup_root=cleanup_root)
+            result["archive_context"] = await run_in_threadpool(ARCHIVE_RUNTIME_STORE.get_context_summary, result["archive_context_id"])
         result["archive_context_deprecated_compress"] = True
         result["archive_status"] = "idle"
         observe_shadow_parse(

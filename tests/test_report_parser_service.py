@@ -327,6 +327,45 @@ def test_new_report_unknown_main_software_version_stays_blank(tmp_path):
     assert names == {"WinRAR压缩管理软件", "Python hashlib"}
 
 
+def test_parser_cache_tracks_all_json_inputs_but_ignores_attachment_html(tmp_path):
+    _write_service_fixture(str(tmp_path))
+    media = tmp_path / "data" / "JC01" / "Base" / "attachment.html"
+    media.write_text("SYNTHETIC-HTML-ONE", encoding="utf-8")
+
+    with patch("app.services.report_parser_service._build_report",
+               wraps=_build_report) as build:
+        parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
+        media.write_text("SYNTHETIC-HTML-TWO", encoding="utf-8")
+        parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
+        assert build.call_count == 1
+
+        device_file = tmp_path / "data" / "JC01" / "Base" / "device_table.json"
+        device_file.write_text(
+            device_file.read_text(encoding="utf-8").replace(
+                "Model-NEW", "Model-NEW-CHANGED"
+            ),
+            encoding="utf-8",
+        )
+        parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
+
+    assert build.call_count == 2
+
+
+def test_parser_cache_ignores_json_outside_selected_evidence(tmp_path):
+    _write_service_fixture(str(tmp_path))
+    unrelated = tmp_path / "data" / "JC99" / "Base"
+    unrelated.mkdir(parents=True)
+    noise = unrelated / "unrelated.json"
+    noise.write_text('{"value":"SYNTHETIC-ONE"}', encoding="utf-8")
+
+    with patch("app.services.report_parser_service._build_report", wraps=_build_report) as build:
+        parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
+        noise.write_text('{"value":"SYNTHETIC-TWO"}', encoding="utf-8")
+        parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
+
+    assert build.call_count == 1
+
+
 def test_cache_version_seven_does_not_reuse_old_payload(tmp_path):
     old_cache = {"report": _MOCK_REPORT, "cache_version": 4}
     with patch("app.services.report_parser_service.is_cache_valid", return_value=True), \

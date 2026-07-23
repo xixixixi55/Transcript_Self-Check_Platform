@@ -31,12 +31,56 @@ const CACHE_CLEAR_ERROR_MESSAGES: Record<string, string> = {
   REPORT_PARSING_CACHE_CLEAR_FAILED: '解析缓存清理失败，请重试。',
 }
 
+const REPORT_REQUEST_TIMEOUT_MS = 120_000
+const CACHE_CLEAR_REQUEST_TIMEOUT_MS = 10_000
+
+interface RequestConfig {
+  timeout: number
+  signal: AbortSignal
+}
+
+async function withRequestTimeout<T>(
+  request: (config: RequestConfig) => Promise<T>,
+  timeoutMs: number = REPORT_REQUEST_TIMEOUT_MS,
+): Promise<T> {
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = window.setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  try {
+    return await request({ timeout: timeoutMs, signal: controller.signal })
+  } catch (error) {
+    if (timedOut) {
+      const timeoutError = new Error('request timeout') as Error & { code: string }
+      timeoutError.code = 'ETIMEDOUT'
+      throw timeoutError
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
+function isRequestTimeout(error: any): boolean {
+  return error?.code === 'ETIMEDOUT'
+    || error?.code === 'ECONNABORTED'
+    || error?.name === 'AbortError'
+}
+
 export interface ParseErrorInfo {
   code: string | null
   message: string
 }
 
 export function resolveParseError(error: any): ParseErrorInfo {
+  if (isRequestTimeout(error)) {
+    return { code: null, message: '报告解析请求超时，请重试。' }
+  }
+  if (!error?.response) {
+    return { code: null, message: '无法连接后端服务，请检查服务状态后重试。' }
+  }
   const detail = error?.response?.data?.detail
   if (typeof detail === 'object' && detail !== null) {
     const code = typeof detail.code === 'string' ? detail.code : null
@@ -52,6 +96,8 @@ export function resolveParseError(error: any): ParseErrorInfo {
 }
 
 export function resolveCacheClearError(error: any): string {
+  if (isRequestTimeout(error)) return '清空解析缓存请求超时，请重试。'
+  if (!error?.response) return '无法连接后端服务，请检查服务状态后重试。'
   const detail = error?.response?.data?.detail
   if (typeof detail === 'object' && detail !== null) {
     const code = typeof detail.code === 'string' ? detail.code : ''
@@ -77,9 +123,12 @@ export function useReportParser(): UseReportParserReturn {
   const [clearingCache, setClearingCache] = useState(false)
   const [cacheClearMessage, setCacheClearMessage] = useState<string | null>(null)
   const [cacheClearError, setCacheClearError] = useState<string | null>(null)
+  const parseBusy = useRef(false)
   const clearBusy = useRef(false)
 
   const parseReport = useCallback(async (dirPath: string, compress: boolean = true) => {
+    if (parseBusy.current) return null
+    parseBusy.current = true
     setLoading(true)
     setError(null)
     setErrorCode(null)
@@ -87,9 +136,9 @@ export function useReportParser(): UseReportParserReturn {
       const formData = new FormData()
       formData.append('report_dir', dirPath)
       formData.append('compress', String(compress))
-      const { data } = await axios.post<{ success: boolean; data: ParseReportResponse }>(
-        API_ENDPOINTS.PARSE_REPORT, formData,
-      )
+      const { data } = await withRequestTimeout(config => axios.post<{
+        success: boolean; data: ParseReportResponse
+      }>(API_ENDPOINTS.PARSE_REPORT, formData, config))
       const normalized = normalizeParsedReport(data.data)
       setResult(normalized)
       return normalized
@@ -99,20 +148,23 @@ export function useReportParser(): UseReportParserReturn {
       setError(failure.message)
       return null
     } finally {
+      parseBusy.current = false
       setLoading(false)
     }
   }, [])
 
   const parseArchive = useCallback(async (file: File) => {
+    if (parseBusy.current) return null
+    parseBusy.current = true
     setLoading(true)
     setError(null)
     setErrorCode(null)
     try {
       const formData = new FormData()
       formData.append('archive_file', file)
-      const { data } = await axios.post<{ success: boolean; data: ParseReportResponse }>(
-        API_ENDPOINTS.PARSE_REPORT, formData,
-      )
+      const { data } = await withRequestTimeout(config => axios.post<{
+        success: boolean; data: ParseReportResponse
+      }>(API_ENDPOINTS.PARSE_REPORT, formData, config))
       const normalized = normalizeParsedReport(data.data)
       setResult(normalized)
       return normalized
@@ -122,6 +174,7 @@ export function useReportParser(): UseReportParserReturn {
       setError(failure.message)
       return null
     } finally {
+      parseBusy.current = false
       setLoading(false)
     }
   }, [])
@@ -133,10 +186,10 @@ export function useReportParser(): UseReportParserReturn {
     setCacheClearMessage(null)
     setCacheClearError(null)
     try {
-      const { data } = await axios.delete<{
+      const { data } = await withRequestTimeout(config => axios.delete<{
         success: boolean
         data: ClearReportParsingCacheResponse
-      }>(API_ENDPOINTS.CLEAR_REPORT_PARSING_CACHE)
+      }>(API_ENDPOINTS.CLEAR_REPORT_PARSING_CACHE, config), CACHE_CLEAR_REQUEST_TIMEOUT_MS)
       const cleared = data.data?.cleared_count || 0
       const clearResult = { cleared_count: cleared }
       setCacheClearMessage(cleared > 0
