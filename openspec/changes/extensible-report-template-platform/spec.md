@@ -4,17 +4,17 @@
 
 文档真相源边界：本 `spec.md` 记录已批准的业务合同和目标行为；`design.md` 记录设计决策、字段语义与兼容策略；`tasks.md` 记录当前实现、自动化和人工验收状态；`openspec/specs/` 下的 living spec 只描述当前生产已经具备的能力。代码和测试是当前实现证据，用于发现文档漂移，但不会自动改写或取消本规范中已批准的业务规则。
 
-当前生产收口状态（2026-07-22）：正式输出仍由 `InspectionReport` legacy DTO 管线生成。Canonical 模型、适配器、编排器和比较器已有基础实现，但 Canonical/Shadow 尚未接入真实生产 Controller 主链；`DocumentRenderPlan` 尚无生产类型、构造器或消费方。本规范中以 canonical、shadow 或 `DocumentRenderPlan` 为前提的场景均是批准后的目标行为，只有对应 tasks、自动化、人工验收和生产接线完成后才视为生效；不得以类型存在或单元测试可调用替代生产启用证据。
+当前生产收口状态（2026-07-22）：正式输出仍由 `InspectionReport` legacy DTO 管线生成。Shadow 已接入真实生产 Controller 的解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，只用于脱敏观测和比较，不改变现有响应或正式产物；Canonical 仍未接入正式输出，`DocumentRenderPlan` 尚无生产类型、构造器或消费方。本规范中以 canonical 正式输出或 `DocumentRenderPlan` 为前提的场景仍是批准后的目标行为；不得以类型存在、单元测试可调用或 Shadow 旁路接线替代 Canonical 正式切换和真实人工验收证据。
 
 ## ADDED Requirements
 
 ### Requirement: Canonical case normalization
 
-当前 `pipeline_mode` 默认仍为 `legacy`，Canonical 模型、适配器、编排器和比较器已具备基础实现但尚未接入生产 Controller 主链。本规范描述 Canonical 迁移目标的完整合同，但实际行为按 `pipeline_mode` 分阶段生效。
+当前 `pipeline_mode` 默认仍为 `legacy`，Shadow 旁路已由生产 Controller 接线但不参与正式结果决策；Canonical 模型、适配器和编排器尚未接入正式输出。本规范描述 Canonical 迁移目标的完整合同，但实际行为按 `pipeline_mode` 分阶段生效。
 
 系统 SHOULD 将每份受支持报告转换为 `CanonicalInspectionCase`，再进行业务规则计算和文档生成。目标主迁移方向为 `ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出`：`InspectionReport` 是现有公共契约的兼容投影。规范化结果 SHOULD 具有稳定的 `caseId`、来源摘要、报告创建/报告时间、案件名称、检材列表、主取证软件、检查人员快照、归档清单和附件输入；原始文件路径和字段来源 SHOULD 保留在 provenance 中但不得泄漏到用户文书正文。
 
-当前生产状态：`pipeline_mode` 默认 `legacy`，现有 `InspectionReport` 管线产生唯一正式输出。`canonical_to_inspection_report` 和 `inspection_report_to_canonical` 已实现并可通过测试调用，但 Canonical/Shadow 不参与正式结果决策。不得把"类型存在"和"单元测试可调用"写成"生产已启用"。
+当前生产状态：`pipeline_mode` 默认 `legacy`，现有 `InspectionReport` 管线产生唯一正式输出；Shadow 只在后台旁路记录脱敏比较结果，不参与正式结果决策。`canonical_to_inspection_report` 和 `inspection_report_to_canonical` 已实现并可通过测试调用，但 Canonical 正式输出尚未启用。不得把“类型存在”“单元测试可调用”或“Shadow 旁路接线”写成“Canonical 生产已启用”。
 
 #### Scenario: 旧格式和新格式统一到同一内部模型
 
@@ -294,7 +294,7 @@
 #### Scenario: Shadow mode
 
 - **WHEN** `pipeline_mode` 为 `shadow`
-- **THEN** 旧管线仍产生唯一正式输出；新管线只在隔离目录生成规范化结果、规划和脱敏比较数据，不产生第二份正式文书、不替换正式归档。比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号、检查时间、主软件、检查人员顺序、ArchiveManifest 和附件一/二/三页面数量
+- **THEN** 旧管线仍产生唯一正式输出；新管线只在后台旁路的隔离内存中生成规范化结果、规划和脱敏比较数据，并通过有容量/TTL的受限诊断Store提供查询，不产生第二份正式文书、不替换正式归档。比较至少覆盖案件编号、检材类型与实际业务字段、IMEI1/IMEI2或序列号、检查时间、主软件名称/版本、检查人员顺序、外部RAR命名、根目录保留、相对路径集合、输入文件数量/总字节、ArchiveManifest 和附件一/二/三页面数量
 
 #### Scenario: Shadow 不执行真实重复压缩
 
@@ -302,6 +302,18 @@
 - **THEN** 新管线不得调用 WinRAR 或执行第二次真实压缩
 - **AND** ArchiveManifest 比较使用既有正式结果与非执行性的计划/清单投影
 - **AND** 不产生第二份正式归档或可被正式导出的新 manifest
+
+#### Scenario: Shadow missing facts are not matched
+
+- **WHEN** Legacy 或 Shadow 一侧缺少待比较字段，或两侧均缺少该字段
+- **THEN** 结果分别记录 `mismatch` 或 `not_comparable`，不得静默显示 `matched`
+
+#### Scenario: Shadow export observation point is explicit
+
+- **WHEN** Legacy DOCX 已成功生成
+- **THEN** Shadow 只比较该次正式导出已经准备好的业务/附件输入，不宣称完整最终渲染输入比较，且不再次生成 DOCX
+- **WHEN** Legacy DOCX 生成失败
+- **THEN** Shadow 记录脱敏的 `LEGACY_DOCX_RENDER_FAILED` 失败诊断，不留下 `matched` 的导出结果，Legacy 错误仍按原合同返回
 
 #### Scenario: Shadow diagnostics protect sensitive data
 
@@ -483,7 +495,7 @@
 
 现有电子数据检查笔录 MUST 继续支持当前解析和导出入口。主迁移入口先按 `ReportAdapter → CanonicalInspectionCase → InspectionReport` 生成现有前端/导出兼容 DTO；canonical 管线的正式文档目标继续由 canonical case → plans → render plan → 固定 `current-template-v1` 生成。officecli batch 只保留为无 Manifest 兼容分支；当前 `/records/export` 要求有效 Manifest，带 Manifest 渲染失败时不得回退 officecli。默认管线切换前必须完成 Shadow 比较、两套输出回归和人工验收。
 
-上述 canonical 生成链是批准目标而非当前生产事实。当前正式生产输出由 legacy `InspectionReport` DTO 管线生成，并消费已经验证的最终 `ArchiveManifest`、`AttachmentPlan` 和固定 TemplateProfile；Canonical/Shadow 未接入生产 Controller，`DocumentRenderPlan` 未生产实现。
+上述 canonical 生成链是批准目标而非当前生产事实。当前正式生产输出由 legacy `InspectionReport` DTO 管线生成，并消费已经验证的最终 `ArchiveManifest`、`AttachmentPlan` 和固定 TemplateProfile；Shadow 已接入生产 Controller 旁路但只保存脱敏诊断，Canonical 正式输出未启用，`DocumentRenderPlan` 未生产实现。
 
 #### Scenario: 当前报告正常导出
 

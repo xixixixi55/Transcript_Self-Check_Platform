@@ -57,6 +57,19 @@ def test_context_busy_expired_and_not_found_codes(tmp_path):
     assert missing.value.code == "ARCHIVE_CONTEXT_NOT_FOUND"
 
 
+def test_context_reads_recheck_authorization_boundary(tmp_path):
+    store, record, source = make_context(tmp_path)
+    source.rename(tmp_path / "moved-case")
+
+    with pytest.raises(ArchiveRuntimeError) as summary_error:
+        store.get_context_summary(record.context_id)
+    assert summary_error.value.code == "ARCHIVE_INPUT_CHANGED"
+
+    with pytest.raises(ArchiveRuntimeError) as snapshot_error:
+        store.get_context_snapshot(record.context_id)
+    assert snapshot_error.value.code == "ARCHIVE_INPUT_CHANGED"
+
+
 def test_cleanup_never_deletes_original_case_input(tmp_path):
     store, record, source = make_context(tmp_path)
     record.expires_at = 0

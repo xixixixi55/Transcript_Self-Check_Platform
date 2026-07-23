@@ -3,9 +3,9 @@
 > 能力：CAP-001 ~ CAP-011
 > 状态：MODIFIED（2026-07-22: 文档真相源与当前归档生产状态收口）
 
-> 本文件是 living spec，只描述当前生产已经具备的能力。已批准但尚未生产启用的 Canonical/Shadow/`DocumentRenderPlan` 目标见 active change `openspec/changes/extensible-report-template-platform/spec.md`；当前实现与验收进度见其 `tasks.md`。代码和测试是实现证据，不自动覆盖已批准的业务合同。
+> 本文件是 living spec，只描述当前生产已经具备的能力。已批准但尚未正式输出启用的 Canonical/`DocumentRenderPlan` 目标见 active change `openspec/changes/extensible-report-template-platform/spec.md`；Shadow 已作为不改变Legacy响应的脱敏旁路接线，当前实现与验收进度见其 `tasks.md`。代码和测试是实现证据，不自动覆盖已批准的业务合同。
 
-当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + `current-template-v1` TemplateProfile 渲染唯一正式 DOCX。Canonical 模型、适配器、编排器和 Shadow 比较器已有基础实现，但未接入生产 Controller；`DocumentRenderPlan` 尚无生产构造和消费。
+当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + `current-template-v1` TemplateProfile 渲染唯一正式 DOCX。Shadow 已接入解析、归档/预览和Legacy DOCX成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
 
 ---
 

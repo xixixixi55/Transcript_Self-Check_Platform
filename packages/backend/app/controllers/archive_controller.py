@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Form, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -15,9 +15,13 @@ from ..services.archive_execution_service import (
 from ..services.archive_runtime_service import ArchiveRuntimeError
 from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE
 from ..services.archive_manifest_access_service import get_manifest_part_download
-from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report
+from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
 from ..services.attachment_plan_errors_service import AttachmentPlanError
 from ..services.software_policy_service import normalize_primary_software_projection
+from .pipeline_controller import (
+    observe_shadow_archive,
+    pipeline_settings_for_request,
+)
 from ..config import OUTPUT_BASE
 
 
@@ -51,11 +55,14 @@ def _archive_error(error: Exception) -> HTTPException:
 
 @router.post("/records/archive")
 async def execute_archive_endpoint(
+    request: Request,
+    background_tasks: BackgroundTasks,
     report_json: str = Form(""),
     archive_context_id: str = Form(""),
 ):
     """Execute the reviewed archive synchronously; no client path is accepted."""
 
+    settings = pipeline_settings_for_request(request)
     if not report_json or not archive_context_id:
         raise HTTPException(
             status_code=422,
@@ -79,24 +86,32 @@ async def execute_archive_endpoint(
         if outcome.manifest_id else None
     )
     attachment_preview = None
+    legacy_report = report
+    legacy_plan = None
     if stored_manifest:
         try:
-            projected = project_manifest_to_legacy_report(report, stored_manifest)
+            projected, legacy_plan = project_manifest_to_legacy_report_with_plan(report, stored_manifest)
+            legacy_report = projected
             attachment_preview = projected.get("attachments", {}).get("extract_list")
         except AttachmentPlanError:
             # Incomplete review fields must not turn a valid archive into a failure.
             pass
+    observe_shadow_archive(
+        archive_context_id, legacy_report, stored_manifest or {}, settings, background_tasks,
+        legacy_plan=legacy_plan, canonical_source=report,
+    )
+    data = {
+        "status": outcome.status,
+        "manifest_id": outcome.manifest_id,
+        "manifest": stored_manifest,
+        "attachment_preview": attachment_preview,
+        "plan": outcome.plan.public_dict() if outcome.plan else None,
+        "diagnostics": [item.__dict__ for item in outcome.diagnostics],
+        "reused": outcome.reused,
+    }
     return {
         "success": True,
-        "data": {
-            "status": outcome.status,
-            "manifest_id": outcome.manifest_id,
-            "manifest": stored_manifest,
-            "attachment_preview": attachment_preview,
-            "plan": outcome.plan.public_dict() if outcome.plan else None,
-            "diagnostics": [item.__dict__ for item in outcome.diagnostics],
-            "reused": outcome.reused,
-        },
+        "data": data,
     }
 
 

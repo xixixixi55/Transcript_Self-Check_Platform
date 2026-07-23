@@ -8,7 +8,7 @@
 - `report_parser_service.py` 仍组装 legacy DTO 和解析缓存；解析阶段只建立 `ArchiveContext`，真实压缩由独立归档执行入口触发。
 - `ArchivePlanner`、WinRAR executor/validator、有限向上 replan 和最终 `ArchiveManifest` 已进入归档生产能力；D1 容量合同与 D2.1 超时、完整性、进程终止和 Manifest 兼容治理已经完成。
 - `record_controller.py` 仍接收 `InspectionReport`，校验最终 Manifest、投影 legacy 字段并调用 `template_filler_service.py`；`document_builder_service.py` 只保留为无 Manifest 场景的 officecli batch 回退，带 Manifest 的正式导出失败不会静默回退。
-- Canonical 模型、双向兼容适配器、`PipelineOrchestrator` 和 Shadow 比较器已有基础实现，但尚未接入真实生产 Controller 主链；canonical 分支仍显式保持未启用。
+- Canonical 模型、双向兼容适配器、`PipelineOrchestrator` 和 Shadow 比较器已有实现；Shadow 已接入真实生产 Controller 的旁路观测，canonical 分支仍显式保持未启用。
 - `AttachmentPlan` 与固定 `current-template-v1` TemplateProfile 已被当前 renderer 消费；`DocumentRenderPlan` 尚无生产类型、构造器或消费方。
 - `word_templates/template.docx` 是当前运行时模板，已有 VML 文本框、普通分页符、表格和动态占位符；`template-2026` 与 `docx-vml-pagination` 记录了其资产来源和回归约束。
 - `InspectionReport` 位于 SharedTypes，前端 `useReportParser`、`useRecordExport`、审核表单和导出测试直接依赖它。
@@ -345,14 +345,14 @@ officecli batch 只保留为无 Manifest 的兼容分支；当前 `/records/expo
 `pipeline_mode` 由后端应用启动入口（计划放在现有 `packages/backend/app/main.py` 的应用配置初始化）从统一运行时配置读取，默认 `legacy`，可选 `shadow`、`canonical`；配置优先读取 `BIJI_PIPELINE_MODE`，再使用应用配置文件/默认值。Repository、Service 和 Renderer 接收同一 `PipelineSettings` 对象，不各自读取环境变量或维护布尔开关。该配置读取位置和 schemaVersion 在实现前门禁中固定。
 
 - `legacy`：旧管线产生唯一正式输出；不执行新 renderer。
-- `shadow`：旧管线产生唯一正式输出；新管线在隔离 staging 中生成 canonical、plans 和非执行性的清单投影，不生成第二份正式 Word，不替换正式归档，不调用 WinRAR，也不执行真实重复压缩。ArchiveManifest 比较使用既有正式结果与该投影，投影不得伪装成最终 manifest。
+- `shadow`：旧管线产生唯一正式输出；新管线在后台旁路中复用同一解析报告、已验证 Manifest、输入快照和 Legacy AttachmentPlan，生成内存中的 canonical/plan 投影与脱敏比较结果，不生成第二份正式 Word，不替换正式归档，不调用 WinRAR，也不执行真实重复压缩。结果通过带容量和 TTL 的脱敏诊断 Store 及按 `archive_context_id` 查询接口查看；投影不得伪装成最终 manifest。
 - `canonical`：新管线产生唯一正式输出；数据正确性错误直接失败，不自动 fallback。人工运维将集中配置改回 `legacy` 才能回滚。
 
 Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号、检查时间、主软件、检查人员顺序、ArchiveManifest 和附件一/二/三页面数量。比较器只输出字段名、一致性、脱敏来源和诊断代码，严禁完整案件、人员、IMEI、序列号和原始 JSON 进入日志。
 
 ## Migration Plan
 
-当前检查点（2026-07-22）：Stage 0 的模型/适配器/编排器/比较器具备基础实现，归档 D1 与 D2.1 已完成，但 Canonical/Shadow 尚未接入生产 Controller；正式输出仍是 legacy DTO 管线。`DocumentRenderPlan`、14.x 双管线回归、15.1/15.1T 完整人工验收和 16.x canonical 切换仍未完成。
+当前检查点（2026-07-22）：Stage 0 的模型/适配器/编排器/比较器具备实现，归档 D1 与 D2.1 已完成；Shadow 已接入真实生产 Controller 的解析、归档/预览和“Legacy DOCX 成功后的导出输入”旁路观测，正式输出仍是 legacy DTO 管线。导出观测点不宣称完整最终渲染输入比较；Legacy DOCX 失败会记录失败诊断。归档最终 Manifest 当前没有解压树清单，因此根目录保留合同明确记为 `not_comparable`，待 14A.6 真实 WinRAR 列表/解压验收补证。Canonical 仍显式未启用；`DocumentRenderPlan`、15.1/15.1T 完整人工验收和 16.x canonical 切换仍未完成。
 
 ### Stage 0: Contracts and shadow pipeline
 
@@ -365,7 +365,7 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 
 1. 接入手机/平板显示政策、报告来源主软件、人员库/快照、光盘序列和分卷 manifest。
 2. 将附件一/二/三全部从 final manifest/page plans 渲染；保留旧 DTO 输入，officecli batch 仅保留为无 Manifest 兼容分支。
-3. 在 `shadow` 模式下由旧管线产生唯一正式输出，新管线只在隔离目录生成 canonical、plans、非执行性的 manifest 投影和脱敏比较结果；不得调用 WinRAR 或执行真实重复压缩，不产生第二份正式文书。
+3. 在 `shadow` 模式下由旧管线产生唯一正式输出，新管线只在后台旁路生成内存中的 canonical、plans、非执行性的 manifest 投影和脱敏比较结果；不得调用 WinRAR 或执行真实重复压缩，不产生第二份正式文书。解析、归档/预览和导出三阶段诊断通过受限查询接口统一查看，Shadow 失败不得改变 Legacy 响应。
 4. Shadow 比较至少覆盖案件字段、检材类型、IMEI/序列号、检查时间、主软件、人员顺序、ArchiveManifest 和附件页数；人工确认正文、VML、分页、颜色、图片和附件。
 5. 通过阶段一门槛后把集中配置切换为 `canonical`；保留将同一配置改回 `legacy` 的人工回滚路径。
 

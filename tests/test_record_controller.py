@@ -162,8 +162,8 @@ def test_archive_endpoint_returns_manifest_derived_attachment1_preview(client):
     with patch("app.controllers.archive_controller.execute_archive",
                return_value=ArchiveExecutionOutcome("completed", "manifest-1", None)), \
          patch("app.controllers.archive_controller.ARCHIVE_RUNTIME_STORE.get_manifest", return_value=record), \
-         patch("app.controllers.archive_controller.project_manifest_to_legacy_report",
-               return_value={"attachments": {"extract_list": preview}}):
+         patch("app.controllers.archive_controller.project_manifest_to_legacy_report_with_plan",
+               return_value=({"attachments": {"extract_list": preview}}, None)):
         response = client.post("/api/v1/records/archive", data={
             "archive_context_id": "context-1",
             "report_json": json.dumps(_MOCK_REPORT, ensure_ascii=False),

@@ -1,6 +1,6 @@
 # Implementation Tasks: extensible-report-template-platform
 
-本清单对应根目录 `spec.md` 和 `design.md`，只记录实现、自动化和人工验收状态；批准的业务合同见 `spec.md`，字段语义和兼容策略见 `design.md`。当前 38/48 项已完成。第一批基础实现（0.1、1.1、1.2、2.1、2.2、3-13 及其测试任务）已完成并验证，但正式生产输出仍由 legacy DTO 管线生成；Canonical/Shadow 未接入真实生产 Controller，`DocumentRenderPlan` 未生产实现。14（Shadow 回归）、15（完整人工 Word 验收）、16（canonical 切换）和 17（阶段二/三接口预留）保持未完成。阶段二/三只保留契约和扩展点，不把通用能力纳入阶段一门槛。
+本清单对应根目录 `spec.md` 和 `design.md`，只记录实现、自动化和人工验收状态；批准的业务合同见 `spec.md`，字段语义和兼容策略见 `design.md`。当前 46/55 项已完成。正式生产输出仍由 legacy DTO 管线生成；Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入观测，诊断通过受限查询接口统一查看，Canonical 仍未启用，`DocumentRenderPlan` 未生产实现。当前自动化测试使用脱敏合成数据，不能替代真实解析、WinRAR、DOCX 和人工视觉验收；14A.6、15（完整人工 Word 验收）、16（canonical 切换）和 17（阶段二/三接口预留）保持未完成。阶段二/三只保留契约和扩展点，不把通用能力纳入阶段一门槛。
 
 ## 0. 变更前门禁
 
@@ -18,7 +18,7 @@
 
 Shadow 工作包的输出只能是隔离的规范化、规划和脱敏比较结果；不得调用 WinRAR、不得执行真实重复压缩，也不得把非执行性的清单投影当作最终 `ArchiveManifest`。
 
-- [x] 2.1 实现集中 `pipeline_mode = legacy | shadow | canonical` 的运行时配置和 Shadow orchestration。输入：旧管线结果、canonical case、plans、隔离 staging manifest；输出：旧管线唯一正式输出和新管线比较输入；验收：legacy 只跑旧管线，shadow 不产生第二份正式 Word，canonical 当前基础层显式保持未启用。
+- [x] 2.1 实现集中 `pipeline_mode = legacy | shadow | canonical` 的运行时配置和 Shadow orchestration。输入：旧管线结果、canonical case、plans、已验证 Manifest；输出：旧管线唯一正式输出和内存中的新管线比较输入；验收：legacy 只跑旧管线，shadow 不产生第二份正式 Word，canonical 当前基础层显式保持未启用。
 - [x] 2.1T 增加 mode 行为、隔离目录、正式文件数量和缓存命名测试；验收：Shadow 结果不能被当作正式 Word/manifest 缓存。
 - [x] 2.2 实现脱敏 `ShadowComparison`，比较案件字段、检材类型、IMEI1/IMEI2或序列号、检查时间、主软件、检查人员顺序、ArchiveManifest 和附件一/二/三页面数量。输入：两侧结构化结果；输出：字段名、一致性、脱敏来源、诊断代码；验收：日志不包含完整案件、人员、IMEI、序列号或原始 JSON。
 - [x] 2.2T 为比较器增加字段差异、敏感值扫描和诊断代码测试；验收：每个指定比较维度均有可区分断言。
@@ -108,8 +108,8 @@ Renderer 当前正式渲染输入为 `InspectionReport` 兼容数据 + `ArchiveM
 
 Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试不得触发真实第二次 WinRAR 压缩或产生第二份正式文书。
 
-- [ ] 14.1 将现有新旧报告 fixture 接入 legacy/shadow/canonical 三模式，保留已验收解析优先级和旧前端 DTO。输入：脱敏合成旧/新报告；输出：解析/投影/plan/比较结果；验收：真实案件、人员、IMEI、序列号不进入自动化 fixture。
-- [ ] 14.1T 运行 parser、service、controller、frontend 和 renderer 回归，并验证 Shadow 比较日志脱敏；验收：新旧报告解析能力无回归，canonical 错误不自动 fallback。
+- [x] 14.1 将现有新旧报告 fixture 接入 legacy/shadow/canonical 三模式，保留已验收解析优先级和旧前端 DTO。输入：脱敏合成旧/新报告；输出：解析/投影/plan/比较结果；验收：真实案件、人员、IMEI、序列号不进入自动化 fixture。
+- [x] 14.1T 运行 parser、service、controller、frontend 和 renderer 回归，并验证 Shadow 比较日志脱敏；验收：新旧报告解析能力无回归，canonical 错误不自动 fallback。
 
 ## 14A. 阶段1真实人工测试关联修复（Level 2）
 

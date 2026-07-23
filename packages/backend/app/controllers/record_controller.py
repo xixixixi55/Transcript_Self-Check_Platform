@@ -1,14 +1,9 @@
-"""
-Layer 22: BE_Controllers — 检查笔录 Controller
-
-处理笔录相关的 HTTP 请求：上传解析（文件夹/压缩包）、导出 docx。
-REQ-001/013/014: 支持文件夹上传（含压缩开关）+ 压缩包直接上传。
-"""
+"""Layer 22: report parse and DOCX export Controller."""
 import os
 import shutil
 import tempfile
 from typing import Optional
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from ..services.report_parser_service import parse_report, parse_from_archive
 from ..services.record_generator_service import generate_docx
@@ -25,35 +20,38 @@ from ..services.archive_execution_service import (
     create_archive_context,
     get_valid_manifest,
 )
-from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report
+from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
 from ..services.attachment_plan_service import AttachmentPlanError
 from ..services.attachment2_plan_service import material_photo_groups
 from ..services.attachment2_image_service import Attachment2ImageError
 from ..services.template_profile_service import TemplateProfileError
 from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
 from ..services.archive_authorization_service import ArchiveAuthorizationError, ArchiveAuthorizationService
+from .pipeline_controller import (
+    record_shadow_export_failure_at_controller,
+    observe_shadow_export,
+    observe_shadow_parse,
+    pipeline_settings_for_request,
+)
 from ..config import OUTPUT_BASE, UPLOAD_BASE, ARCHIVE_MAX_SIZE
 router = APIRouter()
 ARCHIVE_AUTHORIZATION_SERVICE = ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
 @router.post("/reports/parse")
 async def parse_report_endpoint(
+    request: Request,
+    background_tasks: BackgroundTasks,
     report_dir: str = Form(""),
     archive_file: Optional[UploadFile] = File(None),
     compress: bool = Form(True),
     directory_grant_token: str = Form(""),
 ):
-    """
-    解析 HTML 报告（文件夹模式或压缩包模式）。
-    - 文件夹模式：提供 report_dir；compress 仅为兼容参数，不影响归档上下文，解析阶段不压缩
-    - 压缩包模式：提供 archive_file（.rar/.zip），自动解压解析
-    """
-    # 校验：两种模式不能同时提供或同时为空
+    """解析文件夹或压缩包中的 HTML 报告。"""
+    settings = pipeline_settings_for_request(request)
     has_dir = bool(report_dir)
     has_file = archive_file is not None and archive_file.filename
     if has_dir and has_file:
         raise HTTPException(status_code=400, detail="不能同时提供 report_dir 和 archive_file")
     if not has_dir and not has_file:
-        # 兼容旧行为：无参数时尝试使用最新上传目录
         uploads = []
         if os.path.exists(UPLOAD_BASE):
             uploads = sorted(os.listdir(UPLOAD_BASE))
@@ -65,13 +63,10 @@ async def parse_report_endpoint(
     try:
         authorized_input = None
         if has_file:
-            # ─── 压缩包模式（REQ-014） ───
-            # 校验文件格式
             filename = archive_file.filename or ""
             ext = os.path.splitext(filename)[1].lower()
             if ext not in (".rar", ".zip"):
                 raise HTTPException(status_code=400, detail="仅支持 .rar 和 .zip 格式的压缩包")
-            # 保存到临时文件
             tmp_path = os.path.join(tempfile.gettempdir(), f"biji_upload_{os.urandom(8).hex()}{ext}")
             content = await archive_file.read()
             if len(content) > ARCHIVE_MAX_SIZE:
@@ -112,6 +107,9 @@ async def parse_report_endpoint(
             )
         result["archive_context_deprecated_compress"] = True
         result["archive_status"] = "idle"
+        observe_shadow_parse(
+            result["report"], settings, result["archive_context_id"], background_tasks,
+        )
         return {"success": True, "data": result}
     except ArchiveAuthorizationError as error:
         raise HTTPException(
@@ -129,15 +127,15 @@ async def parse_report_endpoint(
         )
 @router.post("/records/export")
 async def export_record_endpoint(
+    request: Request,
+    background_tasks: BackgroundTasks,
     report_json: str = Form(""),
     archive_context_id: str = Form(""),
     manifest_id: str = Form(""),
     photos: list[UploadFile] = File(default=[]),
 ):
-    """
-    接收 InspectionReport JSON + 附件图片，生成 .docx 并返回下载。
-    REQ-008: 图片嵌入 .docx 附件区域。
-    """
+    """接收 InspectionReport JSON 和图片，生成唯一正式 DOCX。"""
+    settings = pipeline_settings_for_request(request)
     import json
     if not report_json:
         raise HTTPException(status_code=400, detail="请提供笔录数据")
@@ -205,7 +203,8 @@ async def export_record_endpoint(
         )
     if validated_manifest is None:
         raise HTTPException(status_code=422, detail={"code": "ARCHIVE_MANIFEST_MISSING"})
-    report = project_manifest_to_legacy_report(report, validated_manifest)
+    canonical_source = report
+    report, legacy_plan = project_manifest_to_legacy_report_with_plan(report, validated_manifest)
     report = apply_inspector_snapshot_compatibility(report)
     # 保存上传的图片到临时目录
     try:
@@ -223,6 +222,10 @@ async def export_record_endpoint(
                 report, photo_paths=photo_paths, output_dir=output_dir,
                 archive_manifest=validated_manifest,
             )
+        observe_shadow_export(
+            archive_context_id, report, validated_manifest, settings, background_tasks,
+            legacy_plan=legacy_plan, canonical_source=canonical_source,
+        )
         filename = os.path.basename(docx_path)
         return FileResponse(
             path=docx_path,
@@ -230,11 +233,13 @@ async def export_record_endpoint(
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
     except (Attachment2ImageError, AttachmentPlanError, TemplateProfileError) as error:
+        record_shadow_export_failure_at_controller(settings, archive_context_id)
         raise HTTPException(
             status_code=422,
             detail={"code": error.code, "message": error.safe_message},
         ) from error
     except Exception:
+        record_shadow_export_failure_at_controller(settings, archive_context_id)
         raise HTTPException(
             status_code=500,
             detail={

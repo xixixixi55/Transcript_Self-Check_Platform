@@ -13,6 +13,14 @@ def project_manifest_to_legacy_report(
     report: Mapping[str, Any], manifest: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Regenerate old attachment fields; manifest values always win."""
+    result, _ = project_manifest_to_legacy_report_with_plan(report, manifest)
+    return result
+
+
+def project_manifest_to_legacy_report_with_plan(
+    report: Mapping[str, Any], manifest: Mapping[str, Any],
+) -> tuple[dict[str, Any], Any]:
+    """Return the same legacy projection and the already-built formal plan."""
     result = copy.deepcopy(dict(report))
     plan = build_attachment_plan(manifest, result)
     attachments = result.setdefault("attachments", {})
@@ -37,7 +45,7 @@ def project_manifest_to_legacy_report(
             for page in plan.attachment1_pages for row in page.serial_rows
         ],
     }
-    return result
+    return result, plan
 
 
 def _format_date(value: str) -> str:

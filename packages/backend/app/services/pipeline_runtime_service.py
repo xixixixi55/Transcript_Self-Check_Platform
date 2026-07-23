@@ -4,8 +4,16 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Mapping
+
+
+PIPELINE_CONFIG_VERSION = "pipeline-config-v1"
+
+
+def _configured_at() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 class PipelineMode(str, Enum):
@@ -42,12 +50,36 @@ class PipelineSettings:
     source: str = "default"
     invalid_value: str | None = None
     versions: RuntimeVersions = RuntimeVersions()
+    config_version: str = PIPELINE_CONFIG_VERSION
+    configured_at: str = ""
 
     @property
     def cache_namespace(self) -> str:
         """Keep mode-specific derived artifacts from sharing a cache namespace."""
 
         return f"pipeline-{self.mode.value}"
+
+    def public_dict(self) -> dict[str, object]:
+        """Expose only stable mode metadata; never expose environment contents."""
+        return {
+            "mode": self.mode.value,
+            "source": self.source,
+            "config_version": self.config_version,
+            "configured_at": self.configured_at,
+            "versions": {
+                "schema_version": self.versions.schema_version,
+                "adapter_version": self.versions.adapter_version,
+                "template_version": self.versions.template_version,
+                "plan_version": self.versions.plan_version,
+            },
+        }
+
+
+def pipeline_settings_for_app(app: Any) -> PipelineSettings:
+    """Read the single startup-owned settings object used by Controllers."""
+
+    settings = getattr(getattr(app, "state", None), "pipeline_settings", None)
+    return settings if isinstance(settings, PipelineSettings) else PipelineSettings()
 
 
 def load_pipeline_settings(
@@ -63,13 +95,18 @@ def load_pipeline_settings(
     values = os.environ if config is None else config
     raw_value = values.get("BIJI_PIPELINE_MODE", "").strip().lower()
     if not raw_value:
-        return PipelineSettings()
+        return PipelineSettings(configured_at=_configured_at())
     try:
-        return PipelineSettings(mode=PipelineMode(raw_value), source="environment")
+        return PipelineSettings(
+            mode=PipelineMode(raw_value),
+            source="environment",
+            configured_at=_configured_at(),
+        )
     except ValueError:
         return PipelineSettings(
             source="invalid_fallback",
             invalid_value=raw_value,
+            configured_at=_configured_at(),
         )
 
 

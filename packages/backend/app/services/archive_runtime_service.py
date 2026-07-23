@@ -14,7 +14,9 @@ from ..repository.filesystem_identity_repository import (
     directory_content_fingerprint,
     normalized_directory_key,
 )
-from .archive_runtime_models_service import ArchiveContextRecord, ArchiveManifestRecord
+from .archive_runtime_models_service import (
+    ArchiveContextRecord, ArchiveContextSnapshot, ArchiveManifestRecord,
+)
 
 
 ARCHIVE_CONTEXT_TTL_SECONDS = 30 * 60
@@ -192,7 +194,27 @@ class ArchiveRuntimeStore:
                 raise ArchiveRuntimeError("ARCHIVE_CONTEXT_NOT_FOUND", "Archive context was not found.")
             if record.expires_at <= time.time():
                 raise ArchiveRuntimeError("ARCHIVE_CONTEXT_EXPIRED", "Archive context has expired.")
+            self.validate_context_authorization(record)
             return record.public_summary()
+
+    def get_context_snapshot(self, context_id: str) -> ArchiveContextSnapshot:
+        """Return a stable read view; never expose the mutable lifecycle record."""
+
+        with self._lock:
+            self.cleanup_expired()
+            record = self._contexts.get(context_id)
+            if record is None:
+                raise ArchiveRuntimeError("ARCHIVE_CONTEXT_NOT_FOUND", "Archive context was not found.")
+            if record.expires_at <= time.time():
+                raise ArchiveRuntimeError("ARCHIVE_CONTEXT_EXPIRED", "Archive context has expired.")
+            self.validate_context_authorization(record)
+            return ArchiveContextSnapshot(
+                context_id=record.context_id,
+                case_display_name=record.case_display_name,
+                inventory=record.inventory,
+                input_fingerprint=record.input_fingerprint,
+                successful_manifest_id=record.successful_manifest_id,
+            )
 
     def cleanup_expired(self, now: float | None = None) -> None:
         current = time.time() if now is None else now

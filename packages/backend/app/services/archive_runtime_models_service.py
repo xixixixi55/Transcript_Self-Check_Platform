@@ -44,6 +44,17 @@ class ArchiveContextRecord:
         }
 
 
+@dataclass(frozen=True)
+class ArchiveContextSnapshot:
+    """Immutable read view used outside the archive lifecycle lock."""
+
+    context_id: str
+    case_display_name: str
+    inventory: InputInventory
+    input_fingerprint: str
+    successful_manifest_id: str | None
+
+
 @dataclass
 class ArchiveManifestRecord:
     manifest_id: str

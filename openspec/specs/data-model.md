@@ -4,7 +4,7 @@
 > 新增 type/interface 后 MUST 同步更新本文档。
 > 一致性由 npx tsx scripts/check-docs.ts 自动检查。
 >
-> 本文件同时区分“类型已存在”和“生产已接线”：类型定义及单元测试只能证明基础实现存在，不能证明生产 Controller 已启用该管线。当前正式输出仍使用 `InspectionReport` legacy DTO；Canonical/Shadow 未接入生产 Controller，`DocumentRenderPlan` 尚无生产类型、构造和消费。
+> 本文件同时区分“类型已存在”和“生产已接线”：类型定义及单元测试只能证明基础实现存在，不能证明生产 Controller 已启用该管线。当前正式输出仍使用 `InspectionReport` legacy DTO；Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路并只提供脱敏诊断，Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产类型、构造和消费。
 
 ## 实体定义
 
@@ -252,7 +252,7 @@
 `interface CanonicalAttachmentInputs`、`interface CanonicalInspectionCase`、
 `type ExportGateBlockerCode`、`interface ExportGateIssue`、`interface ExportGateResult`、
 `type PipelineMode`、`interface RuntimeVersions`、`interface PipelineSettings`、
-`type PipelineRunStatus`、`interface ShadowDifference`、`interface ShadowComparisonResult`。
+`type PipelineRunStatus`、`type ShadowPipelineStatus`、`interface ShadowDifference`、`interface ShadowComparisonResult`。
 
 ### 检材类型确认与检查人员库
 
