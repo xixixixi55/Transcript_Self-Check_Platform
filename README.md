@@ -17,21 +17,26 @@
 ## 迁移中
 
 - 🔄 **CanonicalInspectionCase**：统一内部模型（基础实现已完成，尚未生产接线）
-- 🔄 **pipeline_mode**：legacy/shadow/canonical 三模式（当前默认 legacy）
-- 🔄 **Shadow comparison**：新旧管线脱敏比较（基础实现已完成，未接 Controller）
+- 🔄 **pipeline_mode**：legacy/shadow/canonical 三模式（集中读取，当前默认 legacy；canonical 正式输出未启用）
+- 🔄 **Shadow comparison**：新旧管线脱敏比较（生产旁路已接线；真实样本差异治理尚未完成）
 - 🔄 **DocumentRenderPlan**：未来统一渲染合同（尚无生产类型、构造或消费）
 - 🔄 **ReportProfile / 通用 TemplateProfile**：后续扩展
 
+当前路线图：Legacy 生产稳定化基本完成；Shadow 生产接线已完成，真实样本治理未完成；Canonical 正式切换尚未开始。延期的大容量验收不阻塞 Shadow 真实样本差异治理、Canonical 代码开发、只读预览/编辑门控、候选输出隔离或回滚演练；但在补测通过或风险接受前，Canonical 不能成为默认唯一正式输出，最终人工验收和 OpenSpec 归档也未完成。Shadow 只生成脱敏诊断，不生成第二份正式产物，也不能阻塞 Legacy。
+
 ## 真实归档验收状态
 
-- 已通过：4GB 双卷、22GB 单卷
+- 已有部分真实证据：4GB 双卷、22GB 单卷
 - 延期：22GB 双卷、45GB 真实执行、真实向上 replan（不是失败、取消或完成）
 - 仍未完成：`15.1/15.1T` 完整人工验收
+
+这些资源型验收不阻塞日常 Legacy/Shadow 功能开发、Shadow 真实样本差异治理或 Canonical 预切换开发与验证；但阻塞 Canonical 成为默认唯一正式生产输出，也阻塞本变更最终验收和 OpenSpec 归档。只有在有足够资源的验收机器上补测通过，或由发布负责人明确记录风险接受后，才可解除该正式发布门槛。若单独发布 Legacy-only 维护版本，延期项仍必须明确记录为发布风险，不能在文档中同时写成“已完成”。
 
 ## 后续规划
 
 - 完成延期的真实归档验收
-- Canonical 生产切换
+- Canonical 代码与预切换验证（只读预览、编辑门控、候选输出隔离、回滚演练）
+- Canonical 默认唯一正式生产输出切换
 - 更多报告/模板 Profile
 - 多类文书扩展
 

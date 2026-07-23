@@ -4,7 +4,11 @@
 
 文档真相源边界：本 `spec.md` 记录已批准的业务合同和目标行为；`design.md` 记录设计决策、字段语义与兼容策略；`tasks.md` 记录当前实现、自动化和人工验收状态；`openspec/specs/` 下的 living spec 只描述当前生产已经具备的能力。代码和测试是当前实现证据，用于发现文档漂移，但不会自动改写或取消本规范中已批准的业务规则。
 
-当前生产收口状态（2026-07-22）：正式输出仍由 `InspectionReport` legacy DTO 管线生成。Shadow 已接入真实生产 Controller 的解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，只用于脱敏观测和比较，不改变现有响应或正式产物；Canonical 仍未接入正式输出，`DocumentRenderPlan` 尚无生产类型、构造器或消费方。本规范中以 canonical 正式输出或 `DocumentRenderPlan` 为前提的场景仍是批准后的目标行为；不得以类型存在、单元测试可调用或 Shadow 旁路接线替代 Canonical 正式切换和真实人工验收证据。
+当前生产收口状态（2026-07-23）：正式输出仍由 `InspectionReport` legacy DTO 管线生成。Shadow 已接入真实生产 Controller 的解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，只用于脱敏观测和比较，不改变现有响应或正式产物；Canonical 仍未接入正式输出，`DocumentRenderPlan` 尚无生产类型、构造器或消费方。本规范中以 canonical 正式输出或 `DocumentRenderPlan` 为前提的场景仍是批准后的目标行为；不得以类型存在、单元测试可调用或 Shadow 旁路接线替代 Canonical 正式切换和真实人工验收证据。
+
+最近生产稳定化事实：旧版报告与同厂商新版报告均由 Legacy 兼容 DTO 输出；解析和清缓存请求有存活性边界；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` 的 metadata 使用有 TTL 和容量限制的快照。上述缓存与快照优化不改变正式归档的完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验边界。
+
+延期的大容量归档验收只约束发布门槛：它不阻塞 Shadow 真实样本差异治理，也不阻塞 Canonical 代码、只读预览、编辑门控、候选输出隔离或回滚演练的开发与验证；但在验收机器补测通过或发布负责人明确记录风险接受前，Canonical 不得成为默认唯一正式生产输出，本变更不得完成最终验收或 OpenSpec 归档。
 
 ## ADDED Requirements
 

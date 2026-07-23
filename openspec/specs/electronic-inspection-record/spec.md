@@ -1,11 +1,13 @@
 # Spec: 电子数据检查笔录自动生成
 
 > 能力：CAP-001 ~ CAP-011
-> 状态：MODIFIED（2026-07-22: 文档真相源与当前归档生产状态收口）
+> 状态：MODIFIED（2026-07-23: 文档真相源与当前归档生产状态收口）
 
 > 本文件是 living spec，只描述当前生产已经具备的能力。已批准但尚未正式输出启用的 Canonical/`DocumentRenderPlan` 目标见 active change `openspec/changes/extensible-report-template-platform/spec.md`；Shadow 已作为不改变Legacy响应的脱敏旁路接线，当前实现与验收进度见其 `tasks.md`。代码和测试是实现证据，不自动覆盖已批准的业务合同。
 
-当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + `current-template-v1` TemplateProfile 渲染唯一正式 DOCX。Shadow 已接入解析、归档/预览和Legacy DOCX成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
+当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + `current-template-v1` TemplateProfile 渲染唯一正式 DOCX。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
+
+当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` metadata 使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Canonical 正式生产切换、完整人工验收和 OpenSpec 归档仍未完成。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证，只阻塞 Canonical 成为默认唯一正式输出及本变更最终验收/归档，除非补测通过或发布负责人明确接受风险。
 
 ---
 
@@ -411,9 +413,14 @@
 
 **Scenario: 真实验收边界**
 - WHEN 判断当前归档生产验收状态
-- THEN 4GB 双卷和 22GB 单卷真实执行已通过
+- THEN 4GB 双卷和 22GB 单卷已有部分脱敏真实证据，但不宣称全部档位验收完成
 - AND 22GB 双卷、45GB 真实执行和真实 replan 为延期，不是失败、取消或已完成
 - AND 正式模板当前没有独立展示 `disc_capacity_bytes` 的位置，living spec 更新不改变 Word 布局
+- AND 4GB 双卷与 22GB 单卷只有部分脱敏真实证据，不宣称全部档位验收完成
+- AND 22GB 双卷、45GB 真实执行和真实向上 replan 继续延期，不是失败、取消或完成
+- AND 这些资源型验收不阻塞日常 Legacy/Shadow 功能开发、Shadow 真实样本差异治理或 Canonical 代码、只读预览、编辑门控、候选输出隔离和回滚演练
+- AND 这些资源型验收阻塞 Canonical 成为默认唯一正式生产输出，也阻塞本变更最终验收和 OpenSpec 归档
+- AND 只有在有足够资源的验收机器上补测通过，或由发布负责人明确记录风险接受后，才可解除上述正式发布门槛
 
 ---
 

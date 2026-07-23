@@ -9,7 +9,20 @@
 
 本节只约束验证执行节奏，不改变当前 Shadow 旁路、Legacy 正式链路或 Canonical 未启用的业务范围。
 
-本清单对应根目录 `spec.md` 和 `design.md`，只记录实现、自动化和人工验收状态；批准的业务合同见 `spec.md`，字段语义和兼容策略见 `design.md`。当前 46/55 项已完成。正式生产输出仍由 legacy DTO 管线生成；Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入观测，诊断通过受限查询接口统一查看，Canonical 仍未启用，`DocumentRenderPlan` 未生产实现。当前自动化测试使用脱敏合成数据，不能替代真实解析、WinRAR、DOCX 和人工视觉验收；14A.6、15（完整人工 Word 验收）、16（canonical 切换）和 17（阶段二/三接口预留）保持未完成。阶段二/三只保留契约和扩展点，不把通用能力纳入阶段一门槛。
+本清单对应根目录 `spec.md` 和 `design.md`，只记录实际实现、自动化证据和人工验收状态；批准的业务合同见 `spec.md`，设计决策、字段语义和兼容策略见 `design.md`。`openspec/specs/` 下的 living spec 只描述当前生产已经具备的能力。代码和测试是实现证据，用于核对文档漂移，但不能简单替代批准后的业务合同。当前 46/55 项已完成。正式生产输出仍由 legacy DTO 管线生成；Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入观测，诊断通过受限查询接口统一查看，Canonical 仍未启用，`DocumentRenderPlan` 未生产实现。当前自动化测试使用脱敏合成数据，不能替代真实解析、WinRAR、DOCX 和人工视觉验收；14A.6、15（完整人工 Word 验收）、16（canonical 切换）和 17（阶段二/三接口预留）保持未完成。阶段二/三只保留契约和扩展点，不把通用能力纳入阶段一门槛。
+
+## 路线图和当前状态（2026-07-23）
+
+| 工作流 | 当前状态 | 说明 |
+|---|---|---|
+| Legacy 生产稳定化 | 基本完成 | 旧版/同厂商新版报告兼容、请求存活性、解析缓存和 `ArchiveContext` metadata 快照已接入；正式归档仍执行完整安全校验。 |
+| Shadow 生产接线 | 已完成 | 解析、归档/预览和 Legacy DOCX 成功后的导出输入均有旁路观测；Shadow 不生成第二份正式产物、不调用 WinRAR、不阻塞 Legacy。 |
+| Shadow 真实样本差异治理 | 基础机制完成，真实样本治理未完成 | 脱敏比较、受限诊断查询和失败诊断已具备；真实样本矩阵、差异解释和人工收敛仍待完成。 |
+| Canonical 预切换开发与验证 | 可继续进行 | 延期验收不阻塞 Canonical 代码、只读预览、编辑门控、候选输出隔离或回滚演练；这些工作完成也不等于正式切换。 |
+| Canonical 默认唯一正式生产输出 | 未开始且受发布门槛约束 | Canonical 仍返回 `CANONICAL_NOT_ENABLED`，不产生正式 DOCX；须待延期验收补测通过或发布负责人明确接受风险，且不得以类型、单测或 Shadow 接线代替正式切换。 |
+| 最终人工验收与 OpenSpec 归档 | 未完成 | `15.1/15.1T` 不勾选；真实大容量边界、完整人工验收和归档门控仍待完成。回滚演练本身不被延期验收阻塞，但完成回滚演练不解除正式生产切换门槛。 |
+
+上述资源型验收不阻塞日常 Legacy/Shadow 功能开发和维护，不阻塞 Shadow 真实样本差异治理，也不阻塞 Canonical 代码及预切换验证；但它们阻塞 Canonical 成为默认唯一正式生产输出，并阻塞本变更最终验收和 OpenSpec 归档。只有在有足够资源的验收机器上补测通过，或由发布负责人明确记录风险接受后，才可解除该门槛。若未来单独发布 Legacy-only 维护版本，延期项目必须由人类明确记录为接受的发布风险，本清单不将其写成已完成。
 
 ## 0. 变更前门禁
 
@@ -141,12 +154,24 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 
 15.1/15.1T 暂不勾选：任务原文还包含 4/22/45GB 档位、重规划、全局黑字策略、图片比例等本次五份 Word 样例未逐项人工验收的范围；本记录不将这些未验收范围伪装为已完成，也不改变附件二偶数布局、canonical、Shadow E2E、桌面桥接或阶段一全部完成状态。
 
-### 归档专项完成与延期状态（2026-07-22）
+### 归档专项完成与延期状态（2026-07-23）
 
 - D1 归档容量合同已完成。
-- D2.1 WinRAR 超时、完整性校验、进程终止和 Manifest 兼容治理已完成。
-- 真实执行已通过：4GB 档双卷、22GB 档单卷。
-- 延期而非失败、取消或完成：22GB 档双卷、45GB 档真实执行、真实向上 replan。
+- D2.1 七项历史问题已逐项核销，当前没有需要按旧计划重复实现的代码项：
+
+  | 历史问题 | 当前核销结果 | 代码/测试证据 | 提交与剩余问题 |
+  |---|---|---|---|
+  | WinRAR 执行超时 | 已修复；按输入大小计算并受上下界约束，超时返回稳定错误并清理 staging。 | `winrar_timeout_policy.py::compute_timeout`、`winrar_executor_repository.py::WinRarExecutor.execute`；`tests/test_winrar_timeout.py::TestExecutionTimeout`、`tests/test_archive_executor_validator.py::test_executor_timeout_is_safe_and_cleans_staging` | `206b5cf`、`e4a946a`；无已知机制缺陷，真实大容量证据仍按延期项管理。 |
+  | 完整性校验超时 | 已修复；按全部实际分卷大小计算 `rar t` 超时，超时与损坏使用不同诊断码。 | `winrar_timeout_policy.py::compute_integrity_timeout`、`archive_validator_repository.py::validate_archive_parts`；`TestIntegrityTimeout`、`TestIntegrityTimeoutViaValidator`、`TestIntegrityTimeoutContractChain` | `e4a946a`、`fad7c1e`；22GB 双卷/45GB 真实执行仍未补证。 |
+  | 进程树终止 | 已修复；Windows 始终先执行 `taskkill /T /F`，确认失败才回退父进程终止；未确认死亡时不误清理 staging。 | `winrar_executor_repository.py::_terminate_process`；`TestProcessTermination`、`TestTerminationPreventsCleanup`、`TestOSErrorPath` | `3e1e802`、`fad7c1e`；Windows 跨平台可移植性和极端退出后的残留子进程证明仍是技术债。 |
+  | 旧 Manifest 兼容 | 已修复有限兼容；缺失 `disc_capacity_bytes` 时根据受信 `size_bytes` 推导，显式非法值仍拒绝，输出使用深拷贝归一化。 | `archive_manifest_service.py::validate_published_manifest`、`archive_manifest_access_service.py::get_valid_manifest`；`TestOldManifestRejectsInvalidDiscCap`、`TestManifestImmutability`、`TestGetValidManifestNormalizes` | `e4a946a`、`fad7c1e`；不承诺任意历史 schema 迁移，非法旧值仍是阻断项。 |
+  | 锁增长 | 已修复；WinRAR plan 使用受保护 set，`execute()` 的 `finally` 必然释放，连续执行不增长；解析相关 key lock 使用弱引用并配合容量限制。 | `winrar_executor_repository.py::_active_plans/_release_plan`、`report_parsing_cache_service.py`、`archive_parse_runtime_service.py`；`TestLockLifecycle`、`TestLockRaceWindow`、`test_concurrent_same_directory_builds_once_and_keeps_limit` | `e4a946a`、`3f1b088`；未发现当前增长缺陷，仍需把长期压力观察与真实运行监控作为运维证据。 |
+  | 环境变量 warning | 已修复；非法/越界 `BIJI_ARCHIVE_TIMEOUT_SECONDS` 安全回退并每次调用只写一条脱敏 warning，合法/未设置不 warning，不泄漏原始路径和值。 | `winrar_timeout_policy.py::compute_timeout`；`TestEnvTimeoutWarnings` | `e4a946a`、`fad7c1e`；无已知当前缺陷。 |
+  | Export Gate 序列化 | 已修复；Python `str Enum` 和 Controller `.value` 输出稳定字符串，完整性超时等新码可跨层传递。 | `export_gate_service.py::ExportGateCode`、`record_controller.py`；`TestIntegrityTimeoutContractChain`、`TestRecordControllerEnum`、`tests/test_export_gate_service.py` | `2cbe606`、`e4a946a`、`fad7c1e`；新增门控码仍需同时补 shared/Python/Controller 回归。 |
+
+- 真实执行目前只有部分证据：4GB 双卷、22GB 单卷已有脱敏真实证据，但不等同于全部档位验收。
+- 延期而非失败、取消或完成：22GB 双卷、45GB 真实执行、真实向上 replan；本轮不生成新的 GB 级测试数据。
+- 上述延期不构成 Shadow 真实样本差异治理、Canonical 代码开发、只读预览/编辑门控、候选输出隔离或回滚演练的前置阻塞；只构成 Canonical 默认唯一正式输出、最终验收和归档的发布门槛。
 - 当前正式模板没有展示每卷 `disc_capacity_bytes` 的独立位置；本批次不修改 Word 布局。
 - `15.1`、`15.1T` 继续保持未勾选，以上局部归档验收不得替代完整阶段一人工验收。
 
@@ -159,7 +184,7 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 
 ## 16. canonical 切换和回滚演练（跨层）
 
-演练必须覆盖“允许编辑但禁止最终导出”的统一门控，并确认 canonical 正确性失败只返回明确错误，不自动回退 legacy；回滚仅通过集中 `pipeline_mode` 完成。
+预切换的只读预览、编辑门控、候选输出隔离和回滚演练不以延期大容量验收为前置条件；但演练必须覆盖“允许编辑但禁止最终导出”的统一门控，并确认 canonical 正确性失败只返回明确错误，不自动回退 legacy。只有正式发布门槛解除后，才可将 Canonical 设为默认唯一正式输出；回滚仅通过集中 `pipeline_mode` 完成。
 
 - [ ] 16.1 通过集中 `pipeline_mode` 将默认从 `legacy` 经 `shadow` 切换到 `canonical`；设计 canonical 数据错误、模板漂移、manifest 校验失败和缓存污染的人工运维回滚。输入：Shadow 比较通过且阶段一人工验收通过；输出：canonical 唯一正式输出或明确失败；验收：canonical 失败不自动回退，人工改回 legacy 后可重新处理。
 - [ ] 16.1T 执行回滚演练和缓存隔离测试；验收：已有输出不被覆盖、Shadow 结果不被当正式缓存、legacy/canonical 模式均可恢复。
