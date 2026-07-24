@@ -84,8 +84,11 @@ def _is_table_row(row: dict[str, Any], allow_tt_ct: bool) -> bool:
 def _is_device_label(label: Any) -> bool:
     key = "".join(str(label).split()).lower()
     return key in {
-        "设备类型", "检材类型", "设备名称", "设备型号", "产品型号", "手机型号", "型号",
-        "手机品牌", "设备品牌", "品牌", "brand", "phonebrand", "devicebrand",
+        "设备类型", "检材类型", "设备名称", "设备型号", "产品型号", "手机型号",
+        "机型", "设备机型", "手机机型", "硬件型号", "硬件机型", "型号名称", "型号",
+        "model", "devicemodel", "productmodel", "phonemodel", "modelname", "hardwaremodel",
+        "手机品牌", "设备品牌", "品牌", "品牌名称", "制造商", "厂商", "brand",
+        "phonebrand", "devicebrand", "manufacturer",
         "imei1", "imei2", "序列号", "serial", "serialnumber", "sn",
     }
 

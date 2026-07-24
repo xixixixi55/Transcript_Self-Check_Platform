@@ -282,6 +282,13 @@
 十进制字节总量、固定分卷档位、预计与最大卷数、首个光盘编号、重规划上限和诊断。
 生产档位为 4GB、22GB、45GB，容量单位为十进制 GB；计划模型不保存输入绝对路径。
 
+预览来源与正式归档上下文使用明确的生命周期合同。`ArchivePreparationStatus` 取
+`not_prepared`、`preparing`、`ready` 或 `failed`；其中 `not_prepared` 表示报告解析已完成但完整
+inventory、Manifest 和 RAR 尚未准备，不能被当作正式归档证据。`ArchiveContextKind` 取
+`preview_source` 或 `formal`，分别表示轻量预览来源记录和已通过正式归档准备门控的上下文。
+`ArchiveLifecycleStatus` 是 `ArchiveExecutionStatus | ArchivePreparationStatus`，因此
+`ArchiveContextSummary.status` 同时能够表达预览准备状态和正式归档执行状态；`idle` 不表示尚未建立预览来源记录。
+
 档位合同为：4GB 与 22GB 档预计超过 2 卷时升级，45GB 档最多 3 卷，超过 135GB 在执行前阻止；初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 表达档位每卷上限，`ArchivePart.size_bytes` 表达实际 part 文件大小，两者不得混用。
 
 `ArchiveExecutionStatus` 表示 idle、planning、blocked、compressing、validating、
@@ -293,7 +300,8 @@ Manifest 的 parts 按实际文件系统结果排序，保存文件名、`size_b
 当前生产 renderer 消费 `InspectionReport` 兼容数据、最终 `ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1` TemplateProfile。`DocumentRenderPlan` 是未来统一渲染合同，不属于当前生产模型。
 
 类型索引追加：`interface ArchiveContextSummary`、`type ArchiveVolumeTier`、`type ArchivePlanStatus`、
-`type ArchiveValidationStatus`、`type ArchiveExecutionStatus`、
+`type ArchiveValidationStatus`、`type ArchiveExecutionStatus`、`type ArchivePreparationStatus`、
+`type ArchiveContextKind`、`type ArchiveLifecycleStatus`、
 `interface ArchiveSourceEntry`、`interface ArchiveDiagnostic`、
 `interface ArchiveCapability`、`interface ArchivePlan`、`interface ArchivePart`、
 `interface ArchiveManifest`、`interface ArchiveExecutionResponse`。

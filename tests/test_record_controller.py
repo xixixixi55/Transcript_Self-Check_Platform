@@ -59,8 +59,36 @@ def test_export_rejects_non_string_disc_number_with_stable_code(client):
     detail = response.json()["detail"]
     assert [item["code"] for item in detail["blockers"]] == [
         "FIRST_DISC_NUMBER_INVALID",
-        "ARCHIVE_MANIFEST_MISSING",
     ]
+
+
+def test_export_allows_report_only_word_without_archive_manifest(client, tmp_path):
+    from app.controllers import record_controller
+
+    report = {
+        "title": "SYNTHETIC 电子数据检查笔录",
+        "document_number": "SYN-TEST-001",
+        "introduction": {"evidence_list": []},
+        "inspection": {"primary_software": {
+            "name": "SYNTHETIC 取证软件",
+            "version": "V1.0",
+            "confirmation_status": "confirmed_by_user",
+        }, "result": {}},
+        "attachments": {"disc_number": "GP20260720-01"},
+    }
+    docx_path = tmp_path / "SYNTHETIC-report.docx"
+    docx_path.write_bytes(b"SYNTHETIC-DOCX")
+    with patch.object(record_controller, "generate_docx", return_value=str(docx_path)) as generate, \
+         patch.object(record_controller, "observe_shadow_export") as observe:
+        response = client.post(
+            "/api/v1/records/export",
+            data={"report_json": json.dumps(report, ensure_ascii=False)},
+        )
+
+    assert response.status_code == 200
+    assert response.content == b"SYNTHETIC-DOCX"
+    assert generate.call_args.kwargs["archive_manifest"] is None
+    observe.assert_not_called()
 
 
 def test_export_blocks_odd_uploaded_attachment2_images_before_docx(client):
@@ -95,7 +123,8 @@ def test_parse_folder_compress_true(client):
         assert resp.status_code == 200
         assert resp.json()["success"] is True
         assert resp.json()["data"]["archive_context_id"]
-        assert resp.json()["data"]["archive_status"] == "idle"
+        assert resp.json()["data"]["archive_status"] == "not_prepared"
+        assert resp.json()["data"]["archive_preparation_status"] == "not_prepared"
         assert resp.json()["data"]["archive_context_deprecated_compress"] is True
 
 
@@ -113,7 +142,7 @@ def test_parse_controller_offloads_blocking_work_from_event_loop(client):
     assert response.status_code == 200
     called_functions = [call.args[0] for call in offload.await_args_list]
     assert record_controller.parse_report in called_functions
-    assert record_controller.create_archive_context in called_functions
+    assert record_controller.create_preview_source in called_functions
 
 
 def test_parse_folder_compress_false(client):
@@ -135,9 +164,39 @@ def test_parse_folder_returns_path_free_context_summary(client):
         data = response.json()["data"]
         assert set(data["archive_context"]) == {
             "archive_context_id", "file_count", "total_input_bytes", "status",
-            "created_at", "expires_at",
+            "context_kind", "inventory_ready", "created_at", "expires_at",
         }
+        assert data["archive_context"]["status"] == "not_prepared"
+        assert data["archive_context"]["inventory_ready"] is False
+        assert data["archive_context"]["file_count"] is None
         assert tmpdir not in response.text
+
+
+def test_preview_parse_does_not_build_full_inventory(client):
+    with tempfile.TemporaryDirectory() as tmpdir, patch(
+        "app.services.archive_runtime_service.build_input_inventory",
+        side_effect=AssertionError("preview must not build inventory"),
+    ):
+        os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
+        response = client.post("/api/v1/reports/parse", data={"report_dir": tmpdir})
+
+    assert response.status_code == 200
+    assert response.json()["data"]["archive_status"] == "not_prepared"
+
+
+def test_preview_source_capacity_error_has_stable_code(client):
+    from app.services.archive_runtime_service import ArchiveRuntimeError
+
+    with tempfile.TemporaryDirectory() as tmpdir, patch(
+        "app.controllers.record_controller.create_preview_source",
+        side_effect=ArchiveRuntimeError("ARCHIVE_SOURCE_CAPACITY", "synthetic capacity"),
+    ):
+        os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
+        response = client.post("/api/v1/reports/parse", data={"report_dir": tmpdir})
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "ARCHIVE_SOURCE_CAPACITY"
+    assert tmpdir not in response.text
 
 
 def test_parse_rejects_unconfigured_root_and_does_not_echo_path(client):
@@ -178,6 +237,7 @@ def test_archive_endpoint_returns_manifest_derived_attachment1_preview(client):
     record = MagicMock(public_manifest=manifest)
     with patch("app.controllers.archive_controller.execute_archive",
                return_value=ArchiveExecutionOutcome("completed", "manifest-1", None)), \
+         patch("app.controllers.archive_controller.prepare_archive_source", return_value="context-1") as prepare, \
          patch("app.controllers.archive_controller.ARCHIVE_RUNTIME_STORE.get_manifest", return_value=record), \
          patch("app.controllers.archive_controller.project_manifest_to_legacy_report_with_plan",
                return_value=({"attachments": {"extract_list": preview}}, None)):
@@ -188,6 +248,24 @@ def test_archive_endpoint_returns_manifest_derived_attachment1_preview(client):
 
     assert response.status_code == 200
     assert response.json()["data"]["attachment_preview"] == preview
+    prepare.assert_called_once()
+
+
+def test_archive_inventory_failure_blocks_execution(client):
+    from app.services.archive_runtime_service import ArchiveRuntimeError
+
+    with patch(
+        "app.controllers.archive_controller.prepare_archive_source",
+        side_effect=ArchiveRuntimeError("ARCHIVE_INPUT_CHANGED", "synthetic inventory failure"),
+    ), patch("app.controllers.archive_controller.execute_archive") as execute:
+        response = client.post("/api/v1/records/archive", data={
+            "archive_context_id": "context-1",
+            "report_json": json.dumps(_MOCK_REPORT, ensure_ascii=False),
+        })
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "ARCHIVE_INPUT_CHANGED"
+    execute.assert_not_called()
 
 
 def test_archive_status_returns_only_public_context_fields(client):
@@ -214,6 +292,9 @@ def test_archive_part_download_uses_opaque_ids_and_manifest_filename(client, tmp
     payload = b"synthetic-rar"
     part.write_bytes(payload)
     with patch(
+        "app.controllers.archive_controller.resolve_archive_context_id",
+        return_value="context-1",
+    ), patch(
         "app.controllers.archive_controller.get_manifest_part_download",
         return_value=ArchiveDownload(part.name, part, len(payload)),
     ) as resolver:
@@ -358,7 +439,6 @@ def test_export_blocks_each_unconfirmed_material_with_stable_field_path(client):
         "MATERIAL_TYPE_UNCONFIRMED",
         "PRIMARY_SOFTWARE_UNCONFIRMED",
         "FIRST_DISC_NUMBER_MISSING",
-        "ARCHIVE_MANIFEST_MISSING",
     ]
     assert detail["blockers"][0] == {
         "code": "MATERIAL_TYPE_UNCONFIRMED",

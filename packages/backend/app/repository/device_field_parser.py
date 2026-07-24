@@ -4,6 +4,11 @@ import json
 import re
 from typing import Any
 
+_GENERIC_DEVICE_LABELS = frozenset({
+    "手机", "智能手机", "移动电话", "phone", "smartphone", "mobile phone",
+    "mobile",
+})
+
 
 def try_parse_json(text: str) -> Any:
     try:
@@ -44,9 +49,17 @@ def extract_device_fields(
             result["device_type"] = result["device_type"] or value_text
         elif key in {"设备名称", "手机名称", "devicename", "phonename", "productname"}:
             result["device_name"] = result["device_name"] or value_text
-        elif key in {"手机品牌", "设备品牌", "品牌", "phonebrand", "devicebrand", "brand"}:
+        elif key in {
+            "手机品牌", "设备品牌", "品牌", "品牌名称", "制造商", "厂商",
+            "制造商名称", "phonebrand", "devicebrand", "brand", "manufacturer",
+        }:
             result["brand"] = result["brand"] or value_text
-        elif key in {"型号", "设备型号", "产品型号", "手机型号", "model", "devicemodel", "productmodel", "phonemodel"}:
+        elif key in {
+            "型号", "设备型号", "产品型号", "手机型号", "机型", "设备机型",
+            "手机机型", "硬件型号", "硬件机型", "型号名称", "model",
+            "devicemodel", "productmodel", "phonemodel", "modelname",
+            "hardwaremodel",
+        }:
             result["model"] = result["model"] or value_text
         elif key in {"imei1", "imei-1"}:
             result["imei1"] = result["imei1"] or normalise_imei(value_text)
@@ -66,8 +79,8 @@ def extract_device_fields(
             "imei2": r"IMEI\s*2|IMEI2",
             "serial_number": r"序列号|serial[_ ]?number|serial|sn",
             "device_name": r"设备名称|手机名称|device[_ ]?name|phone[_ ]?name",
-            "brand": r"手机品牌|设备品牌|品牌|phone[_ ]?brand|device[_ ]?brand",
-            "model": r"型号|model",
+            "brand": r"手机品牌|设备品牌|品牌(?:名称)?|制造商|厂商|manufacturer|phone[_ ]?brand|device[_ ]?brand",
+            "model": r"设备型号|产品型号|手机型号|设备机型|手机机型|硬件型号|机型|型号|model",
             "device_type": r"设备类型|检材类型|device[_ ]?type|material[_ ]?type",
         }.items():
             match = re.search(
@@ -79,9 +92,9 @@ def extract_device_fields(
                 result[field] = match.group(1).strip()
 
     if fill_missing_aliases:
-        if not result["device_name"]:
+        if not result["device_name"] and result["model"]:
             result["device_name"] = result["model"]
-        if not result["model"]:
+        if not result["model"] and result["device_name"] and not is_generic_device_label(result["device_name"]):
             result["model"] = result["device_name"]
     return result
 
@@ -162,3 +175,8 @@ def normalise_imei(value: Any) -> str:
 
 def _normalise_key(value: str) -> str:
     return re.sub(r"[\s_\-:：/／]", "", value).lower()
+
+
+def is_generic_device_label(value: Any) -> bool:
+    normalized = " ".join(str(value or "").split()).casefold()
+    return normalized in _GENERIC_DEVICE_LABELS

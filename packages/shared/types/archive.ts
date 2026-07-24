@@ -12,11 +12,17 @@ export type ArchiveExecutionStatus =
   | 'completed'
   | 'failed'
 
+export type ArchivePreparationStatus = 'not_prepared' | 'preparing' | 'ready' | 'failed'
+export type ArchiveContextKind = 'preview_source' | 'formal'
+export type ArchiveLifecycleStatus = ArchiveExecutionStatus | ArchivePreparationStatus
+
 export interface ArchiveContextSummary {
   archive_context_id: string
-  file_count: number
-  total_input_bytes: number
-  status: ArchiveExecutionStatus
+  file_count: number | null
+  total_input_bytes: number | null
+  status: ArchiveLifecycleStatus
+  context_kind: ArchiveContextKind
+  inventory_ready: boolean
   created_at: string
   expires_at: string
 }

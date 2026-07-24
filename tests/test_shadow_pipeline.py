@@ -13,8 +13,16 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.main import app
+from app.config import OUTPUT_BASE
+from app.repository.archive_authorization_repository import ArchiveAuthorizationStore
 from app.services.archive_execution_service import ArchiveExecutionOutcome
 from app.services.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
+from app.services import archive_source_runtime_service
+from app.services.archive_source_runtime_service import (
+    ArchiveSourceRuntimeStore,
+    create_preview_source,
+    prepare_archive_source,
+)
 from app.services.pipeline_runtime_service import load_pipeline_settings
 from app.services.shadow_pipeline_service import run_shadow_archive, run_shadow_export, run_shadow_parse
 from app.services.shadow_runtime_service import SHADOW_RUNTIME_STORE
@@ -76,6 +84,34 @@ def shadow_client():
     with TestClient(app) as client:
         yield client
     app.state.pipeline_settings = previous
+
+
+@pytest.fixture
+def synthetic_archive_source(tmp_path):
+    """Register and prepare a real synthetic preview source for controller tests."""
+    source_root = tmp_path / "synthetic-source"
+    source_root.mkdir()
+    (source_root / "SYNTHETIC-input.bin").write_bytes(b"SYNTHETIC")
+    authorization = ArchiveAuthorizationStore(str(tmp_path), environment={})
+    authorized_input = authorization.authorize_directory(
+        str(source_root), output_roots=(OUTPUT_BASE,),
+    )
+    source_store = ArchiveSourceRuntimeStore()
+    with patch.object(
+        archive_source_runtime_service, "ARCHIVE_SOURCE_RUNTIME_STORE", source_store,
+    ):
+        source_id = create_preview_source(authorized_input)
+        formal_context_id = prepare_archive_source(
+            source_id, copy.deepcopy(SYNTHETIC_REPORT), output_root=OUTPUT_BASE,
+        )
+        try:
+            yield SimpleNamespace(
+                source_id=source_id,
+                formal_context_id=formal_context_id,
+            )
+        finally:
+            with ARCHIVE_RUNTIME_STORE._lock:
+                ARCHIVE_RUNTIME_STORE._contexts.pop(formal_context_id, None)
 
 
 def _pipeline(client, context_id):
@@ -207,7 +243,9 @@ def test_legacy_docx_failure_keeps_previous_shadow_stages(shadow_client):
     assert summary["stages"]["export"]["status"] == "failed"
 
 
-def test_archive_controller_constructs_legacy_and_canonical_sources_separately(shadow_client):
+def test_archive_controller_constructs_legacy_and_canonical_sources_separately(
+    shadow_client, synthetic_archive_source,
+):
     from app.controllers import archive_controller
 
     formal_legacy_report = copy.deepcopy(SYNTHETIC_REPORT)
@@ -225,12 +263,14 @@ def test_archive_controller_constructs_legacy_and_canonical_sources_separately(s
         return_value=(formal_legacy_report, None),
     ):
         response = shadow_client.post("/api/v1/records/archive", data={
-            "archive_context_id": "SYNTHETIC-context",
+            "archive_context_id": synthetic_archive_source.source_id,
             "report_json": json.dumps(SYNTHETIC_REPORT, ensure_ascii=False),
         })
 
     assert response.status_code == 200
-    summary = SHADOW_RUNTIME_STORE.public_summary(context_id="SYNTHETIC-context")
+    summary = SHADOW_RUNTIME_STORE.public_summary(
+        context_id=synthetic_archive_source.source_id,
+    )
     codes = summary["stages"]["archive"]["comparison"]["diagnostic_codes"]
     assert "CASE_NUMBER_MISMATCH" in codes
 
@@ -268,7 +308,9 @@ def test_shadow_parser_failure_is_queryable_and_does_not_change_legacy_response(
     assert "SHADOW_RUNTIME_FAILED" in summary["diagnostic_codes"]
 
 
-def test_shadow_archive_failure_keeps_legacy_manifest_and_records_failure(shadow_client):
+def test_shadow_archive_failure_keeps_legacy_manifest_and_records_failure(
+    shadow_client, synthetic_archive_source,
+):
     from app.controllers import archive_controller, pipeline_controller
 
     manifest = {"manifest_id": "synthetic-manifest", "validation_status": "validated", "parts": []}
@@ -278,17 +320,19 @@ def test_shadow_archive_failure_keeps_legacy_manifest_and_records_failure(shadow
          patch.object(archive_controller.ARCHIVE_RUNTIME_STORE, "get_context_snapshot", return_value=MagicMock()), \
          patch.object(archive_controller, "project_manifest_to_legacy_report_with_plan", return_value=({"attachments": {"extract_list": {"rows": []}}}, None)), \
          patch.object(pipeline_controller, "run_shadow_archive", side_effect=RuntimeError("SYNTHETIC shadow archive failure")):
-        response = shadow_client.post("/api/v1/records/archive", data={"archive_context_id": "synthetic-context", "report_json": "{}"})
+        response = shadow_client.post("/api/v1/records/archive", data={"archive_context_id": synthetic_archive_source.source_id, "report_json": "{}"})
 
     assert response.status_code == 200
     assert "pipeline" not in response.json()["data"]
     assert response.json()["data"]["manifest_id"] == "synthetic-manifest"
-    summary = _pipeline(shadow_client, "synthetic-context")
+    summary = _pipeline(shadow_client, synthetic_archive_source.source_id)
     assert summary["stages"]["archive"]["status"] == "failed"
     execute.assert_called_once()
 
 
-def test_shadow_export_failure_does_not_create_second_docx(shadow_client, tmp_path):
+def test_shadow_export_failure_does_not_create_second_docx(
+    shadow_client, tmp_path, synthetic_archive_source,
+):
     from app.controllers import pipeline_controller, record_controller
 
     docx = tmp_path / "synthetic-output.docx"
@@ -300,18 +344,20 @@ def test_shadow_export_failure_does_not_create_second_docx(shadow_client, tmp_pa
          patch.object(pipeline_controller, "run_shadow_export", side_effect=RuntimeError("SYNTHETIC shadow export failure")):
         response = shadow_client.post("/api/v1/records/export", data={
             "report_json": json.dumps(report, ensure_ascii=False),
-            "archive_context_id": "synthetic-context", "manifest_id": "synthetic-manifest-1",
+            "archive_context_id": synthetic_archive_source.source_id, "manifest_id": "synthetic-manifest-1",
         })
 
     assert response.status_code == 200
     assert response.content == b"synthetic-docx"
     generate.assert_called_once()
-    summary = _pipeline(shadow_client, "synthetic-context")
+    summary = _pipeline(shadow_client, synthetic_archive_source.formal_context_id)
     assert summary["stages"]["export"]["status"] == "failed"
     assert "SHADOW_RUNTIME_FAILED" in summary["diagnostic_codes"]
 
 
-def test_legacy_docx_failure_is_not_reported_as_shadow_matched(shadow_client):
+def test_legacy_docx_failure_is_not_reported_as_shadow_matched(
+    shadow_client, synthetic_archive_source,
+):
     from app.controllers import record_controller
 
     report = copy.deepcopy(SYNTHETIC_REPORT)
@@ -320,11 +366,11 @@ def test_legacy_docx_failure_is_not_reported_as_shadow_matched(shadow_client):
          patch.object(record_controller, "generate_docx", side_effect=RuntimeError("SYNTHETIC docx failure")):
         response = shadow_client.post("/api/v1/records/export", data={
             "report_json": json.dumps(report, ensure_ascii=False),
-            "archive_context_id": "synthetic-context", "manifest_id": "synthetic-manifest-1",
+            "archive_context_id": synthetic_archive_source.source_id, "manifest_id": "synthetic-manifest-1",
         })
 
     assert response.status_code == 500
-    summary = _pipeline(shadow_client, "synthetic-context")
+    summary = _pipeline(shadow_client, synthetic_archive_source.source_id)
     assert summary["stages"]["export"]["status"] == "failed"
     assert "LEGACY_DOCX_RENDER_FAILED" in summary["diagnostic_codes"]
 

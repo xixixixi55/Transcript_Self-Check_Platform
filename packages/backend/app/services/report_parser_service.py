@@ -21,24 +21,71 @@ from ..repository.html_parser import (
     parse_device_base,
     format_time_chinese, format_inspection_time_range,
 )
+from ..repository.device_field_parser import is_generic_device_label
 from ..repository.report_format_adapter import require_supported_report_format
-from ..repository.filesystem_identity_repository import selected_files_content_fingerprint
+from ..repository.filesystem_identity_repository import (
+    normalized_directory_key,
+    selected_files_content_fingerprint,
+)
+from ..repository.report_parse_input_repository import (
+    ReportParseInputSnapshot,
+    build_report_parse_input_snapshot,
+)
 from .report_defaults_service import DEFAULT_DATA_SUMMARY
 from .material_policy_service import material_from_legacy_item, select_display_identifiers
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
+from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 7  # v7: structured main-software and per-material device-name parsing
+_CACHE_VERSION = 14  # v14: sort parsed evidence by natural evidence number order
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
+    source_key = normalized_directory_key(source_dir)
+    generation = REPORT_PARSING_CACHE_SERVICE.current_generation()
+    operation_key = f"{source_key}:{_CACHE_VERSION}:{generation}"
+    return REPORT_PARSE_INFLIGHT_REGISTRY.run(
+        operation_key,
+        lambda: _parse_report_task(
+            source_dir, output_dir, compress, generation,
+        ),
+    )
+
+
+def _parse_report_task(
+    source_dir: str, output_dir: str, compress: bool, generation: int,
+) -> dict:
+    """Run cache validation and Parser work inside one shared task."""
     data_dir = os.path.join(source_dir, "data")
+    has_core_files = all(
+        os.path.isfile(os.path.join(data_dir, name))
+        for name in (
+            "data_case_info.json", "data_device_lists.json", "data_report_info.json",
+        )
+    )
+    snapshot: ReportParseInputSnapshot | None = None
+
+    def get_snapshot() -> ReportParseInputSnapshot:
+        nonlocal snapshot
+        if snapshot is None:
+            snapshot = build_report_parse_input_snapshot(source_dir)
+        return snapshot
+
+    fingerprint = (
+        (lambda _data_dir: get_snapshot().dependency_fingerprint)
+        if has_core_files else _report_parser_dependency_fingerprint
+    )
     return REPORT_PARSING_CACHE_SERVICE.load_or_build(
         source_dir,
         os.path.join(output_dir, "parsed"),
         _CACHE_VERSION,
-        lambda: _build_parse_result(source_dir, output_dir, compress),
+        lambda: _build_parse_result(
+            source_dir, output_dir, compress,
+            input_snapshot=get_snapshot() if has_core_files else None,
+        ),
         fingerprint_dir=data_dir if os.path.isdir(data_dir) else source_dir,
-        fingerprint=_report_parser_dependency_fingerprint,
+        fingerprint=fingerprint,
+        snapshot_builder=get_snapshot if has_core_files else None,
+        generation_token=generation,
     )
 
 
@@ -80,10 +127,16 @@ def _report_parser_dependency_fingerprint(data_dir: str) -> str:
     return selected_files_content_fingerprint(data_dir, dependency_files)
 
 
-def _build_parse_result(source_dir: str, output_dir: str, compress: bool) -> dict:
+def _build_parse_result(
+    source_dir: str, output_dir: str, compress: bool,
+    *, input_snapshot: ReportParseInputSnapshot | None = None,
+) -> dict:
     """Build one uncached parse result; cache metadata stays outside the payload."""
     data_dir = os.path.join(source_dir, "data")
-    report = _build_report(data_dir, source_dir, output_dir, compress=compress)
+    report = _build_report(
+        data_dir, source_dir, output_dir, compress=compress,
+        input_snapshot=input_snapshot,
+    )
     return {
         "report": report,
         "cache_version": _CACHE_VERSION,
@@ -165,36 +218,47 @@ def _format_case_summary(case_name: str) -> str:
 
 
 def _build_report(data_dir: str, source_dir: str, output_dir: str,
-                  compress: bool = True, is_rar_archive: bool = False) -> dict:
+                  compress: bool = True, is_rar_archive: bool = False,
+                  input_snapshot: ReportParseInputSnapshot | None = None) -> dict:
     """构建 InspectionReport（parse_report / parse_from_archive 共用）"""
-    # 在解析案件字段前确认核心结构；缺少核心文件时由既有 parser 给出具体错误。
-    require_supported_report_format(data_dir)
-    # 1. 解析案件信息
-    case = parse_case_info(data_dir)
-    # 2. 解析设备列表
-    devices_raw = parse_device_lists(data_dir)
-    # 3. 解析取证工具版本
-    versions = parse_report_info(data_dir)
+    if input_snapshot is None:
+        # 在解析案件字段前确认核心结构；缺少核心文件时由既有 parser 给出具体错误。
+        require_supported_report_format(data_dir)
+        # 1. 解析案件信息
+        case = parse_case_info(data_dir)
+        # 2. 解析设备列表
+        devices_raw = parse_device_lists(data_dir)
+        # 3. 解析取证工具版本
+        versions = parse_report_info(data_dir)
+        device_base_info = {}
+    else:
+        case = input_snapshot.case_info
+        devices_raw = input_snapshot.device_rows
+        versions = input_snapshot.report_info
+        device_base_info = input_snapshot.device_base_info
     # 5. 解析每个设备的基本信息
     evidence_items = []
     for dev in devices_raw:
         en = dev["evidence_number"]
         # 尝试从 Base 目录解析设备详情
-        base_info = parse_device_base(data_dir, en)
+        base_info = device_base_info.get(en) if input_snapshot else parse_device_base(data_dir, en)
         # Base 解析失败时，回退到 data_device_lists 中的 device_name
         dev_name = str(base_info.get("device_name") or dev.get("device_name", "")).strip()
         brand = str(base_info.get("brand") or "").strip()
-        raw_model = str(base_info.get("model") or dev_name or dev.get("device_name", "")).strip()
-        model = _device_display_name(brand, raw_model, dev_name)
+        raw_model = _first_concrete_device_value(
+            base_info.get("model"), base_info.get("device_name"),
+            dev.get("device_name", ""),
+        )
+        display_name = _device_display_name(brand, raw_model, "")
         explicit_device_type = base_info.get("device_type") or dev.get("device_type", "")
         device_type = explicit_device_type or base_info.get("device_name") or base_info.get("model") or dev.get("device_name", "")
         evidence_items.append({
             "id": en,
             "device_type": device_type,
             "device_type_source": "report_field" if explicit_device_type else "legacy_display",
-            "device_name": model,
+            "device_name": display_name,
             "brand": brand,
-            "model": model,
+            "model": raw_model,
             "imei1": dev.get("imei1", "") or base_info.get("imei1", ""),
             "imei2": dev.get("imei2", "") or base_info.get("imei2", ""),
             "serial_number": base_info.get("serial_number", ""),
@@ -202,10 +266,32 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         })
 
     # 6. 检查过程步骤
-    # The standard model preserves every evidence item, while the existing
-    # process/result sections remain single-primary-device fields.
+    # Keep the legacy scalar DTO fields, but project all evidence items into
+    # their display text.  The evidence list remains the structured source of
+    # truth; process/result strings must not silently fall back to item zero.
     first_device = evidence_items[0] if evidence_items else {
         "model": "", "imei1": "", "imei2": "", "evidence_number": ""}
+    process_devices = evidence_items or [first_device]
+    evidence_numbers = []
+    material_descriptions = []
+    identifier_labels = {"imei1": "IMEI1", "imei2": "IMEI2", "serial_number": "序列号"}
+    for index, device in enumerate(process_devices):
+        evidence_number = str(device.get("evidence_number", "")).strip()
+        if evidence_number and evidence_number not in evidence_numbers:
+            evidence_numbers.append(evidence_number)
+        identifiers = select_display_identifiers(material_from_legacy_item(device, index))
+        identifier_text = "；".join(
+            f"{identifier_labels[item.type]}：{item.value}" for item in identifiers
+        ) or "设备标识待确认"
+        device_name = (
+            device.get("device_name")
+            or device.get("model")
+            or device.get("device_type", "未知设备")
+        )
+        material_descriptions.append(
+            f"{device_name}（{identifier_text}）编号为{evidence_number or 'xx'}"
+        )
+    evidence_label = "、".join(evidence_numbers) or "xx"
     main_software = versions.get("main_software") or {}
     main_name = str(main_software.get("name", "")).strip()
     main_version = str(main_software.get("version", "")).strip()
@@ -213,16 +299,11 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     main_candidates = main_software.get("candidates", [])
     sv = main_version or _extract_version(versions)
     main_display = " ".join(filter(None, [main_name, main_version]))
-    first_identifiers = select_display_identifiers(material_from_legacy_item(first_device, 0))
-    identifier_labels = {"imei1": "IMEI1", "imei2": "IMEI2", "serial_number": "序列号"}
-    identifier_text = "；".join(
-        f"{identifier_labels[item.type]}：{item.value}" for item in first_identifiers
-    ) or "设备标识待确认"
     process_steps = [
-        {"step_number": 1, "content": f"将{first_device.get('device_name') or first_device.get('model') or first_device.get('device_type', '未知设备')}（{identifier_text}）编号为{first_device.get('evidence_number', 'xx')}。"},
-        {"step_number": 2, "content": f"对检材{first_device.get('evidence_number', 'xx')}进行拍照。"},
+        {"step_number": 1, "content": f"将{'；'.join(material_descriptions)}。"},
+        {"step_number": 2, "content": f"对检材{evidence_label}进行拍照。"},
         {"step_number": 3, "content": "启动美亚FL-901手机取证塔，Windows 10 64位企业版操作系统启动正常，使用火绒安全软件（版本号为6.0.6.1）对取证塔进行杀毒，未发现病毒，完毕后退出火绒安全软件。"},
-        {"step_number": 4, "content": f"启动{main_display or '待确认主取证软件'}（版本号为{main_version or '待确认'}）对检材{first_device.get('evidence_number', 'xx')}进行检查。"},
+        {"step_number": 4, "content": f"启动{main_display or '待确认主取证软件'}（版本号为{main_version or '待确认'}）对检材{evidence_label}进行检查。"},
     ]
 
     # 7. 数据摘要是报告字段默认值，不从导航分类列表动态拼接。
@@ -249,12 +330,11 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         {"key": "md5_hash", "title": "文件MD5哈希值", "width": "260"},
     ]
     extract_rows = []
-    en = first_device.get("evidence_number", "")
     if rar_info.get("filename"):
         extract_rows.append({
             "no": "1",
             "electronic_data": rar_info["filename"],
-            "source": f"{en}检材内提取" if en else "",
+            "source": f"{evidence_label}检材内提取" if evidence_numbers else "",
             "extraction_method": "使用美亚手机取证塔对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值",
             "md5_hash": rar_info["md5"],
         })
@@ -303,7 +383,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "software_tools": software_tools,
             "process_steps": process_steps,
             "result": {
-                "evidence_number": first_device.get("evidence_number", ""),
+                "evidence_number": "、".join(evidence_numbers),
                 "software_name": main_name,
                 "software_version": sv,
                 "data_summary": data_summary,
@@ -330,7 +410,17 @@ def _device_display_name(brand: str, model: str, fallback_name: str = "") -> str
         if brand_value and brand_value.casefold() not in model_value.casefold():
             return f"{brand_value} {model_value}"
         return model_value
-    return brand_value or fallback
+    if fallback and not is_generic_device_label(fallback):
+        return fallback
+    return brand_value
+
+
+def _first_concrete_device_value(*values: object) -> str:
+    for value in values:
+        normalized = " ".join(str(value or "").split())
+        if normalized and not is_generic_device_label(normalized):
+            return normalized
+    return ""
 
 
 def _build_software_tools(

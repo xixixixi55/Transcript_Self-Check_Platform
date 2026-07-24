@@ -19,7 +19,6 @@ from ..services.software_policy_service import (
 from ..services.disc_sequence_service import apply_disc_sequence_to_attachments
 from ..services.archive_execution_service import (
     ArchiveGateError,
-    create_archive_context,
     get_valid_manifest,
 )
 from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
@@ -27,8 +26,14 @@ from ..services.attachment_plan_service import AttachmentPlanError
 from ..services.attachment2_plan_service import material_photo_groups
 from ..services.attachment2_image_service import Attachment2ImageError
 from ..services.template_profile_service import TemplateProfileError
-from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
-from ..services.archive_authorization_service import ArchiveAuthorizationError, ArchiveAuthorizationService
+from ..services.archive_runtime_service import ArchiveRuntimeError
+from ..services.archive_source_runtime_service import (
+    create_preview_source,
+    get_preview_source_summary,
+    resolve_archive_context_id,
+)
+from ..services.archive_authorization_service import ArchiveAuthorizationService
+from ..services.report_parse_error_service import report_parse_http_error
 from .pipeline_controller import (
     record_shadow_export_failure_at_controller,
     observe_shadow_export,
@@ -91,29 +96,26 @@ async def parse_report_endpoint(
         cleanup_root = result.pop("_archive_source_cleanup_root", None)
         if source_root:
             authorized_input = await run_in_threadpool(ARCHIVE_AUTHORIZATION_SERVICE.authorize_server_source, source_root, cleanup_root or source_root)
-        if not has_file or source_root:
-            result["archive_context_id"] = await run_in_threadpool(create_archive_context, authorized_input, result["report"], output_root=OUTPUT_BASE, cleanup_root=cleanup_root)
-            result["archive_context"] = await run_in_threadpool(ARCHIVE_RUNTIME_STORE.get_context_summary, result["archive_context_id"])
+        if authorized_input:
+            result["archive_context_id"] = await run_in_threadpool(
+                create_preview_source, authorized_input, cleanup_root=cleanup_root,
+            )
+            result["archive_context"] = await run_in_threadpool(
+                get_preview_source_summary, result["archive_context_id"],
+            )
+            result["archive_context_kind"] = "preview_source"
+        result["archive_preparation_status"] = "not_prepared"
         result["archive_context_deprecated_compress"] = True
-        result["archive_status"] = "idle"
+        result["archive_status"] = "not_prepared"
         observe_shadow_parse(
             result["report"], settings, result["archive_context_id"], background_tasks,
         )
         return {"success": True, "data": result}
-    except ArchiveAuthorizationError as error:
-        raise HTTPException(
-            status_code=422,
-            detail={"code": error.code, "message": error.safe_message},
-        )
     except HTTPException:
         raise
-    except Exception:
-        # Do not expose local paths, case data, or parser stack details to the
-        # client; keep this boundary safe for both folder and archive inputs.
-        raise HTTPException(
-            status_code=422,
-            detail="报告解析失败：报告结构缺失、格式不受支持或字段无效，请检查后重试。",
-        )
+    except Exception as error:
+        # Keep local paths, case data, and parser stack details inside the server.
+        raise report_parse_http_error(error) from error
 @router.post("/records/export")
 async def export_record_endpoint(
     request: Request,
@@ -149,9 +151,11 @@ async def export_record_endpoint(
     manifest_valid = False
     manifest_blocker_code = None
     validated_manifest = None
+    formal_archive_requested = bool(archive_context_id or manifest_id)
     if archive_context_id and manifest_id:
         try:
-            validated_manifest = get_valid_manifest(archive_context_id, manifest_id, report)
+            formal_context_id = resolve_archive_context_id(archive_context_id)
+            validated_manifest = get_valid_manifest(formal_context_id, manifest_id, report)
             manifest_valid = True
         except ArchiveGateError as error:
             first_code = error.blockers[0].code if error.blockers else "ARCHIVE_PARTS_INVALID"
@@ -169,7 +173,7 @@ async def export_record_endpoint(
             photo_mapping_error_code=photo_mapping_error_code,
             disc_sequence_valid=disc_result.valid,
             disc_sequence_error_code=disc_result.error_code,
-            archive_manifest_required=True,
+            archive_manifest_required=formal_archive_requested,
             archive_manifest_present=bool(archive_context_id and manifest_id and not manifest_blocker_code),
             archive_manifest_valid=manifest_valid,
             archive_blocker_code=manifest_blocker_code,
@@ -190,10 +194,14 @@ async def export_record_endpoint(
                 ],
             },
         )
-    if validated_manifest is None:
+    if formal_archive_requested and validated_manifest is None:
         raise HTTPException(status_code=422, detail={"code": "ARCHIVE_MANIFEST_MISSING"})
     canonical_source = report
-    report, legacy_plan = project_manifest_to_legacy_report_with_plan(report, validated_manifest)
+    legacy_plan = None
+    if validated_manifest is not None:
+        report, legacy_plan = project_manifest_to_legacy_report_with_plan(
+            report, validated_manifest,
+        )
     report = apply_inspector_snapshot_compatibility(report)
     # 保存上传的图片到临时目录
     try:
@@ -211,10 +219,11 @@ async def export_record_endpoint(
                 report, photo_paths=photo_paths, output_dir=output_dir,
                 archive_manifest=validated_manifest,
             )
-        observe_shadow_export(
-            archive_context_id, report, validated_manifest, settings, background_tasks,
-            legacy_plan=legacy_plan, canonical_source=canonical_source,
-        )
+        if validated_manifest is not None:
+            observe_shadow_export(
+                formal_context_id, report, validated_manifest, settings, background_tasks,
+                legacy_plan=legacy_plan, canonical_source=canonical_source,
+            )
         filename = os.path.basename(docx_path)
         return FileResponse(
             path=docx_path,
@@ -222,13 +231,15 @@ async def export_record_endpoint(
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
     except (Attachment2ImageError, AttachmentPlanError, TemplateProfileError) as error:
-        record_shadow_export_failure_at_controller(settings, archive_context_id)
+        if validated_manifest is not None:
+            record_shadow_export_failure_at_controller(settings, archive_context_id)
         raise HTTPException(
             status_code=422,
             detail={"code": error.code, "message": error.safe_message},
         ) from error
     except Exception:
-        record_shadow_export_failure_at_controller(settings, archive_context_id)
+        if validated_manifest is not None:
+            record_shadow_export_failure_at_controller(settings, archive_context_id)
         raise HTTPException(
             status_code=500,
             detail={

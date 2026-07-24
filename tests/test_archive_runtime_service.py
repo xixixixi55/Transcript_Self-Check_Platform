@@ -39,8 +39,11 @@ def test_context_id_is_random_and_public_summary_has_no_paths(tmp_path):
     summary = record.public_summary()
     assert set(summary) == {
         "archive_context_id", "file_count", "total_input_bytes", "status",
+        "context_kind", "inventory_ready",
         "created_at", "expires_at",
     }
+    assert summary["context_kind"] == "formal"
+    assert summary["inventory_ready"] is True
     assert str(source) not in str(summary)
     assert summary["file_count"] == 1
     assert summary["total_input_bytes"] == len(b"evidence")

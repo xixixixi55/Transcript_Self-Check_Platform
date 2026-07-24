@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 import json
-import math
 import os
 import re
 import tempfile
 import threading
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+from .report_parse_input_models import (
+    CandidateDirectoryIndex,
+    DependencyRecord,
+)
+from .report_parsing_cache_models import ReportCacheEntry, parse_cache_entry
+from .report_parsing_cache_manifest_repository import (
+    serialize_candidate_indexes,
+    serialize_dependencies,
+)
 
 
 _KEY_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -20,15 +28,6 @@ _TEMP_PREFIX = ".report-parsing-cache-"
 
 class ReportParsingCacheError(RuntimeError):
     """Safe cache storage diagnostics without local paths or report data."""
-
-
-@dataclass(frozen=True)
-class ReportCacheEntry:
-    cache_key: str
-    cache_version: int
-    source_fingerprint: str
-    last_accessed_at: float
-    result: dict[str, object]
 
 
 class ReportParsingCacheRepository:
@@ -49,7 +48,7 @@ class ReportParsingCacheRepository:
             except ReportParsingCacheError:
                 self._remove(path)
                 return None
-            entry = self._parse_entry(payload, cache_key, cache_version)
+            entry = parse_cache_entry(payload, cache_key, cache_version)
             if entry is None:
                 self._remove(path)
             return entry
@@ -60,7 +59,15 @@ class ReportParsingCacheRepository:
             if path.exists():
                 self._remove(path)
 
-    def touch(self, cache_key: str, cache_version: int) -> ReportCacheEntry | None:
+    def touch(
+        self,
+        cache_key: str,
+        cache_version: int,
+        *,
+        source_fingerprint: str | None = None,
+        dependencies: tuple[DependencyRecord, ...] | None = None,
+        candidate_indexes: tuple[CandidateDirectoryIndex, ...] | None = None,
+    ) -> ReportCacheEntry | None:
         with self._lock:
             path = self._path_for_key(cache_key)
             if not path.is_file():
@@ -70,16 +77,24 @@ class ReportParsingCacheRepository:
             except ReportParsingCacheError:
                 self._remove(path)
                 return None
-            entry = self._parse_entry(payload, cache_key, cache_version)
+            entry = parse_cache_entry(payload, cache_key, cache_version)
             if entry is None:
                 self._remove(path)
                 return None
             updated = dict(payload)
             updated["last_accessed_at"] = float(self._clock())
+            if source_fingerprint is not None:
+                updated["source_fingerprint"] = source_fingerprint
+            if dependencies is not None and candidate_indexes is not None:
+                updated["dependencies"] = serialize_dependencies(dependencies)
+                updated["candidate_indexes"] = serialize_candidate_indexes(candidate_indexes)
             self._write_payload(path, updated)
             return ReportCacheEntry(
-                entry.cache_key, entry.cache_version, entry.source_fingerprint,
+                entry.cache_key, entry.cache_version,
+                source_fingerprint if source_fingerprint is not None else entry.source_fingerprint,
                 float(updated["last_accessed_at"]), entry.result,
+                dependencies if dependencies is not None else entry.dependencies,
+                candidate_indexes if candidate_indexes is not None else entry.candidate_indexes,
             )
 
     def save(
@@ -91,6 +106,8 @@ class ReportParsingCacheRepository:
         *,
         protected_keys: Iterable[str] = (),
         max_entries: int = 5,
+        dependencies: tuple[DependencyRecord, ...] | None = None,
+        candidate_indexes: tuple[CandidateDirectoryIndex, ...] | None = None,
     ) -> None:
         with self._lock:
             path = self._path_for_key(cache_key)
@@ -101,6 +118,9 @@ class ReportParsingCacheRepository:
                 "last_accessed_at": float(self._clock()),
                 "result": result,
             }
+            if dependencies is not None and candidate_indexes is not None:
+                payload["dependencies"] = serialize_dependencies(dependencies)
+                payload["candidate_indexes"] = serialize_candidate_indexes(candidate_indexes)
             self._write_payload(path, payload)
             self.prune(
                 cache_version, max_entries=max_entries,
@@ -125,7 +145,7 @@ class ReportParsingCacheRepository:
                 except ReportParsingCacheError:
                     self._remove(path)
                     continue
-                entry = self._parse_entry(payload, path.stem, cache_version)
+                entry = parse_cache_entry(payload, path.stem, cache_version)
                 if entry is None:
                     self._remove(path)
                 else:
@@ -179,34 +199,6 @@ class ReportParsingCacheRepository:
         if not _KEY_PATTERN.fullmatch(cache_key):
             raise ReportParsingCacheError("解析缓存键无效。")
         return self.cache_dir / f"{cache_key}.json"
-
-    @staticmethod
-    def _parse_entry(
-        payload: object, cache_key: str, cache_version: int,
-    ) -> ReportCacheEntry | None:
-        if not isinstance(payload, dict):
-            return None
-        version = payload.get("cache_version")
-        source_fingerprint = payload.get("source_fingerprint")
-        last_accessed_at = payload.get("last_accessed_at")
-        result = payload.get("result")
-        if (
-            payload.get("cache_key") != cache_key
-            or version != cache_version
-            or not isinstance(version, int)
-            or isinstance(version, bool)
-            or not isinstance(source_fingerprint, str)
-            or not _KEY_PATTERN.fullmatch(source_fingerprint)
-            or not isinstance(last_accessed_at, (int, float))
-            or isinstance(last_accessed_at, bool)
-            or not math.isfinite(float(last_accessed_at))
-            or not isinstance(result, dict)
-            or not result.get("report")
-        ):
-            return None
-        return ReportCacheEntry(
-            cache_key, version, source_fingerprint, float(last_accessed_at), result,
-        )
 
     @staticmethod
     def _read_payload(path: Path) -> dict[str, object]:

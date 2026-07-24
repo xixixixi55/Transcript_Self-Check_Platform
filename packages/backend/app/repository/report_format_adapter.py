@@ -61,6 +61,13 @@ def detect_report_format(data_dir: str) -> ReportFormat:
     case_data = load_js_json(os.path.join(data_dir, "data_case_info.json"))
     device_data = load_js_json(os.path.join(data_dir, "data_device_lists.json"))
     report_data = load_js_json(os.path.join(data_dir, "data_report_info.json"))
+    return detect_report_format_from_payloads(case_data, device_data, report_data)
+
+
+def detect_report_format_from_payloads(
+    case_data: Any, device_data: Any, report_data: Any,
+) -> ReportFormat:
+    """Detect format from one request's already-parsed core payloads."""
     if (
         not isinstance(case_data, dict)
         or not isinstance(case_data.get("contents"), list)

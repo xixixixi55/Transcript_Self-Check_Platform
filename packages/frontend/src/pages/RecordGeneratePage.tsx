@@ -81,18 +81,12 @@ export default function RecordGeneratePage() {
       setCurrentStep(1)
     }
   }, [result, archive.reset, reportDefaults.applyDefaults])
-
   const handleFolderUpload = async () => {
     const dirPath = prompt('请输入报告目录路径:')
     if (dirPath) await parseReport(dirPath)
   }
   const handleExport = async () => {
     if (!report || exporting) return false
-    if (!archive.manifest || archive.status !== 'completed') {
-      setReviewStatus('导出失败')
-      alert('正式导出前必须等待真实 RAR 归档和校验完成。')
-      return false
-    }
     const dateErrors = [
       !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
       !isValidMinuteTimeRangeValue(report.introduction.inspection_time_range) && '检查起止时间',
@@ -117,14 +111,14 @@ export default function RecordGeneratePage() {
 
     const files = photoFiles.filter(file => file.originFileObj).map(file => file.originFileObj as File)
     const photoIds = files.map(file => file.name)
-    setReviewStatus('归档规划中')
+    setReviewStatus('导出中')
     const success = await exportDocx(
       report,
       photoIds,
       files.length > 0 ? files : undefined,
       requestedFileName,
-      archiveContextId,
-      archive.manifest.manifest_id,
+      archive.manifest ? archiveContextId : null,
+      archive.manifest?.manifest_id ?? null,
     )
     setReviewStatus(success ? '导出成功' : '导出失败')
     return success
@@ -144,12 +138,12 @@ export default function RecordGeneratePage() {
   }, [report?.document_number, customFileName])
   const updateReport = (path: string, value: any) => {
     if (!report) return
+    archive.reset()
     const newReport = applyReportEdit(report, path, value)
     setReport(newReport)
     setHasPageChanges(true)
     setReviewStatus('存在未导出修改')
   }
-
   const handleSave = useCallback(() => {
     if (saveBusy) return
     setSaveBusy(true)
@@ -164,7 +158,6 @@ export default function RecordGeneratePage() {
     setHasPageChanges(false)
     setCurrentStep(0)
   }
-
   const pendingItems = useMemo(() => {
     return report ? getReviewPendingItems(report, customFileName ? exportFileNameError : undefined) : []
   }, [customFileName, exportFileNameError, report])
@@ -223,7 +216,7 @@ export default function RecordGeneratePage() {
           inspectorLoading={inspectorLoading}
           inspectorError={inspectorError}
           photoFiles={photoFiles}
-          onPhotoFilesChange={setPhotoFiles}
+          onPhotoFilesChange={files => { archive.reset(); setPhotoFiles(files) }}
           exportFileName={exportFileName}
           customFileName={customFileName}
           exportFileNameError={exportFileNameError}
@@ -239,6 +232,8 @@ export default function RecordGeneratePage() {
           pendingItems={pendingItems}
           archiveContextId={archiveContextId}
           archiveStatus={archive.status}
+          archivePreparing={archive.loading}
+          onPrepareArchive={() => { if (report && archiveContextId) void archive.prepare(report, archiveContextId) }}
           archiveManifest={archive.manifest}
           archiveError={archive.error}
         />

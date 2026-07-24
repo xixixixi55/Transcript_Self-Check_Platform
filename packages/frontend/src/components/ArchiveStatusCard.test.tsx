@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ArchiveManifest } from '@biji/shared/types'
 import { ArchiveStatusCard } from './ArchiveStatusCard'
@@ -29,6 +29,22 @@ const manifest = {
 } as ArchiveManifest
 
 describe('ArchiveStatusCard', () => {
+  it('requires an explicit archive preparation action after preview', () => {
+    const onPrepare = vi.fn()
+    render(
+      <ArchiveStatusCard
+        contextId="context-1"
+        status="not_prepared"
+        manifest={null}
+        error={null}
+        onPrepare={onPrepare}
+      />,
+    )
+    expect(screen.getByText('归档尚未准备')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '开始准备归档' }))
+    expect(onPrepare).toHaveBeenCalledTimes(1)
+  })
+
   it('renders only validated manifest facts and an opaque part download URL', () => {
     render(
       <ArchiveStatusCard

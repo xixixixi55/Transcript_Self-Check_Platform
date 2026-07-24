@@ -14,6 +14,11 @@ from ..services.archive_execution_service import (
 )
 from ..services.archive_runtime_service import ArchiveRuntimeError
 from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE
+from ..services.archive_source_runtime_service import (
+    get_preview_source_summary,
+    prepare_archive_source,
+    resolve_archive_context_id,
+)
 from ..services.archive_manifest_access_service import get_manifest_part_download
 from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
 from ..services.attachment_plan_errors_service import AttachmentPlanError
@@ -75,9 +80,11 @@ async def execute_archive_endpoint(
     except (json.JSONDecodeError, TypeError):
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
     try:
+        formal_context_id = await run_in_threadpool(
+            prepare_archive_source, archive_context_id, report, output_root=OUTPUT_BASE,
+        )
         outcome = await run_in_threadpool(
-            execute_archive,
-            archive_context_id, report, output_root=OUTPUT_BASE,
+            execute_archive, formal_context_id, report, output_root=OUTPUT_BASE,
         )
     except Exception as error:
         raise _archive_error(error) from error
@@ -118,9 +125,15 @@ async def execute_archive_endpoint(
 @router.get("/records/archive/{archive_context_id}/status")
 async def archive_status_endpoint(archive_context_id: str):
     try:
+        try:
+            summary = ARCHIVE_RUNTIME_STORE.get_context_summary(archive_context_id)
+        except ArchiveRuntimeError as error:
+            if error.code != "ARCHIVE_CONTEXT_NOT_FOUND":
+                raise
+            summary = get_preview_source_summary(archive_context_id)
         return {
             "success": True,
-            "data": ARCHIVE_RUNTIME_STORE.get_context_summary(archive_context_id),
+            "data": summary,
         }
     except ArchiveRuntimeError as error:
         raise HTTPException(
@@ -136,8 +149,9 @@ async def download_archive_part_endpoint(
     archive_context_id: str, manifest_id: str, part_id: str,
 ):
     try:
+        formal_context_id = resolve_archive_context_id(archive_context_id)
         download = get_manifest_part_download(
-            archive_context_id, manifest_id, part_id,
+            formal_context_id, manifest_id, part_id,
         )
     except ArchiveGateError as error:
         raw_code = error.blockers[0].code if error.blockers else "ARCHIVE_MANIFEST_INVALID"

@@ -3,10 +3,13 @@ import React from 'react'
 import { Alert, Button, Card, Descriptions, Space, Tag, Typography } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { ArchiveExecutionStatus, ArchiveManifest } from '@biji/shared/types'
+import type { ArchiveLifecycleStatus, ArchiveManifest } from '@biji/shared/types'
 
 const { Text } = Typography
-const LABELS: Record<ArchiveExecutionStatus, string> = {
+const LABELS: Record<ArchiveLifecycleStatus, string> = {
+  not_prepared: '归档尚未准备',
+  preparing: '正在准备归档',
+  ready: '归档已准备',
   idle: '等待开始',
   waiting: '等待开始',
   planning: '等待开始',
@@ -20,7 +23,9 @@ const LABELS: Record<ArchiveExecutionStatus, string> = {
 
 interface Props {
   contextId: string | null
-  status: ArchiveExecutionStatus
+  status: ArchiveLifecycleStatus
+  loading?: boolean
+  onPrepare?: () => void
   manifest: ArchiveManifest | null
   error: string | null
 }
@@ -30,7 +35,7 @@ function readableSize(bytes: number): string {
   return `${mb.toFixed(2)} MB（${bytes} 字节）`
 }
 
-export function ArchiveStatusCard({ contextId, status, manifest, error }: Props) {
+export function ArchiveStatusCard({ contextId, status, loading = false, onPrepare = () => undefined, manifest, error }: Props) {
   return (
     <Card size="small" title="真实 RAR 归档">
       <Space direction="vertical" style={{ width: '100%' }}>
@@ -38,6 +43,11 @@ export function ArchiveStatusCard({ contextId, status, manifest, error }: Props)
           {LABELS[status]}
         </Tag>
         {error && <Alert type={status === 'failed' ? 'error' : 'info'} message={error} showIcon />}
+        {contextId && (status === 'not_prepared' || status === 'failed') && (
+          <Button type="primary" loading={loading} onClick={onPrepare}>
+            {status === 'failed' ? '重试归档准备' : '开始准备归档'}
+          </Button>
+        )}
         {manifest?.parts.map(part => (
           <Card size="small" key={part.part_id}>
             <Descriptions column={1} size="small">

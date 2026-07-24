@@ -24,7 +24,9 @@ import unicodedata
 from datetime import datetime
 from typing import Any
 from .device_candidate_parser import select_best_device_candidate
-from .device_field_parser import extract_device_fields, try_parse_json
+from .device_field_parser import (
+    extract_device_fields, is_generic_device_label, try_parse_json,
+)
 from .navigation_parser import parse_navigation
 from .json_loader import load_js_json
 from .report_format_adapter import (
@@ -60,7 +62,11 @@ def _find_value(contents: list[dict], tp_field: str, value_field: str = "ct") ->
 def parse_case_info(data_dir: str) -> dict[str, str]:
     """解析 data_case_info.json，返回案件信息字典"""
     filepath = os.path.join(data_dir, "data_case_info.json")
-    data = load_js_json(filepath)
+    return parse_case_info_payload(load_js_json(filepath))
+
+
+def parse_case_info_payload(data: Any) -> dict[str, str]:
+    """Map an already-loaded case payload without another filesystem read."""
     contents = data.get("contents", [])
     return {
         "case_name": _find_value(contents, "案件名称"),
@@ -77,9 +83,16 @@ def parse_device_lists(data_dir: str) -> list[dict[str, str]]:
     """解析 data_device_lists.json，返回设备列表"""
     filepath = os.path.join(data_dir, "data_device_lists.json")
     data = load_js_json(filepath)
+    report_format = require_supported_report_format(data_dir)
+    return parse_device_lists_payload(data, report_format)
+
+
+def parse_device_lists_payload(
+    data: Any, report_format: ReportFormat,
+) -> list[dict[str, str]]:
+    """Map device rows using a previously detected report format."""
     contents = data.get("contents", []) if isinstance(data, dict) else data
     devices = []
-    report_format = require_supported_report_format(data_dir)
     for item in contents or []:
         if not isinstance(item, dict):
             continue
@@ -221,7 +234,11 @@ def _format_datetime_minute(value: datetime) -> str:
 def parse_report_info(data_dir: str) -> dict[str, str]:
     """解析 data_report_info.json，返回取证工具版本信息"""
     filepath = os.path.join(data_dir, "data_report_info.json")
-    data = load_js_json(filepath)
+    return parse_report_info_payload(load_js_json(filepath))
+
+
+def parse_report_info_payload(data: Any) -> dict[str, str]:
+    """Map an already-loaded report-info payload without another read."""
     contents = data.get("contents", [])
     versions = {}
     for item in contents:
@@ -331,24 +348,47 @@ def parse_device_base(data_dir: str, evidence_number: str) -> dict[str, str]:
                     payloads.append(try_parse_json(f.read().decode("utf-8", errors="replace")))
             except OSError:
                 continue
-        return select_best_device_candidate(payloads, allow_tt_ct=True)
+        return parse_device_base_payloads(
+            report_format, [(payload, "") for payload in payloads],
+        )
 
     # Keep the legacy explicit labels and text fallback. The fallback is
     # bounded by known labels and never scans arbitrary 15-digit numbers.
-    result = {"device_type": "", "device_name": "", "brand": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+    payloads = []
     for filepath in sorted(json_files):
         try:
             with open(filepath, "rb") as f:
                 raw = f.read()
-            payload = try_parse_json(raw.decode("utf-8", errors="replace"))
-            extracted = extract_device_fields(payload, raw.decode("utf-8", errors="replace"), allow_text_fallback=True)
-            for key, value in extracted.items():
-                if value and not result[key]:
-                    result[key] = value
+            text = raw.decode("utf-8", errors="replace")
+            payloads.append((try_parse_json(text), text))
         except (OSError, UnicodeError):
             continue
-    if not result["device_name"]:
+    return parse_device_base_payloads(report_format, payloads)
+
+
+def parse_device_base_payloads(
+    report_format: ReportFormat,
+    payloads: list[tuple[Any, str]],
+) -> dict[str, str]:
+    """Extract device fields from one already-read candidate stream."""
+    if report_format == ReportFormat.NEW:
+        return select_best_device_candidate(
+            [payload for payload, _ in payloads], allow_tt_ct=True,
+        )
+
+    result = {
+        "device_type": "", "device_name": "", "brand": "", "model": "",
+        "imei1": "", "imei2": "", "serial_number": "",
+    }
+    for payload, text in payloads:
+        extracted = extract_device_fields(
+            payload, text, allow_text_fallback=True,
+        )
+        for key, value in extracted.items():
+            if value and not result[key]:
+                result[key] = value
+    if not result["device_name"] and result["model"]:
         result["device_name"] = result["model"]
-    if not result["model"]:
+    if not result["model"] and result["device_name"] and not is_generic_device_label(result["device_name"]):
         result["model"] = result["device_name"]
     return result

@@ -39,6 +39,8 @@ class ArchiveContextRecord:
             "file_count": len(self.inventory.files),
             "total_input_bytes": self.inventory.total_input_bytes,
             "status": self.execution_state,
+            "context_kind": "formal",
+            "inventory_ready": True,
             "created_at": iso(self.created_at),
             "expires_at": iso(self.expires_at),
         }

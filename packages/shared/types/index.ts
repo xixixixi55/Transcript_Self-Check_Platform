@@ -138,7 +138,9 @@ export interface ParseReportResponse {
   rar_info: RarInfo | null
   archive_context_id?: string | null
   archive_context?: import('./archive').ArchiveContextSummary | null
-  archive_status?: import('./archive').ArchiveExecutionStatus
+  archive_context_kind?: import('./archive').ArchiveContextKind
+  archive_preparation_status?: import('./archive').ArchivePreparationStatus
+  archive_status?: import('./archive').ArchiveExecutionStatus | import('./archive').ArchivePreparationStatus
 }
 
 /** 一键清空报告解析缓存的结果。 */

@@ -30,6 +30,13 @@ function ExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
   ))}>导出</button>
 }
 
+function UnpreparedExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
+  const { exportDocx } = useRecordExport()
+  return <button onClick={async () => onResult(await exportDocx(
+    report, [], undefined, undefined, null, null,
+  ))}>导出</button>
+}
+
 function PhotoExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
   const { exportDocx } = useRecordExport()
   const files = [1, 2, 3, 4].map(index => new File([`photo-${index}`], `photo-${index}.png`))
@@ -69,6 +76,28 @@ describe('useRecordExport', () => {
     fireEvent.click(screenButton())
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(false))
     expect(window.alert).toHaveBeenCalled()
+    vi.restoreAllMocks()
+  })
+
+  it('allows report-only Word export before archive preparation', async () => {
+    post.mockResolvedValueOnce({ data: new Blob(['docx']) })
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    Object.defineProperty(window.URL, 'createObjectURL', {
+      configurable: true, value: vi.fn().mockReturnValue('blob:report-only'),
+    })
+    Object.defineProperty(window.URL, 'revokeObjectURL', {
+      configurable: true, value: vi.fn(),
+    })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    const onResult = vi.fn()
+    render(<UnpreparedExportHarness onResult={onResult} />)
+    fireEvent.click(screenButton())
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true))
+    expect(post).toHaveBeenCalledTimes(1)
+    const form = post.mock.calls[0][1] as FormData
+    expect(form.get('archive_context_id')).toBeNull()
+    expect(form.get('manifest_id')).toBeNull()
+    expect(alert).not.toHaveBeenCalled()
     vi.restoreAllMocks()
   })
 

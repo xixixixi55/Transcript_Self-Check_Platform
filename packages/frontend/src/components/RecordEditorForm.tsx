@@ -2,7 +2,7 @@
 import React from 'react'
 import { Alert, Button, Checkbox, Input, Space, Typography } from 'antd'
 import type {
-  ArchiveExecutionStatus,
+  ArchiveLifecycleStatus,
   ArchiveManifest,
   InspectorLibraryRecord,
   InspectionReport,
@@ -49,7 +49,9 @@ interface Props {
   onSave?: () => void
   pendingItems?: ReviewPendingItem[]
   archiveContextId?: string | null
-  archiveStatus?: ArchiveExecutionStatus
+  archiveStatus?: ArchiveLifecycleStatus
+  archivePreparing?: boolean
+  onPrepareArchive?: () => void
   archiveManifest?: ArchiveManifest | null
   archiveError?: string | null
 }
@@ -81,7 +83,9 @@ export default function RecordEditorForm({
   onSave = () => undefined,
   pendingItems = [],
   archiveContextId = null,
-  archiveStatus = 'idle',
+  archiveStatus = 'not_prepared',
+  archivePreparing = false,
+  onPrepareArchive = () => undefined,
   archiveManifest = null,
   archiveError = null,
 }: Props) {
@@ -148,6 +152,8 @@ export default function RecordEditorForm({
         <ArchiveStatusCard
           contextId={archiveContextId}
           status={archiveStatus}
+          loading={archivePreparing}
+          onPrepare={onPrepareArchive}
           manifest={archiveManifest}
           error={archiveError}
         />

@@ -152,4 +152,13 @@ describe('结构化编辑器', () => {
       rows: [expect.objectContaining({ electronic_data: '已修改' })],
     }))
   })
+
+  it('prefers brand and concrete model for the device name display', () => {
+    render(<EvidenceEditor items={[{
+      id: '1', device_type: '手机', device_name: '手机',
+      brand: 'SYNTHETIC-BRAND', model: 'SYNTHETIC-MODEL', evidence_number: 'JC01',
+    }]} onChange={vi.fn()} />)
+
+    expect(screen.getByText('SYNTHETIC-BRAND SYNTHETIC-MODEL')).toBeTruthy()
+  })
 })

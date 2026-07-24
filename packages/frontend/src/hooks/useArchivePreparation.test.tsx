@@ -31,7 +31,9 @@ function Harness({ discNumber }: { discNumber: string }) {
   return (
     <>
       <button onClick={() => void archive.prepare(current, 'context-1')}>开始</button>
+      <button onClick={archive.reset}>重置</button>
       <span>{archive.status}</span>
+      <span>{String(archive.loading)}</span>
       <span>{archive.manifest?.parts[0].filename}</span>
       <span>{archive.attachmentPreview?.rows[0].source}</span>
       <span>{archive.error}</span>
@@ -43,8 +45,14 @@ function PreviewHarness() {
   const [current, setCurrent] = useState<InspectionReport | null>({
     ...report, attachments: { ...report.attachments, disc_number: 'GP20260722-01' },
   })
-  usePreviewArchive(current, setCurrent, 'context-1')
-  return <span>{current?.attachments.extract_list?.rows[0]?.electronic_data}</span>
+  const archive = usePreviewArchive(current, setCurrent, 'context-1')
+  return <>
+    <button onClick={() => setCurrent(value => value ? {
+      ...value, attachments: { ...value.attachments, disc_number: 'GP20260722-02' },
+    } : value)}>修改光盘编号</button>
+    <span>{archive.status}</span>
+    <span>{current?.attachments.extract_list?.rows[0]?.electronic_data}</span>
+  </>
 }
 
 describe('useArchivePreparation', () => {
@@ -56,7 +64,7 @@ describe('useArchivePreparation', () => {
   it('waits for the first disc number without calling WinRAR endpoint', async () => {
     render(<Harness discNumber="" />)
     fireEvent.click(screen.getByText('开始'))
-    await waitFor(() => expect(screen.getByText('waiting')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('failed')).toBeTruthy())
     expect(post).not.toHaveBeenCalled()
   })
 
@@ -66,15 +74,46 @@ describe('useArchivePreparation', () => {
     render(<Harness discNumber="GP20260722-01" />)
     fireEvent.click(screen.getByText('开始'))
     await waitFor(() => expect(screen.getByText('合成案件.rar')).toBeTruthy())
-    expect(screen.getByText('completed')).toBeTruthy()
+    expect(screen.getByText('ready')).toBeTruthy()
     expect(screen.getByText('JC-01内提取')).toBeTruthy()
     expect(post).toHaveBeenCalledTimes(1)
   })
 
-  it('projects the backend Manifest attachment1 preview into the editor report', async () => {
-    post.mockResolvedValue({ data: { data: { status: 'completed', manifest, attachment_preview: attachmentPreview } } })
-    get.mockResolvedValue({ data: { data: { status: 'hashing' } } })
+  it('does not prepare an archive while preview is mounted', () => {
     render(<PreviewHarness />)
-    await waitFor(() => expect(screen.getByText('合成案件.rar')).toBeTruthy())
+    expect(screen.getByText('not_prepared')).toBeTruthy()
+    fireEvent.click(screen.getByText('修改光盘编号'))
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('cancels the current archive wait when the preview source is reset', async () => {
+    post.mockReturnValue(new Promise(() => undefined))
+    render(<Harness discNumber="GP20260722-01" />)
+    fireEvent.click(screen.getByText('开始'))
+    await waitFor(() => expect(screen.getByText('true')).toBeTruthy())
+    fireEvent.click(screen.getByText('重置'))
+    await waitFor(() => expect(screen.getByText('not_prepared')).toBeTruthy())
+    expect(screen.getByText('false')).toBeTruthy()
+    expect(post.mock.calls[0][2].signal.aborted).toBe(true)
+  })
+
+  it('aborts the archive wait when the review page unmounts', async () => {
+    post.mockReturnValue(new Promise(() => undefined))
+    const rendered = render(<Harness discNumber="GP20260722-01" />)
+    fireEvent.click(screen.getByText('开始'))
+    await waitFor(() => expect(screen.getByText('true')).toBeTruthy())
+    rendered.unmount()
+    expect(post.mock.calls[0][2].signal.aborted).toBe(true)
+  })
+
+  it('allows a failed explicit preparation to be retried', async () => {
+    post.mockRejectedValueOnce({ response: { data: { detail: { code: 'ARCHIVE_CONTEXT_INVALID' } } } })
+    post.mockResolvedValueOnce({ data: { data: { status: 'completed', manifest, attachment_preview: attachmentPreview } } })
+    render(<Harness discNumber="GP20260722-01" />)
+    fireEvent.click(screen.getByText('开始'))
+    await waitFor(() => expect(screen.getByText('failed')).toBeTruthy())
+    fireEvent.click(screen.getByText('开始'))
+    await waitFor(() => expect(screen.getByText('ready')).toBeTruthy())
+    expect(post).toHaveBeenCalledTimes(2)
   })
 })

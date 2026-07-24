@@ -75,6 +75,26 @@ def test_parser_does_not_promote_device_name_or_model_to_device_type():
     assert evidence["device_type_source"] == "legacy_display"
 
 
+def test_parser_device_name_is_brand_plus_concrete_model():
+    with patch("app.services.report_parser_service.parse_case_info", return_value={}), \
+        patch("app.services.report_parser_service.parse_device_lists", return_value=[{
+            "evidence_number": "JC01", "device_name": "手机", "time_range": "",
+        }]), patch("app.services.report_parser_service.parse_report_info", return_value={}), \
+        patch("app.services.report_parser_service.parse_device_base", return_value={
+            "device_type": "手机", "device_name": "手机", "brand": "HUAWEI",
+            "model": "HBN-AL00",
+        }), patch("app.services.report_parser_service.require_supported_report_format", return_value=ReportFormat.LEGACY), \
+        patch("app.services.report_parser_service._build_software_tools", return_value=[]), \
+        patch("app.services.report_parser_service._build_rar_info_from_compress", return_value={
+            "filename": "", "md5": "", "size_bytes": 0,
+        }):
+        report = _build_report("data", "source", "output", compress=False)
+
+    evidence = report["introduction"]["evidence_list"][0]
+    assert evidence["device_name"] == "HUAWEI HBN-AL00"
+    assert evidence["model"] == "HBN-AL00"
+
+
 # ─── T008: _build_software_tools 动态生成 (REQ-016) ───
 
 def test_software_tools_with_compress():
@@ -288,13 +308,27 @@ def test_multiple_devices_keep_tb2_and_base_fields_matched(tmp_path):
         {"c1": "序列号", "c2": "SN-SECOND"},
     ]}, ensure_ascii=False), encoding="utf-8")
 
-    report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
+    with patch("app.services.report_parser_service._build_rar_info_from_compress", return_value={
+        "filename": "SYNTHETIC-output.rar", "md5": "a" * 32, "size_bytes": 1,
+    }):
+        report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
     by_id = {item["evidence_number"]: item for item in report["introduction"]["evidence_list"]}
     assert by_id["JC01"]["imei1"] == "111111111111111"
+    assert by_id["JC01"]["device_name"] == "Model-NEW"
     assert by_id["JC01"]["model"] == "Model-NEW"
     assert by_id["JC02"]["imei1"] == "333333333333333"
+    assert by_id["JC02"]["device_name"] == "Model-SECOND"
     assert by_id["JC02"]["model"] == "Model-SECOND"
     assert by_id["JC02"]["serial_number"] == "SN-SECOND"
+    process_text = "\n".join(
+        step["content"] for step in report["inspection"]["process_steps"]
+    )
+    assert report["inspection"]["result"]["evidence_number"] == "JC01、JC02"
+    assert "编号为JC01" in process_text
+    assert "编号为JC02" in process_text
+    assert "对检材JC01、JC02进行拍照" in process_text
+    assert "对检材JC01、JC02进行检查" in process_text
+    assert report["attachments"]["extract_list"]["rows"][0]["source"] == "JC01、JC02检材内提取"
 
 
 def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path):
@@ -302,12 +336,13 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 7
+    assert result["cache_version"] == 14
     assert report["introduction"]["inspection_time_range"] == (
         "2026年7月13日11点55分至2026年7月13日15点43分"
     )
     assert "2099" not in report["introduction"]["inspection_time_range"]
     assert evidence["device_type"] == "合成新手机"
+    assert evidence["device_name"] == "Model-NEW"
     assert evidence["model"] == "Model-NEW"
     assert evidence["imei1"] == "111111111111111"
     assert evidence["imei2"] == "222222222222222"
@@ -366,15 +401,15 @@ def test_parser_cache_ignores_json_outside_selected_evidence(tmp_path):
     assert build.call_count == 1
 
 
-def test_cache_version_seven_does_not_reuse_old_payload(tmp_path):
+def test_cache_version_twelve_does_not_reuse_old_payload(tmp_path):
     old_cache = {"report": _MOCK_REPORT, "cache_version": 4}
     with patch("app.services.report_parser_service.is_cache_valid", return_value=True), \
          patch("app.services.report_parser_service.read_json", return_value=old_cache), \
          patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
          patch("app.services.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 7
-    assert result["cache_version"] == 7
+    assert _CACHE_VERSION == 14
+    assert result["cache_version"] == 14
     mock_build.assert_called_once()
 
 
@@ -457,6 +492,7 @@ def test_legacy_full_standard_model_regression(tmp_path):
     assert report["introduction"]["inspection_time_range"].startswith("2026年7月13日11点55分")
     assert evidence["evidence_number"] == "JC-OLD"
     assert evidence["device_type"] == "Old Phone"
+    assert evidence["device_name"] == "Old-Model"
     assert evidence["model"] == "Old-Model"
     assert evidence["imei1"] == "123456789012345"
     assert evidence["imei2"] == "543210987654321"

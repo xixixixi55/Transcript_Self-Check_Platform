@@ -20,6 +20,11 @@ from ..repository.report_parsing_cache_repository import (
     ReportParsingCacheError,
     ReportParsingCacheRepository,
 )
+from ..repository.report_parse_input_metadata_repository import (
+    dependency_fingerprint,
+    validate_cached_input_metadata,
+)
+from ..repository.report_parse_input_models import ReportParseInputError, ReportParseInputSnapshot
 
 
 class ReportParsingCacheService:
@@ -48,20 +53,24 @@ class ReportParsingCacheService:
         *,
         fingerprint_dir: str | None = None,
         fingerprint: Callable[[str], str] = directory_content_fingerprint,
+        snapshot_builder: Callable[[], ReportParseInputSnapshot] | None = None,
+        generation_token: int | None = None,
     ) -> dict[str, object]:
         # Capture the cache generation before any potentially slow fingerprint
         # work. A clear that starts after this request must invalidate its
         # eventual write, even if fingerprinting has not reached the key lock.
         with self._lock:
-            generation = self._generation
+            generation = self._generation if generation_token is None else generation_token
         cache_key = normalized_directory_key(source_dir)
-        source_fingerprint = fingerprint(fingerprint_dir or source_dir)
+        source_fingerprint = None
+        if snapshot_builder is None:
+            source_fingerprint = fingerprint(fingerprint_dir or source_dir)
         store_key = self._store_key(cache_dir)
-        operation_key = f"{store_key}\0{cache_key}"
+        operation_key = f"{store_key}\0{cache_key}\0{generation}"
         with self._key_lock(operation_key):
             store = self._store(cache_dir)
-            with self._lock:
-                entry = store.load(cache_key, cache_version)
+            entry = store.load(cache_key, cache_version)
+            if snapshot_builder is None:
                 if entry and entry.source_fingerprint == source_fingerprint:
                     touched = store.touch(cache_key, cache_version)
                     if touched:
@@ -71,10 +80,40 @@ class ReportParsingCacheService:
                             protected_keys=self._protected_keys(store_key),
                         )
                         return touched.result
-                elif entry:
-                    store.remove(cache_key)
+            else:
+                if entry and entry.dependencies is not None and entry.candidate_indexes is not None:
+                    try:
+                        validation = validate_cached_input_metadata(
+                            fingerprint_dir or source_dir,
+                            entry.dependencies,
+                            entry.candidate_indexes,
+                        )
+                    except ReportParseInputError:
+                        store.remove(cache_key)
+                        raise
+                    if validation.valid:
+                        updated_fingerprint = dependency_fingerprint(validation.dependencies)
+                        touched = store.touch(
+                            cache_key, cache_version,
+                            source_fingerprint=updated_fingerprint,
+                            dependencies=validation.dependencies,
+                            candidate_indexes=validation.candidate_indexes,
+                        )
+                        if touched:
+                            store.prune(
+                                cache_version,
+                                max_entries=self.max_entries,
+                                protected_keys=self._protected_keys(store_key),
+                            )
+                            return touched.result
+            if entry:
+                store.remove(cache_key)
+            with self._lock:
                 self._inflight[operation_key] = self._inflight.get(operation_key, 0) + 1
             try:
+                snapshot = snapshot_builder() if snapshot_builder is not None else None
+                if snapshot is not None:
+                    source_fingerprint = snapshot.dependency_fingerprint
                 result = builder()
                 with self._lock:
                     if generation == self._generation:
@@ -82,6 +121,8 @@ class ReportParsingCacheService:
                             cache_key, cache_version, source_fingerprint, result,
                             protected_keys=self._protected_keys(store_key),
                             max_entries=self.max_entries,
+                            dependencies=snapshot.dependencies if snapshot else None,
+                            candidate_indexes=snapshot.candidate_indexes if snapshot else None,
                         )
                 return result
             finally:
@@ -96,6 +137,10 @@ class ReportParsingCacheService:
                         max_entries=self.max_entries,
                         protected_keys=self._protected_keys(store_key),
                     )
+
+    def current_generation(self) -> int:
+        with self._lock:
+            return self._generation
 
     def clear_all(self, cache_dir: str) -> int:
         with self._lock:
@@ -127,11 +172,14 @@ class ReportParsingCacheService:
 
     def _protected_keys(self, store_key: str) -> set[str]:
         prefix = f"{store_key}\0"
-        return {
-            operation_key[len(prefix):]
-            for operation_key in self._inflight
-            if operation_key.startswith(prefix)
-        }
+        protected: set[str] = set()
+        for operation_key in self._inflight:
+            if not operation_key.startswith(prefix):
+                continue
+            parts = operation_key.split("\0")
+            if len(parts) >= 2:
+                protected.add(parts[1])
+        return protected
 
 
 REPORT_PARSING_CACHE_SERVICE = ReportParsingCacheService()

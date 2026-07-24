@@ -29,6 +29,7 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
   ARCHIVE_MANIFEST_PART_CHANGED: '归档分卷已变化，请重新生成归档。',
   ARCHIVE_REPLAN_EXHAUSTED: '归档重规划次数已用尽，请检查输入文件。',
   ARCHIVE_CONTEXT_INVALID: '归档上下文已过期，请重新解析报告。',
+  ARCHIVE_CONTEXT_NOT_PREPARED: '归档尚未准备完成，请先开始并完成归档准备。',
   ARCHIVE_EXECUTION_IN_PROGRESS: '归档正在执行，请稍后重试。',
   PRIMARY_SOFTWARE_UNCONFIRMED: '主取证软件名称和版本必须先确认。',
   FIRST_DISC_NUMBER_MISSING: '首个光盘编号不能为空。',
@@ -85,6 +86,9 @@ async function resolveExportErrorMessage(error: any): Promise<string> {
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail?.blockers)) return formatExportBlockers(detail.blockers)
   if (typeof detail?.code === 'string') return EXPORT_BLOCKER_MESSAGES[detail.code] || '导出失败，请重试。'
+  if (typeof error.message === 'string' && EXPORT_BLOCKER_MESSAGES[error.message]) {
+    return EXPORT_BLOCKER_MESSAGES[error.message]
+  }
   return error.message || '导出失败'
 }
 
@@ -127,11 +131,12 @@ export function useRecordExport(): UseRecordExportReturn {
           photo_groups: buildMaterialPhotoGroups(normalizedReport, photoCount),
         },
       })
-      if (!manifestId) throw new Error('ARCHIVE_MANIFEST_MISSING')
       const formData = new FormData()
       formData.append('report_json', reportJson)
-      formData.append('archive_context_id', archiveContextId || '')
-      formData.append('manifest_id', manifestId)
+      if (archiveContextId || manifestId) {
+        formData.append('archive_context_id', archiveContextId || '')
+        formData.append('manifest_id', manifestId || '')
+      }
       // 附加图片文件
       if (photoFiles) {
         photoFiles.forEach(f => formData.append('photos', f))

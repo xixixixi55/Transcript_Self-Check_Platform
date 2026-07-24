@@ -23,7 +23,7 @@ export function ReviewActionBar({ status, saveBusy, exporting, onSave, onBack, o
           保存当前修改
         </Button>
         <Button type="primary" icon={<DownloadOutlined />} onClick={onExport} loading={exporting} disabled={saveBusy}>
-          生成归档并导出 Word
+          导出 Word
         </Button>
       </Space>
     </div>

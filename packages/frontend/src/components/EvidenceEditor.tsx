@@ -18,6 +18,16 @@ interface Props {
   onChange: (items: EvidenceItem[]) => void
 }
 
+function displayDeviceName(item: EvidenceItem): string {
+  const brand = String(item.brand || '').trim()
+  const model = String(item.model || '').trim()
+  if (brand && model) {
+    if (model.toLocaleLowerCase().includes(brand.toLocaleLowerCase())) return model
+    return `${brand} ${model}`
+  }
+  return item.device_name || model || item.device_type || ''
+}
+
 export default function EvidenceEditor({ items, onChange }: Props) {
   const addItem = () => {
     onChange([...items, {
@@ -61,7 +71,7 @@ export default function EvidenceEditor({ items, onChange }: Props) {
             onClick={() => removeItem(idx)} />
           <Space direction="vertical" style={{ width: '100%' }}>
             <div><Text strong>设备名称：</Text><EditableField type="text"
-              placeholder="如 HUAWEI HBN-AL00" value={item.device_name || item.model || item.device_type || ''}
+              placeholder="如 HUAWEI HBN-AL00" value={displayDeviceName(item)}
               onChange={value => updateItem(idx, 'device_name', value)} /></div>
             <div>
               <Text strong>检材类型：</Text>

@@ -175,6 +175,8 @@ def test_extract_device_fields_supports_confirmed_aliases_and_tables():
     tt_ct = {"rows": [{"tt": "设备型号", "ct": "Model-TT"}]}
     assert extract_device_fields(tt_ct, "")["model"] == ""
     assert extract_device_fields(tt_ct, "", allow_tt_ct=True)["model"] == "Model-TT"
+    generic = extract_device_fields({"设备名称": "手机"}, "")
+    assert generic["model"] == ""
 
 
 def test_strong_tt_ct_device_table_is_accepted_only_as_a_table():
@@ -234,6 +236,18 @@ def test_parse_device_base_keeps_legacy_base_and_phone_compatibility(tmp_path):
     phone_fields = parse_device_base(str(data_dir), "JC02")
     assert phone_fields["model"] == "Model-PHONE"
     assert phone_fields["imei1"] == "111111111111111"
+
+
+def test_parse_device_base_reads_vendor_named_base_metadata(tmp_path):
+    data_dir = _write_report_fixture(tmp_path, "legacy")
+    base_dir = data_dir / "JC01" / "Base"
+    (base_dir / "device.json").unlink()
+    (base_dir / "base_info.json").write_text(
+        '{"设备名称":"手机","设备型号":"Vendor-Model-01",'
+        '"IMEI1":"123456789012345"}', encoding="utf-8",
+    )
+    fields = parse_device_base(str(data_dir), "JC01")
+    assert fields["model"] == "Vendor-Model-01"
 
 
 @pytest.mark.parametrize("tb2", [[], {}, [{"tt": "\u8bbe\u5907\u578b\u53f7", "ct": "Model"}],
