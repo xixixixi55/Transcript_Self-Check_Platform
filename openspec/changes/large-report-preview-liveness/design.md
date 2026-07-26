@@ -1,7 +1,7 @@
 # Design: Large Report Preview Liveness
 
 > Change: `large-report-preview-liveness`
-> Status: `PROPOSED`; implementation has not started.
+> Status: `PROPOSED`; implementation, external real-report acceptance, and full Harness verification are complete. The dedicated synthetic benchmark and remaining final review gates are still open.
 > Baseline: current Legacy DTO and formal ArchiveManifest contracts
 
 ## 1. Design boundary

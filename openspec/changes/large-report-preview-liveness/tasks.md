@@ -2,7 +2,7 @@
 
 > Change: `large-report-preview-liveness`
 > Level: 3
-> Status: `PROPOSED`; completed implementation tasks are checked below, with final gates remaining open.
+> Status: `PROPOSED`; implementation, external real-report acceptance, and full Harness verification are complete. T19 and the remaining final review gates are still open.
 > Scope: preview liveness, parser snapshot/cache identity, in-flight reuse, and deferred full ArchiveContext.
 > Explicitly out of scope: Shadow, Canonical, and complete Harness execution.
 
@@ -143,6 +143,7 @@ Tasks are ordered by architecture layer. Every implementation task is immediatel
   - Requirements: REQ-ACCEPTANCE-001, REQ-PARSE-CACHE-001, REQ-PARSE-INFLIGHT-001.
   - Files: new synthetic benchmark/test adjacent to the backend test suite; no real report or generated output.
   - Assert preview avoids full inventory, core JSON reads are one per task, same dependency is not read once for fingerprint and again for Parser, cache hit meets the synthetic budget, and same-key concurrency runs one expensive task.
+  - Status note: focused read-count, cache, and in-flight tests exist, but no single dedicated T19 benchmark record has been identified. Keep this task open until explicit synthetic benchmark evidence is available.
 
 - [x] **T20 — Run scoped verification and manual acceptance preparation**
   - Requirements: all requirements above.
@@ -167,6 +168,6 @@ Tasks are ordered by architecture layer. Every implementation task is immediatel
 ## Post-implementation gates
 
 - [ ] Independent code review completed for Level 3.
-- [ ] Human manual acceptance completed against the external multi-material report without adding sensitive artifacts.
-- [ ] Full Harness execution owner explicitly confirmed by the user before `verify:full` or equivalent.
+- [x] Human manual acceptance completed against the external multi-material report without adding sensitive artifacts. Detailed paths, business data, generated output, and performance logs remain outside the repository.
+- [x] Full Harness execution completed and passed; execution details and external evidence remain outside the repository.
 - [ ] No commit or push is performed unless separately requested.
