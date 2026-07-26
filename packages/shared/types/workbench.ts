@@ -199,3 +199,32 @@ export interface CaseDraftResponse extends WorkbenchApiEnvelope<CaseDraft> {}
 export interface SourceRecordResponse extends WorkbenchApiEnvelope<SourceRecord> {}
 export interface SharedDefaultsResponse extends WorkbenchApiEnvelope<SharedDefaults> {}
 export interface TaskRecordResponse extends WorkbenchApiEnvelope<TaskRecord> {}
+
+export interface CaseListPage {
+  items: CaseShell[]
+  offset: number
+  limit: number
+  has_more: boolean
+}
+
+export interface CaseDetail {
+  shell: CaseShell
+  draft: CaseDraft | null
+  source: SourceRecord
+  parse_task: TaskRecord
+}
+
+export interface CaseSubmission {
+  shell: CaseShell
+  source: SourceRecord
+  parse_task: TaskRecord
+}
+
+export interface DeletePreflight {
+  allowed: boolean
+  blockers: string[]
+}
+
+export interface CaseListResponse extends WorkbenchApiEnvelope<CaseListPage> {}
+export interface CaseDetailResponse extends WorkbenchApiEnvelope<CaseDetail> {}
+export interface CaseSubmissionResponse extends WorkbenchApiEnvelope<CaseSubmission> {}

@@ -55,6 +55,19 @@ class CaseShellRepository:
             raise WorkbenchPersistenceError("CASE_NOT_FOUND")
         return _shell_dict(row)
 
+    def list(self, offset: int, limit: int) -> list[dict[str, Any]]:
+        if offset < 0 or limit < 1:
+            raise WorkbenchPersistenceError("INVALID_PAGE")
+        connection = self.database.connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM case_shells ORDER BY updated_at DESC, case_id DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+        finally:
+            connection.close()
+        return [_shell_dict(row) for row in rows]
+
     def update_lifecycle(self, case_id: str, lifecycle: str, expected_revision: int) -> dict[str, Any]:
         case_id = validate_opaque_id(case_id)
         if lifecycle not in CASE_LIFECYCLES:

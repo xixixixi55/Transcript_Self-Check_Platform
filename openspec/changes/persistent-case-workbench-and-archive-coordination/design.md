@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：与 proposal/spec 同步，尚未进入实现
+> 设计状态：Phase 1B Service/API 已实现；Phase 1C/1D 及后续阶段仍未开始
 
 ## 1. 总体架构决策
 
@@ -161,6 +161,13 @@ Layer 0 只定义 DTO 和错误合同，建议路由族如下；具体路径实�
 | 现有 `/records/*` | Legacy 解析、归档和 Word 兼容适配；不得删除正式安全门控 |
 
 自动保存接口使用 `If-Match`/草稿 revision 或等价字段；案件字段双写接口必须分别返回 draft save 和 shared-default save 状态。任务状态可用短轮询起步，但状态源必须是后端任务记录，后续可替换为 SSE 而不改变 DTO。前端工作台只消费案件卡片 DTO，审核页按 `case_id` 加载完整草稿和租约，不保留第二份“正式顺序”，也不接触 SourceRecord 的绝对路径。
+
+Phase 1B 的实际 API 入口为 `/api/v1/workbench/*`：报告压缩包通过
+`POST /workbench/cases` 上传，服务先在部署实例 SQLite 中原子写入
+CaseShell、parse TaskRecord、SourceRecord 和提交审计，再用后台任务执行 Legacy
+解析；案件列表默认返回 6 个 opaque 卡片。详情返回 shell、可选 draft、SourceRecord
+摘要和 parse task；草稿保存使用 `expected_revision`，冲突返回 HTTP 409。归档执行、
+前端自动保存 Hook 和 6 卡片页面仍留在 Phase 1C/Phase 3 边界内。
 
 ## 7. 模板注册和导出失效
 

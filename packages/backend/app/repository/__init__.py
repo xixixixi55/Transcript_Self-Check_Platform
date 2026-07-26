@@ -3,6 +3,7 @@
 from .asset_reference_repository import AssetReferenceRepository
 from .audit_event_repository import AuditEventRepository
 from .case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from .case_workflow_repository import CaseWorkflowRepository
 from .edit_lease_repository import EditLeaseRepository
 from .shared_defaults_repository import SharedDefaultsRepository
 from .source_record_repository import SourceRecordRepository
@@ -12,6 +13,7 @@ from .workbench_database import WorkbenchDatabase, database_path_for_deployment,
 __all__ = [
     "AssetReferenceRepository", "AuditEventRepository", "CaseDraftRepository",
     "CaseShellRepository", "EditLeaseRepository", "SharedDefaultsRepository",
+    "CaseWorkflowRepository",
     "SourceRecordRepository", "TaskRecordRepository", "WorkbenchDatabase",
     "database_path_for_deployment", "default_workbench_data_root",
 ]

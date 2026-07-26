@@ -12,6 +12,7 @@ from ..controllers.inspector_controller import router as inspector_router
 from ..controllers.archive_controller import router as archive_router
 from ..controllers.cache_controller import router as cache_router
 from ..controllers.pipeline_controller import router as pipeline_router
+from .workbench_routes import router as workbench_router
 
 router = APIRouter()
 
@@ -22,3 +23,4 @@ router.include_router(inspector_router, tags=["检查人员"])
 router.include_router(archive_router, tags=["归档"])
 router.include_router(cache_router, tags=["缓存"])
 router.include_router(pipeline_router, tags=["管线诊断"])
+router.include_router(workbench_router)

@@ -1,7 +1,7 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1A 已完成并保留为未提交工作树变更，1B–1D 及后续阶段仍未开始。
-> 目标合同：`specs/electronic-inspection-record/spec.md`
+> 本文件定义后续实现顺序；Phase 1A 已在基线提交完成，本轮完成 Phase 1B，1C–1D 及后续阶段仍未开始。
+> 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
 ## 执行规则
@@ -39,18 +39,18 @@
 
 ### Layer 21 — Services
 
-- [ ] **T005** 新增 `packages/backend/app/services/case_draft_service.py`、`shared_defaults_service.py`、`edit_lease_service.py`、`task_record_service.py`、`source_record_service.py` 和 `case_lifecycle_service.py`；实现提交即建壳、解析成功/失败/重试、report > system_default > pending 初始化、user 双写、分别返回保存状态、15 秒续租、2 分钟接管前提、ClientIdentity 审计、重启 interrupted、只清理自有进程/staging 和一次性 localStorage 导入审计。
-- [ ] **T005T** 新增对应 service 测试；覆盖解析失败不可审核、来源失效要求重选、普通编辑互斥、强制接管警告、默认值导入/忽略只能一次、双写部分失败、重启不重连 WinRAR、非自有进程不终止、活跃任务禁止删除和取消后清理条件。
+- [x] **T005** 新增 `packages/backend/app/services/case_draft_service.py`、`shared_defaults_service.py`、`edit_lease_service.py`、`task_record_service.py`、`source_record_service.py` 和 `case_lifecycle_service.py`；实现提交即建壳、解析成功/失败/重试、report > system_default > pending 初始化、双写分别返回、15 秒续租、2 分钟接管前提、ClientIdentity 审计、重启 interrupted、来源重新选择、只清理本系统解析 staging 的服务边界。`localStorage` 迁移入口保留为一次性、可审计的 defaults API；本轮不实现前端迁移 Hook。
+- [x] **T005T** 新增对应 service 测试；覆盖解析失败不可审核、来源失效/重新选择、普通编辑互斥、强制接管、默认值双写部分失败、重启中断、活跃任务删除前阻止和 revision 冲突。非自有进程终止不在本阶段调用，后台归档执行仍未实现。
 
 ### Layer 22/23 — Controllers and Routes
 
-- [ ] **T006** 新增 `packages/backend/app/controllers/workbench_controller.py`、`defaults_controller.py`、`lease_controller.py`、`source_controller.py` 和 `packages/backend/app/routes/workbench_routes.py`；提供提交建壳、案件分页、草稿补丁、默认值迁移、分别保存状态、租约、来源复核/重选和删除前检查 API，保留现有 `/records/*`。
-- [ ] **T006T** 新增 controller/route 测试；用 httpx 合成请求验证提交即建壳、6 卡片分页、版本冲突、双写状态、租约互斥、来源失效、删除阻止和错误响应不泄露路径。
+- [x] **T006** 新增 `packages/backend/app/controllers/workbench_controller.py`、`defaults_controller.py`、`lease_controller.py`、`source_controller.py` 和 `packages/backend/app/routes/workbench_routes.py`；提供上传提交建壳、案件分页/详情、草稿补丁、默认值迁移与读写、任务状态/取消、租约读写、来源复核/重新选择和删除前检查 API，保留现有 `/records/*`。
+- [x] **T006T** 新增 controller/route 测试；用 httpx 合成请求验证提交即建壳、分页、版本冲突 409、双写状态、租约互斥、来源路径隔离、任务状态、删除阻止和错误响应不泄露路径。
 
 ### Phase 1 internal gates
 
 - [x] **1A — SharedTypes、SQLite schema/migration、Repositories**：案件壳/草稿、SourceRecord、ClientIdentity、双写结果、opaque asset 引用和 SQLite 大对象拒绝规则可持久化、迁移、回滚。
-- [ ] **1B — Services 和 API**：提交即建壳、解析失败/重试、来源复核、解析/默认优先级、草稿/共享默认值双写、interrupted 重启语义和删除前置条件可通过 API 表达。
+- [x] **1B — Services 和 API**：提交即建壳、解析失败/重试、来源复核与重新选择、解析/默认优先级、草稿/共享默认值双写、interrupted 重启语义和删除前置条件可通过 API 表达；定向后端回归 52 passed，保留既知配置 warning。
 - [ ] **1C — 工作台、自动保存和租约**：6 卡片分页、排队/解析中/失败状态、自动保存、15 秒心跳、2 分钟接管警告和分别显示保存结果。
 - [ ] **1D — 刷新/重启恢复、兼容回归和人工验收**：不自动接管 WinRAR；只清理自有进程/staging；不信任半成品 RAR/Manifest；Legacy 解析/归档/Manifest/Word 回归通过并完成人工验收。
 

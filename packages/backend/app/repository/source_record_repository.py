@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from .workbench_constants import SOURCE_ACCESS_STATUSES, SOURCE_TYPES
 from .workbench_database import WorkbenchDatabase, normalize_optional_utc, normalize_utc, utc_now
-from .workbench_errors import WorkbenchPersistenceError
+from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import bool_int, json_text, public_source_record, row_json
 from .workbench_serialization import validate_opaque_id
 
@@ -99,6 +100,41 @@ class SourceRecordRepository:
             )
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
+        return self.get(source_id)
+
+    def replace_for_case(self, case_id: str, record: Mapping[str, Any], expected_revision: int) -> dict[str, Any]:
+        case_id = validate_opaque_id(case_id)
+        source_id = validate_opaque_id(record.get("source_id"))
+        task_id = validate_opaque_id(record.get("task_id"))
+        allowed_root_id = validate_opaque_id(record.get("allowed_root_id"))
+        source_type = str(record.get("source_type", ""))
+        if source_type not in SOURCE_TYPES or not record.get("fingerprint"):
+            raise WorkbenchPersistenceError("INVALID_SOURCE_RECORD")
+        metadata = _validate_metadata(record.get("metadata", {}))
+        now = utc_now()
+        with self.database.transaction() as connection:
+            case = connection.execute("SELECT source_id, parse_task_id, revision FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
+            if case is None or case[1] != task_id:
+                raise WorkbenchPersistenceError("CASE_NOT_FOUND")
+            if int(case[2]) != expected_revision:
+                raise RevisionConflictError("case_shell", expected_revision, int(case[2]))
+            try:
+                connection.execute(
+                    "INSERT INTO source_records VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, 0, ?, ?)",
+                    (source_id, case_id, task_id, source_type, record["internal_path"], record["allowed_root"], allowed_root_id, json_text(metadata), json_text({"value": record["fingerprint"]}), now, now),
+                )
+                connection.execute(
+                    "UPDATE source_records SET access_status = 'requires_reselection', requires_reselection = 1, revision = revision + 1, updated_at = ? WHERE source_id = ?",
+                    (now, case[0]),
+                )
+                updated = connection.execute(
+                    "UPDATE case_shells SET source_id = ?, revision = revision + 1, updated_at = ? WHERE case_id = ? AND revision = ?",
+                    (source_id, now, case_id, expected_revision),
+                )
+                if updated.rowcount != 1:
+                    raise RevisionConflictError("case_shell", expected_revision, expected_revision)
+            except sqlite3.IntegrityError as error:
+                raise WorkbenchPersistenceError("SOURCE_REPLACEMENT_FAILED") from error
         return self.get(source_id)
 
 

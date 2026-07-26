@@ -342,6 +342,14 @@ independently; `RevisionConflictDto` describes optimistic concurrency failures.
 `SourceRecordResponse`, `SharedDefaultsResponse` and `TaskRecordResponse` are the
 versioned API DTO envelopes and contain no absolute paths.
 
+`CaseListPage` carries opaque case-shell cards with offset/limit metadata;
+`CaseDetail` joins one shell with its optional draft, source summary and parse
+task; `CaseSubmission` is the immediate response after a report archive is
+accepted and persisted. `DeletePreflight` reports stable blockers without
+deleting case records or formal artifacts. `CaseListResponse`,
+`CaseDetailResponse` and `CaseSubmissionResponse` are the corresponding
+versioned envelopes.
+
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type FieldSource, type FieldConfirmation,
 type LeaseStatus, type SourceAccessStatus, interface OpaqueAssetRef, interface FieldState,
@@ -349,4 +357,6 @@ interface CaseShell, interface CaseDraft, interface SharedDefaults, interface Cl
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,
 interface DualSaveResult, interface RevisionConflictDto, interface WorkbenchApiEnvelope,
 interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecordResponse,
-interface SharedDefaultsResponse, interface TaskRecordResponse.
+interface SharedDefaultsResponse, interface TaskRecordResponse, interface CaseListPage,
+interface CaseDetail, interface CaseSubmission, interface DeletePreflight,
+interface CaseListResponse, interface CaseDetailResponse, interface CaseSubmissionResponse.

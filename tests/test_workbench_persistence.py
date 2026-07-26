@@ -26,6 +26,7 @@ from app.repository import (  # noqa: E402
     database_path_for_deployment,
     default_workbench_data_root,
 )
+from app.repository.case_workflow_repository import CaseWorkflowRepository  # noqa: E402
 from app.repository.workbench_errors import (  # noqa: E402
     ForbiddenPayloadError,
     LeaseConflictError,
@@ -400,6 +401,22 @@ def test_running_tasks_become_interrupted_after_restart(database: WorkbenchDatab
     interrupted = TaskRecordRepository(database).mark_running_tasks_interrupted()
     assert interrupted[0]["status"] == "interrupted"
     assert interrupted[0]["error_code"] == "TASK_RESTART_INTERRUPTED"
+
+
+def test_queued_and_cancelling_parse_tasks_become_retryable_after_restart(database: WorkbenchDatabase) -> None:
+    create_shell(database)
+    workflow = CaseWorkflowRepository(database)
+    create_parse_task(database)
+    workflow.recover_after_restart()
+    assert TaskRecordRepository(database).get(TASK_ID)["status"] == "failed_retryable"
+    assert CaseShellRepository(database).get(CASE_ID)["lifecycle"] == "parse_failed_retryable"
+    workflow.retry_parse(CASE_ID, TASK_ID)
+    workflow.start_parse(CASE_ID, TASK_ID)
+    running = TaskRecordRepository(database).get(TASK_ID)
+    workflow.cancel_parse(CASE_ID, TASK_ID, running["revision"])
+    workflow.recover_after_restart()
+    assert TaskRecordRepository(database).get(TASK_ID)["status"] == "interrupted"
+    assert CaseShellRepository(database).get(CASE_ID)["lifecycle"] == "parse_failed_retryable"
 
 
 def test_corrupt_or_incompatible_database_fails_safe(tmp_path: Path) -> None:

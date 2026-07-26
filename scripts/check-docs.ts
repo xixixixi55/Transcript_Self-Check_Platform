@@ -4,7 +4,7 @@
  * 检查内容：
  * 1.  [E-A1] 目录结构：directory.md vs 实际文件系统
  * 2.  [补充] npm 命令：AGENTS.md 声明 vs package.json
- * 3.  [补充] tasks.md 文件引用 vs 实际存在性                  [strict]
+ * 3.  [补充] 已完成 tasks.md 文件引用 vs 实际存在性            [strict]
  * 4.  [补充] tasks.md 完成状态 vs 源码文件存在性               [strict]
  * 5.  [补充] specs 能力目录 vs directory.md/AGENTS.md 中列出的能力名 [strict]
  * 6.  [E-A2] [按需] data-model.md 接口字段 vs 类型定义文件实际字段
@@ -23,6 +23,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { getCompletedTaskFileReferences } from './check-docs-utils'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -160,10 +161,7 @@ function getActiveTasksContents(): string[] {
 function checkTaskFiles(): Drift[] {
   const drifts: Drift[] = []
   for (const content of getActiveTasksContents()) {
-    const withoutCodeBlocks = content.replace(/```[\s\S]*?```/g, '')
-    const fileRefs = withoutCodeBlocks.match(/`[^`]+\.[a-z]+`/g) || []
-    for (const ref of fileRefs) {
-      const filePath = ref.replace(/`/g, '')
+    for (const filePath of getCompletedTaskFileReferences(content)) {
       if (filePath.includes('*') || filePath.includes('<')) continue
       if (filePath.includes('/') && !fs.existsSync(path.join(ROOT, filePath)))
         drifts.push({ type: 'missing-in-code', message: `tasks.md references "${filePath}" but file does not exist` })
