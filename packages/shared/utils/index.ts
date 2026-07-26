@@ -4,6 +4,7 @@ export * from './exportFileNameUtils'
 export * from './dateTimeUtils'
 export * from './discSequenceUtils'
 export * from './softwareProjectionUtils'
+export * from './workbenchRules'
 
 /** 验证是否为有效的 ISO 8601 日期字符串 */
 export function isValidISODate(str: string): boolean {

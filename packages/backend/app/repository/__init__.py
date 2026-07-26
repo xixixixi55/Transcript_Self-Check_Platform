@@ -1,6 +1,17 @@
-"""
-Layer 20: BE_Repository — 数据访问层
+"""Layer 20 repository exports; business orchestration stays in services."""
 
-文件读写、模板管理、HTML 解析
-- 不包含业务逻辑，只负责数据存取操作
-"""
+from .asset_reference_repository import AssetReferenceRepository
+from .audit_event_repository import AuditEventRepository
+from .case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from .edit_lease_repository import EditLeaseRepository
+from .shared_defaults_repository import SharedDefaultsRepository
+from .source_record_repository import SourceRecordRepository
+from .task_record_repository import TaskRecordRepository
+from .workbench_database import WorkbenchDatabase, database_path_for_deployment, default_workbench_data_root
+
+__all__ = [
+    "AssetReferenceRepository", "AuditEventRepository", "CaseDraftRepository",
+    "CaseShellRepository", "EditLeaseRepository", "SharedDefaultsRepository",
+    "SourceRecordRepository", "TaskRecordRepository", "WorkbenchDatabase",
+    "database_path_for_deployment", "default_workbench_data_root",
+]

@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件只定义后续实现顺序；本轮不勾选任务、不修改生产代码。
+> 本文件定义后续实现顺序；Phase 1A 已完成并保留为未提交工作树变更，1B–1D 及后续阶段仍未开始。
 > 目标合同：`specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -19,13 +19,13 @@
 
 ### Layer 0 — SharedTypes
 
-- [ ] **T001** 在 `packages/shared/types/` 新增 `CaseShell`、`CaseDraft`、`SourceRecord`、`ClientIdentity`、`SharedDefaults`、`FieldState`、`EditLease`、`TaskRecord`、生命周期状态、双写结果和版本化 API DTO；保持 `InspectionReport` Legacy 主体。验证：共享类型编译，DTO 不包含绝对路径、大对象或敏感运行输出。
-- [ ] **T001T** 为 T001 增加类型契约测试/fixture，覆盖案件壳/正式草稿边界、任务状态、租约状态、无认证身份、双写结果、opaque asset 引用、默认值迁移结果和旧 `InspectionReport` 投影。验证：TypeScript typecheck 和合成 DTO round-trip。
+- [x] **T001** 在 `packages/shared/types/` 新增 `CaseShell`、`CaseDraft`、`SourceRecord`、`ClientIdentity`、`SharedDefaults`、`FieldState`、`EditLease`、`TaskRecord`、生命周期状态、双写结果和版本化 API DTO；保持 `InspectionReport` Legacy 主体。验证：共享类型编译，DTO 不包含绝对路径、大对象或敏感运行输出。
+- [x] **T001T** 为 T001 增加类型契约测试/fixture，覆盖案件壳/正式草稿边界、任务状态、租约状态、无认证身份、双写结果、opaque asset 引用、默认值迁移结果和旧 `InspectionReport` 投影。验证：TypeScript typecheck 和合成 DTO round-trip。
 
 ### Layer 1/2 — SharedConstants and SharedUtils
 
-- [ ] **T002** 在 `packages/shared/constants/` 定义案件壳/解析失败/interrupted 状态、错误码、默认保留期配置键、租约周期、任务阶段和 API 版本；在 `packages/shared/utils/` 定义解析值优先级、状态迁移、双写结果聚合、自动保存冲突、无认证身份和生命周期纯函数。验证：禁止组件或服务重复硬编码状态值。
-- [ ] **T002T** 在对应 `*.test.ts` 覆盖合法/非法状态迁移、report > system_default > pending 优先级、双写状态聚合、版本冲突、ClientIdentity 和边界时间；使用 `SYNTHETIC/TEST` 数据。验证：Vitest。
+- [x] **T002** 在 `packages/shared/constants/` 定义案件壳/解析失败/interrupted 状态、错误码、默认保留期配置键、租约周期、任务阶段和 API 版本；在 `packages/shared/utils/` 定义解析值优先级、状态迁移、双写结果聚合、自动保存冲突、无认证身份和生命周期纯函数。验证：禁止组件或服务重复硬编码状态值。
+- [x] **T002T** 在对应 `*.test.ts` 覆盖合法/非法状态迁移、report > system_default > pending 优先级、双写状态聚合、版本冲突、ClientIdentity 和边界时间；使用 `SYNTHETIC/TEST` 数据。验证：Vitest。
 
 ### Layer 10/11/12 — Frontend Workbench
 
@@ -34,8 +34,8 @@
 
 ### Layer 20 — Persistence Repositories
 
-- [ ] **T004** 新增 `packages/backend/app/repository/case_draft_repository.py`、`task_repository.py`、`shared_defaults_repository.py`、`edit_lease_repository.py`、`source_record_repository.py`、`asset_reference_repository.py` 和 SQLite schema/migration 文件；SQLite 只保存业务 DTO/元数据/opaque 引用，提供事务、revision、原子更新和实例数据目录隔离。验证：不写 Git 工作区，不暴露原始路径，不写入 Base64/HTML/原始 JSON 集合。
-- [ ] **T004T** 新增对应 repository 测试；覆盖案件壳与正式草稿约束、SourceRecord 绑定/复核、重启重载、事务回滚、幂等迁移、双写独立记录、唯一租约、过期租约、opaque asset 和大对象拒绝、损坏数据恢复。验证：pytest。
+- [x] **T004** 新增 `case_workbench_repository.py`、`task_record_repository.py`、`shared_defaults_repository.py`、`edit_lease_repository.py`、`source_record_repository.py`、`asset_reference_repository.py`、`audit_event_repository.py`、`workbench_database.py`、`workbench_serialization.py` 和持久化错误/辅助模块；SQLite 只保存业务 DTO/元数据/opaque 引用，提供事务、revision、原子更新和实例数据目录隔离。验证：不写 Git 工作区，不暴露原始路径，不写入 Base64/HTML/原始 JSON 集合。
+- [x] **T004T** 新增对应 repository 测试；覆盖案件壳与正式草稿约束、SourceRecord 绑定/复核、重启重载、事务回滚、幂等迁移、双写独立记录、唯一租约、过期租约、opaque asset 和大对象拒绝、损坏数据恢复。验证：pytest。
 
 ### Layer 21 — Services
 
@@ -49,7 +49,7 @@
 
 ### Phase 1 internal gates
 
-- [ ] **1A — SharedTypes、SQLite schema/migration、Repositories**：案件壳/草稿、SourceRecord、ClientIdentity、双写结果、opaque asset 引用和 SQLite 大对象拒绝规则可持久化、迁移、回滚。
+- [x] **1A — SharedTypes、SQLite schema/migration、Repositories**：案件壳/草稿、SourceRecord、ClientIdentity、双写结果、opaque asset 引用和 SQLite 大对象拒绝规则可持久化、迁移、回滚。
 - [ ] **1B — Services 和 API**：提交即建壳、解析失败/重试、来源复核、解析/默认优先级、草稿/共享默认值双写、interrupted 重启语义和删除前置条件可通过 API 表达。
 - [ ] **1C — 工作台、自动保存和租约**：6 卡片分页、排队/解析中/失败状态、自动保存、15 秒心跳、2 分钟接管警告和分别显示保存结果。
 - [ ] **1D — 刷新/重启恢复、兼容回归和人工验收**：不自动接管 WinRAR；只清理自有进程/staging；不信任半成品 RAR/Manifest；Legacy 解析/归档/Manifest/Word 回归通过并完成人工验收。

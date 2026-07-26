@@ -1,0 +1,79 @@
+import type { CaseLifecycle, TaskStage, TaskStatus } from '../types'
+
+export const WORKBENCH_SCHEMA_VERSION = 1 as const
+export const WORKBENCH_API_VERSION = 'v1' as const
+export const WORKBENCH_DEFAULT_RETENTION_DAYS = 30
+export const WORKBENCH_RETENTION_CONFIG_KEY = 'workbench.successful_case_retention_days'
+export const EDIT_LEASE_HEARTBEAT_SECONDS = 15
+export const EDIT_LEASE_TIMEOUT_SECONDS = 120
+export const MAX_RUNNING_ARCHIVE_TASKS = 6
+
+export const WORKBENCH_TASK_STAGES: readonly TaskStage[] = [
+  'parse', 'inventory', 'planning', 'winrar', 'integrity', 'md5', 'manifest', 'export', 'cleanup', 'none',
+]
+
+export const ARCHIVE_PROGRESS_WEIGHTS = {
+  inventory: 15,
+  planning: 10,
+  winrar: 45,
+  integrity: 10,
+  md5: 15,
+  manifest: 5,
+} as const
+
+export const WORKBENCH_ERROR_CODES = {
+  CASE_NOT_FOUND: 'CASE_NOT_FOUND',
+  DRAFT_NOT_FOUND: 'DRAFT_NOT_FOUND',
+  REVISION_CONFLICT: 'REVISION_CONFLICT',
+  INVALID_STATE_TRANSITION: 'INVALID_STATE_TRANSITION',
+  INVALID_TASK_TRANSITION: 'INVALID_TASK_TRANSITION',
+  DRAFT_NOT_REVIEWABLE: 'DRAFT_NOT_REVIEWABLE',
+  LEASE_CONFLICT: 'LEASE_CONFLICT',
+  LEASE_TAKEOVER_REQUIRED: 'LEASE_TAKEOVER_REQUIRED',
+  DEPLOYMENT_INSTANCE_MISMATCH: 'DEPLOYMENT_INSTANCE_MISMATCH',
+  SOURCE_INVALID: 'SOURCE_INVALID',
+  INVALID_SOURCE_STATUS: 'INVALID_SOURCE_STATUS',
+  INVALID_SOURCE_FINGERPRINT: 'INVALID_SOURCE_FINGERPRINT',
+  INVALID_SOURCE_METADATA: 'INVALID_SOURCE_METADATA',
+  SOURCE_RESELECTION_REQUIRED: 'SOURCE_RESELECTION_REQUIRED',
+  SOURCE_REVALIDATION_REQUIRED: 'SOURCE_REVALIDATION_REQUIRED',
+  INVALID_LEGACY_REPORT: 'INVALID_LEGACY_REPORT',
+  INVALID_CASE_SHELL: 'INVALID_CASE_SHELL',
+  INVALID_CASE_DRAFT: 'INVALID_CASE_DRAFT',
+  INVALID_TEMPLATE_REFERENCE: 'INVALID_TEMPLATE_REFERENCE',
+  INVALID_SHARED_DEFAULTS: 'INVALID_SHARED_DEFAULTS',
+  UTC_TIMESTAMP_REQUIRED: 'UTC_TIMESTAMP_REQUIRED',
+  INVALID_AUDIT_EVENT: 'INVALID_AUDIT_EVENT',
+  INVALID_TASK_RECORD: 'INVALID_TASK_RECORD',
+  INVALID_TASK_PROGRESS: 'INVALID_TASK_PROGRESS',
+  ASSET_REFERENCE_NOT_FOUND: 'ASSET_REFERENCE_NOT_FOUND',
+  ASSET_REFERENCE_MISMATCH: 'ASSET_REFERENCE_MISMATCH',
+  DUPLICATE_ASSET_REFERENCE: 'DUPLICATE_ASSET_REFERENCE',
+  SQLITE_SCHEMA_INCOMPATIBLE: 'SQLITE_SCHEMA_INCOMPATIBLE',
+  SQLITE_CORRUPTED: 'SQLITE_CORRUPTED',
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
+  FORBIDDEN_LARGE_OBJECT: 'FORBIDDEN_LARGE_OBJECT',
+  ABSOLUTE_PATH_FORBIDDEN: 'ABSOLUTE_PATH_FORBIDDEN',
+  INVALID_OPAQUE_ID: 'INVALID_OPAQUE_ID',
+  TASK_RESTART_INTERRUPTED: 'TASK_RESTART_INTERRUPTED',
+  DEFAULTS_MIGRATION_ALREADY_DECIDED: 'DEFAULTS_MIGRATION_ALREADY_DECIDED',
+} as const
+
+export type WorkbenchErrorCode = typeof WORKBENCH_ERROR_CODES[keyof typeof WORKBENCH_ERROR_CODES]
+
+export const REVIEWABLE_CASE_LIFECYCLES: readonly CaseLifecycle[] = [
+  'review_ready', 'archive_deferred', 'archive_queued', 'archiving',
+  'archive_verified', 'exporting_word', 'exported',
+]
+
+export const INTERRUPTIBLE_TASK_STATUSES: readonly TaskStatus[] = ['running', 'cancelling']
+
+export const TASK_STATUS_TRANSITIONS: Readonly<Record<TaskStatus, readonly TaskStatus[]>> = {
+  queued: ['running', 'cancelling', 'cancelled', 'blocked'],
+  running: ['cancelling', 'succeeded', 'failed_retryable', 'failed_terminal', 'interrupted'],
+  cancelling: ['cancelled', 'interrupted', 'failed_retryable'],
+  interrupted: ['queued', 'failed_retryable', 'cancelled'],
+  failed_retryable: ['queued', 'running', 'cancelled'],
+  blocked: ['queued', 'cancelling', 'failed_terminal'],
+  succeeded: [], failed_terminal: [], cancelled: [],
+}

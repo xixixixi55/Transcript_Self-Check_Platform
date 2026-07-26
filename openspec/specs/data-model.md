@@ -315,3 +315,38 @@ Manifest 的 parts 按实际文件系统结果排序，保存文件名、`size_b
 `PrimarySoftwareCandidate` stores an explicit report candidate pair. `DiscSequenceErrorCode` identifies first-disc parsing failures, and `DiscSequenceParseResult` stores the validation result, parsed sequence, and diagnostic code.
 
 Type index: `type PrimarySoftwareCandidate`, `type DiscSequenceErrorCode`, `interface DiscSequenceParseResult`.
+
+### Persistent case workbench foundation
+
+The persistent workbench uses `WorkbenchSchemaVersion` and `WorkbenchApiVersion` as
+version contracts while keeping the Legacy `InspectionReport` as the only formal
+report body. `CaseShell` is created before parsing and may represent a queued or
+failed parse without being reviewable. `CaseDraft` is created only after successful
+parsing and stores bounded business DTOs, `FieldState` values and opaque asset
+references; it does not store images, Base64, complete HTML or raw JSON collections.
+
+`CaseLifecycle` separates shell, parsing, review, archive and cleanup states.
+`TaskKind`, `TaskStatus` and `TaskStage` describe durable task recovery, including
+`interrupted` tasks after restart. `SourceRecord` binds a case and task to an opaque
+source ID, an authorized root ID, metadata and fingerprint; internal locators are
+never part of the public DTO. `OpaqueAssetRef` identifies controlled large objects
+without embedding their content in SQLite.
+
+`SharedDefaults` is deployment-scoped. `FieldSource` distinguishes `report`, `user`
+and `system_default`, while `FieldConfirmation` separately represents pending
+human confirmation. `ClientIdentity` is a local session identity, not an authenticated
+person. `EditLease` provides one active case lease with expiry and takeover metadata.
+`SaveStatus` and `DualSaveResult` report draft and shared-default persistence
+independently; `RevisionConflictDto` describes optimistic concurrency failures.
+`WorkbenchApiEnvelope`, `CaseShellResponse`, `CaseDraftResponse`,
+`SourceRecordResponse`, `SharedDefaultsResponse` and `TaskRecordResponse` are the
+versioned API DTO envelopes and contain no absolute paths.
+
+Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
+type TaskKind, type TaskStatus, type TaskStage, type FieldSource, type FieldConfirmation,
+type LeaseStatus, type SourceAccessStatus, interface OpaqueAssetRef, interface FieldState,
+interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
+interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,
+interface DualSaveResult, interface RevisionConflictDto, interface WorkbenchApiEnvelope,
+interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecordResponse,
+interface SharedDefaultsResponse, interface TaskRecordResponse.

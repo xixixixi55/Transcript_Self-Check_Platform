@@ -45,7 +45,7 @@
 |---|---|---|
 | `CaseShell` | `case_id`, case name/summary, source ref, parse task ref, lifecycle, timestamps | 提交报告后立即创建；解析成功前不含可审核 `report` |
 | `CaseDraft` | `case_id`, `case_number`, `case_name`, `case_summary`, `report`, `report_version`, `field_states`, opaque asset refs, `template_ref`, `archive_plan_id`, `lifecycle`, timestamps | 解析成功后的审核根实体；`case_name` 不改变 RAR 基础名；不含 Base64/HTML/原始 JSON 大对象 |
-| `SharedDefaults` | singleton `deployment_id`, `revision`, 文号/地点/方法/硬件/有序人员/光盘前缀 | 部署实例共享；案件只复制值和来源标记，不反向隐式更新 |
+| `SharedDefaults` | singleton `deployment_id`, `revision`, 文号/地点/方法/硬件/有序人员/光盘前缀 | 部署实例共享；新案件复制值和来源标记，当前案件用户修改经校验和防抖后同时更新共享默认值 |
 | `FieldState` | `field_path`, `subject_id`, `source`, `confirmation`, `revision`, `last_changed_at` | 来源状态覆盖可编辑叶子、检材、人员、图片组；派生显示字段不单独建状态 |
 | `EditLease` | `case_id`, `session_id`, owner token, `last_heartbeat_at`, `expires_at`, takeover audit | 一个案件最多一个有效租约；15 秒建议心跳，2 分钟失联可接管 |
 | `TaskRecord` | `task_id`, `case_id`, `kind`, `status`, `stage`, `percent`, counters, input revision, retry/cancel/error | 任务状态和恢复依据；压缩运行数硬上限 6 |
@@ -125,7 +125,7 @@ Word builder 只接收字段值和 Legacy 投影，不接收 UI 来源颜色。�
 
 `SourceRecord` 是案件壳和解析任务的来源权威，包含 opaque `source_id`、source type、后端内部路径、允许根授权、case/task 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于后端受控存储和内部审计字段；前端 DTO、外部 API、普通日志和错误消息只返回 opaque ID、安全摘要和错误码。
 
-来源访问前必须重新验证允许根、路径存在性、权限、链接安全性和 metadata/fingerprint。服务重启、任务重试、案件重新打开或来源变化都触发复核；来源失效时任务进入 `source_invalid`/`failed_retryable`，要求用户重新选择来源，不能继续使用旧路径或旧 fingerprint。来源、图片和其他大对象只通过 opaque asset 引用进入 CaseDraft，SQLite 不保存内容本体。
+来源访问前必须重新验证允许根、路径存在性、权限、链接安全性和 metadata/fingerprint。服务重启、任务重试、案件重新打开或来源变化都触发复核；来源失效时 SourceRecord 进入 `requires_reselection`，关联任务进入 `failed_retryable`，要求用户重新选择来源，不能继续使用旧路径或旧 fingerprint。来源、图片和其他大对象只通过 opaque asset 引用进入 CaseDraft，SQLite 不保存内容本体。
 
 ## 4. 归档计划、稳定槽位和 Manifest
 

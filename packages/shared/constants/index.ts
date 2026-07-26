@@ -110,3 +110,4 @@ export const ATTACHMENT_COUNT = 3
 
 export * from './exportGateCodes'
 export * from './archiveConstants'
+export * from './workbenchConstants'
