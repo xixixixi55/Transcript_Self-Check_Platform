@@ -14,7 +14,7 @@ from ..repository.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
-from .report_parser_service import parse_from_archive, parse_report
+from .report_parser_service import parse_report
 from .shared_defaults_service import SharedDefaultsService
 from .source_record_service import SourceRecordService
 
@@ -23,13 +23,16 @@ Dispatch = Callable[[str, str], None]
 
 
 class CaseDraftService:
-    def __init__(self, database: WorkbenchDatabase, parser: Parser | None = None) -> None:
+    def __init__(
+        self, database: WorkbenchDatabase, parser: Parser | None = None,
+        source_service: SourceRecordService | None = None,
+    ) -> None:
         self.database = database
         self.workflow = CaseWorkflowRepository(database)
         self.shells = CaseShellRepository(database)
         self.drafts = CaseDraftRepository(database)
         self.tasks = TaskRecordRepository(database)
-        self.sources = SourceRecordService(database)
+        self.sources = source_service or SourceRecordService(database)
         self.defaults = SharedDefaultsService(database)
         self.parser = parser or _parse_source
 
@@ -47,7 +50,7 @@ class CaseDraftService:
                 {"task_id": task_id, "case_id": case_id}, descriptor, identity,
             )
         except Exception:
-            self.sources.remove_unbound_file(descriptor)
+            self.sources.remove_unbound_source(descriptor)
             raise
         if dispatch is not None:
             try:
@@ -64,8 +67,8 @@ class CaseDraftService:
             source_id = source_id or shell["source_id"]
             if source_id != shell["source_id"]:
                 raise WorkbenchPersistenceError("SOURCE_CASE_MISMATCH")
-            self.sources.require_available(source_id)
             self.workflow.start_parse(case_id, task_id)
+            self.sources.require_parse_ready(source_id)
             source_path = self.sources.internal_path(source_id)
             parsed = self.parser(source_path, self.database.database_path.parent / "parse-output")
             report = parsed.get("report")
@@ -96,7 +99,7 @@ class CaseDraftService:
         task = self.tasks.get(shell["parse_task_id"])
         if task["kind"] != "parse" or task["status"] not in {"failed_retryable", "interrupted"}:
             raise WorkbenchPersistenceError("PARSE_RETRY_NOT_ALLOWED")
-        self.sources.require_available(shell["source_id"])
+        self.sources.require_parse_ready(shell["source_id"])
         self.workflow.retry_parse(case_id, task["task_id"])
         if dispatch is not None:
             try:
@@ -112,8 +115,6 @@ class CaseDraftService:
 
 def _parse_source(path: Path, output: Path) -> Mapping[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
-    if path.suffix.casefold() in {".rar", ".zip"}:
-        return parse_from_archive(str(path), str(output), retain_source=True)
     return parse_report(str(path), str(output), compress=False)
 
 

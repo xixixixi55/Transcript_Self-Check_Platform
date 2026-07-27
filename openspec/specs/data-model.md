@@ -332,6 +332,13 @@ source ID, an authorized root ID, metadata and fingerprint; internal locators ar
 never part of the public DTO. `OpaqueAssetRef` identifies controlled large objects
 without embedding their content in SQLite.
 
+For workbench images, the opaque reference is bound to `case_id` by the backend
+asset registry. The binary lives in the controlled application asset workspace;
+the public record contains only the asset ID, kind, SHA-256 fingerprint and safe
+metadata. Uploads are validated and atomically finalized before a reference can
+enter a case draft. Missing or corrupt content is a recoverable error, and
+unreferenced temporary assets are removed after a grace period.
+
 `SharedDefaults` is deployment-scoped. `FieldSource` distinguishes `report`, `user`
 and `system_default`, while `FieldConfirmation` separately represents pending
 human confirmation. `ClientIdentity` is a local session identity, not an authenticated
@@ -344,19 +351,25 @@ versioned API DTO envelopes and contain no absolute paths.
 
 `CaseListPage` carries opaque case-shell cards with offset/limit metadata;
 `CaseDetail` joins one shell with its optional draft, source summary and parse
-task; `CaseSubmission` is the immediate response after a report archive is
-accepted and persisted. `DeletePreflight` reports stable blockers without
+task; `CaseSubmission` is the immediate response after an authorized report
+directory is accepted and persisted. `ArchiveDecision` is `immediate` or
+`deferred`; `ArchiveDecisionResult` reports the persisted lifecycle and, for
+immediate decisions, only an opaque handle for the existing Legacy explicit
+compression entry. Deferred decisions remain visible after refresh as
+`archive_deferred`. `DeletePreflight` reports stable blockers without
 deleting case records or formal artifacts. `CaseListResponse`,
 `CaseDetailResponse` and `CaseSubmissionResponse` are the corresponding
 versioned envelopes.
 
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type FieldSource, type FieldConfirmation,
-type LeaseStatus, type SourceAccessStatus, interface OpaqueAssetRef, interface FieldState,
+type LeaseStatus, type SourceAccessStatus, type CaseAssetContentStatus, interface OpaqueAssetRef, interface CaseAssetRecord,
+interface CaseAssetList, interface FieldState,
 interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,
 interface DualSaveResult, interface RevisionConflictDto, interface WorkbenchApiEnvelope,
 interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecordResponse,
 interface SharedDefaultsResponse, interface TaskRecordResponse, interface CaseListPage,
-interface CaseDetail, interface CaseSubmission, interface DeletePreflight,
+interface CaseDetail, interface CaseSubmission, type ArchiveDecision,
+type ArchiveDecisionStatus, interface ArchiveDecisionResult, interface DeletePreflight,
 interface CaseListResponse, interface CaseDetailResponse, interface CaseSubmissionResponse.

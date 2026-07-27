@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：Phase 1B Service/API 已实现；Phase 1C/1D 及后续阶段仍未开始
+> 设计状态：Phase 1B Service/API 与 Phase 1C 前端工作台已实现；Phase 1D 及后续阶段仍未开始
 
 ## 1. 总体架构决策
 
@@ -36,6 +36,12 @@
 **决定**：解析、归档、Word、清理都登记为 `TaskRecord`。任务有 `task_id`、`case_id`、类型、状态、阶段、进度快照、输入版本、尝试次数、进程标识、错误码、取消请求、创建/开始/结束时间。服务重启时，原 `running` 任务统一转为 `interrupted` 或 `failed_retryable`；只终止能够证明由本系统启动的进程树，清理本系统拥有的 staging，并等待用户确认后重新执行，不自动重连或接管 WinRAR。
 
 **理由**：把“后台仍在运行”“已中断”“可重试”“需要人工确认”区分开，才能支持多案件、取消、删除保护和真实进度，同时避免把半成品 RAR/Manifest 当作正式结果。
+
+### D-002A：图片二进制使用案件绑定的受控资产存储
+
+每个图片使用 `asset-<opaque-random-id>` 作为公共引用。二进制写入部署实例数据目录下的案件隔离资产目录，SQLite `asset_references` 只保存 `asset_id`、`asset_kind=image`、SHA-256、原始文件名的安全投影、扩展名、媒体类型和大小。上传先写同一受控目录中的临时文件，校验真实 JPG/JPEG/PNG 签名并原子改名，数据库引用创建成功后才返回 DTO；失败时删除临时或未登记文件。单张上限 10 MiB，案件上限 200 张/1 GiB，过期未引用资产和孤立临时文件按宽限期清理。
+
+草稿只保存 opaque 引用；新增/替换/删除图片先通过租约保护的资产 API，再通过 `CaseDraft` revision 保存引用。revision 冲突不会释放或覆盖另一会话的引用。读取接口按 `case_id + asset_id` 校验归属并校验指纹，缺失/损坏返回稳定错误码。前端恢复、预览和 `/records/export` 适配器均读取持久化二进制，Legacy 模板、图片缩放、VML、分页和正式归档链路不变。
 
 ## 2. 共同数据合同
 
@@ -125,7 +131,7 @@ Word builder 只接收字段值和 Legacy 投影，不接收 UI 来源颜色。�
 
 `SourceRecord` 是案件壳和解析任务的来源权威，包含 opaque `source_id`、source type、后端内部路径、允许根授权、case/task 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于后端受控存储和内部审计字段；前端 DTO、外部 API、普通日志和错误消息只返回 opaque ID、安全摘要和错误码。
 
-来源访问前必须重新验证允许根、路径存在性、权限、链接安全性和 metadata/fingerprint。服务重启、任务重试、案件重新打开或来源变化都触发复核；来源失效时 SourceRecord 进入 `requires_reselection`，关联任务进入 `failed_retryable`，要求用户重新选择来源，不能继续使用旧路径或旧 fingerprint。来源、图片和其他大对象只通过 opaque asset 引用进入 CaseDraft，SQLite 不保存内容本体。
+来源登记和 Legacy 快速解析前必须验证允许根、路径存在性、权限、链接安全性和报告核心结构；这条快速路径不执行完整目录 metadata/fingerprint。解析器自身读取的关键输入必须保持稳定，成功生成草稿后立即进入 `review_ready`。完整 metadata/fingerprint 作为独立的后置来源复核异步执行；复核失败只将 SourceRecord 标记为 `requires_reselection` 并提示重新选择，不回退已成功生成的草稿或案件生命周期。显式重试、来源替换和立即压缩仍须经过相应的完整来源门控。来源、图片和其他大对象只通过 opaque asset 引用进入 CaseDraft，SQLite 不保存内容本体。
 
 ## 4. 归档计划、稳定槽位和 Manifest
 
@@ -162,12 +168,29 @@ Layer 0 只定义 DTO 和错误合同，建议路由族如下；具体路径实�
 
 自动保存接口使用 `If-Match`/草稿 revision 或等价字段；案件字段双写接口必须分别返回 draft save 和 shared-default save 状态。任务状态可用短轮询起步，但状态源必须是后端任务记录，后续可替换为 SSE 而不改变 DTO。前端工作台只消费案件卡片 DTO，审核页按 `case_id` 加载完整草稿和租约，不保留第二份“正式顺序”，也不接触 SourceRecord 的绝对路径。
 
-Phase 1B 的实际 API 入口为 `/api/v1/workbench/*`：报告压缩包通过
-`POST /workbench/cases` 上传，服务先在部署实例 SQLite 中原子写入
-CaseShell、parse TaskRecord、SourceRecord 和提交审计，再用后台任务执行 Legacy
-解析；案件列表默认返回 6 个 opaque 卡片。详情返回 shell、可选 draft、SourceRecord
-摘要和 parse task；草稿保存使用 `expected_revision`，冲突返回 HTTP 409。归档执行、
-前端自动保存 Hook 和 6 卡片页面仍留在 Phase 1C/Phase 3 边界内。
+Phase 1B 的实际 API 入口为 `/api/v1/workbench/*`：工作台通过 JSON
+`POST /workbench/cases` 登记本机报告目录路径。服务使用
+`ArchiveAuthorizationService` 校验目录存在性、目录类型、授权根、访问权限和报告结构，
+并在部署实例 SQLite 中原子写入 CaseShell、parse TaskRecord、SourceRecord 和提交审计，
+再用后台任务执行 Legacy 解析；案件列表默认返回 6 个 opaque 卡片。绝对路径只保存在
+受控的部署实例 locator 文件中，SQLite 业务字段只保存 opaque locator/root 引用，公共
+DTO、任务、审计摘要、日志和错误消息不返回绝对路径。来源重新选择使用 JSON
+`source_path`，不接受工作台 ZIP/RAR 上传。
+
+解析成功后，`POST /workbench/cases/{case_id}/archive-decision` 以
+`expected_revision` 原子记录 `immediate` 或 `deferred`：`deferred` 持久化为
+`archive_deferred` 并在刷新后显示“暂未压缩”；`immediate` 持久化为
+`archive_queued`，创建 opaque Legacy preview source，并由现有 `/records/archive`
+显式压缩入口继续执行。该入口不引入 Phase 3 后台编排或伪造进度。解析失败只保留可重试
+卡片，不出现压缩询问。
+
+案件列表默认返回 6 个 opaque 卡片。详情返回 shell、可选 draft、SourceRecord
+摘要和 parse task；草稿保存使用 `expected_revision`，冲突返回 HTTP 409。Phase 1C
+前端通过案件工作台入口加载分页卡片，通过 `case_id` 加载独立详情，并以后端 revision
+保存草稿；自动保存、共享默认值和租约状态分别展示。
+旧前端 `RecordGeneratePage.tsx` 不再作为独立生产页面；`/electronic-inspection/generate`
+和 `/generate` 仅保留兼容重定向到案件工作台。后端 `/records/*` 继续保留 Legacy
+解析、归档和 Word 合同，不从工作台删除或改写正式 RAR、Manifest、Word 产物。
 
 ## 7. 模板注册和导出失效
 
@@ -202,12 +225,30 @@ CaseShell、parse TaskRecord、SourceRecord 和提交审计，再用后台任务
 
 每阶段提交前运行该阶段的类型、架构和定向测试；所有阶段完成后才考虑完整 Harness 门控，并按 `AGENTS.md` 在运行 `verify:full` 前询问执行者。
 
+### Phase 1C request liveness correction
+
+The workbench submission request performs only source authorization and bounded report-structure validation before atomically creating the CaseShell, parse Task, and pending SourceRecord. It MUST NOT attach Legacy parsing to FastAPI `BackgroundTasks` or wait for recursive source metadata/fingerprint work. A bounded in-process dispatcher starts the same Legacy `parse_report` path after the transaction; the fast path is `parse readiness -> Legacy Parser -> draft persistence -> review_ready`. Full source metadata/fingerprint verification starts only after `review_ready`, remains independent of the parse task lifecycle, and changes only SourceRecord status when it fails. The dispatcher deduplicates an active `(case_id, task_id)` and treats unhandled parse-worker exceptions as retryable task failures. Restart recovery continues to use the persisted `queued`/`running` to `failed_retryable`/`interrupted` contract.
+
 ## 10. 兼容策略与安全门控
 
 - 现有 `POST /records/parse`、`/records/archive`、`/records/export` 在迁移期间保留 Legacy DTO 适配；新工作台调用新路由并通过共享类型通信。
 - 归档阶段可把现有同步执行封装为一个可持久化任务 worker，先不重写 `ArchiveExecutionService` 的安全检查；完成一项门控才更新任务阶段。
 - WinRAR 进度能力必须在 Phase 3 前以 spike 验证。spike 未通过时，保留现有 Legacy 显式压缩路径，不能用新进度门控直接让现有压缩失效；断点续压和重连不作为迁移方案。
 - 预览沿用最近修复的轻量路径，不提前创建完整 `ArchiveContext`；完整 inventory、WinRAR 和 Manifest 仍只在明确归档动作后运行。
+
+## 11. Phase 1C 统一生产入口收敛
+
+案件工作台是“生成笔录”的主生产页面。案件详情页复用现有 `RecordEditorForm`、字段
+配置、日期时间校验、附件编辑器、预览数据构造和 `useRecordExport`，只把持久化
+`CaseDraft`、revision、编辑租约、来源状态和案件状态接入展示层。旧页面的上传/解析
+编排和 localStorage 默认值不再由工作台使用；共享默认值改由 `/workbench/defaults`
+持久化并单独显示保存结果。
+
+工作台编辑器必须覆盖 Legacy 审核字段、数据摘要、附件信息、图片编辑、表单校验、
+预览、正式 Word 导出和自定义下载文件名，但不复制旧页面的拥挤布局、混合上传流程或
+独立业务规则。旧前端生成地址只做兼容重定向，`/records/*` 后端兼容接口和正式输出
+安全门控保持不变。图片二进制继续遵循现有浏览器文件到导出调用的行为；CaseDraft
+只持久化结构化附件数据和 opaque 资产引用，不把图片内容写入 SQLite。
 - 归档上下文、Manifest、Word 和 RAR 的现有版本/指纹/路径变化/链接检查不能被“可恢复”接口绕开；解析缓存、案件草稿和模板校验结果不能充当正式证据。
 - SQLite 只保存业务 DTO、元数据和 opaque asset 引用；不保存 Base64 图片、完整 HTML、原始 JSON 集合或其他大对象。绝对路径只存在于后端受控 SourceRecord，不进入 API、日志和前端。
 - 不保存真实案件、人员、IMEI、序列号、本机路径、RAR、Manifest、DOCX 或运行输出到仓库；测试使用明确 `SYNTHETIC/TEST/FIXTURE` 数据。

@@ -119,12 +119,13 @@
 
 ## Requirement: SourceRecord 保护来源可访问性
 
-系统 MUST 为每个来源创建 SourceRecord，包含 opaque source_id、后端内部路径、允许根授权、source_type、case_id/task_id 绑定、metadata/fingerprint、访问状态和最近复核时间。API、日志和前端不得暴露绝对路径；来源失效时必须要求重新选择。
+系统 MUST 为每个工作台来源创建 SourceRecord，来源提交合同是本机报告目录路径而非 ZIP/RAR 或其他上传文件。后端 MUST 校验路径存在、是允许的目录类型、位于授权来源根、当前账户可访问且包含可识别报告结构，再保存 opaque source_id、允许根授权、source_type、case_id/task_id 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于受控后端 locator 中；API、卡片、草稿 DTO、任务 DTO、审计摘要、普通日志和 SQLite 公共字段不得暴露绝对路径；来源失效时必须要求重新选择目录。
 
 #### Scenario: 来源绑定和重启复核
 
-- **WHEN** 用户提交报告并创建解析任务
+- **WHEN** 用户提交经后端验证的报告目录并创建解析任务
 - **THEN** SourceRecord 绑定案件壳和 task_id，并保存允许根授权及 metadata/fingerprint
+- **AND** 为保证登记接口及时返回，递归 metadata/fingerprint 以 `pending` 状态延后到独立来源复核；快速解析任务只执行授权、目录结构和 Legacy Parser 所需的关键输入验证，并按 `Legacy Parser → 草稿持久化 → review_ready` 顺序完成。完整复核不得阻塞 Parser 或审核入口，复核失败只将 SourceRecord 标记为 `requires_reselection` 并提示重新选择，不撤销已成功生成的草稿。
 - **WHEN** 服务重启或任务恢复前访问来源
 - **THEN** 后端复核允许根、路径、权限、链接安全性和 fingerprint/metadata，失败则要求重新选择
 
@@ -133,6 +134,33 @@
 - **WHEN** API 返回错误、任务进度或审计日志
 - **THEN** 只使用 opaque ID、错误码和安全摘要
 - **AND** 不包含绝对路径、原始文件名集合或完整来源 JSON
+
+#### Scenario: 工作台拒绝上传文件和无效目录
+
+- **WHEN** 工作台请求使用 ZIP、RAR、普通文件、不存在目录、越界目录、无权限目录或结构无效目录
+- **THEN** 后端拒绝创建案件，并返回稳定原因码，不回显完整路径
+- **AND** 不复制整个报告目录到上传目录，也不把报告内容或完整文件列表写入 SQLite 公共数据
+
+## Requirement: 解析后压缩时机决策
+
+解析成功后系统 MUST 明确询问用户立即开始压缩或稍后压缩。决策 MUST 使用案件 shell revision 原子持久化；解析失败案件不得出现该询问。
+
+#### Scenario: 稍后压缩可恢复
+
+- **WHEN** 用户选择“稍后压缩”
+- **THEN** 案件和草稿生命周期持久化为 `archive_deferred`，页面显示“暂未压缩”
+- **AND** 刷新或后端重启后仍显示该状态，并可从案件操作区再次选择立即压缩
+
+#### Scenario: 立即压缩保持 Legacy 边界
+
+- **WHEN** 用户选择“立即开始压缩”
+- **THEN** 后端记录 `archive_queued` 并返回 opaque Legacy preview handle
+- **AND** 前端进入现有 Legacy 显式压缩入口，不显示伪造进度、不启动 Phase 3 后台编排
+
+#### Scenario: 解析失败不询问压缩
+
+- **WHEN** 目录解析失败
+- **THEN** 案件卡片保留失败和重试入口，但不得返回或显示压缩时机询问
 
 ## Requirement: 检材和人员顺序由案件权威数组驱动
 
@@ -289,3 +317,56 @@ SQLite MUST 只保存案件业务 DTO、任务/租约/版本/索引元数据、S
 - **WHEN** 本变更的案件、任务或模板流程运行
 - **THEN** 不启动 Shadow 真实样本治理，不调用 Canonical 作为正式输入
 - **AND** 未来比较只能在独立边界和明确开关下进行
+
+## Requirement: 案件工作台图片资产可持久化恢复
+
+工作台 MUST 将用户新增、替换和删除的图片绑定到 `case_id`，并将图片二进制保存到受控应用资产存储；CaseDraft、API 和日志 MUST 只保存 opaque 资产引用、指纹和安全元数据，不得保存 Base64、完整二进制或服务器绝对路径。
+
+#### Scenario: 上传成功后持久化并恢复
+
+- **WHEN** 用户在有效编辑租约下上传合法 JPG/JPEG/PNG
+- **THEN** 后端校验真实签名、扩展名、大小和案件配额，原子写入资产后返回 opaque 引用
+- **AND** 只有上传成功的引用才进入 CaseDraft，刷新、切换案件或重启后端仍能读取同一图片
+
+#### Scenario: 图片变更受租约和 revision 保护
+
+- **WHEN** 用户替换或删除图片
+- **THEN** 新资产成功写入后才替换旧引用，草稿使用 expected revision 保存，冲突不得静默覆盖另一会话
+- **AND** 只读或失效租约不能上传、替换或删除图片，未引用资产按宽限期安全清理
+
+#### Scenario: 图片读取失败阻止静默导出
+
+- **WHEN** 草稿引用的图片缺失、损坏或不属于当前案件
+- **THEN** 资产列表、预览或读取接口返回稳定可恢复错误，工作台提示重新上传
+- **AND** Word 预览/导出不得静默生成缺图结果，正式模板和 Legacy 输出规则保持不变
+
+## Requirement: 案件工作台承接完整生成笔录能力
+
+案件工作台 MUST be the primary production entry for electronic inspection records. It MUST
+use the same Legacy `InspectionReport` field contract, validation rules, date/time handling,
+attachment model, preview projection, and Word export mapping as the existing generation
+capability. The workbench presentation MAY reorganize the layout and add case status, autosave,
+lease, source, and multi-case controls, but MUST NOT maintain a simplified second editor.
+
+#### Scenario: 完整审核编辑器
+
+- **WHEN** a case reaches `review_ready`
+- **THEN** the workbench exposes all Legacy review fields, data summary, attachment information,
+  image editing controls, required/format validation, preview, formal Word export, and custom
+  download filename handling
+- **AND** the case draft, revision, and edit lease remain the write authority for the workbench
+
+#### Scenario: 统一入口和兼容路由
+
+- **WHEN** a user opens the old frontend generation URL
+- **THEN** the URL redirects to the workbench without exposing a competing upload/editor flow
+- **AND** backend `/records/*` compatibility contracts, Legacy Parser output, Word, Manifest,
+  and formal archive safety gates remain available and unchanged
+
+#### Scenario: 完整能力不退化工作台优化
+
+- **WHEN** the user switches cases, refreshes, loses a lease, or receives a source warning
+- **THEN** the workbench preserves its case-card status, autosave result, read-only warning,
+  source status, retry, and return-to-list experience
+- **AND** it does not reintroduce the old page's mixed archive-upload flow or duplicate field,
+  validation, attachment, or export rules

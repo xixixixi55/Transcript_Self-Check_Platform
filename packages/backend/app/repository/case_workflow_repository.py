@@ -18,12 +18,14 @@ from .workbench_serialization import (
     validate_opaque_id,
     validate_safe_string,
 )
+from .case_archive_decision_repository import CaseArchiveDecisionRepository
 
 class CaseWorkflowRepository:
     """Keep cross-record case/task/source changes in one SQLite transaction."""
 
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database
+        self.archive_decisions = CaseArchiveDecisionRepository(database)
 
     def create_submission(
         self, shell: Mapping[str, Any], task: Mapping[str, Any], source: Mapping[str, Any],
@@ -98,7 +100,7 @@ class CaseWorkflowRepository:
                 raise WorkbenchPersistenceError("INVALID_TASK_TRANSITION")
             if shell["lifecycle"] != "parsing":
                 raise WorkbenchPersistenceError("INVALID_STATE_TRANSITION")
-            if source is None or source[0] != "available":
+            if source is None or source[0] not in {"pending", "available"}:
                 raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
             _ensure_assets(connection, case_id, refs)
             connection.execute(
@@ -140,6 +142,9 @@ class CaseWorkflowRepository:
             )
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("INVALID_TASK_TRANSITION")
+
+    def decide_archive(self, case_id: str, decision: str, expected_revision: int) -> None:
+        self.archive_decisions.decide(case_id, decision, expected_revision)
     def retry_parse(self, case_id: str, task_id: str) -> None:
         now = utc_now()
         with self.database.transaction() as connection:

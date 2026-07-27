@@ -98,6 +98,23 @@ describe('RecordEditorForm', () => {
     fireEvent.click(screen.getByText('清除全部默认值'))
     expect(clearDefaults).toHaveBeenCalled()
   })
+
+  it('keeps the full editor controls when rendered by the case workbench', () => {
+    const saveDefaults = vi.fn()
+    render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
+      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
+      exportFileName="record.docx" customFileName={true} workbenchMode
+      onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()}
+      onSaveReportDefaults={saveDefaults} defaultDiscPrefix="SYN-" />)
+
+    expect(screen.getByText('审核编辑')).toBeTruthy()
+    expect(screen.getByTestId('evidence-editor')).toBeTruthy()
+    expect(screen.getByTestId('image-uploader')).toBeTruthy()
+    expect((screen.getByLabelText('导出文件名') as HTMLInputElement).disabled).toBe(false)
+    fireEvent.click(screen.getByText('保存当前六项为默认值'))
+    expect(saveDefaults).toHaveBeenCalledTimes(1)
+  })
+
   it('集成所有审核编辑区域和附件编辑器', () => {
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}

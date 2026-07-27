@@ -1,74 +1,23 @@
-import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
-import ReportUploadStep from './ReportUploadStep'
+import { describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { LegacyRedirect } from '../App'
 
-beforeAll(() => {
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => ({
-      matches: false, media: query, onchange: null,
-      addListener: vi.fn(), removeListener: vi.fn(),
-      addEventListener: vi.fn(), removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }),
-  })
-})
-
-function renderStep(overrides: Partial<React.ComponentProps<typeof ReportUploadStep>> = {}) {
-  const onClearReportCache = vi.fn().mockResolvedValue({ cleared_count: 2 })
-  render(
-    <ReportUploadStep
-      uploadMode="folder"
-      onModeChange={vi.fn()}
-      parsing={false}
-      result={null}
-      error={null}
-      errorCode={null}
-      onFolderUpload={vi.fn()}
-      onArchiveUpload={vi.fn().mockResolvedValue(false)}
-      onClearReportCache={onClearReportCache}
-      clearingCache={false}
-      {...overrides}
-    />,
-  )
-  return onClearReportCache
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="redirected-location">{location.pathname}{location.search}{location.hash}</output>
 }
 
-describe('ReportUploadStep parsing cache controls', () => {
-  it('requires confirmation and explains that the next parse is required', () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    const clear = renderStep()
-    fireEvent.click(screen.getByRole('button', { name: '清空解析缓存' }))
-
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('清空后下次需要重新解析报告'))
-    expect(clear).not.toHaveBeenCalled()
-    confirm.mockRestore()
-  })
-
-  it('calls the clear action after confirmation and shows success feedback', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const clear = renderStep({
-      cacheClearMessage: '已清理 2 条解析缓存。清空后下次需要重新解析报告。',
-    })
-    fireEvent.click(screen.getByRole('button', { name: '清空解析缓存' }))
-
-    expect(clear).toHaveBeenCalledTimes(1)
-    expect(screen.getByText(/已清理 2 条解析缓存/)).toBeTruthy()
-    vi.restoreAllMocks()
-  })
-
-  it('shows an actionable failure and prevents duplicate submission while busy', () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const clear = renderStep({
-      clearingCache: true,
-      cacheClearError: '解析缓存清理失败，请重试。',
-    })
-    const clearButton = screen.getByRole('button', { name: /清空解析缓存/ }) as HTMLButtonElement
-    expect(clearButton.disabled).toBe(true)
-    expect(screen.getByText('解析缓存清理失败，请重试。')).toBeTruthy()
-    fireEvent.click(clearButton)
-    expect(clear).not.toHaveBeenCalled()
-    confirm.mockRestore()
+describe('legacy generation entry compatibility', () => {
+  it('is represented by the workbench redirect instead of an upload UI', () => {
+    render(
+      <MemoryRouter initialEntries={['/electronic-inspection/generate?source=legacy#review']}>
+        <Routes>
+          <Route path="/electronic-inspection/generate" element={<LegacyRedirect to="/electronic-inspection/workbench" />} />
+          <Route path="/electronic-inspection/workbench" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByTestId('redirected-location').textContent).toBe('/electronic-inspection/workbench?source=legacy#review')
   })
 })

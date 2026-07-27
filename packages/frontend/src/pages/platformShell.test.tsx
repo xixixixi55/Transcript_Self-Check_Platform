@@ -44,7 +44,7 @@ function getModuleExpandedState() {
 describe('platform shell navigation', () => {
   it('在业务子页面显示一级导航和展开的二级导航', () => {
     render(
-      <MemoryRouter initialEntries={['/electronic-inspection/generate']}>
+      <MemoryRouter initialEntries={['/electronic-inspection/workbench']}>
         <PlatformSidebar collapsed={false} onToggle={vi.fn()} />
       </MemoryRouter>,
     )
@@ -52,7 +52,8 @@ describe('platform shell navigation', () => {
     expect(screen.getByText('首页')).toBeTruthy()
     expect(screen.getByText('电子数据检查笔录')).toBeTruthy()
     expect(screen.getByText('模块首页')).toBeTruthy()
-    expect(screen.getByText('生成笔录')).toBeTruthy()
+    expect(screen.getByText('案件工作台')).toBeTruthy()
+    expect(screen.queryByText('生成笔录')).toBeNull()
     expect(screen.getByText('电子设备管理')).toBeTruthy()
     expect(screen.getAllByText('暂未开放')).toHaveLength(5)
   })
@@ -170,11 +171,12 @@ describe('platform home', () => {
 })
 
 describe('electronic inspection module', () => {
-  it('展示两个真实的二级功能入口', () => {
+  it('展示统一工作台和设备管理入口', () => {
     render(<MemoryRouter><ElectronicInspectionModulePage /></MemoryRouter>)
-    expect(document.querySelector('a[href="/electronic-inspection/generate"]')).toBeTruthy()
+    expect(document.querySelector('a[href="/electronic-inspection/workbench"]')).toBeTruthy()
     expect(document.querySelector('a[href="/electronic-inspection/devices"]')).toBeTruthy()
-    expect(screen.getByText('生成笔录')).toBeTruthy()
+    expect(screen.getByText('案件工作台')).toBeTruthy()
+    expect(screen.queryByText('生成笔录')).toBeNull()
     expect(screen.getByText('电子设备管理')).toBeTruthy()
   })
 })
@@ -184,12 +186,12 @@ describe('legacy routes', () => {
     render(
       <MemoryRouter initialEntries={['/generate?case=1#review']}>
         <Routes>
-          <Route path="/generate" element={<LegacyRedirect to="/electronic-inspection/generate" />} />
-          <Route path="/electronic-inspection/generate" element={<RedirectLocationProbe />} />
+          <Route path="/generate" element={<LegacyRedirect to="/electronic-inspection/workbench" />} />
+          <Route path="/electronic-inspection/workbench" element={<RedirectLocationProbe />} />
         </Routes>
       </MemoryRouter>,
     )
-    expect(screen.getByTestId('redirected-location').textContent).toBe('/electronic-inspection/generate?case=1#review')
+    expect(screen.getByTestId('redirected-location').textContent).toBe('/electronic-inspection/workbench?case=1#review')
   })
 
   it('重定向旧设备地址', () => {

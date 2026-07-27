@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -12,7 +14,9 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
+from app.repository.archive_authorization_repository import ArchiveAuthorizationError  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
@@ -40,13 +44,41 @@ def database(tmp_path: Path) -> WorkbenchDatabase:
     return WorkbenchDatabase(database_path_for_deployment(tmp_path, "SYNTHETIC-DEPLOYMENT"), "SYNTHETIC-DEPLOYMENT")
 
 
-def make_services(database: WorkbenchDatabase, parser):
-    cases = CaseDraftService(database, parser=parser)
+def make_report_directory(tmp_path: Path, name: str = "SYNTHETIC-REPORT") -> Path:
+    report_dir = tmp_path / "SYNTHETIC-ALLOWED-ROOT" / name
+    data_dir = report_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "data_case_info.json").write_text(
+        json.dumps({"contents": []}), encoding="utf-8",
+    )
+    (data_dir / "data_device_lists.json").write_text(
+        json.dumps({"contents": [{"c3": "SYNTHETIC-2026-01-01"}]}), encoding="utf-8",
+    )
+    (data_dir / "data_report_info.json").write_text(
+        json.dumps({"contents": []}), encoding="utf-8",
+    )
+    return report_dir
+
+
+def make_source_service(database: WorkbenchDatabase, tmp_path: Path) -> SourceRecordService:
+    allowed_root = tmp_path / "SYNTHETIC-ALLOWED-ROOT"
+    output_root = tmp_path / "SYNTHETIC-OUTPUT-ROOT"
+    allowed_root.mkdir(exist_ok=True)
+    output_root.mkdir(exist_ok=True)
+    return SourceRecordService(
+        database,
+        ArchiveAuthorizationService(str(allowed_root), str(output_root)),
+    )
+
+
+def make_services(database: WorkbenchDatabase, parser, source_service: SourceRecordService):
+    cases = CaseDraftService(database, parser=parser, source_service=source_service)
     return cases, CaseLifecycleService(database)
 
 
-def source_descriptor(database: WorkbenchDatabase, tmp_path: Path) -> dict:
-    return SourceRecordService(database).store_uploaded_archive(b"SYNTHETIC/TEST/archive", ".zip")
+def source_descriptor(source_service: SourceRecordService, tmp_path: Path, name: str = "SYNTHETIC-REPORT") -> tuple[dict, Path]:
+    report_dir = make_report_directory(tmp_path, name)
+    return source_service.register_report_directory(str(report_dir)), report_dir
 
 
 def test_submit_persists_shell_and_task_before_parse(database, tmp_path):
@@ -56,8 +88,10 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path):
         calls.append((path, output))
         return {"report": copy.deepcopy(REPORT)}
 
-    cases, lifecycle = make_services(database, parser)
-    identifiers = cases.submit(source_descriptor(database, tmp_path), case_name="SYNTHETIC-CASE")
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(database, parser, source_service)
+    descriptor, report_dir = source_descriptor(source_service, tmp_path)
+    identifiers = cases.submit(descriptor, case_name="SYNTHETIC-CASE")
     queued = lifecycle.detail(identifiers["case_id"])
     assert queued["shell"]["lifecycle"] == "parse_queued"
     assert queued["parse_task"]["status"] == "queued"
@@ -67,7 +101,31 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path):
     assert ready["shell"]["lifecycle"] == "review_ready"
     assert ready["parse_task"]["status"] == "succeeded"
     assert ready["draft"]["report"] == REPORT
-    assert calls and calls[0][0].suffix == ".zip"
+    assert calls and Path(calls[0][0]) == report_dir
+
+
+def test_case_detail_retries_a_mixed_parse_completion_snapshot(database, tmp_path, monkeypatch):
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+    original_get = lifecycle.shells.get
+    calls = {"count": 0}
+
+    def mixed_shell(case_id):
+        calls["count"] += 1
+        value = original_get(case_id)
+        if calls["count"] == 1:
+            return {**value, "lifecycle": "parsing", "report_available": False, "revision": value["revision"] - 1}
+        return value
+
+    monkeypatch.setattr(lifecycle.shells, "get", mixed_shell)
+    detail = lifecycle.detail(identifiers["case_id"])
+
+    assert calls["count"] >= 3
+    assert detail["shell"]["lifecycle"] == "review_ready"
+    assert detail["parse_task"]["status"] == "succeeded"
+    assert detail["draft"] is not None
 
 
 def test_parse_failure_retains_retryable_case_and_retry(database, tmp_path):
@@ -79,8 +137,10 @@ def test_parse_failure_retains_retryable_case_and_retry(database, tmp_path):
             raise ValueError("SYNTHETIC private path failure")
         return {"report": copy.deepcopy(REPORT)}
 
-    cases, lifecycle = make_services(database, parser)
-    identifiers = cases.submit(source_descriptor(database, tmp_path))
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(database, parser, source_service)
+    descriptor, _ = source_descriptor(source_service, tmp_path)
+    identifiers = cases.submit(descriptor)
     cases.run_parse_task(**identifiers)
     failed = lifecycle.detail(identifiers["case_id"])
     assert failed["shell"]["lifecycle"] == "parse_failed_retryable"
@@ -92,10 +152,11 @@ def test_parse_failure_retains_retryable_case_and_retry(database, tmp_path):
 
 
 def test_invalid_source_requires_reselection_without_exposing_locator(database, tmp_path):
-    descriptor = source_descriptor(database, tmp_path)
-    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)})
+    source_service = make_source_service(database, tmp_path)
+    descriptor, report_dir = source_descriptor(source_service, tmp_path)
+    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)
     identifiers = cases.submit(descriptor)
-    descriptor["cleanup_path"].unlink()
+    shutil.rmtree(report_dir)
     cases.run_parse_task(**identifiers)
     detail = lifecycle.detail(identifiers["case_id"])
     assert detail["source"]["access_status"] == "requires_reselection"
@@ -104,19 +165,20 @@ def test_invalid_source_requires_reselection_without_exposing_locator(database, 
 
 
 def test_source_replacement_requires_case_revision_and_rebinds_opaque_source(database, tmp_path):
-    descriptor = source_descriptor(database, tmp_path)
-    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)})
+    source_service = make_source_service(database, tmp_path)
+    descriptor, _ = source_descriptor(source_service, tmp_path)
+    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)
     identifiers = cases.submit(descriptor)
     cases.run_parse_task(**identifiers)
     current = lifecycle.detail(identifiers["case_id"])
-    replacement = SourceRecordService(database)
+    replacement_dir = make_report_directory(tmp_path, "SYNTHETIC-REPLACEMENT")
     with pytest.raises(WorkbenchPersistenceError) as conflict:
-        replacement.replace_case_source(
-            identifiers["case_id"], b"SYNTHETIC/TEST/new", ".zip", current["shell"]["revision"] - 1
+        source_service.replace_case_source(
+            identifiers["case_id"], str(replacement_dir), current["shell"]["revision"] - 1
         )
     assert conflict.value.code == "REVISION_CONFLICT"
-    updated = replacement.replace_case_source(
-        identifiers["case_id"], b"SYNTHETIC/TEST/new", ".zip", current["shell"]["revision"]
+    updated = source_service.replace_case_source(
+        identifiers["case_id"], str(replacement_dir), current["shell"]["revision"]
     )
     assert updated["source_id"] != identifiers["source_id"]
     assert updated["access_status"] == "available"
@@ -124,8 +186,9 @@ def test_source_replacement_requires_case_revision_and_rebinds_opaque_source(dat
 
 
 def test_revision_conflict_and_dual_save_partial_failure_are_visible(database, tmp_path):
-    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)})
-    identifiers = cases.submit(source_descriptor(database, tmp_path))
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
     cases.run_parse_task(**identifiers)
     draft = lifecycle.detail(identifiers["case_id"])["draft"]
     saved = lifecycle.save_draft({"case_id": identifiers["case_id"], "report": REPORT, "field_states": draft["field_states"], "asset_refs": [], "lifecycle": "review_ready"}, 1, {"document_number": "C:\\SYNTHETIC\\forbidden"}, 0, IDENTITY)
@@ -137,8 +200,9 @@ def test_revision_conflict_and_dual_save_partial_failure_are_visible(database, t
 
 
 def test_restart_recovery_is_interrupted_and_not_success(database, tmp_path):
-    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)})
-    identifiers = cases.submit(source_descriptor(database, tmp_path))
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
     cases.workflow.start_parse(identifiers["case_id"], identifiers["task_id"])
     interrupted = TaskRecordService(database).recover_after_restart()
     detail = lifecycle.detail(identifiers["case_id"])
@@ -148,8 +212,9 @@ def test_restart_recovery_is_interrupted_and_not_success(database, tmp_path):
 
 
 def test_lease_takeover_is_audited_and_delete_preflight_blocks_active_work(database, tmp_path):
-    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)})
-    identifiers = cases.submit(source_descriptor(database, tmp_path))
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
     lease_service = EditLeaseService(database)
     first = lease_service.acquire(identifiers["case_id"], IDENTITY)
     with pytest.raises(WorkbenchPersistenceError) as conflict:
@@ -160,3 +225,62 @@ def test_lease_takeover_is_audited_and_delete_preflight_blocks_active_work(datab
     assert "ACTIVE_OR_RETRYABLE_TASK" in blocked["blockers"]
     assert "ACTIVE_EDIT_LEASE" in blocked["blockers"]
     assert first["lease_token"] not in str(blocked)
+
+
+def test_directory_source_rejects_archives_outside_roots_and_invalid_structure(database, tmp_path):
+    source_service = make_source_service(database, tmp_path)
+    archive_path = tmp_path / "SYNTHETIC-REPORT.zip"
+    archive_path.write_bytes(b"SYNTHETIC/TEST/ARCHIVE")
+    with pytest.raises(WorkbenchPersistenceError) as archive_error:
+        source_service.register_report_directory(str(archive_path))
+    assert archive_error.value.code == "SOURCE_ARCHIVE_NOT_ALLOWED"
+
+    outside = tmp_path / "SYNTHETIC-OUTSIDE" / "report"
+    outside.mkdir(parents=True)
+    with pytest.raises(ArchiveAuthorizationError) as root_error:
+        source_service.register_report_directory(str(outside))
+    assert root_error.value.code == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
+
+    invalid = tmp_path / "SYNTHETIC-ALLOWED-ROOT" / "SYNTHETIC-INVALID"
+    invalid.mkdir(parents=True)
+    with pytest.raises(WorkbenchPersistenceError) as structure_error:
+        source_service.register_report_directory(str(invalid))
+    assert structure_error.value.code == "SOURCE_STRUCTURE_INVALID"
+
+
+def test_archive_decision_persists_deferred_then_allows_explicit_legacy_start(database, tmp_path):
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+    ready = lifecycle.detail(identifiers["case_id"])
+
+    deferred = lifecycle.decide_archive(
+        identifiers["case_id"], "deferred", ready["shell"]["revision"], IDENTITY,
+    )
+    assert deferred["shell"]["lifecycle"] == "archive_deferred"
+    assert deferred["draft"]["lifecycle"] == "archive_deferred"
+
+    immediate = lifecycle.decide_archive(
+        identifiers["case_id"], "immediate", deferred["shell"]["revision"], IDENTITY,
+    )
+    assert immediate["shell"]["lifecycle"] == "archive_queued"
+    assert immediate["draft"]["lifecycle"] == "archive_queued"
+
+
+def test_source_locator_is_not_written_to_public_sqlite_fields(database, tmp_path):
+    source_service = make_source_service(database, tmp_path)
+    descriptor, report_dir = source_descriptor(source_service, tmp_path)
+    cases = CaseDraftService(database, source_service=source_service)
+    cases.submit(descriptor)
+    connection = database.connect()
+    try:
+        raw = connection.execute(
+            "SELECT internal_path, allowed_root FROM source_records WHERE source_id = ?",
+            (descriptor["source_id"],),
+        ).fetchone()
+    finally:
+        connection.close()
+    assert raw["internal_path"].startswith("locator://")
+    assert raw["allowed_root"].startswith("root://")
+    assert str(report_dir) not in json.dumps(dict(raw))

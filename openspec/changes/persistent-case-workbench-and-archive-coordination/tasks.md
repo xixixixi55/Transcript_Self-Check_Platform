@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1A 已在基线提交完成，本轮完成 Phase 1B，1C–1D 及后续阶段仍未开始。
+> 本文件定义后续实现顺序；Phase 1A/1B 已在基线提交完成，本轮完成 Phase 1C，1D 及后续阶段仍未开始。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -29,8 +29,9 @@
 
 ### Layer 10/11/12 — Frontend Workbench
 
-- [ ] **T003** 新增 `packages/frontend/src/hooks/useCaseWorkbench.ts`、`useCaseDraftAutosave.ts`、`useEditLease.ts`、`useTaskRecords.ts`；新增 `CaseWorkbenchPage.tsx`、`CaseCard.tsx`、`CaseStatusBadge.tsx`，改造 `RecordGeneratePage.tsx` 按 `case_id` 加载案件壳/草稿，显示排队、解析中和失败卡片。
-- [ ] **T003T** 新增对应 Hook/组件测试，并在 `tests/e2e/` 增加合成工作台场景；覆盖提交即建壳、刷新恢复、每页 6 卡片、切换案件、草稿/共享默认值分别提示、租约警告和失败重试展示。验证：Vitest + RTL；E2E 使用合成数据。
+- [x] **T003** 新增 `useCaseWorkbench.ts`、`useCaseDraftAutosave.ts`、`useEditLease.ts`、`useTaskRecords.ts` 和案件工作台/案件编辑页面；以 `case_id` 加载案件壳/草稿，显示排队、解析中和失败卡片。工作台来源使用授权报告目录路径登记，不接受压缩包上传；解析成功后提供立即/稍后压缩决策。草稿保存使用 revision，租约使用后端心跳、失效和强制接管合同；旧前端生成地址只保留兼容重定向，后端 `/records/*` 合同继续保留。
+- [x] **T003T** 新增工作台页面、自动保存、租约 Hook 和压缩决策的合成 Vitest/RTL 测试，覆盖提交即建壳卡片、每页 6 卡片、分页、目录路径提交、无上传控件、API 失败、保存冲突、网络失败保留输入、租约释放和只读占用。项目当前没有可执行 Playwright/E2E harness，因此快速切换/刷新恢复通过请求序列保护实现，并列入人工验收；测试数据均使用 `SYNTHETIC/TEST` 标记。
+- [x] **T003F** 完成统一生产入口融合：案件详情复用 Legacy `RecordEditorForm` 的完整字段、日期时间校验、附件编辑、预览和 Word 导出映射；工作台补齐自定义下载文件名、检查人员加载和后端共享默认值保存，并保留案件状态、来源、租约、自动保存和多案件 UI 优化。旧 `RecordGeneratePage.tsx` 与报告压缩包上传入口停用，旧前端地址重定向到工作台。
 
 ### Layer 20 — Persistence Repositories
 
@@ -39,19 +40,27 @@
 
 ### Layer 21 — Services
 
-- [x] **T005** 新增 `packages/backend/app/services/case_draft_service.py`、`shared_defaults_service.py`、`edit_lease_service.py`、`task_record_service.py`、`source_record_service.py` 和 `case_lifecycle_service.py`；实现提交即建壳、解析成功/失败/重试、report > system_default > pending 初始化、双写分别返回、15 秒续租、2 分钟接管前提、ClientIdentity 审计、重启 interrupted、来源重新选择、只清理本系统解析 staging 的服务边界。`localStorage` 迁移入口保留为一次性、可审计的 defaults API；本轮不实现前端迁移 Hook。
+- [x] **T005** 新增 `packages/backend/app/services/case_draft_service.py`、`shared_defaults_service.py`、`edit_lease_service.py`、`task_record_service.py`、`source_record_service.py` 和 `case_lifecycle_service.py`；实现目录来源授权/结构验证、提交即建壳、解析成功/失败/重试、report > system_default > pending 初始化、双写分别返回、15 秒续租、2 分钟接管前提、ClientIdentity 审计、重启 interrupted、来源重新选择、立即/稍后压缩决策和只清理本系统解析 staging 的服务边界。共享默认值以 `/workbench/defaults` 为正式持久化来源，工作台不使用 localStorage 作为案件或默认值事实源。
 - [x] **T005T** 新增对应 service 测试；覆盖解析失败不可审核、来源失效/重新选择、普通编辑互斥、强制接管、默认值双写部分失败、重启中断、活跃任务删除前阻止和 revision 冲突。非自有进程终止不在本阶段调用，后台归档执行仍未实现。
 
 ### Layer 22/23 — Controllers and Routes
 
-- [x] **T006** 新增 `packages/backend/app/controllers/workbench_controller.py`、`defaults_controller.py`、`lease_controller.py`、`source_controller.py` 和 `packages/backend/app/routes/workbench_routes.py`；提供上传提交建壳、案件分页/详情、草稿补丁、默认值迁移与读写、任务状态/取消、租约读写、来源复核/重新选择和删除前检查 API，保留现有 `/records/*`。
-- [x] **T006T** 新增 controller/route 测试；用 httpx 合成请求验证提交即建壳、分页、版本冲突 409、双写状态、租约互斥、来源路径隔离、任务状态、删除阻止和错误响应不泄露路径。
+- [x] **T006** 新增 `packages/backend/app/controllers/workbench_controller.py`、`defaults_controller.py`、`lease_controller.py`、`source_controller.py` 和 `packages/backend/app/routes/workbench_routes.py`；提供报告目录路径登记、案件分页/详情、草稿补丁、默认值迁移与读写、任务状态/取消、租约读写、来源复核/重新选择、压缩时机决策和删除前检查 API，保留现有 Legacy `/records/*` 上传边界。
+- [x] **T006T** 新增 controller/route 测试；用 httpx 合成请求验证目录授权/结构错误、提交即建壳、分页、版本冲突 409、双写状态、租约互斥、压缩决策、来源路径隔离、任务状态、删除阻止和错误响应不泄露路径。
+
+### 1C-IMAGE-ASSETS
+
+- [x] 为案件图片增加受控二进制存储、opaque asset API、签名/扩展名/容量校验、租约保护、原子落盘、恢复、损坏阻止和孤立资产清理；CaseDraft 只保存资产引用。
+- [x] 工作台编辑器使用持久化图片 Hook，上传成功后才更新草稿引用；切换、刷新和后端重启后恢复，删除/替换遵循 revision，预览和正式 Word 导出读取资产接口。
+- [x] 增加后端资产 API/Service/Repository 与前端 Hook 测试，覆盖恢复、跨案件隔离、租约、revision、损坏/超限拒绝、清理和错误不泄露路径。
 
 ### Phase 1 internal gates
 
+- [x] **1C-LIVENESS** 工作台登记只在 HTTP 请求内完成来源授权/结构门控和 CaseShell/parse Task 持久化；解析执行器复用 Legacy `parse_report`，按“快速来源门控 → Parser → 草稿落库 → `review_ready`”运行，完整 SourceRecord metadata/fingerprint 在 `review_ready` 后独立复核。提交响应和审核入口不得等待完整扫描，解析执行器异常必须落为 `failed_retryable`，来源复核失败只要求重新选择来源；同一 task 不得重复执行，保留重启后的 `interrupted`/可重试恢复合同。
+
 - [x] **1A — SharedTypes、SQLite schema/migration、Repositories**：案件壳/草稿、SourceRecord、ClientIdentity、双写结果、opaque asset 引用和 SQLite 大对象拒绝规则可持久化、迁移、回滚。
 - [x] **1B — Services 和 API**：提交即建壳、解析失败/重试、来源复核与重新选择、解析/默认优先级、草稿/共享默认值双写、interrupted 重启语义和删除前置条件可通过 API 表达；定向后端回归 52 passed，保留既知配置 warning。
-- [ ] **1C — 工作台、自动保存和租约**：6 卡片分页、排队/解析中/失败状态、自动保存、15 秒心跳、2 分钟接管警告和分别显示保存结果。
+- [x] **1C — 工作台、自动保存和租约**：6 卡片分页、排队/解析中/失败状态、自动保存、15 秒心跳、2 分钟接管警告和分别显示保存结果；定向前端测试通过，保留 Legacy 输出链路。
 - [ ] **1D — 刷新/重启恢复、兼容回归和人工验收**：不自动接管 WinRAR；只清理自有进程/staging；不信任半成品 RAR/Manifest；Legacy 解析/归档/Manifest/Word 回归通过并完成人工验收。
 
 ### Phase 1 gate
@@ -71,7 +80,7 @@
 
 ### Layer 10/11/12 — Review UI and export name
 
-- [ ] **T008** 改造 `packages/frontend/src/components/EvidenceEditor.tsx`、`InspectorEditor.tsx` 为拖拽/卡片交互；新增 `FieldProvenanceBadge.tsx`、`ReviewSourceLegend.tsx`、`WordDownloadNameDialog.tsx`；改造 `RecordGeneratePage.tsx` 和 `useRecordExport.ts` 使用案件保存合同。
+- [ ] **T008** 改造 `packages/frontend/src/components/EvidenceEditor.tsx`、`InspectorEditor.tsx` 为拖拽/卡片交互；新增 `ReviewSourceLegend.tsx`、`WordDownloadNameDialog.tsx` 等 Phase 2 顺序/来源能力，不再创建独立的工作台字段、校验、附件或导出实现。
 - [ ] **T008T** 为上述组件和 Hook 增加 RTL/E2E 测试；覆盖拖拽顺序持久化、姓名/单位/警号三字段人员卡片、来源颜色与文字提示、Word 每次弹窗、取消不导出和非法名称拒绝。
 
 ### Layer 20/21 — Ordered snapshots and provenance persistence
@@ -173,7 +182,7 @@
 
 ### Layer 10/11/12 — Integrated workbench UI
 
-- [ ] **T021** 完成 `packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`RecordGeneratePage.tsx`、`ReviewActionBar.tsx` 与任务、模板、来源和清理状态的整合；补充错误边界，不增加 Canonical/Shadow 正式调用。
+- [ ] **T021** 完成案件工作台与任务、模板、来源和清理状态的后续整合；补充错误边界，不重新引入独立生成页面，也不增加 Canonical/Shadow 正式调用。
 - [ ] **T021T** 增加 `tests/e2e/persistent-case-workbench.spec.ts`；使用合成多案件、多任务和合成模板覆盖刷新/重启、6 卡片分页、切换案件、唯一租约、取消后删除、顺序一致、来源状态、真实进度、模板切换和产物保护。
 
 ### Layer 20/21 — Cleanup and recovery services

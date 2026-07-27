@@ -1,4 +1,4 @@
-"""Source authorization, opaque storage and restart-time revalidation."""
+"""Directory-source authorization, opaque persistence and revalidation."""
 
 from __future__ import annotations
 
@@ -8,45 +8,70 @@ import secrets
 from pathlib import Path
 from typing import Any
 
+from ..config import OUTPUT_BASE, UPLOAD_BASE
+from ..repository.archive_authorization_repository import AuthorizedInputRoot
 from ..repository.case_workbench_repository import CaseShellRepository
+from ..repository.source_locator_repository import SourceLocatorRepository
 from ..repository.source_record_repository import SourceRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
+from ..repository.report_format_adapter import ReportFormatError, require_supported_report_format
+from .archive_authorization_service import ArchiveAuthorizationService
 
 
 class SourceRecordService:
-    def __init__(self, database: WorkbenchDatabase) -> None:
+    def __init__(
+        self,
+        database: WorkbenchDatabase,
+        authorization: ArchiveAuthorizationService | None = None,
+    ) -> None:
         self.database = database
         self.repository = SourceRecordRepository(database)
+        self.locators = SourceLocatorRepository(database)
+        self.authorization = authorization or ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
 
-    def store_uploaded_archive(self, content: bytes, suffix: str) -> dict[str, Any]:
-        if not isinstance(content, bytes) or not content:
-            raise WorkbenchPersistenceError("SOURCE_EMPTY")
-        normalized_suffix = suffix.casefold()
-        if normalized_suffix not in {".rar", ".zip"}:
-            raise WorkbenchPersistenceError("SOURCE_TYPE_UNSUPPORTED")
+    _PENDING_FINGERPRINT_PREFIX = "pending:"
+
+    def register_report_directory(
+        self, report_dir: str, grant_token: str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(report_dir, str) or not report_dir.strip():
+            raise WorkbenchPersistenceError("SOURCE_DIRECTORY_REQUIRED")
+        candidate = Path(report_dir)
+        if candidate.is_file():
+            if candidate.suffix.casefold() in {".rar", ".zip"}:
+                raise WorkbenchPersistenceError("SOURCE_ARCHIVE_NOT_ALLOWED")
+            raise WorkbenchPersistenceError("SOURCE_DIRECTORY_REQUIRED")
+        authorized = self.authorization.authorize_report_directory(report_dir, grant_token=grant_token)
+        self._validate_report_structure(authorized.resolved_input_root)
         source_id = _opaque_id("source")
-        root = self.database.database_path.parent / "sources"
-        root.mkdir(parents=True, exist_ok=True)
-        path = root / f"{source_id}{normalized_suffix}"
-        path.write_bytes(content)
-        stat = path.stat()
+        allowed_root = authorized.authorized_scope or authorized.resolved_input_root.parent
+        try:
+            metadata = _directory_summary(authorized.resolved_input_root)
+            self.locators.save(source_id, str(authorized.resolved_input_root), str(allowed_root))
+        except OSError as error:
+            self.locators.remove(source_id)
+            raise WorkbenchPersistenceError("SOURCE_ACCESS_DENIED") from error
         return {
             "source_id": source_id,
-            "source_type": "report_archive",
-            "internal_path": str(path),
-            "allowed_root": str(root),
-            "allowed_root_id": _opaque_id("root"),
-            "metadata": {"size_bytes": int(stat.st_size), "modified_time_ns": int(stat.st_mtime_ns)},
-            "fingerprint": _fingerprint(path),
-            "cleanup_path": path,
+            "source_type": "report_directory",
+            "internal_path": f"locator://{source_id}",
+            "allowed_root": f"root://{authorized.authorized_root_id}",
+            "allowed_root_id": authorized.authorized_root_id,
+            "metadata": metadata,
+            "fingerprint": f"{self._PENDING_FINGERPRINT_PREFIX}{source_id}",
+            "cleanup_path": None,
+            "locator_id": source_id,
         }
 
     def get(self, source_id: str) -> dict[str, Any]:
         return self.repository.get(source_id)
 
-    def replace_case_source(self, case_id: str, content: bytes, suffix: str, expected_revision: int) -> dict[str, Any]:
-        descriptor = self.store_uploaded_archive(content, suffix)
+    def replace_case_source(
+        self, case_id: str, report_dir: str, expected_revision: int,
+        grant_token: str | None = None,
+    ) -> dict[str, Any]:
+        descriptor = self.register_report_directory(report_dir, grant_token)
         committed = False
         try:
             shell = CaseShellRepository(self.database).get(case_id)
@@ -57,16 +82,37 @@ class SourceRecordService:
             return self.repository.get(result["source_id"])
         except Exception:
             if not committed:
-                self.remove_unbound_file(descriptor)
+                self.remove_unbound_source(descriptor)
             raise
 
     def revalidate(self, source_id: str) -> dict[str, Any]:
+        record = self.repository.get(source_id)
+        if (
+            record["access_status"] == "pending"
+            and str(record.get("fingerprint", "")).startswith(self._PENDING_FINGERPRINT_PREFIX)
+        ):
+            return self._activate_pending(source_id)
         try:
             locator = self.repository.get_internal_locator(source_id)
-            current = _fingerprint(Path(locator["internal_path"]))
-        except (OSError, ValueError, WorkbenchPersistenceError):
+            path = Path(locator["internal_path"])
+            if self.repository.get(source_id)["source_type"] == "report_directory":
+                self._validate_report_structure(path)
+            current = _fingerprint(path)
+        except (OSError, ValueError, ReportFormatError, WorkbenchPersistenceError):
             current = None
         return self.repository.revalidate(source_id, current_fingerprint=current)
+
+    def _activate_pending(self, source_id: str) -> dict[str, Any]:
+        try:
+            locator = self.repository.get_internal_locator(source_id)
+            path = Path(locator["internal_path"])
+            _validate_pending_locator(path, Path(locator["allowed_root"]))
+            self._validate_report_structure(path)
+            metadata = _directory_metadata(path)
+            fingerprint = _fingerprint(path)
+            return self.repository.activate_pending(source_id, metadata, fingerprint)
+        except (OSError, ValueError, ReportFormatError, WorkbenchPersistenceError):
+            return self.repository.revalidate(source_id, current_fingerprint=None)
 
     def require_available(self, source_id: str) -> dict[str, Any]:
         result = self.revalidate(source_id)
@@ -74,17 +120,88 @@ class SourceRecordService:
             raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
         return result
 
-    def internal_path(self, source_id: str) -> Path:
-        result = self.repository.get_internal_locator(source_id)
-        return Path(result["internal_path"])
+    def require_parse_ready(self, source_id: str) -> dict[str, Any]:
+        """Validate only the authorized report inputs needed by the Legacy Parser.
 
-    def remove_unbound_file(self, descriptor: dict[str, Any]) -> None:
-        path = descriptor.get("cleanup_path")
-        if isinstance(path, Path):
+        Full metadata and content fingerprinting belongs to explicit source
+        revalidation/archive preparation and must not delay review readiness.
+        """
+        record = self.repository.get(source_id)
+        if record["access_status"] in {"invalid", "requires_reselection"}:
+            raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
+        try:
+            locator = self.repository.get_internal_locator(source_id)
+            path = Path(locator["internal_path"])
+            _validate_pending_locator(path, Path(locator["allowed_root"]))
+            if record["source_type"] == "report_directory":
+                self._validate_report_structure(path)
+        except (OSError, ValueError, ReportFormatError, WorkbenchPersistenceError) as error:
+            self.repository.revalidate(source_id, current_fingerprint=None)
+            raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED") from error
+        return record
+
+    def verify_after_parse(self, source_id: str) -> dict[str, Any]:
+        """Run the deferred full source verification without changing case state."""
+        try:
+            return self.revalidate(source_id)
+        except Exception:
             try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                pass
+                return self.repository.revalidate(source_id, current_fingerprint=None)
+            except WorkbenchPersistenceError:
+                return {"source_id": source_id, "access_status": "requires_reselection"}
+
+    def internal_path(self, source_id: str) -> Path:
+        return Path(self.repository.get_internal_locator(source_id)["internal_path"])
+
+    def create_legacy_preview_source(self, case_id: str) -> str:
+        """Create only an opaque runtime handle for the existing Legacy archive entry."""
+        from .archive_source_runtime_service import create_preview_source
+
+        shell = CaseShellRepository(self.database).get(case_id)
+        source = self.require_available(shell["source_id"])
+        locator = self.repository.get_internal_locator(source["source_id"])
+        authorized = AuthorizedInputRoot(
+            Path(locator["internal_path"]), "configured_root", source["allowed_root_id"], Path(locator["allowed_root"]),
+        )
+        return create_preview_source(authorized)
+
+    def remove_unbound_source(self, descriptor: dict[str, Any]) -> None:
+        locator_id = descriptor.get("locator_id")
+        if isinstance(locator_id, str):
+            self.locators.remove(locator_id)
+
+    def _validate_report_structure(self, report_dir: Path) -> None:
+        try:
+            require_supported_report_format(str(report_dir / "data"))
+        except ReportFormatError as error:
+            raise WorkbenchPersistenceError("SOURCE_STRUCTURE_INVALID") from error
+        except OSError as error:
+            raise WorkbenchPersistenceError("SOURCE_ACCESS_DENIED") from error
+
+
+def _directory_metadata(path: Path) -> dict[str, str | int | float | bool]:
+    entries = [item for item in path.rglob("*") if not item.is_symlink()]
+    return {
+        "display_name": path.name,
+        "file_count": sum(item.is_file() for item in entries),
+        "directory_count": sum(item.is_dir() for item in entries),
+        "modified_time_ns": int(path.stat().st_mtime_ns),
+    }
+
+
+def _directory_summary(path: Path) -> dict[str, str | int | float | bool]:
+    return {
+        "display_name": path.name,
+        "modified_time_ns": int(path.stat().st_mtime_ns),
+    }
+
+
+def _validate_pending_locator(path: Path, allowed_root: Path) -> None:
+    resolved_path = path.resolve(strict=True)
+    resolved_root = allowed_root.resolve(strict=True)
+    resolved_path.relative_to(resolved_root)
+    if path.is_symlink() or not resolved_path.is_dir() or not os.access(resolved_path, os.R_OK):
+        raise OSError("source unavailable")
 
 
 def _opaque_id(prefix: str) -> str:
@@ -92,17 +209,11 @@ def _opaque_id(prefix: str) -> str:
 
 
 def _fingerprint(path: Path) -> str:
-    if path.is_file() and not path.is_symlink():
-        digest = hashlib.sha256()
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
-    if path.is_dir() and not path.is_symlink():
-        digest = hashlib.sha256()
-        for child in sorted(path.rglob("*"), key=lambda item: item.as_posix().casefold()):
-            if child.is_file() and not child.is_symlink():
-                stat = child.stat()
-                digest.update(f"{child.relative_to(path).as_posix()}\0{stat.st_size}\0{stat.st_mtime_ns}".encode())
-        return digest.hexdigest()
-    raise OSError("source unavailable")
+    if not path.is_dir() or path.is_symlink():
+        raise OSError("source unavailable")
+    digest = hashlib.sha256()
+    for child in sorted(path.rglob("*"), key=lambda item: item.as_posix().casefold()):
+        if child.is_file() and not child.is_symlink():
+            stat = child.stat()
+            digest.update(f"{child.relative_to(path).as_posix()}\0{stat.st_size}\0{stat.st_mtime_ns}".encode())
+    return digest.hexdigest()

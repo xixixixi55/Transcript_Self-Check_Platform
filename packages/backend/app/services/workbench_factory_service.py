@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from ..config import OUTPUT_BASE, UPLOAD_BASE
 from ..repository.workbench_database import WorkbenchDatabase, database_path_for_deployment
+from .archive_authorization_service import ArchiveAuthorizationService
+from .case_asset_service import CaseAssetService
 from .case_draft_service import CaseDraftService
+from .case_parse_dispatcher_service import CaseParseDispatcher
 from .case_lifecycle_service import CaseLifecycleService
 from .edit_lease_service import EditLeaseService
 from .shared_defaults_service import SharedDefaultsService
@@ -23,17 +27,25 @@ class WorkbenchServices:
     leases: EditLeaseService
     sources: SourceRecordService
     tasks: TaskRecordService
+    dispatcher: CaseParseDispatcher = field(default_factory=CaseParseDispatcher)
+    assets: CaseAssetService | None = None
 
 
 def build_workbench_services(database: WorkbenchDatabase) -> WorkbenchServices:
+    sources = SourceRecordService(
+        database, ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE),
+    )
+    leases = EditLeaseService(database)
+    assets = CaseAssetService(database, leases)
     return WorkbenchServices(
         database=database,
-        cases=CaseDraftService(database),
-        lifecycle=CaseLifecycleService(database),
+        cases=CaseDraftService(database, source_service=sources),
+        lifecycle=CaseLifecycleService(database, asset_service=assets),
         defaults=SharedDefaultsService(database),
-        leases=EditLeaseService(database),
-        sources=SourceRecordService(database),
+        leases=leases,
+        sources=sources,
         tasks=TaskRecordService(database),
+        assets=assets,
     )
 
 
@@ -48,6 +60,8 @@ def get_workbench_services() -> WorkbenchServices:
         path = database_path_for_deployment(data_root, deployment_id)
         services = build_workbench_services(WorkbenchDatabase(path, deployment_id))
         services.tasks.recover_after_restart()
+        if services.assets is not None:
+            services.assets.cleanup_orphans()
         _SERVICES = services
     return _SERVICES
 

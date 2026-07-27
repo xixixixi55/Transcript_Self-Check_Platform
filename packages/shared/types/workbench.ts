@@ -47,12 +47,24 @@ export type FieldSource = 'report' | 'user' | 'system_default'
 export type FieldConfirmation = 'confirmed' | 'pending'
 export type LeaseStatus = 'active' | 'released' | 'expired'
 export type SourceAccessStatus = 'pending' | 'available' | 'invalid' | 'requires_reselection'
+export type ArchiveDecision = 'immediate' | 'deferred'
+export type ArchiveDecisionStatus = 'legacy_explicit_ready' | 'deferred'
 
 export interface OpaqueAssetRef {
   asset_id: string
   asset_kind: 'image' | 'source_snapshot' | 'cache' | 'staging' | 'other'
   fingerprint?: string
   metadata?: Record<string, string | number | boolean>
+}
+
+export type CaseAssetContentStatus = 'available' | 'missing' | 'corrupt'
+
+export interface CaseAssetRecord extends OpaqueAssetRef {
+  content_status: CaseAssetContentStatus
+}
+
+export interface CaseAssetList {
+  items: CaseAssetRecord[]
 }
 
 export interface FieldState {
@@ -91,7 +103,7 @@ export interface CaseDraft {
   asset_refs: OpaqueAssetRef[]
   template_ref?: { template_id: string; version: string } | null
   archive_plan_id?: string | null
-  lifecycle: Extract<CaseLifecycle, 'review_ready' | 'archive_deferred' | 'archive_queued' | 'archiving' | 'archive_verified' | 'exporting_word' | 'exported'>
+  lifecycle: CaseLifecycle
   revision: number
   created_at: string
   updated_at: string
@@ -218,6 +230,13 @@ export interface CaseSubmission {
   shell: CaseShell
   source: SourceRecord
   parse_task: TaskRecord
+}
+
+export interface ArchiveDecisionResult {
+  case: CaseDetail
+  decision: ArchiveDecision
+  archive_status: ArchiveDecisionStatus
+  archive_context_id: string | null
 }
 
 export interface DeletePreflight {

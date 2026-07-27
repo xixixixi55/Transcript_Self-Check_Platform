@@ -132,6 +132,30 @@ class EditLeaseRepository:
             "revision": int(row["revision"]),
         }
 
+    def assert_active_for_case(
+        self, case_id: str, lease_id: str, lease_token: str,
+        now: datetime | None = None,
+    ) -> None:
+        case_id = validate_opaque_id(case_id)
+        lease_id = validate_opaque_id(lease_id)
+        lease_token = validate_opaque_id(lease_token)
+        current_time = _utc(now)
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT status, case_id, lease_token, expires_at, revision FROM edit_leases WHERE lease_id = ?",
+                (lease_id,),
+            ).fetchone()
+            if row is None or row["case_id"] != case_id or row["lease_token"] != lease_token:
+                raise WorkbenchPersistenceError("LEASE_NOT_ACTIVE")
+            if row["status"] != "active":
+                raise WorkbenchPersistenceError("LEASE_NOT_ACTIVE")
+            if _parse_time(str(row["expires_at"])) <= current_time:
+                connection.execute(
+                    "UPDATE edit_leases SET status = 'expired', revision = revision + 1 WHERE lease_id = ? AND revision = ? AND status = 'active'",
+                    (lease_id, int(row["revision"])),
+                )
+                raise WorkbenchPersistenceError("LEASE_EXPIRED")
+
 
 def _utc(value: datetime | None) -> datetime:
     if value is not None and (value.tzinfo is None or value.utcoffset() is None):

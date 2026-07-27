@@ -36,6 +36,9 @@ class EditLeaseService:
     def get(self, lease_id: str) -> dict[str, Any]:
         return self.repository.get(lease_id)
 
+    def assert_active_for_case(self, case_id: str, lease_id: str, lease_token: str) -> None:
+        self.repository.assert_active_for_case(case_id, lease_id, lease_token)
+
     def release(self, lease_id: str, lease_token: str, expected_revision: int | None = None) -> dict[str, Any]:
         return self.repository.release(lease_id, lease_token, expected_revision)
 

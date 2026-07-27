@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..services.workbench_factory_service import get_workbench_services
 
 router = APIRouter()
+
+
+class SourceReplacementRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_path: str
+    expected_revision: int = Field(ge=0)
+    directory_grant_token: str | None = None
 
 
 @router.get("/workbench/sources/{source_id}")
@@ -28,18 +36,11 @@ async def revalidate_source_endpoint(source_id: str):
 
 
 @router.post("/workbench/cases/{case_id}/source")
-async def replace_case_source_endpoint(case_id: str, request: Request):
-    form = await request.form()
-    upload = form.get("archive_file")
-    if not upload or not isinstance(getattr(upload, "filename", None), str) or not upload.filename or not hasattr(upload, "read"):
-        _raise("SOURCE_REQUIRED", 422)
-    import os
-    suffix = os.path.splitext(upload.filename)[1].casefold()
-    if suffix not in {".rar", ".zip"}:
-        _raise("SOURCE_TYPE_UNSUPPORTED", 422)
-    expected_revision = _form_int(form.get("expected_revision"))
+async def replace_case_source_endpoint(case_id: str, body: SourceReplacementRequest):
     try:
-        return _envelope(get_workbench_services().sources.replace_case_source(case_id, await upload.read(), suffix, expected_revision))
+        return _envelope(get_workbench_services().sources.replace_case_source(
+            case_id, body.source_path, body.expected_revision, body.directory_grant_token,
+        ))
     except Exception as error:
         _handle(error)
 
@@ -51,18 +52,16 @@ def _envelope(data: Any) -> dict[str, Any]:
 def _handle(error: Exception) -> None:
     code = getattr(error, "code", "WORKBENCH_REQUEST_FAILED")
     status = 404 if code == "SOURCE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "SOURCE_REVISION_CONFLICT"} else 422
-    raise HTTPException(status_code=status, detail={"code": code, "message": "报告来源不可用，请重新选择来源。"}) from error
+    raise HTTPException(status_code=status, detail={"code": code, "message": _message(code)}) from error
 
 
-def _form_int(value: Any) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=422, detail={"code": "REVISION_REQUIRED", "message": "revision is required"}) from None
-    if parsed < 0:
-        raise HTTPException(status_code=422, detail={"code": "REVISION_REQUIRED", "message": "revision is invalid"})
-    return parsed
-
-
-def _raise(code: str, status: int) -> None:
-    raise HTTPException(status_code=status, detail={"code": code, "message": "报告来源不可用，请重新选择来源。"})
+def _message(code: str) -> str:
+    return {
+        "SOURCE_DIRECTORY_REQUIRED": "案件来源必须是报告目录，不接受文件或压缩包。",
+        "SOURCE_ARCHIVE_NOT_ALLOWED": "案件来源不接受 ZIP、RAR 或其他压缩包。",
+        "SOURCE_STRUCTURE_INVALID": "所选目录不包含可识别的报告结构。",
+        "ARCHIVE_INPUT_PATH_INVALID": "所选报告目录不存在或无效。",
+        "ARCHIVE_INPUT_ROOT_NOT_ALLOWED": "所选报告目录未获授权。",
+        "ARCHIVE_INPUT_LINK_NOT_ALLOWED": "所选报告目录包含不支持的链接或特殊路径。",
+        "ARCHIVE_INPUT_OUTPUT_OVERLAP": "所选报告目录与系统输出区域冲突。",
+    }.get(code, "报告来源不可用，请重新选择来源。")

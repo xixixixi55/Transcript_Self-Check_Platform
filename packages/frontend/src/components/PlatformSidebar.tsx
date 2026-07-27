@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Layout, Menu, Tooltip } from 'antd'
 import {
   ApartmentOutlined,
+  AppstoreOutlined,
   FileSearchOutlined,
   FileTextOutlined,
   HomeOutlined,
@@ -20,46 +21,29 @@ interface PlatformSidebarProps {
 }
 
 function unavailableLabel(label: string) {
-  return (
-    <span className="platform-sidebar__unavailable">
-      <span>{label}</span>
-      <small>暂未开放</small>
-    </span>
-  )
+  return <span className="platform-sidebar__unavailable"><span>{label}</span><small>暂未开放</small></span>
 }
 
 export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
   const location = useLocation()
   const isModulePath = location.pathname.startsWith('/electronic-inspection')
-    || location.pathname === '/generate'
-    || location.pathname === '/devices'
-    || location.pathname === '/inspectors'
+    || location.pathname === '/generate' || location.pathname === '/devices' || location.pathname === '/inspectors'
   const [openKeys, setOpenKeys] = useState<string[]>(isModulePath ? [moduleKey] : [])
 
   useEffect(() => {
-    if (isModulePath) {
-      setOpenKeys(keys => keys.includes(moduleKey) ? keys : [...keys, moduleKey])
-    }
+    if (isModulePath) setOpenKeys(keys => keys.includes(moduleKey) ? keys : [...keys, moduleKey])
   }, [isModulePath])
 
-  const toggleModuleMenu = () => {
-    setOpenKeys(keys => keys.includes(moduleKey)
-      ? keys.filter(key => key !== moduleKey)
-      : [...keys, moduleKey])
-  }
-
+  const toggleModuleMenu = () => setOpenKeys(keys => keys.includes(moduleKey)
+    ? keys.filter(key => key !== moduleKey) : [...keys, moduleKey])
   const handleMenuKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    if (!(event.target instanceof Element) || !event.target.closest('.ant-menu-submenu-title')) return
-    event.preventDefault()
-    event.stopPropagation()
-    toggleModuleMenu()
+    if ((event.key === 'Enter' || event.key === ' ') && event.target instanceof Element
+      && event.target.closest('.ant-menu-submenu-title')) {
+      event.preventDefault(); event.stopPropagation(); toggleModuleMenu()
+    }
   }
 
   const selectedKey = useMemo(() => {
-    if (location.pathname === '/electronic-inspection/generate' || location.pathname === '/generate') {
-      return 'electronic-inspection-generate'
-    }
     if (location.pathname === '/electronic-inspection/devices' || location.pathname === '/devices') {
       return 'electronic-inspection-devices'
     }
@@ -67,44 +51,25 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
       return 'electronic-inspection-inspectors'
     }
     if (location.pathname === '/electronic-inspection') return 'electronic-inspection-home'
+    if (location.pathname === '/electronic-inspection/workbench'
+      || location.pathname.startsWith('/electronic-inspection/cases/')
+      || location.pathname === '/electronic-inspection/generate' || location.pathname === '/generate') {
+      return 'electronic-inspection-workbench'
+    }
     if (isModulePath) return moduleKey
     return 'home'
   }, [isModulePath, location.pathname])
 
   return (
-    <Sider
-      className="platform-sidebar"
-      width={240}
-      collapsedWidth={64}
-      collapsed={collapsed}
-      trigger={null}
-    >
-      <div className="platform-sidebar__brand">
-        <span className="platform-sidebar__brand-mark">文</span>
-        {!collapsed && <span>笔录自检平台（文枢）</span>}
-      </div>
-      <Menu
-        theme="dark"
-        mode="inline"
-        inlineCollapsed={collapsed}
-        selectedKeys={[selectedKey]}
-        openKeys={openKeys}
-        onOpenChange={keys => setOpenKeys(keys as string[])}
-        onKeyDown={handleMenuKeyDown}
-      >
-        <Menu.Item key="home" icon={<HomeOutlined />} title="首页">
-          <Link to="/">首页</Link>
-        </Menu.Item>
-        <Menu.SubMenu
-          key={moduleKey}
-          icon={<FileTextOutlined />}
-          title="电子数据检查笔录"
-        >
-          <Menu.Item key="electronic-inspection-home" title="模块首页">
-            <Link to="/electronic-inspection">模块首页</Link>
-          </Menu.Item>
-          <Menu.Item key="electronic-inspection-generate" title="生成笔录">
-            <Link to="/electronic-inspection/generate">生成笔录</Link>
+    <Sider className="platform-sidebar" width={240} collapsedWidth={64} collapsed={collapsed} trigger={null}>
+      <div className="platform-sidebar__brand"><span className="platform-sidebar__brand-mark">文</span>{!collapsed && <span>笔录自检平台（文枢）</span>}</div>
+      <Menu theme="dark" mode="inline" inlineCollapsed={collapsed} selectedKeys={[selectedKey]}
+        openKeys={openKeys} onOpenChange={keys => setOpenKeys(keys as string[])} onKeyDown={handleMenuKeyDown}>
+        <Menu.Item key="home" icon={<HomeOutlined />} title="首页"><Link to="/">首页</Link></Menu.Item>
+        <Menu.SubMenu key={moduleKey} icon={<FileTextOutlined />} title="电子数据检查笔录">
+          <Menu.Item key="electronic-inspection-home" title="模块首页"><Link to="/electronic-inspection">模块首页</Link></Menu.Item>
+          <Menu.Item key="electronic-inspection-workbench" icon={<AppstoreOutlined />} title="案件工作台">
+            <Link to="/electronic-inspection/workbench">案件工作台</Link>
           </Menu.Item>
           <Menu.Item key="electronic-inspection-devices" title="电子设备管理">
             <Link to="/electronic-inspection/devices">电子设备管理</Link>
@@ -131,12 +96,8 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
       </Menu>
       <div className="platform-sidebar__footer">
         <Tooltip title={collapsed ? '展开导航' : '收起导航'} placement="right">
-          <Button
-            type="text"
-            aria-label={collapsed ? '展开导航' : '收起导航'}
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={onToggle}
-          />
+          <Button type="text" aria-label={collapsed ? '展开导航' : '收起导航'}
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={onToggle} />
         </Tooltip>
       </div>
     </Sider>

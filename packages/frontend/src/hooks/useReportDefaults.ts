@@ -1,4 +1,5 @@
-// Layer 10: FE_Hooks - persist operator defaults without changing parsed evidence facts.
+// Layer 10: FE_Hooks - retired compatibility helper; workbench defaults are backend-persisted.
+/** @deprecated The case workbench uses /workbench/defaults; this helper is kept only for legacy test adapters. */
 import { useCallback, useState } from 'react'
 import type { InspectionReport, InspectorSnapshot } from '@biji/shared/types'
 import { generateDiscNumbers, parseDiscSequence } from '@biji/shared/utils'

@@ -31,6 +31,21 @@ export const API_ENDPOINTS = {
   INSPECTOR_STATUS: (id: string) => `${API_PREFIX}/inspectors/${id}/status`,
   UPLOAD_PHOTO: `${API_PREFIX}/photos/upload`,
   PHOTO_FILE: (id: string) => `${API_PREFIX}/photos/${id}`,
+  WORKBENCH_CASES: `${API_PREFIX}/workbench/cases`,
+  WORKBENCH_CASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}`,
+  WORKBENCH_DRAFT: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/draft`,
+  WORKBENCH_RETRY: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/retry`,
+  WORKBENCH_ARCHIVE_DECISION: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/archive-decision`,
+  WORKBENCH_DELETE_PREFLIGHT: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/delete-preflight`,
+  WORKBENCH_TASK: (taskId: string) => `${API_PREFIX}/workbench/tasks/${encodeURIComponent(taskId)}`,
+  WORKBENCH_CANCEL_TASK: (taskId: string) => `${API_PREFIX}/workbench/tasks/${encodeURIComponent(taskId)}/cancel`,
+  WORKBENCH_DEFAULTS: `${API_PREFIX}/workbench/defaults`,
+  WORKBENCH_LEASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/lease`,
+  WORKBENCH_LEASE_HEARTBEAT: (leaseId: string) => `${API_PREFIX}/workbench/leases/${encodeURIComponent(leaseId)}/heartbeat`,
+  WORKBENCH_LEASE_RELEASE: (leaseId: string) => `${API_PREFIX}/workbench/leases/${encodeURIComponent(leaseId)}/release`,
+  WORKBENCH_SOURCE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/source`,
+  WORKBENCH_CASE_ASSETS: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/assets`,
+  WORKBENCH_CASE_ASSET: (caseId: string, assetId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/assets/${encodeURIComponent(assetId)}`,
 }
 
 /** 文件上传限制（字节） */

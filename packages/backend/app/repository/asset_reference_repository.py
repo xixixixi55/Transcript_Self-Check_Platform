@@ -52,3 +52,38 @@ class AssetReferenceRepository:
             "fingerprint": row["fingerprint"], "metadata": row_json(row, "metadata_json"),
             "status": row["status"], "created_at": row["created_at"],
         }
+
+    def list_case(self, case_id: str, asset_kind: str | None = None) -> list[dict[str, Any]]:
+        case_id = validate_opaque_id(case_id)
+        connection = self.database.connect()
+        try:
+            if asset_kind is None:
+                rows = connection.execute(
+                    "SELECT * FROM asset_references WHERE case_id = ? ORDER BY created_at, asset_id",
+                    (case_id,),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM asset_references WHERE case_id = ? AND asset_kind = ? ORDER BY created_at, asset_id",
+                    (case_id, asset_kind),
+                ).fetchall()
+        finally:
+            connection.close()
+        return [_reference_dict(row) for row in rows]
+
+    def delete(self, case_id: str, asset_id: str) -> None:
+        case_id = validate_opaque_id(case_id)
+        asset_id = validate_opaque_id(asset_id)
+        with self.database.transaction() as connection:
+            connection.execute(
+                "DELETE FROM asset_references WHERE case_id = ? AND asset_id = ?",
+                (case_id, asset_id),
+            )
+
+
+def _reference_dict(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "asset_id": row["asset_id"], "case_id": row["case_id"], "asset_kind": row["asset_kind"],
+        "fingerprint": row["fingerprint"], "metadata": row_json(row, "metadata_json"),
+        "status": row["status"], "created_at": row["created_at"],
+    }

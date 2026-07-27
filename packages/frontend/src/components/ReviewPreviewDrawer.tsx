@@ -1,16 +1,18 @@
 import React from 'react'
-import { Alert, Descriptions, Drawer, Typography } from 'antd'
+import { Alert, Descriptions, Drawer, Image, Typography } from 'antd'
 import type { InspectionReport } from '@biji/shared/types'
+import type { UploadFile } from 'antd'
 
 const { Paragraph, Text, Title } = Typography
 
 interface ReviewPreviewDrawerProps {
   open: boolean
   report: InspectionReport
+  photoFiles?: UploadFile[]
   onClose: () => void
 }
 
-export function ReviewPreviewDrawer({ open, report, onClose }: ReviewPreviewDrawerProps) {
+export function ReviewPreviewDrawer({ open, report, photoFiles = [], onClose }: ReviewPreviewDrawerProps) {
   const attachments = report.attachments
   const photoCount = attachments?.photo_ids?.length || 0
   const extractCount = attachments?.extract_list?.rows?.length || 0
@@ -52,6 +54,11 @@ export function ReviewPreviewDrawer({ open, report, onClose }: ReviewPreviewDraw
         <Descriptions.Item label="附件 2 检材照片">{photoCount} 张</Descriptions.Item>
         <Descriptions.Item label="附件 3 光盘编号">{attachments?.disc_number || '未填写'}</Descriptions.Item>
       </Descriptions>
+      {photoFiles.length > 0 && <Image.PreviewGroup>
+        <div className="review-preview-drawer__photos">
+          {photoFiles.map(file => <Image key={file.uid} width={88} height={88} src={file.url} alt={file.name} />)}
+        </div>
+      </Image.PreviewGroup>}
       <Paragraph className="review-preview-drawer__note">
         <Text type="secondary">关闭预览后，主编辑区滚动位置保持不变。</Text>
       </Paragraph>

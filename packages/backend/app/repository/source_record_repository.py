@@ -13,11 +13,13 @@ from .workbench_database import WorkbenchDatabase, normalize_optional_utc, norma
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import bool_int, json_text, public_source_record, row_json
 from .workbench_serialization import validate_opaque_id
+from .source_locator_repository import SourceLocatorRepository
 
 
 class SourceRecordRepository:
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database
+        self.locators = SourceLocatorRepository(database)
 
     def create(self, record: Mapping[str, Any]) -> dict[str, Any]:
         source_id = validate_opaque_id(record.get("source_id"))
@@ -76,7 +78,37 @@ class SourceRecordRepository:
             connection.close()
         if row is None:
             raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
-        return {"internal_path": str(row[0]), "allowed_root": str(row[1])}
+        raw_path = str(row[0])
+        raw_root = str(row[1])
+        if raw_path.startswith("locator://"):
+            return self.locators.get(source_id)
+        return {"internal_path": raw_path, "allowed_root": raw_root}
+
+    def activate_pending(
+        self, source_id: str, metadata: Mapping[str, Any], fingerprint: str,
+    ) -> dict[str, Any]:
+        """Commit the deferred source identity after the case shell exists."""
+        source_id = validate_opaque_id(source_id)
+        if not isinstance(fingerprint, str) or not fingerprint:
+            raise WorkbenchPersistenceError("INVALID_SOURCE_FINGERPRINT")
+        safe_metadata = _validate_metadata(metadata)
+        now = utc_now()
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT access_status FROM source_records WHERE source_id = ?",
+                (source_id,),
+            ).fetchone()
+            if row is None:
+                raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
+            if row[0] != "pending":
+                return self.get(source_id)
+            updated = connection.execute(
+                "UPDATE source_records SET metadata_json = ?, fingerprint_json = ?, access_status = 'available', requires_reselection = 0, last_verified_at = ?, revision = revision + 1, updated_at = ? WHERE source_id = ? AND access_status = 'pending'",
+                (json_text(safe_metadata), json_text({"value": fingerprint}), now, now, source_id),
+            )
+            if updated.rowcount != 1:
+                raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
+        return self.get(source_id)
 
     def revalidate(self, source_id: str, *, current_fingerprint: str | None = None) -> dict[str, Any]:
         """Revalidate using a fingerprint freshly computed by the source adapter."""
@@ -90,7 +122,7 @@ class SourceRecordRepository:
             connection.close()
         if row is None:
             raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
-        valid = _source_is_current(row, current_fingerprint)
+        valid = _source_is_current(row, current_fingerprint, self.get_internal_locator(source_id))
         status = "available" if valid else "requires_reselection"
         source_revision = int(row["revision"])
         with self.database.transaction() as transaction:
@@ -138,13 +170,20 @@ class SourceRecordRepository:
         return self.get(source_id)
 
 
-def _source_is_current(row: Mapping[str, Any], current_fingerprint: str | None) -> bool:
+def _source_is_current(
+    row: Mapping[str, Any], current_fingerprint: str | None, locator: Mapping[str, str],
+) -> bool:
     try:
-        candidate = Path(str(row["internal_path"]))
-        root = Path(str(row["allowed_root"]))
+        candidate = Path(locator["internal_path"])
+        root = Path(locator["allowed_root"])
         resolved_candidate = candidate.resolve(strict=True)
         resolved_root = root.resolve(strict=True)
         resolved_candidate.relative_to(resolved_root)
+        source_type = str(row["source_type"])
+        if source_type == "report_directory" and not resolved_candidate.is_dir():
+            return False
+        if source_type != "report_directory" and not resolved_candidate.is_file():
+            return False
         if candidate.is_symlink() or not os.access(resolved_candidate, os.R_OK):
             return False
         metadata = row_json(row, "metadata_json")

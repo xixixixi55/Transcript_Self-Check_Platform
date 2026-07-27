@@ -34,6 +34,11 @@ output/
 packages/output/
 **/output/
 
+# Persistent workbench database and controlled case assets — local only
+**/workbench.sqlite3
+**/workbench.sqlite3-*
+**/instances/*/assets/
+
 # Archives and packages — local only
 *.rar
 *.zip

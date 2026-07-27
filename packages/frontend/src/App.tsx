@@ -6,7 +6,8 @@ import ElectronicInspectionModulePage from './pages/ElectronicInspectionModulePa
 import DeviceManagePage from './pages/DeviceManagePage'
 import InspectorManagePage from './pages/InspectorManagePage'
 import HomePage from './pages/HomePage'
-import RecordGeneratePage from './pages/RecordGeneratePage'
+import CaseWorkbenchPage from './pages/CaseWorkbenchPage'
+import CaseRecordGeneratePage from './pages/CaseRecordGeneratePage'
 
 export function LegacyRedirect({ to }: { to: string }) {
   const location = useLocation()
@@ -19,10 +20,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/electronic-inspection" element={<ElectronicInspectionModulePage />} />
-        <Route path="/electronic-inspection/generate" element={<RecordGeneratePage />} />
+        <Route path="/electronic-inspection/workbench" element={<CaseWorkbenchPage />} />
+        <Route path="/electronic-inspection/cases/:caseId" element={<CaseRecordGeneratePage />} />
+        <Route path="/electronic-inspection/generate" element={<LegacyRedirect to="/electronic-inspection/workbench" />} />
         <Route path="/electronic-inspection/devices" element={<DeviceManagePage />} />
         <Route path="/electronic-inspection/inspectors" element={<InspectorManagePage />} />
-        <Route path="/generate" element={<LegacyRedirect to="/electronic-inspection/generate" />} />
+        <Route path="/generate" element={<LegacyRedirect to="/electronic-inspection/workbench" />} />
         <Route path="/devices" element={<LegacyRedirect to="/electronic-inspection/devices" />} />
         <Route path="/inspectors" element={<LegacyRedirect to="/electronic-inspection/inspectors" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
