@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：Phase 1B Service/API 与 Phase 1C 前端工作台已实现；Phase 1D 及后续阶段仍未开始
+> 设计状态：Phase 1B Service/API、Phase 1C 前端工作台和 Phase 1D 生产实现、合成验收与定向门控已完成；用户已在独立 PowerShell 执行完整 Harness 且退出码为 0；独立 Level 3 Code Review 和归档尚未执行；Phase 2 至 Phase 4 仍未开始
 
 ## 1. 总体架构决策
 
@@ -33,9 +33,47 @@
 
 ### D-003：后端任务记录是调度与恢复边界
 
-**决定**：解析、归档、Word、清理都登记为 `TaskRecord`。任务有 `task_id`、`case_id`、类型、状态、阶段、进度快照、输入版本、尝试次数、进程标识、错误码、取消请求、创建/开始/结束时间。服务重启时，原 `running` 任务统一转为 `interrupted` 或 `failed_retryable`；只终止能够证明由本系统启动的进程树，清理本系统拥有的 staging，并等待用户确认后重新执行，不自动重连或接管 WinRAR。
+**决定**：`TaskRecord` 是解析任务和最小归档尝试记录的状态边界；它不是本阶段的调度器或持久化归档 Worker。任务有 `task_id`、`case_id`、类型、状态、阶段、进度快照、输入版本、尝试次数、进程标识、错误码、取消请求、创建/开始/结束时间。服务重启时，解析任务按既有 `queued`/`running`/`cancelling` 到 `failed_retryable`/`interrupted` 的合同恢复；已经进入现有 Legacy 显式归档入口的归档尝试转为 `interrupted`，案件生命周期转为 `archive_interrupted`。恢复只等待用户确认后重新执行，不自动重连、接管、等待或重新开始 WinRAR。
 
 **理由**：把“后台仍在运行”“已中断”“可重试”“需要人工确认”区分开，才能支持多案件、取消、删除保护和真实进度，同时避免把半成品 RAR/Manifest 当作正式结果。
+
+### D-003A：Phase 1D 只记录归档尝试，不建设归档 Worker
+
+Phase 1D 在现有 `/records/archive` Legacy 显式入口外围增加最小归档尝试记录：启动现有同步归档执行前登记不可猜测的 opaque `attempt_id`、案件/草稿 revision、受控 staging 标识和系统创建时间；执行结束后登记成功或安全失败。该记录只用于恢复判定、资源归属证明和审计诊断，不负责排队、调度、并发限制、进度计算、断点续压或自动重试。
+
+重启恢复规则固定如下：
+
+- `archive_queued` 或 `archiving` 只要在重启时仍未形成已验证正式产物，就转为 `archive_interrupted`；关联归档尝试为 `interrupted`，错误码使用稳定的 `ARCHIVE_RESTART_INTERRUPTED`。
+- `archive_interrupted` 下已有 `CaseDraft` 仍可查看和编辑；页面必须提示“上次压缩因应用重启或执行中断未完成”。半成品 RAR/Manifest 不得作为正式产物使用。
+- `archive_interrupted -> archive_deferred` 是允许的显式转换：用户选择“稍后压缩”后，案件进入 `archive_deferred`，不创建新 handle 或归档尝试，并保留上次中断的审计/诊断记录，不得静默清除中断提示历史。
+- `archive_interrupted -> archive_queued` 只有在用户重新确认来源、再次点击“立即压缩”，来源复核通过，并且后端原子创建新的 `attempt_id`/归档尝试记录和新的 opaque Legacy context 后才允许。新尝试被后端接受后案件才离开 `archive_interrupted`。
+- 新尝试创建、来源复核或 handle 创建任一失败时，案件保持 `archive_interrupted`，不得产生可执行的半成品尝试。
+- `archive_interrupted` 不得直接转换为 `archiving`、`archive_verified`、`exporting_word` 或 `exported`；不得恢复旧 handle、复用旧半成品或自动重新启动压缩。
+- `archive_deferred` 在重启后保持不变；已验证的 `archive_verified`、`exporting_word` 或 `exported` 记录及其正式产物不因恢复流程回退或删除。
+
+最小归档尝试记录的职责仅限于：识别重启前未完成操作、证明自有 staging/进程资源归属、记录接受/完成/中断/失败/清理结果，以及支撑幂等恢复和正式产物保护。它不属于 Phase 3 归档任务平台，不提供持久化 Worker、任务队列、多任务调度、进度百分比、自动重试、WinRAR 续跑或分卷重规划。
+
+记录的内部状态采用 `accepted | running | succeeded | failed | interrupted`，另有 `cleanup_status` 记录 `not_required | pending | succeeded | failed | unknown`。重启只将未完成的 `accepted/running` 尝试转为 `interrupted`；已经完成且通过归档门控、已登记验证 Manifest 的 `succeeded` 尝试不可被恢复流程改回 `interrupted`。新一轮确认必须创建新的 `attempt_id`，不得复用旧记录。
+
+记录可以在后端内部保存 `attempt_id`、案件/草稿/source revision、进程 PID、进程启动时间、进程命令行、内部 staging locator、ownership marker 摘要和安全错误码；绝对路径、PID、进程启动时间、进程命令行和内部 locator 只用于后端归属证明和诊断，不进入公共 API、DTO、普通日志或前端。
+
+### D-003B：归属证明优先于 staging 和进程清理
+
+清理自有 staging 至少必须同时满足以下五项证据：
+
+1. 资源位于应用控制的 staging 根；
+2. 存在系统生成且不可猜测的 `attempt_id`；
+3. 数据库或受控索引中存在对应的归档尝试记录；
+4. staging 中存在系统写入的 ownership marker；
+5. marker 与归档尝试记录中的 `attempt_id`、部署实例和受控 staging 根匹配。
+
+部署实例标识、进程 PID、进程启动时间和内部 locator 只能作为后端内部的附加归属证据。目录名、文件名、PID、进程名或命令行片段单独出现时都不足以证明归属。marker 的格式和存储结构由实现决定，但不得进入公共 DTO。
+
+- 五项证据任一缺失、记录冲突、marker 不匹配或无法确认时，一律视为未知资源：不得删除、不得终止相关进程、不得覆盖，只留下不含绝对路径的安全诊断状态。
+- 能证明属于本系统且属于未完成归档尝试的 staging，可以安全清理或隔离；多次执行必须幂等。
+- 半成品 RAR 不得进入正式产物索引，半成品 Manifest 不得注册、返回或驱动 Word 导出。
+- 清理失败不得阻止 CaseShell、CaseDraft、任务和图片资产恢复；清理状态必须可诊断，并允许之后再次安全处理。
+- 已完成且通过校验的 RAR、Manifest 和 Word 属于正式产物，恢复和普通案件清理不得删除。
 
 ### D-002A：图片二进制使用案件绑定的受控资产存储
 
@@ -72,19 +110,26 @@ CASE_CREATED
   -> PARSE_FAILED_RETRYABLE
   -> ARCHIVE_DEFERRED
   -> ARCHIVE_QUEUED -> ARCHIVING -> ARCHIVE_VERIFIED
+  -> ARCHIVE_INTERRUPTED (服务重启或执行中断，需要重新确认)
   -> EXPORTING_WORD -> EXPORTED
 
 任一可恢复阶段 -> FAILED_RETRYABLE
 服务重启时 running WinRAR -> INTERRUPTED -> 用户确认后重新执行
+ARCHIVE_QUEUED/ARCHIVING --服务重启--> ARCHIVE_INTERRUPTED
+ARCHIVE_INTERRUPTED --来源复核 + 用户重新确认--> ARCHIVE_QUEUED（新 attempt_id/new handle）
+ARCHIVE_INTERRUPTED --用户选择稍后压缩--> ARCHIVE_DEFERRED（保留中断审计）
+ARCHIVE_INTERRUPTED -X-> ARCHIVING/ARCHIVE_VERIFIED/EXPORTING_WORD/EXPORTED（不得跳过新尝试）
 用户取消 -> CANCELLING -> CANCELLED (进程和临时文件确认清理后)
 EXPORTED -> RECORD_RETENTION_EXPIRED -> RECORD_CLEANED
 ```
 
-`CASE_CREATED`/`PARSE_QUEUED` 只代表案件壳和任务已持久化，不代表存在可审核报告；`PARSE_FAILED_RETRYABLE` 不能进入审核、归档或导出。`REVIEW_READY` 不代表已压缩；`ARCHIVE_VERIFIED` 必须同时有验证后的 Manifest；`EXPORTED` 是 Word 成功并通过现有门控，不代表正式产物可被案件清理删除。状态迁移必须由后端服务校验前置状态，前端不能直接写目标状态。
+`CASE_CREATED`/`PARSE_QUEUED` 只代表案件壳和任务已持久化，不代表存在可审核报告；`PARSE_FAILED_RETRYABLE` 不能进入审核、归档或导出。`REVIEW_READY` 不代表已压缩；`ARCHIVE_INTERRUPTED` 不能进入 Legacy 归档，必须先重新复核来源并由用户再次确认；`ARCHIVE_VERIFIED` 必须同时有验证后的 Manifest；`EXPORTED` 是 Word 成功并通过现有门控，不代表正式产物可被案件清理删除。状态迁移必须由后端服务校验前置状态，前端不能直接写目标状态。
 
 ### 2.3 任务状态和进度
 
 任务状态：`queued | running | cancelling | interrupted | succeeded | failed_retryable | failed_terminal | cancelled | blocked`。归档阶段：`inventory | planning | winrar | integrity | md5 | manifest`。
+
+Phase 1D 不新增归档调度或真实进度语义。归档尝试的 `interrupted` 只表示执行未完成和需要用户重新确认，不表示可以续跑、估算进度或恢复旧 WinRAR。
 
 默认权重固定在版本化常量中：inventory 15%、planning/replan 10%、WinRAR 45%、完整性校验 10%、MD5 15%、Manifest 生成和验证 5%。实际实现不得在组件内重复硬编码；阶段权重由 SharedConstants 提供。
 
@@ -131,7 +176,11 @@ Word builder 只接收字段值和 Legacy 投影，不接收 UI 来源颜色。�
 
 `SourceRecord` 是案件壳和解析任务的来源权威，包含 opaque `source_id`、source type、后端内部路径、允许根授权、case/task 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于后端受控存储和内部审计字段；前端 DTO、外部 API、普通日志和错误消息只返回 opaque ID、安全摘要和错误码。
 
-来源登记和 Legacy 快速解析前必须验证允许根、路径存在性、权限、链接安全性和报告核心结构；这条快速路径不执行完整目录 metadata/fingerprint。解析器自身读取的关键输入必须保持稳定，成功生成草稿后立即进入 `review_ready`。完整 metadata/fingerprint 作为独立的后置来源复核异步执行；复核失败只将 SourceRecord 标记为 `requires_reselection` 并提示重新选择，不回退已成功生成的草稿或案件生命周期。显式重试、来源替换和立即压缩仍须经过相应的完整来源门控。来源、图片和其他大对象只通过 opaque asset 引用进入 CaseDraft，SQLite 不保存内容本体。
+来源登记和 Legacy 快速解析前必须验证允许根、路径存在性、权限、链接安全性和报告核心结构；这条快速路径不执行完整目录 metadata/fingerprint。解析器自身读取的关键输入必须保持稳定，成功生成草稿后立即进入 `review_ready`。完整 metadata/fingerprint 作为独立的后置来源复核异步执行。
+
+数据库恢复事务只将未完成的 SourceRecord 复核保持为 `pending`，不得在恢复事务中把它标记为可信或来源变化。应用启动完成后，受控恢复协调器查询所有仍为 `pending` 且属于有效案件的 SourceRecord，并按 `source_id + revision` 去重后提交给受控来源复核执行器。调度成功后由执行器完成复核；调度失败保留 `pending`，记录稳定的 `SOURCE_REVALIDATION_PENDING` 诊断并允许后续启动或显式重试再次调度。该流程不得为已经 `review_ready` 的案件重新创建或执行 Parser。
+
+来源状态必须区分“暂时无法验证”和“已确认发生变化”：`pending` 表示尚未完成可信确认，草稿仍可查看和编辑，但正式 Word/归档继续受来源可信状态门控；复核成功才转为 `available`。允许根、路径、链接安全性、报告结构或 fingerprint 已确认不匹配、来源被替换或不可继续使用时，才将 SourceRecord 标记为 `requires_reselection`，禁止正式 Word/归档，并要求重新选择来源和重新解析；暂时 I/O/权限/资源不可用或调度失败必须保持 `pending`，不得直接等同为来源已经变化。来源、图片和其他大对象只通过 opaque asset 引用进入 CaseDraft，SQLite 不保存内容本体。
 
 ## 4. 归档计划、稳定槽位和 Manifest
 
@@ -149,6 +198,8 @@ replan 接收上一版 `VolumeSlot[]` 和新规划结果，使用槽位 lineage/
 2. **资源准入层**：在启动每个 WinRAR 前读取配置化的最小可用磁盘空间、临时空间、CPU 使用率、IO 使用率、输入规模上限、WinRAR 进程数和全局进程数。任一条件不满足则保留 queued，并返回具体原因。
 
 准入配置保存在部署配置中并有版本；不允许前端覆盖安全阈值。任务运行中若资源降至保护阈值，调度器停止启动新任务并可请求当前任务有序取消；不强杀已写入的正式产物。WinRAR 进程必须由任务记录绑定。服务重启时不自动重连或接管 WinRAR：先把原 running 任务标记为 `interrupted`/`failed_retryable`，只终止能够证明由本系统启动的进程树，清理本系统拥有的 staging，并将半成品 RAR/Manifest 标记为不可发布；用户确认后重新执行。断点续压和 WinRAR 重连不在本包范围内。
+
+上述调度器、资源准入和真实进度属于 Phase 3，不在 Phase 1D 实现。Phase 1D 只在现有同步 Legacy 归档调用外围登记最小归档尝试和恢复日志；它不创建持久化归档 Worker，不维护归档队列，不自动拉起新进程，也不把 `TaskRecord.percent` 当作归档进度权威。
 
 ## 6. API 和前端编排
 
@@ -181,8 +232,9 @@ DTO、任务、审计摘要、日志和错误消息不返回绝对路径。来�
 `expected_revision` 原子记录 `immediate` 或 `deferred`：`deferred` 持久化为
 `archive_deferred` 并在刷新后显示“暂未压缩”；`immediate` 持久化为
 `archive_queued`，创建 opaque Legacy preview source，并由现有 `/records/archive`
-显式压缩入口继续执行。该入口不引入 Phase 3 后台编排或伪造进度。解析失败只保留可重试
-卡片，不出现压缩询问。
+显式压缩入口继续执行。该入口不引入 Phase 3 后台编排或伪造进度。若应用在入口执行前后
+重启，恢复流程将其转为 `archive_interrupted`，旧 handle 失效；用户必须重新复核来源并
+再次选择立即压缩，后端生成新的 handle。解析失败只保留可重试卡片，不出现压缩询问。
 
 案件列表默认返回 6 个 opaque 卡片。详情返回 shell、可选 draft、SourceRecord
 摘要和 parse task；草稿保存使用 `expected_revision`，冲突返回 HTTP 409。Phase 1C
@@ -202,7 +254,7 @@ DTO、任务、审计摘要、日志和错误消息不返回绝对路径。来�
 
 清理服务只依据后端生命周期和可删除资产类型。案件删除前置检查必须确认：无 `PARSING`/`ARCHIVING` 任务、取消请求已完成、WinRAR 进程已退出、临时目录已清理、没有未保存的租约冲突。首版允许删除案件记录、草稿、任务记录和临时缓存；正式 RAR、Manifest、Word 的资产索引及文件保留。自动清理只处理已成功导出的案件记录到期项，跳过尚未导出和失败待重试案件。
 
-任何正式产物删除 API 都不在本变更包中注册；未来若产品允许显式删除，应作为单独 Level 3 决策、权限和双重确认设计。
+任何正式产物删除 API 都不在本变更包中注册；未来若产品允许显式删除，应作为单独 Level 3 决策、权限和双重确认设计。Phase 1D 的恢复清理只处理有归属证明的未完成 staging 和进程资源；清理动作必须幂等，未知资源不触碰，清理失败不阻止案件/草稿恢复。
 
 ## 9. 分阶段依赖与独立交付
 
@@ -221,13 +273,13 @@ DTO、任务、审计摘要、日志和错误消息不返回绝对路径。来�
 | 1A | SharedTypes、SQLite schema/migration、Repositories | CaseShell/CaseDraft、SourceRecord、ClientIdentity、双写结果、opaque asset 引用和 SQLite 大对象拒绝规则可持久化、迁移、回滚 |
 | 1B | Services 和 API | 提交即建壳、解析任务失败/重试、来源复核、默认值优先级、草稿/共享默认值双写状态、interrupted 重启语义和删除前置条件可通过 API 表达 |
 | 1C | 工作台、自动保存和租约 | 6 卡片分页、排队/解析中/失败状态、自动保存、15 秒心跳、2 分钟接管警告和分别显示保存结果 |
-| 1D | 刷新/重启恢复、兼容回归和人工验收 | 重启不自动接管 WinRAR；自有进程/staging 清理可证明；Legacy 解析/归档/Manifest/Word 回归通过，并完成人工验收 |
+| 1D | 刷新/重启恢复、兼容回归和人工验收 | CaseShell/CaseDraft/Task/Source/asset/lease 可恢复；解析中断、来源复核和重试闭环；归档尝试只做最小中断日志和归属证明，不自动续跑；自有 staging 可幂等清理或隔离；半成品不发布；Legacy 解析/归档/Manifest/Word 回归通过，并完成人工验收 |
 
 每阶段提交前运行该阶段的类型、架构和定向测试；所有阶段完成后才考虑完整 Harness 门控，并按 `AGENTS.md` 在运行 `verify:full` 前询问执行者。
 
 ### Phase 1C request liveness correction
 
-The workbench submission request performs only source authorization and bounded report-structure validation before atomically creating the CaseShell, parse Task, and pending SourceRecord. It MUST NOT attach Legacy parsing to FastAPI `BackgroundTasks` or wait for recursive source metadata/fingerprint work. A bounded in-process dispatcher starts the same Legacy `parse_report` path after the transaction; the fast path is `parse readiness -> Legacy Parser -> draft persistence -> review_ready`. Full source metadata/fingerprint verification starts only after `review_ready`, remains independent of the parse task lifecycle, and changes only SourceRecord status when it fails. The dispatcher deduplicates an active `(case_id, task_id)` and treats unhandled parse-worker exceptions as retryable task failures. Restart recovery continues to use the persisted `queued`/`running` to `failed_retryable`/`interrupted` contract.
+The workbench submission request performs only source authorization and bounded report-structure validation before atomically creating the CaseShell, parse Task, and pending SourceRecord. It MUST NOT attach Legacy parsing to FastAPI `BackgroundTasks` or wait for recursive source metadata/fingerprint work. A bounded in-process dispatcher starts the same Legacy `parse_report` path after the transaction; the fast path is `parse readiness -> Legacy Parser -> draft persistence -> review_ready`. Full source metadata/fingerprint verification starts only after `review_ready`, remains independent of the parse task lifecycle, and changes only SourceRecord status when it fails. The dispatcher deduplicates an active `(case_id, task_id)` and treats unhandled parse-worker exceptions as retryable task failures. Restart recovery continues to use the persisted `queued`/`running` to `failed_retryable`/`interrupted` contract. A restart recovery pass must also find pending post-parse SourceRecord verification, requeue it within the bounded verifier or keep it explicitly pending; transient unavailability remains pending, while a confirmed source change requires reselection and a new parse before formal Word/archive execution.
 
 ## 10. 兼容策略与安全门控
 
@@ -259,6 +311,8 @@ The workbench submission request performs only source authorization and bounded 
 - Repositories/Services：SQLite 事务、版本冲突、租约、迁移幂等、CaseShell/解析失败、SourceRecord 复核、ClientIdentity、opaque asset 边界、稳定槽位 replan、调度准入、取消清理和模板指纹。
 - Hooks/Components：RTL 验证来源标记、拖拽顺序、租约警告、6 卡片分页、导出名称弹窗和任务阶段展示。
 - Controllers/Routes：HTTP 集成验证自动保存、草稿/共享默认值分别返回、来源复核、恢复中断、任务取消、删除保护、模板切换不触发归档和 Manifest 结果投影。
+- Phase 1D recovery matrix：合成验证 CaseShell/CaseDraft/Task/Source/asset/lease 的刷新与重启恢复、解析 queued/running/cancelling 的单次显式重试、成功案件不重复解析、数据库恢复保留 pending、启动后来源复核调度成功/失败、多次启动按 source/revision 幂等、暂时不可验证与已确认变化的不同门控、`archive_interrupted` 的查看编辑、deferred 退出、重新确认和新 handle。
+- Phase 1D archive safety：使用合成 staging 和受控 attempt record 验证五项归属证明、证据缺失/冲突时未知进程/文件不终止不删除不覆盖、自有 staging 幂等清理或隔离、半成品 RAR/Manifest 不发布、succeeded attempt 不回退、正式产物不误删以及清理失败不阻止案件恢复。
 - WinRAR spike：使用合成输入验证当前正式版本进度信号；未通过时记录能力缺口，验证 Legacy 显式压缩仍可用，不产生假进度。
 - E2E/人工：使用合成多案件、多任务和合成模板；真实大报告只在用户明确执行的外部验收中使用，证据不得进入仓库。
 

@@ -8,7 +8,7 @@
 - CaseDraft：解析成功后的可编辑草稿；report 始终是 Legacy InspectionReport。
 - SourceRecord：受控来源记录，保存 opaque 来源 ID、允许根授权、内部路径、绑定关系和复核结果。
 - FieldState：可编辑字段、检材字段、人员项或附件图片组的来源与确认状态。
-- TaskRecord：可恢复的解析、归档、导出或清理任务记录。
+- TaskRecord：可恢复的解析任务和最小归档尝试记录；本阶段不把它扩展为持久化归档 Worker。
 - VolumeSlot：不依赖预计 RAR 文件名的稳定逻辑分卷槽位。
 - VerifiedManifest：完整归档门控通过后生成并验证的正式 Manifest。
 
@@ -33,7 +33,11 @@
 
 - **WHEN** 用户刷新浏览器或关闭软件后重新打开
 - **THEN** 后端返回尚未清理的案件壳/草稿和任务状态
-- **AND** 重启前运行中的 WinRAR 任务标记为 interrupted 或 failed_retryable，不默认成功或自动重连
+- **AND** CaseShell、CaseDraft、revision、案件生命周期、解析/归档决定、SourceRecord、图片资产引用和自动保存结果均以后台持久化状态为准
+- **AND** `queued` 解析任务转为 `failed_retryable`，`running/cancelling` 解析任务转为 `interrupted`，用户显式重试前不得重新执行
+- **AND** `review_ready` 案件不得因为重启而重复解析
+- **AND** 重启前已选择或开始立即压缩的案件转为 `archive_interrupted`，不得保持虚假的 `archive_queued` 或运行中状态
+- **AND** 重启前运行中的 WinRAR 任务不默认成功、不自动重连、不自动接管、不自动续跑
 
 ## Requirement: 自动保存和编辑租约防止互相覆盖
 
@@ -51,6 +55,13 @@
 - **THEN** 后端拒绝普通编辑
 - **WHEN** 租约连续 2 分钟无心跳且用户确认强制接管
 - **THEN** 后端记录旧 session、新 client、部署实例和时间并允许接管
+
+#### Scenario: 服务重启使旧租约失效
+
+- **WHEN** 服务重启后存在上一个部署实例创建的 active lease
+- **THEN** 旧 session 不再被显示为有效编辑者，租约按恢复合同失效或进入 expired
+- **AND** 新会话可以重新获取租约，不得被旧租约永久阻塞
+- **AND** 若用户执行强制接管，仍记录旧 session、新 client、部署实例和时间的审计事件
 
 ## Requirement: 共享默认值与当前案件双写可区分
 
@@ -125,9 +136,15 @@
 
 - **WHEN** 用户提交经后端验证的报告目录并创建解析任务
 - **THEN** SourceRecord 绑定案件壳和 task_id，并保存允许根授权及 metadata/fingerprint
-- **AND** 为保证登记接口及时返回，递归 metadata/fingerprint 以 `pending` 状态延后到独立来源复核；快速解析任务只执行授权、目录结构和 Legacy Parser 所需的关键输入验证，并按 `Legacy Parser → 草稿持久化 → review_ready` 顺序完成。完整复核不得阻塞 Parser 或审核入口，复核失败只将 SourceRecord 标记为 `requires_reselection` 并提示重新选择，不撤销已成功生成的草稿。
+- **AND** 为保证登记接口及时返回，递归 metadata/fingerprint 以 `pending` 状态延后到独立来源复核；快速解析任务只执行授权、目录结构和 Legacy Parser 所需的关键输入验证，并按 `Legacy Parser → 草稿持久化 → review_ready` 顺序完成。完整复核不得阻塞 Parser 或审核入口；只有确认来源发生变化或不再安全时才将 SourceRecord 标记为 `requires_reselection` 并提示重新选择，不撤销已成功生成的草稿。
 - **WHEN** 服务重启或任务恢复前访问来源
-- **THEN** 后端复核允许根、路径、权限、链接安全性和 fingerprint/metadata，失败则要求重新选择
+- **THEN** 后端复核允许根、路径、权限、链接安全性和 fingerprint/metadata，并识别所有仍处于待复核的 SourceRecord
+- **AND** 数据库恢复事务完成后，未完成的后置复核保持 `pending`，不得在恢复事务中标记为可信或来源变化
+- **AND** 应用启动完成后，受控执行器按 `source_id + revision` 去重重新调度所有 `pending` 复核
+- **AND** 调度失败保持 `pending`，记录可识别的 `SOURCE_REVALIDATION_PENDING` 状态并允许后续启动或显式重试再次调度
+- **AND** 复核恢复不得为已经 `review_ready` 的案件重复创建或执行 Parser
+- **AND** 暂时 I/O、权限或资源不可用保持 `pending`，草稿可以查看和编辑，但正式 Word/归档继续等待来源可信状态
+- **AND** 已确认的路径、允许根、链接安全性、报告结构或 fingerprint 变化、来源被替换或不可继续使用时，才标记为 `requires_reselection`，阻止正式 Word/归档，并要求重新选择来源和重新解析
 
 #### Scenario: 来源路径不对外泄露
 
@@ -157,10 +174,74 @@
 - **THEN** 后端记录 `archive_queued` 并返回 opaque Legacy preview handle
 - **AND** 前端进入现有 Legacy 显式压缩入口，不显示伪造进度、不启动 Phase 3 后台编排
 
+#### Scenario: 立即压缩在重启后必须重新确认
+
+- **WHEN** 案件处于 `archive_queued` 或归档执行中，应用随后重启且尚无已验证正式产物
+- **THEN** 案件生命周期转为 `archive_interrupted`，归档尝试标记为 `interrupted`
+- **AND** 页面说明上次压缩因应用重启或执行中断未完成，不继续显示 queued/running
+- **AND** 旧运行时 preview handle 不恢复、不续跑、不自动生成新的压缩任务
+- **WHEN** 用户重新进入案件并确认立即压缩
+- **THEN** 后端先复核 SourceRecord，再生成新的 opaque Legacy preview handle 并进入现有 Legacy 显式归档入口
+- **AND** 旧 handle 的状态不能影响新一次归档尝试
+
+#### Scenario: archive_interrupted 的可查看、编辑和退出路径
+
+- **WHEN** 案件处于 `archive_interrupted`
+- **THEN** 已存在的 CaseDraft 仍可查看和编辑，页面保留“上次压缩因应用重启或执行中断未完成”的提示
+- **AND** 半成品 RAR、半成品 Manifest 和旧运行时 handle 不得作为正式产物、Word 输入或新尝试输入使用
+- **WHEN** 用户选择“稍后压缩”并提交有效 revision
+- **THEN** 案件允许从 `archive_interrupted` 转为 `archive_deferred`
+- **AND** 不创建新的归档尝试或 handle，同时保留上次中断的审计/诊断记录
+- **WHEN** 用户重新确认来源并再次点击“立即压缩”
+- **THEN** 后端先完成来源复核，并原子接受新的 `attempt_id`、归档尝试记录和 opaque Legacy context
+- **AND** 只有新尝试被接受后，案件才从 `archive_interrupted` 转为 `archive_queued`
+- **AND** 新尝试失败、来源复核失败或 context 创建失败时案件保持 `archive_interrupted`
+- **AND** `archive_interrupted` 不得直接转为 `archiving`、`archive_verified`、`exporting_word` 或 `exported`，不得自动重启压缩或复用旧半成品
+
 #### Scenario: 解析失败不询问压缩
 
 - **WHEN** 目录解析失败
 - **THEN** 案件卡片保留失败和重试入口，但不得返回或显示压缩时机询问
+
+## Requirement: Phase 1D 最小归档中断和产物保护
+
+Phase 1D MUST 只在现有 Legacy `/records/archive` 显式入口外围记录一次归档尝试，不建设持久化归档 Worker、调度器、并发准入、真实进度、断点续压或自动重试。归档尝试记录只用于识别重启前未完成的归档操作、证明自有 staging/进程资源归属、记录接受/完成/中断/失败/清理结果，以及支撑幂等恢复和正式产物保护；它不是新的正式归档输出链路。
+
+归档尝试记录的内部状态为 `accepted | running | succeeded | failed | interrupted`，另有 `cleanup_status` 为 `not_required | pending | succeeded | failed | unknown`。恢复只处理未完成的 `accepted/running` 记录；已完成并通过完整 Legacy 归档门控、已登记验证 Manifest 的 `succeeded` 记录不可被恢复流程改回 `interrupted`。新的用户确认必须创建新的 `attempt_id`，不得复用旧记录。
+
+后端可以在内部记录 `attempt_id`、案件/草稿/source revision、进程 PID、进程启动时间、内部 staging locator、ownership marker 摘要和安全错误码。API、DTO、错误和普通日志不得返回绝对路径、PID、进程启动时间、命令行或内部 staging locator；这些字段只能用于后端归属证明和诊断。
+
+#### Scenario: 重启后不自动接管归档资源
+
+- **WHEN** 应用重启时存在未完成的 Legacy 归档尝试、WinRAR 进程或 staging
+- **THEN** 归档尝试标记为 `interrupted`，案件进入 `archive_interrupted`，用户确认前不得重新执行
+- **AND** 系统不得连接、等待、接管或自动终止无法证明属于本系统的 WinRAR 进程
+- **AND** 系统不得仅凭目录名、PID、进程名或命令行片段认定 staging 或进程归属
+
+#### Scenario: 自有 staging 的最低归属证明
+
+- **WHEN** staging 同时满足以下条件：位于应用控制的 staging 根；具有系统生成且不可猜测的 `attempt_id`；数据库或受控索引存在对应归档尝试记录；staging 内存在系统写入的 ownership marker；marker 与归档尝试记录中的 `attempt_id`、部署实例和受控 staging 根匹配
+- **THEN** 系统可以将未完成 staging 标记为隔离或执行安全清理
+- **AND** 多次恢复或清理必须幂等，清理失败不得阻止案件、草稿、任务和图片资产恢复
+- **AND** marker 格式和存储结构可以由实现决定，但不得进入公共 DTO
+
+#### Scenario: staging 归属证据缺失或冲突
+
+- **WHEN** 任一最低归属证据缺失、记录冲突、marker 不匹配或无法确认
+- **THEN** 资源一律视为未知，不删除、不终止相关进程、不覆盖
+- **AND** 系统只记录不含绝对路径的安全诊断结果
+
+#### Scenario: 半成品和正式产物隔离
+
+- **WHEN** 重启或失败后发现未验证的 RAR 或 Manifest
+- **THEN** 半成品 RAR 不进入正式产物索引，半成品 Manifest 不注册、不返回、不驱动 Word 导出
+- **AND** 已完成并通过校验的 RAR、Manifest 和 Word 不因案件恢复或普通清理被删除
+
+#### Scenario: 归档恢复不泄露路径
+
+- **WHEN** API、DTO、错误响应、任务状态或普通日志返回归档恢复结果
+- **THEN** 只返回 opaque ID、稳定错误码和安全摘要
+- **AND** 不返回绝对路径、staging 物理路径、完整进程命令行或原始文件列表
 
 ## Requirement: 检材和人员顺序由案件权威数组驱动
 

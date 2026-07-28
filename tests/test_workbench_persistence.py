@@ -96,12 +96,12 @@ def test_empty_init_upgrade_repeat_and_deployment_isolation(tmp_path: Path) -> N
     first_path = database_path_for_deployment(tmp_path, "SYNTHETIC-A")
     second_path = database_path_for_deployment(tmp_path, "SYNTHETIC-B")
     first = WorkbenchDatabase(first_path, "SYNTHETIC-A")
-    assert first.schema_version() == 1
-    assert {"schema_migrations", "case_shells", "case_drafts", "source_records", "shared_defaults", "task_records", "edit_leases", "asset_references", "audit_events"}.issubset(first.table_names())
+    assert first.schema_version() == 2
+    assert {"schema_migrations", "case_shells", "case_drafts", "source_records", "shared_defaults", "task_records", "edit_leases", "asset_references", "audit_events", "archive_attempts"}.issubset(first.table_names())
     WorkbenchDatabase(first_path, "SYNTHETIC-A")
     second = WorkbenchDatabase(second_path, "SYNTHETIC-B")
     assert first_path != second_path
-    assert second.schema_version() == 1
+    assert second.schema_version() == 2
 
 
 def test_default_database_root_is_application_data_not_repository_root() -> None:

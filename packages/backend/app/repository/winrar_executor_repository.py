@@ -18,24 +18,20 @@ from .winrar_timeout_policy import (  # noqa: E402
     timeout_bounds as _timeout_bounds,
 )
 
-
 class ArchiveExecutionError(RuntimeError):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
         self.safe_message = message
 
-
 class PlanEntry(Protocol):
     relative_path: str
     absolute_path: Path
-
 
 class PlanLike(Protocol):
     plan_id: str
     archive_base_name: str
     volume_size_bytes: int
-
 
 @dataclass(frozen=True)
 class WinRarExecutionResult:
@@ -46,9 +42,9 @@ class WinRarExecutionResult:
     diagnostic_code: str | None = None
     safe_output: str = ""
 
-
 ProcessRunner = Callable[..., subprocess.CompletedProcess[str]]
-
+StagingInitializer = Callable[[Path], None]
+ProcessStartedCallback = Callable[[int], None]
 
 def _terminate_process(process: subprocess.Popen[str], pid: int) -> bool:
     """Guarantee the process tree is dead; return True iff confirmed.
@@ -92,24 +88,24 @@ def _terminate_process(process: subprocess.Popen[str], pid: int) -> bool:
         pass
     return process.poll() is not None
 
-
 class WinRarExecutor:
     """The only component that constructs and invokes the WinRAR argument array."""
-
     _active_plans: set[str] = set()
     _active_guard = threading.Lock()
 
     def __init__(self, staging_root: str | os.PathLike[str], *,
                  timeout_seconds: int | None = None,
-                 process_runner: ProcessRunner | None = None) -> None:
+                 process_runner: ProcessRunner | None = None,
+                 staging_initializer: StagingInitializer | None = None,
+                 process_started_callback: ProcessStartedCallback | None = None) -> None:
         self.staging_root = Path(staging_root)
         self._explicit_timeout = timeout_seconds
         self._process_runner = process_runner
-
+        self._staging_initializer = staging_initializer
+        self._process_started_callback = process_started_callback
     @staticmethod
     def compute_timeout(input_bytes: int) -> int:
         return _compute_timeout(input_bytes)
-
     @staticmethod
     def timeout_bounds() -> tuple[int, int, int]:
         return _timeout_bounds()
@@ -147,6 +143,14 @@ class WinRarExecutor:
         try:
             self.staging_root.mkdir(parents=True, exist_ok=True)
             staging_dir = Path(tempfile.mkdtemp(prefix="archive-", dir=self.staging_root))
+            if self._staging_initializer is not None:
+                try:
+                    self._staging_initializer(staging_dir)
+                except Exception as error:
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+                    raise ArchiveExecutionError(
+                        "ARCHIVE_EXECUTION_FAILED", "归档临时资源登记失败。",
+                    ) from error
             archive_path = staging_dir / f"{plan.archive_base_name}.rar"
             total_bytes = sum(item.absolute_path.stat().st_size for item in inventory_files)
             timeout = self._timeout_for(total_bytes)
@@ -173,7 +177,6 @@ class WinRarExecutor:
                         plan.plan_id, staging_dir, result.returncode, False,
                         "ARCHIVE_EXECUTION_FAILED", "WinRAR 返回非零退出码。")
                 return self._finalize_result(plan, staging_dir)
-
             # Production path — Popen with verified termination
             try:
                 process = subprocess.Popen(
@@ -181,6 +184,16 @@ class WinRarExecutor:
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     text=True, shell=False)
                 win_pid = process.pid  # saved for tree kill even if parent exits
+                if self._process_started_callback is not None:
+                    try:
+                        self._process_started_callback(win_pid)
+                    except Exception as error:
+                        _terminate_process(process, win_pid)
+                        if staging_dir.exists():
+                            shutil.rmtree(staging_dir, ignore_errors=True)
+                        raise ArchiveExecutionError(
+                            "ARCHIVE_EXECUTION_FAILED", "归档进程登记失败。",
+                        ) from error
                 process.communicate(timeout=timeout)
             except subprocess.TimeoutExpired:
                 if not _terminate_process(process, win_pid):

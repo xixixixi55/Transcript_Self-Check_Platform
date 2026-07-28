@@ -24,5 +24,17 @@ export function ArchiveDecisionPanel({ lifecycle, busy = false, contextReady = f
   if (lifecycle === 'archive_queued' && !contextReady) return (
     <Alert type="info" showIcon message="已选择立即压缩" description="将进入现有 Legacy 显式压缩入口，不显示虚假进度。" action={<Button loading={busy} onClick={onImmediate}>进入压缩入口</Button>} />
   )
+  if (lifecycle === 'archive_interrupted') return (
+    <Alert
+      type="warning"
+      showIcon
+      message="上次压缩未完成"
+      description="应用重启或执行中断导致上次压缩未完成；草稿仍可查看和编辑，半成品不会作为正式产物使用。"
+      action={<Space>
+        <Button type="primary" loading={busy} onClick={onImmediate}>重新确认并立即压缩</Button>
+        <Button loading={busy} onClick={onDeferred}>稍后压缩</Button>
+      </Space>}
+    />
+  )
   return null
 }

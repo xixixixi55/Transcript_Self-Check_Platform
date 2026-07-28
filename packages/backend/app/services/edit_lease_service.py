@@ -42,6 +42,10 @@ class EditLeaseService:
     def release(self, lease_id: str, lease_token: str, expected_revision: int | None = None) -> dict[str, Any]:
         return self.repository.release(lease_id, lease_token, expected_revision)
 
+    def recover_after_restart(self) -> list[str]:
+        """Invalidate leases from the previous process without changing takeover audit semantics."""
+        return self.repository.expire_active_after_restart()
+
     def _audit(self, event_type: str, identity: Mapping[str, Any], case_id: str, old_lease_id: str) -> None:
         self.audit.record({
             "event_id": f"audit-{secrets.token_hex(16)}", "event_type": event_type,

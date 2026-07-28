@@ -132,6 +132,17 @@ class EditLeaseRepository:
             "revision": int(row["revision"]),
         }
 
+    def expire_active_after_restart(self) -> list[str]:
+        with self.database.transaction() as connection:
+            rows = connection.execute(
+                "SELECT lease_id FROM edit_leases WHERE status = 'active'",
+            ).fetchall()
+            if rows:
+                connection.execute(
+                    "UPDATE edit_leases SET status = 'expired', revision = revision + 1 WHERE status = 'active'",
+                )
+        return [str(row[0]) for row in rows]
+
     def assert_active_for_case(
         self, case_id: str, lease_id: str, lease_token: str,
         now: datetime | None = None,

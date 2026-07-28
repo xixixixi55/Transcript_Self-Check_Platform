@@ -43,8 +43,9 @@ from .archive_runtime_service import (
     ArchiveManifestRecord,
 )
 from .archive_manifest_reuse_service import restore_persisted_manifest
-from .export_gate_service import ExportGateCode, ExportGateInput, ExportGateIssue, ExportGateResult, evaluate_export_gate
-from .disc_sequence_service import parse_disc_sequence
+from .archive_attempt_service import ArchiveAttemptService
+from .export_gate_service import ExportGateCode, ExportGateIssue
+from .archive_gate_policy_service import pre_archive_gate, raise_gate, with_archive_gate
 
 @dataclass(frozen=True)
 class ArchiveExecutionOutcome:
@@ -67,35 +68,6 @@ def create_archive_context(
     )
     return record.context_id
 
-def _pre_archive_gate(report: dict) -> ExportGateResult:
-    attachments = report.get("attachments") or {}
-    disc_result = parse_disc_sequence(attachments.get("disc_number"))
-    return evaluate_export_gate(
-        ExportGateInput(
-            disc_sequence_valid=disc_result.valid,
-            disc_sequence_error_code=disc_result.error_code,
-        )
-    )
-
-def _with_archive_gate(result: ExportGateResult, capability: WinRarCapability) -> ExportGateResult:
-    if result.blockers:
-        return result
-    return evaluate_export_gate(
-        ExportGateInput(
-            automatic_archive_required=True,
-            winrar_available=capability.available and capability.supports_rar_volumes,
-        )
-    )
-
-def _raise_gate(result: ExportGateResult) -> None:
-    if result.blockers:
-        raise ArchiveGateError(tuple(result.blockers))
-
-
-def _diagnostic_for(code: str, message: str) -> ArchiveDiagnostic:
-    return ArchiveDiagnostic(code, message)
-
-
 def execute_archive(
     context_id: str,
     report: dict,
@@ -106,6 +78,8 @@ def execute_archive(
     capability: WinRarCapability | None = None,
     executor: WinRarExecutor | None = None,
     integrity_runner: Callable | None = None,
+    attempt_id: str | None = None,
+    attempt_service: ArchiveAttemptService | None = None,
 ) -> ArchiveExecutionOutcome:
     """Run at most one initial execution plus two upward replans per context."""
     context = ARCHIVE_RUNTIME_STORE.acquire_context(context_id)
@@ -114,8 +88,8 @@ def execute_archive(
     final_state = "failed"
     registry = ArchiveManifestRepository(output_root)
     try:
-        pre_gate = _pre_archive_gate(report)
-        _raise_gate(pre_gate)
+        pre_gate = pre_archive_gate(report)
+        raise_gate(pre_gate)
         first_disc_number = str((report.get("attachments") or {}).get("disc_number"))
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         verify_input_inventory(context.inventory)
@@ -148,7 +122,7 @@ def execute_archive(
             return ArchiveExecutionOutcome("completed", persisted.manifest_id, None, reused=True)
 
         winrar = capability or discover_winrar(configured_winrar_path)
-        _raise_gate(_with_archive_gate(pre_gate, winrar))
+        raise_gate(with_archive_gate(pre_gate, winrar))
         entries = tuple(
             ArchiveSourceEntry(item.relative_path, item.size_bytes, item.modified_time_ns)
             for item in context.inventory.files
@@ -164,7 +138,12 @@ def execute_archive(
             code = plan.diagnostics[0].code if plan.diagnostics else "ARCHIVE_PLAN_INVALID"
             raise ArchiveGateError((ExportGateIssue(code, "archive", "归档计划未通过校验。"),))
         staging_root = Path(output_root) / "compressed" / ".staging"
-        active_executor = executor or WinRarExecutor(staging_root)
+        marker_enabled = executor is None and attempt_id is not None and attempt_service is not None
+        active_executor = executor or WinRarExecutor(
+            staging_root,
+            staging_initializer=attempt_service.staging_initializer(attempt_id) if marker_enabled else None,
+            process_started_callback=attempt_service.process_started_callback(attempt_id) if marker_enabled else None,
+        )
         retry_count = 0
         while True:
             try:
@@ -199,6 +178,8 @@ def execute_archive(
                 manifest_id = str(public_manifest["manifest_id"])
                 final_dir = Path(output_root) / "compressed" / context_id / manifest_id
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
+                if marker_enabled and attempt_service is not None:
+                    attempt_service.remove_marker(execution.staging_dir)
                 os.replace(execution.staging_dir, final_dir)
                 created_at = time.time()
                 record = ArchiveManifestRecord(

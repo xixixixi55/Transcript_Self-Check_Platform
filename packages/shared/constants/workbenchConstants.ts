@@ -1,4 +1,4 @@
-import type { CaseLifecycle, TaskStage, TaskStatus } from '../types'
+import type { ArchiveAttemptStatus, ArchiveCleanupStatus, CaseLifecycle, TaskStage, TaskStatus } from '../types'
 
 export const WORKBENCH_SCHEMA_VERSION = 1 as const
 export const WORKBENCH_API_VERSION = 'v1' as const
@@ -58,6 +58,8 @@ export const WORKBENCH_ERROR_CODES = {
   ABSOLUTE_PATH_FORBIDDEN: 'ABSOLUTE_PATH_FORBIDDEN',
   INVALID_OPAQUE_ID: 'INVALID_OPAQUE_ID',
   TASK_RESTART_INTERRUPTED: 'TASK_RESTART_INTERRUPTED',
+  ARCHIVE_RESTART_INTERRUPTED: 'ARCHIVE_RESTART_INTERRUPTED',
+  SOURCE_REVALIDATION_PENDING: 'SOURCE_REVALIDATION_PENDING',
   DEFAULTS_MIGRATION_ALREADY_DECIDED: 'DEFAULTS_MIGRATION_ALREADY_DECIDED',
   DEFAULTS_NOT_FOUND: 'DEFAULTS_NOT_FOUND',
   TASK_NOT_FOUND: 'TASK_NOT_FOUND',
@@ -87,8 +89,16 @@ export const WORKBENCH_ERROR_CODES = {
 export type WorkbenchErrorCode = typeof WORKBENCH_ERROR_CODES[keyof typeof WORKBENCH_ERROR_CODES]
 
 export const REVIEWABLE_CASE_LIFECYCLES: readonly CaseLifecycle[] = [
-  'review_ready', 'archive_deferred', 'archive_queued', 'archiving',
+  'review_ready', 'archive_deferred', 'archive_interrupted', 'archive_queued', 'archiving',
   'archive_verified', 'exporting_word', 'exported',
+]
+
+export const ARCHIVE_ATTEMPT_STATUSES: readonly ArchiveAttemptStatus[] = [
+  'accepted', 'running', 'succeeded', 'failed', 'interrupted',
+]
+
+export const ARCHIVE_CLEANUP_STATUSES: readonly ArchiveCleanupStatus[] = [
+  'not_required', 'pending', 'succeeded', 'failed', 'unknown',
 ]
 
 export const INTERRUPTIBLE_TASK_STATUSES: readonly TaskStatus[] = ['running', 'cancelling']

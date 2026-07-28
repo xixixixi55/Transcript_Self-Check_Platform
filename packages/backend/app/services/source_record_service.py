@@ -17,6 +17,7 @@ from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.report_format_adapter import ReportFormatError, require_supported_report_format
 from .archive_authorization_service import ArchiveAuthorizationService
+from .source_revalidation_policy_service import is_temporary_source_failure
 
 
 class SourceRecordService:
@@ -78,7 +79,6 @@ class SourceRecordService:
             descriptor.update({"case_id": case_id, "task_id": shell["parse_task_id"]})
             result = self.repository.replace_for_case(case_id, descriptor, expected_revision)
             committed = True
-            self.require_available(result["source_id"])
             return self.repository.get(result["source_id"])
         except Exception:
             if not committed:
@@ -98,7 +98,9 @@ class SourceRecordService:
             if self.repository.get(source_id)["source_type"] == "report_directory":
                 self._validate_report_structure(path)
             current = _fingerprint(path)
-        except (OSError, ValueError, ReportFormatError, WorkbenchPersistenceError):
+        except Exception as error:
+            if is_temporary_source_failure(error):
+                return self.repository.mark_pending_revalidation(source_id)
             current = None
         return self.repository.revalidate(source_id, current_fingerprint=current)
 
@@ -111,16 +113,20 @@ class SourceRecordService:
             metadata = _directory_metadata(path)
             fingerprint = _fingerprint(path)
             return self.repository.activate_pending(source_id, metadata, fingerprint)
-        except (OSError, ValueError, ReportFormatError, WorkbenchPersistenceError):
+        except Exception as error:
+            if is_temporary_source_failure(error):
+                return self.repository.mark_pending_revalidation(source_id)
             return self.repository.revalidate(source_id, current_fingerprint=None)
 
     def require_available(self, source_id: str) -> dict[str, Any]:
         result = self.revalidate(source_id)
+        if result["access_status"] == "pending":
+            raise WorkbenchPersistenceError("SOURCE_REVALIDATION_PENDING")
         if result["access_status"] != "available":
             raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
         return result
 
-    def require_parse_ready(self, source_id: str) -> dict[str, Any]:
+    def require_parse_ready(self, source_id: str, *, verify_existing: bool = False) -> dict[str, Any]:
         """Validate only the authorized report inputs needed by the Legacy Parser.
 
         Full metadata and content fingerprinting belongs to explicit source
@@ -129,26 +135,49 @@ class SourceRecordService:
         record = self.repository.get(source_id)
         if record["access_status"] in {"invalid", "requires_reselection"}:
             raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
+        if verify_existing and record["access_status"] == "available":
+            record = self.revalidate(source_id)
+            if record["access_status"] == "pending":
+                raise WorkbenchPersistenceError("SOURCE_REVALIDATION_PENDING")
+            if record["access_status"] != "available":
+                raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
         try:
             locator = self.repository.get_internal_locator(source_id)
             path = Path(locator["internal_path"])
             _validate_pending_locator(path, Path(locator["allowed_root"]))
             if record["source_type"] == "report_directory":
                 self._validate_report_structure(path)
-        except (OSError, ValueError, ReportFormatError, WorkbenchPersistenceError) as error:
+        except Exception as error:
+            if is_temporary_source_failure(error):
+                self.repository.mark_pending_revalidation(source_id)
+                raise WorkbenchPersistenceError("SOURCE_REVALIDATION_PENDING") from error
             self.repository.revalidate(source_id, current_fingerprint=None)
             raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED") from error
         return record
 
-    def verify_after_parse(self, source_id: str) -> dict[str, Any]:
+    def verify_after_parse(self, source_id: str, expected_revision: int | None = None) -> dict[str, Any]:
         """Run the deferred full source verification without changing case state."""
         try:
+            current = self.repository.get(source_id)
+            if expected_revision is not None and current["revision"] != expected_revision:
+                return current
             return self.revalidate(source_id)
         except Exception:
             try:
                 return self.repository.revalidate(source_id, current_fingerprint=None)
             except WorkbenchPersistenceError:
                 return {"source_id": source_id, "access_status": "requires_reselection"}
+
+    def recover_pending_after_startup(self, dispatcher: Any) -> list[str]:
+        scheduled: list[str] = []
+        for item in self.repository.pending_review_records():
+            source_id = str(item["source_id"])
+            try:
+                dispatcher.dispatch_source_verification(self, source_id, int(item["revision"]))
+                scheduled.append(source_id)
+            except Exception:
+                self.repository.mark_pending_revalidation(source_id)
+        return scheduled
 
     def internal_path(self, source_id: str) -> Path:
         return Path(self.repository.get_internal_locator(source_id)["internal_path"])

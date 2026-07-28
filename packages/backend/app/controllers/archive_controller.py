@@ -28,6 +28,7 @@ from .pipeline_controller import (
     pipeline_settings_for_request,
 )
 from ..config import OUTPUT_BASE
+from ..services.workbench_factory_service import get_workbench_services
 
 
 router = APIRouter()
@@ -64,6 +65,7 @@ async def execute_archive_endpoint(
     background_tasks: BackgroundTasks,
     report_json: str = Form(""),
     archive_context_id: str = Form(""),
+    archive_attempt_id: str = Form(""),
 ):
     """Execute the reviewed archive synchronously; no client path is accepted."""
 
@@ -79,15 +81,29 @@ async def execute_archive_endpoint(
         report = normalize_primary_software_projection(json.loads(report_json))
     except (json.JSONDecodeError, TypeError):
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
+    attempt_service = None
+    if archive_attempt_id:
+        attempt_service = get_workbench_services().archive_attempts
+        if attempt_service is None:
+            raise HTTPException(status_code=422, detail={"code": "ARCHIVE_ATTEMPT_INVALID", "message": "归档尝试无效，请重新确认。"})
+        attempt_service.repository.get_public(archive_attempt_id)
+        if not attempt_service.context_matches(archive_attempt_id, archive_context_id):
+            raise HTTPException(status_code=409, detail={"code": "ARCHIVE_ATTEMPT_CONTEXT_MISMATCH", "message": "归档尝试已失效，请重新确认。"})
+        attempt_service.start(archive_attempt_id)
     try:
         formal_context_id = await run_in_threadpool(
             prepare_archive_source, archive_context_id, report, output_root=OUTPUT_BASE,
         )
         outcome = await run_in_threadpool(
             execute_archive, formal_context_id, report, output_root=OUTPUT_BASE,
+            attempt_id=archive_attempt_id or None, attempt_service=attempt_service,
         )
     except Exception as error:
+        if attempt_service is not None:
+            _record_attempt_failure(attempt_service, archive_attempt_id, error)
         raise _archive_error(error) from error
+    if attempt_service is not None and archive_attempt_id and outcome.manifest_id:
+        attempt_service.succeed(archive_attempt_id, outcome.manifest_id)
     stored_manifest = (
         ARCHIVE_RUNTIME_STORE.get_manifest(outcome.manifest_id).public_manifest
         if outcome.manifest_id else None
@@ -120,6 +136,18 @@ async def execute_archive_endpoint(
         "success": True,
         "data": data,
     }
+
+
+def _record_attempt_failure(service: object, attempt_id: str, error: Exception) -> None:
+    if not attempt_id:
+        return
+    code = getattr(error, "code", None)
+    if not isinstance(code, str) or not code or len(code) > 100 or not code.replace("_", "").isalnum():
+        code = "ARCHIVE_EXECUTION_FAILED"
+    try:
+        service.fail(attempt_id, code)  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 
 @router.get("/records/archive/{archive_context_id}/status")

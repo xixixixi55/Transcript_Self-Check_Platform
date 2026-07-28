@@ -99,7 +99,7 @@ class CaseDraftService:
         task = self.tasks.get(shell["parse_task_id"])
         if task["kind"] != "parse" or task["status"] not in {"failed_retryable", "interrupted"}:
             raise WorkbenchPersistenceError("PARSE_RETRY_NOT_ALLOWED")
-        self.sources.require_parse_ready(shell["source_id"])
+        self.sources.require_parse_ready(shell["source_id"], verify_existing=True)
         self.workflow.retry_parse(case_id, task["task_id"])
         if dispatch is not None:
             try:

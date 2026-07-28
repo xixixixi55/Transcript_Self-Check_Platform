@@ -35,10 +35,12 @@ export default function CaseRecordGeneratePage() {
   const [inspectorError, setInspectorError] = useState<string | null>(null)
   const [inspectorLoading, setInspectorLoading] = useState(false)
   const [archiveContextId, setArchiveContextId] = useState<string | null>(null)
+  const [archiveAttemptId, setArchiveAttemptId] = useState<string | null>(null)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const [defaultDiscPrefix, setDefaultDiscPrefix] = useState('')
   useEffect(() => {
     setArchiveContextId(null)
+    setArchiveAttemptId(null)
     archive.reset()
   }, [archive.reset, caseId])
   useEffect(() => {
@@ -98,7 +100,6 @@ export default function CaseRecordGeneratePage() {
     if (saved) message.success('共享默认值已保存')
     else message.error('共享默认值保存失败，当前输入仍保留')
   }
-
   const clearReportDefaults = async () => {
     const cleared = await session.clearSharedDefaults()
     if (cleared) {
@@ -106,7 +107,6 @@ export default function CaseRecordGeneratePage() {
       message.success('共享默认值已清除')
     } else message.error('共享默认值清除失败，当前输入仍保留')
   }
-
   const saveNow = () => {
     if (!session.editingEnabled) { message.warning('当前页面没有有效编辑租约，未写入案件。'); return }
     void session.autosave.saveNow()
@@ -118,7 +118,6 @@ export default function CaseRecordGeneratePage() {
   const forceTakeover = () => {
     if (window.confirm('当前案件可能仍由其他页面编辑。强制接管会使旧页面失去写入资格，并记录本地会话审计。确定继续吗？')) void session.lease.acquire(true)
   }
-
   const chooseArchive = async (decision: 'immediate' | 'deferred') => {
     if (!session.editingEnabled) { message.warning('当前页面没有有效编辑租约，不能修改压缩决策。'); return }
     setArchiveDecisionBusy(true)
@@ -129,20 +128,20 @@ export default function CaseRecordGeneratePage() {
       }
       const result = await session.decideArchive(decision)
       setArchiveContextId(result.archive_context_id)
-      if (result.archive_context_id && session.report) await archive.prepare(session.report, result.archive_context_id)
+      setArchiveAttemptId(result.archive_attempt_id || null)
+      if (result.archive_context_id && session.report) {
+        await archive.prepare(session.report, result.archive_context_id, result.archive_attempt_id)
+      }
       if (decision === 'deferred') message.info('已选择稍后压缩，案件和草稿已保留。')
     } catch { message.error('压缩决策未完成，请刷新案件后重试。') }
     finally { setArchiveDecisionBusy(false) }
   }
-
   const hasReportDefaults = Boolean(session.defaults && (
     session.defaults.document_number || session.defaults.inspection_place
     || session.defaults.inspection_method || session.defaults.hardware_device
     || session.defaults.inspector_order.length || session.defaults.disc_number_prefix
   ))
-
   useShortcuts({ onSave: saveNow, previewOpen, onClosePreview: () => setPreviewOpen(false), enabled: Boolean(session.report) })
-
   useEffect(() => {
     const shouldWarn = session.autosave.hasPending || session.autosave.draftState.status === 'saving'
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -163,7 +162,6 @@ export default function CaseRecordGeneratePage() {
     }
     navigate('/electronic-inspection/workbench')
   }
-
   if (session.detailLoading) return <div className="platform-flow-page"><Spin size="large" style={{ display: 'block', margin: '100px auto' }} /></div>
   if (session.detailError || !session.detail) return <div className="platform-flow-page"><Alert type="error" showIcon message={session.detailError?.message || '案件不存在或暂时无法加载。'} action={<Link to="/electronic-inspection/workbench"><Button>返回案件工作台</Button></Link>} /></div>
   if (!session.report) return (
@@ -179,6 +177,7 @@ export default function CaseRecordGeneratePage() {
   const sourceInvalid = session.detail.source.requires_reselection
     || session.detail.source.access_status === 'invalid'
     || session.detail.source.access_status === 'requires_reselection'
+  const sourcePending = session.detail.source.access_status === 'pending'
   const leaseMessage = session.lease.phase === 'read_only' ? '该案件当前由其他页面占用，当前页面为只读。'
     : session.lease.phase === 'expired' || session.leaseLost ? '编辑租约已失效，已停止自动保存。请重新获取租约后继续。'
       : session.lease.phase === 'acquiring' ? '正在获取编辑租约，请稍候。' : null
@@ -188,7 +187,8 @@ export default function CaseRecordGeneratePage() {
         <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
         <Steps current={1} className="review-steps"><Steps.Step title="案件工作台" /><Steps.Step title="审核编辑" /><Steps.Step title="导出 Word" /></Steps>
         <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
-        {!sourceInvalid && <ArchiveDecisionPanel
+        {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待复核" description="来源可信状态尚未完成确认；草稿仍可查看和编辑，正式 Word 和压缩将在复核完成后开放。" />}
+        {!sourceInvalid && !sourcePending && <ArchiveDecisionPanel
             lifecycle={session.detail.shell.lifecycle}
             busy={archiveDecisionBusy}
             contextReady={Boolean(archiveContextId)}
@@ -238,7 +238,7 @@ export default function CaseRecordGeneratePage() {
           archiveContextId={archiveContextId}
           archiveStatus={archive.status}
           archivePreparing={archive.loading}
-          onPrepareArchive={() => { if (session.report && archiveContextId) void archive.prepare(session.report, archiveContextId) }}
+          onPrepareArchive={() => { if (session.report && archiveContextId) void archive.prepare(session.report, archiveContextId, archiveAttemptId) }}
           archiveManifest={archive.manifest}
           archiveError={archive.error}
         />

@@ -1,4 +1,4 @@
-import type { CaseLifecycle, DualSaveResult, FieldConfirmation, FieldSource, SaveStatus } from '../types'
+import type { ArchiveAttemptStatus, CaseLifecycle, DualSaveResult, FieldConfirmation, FieldSource, SaveStatus } from '../types'
 import { REVIEWABLE_CASE_LIFECYCLES } from '../constants'
 
 export interface InitialFieldValue<T> {
@@ -28,8 +28,9 @@ const TRANSITIONS: Record<CaseLifecycle, readonly CaseLifecycle[]> = {
   review_ready: ['archive_deferred', 'archive_queued', 'exporting_word', 'cancelling'],
   parse_failed_retryable: ['parse_queued', 'cancelling'],
   archive_deferred: ['archive_queued', 'exporting_word', 'cancelling'],
-  archive_queued: ['archiving', 'cancelling'],
-  archiving: ['archive_verified', 'archive_deferred', 'cancelling'],
+  archive_interrupted: ['archive_deferred', 'archive_queued', 'cancelling'],
+  archive_queued: ['archiving', 'archive_interrupted', 'cancelling'],
+  archiving: ['archive_verified', 'archive_deferred', 'archive_interrupted', 'cancelling'],
   archive_verified: ['exporting_word', 'cancelling'],
   exporting_word: ['exported', 'archive_verified', 'cancelling'],
   exported: ['record_retention_expired'],
@@ -57,4 +58,18 @@ export function aggregateDualSaveResult(draft: SaveStatus, defaults: SaveStatus)
 
 export function isUnauthenticatedClientIdentity(identity: { identity_kind: string }): boolean {
   return identity.identity_kind === 'local_session'
+}
+
+const TERMINAL_ARCHIVE_ATTEMPTS: readonly ArchiveAttemptStatus[] = ['succeeded', 'failed', 'interrupted']
+const FORBIDDEN_PUBLIC_ARCHIVE_FIELDS = new Set([
+  'absolute_path', 'pid', 'process_pid', 'process_started_at', 'commandline',
+  'staging_locator', 'internal_staging_locator', 'physical_path',
+])
+
+export function isTerminalArchiveAttempt(status: ArchiveAttemptStatus): boolean {
+  return TERMINAL_ARCHIVE_ATTEMPTS.includes(status)
+}
+
+export function hasSafeArchiveAttemptPublicFields(record: Record<string, unknown>): boolean {
+  return Object.keys(record).every(key => !FORBIDDEN_PUBLIC_ARCHIVE_FIELDS.has(key))
 }

@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..services.workbench_factory_service import get_workbench_services
+from ..repository.workbench_errors import WorkbenchPersistenceError
 
 router = APIRouter()
 
@@ -38,9 +39,17 @@ async def revalidate_source_endpoint(source_id: str):
 @router.post("/workbench/cases/{case_id}/source")
 async def replace_case_source_endpoint(case_id: str, body: SourceReplacementRequest):
     try:
-        return _envelope(get_workbench_services().sources.replace_case_source(
+        services = get_workbench_services()
+        source = services.sources.replace_case_source(
             case_id, body.source_path, body.expected_revision, body.directory_grant_token,
-        ))
+        )
+        task_id = services.lifecycle.detail(case_id)["shell"]["parse_task_id"]
+        try:
+            services.dispatcher.dispatch(services.cases, case_id, task_id)
+        except Exception as error:
+            services.cases.mark_dispatch_failed(case_id, task_id)
+            raise WorkbenchPersistenceError("TASK_DISPATCH_FAILED") from error
+        return _envelope(source)
     except Exception as error:
         _handle(error)
 
@@ -51,7 +60,7 @@ def _envelope(data: Any) -> dict[str, Any]:
 
 def _handle(error: Exception) -> None:
     code = getattr(error, "code", "WORKBENCH_REQUEST_FAILED")
-    status = 404 if code == "SOURCE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "SOURCE_REVISION_CONFLICT"} else 422
+    status = 404 if code == "SOURCE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "SOURCE_REVISION_CONFLICT", "SOURCE_REPLACEMENT_NOT_ALLOWED"} else 422
     raise HTTPException(status_code=status, detail={"code": code, "message": _message(code)}) from error
 
 

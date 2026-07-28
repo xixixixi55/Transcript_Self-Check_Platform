@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from .workbench_constants import WORKBENCH_SCHEMA_VERSION
+from .workbench_constants import WORKBENCH_DATABASE_SCHEMA_VERSION
 from .workbench_errors import SchemaIncompatibleError, WorkbenchPersistenceError
 
 _DEPLOYMENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -19,12 +19,13 @@ _REQUIRED_SCHEMA = {
     "schema_migrations": {"version", "applied_at"},
     "case_shells": {"case_id", "schema_version", "case_number", "case_name", "case_summary", "source_id", "parse_task_id", "lifecycle", "report_available", "revision", "created_at", "updated_at"},
     "case_drafts": {"case_id", "schema_version", "report_json", "report_version", "field_states_json", "asset_refs_json", "template_ref_json", "archive_plan_id", "lifecycle", "revision", "created_at", "updated_at"},
-    "source_records": {"source_id", "schema_version", "case_id", "task_id", "source_type", "internal_path", "allowed_root", "allowed_root_id", "metadata_json", "fingerprint_json", "access_status", "requires_reselection", "last_verified_at", "revision", "created_at", "updated_at"},
+    "source_records": {"source_id", "schema_version", "case_id", "task_id", "source_type", "internal_path", "allowed_root", "allowed_root_id", "metadata_json", "fingerprint_json", "access_status", "requires_reselection", "revalidation_error_code", "last_verified_at", "revision", "created_at", "updated_at"},
     "shared_defaults": {"deployment_instance_id", "schema_version", "revision", "values_json", "migration_decision", "updated_at"},
     "task_records": {"task_id", "schema_version", "case_id", "kind", "status", "stage", "percent", "counters_json", "input_revision", "attempt", "process_binding_json", "error_code", "error_summary", "cancel_requested", "created_at", "started_at", "finished_at", "revision"},
     "edit_leases": {"lease_id", "schema_version", "case_id", "session_id", "client_instance_id", "lease_token", "last_heartbeat_at", "expires_at", "status", "takeover_of_lease_id", "revision"},
     "asset_references": {"asset_id", "case_id", "asset_kind", "fingerprint", "metadata_json", "status", "created_at"},
     "audit_events": {"event_id", "event_type", "deployment_instance_id", "client_instance_id", "session_id", "local_display_name", "identity_kind", "case_id", "task_id", "payload_json", "created_at"},
+    "archive_attempts": {"attempt_id", "schema_version", "case_id", "source_id", "input_revision", "status", "cleanup_status", "error_code", "manifest_id", "staging_root_id", "staging_locator", "ownership_marker_token", "process_pid", "process_started_at", "created_at", "started_at", "finished_at", "revision"},
 }
 
 _MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
@@ -41,6 +42,11 @@ _MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
         "CREATE UNIQUE INDEX active_case_lease ON edit_leases(case_id) WHERE status = 'active'",
         "CREATE INDEX task_case_status ON task_records(case_id, status)",
         "CREATE INDEX source_case ON source_records(case_id)",
+    )),
+    (2, (
+        "ALTER TABLE source_records ADD COLUMN revalidation_error_code TEXT",
+        "CREATE TABLE archive_attempts (attempt_id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL, case_id TEXT NOT NULL REFERENCES case_shells(case_id), source_id TEXT NOT NULL REFERENCES source_records(source_id), input_revision INTEGER NOT NULL, status TEXT NOT NULL CHECK(status IN ('accepted', 'running', 'succeeded', 'failed', 'interrupted')), cleanup_status TEXT NOT NULL CHECK(cleanup_status IN ('not_required', 'pending', 'succeeded', 'failed', 'unknown')), error_code TEXT, manifest_id TEXT, staging_root_id TEXT, staging_locator TEXT, ownership_marker_token TEXT, process_pid INTEGER, process_started_at TEXT, created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT, revision INTEGER NOT NULL)",
+        "CREATE INDEX archive_attempt_case_status ON archive_attempts(case_id, status)",
     )),
 )
 
@@ -124,7 +130,7 @@ class WorkbenchDatabase:
             applied = {
                 int(row[0]) for row in connection.execute("SELECT version FROM schema_migrations")
             } if migration_table else set()
-            if current > WORKBENCH_SCHEMA_VERSION or any(v > WORKBENCH_SCHEMA_VERSION for v in applied):
+            if current > WORKBENCH_DATABASE_SCHEMA_VERSION or any(v > WORKBENCH_DATABASE_SCHEMA_VERSION for v in applied):
                 raise SchemaIncompatibleError()
             if migration_table and (not applied or current != max(applied) or sorted(applied) != list(range(1, max(applied) + 1))):
                 raise SchemaIncompatibleError()
@@ -137,7 +143,7 @@ class WorkbenchDatabase:
                     "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                     (version, utc_now()),
                 )
-            connection.execute(f"PRAGMA user_version = {WORKBENCH_SCHEMA_VERSION}")
+            connection.execute(f"PRAGMA user_version = {WORKBENCH_DATABASE_SCHEMA_VERSION}")
             _validate_schema(connection)
             connection.commit()
         except SchemaIncompatibleError:
@@ -145,6 +151,8 @@ class WorkbenchDatabase:
             raise
         except sqlite3.DatabaseError as error:
             connection.rollback()
+            if "no such table" in str(error).casefold() or "duplicate column" in str(error).casefold():
+                raise SchemaIncompatibleError() from error
             raise WorkbenchPersistenceError("SQLITE_CORRUPTED") from error
         finally:
             connection.close()
@@ -202,5 +210,5 @@ def _validate_schema(connection: sqlite3.Connection) -> None:
             "SELECT type, name FROM sqlite_master WHERE type = 'index'"
         ).fetchall()
     }
-    if not {"active_case_lease", "task_case_status", "source_case"}.issubset(indexes):
+    if not {"active_case_lease", "task_case_status", "source_case", "archive_attempt_case_status"}.issubset(indexes):
         raise SchemaIncompatibleError()

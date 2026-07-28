@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 WORKBENCH_SCHEMA_VERSION = 1
+WORKBENCH_DATABASE_SCHEMA_VERSION = 2
 WORKBENCH_API_VERSION = "v1"
 DEFAULT_RETENTION_DAYS = 30
 RETENTION_CONFIG_KEY = "workbench.successful_case_retention_days"
@@ -17,12 +18,12 @@ ASSET_ORPHAN_RETENTION_SECONDS = 60 * 60
 
 CASE_LIFECYCLES = {
     "case_created", "parse_queued", "parsing", "review_ready",
-    "parse_failed_retryable", "archive_deferred", "archive_queued",
+    "parse_failed_retryable", "archive_deferred", "archive_interrupted", "archive_queued",
     "archiving", "archive_verified", "exporting_word", "exported",
     "record_retention_expired", "record_cleaned", "cancelling", "cancelled",
 }
 REVIEWABLE_LIFECYCLES = {
-    "review_ready", "archive_deferred", "archive_queued", "archiving",
+    "review_ready", "archive_deferred", "archive_interrupted", "archive_queued", "archiving",
     "archive_verified", "exporting_word", "exported",
 }
 CASE_TRANSITIONS = {
@@ -32,8 +33,9 @@ CASE_TRANSITIONS = {
     "review_ready": {"archive_deferred", "archive_queued", "exporting_word", "cancelling"},
     "parse_failed_retryable": {"parse_queued", "cancelling"},
     "archive_deferred": {"archive_queued", "exporting_word", "cancelling"},
-    "archive_queued": {"archiving", "cancelling"},
-    "archiving": {"archive_verified", "archive_deferred", "cancelling"},
+    "archive_interrupted": {"archive_deferred", "archive_queued", "cancelling"},
+    "archive_queued": {"archiving", "archive_interrupted", "cancelling"},
+    "archiving": {"archive_verified", "archive_deferred", "archive_interrupted", "cancelling"},
     "archive_verified": {"exporting_word", "cancelling"},
     "exporting_word": {"exported", "archive_verified", "cancelling"},
     "exported": {"record_retention_expired"},
@@ -65,3 +67,5 @@ TASK_STAGES = {
 SOURCE_ACCESS_STATUSES = {"pending", "available", "invalid", "requires_reselection"}
 SOURCE_TYPES = {"report_directory", "report_archive", "uploaded_file", "other"}
 LEASE_STATUSES = {"active", "released", "expired"}
+ARCHIVE_ATTEMPT_STATUSES = {"accepted", "running", "succeeded", "failed", "interrupted"}
+ARCHIVE_CLEANUP_STATUSES = {"not_required", "pending", "succeeded", "failed", "unknown"}

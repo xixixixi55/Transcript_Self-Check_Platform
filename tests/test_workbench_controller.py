@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
+from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
@@ -54,6 +55,7 @@ def app_services(tmp_path: Path):
     (data_dir / "data_device_lists.json").write_text(json.dumps({"contents": [{"c3": "SYNTHETIC-C3"}]}), encoding="utf-8")
     (data_dir / "data_report_info.json").write_text(json.dumps({"contents": []}), encoding="utf-8")
     services = WorkbenchServices(database, CaseDraftService(database, parser=parser, source_service=source_service), CaseLifecycleService(database), SharedDefaultsService(database), EditLeaseService(database), source_service, TaskRecordService(database))
+    services.archive_attempts = ArchiveAttemptService(database, output_root)
     services.synthetic_report_dir = report_dir
     return services
 
@@ -98,8 +100,8 @@ def test_submit_list_detail_task_and_source_contract(app_services):
         )
         assert response.status_code == 200
         data = response.json()["data"]
-        assert data["shell"]["lifecycle"] in {"parse_queued", "parsing"}
-        assert data["parse_task"]["status"] in {"queued", "running"}
+        assert data["shell"]["lifecycle"] in {"parse_queued", "parsing", "review_ready"}
+        assert data["parse_task"]["status"] in {"queued", "running", "succeeded"}
         assert "internal_path" not in response.text
         case_id = data["shell"]["case_id"]
         task_id = data["parse_task"]["task_id"]
@@ -112,6 +114,81 @@ def test_submit_list_detail_task_and_source_contract(app_services):
         source = client.get(f"/api/v1/workbench/sources/{detail['source']['source_id']}").json()["data"]
         assert "internal_path" not in json.dumps(source)
         assert str(app_services.synthetic_report_dir) not in response.text
+
+
+def test_two_synthetic_cases_reload_independently_after_draft_edit(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+    from app.services.case_lifecycle_service import CaseLifecycleService
+
+    second_report_dir = app_services.synthetic_report_dir.parent / "SYNTHETIC-SECOND-REPORT"
+    shutil.copytree(app_services.synthetic_report_dir, second_report_dir)
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        with TestClient(app) as client:
+            first = client.post(
+                "/api/v1/workbench/cases",
+                json={"source_path": str(app_services.synthetic_report_dir), "case_name": "SYNTHETIC-FIRST"},
+            ).json()["data"]
+            second = client.post(
+                "/api/v1/workbench/cases",
+                json={"source_path": str(second_report_dir), "case_name": "SYNTHETIC-SECOND"},
+            ).json()["data"]
+            assert first["shell"]["case_id"] != second["shell"]["case_id"]
+            first_case_id = first["shell"]["case_id"]
+            second_case_id = second["shell"]["case_id"]
+            first_ready = _wait_for_parse(client, first_case_id)
+            second_ready = _wait_for_parse(client, second_case_id)
+            first_draft = copy.deepcopy(first_ready["draft"])
+            first_draft["report"]["title"] = "SYNTHETIC-FIRST-EDIT"
+            saved = app_services.lifecycle.save_draft(
+                first_draft, first_draft["revision"], None, None, IDENTITY,
+            )
+            assert saved["draft_save_status"]["status"] == "saved"
+
+            refreshed_first = client.get(
+                f"/api/v1/workbench/cases/{first_case_id}"
+            ).json()["data"]
+            refreshed_second = client.get(
+                f"/api/v1/workbench/cases/{second_case_id}"
+            ).json()["data"]
+            assert refreshed_first["draft"]["report"]["title"] == "SYNTHETIC-FIRST-EDIT"
+            assert refreshed_second["draft"]["report"]["title"] == REPORT["title"]
+
+            restarted_database = WorkbenchDatabase(
+                app_services.database.database_path,
+                app_services.database.deployment_instance_id,
+            )
+            restarted_source = SourceRecordService(
+                restarted_database, app_services.sources.authorization,
+            )
+            restarted = WorkbenchServices(
+                restarted_database,
+                CaseDraftService(restarted_database, parser=lambda *_args: {"report": copy.deepcopy(REPORT)}, source_service=restarted_source),
+                CaseLifecycleService(restarted_database),
+                SharedDefaultsService(restarted_database),
+                EditLeaseService(restarted_database),
+                restarted_source,
+                TaskRecordService(restarted_database),
+            )
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=restarted):
+        with TestClient(app) as client:
+            reloaded = client.get("/api/v1/workbench/cases").json()["data"]["items"]
+            assert {item["case_id"] for item in reloaded} == {
+                first_case_id, second_case_id,
+            }
+            reloaded_first = client.get(
+                f"/api/v1/workbench/cases/{first_case_id}"
+            ).json()["data"]
+            reloaded_second = client.get(
+                f"/api/v1/workbench/cases/{second_case_id}"
+            ).json()["data"]
+
+    assert reloaded_first["shell"]["lifecycle"] == "review_ready"
+    assert reloaded_second["shell"]["lifecycle"] == "review_ready"
+    assert reloaded_first["draft"]["report"]["title"] == "SYNTHETIC-FIRST-EDIT"
+    assert reloaded_second["draft"]["report"]["title"] == REPORT["title"]
+    assert reloaded_first["source"]["source_id"] != reloaded_second["source"]["source_id"]
 
 
 def test_http_revision_conflict_and_defaults_are_stable(app_services):
@@ -498,7 +575,46 @@ def test_archive_decision_endpoint_persists_deferred_and_returns_opaque_legacy_c
         assert immediate_data["archive_status"] == "legacy_explicit_ready"
         assert immediate_data["case"]["shell"]["lifecycle"] == "archive_queued"
         assert immediate_data["archive_context_id"]
+        assert immediate_data["archive_attempt_id"]
+        assert app_services.archive_attempts.repository.get_public(
+            immediate_data["archive_attempt_id"],
+        )["status"] == "accepted"
         assert str(app_services.synthetic_report_dir) not in immediate.text
+
+
+def test_source_replacement_resets_draft_and_explicitly_reparses(app_services):
+    from app.main import app
+    from app.controllers import source_controller, workbench_controller
+
+    replacement_dir = app_services.synthetic_report_dir.parent / "SYNTHETIC-REPLACEMENT"
+    shutil.copytree(app_services.synthetic_report_dir, replacement_dir)
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), patch.object(source_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases", json={"source_path": str(app_services.synthetic_report_dir)},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+        started = Event()
+        release = Event()
+        def blocked_parser(_path, _output):
+            started.set()
+            release.wait(5)
+            return {"report": copy.deepcopy(REPORT)}
+        app_services.cases.parser = blocked_parser
+        response = client.post(
+            f"/api/v1/workbench/cases/{case_id}/source",
+            json={"source_path": str(replacement_dir), "expected_revision": ready["shell"]["revision"]},
+        )
+        assert response.status_code == 200
+        assert response.json()["data"]["access_status"] == "pending"
+        assert started.wait(2)
+        reset = client.get(f"/api/v1/workbench/cases/{case_id}").json()["data"]
+        assert reset["draft"] is None
+        assert reset["shell"]["lifecycle"] in {"parse_queued", "parsing", "review_ready"}
+        release.set()
+        final = _wait_for_parse(client, case_id)
+        assert final["shell"]["lifecycle"] == "review_ready"
 
 
 def test_directory_validation_errors_are_stable_and_do_not_echo_path(app_services, tmp_path):

@@ -10,6 +10,7 @@ export type CaseLifecycle =
   | 'review_ready'
   | 'parse_failed_retryable'
   | 'archive_deferred'
+  | 'archive_interrupted'
   | 'archive_queued'
   | 'archiving'
   | 'archive_verified'
@@ -178,6 +179,7 @@ export interface SourceRecord {
   fingerprint: string
   access_status: SourceAccessStatus
   requires_reselection: boolean
+  revalidation_error_code?: string | null
   last_verified_at?: string | null
   revision: number
 }
@@ -230,13 +232,6 @@ export interface CaseSubmission {
   shell: CaseShell
   source: SourceRecord
   parse_task: TaskRecord
-}
-
-export interface ArchiveDecisionResult {
-  case: CaseDetail
-  decision: ArchiveDecision
-  archive_status: ArchiveDecisionStatus
-  archive_context_id: string | null
 }
 
 export interface DeletePreflight {

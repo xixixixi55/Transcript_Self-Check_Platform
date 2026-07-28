@@ -42,6 +42,7 @@ def public_source_record(row: Mapping[str, Any]) -> dict[str, Any]:
         "fingerprint": fingerprint.get("value", "") if isinstance(fingerprint, dict) else "",
         "access_status": str(row["access_status"]),
         "requires_reselection": bool(row["requires_reselection"]),
+        "revalidation_error_code": row["revalidation_error_code"],
         "last_verified_at": row["last_verified_at"],
         "revision": int(row["revision"]),
     }

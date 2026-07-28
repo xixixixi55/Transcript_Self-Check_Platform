@@ -181,8 +181,14 @@ def test_source_replacement_requires_case_revision_and_rebinds_opaque_source(dat
         identifiers["case_id"], str(replacement_dir), current["shell"]["revision"]
     )
     assert updated["source_id"] != identifiers["source_id"]
-    assert updated["access_status"] == "available"
-    assert lifecycle.detail(identifiers["case_id"])["shell"]["source_id"] == updated["source_id"]
+    assert updated["access_status"] == "pending"
+    reset = lifecycle.detail(identifiers["case_id"])
+    assert reset["shell"]["source_id"] == updated["source_id"]
+    assert reset["shell"]["lifecycle"] == "parse_queued"
+    assert reset["parse_task"]["status"] == "queued"
+    assert reset["draft"] is None
+    cases.run_parse_task(identifiers["case_id"], identifiers["task_id"])
+    assert lifecycle.detail(identifiers["case_id"])["shell"]["lifecycle"] == "review_ready"
 
 
 def test_revision_conflict_and_dual_save_partial_failure_are_visible(database, tmp_path):

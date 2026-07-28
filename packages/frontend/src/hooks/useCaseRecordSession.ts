@@ -71,6 +71,12 @@ export function useCaseRecordSession(caseId: string) {
     void workbench.reloadDetail(caseId)
   }, [caseId, parseTask, workbench.detail?.draft, workbench.reloadDetail])
 
+  useEffect(() => {
+    if (workbench.detail?.source.access_status !== 'pending') return
+    const timer = window.setInterval(() => { void workbench.reloadDetail(caseId) }, 1500)
+    return () => window.clearInterval(timer)
+  }, [caseId, workbench.detail?.source.access_status, workbench.reloadDetail])
+
   const lease = useEditLease({
     caseId,
     identity,

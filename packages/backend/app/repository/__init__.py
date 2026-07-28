@@ -1,6 +1,7 @@
 """Layer 20 repository exports; business orchestration stays in services."""
 
 from .asset_reference_repository import AssetReferenceRepository
+from .archive_attempt_repository import ArchiveAttemptRepository
 from .case_asset_storage import CaseAssetStorage
 from .case_archive_decision_repository import CaseArchiveDecisionRepository
 from .audit_event_repository import AuditEventRepository
@@ -14,7 +15,7 @@ from .task_record_repository import TaskRecordRepository
 from .workbench_database import WorkbenchDatabase, database_path_for_deployment, default_workbench_data_root
 
 __all__ = [
-    "AssetReferenceRepository", "CaseAssetStorage", "AuditEventRepository", "CaseArchiveDecisionRepository", "CaseDraftRepository",
+    "AssetReferenceRepository", "ArchiveAttemptRepository", "CaseAssetStorage", "AuditEventRepository", "CaseArchiveDecisionRepository", "CaseDraftRepository",
     "CaseShellRepository", "EditLeaseRepository", "SharedDefaultsRepository",
     "CaseWorkflowRepository",
     "SourceRecordRepository", "SourceLocatorRepository", "TaskRecordRepository", "WorkbenchDatabase",

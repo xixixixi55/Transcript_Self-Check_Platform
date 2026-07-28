@@ -329,8 +329,28 @@ references; it does not store images, Base64, complete HTML or raw JSON collecti
 `TaskKind`, `TaskStatus` and `TaskStage` describe durable task recovery, including
 `interrupted` tasks after restart. `SourceRecord` binds a case and task to an opaque
 source ID, an authorized root ID, metadata and fingerprint; internal locators are
-never part of the public DTO. `OpaqueAssetRef` identifies controlled large objects
-without embedding their content in SQLite.
+never part of the public DTO. A source may carry a stable
+`revalidation_error_code` while verification is pending or temporarily unavailable;
+this diagnostic does not expose a locator. `OpaqueAssetRef` identifies controlled
+large objects without embedding their content in SQLite.
+
+Phase 1D recovery keeps parse and source verification state durable across process
+restart. Queued/running/cancelling parse tasks become retryable or interrupted
+according to their persisted state, pending source verification remains pending for
+later controlled rescheduling, and active edit leases from the previous deployment
+instance are expired. A case in `archive_queued` or `archiving` without a verified
+formal artifact becomes `archive_interrupted`; it remains viewable/editable and can
+leave only through an explicit deferred decision or a newly accepted immediate
+attempt. Recovery does not create a persistent archive worker, progress contract,
+automatic retry, or automatic WinRAR continuation.
+
+`ArchiveAttemptRecord` is the minimal public, path-free record around the existing
+Legacy explicit archive entry. Its status is `accepted | running | succeeded |
+failed | interrupted`, and its cleanup status is `not_required | pending | succeeded
+| failed | unknown`. Public fields contain only opaque IDs, revisions, stable error
+codes and timestamps; process IDs, command lines, staging locators and ownership
+markers remain backend-only. A succeeded attempt and verified formal artifacts are
+not rolled back by restart recovery.
 
 For workbench images, the opaque reference is bound to `case_id` by the backend
 asset registry. The binary lives in the controlled application asset workspace;
@@ -372,4 +392,5 @@ interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecord
 interface SharedDefaultsResponse, interface TaskRecordResponse, interface CaseListPage,
 interface CaseDetail, interface CaseSubmission, type ArchiveDecision,
 type ArchiveDecisionStatus, interface ArchiveDecisionResult, interface DeletePreflight,
+interface ArchiveAttemptRecord, type ArchiveAttemptStatus, type ArchiveCleanupStatus,
 interface CaseListResponse, interface CaseDetailResponse, interface CaseSubmissionResponse.

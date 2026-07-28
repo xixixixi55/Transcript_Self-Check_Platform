@@ -62,7 +62,7 @@ class CaseWorkflowRepository:
                     (task_id, case_id, json_text({}), now),
                 )
                 connection.execute(
-                    "INSERT INTO source_records VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, 0, ?, ?)",
+                    "INSERT INTO source_records(source_id, schema_version, case_id, task_id, source_type, internal_path, allowed_root, allowed_root_id, metadata_json, fingerprint_json, access_status, requires_reselection, revalidation_error_code, last_verified_at, revision, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, 0, ?, ?)",
                     (
                         source_id, case_id, task_id, source_type, source["internal_path"],
                         source["allowed_root"], validate_opaque_id(source["allowed_root_id"]),

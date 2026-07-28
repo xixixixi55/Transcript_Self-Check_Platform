@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1A/1B 已在基线提交完成，本轮完成 Phase 1C，1D 及后续阶段仍未开始。
+> 本文件定义后续实现顺序；Phase 1A/1B 已在基线提交完成，Phase 1C 和 Phase 1D 已完成；Phase 2 及后续阶段仍未开始。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -61,13 +61,71 @@
 - [x] **1A — SharedTypes、SQLite schema/migration、Repositories**：案件壳/草稿、SourceRecord、ClientIdentity、双写结果、opaque asset 引用和 SQLite 大对象拒绝规则可持久化、迁移、回滚。
 - [x] **1B — Services 和 API**：提交即建壳、解析失败/重试、来源复核与重新选择、解析/默认优先级、草稿/共享默认值双写、interrupted 重启语义和删除前置条件可通过 API 表达；定向后端回归 52 passed，保留既知配置 warning。
 - [x] **1C — 工作台、自动保存和租约**：6 卡片分页、排队/解析中/失败状态、自动保存、15 秒心跳、2 分钟接管警告和分别显示保存结果；定向前端测试通过，保留 Legacy 输出链路。
-- [ ] **1D — 刷新/重启恢复、兼容回归和人工验收**：不自动接管 WinRAR；只清理自有进程/staging；不信任半成品 RAR/Manifest；Legacy 解析/归档/Manifest/Word 回归通过并完成人工验收。
+- [x] **1D — 刷新/重启恢复、兼容回归和人工验收**：恢复 CaseShell/CaseDraft/Task/Source/asset/lease/归档决定；闭合解析中断、失败、重试和来源复核；在现有 Legacy 显式归档外围增加最小归档尝试中断日志和 staging/进程归属证明；不自动接管、等待、续跑或重启旧 WinRAR；不信任半成品 RAR/Manifest；完成 Legacy 解析/归档/Manifest/Word 回归和人工验收。Phase 1D 不建设持久化归档 Worker、调度器、真实进度或自动重试。
+
+### Phase 1D — 恢复状态矩阵、最小归档边界和验证任务
+
+**阶段目标**：在不进入 Phase 2/3/4 的前提下，让浏览器刷新、应用重启和 Legacy 显式归档中断都产生真实、可诊断、需要用户确认的状态；所有正式产物继续由现有 Legacy 门控保护。
+
+**明确不做**：持久化归档 Worker、归档并发调度、最多 6 个任务资源准入、WinRAR 进度解析、真实百分比、分卷 replan、自动续跑、未知进程接管、旧 runtime handle 持久化、模板平台、Canonical、Shadow、USN 可信度和正式产物删除 UI。
+
+**既有变更包协调结果**：`large-report-preview-liveness`、`report-request-liveness-fix`、`report-parsing-cache-management`、`upload-compression-toggle-fix`、`preview-export-correction`、`docx-vml-pagination`、`template-2026` 和 `support-legacy-and-new-report-formats` 作为既有 Legacy/缓存/模板兼容能力和回归输入保留，不在 Phase 1D 重复实现；`extensible-report-template-platform` 的 Canonical、Shadow、模板平台和阶段二/三候选任务保持暂停或另行处理；审核编辑、政务工作台和导出控件变更包只作为 Phase 1C 已完成能力，不重新开范围。
+
+#### Phase 1D recovery matrix
+
+| 对象/重启前状态 | 重启后状态 | 用户动作与门控 |
+|---|---|---|
+| `parse` task `queued` | task=`failed_retryable`，案件=`parse_failed_retryable` | 用户显式重试；重试前重新验证来源；不得自动重跑 |
+| `parse` task `running/cancelling` | task=`interrupted`，案件=`parse_failed_retryable` | 用户显式重试；同一 task/attempt 不重复执行 |
+| 案件 `review_ready` 或 parse task `succeeded` | 保持原状态 | 不重新解析；继续按来源/租约门控编辑、Word 和归档 |
+| SourceRecord 后置复核未完成 | 数据库恢复后保持 `pending`；应用启动完成后由受控执行器重新调度 | 调度按 `source_id + revision` 去重；调度失败仍为 `pending` 并允许后续重试；草稿可查看/编辑 |
+| 来源已确认变化或不再安全 | `requires_reselection` | 禁止正式 Word/归档；重新选择来源并重新解析 |
+| `archive_deferred` | 保持 `archive_deferred` | 用户以后重新选择立即压缩 |
+| `archive_queued/archiving` 且无已验证正式产物 | 案件=`archive_interrupted`，归档尝试=`interrupted` | 显示上次中断；来源复核后用户再次确认；生成新 handle；不得自动执行 |
+| `archive_interrupted` 且已有草稿 | 保持 `archive_interrupted` | 草稿可查看/编辑；页面显示中断提示；用户可选择稍后压缩或重新确认立即压缩 |
+| `archive_interrupted` + 用户选择稍后压缩 | `archive_deferred` | 不创建新 attempt/handle，保留中断审计 |
+| `archive_interrupted` + 新来源复核通过且新尝试被接受 | `archive_queued` | 创建新 attempt/new handle 后才离开中断态；失败则保持 `archive_interrupted` |
+| 上一部署实例的 active lease | 失效或 `expired` | 旧 session 不再阻塞；新会话可重新获取；接管仍记审计 |
+| 可证明属于本系统的未完成 staging | 标记隔离或安全清理 | 清理必须幂等；失败只留下安全诊断，不阻止案件恢复 |
+| 无法证明归属的进程、目录或文件 | 保持不动并记录安全诊断 | 不终止、不删除、不以名称或 PID 推断归属 |
+| 已验证 RAR、Manifest、Word | 保持并可复用 | 恢复和普通清理不得删除正式产物 |
+
+#### Layer 0/1/2 — 恢复合同和纯规则
+
+- [x] **1D-001** 在 `packages/shared/types/`、`packages/shared/constants/` 和 `packages/shared/utils/` 明确 `archive_interrupted` 生命周期、`ARCHIVE_RESTART_INTERRUPTED`/`SOURCE_REVALIDATION_PENDING` 错误语义、解析/归档恢复迁移、租约重启失效和最小归档 attempt record 状态；明确 `archive_interrupted` 的允许/禁止转换。不得新增 Phase 3 调度、真实进度或自动重试合同。验证：公共 DTO 不含绝对路径、PID、进程启动时间、命令行、物理 staging locator 或敏感运行输出。
+- [x] **1D-001T** 增加共享类型和纯函数测试，覆盖上述状态矩阵、非法迁移、归档中断后不能直接进入 Legacy 执行、`pending` 与 `requires_reselection` 区分、lease 重启失效和恢复/清理幂等语义。数据使用 `SYNTHETIC/TEST/FIXTURE`。
+
+#### Layer 10/11/12 — 工作台恢复展示
+
+- [x] **1D-006** 改造案件工作台恢复展示：刷新和后端重启后从 API 恢复案件、草稿、图片、来源、任务、租约和归档决定；`archive_interrupted` 下允许查看/编辑草稿并显示上次压缩中断提示；允许用户选择稍后压缩转 deferred，或在来源复核和新 attempt/new handle 被后端接受后转 queued；不恢复旧 `archiveContextId`、旧半成品或自动压缩；不使用 localStorage 作为事实源。
+- [x] **1D-006T** 增加前端测试：刷新后状态恢复、6 卡片不串案、成功案件不重解析、lease 重启后可重新获取、pending/changed 来源差异、deferred 保持、archive_interrupted 提示和新 handle 进入 Legacy。
+
+#### Layer 20 — 持久化恢复记录
+
+- [x] **1D-002** 扩展 Workbench repositories 和 SQLite migration：原子恢复 parse task、最小 archive attempt record、案件生命周期、SourceRecord pending 复核标记和旧 lease；数据库恢复只保留 pending，不在事务内执行来源复核；恢复必须可重复执行，正式 RAR/Manifest/Word 资产索引不参与删除或回退。
+- [x] **1D-002T** 增加 repository 测试：queued/running/cancelling 矩阵、成功案件不重复解析、archive_queued/archiving 转 archive_interrupted、旧 lease 失效、pending 来源可再次发现、succeeded attempt 不回退、重复恢复和多次启动不重复写入、正式产物保护。
+
+#### Layer 21 — 解析、来源和最小归档安全服务
+
+- [x] **1D-003** 补齐固定的来源复核恢复流程：数据库恢复后保持未完成 SourceRecord 为 `pending`；应用启动完成后由受控执行器按 `source_id + revision` 去重重新调度；调度失败保持 `pending` 并记录 `SOURCE_REVALIDATION_PENDING`，允许后续启动或显式重试；暂时 I/O/权限/资源不可用不得直接变成来源变化，确认 fingerprint/根/链接/结构变化、来源替换或不可继续使用时才转 `requires_reselection`；不得为 `review_ready` 案件重复解析；正式 Word/归档和显式重试遵循可信状态门控。
+- [x] **1D-003T** 增加服务测试：启动后重新调度成功、调度失败保留 pending、同一 source/revision 多次启动幂等、暂时不可验证、确认变化、来源重新选择与重新解析、草稿仍可查看/编辑、来源变化阻止正式输出，以及 `review_ready` 不重复 Parser。
+- [x] **1D-004** 在现有 Legacy `/records/archive` 调用外围登记最小归档尝试：执行前记录 attempt、输入 revision、受控 staging 标识和系统创建记录；只记录 accepted/running/succeeded/failed/interrupted 及 cleanup 结果；重启只映射未完成尝试到 `interrupted`/`archive_interrupted`，不创建 Worker、队列、进度或自动重试路径；用户重新确认并由后端接受新尝试后才创建新 handle 和新记录；已 succeeded 且 Manifest 已验证的记录不可回退。
+- [x] **1D-004T** 增加归档尝试服务测试：草稿在 archive_interrupted 下可查看/编辑、稍后压缩转 deferred、立即确认前置来源复核、新 attempt/new handle 被接受后才离开中断态、旧 handle/半成品不复用、用户确认前不调用 Legacy 归档、succeeded 尝试不被恢复流程回退。
+- [x] **1D-005** 建立 staging/进程归属证明和安全处理边界：清理必须同时具备受控 staging 根、不可猜测 attempt_id、数据库/受控索引归档记录、staging 内系统 ownership marker、marker 与记录/部署实例/root 匹配五项证据；证据缺失、冲突或无法确认时视为未知，不删除、不终止、不覆盖，只记录安全诊断；自有未完成 staging 可隔离或清理，半成品不注册 Manifest、不返回用户、不驱动 Word；清理失败不阻止案件恢复。
+- [x] **1D-005T** 增加安全测试：五项证据全部满足时清理、缺失/冲突/marker 不匹配时未知资源不删除不覆盖、未知 WinRAR 不终止、伪造目录名/PID 不通过归属证明、半成品 RAR/Manifest 不发布、正式产物不误删、多次恢复/清理幂等、内部 PID/启动时间/locator 不进入公共 DTO 和绝对路径不泄露。
+
+#### Legacy 兼容回归和人工验收
+
+- [x] **1D-007** 对既有 Legacy Parser、Word builder/export、Manifest authority、archive execution、VML/分页、附件和图片门控进行合成回归；不得修改 `word_templates/template.docx`，不得引入 Canonical/Shadow 或 Phase 3 进度。
+- [x] **1D-007T** 运行并补充针对性后端/前端测试，覆盖 Legacy 解析、归档失败/重试、Manifest 缺失/篡改/分卷校验、Word 内容与附件图片、路径安全和恢复状态 API；所有 fixture 明确标记 `SYNTHETIC/TEST/FIXTURE`。
+- [x] **1D-008** 完成合成数据人工验收：多案件切换、刷新、关闭/重启恢复、解析失败重试、来源暂时不可验证/确认变化、租约失效、图片资产、deferred、立即归档中断、新 handle、staging 保护和正式产物保护；只保存脱敏的验收结论，不保存真实报告或生成产物。2026-07-28 验收结论：合成双案件可独立登记、解析、编辑、刷新和重载，解析/来源/租约/图片/归档中断与正式产物保护矩阵通过；失败任务仅进入可重试状态，未生成可审核草稿；未使用真实案件、报告或正式产物。
+- [x] **1D-008T** 完成定向架构检查、类型检查、相关后端/前端测试和 `git diff --check`；2026-07-28 定向结果：后端 Phase 1D 文件 3 次稳定通过、单测 5 次稳定通过，独立 PowerShell 全量后端 `642 passed, 3 skipped, 8 warnings`；前端恢复/工作台/图片资产/审核编辑/导出定向 `36 passed`；架构、类型、严格文档、资产和 diff 检查通过。用户随后在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端结果为 `642 passed, 3 skipped, 8 warnings`，前端 TypeScript 与生产构建通过，`verify:docs:strict` 通过。已知非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
 
 ### Phase 1 gate
 
-- [ ] 案件提交后立即显示案件壳卡片，解析失败卡片可重试但不可审核、归档或导出。
-- [ ] 共享默认值修改后立即成为以后新案件的默认来源；当前草稿和共享默认值保存状态分别可见。
-- [ ] 刷新和重启后状态可恢复，重启前 running WinRAR 只标记 interrupted/failed_retryable，正式产物不受影响。
+- [x] 案件提交后立即显示案件壳卡片，解析失败卡片可重试但不可审核、归档或导出。
+- [x] 共享默认值修改后立即成为以后新案件的默认来源；当前草稿和共享默认值保存状态分别可见。
+- [x] 刷新和重启后状态可恢复；`archive_deferred` 保持不变，`archive_queued/archiving` 转为 `archive_interrupted` 并等待用户重新确认；重启前 running WinRAR 不自动接管或续跑，正式产物不受影响。
 
 ## Phase 2 — 审核顺序、人员卡片、字段来源和导出命名
 

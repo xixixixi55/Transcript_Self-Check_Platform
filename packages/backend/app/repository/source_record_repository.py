@@ -15,7 +15,6 @@ from .workbench_repository_helpers import bool_int, json_text, public_source_rec
 from .workbench_serialization import validate_opaque_id
 from .source_locator_repository import SourceLocatorRepository
 
-
 class SourceRecordRepository:
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database
@@ -103,7 +102,7 @@ class SourceRecordRepository:
             if row[0] != "pending":
                 return self.get(source_id)
             updated = connection.execute(
-                "UPDATE source_records SET metadata_json = ?, fingerprint_json = ?, access_status = 'available', requires_reselection = 0, last_verified_at = ?, revision = revision + 1, updated_at = ? WHERE source_id = ? AND access_status = 'pending'",
+                "UPDATE source_records SET metadata_json = ?, fingerprint_json = ?, access_status = 'available', requires_reselection = 0, revalidation_error_code = NULL, last_verified_at = ?, revision = revision + 1, updated_at = ? WHERE source_id = ? AND access_status = 'pending'",
                 (json_text(safe_metadata), json_text({"value": fingerprint}), now, now, source_id),
             )
             if updated.rowcount != 1:
@@ -127,12 +126,37 @@ class SourceRecordRepository:
         source_revision = int(row["revision"])
         with self.database.transaction() as transaction:
             updated = transaction.execute(
-                "UPDATE source_records SET access_status = ?, requires_reselection = ?, last_verified_at = ?, revision = revision + 1, updated_at = ? WHERE source_id = ? AND revision = ?",
+                "UPDATE source_records SET access_status = ?, requires_reselection = ?, revalidation_error_code = NULL, last_verified_at = ?, revision = revision + 1, updated_at = ? WHERE source_id = ? AND revision = ?",
                 (status, bool_int(not valid), utc_now(), utc_now(), source_id, source_revision),
             )
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
         return self.get(source_id)
+
+    def mark_pending_revalidation(self, source_id: str, error_code: str = "SOURCE_REVALIDATION_PENDING") -> dict[str, Any]:
+        source_id = validate_opaque_id(source_id)
+        now = utc_now()
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT revision FROM source_records WHERE source_id = ?", (source_id,),
+            ).fetchone()
+            if row is None:
+                raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
+            connection.execute(
+                "UPDATE source_records SET access_status = 'pending', requires_reselection = 0, revalidation_error_code = ?, updated_at = ?, revision = revision + 1 WHERE source_id = ?",
+                (error_code, now, source_id),
+            )
+        return self.get(source_id)
+
+    def pending_review_records(self) -> list[dict[str, int | str]]:
+        connection = self.database.connect()
+        try:
+            rows = connection.execute(
+                "SELECT source_records.source_id, source_records.revision FROM source_records JOIN case_shells ON case_shells.case_id = source_records.case_id WHERE source_records.access_status = 'pending' AND case_shells.report_available = 1",
+            ).fetchall()
+        finally:
+            connection.close()
+        return [{"source_id": str(row[0]), "revision": int(row[1])} for row in rows]
 
     def replace_for_case(self, case_id: str, record: Mapping[str, Any], expected_revision: int) -> dict[str, Any]:
         case_id = validate_opaque_id(case_id)
@@ -145,22 +169,37 @@ class SourceRecordRepository:
         metadata = _validate_metadata(record.get("metadata", {}))
         now = utc_now()
         with self.database.transaction() as connection:
-            case = connection.execute("SELECT source_id, parse_task_id, revision FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
+            case = connection.execute("SELECT source_id, parse_task_id, revision, lifecycle FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             if case is None or case[1] != task_id:
                 raise WorkbenchPersistenceError("CASE_NOT_FOUND")
             if int(case[2]) != expected_revision:
                 raise RevisionConflictError("case_shell", expected_revision, int(case[2]))
+            if case[3] in {"archive_queued", "archiving"}:
+                raise WorkbenchPersistenceError("SOURCE_REPLACEMENT_NOT_ALLOWED")
+            task = connection.execute(
+                "SELECT status, attempt FROM task_records WHERE task_id = ? AND case_id = ?",
+                (task_id, case_id),
+            ).fetchone()
+            if task is None:
+                raise WorkbenchPersistenceError("CASE_NOT_FOUND")
+            if task[0] in {"queued", "running", "cancelling"}:
+                raise WorkbenchPersistenceError("SOURCE_REPLACEMENT_NOT_ALLOWED")
             try:
                 connection.execute(
-                    "INSERT INTO source_records VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, 0, ?, ?)",
+                    "INSERT INTO source_records(source_id, schema_version, case_id, task_id, source_type, internal_path, allowed_root, allowed_root_id, metadata_json, fingerprint_json, access_status, requires_reselection, revalidation_error_code, last_verified_at, revision, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, 0, ?, ?)",
                     (source_id, case_id, task_id, source_type, record["internal_path"], record["allowed_root"], allowed_root_id, json_text(metadata), json_text({"value": record["fingerprint"]}), now, now),
                 )
                 connection.execute(
-                    "UPDATE source_records SET access_status = 'requires_reselection', requires_reselection = 1, revision = revision + 1, updated_at = ? WHERE source_id = ?",
+                    "UPDATE source_records SET access_status = 'requires_reselection', requires_reselection = 1, revalidation_error_code = NULL, revision = revision + 1, updated_at = ? WHERE source_id = ?",
                     (now, case[0]),
                 )
+                connection.execute("DELETE FROM case_drafts WHERE case_id = ?", (case_id,))
+                connection.execute(
+                    "UPDATE task_records SET status = 'queued', stage = 'parse', percent = NULL, counters_json = '{}', process_binding_json = NULL, error_code = NULL, error_summary = NULL, cancel_requested = 0, input_revision = input_revision + 1, attempt = ?, started_at = NULL, finished_at = NULL, revision = revision + 1 WHERE task_id = ? AND status NOT IN ('queued', 'running', 'cancelling')",
+                    (int(task[1]) + 1, task_id),
+                )
                 updated = connection.execute(
-                    "UPDATE case_shells SET source_id = ?, revision = revision + 1, updated_at = ? WHERE case_id = ? AND revision = ?",
+                    "UPDATE case_shells SET source_id = ?, lifecycle = 'parse_queued', report_available = 0, revision = revision + 1, updated_at = ? WHERE case_id = ? AND revision = ?",
                     (source_id, now, case_id, expected_revision),
                 )
                 if updated.rowcount != 1:
@@ -168,7 +207,6 @@ class SourceRecordRepository:
             except sqlite3.IntegrityError as error:
                 raise WorkbenchPersistenceError("SOURCE_REPLACEMENT_FAILED") from error
         return self.get(source_id)
-
 
 def _source_is_current(
     row: Mapping[str, Any], current_fingerprint: str | None, locator: Mapping[str, str],
@@ -198,7 +236,6 @@ def _source_is_current(
         return True
     except (OSError, ValueError, KeyError, TypeError):
         return False
-
 
 def _validate_metadata(value: Any) -> dict[str, str | int | float | bool]:
     if not isinstance(value, Mapping):

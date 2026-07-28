@@ -103,10 +103,10 @@ def test_same_synthetic_report_profiles_legacy_and_workbench_paths(profile_fixtu
         metrics["fingerprint_ms"] = (time.perf_counter() - started) * 1000
         return value
 
-    def timed_verify_after_parse(source_id: str):
+    def timed_verify_after_parse(source_id: str, expected_revision: int | None = None):
         started = time.perf_counter()
         metrics["verification_started_perf"] = started
-        value = original_verify_after_parse(source_id)
+        value = original_verify_after_parse(source_id, expected_revision=expected_revision)
         metrics["verification_completed_perf"] = time.perf_counter()
         metrics["full_source_verification_ms"] = (time.perf_counter() - started) * 1000
         return value

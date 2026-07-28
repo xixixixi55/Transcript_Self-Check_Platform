@@ -18,7 +18,7 @@ interface ArchivePreparation {
   manifest: ArchiveManifest | null
   attachmentPreview: InspectionReport['attachments']['extract_list'] | null
   error: string | null
-  prepare: (report: InspectionReport, contextId: string) => Promise<void>
+  prepare: (report: InspectionReport, contextId: string, attemptId?: string | null) => Promise<void>
   reset: () => void
 }
 
@@ -77,7 +77,7 @@ export function useArchivePreparation(): ArchivePreparation {
     setError(null)
   }, [])
 
-  const prepare = useCallback(async (report: InspectionReport, contextId: string) => {
+  const prepare = useCallback(async (report: InspectionReport, contextId: string, attemptId?: string | null) => {
     if (requestRef.current) return
     const discNumber = String(report.attachments?.disc_number || '').trim()
     const key = [contextId, report.introduction?.case_summary || '', discNumber].join('|')
@@ -100,6 +100,7 @@ export function useArchivePreparation(): ArchivePreparation {
     setError(null)
     const form = new FormData()
     form.append('archive_context_id', contextId)
+    if (attemptId) form.append('archive_attempt_id', attemptId)
     form.append('report_json', JSON.stringify(report))
     const isCurrent = () => mountedRef.current
       && attemptRef.current === attempt && requestRef.current === controller

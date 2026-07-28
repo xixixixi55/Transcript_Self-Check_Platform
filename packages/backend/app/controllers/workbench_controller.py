@@ -100,15 +100,34 @@ async def get_case_endpoint(case_id: str):
 async def decide_archive_endpoint(case_id: str, body: ArchiveDecisionRequest):
     try:
         services = get_workbench_services()
-        context_id = services.sources.create_legacy_preview_source(case_id) if body.decision == "immediate" else None
-        detail = services.lifecycle.decide_archive(
-            case_id, body.decision, body.expected_revision, body.identity,
-        )
+        context_id = None
+        attempt_id = None
+        if body.decision == "immediate" and services.archive_attempts is not None:
+            before = services.lifecycle.detail(case_id)
+            source = services.sources.require_available(before["shell"]["source_id"])
+            context_id = services.sources.create_legacy_preview_source(case_id)
+            source = services.sources.get(source["source_id"])
+            if before["shell"]["lifecycle"] == "archive_queued":
+                attempt = services.archive_attempts.reissue_context(
+                    case_id, source["source_id"], source["revision"], context_id, body.expected_revision,
+                )
+            else:
+                attempt = services.archive_attempts.accept(
+                    case_id, source["source_id"], source["revision"], context_id, body.expected_revision,
+                )
+            attempt_id = attempt["attempt_id"]
+            detail = services.lifecycle.detail(case_id)
+        else:
+            context_id = services.sources.create_legacy_preview_source(case_id) if body.decision == "immediate" else None
+            detail = services.lifecycle.decide_archive(
+                case_id, body.decision, body.expected_revision, body.identity,
+            )
         return _envelope({
             "case": detail,
             "decision": body.decision,
             "archive_status": "legacy_explicit_ready" if body.decision == "immediate" else "deferred",
             "archive_context_id": context_id,
+            "archive_attempt_id": attempt_id,
         })
     except Exception as error:
         _handle(error)
@@ -189,7 +208,7 @@ def _handle(error: Exception) -> None:
     code = getattr(error, "code", None)
     if not isinstance(code, str):
         code = "WORKBENCH_REQUEST_FAILED"
-    status = 404 if code.endswith("NOT_FOUND") or code == "CASE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "LEASE_CONFLICT", "LEASE_TAKEOVER_REQUIRED", "LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "SOURCE_RESELECTION_REQUIRED"} else 422
+    status = 404 if code.endswith("NOT_FOUND") or code == "CASE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "LEASE_CONFLICT", "LEASE_TAKEOVER_REQUIRED", "LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "SOURCE_RESELECTION_REQUIRED", "SOURCE_REVALIDATION_PENDING", "ARCHIVE_ATTEMPT_NOT_ALLOWED"} else 422
     raise HTTPException(status_code=status, detail={"code": code, "message": _message(code)}) from error
 
 
@@ -210,6 +229,8 @@ def _message(code: str) -> str:
         "LEASE_CONFLICT": "案件当前由其他编辑会话占用。",
         "LEASE_TAKEOVER_REQUIRED": "编辑租约已过期但需要确认接管。",
         "SOURCE_RESELECTION_REQUIRED": "报告来源已失效，请重新选择来源。",
+        "SOURCE_REVALIDATION_PENDING": "报告来源正在等待复核，请稍后重试。",
+        "ARCHIVE_ATTEMPT_NOT_ALLOWED": "当前案件不能开始新的归档尝试。",
         "INVALID_ARCHIVE_DECISION": "压缩决策无效，请重新选择。",
     }
     return messages.get(code, "工作台请求未完成，请稍后重试。")
