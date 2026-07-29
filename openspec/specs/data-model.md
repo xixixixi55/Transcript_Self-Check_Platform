@@ -470,6 +470,14 @@ versioned envelopes. `CaseSubmission` also exposes the current server-read
 shared defaults so a newly created case can show its prefill before parsing;
 the deployment instance remains server-authoritative.
 
+`DemoReadiness` is a read-only Demo capability snapshot containing four fixed
+`DemoReadinessItem` entries: backend service, source authorization, WinRAR and
+archive output. `DemoReadinessKey` fixes those identities and
+`DemoReadinessState` is limited to `ready`, `not_configured`, `unavailable` and
+`unknown`. Items expose only a safe label, stable error code and fixed guidance;
+they never contain configured roots, absolute paths, executable details,
+process data, environment values or exception text.
+
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type FieldSource, type FieldConfirmation,
 type LeaseStatus, type SourceAccessStatus, type CaseAssetContentStatus, interface OpaqueAssetRef, interface CaseAssetRecord,
@@ -483,4 +491,6 @@ interface SharedDefaultsResponse, interface TaskRecordResponse, interface CaseLi
 interface CaseDetail, interface CaseSubmission, type ArchiveDecision,
 type ArchiveDecisionStatus, interface ArchiveDecisionResult, interface DeletePreflight,
 interface ArchiveAttemptRecord, type ArchiveAttemptStatus, type ArchiveCleanupStatus,
-interface CaseListResponse, interface CaseDetailResponse, interface CaseSubmissionResponse.
+interface CaseListResponse, interface CaseDetailResponse, interface CaseSubmissionResponse,
+type DemoReadinessState, type DemoReadinessKey, interface DemoReadinessItem,
+interface DemoReadiness.

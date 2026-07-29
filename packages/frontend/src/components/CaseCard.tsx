@@ -39,7 +39,7 @@ export function CaseCard({ shell, task, sourceRequiresReselection, onRetry, onCa
         {sourceRequiresReselection && <SourceStatusBadge status="requires_reselection" />}
         {canRetry && <Button onClick={onRetry} loading={actionBusy}>重试解析</Button>}
         {canCancel && <Button danger onClick={onCancel} loading={actionBusy}>取消任务</Button>}
-        <Button onClick={onDeleteCheck} disabled={actionBusy}>删除检查</Button>
+        <Button onClick={onDeleteCheck} disabled={actionBusy}>检查删除条件</Button>
       </Space>
     </Card>
   )

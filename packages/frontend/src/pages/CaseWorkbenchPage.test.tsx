@@ -26,6 +26,9 @@ describe('CaseWorkbenchPage', () => {
     vi.clearAllMocks()
     listItems = Array.from({ length: 6 }, (_, i) => shell(i + 1))
     getMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/demo/readiness')) return { data: { data: { items: [
+        { key: 'backend', label: '后端服务', status: 'ready', code: null, guidance: '后端服务可用。' },
+      ] } } }
       if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: true } } }
       if (url.includes('/workbench/tasks/')) return { data: { data: { task_id: url.split('/').pop(), case_id: 'case-synthetic', kind: 'parse', status: 'running', stage: 'parse', percent: 25, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }
       throw new Error(`unexpected GET ${url}`)
@@ -38,10 +41,18 @@ describe('CaseWorkbenchPage', () => {
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
     expect(document.querySelector('input[type="file"]')).toBeNull()
     expect(screen.getByTitle('2')).toBeTruthy()
+    expect(screen.getByText('来源目录授权说明')).toBeTruthy()
+    expect(screen.getAllByText('检查删除条件')).toHaveLength(6)
   })
 
   it('keeps API failures actionable', async () => {
-    getMock.mockRejectedValueOnce({ response: { data: { detail: { code: 'NETWORK_ERROR', message: 'SYNTHETIC/TEST failure' } } } })
+    getMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/demo/readiness')) throw new Error('SYNTHETIC/TEST readiness unavailable')
+      if (url.endsWith('/workbench/cases')) throw {
+        response: { data: { detail: { code: 'NETWORK_ERROR', message: 'SYNTHETIC/TEST failure' } } },
+      }
+      throw new Error(`unexpected GET ${url}`)
+    })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(screen.getByText('SYNTHETIC/TEST failure')).toBeTruthy())
     expect(document.querySelector('.case-workbench-page__toolbar button')).toBeTruthy()

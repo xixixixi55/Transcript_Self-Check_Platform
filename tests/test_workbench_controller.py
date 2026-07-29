@@ -886,3 +886,23 @@ def test_archive_upload_is_not_a_workbench_submission_contract(app_services):
             files={"archive_file": ("SYNTHETIC-TEST.zip", b"SYNTHETIC/TEST", "application/zip")},
         )
     assert response.status_code == 422
+
+
+def test_source_registration_errors_have_distinct_safe_messages():
+    from app.controllers.source_controller import _message as source_message
+    from app.controllers.workbench_controller import _message as workbench_message
+
+    codes = (
+        "ARCHIVE_INPUT_ROOT_NOT_ALLOWED",
+        "SOURCE_ACCESS_DENIED",
+        "SOURCE_STRUCTURE_INVALID",
+    )
+    initial_messages = [workbench_message(code) for code in codes]
+    replacement_messages = [source_message(code) for code in codes]
+
+    assert len(set(initial_messages)) == len(codes)
+    assert len(set(replacement_messages)) == len(codes)
+    assert "未获授权" in initial_messages[0]
+    assert "无法访问" in initial_messages[1]
+    assert "报告结构" in initial_messages[2]
+    assert all("C:\\" not in message for message in initial_messages + replacement_messages)

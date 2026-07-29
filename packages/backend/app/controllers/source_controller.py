@@ -69,6 +69,7 @@ def _message(code: str) -> str:
         "SOURCE_DIRECTORY_REQUIRED": "案件来源必须是报告目录，不接受文件或压缩包。",
         "SOURCE_ARCHIVE_NOT_ALLOWED": "案件来源不接受 ZIP、RAR 或其他压缩包。",
         "SOURCE_STRUCTURE_INVALID": "所选目录不包含可识别的报告结构。",
+        "SOURCE_ACCESS_DENIED": "所选报告目录当前无法访问。",
         "ARCHIVE_INPUT_PATH_INVALID": "所选报告目录不存在或无效。",
         "ARCHIVE_INPUT_ROOT_NOT_ALLOWED": "所选报告目录未获授权。",
         "ARCHIVE_INPUT_LINK_NOT_ALLOWED": "所选报告目录包含不支持的链接或特殊路径。",

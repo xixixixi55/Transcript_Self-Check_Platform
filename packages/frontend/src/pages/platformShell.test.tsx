@@ -1,11 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import axios from 'axios'
 import { PlatformShell } from '../components/PlatformShell'
 import { PlatformSidebar } from '../components/PlatformSidebar'
 import ElectronicInspectionModulePage from './ElectronicInspectionModulePage'
 import HomePage from './HomePage'
 import { LegacyRedirect } from '../App'
+
+vi.mock('axios', () => ({ default: { get: vi.fn() } }))
 
 function RedirectLocationProbe() {
   const location = useLocation()
@@ -13,6 +16,7 @@ function RedirectLocationProbe() {
 }
 
 beforeAll(() => {
+  vi.mocked(axios.get).mockResolvedValue({ data: { data: { items: [] } } })
   if (!window.matchMedia) {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -176,6 +180,7 @@ describe('electronic inspection module', () => {
     expect(document.querySelector('a[href="/electronic-inspection/workbench"]')).toBeTruthy()
     expect(document.querySelector('a[href="/electronic-inspection/devices"]')).toBeTruthy()
     expect(screen.getByText('案件工作台')).toBeTruthy()
+    expect(screen.getByText('Demo 环境就绪状态')).toBeTruthy()
     expect(screen.queryByText('生成笔录')).toBeNull()
     expect(screen.getByText('电子设备管理')).toBeTruthy()
   })

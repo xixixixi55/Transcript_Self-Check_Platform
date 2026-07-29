@@ -46,6 +46,7 @@ export const API_ENDPOINTS = {
   WORKBENCH_SOURCE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/source`,
   WORKBENCH_CASE_ASSETS: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/assets`,
   WORKBENCH_CASE_ASSET: (caseId: string, assetId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/assets/${encodeURIComponent(assetId)}`,
+  DEMO_READINESS: `${API_PREFIX}/demo/readiness`,
 }
 
 /** 文件上传限制（字节） */

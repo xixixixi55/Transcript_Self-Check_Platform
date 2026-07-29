@@ -2,6 +2,7 @@ import React from 'react'
 import { Button, Card, Col, Row, Typography } from 'antd'
 import { AppstoreOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
+import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
 
 const { Paragraph, Title } = Typography
 
@@ -13,6 +14,7 @@ export default function ElectronicInspectionModulePage() {
       <Paragraph className="platform-page__description">
         案件工作台是电子数据检查笔录的统一生产入口，负责案件登记、解析、审核、保存和导出。
       </Paragraph>
+      <DemoReadinessNotice />
       <Row gutter={[16, 16]} className="platform-module-page__entries">
         <Col xs={24} md={12}>
           <Card className="platform-entry-card" bordered>

@@ -4,6 +4,8 @@ import { Alert, Button, Col, Empty, Input, Pagination, Row, Space, Spin, Typogra
 import { FolderOpenOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
 import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
 import { CaseCard } from '../components/CaseCard'
+import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
+import { SourceAuthorizationNotice } from '../components/SourceAuthorizationNotice'
 
 const { Paragraph, Title } = Typography
 
@@ -56,7 +58,7 @@ export default function CaseWorkbenchPage() {
       const result = await workbench.checkDelete(caseId)
       if (!result.allowed) message.warning(`当前案件不可删除：${result.blockers.join('、')}`)
       else message.info('后端已确认可删除；本阶段不提供删除案件记录入口，正式产物不会随卡片操作删除。')
-    } catch { message.error('删除前置检查失败，请稍后重试。') }
+    } catch { message.error('删除条件检查失败，请稍后重试。') }
   }
 
   const total = workbench.page.has_more
@@ -68,6 +70,8 @@ export default function CaseWorkbenchPage() {
       <div className="platform-page__eyebrow">案件工作台</div>
       <Title level={1}>电子数据检查案件</Title>
       <Paragraph className="platform-page__description">案件提交、解析、审核和后台任务状态均以服务端持久状态为准；每页最多显示6个案件。</Paragraph>
+      <DemoReadinessNotice />
+      <SourceAuthorizationNotice />
       <Space wrap className="case-workbench-page__toolbar">
         <Input aria-label="报告目录路径" value={sourcePath} onChange={event => setSourcePath(event.target.value)} placeholder="粘贴报告目录的本机绝对路径" />
         <Input aria-label="案件名称" value={caseName} onChange={event => setCaseName(event.target.value)} placeholder="案件名称（可选）" />
