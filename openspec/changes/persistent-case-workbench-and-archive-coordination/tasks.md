@@ -350,7 +350,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Phase 3 prerequisite — WinRAR progress capability spike
 
-- [ ] 在进入 Phase 3 实现和验收前，使用 `SYNTHETIC/TEST/FIXTURE` 输入验证当前正式 WinRAR 版本是否能稳定提供可解释的实际进度信号；记录信号来源、解析稳定性、失败行为和百分比一致性，不记录真实案件或产物。验证：外部 spike 记录和合成回归证据。
+- [x] 在进入 Phase 3 实现和验收前，使用 `SYNTHETIC/TEST/FIXTURE` 输入验证当前正式 WinRAR 版本是否能稳定提供可解释的实际进度信号；记录信号来源、解析稳定性、失败行为和百分比一致性，不记录真实案件或产物。2026-07-30 结论：当前 RAR 5.90 的控制台百分比流包含无标签回退，`-inul` Legacy 路径无进度输出，spike 未通过；详见 `winrar-progress-capability-spike.md` 和 `tests/test_winrar_progress_capability_spike.py`。
 - [ ] spike 未通过时暂停 Phase 3 完成门槛，先汇报并选择受支持 WinRAR 版本或适配方式；迁移期间保留现有 Legacy 显式压缩能力，不使用时间、动画或输出文件大小伪造百分比，也不直接让现有压缩失效。
 
 ### Layer 0/1/2 — Archive contracts
