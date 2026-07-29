@@ -24,6 +24,11 @@ export enum RecordStatus {
 /** 检材条目 */
 export interface EvidenceItem {
   id: string
+  /**
+   * Case-scoped stable evidence identity. Legacy DTOs may omit this during
+   * migration; it is assigned once when a persistent case snapshot is made.
+   */
+  evidence_id?: string
   device_type: string         // 报告明确的设备类型字段；具体型号单独放在 model
   device_name?: string        // 品牌 + 有效型号组成的统一设备展示名称
   brand?: string              // 报告中对应检材的真实品牌
@@ -228,3 +233,4 @@ export * from './shadow'
 export * from './workbench'
 export * from './archiveAttempt'
 export * from './demoReadiness'
+export * from './wordDownload'

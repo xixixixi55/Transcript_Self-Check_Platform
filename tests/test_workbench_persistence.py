@@ -196,6 +196,36 @@ def test_draft_revision_conflict_does_not_overwrite(database: WorkbenchDatabase)
     assert repository.get(CASE_ID)["report"]["title"] == REPORT["title"]
 
 
+def test_stable_review_ids_preserve_legacy_report_projection(database: WorkbenchDatabase) -> None:
+    create_shell(database)
+    CaseShellRepository(database).update_lifecycle(CASE_ID, "parsing", 0)
+    report = json.loads(json.dumps(REPORT))
+    report["introduction"]["evidence_list"] = [{
+        "id": "SYNTHETIC-LEGACY-EVIDENCE-1",
+        "evidence_id": "SYNTHETIC-STABLE-EVIDENCE-1",
+        "device_type": "phone",
+        "evidence_number": "检材2",
+    }]
+    report["introduction"]["inspectors"] = [{
+        "name": "SYNTHETIC-NAME", "unit": "SYNTHETIC-UNIT", "badge_number": "SYNTHETIC-BADGE",
+    }]
+    report["introduction"]["inspector_snapshots"] = [{
+        "snapshot_id": "SYNTHETIC-STABLE-INSPECTOR-1",
+        "inspector_id": "SYNTHETIC-INSPECTOR-1",
+        "name": "SYNTHETIC-NAME", "unit": "SYNTHETIC-UNIT", "police_number": "SYNTHETIC-BADGE",
+    }]
+
+    saved = CaseDraftRepository(database).save({
+        "case_id": CASE_ID, "report": report, "asset_refs": [], "field_states": {},
+    })
+
+    persisted = CaseDraftRepository(database).get(CASE_ID)["report"]
+    assert saved["revision"] == 1
+    assert persisted["introduction"]["evidence_list"][0]["evidence_id"] == "SYNTHETIC-STABLE-EVIDENCE-1"
+    assert persisted["introduction"]["inspector_snapshots"][0]["snapshot_id"] == "SYNTHETIC-STABLE-INSPECTOR-1"
+    assert persisted["introduction"]["inspectors"] == report["introduction"]["inspectors"]
+
+
 def test_draft_requires_complete_legacy_report_and_opaque_archive_plan(database: WorkbenchDatabase) -> None:
     create_shell(database)
     CaseShellRepository(database).update_lifecycle(CASE_ID, "parsing", 0)

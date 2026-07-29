@@ -334,6 +334,12 @@ never part of the public DTO. A source may carry a stable
 this diagnostic does not expose a locator. `OpaqueAssetRef` identifies controlled
 large objects without embedding their content in SQLite.
 
+`WordDownloadName` is the Phase 2 T007 shared DTO for a browser-facing download
+name only. It never contains a server physical artifact name. Its introduction
+does not enable the Phase 2 dialog or change the current Legacy export behavior;
+the remaining order, provenance and export interaction contract stays in the
+active change delta spec until those tasks are implemented.
+
 Phase 1D recovery keeps parse and source verification state durable across process
 restart. Queued/running/cancelling parse tasks become retryable or interrupted
 according to their persisted state, pending source verification remains pending for
@@ -492,6 +498,7 @@ Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLife
 type TaskKind, type TaskStatus, type TaskStage, type FieldSource, type FieldConfirmation,
 type LeaseStatus, type SourceAccessStatus, type CaseAssetContentStatus, interface OpaqueAssetRef, interface CaseAssetRecord,
 interface CaseAssetList, interface FieldState,
+interface WordDownloadName,
 interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,
 interface SharedDefaultsSaveStatus,

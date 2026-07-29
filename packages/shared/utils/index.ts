@@ -1,6 +1,9 @@
 // Layer 2: SharedUtils — 前后端共享的纯函数工具
 import { DEFAULT_DATA_SUMMARY } from '../constants'
 export * from './exportFileNameUtils'
+export * from './downloadFileName'
+export * from './fieldProvenance'
+export * from './naturalEvidenceOrder'
 export * from './dateTimeUtils'
 export * from './discSequenceUtils'
 export * from './softwareProjectionUtils'

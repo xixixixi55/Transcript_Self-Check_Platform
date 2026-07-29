@@ -318,8 +318,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 0/2 — Contract and pure rules
 
-- [ ] **T007** 在 `packages/shared/types/` 扩展稳定 `evidence_id`、`InspectorSnapshot`、`FieldState`、来源/确认枚举和 Word 下载名称 DTO；在 `packages/shared/utils/` 新增 `naturalEvidenceOrder.ts`、`fieldProvenance.ts`、`downloadFileName.ts`。验证：旧 Legacy DTO 仍可投影。
-- [ ] **T007T** 在 `packages/shared/utils/*.test.ts` 覆盖检材 2/10、重复/无法识别回退、用户修改来源迁移、待确认提示状态、非法 Windows 字符、空名和 `.docx` 补全。验证：Vitest。
+- [x] **T007** 在 `packages/shared/types/` 扩展稳定 `evidence_id`、`InspectorSnapshot`、`FieldState`、来源/确认枚举和 Word 下载名称 DTO；在 `packages/shared/utils/` 新增 `naturalEvidenceOrder.ts`、`fieldProvenance.ts`、`downloadFileName.ts`。验证：旧 Legacy DTO 仍可投影。
+- [x] **T007T** 在 `packages/shared/utils/*.test.ts` 覆盖检材 2/10、重复/无法识别回退、用户修改来源迁移、待确认提示状态、非法 Windows 字符、空名和 `.docx` 补全。验证：Vitest。
 
 ### Layer 10/11/12 — Review UI and export name
 

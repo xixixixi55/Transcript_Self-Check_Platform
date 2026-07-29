@@ -49,6 +49,8 @@ export interface Material {
 }
 
 export interface InspectorSnapshot {
+  /** Case-scoped stable snapshot identity; Legacy projections may omit it. */
+  snapshot_id?: string
   inspector_id?: string | null
   name: string
   unit: string
