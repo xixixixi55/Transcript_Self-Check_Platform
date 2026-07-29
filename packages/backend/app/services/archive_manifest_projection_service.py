@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping
 from typing import Any
 
 from .attachment_plan_service import build_attachment_plan
+from .legacy_report_projection_service import project_ordered_legacy_report
 
 
 def project_manifest_to_legacy_report(
@@ -21,7 +21,7 @@ def project_manifest_to_legacy_report_with_plan(
     report: Mapping[str, Any], manifest: Mapping[str, Any],
 ) -> tuple[dict[str, Any], Any]:
     """Return the same legacy projection and the already-built formal plan."""
-    result = copy.deepcopy(dict(report))
+    result = project_ordered_legacy_report(report)
     plan = build_attachment_plan(manifest, result)
     attachments = result.setdefault("attachments", {})
     attachments["disc_number"] = plan.attachment_summary.disc_numbers[0]

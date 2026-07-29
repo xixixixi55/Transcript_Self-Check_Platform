@@ -17,6 +17,7 @@ from collections.abc import Mapping
 
 from .document_builder_service import build_record_document
 from .template_filler_service import fill_template
+from .legacy_report_projection_service import project_ordered_legacy_report
 
 # 模板文件路径
 _TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
@@ -60,6 +61,8 @@ def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str =
     """
     if output_dir is None:
         output_dir = tempfile.mkdtemp()
+
+    report = project_ordered_legacy_report(report)
 
     os.makedirs(output_dir, exist_ok=True)
 

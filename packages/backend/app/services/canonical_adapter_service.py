@@ -189,6 +189,7 @@ def inspection_report_to_canonical(
     if isinstance(raw_snapshots, list):
         inspectors = [
             InspectorSnapshot(
+                snapshot_id=_text(item.get("snapshot_id")) or None,
                 name=_text(item.get("name")),
                 unit=_text(item.get("unit")),
                 police_number=_text(item.get("police_number")),

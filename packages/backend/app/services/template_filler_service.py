@@ -33,6 +33,7 @@ from .template_profile_service import (
     validate_current_template_profile,
     validate_template_package_fingerprint,
 )
+from .legacy_report_projection_service import project_ordered_legacy_report
 
 
 def fill_template(report: dict, template_path: str, output_path: str,
@@ -44,6 +45,7 @@ def fill_template(report: dict, template_path: str, output_path: str,
     """
     if photo_paths is None:
         photo_paths = []
+    report = project_ordered_legacy_report(report)
 
     plan = None
     profile = None

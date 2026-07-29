@@ -170,6 +170,14 @@ def test_legacy_to_canonical_is_limited_migration_and_does_not_infer_material_ty
                 "inspectors": [
                     {"name": "Synthetic inspector", "unit": "Synthetic unit", "badge_number": "P-001"}
                 ],
+                "inspector_snapshots": [
+                    {
+                        "snapshot_id": "SYNTHETIC-SNAPSHOT-001",
+                        "name": "Synthetic inspector",
+                        "unit": "Synthetic unit",
+                        "police_number": "P-001",
+                    }
+                ],
                 "inspection_time_range": "synthetic-range",
             },
             "inspection": {
@@ -181,6 +189,7 @@ def test_legacy_to_canonical_is_limited_migration_and_does_not_infer_material_ty
     assert result.canonical_case.materials[0].type == "unconfirmed"
     assert result.canonical_case.materials[0].identifiers[0].type == "imei1"
     assert result.canonical_case.inspectors[0].selected_order == 0
+    assert result.canonical_case.inspectors[0].snapshot_id == "SYNTHETIC-SNAPSHOT-001"
     assert "archive_manifest" in result.missing_fields
     assert "LEGACY_INPUT_INCOMPLETE" in result.diagnostic_codes
 

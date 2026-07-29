@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。`1D-017R` 按当前统一验收策略延后到 Phase 1–4 实现后的最终集成阶段；Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 2–5 未开始。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过，等待 Phase 1–4 最终集成人工验收。`1D-017R` 按当前统一验收策略延后到 Phase 1–4 实现后的最终集成阶段；Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 3–5 未开始。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -310,7 +310,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 - [x] **T005P** 统一新案件六字段优先级为“当前案件用户手工修改 > Parser 非空解析值 > 非空共享默认值 > 系统默认值或空值”；共享默认值只补齐 Parser 空白、缺失或空数组，已有案件不回写。
 - [x] **T005PT** 增加旧实现下失败的后端回归测试，并复用前端纯规则、草稿刷新、稀疏 patch、revision conflict 和跨案件隔离测试；验证人员结构/顺序与光盘完整编号不会被共享值错误覆盖。测试有效性证据：旧实现 `2 failed, 5 passed`；最终后端定向回归 `238 passed, 3 warnings`，其中共享默认值/工作台 `41 passed, 1 warning`、Legacy Parser/Word/VML/分页 `91 passed`、Manifest/附件投影/显式归档 `106 passed, 2 warnings`；前端定向回归 `16 passed`。
-- [x] **T005PV** 本次 typecheck、`lint:arch`、前端生产构建、严格文档检查、资产检查和 `git diff --check` 通过。当前状态为“实现完成、自动验证通过、等待 Phase 1–4 最终集成人工验收”。未执行前后端全量测试、完整 Harness、`1D-017R`、最终集成人工验收、最终 Review 或归档，Phase 2–5 保持未开始。
+- [x] **T005PV** 本次 typecheck、`lint:arch`、前端生产构建、严格文档检查、资产检查和 `git diff --check` 通过。当前状态为“实现完成、自动验证通过、等待 Phase 1–4 最终集成人工验收”。未执行前后端全量测试、完整 Harness、`1D-017R`、最终集成人工验收、最终 Review 或归档，Phase 3–5 保持未开始。
 
 ## Phase 2 — 审核顺序、人员卡片、字段来源和导出命名
 
@@ -333,14 +333,16 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 21 — Legacy projection
 
-- [ ] **T010** 在 `packages/backend/app/services/legacy_report_projection_service.py` 或现有 Legacy builder 适配点统一生成正文、附件摘要、附件 1/2/3 和 Word 所需顺序投影；移除下游独立排序入口，但不改变 RAR 基础名规则。
-- [ ] **T010T** 在 `tests/test_legacy_report_projection_service.py`、`tests/test_record_generator_service.py` 增加合成多检材/多人员回归；验证审核顺序与正文、附件和 Word 顺序一致，来源颜色未进入 DOCX。
+- [x] **T010** 在 `packages/backend/app/services/legacy_report_projection_service.py` 或现有 Legacy builder 适配点统一生成正文、附件摘要、附件 1/2/3 和 Word 所需顺序投影；移除下游独立排序入口，但不改变 RAR 基础名规则。
+- [x] **T010T** 在 `tests/test_legacy_report_projection_service.py`、`tests/test_record_generator_service.py` 增加合成多检材/多人员回归；验证审核顺序与正文、附件和 Word 顺序一致，来源颜色未进入 DOCX。
 
 ### Phase 2 gate
 
-- [ ] 拖拽后的案件检材/人员顺序刷新后仍一致，所有 Legacy 投影和 Word 输出共用该顺序。
-- [ ] 默认值、报告解析值和人工修改值可区分，待确认有文字提示并进入门控。
-- [ ] Word 名称按次输入且只影响下载名；服务器物理文件名安全、唯一、不可覆盖。
+- [x] 拖拽后的案件检材/人员顺序刷新后仍一致，所有 Legacy 投影和 Word 输出共用该顺序。
+- [x] 默认值、报告解析值和人工修改值可区分，待确认有文字提示并进入门控。
+- [x] Word 名称按次输入且只影响下载名；服务器物理文件名安全、唯一、不可覆盖。
+- [x] Phase 2 阶段状态（2026-07-29）：实现完成、自动验证通过、轻量冒烟通过；等待 Phase 1–4 最终集成人工验收。
+- [ ] Phase 2 正式人工验收（并入 Phase 1–4 最终集成人工验收）；不得以本阶段合成测试或轻量冒烟替代。
 
 ## Phase 3 — 归档映射、后台归档和真实进度
 

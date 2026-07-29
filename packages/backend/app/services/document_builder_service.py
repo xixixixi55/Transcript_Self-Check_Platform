@@ -17,6 +17,7 @@ Layer 21: BE_Services — docx 文档构建器
 """
 
 from .report_defaults_service import normalize_data_summary
+from .legacy_report_projection_service import project_ordered_legacy_report
 
 
 DEFAULT_EXTRACT_COLUMNS = [
@@ -35,6 +36,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     """
     if photo_paths is None:
         photo_paths = []
+    report = project_ordered_legacy_report(report)
 
     intro = report.get("introduction", {})
     insp = report.get("inspection", {})

@@ -10,7 +10,7 @@ from ..services.report_parser_service import parse_report
 from ..services.archive_parse_runtime_service import parse_archive_with_reuse as parse_from_archive
 from ..services.record_generator_service import generate_docx
 from ..services.export_gate_service import ExportGateInput, evaluate_export_gate
-from ..services.inspector_service import apply_inspector_snapshot_compatibility
+from ..services.legacy_report_projection_service import project_ordered_legacy_report
 from ..services.material_policy_service import enrich_report_material_types, unconfirmed_material_fields
 from ..services.software_policy_service import (
     is_primary_software_confirmed,
@@ -202,7 +202,7 @@ async def export_record_endpoint(
         report, legacy_plan = project_manifest_to_legacy_report_with_plan(
             report, validated_manifest,
         )
-    report = apply_inspector_snapshot_compatibility(report)
+    report = project_ordered_legacy_report(report)
     # 保存上传的图片到临时目录
     try:
         output_dir = os.path.join(OUTPUT_BASE, "exports")

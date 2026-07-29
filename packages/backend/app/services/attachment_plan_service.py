@@ -29,6 +29,7 @@ from .attachment_plan_models_service import (
     INSPECTOR_FINAL_PAGE_KIND,
 )
 from .template_profile_service import current_template_profile
+from .legacy_report_projection_service import project_ordered_legacy_report
 
 PROFILE_ID = "current-template-v1"
 MAX_PART_ROWS_PER_PAGE = 4
@@ -40,6 +41,7 @@ def build_attachment_plan(
     manifest: Mapping[str, Any], report: Mapping[str, Any],
 ) -> AttachmentPlan:
     """Build all stage-one attachment pages without I/O or Word side effects."""
+    report = project_ordered_legacy_report(report)
     manifest_id, parts = _validated_parts(manifest)
     source_text = _source_text(report)
     extraction_method = _extraction_method(report)

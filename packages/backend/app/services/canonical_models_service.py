@@ -58,6 +58,7 @@ class Material(CanonicalBaseModel):
 
 
 class InspectorSnapshot(CanonicalBaseModel):
+    snapshot_id: str | None = None
     inspector_id: str | None = None
     name: str
     unit: str
