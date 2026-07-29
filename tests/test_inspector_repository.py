@@ -18,6 +18,7 @@ from app.repository.inspector_repository import (
     InspectorDataError,
     InspectorRepository,
     InspectorValidationError,
+    project_case_inspector_snapshot,
     resolve_app_data_dir,
 )
 from app.services.inspector_service import InspectorService
@@ -32,6 +33,21 @@ def test_first_create_writes_versioned_utf8_json_and_ignores_client_id(tmp_path:
     payload = json.loads((tmp_path / "inspectors.json").read_text(encoding="utf-8"))
     assert payload["schema_version"] == 1
     assert payload["inspectors"][0]["id"] == record.id
+
+
+def test_case_snapshot_is_detached_from_later_library_updates(tmp_path: Path):
+    repository = InspectorRepository(tmp_path)
+    record = repository.create("SYNTHETIC-INSPECTOR", "SYNTHETIC-UNIT", "SYNTHETIC-001")
+    snapshot = project_case_inspector_snapshot(
+        record, snapshot_id="SYNTHETIC-SNAPSHOT-1", selected_order=0,
+    )
+    repository.update(record.id, name="SYNTHETIC-CHANGED")
+
+    assert snapshot == {
+        "snapshot_id": "SYNTHETIC-SNAPSHOT-1", "inspector_id": record.id,
+        "name": "SYNTHETIC-INSPECTOR", "unit": "SYNTHETIC-UNIT",
+        "police_number": "SYNTHETIC-001", "selected_order": 0,
+    }
 
 
 def test_path_override_has_priority_and_default_windows_path_is_not_repo_path():

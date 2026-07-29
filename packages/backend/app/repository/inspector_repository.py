@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from .inspector_snapshot_repository import project_case_inspector_snapshot
+
 SCHEMA_VERSION = 1
 MAX_NAME_LENGTH = 100
 MAX_UNIT_LENGTH = 200

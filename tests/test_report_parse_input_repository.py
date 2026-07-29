@@ -112,7 +112,7 @@ def test_snapshot_reads_core_and_selected_device_json_once(tmp_path):
     assert all(str(tmp_path) not in item.relative_path for item in snapshot.dependencies)
 
 
-def test_snapshot_sorts_evidence_numbers_naturally(tmp_path):
+def test_snapshot_preserves_parser_evidence_order_for_case_initialization(tmp_path):
     data_root = _write_snapshot_fixture(tmp_path)
     rename_map = {
         "JC-SYN-01": "JC-SYN-10",
@@ -132,17 +132,17 @@ def test_snapshot_sorts_evidence_numbers_naturally(tmp_path):
 
     snapshot = build_report_parse_input_snapshot(str(tmp_path))
     assert [row["evidence_number"] for row in snapshot.device_rows] == [
-        "JC-SYN-1", "JC-SYN-2", "JC-SYN-10",
+        "JC-SYN-10", "JC-SYN-2", "JC-SYN-1",
     ]
     report = _build_report(
         str(data_root), str(tmp_path), str(tmp_path / "output"),
         compress=False, input_snapshot=snapshot,
     )
     assert [item["evidence_number"] for item in report["introduction"]["evidence_list"]] == [
-        "JC-SYN-1", "JC-SYN-2", "JC-SYN-10",
+        "JC-SYN-10", "JC-SYN-2", "JC-SYN-1",
     ]
     assert report["inspection"]["result"]["evidence_number"] == (
-        "JC-SYN-1、JC-SYN-2、JC-SYN-10"
+        "JC-SYN-10、JC-SYN-2、JC-SYN-1"
     )
 
 

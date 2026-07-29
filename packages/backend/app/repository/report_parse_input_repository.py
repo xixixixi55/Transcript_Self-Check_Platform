@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import re
 from pathlib import Path
 from typing import Any
 
@@ -45,16 +44,6 @@ _CORE_FILES = (
 )
 
 
-def _evidence_number_sort_key(value: object) -> tuple[int, tuple[tuple[int, int | str], ...]]:
-    text = str(value or "").strip().casefold()
-    chunks = re.split(r"(\d+)", text)
-    parts = tuple(
-        (1, int(chunk)) if chunk.isdigit() else (0, chunk)
-        for chunk in chunks if chunk
-    )
-    return (1 if not text else 0, parts)
-
-
 def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapshot:
     """Read core and explicitly selected device metadata exactly once."""
     source_root = resolve_directory(source_dir)
@@ -76,11 +65,8 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
     )
     if report_format == ReportFormat.UNSUPPORTED:
         raise ReportParseInputError("报告格式不受支持。")
-    device_rows = tuple(sorted(
-        parse_device_lists_payload(
-            core_payloads["data_device_lists.json"], report_format,
-        ),
-        key=lambda row: _evidence_number_sort_key(row.get("evidence_number", "")),
+    device_rows = tuple(parse_device_lists_payload(
+        core_payloads["data_device_lists.json"], report_format,
     ))
     root_entries = directory_entries(data_root)
     evidence_numbers = [row.get("evidence_number", "") for row in device_rows]

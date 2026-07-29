@@ -12,6 +12,8 @@ from ..repository.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import RevisionConflictError, WorkbenchPersistenceError
+from .case_order_service import CaseOrderService
+from .field_provenance_service import FieldProvenanceService
 
 
 class CaseLifecycleService:
@@ -58,14 +60,23 @@ class CaseLifecycleService:
         defaults_status: dict[str, Any]
         case_id = str(draft["case_id"])
         previous = self._draft_or_none(case_id)
+        normalized_draft = dict(draft)
+        normalized_report = CaseOrderService().prepare_save(
+            (previous or {}).get("report"), draft.get("report", {}),
+        )
+        normalized_draft["report"] = normalized_report
+        normalized_draft["field_states"] = FieldProvenanceService().reconcile(
+            (previous or {}).get("report", {}), (previous or {}).get("field_states", {}),
+            normalized_report, draft.get("field_states"),
+        )
         previous_ids = {str(item["asset_id"]) for item in (previous or {}).get("asset_refs", [])}
-        next_ids = {str(item["asset_id"]) for item in draft.get("asset_refs", [])}
+        next_ids = {str(item["asset_id"]) for item in normalized_draft.get("asset_refs", [])}
         if previous_ids != next_ids:
             if self.assets is None or not lease_id or not lease_token:
                 raise WorkbenchPersistenceError("LEASE_NOT_ACTIVE")
             self.assets.leases.assert_active_for_case(case_id, lease_id, lease_token)
         try:
-            saved = self.drafts.save(draft, expected_revision=expected_revision)
+            saved = self.drafts.save(normalized_draft, expected_revision=expected_revision)
             draft_status = {"status": "saved", "revision": saved["revision"]}
         except RevisionConflictError as error:
             draft_status = {"status": "conflict", "error_code": error.code}

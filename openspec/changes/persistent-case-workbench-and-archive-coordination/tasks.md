@@ -328,8 +328,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 20/21 — Ordered snapshots and provenance persistence
 
-- [ ] **T009** 新增 `packages/backend/app/services/case_order_service.py`、`field_provenance_service.py`，改造 `report_parse_input_repository.py` 和 `inspector_repository.py` 的案件快照投影；只在案件创建时初始化默认顺序，保存拖拽后的数组和来源状态。
-- [ ] **T009T** 新增/修改 `tests/test_case_order_service.py`、`tests/test_field_provenance_service.py`、`tests/test_report_parse_input_repository.py`；覆盖报告原始顺序回退、重复编号、下游不得二次排序、人员库变化不改历史快照、图片组和人员项来源覆盖。
+- [x] **T009** 新增 `packages/backend/app/services/case_order_service.py`、`field_provenance_service.py`，改造 `report_parse_input_repository.py` 和 `inspector_repository.py` 的案件快照投影；只在案件创建时初始化默认顺序，保存拖拽后的数组和来源状态。
+- [x] **T009T** 新增/修改 `tests/test_case_order_service.py`、`tests/test_field_provenance_service.py`、`tests/test_report_parse_input_repository.py`；覆盖报告原始顺序回退、重复编号、下游不得二次排序、人员库变化不改历史快照、图片组和人员项来源覆盖。
 
 ### Layer 21 — Legacy projection
 

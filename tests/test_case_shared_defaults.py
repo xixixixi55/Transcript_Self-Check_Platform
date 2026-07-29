@@ -120,6 +120,8 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
         {"name": "SYNTHETIC-A", "unit": "SYNTHETIC-UNIT-A", "badge_number": "SYNTHETIC-001"},
         {"name": "SYNTHETIC-B", "unit": "SYNTHETIC-UNIT-B", "badge_number": "SYNTHETIC-002"},
     ]
+    snapshot_id = initialized["introduction"]["inspector_snapshots"][0]["snapshot_id"]
+    assert field_states[f"inspectors.{snapshot_id}.name"]["source"] == "system_default"
     assert initialized["inspection"]["result"]["data_summary"] == "SYNTHETIC-UNCHANGED-SUMMARY"
     assert initialized["attachments"]["disc_number"] == ""
     assert initialized["attachments"]["disc_number"] != defaults["disc_number_prefix"]
@@ -172,7 +174,12 @@ def test_parser_inspector_snapshots_keep_structure_and_order_over_shared_default
         "inspector_order": ["SYNTHETIC-SHARED|SYNTHETIC-UNIT|SYNTHETIC-001"],
     })
 
-    assert initialized["introduction"]["inspector_snapshots"] == report["introduction"]["inspector_snapshots"]
+    snapshots = initialized["introduction"]["inspector_snapshots"]
+    assert [item["inspector_id"] for item in snapshots] == [
+        "SYNTHETIC-PARSER-2", "SYNTHETIC-PARSER-1",
+    ]
+    assert [item["selected_order"] for item in snapshots] == [0, 1]
+    assert all(item["snapshot_id"] for item in snapshots)
     assert initialized["introduction"]["inspectors"] == []
     assert field_states["introduction.inspectors"]["source"] == "report"
 

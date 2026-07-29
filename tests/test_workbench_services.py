@@ -104,6 +104,59 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path):
     assert calls and Path(calls[0][0]) == report_dir
 
 
+def test_case_save_persists_dragged_card_order_and_field_provenance(database, tmp_path):
+    parsed_report = copy.deepcopy(REPORT)
+    parsed_report["introduction"].update({
+        "evidence_list": [
+            {"id": "SYNTHETIC-EVIDENCE-10", "device_type": "SYNTHETIC", "evidence_number": "SYNTHETIC-10", "model": "SYNTHETIC-10"},
+            {"id": "SYNTHETIC-EVIDENCE-2", "device_type": "SYNTHETIC", "evidence_number": "SYNTHETIC-2", "model": "SYNTHETIC-2"},
+        ],
+        "inspectors": [
+            {"name": "SYNTHETIC-A", "unit": "SYNTHETIC-U", "badge_number": "SYNTHETIC-001"},
+            {"name": "SYNTHETIC-B", "unit": "SYNTHETIC-U", "badge_number": "SYNTHETIC-002"},
+        ],
+    })
+    parsed_report["attachments"]["photo_groups"] = [{
+        "material_id": "SYNTHETIC-MATERIAL-1", "material_number": "SYNTHETIC-1",
+        "display_text": "SYNTHETIC", "ordered_image_ids": ["SYNTHETIC-IMG-1", "SYNTHETIC-IMG-2"], "source_order": 0,
+    }]
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(parsed_report)}, source_service,
+    )
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+    detail = lifecycle.detail(identifiers["case_id"])
+    assert detail["parse_task"]["status"] == "succeeded", detail["parse_task"]["error_code"]
+    draft = detail["draft"]
+    report = copy.deepcopy(draft["report"])
+    report["introduction"]["evidence_list"].reverse()
+    report["introduction"]["evidence_list"][0]["model"] = "SYNTHETIC-USER-MODEL"
+    report["introduction"]["inspector_snapshots"].reverse()
+    submitted_states = copy.deepcopy(draft["field_states"])
+    model_path = f"evidence.{report['introduction']['evidence_list'][0]['evidence_id']}.model"
+    submitted_states[model_path]["confirmation"] = "pending"
+
+    saved = lifecycle.save_draft({
+        "case_id": identifiers["case_id"], "report": report, "field_states": submitted_states,
+        "asset_refs": [], "lifecycle": "review_ready",
+    }, draft["revision"], None, None)
+    persisted = saved["draft"]
+
+    assert saved["draft_save_status"] == {"status": "saved", "revision": persisted["revision"]}
+    assert [item["evidence_number"] for item in persisted["report"]["introduction"]["evidence_list"]] == [
+        "SYNTHETIC-10", "SYNTHETIC-2",
+    ]
+    assert [item["selected_order"] for item in persisted["report"]["introduction"]["inspector_snapshots"]] == [0, 1]
+    assert [item["name"] for item in persisted["report"]["introduction"]["inspector_snapshots"]] == [
+        "SYNTHETIC-B", "SYNTHETIC-A",
+    ]
+    assert persisted["field_states"][model_path]["source"] == "user"
+    assert persisted["field_states"][model_path]["confirmation"] == "pending"
+    assert persisted["field_states"]["inspectors." + persisted["report"]["introduction"]["inspector_snapshots"][0]["snapshot_id"] + ".name"]["source"] == "report"
+    assert persisted["field_states"]["photo_groups.SYNTHETIC-MATERIAL-1"]["source"] == "report"
+
+
 def test_case_detail_retries_a_mixed_parse_completion_snapshot(database, tmp_path, monkeypatch):
     source_service = make_source_service(database, tmp_path)
     cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)

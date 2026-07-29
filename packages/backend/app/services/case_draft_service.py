@@ -16,6 +16,8 @@ from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .report_parser_service import parse_report
 from .disc_sequence_service import apply_disc_sequence_to_attachments
+from .case_order_service import CaseOrderService
+from .field_provenance_service import FieldProvenanceService
 from .shared_defaults_service import SharedDefaultsService
 from .source_record_service import SourceRecordService
 
@@ -165,7 +167,8 @@ def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) ->
         "confirmation": "confirmed" if isinstance(disc_current, str) and disc_current.strip() else "pending",
         "revision": 0, "last_changed_at": now,
     }
-    return value, fields
+    ordered = CaseOrderService().initialize(value)
+    return ordered, FieldProvenanceService().initialize(ordered, fields)
 
 
 def _inspector_from_default(value: str) -> dict[str, str]:
