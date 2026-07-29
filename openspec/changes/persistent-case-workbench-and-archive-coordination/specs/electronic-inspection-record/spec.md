@@ -1,6 +1,8 @@
 # Electronic Inspection Record: Persistent Workbench Contract
 
-本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。实现与测试完成前，不修改 openspec/specs/ 下的 living spec。
+本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1 已实现并确认的
+合同可以同步到 `openspec/specs/` 下的 living spec；Phase 2–5 尚未实现的合同仍只保留在本
+delta spec 中，不得提前写成当前生产事实。
 
 ## Contract vocabulary
 
@@ -65,13 +67,20 @@
 
 ## Requirement: 共享默认值与当前案件双写可区分
 
-部署实例 MUST 共享完整文号、检查地点、检查方法、检查硬件、检查人员及顺序、光盘编号前缀。用户修改这些字段后，经校验和防抖，当前案件来源变为 user，同时更新共享默认值供以后新案件继承。草稿保存结果和共享默认值保存结果 MUST 分别返回。
+后端持久化 MUST 是工作台共享默认值的事实源，当前作用域为部署实例/本地操作者，不表示
+多用户隔离。共享范围严格限定为完整文号、检查地点、检查方法、检查硬件、检查人员及顺序、
+光盘编号前缀六项。用户明确修改其中一项后，工作台经校验和防抖先保存当前草稿；草稿保存
+成功时才以稀疏 patch 更新本次明确修改的非空共享字段。后续新案件仅在 Parser 对应字段为空、
+纯空格、缺失或空数组时使用可用的非空共享默认值，已有案件不得被回写或批量修改。Parser
+自动解析值不得进入共享 patch。草稿保存结果和共享默认值保存结果 MUST 分别返回；
+`localStorage` 不是工作台案件或共享默认值事实源。
 
 #### Scenario: 案件字段修改同步共享默认值
 
 - **WHEN** 用户修改文号、地点、方法、硬件或光盘前缀且校验和防抖完成
-- **THEN** 当前案件字段保存为 user 来源并提交共享默认值更新
+- **THEN** 当前案件字段保存为 user 来源，草稿保存成功后提交仅包含本次明确修改字段的稀疏共享默认值更新
 - **AND** API 分别返回 draft_save_status 和 shared_defaults_save_status
+- **AND** 空值不清除已保存的共享默认值，未修改字段不进入 patch
 
 #### Scenario: 双写部分失败可见
 
@@ -83,17 +92,24 @@
 
 - **WHEN** 用户拖拽当前案件检查人员卡片并保存
 - **THEN** 当前案件 InspectorSnapshot 顺序变为 user 确认顺序
-- **AND** 共享默认人员顺序同时更新并分别返回两种保存状态
+- **AND** 草稿保存成功后，共享默认人员顺序通过稀疏更新保存，并分别返回两种保存状态
+
+#### Scenario: 新案件继承且已有案件不回写
+
+- **WHEN** 后端已保存一个或多个非空共享默认值，随后创建新案件
+- **THEN** 新案件仅在对应报告值缺失、为空或无法识别时优先使用这些共享默认值
+- **AND** 更新共享默认值不得修改此前已创建案件的草稿或来源状态
 
 #### Scenario: 旧 localStorage 迁移
 
 - **WHEN** 浏览器存在旧默认值且部署实例尚无迁移决定
 - **THEN** 系统提示导入或忽略，不得静默写入共享默认值
 - **AND** 导入或忽略只能成功一次并记录无认证身份审计信息
+- **AND** 迁移完成前后，`localStorage` 均不得成为工作台事实源
 
 ## Requirement: 解析值优先于共享默认值
 
-字段初始化 MUST 遵循 report > system_default 的来源优先级，pending 是独立确认状态。有效非空解析值来源为 report；报告缺失、为空或无法识别时才使用共享默认值；用户修改后来源统一为 user。
+案件字段 MUST 遵循 user > report > system_default 的来源优先级，对应业务优先级为“当前案件用户手工修改 > Parser 非空解析值 > 非空共享默认值 > 系统默认值或空值”；pending 是独立确认状态。有效非空解析值来源为 report；报告为空、纯空格、缺失或空数组时才使用共享默认值；用户修改后来源统一为 user，保存和刷新不得退回较低优先级。
 
 #### Scenario: 有效报告值优先
 
@@ -520,6 +536,8 @@ use the same Legacy `InspectionReport` field contract, validation rules, date/ti
 attachment model, preview projection, and Word export mapping as the existing generation
 capability. The workbench presentation MAY reorganize the layout and add case status, autosave,
 lease, source, and multi-case controls, but MUST NOT maintain a simplified second editor.
+The retained backend `/records/*` endpoints are Legacy compatibility entries and the only formal
+Legacy output pipeline; they are not a competing persistent workbench flow.
 
 #### Scenario: 完整审核编辑器
 
@@ -535,6 +553,13 @@ lease, source, and multi-case controls, but MUST NOT maintain a simplified secon
 - **THEN** the URL redirects to the workbench without exposing a competing upload/editor flow
 - **AND** backend `/records/*` compatibility contracts, Legacy Parser output, Word, Manifest,
   and formal archive safety gates remain available and unchanged
+
+#### Scenario: 工作台预览不自动归档
+
+- **WHEN** 工作台已持久化 CaseShell、SourceRecord 和解析任务，并在解析成功后保存 CaseDraft
+- **THEN** 用户可以审核和保存草稿，预览动作本身不得启动 WinRAR 或创建 Phase 3 后台归档任务
+- **AND** 只有用户显式选择“立即开始压缩”后才进入受控 Legacy 显式归档入口
+- **AND** 用户选择“稍后压缩”时持久化 `archive_deferred`，不启动归档
 
 #### Scenario: 完整能力不退化工作台优化
 

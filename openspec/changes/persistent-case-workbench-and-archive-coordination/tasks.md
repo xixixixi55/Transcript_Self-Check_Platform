@@ -1,17 +1,17 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1A/1B、Phase 1C 和 Phase 1D 原实现及首次验收已完成。首次独立 Level 3 Code Review 未通过，Phase 1D 归档准备状态已重新打开；Phase 2 及后续阶段仍未开始。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。`1D-017R` 按当前统一验收策略延后到 Phase 1–4 实现后的最终集成阶段；Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 2–5 未开始。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
 ## 执行规则
 
-- 五个 Phase 可分别实现、定向验证、人工验收和提交；阶段间只通过版本化 SharedTypes/API 合同连接。
+- 五个 Phase 可分别实现和自动验证；每阶段只做服务启动、核心页面和新功能可访问性的轻量开发冒烟，并记录为“实现完成、自动验证通过、等待最终集成人工验收”。Phase 1–4 全部实现后再统一执行完整 Harness、集成检查和一次完整端到端人工验收；轻量冒烟不等同正式人工验收，阶段 checkpoint commit 由用户单独授权。
 - 每个 Phase 内按 Layer 0 → Layer 23 排列；每个代码任务后紧跟覆盖同一合同的测试任务。
 - 实施前必须审计其他活跃变更包的重叠任务；不自动删除或降级旧包，不把 Canonical 或 Shadow 真实样本任务作为本包隐式前置条件。
 - 所有测试数据必须显式标记 `SYNTHETIC/TEST/FIXTURE`，不提交真实案件、人员、设备号、路径、RAR、Manifest、DOCX 或运行输出。
 - 任一阶段不得启动 Canonical 或 Shadow 真实样本治理；Legacy 仍是唯一正式输出。
-- 每个阶段完成后至少执行该阶段定向架构检查、类型检查和测试；全部阶段合并后再安排 Level 3 独立 Code Review 和完整 Harness 门控。
+- 每个阶段完成后执行该阶段定向测试、前后端全量测试、类型检查、架构检查、生产构建、严格文档检查、资产检查和 `git diff --check`；Phase 1–4 全部实现并完成最终集成人工验收后，再安排最终 Level 3 独立 Code Review 和归档判断。
 
 ## Phase 1 — 案件草稿、共享默认值、任务和工作台基础
 
@@ -119,6 +119,10 @@
 - [x] **1D-007** 对既有 Legacy Parser、Word builder/export、Manifest authority、archive execution、VML/分页、附件和图片门控进行合成回归；不得修改 `word_templates/template.docx`，不得引入 Canonical/Shadow 或 Phase 3 进度。
 - [x] **1D-007T** 运行并补充针对性后端/前端测试，覆盖 Legacy 解析、归档失败/重试、Manifest 缺失/篡改/分卷校验、Word 内容与附件图片、路径安全和恢复状态 API；所有 fixture 明确标记 `SYNTHETIC/TEST/FIXTURE`。
 - [x] **1D-008** 完成合成数据人工验收：多案件切换、刷新、关闭/重启恢复、解析失败重试、来源暂时不可验证/确认变化、租约失效、图片资产、deferred、立即归档中断、新 handle、staging 保护和正式产物保护；只保存脱敏的验收结论，不保存真实报告或生成产物。2026-07-28 验收结论：合成双案件可独立登记、解析、编辑、刷新和重载，解析/来源/租约/图片/归档中断与正式产物保护矩阵通过；失败任务仅进入可重试状态，未生成可审核草稿；未使用真实案件、报告或正式产物。
+
+`1D-008` 只记录 2026-07-28 当时 Phase 1D 的历史合成阶段验收，不等同于
+Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 归档通过。
+
 - [x] **1D-008T** 完成定向架构检查、类型检查、相关后端/前端测试和 `git diff --check`；2026-07-28 定向结果：后端 Phase 1D 文件 3 次稳定通过、单测 5 次稳定通过，独立 PowerShell 全量后端 `642 passed, 3 skipped, 8 warnings`；前端恢复/工作台/图片资产/审核编辑/导出定向 `36 passed`；架构、类型、严格文档、资产和 diff 检查通过。用户随后在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端结果为 `642 passed, 3 skipped, 8 warnings`，前端 TypeScript 与生产构建通过，`verify:docs:strict` 通过。已知非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
 
 #### Phase 1D independent Review remediation
@@ -134,7 +138,7 @@
 - [x] **1D-014** 将来源 revision conflict 作为过期复核结果重新读取，调度、并发和临时错误不得走空 fingerprint 失效路径；真实 fingerprint 变化仍进入 `requires_reselection`。
 - [x] **1D-015** staging cleanup 明确拒绝根目录，仅接受受控根的 attempt 专属直接子目录且 marker/记录/部署/root 全部匹配；其他 attempt 和未知资源保持不动。
 - [x] **1D-016T** 运行各发现定向测试、Phase 1D、Legacy Parser/Word/Manifest/归档兼容、前端工作台与导出测试、后端全量、typecheck、lint:arch、严格文档、资产及 diff 检查；2026-07-28 用户在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`：后端 `650 passed, 3 skipped, 10 warnings`，前端 TypeScript 与生产构建通过，`verify:docs:strict` 通过，未出现 `KeyboardInterrupt`、测试失败或递归脚本失败。已知非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
-- [ ] **1D-017R** 完整 Harness 退出码为 0 后重新执行独立 Level 3 Code Review；无阻断性 Critical/High/Medium 后才恢复 OpenSpec 归档准备。
+- [ ] **1D-017R** 完整 Harness 退出码为 0 后重新执行独立 Level 3 Code Review；无阻断性 Critical/High/Medium 后才恢复 OpenSpec 归档准备。按当前统一验收策略，本项延后到 Phase 1–4 实现、功能冻结、全量自动测试、完整 Harness 和最终集成人工验收之后执行；当前不得据历史 Harness 或阶段验收提前勾选。
 
 #### Second independent Review remediation (2026-07-28)
 
@@ -201,7 +205,7 @@
 
 ### Demo checkpoint 状态（2026-07-28）
 
-本次独立 Review 结论接受为甲方 Demo checkpoint 判定：Phase 1D 为 **Demo-ready（有条件）**，不是 Production-ready；当前 `Production-ready = 否`。本结论不等同于独立 Level 3 Production Review 通过，不解除 OpenSpec 归档阻断，也不完成 `1D-017R`。在人工 Demo 冒烟验收完成前不提交、不推送、不归档；允许在独立工作范围内继续甲方 Demo 后续功能，但不得宣称本 Level 3 变更包已生产完成。
+本次独立 Review 结论接受为甲方 Demo checkpoint 判定：Phase 1D 为 **Demo-ready（有条件）**，不是 Production-ready；当前 `Production-ready = 否`。本结论不等同于独立 Level 3 Production Review 通过，不解除 OpenSpec 归档阻断，也不完成 `1D-017R`。历史 Demo 冒烟与阶段验收记录可以保留，但 Phase 1–4 最终集成人工验收仍未完成；允许在独立工作范围内继续甲方 Demo 后续功能，但不得宣称本 Level 3 变更包已生产完成。
 
 #### Demo 后生产加固技术债
 
@@ -285,6 +289,9 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Phase 1D Review gate
 
+以下未完成 gate 按统一验收策略延后到 Phase 1–4 实现后的最终集成阶段；历史阶段 Review
+和 Harness 结果仅作为证据保留，不自动完成最终 Review 或解除归档阻断。
+
 - [x] 首次/第二次 Review 的六项发现已按当时最终业务合同完成核验和回归修复；第三次 Review 修复状态见上方追加任务。
 - [x] 用户独立 PowerShell 完整 Harness 退出码为 0；2026-07-28 Review 修复验证结果为后端 `650 passed, 3 skipped, 10 warnings`，前端 TypeScript/生产构建和 `verify:docs:strict` 通过。
 - [x] 上一轮新的完整 Harness gate（第二次 Review remediation 历史）已完成：2026-07-28 用户在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端 `661 passed, 3 skipped, 12 warnings`，前端 TypeScript 通过，前端生产构建通过，`verify:docs:strict` 通过，未出现 `KeyboardInterrupt`、测试失败或递归脚本失败。非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
@@ -296,8 +303,14 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 ### Phase 1 gate
 
 - [x] 案件提交后立即显示案件壳卡片，解析失败卡片可重试但不可审核、归档或导出。
-- [x] 共享默认值修改后立即成为以后新案件的默认来源；当前草稿和共享默认值保存状态分别可见。
+- [x] 用户明确修改六项字段且当前草稿成功保存后，稀疏更新共享默认值；以后新案件仅在 Parser 对应字段为空时使用共享值，当前草稿和共享默认值保存状态分别可见。
 - [x] 刷新和重启后状态可恢复；`archive_deferred` 保持不变，`archive_queued/archiving` 转为 `archive_interrupted` 并等待用户重新确认；重启前 running WinRAR 不自动接管或续跑，正式产物不受影响。
+
+### Phase 1 共享默认值最终合同修正（2026-07-29）
+
+- [x] **T005P** 统一新案件六字段优先级为“当前案件用户手工修改 > Parser 非空解析值 > 非空共享默认值 > 系统默认值或空值”；共享默认值只补齐 Parser 空白、缺失或空数组，已有案件不回写。
+- [x] **T005PT** 增加旧实现下失败的后端回归测试，并复用前端纯规则、草稿刷新、稀疏 patch、revision conflict 和跨案件隔离测试；验证人员结构/顺序与光盘完整编号不会被共享值错误覆盖。测试有效性证据：旧实现 `2 failed, 5 passed`；最终后端定向回归 `238 passed, 3 warnings`，其中共享默认值/工作台 `41 passed, 1 warning`、Legacy Parser/Word/VML/分页 `91 passed`、Manifest/附件投影/显式归档 `106 passed, 2 warnings`；前端定向回归 `16 passed`。
+- [x] **T005PV** 本次 typecheck、`lint:arch`、前端生产构建、严格文档检查、资产检查和 `git diff --check` 通过。当前状态为“实现完成、自动验证通过、等待 Phase 1–4 最终集成人工验收”。未执行前后端全量测试、完整 Harness、`1D-017R`、最终集成人工验收、最终 Review 或归档，Phase 2–5 保持未开始。
 
 ## Phase 2 — 审核顺序、人员卡片、字段来源和导出命名
 

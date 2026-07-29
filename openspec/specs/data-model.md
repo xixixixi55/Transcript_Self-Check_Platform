@@ -443,10 +443,20 @@ metadata. Uploads are validated and atomically finalized before a reference can
 enter a case draft. Missing or corrupt content is a recoverable error, and
 unreferenced temporary assets are removed after a grace period.
 
-`SharedDefaults` is deployment-scoped. `FieldSource` distinguishes `report`, `user`
-and `system_default`, while `FieldConfirmation` separately represents pending
-human confirmation. `ClientIdentity` is a local session identity, not an authenticated
-person. `EditLease` provides one active case lease with expiry and takeover metadata.
+`SharedDefaults` is backend-persisted and deployment-scoped for the current local
+operator; this scope does not provide or claim multi-user isolation. It is limited
+to document number, inspection place, inspection method, hardware device, ordered
+inspector snapshots and disc-number prefix. A successful draft save may send a
+sparse patch containing only non-empty values that the user explicitly changed.
+Case fields follow user edit > non-empty Parser report value > non-empty shared
+default > system default or empty. Later cases use shared values only when the
+Parser value is missing, blank, whitespace or an empty array; existing cases are
+never rewritten, and Parser-derived values never create a shared-default patch. `localStorage`
+is not a workbench case or shared-default source of truth. `FieldSource`
+distinguishes `report`, `user` and `system_default`, while `FieldConfirmation`
+separately represents pending human confirmation. `ClientIdentity` is a local
+session identity, not an authenticated person. `EditLease` provides one active case
+lease with expiry and takeover metadata.
 `SaveStatus`, `SharedDefaultsSaveStatus` and `DualSaveResult` report draft and
 shared-default persistence independently. Shared-default writes use a sparse
 six-field `shared_defaults_patch`; `updated`, `unchanged`, `failed` and

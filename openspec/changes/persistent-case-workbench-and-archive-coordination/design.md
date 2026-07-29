@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：Phase 1B Service/API、Phase 1C 前端工作台和 Phase 1D 原生产实现、合成验收与定向门控已完成；首次独立 Level 3 Code Review 未通过后，Phase 1D Review 修复已完成，用户已在独立 PowerShell 执行修复后的完整 Harness 且退出码为 0；独立 Level 3 复审尚未执行，OpenSpec 归档继续阻断；Phase 2 至 Phase 4 仍未开始
+> 设计状态：进行中。Phase 1 实现、历史阶段合成验收和自动门控已完成，Demo-ready（有条件）但不是 Production-ready；`1D-017R` 按当前统一验收策略延后到 Phase 1–4 实现后的最终集成阶段，Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 2–5 未开始
 
 ## 1. 总体架构决策
 
@@ -89,7 +89,7 @@ Phase 1D 在现有 `/records/archive` Legacy 显式入口外围增加最小归�
 |---|---|---|
 | `CaseShell` | `case_id`, case name/summary, source ref, parse task ref, lifecycle, timestamps | 提交报告后立即创建；解析成功前不含可审核 `report` |
 | `CaseDraft` | `case_id`, `case_number`, `case_name`, `case_summary`, `report`, `report_version`, `field_states`, opaque asset refs, `template_ref`, `archive_plan_id`, `lifecycle`, timestamps | 解析成功后的审核根实体；`case_name` 不改变 RAR 基础名；不含 Base64/HTML/原始 JSON 大对象 |
-| `SharedDefaults` | singleton `deployment_id`, `revision`, 文号/地点/方法/硬件/有序人员/光盘前缀 | 部署实例共享；新案件复制值和来源标记，当前案件用户修改经校验和防抖后同时更新共享默认值 |
+| `SharedDefaults` | singleton `deployment_id`, `revision`, 文号/地点/方法/硬件/有序人员/光盘前缀 | 后端持久化的部署实例/本地操作者作用域事实源；草稿成功保存时仅稀疏更新用户明确修改的非空字段，后续新案件仅在 Parser 对应值为空时继承，已有案件不回写 |
 | `FieldState` | `field_path`, `subject_id`, `source`, `confirmation`, `revision`, `last_changed_at` | 来源状态覆盖可编辑叶子、检材、人员、图片组；派生显示字段不单独建状态 |
 | `EditLease` | `case_id`, `session_id`, owner token, `last_heartbeat_at`, `expires_at`, takeover audit | 一个案件最多一个有效租约；15 秒建议心跳，2 分钟失联可接管 |
 | `TaskRecord` | `task_id`, `case_id`, `kind`, `status`, `stage`, `percent`, counters, input revision, retry/cancel/error | 任务状态和恢复依据；压缩运行数硬上限 6 |
@@ -164,9 +164,15 @@ Word builder 只接收字段值和 Legacy 投影，不接收 UI 来源颜色。�
 
 ### 3.4 解析值、共享默认值和双写状态
 
-案件初始化对每个字段执行固定优先级：有效且非空的报告解析值优先，FieldState.source 为 `report`；报告缺失、为空或无法识别时才读取共享默认值，source 为 `system_default`；两者都不可用时保持待填写或 `pending`；用户修改后统一为 `user`。`pending` 只属于 confirmation，不是 source 的替代值。
+案件字段执行固定优先级：当前案件用户手工修改 > Parser 有效非空解析值 > 非空共享默认值 > 系统默认值或空值。新案件初始化时，有效 Parser 值的 FieldState.source 为 `report`；仅在报告字段缺失、为空、纯空格或空数组时读取共享默认值，source 为 `system_default`；两者都不可用时保持待填写或 `pending`；用户修改后统一为 `user`，保存和刷新不得退回较低优先级。`pending` 只属于 confirmation，不是 source 的替代值。
 
 文号、检查地点、检查方法、检查硬件、光盘编号前缀和检查人员顺序属于“案件字段 + 部署共享默认值”的双写字段。自动保存服务在校验和防抖完成后提交两个独立操作，并分别返回 `draft_save_status` 与 `shared_defaults_save_status`。一侧失败不能伪装为整体成功，也不能静默回滚另一侧已经成功的写入；前端显示两个结果和重试入口。人员拖拽同样更新当前案件 `InspectorSnapshot[]` 与共享默认人员顺序。
+
+共享默认值的当前作用域是部署实例/本地操作者，不表示多用户隔离。后端
+`/workbench/defaults` 是事实源；工作台只在用户明确修改六项字段之一且当前草稿保存成功后，
+用稀疏 patch 更新对应的非空共享值。后续新案件仅在 Parser 对应字段为空、纯空格、缺失或
+空数组时使用可用的非空共享默认值，不会回写或批量修改已有案件。Parser 自动解析值不进入
+共享 patch；`localStorage` 不是工作台案件或共享默认值事实源。
 
 ### 3.5 无登录审计身份
 
@@ -305,9 +311,13 @@ DTO、任务、审计摘要、日志和错误消息不返回绝对路径。来�
 | 1A | SharedTypes、SQLite schema/migration、Repositories | CaseShell/CaseDraft、SourceRecord、ClientIdentity、双写结果、opaque asset 引用和 SQLite 大对象拒绝规则可持久化、迁移、回滚 |
 | 1B | Services 和 API | 提交即建壳、解析任务失败/重试、来源复核、默认值优先级、草稿/共享默认值双写状态、interrupted 重启语义和删除前置条件可通过 API 表达 |
 | 1C | 工作台、自动保存和租约 | 6 卡片分页、排队/解析中/失败状态、自动保存、15 秒心跳、2 分钟接管警告和分别显示保存结果 |
-| 1D | 刷新/重启恢复、兼容回归和人工验收 | CaseShell/CaseDraft/Task/Source/asset/lease 可恢复；解析中断、来源复核和重试闭环；归档准备通过单事务绑定 attempt/context/source/draft 证据后才进入 `archive_queued`；正式发布通过持久化意图和统一完成证据恢复，不自动续跑；自有 staging 可幂等清理或隔离；半成品不发布；Legacy 解析/归档/Manifest/Word 回归通过，并完成人工验收 |
+| 1D | 刷新/重启恢复、兼容回归和历史合成阶段验收 | CaseShell/CaseDraft/Task/Source/asset/lease 可恢复；解析中断、来源复核和重试闭环；归档准备通过单事务绑定 attempt/context/source/draft 证据后才进入 `archive_queued`；正式发布通过持久化意图和统一完成证据恢复，不自动续跑；自有 staging 可幂等清理或隔离；半成品不发布；Legacy 解析/归档/Manifest/Word 回归通过。历史合成阶段验收不等同于 Phase 1–4 最终集成人工验收 |
 
-每阶段提交前运行该阶段的类型、架构和定向测试；所有阶段完成后才考虑完整 Harness 门控，并按 `AGENTS.md` 在运行 `verify:full` 前询问执行者。
+每阶段完成时运行定向测试、前后端全量测试、类型、架构、生产构建、严格文档、资产和 diff
+检查，并只做服务启动、核心页面和新功能可访问性的轻量开发冒烟。Phase 1–4 全部实现后再
+统一进行完整 Harness、集成检查和完整端到端人工验收；最终 Review 与归档判断在此之后进行。
+轻量冒烟不等同正式人工验收，阶段 checkpoint commit 是否创建由用户单独授权；运行
+`verify:full` 前仍按 `AGENTS.md` 询问执行者。
 
 ### Phase 1C request liveness correction
 
