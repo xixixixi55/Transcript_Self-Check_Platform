@@ -2,16 +2,17 @@
 import React from 'react'
 import { Space, Tag } from 'antd'
 import type { FieldState } from '@biji/shared/types'
+import { getFieldConfirmationMessage, getFieldSourceLabel } from '@biji/shared/utils'
 
-const SOURCE_LABELS = { report: '报告解析', user: '用户修改', system_default: '系统默认' } as const
 const SOURCE_COLORS = { report: undefined, user: 'blue', system_default: 'default' } as const
 
 export function FieldProvenanceBadge({ state }: { state?: FieldState }) {
   if (!state) return null
+  const confirmationMessage = getFieldConfirmationMessage(state)
   return (
     <Space size={4} className="field-provenance-badge">
-      <Tag color={SOURCE_COLORS[state.source]}>{SOURCE_LABELS[state.source]}</Tag>
-      {state.confirmation === 'pending' && <Tag color="orange">待人工确认</Tag>}
+      <Tag color={SOURCE_COLORS[state.source]}>{getFieldSourceLabel(state.source)}</Tag>
+      {confirmationMessage && <Tag color="orange">{confirmationMessage}</Tag>}
     </Space>
   )
 }

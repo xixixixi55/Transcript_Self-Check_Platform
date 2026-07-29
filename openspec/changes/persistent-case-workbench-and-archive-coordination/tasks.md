@@ -323,8 +323,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 10/11/12 — Review UI and export name
 
-- [ ] **T008** 改造 `packages/frontend/src/components/EvidenceEditor.tsx`、`InspectorEditor.tsx` 为拖拽/卡片交互；新增 `ReviewSourceLegend.tsx`、`WordDownloadNameDialog.tsx` 等 Phase 2 顺序/来源能力，不再创建独立的工作台字段、校验、附件或导出实现。
-- [ ] **T008T** 为上述组件和 Hook 增加 RTL/E2E 测试；覆盖拖拽顺序持久化、姓名/单位/警号三字段人员卡片、来源颜色与文字提示、Word 每次弹窗、取消不导出和非法名称拒绝。
+- [x] **T008** 改造 `packages/frontend/src/components/EvidenceEditor.tsx`、`InspectorEditor.tsx` 为拖拽/卡片交互；新增 `ReviewSourceLegend.tsx`、`WordDownloadNameDialog.tsx` 等 Phase 2 顺序/来源能力，不再创建独立的工作台字段、校验、附件或导出实现。
+- [x] **T008T** 为上述组件和 Hook 增加 RTL/E2E 测试；覆盖拖拽顺序持久化、姓名/单位/警号三字段人员卡片、来源颜色与文字提示、Word 每次弹窗、取消不导出和非法名称拒绝。
 
 ### Layer 20/21 — Ordered snapshots and provenance persistence
 

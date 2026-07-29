@@ -20,8 +20,9 @@ import { CaseSaveStatusPanel } from '../components/CaseSaveStatusPanel'
 import { FieldProvenanceBadge } from '../components/FieldProvenanceBadge'
 import { SourceReselectionPanel } from '../components/SourceReselectionPanel'
 import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
+import { ReviewSourceLegend } from '../components/ReviewSourceLegend'
+import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
-import { useCaseExportSettings } from '../hooks/useCaseExportSettings'
 import { runWithSourceExportRiskConfirmation } from '../hooks/useSourceExportRisk'
 export default function CaseRecordGeneratePage() {
   const { caseId = '' } = useParams<{ caseId: string }>()
@@ -39,6 +40,7 @@ export default function CaseRecordGeneratePage() {
   const [archiveAttemptId, setArchiveAttemptId] = useState<string | null>(null)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const [defaultDiscPrefix, setDefaultDiscPrefix] = useState('')
+  const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
   useEffect(() => {
     setArchiveContextId(null)
     setArchiveAttemptId(null)
@@ -55,19 +57,12 @@ export default function CaseRecordGeneratePage() {
   useEffect(() => {
     if (session.defaults) setDefaultDiscPrefix(session.defaults.disc_number_prefix)
   }, [session.defaults?.revision])
-  const exportSettings = useCaseExportSettings(session.report)
-  const {
-    customFileName, exportFileName, exportFileNameError,
-    setCustomFileName, setFileName: setExportFileName, setExportFileNameError,
-  } = exportSettings
-  const pendingItems = useMemo(() => session.report
-    ? getReviewPendingItems(session.report, exportSettings.customFileName ? exportSettings.exportFileNameError : undefined)
-    : [], [exportSettings.customFileName, exportSettings.exportFileNameError, session.report])
+  const pendingItems = useMemo(() => session.report ? getReviewPendingItems(session.report) : [], [session.report])
   const updateReport = useCallback((path: string, value: unknown) => {
     session.updateReport(path, value)
     if (session.editingEnabled) setReviewStatus('存在未导出修改')
   }, [session.editingEnabled, session.updateReport])
-  const handleExport = async () => {
+  const handleExport = async (requestedFileName: string) => {
     const report = session.report, detail = session.detail
     if (!report || !detail || exporting) return false
     const dateErrors = [
@@ -76,15 +71,6 @@ export default function CaseRecordGeneratePage() {
       report.attachments?.burning_date && !isValidDateFieldValue(report.attachments.burning_date) && '附件3刻录时间',
     ].filter(Boolean)
     if (dateErrors.length) { message.error(`请修正以下日期时间字段：${dateErrors.join('、')}`); return false }
-    const requestedFileName = exportSettings.requestedFileName
-    if (customFileName) {
-      const error = exportSettings.validate()
-      if (error) {
-        setExportFileNameError(error)
-        message.error(error)
-        return false
-      }
-    }
     return runWithSourceExportRiskConfirmation(detail.source.access_status, async () => {
       setReviewStatus('导出中')
       let files: File[]
@@ -186,11 +172,12 @@ export default function CaseRecordGeneratePage() {
           onRetry={() => { void session.retrySave() }} onLoadServer={() => { void loadServer() }} />
         {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
         <div className="case-workbench-page__toolbar">文号来源：<FieldProvenanceBadge state={session.draft?.field_states.document_number} /></div>
+        <ReviewSourceLegend />
         <ReviewPendingSummary items={pendingItems} onNavigate={sectionId => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })} />
         <RecordEditorForm
           report={session.report}
           updateReport={updateReport}
-          onExport={handleExport}
+          onExport={() => setDownloadNameDialogOpen(true)}
           exporting={exporting}
           onBackToUpload={() => { void handleBackToWorkbench() }}
           deviceOptions={devices.map(device => ({ label: `${device.name} (${device.model})`, value: device.name }))}
@@ -199,11 +186,7 @@ export default function CaseRecordGeneratePage() {
           inspectorError={inspectorError}
           photoFiles={session.photoAssets.files}
           onPhotoFilesChange={session.photoAssets.handleChange}
-          exportFileName={exportFileName}
-          customFileName={customFileName}
-          exportFileNameError={exportFileNameError}
-          onCustomFileNameChange={setCustomFileName}
-          onExportFileNameChange={setExportFileName}
+          fieldStates={session.draft?.field_states}
           defaultDiscPrefix={defaultDiscPrefix}
           saveStatus={reviewStatus}
           saveBusy={session.autosave.draftState.status === 'saving'}
@@ -222,6 +205,13 @@ export default function CaseRecordGeneratePage() {
           archiveError={archive.error}
         />
       </div>
+      <WordDownloadNameDialog
+        open={downloadNameDialogOpen}
+        documentNumber={session.report.document_number}
+        exporting={exporting}
+        onCancel={() => setDownloadNameDialogOpen(false)}
+        onConfirm={downloadName => { setDownloadNameDialogOpen(false); void handleExport(downloadName) }}
+      />
       <ReviewPreviewDrawer open={previewOpen} report={session.report} photoFiles={session.photoAssets.files} onClose={() => setPreviewOpen(false)} />
     </>
   )

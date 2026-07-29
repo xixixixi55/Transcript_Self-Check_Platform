@@ -10,6 +10,9 @@ vi.mock('antd', () => ({
   Button: ({ children, onClick, ...props }: { children: React.ReactNode; onClick?: () => void; [key: string]: unknown }) => (
     <button {...props} onClick={onClick}>{children}</button>
   ),
+  Card: ({ title, extra, children }: { title?: React.ReactNode; extra?: React.ReactNode; children: React.ReactNode }) => (
+    <section><div>{title}{extra}</div>{children}</section>
+  ),
   Space: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Select: ({ value, options, onChange, mode, 'aria-label': ariaLabel }: any) => (
     <select aria-label={ariaLabel} multiple={mode === 'multiple'} value={value} onChange={event => onChange(mode === 'multiple' ? [event.target.value] : event.target.value)}>
@@ -30,6 +33,7 @@ vi.mock('antd', () => ({
       </div>
     ))}</div>
   ),
+  Tag: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   Typography: { Text: ({ children }: { children: React.ReactNode }) => <span>{children}</span> },
 }))
 
@@ -70,6 +74,22 @@ describe('结构化编辑器', () => {
         material_type_status: 'confirmed_by_user',
         material_type_source: 'user',
       }),
+    ])
+  })
+
+  it('检材卡片可拖拽排序并保留稳定 evidence_id', () => {
+    const onChange = vi.fn()
+    render(<EvidenceEditor items={[
+      { id: 'legacy-1', evidence_id: 'evidence-1', device_type: '合成设备', model: '', evidence_number: 'SYN-01' },
+      { id: 'legacy-2', evidence_id: 'evidence-2', device_type: '合成设备', model: '', evidence_number: 'SYN-02' },
+    ]} onChange={onChange} />)
+
+    fireEvent.dragStart(screen.getByTestId('evidence-card-0'))
+    fireEvent.drop(screen.getByTestId('evidence-card-1'))
+
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ evidence_id: 'evidence-2' }),
+      expect.objectContaining({ evidence_id: 'evidence-1' }),
     ])
   })
 
@@ -151,6 +171,33 @@ describe('结构化编辑器', () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       rows: [expect.objectContaining({ electronic_data: '已修改' })],
     }))
+  })
+
+  it('检查人员卡片可拖拽排序，并呈现姓名、单位和警号及来源文字', () => {
+    const onChange = vi.fn()
+    render(<InspectorEditor
+      snapshots={[
+        { snapshot_id: 'snapshot-1', inspector_id: 'one', name: '甲', unit: '单位甲', police_number: '001', selected_order: 0 },
+        { snapshot_id: 'snapshot-2', inspector_id: 'two', name: '乙', unit: '单位乙', police_number: '002', selected_order: 1 },
+      ]}
+      fieldStates={{ 'inspectors.snapshot-1.name': {
+        field_path: 'inspectors.snapshot-1.name', source: 'user', confirmation: 'pending', revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
+      } }}
+      availableInspectors={[]}
+      onChange={onChange}
+    />)
+
+    expect(screen.getByText('甲')).toBeTruthy()
+    expect(screen.getByText('单位：单位甲')).toBeTruthy()
+    expect(screen.getByText('警号：001')).toBeTruthy()
+    expect(screen.getByText('人工修改')).toBeTruthy()
+    expect(screen.getByText('待人工确认')).toBeTruthy()
+    fireEvent.dragStart(screen.getByTestId('inspector-card-0'))
+    fireEvent.drop(screen.getByTestId('inspector-card-1'))
+    expect(onChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ snapshot_id: 'snapshot-2', selected_order: 0 }),
+      expect.objectContaining({ snapshot_id: 'snapshot-1', selected_order: 1 }),
+    ])
   })
 
   it('prefers brand and concrete model for the device name display', () => {

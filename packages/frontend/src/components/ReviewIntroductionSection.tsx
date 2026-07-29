@@ -1,5 +1,5 @@
 import React from 'react'
-import type { InspectorLibraryRecord, InspectionReport, InspectorSnapshot } from '@biji/shared/types'
+import type { FieldState, InspectorLibraryRecord, InspectionReport, InspectorSnapshot } from '@biji/shared/types'
 import EditableField from './EditableField'
 import EvidenceEditor from './EvidenceEditor'
 import InspectorEditor from './InspectorEditor'
@@ -12,6 +12,7 @@ interface ReviewIntroductionSectionProps {
   availableInspectors: InspectorLibraryRecord[]
   inspectorLoading: boolean
   inspectorError: string | null
+  fieldStates?: Record<string, FieldState>
 }
 
 function toSnapshots(introduction: InspectionReport['introduction']): InspectorSnapshot[] {
@@ -29,6 +30,7 @@ export function ReviewIntroductionSection({
   availableInspectors,
   inspectorLoading,
   inspectorError,
+  fieldStates,
 }: ReviewIntroductionSectionProps) {
   return (
     <>
@@ -43,6 +45,7 @@ export function ReviewIntroductionSection({
       <div className="review-editor-block">
         <div className="review-field__label">（五）检材情况</div>
         <EvidenceEditor items={introduction.evidence_list || []}
+          fieldStates={fieldStates}
           onChange={value => updateReport('introduction.evidence_list', value)} />
       </div>
       <ReviewField label="（六）检查要求" type="textarea" value={introduction.inspection_requirement}
@@ -56,6 +59,7 @@ export function ReviewIntroductionSection({
           availableInspectors={availableInspectors}
           loading={inspectorLoading}
           error={inspectorError}
+          fieldStates={fieldStates}
           onChange={value => updateReport('introduction.inspector_snapshots', value)}
         />
       </div>

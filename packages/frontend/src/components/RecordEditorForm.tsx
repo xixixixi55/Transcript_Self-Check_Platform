@@ -1,11 +1,12 @@
 // Layer 11: FE_Components - 笔录审核编辑表单
 import React from 'react'
-import { Alert, Button, Checkbox, Input, Space, Typography } from 'antd'
+import { Alert, Button, Space, Typography } from 'antd'
 import type {
   ArchiveLifecycleStatus,
   ArchiveManifest,
   InspectorLibraryRecord,
   InspectionReport,
+  FieldState,
 } from '@biji/shared/types'
 import type { UploadFile } from 'antd'
 import { ReviewActionBar } from './ReviewActionBar'
@@ -34,11 +35,7 @@ interface Props {
   inspectorError?: string | null
   photoFiles: UploadFile[]
   onPhotoFilesChange: (files: UploadFile[]) => void
-  exportFileName: string
-  customFileName: boolean
-  exportFileNameError?: string
-  onCustomFileNameChange: (enabled: boolean) => void
-  onExportFileNameChange: (value: string) => void
+  fieldStates?: Record<string, FieldState>
   defaultDiscPrefix?: string
   /** Deprecated UI compatibility props; defaults are updated by successful draft saves. */
   hasReportDefaults?: boolean
@@ -73,11 +70,7 @@ export default function RecordEditorForm({
   inspectorError = null,
   photoFiles,
   onPhotoFilesChange,
-  exportFileName,
-  customFileName,
-  exportFileNameError,
-  onCustomFileNameChange,
-  onExportFileNameChange,
+  fieldStates,
   defaultDiscPrefix = '',
   saveStatus = '尚未修改',
   saveBusy = false,
@@ -124,22 +117,7 @@ export default function RecordEditorForm({
             <div>当前默认光盘编号前缀：{defaultDiscPrefix || '未设置'}</div>
             <div>修改六项字段并成功保存后，只更新本轮明确修改的共享默认值；空值不执行清除。</div>
           </div>}
-        <Alert message="请谨慎修改文号，导出文件名会使用当前文号生成。" type="warning" showIcon />
-        <div className="review-export-settings">
-          <div className="review-field__label">导出文件名</div>
-          <Checkbox checked={customFileName} onChange={event => onCustomFileNameChange(event.target.checked)}>
-            自定义文件名
-          </Checkbox>
-          <Input
-            aria-label="导出文件名"
-            value={exportFileName}
-            disabled={!customFileName}
-            status={exportFileNameError ? 'error' : undefined}
-            onChange={event => onExportFileNameChange(event.target.value)}
-            placeholder="请输入不含或包含 .docx 的文件名"
-          />
-          {exportFileNameError && <span className="review-field__error">{exportFileNameError}</span>}
-        </div>
+        <Alert message="请谨慎修改文号；每次导出均会询问本次 Word 下载文件名。" type="warning" showIcon />
         </ReviewSection>
 
         <ReviewSection id={REVIEW_SECTION_IDS.introduction} title="一、绪论" pendingCount={countFor(REVIEW_SECTION_IDS.introduction)}>
@@ -149,6 +127,7 @@ export default function RecordEditorForm({
           availableInspectors={availableInspectors}
           inspectorLoading={inspectorLoading}
           inspectorError={inspectorError}
+          fieldStates={fieldStates}
         />
         </ReviewSection>
 

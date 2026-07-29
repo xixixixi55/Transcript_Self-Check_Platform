@@ -5,14 +5,11 @@ import type { InspectionReport } from '@biji/shared/types'
 import RecordEditorForm from './RecordEditorForm'
 
 vi.mock('antd', () => ({
-  Alert: () => <div>注意修改文号！</div>,
+  Alert: ({ message }: { message?: React.ReactNode }) => <div>{message || '注意修改文号！'}</div>,
   Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>,
-  Checkbox: ({ checked, onChange, children }: { checked?: boolean; onChange?: (event: { target: { checked: boolean } }) => void; children: React.ReactNode }) => (
-    <label><input type="checkbox" checked={checked} onChange={event => onChange?.({ target: { checked: event.target.checked } })} />{children}</label>
-  ),
   Divider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Input: ({ value, onChange, disabled, ...props }: { value?: string; onChange?: (event: { target: { value: string } }) => void; disabled?: boolean }) => (
-    <input {...props} value={value || ''} disabled={disabled} onChange={event => onChange?.({ target: { value: event.target.value } })} />
+  Input: ({ value, onChange, ...props }: { value?: string; onChange?: (event: { target: { value: string } }) => void }) => (
+    <input {...props} value={value || ''} onChange={event => onChange?.({ target: { value: event.target.value } })} />
   ),
   Space: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Typography: {
@@ -58,33 +55,21 @@ const report: InspectionReport = {
 }
 
 describe('RecordEditorForm', () => {
-  it('locks the export filename until custom naming is enabled', () => {
-    const onCustomFileNameChange = vi.fn()
-    const onExportFileNameChange = vi.fn()
-    const view = render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
-      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
-      exportFileName="SYN-TEST〔2026〕000001号.docx" customFileName={false}
-      onCustomFileNameChange={onCustomFileNameChange} onExportFileNameChange={onExportFileNameChange} />)
+  it('explains that each Word export asks for its download name', () => {
+    const onExport = vi.fn()
+    render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={onExport} exporting={false}
+      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()} />)
 
-    const filenameInput = screen.getByLabelText('导出文件名') as HTMLInputElement
-    expect(filenameInput.disabled).toBe(true)
-    fireEvent.click(screen.getByText('自定义文件名'))
-    expect(onCustomFileNameChange).toHaveBeenCalledWith(true)
-
-    view.rerender(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
-      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
-      exportFileName="自定义名称" customFileName={true}
-      onCustomFileNameChange={onCustomFileNameChange} onExportFileNameChange={onExportFileNameChange} />)
-    expect((screen.getByLabelText('导出文件名') as HTMLInputElement).disabled).toBe(false)
-    fireEvent.change(screen.getByLabelText('导出文件名'), { target: { value: '新名称' } })
-    expect(onExportFileNameChange).toHaveBeenCalledWith('新名称')
+    expect(screen.getByText(/每次导出均会询问本次 Word 下载文件名/)).toBeTruthy()
+    expect(screen.queryByLabelText('导出文件名')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '导出 Word' }))
+    expect(onExport).toHaveBeenCalledOnce()
   })
 
   it('shows sparse shared-default behavior without a full-save or clear action', () => {
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
-      exportFileName="record.docx" customFileName={false} defaultDiscPrefix="测试公"
-      onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()} />)
+      defaultDiscPrefix="测试公" />)
 
     expect(screen.getByText('保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀')).toBeTruthy()
     expect(screen.getByText(/只更新本轮明确修改的共享默认值/)).toBeTruthy()
@@ -94,22 +79,19 @@ describe('RecordEditorForm', () => {
   it('keeps the full editor controls when rendered by the case workbench', () => {
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
-      exportFileName="record.docx" customFileName={true} workbenchMode
-      onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()}
-      defaultDiscPrefix="SYN-" />)
+      workbenchMode defaultDiscPrefix="SYN-" />)
 
     expect(screen.getByText('审核编辑')).toBeTruthy()
     expect(screen.getByTestId('evidence-editor')).toBeTruthy()
     expect(screen.getByTestId('image-uploader')).toBeTruthy()
-    expect((screen.getByLabelText('导出文件名') as HTMLInputElement).disabled).toBe(false)
+    expect(screen.queryByLabelText('导出文件名')).toBeNull()
     expect(screen.getByText(/只更新本轮明确修改的共享默认值/)).toBeTruthy()
   })
 
   it('集成所有审核编辑区域和附件编辑器', () => {
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
-      exportFileName="SYN-TEST〔2026〕000001号.docx" customFileName={false}
-      onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()} />)
+      />)
 
     expect(screen.getByTestId('evidence-editor')).toBeTruthy()
     expect(screen.getByTestId('inspector-editor')).toBeTruthy()
@@ -127,8 +109,7 @@ describe('RecordEditorForm', () => {
     reportWithSummary.inspection.result.data_summary = '用户自定义摘要'
     render(<RecordEditorForm report={reportWithSummary} updateReport={updateReport} onExport={vi.fn()}
       exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
-      onPhotoFilesChange={vi.fn()} exportFileName="检查笔录.docx" customFileName={false}
-      onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()} />)
+      onPhotoFilesChange={vi.fn()} />)
 
     const field = screen.getByDisplayValue('用户自定义摘要')
     fireEvent.change(field, { target: { value: '   ' } })

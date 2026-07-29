@@ -1,9 +1,10 @@
 // Layer 11: FE_Components — 检材情况编辑器
 import React from 'react'
-import { Alert, Button, Select, Space, Typography } from 'antd'
+import { Alert, Button, Card, Select, Space, Typography } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
-import type { EvidenceItem } from '@biji/shared/types'
+import type { EvidenceItem, FieldState } from '@biji/shared/types'
 import EditableField from './EditableField'
+import { FieldProvenanceBadge } from './FieldProvenanceBadge'
 
 const { Text } = Typography
 
@@ -15,6 +16,7 @@ const MATERIAL_TYPE_OPTIONS = [
 
 interface Props {
   items: EvidenceItem[]
+  fieldStates?: Record<string, FieldState>
   onChange: (items: EvidenceItem[]) => void
 }
 
@@ -28,10 +30,19 @@ function displayDeviceName(item: EvidenceItem): string {
   return item.device_name || model || item.device_type || ''
 }
 
-export default function EvidenceEditor({ items, onChange }: Props) {
+function evidenceState(item: EvidenceItem, fieldStates?: Record<string, FieldState>): FieldState | undefined {
+  const identity = item.evidence_id || item.id
+  if (!identity) return undefined
+  return fieldStates?.[`evidence.${identity}.model`] || fieldStates?.[`evidence.${identity}.evidence_number`]
+}
+
+export default function EvidenceEditor({ items, fieldStates, onChange }: Props) {
+  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null)
   const addItem = () => {
+    const evidenceId = `local-evidence-${Date.now()}-${items.length + 1}`
     onChange([...items, {
-      id: String(Date.now()),
+      id: evidenceId,
+      evidence_id: evidenceId,
       device_type: '',
       device_name: '',
       model: '',
@@ -51,6 +62,14 @@ export default function EvidenceEditor({ items, onChange }: Props) {
     onChange(items.filter((_, i) => i !== idx))
   }
 
+  const moveItem = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return
+    const next = [...items]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    onChange(next)
+  }
+
   const updateMaterialType = (idx: number, value: 'phone' | 'tablet' | 'unconfirmed') => {
     onChange(items.map((item, i) => i === idx ? {
       ...item,
@@ -63,11 +82,16 @@ export default function EvidenceEditor({ items, onChange }: Props) {
 
   return (
     <div>
+      <Text type="secondary">可拖拽卡片调整检材顺序。</Text>
       {items.map((item, idx) => (
-        <div key={item.id || idx}
-          style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: 12, marginBottom: 12, position: 'relative' }}>
+        <div key={item.evidence_id || item.id || idx} data-testid={`evidence-card-${idx}`} draggable
+          onDragStart={() => setDraggedIndex(idx)}
+          onDragOver={event => event.preventDefault()}
+          onDrop={() => { if (draggedIndex !== null) moveItem(draggedIndex, idx); setDraggedIndex(null) }}
+          onDragEnd={() => setDraggedIndex(null)}
+          style={{ marginBottom: 12 }}>
+        <Card size="small" title={`检材 ${idx + 1}`} extra={<FieldProvenanceBadge state={evidenceState(item, fieldStates)} />}>
           <Button type="text" danger size="small" icon={<DeleteOutlined />}
-            style={{ position: 'absolute', top: 4, right: 4 }}
             onClick={() => removeItem(idx)} />
           <Space direction="vertical" style={{ width: '100%' }}>
             <div><Text strong>设备名称：</Text><EditableField type="text"
@@ -106,6 +130,7 @@ export default function EvidenceEditor({ items, onChange }: Props) {
               placeholder="如 SYN-JC00000001" value={item.evidence_number}
               onChange={value => updateItem(idx, 'evidence_number', value)} /></div>
           </Space>
+        </Card>
         </div>
       ))}
       <Button type="dashed" icon={<PlusOutlined />} onClick={addItem} block>添加检材</Button>

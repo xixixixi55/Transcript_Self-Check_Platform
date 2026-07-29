@@ -1,8 +1,9 @@
 // Layer 11: FE_Components — 检查人员库多选和有序快照编辑器
 import React from 'react'
-import { Alert, Button, Select, Space, Typography } from 'antd'
+import { Alert, Button, Card, Select, Space, Typography } from 'antd'
 import { DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons'
-import type { InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
+import type { FieldState, InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
+import { FieldProvenanceBadge } from './FieldProvenanceBadge'
 
 const { Text } = Typography
 
@@ -11,6 +12,7 @@ interface Props {
   availableInspectors: InspectorLibraryRecord[]
   loading?: boolean
   error?: string | null
+  fieldStates?: Record<string, FieldState>
   onChange: (snapshots: InspectorSnapshot[]) => void
 }
 
@@ -27,13 +29,21 @@ function snapshotFromRecord(record: InspectorLibraryRecord): InspectorSnapshot {
   }
 }
 
+function inspectorState(snapshot: InspectorSnapshot, fieldStates?: Record<string, FieldState>): FieldState | undefined {
+  const identity = snapshot.snapshot_id || snapshot.inspector_id
+  if (!identity) return fieldStates?.['introduction.inspectors']
+  return fieldStates?.[`inspectors.${identity}.police_number`] || fieldStates?.[`inspectors.${identity}.name`]
+}
+
 export default function InspectorEditor({
   snapshots,
   availableInspectors,
   loading = false,
   error = null,
+  fieldStates,
   onChange,
 }: Props) {
+  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null)
   const selectedIds = snapshots
     .map(snapshot => snapshot.inspector_id)
     .filter((id): id is string => Boolean(id))
@@ -72,6 +82,14 @@ export default function InspectorEditor({
     onChange(normalizeOrder(snapshots.filter((_, itemIndex) => itemIndex !== index)))
   }
 
+  const moveTo = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= snapshots.length || to >= snapshots.length) return
+    const next = [...snapshots]
+    const [snapshot] = next.splice(from, 1)
+    next.splice(to, 0, snapshot)
+    onChange(normalizeOrder(next))
+  }
+
   return (
     <div className="inspector-selector">
       {error && <Alert type="error" showIcon message={error} />}
@@ -93,9 +111,15 @@ export default function InspectorEditor({
         <Text type="secondary">暂无可选择的启用人员，请先在检查人员管理中添加或启用人员。</Text>
       )}
       <div className="inspector-selector__selected" aria-label="已选择检查人员">
+        {snapshots.length > 0 && <Text type="secondary">可拖拽卡片调整检查人员顺序。</Text>}
         {snapshots.map((snapshot, index) => (
-          <div className="inspector-selector__item" key={`${snapshot.inspector_id || 'legacy'}-${index}`}>
-            <span className="inspector-selector__order">{index + 1}</span>
+          <div className="inspector-selector__item" key={`${snapshot.snapshot_id || snapshot.inspector_id || 'legacy'}-${index}`}
+            data-testid={`inspector-card-${index}`} draggable
+            onDragStart={() => setDraggedIndex(index)}
+            onDragOver={event => event.preventDefault()}
+            onDrop={() => { if (draggedIndex !== null) moveTo(draggedIndex, index); setDraggedIndex(null) }}
+            onDragEnd={() => setDraggedIndex(null)}>
+          <Card size="small" title={`检查人员 ${index + 1}`} extra={<FieldProvenanceBadge state={inspectorState(snapshot, fieldStates)} />}>
             <Space direction="vertical" size={0}>
               <Text>{snapshot.name}</Text>
               <Text type="secondary">单位：{snapshot.unit}</Text>
@@ -106,6 +130,7 @@ export default function InspectorEditor({
               <Button aria-label={`下移${index + 1}`} icon={<DownOutlined />} disabled={index === snapshots.length - 1} onClick={() => move(index, 1)} />
               <Button aria-label={`移除${index + 1}`} danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
             </Space>
+          </Card>
           </div>
         ))}
       </div>
