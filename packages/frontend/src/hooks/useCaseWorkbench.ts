@@ -22,7 +22,11 @@ export interface CaseSubmissionFields {
   directoryGrantToken?: string
 }
 
-function resolveWorkbenchError(error: any): WorkbenchError {
+export interface LoadDetailOptions {
+  background?: boolean
+}
+
+export function resolveWorkbenchError(error: any): WorkbenchError {
   const detail = error?.response?.data?.detail
   if (detail && typeof detail === 'object') {
     return {
@@ -68,11 +72,14 @@ export function useCaseWorkbench(caseId?: string) {
     }
   }, [])
 
-  const loadDetail = useCallback(async (requestedCaseId = caseId) => {
+  const loadDetail = useCallback(async (requestedCaseId = caseId, options: LoadDetailOptions = {}) => {
     if (!requestedCaseId) return null
+    const background = options.background === true
     const requestId = ++detailRequest.current
-    setDetailLoading(true)
-    setDetailError(null)
+    if (!background) {
+      setDetailLoading(true)
+      setDetailError(null)
+    }
     try {
       const response = await axios.get<{ data: CaseDetail }>(API_ENDPOINTS.WORKBENCH_CASE(requestedCaseId))
       const value = dataOf(response)
@@ -80,10 +87,10 @@ export function useCaseWorkbench(caseId?: string) {
       return value
     } catch (error) {
       const failure = resolveWorkbenchError(error)
-      if (requestId === detailRequest.current && requestedCaseId === caseId) setDetailError(failure)
+      if (!background && requestId === detailRequest.current && requestedCaseId === caseId) setDetailError(failure)
       return null
     } finally {
-      if (requestId === detailRequest.current && requestedCaseId === caseId) setDetailLoading(false)
+      if (!background && requestId === detailRequest.current && requestedCaseId === caseId) setDetailLoading(false)
     }
   }, [caseId])
 

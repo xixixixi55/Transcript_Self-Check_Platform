@@ -15,6 +15,7 @@ from ..repository.task_record_repository import TaskRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .report_parser_service import parse_report
+from .disc_sequence_service import apply_disc_sequence_to_attachments, parse_disc_sequence
 from .shared_defaults_service import SharedDefaultsService
 from .source_record_service import SourceRecordService
 
@@ -127,26 +128,53 @@ def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) ->
         ("introduction.inspection_place", ("introduction", "inspection_place"), defaults.get("inspection_place")),
         ("inspection.method", ("inspection", "method"), defaults.get("inspection_method")),
         ("inspection.hardware_device", ("inspection", "hardware_device"), defaults.get("hardware_device")),
-        ("attachments.disc_number", ("attachments", "disc_number"), defaults.get("disc_number_prefix")),
     )
     for field_path, path, default in candidates:
         current = _read_path(value, path)
         selected, source = _select_value(current, default)
-        if selected is not None and (current is None or not str(current).strip()):
+        if selected is not None and (source == "system_default" or current is None or not str(current).strip()):
             _write_path(value, path, selected)
         fields[field_path] = {
             "field_path": field_path, "source": source,
             "confirmation": "confirmed" if selected is not None else "pending",
             "revision": 0, "last_changed_at": now,
         }
+    introduction = value.setdefault("introduction", {})
+    serialized = defaults.get("inspector_order") or []
+    if isinstance(serialized, list) and serialized:
+        introduction["inspectors"] = [_inspector_from_default(item) for item in serialized]
+        fields["introduction.inspectors"] = {
+            "field_path": "introduction.inspectors", "source": "system_default",
+            "confirmation": "confirmed", "revision": 0, "last_changed_at": now,
+        }
+    attachments = value.setdefault("attachments", {})
+    disc_prefix = defaults.get("disc_number_prefix")
+    disc_number = attachments.get("disc_number")
+    if isinstance(disc_prefix, str) and disc_prefix.strip() and isinstance(disc_number, str) and disc_number.strip():
+        parsed_disc = parse_disc_sequence(disc_number)
+        if parsed_disc.valid and parsed_disc.sequence is not None:
+            sequence = parsed_disc.sequence
+            attachments["disc_number"] = f"{disc_prefix.strip()}{sequence.date.replace('-', '')}-{sequence.start_number:0{sequence.number_width}d}"
+    apply_disc_sequence_to_attachments(attachments)
+    disc_current = attachments.get("disc_number")
+    fields["attachments.disc_number"] = {
+        "field_path": "attachments.disc_number", "source": "report" if isinstance(disc_current, str) and disc_current.strip() else "system_default",
+        "confirmation": "confirmed" if isinstance(disc_current, str) and disc_current.strip() else "pending",
+        "revision": 0, "last_changed_at": now,
+    }
     return value, fields
 
 
+def _inspector_from_default(value: str) -> dict[str, str]:
+    parts = value.split("|", 2)
+    return {"name": parts[0], "unit": parts[1] if len(parts) > 1 else "", "badge_number": parts[2] if len(parts) > 2 else ""}
+
+
 def _select_value(report_value: Any, default_value: Any) -> tuple[Any, str]:
-    if report_value is not None and str(report_value).strip():
-        return report_value, "report"
     if default_value is not None and str(default_value).strip():
         return default_value, "system_default"
+    if report_value is not None and str(report_value).strip():
+        return report_value, "report"
     return None, "system_default"
 
 

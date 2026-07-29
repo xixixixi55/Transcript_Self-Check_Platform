@@ -1,4 +1,4 @@
-import type { ArchiveAttemptStatus, CaseLifecycle, DualSaveResult, FieldConfirmation, FieldSource, SaveStatus } from '../types'
+import type { ArchiveAttemptStatus, CaseLifecycle, DualSaveResult, FieldConfirmation, FieldSource, SaveStatus, SharedDefaultsSaveStatus } from '../types'
 import { REVIEWABLE_CASE_LIFECYCLES } from '../constants'
 
 export interface InitialFieldValue<T> {
@@ -52,7 +52,7 @@ export function isRevisionCurrent(expectedRevision: number, actualRevision: numb
   return Number.isInteger(expectedRevision) && expectedRevision === actualRevision
 }
 
-export function aggregateDualSaveResult(draft: SaveStatus, defaults: SaveStatus): DualSaveResult {
+export function aggregateDualSaveResult(draft: SaveStatus, defaults: SharedDefaultsSaveStatus): DualSaveResult {
   return { draft_save_status: draft, shared_defaults_save_status: defaults }
 }
 

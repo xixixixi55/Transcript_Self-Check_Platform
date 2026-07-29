@@ -62,6 +62,17 @@ describe('CaseWorkbenchPage', () => {
     expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases'), expect.objectContaining({ source_path: 'C:\\SYNTHETIC\\REPORT' }))
   })
 
+  it('shows the backend safe submission error instead of hiding its cause', async () => {
+    postMock.mockRejectedValueOnce({
+      response: { data: { detail: { code: 'SOURCE_STRUCTURE_INVALID', message: '所选目录不包含可识别的报告结构。' } } },
+    })
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'C:\\SYNTHETIC\\REPORT' } })
+    fireEvent.click(document.querySelector('.case-workbench-page__toolbar button.ant-btn-primary') as HTMLElement)
+    await waitFor(() => expect(screen.getByText('所选目录不包含可识别的报告结构。')).toBeTruthy())
+  })
+
   it('refreshes queued, parsing, and review_ready shell states without remounting', async () => {
     vi.useFakeTimers()
     let listRequests = 0

@@ -189,10 +189,14 @@ export interface SaveStatus {
   revision?: number
   error_code?: string
 }
-
+export interface SharedDefaultsSaveStatus {
+  status: 'updated' | 'unchanged' | 'failed' | 'revision_conflict'
+  revision?: number
+  error_code?: string
+}
 export interface DualSaveResult {
   draft_save_status: SaveStatus
-  shared_defaults_save_status: SaveStatus
+  shared_defaults_save_status: SharedDefaultsSaveStatus
 }
 
 export interface RevisionConflictDto {
@@ -232,6 +236,7 @@ export interface CaseSubmission {
   shell: CaseShell
   source: SourceRecord
   parse_task: TaskRecord
+  shared_defaults: SharedDefaults
 }
 
 export interface DeletePreflight {

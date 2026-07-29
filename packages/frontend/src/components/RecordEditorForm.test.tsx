@@ -80,39 +80,29 @@ describe('RecordEditorForm', () => {
     expect(onExportFileNameChange).toHaveBeenCalledWith('新名称')
   })
 
-  it('saves and clears the six report defaults and edits the disc prefix', () => {
-    const saveDefaults = vi.fn()
-    const clearDefaults = vi.fn()
-    const savePrefix = vi.fn()
+  it('shows sparse shared-default behavior without a full-save or clear action', () => {
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
-      exportFileName="record.docx" customFileName={false} hasReportDefaults={true} defaultDiscPrefix="测试公"
-      onSaveReportDefaults={saveDefaults} onClearReportDefaults={clearDefaults}
-      onDefaultDiscPrefixChange={savePrefix} onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()} />)
+      exportFileName="record.docx" customFileName={false} defaultDiscPrefix="测试公"
+      onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByText('保存当前六项为默认值'))
-    expect(saveDefaults).toHaveBeenCalled()
     expect(screen.getByText('保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('默认光盘编号前缀'), { target: { value: '新前缀' } })
-    expect(savePrefix).toHaveBeenCalledWith('新前缀')
-    fireEvent.click(screen.getByText('清除全部默认值'))
-    expect(clearDefaults).toHaveBeenCalled()
+    expect(screen.getByText(/只更新本轮明确修改的共享默认值/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '单独保存共享默认值' })).toBeNull()
   })
 
   it('keeps the full editor controls when rendered by the case workbench', () => {
-    const saveDefaults = vi.fn()
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
       exportFileName="record.docx" customFileName={true} workbenchMode
       onCustomFileNameChange={vi.fn()} onExportFileNameChange={vi.fn()}
-      onSaveReportDefaults={saveDefaults} defaultDiscPrefix="SYN-" />)
+      defaultDiscPrefix="SYN-" />)
 
     expect(screen.getByText('审核编辑')).toBeTruthy()
     expect(screen.getByTestId('evidence-editor')).toBeTruthy()
     expect(screen.getByTestId('image-uploader')).toBeTruthy()
     expect((screen.getByLabelText('导出文件名') as HTMLInputElement).disabled).toBe(false)
-    fireEvent.click(screen.getByText('保存当前六项为默认值'))
-    expect(saveDefaults).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/只更新本轮明确修改的共享默认值/)).toBeTruthy()
   })
 
   it('集成所有审核编辑区域和附件编辑器', () => {

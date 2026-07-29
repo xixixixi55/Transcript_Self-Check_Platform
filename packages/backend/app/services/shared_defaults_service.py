@@ -29,6 +29,15 @@ class SharedDefaultsService:
         self._audit("shared_defaults_changed", identity, payload={"revision": result["revision"]})
         return result
 
+    def patch(
+        self, values: Mapping[str, Any], expected_revision: int, identity: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        _validate_identity(self.database, identity)
+        result = self.repository.patch(values, expected_revision)
+        if result["status"] == "updated":
+            self._audit("shared_defaults_changed", identity, payload={"revision": result["defaults"]["revision"]})
+        return result
+
     def decide_migration(
         self, decision: str, identity: Mapping[str, Any], values: Mapping[str, Any] | None = None
     ) -> dict[str, Any]:

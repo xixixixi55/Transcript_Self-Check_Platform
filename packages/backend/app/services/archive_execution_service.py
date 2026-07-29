@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import time
 from dataclasses import dataclass
@@ -22,7 +21,6 @@ from ..repository.winrar_executor_repository import ArchiveExecutionError, WinRa
 from .archive_manifest_service import (
     assemble_archive_manifest,
     validate_manifest_files,
-    validate_published_manifest,
 )
 from .archive_manifest_access_service import (
     ArchiveGateError,
@@ -44,9 +42,10 @@ from .archive_runtime_service import (
 )
 from .archive_manifest_reuse_service import restore_persisted_manifest
 from .archive_attempt_service import ArchiveAttemptService
+from .archive_attempt_completion_service import record_attempt_completion
 from .export_gate_service import ExportGateCode, ExportGateIssue
 from .archive_gate_policy_service import pre_archive_gate, raise_gate, with_archive_gate
-
+from .archive_publish_service import publish_staged_archive
 @dataclass(frozen=True)
 class ArchiveExecutionOutcome:
     status: str
@@ -54,7 +53,6 @@ class ArchiveExecutionOutcome:
     plan: ArchivePlan | None
     diagnostics: tuple[ArchiveDiagnostic, ...] = ()
     reused: bool = False
-
 def create_archive_context(
     authorized_input: AuthorizedInputRoot,
     report: dict,
@@ -67,7 +65,6 @@ def create_archive_context(
         authorized_input, str(case_name), output_root=output_root, cleanup_root=cleanup_root,
     )
     return record.context_id
-
 def execute_archive(
     context_id: str,
     report: dict,
@@ -80,6 +77,7 @@ def execute_archive(
     integrity_runner: Callable | None = None,
     attempt_id: str | None = None,
     attempt_service: ArchiveAttemptService | None = None,
+    workbench_context_id: str | None = None,
 ) -> ArchiveExecutionOutcome:
     """Run at most one initial execution plus two upward replans per context."""
     context = ARCHIVE_RUNTIME_STORE.acquire_context(context_id)
@@ -109,6 +107,10 @@ def execute_archive(
         )
         reusable = ARCHIVE_RUNTIME_STORE.find_reusable(context_id, fingerprint)
         if reusable and validate_manifest_files(reusable) is None:
+            record_attempt_completion(
+                attempt_service, attempt_id, registry, context, fingerprint, reusable,
+                workbench_context_id,
+            )
             success = True
             successful_manifest_id = reusable.manifest_id
             registry.touch(reusable.manifest_id)
@@ -117,6 +119,10 @@ def execute_archive(
             registry.mark_invalid(reusable.manifest_id)
         persisted = restore_persisted_manifest(context, fingerprint, registry)
         if persisted:
+            record_attempt_completion(
+                attempt_service, attempt_id, registry, context, fingerprint, persisted,
+                workbench_context_id,
+            )
             success = True
             successful_manifest_id = persisted.manifest_id
             return ArchiveExecutionOutcome("completed", persisted.manifest_id, None, reused=True)
@@ -169,7 +175,6 @@ def execute_archive(
                     plan = next_plan
                     continue
                 raise ArchiveGateError((ExportGateIssue(validation.diagnostic_code or ExportGateCode.ARCHIVE_PARTS_INVALID, "archive", validation.safe_message),))
-
             try:
                 context.execution_state = "hashing"
                 public_manifest, _paths = assemble_archive_manifest(
@@ -180,15 +185,17 @@ def execute_archive(
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
                 if marker_enabled and attempt_service is not None:
                     attempt_service.remove_marker(execution.staging_dir)
-                os.replace(execution.staging_dir, final_dir)
                 created_at = time.time()
                 record = ArchiveManifestRecord(
                     manifest_id, context_id, fingerprint, public_manifest, final_dir,
                     created_at, created_at + 24 * 60 * 60,
                 )
-                if not validate_published_manifest(record):
-                    shutil.rmtree(final_dir, ignore_errors=True)
-                    raise ValueError("ARCHIVE_PARTS_INVALID")
+                publish_staged_archive(
+                    execution.staging_dir, final_dir, record, report, context=context,
+                    attempt_id=attempt_id if marker_enabled else None,
+                    attempt_service=attempt_service if marker_enabled else None,
+                    workbench_context_id=workbench_context_id,
+                )
             except Exception as error:
                 if execution.staging_dir.exists():
                     active_executor.cleanup(execution)
@@ -203,10 +210,16 @@ def execute_archive(
                     final_dir=final_dir,
                     public_manifest=public_manifest,
                     created_at=created_at,
+                    workbench_attempt_id=attempt_id,
                 )
             except ArchiveManifestRepositoryError:
                 # The current in-memory context remains usable; no archive file is removed.
-                pass
+                if attempt_id is not None:
+                    raise
+            record_attempt_completion(
+                attempt_service, attempt_id, registry, context, fingerprint, record,
+                workbench_context_id,
+            )
             success = True
             final_state = "completed"
             successful_manifest_id = manifest_id

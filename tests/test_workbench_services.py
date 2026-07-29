@@ -267,11 +267,11 @@ def test_archive_decision_persists_deferred_then_allows_explicit_legacy_start(da
     assert deferred["shell"]["lifecycle"] == "archive_deferred"
     assert deferred["draft"]["lifecycle"] == "archive_deferred"
 
-    immediate = lifecycle.decide_archive(
-        identifiers["case_id"], "immediate", deferred["shell"]["revision"], IDENTITY,
-    )
-    assert immediate["shell"]["lifecycle"] == "archive_queued"
-    assert immediate["draft"]["lifecycle"] == "archive_queued"
+    with pytest.raises(WorkbenchPersistenceError) as immediate:
+        lifecycle.decide_archive(
+            identifiers["case_id"], "immediate", deferred["shell"]["revision"], IDENTITY,
+        )
+    assert immediate.value.code == "ARCHIVE_ATTEMPT_REQUIRED"
 
 
 def test_source_locator_is_not_written_to_public_sqlite_fields(database, tmp_path):

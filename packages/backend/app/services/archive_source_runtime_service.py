@@ -153,6 +153,12 @@ class ArchiveSourceRuntimeStore:
         for record in expired:
             cleanup_owned_source(record.cleanup_root)
 
+    def discard(self, source_id: str) -> None:
+        with self._lock:
+            record = self._records.pop(source_id, None)
+        if record is not None:
+            cleanup_owned_source(record.cleanup_root)
+
     def _active(self, source_id: str) -> PreviewSourceRecord:
         if not source_id or any(char in source_id for char in "\\/"):
             raise ArchiveRuntimeError("ARCHIVE_CONTEXT_NOT_FOUND", "Archive context was not found.")
@@ -179,6 +185,10 @@ def create_preview_source(
 
 def get_preview_source_summary(source_id: str) -> dict[str, object]:
     return ARCHIVE_SOURCE_RUNTIME_STORE.public_summary(source_id)
+
+
+def discard_preview_source(source_id: str) -> None:
+    ARCHIVE_SOURCE_RUNTIME_STORE.discard(source_id)
 
 
 def prepare_archive_source(
@@ -211,6 +221,6 @@ def resolve_archive_context_id(source_id: str) -> str:
 
 __all__ = [
     "ARCHIVE_SOURCE_RUNTIME_STORE", "ArchiveSourceRuntimeStore",
-    "create_preview_source", "get_preview_source_summary",
+    "create_preview_source", "discard_preview_source", "get_preview_source_summary",
     "prepare_archive_source", "resolve_archive_context_id",
 ]

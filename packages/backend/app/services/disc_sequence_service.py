@@ -29,7 +29,7 @@ class DiscSequenceParseResult:
         return self.sequence is not None
 
 
-_PATTERN = re.compile(r"^(GP)(\d{4})(\d{2})(\d{2})-(\d+)$", re.IGNORECASE)
+_PATTERN = re.compile(r"^([A-Za-z\u3400-\u9fff]{1,20})(\d{4})(\d{2})(\d{2})-(\d+)$", re.IGNORECASE)
 
 
 def parse_disc_sequence(value: str | None) -> DiscSequenceParseResult:
@@ -51,12 +51,13 @@ def parse_disc_sequence(value: str | None) -> DiscSequenceParseResult:
     start_number = int(raw_number)
     if start_number < 1 or start_number > _MAX_SAFE_INTEGER:
         return DiscSequenceParseResult(None, "FIRST_DISC_SEQUENCE_INVALID")
+    prefix = match.group(1).upper() if match.group(1).isascii() else match.group(1)
     sequence = DiscSequence(
-        prefix="GP",
+        prefix=prefix,
         date=f"{year:04d}-{month:02d}-{day:02d}",
         start_number=start_number,
         number_width=len(raw_number),
-        first_disc_number=f"GP{year:04d}{month:02d}{day:02d}-{raw_number}",
+        first_disc_number=f"{prefix}{year:04d}{month:02d}{day:02d}-{raw_number}",
     )
     return DiscSequenceParseResult(sequence)
 

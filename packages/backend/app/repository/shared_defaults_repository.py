@@ -65,6 +65,36 @@ class SharedDefaultsRepository:
                 raise RevisionConflictError("shared_defaults", expected_revision, actual)
         return self.get_or_create()
 
+    def patch(self, values: Mapping[str, Any], expected_revision: int) -> dict[str, Any]:
+        """Merge only explicitly supplied, non-empty shared default fields."""
+        normalized = _normalize_patch(values)
+        current = self.get_or_create()
+        if not normalized:
+            return {"status": "unchanged", "defaults": current, "changed_fields": []}
+        with self.database.transaction() as transaction:
+            row = transaction.execute(
+                "SELECT revision, values_json FROM shared_defaults WHERE deployment_instance_id = ?",
+                (self.database.deployment_instance_id,),
+            ).fetchone()
+            if row is None:
+                raise WorkbenchPersistenceError("DEFAULTS_NOT_FOUND")
+            actual = int(row[0])
+            if actual != expected_revision:
+                raise RevisionConflictError("shared_defaults", expected_revision, actual)
+            merged = dict(_DEFAULT_VALUES)
+            merged.update(row_json(row, "values_json") if hasattr(row, "keys") and "values_json" in row.keys() else {})
+            changed = [key for key, value in normalized.items() if merged.get(key) != value]
+            if not changed:
+                return {"status": "unchanged", "defaults": self.get_or_create(), "changed_fields": []}
+            merged.update(normalized)
+            updated = transaction.execute(
+                "UPDATE shared_defaults SET values_json = ?, revision = revision + 1, updated_at = ? WHERE deployment_instance_id = ? AND revision = ?",
+                (json_text(merged), utc_now(), self.database.deployment_instance_id, expected_revision),
+            )
+            if updated.rowcount != 1:
+                raise RevisionConflictError("shared_defaults", expected_revision, actual)
+        return {"status": "updated", "defaults": self.get_or_create(), "changed_fields": changed}
+
     def decide_migration(self, decision: str, imported_values: Mapping[str, Any] | None = None) -> dict[str, Any]:
         if decision not in _MIGRATION_DECISIONS or decision == "pending":
             raise WorkbenchPersistenceError("INVALID_DEFAULTS_MIGRATION_DECISION")
@@ -107,6 +137,37 @@ def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
     for item in normalized["inspector_order"]:
         validate_safe_string(item, "INVALID_SHARED_DEFAULTS")
     json_text(normalized)
+    return normalized
+
+
+def _normalize_patch(values: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(values, Mapping):
+        raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
+    unknown = set(values) - set(_DEFAULT_VALUES)
+    if unknown:
+        raise WorkbenchPersistenceError("UNKNOWN_SHARED_DEFAULT_FIELD")
+    normalized: dict[str, Any] = {}
+    scalar_keys = ("document_number", "inspection_place", "inspection_method", "hardware_device", "disc_number_prefix")
+    for key in scalar_keys:
+        if key not in values:
+            continue
+        value = values[key]
+        if not isinstance(value, str):
+            raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
+        validate_safe_string(value, "INVALID_SHARED_DEFAULTS")
+        if value.strip():
+            normalized[key] = value.strip()
+    if "inspector_order" in values:
+        items = values["inspector_order"]
+        if not isinstance(items, list) or any(not isinstance(item, str) for item in items):
+            raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
+        normalized_items = [item.strip() for item in items]
+        for item in normalized_items:
+            validate_safe_string(item, "INVALID_SHARED_DEFAULTS")
+            if not item:
+                raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
+        if normalized_items:
+            normalized["inspector_order"] = normalized_items
     return normalized
 
 

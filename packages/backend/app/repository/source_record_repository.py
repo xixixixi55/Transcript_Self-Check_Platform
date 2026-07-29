@@ -1,25 +1,21 @@
 """SourceRecord persistence and restart-time source revalidation."""
-
 from __future__ import annotations
-
 import os
 import sqlite3
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-
 from .workbench_constants import SOURCE_ACCESS_STATUSES, SOURCE_TYPES
 from .workbench_database import WorkbenchDatabase, normalize_optional_utc, normalize_utc, utc_now
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import bool_int, json_text, public_source_record, row_json
 from .workbench_serialization import validate_opaque_id
 from .source_locator_repository import SourceLocatorRepository
-
+from .archive_publish_fence_repository import invalidate_pending, reject_if_active
 class SourceRecordRepository:
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database
         self.locators = SourceLocatorRepository(database)
-
     def create(self, record: Mapping[str, Any]) -> dict[str, Any]:
         source_id = validate_opaque_id(record.get("source_id"))
         case_id = validate_opaque_id(record.get("case_id"))
@@ -53,7 +49,6 @@ class SourceRecordRepository:
             except Exception as error:
                 raise WorkbenchPersistenceError("SOURCE_CREATE_FAILED") from error
         return self.get(source_id)
-
     def get(self, source_id: str) -> dict[str, Any]:
         source_id = validate_opaque_id(source_id)
         connection = self.database.connect()
@@ -64,7 +59,6 @@ class SourceRecordRepository:
         if row is None:
             raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
         return public_source_record(row)
-
     def get_internal_locator(self, source_id: str) -> dict[str, str]:
         """Internal repository use only; controllers must not expose this result."""
         source_id = validate_opaque_id(source_id)
@@ -82,7 +76,6 @@ class SourceRecordRepository:
         if raw_path.startswith("locator://"):
             return self.locators.get(source_id)
         return {"internal_path": raw_path, "allowed_root": raw_root}
-
     def activate_pending(
         self, source_id: str, metadata: Mapping[str, Any], fingerprint: str,
     ) -> dict[str, Any]:
@@ -94,12 +87,14 @@ class SourceRecordRepository:
         now = utc_now()
         with self.database.transaction() as connection:
             row = connection.execute(
-                "SELECT access_status FROM source_records WHERE source_id = ?",
+                "SELECT case_id, access_status FROM source_records WHERE source_id = ?",
                 (source_id,),
             ).fetchone()
             if row is None:
                 raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
-            if row[0] != "pending":
+            reject_if_active(connection, case_id=row[0], source_id=source_id)
+            invalidate_pending(connection, case_id=row[0], source_id=source_id)
+            if row[1] != "pending":
                 return self.get(source_id)
             updated = connection.execute(
                 "UPDATE source_records SET metadata_json = ?, fingerprint_json = ?, access_status = 'available', requires_reselection = 0, revalidation_error_code = NULL, last_verified_at = ?, revision = revision + 1, updated_at = ? WHERE source_id = ? AND access_status = 'pending'",
@@ -108,7 +103,6 @@ class SourceRecordRepository:
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
         return self.get(source_id)
-
     def revalidate(self, source_id: str, *, current_fingerprint: str | None = None) -> dict[str, Any]:
         """Revalidate using a fingerprint freshly computed by the source adapter."""
         source_id = validate_opaque_id(source_id)
@@ -125,6 +119,8 @@ class SourceRecordRepository:
         status = "available" if valid else "requires_reselection"
         source_revision = int(row["revision"])
         with self.database.transaction() as transaction:
+            reject_if_active(transaction, case_id=str(row["case_id"]), source_id=source_id)
+            invalidate_pending(transaction, case_id=str(row["case_id"]), source_id=source_id)
             updated = transaction.execute(
                 "UPDATE source_records SET access_status = ?, requires_reselection = ?, revalidation_error_code = NULL, last_verified_at = ?, revision = revision + 1, updated_at = ? WHERE source_id = ? AND revision = ?",
                 (status, bool_int(not valid), utc_now(), utc_now(), source_id, source_revision),
@@ -132,22 +128,22 @@ class SourceRecordRepository:
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
         return self.get(source_id)
-
     def mark_pending_revalidation(self, source_id: str, error_code: str = "SOURCE_REVALIDATION_PENDING") -> dict[str, Any]:
         source_id = validate_opaque_id(source_id)
         now = utc_now()
         with self.database.transaction() as connection:
             row = connection.execute(
-                "SELECT revision FROM source_records WHERE source_id = ?", (source_id,),
+                "SELECT case_id, revision FROM source_records WHERE source_id = ?", (source_id,),
             ).fetchone()
             if row is None:
                 raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
+            reject_if_active(connection, case_id=row[0], source_id=source_id)
+            invalidate_pending(connection, case_id=row[0], source_id=source_id)
             connection.execute(
                 "UPDATE source_records SET access_status = 'pending', requires_reselection = 0, revalidation_error_code = ?, updated_at = ?, revision = revision + 1 WHERE source_id = ?",
                 (error_code, now, source_id),
             )
         return self.get(source_id)
-
     def pending_review_records(self) -> list[dict[str, int | str]]:
         connection = self.database.connect()
         try:
@@ -157,7 +153,6 @@ class SourceRecordRepository:
         finally:
             connection.close()
         return [{"source_id": str(row[0]), "revision": int(row[1])} for row in rows]
-
     def replace_for_case(self, case_id: str, record: Mapping[str, Any], expected_revision: int) -> dict[str, Any]:
         case_id = validate_opaque_id(case_id)
         source_id = validate_opaque_id(record.get("source_id"))
@@ -172,6 +167,8 @@ class SourceRecordRepository:
             case = connection.execute("SELECT source_id, parse_task_id, revision, lifecycle FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             if case is None or case[1] != task_id:
                 raise WorkbenchPersistenceError("CASE_NOT_FOUND")
+            reject_if_active(connection, case_id=case_id, source_id=case[0])
+            invalidate_pending(connection, case_id=case_id, source_id=case[0])
             if int(case[2]) != expected_revision:
                 raise RevisionConflictError("case_shell", expected_revision, int(case[2]))
             if case[3] in {"archive_queued", "archiving"}:
@@ -207,7 +204,6 @@ class SourceRecordRepository:
             except sqlite3.IntegrityError as error:
                 raise WorkbenchPersistenceError("SOURCE_REPLACEMENT_FAILED") from error
         return self.get(source_id)
-
 def _source_is_current(
     row: Mapping[str, Any], current_fingerprint: str | None, locator: Mapping[str, str],
 ) -> bool:
@@ -236,7 +232,6 @@ def _source_is_current(
         return True
     except (OSError, ValueError, KeyError, TypeError):
         return False
-
 def _validate_metadata(value: Any) -> dict[str, str | int | float | bool]:
     if not isinstance(value, Mapping):
         raise WorkbenchPersistenceError("INVALID_SOURCE_METADATA")

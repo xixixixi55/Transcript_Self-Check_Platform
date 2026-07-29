@@ -75,8 +75,8 @@ class CaseLifecycleService:
             saved = None
         if saved is not None and self.assets is not None:
             self.assets.release_unreferenced(case_id, sorted(previous_ids - next_ids))
-        if shared_values is None:
-            defaults_status = {"status": "saved", "revision": self._defaults_revision()}
+        if shared_values is None or not shared_values:
+            defaults_status = {"status": "unchanged", "revision": self._defaults_revision()}
         elif draft_status["status"] != "saved":
             defaults_status = {"status": "failed", "error_code": "DRAFT_SAVE_NOT_APPLIED"}
         elif shared_revision is None:
@@ -84,12 +84,23 @@ class CaseLifecycleService:
         else:
             try:
                 from .shared_defaults_service import SharedDefaultsService
-                updated = SharedDefaultsService(self._database()).save(shared_values, shared_revision, identity or {})
-                defaults_status = {"status": "saved", "revision": updated["revision"]}
+                result = SharedDefaultsService(self._database()).patch(shared_values, shared_revision, identity or {})
+                defaults_status = {
+                    "status": result["status"],
+                    "revision": result["defaults"]["revision"],
+                }
             except RevisionConflictError as error:
-                defaults_status = {"status": "conflict", "error_code": error.code}
+                defaults_status = {
+                    "status": "revision_conflict",
+                    "error_code": error.code,
+                    "revision": self._defaults_revision(),
+                }
             except WorkbenchPersistenceError as error:
-                defaults_status = {"status": "failed", "error_code": error.code}
+                defaults_status = {
+                    "status": "failed",
+                    "error_code": error.code,
+                    "revision": self._defaults_revision(),
+                }
         if identity and draft_status["status"] == "saved":
             self._record_save(identity, str(draft["case_id"]))
         return {
@@ -107,6 +118,8 @@ class CaseLifecycleService:
             raise
 
     def transition(self, case_id: str, target: str, expected_revision: int) -> dict[str, Any]:
+        if target == "archive_queued":
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_REQUIRED")
         if target in {"archiving", "archive_verified", "exporting_word", "exported"}:
             raise WorkbenchPersistenceError("WORKBENCH_ARCHIVE_NOT_IMPLEMENTED")
         return self.shells.update_lifecycle(case_id, target, expected_revision)

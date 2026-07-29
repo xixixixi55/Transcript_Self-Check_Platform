@@ -64,7 +64,8 @@ def cleanup_owned_staging(
         return "unknown"
     try:
         resolved = candidate.resolve(strict=True)
-        resolved.relative_to(root)
+        if resolved == root or resolved.parent != root:
+            return "unknown"
     except FileNotFoundError:
         return "succeeded" if not candidate.exists() and record.get("cleanup_status") == "succeeded" else "unknown"
     except (OSError, RuntimeError, ValueError, TypeError):

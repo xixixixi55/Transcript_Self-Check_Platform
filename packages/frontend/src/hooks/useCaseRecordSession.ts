@@ -2,29 +2,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import { applyReportEdit } from '@biji/shared/utils'
-import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, ClientIdentity, InspectionReport, OpaqueAssetRef, SharedDefaults, SaveStatus } from '@biji/shared/types'
+import { applyReportEdit, parseDiscSequence } from '@biji/shared/utils'
+import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, ClientIdentity, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
 import { useCaseDraftAutosave } from './useCaseDraftAutosave'
-import type { AutosaveViewState } from './useCaseDraftAutosave'
+import type { AutosaveSaveMeta, AutosaveViewState } from './useCaseDraftAutosave'
 import { useCasePhotoAssets } from './useCasePhotoAssets'
 import { useCaseWorkbench } from './useCaseWorkbench'
 import { createClientIdentity, useEditLease } from './useEditLease'
 import { useTaskRecords } from './useTaskRecords'
+import { shouldHydrateServerDraft } from './useCaseDraftHydration'
 
 const SHARED_FIELD_PATHS = new Set([
   'document_number', 'introduction.inspection_place', 'inspection.method', 'inspection.hardware_device',
-  'introduction.inspectors', 'introduction.inspector_snapshots',
+  'introduction.inspectors', 'introduction.inspector_snapshots', 'attachments.disc_number',
 ])
 
-function sharedValues(report: InspectionReport, prefix: string) {
-  return {
-    document_number: report.document_number || '',
-    inspection_place: report.introduction?.inspection_place || '',
-    inspection_method: report.inspection?.method || '',
-    hardware_device: report.inspection?.hardware_device || '',
-    inspector_order: (report.introduction?.inspectors || []).map(item => `${item.name}|${item.unit}|${item.badge_number}`),
-    disc_number_prefix: prefix,
+export function sharedPatchForEdit(report: InspectionReport, path: string): Record<string, unknown> | null {
+  if (path === 'document_number') return { document_number: report.document_number || '' }
+  if (path === 'introduction.inspection_place') return { inspection_place: report.introduction?.inspection_place || '' }
+  if (path === 'inspection.method') return { inspection_method: report.inspection?.method || '' }
+  if (path === 'inspection.hardware_device') return { hardware_device: report.inspection?.hardware_device || '' }
+  if (path.startsWith('introduction.inspectors') || path.startsWith('introduction.inspector_snapshots')) {
+    return { inspector_order: (report.introduction?.inspectors || []).map(item => `${item.name}|${item.unit}|${item.badge_number}`) }
   }
+  if (path === 'attachments.disc_number') {
+    const parsed = parseDiscSequence(report.attachments?.disc_number || '')
+    return parsed.valid && parsed.sequence ? { disc_number_prefix: parsed.sequence.prefix } : null
+  }
+  return null
 }
 
 export function useCaseRecordSession(caseId: string) {
@@ -35,9 +40,11 @@ export function useCaseRecordSession(caseId: string) {
   const [identity, setIdentity] = useState<ClientIdentity | null>(null)
   const [changeToken, setChangeToken] = useState(0)
   const [needsSharedDefaults, setNeedsSharedDefaults] = useState(false)
+  const [sharedDefaultsPatch, setSharedDefaultsPatch] = useState<Record<string, unknown>>({})
   const [sharedDefaultsSaveState, setSharedDefaultsSaveState] = useState<AutosaveViewState>({ status: 'not_changed' })
   const [leaseLost, setLeaseLost] = useState(false)
   const terminalStatus = useRef<string | null>(null)
+  const lastHydratedDraftKey = useRef<string | null>(null)
   const handleLeaseLost = useCallback(() => setLeaseLost(true), [])
 
   useEffect(() => {
@@ -52,13 +59,26 @@ export function useCaseRecordSession(caseId: string) {
   }, [])
 
   useEffect(() => {
-    if (!workbench.detail?.draft) return
-    setDraft(workbench.detail.draft)
-    setReport(JSON.parse(JSON.stringify(workbench.detail.draft.report)) as InspectionReport)
+    lastHydratedDraftKey.current = null
+    setDraft(null)
+    setReport(null)
     setChangeToken(0)
     setNeedsSharedDefaults(false)
+    setSharedDefaultsPatch({})
     setLeaseLost(false)
-  }, [workbench.detail?.draft])
+  }, [caseId])
+
+  const serverDraft = workbench.detail?.draft
+  useEffect(() => {
+    if (!serverDraft || !shouldHydrateServerDraft(caseId, serverDraft, lastHydratedDraftKey.current, changeToken)) return
+    lastHydratedDraftKey.current = `${caseId}:${serverDraft.revision}`
+    setDraft(serverDraft)
+    setReport(JSON.parse(JSON.stringify(serverDraft.report)) as InspectionReport)
+    setChangeToken(0)
+    setNeedsSharedDefaults(false)
+    setSharedDefaultsPatch({})
+    setLeaseLost(false)
+  }, [caseId, changeToken, serverDraft?.case_id, serverDraft?.revision])
 
   const taskIds = workbench.detail ? [workbench.detail.parse_task.task_id] : []
   const { records: taskRecords } = useTaskRecords(taskIds)
@@ -73,7 +93,7 @@ export function useCaseRecordSession(caseId: string) {
 
   useEffect(() => {
     if (workbench.detail?.source.access_status !== 'pending') return
-    const timer = window.setInterval(() => { void workbench.reloadDetail(caseId) }, 1500)
+    const timer = window.setInterval(() => { void workbench.reloadDetail(caseId, { background: true }) }, 1500)
     return () => window.clearInterval(timer)
   }, [caseId, workbench.detail?.source.access_status, workbench.reloadDetail])
 
@@ -85,17 +105,42 @@ export function useCaseRecordSession(caseId: string) {
   })
   const editingEnabled = lease.phase === 'active' && !leaseLost
   const draftForSave = useMemo(() => draft && report ? { ...draft, report } : draft, [draft, report])
-  const valuesForDefaults = useMemo(() => report ? sharedValues(report, defaults?.disc_number_prefix || '') : null, [defaults?.disc_number_prefix, report])
-
-  const onSaved = useCallback((savedDraft: CaseDraft, sharedStatus: SaveStatus) => {
+  const onSaved = useCallback((savedDraft: CaseDraft, sharedStatus: SharedDefaultsSaveStatus, meta: AutosaveSaveMeta) => {
     setDraft(savedDraft)
-    if (sharedStatus.status === 'saved') {
-      setNeedsSharedDefaults(false)
-      setSharedDefaultsSaveState({ status: 'saved', revision: sharedStatus.revision })
+    setChangeToken(current => meta.hasNewerChanges ? current : 0)
+    if (sharedStatus.status === 'updated' || sharedStatus.status === 'unchanged' || (sharedStatus.status as string) === 'saved') {
+      const appliedPatch = meta.sharedDefaultsPatch || {}
+      setDefaults(current => current ? {
+        ...current,
+        ...(sharedStatus.status === 'updated' || (sharedStatus.status as string) === 'saved' ? appliedPatch : {}),
+        revision: sharedStatus.revision ?? current.revision,
+      } : current)
+      setSharedDefaultsPatch(current => {
+        const remaining = { ...current }
+        for (const [key, value] of Object.entries(appliedPatch)) {
+          if (JSON.stringify(remaining[key]) === JSON.stringify(value)) delete remaining[key]
+        }
+        setNeedsSharedDefaults(Object.keys(remaining).length > 0)
+        return remaining
+      })
+      setSharedDefaultsSaveState(meta.hasNewerChanges
+        ? { status: 'not_changed' }
+        : { status: 'saved', revision: sharedStatus.revision })
+    } else if (sharedStatus.status === 'failed' || sharedStatus.status === 'revision_conflict') {
+      // Keep the sparse patch for the next explicit shared-field edit, but do
+      // not retry independently of a successful case-draft save.
+      if (sharedStatus.revision !== undefined) {
+        setDefaults(current => current ? { ...current, revision: sharedStatus.revision as number } : current)
+      }
+      setNeedsSharedDefaults(meta.hasNewerChanges)
+      setSharedDefaultsSaveState(meta.hasNewerChanges ? { status: 'not_changed' } : {
+        status: sharedStatus.status === 'revision_conflict' ? 'conflict' : 'failed',
+        revision: sharedStatus.revision, errorCode: sharedStatus.error_code,
+      })
     }
   }, [])
   const autosave = useCaseDraftAutosave({
-    caseId, draft: draftForSave, identity, sharedValues: valuesForDefaults,
+    caseId, draft: draftForSave, identity, sharedDefaultsPatch,
     sharedDefaultsRevision: defaults?.revision ?? null, includeSharedDefaults: needsSharedDefaults,
     changeToken, enabled: editingEnabled, leaseId: lease.lease?.lease_id,
     leaseToken: lease.lease?.lease_token, onSaved,
@@ -103,8 +148,19 @@ export function useCaseRecordSession(caseId: string) {
 
   const updateReport = useCallback((path: string, value: unknown) => {
     if (!editingEnabled) return
-    setReport(current => current ? applyReportEdit(current, path, value) : current)
-    if (SHARED_FIELD_PATHS.has(path) || path.startsWith('introduction.inspectors') || path.startsWith('introduction.inspector_snapshots')) setNeedsSharedDefaults(true)
+    setReport(current => {
+      if (!current) return current
+      const next = applyReportEdit(current, path, value)
+      if (SHARED_FIELD_PATHS.has(path) || path.startsWith('introduction.inspectors') || path.startsWith('introduction.inspector_snapshots')) {
+        const patch = sharedPatchForEdit(next, path)
+        if (patch) {
+          setSharedDefaultsPatch(previous => ({ ...previous, ...patch }))
+          setNeedsSharedDefaults(true)
+          setSharedDefaultsSaveState({ status: 'not_changed' })
+        }
+      }
+      return next
+    })
     setChangeToken(value => value + 1)
   }, [editingEnabled])
 
@@ -138,57 +194,7 @@ export function useCaseRecordSession(caseId: string) {
     return true
   }, [caseId, workbench.detail?.source, workbench.reloadDetail])
 
-  const saveSharedDefaults = useCallback(async (discNumberPrefix?: string) => {
-    if (!defaults || !identity || !report) return false
-    setSharedDefaultsSaveState({ status: 'saving' })
-    try {
-      const response = await axios.put<{ data: SharedDefaults }>(API_ENDPOINTS.WORKBENCH_DEFAULTS, {
-        values: sharedValues(report, discNumberPrefix ?? defaults.disc_number_prefix),
-        expected_revision: defaults.revision,
-        identity,
-      })
-      const saved = response.data.data
-      setDefaults(saved)
-      setSharedDefaultsSaveState({ status: 'saved', revision: saved.revision })
-      setNeedsSharedDefaults(false)
-      return true
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail
-      const code = typeof detail?.code === 'string' ? detail.code : 'SHARED_DEFAULTS_SAVE_FAILED'
-      setSharedDefaultsSaveState({
-        status: code === 'REVISION_CONFLICT' ? 'conflict' : 'failed',
-        errorCode: code,
-      })
-      return false
-    }
-  }, [defaults, identity, report])
-
-  const clearSharedDefaults = useCallback(async () => {
-    if (!defaults || !identity) return false
-    setSharedDefaultsSaveState({ status: 'saving' })
-    try {
-      const response = await axios.put<{ data: SharedDefaults }>(API_ENDPOINTS.WORKBENCH_DEFAULTS, {
-        values: {
-          document_number: '', inspection_place: '', inspection_method: '', hardware_device: '',
-          inspector_order: [], disc_number_prefix: '',
-        },
-        expected_revision: defaults.revision,
-        identity,
-      })
-      const saved = response.data.data
-      setDefaults(saved)
-      setSharedDefaultsSaveState({ status: 'saved', revision: saved.revision })
-      return true
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail
-      const code = typeof detail?.code === 'string' ? detail.code : 'SHARED_DEFAULTS_SAVE_FAILED'
-      setSharedDefaultsSaveState({
-        status: code === 'REVISION_CONFLICT' ? 'conflict' : 'failed',
-        errorCode: code,
-      })
-      return false
-    }
-  }, [defaults, identity])
+  const retrySave = useCallback(() => autosave.retry(), [autosave])
 
   const decideArchive = useCallback(async (decision: ArchiveDecision) => {
     if (!workbench.detail) throw new Error('CASE_NOT_LOADED')
@@ -210,7 +216,7 @@ export function useCaseRecordSession(caseId: string) {
 
   return {
     ...workbench, draft, report, defaults, identity, parseTask, taskRecords, lease, editingEnabled,
-    leaseLost, autosave, sharedDefaultsSaveState, saveSharedDefaults, clearSharedDefaults,
+    leaseLost, autosave, sharedDefaultsPatch, sharedDefaultsSaveState, retrySave,
     updateReport, updatePhotoAssetRefs, photoAssets, replaceSource, decideArchive, loadServerVersion,
   }
 }

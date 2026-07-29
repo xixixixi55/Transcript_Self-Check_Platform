@@ -4,6 +4,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Lock
+import time
 
 import pytest
 
@@ -91,6 +92,9 @@ def test_max_lifetime_bounds_wait_without_starting_duplicate_task():
             leader.result(timeout=5)
 
     assert calls == ["built"]
+    deadline = time.monotonic() + 1
+    while registry.active_count and time.monotonic() < deadline:
+        time.sleep(0.01)
     assert registry.active_count == 0
 
 

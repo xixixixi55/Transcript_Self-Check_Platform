@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import os
-import secrets
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +15,9 @@ from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.report_format_adapter import ReportFormatError, require_supported_report_format
 from .archive_authorization_service import ArchiveAuthorizationService
 from .source_revalidation_policy_service import is_temporary_source_failure
+from .source_record_fingerprint_service import directory_metadata, directory_summary, fingerprint as _fingerprint, opaque_id, validate_pending_locator
+
+_directory_metadata = directory_metadata
 
 
 class SourceRecordService:
@@ -32,6 +32,7 @@ class SourceRecordService:
         self.authorization = authorization or ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
 
     _PENDING_FINGERPRINT_PREFIX = "pending:"
+    _MAX_REVISION_CONFLICT_RETRIES = 3
 
     def register_report_directory(
         self, report_dir: str, grant_token: str | None = None,
@@ -45,10 +46,10 @@ class SourceRecordService:
             raise WorkbenchPersistenceError("SOURCE_DIRECTORY_REQUIRED")
         authorized = self.authorization.authorize_report_directory(report_dir, grant_token=grant_token)
         self._validate_report_structure(authorized.resolved_input_root)
-        source_id = _opaque_id("source")
+        source_id = opaque_id("source")
         allowed_root = authorized.authorized_scope or authorized.resolved_input_root.parent
         try:
-            metadata = _directory_summary(authorized.resolved_input_root)
+            metadata = directory_summary(authorized.resolved_input_root)
             self.locators.save(source_id, str(authorized.resolved_input_root), str(allowed_root))
         except OSError as error:
             self.locators.remove(source_id)
@@ -108,11 +109,11 @@ class SourceRecordService:
         try:
             locator = self.repository.get_internal_locator(source_id)
             path = Path(locator["internal_path"])
-            _validate_pending_locator(path, Path(locator["allowed_root"]))
+            validate_pending_locator(path, Path(locator["allowed_root"]))
             self._validate_report_structure(path)
             metadata = _directory_metadata(path)
-            fingerprint = _fingerprint(path)
-            return self.repository.activate_pending(source_id, metadata, fingerprint)
+            current_fingerprint = _fingerprint(path)
+            return self.repository.activate_pending(source_id, metadata, current_fingerprint)
         except Exception as error:
             if is_temporary_source_failure(error):
                 return self.repository.mark_pending_revalidation(source_id)
@@ -144,7 +145,7 @@ class SourceRecordService:
         try:
             locator = self.repository.get_internal_locator(source_id)
             path = Path(locator["internal_path"])
-            _validate_pending_locator(path, Path(locator["allowed_root"]))
+            validate_pending_locator(path, Path(locator["allowed_root"]))
             if record["source_type"] == "report_directory":
                 self._validate_report_structure(path)
         except Exception as error:
@@ -157,16 +158,34 @@ class SourceRecordService:
 
     def verify_after_parse(self, source_id: str, expected_revision: int | None = None) -> dict[str, Any]:
         """Run the deferred full source verification without changing case state."""
-        try:
-            current = self.repository.get(source_id)
-            if expected_revision is not None and current["revision"] != expected_revision:
-                return current
-            return self.revalidate(source_id)
-        except Exception:
+        current = self.repository.get(source_id)
+        if expected_revision is not None and current["revision"] != expected_revision:
+            return current
+        for _ in range(self._MAX_REVISION_CONFLICT_RETRIES):
             try:
-                return self.repository.revalidate(source_id, current_fingerprint=None)
-            except WorkbenchPersistenceError:
-                return {"source_id": source_id, "access_status": "requires_reselection"}
+                return self.revalidate(source_id)
+            except WorkbenchPersistenceError as error:
+                if error.code != "SOURCE_REVISION_CONFLICT":
+                    raise
+                try:
+                    fingerprint = self._compute_current_fingerprint(source_id)
+                except Exception as fingerprint_error:
+                    if is_temporary_source_failure(fingerprint_error):
+                        return self.repository.mark_pending_revalidation(source_id)
+                    fingerprint = None
+                try:
+                    return self.repository.revalidate(source_id, current_fingerprint=fingerprint)
+                except WorkbenchPersistenceError as retry_error:
+                    if retry_error.code != "SOURCE_REVISION_CONFLICT":
+                        raise
+        return self.repository.mark_pending_revalidation(source_id, "SOURCE_REVISION_CONFLICT_RETRY_EXHAUSTED")
+
+    def _compute_current_fingerprint(self, source_id: str) -> str:
+        locator = self.repository.get_internal_locator(source_id)
+        path = Path(locator["internal_path"])
+        if self.repository.get(source_id)["source_type"] == "report_directory":
+            self._validate_report_structure(path)
+        return _fingerprint(path)
 
     def recover_pending_after_startup(self, dispatcher: Any) -> list[str]:
         scheduled: list[str] = []
@@ -206,43 +225,3 @@ class SourceRecordService:
             raise WorkbenchPersistenceError("SOURCE_STRUCTURE_INVALID") from error
         except OSError as error:
             raise WorkbenchPersistenceError("SOURCE_ACCESS_DENIED") from error
-
-
-def _directory_metadata(path: Path) -> dict[str, str | int | float | bool]:
-    entries = [item for item in path.rglob("*") if not item.is_symlink()]
-    return {
-        "display_name": path.name,
-        "file_count": sum(item.is_file() for item in entries),
-        "directory_count": sum(item.is_dir() for item in entries),
-        "modified_time_ns": int(path.stat().st_mtime_ns),
-    }
-
-
-def _directory_summary(path: Path) -> dict[str, str | int | float | bool]:
-    return {
-        "display_name": path.name,
-        "modified_time_ns": int(path.stat().st_mtime_ns),
-    }
-
-
-def _validate_pending_locator(path: Path, allowed_root: Path) -> None:
-    resolved_path = path.resolve(strict=True)
-    resolved_root = allowed_root.resolve(strict=True)
-    resolved_path.relative_to(resolved_root)
-    if path.is_symlink() or not resolved_path.is_dir() or not os.access(resolved_path, os.R_OK):
-        raise OSError("source unavailable")
-
-
-def _opaque_id(prefix: str) -> str:
-    return f"{prefix}-{secrets.token_hex(16)}"
-
-
-def _fingerprint(path: Path) -> str:
-    if not path.is_dir() or path.is_symlink():
-        raise OSError("source unavailable")
-    digest = hashlib.sha256()
-    for child in sorted(path.rglob("*"), key=lambda item: item.as_posix().casefold()):
-        if child.is_file() and not child.is_symlink():
-            stat = child.stat()
-            digest.update(f"{child.relative_to(path).as_posix()}\0{stat.st_size}\0{stat.st_mtime_ns}".encode())
-    return digest.hexdigest()

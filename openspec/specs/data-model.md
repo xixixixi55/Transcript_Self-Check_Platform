@@ -350,7 +350,91 @@ failed | interrupted`, and its cleanup status is `not_required | pending | succe
 | failed | unknown`. Public fields contain only opaque IDs, revisions, stable error
 codes and timestamps; process IDs, command lines, staging locators and ownership
 markers remain backend-only. A succeeded attempt and verified formal artifacts are
-not rolled back by restart recovery.
+not rolled back by restart recovery. Workbench archive contexts are distinguished
+from Legacy contexts by an internal, one-way context hash bound to exactly one
+attempt and case; the executable context itself is not persisted or restored after
+restart. An attempt may also persist internal Manifest identity evidence
+(`manifest_source_key`, input fingerprint and archive fingerprint). The internal,
+path-free Manifest index also records the opaque workbench attempt ID before the
+database success transition, closing the crash window between index publication and
+attempt completion. Recovery accepts either side of that durable evidence only when
+the registered Manifest, case, attempt, source revision and physical RAR contents all
+validate; it then completes the same attempt atomically instead of publishing a
+second artifact. These internal binding and recovery fields are not exposed by the
+public DTO or public Manifest.
+
+The durable workbench database is schema version 5. An internal attempt binding
+stores `source_revision`, `draft_revision` and a canonical `report_fingerprint`;
+the public attempt projection continues to omit these internal evidence fields.
+The active workbench context binding additionally stores the opaque `source_id`,
+the same source/draft revisions and report fingerprint, `context_kind`, expiry
+and consumption timestamps. A workbench archive execution must re-read the
+server-side CaseDraft and SourceRecord and match all of these values before it
+can use the draft as formal archive input. A client `report_json` is therefore
+only a compatibility payload: for a workbench context it is rejected when its
+content fingerprint differs and is never the authoritative report. A true
+Legacy context continues to use the existing Legacy report contract.
+
+Schema version 5 also persists one immutable `archive_publish_intents` record
+per workbench attempt. It contains the case/attempt/source identities, source
+and draft revisions, report fingerprint, manifest/archive/input identities,
+safe relative final-directory identity and the public Manifest snapshot. Its
+phase is monotonic: `intent_persisted` → `published` → `indexed` → `verified`,
+with `conflict` as a terminal safety state. This is a recovery record, not a
+worker queue, scheduler, progress record or automatic retry mechanism.
+
+The intent's context binding is the persistent workbench context hash; its
+relative final-directory identity is the formal runtime context plus the
+Manifest ID, because the Legacy executor may create a separate in-memory
+runtime context from the workbench context. Intent creation re-reads the
+server-side shell, SourceRecord, CaseDraft and active workbench binding in one
+database transaction. Before the filesystem move the service performs the same
+binding revalidation again. Trusted completion then re-reads SourceRecord,
+CaseShell and CaseDraft in its own write transaction and requires exactly one
+attempt, shell and draft update; a zero-row update rolls the transaction back.
+Normal execution and restart recovery call this same trusted completion service.
+
+Formal archive recovery uses the intent, the internal Manifest index and the
+physical final directory together:
+
+| Durable evidence | Recovery result |
+|---|---|
+| No intent and no formal artifact | Mark an unfinished attempt `interrupted`; require explicit new preparation. |
+| Intent persisted, final directory absent | Safely interrupt the unfinished attempt; retain the durable intent, do not publish or resume automatically, and require explicit new preparation. |
+| Final directory exists while intent is still `intent_persisted` | Validate all bindings and Manifest/RAR, then advance only through `published` and `indexed`; never jump directly to `indexed` or republish. |
+| Final directory exists and matches a persisted intent, but the index is absent | Validate Manifest/RAR and register the same artifact, then complete the same attempt. |
+| Index and final directory both match the intent | Re-run the shared trusted completion validation and idempotently complete the same attempt; a crash before `verified` only finishes the phase marker and never rolls back success. |
+| Missing final directory, tampered/incomplete files, missing intent, or any identity conflict | Do not mark success, overwrite, delete or republish; preserve unknown formal output and require a new explicit attempt. Confirmed evidence conflict may enter `conflict`; temporary database/index/I/O errors retain the current phase for later explicit verification. |
+
+Only a validated completion evidence service may write `succeeded` and
+`archive_verified`; a caller-provided Manifest ID alone is not evidence.
+
+Schema version 5 adds the internal `archive_publish_fences` table. A fence binds
+one case and attempt to the source ID/revision, draft revision, report
+fingerprint, one-way context hash and shell revision. At most one fence for a
+case and one for an attempt may be `active`. The controlled publish-intent
+transaction creates the fence and intent together after re-reading the server
+facts. Active fences reject ordinary writes that could change those facts.
+After restart, an active fence becomes `pending_verification` only after the
+old runtime state and context binding have been invalidated. Pending evidence
+does not permanently block editing: a draft/source/shell edit atomically marks
+the old fence `invalidated`, so its formal artifact remains unknown and cannot
+be completed or reused. Successful trusted completion consumes the fence;
+release, invalidation and consumption are idempotent internal transitions.
+
+Reconciliation is driven by every non-terminal publish intent, including an
+attempt that was left `failed` after a publish-side infrastructure error. It
+first converts stale runtime states to `interrupted`, then validates the intent,
+fence, Manifest index and physical RAR. Temporary infrastructure failures keep
+the interrupted attempt, pending evidence and formal files without republish;
+only confirmed identity, target or integrity conflicts become `conflict`.
+
+Source trust is an archive-safety gate, not a Word-export prohibition. An
+`available` source exports normally; `pending` and `requires_reselection` remain
+viewable, editable, previewable and exportable after an explicit client-side risk
+confirmation based on the current server-returned source state. Cancelling that
+confirmation cancels only that export action. Archive preparation continues to
+require a trusted, current source revision.
 
 For workbench images, the opaque reference is bound to `case_id` by the backend
 asset registry. The binary lives in the controlled application asset workspace;
@@ -363,8 +447,11 @@ unreferenced temporary assets are removed after a grace period.
 and `system_default`, while `FieldConfirmation` separately represents pending
 human confirmation. `ClientIdentity` is a local session identity, not an authenticated
 person. `EditLease` provides one active case lease with expiry and takeover metadata.
-`SaveStatus` and `DualSaveResult` report draft and shared-default persistence
-independently; `RevisionConflictDto` describes optimistic concurrency failures.
+`SaveStatus`, `SharedDefaultsSaveStatus` and `DualSaveResult` report draft and
+shared-default persistence independently. Shared-default writes use a sparse
+six-field `shared_defaults_patch`; `updated`, `unchanged`, `failed` and
+`revision_conflict` are distinct statuses, and blank values do not clear stored
+defaults. `RevisionConflictDto` describes optimistic concurrency failures.
 `WorkbenchApiEnvelope`, `CaseShellResponse`, `CaseDraftResponse`,
 `SourceRecordResponse`, `SharedDefaultsResponse` and `TaskRecordResponse` are the
 versioned API DTO envelopes and contain no absolute paths.
@@ -379,7 +466,9 @@ compression entry. Deferred decisions remain visible after refresh as
 `archive_deferred`. `DeletePreflight` reports stable blockers without
 deleting case records or formal artifacts. `CaseListResponse`,
 `CaseDetailResponse` and `CaseSubmissionResponse` are the corresponding
-versioned envelopes.
+versioned envelopes. `CaseSubmission` also exposes the current server-read
+shared defaults so a newly created case can show its prefill before parsing;
+the deployment instance remains server-authoritative.
 
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type FieldSource, type FieldConfirmation,
@@ -387,6 +476,7 @@ type LeaseStatus, type SourceAccessStatus, type CaseAssetContentStatus, interfac
 interface CaseAssetList, interface FieldState,
 interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,
+interface SharedDefaultsSaveStatus,
 interface DualSaveResult, interface RevisionConflictDto, interface WorkbenchApiEnvelope,
 interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecordResponse,
 interface SharedDefaultsResponse, interface TaskRecordResponse, interface CaseListPage,

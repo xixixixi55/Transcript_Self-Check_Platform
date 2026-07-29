@@ -11,6 +11,7 @@ from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_legacy_report import validate_legacy_report
 from .workbench_repository_helpers import bool_int, json_text, row_json
 from .workbench_serialization import validate_field_states, validate_opaque_asset_refs, validate_opaque_id, validate_safe_string
+from .archive_publish_fence_repository import invalidate_pending, reject_if_active
 
 
 class CaseShellRepository:
@@ -72,7 +73,11 @@ class CaseShellRepository:
         case_id = validate_opaque_id(case_id)
         if lifecycle not in CASE_LIFECYCLES:
             raise WorkbenchPersistenceError("INVALID_STATE_TRANSITION")
+        if lifecycle == "archive_queued":
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_REQUIRED")
         with self.database.transaction() as connection:
+            reject_if_active(connection, case_id=case_id)
+            invalidate_pending(connection, case_id=case_id)
             row = connection.execute("SELECT revision FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             if row is None:
                 raise WorkbenchPersistenceError("CASE_NOT_FOUND")
@@ -105,7 +110,10 @@ class CaseDraftRepository:
         self.database = database
 
     def save(self, draft: Mapping[str, Any], expected_revision: int | None = None) -> dict[str, Any]:
+        lifecycle_was_submitted = "lifecycle" in draft
         lifecycle = str(draft.get("lifecycle", "review_ready"))
+        if lifecycle_was_submitted and lifecycle == "archive_queued":
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_REQUIRED")
         if lifecycle not in REVIEWABLE_LIFECYCLES:
             raise WorkbenchPersistenceError("DRAFT_NOT_REVIEWABLE")
         report = validate_legacy_report(draft.get("report"))
@@ -129,6 +137,8 @@ class CaseDraftRepository:
             shell = connection.execute("SELECT * FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             if shell is None:
                 raise WorkbenchPersistenceError("CASE_NOT_FOUND")
+            reject_if_active(connection, case_id=case_id)
+            invalidate_pending(connection, case_id=case_id)
             asset_ids = [str(item["asset_id"]) for item in asset_refs]
             if asset_ids:
                 placeholders = ", ".join("?" for _ in asset_ids)
@@ -149,6 +159,8 @@ class CaseDraftRepository:
                         raise WorkbenchPersistenceError("ASSET_REFERENCE_MISMATCH")
             existing = connection.execute("SELECT revision, created_at FROM case_drafts WHERE case_id = ?", (case_id,)).fetchone()
             current_lifecycle = str(shell["lifecycle"])
+            if not lifecycle_was_submitted and current_lifecycle == "archive_queued":
+                lifecycle = current_lifecycle
             if not existing and lifecycle not in CASE_TRANSITIONS.get(current_lifecycle, set()):
                 raise WorkbenchPersistenceError("DRAFT_NOT_REVIEWABLE")
             if existing and lifecycle != current_lifecycle and lifecycle not in CASE_TRANSITIONS.get(current_lifecycle, set()):

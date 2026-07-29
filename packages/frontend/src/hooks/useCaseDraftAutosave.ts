@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_DRAFT_AUTOSAVE_DEBOUNCE_MS } from '@biji/shared/constants'
-import type { CaseDraft, ClientIdentity, SaveStatus } from '@biji/shared/types'
+import type { CaseDraft, ClientIdentity, SaveStatus, SharedDefaultsSaveStatus } from '@biji/shared/types'
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'conflict' | 'not_changed'
 
@@ -16,19 +16,26 @@ interface Options {
   caseId: string
   draft: CaseDraft | null
   identity: ClientIdentity | null
-  sharedValues: Record<string, unknown> | null
+  sharedDefaultsPatch?: Record<string, unknown> | null
+  /** @deprecated compatibility alias; callers must provide a sparse object. */
+  sharedValues?: Record<string, unknown> | null
   sharedDefaultsRevision: number | null
   includeSharedDefaults: boolean
   changeToken: number
   enabled: boolean
   leaseId?: string | null
   leaseToken?: string | null
-  onSaved: (draft: CaseDraft, sharedStatus: SaveStatus) => void
+  onSaved: (draft: CaseDraft, sharedStatus: SharedDefaultsSaveStatus, meta: AutosaveSaveMeta) => void
+}
+
+export interface AutosaveSaveMeta {
+  hasNewerChanges: boolean
+  sharedDefaultsPatch: Record<string, unknown> | null
 }
 
 interface SaveResponse {
   draft_save_status: SaveStatus
-  shared_defaults_save_status: SaveStatus
+  shared_defaults_save_status: SharedDefaultsSaveStatus
   draft: CaseDraft | null
 }
 
@@ -48,30 +55,38 @@ function cloneDraft(draft: CaseDraft): CaseDraft {
 
 export function useCaseDraftAutosave(options: Options) {
   const {
-    caseId, draft, identity, sharedValues, sharedDefaultsRevision,
+    caseId, draft, identity, sharedDefaultsPatch, sharedValues, sharedDefaultsRevision,
     includeSharedDefaults, changeToken, enabled, leaseId, leaseToken, onSaved,
   } = options
-  const latest = useRef({ draft, identity, sharedValues, sharedDefaultsRevision, includeSharedDefaults, leaseId, leaseToken })
+  const latest = useRef({ draft, identity, sharedDefaultsPatch: sharedDefaultsPatch ?? sharedValues, sharedDefaultsRevision, includeSharedDefaults, changeToken, leaseId, leaseToken })
   const pending = useRef<CaseDraft | null>(null)
+  const onSavedRef = useRef(onSaved)
   const timer = useRef<number | null>(null)
   const sequence = useRef(0)
+  const inFlight = useRef<Promise<boolean> | null>(null)
+  const inFlightToken = useRef<number | null>(null)
+  const rerunAfterFlight = useRef(false)
+  const sendRef = useRef<((snapshot?: CaseDraft) => Promise<boolean>) | null>(null)
   const [draftState, setDraftState] = useState<AutosaveViewState>({ status: 'idle' })
   const [sharedState, setSharedState] = useState<AutosaveViewState>({ status: 'not_changed' })
   const [hasPending, setHasPending] = useState(false)
 
-  latest.current = { draft, identity, sharedValues, sharedDefaultsRevision, includeSharedDefaults, leaseId, leaseToken }
+  latest.current = { draft, identity, sharedDefaultsPatch: sharedDefaultsPatch ?? sharedValues, sharedDefaultsRevision, includeSharedDefaults, changeToken, leaseId, leaseToken }
+  onSavedRef.current = onSaved
 
   const clearTimer = useCallback(() => {
     if (timer.current !== null) window.clearTimeout(timer.current)
     timer.current = null
   }, [])
 
-  const send = useCallback(async (snapshot?: CaseDraft) => {
+  const performSend = useCallback(async (snapshot?: CaseDraft) => {
     const current = latest.current
     const value = snapshot || pending.current || current.draft
     if (!enabled || !value || !current.identity) return false
     const requestId = ++sequence.current
-    const includeDefaults = current.includeSharedDefaults && current.sharedValues && current.sharedDefaultsRevision !== null
+    const requestChangeToken = current.changeToken
+    const includeDefaults = current.includeSharedDefaults && current.sharedDefaultsPatch && Object.keys(current.sharedDefaultsPatch).length > 0 && current.sharedDefaultsRevision !== null
+    const requestSharedPatch = includeDefaults ? { ...current.sharedDefaultsPatch } : null
     setDraftState({ status: 'saving' })
     setSharedState(includeDefaults ? { status: 'saving' } : { status: 'not_changed' })
     const controller = new AbortController()
@@ -79,9 +94,9 @@ export function useCaseDraftAutosave(options: Options) {
       const response = await axios.patch<{ data: SaveResponse }>(
         API_ENDPOINTS.WORKBENCH_DRAFT(caseId),
         {
-          draft: cloneDraft(value),
+          draft: withoutLifecycle(cloneDraft(value)),
           expected_revision: value.revision,
-          shared_defaults: includeDefaults ? current.sharedValues : null,
+          shared_defaults_patch: requestSharedPatch,
           shared_defaults_revision: includeDefaults ? current.sharedDefaultsRevision : null,
           identity: current.identity,
           lease_id: current.leaseId || null,
@@ -92,16 +107,27 @@ export function useCaseDraftAutosave(options: Options) {
       if (requestId !== sequence.current) return false
       const result = response.data.data
       const sharedStatus = result.shared_defaults_save_status
-      const fullySaved = result.draft_save_status.status === 'saved'
-        && (!includeDefaults || sharedStatus.status === 'saved')
       setDraftState({ status: 'saved', revision: result.draft_save_status.revision })
       setSharedState(includeDefaults
-        ? { status: sharedStatus.status, revision: sharedStatus.revision, errorCode: sharedStatus.error_code }
+        ? { status: toAutosaveStatus(sharedStatus.status), revision: sharedStatus.revision, errorCode: sharedStatus.error_code }
         : { status: 'not_changed' })
-      setHasPending(!fullySaved)
       if (result.draft) {
-        pending.current = fullySaved ? null : value
-        onSaved(result.draft, sharedStatus)
+        const hasNewerChanges = latest.current.changeToken > requestChangeToken
+        if (hasNewerChanges && pending.current) {
+          pending.current = {
+            ...pending.current,
+            revision: result.draft.revision,
+            updated_at: result.draft.updated_at,
+          }
+          rerunAfterFlight.current = true
+        } else {
+          pending.current = null
+        }
+        setHasPending(hasNewerChanges)
+        onSavedRef.current(result.draft, sharedStatus, {
+          hasNewerChanges,
+          sharedDefaultsPatch: requestSharedPatch,
+        })
       }
       return true
     } catch (error) {
@@ -110,7 +136,7 @@ export function useCaseDraftAutosave(options: Options) {
       if (conflict?.draft_save_status?.status === 'conflict') {
         setDraftState({ status: 'conflict', errorCode: conflict.draft_save_status.error_code })
         setSharedState({
-          status: conflict.shared_defaults_save_status?.status || 'not_changed',
+          status: toAutosaveStatus(conflict.shared_defaults_save_status?.status),
           errorCode: conflict.shared_defaults_save_status?.error_code,
         })
       } else {
@@ -123,7 +149,31 @@ export function useCaseDraftAutosave(options: Options) {
     } finally {
       controller.abort()
     }
-  }, [caseId, enabled, onSaved])
+  }, [caseId, enabled])
+
+  const send = useCallback((snapshot?: CaseDraft): Promise<boolean> => {
+    if (inFlight.current) {
+      if (inFlightToken.current !== null && latest.current.changeToken > inFlightToken.current) {
+        rerunAfterFlight.current = true
+      }
+      return inFlight.current
+    }
+    inFlightToken.current = latest.current.changeToken
+    const request = performSend(snapshot)
+    inFlight.current = request
+    void request.then(success => {
+      if (inFlight.current === request) inFlight.current = null
+      inFlightToken.current = null
+      const rerun = success && rerunAfterFlight.current && pending.current !== null
+      rerunAfterFlight.current = false
+      if (rerun) {
+        clearTimer()
+        window.setTimeout(() => { void sendRef.current?.() }, 0)
+      }
+    })
+    return request
+  }, [clearTimer, performSend])
+  sendRef.current = send
 
   useEffect(() => {
     if (!enabled || changeToken <= 0 || !draft) return undefined
@@ -143,14 +193,18 @@ export function useCaseDraftAutosave(options: Options) {
 
   const saveNow = useCallback(() => {
     clearTimer()
-    if (draft) pending.current = cloneDraft(draft)
+    if (inFlight.current) return inFlight.current
+    if (!pending.current && changeToken > 0 && draft) pending.current = cloneDraft(draft)
+    if (!pending.current) return Promise.resolve(true)
     return send()
-  }, [clearTimer, draft, send])
+  }, [changeToken, clearTimer, draft, send])
 
   const retry = useCallback(() => send(), [send])
 
   const reset = useCallback(() => {
     clearTimer()
+    sequence.current += 1
+    rerunAfterFlight.current = false
     pending.current = null
     setHasPending(false)
     setDraftState({ status: 'idle' })
@@ -158,4 +212,16 @@ export function useCaseDraftAutosave(options: Options) {
   }, [clearTimer])
 
   return { draftState, sharedState, hasPending, saveNow, retry, reset }
+}
+
+function toAutosaveStatus(status: SharedDefaultsSaveStatus['status'] | 'saved' | 'conflict' | 'not_changed' | undefined): AutosaveStatus {
+  if (status === 'updated' || status === 'saved') return 'saved'
+  if (status === 'revision_conflict' || status === 'conflict') return 'conflict'
+  if (status === 'failed') return 'failed'
+  return 'not_changed'
+}
+
+function withoutLifecycle(draft: CaseDraft): Omit<CaseDraft, 'lifecycle'> {
+  const { lifecycle: _lifecycle, ...editable } = draft
+  return editable
 }

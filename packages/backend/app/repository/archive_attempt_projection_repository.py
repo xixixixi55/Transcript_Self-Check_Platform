@@ -24,5 +24,11 @@ def internal_attempt(row: Mapping[str, Any]) -> dict[str, Any]:
         "staging_root_id": row["staging_root_id"], "staging_locator": row["staging_locator"],
         "ownership_marker_token": row["ownership_marker_token"], "process_pid": row["process_pid"],
         "process_started_at": row["process_started_at"],
+        "manifest_source_key": row["manifest_source_key"],
+        "manifest_input_fingerprint": row["manifest_input_fingerprint"],
+        "manifest_archive_fingerprint": row["manifest_archive_fingerprint"],
+        "source_revision": int(row["source_revision"] if row["source_revision"] is not None else row["input_revision"]),
+        "draft_revision": int(row["draft_revision"] or 0),
+        "report_fingerprint": row["report_fingerprint"] or None,
     })
     return result

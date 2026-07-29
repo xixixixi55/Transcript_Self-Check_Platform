@@ -4,37 +4,26 @@ from __future__ import annotations
 
 import copy
 import json
-import math
 import os
-import re
 import tempfile
 import threading
 import time
-from dataclasses import dataclass
 from pathlib import Path
 
+from .archive_manifest_record_repository import (
+    OPAQUE_ID_PATTERN,
+    PersistedArchiveManifest,
+    manifest_record_dict,
+    parse_manifest_record,
+)
 
 _INDEX_VERSION = 1
 _INDEX_FILENAME = ".archive-manifest-index.json"
-_HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _INDEX_LOCK = threading.RLock()
 
 
 class ArchiveManifestRepositoryError(RuntimeError):
     """Safe registry diagnostics without local paths or report content."""
-
-
-@dataclass
-class PersistedArchiveManifest:
-    source_key: str
-    input_fingerprint: str
-    archive_fingerprint: str
-    manifest_id: str
-    relative_final_dir: str
-    public_manifest: dict[str, object]
-    created_at: float
-    last_accessed_at: float
-    status: str = "validated"
 
 
 class ArchiveManifestRepository:
@@ -56,13 +45,19 @@ class ArchiveManifestRepository:
         final_dir: str | os.PathLike[str],
         public_manifest: dict[str, object],
         created_at: float | None = None,
+        workbench_attempt_id: str | None = None,
     ) -> PersistedArchiveManifest:
+        if workbench_attempt_id is not None and not OPAQUE_ID_PATTERN.fullmatch(
+            workbench_attempt_id
+        ):
+            raise ArchiveManifestRepositoryError("归档尝试标识无效。")
         relative = self._relative_final_dir(final_dir)
         now = float(self._clock())
         record = PersistedArchiveManifest(
             source_key, input_fingerprint, archive_fingerprint, manifest_id,
             relative, copy.deepcopy(public_manifest),
             float(created_at if created_at is not None else now), now,
+            workbench_attempt_id=workbench_attempt_id,
         )
         with _INDEX_LOCK:
             records = self._read_records()
@@ -92,6 +87,24 @@ class ArchiveManifestRepository:
                 and item.source_key == source_key
                 and item.input_fingerprint == input_fingerprint
                 and item.archive_fingerprint == archive_fingerprint
+            ]
+
+    def find_for_attempt(self, attempt_id: str) -> list[PersistedArchiveManifest]:
+        if not OPAQUE_ID_PATTERN.fullmatch(attempt_id):
+            return []
+        with _INDEX_LOCK:
+            return [
+                copy.deepcopy(item) for item in self._read_records()
+                if item.status == "validated"
+                and item.workbench_attempt_id == attempt_id
+            ]
+
+    def find_by_manifest_id(self, manifest_id: str) -> list[PersistedArchiveManifest]:
+        """Find validated records sharing an identity before any reuse/save operation."""
+        with _INDEX_LOCK:
+            return [
+                copy.deepcopy(item) for item in self._read_records()
+                if item.status == "validated" and item.manifest_id == manifest_id
             ]
 
     def touch(self, manifest_id: str) -> None:
@@ -166,46 +179,15 @@ class ArchiveManifestRepository:
             return []
         records = []
         for raw in raw_records:
-            parsed = self._parse_record(raw)
+            parsed = parse_manifest_record(raw)
             if parsed:
                 records.append(parsed)
         return records
 
-    @staticmethod
-    def _parse_record(raw: object) -> PersistedArchiveManifest | None:
-        if not isinstance(raw, dict):
-            return None
-        source_key = raw.get("source_key")
-        input_fingerprint = raw.get("input_fingerprint")
-        archive_fingerprint = raw.get("archive_fingerprint")
-        manifest_id = raw.get("manifest_id")
-        relative = raw.get("relative_final_dir")
-        manifest = raw.get("public_manifest")
-        created = raw.get("created_at")
-        accessed = raw.get("last_accessed_at")
-        status = raw.get("status", "validated")
-        if (
-            not all(isinstance(value, str) and _HASH_PATTERN.fullmatch(value)
-                    for value in (source_key, input_fingerprint, archive_fingerprint))
-            or not isinstance(manifest_id, str) or not manifest_id
-            or not isinstance(relative, str) or not _safe_relative(relative)
-            or not isinstance(manifest, dict)
-            or not isinstance(created, (int, float)) or isinstance(created, bool)
-            or not math.isfinite(float(created))
-            or not isinstance(accessed, (int, float)) or isinstance(accessed, bool)
-            or not math.isfinite(float(accessed))
-            or status not in {"validated", "stale", "invalid"}
-        ):
-            return None
-        return PersistedArchiveManifest(
-            source_key, input_fingerprint, archive_fingerprint, manifest_id,
-            relative, manifest, float(created), float(accessed), status,
-        )
-
     def _write_records(self, records: list[PersistedArchiveManifest]) -> None:
         payload = {
             "version": _INDEX_VERSION,
-            "records": [self._record_dict(item) for item in records],
+            "records": [manifest_record_dict(item) for item in records],
         }
         temporary: Path | None = None
         try:
@@ -227,23 +209,3 @@ class ArchiveManifestRepository:
                     temporary.unlink()
                 except OSError:
                     pass
-
-    @staticmethod
-    def _record_dict(record: PersistedArchiveManifest) -> dict[str, object]:
-        return {
-            "source_key": record.source_key,
-            "input_fingerprint": record.input_fingerprint,
-            "archive_fingerprint": record.archive_fingerprint,
-            "manifest_id": record.manifest_id,
-            "relative_final_dir": record.relative_final_dir,
-            "public_manifest": record.public_manifest,
-            "created_at": record.created_at,
-            "last_accessed_at": record.last_accessed_at,
-            "status": record.status,
-        }
-
-
-def _safe_relative(value: str) -> bool:
-    normalized = value.replace("\\", "/")
-    path = Path(normalized)
-    return bool(normalized) and not path.is_absolute() and ".." not in path.parts

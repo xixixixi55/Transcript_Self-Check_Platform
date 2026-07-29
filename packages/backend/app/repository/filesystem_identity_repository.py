@@ -5,17 +5,11 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
-import threading
 from pathlib import Path
 
 
 class FilesystemIdentityError(ValueError):
     """Safe filesystem identity diagnostics without exposing local paths."""
-
-
-_FILE_DIGEST_CACHE_LIMIT = 8192
-_FILE_DIGEST_CACHE: dict[str, tuple[int, int, int, int, str]] = {}
-_FILE_DIGEST_CACHE_LOCK = threading.RLock()
 
 
 def resolve_directory(path: str | os.PathLike[str]) -> Path:
@@ -101,9 +95,9 @@ def selected_files_content_fingerprint(
 ) -> str:
     """Hash a dynamically selected set of parser input files.
 
-    The current request still checks every selected path and its metadata. The
-    memo only skips rereading bytes when the same file identity and metadata
-    are unchanged, so this never becomes a path-only cache.
+    Every request reads the selected bytes. Filesystems can preserve size and
+    timestamp metadata across rapid same-size rewrites, so metadata-only
+    caching could incorrectly reuse a stale content identity.
     """
     resolved_root = resolve_directory(root)
     entries: list[tuple[str, str, Path]] = []
@@ -135,41 +129,14 @@ def selected_files_content_fingerprint(
 
 
 def _file_content_digest(path: Path) -> str:
-    try:
-        before = path.stat()
-    except OSError as error:
-        raise FilesystemIdentityError("Selected input file is unreadable.") from error
-    normalized_path = os.path.normcase(
-        os.path.normpath(os.fspath(path))
-    ).casefold()
-    key = hashlib.sha256(normalized_path.encode("utf-8")).hexdigest()
-    metadata = (
-        int(before.st_size), int(before.st_mtime_ns),
-        int(getattr(before, "st_ctime_ns", 0)), int(getattr(before, "st_ino", 0)),
-    )
-    with _FILE_DIGEST_CACHE_LOCK:
-        cached = _FILE_DIGEST_CACHE.get(key)
-        if cached and cached[:4] == metadata:
-            return cached[4]
     digest = hashlib.sha256()
     try:
         with path.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(chunk)
-        after = path.stat()
     except OSError as error:
         raise FilesystemIdentityError("Selected input file is unreadable.") from error
-    value = digest.hexdigest()
-    after_metadata = (
-        int(after.st_size), int(after.st_mtime_ns),
-        int(getattr(after, "st_ctime_ns", 0)), int(getattr(after, "st_ino", 0)),
-    )
-    if metadata == after_metadata:
-        with _FILE_DIGEST_CACHE_LOCK:
-            if len(_FILE_DIGEST_CACHE) >= _FILE_DIGEST_CACHE_LIMIT:
-                _FILE_DIGEST_CACHE.pop(next(iter(_FILE_DIGEST_CACHE)))
-            _FILE_DIGEST_CACHE[key] = (*metadata, value)
-    return value
+    return digest.hexdigest()
 
 
 def _is_unsafe_special_path(path: Path) -> bool:

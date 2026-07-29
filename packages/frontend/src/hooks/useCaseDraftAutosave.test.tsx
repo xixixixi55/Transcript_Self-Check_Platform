@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
 import type { CaseDraft, ClientIdentity } from '@biji/shared/types'
@@ -23,6 +24,7 @@ describe('useCaseDraftAutosave', () => {
     expect(patchMock).not.toHaveBeenCalled()
     await waitFor(() => expect(view.result.current.draftState.status).toBe('saved'))
     expect(patchMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases/case-synthetic/draft'), expect.objectContaining({ expected_revision: 3 }), expect.anything())
+    expect((patchMock.mock.calls[0][1] as { draft: Record<string, unknown> }).draft).not.toHaveProperty('lifecycle')
   })
 
   it('surfaces a revision conflict without treating it as success', async () => {
@@ -49,5 +51,107 @@ describe('useCaseDraftAutosave', () => {
     expect(patchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
       draft: expect.objectContaining({ report: expect.objectContaining({ attachments: report.attachments }) }),
     }))
+  })
+
+  it('sends only the explicit sparse shared-default patch and treats draft success as final', async () => {
+    patchMock.mockResolvedValue({ data: { data: {
+      draft_save_status: { status: 'saved', revision: 4 },
+      shared_defaults_save_status: { status: 'failed', error_code: 'SYNTHETIC_DEFAULT_FAILURE' },
+      draft: draft(4),
+    } } })
+    const opts = options({
+      sharedDefaultsPatch: { inspection_place: 'SYNTHETIC-PLACE' },
+      sharedDefaultsRevision: 2,
+      includeSharedDefaults: true,
+    })
+    const view = renderHook(() => useCaseDraftAutosave(opts))
+    await waitFor(() => expect(view.result.current.draftState.status).toBe('saved'))
+    const request = patchMock.mock.calls[0][1] as Record<string, unknown>
+    expect(request.shared_defaults_patch).toEqual({ inspection_place: 'SYNTHETIC-PLACE' })
+    expect(request.shared_defaults_patch).not.toHaveProperty('document_number')
+    expect(view.result.current.hasPending).toBe(false)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(patchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reschedule a save when the caller clears its shared patch after success', async () => {
+    patchMock.mockResolvedValue({ data: { data: {
+      draft_save_status: { status: 'saved', revision: 4 },
+      shared_defaults_save_status: { status: 'updated', revision: 3 },
+      draft: draft(4),
+    } } })
+    renderHook(() => {
+      const [patch, setPatch] = useState<Record<string, unknown> | null>({ inspection_place: 'SYNTHETIC-PLACE' })
+      return useCaseDraftAutosave({
+        ...options(),
+        sharedDefaultsPatch: patch,
+        sharedDefaultsRevision: 2,
+        includeSharedDefaults: Boolean(patch),
+        onSaved: () => setPatch(null),
+      })
+    })
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(patchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('coalesces save-now with the same in-flight autosave request', async () => {
+    let resolveRequest: ((value: unknown) => void) | undefined
+    patchMock.mockImplementation(() => new Promise(resolve => { resolveRequest = resolve }))
+    const view = renderHook(() => useCaseDraftAutosave(options({
+      sharedDefaultsPatch: { inspection_place: 'SYNTHETIC-PLACE' },
+      sharedDefaultsRevision: 2,
+      includeSharedDefaults: true,
+    })))
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
+    let manualSave: Promise<boolean> | undefined
+    act(() => { manualSave = view.result.current.saveNow() })
+    expect(patchMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveRequest?.({ data: { data: {
+        draft_save_status: { status: 'saved', revision: 4 },
+        shared_defaults_save_status: { status: 'updated', revision: 3 },
+        draft: draft(4),
+      } } })
+      expect(await manualSave).toBe(true)
+    })
+    expect(view.result.current.draftState.status).toBe('saved')
+    expect(patchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('queues a newer edit behind the in-flight draft revision', async () => {
+    const resolvers: Array<(value: unknown) => void> = []
+    patchMock.mockImplementation(() => new Promise(resolve => { resolvers.push(resolve) }))
+    const firstReport = { title: 'SYNTHETIC-FIRST' } as CaseDraft['report']
+    const secondReport = { title: 'SYNTHETIC-SECOND' } as CaseDraft['report']
+    const view = renderHook(
+      ({ value, token }) => useCaseDraftAutosave(options({ draft: value, changeToken: token })),
+      { initialProps: { value: draft(3, firstReport), token: 1 } },
+    )
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
+
+    view.rerender({ value: draft(3, secondReport), token: 2 })
+    await act(async () => {
+      resolvers[0]({ data: { data: {
+        draft_save_status: { status: 'saved', revision: 4 },
+        shared_defaults_save_status: { status: 'unchanged', revision: 0 },
+        draft: draft(4, firstReport),
+      } } })
+    })
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(2))
+    const queuedRequest = patchMock.mock.calls[1][1] as { expected_revision: number; draft: CaseDraft }
+    expect(queuedRequest.expected_revision).toBe(4)
+    expect(queuedRequest.draft.report.title).toBe('SYNTHETIC-SECOND')
+    await act(async () => {
+      resolvers[1]({ data: { data: {
+        draft_save_status: { status: 'saved', revision: 5 },
+        shared_defaults_save_status: { status: 'unchanged', revision: 0 },
+        draft: draft(5, secondReport),
+      } } })
+    })
+    await waitFor(() => expect(view.result.current.hasPending).toBe(false))
   })
 })

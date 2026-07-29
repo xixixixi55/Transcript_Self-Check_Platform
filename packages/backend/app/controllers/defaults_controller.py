@@ -34,8 +34,8 @@ async def get_defaults_endpoint():
 @router.put("/workbench/defaults")
 async def save_defaults_endpoint(body: DefaultsSaveRequest):
     try:
-        result = get_workbench_services().defaults.save(body.values, body.expected_revision, body.identity)
-        return _envelope(result)
+        result = get_workbench_services().defaults.patch(body.values, body.expected_revision, body.identity)
+        return _envelope(result["defaults"])
     except Exception as error:
         _handle(error)
 
@@ -56,4 +56,9 @@ def _envelope(data: Any) -> dict[str, Any]:
 def _handle(error: Exception) -> None:
     code = getattr(error, "code", "WORKBENCH_REQUEST_FAILED")
     status = 409 if code == "REVISION_CONFLICT" else 422
-    raise HTTPException(status_code=status, detail={"code": code, "message": "共享默认值请求未完成，请重试。"}) from error
+    messages = {
+        "UNKNOWN_SHARED_DEFAULT_FIELD": "共享默认值字段不在允许范围内。",
+        "INVALID_SHARED_DEFAULTS": "共享默认值内容无效。",
+        "UNAUTHENTICATED_IDENTITY_REQUIRED": "客户端部署身份不被接受。",
+    }
+    raise HTTPException(status_code=status, detail={"code": code, "message": messages.get(code, "共享默认值请求未完成，请重试。")}) from error

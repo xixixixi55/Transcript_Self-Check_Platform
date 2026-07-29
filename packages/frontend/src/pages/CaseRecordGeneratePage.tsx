@@ -22,6 +22,7 @@ import { SourceReselectionPanel } from '../components/SourceReselectionPanel'
 import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import { useCaseExportSettings } from '../hooks/useCaseExportSettings'
+import { runWithSourceExportRiskConfirmation } from '../hooks/useSourceExportRisk'
 export default function CaseRecordGeneratePage() {
   const { caseId = '' } = useParams<{ caseId: string }>()
   const navigate = useNavigate()
@@ -67,8 +68,8 @@ export default function CaseRecordGeneratePage() {
     if (session.editingEnabled) setReviewStatus('存在未导出修改')
   }, [session.editingEnabled, session.updateReport])
   const handleExport = async () => {
-    const report = session.report
-    if (!report || exporting) return false
+    const report = session.report, detail = session.detail
+    if (!report || !detail || exporting) return false
     const dateErrors = [
       !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
       !isValidMinuteTimeRangeValue(report.introduction.inspection_time_range) && '检查起止时间',
@@ -84,28 +85,18 @@ export default function CaseRecordGeneratePage() {
         return false
       }
     }
-    setReviewStatus('导出中')
-    let files: File[]
-    try { files = await session.photoAssets.readFiles() }
-    catch { return false }
-    const success = await exportDocx(
-      report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
-      archive.manifest ? archiveContextId : null, archive.manifest?.manifest_id ?? null,
-    )
-    setReviewStatus(success ? '导出成功' : '导出失败')
-    return success
-  }
-  const saveReportDefaults = async () => {
-    const saved = await session.saveSharedDefaults(defaultDiscPrefix)
-    if (saved) message.success('共享默认值已保存')
-    else message.error('共享默认值保存失败，当前输入仍保留')
-  }
-  const clearReportDefaults = async () => {
-    const cleared = await session.clearSharedDefaults()
-    if (cleared) {
-      setDefaultDiscPrefix('')
-      message.success('共享默认值已清除')
-    } else message.error('共享默认值清除失败，当前输入仍保留')
+    return runWithSourceExportRiskConfirmation(detail.source.access_status, async () => {
+      setReviewStatus('导出中')
+      let files: File[]
+      try { files = await session.photoAssets.readFiles() }
+      catch { return false }
+      const success = await exportDocx(
+        report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
+        archive.manifest ? archiveContextId : null, archive.manifest?.manifest_id ?? null,
+      )
+      setReviewStatus(success ? '导出成功' : '导出失败')
+      return success
+    })
   }
   const saveNow = () => {
     if (!session.editingEnabled) { message.warning('当前页面没有有效编辑租约，未写入案件。'); return }
@@ -136,11 +127,6 @@ export default function CaseRecordGeneratePage() {
     } catch { message.error('压缩决策未完成，请刷新案件后重试。') }
     finally { setArchiveDecisionBusy(false) }
   }
-  const hasReportDefaults = Boolean(session.defaults && (
-    session.defaults.document_number || session.defaults.inspection_place
-    || session.defaults.inspection_method || session.defaults.hardware_device
-    || session.defaults.inspector_order.length || session.defaults.disc_number_prefix
-  ))
   useShortcuts({ onSave: saveNow, previewOpen, onClosePreview: () => setPreviewOpen(false), enabled: Boolean(session.report) })
   useEffect(() => {
     const shouldWarn = session.autosave.hasPending || session.autosave.draftState.status === 'saving'
@@ -173,10 +159,7 @@ export default function CaseRecordGeneratePage() {
       </Card>
     </div>
   )
-
-  const sourceInvalid = session.detail.source.requires_reselection
-    || session.detail.source.access_status === 'invalid'
-    || session.detail.source.access_status === 'requires_reselection'
+  const sourceInvalid = session.detail.source.requires_reselection || ['invalid', 'requires_reselection'].includes(session.detail.source.access_status)
   const sourcePending = session.detail.source.access_status === 'pending'
   const leaseMessage = session.lease.phase === 'read_only' ? '该案件当前由其他页面占用，当前页面为只读。'
     : session.lease.phase === 'expired' || session.leaseLost ? '编辑租约已失效，已停止自动保存。请重新获取租约后继续。'
@@ -187,7 +170,7 @@ export default function CaseRecordGeneratePage() {
         <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
         <Steps current={1} className="review-steps"><Steps.Step title="案件工作台" /><Steps.Step title="审核编辑" /><Steps.Step title="导出 Word" /></Steps>
         <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
-        {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待复核" description="来源可信状态尚未完成确认；草稿仍可查看和编辑，正式 Word 和压缩将在复核完成后开放。" />}
+        {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待复核" description="来源复核尚未完成；确认风险后仍可导出 Word，归档需等待复核完成。" />}
         {!sourceInvalid && !sourcePending && <ArchiveDecisionPanel
             lifecycle={session.detail.shell.lifecycle}
             busy={archiveDecisionBusy}
@@ -200,7 +183,7 @@ export default function CaseRecordGeneratePage() {
         <CaseSaveStatusPanel draft={session.autosave.draftState}
           sharedDefaults={session.sharedDefaultsSaveState.status === 'not_changed'
             ? session.autosave.sharedState : session.sharedDefaultsSaveState}
-          onRetry={() => { void session.autosave.retry() }} onLoadServer={() => { void loadServer() }} />
+          onRetry={() => { void session.retrySave() }} onLoadServer={() => { void loadServer() }} />
         {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
         <div className="case-workbench-page__toolbar">文号来源：<FieldProvenanceBadge state={session.draft?.field_states.document_number} /></div>
         <ReviewPendingSummary items={pendingItems} onNavigate={sectionId => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })} />
@@ -221,11 +204,7 @@ export default function CaseRecordGeneratePage() {
           exportFileNameError={exportFileNameError}
           onCustomFileNameChange={setCustomFileName}
           onExportFileNameChange={setExportFileName}
-          hasReportDefaults={hasReportDefaults}
           defaultDiscPrefix={defaultDiscPrefix}
-          onSaveReportDefaults={() => { void saveReportDefaults() }}
-          onClearReportDefaults={() => { void clearReportDefaults() }}
-          onDefaultDiscPrefixChange={setDefaultDiscPrefix}
           saveStatus={reviewStatus}
           saveBusy={session.autosave.draftState.status === 'saving'}
           onSave={saveNow}

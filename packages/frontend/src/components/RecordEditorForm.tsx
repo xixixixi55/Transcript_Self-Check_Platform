@@ -39,8 +39,9 @@ interface Props {
   exportFileNameError?: string
   onCustomFileNameChange: (enabled: boolean) => void
   onExportFileNameChange: (value: string) => void
-  hasReportDefaults?: boolean
   defaultDiscPrefix?: string
+  /** Deprecated UI compatibility props; defaults are updated by successful draft saves. */
+  hasReportDefaults?: boolean
   onSaveReportDefaults?: () => void
   onClearReportDefaults?: () => void
   onDefaultDiscPrefixChange?: (value: string) => void
@@ -77,11 +78,7 @@ export default function RecordEditorForm({
   exportFileNameError,
   onCustomFileNameChange,
   onExportFileNameChange,
-  hasReportDefaults = false,
   defaultDiscPrefix = '',
-  onSaveReportDefaults = () => undefined,
-  onClearReportDefaults = () => undefined,
-  onDefaultDiscPrefixChange = () => undefined,
   saveStatus = '尚未修改',
   saveBusy = false,
   onSave = () => undefined,
@@ -118,22 +115,14 @@ export default function RecordEditorForm({
           {workbenchMode && <div className="review-export-settings">
             <div className="review-field__label">共享默认值设置</div>
             <div>保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀</div>
-            <Input aria-label="默认光盘编号前缀" value={defaultDiscPrefix}
-              onChange={event => onDefaultDiscPrefixChange(event.target.value)} placeholder="例如 GP 或测试公警" />
-            <Space wrap>
-              <Button onClick={onSaveReportDefaults}>保存当前六项为默认值</Button>
-              {hasReportDefaults && <><span>已保存默认设置</span><Button onClick={onClearReportDefaults}>清除全部默认值</Button></>}
-            </Space>
+            <div>当前默认光盘编号前缀：{defaultDiscPrefix || '未设置'}</div>
+            <div>修改六项字段并成功保存后，只更新本轮明确修改的共享默认值；空值不执行清除。</div>
           </div>}
           {workbenchMode ? <div className="review-export-settings"><div>案件草稿和共享默认值会分别显示保存结果。</div><div>案件草稿：{draftSaveStatus || '尚未保存'}；共享默认值：{sharedDefaultsSaveStatus || '本次未更新'}</div></div> : <div className="review-export-settings">
             <div className="review-field__label">常用字段默认设置</div>
             <div>保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀</div>
-            <Input aria-label="默认光盘编号前缀" value={defaultDiscPrefix}
-              onChange={event => onDefaultDiscPrefixChange(event.target.value)} placeholder="例如 GP 或 测试公" />
-            <Space wrap>
-              <Button onClick={onSaveReportDefaults}>保存当前六项为默认值</Button>
-              {hasReportDefaults && <><span>已保存默认设置</span><Button onClick={onClearReportDefaults}>清除全部默认值</Button></>}
-            </Space>
+            <div>当前默认光盘编号前缀：{defaultDiscPrefix || '未设置'}</div>
+            <div>修改六项字段并成功保存后，只更新本轮明确修改的共享默认值；空值不执行清除。</div>
           </div>}
         <Alert message="请谨慎修改文号，导出文件名会使用当前文号生成。" type="warning" showIcon />
         <div className="review-export-settings">

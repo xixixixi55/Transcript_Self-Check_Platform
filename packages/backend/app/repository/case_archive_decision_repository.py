@@ -5,6 +5,7 @@ from __future__ import annotations
 from .workbench_constants import CASE_TRANSITIONS
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import WorkbenchPersistenceError
+from .archive_publish_fence_repository import invalidate_pending, reject_if_active
 
 
 class CaseArchiveDecisionRepository:
@@ -12,11 +13,15 @@ class CaseArchiveDecisionRepository:
         self.database = database
 
     def decide(self, case_id: str, decision: str, expected_revision: int) -> None:
-        target = {"immediate": "archive_queued", "deferred": "archive_deferred"}.get(decision)
+        if decision == "immediate":
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_REQUIRED")
+        target = {"deferred": "archive_deferred"}.get(decision)
         if target is None:
             raise WorkbenchPersistenceError("INVALID_ARCHIVE_DECISION")
         now = utc_now()
         with self.database.transaction() as connection:
+            reject_if_active(connection, case_id=case_id)
+            invalidate_pending(connection, case_id=case_id)
             shell = connection.execute(
                 "SELECT lifecycle, report_available, revision FROM case_shells WHERE case_id = ?", (case_id,),
             ).fetchone()

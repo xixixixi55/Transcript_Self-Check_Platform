@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1A/1B 已在基线提交完成，Phase 1C 和 Phase 1D 已完成；Phase 2 及后续阶段仍未开始。
+> 本文件定义后续实现顺序；Phase 1A/1B、Phase 1C 和 Phase 1D 原实现及首次验收已完成。首次独立 Level 3 Code Review 未通过，Phase 1D 归档准备状态已重新打开；Phase 2 及后续阶段仍未开始。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -79,7 +79,7 @@
 | `parse` task `running/cancelling` | task=`interrupted`，案件=`parse_failed_retryable` | 用户显式重试；同一 task/attempt 不重复执行 |
 | 案件 `review_ready` 或 parse task `succeeded` | 保持原状态 | 不重新解析；继续按来源/租约门控编辑、Word 和归档 |
 | SourceRecord 后置复核未完成 | 数据库恢复后保持 `pending`；应用启动完成后由受控执行器重新调度 | 调度按 `source_id + revision` 去重；调度失败仍为 `pending` 并允许后续重试；草稿可查看/编辑 |
-| 来源已确认变化或不再安全 | `requires_reselection` | 禁止正式 Word/归档；重新选择来源并重新解析 |
+| 来源已确认变化或不再安全 | `requires_reselection` | 严格阻止归档；Word 允许在明确风险确认后继续导出；重新选择来源并重新解析可消除风险 |
 | `archive_deferred` | 保持 `archive_deferred` | 用户以后重新选择立即压缩 |
 | `archive_queued/archiving` 且无已验证正式产物 | 案件=`archive_interrupted`，归档尝试=`interrupted` | 显示上次中断；来源复核后用户再次确认；生成新 handle；不得自动执行 |
 | `archive_interrupted` 且已有草稿 | 保持 `archive_interrupted` | 草稿可查看/编辑；页面显示中断提示；用户可选择稍后压缩或重新确认立即压缩 |
@@ -107,8 +107,8 @@
 
 #### Layer 21 — 解析、来源和最小归档安全服务
 
-- [x] **1D-003** 补齐固定的来源复核恢复流程：数据库恢复后保持未完成 SourceRecord 为 `pending`；应用启动完成后由受控执行器按 `source_id + revision` 去重重新调度；调度失败保持 `pending` 并记录 `SOURCE_REVALIDATION_PENDING`，允许后续启动或显式重试；暂时 I/O/权限/资源不可用不得直接变成来源变化，确认 fingerprint/根/链接/结构变化、来源替换或不可继续使用时才转 `requires_reselection`；不得为 `review_ready` 案件重复解析；正式 Word/归档和显式重试遵循可信状态门控。
-- [x] **1D-003T** 增加服务测试：启动后重新调度成功、调度失败保留 pending、同一 source/revision 多次启动幂等、暂时不可验证、确认变化、来源重新选择与重新解析、草稿仍可查看/编辑、来源变化阻止正式输出，以及 `review_ready` 不重复 Parser。
+- [x] **1D-003** 补齐固定的来源复核恢复流程：数据库恢复后保持未完成 SourceRecord 为 `pending`；应用启动完成后由受控执行器按 `source_id + revision` 去重重新调度；调度失败保持 `pending` 并记录 `SOURCE_REVALIDATION_PENDING`，允许后续启动或显式重试；暂时 I/O/权限/资源不可用不得直接变成来源变化，确认 fingerprint/根/链接/结构变化、来源替换或不可继续使用时才转 `requires_reselection`；不得为 `review_ready` 案件重复解析；归档和显式解析重试遵循来源可信门控。Word 不因来源状态被后端阻止，风险状态由工作台在导出时明确提示并由用户确认。
+- [x] **1D-003T** 增加服务测试：启动后重新调度成功、调度失败保留 pending、同一 source/revision 多次启动幂等、暂时不可验证、确认变化、来源重新选择与重新解析、草稿仍可查看/编辑、来源变化阻止归档但不阻止经风险确认的 Word，以及 `review_ready` 不重复 Parser。
 - [x] **1D-004** 在现有 Legacy `/records/archive` 调用外围登记最小归档尝试：执行前记录 attempt、输入 revision、受控 staging 标识和系统创建记录；只记录 accepted/running/succeeded/failed/interrupted 及 cleanup 结果；重启只映射未完成尝试到 `interrupted`/`archive_interrupted`，不创建 Worker、队列、进度或自动重试路径；用户重新确认并由后端接受新尝试后才创建新 handle 和新记录；已 succeeded 且 Manifest 已验证的记录不可回退。
 - [x] **1D-004T** 增加归档尝试服务测试：草稿在 archive_interrupted 下可查看/编辑、稍后压缩转 deferred、立即确认前置来源复核、新 attempt/new handle 被接受后才离开中断态、旧 handle/半成品不复用、用户确认前不调用 Legacy 归档、succeeded 尝试不被恢复流程回退。
 - [x] **1D-005** 建立 staging/进程归属证明和安全处理边界：清理必须同时具备受控 staging 根、不可猜测 attempt_id、数据库/受控索引归档记录、staging 内系统 ownership marker、marker 与记录/部署实例/root 匹配五项证据；证据缺失、冲突或无法确认时视为未知，不删除、不终止、不覆盖，只记录安全诊断；自有未完成 staging 可隔离或清理，半成品不注册 Manifest、不返回用户、不驱动 Word；清理失败不阻止案件恢复。
@@ -120,6 +120,178 @@
 - [x] **1D-007T** 运行并补充针对性后端/前端测试，覆盖 Legacy 解析、归档失败/重试、Manifest 缺失/篡改/分卷校验、Word 内容与附件图片、路径安全和恢复状态 API；所有 fixture 明确标记 `SYNTHETIC/TEST/FIXTURE`。
 - [x] **1D-008** 完成合成数据人工验收：多案件切换、刷新、关闭/重启恢复、解析失败重试、来源暂时不可验证/确认变化、租约失效、图片资产、deferred、立即归档中断、新 handle、staging 保护和正式产物保护；只保存脱敏的验收结论，不保存真实报告或生成产物。2026-07-28 验收结论：合成双案件可独立登记、解析、编辑、刷新和重载，解析/来源/租约/图片/归档中断与正式产物保护矩阵通过；失败任务仅进入可重试状态，未生成可审核草稿；未使用真实案件、报告或正式产物。
 - [x] **1D-008T** 完成定向架构检查、类型检查、相关后端/前端测试和 `git diff --check`；2026-07-28 定向结果：后端 Phase 1D 文件 3 次稳定通过、单测 5 次稳定通过，独立 PowerShell 全量后端 `642 passed, 3 skipped, 8 warnings`；前端恢复/工作台/图片资产/审核编辑/导出定向 `36 passed`；架构、类型、严格文档、资产和 diff 检查通过。用户随后在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端结果为 `642 passed, 3 skipped, 8 warnings`，前端 TypeScript 与生产构建通过，`verify:docs:strict` 通过。已知非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
+
+#### Phase 1D independent Review remediation
+
+首次独立 Level 3 Code Review 于 2026-07-28 未通过，报告 4 个 High、1 个 Medium 和 1 个 Low。H2 的“来源状态应由后端阻止 Word”结论经用户确认属于业务合同理解错误；正确合同是 Word 始终允许导出，`pending`/`requires_reselection` 仅要求用户在工作台明确确认风险。其余发现及 H2 风险确认体验在本节修复。原 Phase 1D 实现与验收历史保留，但 OpenSpec 归档继续阻断。
+
+- [x] **1D-009** 核验 H1/H3/H4/M1/L1 及重新定义后的 H2 调用链，保存只含合成数据的失败回归证据；不得修改 Legacy Word 内容、模板、VML、分页或后端 Legacy 导出许可。
+- [x] **1D-009T** 增加旧实现失败的回归测试：通用 lifecycle 绕过、Word 风险确认、正式 Manifest 与 attempt 提交崩溃窗口、工作台 context 省略/错配 attempt、来源 revision conflict、staging 根目录保护。
+- [x] **1D-010** 在领域/服务层禁止通用 lifecycle 直接写入 `archive_queued`；受控立即归档必须在来源复核、context 和新 attempt 全部成功后原子同步 shell/draft/attempt，失败保持原状态。
+- [x] **1D-011** 保持 Legacy `/records/export` 和所有来源状态下 Word 可导出；工作台在 `pending` 与 `requires_reselection` 下显示不同的明确确认，取消不导出、确认后正常调用既有导出。
+- [x] **1D-012** 建立最小可恢复归档完成提交协议：正式 Manifest 持久索引通过后把身份绑定到同一 attempt；恢复时重新验证索引、case/attempt/source revision 与物理产物，可信则补记 succeeded/`archive_verified`，否则 interrupted；不得重复发布。
+- [x] **1D-013** 服务端持久化工作台 context 来源及 attempt 绑定的不可逆摘要；省略、伪造、跨 attempt/case 或过期绑定均拒绝，真正 Legacy context 维持既有兼容。
+- [x] **1D-014** 将来源 revision conflict 作为过期复核结果重新读取，调度、并发和临时错误不得走空 fingerprint 失效路径；真实 fingerprint 变化仍进入 `requires_reselection`。
+- [x] **1D-015** staging cleanup 明确拒绝根目录，仅接受受控根的 attempt 专属直接子目录且 marker/记录/部署/root 全部匹配；其他 attempt 和未知资源保持不动。
+- [x] **1D-016T** 运行各发现定向测试、Phase 1D、Legacy Parser/Word/Manifest/归档兼容、前端工作台与导出测试、后端全量、typecheck、lint:arch、严格文档、资产及 diff 检查；2026-07-28 用户在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`：后端 `650 passed, 3 skipped, 10 warnings`，前端 TypeScript 与生产构建通过，`verify:docs:strict` 通过，未出现 `KeyboardInterrupt`、测试失败或递归脚本失败。已知非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
+- [ ] **1D-017R** 完整 Harness 退出码为 0 后重新执行独立 Level 3 Code Review；无阻断性 Critical/High/Medium 后才恢复 OpenSpec 归档准备。
+
+#### Second independent Review remediation (2026-07-28)
+
+第二次独立 Level 3 Code Review 于 2026-07-28 未通过：Critical 0、High 4、Medium 1、Low 1。L1 staging 安全已通过；H2 Word 导出行为符合真实业务合同，仅提示文案仍需修复。H1、H3、H4、M1 重新打开；`1D-017R` 与 OpenSpec 归档解除 gate 保持未完成。本节追加修复任务，不删除首次 Review 的实现、验证和 `1D-016T` 历史；Phase 2–4 仍未开始。当时由于本轮将继续修改代码，新的完整 Harness gate 保持未完成；后续完成状态见本节及 Review gate。
+
+- [x] **1D-018** 封闭 `archive_queued` 的全部非法写入口：搜索并约束 controller、通用 lifecycle、Draft PATCH、archive decision repository、普通 repository、批量及内部调用；仅受控归档准备服务可创建并绑定 attempt/context、完成来源确认后迁移 shell/draft；失败保持 shell/draft 不变且不遗留有效 queued attempt/context，重复请求幂等且不创建多个有效 queued attempt。
+- [x] **1D-018T** 覆盖 lifecycle 直接写入、Draft PATCH、repository 普通入口、合法归档准备、各准备步骤失败回滚/清理和重复准备幂等测试。
+- [x] **1D-019** 建立统一可信完成证据验证入口：`succeed()` 不得仅凭 Manifest 字符串改变状态，必须校验 attempt 状态、Manifest 索引身份、case/attempt/source revision 绑定、正式 RAR 存在及完整性和现有正式校验信息；controller、正常执行和恢复服务共用同一完成提交标准。
+- [x] **1D-019T** 覆盖不存在或错配 Manifest、RAR 缺失/损坏、source revision 错配、完整可信证据成功和重复成功幂等测试；禁止使用 fake Manifest ID 证明成功。
+- [x] **1D-020** 在现有架构内增加最小可恢复正式发布协议：持久化发布意图及产物身份，使恢复可区分发布前、意图已持久化未移动、已移动未登记、索引与物理产物均可信、证据冲突/不完整；不引入 Worker、队列、调度、进度、自动续跑或进程接管。
+- [x] **1D-020T** 通过崩溃注入覆盖发布意图持久化前、持久化后移动前、`os.replace` 后索引保存前、索引保存后 attempt 成功前，以及正式目录篡改/不完整；验证恢复幂等、不重复发布、不产生第二份正式 RAR/Manifest，并验证未知产物保留和重新发起新 attempt 的边界。
+- [x] **1D-021** 完整绑定工作台归档的 case、attempt、source、source revision、draft revision、服务端报告身份/内容摘要、context hash 和有效状态；执行时重新读取服务端 CaseDraft/SourceRecord，工作台路径使用服务端草稿并拒绝客户端替换的 `report_json`；明确区分工作台 context 与真正 Legacy context。
+- [x] **1D-021T** 覆盖准备后草稿/source revision 变化、客户端替换报告、正确绑定、context 重放/错配/过期、attempt ID 缺失及 Legacy `report_json` 兼容测试。
+- [x] **1D-022** 修复 revision conflict 分类：conflict 后有限重试并重新读取 SourceRecord、重新获取/计算当前 fingerprint，与最新持久化可信 fingerprint 比较；真实变化进入 `requires_reselection`，临时访问或计算失败保持 `pending`/稳定临时失败结果，禁止旧任务覆盖新 revision。
+- [x] **1D-022T** 覆盖真实文件系统或等效持久化交错下的来源变化、来源未变化、临时访问/计算失败和多次 conflict 有限终止测试。
+- [x] **1D-023** 仅修正 Word 风险提示文案：`pending` 和 `requires_reselection` 均明确说明确认后仍可导出 Word，归档仍可受来源状态阻止；不增加后端 Word 禁止门控。
+- [x] **1D-023T** 覆盖前端提示内容、确认后导出、取消不导出和刷新/重启后按服务端状态提示；确认 Legacy 导出兼容且没有“Word 和压缩均未开放”的文案。
+- [x] **1D-024T** 完成本轮定向回归、Legacy Parser/Word/VML/分页/Manifest/Legacy archive 兼容、typecheck、lint:arch、文档/资产检查及 diff 检查；完整 Harness 已由用户在独立 PowerShell 运行并通过，才可进入新的独立 Level 3 Review。保持 `1D-017R`、OpenSpec 归档解除 gate 未完成。
+
+本轮本地定向、后端/前端全量、typecheck、build、lint:arch、严格文档、资产和 diff 检查均已完成；完整 Harness 子门控随后由用户在独立 PowerShell 完成，故本任务已完成。
+
+#### Third independent Review remediation (2026-07-28)
+
+第三次独立 Level 3 Code Review 于 2026-07-28 未通过：Critical 0、High 4、Medium 1。H1 通用入口封闭、H2 Word 风险确认合同、M1 revision conflict 重算方向及 L1 staging 安全保持完成；H3 可信完成/发布恢复和 H4 并发边界重新打开。此前实现、测试、`1D-016T` 历史结果及上一轮 Harness 结果均保留；新的完整 Harness gate、`1D-017R`、独立 Review gate、OpenSpec 归档解除 gate 继续未完成，Phase 2–4 未开始。
+
+- [x] **1D-025** 修复 `os.replace` 后、publish intent `published` 阶段落库前的恢复协议：严格校验 intent、attempt、case、source/draft/report 身份及可信 Manifest/RAR 后，允许受控地补推进 `intent_persisted -> published -> indexed`，再调用统一可信完成服务；已有 Manifest 复用不得跳过阶段迁移，不重复发布正式产物。
+- [x] **1D-025T** 增加真实故障注入和幂等测试：移动完成但未标记 `published` 后重启恢复成功、不进入 `interrupted`、不产生第二份正式产物；覆盖可信 Manifest 复用和正式目录身份不匹配。
+- [x] **1D-026** 强制工作台 attempt 的统一可信完成服务必须存在唯一且匹配的 publish intent，并校验 case/attempt/source revision/draft revision/report digest/目标位置、Manifest index、物理 RAR 及允许完成的发布阶段；Legacy 归档继续走独立兼容分支。
+- [x] **1D-026T** 覆盖缺失或错配 publish intent、有效索引但缺少意图、完整证据成功和重复完成幂等；普通调用方不能凭 Manifest ID 直接成功。
+- [x] **1D-027** 在正式发布前的不可分割服务边界内再次读取并校验服务端 CaseDraft、SourceRecord、context、attempt、case、目标身份及报告摘要；发生草稿或来源变化时不得移动、索引或成功登记正式产物。
+- [x] **1D-027T** 覆盖生成期间草稿/source revision 变化、旧 report/context 绕过失败、未变化正常完成及正式目录/index 不产生。
+- [x] **1D-028** 将统一可信完成提交收敛到事务内重新校验 attempt、source、draft、shell 绑定和生命周期，并对 attempt/shell/draft 更新实施恰好一行的 rowcount 保护，任一步失败整体回滚，避免状态分裂。
+- [x] **1D-028T** 覆盖完成事务并发修改、shell/draft 零行更新、正常三方一致及重复完成幂等。
+- [x] **1D-029** 区分发布恢复中的确认性证据冲突与临时基础设施错误；临时锁、I/O、权限、文件占用和 index 不可用不得永久写入 `conflict`，应保留当前意图阶段和产物，等待后续显式核验；确认错配/篡改才进入 `conflict`，不自动重复发布。
+- [x] **1D-029T** 覆盖临时 index/文件/SQLite 错误可再次恢复、确认性身份或摘要错配进入 conflict、多次临时失败幂等且不产生第二份产物。
+- [x] **1D-030T** 完成本轮定向回归、Legacy Parser/Word/VML/分页/Manifest/Legacy archive 兼容、后端/前端全量、typecheck、lint:arch、构建、严格文档、资产及 diff 检查；新的完整 Harness gate 待用户独立 PowerShell 验证后再完成，并保持 `1D-017R`、独立 Review 和归档解除 gate 未完成。
+- [x] **1D-031** 修复 Windows 文件系统在同尺寸快速改写且元数据未变化时错误复用旧 selected-content fingerprint 的问题；来源内容指纹不得仅凭 size/时间/inode 元数据跳过当前字节读取。
+- [x] **1D-031T** 先复现并修复 `test_selected_content_fingerprint_reuses_unchanged_bytes_and_tracks_paths`，再通过文件系统指纹、报告解析缓存、本轮 Review remediation 定向测试及后端全量测试；随后用户独立 PowerShell 执行完整 Harness 通过，退出码为 `0`。
+- [x] **1D-032** 修复 `ReportParseInFlightRegistry` 在共享任务完成通知与 entry 清理之间的并发窗口，避免完成任务已退出但 registry 仍短暂报告 active，以及相关调度时序下的错误状态观察。
+- [x] **1D-032T** 复现 `test_max_lifetime_bounds_wait_without_starting_duplicate_task` 的间歇性 `active_count == 1`，补充有界清理同步，并重复运行该用例 20 次及同文件定向测试（`5 passed`）。
+
+本轮新的完整 Harness gate：已完成。此前用户于 2026-07-28 独立 PowerShell 执行 `npm.cmd run verify:full` 曾得到 `670 passed, 1 failed, 3 skipped, 12 warnings`；失败为 Windows 文件系统 selected-content fingerprint 未识别同尺寸快速改写。修复后最新完整 Harness 已由用户独立 PowerShell 重新执行并通过，退出码为 `0`，后端 `671 passed, 3 skipped, 12 warnings`，前端 TypeScript/生产构建及文档门控通过。该 gate 仅表示完整 Harness 验证通过，不表示独立 Level 3 Review 通过。`1D-017R`、独立 Level 3 Review gate、OpenSpec 归档解除 gate 保持未完成，Phase 2–4 未开始。
+
+用户随后再次执行完整 Harness，退出码为 `1`：`670 passed, 1 failed, 3 skipped, 12 warnings`；失败为 `test_report_parse_inflight_service.py::test_max_lifetime_bounds_wait_without_starting_duplicate_task`，表现为后台任务完成清理的竞态。该问题已由 `1D-032`/`1D-032T` 修复并完成定向验证；新的完整 Harness gate仍未完成，待用户重新执行并确认退出码为 `0`。
+
+第四次独立 Level 3 Review 于 2026-07-28 未通过：4 个 High、1 个 Medium。H1 通用生命周期入口、H2 Word 风险确认、H3-A 任意 Manifest ID 成功绕过、L1 staging 安全和 selected-content fingerprint 保持完成；重新打开 publish fence TOCTOU、重启虚假 running、发布后 failed reconciliation、SourceRecord 真实字节 fingerprint 和 Future callback 锁边界。此前任务、Review 和 Harness 历史全部保留；本轮新完整 Harness gate、`1D-017R`、独立 Review gate、OpenSpec 归档解除 gate 保持未完成，Phase 2–4 未开始。
+
+- [x] **1D-033** 建立持久化 publish fence，并在同一数据库事务中完成最终服务端事实校验、fence 建立和 publish intent 确认；所有会改变绑定事实的写入口识别 active fence，pending verification 不永久阻塞编辑，fence 生命周期幂等且不得伪造、重复发布或留下永久 active fence。
+- [x] **1D-033T** 覆盖 active fence 写入阻断或原子失效、os.replace 前 fence 失效、fence 创建失败回滚、pending verification 编辑失效旧 attempt、正常发布及重复请求幂等。
+- [x] **1D-034** 修正启动恢复顺序，先失效旧 runtime context、将 accepted/running/执行中状态转为 interrupted 或内部 pending verification，再核验持久化 intent、fence、Manifest index 和正式目录；不保留虚假 running/archiving。
+- [x] **1D-034T** 覆盖临时恢复错误、旧 context 失效、Shell/Draft 非运行态、正式证据保留、显式再次核验成功和不重复执行 WinRAR。
+- [x] **1D-035** 以非终态 publish intent 为 reconciliation 入口，发现 failed/interrupted/pending verification attempt；publish intent 建立后不再写普通不可恢复 failed，发布后错误只进入可恢复状态或确认性 conflict。
+- [x] **1D-035T** 覆盖 os.replace 后 Manifest/index/SQLite 临时失败、failed+intent 发现、再次核验成功、确认冲突、多次恢复幂等及不重复正式产物。
+- [x] **1D-036** 将 SourceRecord fingerprint 改为稳定排序的路径/条目类型/实际字节摘要，使用句柄前后状态和集合前后快照检测并发变化；临时不可验证保持 pending，不使用 metadata-only 缓存。
+- [x] **1D-036T** 覆盖同尺寸同 mtime 字节变化、重命名/新增/删除、遍历顺序、读取中变化、临时访问失败、M1 conflict 重算实际字节 fingerprint 和公共 DTO 不泄露路径。
+- [x] **1D-037** 将 Future completing 状态与 active registry 分离；锁内移除 active entry 并登记 completing，锁外完成 Future，确保 callback 可重入且同 key 不重复 builder。
+- [x] **1D-037T** 覆盖成功/异常 callback 重入 active_count、同 key run、其他 key 提交、completing 清理、单 builder 和无死锁。
+
+本轮定向验证已完成：schema v5、第四次 Review remediation、恢复/Future 回归合计 `69 passed, 5 warnings`；Legacy Manifest/归档执行/filesystem identity 兼容回归 `35 passed`；未运行完整 Harness。新完整 Harness gate：未完成；须由用户独立 PowerShell 执行 `npm.cmd run verify:full` 并确认退出码为 `0` 后再更新。`1D-017R`、独立 Level 3 Review gate、OpenSpec 归档解除 gate 保持未完成，Phase 2–4 未开始。
+
+用户随后独立 PowerShell 执行完整 Harness，退出码为 `1`：后端 `678 passed, 3 skipped, 12 warnings`；失败为 `tests/test_workbench_services.py::test_invalid_source_requires_reselection_without_exposing_locator`，实际返回 `pending` 而合同要求 `requires_reselection`。定向复现已通过；根因核验为普通失效来源与字节指纹读取期间专用瞬时错误的分类边界需要保持分离。该结果不完成新的完整 Harness gate；`1D-017R`、独立 Level 3 Review gate、OpenSpec 归档解除 gate保持未完成，Phase 2–4 未开始。
+
+用户随后再次在独立 PowerShell 执行完整 Harness，输出显示退出码为 `0`：后端 `679 passed, 3 skipped, 12 warnings`；前端 TypeScript 检查与生产构建通过，Vite 仅报告 chunk 大于 500 kB；`verify:docs:strict` 通过。既有 `ARCHIVE_CONFIGURED_ROOT_INVALID` warning 保持非阻断。该结果完成本轮新的完整 Harness gate，但不等同于独立 Level 3 Review 通过；`1D-017R`、独立 Level 3 Review gate、OpenSpec 归档解除 gate保持未完成，Phase 2–4 未开始。
+
+### Demo checkpoint 状态（2026-07-28）
+
+本次独立 Review 结论接受为甲方 Demo checkpoint 判定：Phase 1D 为 **Demo-ready（有条件）**，不是 Production-ready；当前 `Production-ready = 否`。本结论不等同于独立 Level 3 Production Review 通过，不解除 OpenSpec 归档阻断，也不完成 `1D-017R`。在人工 Demo 冒烟验收完成前不提交、不推送、不归档；允许在独立工作范围内继续甲方 Demo 后续功能，但不得宣称本 Level 3 变更包已生产完成。
+
+#### Demo 后生产加固技术债
+
+以下问题不进入单用户、单窗口、顺序演示的 Demo 主路径，登记为 Demo 后生产加固事项；本节不表示这些问题已修复。
+
+- **TD-1 — Publish intent 幂等身份校验不完整（Medium）**
+  - 复现条件：同一 attempt 的 publish intent 重入时，仅部分字段相同，而 source key、input fingerprint、public Manifest、source revision、draft revision、report digest 或 fence/context 身份发生变化。
+  - 最坏风险：错误复用意图或把不属于当前绑定的 Manifest/正式产物关联到 attempt，造成归档身份错误。
+  - 不进入 Demo 主路径原因：Demo 为单用户、单浏览器窗口，不进行归档故障重入，也不在正常归档完成前重复触发同一案件归档。
+  - Demo 规避：每个案件只准备并显式归档一次；归档完成前不重复点击归档、不模拟重启或恢复。
+  - 正式修复方向：已有 intent 重入时完整比较所有不可变身份字段；任一不一致立即返回 publish intent conflict。
+  - 缺失测试：逐字段错配 source key、input fingerprint、public Manifest、source/draft revision、report digest、fence/context 的重入拒绝与幂等测试。
+  - 计划：Demo 后生产加固阶段处理。
+
+- **TD-2 — staging marker 移除时机偏早（Low）**
+  - 复现条件：marker 已移除，但 durable intent/fence 尚未建立时发生数据库异常、进程崩溃或断电。
+  - 最坏风险：留下无法由持久证据自动识别的孤儿 staging；当前安全策略不会因此误删未知资源。
+  - 不进入 Demo 主路径原因：Demo 不模拟数据库异常、进程崩溃或断电。
+  - Demo 规避：使用受控临时 staging；演示期间不强制终止进程、不锁定数据库、不删除 staging。
+  - 正式修复方向：在 durable intent 和 active fence 成功建立后再移除 marker，或补充等效的持久归属证明。
+  - 缺失测试：marker 移除前后各相邻步骤故障注入、孤儿 staging 识别和未知资源保留测试。
+  - 计划：Demo 后生产加固阶段处理。
+
+- **TD-3 — 无正式目录的失效 intent 会被重复扫描（Low）**
+  - 复现条件：fence 已 invalidated、正式目录不存在，但 intent 仍处于 reconciliation 会扫描的非终态。
+  - 最坏风险：长期产生无效恢复扫描和噪声；不会误发布或误删除正式/未知产物。
+  - 不进入 Demo 主路径原因：Demo 不修改已进入归档准备状态的草稿，不模拟中断恢复。
+  - Demo 规避：归档准备后不编辑案件、不刷新重启、不重复执行恢复核验。
+  - 正式修复方向：在 fence 已 invalidated 且正式目录不存在时，将 intent 推进为明确终态。
+  - 缺失测试：失效 fence、缺失正式目录、重复启动 reconciliation 的终态推进与幂等测试。
+  - 计划：Demo 后生产加固阶段处理。
+
+- **TD-4 — 应用外部修改来源目录（Medium，外部环境风险）**
+  - 复现条件：应用外部的用户、同步工具或其他进程在来源复核或归档过程中修改、替换或删除来源文件。
+  - 最坏风险：来源内容与服务端绑定版本不一致，归档可能被拒绝或进入待核验状态；应用内部 fence 无法阻止外部文件系统写入。
+  - 不进入 Demo 主路径原因：这是应用边界外的文件系统并发，不属于单用户顺序演示合同。
+  - Demo 规避：演示开始前准备合成或脱敏来源目录；演示期间保持来源目录只读，不修改、替换或删除文件。
+  - 正式修复方向：明确外部文件系统变更的产品边界，补充受控目录权限/只读约束或外部变化检测与人工重选流程；不引入本变更包范围外的缓存平台。
+  - 缺失测试：外部改写、替换、删除及读取中变化的端到端分类和用户提示测试。
+  - 计划：Demo 后生产加固阶段处理。
+
+- **TD-5 — 正式输出目录被外部程序修改（Medium，外部环境风险）**
+  - 复现条件：RAR/Manifest 验证完成后、数据库完成提交前，外部程序打开、修改或移动正式输出目录或文件。
+  - 最坏风险：物理产物与完成证据不一致，导致归档失败、待核验或冲突；现有协议不能阻止外部程序修改文件系统。
+  - 不进入 Demo 主路径原因：Demo 不模拟文件锁、外部程序干预或归档期间的正式目录并发操作。
+  - Demo 规避：归档期间不打开、修改或移动正在生成的正式输出目录，等待归档完成后再检查结果。
+  - 正式修复方向：强化正式输出目录权限/隔离和提交前后完整性核验，明确外部程序干预后的人工处置合同。
+  - 缺失测试：验证后篡改、文件锁、目录移动和恢复核验的分类、保留未知产物及不重复发布测试。
+  - 计划：Demo 后生产加固阶段处理。
+
+- **TD-6 — 真实字节 fingerprint 性能（Low）**
+  - 复现条件：来源目录包含大量或大体积文件，需要完整读取字节并进行前后集合核验。
+  - 最坏风险：来源复核、解析后核验或归档准备耗时增加，影响大目录交互体验；不降低当前 fingerprint 的可信度。
+  - 不进入 Demo 主路径原因：Demo 使用规模受控的合成或脱敏数据，不代表生产大目录性能。
+  - Demo 规避：演示前使用受控数据完成一次性能冒烟检查；不使用真实大目录作为 Demo 输入。
+  - 正式修复方向：在生产加固阶段基于实际测量优化 I/O 和用户反馈；不得以 metadata-only 缓存替代当前安全算法，也不在本阶段引入 USN/Canonical/Shadow 缓存平台。
+  - 缺失测试：不同文件数量、单文件大小、并发读写和失败重试下的耗时/资源基线测试。
+  - 计划：Demo 后生产加固阶段处理。
+
+#### 甲方 Demo 人工冒烟验收清单
+
+验收数据只能使用合成或脱敏数据。每项由实际操作人勾选并记录结果；本清单通过不代表 Production-ready 或 OpenSpec 可归档。
+
+- [ ] 启动前后端，确认使用本地 Demo 配置且没有加载真实案件、真实人员或真实运行资产。
+- [ ] 创建至少两个案件，并分别选择不同的合成/脱敏报告目录。
+- [ ] 分别解析两个报告，确认两个案件都进入可编辑状态。
+- [ ] 编辑各自草稿并等待自动保存，确认保存结果清晰可见。
+- [ ] 在两个案件之间切换，确认标题、来源、草稿字段和状态不串案。
+- [ ] 为两个案件分别添加不同图片，确认图片引用属于对应案件。
+- [ ] 刷新页面，确认案件、草稿和图片均可恢复。
+- [ ] 预览 Word，确认预览使用当前案件内容。
+- [ ] 导出 Word，确认导出成功且文件名属于当前案件。
+- [ ] 检查 Word 的 VML 文本框、总页数、附件摘要第 3 页，以及附件 1/2/3 分别位于第 4/5/6 页；确认无多余空白页，默认数据摘要正确。
+- [ ] 将一个案件置于 `pending` 来源状态，确认风险提示说明复核未完成，但用户确认后仍能导出 Word。
+- [ ] 将另一个案件置于 `requires_reselection` 来源状态，确认出现更强风险提示，但用户风险确认后仍能导出 Word。
+- [ ] 对一个状态正常且来源可信的案件执行一次显式归档。
+- [ ] 检查该案件的 RAR、Manifest 和 Word 身份一致，属于同一案件且没有重复正式产物。
+- [ ] 确认没有串案、错误文件名、异常页面提示或未预期的归档状态。
+
+Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归档开始后不再编辑该案件；归档期间不修改来源目录；不重启前后端；不模拟 WinRAR 崩溃、文件锁、数据库锁、断电或极端并发；不得将 Demo 描述为生产级容灾版本。
+
+### Phase 1D Review gate
+
+- [x] 首次/第二次 Review 的六项发现已按当时最终业务合同完成核验和回归修复；第三次 Review 修复状态见上方追加任务。
+- [x] 用户独立 PowerShell 完整 Harness 退出码为 0；2026-07-28 Review 修复验证结果为后端 `650 passed, 3 skipped, 10 warnings`，前端 TypeScript/生产构建和 `verify:docs:strict` 通过。
+- [x] 上一轮新的完整 Harness gate（第二次 Review remediation 历史）已完成：2026-07-28 用户在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端 `661 passed, 3 skipped, 12 warnings`，前端 TypeScript 通过，前端生产构建通过，`verify:docs:strict` 通过，未出现 `KeyboardInterrupt`、测试失败或递归脚本失败。非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
+- [x] 第三次 Review remediation 的新完整 Harness gate 已完成：用户于 2026-07-28 在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端 `671 passed, 3 skipped, 12 warnings`，前端 TypeScript/生产构建及文档门控通过。该记录不等同于独立 Level 3 Review 通过。
+- [x] 第四次 Review remediation 的新完整 Harness gate 已完成：用户于 2026-07-28 在独立 PowerShell 执行完整 Harness，退出码为 `0`；后端 `679 passed, 3 skipped, 12 warnings`，前端 TypeScript/生产构建及 `verify:docs:strict` 通过。非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。该记录不等同于独立 Level 3 Review 通过。
+- [ ] 独立 Level 3 复审无阻断性 Critical、High 或 Medium。
+- [ ] OpenSpec 归档阻断解除。
 
 ### Phase 1 gate
 

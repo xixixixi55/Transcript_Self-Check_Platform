@@ -28,6 +28,7 @@ from .pipeline_controller import (
     pipeline_settings_for_request,
 )
 from ..config import OUTPUT_BASE
+from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..services.workbench_factory_service import get_workbench_services
 
 
@@ -70,25 +71,57 @@ async def execute_archive_endpoint(
     """Execute the reviewed archive synchronously; no client path is accepted."""
 
     settings = pipeline_settings_for_request(request)
-    if not report_json or not archive_context_id:
+    if not archive_context_id:
         raise HTTPException(
             status_code=422,
             detail={"code": "ARCHIVE_CONTEXT_INVALID", "blockers": [
                 _blocker("ARCHIVE_CONTEXT_INVALID", message="归档上下文无效，请重新解析报告。")
             ]},
         )
+    attempt_service = get_workbench_services().archive_attempts
+    binding = attempt_service.context_binding(archive_context_id) if attempt_service else None
+    if binding and not archive_attempt_id:
+        raise HTTPException(status_code=409, detail={
+            "code": "ARCHIVE_ATTEMPT_REQUIRED", "message": "工作台归档必须使用已绑定的归档尝试。",
+        })
+    if binding and binding["attempt_id"] != archive_attempt_id:
+        raise HTTPException(status_code=409, detail={
+            "code": "ARCHIVE_ATTEMPT_CONTEXT_MISMATCH", "message": "归档尝试已失效，请重新确认。",
+        })
+    if archive_attempt_id and not binding:
+        raise HTTPException(status_code=409, detail={
+            "code": "ARCHIVE_ATTEMPT_CONTEXT_MISMATCH", "message": "归档尝试已失效，请重新确认。",
+        })
     try:
-        report = normalize_primary_software_projection(json.loads(report_json))
+        client_report = None
+        if report_json:
+            client_report = normalize_primary_software_projection(json.loads(report_json))
+        if binding:
+            report = attempt_service.workbench_report(
+                archive_attempt_id, archive_context_id, client_report,
+            )
+        else:
+            if client_report is None:
+                raise HTTPException(status_code=422, detail={
+                    "code": "ARCHIVE_CONTEXT_INVALID", "message": "Legacy 归档需要报告内容。",
+                })
+            report = client_report
+    except HTTPException:
+        raise
+    except WorkbenchPersistenceError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": error.code, "message": "工作台归档绑定已失效，请重新确认案件。"},
+        ) from error
     except (json.JSONDecodeError, TypeError):
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
-    attempt_service = None
     if archive_attempt_id:
-        attempt_service = get_workbench_services().archive_attempts
-        if attempt_service is None:
-            raise HTTPException(status_code=422, detail={"code": "ARCHIVE_ATTEMPT_INVALID", "message": "归档尝试无效，请重新确认。"})
-        attempt_service.repository.get_public(archive_attempt_id)
-        if not attempt_service.context_matches(archive_attempt_id, archive_context_id):
-            raise HTTPException(status_code=409, detail={"code": "ARCHIVE_ATTEMPT_CONTEXT_MISMATCH", "message": "归档尝试已失效，请重新确认。"})
+        if attempt_service is None or not attempt_service.context_matches(
+            archive_attempt_id, archive_context_id,
+        ):
+            raise HTTPException(status_code=409, detail={
+                "code": "ARCHIVE_ATTEMPT_CONTEXT_MISMATCH", "message": "归档尝试已失效，请重新确认。",
+            })
         attempt_service.start(archive_attempt_id)
     try:
         formal_context_id = await run_in_threadpool(
@@ -97,13 +130,19 @@ async def execute_archive_endpoint(
         outcome = await run_in_threadpool(
             execute_archive, formal_context_id, report, output_root=OUTPUT_BASE,
             attempt_id=archive_attempt_id or None, attempt_service=attempt_service,
+            workbench_context_id=archive_context_id if binding else None,
         )
     except Exception as error:
         if attempt_service is not None:
             _record_attempt_failure(attempt_service, archive_attempt_id, error)
         raise _archive_error(error) from error
-    if attempt_service is not None and archive_attempt_id and outcome.manifest_id:
-        attempt_service.succeed(archive_attempt_id, outcome.manifest_id)
+    if archive_attempt_id and attempt_service is not None:
+        completed_attempt = attempt_service.repository.get_public(archive_attempt_id)
+        if completed_attempt["status"] != "succeeded" or completed_attempt["manifest_id"] != outcome.manifest_id:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "ARCHIVE_COMPLETION_EVIDENCE_REQUIRED", "message": "归档完成证据尚未验证。"},
+            )
     stored_manifest = (
         ARCHIVE_RUNTIME_STORE.get_manifest(outcome.manifest_id).public_manifest
         if outcome.manifest_id else None

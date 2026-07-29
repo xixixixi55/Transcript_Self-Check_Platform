@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：Phase 1B Service/API、Phase 1C 前端工作台和 Phase 1D 生产实现、合成验收与定向门控已完成；用户已在独立 PowerShell 执行完整 Harness 且退出码为 0；独立 Level 3 Code Review 和归档尚未执行；Phase 2 至 Phase 4 仍未开始
+> 设计状态：Phase 1B Service/API、Phase 1C 前端工作台和 Phase 1D 原生产实现、合成验收与定向门控已完成；首次独立 Level 3 Code Review 未通过后，Phase 1D Review 修复已完成，用户已在独立 PowerShell 执行修复后的完整 Harness 且退出码为 0；独立 Level 3 复审尚未执行，OpenSpec 归档继续阻断；Phase 2 至 Phase 4 仍未开始
 
 ## 1. 总体架构决策
 
@@ -180,7 +180,39 @@ Word builder 只接收字段值和 Legacy 投影，不接收 UI 来源颜色。�
 
 数据库恢复事务只将未完成的 SourceRecord 复核保持为 `pending`，不得在恢复事务中把它标记为可信或来源变化。应用启动完成后，受控恢复协调器查询所有仍为 `pending` 且属于有效案件的 SourceRecord，并按 `source_id + revision` 去重后提交给受控来源复核执行器。调度成功后由执行器完成复核；调度失败保留 `pending`，记录稳定的 `SOURCE_REVALIDATION_PENDING` 诊断并允许后续启动或显式重试再次调度。该流程不得为已经 `review_ready` 的案件重新创建或执行 Parser。
 
-来源状态必须区分“暂时无法验证”和“已确认发生变化”：`pending` 表示尚未完成可信确认，草稿仍可查看和编辑，但正式 Word/归档继续受来源可信状态门控；复核成功才转为 `available`。允许根、路径、链接安全性、报告结构或 fingerprint 已确认不匹配、来源被替换或不可继续使用时，才将 SourceRecord 标记为 `requires_reselection`，禁止正式 Word/归档，并要求重新选择来源和重新解析；暂时 I/O/权限/资源不可用或调度失败必须保持 `pending`，不得直接等同为来源已经变化。来源、图片和其他大对象只通过 opaque asset 引用进入 CaseDraft，SQLite 不保存内容本体。
+来源状态必须区分“暂时无法验证”和“已确认发生变化”：`pending` 表示尚未完成可信确认，草稿仍可查看和编辑；归档继续受来源可信状态门控，Word 预览和导出始终允许，但工作台必须在导出动作发生时显示明确、可取消的风险确认。复核成功才转为 `available`。允许根、路径、链接安全性、报告结构或 fingerprint 已确认不匹配、来源被替换或不可继续使用时，才将 SourceRecord 标记为 `requires_reselection`，严格阻止归档并要求重新选择来源和重新解析；Word 仍允许在更强风险警告后由用户确认继续。暂时 I/O/权限/资源不可用或调度失败必须保持 `pending`，不得直接等同为来源已经变化。来源风险提示只读取后端返回的当前状态，不使用 localStorage，也不把状态伪装为 `available`。来源、图片和其他大对象只通过 opaque asset 引用进入 CaseDraft，SQLite 不保存内容本体。
+
+### D-003C：独立 Review 修复采用最小可恢复提交和不可逆 context 绑定
+
+首次独立 Level 3 Code Review 发现通用 lifecycle 绕过、正式 Manifest 与 attempt 成功登记之间的崩溃窗口、工作台 context 可省略 attempt、并发来源复核误判以及 staging 根目录保护不足。修复保持 Phase 1D 边界：不引入归档 Worker、队列、调度、进度、自动续跑或接管。
+
+- 通用 lifecycle 服务拒绝直接写入 `archive_queued`；只有归档 attempt repository 的受控事务能够同步创建 attempt 并迁移 CaseShell/CaseDraft。
+- 工作台 preview context 只持久化不可逆摘要、case 和 attempt 绑定，不持久化或恢复可执行 handle。旧/错配 binding 可被识别并拒绝，但应用重启后仍不能恢复旧 runtime context。
+- 完整 Legacy Manifest 持久索引保存成功后，当前 attempt 记录同一份 source/input/archive 身份摘要。重启恢复重新读取持久索引并复核物理 RAR、Manifest ID、attempt、case、source 和 revision；全部匹配才补记 `succeeded`/`archive_verified`，否则仍按 interrupted 处理。
+- SourceRecord revision conflict 表示复核结果已过期，处理方式是重新读取最新记录；不得把并发、调度或临时错误翻译为“空 fingerprint 即来源失效”。
+- staging 清理仅允许受控根的直接 attempt 子目录，根目录本身及其他层级始终视为未知。
+
+### D-003D：第三次独立 Review 的发布恢复与并发收敛
+
+第三次独立 Level 3 Review 于 2026-07-28 未通过（Critical 0、High 4、Medium 1）。H1 通用 `archive_queued` 入口、H2 Word 风险确认合同、M1 conflict 后 fingerprint 重算和 L1 staging 根目录保护保持完成；本节只补充 H3/H4 的实现边界，不删除前两轮实现、测试或 Harness 历史。
+
+- `archive_publish_intents` 的身份字段由持久化 workbench context hash、case/attempt/source、source/draft revision、report fingerprint、Manifest/index 身份和正式目标相对目录共同约束。正式目标目录使用 Legacy 执行器产生的 runtime context 加 Manifest ID；runtime context 与 workbench context 不混用，Legacy context 仍不创建 workbench attempt/intent。
+- 正式移动前，受控服务在 publish intent 创建事务内重新读取 shell、SourceRecord、CaseDraft 和 active workbench binding，并在紧邻 `os.replace` 的边界再次校验。草稿、来源、context、attempt、case、报告身份或可信状态变化时不移动、不登记 index、不写 succeeded；失败 attempt 的 binding 失效。
+- 恢复允许在可信正式目录存在且身份匹配时补推进 `intent_persisted -> published -> indexed`，然后调用同一可信完成服务；复用已有 Manifest 也必须遵守阶段顺序。意图存在但正式目录尚未移动时只安全中断并等待显式新 attempt，不自动执行归档。
+- 可信完成服务在数据库写事务内重新读取并校验 attempt、SourceRecord、CaseShell、CaseDraft、active binding 和 publish intent；attempt、shell、draft 更新必须各恰好影响一行，任一失败整体回滚。数据库成功后但 intent `verified` 标记前崩溃只补阶段标记，不回退 succeeded。
+- 恢复错误只在明确身份错配、目标冲突、Manifest/RAR 完整性失败或篡改时进入 `conflict`。SQLite 锁、index 暂不可用、文件占用、临时 I/O/权限异常保留当前意图阶段和正式产物，不删除、不覆盖、不重复发布，后续只由显式恢复核验再次尝试；不引入 Worker、队列、调度或后台自动重试。
+
+本轮新增 `1D-025` 至 `1D-029T` 已完成，`1D-030T`、新的完整 Harness gate、`1D-017R`、独立 Review gate 和归档解除 gate 均保持未完成；Phase 2–4 未开始。
+
+### D-003E：第四次独立 Review 的 publish fence、运行态恢复与真实来源摘要
+
+第四次独立 Level 3 Review 于 2026-07-28 未通过（Critical 0、High 4、Medium 1）。本轮已完成 `1D-033` 至 `1D-037T` 的本地实现和定向验证；新的完整 Harness 与独立 Review gate 仍未完成。实现不引入 Worker、队列、调度、自动续跑、进程接管或 Phase 2–4 能力。
+
+- 数据库 schema 升至 v5，新增内部 `archive_publish_fences`。每个 fence 绑定 case、attempt、source、source revision、draft revision、report fingerprint、不可逆 context hash 和建立时 shell revision；active 状态按 case 和 attempt 唯一。受控 intent 创建事务在最终读取服务端 shell/source/draft/binding 后同时创建 active fence 和 `intent_persisted` intent。普通 draft/source/shell 写入口遇到 active fence 拒绝；pending verification 允许编辑，并在同一写事务中使旧 fence invalidated，使旧 attempt 和旧正式证据不可补记成功。
+- 正式发布前只验证仍有效的 active fence 后执行 `os.replace`；发布后阶段仍按 `published`、`indexed`、统一可信完成服务顺序推进。恢复先在数据库事务内使旧 accepted/running 及具有非终态 intent 的 failed attempt 转为 interrupted、失效 runtime context 并同步 shell/draft 非运行态，再把 active fence 转为 pending verification。正式目录、Manifest/index、intent 和 fence 作为持久证据保留，不自动重新执行 WinRAR、不重复移动和不删除未知产物。
+- Reconciliation 以所有非终态 publish intent 为入口，覆盖 accepted/running/failed/interrupted 等 attempt 状态。临时 index/SQLite/I/O/权限错误保持 interrupted、pending verification fence 和现有证据；仅确认性身份/完整性/目标冲突进入 conflict。可信证据通过同一完成服务从 interrupted/pending verification 收敛到 succeeded，并在同一事务内严格校验 source、draft、shell、attempt 和 fence，三次状态更新均要求恰好一行。
+- SourceRecord 来源 fingerprint 使用规范化相对路径、条目类型、实际文件字节摘要和稳定排序结构；每个文件使用句柄前后 `fstat`，文件读取两次并比较摘要，整个集合在摘要前后重新扫描。文件变化、消失、加入、删除、I/O 或权限异常返回临时不可验证结果，由 SourceRecord 保持 pending；不使用 metadata-only 缓存、绝对路径或 USN/Canonical/Shadow 机制。
+- `ReportParseInFlightRegistry` 用 completing map 表示 Future 已脱离 active registry 但 callback 尚未完成。锁内确认 entry 身份、删除 active 并登记 completing，锁外调用 `set_result`/`set_exception`，finally 只清理相同 Future。active_count 只统计真正运行中的 builder，同 key 在 active 或 completing 期间复用同一 Future。
 
 ## 4. 归档计划、稳定槽位和 Manifest
 
@@ -273,7 +305,7 @@ DTO、任务、审计摘要、日志和错误消息不返回绝对路径。来�
 | 1A | SharedTypes、SQLite schema/migration、Repositories | CaseShell/CaseDraft、SourceRecord、ClientIdentity、双写结果、opaque asset 引用和 SQLite 大对象拒绝规则可持久化、迁移、回滚 |
 | 1B | Services 和 API | 提交即建壳、解析任务失败/重试、来源复核、默认值优先级、草稿/共享默认值双写状态、interrupted 重启语义和删除前置条件可通过 API 表达 |
 | 1C | 工作台、自动保存和租约 | 6 卡片分页、排队/解析中/失败状态、自动保存、15 秒心跳、2 分钟接管警告和分别显示保存结果 |
-| 1D | 刷新/重启恢复、兼容回归和人工验收 | CaseShell/CaseDraft/Task/Source/asset/lease 可恢复；解析中断、来源复核和重试闭环；归档尝试只做最小中断日志和归属证明，不自动续跑；自有 staging 可幂等清理或隔离；半成品不发布；Legacy 解析/归档/Manifest/Word 回归通过，并完成人工验收 |
+| 1D | 刷新/重启恢复、兼容回归和人工验收 | CaseShell/CaseDraft/Task/Source/asset/lease 可恢复；解析中断、来源复核和重试闭环；归档准备通过单事务绑定 attempt/context/source/draft 证据后才进入 `archive_queued`；正式发布通过持久化意图和统一完成证据恢复，不自动续跑；自有 staging 可幂等清理或隔离；半成品不发布；Legacy 解析/归档/Manifest/Word 回归通过，并完成人工验收 |
 
 每阶段提交前运行该阶段的类型、架构和定向测试；所有阶段完成后才考虑完整 Harness 门控，并按 `AGENTS.md` 在运行 `verify:full` 前询问执行者。
 

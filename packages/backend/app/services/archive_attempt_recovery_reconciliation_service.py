@@ -1,0 +1,156 @@
+"""Durable publish-intent recovery without introducing a worker or queue."""
+
+from __future__ import annotations
+
+import sqlite3
+import time
+from typing import TYPE_CHECKING, Any
+
+from ..repository.archive_attempt_restart_repository import normalize_runtime_after_restart
+from ..repository.archive_manifest_repository import (
+    ArchiveManifestRepository, ArchiveManifestRepositoryError,
+)
+from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
+from ..repository.archive_publish_fence_repository import normalize_active_for_restart, set_status
+from ..repository.workbench_errors import WorkbenchPersistenceError
+from .archive_manifest_service import validate_manifest_files
+from .archive_runtime_service import ArchiveManifestRecord
+from .archive_staging_security_service import cleanup_owned_staging
+
+if TYPE_CHECKING:
+    from .archive_attempt_service import ArchiveAttemptService
+
+
+class _RecoveryTransientError(RuntimeError):
+    """The evidence may be valid, but an infrastructure read/write was temporary."""
+
+
+class _RecoveryConflictError(RuntimeError):
+    """Durable evidence proved that this intent cannot complete."""
+
+
+def recover_after_restart(service: ArchiveAttemptService) -> list[str]:
+    interrupted: list[str] = []
+    intents = ArchivePublishIntentRepository(service.database)
+    runtime_records = normalize_runtime_after_restart(service.database)
+    normalize_active_for_restart(service.database)
+
+    for record in runtime_records:
+        if intents.get_for_attempt(str(record["attempt_id"])) is None:
+            _cleanup_interrupted(service, record)
+            interrupted.append(str(record["attempt_id"]))
+
+    # Publish intents, rather than attempt runtime status, are the durable
+    # reconciliation index.  This includes failed attempts left after a
+    # post-publish infrastructure error.
+    for intent in intents.list_unfinished():
+        attempt_id = str(intent["attempt_id"])
+        try:
+            attempt = service.repository.get_internal(attempt_id)
+        except WorkbenchPersistenceError:
+            continue
+        try:
+            outcome = _recover_published_intent(service, attempt, intent, intents)
+        except _RecoveryTransientError:
+            # Runtime state is already interrupted; preserve evidence and the
+            # pending fence for a later explicit verification.
+            continue
+        except _RecoveryConflictError:
+            current = intents.get_for_attempt(attempt_id)
+            if current and current["phase"] != "conflict":
+                intents.mark_phase(attempt_id, "conflict")
+            if current and current.get("fence_id"):
+                try:
+                    set_status(service.database, current["fence_id"], "invalidated", "ARCHIVE_EVIDENCE_CONFLICT")
+                except WorkbenchPersistenceError:
+                    pass
+            if attempt_id not in interrupted:
+                interrupted.append(attempt_id)
+            continue
+        if not outcome and attempt_id not in interrupted:
+            interrupted.append(attempt_id)
+    return interrupted
+
+
+def _cleanup_interrupted(service: ArchiveAttemptService, record: dict[str, Any]) -> None:
+    cleanup = cleanup_owned_staging(record, service.staging_root, service.database.deployment_instance_id)
+    if cleanup != "not_required":
+        error_code = "ARCHIVE_STAGING_CLEANUP_UNKNOWN" if cleanup == "unknown" else None
+        if cleanup == "failed":
+            error_code = "ARCHIVE_STAGING_CLEANUP_FAILED"
+        service.repository.mark_cleanup(record["attempt_id"], cleanup, error_code)
+
+
+def _recover_published_intent(
+    service: ArchiveAttemptService, attempt: dict[str, Any],
+    intent: dict[str, Any], intents: ArchivePublishIntentRepository,
+) -> bool:
+    if any(intent[key] != attempt_value for key, attempt_value in {
+        "case_id": attempt["case_id"], "source_id": attempt["source_id"],
+        "source_revision": int(attempt["source_revision"]),
+        "draft_revision": int(attempt["draft_revision"]),
+        "report_fingerprint": attempt["report_fingerprint"],
+    }.items()):
+        raise _RecoveryConflictError("intent binding mismatch")
+    final_dir = (service.output_root / "compressed" / intent["relative_final_dir"]).resolve(strict=False)
+    compressed_root = (service.output_root / "compressed").resolve(strict=False)
+    try:
+        final_dir.relative_to(compressed_root)
+    except ValueError as error:
+        raise _RecoveryConflictError("intent target outside compressed root") from error
+    record = ArchiveManifestRecord(
+        intent["manifest_id"], attempt["attempt_id"], intent["archive_fingerprint"],
+        intent["public_manifest"], final_dir, 0.0, time.time() + 60,
+    )
+    try:
+        if not final_dir.is_dir():
+            return False
+        integrity_error = validate_manifest_files(record)
+    except (OSError, PermissionError) as error:
+        raise _RecoveryTransientError() from error
+    if integrity_error is not None:
+        raise _RecoveryConflictError(integrity_error)
+    registry = ArchiveManifestRepository(service.output_root)
+    try:
+        same_manifest = registry.find_by_manifest_id(intent["manifest_id"])
+        if any(item.workbench_attempt_id != attempt["attempt_id"] for item in same_manifest):
+            raise _RecoveryConflictError("manifest belongs to another attempt")
+        indexed = next((item for item in same_manifest if item.workbench_attempt_id == attempt["attempt_id"]), None)
+        if indexed is None:
+            registry.save(
+                source_key=intent["source_key"], input_fingerprint=intent["input_fingerprint"],
+                archive_fingerprint=intent["archive_fingerprint"], manifest_id=intent["manifest_id"],
+                final_dir=final_dir, public_manifest=intent["public_manifest"],
+                workbench_attempt_id=attempt["attempt_id"],
+            )
+        elif (
+            indexed.relative_final_dir != intent["relative_final_dir"]
+            or indexed.public_manifest != intent["public_manifest"]
+            or indexed.source_key != intent["source_key"]
+            or indexed.input_fingerprint != intent["input_fingerprint"]
+            or indexed.archive_fingerprint != intent["archive_fingerprint"]
+        ):
+            raise _RecoveryConflictError("indexed evidence mismatch")
+        if intent["phase"] == "intent_persisted":
+            intents.mark_phase(attempt["attempt_id"], "published")
+            intent = intents.get_for_attempt(attempt["attempt_id"]) or intent
+        if intent["phase"] == "published":
+            intents.mark_phase(attempt["attempt_id"], "indexed")
+        from .archive_attempt_completion_service import complete_verified
+        complete_verified(service, attempt["attempt_id"], registry, record, recovery=attempt["status"] != "succeeded")
+        current = intents.get_for_attempt(attempt["attempt_id"])
+        if current and current["phase"] == "indexed" and attempt["status"] == "succeeded":
+            intents.mark_phase(attempt["attempt_id"], "verified")
+        return True
+    except _RecoveryConflictError:
+        raise
+    except (ArchiveManifestRepositoryError, OSError, PermissionError, sqlite3.OperationalError) as error:
+        raise _RecoveryTransientError() from error
+    except WorkbenchPersistenceError as error:
+        if error.code in {
+            "ARCHIVE_COMPLETION_EVIDENCE_CONFLICT", "ARCHIVE_COMPLETION_EVIDENCE_INVALID",
+            "ARCHIVE_COMPLETION_EVIDENCE_REQUIRED", "ARCHIVE_PUBLISH_TARGET_MISMATCH",
+            "ARCHIVE_PUBLISH_INTENT_STATE_INVALID", "ARCHIVE_ATTEMPT_BINDING_STALE",
+        }:
+            raise _RecoveryConflictError(error.code) from error
+        raise _RecoveryTransientError() from error

@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..services.workbench_factory_service import get_workbench_services
+from ..services.archive_source_runtime_service import discard_preview_source
 
 router = APIRouter()
 
@@ -16,6 +17,7 @@ class DraftSaveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     draft: dict[str, Any]
     expected_revision: int = Field(ge=0)
+    shared_defaults_patch: dict[str, Any] | None = None
     shared_defaults: dict[str, Any] | None = None
     shared_defaults_revision: int | None = Field(default=None, ge=0)
     identity: dict[str, Any] | None = None
@@ -77,7 +79,10 @@ def submit_case_endpoint(body: CaseSubmissionRequest):
     except Exception as error:
         _handle(error)
     detail = services.lifecycle.detail(identifiers["case_id"])
-    return _envelope({key: detail[key] for key in ("shell", "source", "parse_task")})
+    return _envelope({
+        **{key: detail[key] for key in ("shell", "source", "parse_task")},
+        "shared_defaults": services.defaults.get(),
+    })
 
 
 @router.get("/workbench/cases")
@@ -107,14 +112,18 @@ async def decide_archive_endpoint(case_id: str, body: ArchiveDecisionRequest):
             source = services.sources.require_available(before["shell"]["source_id"])
             context_id = services.sources.create_legacy_preview_source(case_id)
             source = services.sources.get(source["source_id"])
-            if before["shell"]["lifecycle"] == "archive_queued":
-                attempt = services.archive_attempts.reissue_context(
-                    case_id, source["source_id"], source["revision"], context_id, body.expected_revision,
-                )
-            else:
-                attempt = services.archive_attempts.accept(
-                    case_id, source["source_id"], source["revision"], context_id, body.expected_revision,
-                )
+            try:
+                if before["shell"]["lifecycle"] == "archive_queued":
+                    attempt = services.archive_attempts.reissue_context(
+                        case_id, source["source_id"], source["revision"], context_id, body.expected_revision,
+                    )
+                else:
+                    attempt = services.archive_attempts.accept(
+                        case_id, source["source_id"], source["revision"], context_id, body.expected_revision,
+                    )
+            except Exception:
+                discard_preview_source(context_id)
+                raise
             attempt_id = attempt["attempt_id"]
             detail = services.lifecycle.detail(case_id)
         else:
@@ -139,7 +148,7 @@ async def save_draft_endpoint(case_id: str, body: DraftSaveRequest):
         payload = dict(body.draft)
         payload["case_id"] = case_id
         result = get_workbench_services().lifecycle.save_draft(
-            payload, body.expected_revision, body.shared_defaults,
+            payload, body.expected_revision, body.shared_defaults_patch if body.shared_defaults_patch is not None else body.shared_defaults,
             body.shared_defaults_revision, body.identity, body.lease_id, body.lease_token,
         )
         if result["draft_save_status"]["status"] == "conflict":
@@ -177,7 +186,6 @@ async def delete_preflight_endpoint(case_id: str):
     except Exception as error:
         _handle(error)
 
-
 @router.get("/workbench/tasks/{task_id}")
 async def get_task_endpoint(task_id: str):
     try:
@@ -208,10 +216,8 @@ def _handle(error: Exception) -> None:
     code = getattr(error, "code", None)
     if not isinstance(code, str):
         code = "WORKBENCH_REQUEST_FAILED"
-    status = 404 if code.endswith("NOT_FOUND") or code == "CASE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "LEASE_CONFLICT", "LEASE_TAKEOVER_REQUIRED", "LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "SOURCE_RESELECTION_REQUIRED", "SOURCE_REVALIDATION_PENDING", "ARCHIVE_ATTEMPT_NOT_ALLOWED"} else 422
+    status = 404 if code.endswith("NOT_FOUND") or code == "CASE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "LEASE_CONFLICT", "LEASE_TAKEOVER_REQUIRED", "LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "SOURCE_RESELECTION_REQUIRED", "SOURCE_REVALIDATION_PENDING", "ARCHIVE_ATTEMPT_NOT_ALLOWED", "ARCHIVE_ATTEMPT_REQUIRED", "ARCHIVE_ATTEMPT_BINDING_MISMATCH", "ARCHIVE_ATTEMPT_BINDING_STALE", "ARCHIVE_REPORT_MISMATCH"} else 422
     raise HTTPException(status_code=status, detail={"code": code, "message": _message(code)}) from error
-
-
 def _message(code: str) -> str:
     messages = {
         "SOURCE_REQUIRED": "请登记报告目录路径。",
@@ -231,6 +237,13 @@ def _message(code: str) -> str:
         "SOURCE_RESELECTION_REQUIRED": "报告来源已失效，请重新选择来源。",
         "SOURCE_REVALIDATION_PENDING": "报告来源正在等待复核，请稍后重试。",
         "ARCHIVE_ATTEMPT_NOT_ALLOWED": "当前案件不能开始新的归档尝试。",
+        "ARCHIVE_ATTEMPT_REQUIRED": "归档必须通过受控准备流程创建归档尝试。",
+        "ARCHIVE_ATTEMPT_BINDING_MISMATCH": "归档上下文绑定不一致，请重新确认来源和草稿。",
+        "ARCHIVE_ATTEMPT_BINDING_STALE": "草稿或来源已变化，请重新确认归档。",
+        "ARCHIVE_REPORT_MISMATCH": "归档报告与服务端草稿不一致，请重新读取案件。",
+        "UNKNOWN_SHARED_DEFAULT_FIELD": "共享默认值字段不在允许范围内。",
+        "INVALID_SHARED_DEFAULTS": "共享默认值内容无效。",
+        "UNAUTHENTICATED_IDENTITY_REQUIRED": "客户端身份必须由服务端当前部署实例确认。",
         "INVALID_ARCHIVE_DECISION": "压缩决策无效，请重新选择。",
     }
     return messages.get(code, "工作台请求未完成，请稍后重试。")

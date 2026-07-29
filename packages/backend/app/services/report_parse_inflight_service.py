@@ -49,6 +49,7 @@ class ReportParseInFlightRegistry:
         self._clock = clock
         self._lock = threading.RLock()
         self._entries: dict[str, _InFlightEntry] = {}
+        self._completing: dict[str, _InFlightEntry] = {}
         self._executor = executor or ThreadPoolExecutor(
             max_workers=max_entries,
             thread_name_prefix="report-parse",
@@ -65,7 +66,7 @@ class ReportParseInFlightRegistry:
             raise ReportParseInFlightError("Parser task identity is invalid.")
         with self._lock:
             self._cleanup_locked()
-            entry = self._entries.get(key)
+            entry = self._entries.get(key) or self._completing.get(key)
             if entry is None:
                 if len(self._entries) >= self.max_entries:
                     raise ReportParseInFlightCapacityError("解析任务容量已满，请稍后重试。")
@@ -73,7 +74,7 @@ class ReportParseInFlightRegistry:
                 entry = _InFlightEntry(self._clock(), promise)
                 self._entries[key] = entry
                 try:
-                    self._executor.submit(self._execute, key, builder, promise)
+                    self._executor.submit(self._execute, key, builder, entry)
                 except BaseException:
                     self._entries.pop(key, None)
                     raise ReportParseInFlightError("解析任务无法启动。")
@@ -98,17 +99,30 @@ class ReportParseInFlightRegistry:
         self,
         key: str,
         builder: Callable[[], T],
-        promise: Future[object],
+        entry: _InFlightEntry,
     ) -> None:
+        promise = entry.future
+        result: object | None = None
+        error: BaseException | None = None
         try:
-            promise.set_result(builder())
-        except BaseException as error:
-            promise.set_exception(error)
+            result = builder()
+        except BaseException as caught:
+            error = caught
+        with self._lock:
+            current = self._entries.get(key)
+            if current is not None and current is entry:
+                self._entries.pop(key, None)
+                self._completing[key] = entry
+        try:
+            if error is not None:
+                promise.set_exception(error)
+            else:
+                promise.set_result(result)
         finally:
             with self._lock:
-                current = self._entries.get(key)
-                if current is not None and current.future is promise:
-                    self._entries.pop(key, None)
+                current = self._completing.get(key)
+                if current is entry:
+                    self._completing.pop(key, None)
 
     def _cleanup_locked(self) -> None:
         expired = [key for key, entry in self._entries.items() if entry.future.done()]

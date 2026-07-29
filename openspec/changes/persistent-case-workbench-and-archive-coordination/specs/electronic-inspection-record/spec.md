@@ -143,8 +143,19 @@
 - **AND** 应用启动完成后，受控执行器按 `source_id + revision` 去重重新调度所有 `pending` 复核
 - **AND** 调度失败保持 `pending`，记录可识别的 `SOURCE_REVALIDATION_PENDING` 状态并允许后续启动或显式重试再次调度
 - **AND** 复核恢复不得为已经 `review_ready` 的案件重复创建或执行 Parser
-- **AND** 暂时 I/O、权限或资源不可用保持 `pending`，草稿可以查看和编辑，但正式 Word/归档继续等待来源可信状态
-- **AND** 已确认的路径、允许根、链接安全性、报告结构或 fingerprint 变化、来源被替换或不可继续使用时，才标记为 `requires_reselection`，阻止正式 Word/归档，并要求重新选择来源和重新解析
+- **AND** 暂时 I/O、权限或资源不可用保持 `pending`，草稿可以查看和编辑；归档继续等待来源可信状态，Word 预览和导出仍允许，但工作台必须在导出前明确提示复核尚未完成并由用户确认
+- **AND** 已确认的路径、允许根、链接安全性、报告结构或 fingerprint 变化、来源被替换或不可继续使用时，才标记为 `requires_reselection`，阻止归档并要求重新选择来源和重新解析；Word 仍允许在更强风险警告后由用户确认继续
+
+#### Scenario: 来源风险不阻止 Word 导出
+
+- **WHEN** SourceRecord 为 `available`
+- **THEN** 工作台直接执行现有 Legacy Word 导出，不显示来源风险确认
+- **WHEN** SourceRecord 为 `pending`
+- **THEN** 工作台在导出动作中持续显示“来源复核尚未完成”的明确确认，用户取消时不导出，用户确认时继续调用现有 Legacy 导出
+- **WHEN** SourceRecord 为 `requires_reselection`
+- **THEN** 工作台显示更强的“来源已变化、不可用或需要重新选择，导出内容可能与当前来源不一致”确认，用户取消时不导出，用户确认时继续调用现有 Legacy 导出
+- **AND** 提示状态来自当前后端 CaseDetail，不使用 localStorage、不伪造 `available`
+- **AND** Legacy `/records/export` 不因 SourceRecord 状态增加拒绝门控；来源可信状态仍严格约束归档
 
 #### Scenario: 来源路径不对外泄露
 
@@ -172,6 +183,8 @@
 
 - **WHEN** 用户选择“立即开始压缩”
 - **THEN** 后端记录 `archive_queued` 并返回 opaque Legacy preview handle
+- **AND** 只有受控归档准备事务可以写入 `archive_queued`；通用 lifecycle、Draft PATCH、普通 archive decision 和普通 repository 入口不得直接写入
+- **AND** 该事务校验 case/source/draft revision，创建唯一 attempt，持久化 workbench context 绑定，并同步迁移 shell/draft；任一步失败时数据库状态全部回滚
 - **AND** 前端进入现有 Legacy 显式压缩入口，不显示伪造进度、不启动 Phase 3 后台编排
 
 #### Scenario: 立即压缩在重启后必须重新确认
@@ -207,7 +220,86 @@
 
 Phase 1D MUST 只在现有 Legacy `/records/archive` 显式入口外围记录一次归档尝试，不建设持久化归档 Worker、调度器、并发准入、真实进度、断点续压或自动重试。归档尝试记录只用于识别重启前未完成的归档操作、证明自有 staging/进程资源归属、记录接受/完成/中断/失败/清理结果，以及支撑幂等恢复和正式产物保护；它不是新的正式归档输出链路。
 
-归档尝试记录的内部状态为 `accepted | running | succeeded | failed | interrupted`，另有 `cleanup_status` 为 `not_required | pending | succeeded | failed | unknown`。恢复只处理未完成的 `accepted/running` 记录；已完成并通过完整 Legacy 归档门控、已登记验证 Manifest 的 `succeeded` 记录不可被恢复流程改回 `interrupted`。新的用户确认必须创建新的 `attempt_id`，不得复用旧记录。
+The controlled workbench preparation path MUST bind the attempt to the case,
+source ID and revision, draft revision, server-side report fingerprint and
+one-way context hash before it moves the shell and draft to `archive_queued`.
+Formal completion MUST use one trusted evidence service for normal execution
+and restart recovery. A caller-provided Manifest ID alone MUST NOT change an
+attempt or case to a succeeded/verified state. Before success, the service
+MUST validate the internal publish intent, Manifest index identity and public
+Manifest, source/draft bindings, and the physical RAR contents. A durable
+publish intent distinguishes persisted-before-move, published-before-index,
+indexed-before-success, and conflict/incomplete recovery states without
+introducing a worker, queue, scheduler, progress or automatic retry contract.
+
+The publish intent MUST be created only after a transaction re-reads the
+server-side CaseShell, SourceRecord, CaseDraft and active workbench binding.
+The final directory identity is bound to the Legacy executor's formal runtime
+context and Manifest ID, while the persistent workbench context remains the
+one-way binding authority. Before `os.replace`, the service MUST perform the
+same source/draft/report/context validation again. A changed draft revision,
+source revision or source trust state MUST prevent the move, index registration
+and success evidence.
+
+If a trusted final directory exists while the intent is still
+`intent_persisted`, recovery MAY advance it through `published` and then
+`indexed` only after validating the intent, attempt, case, source/draft/report
+identity, Manifest index and physical RAR. It MUST NOT jump directly to
+`indexed` or publish a second artifact. The normal path and restart path MUST
+call the same trusted completion service. That service MUST re-read SourceRecord,
+CaseShell and CaseDraft inside its write transaction and require exactly one
+row update for attempt, shell and draft; any zero-row update rolls back all
+state changes. A crash after the success commit but before the final `verified`
+phase marker MUST never turn the succeeded attempt into `interrupted`.
+
+Recovery MUST classify confirmed identity/integrity/target conflicts separately
+from temporary SQLite locks, index unavailability, file locks and transient
+I/O/permission errors. Temporary errors retain the current intent phase and
+formal output for later explicit verification, without deleting, overwriting,
+republishing or adding a worker/queue/retry scheduler. Legacy contexts retain
+the existing client-report contract and do not use the workbench completion
+shortcut.
+
+The workbench publish boundary MUST also persist a `publish_fence` in the same
+database transaction that performs the final server-fact validation and creates
+the publish intent. The fence MUST bind case, attempt, source and source
+revision, draft revision, report digest, context hash and shell revision, with
+at most one active fence per case and attempt. Every ordinary write that could
+change a bound CaseDraft, SourceRecord or CaseShell MUST reject while the fence
+is active, or atomically invalidate the fence before changing the facts. A
+`pending_verification` fence after restart MUST invalidate the old runtime
+context, allow later editing, and become non-completable when such editing
+changes the bound facts; it MUST NOT permanently block the case.
+
+Startup recovery MUST first convert stale accepted/running execution state and
+any failed attempt with a non-terminal publish intent to interrupted, update
+the user-facing shell/draft to a non-running state, and deactivate the old
+runtime context. Only then may it reconcile non-terminal publish intents. A
+trusted final directory MUST be matched to its persisted intent and fence; an
+intent without a final directory remains safely interrupted and is never
+republished. A temporary reconciliation error MUST preserve the intent, fence,
+index and formal artifact without leaving a false running state. A confirmed
+identity or integrity conflict MAY enter conflict; it MUST not delete or
+overwrite the unknown artifact.
+
+SourceRecord directory fingerprints MUST use normalized relative paths, entry
+types, actual file-byte digests and a stable sorted collection structure. Each
+file MUST be checked through an open handle before and after reading, and the
+collection MUST be rescanned after digesting. A file change, disappearance,
+addition, deletion, temporary access error or inconsistent scan MUST keep the
+source in a stable pending/temporarily unverifiable state rather than produce a
+trusted available fingerprint. No absolute path or metadata-only cache is part
+of the public contract.
+
+The report-parser inflight registry MUST separate active builders from a
+completing Future. It MUST remove and identity-check the active entry under the
+registry lock, publish the same Future in a completing map, complete the Future
+outside the lock, and finally remove only the matching completing entry. A
+same-key caller MUST reuse that Future during both phases; callbacks MAY
+re-enter registry queries without deadlock, and active_count MUST count only
+builders still running.
+
+归档尝试记录的内部状态为 `accepted | running | succeeded | failed | interrupted`，另有 `cleanup_status` 为 `not_required | pending | succeeded | failed | unknown`。恢复主要处理未完成的 `accepted/running` 记录；对于已完成但仍停在 `indexed` 的 intent，只允许补写最终 `verified` 阶段，绝不把 `succeeded` 记录改回 `interrupted`。新的用户确认必须创建新的 `attempt_id`，不得复用旧记录。
 
 后端可以在内部记录 `attempt_id`、案件/草稿/source revision、进程 PID、进程启动时间、内部 staging locator、ownership marker 摘要和安全错误码。API、DTO、错误和普通日志不得返回绝对路径、PID、进程启动时间、命令行或内部 staging locator；这些字段只能用于后端归属证明和诊断。
 

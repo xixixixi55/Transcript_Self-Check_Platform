@@ -10,7 +10,7 @@ import sys
 import time
 from threading import Event
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 import pytest
@@ -94,6 +94,7 @@ def test_submit_list_detail_task_and_source_contract(app_services):
     from app.controllers import source_controller, workbench_controller
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), patch.object(source_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
+        app_services.defaults.patch({"inspection_place": "SYNTHETIC-PREFILL"}, 0, IDENTITY)
         response = client.post(
             "/api/v1/workbench/cases",
             json={"source_path": str(app_services.synthetic_report_dir), "case_name": "SYNTHETIC-CASE"},
@@ -102,6 +103,7 @@ def test_submit_list_detail_task_and_source_contract(app_services):
         data = response.json()["data"]
         assert data["shell"]["lifecycle"] in {"parse_queued", "parsing", "review_ready"}
         assert data["parse_task"]["status"] in {"queued", "running", "succeeded"}
+        assert data["shared_defaults"]["inspection_place"] == "SYNTHETIC-PREFILL"
         assert "internal_path" not in response.text
         case_id = data["shell"]["case_id"]
         task_id = data["parse_task"]["task_id"]
@@ -208,6 +210,107 @@ def test_http_revision_conflict_and_defaults_are_stable(app_services):
         saved = client.put("/api/v1/workbench/defaults", json={"values": {"document_number": "SYNTHETIC-DEFAULT"}, "expected_revision": defaults["revision"], "identity": IDENTITY})
         assert saved.status_code == 200
         assert saved.json()["data"]["document_number"] == "SYNTHETIC-DEFAULT"
+
+
+def test_http_draft_save_reports_shared_defaults_partial_success_and_current_revision(app_services):
+    from app.main import app
+    from app.controllers import defaults_controller, workbench_controller
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), patch.object(
+        defaults_controller, "get_workbench_services", return_value=app_services
+    ):
+        client = TestClient(app)
+        submitted = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir), "case_name": "SYNTHETIC-DUAL-SAVE"},
+        ).json()["data"]
+        case_id = submitted["shell"]["case_id"]
+        before = _wait_for_parse(client, case_id)
+        draft_before = before["draft"]
+        defaults_before = client.get("/api/v1/workbench/defaults").json()["data"]
+
+        stale_revision = defaults_before["revision"]
+        advanced = client.put(
+            "/api/v1/workbench/defaults",
+            json={
+                "values": {"inspection_method": "SYNTHETIC-ADVANCED"},
+                "expected_revision": stale_revision,
+                "identity": IDENTITY,
+            },
+        )
+        assert advanced.status_code == 200
+        current_defaults_revision = advanced.json()["data"]["revision"]
+
+        draft_payload = copy.deepcopy(draft_before)
+        draft_payload.pop("lifecycle", None)
+        draft_payload["report"]["introduction"]["inspection_place"] = "SYNTHETIC-CURRENT-CASE"
+        response = client.patch(
+            f"/api/v1/workbench/cases/{case_id}/draft",
+            json={
+                "draft": draft_payload,
+                "expected_revision": draft_before["revision"],
+                "shared_defaults_patch": {"inspection_place": "SYNTHETIC-CURRENT-CASE"},
+                "shared_defaults_revision": stale_revision,
+                "identity": IDENTITY,
+            },
+        )
+
+        assert response.status_code == 200
+        result = response.json()["data"]
+        assert result["draft_save_status"] == {
+            "status": "saved",
+            "revision": draft_before["revision"] + 1,
+        }
+        assert result["shared_defaults_save_status"] == {
+            "status": "revision_conflict",
+            "error_code": "REVISION_CONFLICT",
+            "revision": current_defaults_revision,
+        }
+        assert client.get(f"/api/v1/workbench/cases/{case_id}").json()["data"]["draft"]["report"][
+            "introduction"
+        ]["inspection_place"] == "SYNTHETIC-CURRENT-CASE"
+        defaults_after = client.get("/api/v1/workbench/defaults").json()["data"]
+        assert defaults_after["inspection_place"] == ""
+        assert defaults_after["revision"] == current_defaults_revision
+
+        retry_draft = copy.deepcopy(result["draft"])
+        retry_draft.pop("lifecycle", None)
+        retry_draft["report"]["introduction"]["inspection_place"] = "SYNTHETIC-RETRIED-PLACE"
+        retried = client.patch(
+            f"/api/v1/workbench/cases/{case_id}/draft",
+            json={
+                "draft": retry_draft,
+                "expected_revision": result["draft"]["revision"],
+                "shared_defaults_patch": {"inspection_place": "SYNTHETIC-RETRIED-PLACE"},
+                "shared_defaults_revision": result["shared_defaults_save_status"]["revision"],
+                "identity": IDENTITY,
+            },
+        )
+        assert retried.status_code == 200
+        retried_result = retried.json()["data"]
+        assert retried_result["draft_save_status"]["status"] == "saved"
+        assert retried_result["shared_defaults_save_status"]["status"] == "updated"
+        assert retried_result["draft"]["report"]["introduction"]["inspection_place"] == "SYNTHETIC-RETRIED-PLACE"
+        assert client.get("/api/v1/workbench/defaults").json()["data"]["inspection_place"] == "SYNTHETIC-RETRIED-PLACE"
+
+        blank_draft = copy.deepcopy(retried_result["draft"])
+        blank_draft.pop("lifecycle", None)
+        blank_draft["report"]["introduction"]["inspection_place"] = ""
+        blank_saved = client.patch(
+            f"/api/v1/workbench/cases/{case_id}/draft",
+            json={
+                "draft": blank_draft,
+                "expected_revision": retried_result["draft"]["revision"],
+                "shared_defaults_patch": {"inspection_place": "   "},
+                "shared_defaults_revision": retried_result["shared_defaults_save_status"]["revision"],
+                "identity": IDENTITY,
+            },
+        )
+        assert blank_saved.status_code == 200
+        blank_result = blank_saved.json()["data"]
+        assert blank_result["draft"]["report"]["introduction"]["inspection_place"] == ""
+        assert blank_result["shared_defaults_save_status"]["status"] == "unchanged"
+        assert client.get("/api/v1/workbench/defaults").json()["data"]["inspection_place"] == "SYNTHETIC-RETRIED-PLACE"
 
 
 def test_dispatch_failure_keeps_retryable_case_and_retry_endpoint(app_services):
@@ -580,6 +683,148 @@ def test_archive_decision_endpoint_persists_deferred_and_returns_opaque_legacy_c
             immediate_data["archive_attempt_id"],
         )["status"] == "accepted"
         assert str(app_services.synthetic_report_dir) not in immediate.text
+
+
+def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_not(app_services):
+    from app.main import app
+    from app.controllers import archive_controller, workbench_controller
+    from app.services.archive_execution_service import ArchiveExecutionOutcome
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), \
+         patch.object(archive_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir)},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+        immediate = client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]
+        context_id = immediate["archive_context_id"]
+        attempt_id = immediate["archive_attempt_id"]
+        manifest = {"manifest_id": "SYNTHETIC-MANIFEST-H4", "parts": []}
+
+        with patch.object(
+            archive_controller, "prepare_archive_source", return_value="SYNTHETIC-FORMAL-H4",
+        ), patch.object(
+            archive_controller, "execute_archive",
+            return_value=ArchiveExecutionOutcome("completed", manifest["manifest_id"], None),
+        ) as execute, patch.object(
+            archive_controller.ARCHIVE_RUNTIME_STORE,
+            "get_manifest",
+            return_value=MagicMock(public_manifest=manifest),
+        ), patch.object(
+            archive_controller,
+            "project_manifest_to_legacy_report_with_plan",
+            return_value=(REPORT, None),
+        ):
+            omitted = client.post("/api/v1/records/archive", data={
+                "archive_context_id": context_id,
+                "report_json": json.dumps(REPORT, ensure_ascii=False),
+            })
+            assert omitted.status_code == 409
+            assert omitted.json()["detail"]["code"] == "ARCHIVE_ATTEMPT_REQUIRED"
+            execute.assert_not_called()
+
+            wrong = client.post("/api/v1/records/archive", data={
+                "archive_context_id": context_id,
+                "archive_attempt_id": "attempt-SYNTHETIC-WRONG",
+                "report_json": json.dumps(REPORT, ensure_ascii=False),
+            })
+            assert wrong.status_code == 409
+            assert wrong.json()["detail"]["code"] == "ARCHIVE_ATTEMPT_CONTEXT_MISMATCH"
+            execute.assert_not_called()
+
+            replaced = copy.deepcopy(REPORT)
+            replaced["title"] = "SYNTHETIC/TEST/CLIENT-REPLACEMENT"
+            mismatch = client.post("/api/v1/records/archive", data={
+                "archive_context_id": context_id,
+                "archive_attempt_id": attempt_id,
+                "report_json": json.dumps(replaced, ensure_ascii=False),
+            })
+            assert mismatch.status_code == 409
+            assert mismatch.json()["detail"]["code"] == "ARCHIVE_REPORT_MISMATCH"
+            execute.assert_not_called()
+
+            correct = client.post("/api/v1/records/archive", data={
+                "archive_context_id": context_id,
+                "archive_attempt_id": attempt_id,
+            })
+            assert correct.status_code == 409
+            assert correct.json()["detail"]["code"] == "ARCHIVE_COMPLETION_EVIDENCE_REQUIRED"
+            assert execute.call_args.kwargs["workbench_context_id"] == context_id
+            assert app_services.archive_attempts.repository.get_public(attempt_id)["status"] == "running"
+            assert app_services.lifecycle.detail(case_id)["shell"]["lifecycle"] == "archive_queued"
+
+
+def test_interrupted_archive_stays_consistent_when_context_or_attempt_creation_fails(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+    from app.repository.workbench_errors import WorkbenchPersistenceError
+    from app.services.archive_source_runtime_service import (
+        ARCHIVE_SOURCE_RUNTIME_STORE,
+        ArchiveRuntimeError,
+    )
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir)},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+        initial = client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        )
+        assert initial.status_code == 200
+        app_services.archive_attempts.recover_after_restart()
+        interrupted = app_services.lifecycle.detail(case_id)
+        before_shell = interrupted["shell"]
+        before_draft = interrupted["draft"]
+
+        with patch.object(
+            app_services.sources, "create_legacy_preview_source",
+            side_effect=WorkbenchPersistenceError("SYNTHETIC_CONTEXT_FAILURE"),
+        ):
+            failed_context = client.post(
+                f"/api/v1/workbench/cases/{case_id}/archive-decision",
+                json={"decision": "immediate", "expected_revision": before_shell["revision"]},
+            )
+        assert failed_context.status_code == 422
+        after_context = app_services.lifecycle.detail(case_id)
+        assert after_context["shell"] == before_shell
+        assert after_context["draft"] == before_draft
+
+        created_context: list[str] = []
+        real_create = app_services.sources.create_legacy_preview_source
+
+        def capture_context(value: str) -> str:
+            context_id = real_create(value)
+            created_context.append(context_id)
+            return context_id
+
+        with patch.object(
+            app_services.sources, "create_legacy_preview_source", side_effect=capture_context,
+        ), patch.object(
+            app_services.archive_attempts, "accept",
+            side_effect=WorkbenchPersistenceError("SYNTHETIC_ATTEMPT_FAILURE"),
+        ):
+            failed_attempt = client.post(
+                f"/api/v1/workbench/cases/{case_id}/archive-decision",
+                json={"decision": "immediate", "expected_revision": before_shell["revision"]},
+            )
+        assert failed_attempt.status_code == 422
+        assert created_context
+        with pytest.raises(ArchiveRuntimeError):
+            ARCHIVE_SOURCE_RUNTIME_STORE.public_summary(created_context[0])
+        after_attempt = app_services.lifecycle.detail(case_id)
+        assert after_attempt["shell"] == before_shell
+        assert after_attempt["draft"] == before_draft
 
 
 def test_source_replacement_resets_draft_and_explicitly_reparses(app_services):

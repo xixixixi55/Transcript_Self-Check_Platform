@@ -1,12 +1,9 @@
 """Atomic persistence operations used by the Phase 1B workbench services."""
-
 from __future__ import annotations
-
 import sqlite3
 import secrets
 from collections.abc import Mapping
 from typing import Any
-
 from .workbench_constants import CASE_TRANSITIONS, TASK_TRANSITIONS
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import WorkbenchPersistenceError
@@ -19,14 +16,12 @@ from .workbench_serialization import (
     validate_safe_string,
 )
 from .case_archive_decision_repository import CaseArchiveDecisionRepository
-
+from .archive_publish_fence_repository import reject_if_active
 class CaseWorkflowRepository:
     """Keep cross-record case/task/source changes in one SQLite transaction."""
-
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database
         self.archive_decisions = CaseArchiveDecisionRepository(database)
-
     def create_submission(
         self, shell: Mapping[str, Any], task: Mapping[str, Any], source: Mapping[str, Any],
         identity: Mapping[str, Any] | None = None,
@@ -91,6 +86,7 @@ class CaseWorkflowRepository:
         validate_opaque_id(report_version)
         now = utc_now()
         with self.database.transaction() as connection:
+            reject_if_active(connection, case_id=case_id)
             shell = connection.execute("SELECT * FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             task = connection.execute("SELECT * FROM task_records WHERE task_id = ?", (task_id,)).fetchone()
             source = connection.execute("SELECT access_status FROM source_records WHERE source_id = ?", (shell["source_id"],)).fetchone() if shell else None
@@ -123,6 +119,7 @@ class CaseWorkflowRepository:
         safe_code = validate_safe_string(error_code, "INVALID_TASK_RECORD")
         now = utc_now()
         with self.database.transaction() as connection:
+            reject_if_active(connection, case_id=case_id)
             shell = connection.execute("SELECT lifecycle FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             task = connection.execute("SELECT status FROM task_records WHERE task_id = ? AND case_id = ?", (task_id, case_id)).fetchone()
             if shell is None or task is None:
@@ -142,12 +139,12 @@ class CaseWorkflowRepository:
             )
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("INVALID_TASK_TRANSITION")
-
     def decide_archive(self, case_id: str, decision: str, expected_revision: int) -> None:
         self.archive_decisions.decide(case_id, decision, expected_revision)
     def retry_parse(self, case_id: str, task_id: str) -> None:
         now = utc_now()
         with self.database.transaction() as connection:
+            reject_if_active(connection, case_id=case_id)
             shell = connection.execute("SELECT lifecycle FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             task = connection.execute("SELECT status, attempt FROM task_records WHERE task_id = ? AND case_id = ?", (task_id, case_id)).fetchone()
             if shell is None or task is None:
@@ -165,6 +162,7 @@ class CaseWorkflowRepository:
     def cancel_parse(self, case_id: str, task_id: str, expected_revision: int) -> None:
         now = utc_now()
         with self.database.transaction() as connection:
+            reject_if_active(connection, case_id=case_id)
             shell = connection.execute("SELECT lifecycle FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             task = connection.execute("SELECT status, revision FROM task_records WHERE task_id = ? AND case_id = ?", (task_id, case_id)).fetchone()
             if shell is None or task is None:
@@ -185,6 +183,8 @@ class CaseWorkflowRepository:
         interrupted: list[str] = []
         now = utc_now()
         with self.database.transaction() as connection:
+            # Parse recovery never owns an archive publish fence; a fenced
+            # archive is reconciled by ArchiveAttemptService instead.
             rows = connection.execute("SELECT task_id, case_id, kind, status FROM task_records WHERE status IN ('queued', 'running', 'cancelling')").fetchall()
             for row in rows:
                 next_status = "failed_retryable" if row[3] == "queued" else "interrupted"
@@ -210,6 +210,7 @@ class CaseWorkflowRepository:
             return {"allowed": not blockers, "blockers": blockers}
     def _transition_parse(self, case_id: str, task_id: str, lifecycle: str, status: str) -> None:
         with self.database.transaction() as connection:
+            reject_if_active(connection, case_id=case_id)
             shell = connection.execute("SELECT lifecycle FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
             task = connection.execute("SELECT status FROM task_records WHERE task_id = ? AND case_id = ?", (task_id, case_id)).fetchone()
             if shell is None or task is None:
@@ -221,7 +222,6 @@ class CaseWorkflowRepository:
             connection.execute("UPDATE task_records SET status = ?, started_at = ?, revision = revision + 1 WHERE task_id = ?", (status, now, task_id))
 def _optional_safe(value: Any, code: str) -> str | None:
     return None if value is None else validate_safe_string(value, code)
-
 def _metadata(value: Any) -> dict[str, str | int | float | bool]:
     if not isinstance(value, Mapping) or any(not isinstance(k, str) or isinstance(v, (dict, list, tuple, bytes, bytearray)) or not isinstance(v, (str, int, float, bool)) for k, v in value.items()):
         raise WorkbenchPersistenceError("INVALID_SOURCE_METADATA")

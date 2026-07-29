@@ -2,7 +2,7 @@
 import React, { useCallback, useState } from 'react'
 import { Alert, Button, Col, Empty, Input, Pagination, Row, Space, Spin, Typography, message } from 'antd'
 import { FolderOpenOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
-import { CASE_PAGE_SIZE, useCaseWorkbench, useTaskRecords } from '../hooks'
+import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
 import { CaseCard } from '../components/CaseCard'
 
 const { Paragraph, Title } = Typography
@@ -30,8 +30,8 @@ export default function CaseWorkbenchPage() {
       await workbench.submitCase(sourcePath.trim(), { caseName: caseName.trim(), caseNumber: caseNumber.trim() })
       setCaseName(''); setCaseNumber(''); setSourcePath('')
       message.success('案件壳已创建，解析任务已进入工作台。')
-    } catch {
-      message.error('案件提交失败，请检查文件和后端服务后重试。')
+    } catch (error) {
+      message.error(resolveWorkbenchError(error).message)
     } finally { setSubmitBusy(false) }
   }
 

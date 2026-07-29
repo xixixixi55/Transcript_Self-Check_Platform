@@ -116,7 +116,7 @@ def test_unfinished_archive_attempt_restarts_once_and_keeps_draft_editable(datab
     assert service.recover_after_restart() == []
     assert not service.context_matches(accepted["attempt_id"], "SYNTHETIC-CONTEXT-001")
     assert service.repository.get_public(accepted["attempt_id"])["status"] == "interrupted"
-    assert service.repository.get_public(accepted["attempt_id"])["error_code"] == "ARCHIVE_RESTART_INTERRUPTED"
+    assert service.repository.get_public(accepted["attempt_id"])["error_code"] == "ARCHIVE_RESTART_PENDING_VERIFICATION"
 
 
 def test_archive_interrupted_allows_deferred_or_new_attempt_only(database: WorkbenchDatabase, tmp_path: Path) -> None:
@@ -158,9 +158,12 @@ def test_succeeded_archive_attempt_is_not_recovered_or_rolled_back(database: Wor
     service = ArchiveAttemptService(database, tmp_path / "SYNTHETIC-OUTPUT")
     attempt = service.accept(CASE_ID, SOURCE_ID, 0, "SYNTHETIC-CONTEXT-004", shell["revision"])
     service.start(attempt["attempt_id"])
-    service.succeed(attempt["attempt_id"], "SYNTHETIC-MANIFEST-004")
-    assert service.recover_after_restart() == []
-    assert service.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        service.succeed(attempt["attempt_id"], "SYNTHETIC-MANIFEST-004")
+    assert error.value.code == "ARCHIVE_COMPLETION_EVIDENCE_REQUIRED"
+    assert service.repository.get_public(attempt["attempt_id"])["status"] == "running"
+    assert service.recover_after_restart() == [attempt["attempt_id"]]
+    assert service.repository.get_public(attempt["attempt_id"])["status"] == "interrupted"
 
 
 def test_owned_staging_cleans_only_with_marker_and_record_match(database: WorkbenchDatabase, tmp_path: Path) -> None:
