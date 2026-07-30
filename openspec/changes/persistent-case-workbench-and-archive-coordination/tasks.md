@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 的 T016/T016T 至 T019/T019T 已完成，Phase 4 最终 gate 尚未执行；Phase 5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2–4 已实现完成，自动验证和轻量开发冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 5 未开始。Phase 3–4 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -415,9 +415,11 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Phase 4 gate
 
-- [ ] 每个模板有独立 ID、版本、指纹、规则和验收记录，案件可复现所选版本。
-- [ ] 模板切换不重新压缩、不重建 Manifest；下一次导出重新校验并生成 Legacy Word。
-- [ ] 未审核或未知 DOCX 不能进入案件模板引用，现有 Word 安全门控保持通过。
+- [x] 每个模板有独立 ID、版本、指纹、规则和验收记录，案件可复现所选版本。
+- [x] 模板切换不重新压缩、不重建 Manifest；下一次导出重新校验并生成 Legacy Word。
+- [x] 未审核或未知 DOCX 不能进入案件模板引用，现有 Word 安全门控保持通过。
+- [x] Phase 4 阶段状态（2026-07-30）：实现完成、自动验证通过、轻量冒烟通过；等待 Phase 1–4 最终集成人工验收。
+- [ ] Phase 4 正式人工验收（并入 Phase 1–4 最终集成人工验收）；不得以本阶段合成测试或轻量冒烟替代。
 
 ## Phase 5 — 综合验收、清理和 Shadow 边界
 

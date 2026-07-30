@@ -2,7 +2,7 @@
 
 本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–2 已实现并
 确认的合同可以同步到 `openspec/specs/` 下的 living spec；Phase 3 已实现完成、自动验证通过、
-轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 的 T016/T016T 至 T019/T019T 已完成但最终 gate 尚未执行，Phase 3 正式人工验收和 Phase 5 尚未完成。未实现合同仍只保留在本 delta spec 中，不得提前写成
+轻量冒烟通过；Phase 4 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 3–4 正式人工验收和 Phase 5 尚未完成。未实现合同仍只保留在本 delta spec 中，不得提前写成
 当前生产事实。
 
 ## Contract vocabulary
