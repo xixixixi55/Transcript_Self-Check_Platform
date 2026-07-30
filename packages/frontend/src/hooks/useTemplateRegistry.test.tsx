@@ -160,4 +160,27 @@ describe('useTemplateRegistry', () => {
     })
     expect(result.current.errorCode).toBe('TEMPLATE_SELECTION_IMPACT_INVALID')
   })
+
+  it('preserves backend revision and lease conflict codes', async () => {
+    const approved = template('1.0.0')
+    getMock.mockResolvedValue({ data: { data: [approved] } })
+    putMock.mockRejectedValue({
+      response: { data: { detail: { code: 'REVISION_CONFLICT', message: 'unsafe raw detail' } } },
+    })
+    const { result } = renderHook(() => useTemplateRegistry({
+      caseId: 'case-SYNTHETIC-template',
+      currentTemplateRef: null,
+      expectedRevision: 7,
+      enabled: true,
+      editingEnabled: true,
+      leaseId: 'lease-SYNTHETIC',
+      leaseToken: 'token-SYNTHETIC',
+    }))
+    await waitFor(() => expect(result.current.templates).toHaveLength(1))
+
+    await act(async () => {
+      expect(await result.current.selectTemplate(approved.template_ref)).toBe(false)
+    })
+    expect(result.current.errorCode).toBe('REVISION_CONFLICT')
+  })
 })

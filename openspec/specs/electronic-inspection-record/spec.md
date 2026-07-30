@@ -5,7 +5,7 @@
 
 > 本文件是 living spec，只描述当前生产已经具备的能力。已批准但尚未正式输出启用的 Canonical/`DocumentRenderPlan` 目标见 active change `openspec/changes/extensible-report-template-platform/spec.md`；Shadow 已作为不改变Legacy响应的脱敏旁路接线，当前实现与验收进度见其 `tasks.md`。代码和测试是实现证据，不自动覆盖已批准的业务合同。
 
-当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + `current-template-v1` TemplateProfile 渲染唯一正式 DOCX。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
+当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + 案件明确引用且当前重新校验通过的 approved TemplateProfile 渲染唯一正式 DOCX；没有模板引用的兼容案件继续使用 `current-template-v1`。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
 
 当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` metadata 使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Canonical 正式生产切换、完整人工验收和 OpenSpec 归档仍未完成。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证，只阻塞 Canonical 成为默认唯一正式输出及本变更最终验收/归档，除非补测通过或发布负责人明确接受风险。
 
@@ -224,7 +224,7 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 **Scenario: 确认无误后导出**
 - WHEN 民警点击"导出 Word"按钮
 - THEN 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
-- AND 系统使用 `word_templates/template.docx`（唯一正式运行模板）和 `current-template-v1` TemplateProfile 生成 .docx
+- AND 工作台案件使用其明确引用且当前重新校验通过的 approved 模板版本生成 .docx；没有模板引用的 Legacy 兼容案件继续使用 `word_templates/template.docx` 和 `current-template-v1`
 - AND 带 Manifest 的正式渲染失败时必须明确失败，不得静默回退到无 Manifest 的 officecli batch 输出
 - AND 当前导出不构造或消费 `CanonicalInspectionCase`/`DocumentRenderPlan`
 - AND 附件2区域按 `MaterialPhotoGroup` 显式绑定检材和图片，不根据文件名或数组位置猜测归属
@@ -462,7 +462,7 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 - **MUST**: API 响应字段名用 camelCase，Python 内部用 snake_case，Controller 层做转换
 - **MUST**: 当前正式输出是 legacy DTO 管线；`template_filler_service.py` 是带最终 Manifest 的正式渲染路径，失败时不回退；officecli batch 只保留为无 Manifest 兼容回退
-- **MUST**: 生成的 .docx 使用唯一正式模板 `word_templates/template.docx`（`current-template-v1` TemplateProfile）；渲染失败时必须明确报错，不得静默回退
+- **MUST**: 生成的 .docx 使用案件明确引用且当前重新校验通过的 approved 模板版本；没有模板引用的 Legacy 兼容案件使用 `word_templates/template.docx`（`current-template-v1` TemplateProfile）；渲染失败时必须明确报错，不得静默切换版本或回退
 - **MUST**: 基于 AGENTS.md 治理规则，Level 1 小修改无需 OpenSpec change；架构或公共合同变更仍需完整流程
 - **MUST**: `rar_info` 是 ParseReportResponse 的旧兼容字段（`RarInfo | null`）；其 null/空值/零值不由 deprecated `compress` 参数可靠决定，也不代表最终归档状态
 - **MUST**: 解压操作仅存在于 BE_Repository 层（`file_storage.py`）

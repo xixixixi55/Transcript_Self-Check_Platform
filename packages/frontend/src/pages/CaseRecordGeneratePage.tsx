@@ -70,6 +70,10 @@ export default function CaseRecordGeneratePage() {
   const handleExport = async (requestedFileName: string) => {
     const report = session.report, detail = session.detail
     if (!report || !detail || exporting) return false
+    if (session.autosave.hasPending || session.autosave.draftState.status === 'saving') {
+      message.warning('案件仍有未完成保存，完成保存后才能生成 Word。')
+      return false
+    }
     const dateErrors = [
       !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
       !isValidMinuteTimeRangeValue(report.introduction.inspection_time_range) && '检查起止时间',
@@ -83,7 +87,7 @@ export default function CaseRecordGeneratePage() {
       catch { return false }
       const success = await exportDocx(
         report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
-        null, null,
+        null, null, caseId, session.draft?.revision ?? null,
       )
       setReviewStatus(success ? '导出成功' : '导出失败')
       return success

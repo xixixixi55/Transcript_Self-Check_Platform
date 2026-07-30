@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 已开始，T016/T016T、T017/T017T、T018/T018T 已完成，T019/T019T 未开始；Phase 5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 的 T016/T016T 至 T019/T019T 已完成，Phase 4 最终 gate 尚未执行；Phase 5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -410,8 +410,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 22/23 — Template API
 
-- [ ] **T019** 新增模板列表/案件选择 controller 和 route，建议文件为 `packages/backend/app/controllers/template_controller.py` 和 `packages/backend/app/routes/template_routes.py`；只返回 approved 版本和安全摘要。
-- [ ] **T019T** 增加 controller/route 集成测试；覆盖未知 DOCX、未审核版本拒绝、导出前重新校验、RAR/Manifest 不变和错误不泄露路径。
+- [x] **T019** 新增模板列表/案件选择 controller，并接入现有 `packages/backend/app/routes/workbench_routes.py`，避免建立平行工作台路由事实源；只返回 approved 版本和安全摘要。
+- [x] **T019T** 增加 controller/route 集成测试；覆盖未知 DOCX、未审核版本拒绝、导出前重新校验、RAR/Manifest 不变和错误不泄露路径。
 
 ### Phase 4 gate
 

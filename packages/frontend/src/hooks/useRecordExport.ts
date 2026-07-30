@@ -6,7 +6,7 @@ import type { InspectionReport } from '@biji/shared/types'
 import { getDefaultExportFileName, normalizeDataSummary, normalizeExportFileName } from '@biji/shared/utils'
 
 interface UseRecordExportReturn {
-  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string, archiveContextId?: string | null, manifestId?: string | null) => Promise<boolean>
+  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string, archiveContextId?: string | null, manifestId?: string | null, caseId?: string | null, caseRevision?: number | null) => Promise<boolean>
   exporting: boolean
 }
 
@@ -41,6 +41,16 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
   ATTACHMENT2_IMAGE_INVALID: '附件图片无法读取、解码或格式不受支持，请更换后重试。',
   ATTACHMENT_PLAN_INVALID: '附件页面计划无效，请重新生成归档。',
   TEMPLATE_PROFILE_MISMATCH: '当前 Word 模板资产不匹配，请联系管理员。',
+  TEMPLATE_UNKNOWN: '案件所选模板版本不存在，请重新选择模板。',
+  TEMPLATE_NOT_APPROVED: '案件所选模板版本未通过审核，不能生成 Word。',
+  TEMPLATE_ASSET_MISSING: '案件所选模板资产不可用，请联系管理员。',
+  TEMPLATE_FINGERPRINT_MISMATCH: '案件所选模板指纹校验失败，不能生成 Word。',
+  TEMPLATE_RULE_VALIDATION_FAILED: '案件所选模板结构校验失败，不能生成 Word。',
+  TEMPLATE_REGISTRY_UNAVAILABLE: '模板注册表暂不可用，请稍后重试。',
+  REVISION_CONFLICT: '案件已被其他会话修改，请重新加载后再导出。',
+  CASE_ID_REQUIRED: '案件标识缺失，请重新加载后再导出。',
+  CASE_REVISION_REQUIRED: '案件版本缺失，请重新加载后再导出。',
+  CASE_TEMPLATE_CONTEXT_INVALID: '案件模板上下文不可用，请重新加载后再导出。',
   DOCX_RENDER_FAILED: 'Word 页面渲染失败，请检查模板后重试。',
 }
 
@@ -114,6 +124,8 @@ export function useRecordExport(): UseRecordExportReturn {
     fileName?: string,
     archiveContextId?: string | null,
     manifestId?: string | null,
+    caseId?: string | null,
+    caseRevision?: number | null,
   ) => {
     setExporting(true)
     try {
@@ -136,6 +148,12 @@ export function useRecordExport(): UseRecordExportReturn {
       if (archiveContextId || manifestId) {
         formData.append('archive_context_id', archiveContextId || '')
         formData.append('manifest_id', manifestId || '')
+      }
+      if (caseId) {
+        formData.append('case_id', caseId)
+        if (caseRevision !== null && caseRevision !== undefined) {
+          formData.append('case_revision', String(caseRevision))
+        }
       }
       // 附加图片文件
       if (photoFiles) {

@@ -29,6 +29,11 @@ const errorMessages: Record<string, string> = {
   TEMPLATE_SELECTION_FAILED: '案件模板未保存，请稍后重试。',
   TEMPLATE_SELECTION_IMPACT_INVALID: '模板切换结果未通过安全校验，案件未接受该结果。',
   TEMPLATE_SELECTION_READ_ONLY: '当前页面没有有效编辑租约，不能修改案件模板。',
+  REVISION_CONFLICT: '案件已被其他会话修改，请重新加载后再选择模板。',
+  LEASE_CONFLICT: '案件当前由其他编辑会话占用，不能修改模板。',
+  LEASE_NOT_ACTIVE: '当前编辑租约已失效，请重新获取后再选择模板。',
+  LEASE_EXPIRED: '当前编辑租约已过期，请重新获取后再选择模板。',
+  LEASE_TAKEOVER_REQUIRED: '当前编辑租约需要确认接管后才能修改模板。',
 }
 
 function refKey(value: TemplateVersionRef): string {

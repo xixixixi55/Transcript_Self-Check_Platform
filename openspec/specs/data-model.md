@@ -534,9 +534,7 @@ never locators, process ownership, commands, logs or raw diagnostics.
 
 ### Phase 4 approved template shared contract
 
-T016 adds the path-free shared contract only; it does not yet expose a template
-registry API, change the current production template, or wire template selection
-into Word generation. `TemplateVersionRef` stores only a `TemplateId` and semantic
+T016 introduced the path-free shared contract. `TemplateVersionRef` stores only a `TemplateId` and semantic
 version in `CaseDraft`. The corresponding `TemplateVersion` binds that reference
 to an opaque asset ID, fingerprint, versioned validation-rule references and a
 `TemplateApprovalRecord`; it never contains a template path or DOCX content.
@@ -561,8 +559,14 @@ rules; public projections remain path-free. Listing and formal generation both
 require the current approved status and revalidate the asset fingerprint and
 Word structure before use. Switching a case reference invalidates only the Word
 artifact and does not mutate archive planning, tasks, Manifest or disc mapping.
-Existing cases without a reference continue to use `current-template-v1`. T019
-still owns the HTTP list and case-selection controller/route implementation.
+Existing cases without a reference continue to use `current-template-v1`.
+
+T019 exposes the approved, revalidated registry and case-selection operations
+under the existing workbench API. Selection uses the existing edit lease and
+draft revision contracts and persists only the template ID/version. Formal Word
+generation sends only opaque case identity and revision; the backend resolves
+the persisted reference and revalidates current approval, fingerprint, rules and
+structure through the T018 registry before the existing Legacy generator runs.
 
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type ArchiveProgressKind,

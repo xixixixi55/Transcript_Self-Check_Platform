@@ -21,6 +21,11 @@ type TemplateRegistryErrorCode =
   | 'TEMPLATE_SELECTION_FAILED'
   | 'TEMPLATE_SELECTION_IMPACT_INVALID'
   | 'TEMPLATE_SELECTION_READ_ONLY'
+  | 'REVISION_CONFLICT'
+  | 'LEASE_CONFLICT'
+  | 'LEASE_NOT_ACTIVE'
+  | 'LEASE_EXPIRED'
+  | 'LEASE_TAKEOVER_REQUIRED'
 
 interface TemplateSelectionResponse {
   draft: CaseDraft
@@ -39,6 +44,13 @@ interface Options {
 }
 
 const knownTemplateErrors = new Set<string>(Object.values(TEMPLATE_ERROR_CODES))
+const knownSelectionErrors = new Set<TemplateRegistryErrorCode>([
+  'REVISION_CONFLICT',
+  'LEASE_CONFLICT',
+  'LEASE_NOT_ACTIVE',
+  'LEASE_EXPIRED',
+  'LEASE_TAKEOVER_REQUIRED',
+])
 
 function nonEmpty(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
@@ -75,9 +87,10 @@ function isSafeSelectionImpact(value: unknown): value is TemplateSelectionImpact
 
 function requestErrorCode(error: unknown, fallback: TemplateRegistryErrorCode): TemplateRegistryErrorCode {
   const code = (error as any)?.response?.data?.detail?.code
-  return typeof code === 'string' && knownTemplateErrors.has(code)
-    ? code as TemplateErrorCode
-    : fallback
+  if (typeof code !== 'string') return fallback
+  if (knownTemplateErrors.has(code)) return code as TemplateErrorCode
+  return knownSelectionErrors.has(code as TemplateRegistryErrorCode)
+    ? code as TemplateRegistryErrorCode : fallback
 }
 
 export function useTemplateRegistry(options: Options) {

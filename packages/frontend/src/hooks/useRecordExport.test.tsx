@@ -45,6 +45,13 @@ function PhotoExportHarness({ onResult }: { onResult: (value: boolean) => void }
   ))}>导出</button>
 }
 
+function CaseExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
+  const { exportDocx } = useRecordExport()
+  return <button onClick={async () => onResult(await exportDocx(
+    report, [], undefined, undefined, null, null, 'case-SYNTHETIC-export', 9,
+  ))}>导出</button>
+}
+
 describe('useRecordExport', () => {
   beforeEach(() => post.mockReset())
 
@@ -138,6 +145,49 @@ describe('useRecordExport', () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(false))
     expect(alert).toHaveBeenCalledWith(expect.stringContaining('图片数量必须为偶数'))
     expect(alert).not.toHaveBeenCalledWith(expect.stringContaining('unsafe raw detail'))
+    vi.restoreAllMocks()
+  })
+
+  it('sends only opaque case identity and revision for server template resolution', async () => {
+    post.mockResolvedValueOnce({ data: new Blob(['docx']) })
+    Object.defineProperty(window.URL, 'createObjectURL', {
+      configurable: true, value: vi.fn().mockReturnValue('blob:case-template'),
+    })
+    Object.defineProperty(window.URL, 'revokeObjectURL', {
+      configurable: true, value: vi.fn(),
+    })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    const onResult = vi.fn()
+    render(<CaseExportHarness onResult={onResult} />)
+    fireEvent.click(screenButton())
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true))
+    const form = post.mock.calls[0][1] as FormData
+    expect(form.get('case_id')).toBe('case-SYNTHETIC-export')
+    expect(form.get('case_revision')).toBe('9')
+    expect(form.get('template_ref')).toBeNull()
+    expect(form.get('fingerprint')).toBeNull()
+    expect(form.get('approval_record')).toBeNull()
+    vi.restoreAllMocks()
+  })
+
+  it('uses the stable template gate code instead of backend diagnostics', async () => {
+    post.mockRejectedValueOnce({
+      response: {
+        data: {
+          detail: {
+            code: 'TEMPLATE_FINGERPRINT_MISMATCH',
+            message: 'C:\\unsafe\\template.docx raw stack',
+          },
+        },
+      },
+    })
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    const onResult = vi.fn()
+    render(<CaseExportHarness onResult={onResult} />)
+    fireEvent.click(screenButton())
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(false))
+    expect(alert).toHaveBeenCalledWith(expect.stringContaining('模板指纹校验失败'))
+    expect(alert).not.toHaveBeenCalledWith(expect.stringContaining('unsafe'))
     vi.restoreAllMocks()
   })
 })

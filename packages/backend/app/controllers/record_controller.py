@@ -1,7 +1,5 @@
 """Layer 22: report parse and DOCX export Controller."""
-import os
-import shutil
-import tempfile
+import os, shutil, tempfile
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -40,6 +38,7 @@ from .pipeline_controller import (
     observe_shadow_parse,
     pipeline_settings_for_request,
 )
+from .record_template_context_controller import resolve_case_template_context
 from ..config import OUTPUT_BASE, UPLOAD_BASE, ARCHIVE_MAX_SIZE
 router = APIRouter()
 ARCHIVE_AUTHORIZATION_SERVICE = ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
@@ -123,6 +122,7 @@ async def export_record_endpoint(
     report_json: str = Form(""),
     archive_context_id: str = Form(""),
     manifest_id: str = Form(""),
+    case_id: str = Form(""), case_revision: int | None = Form(None),
     photos: list[UploadFile] = File(default=[]),
 ):
     """接收 InspectionReport JSON 和图片，生成唯一正式 DOCX。"""
@@ -134,6 +134,7 @@ async def export_record_endpoint(
         report = json.loads(report_json)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
+    template_context = resolve_case_template_context(case_id, case_revision)
     report = normalize_primary_software_projection(report)
     attachments = report.setdefault("attachments", {})
     disc_result = apply_disc_sequence_to_attachments(attachments)
@@ -203,7 +204,6 @@ async def export_record_endpoint(
             report, validated_manifest,
         )
     report = project_ordered_legacy_report(report)
-    # 保存上传的图片到临时目录
     try:
         output_dir = os.path.join(OUTPUT_BASE, "exports")
         os.makedirs(output_dir, exist_ok=True)
@@ -217,7 +217,7 @@ async def export_record_endpoint(
                 photo_paths.append(photo_path)
             docx_path = generate_docx(
                 report, photo_paths=photo_paths, output_dir=output_dir,
-                archive_manifest=validated_manifest,
+                archive_manifest=validated_manifest, **template_context,
             )
         if validated_manifest is not None:
             observe_shadow_export(
