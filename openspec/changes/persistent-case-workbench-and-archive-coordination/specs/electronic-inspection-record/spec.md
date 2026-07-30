@@ -1,8 +1,8 @@
 # Electronic Inspection Record: Persistent Workbench Contract
 
 本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–2 已实现并
-确认的合同可以同步到 `openspec/specs/` 下的 living spec；Phase 3 已完成进度产品/架构决策
-及 T011–T015 已实现并完成定向自动验证，Phase 3 最终 gate 尚未执行；Phase 4–5 尚未实现。未实现合同仍只保留在本 delta spec 中，不得提前写成
+确认的合同可以同步到 `openspec/specs/` 下的 living spec；Phase 3 已实现完成、自动验证通过、
+轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 3 正式人工验收和 Phase 4–5 尚未完成。未实现合同仍只保留在本 delta spec 中，不得提前写成
 当前生产事实。
 
 ## Contract vocabulary

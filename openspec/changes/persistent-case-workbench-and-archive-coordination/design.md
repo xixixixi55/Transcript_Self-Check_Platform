@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：进行中。Phase 1–2 实现及自动验证已完成；Phase 3 T011–T015 实现及定向自动验证已完成，Phase 3 最终 gate 尚未执行；Demo-ready（有条件）但不是 Production-ready；`1D-017R`、Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 4–5 未开始
+> 设计状态：进行中。Phase 1–2 实现及自动验证已完成；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Demo-ready（有条件）但不是 Production-ready；Phase 3 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 4–5 未开始
 
 ## 1. 总体架构决策
 

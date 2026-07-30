@@ -1,9 +1,12 @@
 """Synthetic regression evidence for the Phase 3 WinRAR progress spike."""
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.probe_winrar_conpty_progress import assess_visible_runs
 from scripts.probe_winrar_progress import (

@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 T011–T015 实现及定向自动验证已完成，Phase 3 最终 gate 尚未执行；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4–5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -381,11 +381,13 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 ### Phase 3 gate
 
 - [x] 普通 pipe/ConPTY spike 已形成明确产品与技术决定：不读取 WinRAR CLI 连续百分比，采用 `workflow_milestone`；该项只关闭前置决策，不代表 T011–T015 或 Phase 3 验收完成。
-- [ ] 归档任务最多 6 个运行，资源不足排队且显示原因；不得假装启动 6 个 WinRAR。
-- [ ] `workflow_milestone` 只由真实归档阶段推进，固定、单调、持久化且刷新/重启可恢复；WinRAR 运行期间保持 30 并显示活动状态，不伪造连续百分比，同时现有 Legacy 显式压缩能力保持可用。
-- [ ] 案件工作台每张案件卡片以受控信息密度直接显示当前或最近归档任务摘要；WinRAR 主要使用 indeterminate 活动态和最多两行活动信息，状态化内容、响应式和无障碍合同通过；详情扩展信息不得替代卡片主入口或泄露到列表摘要。
-- [ ] 计划映射经校验后进入 Manifest，附件 3、Word 和完成状态只读取验证后的 Manifest。
-- [ ] 现有正式 inventory、变化、WinRAR、完整性、MD5、Manifest 和 Word 门控全量定向回归通过。
+- [x] 归档任务最多 6 个运行，资源不足排队且显示原因；不得假装启动 6 个 WinRAR。
+- [x] `workflow_milestone` 只由真实归档阶段推进，固定、单调、持久化且刷新/重启可恢复；WinRAR 运行期间保持 30 并显示活动状态，不伪造连续百分比，同时现有 Legacy 显式压缩能力保持可用。
+- [x] 案件工作台每张案件卡片以受控信息密度直接显示当前或最近归档任务摘要；WinRAR 主要使用 indeterminate 活动态和最多两行活动信息，状态化内容、响应式和无障碍合同通过；详情扩展信息不得替代卡片主入口或泄露到列表摘要。
+- [x] 计划映射经校验后进入 Manifest，附件 3、Word 和完成状态只读取验证后的 Manifest。
+- [x] 现有正式 inventory、变化、WinRAR、完整性、MD5、Manifest 和 Word 门控全量定向回归通过。
+- [x] Phase 3 阶段状态（2026-07-30）：实现完成、自动验证通过、轻量冒烟通过；等待 Phase 1–4 最终集成人工验收。
+- [ ] Phase 3 正式人工验收（并入 Phase 1–4 最终集成人工验收）；不得以本阶段合成测试或轻量冒烟替代。
 
 ## Phase 4 — 已审核预置模板
 
