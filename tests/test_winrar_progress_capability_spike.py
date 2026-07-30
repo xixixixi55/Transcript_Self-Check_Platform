@@ -1,11 +1,19 @@
 """Synthetic regression evidence for the Phase 3 WinRAR progress spike."""
 
+import os
+from pathlib import Path
+
+import pytest
+
+from scripts.probe_winrar_conpty_progress import assess_visible_runs
 from scripts.probe_winrar_progress import (
     assess_progress_runs,
     decide_adapter,
     extract_percentages,
     find_regressions,
 )
+from scripts.win32_conpty import ConPtyResult, run_conpty
+from scripts.win32_terminal_progress import visible_percentages
 
 
 def test_extracts_backspace_percentages_without_localized_text_dependency():
@@ -117,3 +125,56 @@ def test_adapter_requires_safe_failure_cancellation_and_legacy_silence():
         {"returnCode": 0, "reported100": False},
         silent,
     ) == "unsupported"
+
+
+def test_conpty_visible_state_preserves_real_overwrite_regressions():
+    output = (
+        b"\x1b[2J\x1b[H 16%\b\b\b\b 33%\b\b\b\b100%"
+        b"\r 22%\x1b[4D 44%\r\n"
+    )
+
+    percentages, controls = visible_percentages(output)
+    results = (
+        ConPtyResult(0, output, False, False, 10),
+        ConPtyResult(0, output, False, False, 10),
+    )
+
+    assert percentages == (16, 33, 100, 22, 44)
+    assert controls == {
+        "backspace": 8,
+        "carriageReturn": 2,
+        "lineFeed": 1,
+        "csi": 3,
+        "osc": 0,
+    }
+    assert assess_visible_runs(results)["regressionSamples"] == [
+        [[100, 22]],
+        [[100, 22]],
+    ]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY is Windows-only")
+def test_native_conpty_captures_current_terminal_state():
+    result = run_conpty(
+        Path(os.environ["SystemRoot"]) / "System32" / "cmd.exe",
+        ["/d", "/c", "echo SYNTHETIC_TEST_FIXTURE 10%"],
+        Path.cwd(),
+    )
+
+    assert result.return_code == 0
+    assert b"SYNTHETIC_TEST_FIXTURE" in result.output
+    assert visible_percentages(result.output)[0] == (10,)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY is Windows-only")
+def test_native_conpty_terminates_a_synthetic_child_process_tree():
+    result = run_conpty(
+        Path(os.environ["SystemRoot"]) / "System32" / "cmd.exe",
+        ["/d", "/c", "ping -n 30 127.0.0.1 > nul"],
+        Path.cwd(),
+        cancel_after_seconds=0.2,
+    )
+
+    assert result.cancelled is True
+    assert result.tree_termination_succeeded is True
+    assert result.return_code != 0

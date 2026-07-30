@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过，等待 Phase 1–4 最终集成人工验收。`1D-017R` 按当前统一验收策略延后到 Phase 1–4 实现后的最终集成阶段；Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 3–5 未开始。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策已完成，但 T011–T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -344,45 +344,46 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] Phase 2 阶段状态（2026-07-29）：实现完成、自动验证通过、轻量冒烟通过；等待 Phase 1–4 最终集成人工验收。
 - [ ] Phase 2 正式人工验收（并入 Phase 1–4 最终集成人工验收）；不得以本阶段合成测试或轻量冒烟替代。
 
-## Phase 3 — 归档映射、后台归档和真实进度
+## Phase 3 — 归档映射、后台归档和阶段里程碑进度
 
-**阶段目标**：在现有正式归档安全门控外包一层可恢复任务，不以任务化为理由削弱任何检查。
+**阶段目标**：在现有正式归档安全门控外包一层可恢复任务，以持久化 `workflow_milestone` 表达真实工作流阶段，并在案件工作台每张案件卡片直接展示当前或最近归档状态；不读取 WinRAR CLI 连续百分比，不以任务化为理由削弱任何检查。
 
 ### Phase 3 prerequisite — WinRAR progress capability spike
 
 - [x] 在进入 Phase 3 实现和验收前，使用 `SYNTHETIC/TEST/FIXTURE` 输入验证当前正式 WinRAR 版本是否能稳定提供可解释的实际进度信号；记录信号来源、解析稳定性、失败行为和百分比一致性，不记录真实案件或产物。2026-07-30 结论：当前 RAR 5.90 的控制台百分比流包含无标签回退，`-inul` Legacy 路径无进度输出，spike 未通过；详见 `winrar-progress-capability-spike.md` 和 `tests/test_winrar_progress_capability_spike.py`。
-- [ ] spike 未通过时暂停 Phase 3 完成门槛，先汇报并选择受支持 WinRAR 版本或适配方式；迁移期间保留现有 Legacy 显式压缩能力，不使用时间、动画或输出文件大小伪造百分比，也不直接让现有压缩失效。2026-07-30 已否决 RAR 7.23 x64 普通 pipe `-idn` 适配：单文件、多文件和分卷流均出现可重复回退，`-qo-` 不消除回退；失败/取消分类和 Legacy `-inul` 兼容通过。下一候选为独立 ConPTY spike，尚未验证，因此本项和 T011 继续阻塞。
+- [x] spike 未通过后的版本/适配决策已完成：2026-07-30 正式否决 RAR 5.90、RAR 7.23 x64 普通 pipe 和独立 ConPTY 的连续 CLI 百分比适配，采用固定、单调、可持久化、可恢复的 `workflow_milestone`；它只表示真实归档阶段，不表示 WinRAR 内部字节进度。禁止取最大值、钳制、平滑、过滤回退或按时间/文件/字节估算。WinRAR、RAR 分卷、Legacy 显式压缩及全部正式安全门控保持不变。该决策解除 T011 的前置阻塞，但不表示 T011–T015 已实现；实验依据见 `winrar-progress-capability-spike.md`。
 
 ### Layer 0/1/2 — Archive contracts
 
-- [ ] **T011** 在 `packages/shared/types/` 新增 `VolumeSlot`、`DiscMapping`、`ArchivePlanSnapshot`、`ProgressSnapshot`、进度能力状态、Legacy 压缩兼容状态、资源准入 DTO 和任务取消/重试 DTO；在 `packages/shared/constants/` 固化归档阶段权重与错误码；在 `packages/shared/utils/` 实现稳定槽位 reconcile、唯一编号和单调进度聚合。
-- [ ] **T011T** 在共享测试中覆盖初始连续编号、非连续唯一编号、空/重复拒绝、stable slot replan、增删槽位、Manifest 收敛和进度不回退。验证：Vitest。
+- [ ] **T011**（依赖：Phase 3 版本/适配决策）在 `packages/shared/types/` 新增或复用 `VolumeSlot`、`DiscMapping`、`ArchivePlanSnapshot`、`ProgressSnapshot`、Legacy 压缩兼容状态、资源准入和任务取消/重试 DTO；扩展现有 `TaskRecord`，复用既有状态、阶段、`percent`、时间、错误和取消字段，补充阶段序号/总数、`progress_kind=workflow_milestone`、`updated_at`、心跳、输出分卷数/总字节、最近输出变化、Worker 持有/恢复状态和 `allowed_actions`。另定义 `ArchiveTaskCardSummary` 或等价安全投影，只含卡片需要的状态、阶段、里程碑、展示时间、紧凑活动、安全失败摘要和允许操作，不暴露全部内部字段。在 SharedConstants 固化 `0/10/20/30/75/85/90/95/100` 阶段表、Worker 状态与错误码；在 SharedUtils 实现稳定槽位 reconcile、唯一编号、合法里程碑/Worker 状态转换及卡片允许操作规则。
+- [ ] **T011T**（依赖：T011）在共享测试中覆盖 stable slot/Manifest 收敛、固定里程碑、非法回退/跳门控拒绝、失败/取消最后阶段、Worker 持有/恢复转换、活动指标不得换算百分比、`allowed_actions`，以及卡片摘要不含 Worker ID、内部租约、路径、堆栈、技术日志或完整进程信息。验证：Vitest/typecheck。
 
 ### Layer 10/11/12 — Archive status UI
 
-- [ ] **T012** 新增 `useArchiveTask.ts`、`ArchiveStatusPanel.tsx`、`ArchiveVolumeMappingTable.tsx`、`ArchiveStartDialog.tsx`；在 `ReviewActionBar.tsx` 或现有导出操作区最左侧显示未压缩红色、真实阶段绿色进度、完成/失败和重试入口。
-- [ ] **T012T** 增加 RTL/E2E 合成任务测试；覆盖计划逐卷映射、唯一校验、replan 保留/新增/删除、暂不压缩、37%/68% 等实际快照展示和切换案件后任务继续。
+- [ ] **T012**（依赖：T011）扩展现有 `CaseCard.tsx` 和 `useTaskRecords.ts`，按需新增 `ArchiveStatusPanel.tsx`、`ArchiveVolumeMappingTable.tsx`、`ArchiveStartDialog.tsx`；不复制轮询事实源。卡片定位为归档任务摘要，默认只组织案件信息、状态/阶段、最多两行活动或状态摘要和主要操作。WinRAR 阶段突出阶段文字和 indeterminate 活动态，30% 仅作次要说明；运行态显示易读的已运行时间、分卷数、输出大小和相对最后活动时间。未归档、等待/恢复、运行、失败、取消和完成使用状态化内容替换；详情承载完整时间线、逐卷/MD5、Manifest、历史、日志和诊断。实现窄屏裁剪、长文本/大数字布局、受控按钮数量、非颜色状态文字、减少动态效果兼容和动画文字替代。
+- [ ] **T012T**（依赖：T012）增加 RTL/E2E 合成任务测试；至少覆盖运行中卡片四类信息和两行活动密度、大文件长期停留 WinRAR 阶段但心跳/活动摘要仍证明活跃、30% 不增长且仅为次要说明、失败/取消/恢复中/完成内容替换、未归档无空指标、刷新恢复、相对时间本地刷新不增加请求、长文号/长错误摘要/大数字、窄屏保留核心信息、减少动态效果、非颜色/非动画文字提示，以及默认卡片不泄露 Worker ID、本机路径、堆栈、日志或内部进程信息。组件测试场景对应 delta spec 的卡片主入口、状态替换、技术详情隔离和响应式/无障碍场景。
 
 ### Layer 20 — Archive metadata and process repositories
 
-- [ ] **T013** 新增 `packages/backend/app/repository/archive_plan_repository.py`、`archive_task_repository.py`、`archive_asset_repository.py`、`resource_snapshot_repository.py`；持久化计划版本、槽位 lineage、映射、进程绑定、临时目录和正式产物索引。
-- [ ] **T013T** 新增对应 pytest；覆盖事务重试、计划版本冲突、进程/临时目录恢复、正式产物索引独立于案件删除和不暴露原始路径。
+- [ ] **T013**（依赖：T011）新增 `packages/backend/app/repository/archive_plan_repository.py`、`archive_task_repository.py`、`archive_asset_repository.py`、`resource_snapshot_repository.py`；持久化计划/槽位/映射、阶段与里程碑、开始/更新/结束/心跳时间、输出总字节、分卷数、最近输出变化、Worker 持有/恢复、错误/取消、进程绑定、临时目录和正式产物索引。活动快照按受控节奏聚合写入，不为每个文件系统变化写数据库；内部诊断可比卡片摘要更完整，并提供当前/最近任务的安全投影查询。
+- [ ] **T013T**（依赖：T013）新增对应 pytest；覆盖事务/版本冲突、真实阶段原子持久化、心跳与活动快照节流、输出暂不变化不自动失败/取消、失败/取消最后阶段、刷新/重启重载、Worker 恢复状态、当前/最近任务选择、内部诊断与卡片安全投影隔离、正式产物独立于案件删除和路径不泄露。
 
 ### Layer 21 — Planner, scheduler and archive worker
 
-- [ ] **T014** 改造 `packages/backend/app/services/archive_planner_service.py` 为稳定槽位计划/replan；新增 `archive_mapping_service.py`、`archive_progress_service.py`、`archive_scheduler_service.py`、`archive_task_worker_service.py` 和 `resource_admission_service.py`。将现有 `archive_execution_service.py` 包装成阶段化 worker，保留完整 inventory、路径/链接/变化、WinRAR、完整性、MD5、Manifest 验证；进度适配只在 spike 通过后启用，不替换 Legacy 显式压缩路径。
-- [ ] **T014T** 新增 `tests/test_archive_mapping_service.py`、`tests/test_archive_progress_service.py`、`tests/test_archive_scheduler_service.py`、`tests/test_archive_task_worker_service.py`；覆盖 6 任务硬上限、资源不足排队、解析并行、阶段实际计数、spike 通过/未通过分支、无可靠信号时不显示假百分比、Legacy 压缩兼容、取消/重启/重试和安全门控回归。
+- [ ] **T014**（依赖：T011、T013）改造 planner 并新增 mapping/progress/scheduler/worker/resource-admission services。Worker 按受控频率写心跳，观察当前 attempt 受控 staging 中匹配分卷数量和总字节，节流更新活动摘要但不推算百分比；只在真实安全边界推进 `workflow_milestone`，WinRAR 期间固定 30。准确持久化进程退出、失败、取消和 Worker 所有权/恢复状态；服务重启后未重新取得任务所有权前保持恢复中/等待接管，取得任务记录所有权不等于连接旧 WinRAR、复用半成品或续压。保留 inventory、路径/链接/变化、WinRAR、完整性、MD5、Manifest、发布和 Legacy 显式压缩门控。
+- [ ] **T014T**（依赖：T014）新增 mapping/progress/scheduler/worker service 测试；覆盖并发/资源排队、真实门控推进、WinRAR 固定 30、心跳和分卷/字节活动更新、活动停滞不单独判失败或取消、节流、进程退出/失败/取消、重启恢复/等待接管/新 Worker 所有权、旧 WinRAR/半成品不接管、重试新 attempt、Legacy 兼容及全部正式安全门控。
 
 ### Layer 22/23 — Task API
 
-- [ ] **T015** 改造 `packages/backend/app/controllers/archive_controller.py`、`record_controller.py`，新增 `task_controller.py` 和 `packages/backend/app/routes/task_routes.py`；提供“立即开始/暂不压缩”、计划映射修改、任务取消/重试和进度查询，预览仍不创建完整 `ArchiveContext`。
-- [ ] **T015T** 新增 controller/route 集成测试；覆盖选择暂不压缩不启动 WinRAR、replan 自动返回新计划、Manifest 未验证不显示完成、失败原因可重试和错误不泄露路径。
+- [ ] **T015**（依赖：T011、T013、T014；对接 T012 卡片 DTO）改造 archive/record controllers 并新增 task controller/routes；提供归档决定、映射、取消/重试、任务详情/历史和进度查询。案件列表直接内嵌当前或最近归档任务的 `ArchiveTaskCardSummary`，供现有工作台轮询事实源展示阶段、里程碑、紧凑活动、展示时间、安全失败摘要和 `allowed_actions`；完整日志、历史、逐卷诊断和内部技术字段只由详情接口按安全投影返回。预览仍不创建完整 `ArchiveContext`。
+- [ ] **T015T**（依赖：T015）新增 controller/route 集成测试；覆盖列表无需额外任务轮询即可取得卡片摘要、摘要信息密度和状态替换所需字段、刷新/重启恢复、取消/重试权限、安全失败投影、Manifest 未验证不显示 100/完成、列表不返回 Worker ID/租约/路径/堆栈/日志/进程信息、详情接口与列表摘要边界，以及 T012 Hook 与真实 API 对接。
 
 ### Phase 3 gate
 
-- [ ] 当前正式 WinRAR 版本进度能力 spike 已通过，或已形成受支持版本/适配方式的明确产品与技术决定；未通过不得宣布 Phase 3 验收完成。
+- [x] 普通 pipe/ConPTY spike 已形成明确产品与技术决定：不读取 WinRAR CLI 连续百分比，采用 `workflow_milestone`；该项只关闭前置决策，不代表 T011–T015 或 Phase 3 验收完成。
 - [ ] 归档任务最多 6 个运行，资源不足排队且显示原因；不得假装启动 6 个 WinRAR。
-- [ ] 进度来自实际计数/已验证 WinRAR 信号，阶段和百分比单调、可解释；无信号不使用假进度，同时现有 Legacy 显式压缩能力保持可用。
+- [ ] `workflow_milestone` 只由真实归档阶段推进，固定、单调、持久化且刷新/重启可恢复；WinRAR 运行期间保持 30 并显示活动状态，不伪造连续百分比，同时现有 Legacy 显式压缩能力保持可用。
+- [ ] 案件工作台每张案件卡片以受控信息密度直接显示当前或最近归档任务摘要；WinRAR 主要使用 indeterminate 活动态和最多两行活动信息，状态化内容、响应式和无障碍合同通过；详情扩展信息不得替代卡片主入口或泄露到列表摘要。
 - [ ] 计划映射经校验后进入 Manifest，附件 3、Word 和完成状态只读取验证后的 Manifest。
 - [ ] 现有正式 inventory、变化、WinRAR、完整性、MD5、Manifest 和 Word 门控全量定向回归通过。
 
@@ -428,7 +429,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 ### Layer 10/11/12 — Integrated workbench UI
 
 - [ ] **T021** 完成案件工作台与任务、模板、来源和清理状态的后续整合；补充错误边界，不重新引入独立生成页面，也不增加 Canonical/Shadow 正式调用。
-- [ ] **T021T** 增加 `tests/e2e/persistent-case-workbench.spec.ts`；使用合成多案件、多任务和合成模板覆盖刷新/重启、6 卡片分页、切换案件、唯一租约、取消后删除、顺序一致、来源状态、真实进度、模板切换和产物保护。
+- [ ] **T021T** 增加 `tests/e2e/persistent-case-workbench.spec.ts`；使用合成多案件、多任务和合成模板覆盖刷新/重启、6 卡片分页、切换案件、唯一租约、取消后删除、顺序一致、来源状态、案件卡片 `workflow_milestone`、模板切换和产物保护。
 
 ### Layer 20/21 — Cleanup and recovery services
 

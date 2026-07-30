@@ -1,8 +1,9 @@
 # Electronic Inspection Record: Persistent Workbench Contract
 
-本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1 已实现并确认的
-合同可以同步到 `openspec/specs/` 下的 living spec；Phase 2–5 尚未实现的合同仍只保留在本
-delta spec 中，不得提前写成当前生产事实。
+本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–2 已实现并
+确认的合同可以同步到 `openspec/specs/` 下的 living spec；Phase 3 仅完成进度产品/架构决策，
+T011–T015 尚未实现；Phase 4–5 尚未实现。未实现合同仍只保留在本 delta spec 中，不得提前写成
+当前生产事实。
 
 ## Contract vocabulary
 
@@ -10,11 +11,13 @@ delta spec 中，不得提前写成当前生产事实。
 - CaseDraft：解析成功后的可编辑草稿；report 始终是 Legacy InspectionReport。
 - SourceRecord：受控来源记录，保存 opaque 来源 ID、允许根授权、内部路径、绑定关系和复核结果。
 - FieldState：可编辑字段、检材字段、人员项或附件图片组的来源与确认状态。
-- TaskRecord：可恢复的解析任务和最小归档尝试记录；本阶段不把它扩展为持久化归档 Worker。
+- TaskRecord：Phase 1 中是可恢复解析任务和最小归档尝试记录；Phase 3 将按本合同扩展为持久化归档 Worker 与案件卡片进度摘要的事实源。
 - VolumeSlot：不依赖预计 RAR 文件名的稳定逻辑分卷槽位。
 - VerifiedManifest：完整归档门控通过后生成并验证的正式 Manifest。
 
-## Requirement: 案件壳和多案件工作台可恢复
+## ADDED Requirements
+
+### Requirement: 案件壳和多案件工作台可恢复
 
 系统 MUST 在用户提交报告后立即分配稳定 case_id，创建案件壳和持久化解析任务。解析成功后才写入完整 Legacy InspectionReport；解析失败时保留失败任务卡片，但该记录不得成为可审核、可归档或可导出的正式草稿。案件名称与案件摘要独立，修改案件名称不得改变正式 RAR 基础名规则。
 
@@ -41,7 +44,7 @@ delta spec 中，不得提前写成当前生产事实。
 - **AND** 重启前已选择或开始立即压缩的案件转为 `archive_interrupted`，不得保持虚假的 `archive_queued` 或运行中状态
 - **AND** 重启前运行中的 WinRAR 任务不默认成功、不自动重连、不自动接管、不自动续跑
 
-## Requirement: 自动保存和编辑租约防止互相覆盖
+### Requirement: 自动保存和编辑租约防止互相覆盖
 
 编辑内容 MUST 通过后端自动保存并携带草稿 revision。编辑会话 MUST 使用心跳租约，建议每 15 秒续租，连续 2 分钟无心跳后才允许接管。强制接管必须警告并记录无认证身份审计信息。
 
@@ -65,7 +68,7 @@ delta spec 中，不得提前写成当前生产事实。
 - **AND** 新会话可以重新获取租约，不得被旧租约永久阻塞
 - **AND** 若用户执行强制接管，仍记录旧 session、新 client、部署实例和时间的审计事件
 
-## Requirement: 共享默认值与当前案件双写可区分
+### Requirement: 共享默认值与当前案件双写可区分
 
 后端持久化 MUST 是工作台共享默认值的事实源，当前作用域为部署实例/本地操作者，不表示
 多用户隔离。共享范围严格限定为完整文号、检查地点、检查方法、检查硬件、检查人员及顺序、
@@ -107,7 +110,7 @@ delta spec 中，不得提前写成当前生产事实。
 - **AND** 导入或忽略只能成功一次并记录无认证身份审计信息
 - **AND** 迁移完成前后，`localStorage` 均不得成为工作台事实源
 
-## Requirement: 解析值优先于共享默认值
+### Requirement: 解析值优先于共享默认值
 
 案件字段 MUST 遵循 user > report > system_default 的来源优先级，对应业务优先级为“当前案件用户手工修改 > Parser 非空解析值 > 非空共享默认值 > 系统默认值或空值”；pending 是独立确认状态。有效非空解析值来源为 report；报告为空、纯空格、缺失或空数组时才使用共享默认值；用户修改后来源统一为 user，保存和刷新不得退回较低优先级。
 
@@ -128,7 +131,7 @@ delta spec 中，不得提前写成当前生产事实。
 - **THEN** 对应 FieldState.source 统一变为 user
 - **AND** confirmation 按业务规则独立保留或转为 pending
 
-## Requirement: 字段来源和待确认状态可追踪
+### Requirement: 字段来源和待确认状态可追踪
 
 每个可编辑叶子字段、检材字段、人员项和附件图片组 MUST 有 FieldState，包含稳定字段路径、来源 report | user | system_default、确认状态 confirmed | pending 和 revision。纯派生不可编辑字段继承来源，不单独维护状态；来源颜色不得进入 Word，pending 必须有文字提示。
 
@@ -144,7 +147,7 @@ delta spec 中，不得提前写成当前生产事实。
 - **THEN** 页面显示待人工确认文字和影响范围
 - **AND** 正式导出执行现有确认门控
 
-## Requirement: SourceRecord 保护来源可访问性
+### Requirement: SourceRecord 保护来源可访问性
 
 系统 MUST 为每个工作台来源创建 SourceRecord，来源提交合同是本机报告目录路径而非 ZIP/RAR 或其他上传文件。后端 MUST 校验路径存在、是允许的目录类型、位于授权来源根、当前账户可访问且包含可识别报告结构，再保存 opaque source_id、允许根授权、source_type、case_id/task_id 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于受控后端 locator 中；API、卡片、草稿 DTO、任务 DTO、审计摘要、普通日志和 SQLite 公共字段不得暴露绝对路径；来源失效时必须要求重新选择目录。
 
@@ -185,7 +188,7 @@ delta spec 中，不得提前写成当前生产事实。
 - **THEN** 后端拒绝创建案件，并返回稳定原因码，不回显完整路径
 - **AND** 不复制整个报告目录到上传目录，也不把报告内容或完整文件列表写入 SQLite 公共数据
 
-## Requirement: 解析后压缩时机决策
+### Requirement: 解析后压缩时机决策
 
 解析成功后系统 MUST 明确询问用户立即开始压缩或稍后压缩。决策 MUST 使用案件 shell revision 原子持久化；解析失败案件不得出现该询问。
 
@@ -232,7 +235,7 @@ delta spec 中，不得提前写成当前生产事实。
 - **WHEN** 目录解析失败
 - **THEN** 案件卡片保留失败和重试入口，但不得返回或显示压缩时机询问
 
-## Requirement: Phase 1D 最小归档中断和产物保护
+### Requirement: Phase 1D 最小归档中断和产物保护
 
 Phase 1D MUST 只在现有 Legacy `/records/archive` 显式入口外围记录一次归档尝试，不建设持久化归档 Worker、调度器、并发准入、真实进度、断点续压或自动重试。归档尝试记录只用于识别重启前未完成的归档操作、证明自有 staging/进程资源归属、记录接受/完成/中断/失败/清理结果，以及支撑幂等恢复和正式产物保护；它不是新的正式归档输出链路。
 
@@ -351,7 +354,7 @@ builders still running.
 - **THEN** 只返回 opaque ID、稳定错误码和安全摘要
 - **AND** 不返回绝对路径、staging 物理路径、完整进程命令行或原始文件列表
 
-## Requirement: 检材和人员顺序由案件权威数组驱动
+### Requirement: 检材和人员顺序由案件权威数组驱动
 
 检材默认排序 MUST 使用自然升序；编号重复或无法识别时保持报告原始相对顺序。用户拖拽后，案件数组成为审核界面、正文、附件摘要、附件 1、附件 2、附件 3 和 Word 的唯一顺序来源。人员卡片顺序同理，并同步更新共享默认人员顺序。
 
@@ -364,7 +367,7 @@ builders still running.
 - **WHEN** 用户拖拽并保存
 - **THEN** 正文、附件和 Word 使用同一有序数组，不得下游二次排序
 
-## Requirement: 预计分卷和光盘编号映射以 Manifest 收敛
+### Requirement: 预计分卷和光盘编号映射以 Manifest 收敛
 
 每个 VolumeSlot MUST 有稳定身份、序号、计划版本和容量/输入范围。光盘编号默认由共享前缀连续生成；用户可修改完整编号但必须非空且在案件内唯一，允许不连续；刻录日期独立。replan 使用稳定槽位身份保留有效人工映射；新增槽位 pending，删除槽位清除映射；最终以验证后的 Manifest 为准。
 
@@ -381,9 +384,15 @@ builders still running.
 - **THEN** 验证后的 Manifest 保存最终槽位、卷序和光盘编号并成为权威
 - **AND** 草稿计划与 Manifest 不一致时阻止交付完成状态
 
-## Requirement: 后台任务真实进度和资源准入可恢复
+### Requirement: 后台归档阶段里程碑和资源准入可恢复
 
 解析任务可以并行；压缩任务最多 6 个 running，但不要求启动 6 个 WinRAR。调度器 MUST 综合配置化的磁盘空间、临时空间、CPU、IO、输入规模和当前进程数决定运行或排队。归档任务覆盖 inventory、规划、WinRAR、完整性、MD5、Manifest 生成和验证。
+
+归档进度类型 MUST 固定为 `workflow_milestone`。它表示工作流已经进入或完成的真实阶段，不表示 WinRAR 内部压缩字节百分比。版本化合同 MUST 使用固定且单调的 `0/10/20/30/75/85/90/95/100` 里程碑，分别对应等待归档或资源准入、核对 inventory/路径、前置检查通过、创建 RAR 分卷、RAR 成功后开始完整性校验、完整性通过、开始 MD5、开始写入并验证 Manifest、正式归档完成。
+
+TaskRecord MUST 复用已有 `status`、`stage`、`percent`、`created_at`、`started_at`、`finished_at`、`error_code`、`error_summary` 和 `cancel_requested`；Phase 3 增加或内部持久化 `stage_label`、1-based `stage_index`、版本化 `stage_count`、`progress_kind=workflow_milestone`、`updated_at`、`last_heartbeat_at`、`output_volume_count`、`output_bytes`、`last_output_change_at`、`worker_state` 和后端权威 `allowed_actions`。`percent` 在归档任务中表示固定里程碑；不得创建 `progress_percent`、`completed_at` 或 `error_message` 等同义字段。
+
+案件列表 MUST 使用 `ArchiveTaskCardSummary` 或等价安全摘要投影，不直接返回全部 TaskRecord/Worker 诊断字段。摘要只表达卡片所需的状态、阶段文字/序号、里程碑、展示时间、紧凑活动指标、安全失败摘要和 `allowed_actions`；不得包含 Worker ID、内部租约、绝对路径、堆栈、技术日志、完整错误代码、完整进程信息或完整任务历史。
 
 #### Scenario: 立即或稍后压缩及资源排队
 
@@ -392,11 +401,78 @@ builders still running.
 - **WHEN** 并发上限或资源准入不满足
 - **THEN** 新任务排队并显示原因
 
-#### Scenario: 真实单调进度
+#### Scenario: 真实阶段才推进固定里程碑
 
 - **WHEN** 任务进入归档阶段
-- **THEN** 百分比来自实际计数或已验证 WinRAR 信号并同时返回阶段
-- **AND** 百分比单调不下降，不使用时间、循环动画或输出文件大小冒充进度
+- **THEN** 后端只在真实阶段开始或门控成功时持久化对应的固定里程碑，并同时返回阶段文字
+- **AND** 里程碑单调不下降，不读取 WinRAR CLI 连续百分比，不使用历史最大值、钳制、平滑、过滤、时间、文件/字节数量或输出大小制造中间百分比
+- **AND** WinRAR 执行期间保持 30%，前端使用不确定进度动态条纹或加载图标作为主要活动反馈，`总体里程碑：30%` 只能作为次要说明
+- **AND** WinRAR 成功后才进入 75%，完整性通过后才进入 85%，MD5 和 Manifest 真实开始后才分别进入 90% 和 95%，完整 Manifest 验证及正式完成提交成功后才进入 100%
+
+#### Scenario: WinRAR 长耗时阶段以真实活动摘要证明仍在运行
+
+- **WHEN** 大文件归档长时间停留在创建 RAR 分卷阶段
+- **THEN** 案件卡片主要显示“归档中”“正在创建 RAR 分卷”“阶段 X / N”、indeterminate 活动态、已运行时间、任务状态、最近心跳、当前检测分卷数量和当前输出总字节数
+- **AND** `output_volume_count` 只表示当前 attempt 受控 staging 中匹配分卷名规则的文件数量，可能包含正在写入的当前卷
+- **AND** `output_bytes` 只表示这些匹配文件当前在磁盘上已经写出的总字节数
+- **AND** 两项活动指标不得换算为压缩完成比例，不得显示“已完成若干分卷，占总任务百分比”
+- **AND** 输出大小暂时不变化不得单独判定失败、卡死或触发自动取消，因为任务可能处于 CPU 密集或缓冲阶段
+
+#### Scenario: Worker 心跳和所有权状态准确
+
+- **WHEN** Worker 持有并执行当前归档任务
+- **THEN** Worker 按受控频率更新 `last_heartbeat_at`，并节流写入聚合后的分卷数、输出字节数和 `last_output_change_at`
+- **AND** 不得为每个文件系统变化事件写数据库
+- **WHEN** Worker 未持有任务、正在恢复或等待接管
+- **THEN** `worker_state` 和卡片文字准确显示未分配、恢复中或等待接管，不得显示“仍在运行”
+
+#### Scenario: 失败取消和重启恢复最后阶段
+
+- **WHEN** 归档任务失败、取消或被服务重启中断
+- **THEN** 持久化任务状态、当前或失败阶段、该阶段对应的最后里程碑、时间和安全错误信息
+- **AND** 失败或取消不得进入 100%，半成品 RAR/Manifest 不得成为正式结果
+- **AND** 页面刷新从 TaskRecord 恢复阶段、里程碑、开始/更新时间、心跳、输出字节、分卷数、最近输出变化、Worker 状态、失败/取消和允许操作
+- **AND** 服务重启先恢复最后确认里程碑并显示恢复中或等待接管；Worker 重新取得持久化任务所有权后才更新心跳并显示仍在运行
+- **AND** 重新取得任务所有权不表示自动连接旧 WinRAR、复用旧半成品或断点续压
+
+#### Scenario: 案件工作台卡片是主进度入口
+
+- **WHEN** 用户打开案件工作台而未进入案件详情
+- **THEN** 每张案件卡片直接显示该案件当前或最近一次归档任务摘要，默认最多组织案件基本信息、状态/阶段、最多两行活动或状态摘要和主要操作四类内容
+- **AND** 允许操作至少按状态表达取消、重试或查看结果；前端不得只显示数字百分比
+- **AND** 创建 RAR 分卷阶段不得以静止 30% 进度条作为主要反馈，indeterminate 动画必须同时提供“任务仍在运行”或恢复状态等无障碍文字，不能只依赖颜色或动画
+- **AND** 不得以与案件卡片分离的归档任务卡片作为唯一入口
+- **AND** 案件详情可以额外显示任务日志、分卷清单和历史记录，但不得替代案件卡片摘要
+
+#### Scenario: 卡片内容随归档状态替换
+
+- **WHEN** 案件尚未归档
+- **THEN** 卡片显示未归档状态和归档前检查/归档入口，不显示空进度或空活动指标
+- **WHEN** 任务等待执行、恢复中或等待 Worker 接管
+- **THEN** 卡片显示等待/恢复文字和最后确认里程碑，不得显示“仍在运行”
+- **WHEN** 任务正在执行
+- **THEN** 卡片突出当前阶段，显示活动文字、已运行时间、取消操作，并将易读的分卷数量/输出大小与相对最后活动时间限制在最多两行
+- **WHEN** 任务失败
+- **THEN** 安全可理解的失败摘要、失败阶段/时间和适用的已生成分卷数替换普通活动指标，并提供查看原因和重试
+- **WHEN** 任务已取消
+- **THEN** 卡片显示取消时阶段、取消时间和重新归档或查看详情操作
+- **WHEN** 任务已完成
+- **THEN** 卡片压缩显示完成、100%、总分卷数、完成时间和查看结果，不再显示心跳、Worker 状态或动态动画
+
+#### Scenario: 默认卡片不展开技术详情
+
+- **WHEN** 当前或历史归档任务包含完整阶段时间线、逐卷文件名/大小/MD5、Manifest 路径/内容、Worker ID、内部租约、精确心跳时间戳、完整错误代码、堆栈、技术日志、重试/调度诊断或进程信息
+- **THEN** 默认案件卡片不平铺这些字段，只提供归档详情或查看结果入口
+- **AND** 案件列表 API 不返回绝对路径、堆栈、Worker ID、内部租约或完整技术日志
+
+#### Scenario: 卡片响应式和无障碍
+
+- **WHEN** 卡片处于窄屏、长文号、长失败摘要或大数字场景
+- **THEN** 次要活动指标可以隐藏或收起，但案件信息、状态、阶段文字和主要操作必须保留，内容不得撑破布局
+- **AND** 次要操作收进更多菜单或详情入口，按钮数量保持受控
+- **WHEN** 用户不支持动画或启用减少动态效果
+- **THEN** 仍通过明确文字得知“正在创建 RAR 分卷”或当前恢复状态
+- **AND** 成功、失败、取消和运行中状态不得只依赖颜色；相对活动时间在前端本地刷新，不因此增加后端请求
 
 #### Scenario: 重启中断而非自动接管
 
@@ -405,23 +481,25 @@ builders still running.
 - **AND** 只终止能够证明由本系统启动的进程树，清理本系统拥有的 staging，不信任或发布半成品 RAR/Manifest
 - **AND** 用户确认后重新执行，不实现断点续压或 WinRAR 重连
 
-## Requirement: WinRAR 进度能力先验收再收口
+### Requirement: WinRAR 进度策略决策保留 Legacy 安全边界
 
-Phase 3 开始前 MUST 完成当前正式 WinRAR 版本的进度能力 spike。真实百分比未验证前，Phase 3 不得宣布验收完成；迁移期间必须保留现有 Legacy 显式压缩能力。当前版本不支持可靠百分比时，必须先汇报并选择受支持版本或适配方式，不得用未验证策略让现有压缩全部失效。
+Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构决策。RAR 5.90、RAR 7.23 普通 pipe 及 RAR 7.23 ConPTY 的合成实验已经证明 CLI 百分比混合不同作用域且可重复回退。Phase 3 MUST NOT 读取连续 WinRAR 百分比，而 MUST 使用 `workflow_milestone`。现有 WinRAR、RAR 分卷、Legacy 显式压缩、inventory、路径/变化、完整性、MD5、Manifest、Word 和发布门控保持不变。
 
-#### Scenario: spike 通过后进入 Phase 3
+#### Scenario: 失败 spike 形成明确适配决定
 
-- **WHEN** spike 证明受支持 WinRAR 版本可以提供稳定、可解释进度
-- **THEN** Phase 3 才允许进入真实进度实现和验收
-- **AND** 证据使用合成输入和外部环境记录
+- **WHEN** 普通 pipe 和 ConPTY spike 均证明 WinRAR CLI 百分比不可作为稳定总进度
+- **THEN** 产品/架构决定采用固定 `workflow_milestone`，完成版本/适配前置决策并允许 T011 按任务顺序开始
+- **AND** spike 文档和合成测试继续作为放弃连续 CLI 百分比的证据
+- **AND** 该决定本身不表示 T011–T015 已实现或 Phase 3 已验收
 
-#### Scenario: spike 未通过时保留 Legacy
+#### Scenario: 里程碑适配不削弱 Legacy
 
-- **WHEN** 当前版本无法提供可靠百分比
-- **THEN** 系统报告能力缺口并暂停 Phase 3 完成门槛
-- **AND** 迁移期间保留 Legacy 显式压缩，不伪造百分比，也不直接让现有压缩失效
+- **WHEN** Phase 3 后台任务包装现有归档执行
+- **THEN** WinRAR 运行期间只报告“正在创建 RAR 分卷”的阶段里程碑和活动状态
+- **AND** 不解析或推断内部连续百分比，不改变 RAR 分卷或基础名规则
+- **AND** 任一既有正式安全门控失败时不得推进到后续里程碑或正式完成
 
-## Requirement: Word 下载名称与正式产物隔离
+### Requirement: Word 下载名称与正式产物隔离
 
 每次点击导出 Word 文档 MUST 弹出文件名输入框，默认值为 文号.docx；文号为空时默认值为空。不记忆上次输入；未输入 .docx 时自动补全；取消不导出。继续校验 Windows 非法字符和空名称。下载名称只控制下载名，服务器物理文件名必须唯一、安全、不可覆盖。
 
@@ -432,7 +510,7 @@ Phase 3 开始前 MUST 完成当前正式 WinRAR 版本的进度能力 spike。�
 - **WHEN** 用户输入合法名称
 - **THEN** 下载名按输入补全，服务器物理文件使用唯一安全名且不覆盖正式产物
 
-## Requirement: 预置模板版本可复现且切换不触发归档
+### Requirement: 预置模板版本可复现且切换不触发归档
 
 系统只允许选择已注册且审核通过的模板版本。每个版本 MUST 有独立模板 ID、版本号、指纹、校验规则和验收记录。案件保存所选模板及版本。切换模板不重新压缩、不重新生成 Manifest，仅使旧 Word 失效；下次导出重新校验模板并生成 Word。
 
@@ -448,7 +526,7 @@ Phase 3 开始前 MUST 完成当前正式 WinRAR 版本的进度能力 spike。�
 - **THEN** 后端按 ID、版本、指纹和规则重新校验并执行现有 VML、分页、表格、附件和 Word 安全门控
 - **AND** 校验失败时不发布 Word
 
-## Requirement: 无登录环境的审计身份不冒充认证身份
+### Requirement: 无登录环境的审计身份不冒充认证身份
 
 强制接管、默认值迁移、共享默认值修改和重要任务操作 MUST 记录 client instance ID、session ID、可选本地显示名称、部署实例和时间。系统不得把这些字段描述为真实人员身份或认证结果。
 
@@ -458,7 +536,7 @@ Phase 3 开始前 MUST 完成当前正式 WinRAR 版本的进度能力 spike。�
 - **THEN** 审计记录保存上述无认证身份字段集合
 - **AND** 界面显示为本地会话审计，不显示已认证人员
 
-## Requirement: SQLite 只保存业务 DTO 和 opaque 资产引用
+### Requirement: SQLite 只保存业务 DTO 和 opaque 资产引用
 
 SQLite MUST 只保存案件业务 DTO、任务/租约/版本/索引元数据、SourceRecord 和 opaque asset 引用，不保存 Base64 图片、完整 HTML、原始 JSON 集合或其他大对象。图片、来源快照、缓存、临时文件和正式产物继续保存于受控文件系统资产。
 
@@ -474,7 +552,7 @@ SQLite MUST 只保存案件业务 DTO、任务/租约/版本/索引元数据、S
 - **THEN** SQLite 记录只包含可迁移业务 DTO 和元数据
 - **AND** Base64、完整 HTML、原始 JSON 集合和不可控二进制被拒绝写入
 
-## Requirement: 案件清理保护正式产物
+### Requirement: 案件清理保护正式产物
 
 案件记录、草稿、运行任务和正式 RAR/Manifest/Word MUST 独立管理。成功导出后，案件卡片、草稿和任务记录默认保留 30 天，保留时间可配置；正式产物不因该策略自动删除。正在解析、压缩、尚未导出或失败待重试的案件不得自动清理。
 
@@ -491,7 +569,7 @@ SQLite MUST 只保存案件业务 DTO、任务/租约/版本/索引元数据、S
 - **WHEN** 用户请求删除正在解析或压缩的案件
 - **THEN** 系统要求先取消任务、等待自有进程结束及 staging 清理完成，案件记录删除仍不删除正式产物
 
-## Requirement: Legacy 正式边界和 Shadow 暂停不被削弱
+### Requirement: Legacy 正式边界和 Shadow 暂停不被削弱
 
 所有正式 Word、RAR 和 Manifest MUST 继续由 Legacy 链路生成和验证。案件草稿保存 Legacy InspectionReport，不要求 Canonical 才能审核或导出。Shadow 比较不参与案件状态、进度、门控或正式产物。
 
@@ -507,7 +585,7 @@ SQLite MUST 只保存案件业务 DTO、任务/租约/版本/索引元数据、S
 - **THEN** 不启动 Shadow 真实样本治理，不调用 Canonical 作为正式输入
 - **AND** 未来比较只能在独立边界和明确开关下进行
 
-## Requirement: 案件工作台图片资产可持久化恢复
+### Requirement: 案件工作台图片资产可持久化恢复
 
 工作台 MUST 将用户新增、替换和删除的图片绑定到 `case_id`，并将图片二进制保存到受控应用资产存储；CaseDraft、API 和日志 MUST 只保存 opaque 资产引用、指纹和安全元数据，不得保存 Base64、完整二进制或服务器绝对路径。
 
@@ -529,7 +607,7 @@ SQLite MUST 只保存案件业务 DTO、任务/租约/版本/索引元数据、S
 - **THEN** 资产列表、预览或读取接口返回稳定可恢复错误，工作台提示重新上传
 - **AND** Word 预览/导出不得静默生成缺图结果，正式模板和 Legacy 输出规则保持不变
 
-## Requirement: 案件工作台承接完整生成笔录能力
+### Requirement: 案件工作台承接完整生成笔录能力
 
 案件工作台 MUST be the primary production entry for electronic inspection records. It MUST
 use the same Legacy `InspectionReport` field contract, validation rules, date/time handling,

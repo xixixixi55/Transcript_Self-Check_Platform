@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：进行中。Phase 1 实现、历史阶段合成验收和自动门控已完成，Demo-ready（有条件）但不是 Production-ready；`1D-017R` 按当前统一验收策略延后到 Phase 1–4 实现后的最终集成阶段，Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 2–5 未开始
+> 设计状态：进行中。Phase 1–2 实现及自动验证已完成；Phase 3 进度产品/架构决策已完成但 T011–T015 未开始；Demo-ready（有条件）但不是 Production-ready；`1D-017R`、Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 4–5 未开始
 
 ## 1. 总体架构决策
 
@@ -35,7 +35,7 @@
 
 **决定**：`TaskRecord` 是解析任务和最小归档尝试记录的状态边界；它不是本阶段的调度器或持久化归档 Worker。任务有 `task_id`、`case_id`、类型、状态、阶段、进度快照、输入版本、尝试次数、进程标识、错误码、取消请求、创建/开始/结束时间。服务重启时，解析任务按既有 `queued`/`running`/`cancelling` 到 `failed_retryable`/`interrupted` 的合同恢复；已经进入现有 Legacy 显式归档入口的归档尝试转为 `interrupted`，案件生命周期转为 `archive_interrupted`。恢复只等待用户确认后重新执行，不自动重连、接管、等待或重新开始 WinRAR。
 
-**理由**：把“后台仍在运行”“已中断”“可重试”“需要人工确认”区分开，才能支持多案件、取消、删除保护和真实进度，同时避免把半成品 RAR/Manifest 当作正式结果。
+**理由**：把“后台仍在运行”“已中断”“可重试”“需要人工确认”区分开，才能支持多案件、取消、删除保护和可恢复的阶段里程碑，同时避免把半成品 RAR/Manifest 当作正式结果。
 
 ### D-003A：Phase 1D 只记录归档尝试，不建设归档 Worker
 
@@ -92,7 +92,8 @@ Phase 1D 在现有 `/records/archive` Legacy 显式入口外围增加最小归�
 | `SharedDefaults` | singleton `deployment_id`, `revision`, 文号/地点/方法/硬件/有序人员/光盘前缀 | 后端持久化的部署实例/本地操作者作用域事实源；草稿成功保存时仅稀疏更新用户明确修改的非空字段，后续新案件仅在 Parser 对应值为空时继承，已有案件不回写 |
 | `FieldState` | `field_path`, `subject_id`, `source`, `confirmation`, `revision`, `last_changed_at` | 来源状态覆盖可编辑叶子、检材、人员、图片组；派生显示字段不单独建状态 |
 | `EditLease` | `case_id`, `session_id`, owner token, `last_heartbeat_at`, `expires_at`, takeover audit | 一个案件最多一个有效租约；15 秒建议心跳，2 分钟失联可接管 |
-| `TaskRecord` | `task_id`, `case_id`, `kind`, `status`, `stage`, `percent`, counters, input revision, retry/cancel/error | 任务状态和恢复依据；压缩运行数硬上限 6 |
+| `TaskRecord` | existing task identity/status/stage/percent/timestamps/error/cancel fields; Phase 3 persists stage ordinal, heartbeat, output activity, worker ownership/recovery and allowed-action facts | 后端任务、恢复和诊断事实源；`percent` 在归档任务中只表示里程碑；可以包含不进入列表 DTO 的内部字段 |
+| `ArchiveTaskCardSummary` | safe projection of case/task status, stage label/index/count, milestone, display times, compact activity, safe failure summary and allowed actions | 案件列表卡片专用摘要；不包含 Worker ID、路径、堆栈、日志、完整错误码、进程或内部租约 |
 | `SourceRecord` | opaque `source_id`, internal path, allowed root grant, source type, case/task refs, metadata/fingerprint, accessibility/review status | 来源授权与重启复核权威；绝对路径只存在后端受控存储 |
 | `ArchivePlan` | `plan_id`, `plan_revision`, input inventory revision, ordered `volume_slots`, mapping revision | 预计计划不是正式依据；最终由 VerifiedManifest 收敛 |
 | `VolumeSlot` | stable `slot_id`, ordinal, logical span/capacity, status, `disc_mapping` | 槽位身份独立于预计文件名，replan 尽量沿用 |
@@ -127,22 +128,35 @@ EXPORTED -> RECORD_RETENTION_EXPIRED -> RECORD_CLEANED
 
 ### 2.3 任务状态和进度
 
-任务状态：`queued | running | cancelling | interrupted | succeeded | failed_retryable | failed_terminal | cancelled | blocked`。归档阶段：`inventory | planning | winrar | integrity | md5 | manifest`。
+任务状态：`queued | running | cancelling | interrupted | succeeded | failed_retryable | failed_terminal | cancelled | blocked`。归档执行阶段至少区分 `queued | inventory | preflight_verified | winrar | integrity | integrity_verified | md5 | manifest | completed`。
 
 Phase 1D 不新增归档调度或真实进度语义。归档尝试的 `interrupted` 只表示执行未完成和需要用户重新确认，不表示可以续跑、估算进度或恢复旧 WinRAR。
 
-默认权重固定在版本化常量中：inventory 15%、planning/replan 10%、WinRAR 45%、完整性校验 10%、MD5 15%、Manifest 生成和验证 5%。实际实现不得在组件内重复硬编码；阶段权重由 SharedConstants 提供。
+Phase 3 的进度种类固定为 `workflow_milestone`，表示归档工作流已经进入或完成的真实阶段，不表示 WinRAR 内部压缩字节百分比。里程碑由 SharedConstants 版本化定义，前端不得重复硬编码：
 
-阶段进度必须使用实际计数或受支持的 WinRAR 结构化进度信号：
+| 百分比 | 阶段 | 阶段文字 |
+|---:|---|---|
+| 0 | `queued` | 等待归档或资源准入 |
+| 10 | `inventory` | 正在核对文件清单与路径 |
+| 20 | `preflight_verified` | 归档前置检查通过 |
+| 30 | `winrar` | 正在创建 RAR 分卷 |
+| 75 | `integrity` | RAR 分卷创建完成，正在校验 |
+| 85 | `integrity_verified` | 分卷完整性校验通过 |
+| 90 | `md5` | 正在计算 MD5 |
+| 95 | `manifest` | 正在写入并验证 Manifest |
+| 100 | `completed` | 归档完成 |
 
-```text
-stagePercent = clamp(completedUnits / max(totalUnits, 1) * 100, 0, 100)
-taskPercent = floor(sum(weight[i] * stagePercent[i]) / 100)
-```
+只有对应真实阶段开始或门控成功时才持久化下一里程碑。WinRAR 进程运行期间保持 30，使用动态条纹或加载图标表示仍在运行，不允许数值随时间、输入/输出字节、文件数或视觉输出自动增长。WinRAR 成功退出后才进入 75；完整性门控通过后才进入 85；MD5 和 Manifest 分别在真实阶段开始时进入 90 和 95；只有完整 Manifest 验证和正式完成提交成功后才进入 100。
 
-为防止 replan 造成回退，任务保存每个阶段的 `reported_percent`，只允许取历史最大值；replan 发生时重新记录计划版本和原因，但不能用新总数把已展示百分比降低。阶段文字必须同时说明“规划重算/等待资源/正在 WinRAR”等当前状态。
+失败、取消或中断保存当前执行阶段、该阶段对应的最后里程碑、稳定错误码和安全错误摘要；不得为显示单调而取 WinRAR 历史最大值、钳制、平滑、过滤回退或估算。复用既有 `created_at`、`started_at`、`finished_at`、`error_code`、`error_summary` 和 `cancel_requested`，新增 `updated_at` 支撑运行/完成时间展示；后端状态机通过 `allowed_actions` 权威表达 `cancel`、`retry` 或 `view_result`。
 
-Phase 3 开始前必须先完成当前正式 WinRAR 版本的进度能力 spike，验证信号来源、解析稳定性、失败行为和合成输入下的百分比一致性。spike 未通过时，Phase 3 不得宣布完成；迁移期间保留现有 Legacy 显式压缩路径，不用时间、循环动画或输出文件大小冒充百分比，也不因此直接让现有压缩全部失效。若当前版本能力不足，先汇报并选择受支持版本或适配方式，再决定新任务进度接入。
+创建 RAR 分卷阶段的卡片主要反馈是 indeterminate 活动态，而不是静止的 30% 进度条。摘要同时提供 1-based `stage_index`、版本化 `stage_count`、`last_heartbeat_at`、`output_volume_count`、`output_bytes`、`last_output_change_at` 和 `worker_state`。`output_volume_count` 是当前 attempt 受控 staging 中匹配分卷名规则的文件数量，可能包含正在写入的当前卷；`output_bytes` 是这些匹配文件当前在磁盘上的总字节数。两者只证明输出活动，不能除以计划卷数、输入大小或任何估计值形成百分比。
+
+Worker 按受控频率更新心跳，并节流聚合后的输出活动快照；不得把每个文件系统变化事件直接写入数据库。输出大小暂时不变不能单独判定卡死、失败或触发取消，因为 WinRAR 可能处于 CPU 密集或缓冲阶段。`worker_state` 至少区分未分配、启动中、持有且运行、恢复中、等待接管和已释放；只有持有当前任务且运行的 Worker 才能让卡片显示“仍在运行”。
+
+刷新后从持久化 `TaskRecord` 恢复阶段、里程碑、时间、心跳、输出活动、失败/取消和允许操作。服务重启先恢复最后确认的里程碑并进入恢复中/等待接管；Worker 重新取得持久化任务所有权后才更新心跳和活动摘要。这里的“重新接管”不表示自动连接旧 WinRAR、复用旧半成品或续压；旧进程和 staging 仍遵循归属证明、interrupted、新 attempt 和用户确认合同。
+
+RAR 5.90、RAR 7.23 普通 pipe 及 RAR 7.23 ConPTY spike 已证明 CLI 百分比混合不同作用域且可重复回退。产品/架构决定是不再解析连续 WinRAR 百分比，而采用上述 `workflow_milestone`；该决定完成 Phase 3 版本/适配前置项，同时保留 WinRAR、分卷、Manifest、Legacy 显式压缩和全部安全门控。实验依据见 `winrar-progress-capability-spike.md`。
 
 ## 3. 顺序、来源和 Legacy 投影
 
@@ -237,7 +251,7 @@ replan 接收上一版 `VolumeSlot[]` 和新规划结果，使用槽位 lineage/
 
 准入配置保存在部署配置中并有版本；不允许前端覆盖安全阈值。任务运行中若资源降至保护阈值，调度器停止启动新任务并可请求当前任务有序取消；不强杀已写入的正式产物。WinRAR 进程必须由任务记录绑定。服务重启时不自动重连或接管 WinRAR：先把原 running 任务标记为 `interrupted`/`failed_retryable`，只终止能够证明由本系统启动的进程树，清理本系统拥有的 staging，并将半成品 RAR/Manifest 标记为不可发布；用户确认后重新执行。断点续压和 WinRAR 重连不在本包范围内。
 
-上述调度器、资源准入和真实进度属于 Phase 3，不在 Phase 1D 实现。Phase 1D 只在现有同步 Legacy 归档调用外围登记最小归档尝试和恢复日志；它不创建持久化归档 Worker，不维护归档队列，不自动拉起新进程，也不把 `TaskRecord.percent` 当作归档进度权威。
+上述调度器、资源准入和 `workflow_milestone` 属于 Phase 3，不在 Phase 1D 实现。Phase 1D 只在现有同步 Legacy 归档调用外围登记最小归档尝试和恢复日志；它不创建持久化归档 Worker，不维护归档队列，不自动拉起新进程，也不把旧 `TaskRecord.percent` 当作归档进度权威。
 
 ## 6. API 和前端编排
 
@@ -255,7 +269,20 @@ Layer 0 只定义 DTO 和错误合同，建议路由族如下；具体路径实�
 | `/workbench/cases/{case_id}/template` | 读写案件模板引用并使旧 Word 失效 |
 | 现有 `/records/*` | Legacy 解析、归档和 Word 兼容适配；不得删除正式安全门控 |
 
-自动保存接口使用 `If-Match`/草稿 revision 或等价字段；案件字段双写接口必须分别返回 draft save 和 shared-default save 状态。任务状态可用短轮询起步，但状态源必须是后端任务记录，后续可替换为 SSE 而不改变 DTO。前端工作台只消费案件卡片 DTO，审核页按 `case_id` 加载完整草稿和租约，不保留第二份“正式顺序”，也不接触 SourceRecord 的绝对路径。
+自动保存接口使用 `If-Match`/草稿 revision 或等价字段；案件字段双写接口必须分别返回 draft save 和 shared-default save 状态。任务状态可用现有工作台轮询起步，但状态源必须是后端任务记录，后续可替换为 SSE 而不改变 DTO；案件卡片不得建立第二套轮询事实源。案件列表 DTO 直接内嵌当前或最近一次归档任务的 `ArchiveTaskCardSummary`，完整日志、历史和逐卷诊断由详情接口提供。
+
+卡片默认最多组织四类内容：案件基本信息；当前归档状态和阶段；最多两行活动或状态摘要；受控的主要操作。各状态采用替换而非累加：
+
+- 未归档：状态和归档前检查/归档入口，不渲染空进度或活动占位。
+- 等待/恢复：最后确认里程碑和等待执行、恢复中或等待 Worker 接管文字，不显示“仍在运行”。
+- 运行中：突出阶段文字；WinRAR 阶段显示 indeterminate 动画、阶段 X/N、已运行时间，两行内显示易读分卷数/输出大小和相对最后活动时间；30% 仅作次要说明。
+- 失败：安全可理解的失败摘要、失败阶段/时间和适用的已生成卷数替换普通活动指标；提供查看原因和重试。
+- 已取消：取消状态、所在阶段、取消时间以及重新归档/详情入口。
+- 已完成：压缩为完成状态、100%、总分卷数、完成时间和查看结果；不再显示心跳、Worker 状态或动画。
+
+完整阶段时间线、逐卷文件名/大小/MD5、Manifest 路径/内容、历史任务、Worker ID、内部租约、精确心跳时间戳、完整错误代码、堆栈、技术日志、重试/调度诊断和进程信息不进入默认卡片。次要操作进入更多菜单或详情入口。相对时间可由已有摘要时间在浏览器本地刷新，不因此增加后端请求。
+
+窄屏可隐藏次要活动指标，但必须保留案件信息、状态、阶段文字和主要操作。状态不能只靠颜色；indeterminate 动画必须配套文字，并尊重减少动态效果设置。长文号、长错误摘要和大数字必须截断、换行或安全格式化，不能撑破卡片或破坏多卡片快速扫描。
 
 Phase 1B 的实际 API 入口为 `/api/v1/workbench/*`：工作台通过 JSON
 `POST /workbench/cases` 登记本机报告目录路径。服务使用
@@ -300,7 +327,7 @@ DTO、任务、审计摘要、日志和错误消息不返回绝对路径。来�
 |---|---|---|---|
 | 1 | CaseDraft/Defaults/Task/Lease/Workbench v1 | 现有 Legacy parse/export 继续可用 | 不读取页面 state 推断后端草稿 |
 | 2 | Order/Inspector/Provenance/DownloadName v1 | 只依赖阶段 1 的版本化草稿 DTO；可用合成草稿测试 | 不要求阶段 3 归档完成才能保存编辑 |
-| 3 | ArchivePlan/Mapping/TaskProgress v1 | 依赖阶段 1 task/asset contract；Legacy 归档门控保持原实现 | 不用旧预计文件名、RAR 大小或假动画作为权威 |
+| 3 | ArchivePlan/Mapping/WorkflowMilestone v1 | 依赖阶段 1 task/asset contract；WinRAR 进度策略决策已完成；Legacy 归档门控保持原实现 | 不解析 CLI 连续百分比，不用旧预计文件名、RAR 大小、时间或动画作为百分比权威 |
 | 4 | TemplateRegistry/TemplateRef v1 | 依赖案件草稿和 Word export DTO；可用注册 fixture | 不要求重新压缩或重建 Manifest |
 | 5 | integrated acceptance/cleanup boundary | 阶段 1-4 的合同和定向验收证据 | 不把 Shadow 真实样本差异治理混入验收 |
 
@@ -327,7 +354,7 @@ The workbench submission request performs only source authorization and bounded 
 
 - 现有 `POST /records/parse`、`/records/archive`、`/records/export` 在迁移期间保留 Legacy DTO 适配；新工作台调用新路由并通过共享类型通信。
 - 归档阶段可把现有同步执行封装为一个可持久化任务 worker，先不重写 `ArchiveExecutionService` 的安全检查；完成一项门控才更新任务阶段。
-- WinRAR 进度能力必须在 Phase 3 前以 spike 验证。spike 未通过时，保留现有 Legacy 显式压缩路径，不能用新进度门控直接让现有压缩失效；断点续压和重连不作为迁移方案。
+- WinRAR pipe/ConPTY spike 的能力结论保留为设计证据；Phase 3 不读取 CLI 连续百分比，只由真实门控推进 `workflow_milestone`。现有 Legacy 显式压缩路径保持可用；断点续压和重连不作为迁移方案。
 - 预览沿用最近修复的轻量路径，不提前创建完整 `ArchiveContext`；完整 inventory、WinRAR 和 Manifest 仍只在明确归档动作后运行。
 
 ## 11. Phase 1C 统一生产入口收敛
@@ -349,13 +376,13 @@ The workbench submission request performs only source authorization and bounded 
 
 ## 11. 测试设计
 
-- SharedUtils：自然排序回退、编号唯一性、文件名校验、进度单调聚合、状态迁移边界、解析/默认优先级和双写结果聚合。
+- SharedUtils：自然排序回退、编号唯一性、文件名校验、固定里程碑转换、非法回退/跳阶段拒绝、状态迁移边界、解析/默认优先级和双写结果聚合。
 - Repositories/Services：SQLite 事务、版本冲突、租约、迁移幂等、CaseShell/解析失败、SourceRecord 复核、ClientIdentity、opaque asset 边界、稳定槽位 replan、调度准入、取消清理和模板指纹。
-- Hooks/Components：RTL 验证来源标记、拖拽顺序、租约警告、6 卡片分页、导出名称弹窗和任务阶段展示。
+- Hooks/Components：RTL 验证来源标记、拖拽顺序、租约警告、6 卡片分页、导出名称弹窗，以及案件卡片内任务阶段、里程碑次要说明、indeterminate 运行态、心跳/输出活动、恢复状态、无障碍文字和允许操作展示。
 - Controllers/Routes：HTTP 集成验证自动保存、草稿/共享默认值分别返回、来源复核、恢复中断、任务取消、删除保护、模板切换不触发归档和 Manifest 结果投影。
 - Phase 1D recovery matrix：合成验证 CaseShell/CaseDraft/Task/Source/asset/lease 的刷新与重启恢复、解析 queued/running/cancelling 的单次显式重试、成功案件不重复解析、数据库恢复保留 pending、启动后来源复核调度成功/失败、多次启动按 source/revision 幂等、暂时不可验证与已确认变化的不同门控、`archive_interrupted` 的查看编辑、deferred 退出、重新确认和新 handle。
 - Phase 1D archive safety：使用合成 staging 和受控 attempt record 验证五项归属证明、证据缺失/冲突时未知进程/文件不终止不删除不覆盖、自有 staging 幂等清理或隔离、半成品 RAR/Manifest 不发布、succeeded attempt 不回退、正式产物不误删以及清理失败不阻止案件恢复。
-- WinRAR spike：使用合成输入验证当前正式版本进度信号；未通过时记录能力缺口，验证 Legacy 显式压缩仍可用，不产生假进度。
+- WinRAR spike：保留普通 pipe 和 ConPTY 合成失败证据；验证 Legacy 显式压缩仍可用，并证明 Phase 3 只采用 `workflow_milestone`、不产生 WinRAR 连续假进度。
 - E2E/人工：使用合成多案件、多任务和合成模板；真实大报告只在用户明确执行的外部验收中使用，证据不得进入仓库。
 
 ## 12. 与已有活跃变更包的协调
