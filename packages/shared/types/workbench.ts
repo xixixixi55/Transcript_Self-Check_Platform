@@ -1,6 +1,7 @@
 import type { InspectionReport } from './index'
 import type { ArchiveTaskCardSummary } from './archiveTask'
 import type { TaskRecord } from './task'
+import type { TemplateVersionRef } from './template'
 
 export type WorkbenchSchemaVersion = 1
 export type WorkbenchApiVersion = 'v1'
@@ -82,7 +83,7 @@ export interface CaseDraft {
   report_version: string
   field_states: Record<string, FieldState>
   asset_refs: OpaqueAssetRef[]
-  template_ref?: { template_id: string; version: string } | null
+  template_ref?: TemplateVersionRef | null
   archive_plan_id?: string | null
   lifecycle: CaseLifecycle
   revision: number

@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4–5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 已开始，T016/T016T 已完成，T017–T019T 未开始；Phase 5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -395,8 +395,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 0/1/2 — Template contract
 
-- [ ] **T016** 在 `packages/shared/types/` 定义 `TemplateId`、`TemplateVersionRef`、`TemplateApprovalRecord`、模板校验结果和 Word artifact validity；在 `packages/shared/constants/` 定义 approved 状态和模板错误码。
-- [ ] **T016T** 在共享测试中覆盖版本指纹、未审核/未知模板拒绝、案件引用序列化、切换失效 Word 但不改变归档引用。验证：Vitest/typecheck。
+- [x] **T016** 在 `packages/shared/types/` 定义 `TemplateId`、`TemplateVersionRef`、`TemplateApprovalRecord`、模板校验结果和 Word artifact validity；在 `packages/shared/constants/` 定义 approved 状态和模板错误码。
+- [x] **T016T** 在共享测试中覆盖版本指纹、未审核/未知模板拒绝、案件引用序列化、切换失效 Word 但不改变归档引用。验证：Vitest/typecheck。
 
 ### Layer 10/11/12 — Template selection UI
 

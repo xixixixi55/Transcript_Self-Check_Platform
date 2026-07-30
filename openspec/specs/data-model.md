@@ -532,6 +532,22 @@ persisted Manifest and physical parts revalidate; it exposes verified slot
 metadata, published asset metadata and path-free part download identities, but
 never locators, process ownership, commands, logs or raw diagnostics.
 
+### Phase 4 approved template shared contract
+
+T016 adds the path-free shared contract only; it does not yet expose a template
+registry API, change the current production template, or wire template selection
+into Word generation. `TemplateVersionRef` stores only a `TemplateId` and semantic
+version in `CaseDraft`. The corresponding `TemplateVersion` binds that reference
+to an opaque asset ID, fingerprint, versioned validation-rule references and a
+`TemplateApprovalRecord`; it never contains a template path or DOCX content.
+
+`TemplateValidationResult` distinguishes a validated version from stable unknown,
+unapproved, missing-asset, fingerprint-mismatch and rule-validation failures.
+`WordArtifactValidity` records whether a Word artifact remains valid or was
+invalidated by a template change. `TemplateSelectionImpact` fixes the Phase 4
+boundary: a template change invalidates Word while leaving archive planning,
+archive-task creation, the verified Manifest and disc mapping unchanged.
+
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type ArchiveProgressKind,
 type ArchiveWorkerState, type ArchiveTaskAction, type ArchiveWorkflowStage,
@@ -558,4 +574,10 @@ type ArchiveDecisionStatus, interface ArchiveDecisionResult, interface DeletePre
 interface ArchiveAttemptRecord, type ArchiveAttemptStatus, type ArchiveCleanupStatus,
 interface CaseListResponse, interface CaseDetailResponse, interface CaseSubmissionResponse,
 type DemoReadinessState, type DemoReadinessKey, interface DemoReadinessItem,
-interface DemoReadiness.
+interface DemoReadiness,
+type TemplateId, type TemplateApprovalStatus, type TemplateErrorCode,
+type WordArtifactValidity, interface TemplateVersionRef,
+interface TemplateApprovalRecord, interface TemplateValidationRuleRef,
+interface TemplateVersion, interface TemplateValidationSuccess,
+interface TemplateValidationFailure, type TemplateValidationResult,
+interface TemplateSelectionImpact.
