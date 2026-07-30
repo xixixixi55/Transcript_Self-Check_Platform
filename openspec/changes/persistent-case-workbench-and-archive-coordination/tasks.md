@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策已完成，但 T011–T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策及 T011/T011T 共享合同已完成，T012–T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -355,8 +355,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 0/1/2 — Archive contracts
 
-- [ ] **T011**（依赖：Phase 3 版本/适配决策）在 `packages/shared/types/` 新增或复用 `VolumeSlot`、`DiscMapping`、`ArchivePlanSnapshot`、`ProgressSnapshot`、Legacy 压缩兼容状态、资源准入和任务取消/重试 DTO；扩展现有 `TaskRecord`，复用既有状态、阶段、`percent`、时间、错误和取消字段，补充阶段序号/总数、`progress_kind=workflow_milestone`、`updated_at`、心跳、输出分卷数/总字节、最近输出变化、Worker 持有/恢复状态和 `allowed_actions`。另定义 `ArchiveTaskCardSummary` 或等价安全投影，只含卡片需要的状态、阶段、里程碑、展示时间、紧凑活动、安全失败摘要和允许操作，不暴露全部内部字段。在 SharedConstants 固化 `0/10/20/30/75/85/90/95/100` 阶段表、Worker 状态与错误码；在 SharedUtils 实现稳定槽位 reconcile、唯一编号、合法里程碑/Worker 状态转换及卡片允许操作规则。
-- [ ] **T011T**（依赖：T011）在共享测试中覆盖 stable slot/Manifest 收敛、固定里程碑、非法回退/跳门控拒绝、失败/取消最后阶段、Worker 持有/恢复转换、活动指标不得换算百分比、`allowed_actions`，以及卡片摘要不含 Worker ID、内部租约、路径、堆栈、技术日志或完整进程信息。验证：Vitest/typecheck。
+- [x] **T011**（依赖：Phase 3 版本/适配决策）在 `packages/shared/types/` 新增或复用 `VolumeSlot`、`DiscMapping`、`ArchivePlanSnapshot`、`ProgressSnapshot`、Legacy 压缩兼容状态、资源准入和任务取消/重试 DTO；扩展现有 `TaskRecord`，复用既有状态、阶段、`percent`、时间、错误和取消字段，补充阶段序号/总数、`progress_kind=workflow_milestone`、`updated_at`、心跳、输出分卷数/总字节、最近输出变化、Worker 持有/恢复状态和 `allowed_actions`。另定义 `ArchiveTaskCardSummary` 或等价安全投影，只含卡片需要的状态、阶段、里程碑、展示时间、紧凑活动、安全失败摘要和允许操作，不暴露全部内部字段。在 SharedConstants 固化 `0/10/20/30/75/85/90/95/100` 阶段表、Worker 状态与错误码；在 SharedUtils 实现稳定槽位 reconcile、唯一编号、合法里程碑/Worker 状态转换及卡片允许操作规则。
+- [x] **T011T**（依赖：T011）在共享测试中覆盖 stable slot/Manifest 收敛、固定里程碑、非法回退/跳门控拒绝、失败/取消最后阶段、Worker 持有/恢复转换、活动指标不得换算百分比、`allowed_actions`，以及卡片摘要不含 Worker ID、内部租约、路径、堆栈、技术日志或完整进程信息。验证：Vitest/typecheck。
 
 ### Layer 10/11/12 — Archive status UI
 

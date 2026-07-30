@@ -494,13 +494,47 @@ archive output. `DemoReadinessKey` fixes those identities and
 they never contain configured roots, absolute paths, executable details,
 process data, environment values or exception text.
 
+### Phase 3 archive task shared contract
+
+T011 adds shared types and pure rules only; it does not yet wire a database,
+Worker, case-list API or card UI. `TaskRecord` keeps its existing `percent`,
+`finished_at`, `error_summary`, status and cancellation fields. Archive records
+may additionally carry `ArchiveProgressKind=workflow_milestone`, safe stage
+metadata, `updated_at`, heartbeat/output activity, `ArchiveWorkerState` and
+backend-authoritative `ArchiveTaskAction` values. Old task records may omit
+these optional fields.
+
+`ArchiveWorkflowStage` and `ArchiveWorkflowMilestonePercent` define the fixed
+`0/10/20/30/75/85/90/95/100` workflow milestones. WinRAR remains at 30 while
+running; output bytes and volume count are activity evidence only and never a
+compression ratio. `ProgressSnapshot` is the complete shared milestone/activity
+snapshot. `ArchiveTaskCardSummary` is an explicit safe projection and cannot
+carry Worker IDs, leases, local paths, stacks, raw logs or internal diagnostics.
+
+`VolumeSlot` has stable identity, plan revision, lineage, ordinal, planned bytes,
+status and optional `DiscMapping`; `PlannedVolumeSlot` is a replan input.
+`ArchivePlanSnapshot` stores the versioned slot plan. `ReconciledVolumeSlots`
+separates active and removed slots, while `VerifiedVolumeSlot` is the bounded
+Manifest convergence input. `LegacyArchiveCompatibilityStatus`,
+`ResourceAdmissionStatus`, `ArchiveResourceAdmission`,
+`ArchiveTaskCommandRequest` and `ArchiveTaskCommandResult` are shared contracts
+for later Phase 3 layers and do not activate those layers by themselves.
+
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
-type TaskKind, type TaskStatus, type TaskStage, type FieldSource, type FieldConfirmation,
+type TaskKind, type TaskStatus, type TaskStage, type ArchiveProgressKind,
+type ArchiveWorkerState, type ArchiveTaskAction, type ArchiveWorkflowStage,
+type ArchiveWorkflowMilestonePercent, type VolumeSlotStatus, type DiscMappingSource,
+type DiscMappingConfirmation, type FieldSource, type FieldConfirmation,
 type LeaseStatus, type SourceAccessStatus, type CaseAssetContentStatus, interface OpaqueAssetRef, interface CaseAssetRecord,
 interface CaseAssetList, interface FieldState,
 interface WordDownloadName,
 interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,
+interface DiscMapping, interface VolumeSlot, interface PlannedVolumeSlot,
+interface ArchivePlanSnapshot, interface ProgressSnapshot, interface ArchiveTaskCardSummary,
+type LegacyArchiveCompatibilityStatus, type ResourceAdmissionStatus,
+interface ArchiveResourceAdmission, interface ArchiveTaskCommandRequest,
+interface ArchiveTaskCommandResult, interface ReconciledVolumeSlots, interface VerifiedVolumeSlot,
 interface SharedDefaultsSaveStatus,
 interface DualSaveResult, interface RevisionConflictDto, interface WorkbenchApiEnvelope,
 interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecordResponse,

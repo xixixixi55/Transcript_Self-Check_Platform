@@ -1,4 +1,5 @@
 import type { InspectionReport } from './index'
+import type { TaskRecord } from './task'
 
 export type WorkbenchSchemaVersion = 1
 export type WorkbenchApiVersion = 'v1'
@@ -20,29 +21,6 @@ export type CaseLifecycle =
   | 'record_cleaned'
   | 'cancelling'
   | 'cancelled'
-
-export type TaskKind = 'parse' | 'archive' | 'export_word' | 'cleanup'
-export type TaskStatus =
-  | 'queued'
-  | 'running'
-  | 'cancelling'
-  | 'interrupted'
-  | 'succeeded'
-  | 'failed_retryable'
-  | 'failed_terminal'
-  | 'cancelled'
-  | 'blocked'
-export type TaskStage =
-  | 'parse'
-  | 'inventory'
-  | 'planning'
-  | 'winrar'
-  | 'integrity'
-  | 'md5'
-  | 'manifest'
-  | 'export'
-  | 'cleanup'
-  | 'none'
 
 export type FieldSource = 'report' | 'user' | 'system_default'
 export type FieldConfirmation = 'confirmed' | 'pending'
@@ -144,27 +122,6 @@ export interface EditLease {
   expires_at: string
   status: LeaseStatus
   takeover_of_lease_id?: string | null
-  revision: number
-}
-
-export interface TaskRecord {
-  schema_version: WorkbenchSchemaVersion
-  task_id: string
-  case_id: string
-  kind: TaskKind
-  status: TaskStatus
-  stage: TaskStage
-  percent: number | null
-  counters: Record<string, number>
-  input_revision: number
-  attempt: number
-  process_binding?: { process_tree_id: string; staging_asset_id?: string } | null
-  error_code?: string | null
-  error_summary?: string | null
-  cancel_requested: boolean
-  created_at: string
-  started_at?: string | null
-  finished_at?: string | null
   revision: number
 }
 

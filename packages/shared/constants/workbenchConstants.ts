@@ -11,17 +11,9 @@ export const CASE_TASK_POLL_INTERVAL_MS = 5000
 export const MAX_RUNNING_ARCHIVE_TASKS = 6
 
 export const WORKBENCH_TASK_STAGES: readonly TaskStage[] = [
-  'parse', 'inventory', 'planning', 'winrar', 'integrity', 'md5', 'manifest', 'export', 'cleanup', 'none',
+  'queued', 'parse', 'inventory', 'planning', 'preflight_verified', 'winrar',
+  'integrity', 'integrity_verified', 'md5', 'manifest', 'completed', 'export', 'cleanup', 'none',
 ]
-
-export const ARCHIVE_PROGRESS_WEIGHTS = {
-  inventory: 15,
-  planning: 10,
-  winrar: 45,
-  integrity: 10,
-  md5: 15,
-  manifest: 5,
-} as const
 
 export const WORKBENCH_ERROR_CODES = {
   CASE_NOT_FOUND: 'CASE_NOT_FOUND',
@@ -48,6 +40,9 @@ export const WORKBENCH_ERROR_CODES = {
   INVALID_AUDIT_EVENT: 'INVALID_AUDIT_EVENT',
   INVALID_TASK_RECORD: 'INVALID_TASK_RECORD',
   INVALID_TASK_PROGRESS: 'INVALID_TASK_PROGRESS',
+  INVALID_ARCHIVE_STAGE_TRANSITION: 'INVALID_ARCHIVE_STAGE_TRANSITION',
+  INVALID_WORKER_STATE_TRANSITION: 'INVALID_WORKER_STATE_TRANSITION',
+  INVALID_ARCHIVE_CARD_PROJECTION: 'INVALID_ARCHIVE_CARD_PROJECTION',
   ASSET_REFERENCE_NOT_FOUND: 'ASSET_REFERENCE_NOT_FOUND',
   ASSET_REFERENCE_MISMATCH: 'ASSET_REFERENCE_MISMATCH',
   DUPLICATE_ASSET_REFERENCE: 'DUPLICATE_ASSET_REFERENCE',
