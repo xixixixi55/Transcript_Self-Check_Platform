@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
 import { CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
-import type { TaskRecord, TaskStatus } from '@biji/shared/types'
+import type { ArchiveTaskCardSummary, TaskRecord, TaskStatus } from '@biji/shared/types'
 import { useTaskRecords } from './useTaskRecords'
 
 vi.mock('axios', () => ({ default: { get: vi.fn() } }))
@@ -112,5 +112,40 @@ describe('useTaskRecords', () => {
     view.unmount()
     await act(async () => { await vi.advanceTimersByTimeAsync(CASE_TASK_POLL_INTERVAL_MS * 2) })
     expect(getMock.mock.calls.length).toBe(callsBeforeUnmount)
+  })
+
+  it('maps injected archive summary fixtures without creating another polling source', async () => {
+    getMock.mockResolvedValue({ data: { data: task('task-a', 'running') } })
+    const archiveSummary: ArchiveTaskCardSummary = {
+      task_id: 'archive-SYNTHETIC',
+      case_id: 'case-task-a',
+      status: 'running',
+      progress_kind: 'workflow_milestone',
+      stage: 'winrar',
+      stage_label: '正在创建 RAR 分卷',
+      stage_index: 4,
+      stage_count: 9,
+      percent: 30,
+      started_at: '2026-07-30T11:42:00Z',
+      updated_at: '2026-07-30T12:00:00Z',
+      finished_at: null,
+      last_heartbeat_at: '2026-07-30T12:00:00Z',
+      output_bytes: 1024,
+      output_volume_count: 1,
+      last_output_change_at: '2026-07-30T12:00:00Z',
+      worker_state: 'owned_running',
+      error_summary: null,
+      allowed_actions: ['cancel'],
+    }
+    const view = renderHook(() => useTaskRecords(
+      ['task-a'],
+      { archiveSummaryFixtures: [archiveSummary] },
+    ))
+    await act(async () => { await flushPromises() })
+
+    expect(view.result.current.archiveSummariesByCase['case-task-a']).toEqual(archiveSummary)
+    expect(getMock).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(getMock).toHaveBeenCalledTimes(1 + Math.floor(60_000 / CASE_TASK_POLL_INTERVAL_MS))
   })
 })

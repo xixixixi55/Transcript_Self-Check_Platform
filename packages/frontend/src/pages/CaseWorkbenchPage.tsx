@@ -2,6 +2,7 @@
 import React, { useCallback, useState } from 'react'
 import { Alert, Button, Col, Empty, Input, Pagination, Row, Space, Spin, Typography, message } from 'antd'
 import { FolderOpenOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
+import type { ArchiveTaskAction, ArchiveTaskCardSummary } from '@biji/shared/types'
 import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
 import { CaseCard } from '../components/CaseCard'
 import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
@@ -9,15 +10,20 @@ import { SourceAuthorizationNotice } from '../components/SourceAuthorizationNoti
 
 const { Paragraph, Title } = Typography
 
-export default function CaseWorkbenchPage() {
+interface Props {
+  archiveSummaryFixtures?: readonly ArchiveTaskCardSummary[]
+}
+
+export default function CaseWorkbenchPage({ archiveSummaryFixtures }: Props) {
   const workbench = useCaseWorkbench()
   const taskIds = workbench.page.items.map(item => item.parse_task_id)
   const refreshPageAfterTaskSettled = useCallback(() => {
     void workbench.loadPage(workbench.page.offset)
   }, [workbench.loadPage, workbench.page.offset])
-  const { records: tasks, error: taskError } = useTaskRecords(taskIds, {
+  const { records: tasks, archiveSummariesByCase, error: taskError } = useTaskRecords(taskIds, {
     onTaskStatusChange: refreshPageAfterTaskSettled,
     refreshKey: workbench.taskSyncVersion,
+    archiveSummaryFixtures,
   })
   const [submitBusy, setSubmitBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
@@ -61,6 +67,13 @@ export default function CaseWorkbenchPage() {
     } catch { message.error('删除条件检查失败，请稍后重试。') }
   }
 
+  const handleArchiveAction = (action: ArchiveTaskAction) => {
+    const labels: Record<ArchiveTaskAction, string> = {
+      cancel: '取消归档', retry: '重试归档', view_result: '查看结果', view_details: '查看归档详情',
+    }
+    message.info(`${labels[action]}将在 T015 接入真实接口。`)
+  }
+
   const total = workbench.page.has_more
     ? workbench.page.offset + workbench.page.items.length + 1
     : workbench.page.offset + workbench.page.items.length
@@ -88,9 +101,12 @@ export default function CaseWorkbenchPage() {
             <CaseCard
               shell={shell}
               task={tasks[shell.parse_task_id]}
+              archiveSummary={archiveSummariesByCase[shell.case_id]}
               onRetry={() => { void retry(shell.case_id) }}
               onCancel={() => { void cancel(shell.case_id) }}
               onDeleteCheck={() => { void checkDelete(shell.case_id) }}
+              onArchiveAction={handleArchiveAction}
+              onArchivePrecheck={() => message.info('归档前检查将在后续归档接口阶段接入。')}
               actionBusy={actionCaseId === shell.case_id}
             />
           </Col>)}

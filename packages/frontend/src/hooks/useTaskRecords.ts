@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
-import type { TaskRecord, TaskStatus } from '@biji/shared/types'
+import type { ArchiveTaskCardSummary, TaskRecord, TaskStatus } from '@biji/shared/types'
 import type { WorkbenchError } from './useCaseWorkbench'
 
 const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
@@ -12,6 +12,7 @@ const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
 export interface TaskRecordsOptions {
   onTaskStatusChange?: (task: TaskRecord) => void
   refreshKey?: number
+  archiveSummaryFixtures?: readonly ArchiveTaskCardSummary[]
 }
 
 function getError(error: any): WorkbenchError {
@@ -96,5 +97,11 @@ export function useTaskRecords(taskIds: readonly string[] = [], options: TaskRec
   }, [ids, taskKey, options.refreshKey])
 
   const refreshNow = useCallback(() => refreshRef.current?.() ?? Promise.resolve(), [])
-  return { records, error, refresh: refreshNow }
+  const archiveSummariesByCase = useMemo(
+    () => Object.fromEntries(
+      (options.archiveSummaryFixtures ?? []).map(summary => [summary.case_id, summary]),
+    ) as Record<string, ArchiveTaskCardSummary>,
+    [options.archiveSummaryFixtures],
+  )
+  return { records, archiveSummariesByCase, error, refresh: refreshNow }
 }

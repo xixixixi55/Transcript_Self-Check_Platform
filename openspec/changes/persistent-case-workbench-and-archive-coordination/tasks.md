@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策及 T011/T011T 共享合同已完成，T012–T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策、T011/T011T 共享合同及 T012/T012T 卡片摘要 UI 已完成，T013–T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -360,8 +360,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 10/11/12 — Archive status UI
 
-- [ ] **T012**（依赖：T011）扩展现有 `CaseCard.tsx` 和 `useTaskRecords.ts`，按需新增 `ArchiveStatusPanel.tsx`、`ArchiveVolumeMappingTable.tsx`、`ArchiveStartDialog.tsx`；不复制轮询事实源。卡片定位为归档任务摘要，默认只组织案件信息、状态/阶段、最多两行活动或状态摘要和主要操作。WinRAR 阶段突出阶段文字和 indeterminate 活动态，30% 仅作次要说明；运行态显示易读的已运行时间、分卷数、输出大小和相对最后活动时间。未归档、等待/恢复、运行、失败、取消和完成使用状态化内容替换；详情承载完整时间线、逐卷/MD5、Manifest、历史、日志和诊断。实现窄屏裁剪、长文本/大数字布局、受控按钮数量、非颜色状态文字、减少动态效果兼容和动画文字替代。
-- [ ] **T012T**（依赖：T012）增加 RTL/E2E 合成任务测试；至少覆盖运行中卡片四类信息和两行活动密度、大文件长期停留 WinRAR 阶段但心跳/活动摘要仍证明活跃、30% 不增长且仅为次要说明、失败/取消/恢复中/完成内容替换、未归档无空指标、刷新恢复、相对时间本地刷新不增加请求、长文号/长错误摘要/大数字、窄屏保留核心信息、减少动态效果、非颜色/非动画文字提示，以及默认卡片不泄露 Worker ID、本机路径、堆栈、日志或内部进程信息。组件测试场景对应 delta spec 的卡片主入口、状态替换、技术详情隔离和响应式/无障碍场景。
+- [x] **T012**（依赖：T011）扩展现有 `CaseCard.tsx` 和 `useTaskRecords.ts`，按需新增 `ArchiveStatusPanel.tsx`、`ArchiveVolumeMappingTable.tsx`、`ArchiveStartDialog.tsx`；不复制轮询事实源。卡片定位为归档任务摘要，默认只组织案件信息、状态/阶段、最多两行活动或状态摘要和主要操作。WinRAR 阶段突出阶段文字和 indeterminate 活动态，30% 仅作次要说明；运行态显示易读的已运行时间、分卷数、输出大小和相对最后活动时间。未归档、等待/恢复、运行、失败、取消和完成使用状态化内容替换；详情承载完整时间线、逐卷/MD5、Manifest、历史、日志和诊断。实现窄屏裁剪、长文本/大数字布局、受控按钮数量、非颜色状态文字、减少动态效果兼容和动画文字替代。
+- [x] **T012T**（依赖：T012）增加 RTL/E2E 合成任务测试；至少覆盖运行中卡片四类信息和两行活动密度、大文件长期停留 WinRAR 阶段但心跳/活动摘要仍证明活跃、30% 不增长且仅为次要说明、失败/取消/恢复中/完成内容替换、未归档无空指标、刷新恢复、相对时间本地刷新不增加请求、长文号/长错误摘要/大数字、窄屏保留核心信息、减少动态效果、非颜色/非动画文字提示，以及默认卡片不泄露 Worker ID、本机路径、堆栈、日志或内部进程信息。组件测试场景对应 delta spec 的卡片主入口、状态替换、技术详情隔离和响应式/无障碍场景。
 
 ### Layer 20 — Archive metadata and process repositories
 

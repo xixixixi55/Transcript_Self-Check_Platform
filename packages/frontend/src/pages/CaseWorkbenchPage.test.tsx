@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
 import { CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
 import CaseWorkbenchPage from './CaseWorkbenchPage'
+import type { ArchiveTaskCardSummary } from '@biji/shared/types'
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 
@@ -42,7 +43,7 @@ describe('CaseWorkbenchPage', () => {
     expect(document.querySelector('input[type="file"]')).toBeNull()
     expect(screen.getByTitle('2')).toBeTruthy()
     expect(screen.getByText('来源目录授权说明')).toBeTruthy()
-    expect(screen.getAllByText('检查删除条件')).toHaveLength(6)
+    expect(screen.getAllByRole('button', { name: '更多操作' })).toHaveLength(6)
   })
 
   it('keeps API failures actionable', async () => {
@@ -116,5 +117,23 @@ describe('CaseWorkbenchPage', () => {
     expect(listRequests).toBeGreaterThanOrEqual(2)
     expect(taskRequests).toBe(3)
     expect(document.querySelector('a[href="/electronic-inspection/cases/case-synthetic-1"]')).toBeTruthy()
+  })
+
+  it('renders an injected T011 card summary through the existing task hook', async () => {
+    listItems = [{ ...shell(1), lifecycle: 'review_ready', report_available: true }]
+    const archiveSummary: ArchiveTaskCardSummary = {
+      task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', status: 'running',
+      progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在创建 RAR 分卷',
+      stage_index: 4, stage_count: 9, percent: 30, started_at: '2026-07-30T11:42:00Z',
+      updated_at: '2026-07-30T12:00:00Z', finished_at: null,
+      last_heartbeat_at: '2026-07-30T12:00:00Z', output_bytes: 1024,
+      output_volume_count: 1, last_output_change_at: '2026-07-30T12:00:00Z',
+      worker_state: 'owned_running', error_summary: null, allowed_actions: ['cancel'],
+    }
+    render(<MemoryRouter><CaseWorkbenchPage archiveSummaryFixtures={[archiveSummary]} /></MemoryRouter>)
+    await waitFor(() => expect(screen.getByRole('progressbar', {
+      name: '任务正在运行：正在创建 RAR 分卷',
+    })).toBeTruthy())
+    expect(screen.getByRole('button', { name: '取消归档' })).toBeTruthy()
   })
 })

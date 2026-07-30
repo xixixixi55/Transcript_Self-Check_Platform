@@ -311,12 +311,27 @@
 .case-workbench-card {
   height: 100%;
   border-color: var(--review-border);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.case-workbench-card__title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .case-workbench-card__summary {
   min-height: 42px;
   margin-bottom: 12px;
   color: var(--review-text);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .case-workbench-card__meta {
@@ -333,6 +348,88 @@
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.archive-status-panel {
+  min-width: 0;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--review-border);
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.archive-status-panel__heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.archive-status-panel__heading span {
+  color: var(--review-muted);
+  font-size: 12px;
+}
+
+.archive-status-panel__stage {
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archive-status-panel__indeterminate {
+  height: 6px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dbe5f0;
+}
+
+.archive-status-panel__indeterminate span {
+  display: block;
+  width: 45%;
+  height: 100%;
+  background: repeating-linear-gradient(135deg, #1677ff 0 8px, #69b1ff 8px 16px);
+  animation: archive-indeterminate 1.2s linear infinite;
+}
+
+.archive-status-panel__activity {
+  margin-top: 8px;
+}
+
+.archive-status-panel__activity-line {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archive-status-panel__activity-line--secondary {
+  color: var(--review-muted);
+}
+
+@keyframes archive-indeterminate {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(240%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .archive-status-panel__indeterminate span {
+    animation: none;
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .case-workbench-page {
+    padding: 20px 12px;
+  }
+
+  .archive-status-panel__activity-line--secondary {
+    display: none;
+  }
 }
 
 .case-workbench-page__empty {
