@@ -477,8 +477,9 @@ versioned API DTO envelopes and contain no absolute paths.
 task; `CaseSubmission` is the immediate response after an authorized report
 directory is accepted and persisted. `ArchiveDecision` is `immediate` or
 `deferred`; `ArchiveDecisionResult` reports the persisted lifecycle and, for
-immediate decisions, only an opaque handle for the existing Legacy explicit
-compression entry. Deferred decisions remain visible after refresh as
+immediate decisions, the safe public summary of the newly queued archive task.
+It does not expose the internal Legacy context or archive-attempt binding.
+Deferred decisions remain visible after refresh as
 `archive_deferred`. `DeletePreflight` reports stable blockers without
 deleting case records or formal artifacts. `CaseListResponse`,
 `CaseDetailResponse` and `CaseSubmissionResponse` are the corresponding
@@ -517,8 +518,19 @@ status and optional `DiscMapping`; `PlannedVolumeSlot` is a replan input.
 separates active and removed slots, while `VerifiedVolumeSlot` is the bounded
 Manifest convergence input. `LegacyArchiveCompatibilityStatus`,
 `ResourceAdmissionStatus`, `ArchiveResourceAdmission`,
-`ArchiveTaskCommandRequest` and `ArchiveTaskCommandResult` are shared contracts
-for later Phase 3 layers and do not activate those layers by themselves.
+`ArchiveTaskCommandRequest` and `ArchiveTaskCommandResult` were introduced as
+shared contracts; T013–T015 now persist and expose them through the single
+archive-task lifecycle.
+
+T015 adds public, path-free task projections on top of the same persistent
+record. `ArchiveTaskPublicDetail` extends the card summary with task revision,
+attempt ordinal, cancellation flag, safe error code and the current bounded
+archive-plan snapshot. `ArchiveTaskHistory` returns those public details in
+case history order without replacing prior attempts. `ArchiveTaskResult` is
+available only after both the task and its bound attempt succeeded and the
+persisted Manifest and physical parts revalidate; it exposes verified slot
+metadata, published asset metadata and path-free part download identities, but
+never locators, process ownership, commands, logs or raw diagnostics.
 
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type ArchiveProgressKind,
@@ -534,7 +546,9 @@ interface DiscMapping, interface VolumeSlot, interface PlannedVolumeSlot,
 interface ArchivePlanSnapshot, interface ProgressSnapshot, interface ArchiveTaskCardSummary,
 type LegacyArchiveCompatibilityStatus, type ResourceAdmissionStatus,
 interface ArchiveResourceAdmission, interface ArchiveTaskCommandRequest,
-interface ArchiveTaskCommandResult, interface ReconciledVolumeSlots, interface VerifiedVolumeSlot,
+interface ArchiveTaskCommandResult, interface ArchiveTaskPublicDetail,
+interface ArchiveTaskHistory, interface ArchiveTaskResult,
+interface ReconciledVolumeSlots, interface VerifiedVolumeSlot,
 interface SharedDefaultsSaveStatus,
 interface DualSaveResult, interface RevisionConflictDto, interface WorkbenchApiEnvelope,
 interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecordResponse,

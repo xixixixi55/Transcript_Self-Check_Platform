@@ -14,6 +14,7 @@ from .archive_attempt_service import ArchiveAttemptService
 from .archive_progress_service import ArchiveProgressService
 from .archive_resource_admission_service import ArchiveAdmissionConfig, ArchiveResourceAdmissionService
 from .archive_scheduler_service import ArchiveSchedulerService
+from .archive_task_api_service import ArchiveTaskApiService
 from .archive_worker_service import ArchiveWorkerService
 from .case_asset_service import CaseAssetService
 from .case_draft_service import CaseDraftService
@@ -40,6 +41,7 @@ class WorkbenchServices:
     archive_progress: ArchiveProgressService | None = None
     archive_scheduler: ArchiveSchedulerService | None = None
     archive_worker: ArchiveWorkerService | None = None
+    archive_api: ArchiveTaskApiService | None = None
 
 
 def build_workbench_services(
@@ -55,7 +57,8 @@ def build_workbench_services(
     archive_progress = ArchiveProgressService(
         archive_tasks, ResourceSnapshotRepository(database),
     )
-    return WorkbenchServices(
+    attempts = ArchiveAttemptService(database, OUTPUT_BASE)
+    services = WorkbenchServices(
         database=database,
         cases=CaseDraftService(database, source_service=sources),
         lifecycle=CaseLifecycleService(database, asset_service=assets),
@@ -63,7 +66,7 @@ def build_workbench_services(
         leases=leases,
         sources=sources,
         tasks=TaskRecordService(database),
-        archive_attempts=ArchiveAttemptService(database, OUTPUT_BASE),
+        archive_attempts=attempts,
         assets=assets,
         archive_progress=archive_progress,
         archive_scheduler=(
@@ -75,6 +78,10 @@ def build_workbench_services(
         ),
         archive_worker=ArchiveWorkerService(archive_tasks, archive_progress),
     )
+    services.archive_api = ArchiveTaskApiService(
+        database, attempts, sources, archive_progress,
+    )
+    return services
 
 
 _SERVICES: WorkbenchServices | None = None
@@ -98,6 +105,25 @@ def get_workbench_services() -> WorkbenchServices:
             services.assets.cleanup_orphans()
         _SERVICES = services
     return _SERVICES
+
+
+def ensure_archive_task_api(services: WorkbenchServices) -> ArchiveTaskApiService | None:
+    """Build the public adapter for test/custom composition roots on first use."""
+    if services.archive_api is not None:
+        return services.archive_api
+    if services.archive_attempts is None:
+        return None
+    progress = services.archive_progress
+    if progress is None:
+        progress = ArchiveProgressService(
+            ArchiveTaskRepository(services.database),
+            ResourceSnapshotRepository(services.database),
+        )
+        services.archive_progress = progress
+    services.archive_api = ArchiveTaskApiService(
+        services.database, services.archive_attempts, services.sources, progress,
+    )
+    return services.archive_api
 
 
 def reset_workbench_services() -> None:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -12,11 +11,9 @@ from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import json_text, row_json
 from .workbench_serialization import validate_opaque_id
+from .archive_task_projection_repository import build_archive_task_card_summary, safe_error
 
 _ACTIVE = ("queued", "running", "cancelling", "blocked")
-_ERROR_STATES = {"interrupted", "failed_retryable", "failed_terminal", "cancelled", "blocked"}
-_PATH = re.compile(r"(?:[A-Za-z]:[\\/]|\\\\|/(?:Users|home|tmp|var|etc|opt)/)[^\s,;)]*", re.I)
-_TRACE = re.compile(r"^\s*(?:at\s|traceback|file\s+\".*\",\s+line\s+\d+)", re.I)
 
 
 class ArchiveTaskRepository:
@@ -62,7 +59,7 @@ class ArchiveTaskRepository:
             "updated_at": changes.get("updated_at", utc_now()),
         }
         if "error_summary" in value:
-            value["error_summary"] = _safe_error(value["error_summary"])
+            value["error_summary"] = safe_error(value["error_summary"])
         _validate_milestone({**current, **value})
         if _stage_index(stage) < _stage_index(current["stage"]):
             raise WorkbenchPersistenceError("ARCHIVE_STAGE_REGRESSION")
@@ -198,18 +195,10 @@ class ArchiveTaskRepository:
         task = self.get_current_or_recent(case_id)
         if task is None:
             return None
-        summary = {
-            key: task[key] for key in (
-                "task_id", "case_id", "status", "progress_kind", "stage", "stage_label",
-                "stage_index", "stage_count", "percent", "started_at", "updated_at",
-                "finished_at", "last_heartbeat_at", "output_bytes", "output_volume_count",
-                "last_output_change_at", "worker_state", "allowed_actions",
-            )
-        }
-        summary["error_summary"] = (
-            _safe_error(task.get("error_summary")) if task["status"] in _ERROR_STATES else None
-        )
-        return summary
+        return self.get_task_card_summary(task["task_id"])
+
+    def get_task_card_summary(self, task_id: str) -> dict[str, Any]:
+        return build_archive_task_card_summary(self.database, self.get(task_id))
 
 
 def _milestone(stage: str) -> tuple[int, str]:
@@ -228,11 +217,3 @@ def _validate_milestone(task: Mapping[str, Any]) -> None:
         raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
     if task.get("percent") != _milestone(str(task.get("stage")))[0]:
         raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
-
-
-def _safe_error(value: Any) -> str | None:
-    if not isinstance(value, str) or not value.strip():
-        return None
-    lines = [line for line in value.splitlines() if not _TRACE.search(line)]
-    compact = re.sub(r"\s+", " ", _PATH.sub("[local path redacted]", " ".join(lines))).strip()
-    return compact if len(compact) <= 160 else f"{compact[:159]}\u2026"

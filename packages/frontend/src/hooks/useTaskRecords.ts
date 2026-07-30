@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
-import type { ArchiveTaskCardSummary, TaskRecord, TaskStatus } from '@biji/shared/types'
+import type { ArchiveTaskCardSummary, CaseShell, TaskRecord, TaskStatus } from '@biji/shared/types'
 import type { WorkbenchError } from './useCaseWorkbench'
 
 const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
@@ -11,8 +11,9 @@ const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
 
 export interface TaskRecordsOptions {
   onTaskStatusChange?: (task: TaskRecord) => void
+  onPoll?: () => void | Promise<void>
   refreshKey?: number
-  archiveSummaryFixtures?: readonly ArchiveTaskCardSummary[]
+  cases?: readonly CaseShell[]
 }
 
 function getError(error: any): WorkbenchError {
@@ -30,7 +31,13 @@ export function useTaskRecords(taskIds: readonly string[] = [], options: TaskRec
   const [error, setError] = useState<WorkbenchError | null>(null)
   const refreshRef = useRef<(() => Promise<void>) | null>(null)
   const onTaskStatusChangeRef = useRef(options.onTaskStatusChange)
+  const onPollRef = useRef(options.onPoll)
   onTaskStatusChangeRef.current = options.onTaskStatusChange
+  onPollRef.current = options.onPoll
+  const pollForArchive = options.cases?.some(item => {
+    const status = item.archive_task_summary?.status
+    return status === 'queued' || status === 'running' || status === 'cancelling' || status === 'blocked'
+  }) ?? false
 
   useEffect(() => {
     let active = true
@@ -47,7 +54,7 @@ export function useTaskRecords(taskIds: readonly string[] = [], options: TaskRec
     })
 
     const refresh = async () => {
-      if (!active || !activeIds.size || inFlight) return
+      if (!active || (!activeIds.size && !pollForArchive) || inFlight) return
       inFlight = true
       const requestId = ++requestSequence
       const polledIds = [...activeIds]
@@ -59,6 +66,7 @@ export function useTaskRecords(taskIds: readonly string[] = [], options: TaskRec
           return { id, error: requestError }
         }
       }))
+      await onPollRef.current?.()
       if (!active || requestId !== requestSequence) return
 
       const successful = results.filter((result): result is { id: string; task: TaskRecord } => 'task' in result)
@@ -80,28 +88,33 @@ export function useTaskRecords(taskIds: readonly string[] = [], options: TaskRec
         return next
       })
       if (changedTasks.length) onTaskStatusChangeRef.current?.(changedTasks[changedTasks.length - 1])
-      if (!activeIds.size && timer !== undefined) window.clearInterval(timer)
+      if (!activeIds.size && !pollForArchive && timer !== undefined) window.clearInterval(timer)
       inFlight = false
     }
 
     refreshRef.current = refresh
     setError(null)
     void refresh()
-    if (activeIds.size) timer = window.setInterval(() => { void refresh() }, CASE_TASK_POLL_INTERVAL_MS)
+    if (activeIds.size || pollForArchive) {
+      timer = window.setInterval(() => { void refresh() }, CASE_TASK_POLL_INTERVAL_MS)
+    }
     return () => {
       active = false
       requestSequence += 1
       if (timer !== undefined) window.clearInterval(timer)
       if (refreshRef.current === refresh) refreshRef.current = null
     }
-  }, [ids, taskKey, options.refreshKey])
+  }, [ids, taskKey, options.refreshKey, pollForArchive])
 
   const refreshNow = useCallback(() => refreshRef.current?.() ?? Promise.resolve(), [])
   const archiveSummariesByCase = useMemo(
     () => Object.fromEntries(
-      (options.archiveSummaryFixtures ?? []).map(summary => [summary.case_id, summary]),
+      (options.cases ?? [])
+        .map(item => item.archive_task_summary)
+        .filter((summary): summary is ArchiveTaskCardSummary => Boolean(summary))
+        .map(summary => [summary.case_id, summary]),
     ) as Record<string, ArchiveTaskCardSummary>,
-    [options.archiveSummaryFixtures],
+    [options.cases],
   )
   return { records, archiveSummariesByCase, error, refresh: refreshNow }
 }

@@ -5,7 +5,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { InspectorLibraryRecord } from '@biji/shared/types'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
 import { useRecordExport } from '../hooks/useRecordExport'
-import { useArchivePreparation } from '../hooks/useArchivePreparation'
 import { getReviewPendingItems } from '../hooks/useReviewChecklist'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
 import { isValidDateFieldValue, isValidMinuteTimeRangeValue } from '@biji/shared/utils'
@@ -29,23 +28,15 @@ export default function CaseRecordGeneratePage() {
   const navigate = useNavigate()
   const session = useCaseRecordSession(caseId)
   const { exportDocx, exporting } = useRecordExport()
-  const archive = useArchivePreparation()
   const [devices, setDevices] = useState<{ id: string; name: string; model: string }[]>([])
   const [inspectors, setInspectors] = useState<InspectorLibraryRecord[]>([])
   const [reviewStatus, setReviewStatus] = useState<ReviewPageStatus>('尚未修改')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [inspectorError, setInspectorError] = useState<string | null>(null)
   const [inspectorLoading, setInspectorLoading] = useState(false)
-  const [archiveContextId, setArchiveContextId] = useState<string | null>(null)
-  const [archiveAttemptId, setArchiveAttemptId] = useState<string | null>(null)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const [defaultDiscPrefix, setDefaultDiscPrefix] = useState('')
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
-  useEffect(() => {
-    setArchiveContextId(null)
-    setArchiveAttemptId(null)
-    archive.reset()
-  }, [archive.reset, caseId])
   useEffect(() => {
     axios.get(API_ENDPOINTS.DEVICES).then(response => setDevices(response.data.data || [])).catch(() => undefined)
     setInspectorLoading(true)
@@ -78,7 +69,7 @@ export default function CaseRecordGeneratePage() {
       catch { return false }
       const success = await exportDocx(
         report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
-        archive.manifest ? archiveContextId : null, archive.manifest?.manifest_id ?? null,
+        null, null,
       )
       setReviewStatus(success ? '导出成功' : '导出失败')
       return success
@@ -104,11 +95,7 @@ export default function CaseRecordGeneratePage() {
         return
       }
       const result = await session.decideArchive(decision)
-      setArchiveContextId(result.archive_context_id)
-      setArchiveAttemptId(result.archive_attempt_id || null)
-      if (result.archive_context_id && session.report) {
-        await archive.prepare(session.report, result.archive_context_id, result.archive_attempt_id)
-      }
+      if (result.archive_task) message.success('归档任务已进入后台队列，可在案件卡片查看状态。')
       if (decision === 'deferred') message.info('已选择稍后压缩，案件和草稿已保留。')
     } catch { message.error('压缩决策未完成，请刷新案件后重试。') }
     finally { setArchiveDecisionBusy(false) }
@@ -160,7 +147,6 @@ export default function CaseRecordGeneratePage() {
         {!sourceInvalid && !sourcePending && <ArchiveDecisionPanel
             lifecycle={session.detail.shell.lifecycle}
             busy={archiveDecisionBusy}
-            contextReady={Boolean(archiveContextId)}
             onImmediate={() => { void chooseArchive('immediate') }}
             onDeferred={() => { void chooseArchive('deferred') }}
           />}
@@ -197,12 +183,7 @@ export default function CaseRecordGeneratePage() {
           draftSaveStatus={session.autosave.draftState.status}
           sharedDefaultsSaveStatus={session.sharedDefaultsSaveState.status === 'not_changed'
             ? session.autosave.sharedState.status : session.sharedDefaultsSaveState.status}
-          archiveContextId={archiveContextId}
-          archiveStatus={archive.status}
-          archivePreparing={archive.loading}
-          onPrepareArchive={() => { if (session.report && archiveContextId) void archive.prepare(session.report, archiveContextId, archiveAttemptId) }}
-          archiveManifest={archive.manifest}
-          archiveError={archive.error}
+          archiveContextId={null}
         />
       </div>
       <WordDownloadNameDialog

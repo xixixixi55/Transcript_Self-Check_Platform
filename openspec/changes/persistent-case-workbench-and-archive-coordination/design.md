@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：进行中。Phase 1–2 实现及自动验证已完成；Phase 3 进度产品/架构决策、T011/T011T 共享合同、T012/T012T 卡片摘要 UI、T013/T013T 持久化及 T014/T014T Worker/调度执行已完成，T015 未开始；Demo-ready（有条件）但不是 Production-ready；`1D-017R`、Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 4–5 未开始
+> 设计状态：进行中。Phase 1–2 实现及自动验证已完成；Phase 3 T011–T015 实现及定向自动验证已完成，Phase 3 最终 gate 尚未执行；Demo-ready（有条件）但不是 Production-ready；`1D-017R`、Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 4–5 未开始
 
 ## 1. 总体架构决策
 
@@ -300,6 +300,11 @@ DTO、任务、审计摘要、日志和错误消息不返回绝对路径。来�
 显式压缩入口继续执行。该入口不引入 Phase 3 后台编排或伪造进度。若应用在入口执行前后
 重启，恢复流程将其转为 `archive_interrupted`，旧 handle 失效；用户必须重新复核来源并
 再次选择立即压缩，后端生成新的 handle。解析失败只保留可重试卡片，不出现压缩询问。
+
+T015 完成后，工作台 `immediate` 决定改为创建持久化归档 TaskRecord 并交给 T014
+调度/Worker；公共响应只返回安全任务投影，不返回可用于直接执行的 context/attempt。
+`/records/archive` 继续服务非工作台 Legacy 兼容调用，但拒绝工作台绑定的归档上下文，
+从而不能绕过资源准入、任务所有权和正式安全门控。
 
 案件列表默认返回 6 个 opaque 卡片。详情返回 shell、可选 draft、SourceRecord
 摘要和 parse task；草稿保存使用 `expected_revision`，冲突返回 HTTP 409。Phase 1C

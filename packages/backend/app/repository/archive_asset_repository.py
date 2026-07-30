@@ -56,6 +56,15 @@ class ArchiveAssetRepository:
             )
         }
 
+    def list_public_for_task(self, task_id: str) -> list[dict[str, Any]]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT asset_id FROM archive_assets WHERE task_id=? "
+                "AND status IN ('published','verified') ORDER BY created_at,asset_id",
+                (validate_opaque_id(task_id),),
+            ).fetchall()
+        return [self.get_public(str(row["asset_id"])) for row in rows]
+
     def update_status(
         self, asset_id: str, status: str, expected_revision: int
     ) -> dict[str, Any]:

@@ -1,4 +1,5 @@
 import type { ArchiveDecision, ArchiveDecisionStatus, CaseDetail, WorkbenchSchemaVersion } from './workbench'
+import type { ArchiveTaskPublicDetail } from './archiveTask'
 
 export type ArchiveAttemptStatus = 'accepted' | 'running' | 'succeeded' | 'failed' | 'interrupted'
 export type ArchiveCleanupStatus = 'not_required' | 'pending' | 'succeeded' | 'failed' | 'unknown'
@@ -26,4 +27,5 @@ export interface ArchiveDecisionResult {
   archive_status: ArchiveDecisionStatus
   archive_context_id: string | null
   archive_attempt_id?: string | null
+  archive_task?: ArchiveTaskPublicDetail | null
 }

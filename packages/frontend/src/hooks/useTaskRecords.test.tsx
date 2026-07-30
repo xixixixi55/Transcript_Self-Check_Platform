@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
 import { CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
-import type { ArchiveTaskCardSummary, TaskRecord, TaskStatus } from '@biji/shared/types'
+import type { ArchiveTaskCardSummary, CaseShell, TaskRecord, TaskStatus } from '@biji/shared/types'
 import { useTaskRecords } from './useTaskRecords'
 
 vi.mock('axios', () => ({ default: { get: vi.fn() } }))
@@ -114,7 +114,7 @@ describe('useTaskRecords', () => {
     expect(getMock.mock.calls.length).toBe(callsBeforeUnmount)
   })
 
-  it('maps injected archive summary fixtures without creating another polling source', async () => {
+  it('maps summaries embedded by the case-list API without creating another timer', async () => {
     getMock.mockResolvedValue({ data: { data: task('task-a', 'running') } })
     const archiveSummary: ArchiveTaskCardSummary = {
       task_id: 'archive-SYNTHETIC',
@@ -139,7 +139,17 @@ describe('useTaskRecords', () => {
     }
     const view = renderHook(() => useTaskRecords(
       ['task-a'],
-      { archiveSummaryFixtures: [archiveSummary] },
+      {
+        cases: [{
+          schema_version: 1, case_id: 'case-task-a', case_name: 'SYNTHETIC',
+          case_summary: 'SYNTHETIC', source_id: 'source-task-a',
+          parse_task_id: 'task-a', lifecycle: 'review_ready', report_available: true,
+          revision: 1, created_at: '2026-07-30T11:00:00Z',
+          updated_at: '2026-07-30T12:00:00Z',
+          archive_task_summary: archiveSummary,
+        } satisfies CaseShell],
+        onPoll: vi.fn(),
+      },
     ))
     await act(async () => { await flushPromises() })
 

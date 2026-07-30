@@ -136,14 +136,14 @@ export default function RecordEditorForm({
         </ReviewSection>
 
         <ReviewSection id={REVIEW_SECTION_IDS.attachments} title="附件" pendingCount={countFor(REVIEW_SECTION_IDS.attachments)}>
-        <ArchiveStatusCard
-          contextId={archiveContextId}
-          status={archiveStatus}
-          loading={archivePreparing}
-          onPrepare={onPrepareArchive}
-          manifest={archiveManifest}
-          error={archiveError}
-        />
+        {!workbenchMode && <ArchiveStatusCard
+            contextId={archiveContextId}
+            status={archiveStatus}
+            loading={archivePreparing}
+            onPrepare={onPrepareArchive}
+            manifest={archiveManifest}
+            error={archiveError}
+          />}
         <ReviewAttachmentsSection attachments={attachments} photoFiles={photoFiles}
           onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport}
           defaultDiscPrefix={defaultDiscPrefix} />

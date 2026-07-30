@@ -7,8 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..services.workbench_factory_service import get_workbench_services
-from ..services.archive_source_runtime_service import discard_preview_source
+from ..services.workbench_factory_service import ensure_archive_task_api, get_workbench_services
 
 router = APIRouter()
 
@@ -28,11 +27,6 @@ class DraftSaveRequest(BaseModel):
 class LifecycleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     target: str
-    expected_revision: int = Field(ge=0)
-
-
-class TaskCancelRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
     expected_revision: int = Field(ge=0)
 
 
@@ -107,24 +101,16 @@ async def decide_archive_endpoint(case_id: str, body: ArchiveDecisionRequest):
         services = get_workbench_services()
         context_id = None
         attempt_id = None
+        archive_task = None
         if body.decision == "immediate" and services.archive_attempts is not None:
-            before = services.lifecycle.detail(case_id)
-            source = services.sources.require_available(before["shell"]["source_id"])
-            context_id = services.sources.create_legacy_preview_source(case_id)
-            source = services.sources.get(source["source_id"])
-            try:
-                if before["shell"]["lifecycle"] == "archive_queued":
-                    attempt = services.archive_attempts.reissue_context(
-                        case_id, source["source_id"], source["revision"], context_id, body.expected_revision,
-                    )
-                else:
-                    attempt = services.archive_attempts.accept(
-                        case_id, source["source_id"], source["revision"], context_id, body.expected_revision,
-                    )
-            except Exception:
-                discard_preview_source(context_id)
-                raise
-            attempt_id = attempt["attempt_id"]
+            archive_api = ensure_archive_task_api(services)
+            if archive_api is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail={"code": "ARCHIVE_TASK_API_UNAVAILABLE", "message": "归档任务服务暂不可用。"},
+                )
+            queued = archive_api.enqueue(case_id, body.expected_revision)
+            archive_task = queued["task"]
             detail = services.lifecycle.detail(case_id)
         else:
             context_id = services.sources.create_legacy_preview_source(case_id) if body.decision == "immediate" else None
@@ -134,9 +120,10 @@ async def decide_archive_endpoint(case_id: str, body: ArchiveDecisionRequest):
         return _envelope({
             "case": detail,
             "decision": body.decision,
-            "archive_status": "legacy_explicit_ready" if body.decision == "immediate" else "deferred",
-            "archive_context_id": context_id,
-            "archive_attempt_id": attempt_id,
+            "archive_status": "archive_task_queued" if body.decision == "immediate" else "deferred",
+            "archive_context_id": None,
+            "archive_attempt_id": None,
+            "archive_task": archive_task,
         })
     except Exception as error:
         _handle(error)
@@ -186,22 +173,6 @@ async def delete_preflight_endpoint(case_id: str):
     except Exception as error:
         _handle(error)
 
-@router.get("/workbench/tasks/{task_id}")
-async def get_task_endpoint(task_id: str):
-    try:
-        return _envelope(get_workbench_services().tasks.get(task_id))
-    except Exception as error:
-        _handle(error)
-
-
-@router.post("/workbench/tasks/{task_id}/cancel")
-async def cancel_task_endpoint(task_id: str, body: TaskCancelRequest):
-    try:
-        return _envelope(get_workbench_services().tasks.request_cancel(task_id, body.expected_revision))
-    except Exception as error:
-        _handle(error)
-
-
 def _envelope(data: Any) -> dict[str, Any]:
     return {"api_version": "v1", "schema_version": 1, "data": data}
 
@@ -216,7 +187,7 @@ def _handle(error: Exception) -> None:
     code = getattr(error, "code", None)
     if not isinstance(code, str):
         code = "WORKBENCH_REQUEST_FAILED"
-    status = 404 if code.endswith("NOT_FOUND") or code == "CASE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "LEASE_CONFLICT", "LEASE_TAKEOVER_REQUIRED", "LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "SOURCE_RESELECTION_REQUIRED", "SOURCE_REVALIDATION_PENDING", "ARCHIVE_ATTEMPT_NOT_ALLOWED", "ARCHIVE_ATTEMPT_REQUIRED", "ARCHIVE_ATTEMPT_BINDING_MISMATCH", "ARCHIVE_ATTEMPT_BINDING_STALE", "ARCHIVE_REPORT_MISMATCH"} else 422
+    status = 404 if code.endswith("NOT_FOUND") or code == "CASE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "LEASE_CONFLICT", "LEASE_TAKEOVER_REQUIRED", "LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "SOURCE_RESELECTION_REQUIRED", "SOURCE_REVALIDATION_PENDING", "ARCHIVE_ATTEMPT_NOT_ALLOWED", "ARCHIVE_ATTEMPT_REQUIRED", "ARCHIVE_ATTEMPT_BINDING_MISMATCH", "ARCHIVE_ATTEMPT_BINDING_STALE", "ARCHIVE_REPORT_MISMATCH", "ARCHIVE_TASK_ALREADY_ACTIVE", "ARCHIVE_TASK_STALE", "ARCHIVE_CANCEL_NOT_ALLOWED", "ARCHIVE_RETRY_NOT_ALLOWED", "ARCHIVE_MAPPING_LOCKED"} else 422
     raise HTTPException(status_code=status, detail={"code": code, "message": _message(code)}) from error
 def _message(code: str) -> str:
     messages = {

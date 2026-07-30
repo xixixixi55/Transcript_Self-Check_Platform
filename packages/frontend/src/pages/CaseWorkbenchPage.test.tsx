@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
 import { CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
 import CaseWorkbenchPage from './CaseWorkbenchPage'
-import type { ArchiveTaskCardSummary } from '@biji/shared/types'
+import type { ArchiveTaskCardSummary, CaseShell } from '@biji/shared/types'
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 
@@ -14,7 +14,7 @@ beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) })
 })
 
-const shell = (index: number) => ({
+const shell = (index: number): CaseShell => ({
   schema_version: 1, case_id: `case-synthetic-${index}`, case_name: `SYNTHETIC-CASE-${index}`,
   case_summary: 'SYNTHETIC/TEST summary', source_id: `source-synthetic-${index}`,
   parse_task_id: `task-synthetic-${index}`, lifecycle: 'parsing', report_available: false,
@@ -119,8 +119,7 @@ describe('CaseWorkbenchPage', () => {
     expect(document.querySelector('a[href="/electronic-inspection/cases/case-synthetic-1"]')).toBeTruthy()
   })
 
-  it('renders an injected T011 card summary through the existing task hook', async () => {
-    listItems = [{ ...shell(1), lifecycle: 'review_ready', report_available: true }]
+  it('renders the backend card summary through the existing task polling source', async () => {
     const archiveSummary: ArchiveTaskCardSummary = {
       task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', status: 'running',
       progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在创建 RAR 分卷',
@@ -130,10 +129,54 @@ describe('CaseWorkbenchPage', () => {
       output_volume_count: 1, last_output_change_at: '2026-07-30T12:00:00Z',
       worker_state: 'owned_running', error_summary: null, allowed_actions: ['cancel'],
     }
-    render(<MemoryRouter><CaseWorkbenchPage archiveSummaryFixtures={[archiveSummary]} /></MemoryRouter>)
+    listItems = [{
+      ...shell(1), lifecycle: 'review_ready', report_available: true,
+      archive_task_summary: archiveSummary,
+    }]
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(screen.getByRole('progressbar', {
       name: '任务正在运行：正在创建 RAR 分卷',
     })).toBeTruthy())
     expect(screen.getByRole('button', { name: '取消归档' })).toBeTruthy()
+  })
+
+  it('uses backend details and revision for archive cancel without duplicate submission', async () => {
+    const archiveSummary: ArchiveTaskCardSummary = {
+      task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', status: 'running',
+      progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在创建 RAR 分卷',
+      stage_index: 4, stage_count: 9, percent: 30, started_at: '2026-07-30T11:42:00Z',
+      updated_at: '2026-07-30T12:00:00Z', finished_at: null,
+      last_heartbeat_at: '2026-07-30T12:00:00Z', output_bytes: 1024,
+      output_volume_count: 1, last_output_change_at: '2026-07-30T12:00:00Z',
+      worker_state: 'owned_running', error_summary: null, allowed_actions: ['cancel'],
+    }
+    listItems = [{
+      ...shell(1), lifecycle: 'review_ready', report_available: true,
+      archive_task_summary: archiveSummary,
+    }]
+    getMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/demo/readiness')) return { data: { data: { items: [] } } }
+      if (url.endsWith('/workbench/cases')) {
+        return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
+      }
+      if (url.endsWith('/archive-SYNTHETIC-1/details')) {
+        return { data: { data: { ...archiveSummary, revision: 7, created_at: archiveSummary.updated_at } } }
+      }
+      if (url.includes('/workbench/tasks/')) {
+        return { data: { data: { task_id: 'task-synthetic-1', case_id: 'case-synthetic-1', kind: 'parse', status: 'succeeded', stage: 'parse', percent: null, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }
+      }
+      throw new Error(`unexpected GET ${url}`)
+    })
+    postMock.mockResolvedValue({ data: { data: { ...archiveSummary, status: 'cancelling' } } })
+
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    const button = await screen.findByRole('button', { name: '取消归档' })
+    fireEvent.click(button)
+    fireEvent.click(button)
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(
+      expect.stringContaining('/archive-SYNTHETIC-1/cancel'),
+      { expected_revision: 7 },
+    ))
+    expect(postMock).toHaveBeenCalledTimes(1)
   })
 })

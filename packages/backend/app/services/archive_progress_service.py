@@ -57,6 +57,13 @@ class ArchiveProgressService:
         current = self.tasks.get(task_id)
         if current["revision"] != expected_revision:
             raise WorkbenchPersistenceError("REVISION_CONFLICT")
+        if current["status"] == "blocked":
+            cancelling = self.tasks.update_state(task_id, {
+                "status": "cancelling", "cancel_requested": True,
+            }, expected_revision)
+            return self.tasks.update_state(task_id, {
+                "status": "cancelled", "cancel_requested": True,
+            }, cancelling["revision"])
         if current["status"] == "queued":
             return self.tasks.update_state(task_id, {
                 "status": "cancelled", "cancel_requested": True,

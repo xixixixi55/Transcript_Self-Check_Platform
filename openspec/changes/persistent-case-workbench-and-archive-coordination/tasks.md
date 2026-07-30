@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策、T011/T011T 共享合同、T012/T012T 卡片摘要 UI、T013/T013T 持久化及 T014/T014T Worker/调度执行已完成，T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 T011–T015 实现及定向自动验证已完成，Phase 3 最终 gate 尚未执行；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -375,8 +375,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 22/23 — Task API
 
-- [ ] **T015**（依赖：T011、T013、T014；对接 T012 卡片 DTO）改造 archive/record controllers 并新增 task controller/routes；提供归档决定、映射、取消/重试、任务详情/历史和进度查询。案件列表直接内嵌当前或最近归档任务的 `ArchiveTaskCardSummary`，供现有工作台轮询事实源展示阶段、里程碑、紧凑活动、展示时间、安全失败摘要和 `allowed_actions`；完整日志、历史、逐卷诊断和内部技术字段只由详情接口按安全投影返回。预览仍不创建完整 `ArchiveContext`。
-- [ ] **T015T**（依赖：T015）新增 controller/route 集成测试；覆盖列表无需额外任务轮询即可取得卡片摘要、摘要信息密度和状态替换所需字段、刷新/重启恢复、取消/重试权限、安全失败投影、Manifest 未验证不显示 100/完成、列表不返回 Worker ID/租约/路径/堆栈/日志/进程信息、详情接口与列表摘要边界，以及 T012 Hook 与真实 API 对接。
+- [x] **T015**（依赖：T011、T013、T014；对接 T012 卡片 DTO）改造 archive/record controllers 并新增 task controller/routes；提供归档决定、映射、取消/重试、任务详情/历史和进度查询。案件列表直接内嵌当前或最近归档任务的 `ArchiveTaskCardSummary`，供现有工作台轮询事实源展示阶段、里程碑、紧凑活动、展示时间、安全失败摘要和 `allowed_actions`；完整日志、历史、逐卷诊断和内部技术字段只由详情接口按安全投影返回。预览仍不创建完整 `ArchiveContext`。
+- [x] **T015T**（依赖：T015）新增 controller/route 集成测试；覆盖列表无需额外任务轮询即可取得卡片摘要、摘要信息密度和状态替换所需字段、刷新/重启恢复、取消/重试权限、安全失败投影、Manifest 未验证不显示 100/完成、列表不返回 Worker ID/租约/路径/堆栈/日志/进程信息、详情接口与列表摘要边界，以及 T012 Hook 与真实 API 对接。
 
 ### Phase 3 gate
 

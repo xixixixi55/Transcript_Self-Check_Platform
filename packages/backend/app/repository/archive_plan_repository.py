@@ -11,8 +11,6 @@ from .workbench_repository_helpers import json_text, row_json
 from .workbench_serialization import validate_opaque_id
 
 _SLOT_STATUSES = {"active", "pending", "removed", "verified"}
-
-
 class ArchivePlanRepository:
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database
@@ -39,7 +37,6 @@ class ArchivePlanRepository:
             except Exception as error:
                 raise WorkbenchPersistenceError("ARCHIVE_PLAN_CREATE_FAILED") from error
         return self.get(plan_id)
-
     def get(self, plan_id: str) -> dict[str, Any]:
         with self.database.connect() as connection:
             row = connection.execute(
@@ -58,7 +55,6 @@ class ArchivePlanRepository:
                 (validate_opaque_id(case_id),),
             ).fetchone()
         return None if row is None else self.get(str(row[0]))
-
     def replan(
         self,
         plan_id: str,
@@ -79,7 +75,6 @@ class ArchivePlanRepository:
             "volume_slots": next_slots,
             "verified_slots": current["verified_slots"],
         }, expected_revision)
-
     def converge_manifest(
         self,
         plan_id: str,
@@ -103,6 +98,43 @@ class ArchivePlanRepository:
             "input_inventory_revision": current["input_inventory_revision"],
             "mapping_revision": current["mapping_revision"],
             "volume_slots": slots, "verified_slots": verified,
+        }, expected_revision)
+
+    def update_mappings(
+        self,
+        plan_id: str,
+        mappings: list[Mapping[str, Any]],
+        expected_revision: int,
+    ) -> dict[str, Any]:
+        current = self.get(plan_id)
+        if current["revision"] != expected_revision:
+            raise RevisionConflictError("archive_plan", expected_revision, current["revision"])
+        by_slot = {str(item.get("slot_id")): dict(item) for item in mappings}
+        active_ids = {
+            slot["slot_id"] for slot in current["volume_slots"]
+            if slot["status"] != "removed"
+        }
+        if set(by_slot) != active_ids:
+            raise WorkbenchPersistenceError("INVALID_DISC_MAPPING")
+        slots = []
+        for slot in current["volume_slots"]:
+            if slot["status"] == "removed":
+                slots.append(slot)
+                continue
+            mapping = by_slot[slot["slot_id"]]
+            _mapping(slot["slot_id"], mapping)
+            slots.append({
+                **slot,
+                "disc_mapping": mapping,
+                "status": "active" if mapping["confirmation"] == "confirmed" else "pending",
+            })
+        _slots(slots)
+        return self._update(plan_id, {
+            "plan_revision": current["plan_revision"],
+            "input_inventory_revision": current["input_inventory_revision"],
+            "mapping_revision": current["mapping_revision"] + 1,
+            "volume_slots": slots,
+            "verified_slots": current["verified_slots"],
         }, expected_revision)
 
     def _update(

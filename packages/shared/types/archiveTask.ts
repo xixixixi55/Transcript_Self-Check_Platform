@@ -104,6 +104,47 @@ export interface ArchiveTaskCommandResult {
   allowed_actions: ArchiveTaskAction[]
 }
 
+export interface ArchiveTaskPublicDetail extends ArchiveTaskCardSummary {
+  created_at: string
+  revision: number
+  attempt: number
+  cancel_requested: boolean
+  error_code: string | null
+  archive_plan: ArchivePlanSnapshot | null
+}
+
+export interface ArchiveTaskHistory {
+  case_id: string
+  items: ArchiveTaskPublicDetail[]
+}
+
+export interface ArchiveTaskResult {
+  task_id: string
+  case_id: string
+  manifest_id: string
+  verified_slots: VerifiedVolumeSlot[]
+  assets: {
+    asset_id: string
+    case_id: string
+    task_id: string | null
+    plan_id: string | null
+    asset_kind: 'staging' | 'rar_volume' | 'manifest'
+    status: 'published' | 'verified'
+    created_at: string
+    updated_at: string
+    revision: number
+  }[]
+  parts: {
+    part_id: string
+    filename: string
+    size_bytes: number
+    md5: string
+    disc_number: string
+    disc_date: string
+  }[]
+  finished_at: string | null
+}
+
 export interface ReconciledVolumeSlots {
   active_slots: VolumeSlot[]
   removed_slots: VolumeSlot[]

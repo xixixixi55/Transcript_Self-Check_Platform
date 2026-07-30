@@ -1,4 +1,5 @@
 import type { InspectionReport } from './index'
+import type { ArchiveTaskCardSummary } from './archiveTask'
 import type { TaskRecord } from './task'
 
 export type WorkbenchSchemaVersion = 1
@@ -27,7 +28,7 @@ export type FieldConfirmation = 'confirmed' | 'pending'
 export type LeaseStatus = 'active' | 'released' | 'expired'
 export type SourceAccessStatus = 'pending' | 'available' | 'invalid' | 'requires_reselection'
 export type ArchiveDecision = 'immediate' | 'deferred'
-export type ArchiveDecisionStatus = 'legacy_explicit_ready' | 'deferred'
+export type ArchiveDecisionStatus = 'archive_task_queued' | 'deferred'
 
 export interface OpaqueAssetRef {
   asset_id: string
@@ -68,6 +69,7 @@ export interface CaseShell {
   revision: number
   created_at: string
   updated_at: string
+  archive_task_summary?: ArchiveTaskCardSummary | null
 }
 
 export interface CaseDraft {

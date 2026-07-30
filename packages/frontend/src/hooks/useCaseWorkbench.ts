@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import type {
+  ArchiveTaskHistory, ArchiveTaskPublicDetail, ArchiveTaskResult,
   CaseDetail, CaseListPage, CaseShell, CaseSubmission, TaskRecord,
 } from '@biji/shared/types'
 
@@ -138,6 +139,49 @@ export function useCaseWorkbench(caseId?: string) {
     return dataOf(response)
   }, [loadPage, page.offset])
 
+  const archiveTaskDetails = useCallback(async (taskId: string) => {
+    const response = await axios.get<{ data: ArchiveTaskPublicDetail }>(
+      API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_DETAILS(taskId),
+    )
+    return dataOf(response)
+  }, [])
+
+  const cancelArchiveTask = useCallback(async (taskId: string) => {
+    const detail = await archiveTaskDetails(taskId)
+    const response = await axios.post<{ data: ArchiveTaskPublicDetail }>(
+      API_ENDPOINTS.WORKBENCH_CANCEL_TASK(taskId),
+      { expected_revision: detail.revision },
+    )
+    await loadPage(page.offset)
+    return dataOf(response)
+  }, [archiveTaskDetails, loadPage, page.offset])
+
+  const retryArchiveTask = useCallback(async (
+    taskId: string, expectedCaseRevision: number,
+  ) => {
+    const detail = await archiveTaskDetails(taskId)
+    const response = await axios.post<{ data: { task: ArchiveTaskPublicDetail } }>(
+      API_ENDPOINTS.WORKBENCH_RETRY_ARCHIVE_TASK(taskId),
+      { expected_revision: detail.revision, expected_case_revision: expectedCaseRevision },
+    )
+    await loadPage(page.offset)
+    return dataOf(response)
+  }, [archiveTaskDetails, loadPage, page.offset])
+
+  const archiveHistory = useCallback(async (requestedCaseId: string) => {
+    const response = await axios.get<{ data: ArchiveTaskHistory }>(
+      API_ENDPOINTS.WORKBENCH_ARCHIVE_HISTORY(requestedCaseId),
+    )
+    return dataOf(response)
+  }, [])
+
+  const archiveResult = useCallback(async (taskId: string) => {
+    const response = await axios.get<{ data: ArchiveTaskResult }>(
+      API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(taskId),
+    )
+    return dataOf(response)
+  }, [])
+
   const checkDelete = useCallback(async (requestedCaseId: string) => {
     const response = await axios.get<{ data: { allowed: boolean; blockers: string[] } }>(
       API_ENDPOINTS.WORKBENCH_DELETE_PREFLIGHT(requestedCaseId),
@@ -147,6 +191,7 @@ export function useCaseWorkbench(caseId?: string) {
 
   return {
     page, pageLoading, pageError, loadPage, submitCase, retryCase, cancelTask, checkDelete,
+    archiveTaskDetails, cancelArchiveTask, retryArchiveTask, archiveHistory, archiveResult,
     detail, detailLoading, detailError, reloadDetail: loadDetail, taskSyncVersion,
   }
 }

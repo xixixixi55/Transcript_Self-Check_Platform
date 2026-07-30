@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..repository.audit_event_repository import AuditEventRepository
+from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
@@ -24,12 +25,17 @@ class CaseLifecycleService:
         self.workflow = CaseWorkflowRepository(database)
         self.audit = AuditEventRepository(database)
         self.assets = asset_service
+        self.archive_tasks = ArchiveTaskRepository(database)
 
     def list(self, offset: int, limit: int) -> dict[str, Any]:
         if offset < 0 or limit < 1 or limit > 100:
             raise WorkbenchPersistenceError("INVALID_PAGE")
         items = self.shells.list(offset, limit + 1)
-        return {"items": items[:limit], "offset": offset, "limit": limit, "has_more": len(items) > limit}
+        public_items = [
+            {**item, "archive_task_summary": self.archive_tasks.get_card_summary(item["case_id"])}
+            for item in items[:limit]
+        ]
+        return {"items": public_items, "offset": offset, "limit": limit, "has_more": len(items) > limit}
 
     def detail(self, case_id: str) -> dict[str, Any]:
         for _ in range(3):

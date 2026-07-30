@@ -36,6 +36,17 @@ describe('ArchiveDecisionPanel', () => {
     expect(onDeferred).toHaveBeenCalledOnce()
   })
 
+  it('shows background queue authority without a direct Legacy execution action', () => {
+    render(<ArchiveDecisionPanel
+      lifecycle="archive_queued"
+      onImmediate={vi.fn()}
+      onDeferred={vi.fn()}
+    />)
+    expect(screen.getByText('已进入等待归档')).toBeTruthy()
+    expect(screen.getByText(/后台任务将按资源准入和安全门控执行/)).toBeTruthy()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('does not ask about compression for a failed parse', () => {
     render(<ArchiveDecisionPanel lifecycle="parse_failed_retryable" onImmediate={vi.fn()} onDeferred={vi.fn()} />)
     expect(screen.queryByRole('alert')).toBeNull()

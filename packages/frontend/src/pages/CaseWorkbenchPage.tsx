@@ -1,8 +1,12 @@
 // Layer 12: FE_Pages — persistent multi-case workbench entry.
 import React, { useCallback, useState } from 'react'
-import { Alert, Button, Col, Empty, Input, Pagination, Row, Space, Spin, Typography, message } from 'antd'
+import { Alert, Button, Col, Empty, Input, Modal, Pagination, Row, Space, Spin, Typography, message } from 'antd'
 import { FolderOpenOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
-import type { ArchiveTaskAction, ArchiveTaskCardSummary } from '@biji/shared/types'
+import type {
+  ArchiveTaskAction, ArchiveTaskHistory, ArchiveTaskPublicDetail,
+  ArchiveTaskResult, CaseShell,
+} from '@biji/shared/types'
+import { API_ENDPOINTS } from '@biji/shared/constants'
 import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
 import { CaseCard } from '../components/CaseCard'
 import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
@@ -10,11 +14,7 @@ import { SourceAuthorizationNotice } from '../components/SourceAuthorizationNoti
 
 const { Paragraph, Title } = Typography
 
-interface Props {
-  archiveSummaryFixtures?: readonly ArchiveTaskCardSummary[]
-}
-
-export default function CaseWorkbenchPage({ archiveSummaryFixtures }: Props) {
+export default function CaseWorkbenchPage() {
   const workbench = useCaseWorkbench()
   const taskIds = workbench.page.items.map(item => item.parse_task_id)
   const refreshPageAfterTaskSettled = useCallback(() => {
@@ -22,14 +22,18 @@ export default function CaseWorkbenchPage({ archiveSummaryFixtures }: Props) {
   }, [workbench.loadPage, workbench.page.offset])
   const { records: tasks, archiveSummariesByCase, error: taskError } = useTaskRecords(taskIds, {
     onTaskStatusChange: refreshPageAfterTaskSettled,
+    onPoll: async () => { await workbench.loadPage(workbench.page.offset) },
     refreshKey: workbench.taskSyncVersion,
-    archiveSummaryFixtures,
+    cases: workbench.page.items,
   })
   const [submitBusy, setSubmitBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
   const [caseName, setCaseName] = useState('')
   const [caseNumber, setCaseNumber] = useState('')
   const [sourcePath, setSourcePath] = useState('')
+  const [archiveDetail, setArchiveDetail] = useState<ArchiveTaskPublicDetail | null>(null)
+  const [archiveHistory, setArchiveHistory] = useState<ArchiveTaskHistory | null>(null)
+  const [archiveResult, setArchiveResult] = useState<ArchiveTaskResult | null>(null)
 
   const submit = async () => {
     if (!sourcePath.trim()) { message.warning('请先登记报告目录路径。'); return }
@@ -67,11 +71,34 @@ export default function CaseWorkbenchPage({ archiveSummaryFixtures }: Props) {
     } catch { message.error('删除条件检查失败，请稍后重试。') }
   }
 
-  const handleArchiveAction = (action: ArchiveTaskAction) => {
-    const labels: Record<ArchiveTaskAction, string> = {
-      cancel: '取消归档', retry: '重试归档', view_result: '查看结果', view_details: '查看归档详情',
+  const handleArchiveAction = async (
+    shell: CaseShell, taskId: string, action: ArchiveTaskAction,
+  ) => {
+    if (actionCaseId) return
+    setActionCaseId(shell.case_id)
+    try {
+      if (action === 'cancel') {
+        await workbench.cancelArchiveTask(taskId)
+        message.info('取消请求已提交，最终状态以后端任务记录为准。')
+      } else if (action === 'retry') {
+        await workbench.retryArchiveTask(taskId, shell.revision)
+        message.success('已创建新的归档任务，历史任务保持不变。')
+      } else if (action === 'view_result') {
+        setArchiveResult(await workbench.archiveResult(taskId))
+      } else {
+        const [detail, history] = await Promise.all([
+          workbench.archiveTaskDetails(taskId),
+          workbench.archiveHistory(shell.case_id),
+        ])
+        setArchiveDetail(detail)
+        setArchiveHistory(history)
+      }
+    } catch (error) {
+      message.error(resolveWorkbenchError(error).message)
+      await workbench.loadPage(workbench.page.offset)
+    } finally {
+      setActionCaseId(null)
     }
-    message.info(`${labels[action]}将在 T015 接入真实接口。`)
   }
 
   const total = workbench.page.has_more
@@ -105,8 +132,11 @@ export default function CaseWorkbenchPage({ archiveSummaryFixtures }: Props) {
               onRetry={() => { void retry(shell.case_id) }}
               onCancel={() => { void cancel(shell.case_id) }}
               onDeleteCheck={() => { void checkDelete(shell.case_id) }}
-              onArchiveAction={handleArchiveAction}
-              onArchivePrecheck={() => message.info('归档前检查将在后续归档接口阶段接入。')}
+              onArchiveAction={action => {
+                const summary = archiveSummariesByCase[shell.case_id]
+                if (summary) void handleArchiveAction(shell, summary.task_id, action)
+              }}
+              onArchivePrecheck={() => message.info('请打开案件完成审核，并明确选择立即归档或稍后归档。')}
               actionBusy={actionCaseId === shell.case_id}
             />
           </Col>)}
@@ -114,6 +144,45 @@ export default function CaseWorkbenchPage({ archiveSummaryFixtures }: Props) {
       ) : <div className="case-workbench-page__empty"><Empty image={<InboxOutlined />} description="还没有案件，登记报告目录后会立即出现案件卡片。"><Button type="primary" icon={<FolderOpenOutlined />} loading={submitBusy} onClick={() => { void submit() }}>登记第一个报告目录</Button></Empty></div>}
 
       {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={pageNumber => { void workbench.loadPage((pageNumber - 1) * CASE_PAGE_SIZE) }} /></div>}
+      <Modal
+        open={Boolean(archiveDetail)}
+        title="归档任务详情"
+        footer={null}
+        onCancel={() => { setArchiveDetail(null); setArchiveHistory(null) }}
+      >
+        {archiveDetail && (
+          <Space direction="vertical">
+            <span>状态：{archiveDetail.status}</span>
+            <span>阶段：{archiveDetail.stage_label}（{archiveDetail.percent}%）</span>
+            {archiveDetail.error_summary && <span>安全摘要：{archiveDetail.error_summary}</span>}
+            <span>本案归档历史：{archiveHistory?.items.length ?? 0} 次</span>
+            <span>当前计划分卷槽位：{archiveDetail.archive_plan?.volume_slots.length ?? 0}</span>
+          </Space>
+        )}
+      </Modal>
+      <Modal
+        open={Boolean(archiveResult)}
+        title="归档结果"
+        footer={null}
+        onCancel={() => setArchiveResult(null)}
+      >
+        {archiveResult && (
+          <Space direction="vertical">
+            <span>Manifest：{archiveResult.manifest_id}</span>
+            <span>已验证分卷：{archiveResult.verified_slots.length}</span>
+            <span>正式资产：{archiveResult.assets.length}</span>
+            {archiveResult.parts.map(part => (
+              <Button
+                key={part.part_id}
+                href={API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT_PART(
+                  archiveResult.task_id, part.part_id,
+                )}
+                download={part.filename}
+              >下载 {part.filename}</Button>
+            ))}
+          </Space>
+        )}
+      </Modal>
     </div>
   )
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import shutil
@@ -641,7 +642,7 @@ def test_json_source_path_route_bypasses_legacy_archive_controller(app_services)
     assert response.json()["data"]["source"]["source_type"] == "report_directory"
 
 
-def test_archive_decision_endpoint_persists_deferred_and_returns_opaque_legacy_context(app_services):
+def test_archive_decision_endpoint_persists_deferred_and_returns_safe_queued_task(app_services):
     from app.main import app
     from app.controllers import workbench_controller
 
@@ -675,14 +676,282 @@ def test_archive_decision_endpoint_persists_deferred_and_returns_opaque_legacy_c
         )
         assert immediate.status_code == 200
         immediate_data = immediate.json()["data"]
-        assert immediate_data["archive_status"] == "legacy_explicit_ready"
+        assert immediate_data["archive_status"] == "archive_task_queued"
         assert immediate_data["case"]["shell"]["lifecycle"] == "archive_queued"
-        assert immediate_data["archive_context_id"]
-        assert immediate_data["archive_attempt_id"]
-        assert app_services.archive_attempts.repository.get_public(
-            immediate_data["archive_attempt_id"],
-        )["status"] == "accepted"
+        assert immediate_data["archive_context_id"] is None
+        assert immediate_data["archive_attempt_id"] is None
+        assert immediate_data["archive_task"]["status"] == "queued"
+        assert immediate_data["archive_task"]["allowed_actions"] == ["cancel"]
         assert str(app_services.synthetic_report_dir) not in immediate.text
+
+
+def test_archive_task_list_actions_history_and_safe_projection(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir)},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        )
+        assert queued.status_code == 200
+
+        listed = client.get("/api/v1/workbench/cases").json()["data"]["items"][0]
+        summary = listed["archive_task_summary"]
+        assert summary["status"] == "queued"
+        assert summary["allowed_actions"] == ["cancel"]
+        task_id = summary["task_id"]
+        assert client.get(f"/api/v1/workbench/tasks/{task_id}/progress").json()["data"] == summary
+
+        detail = client.get(f"/api/v1/workbench/tasks/{task_id}/details").json()["data"]
+        forbidden_retry = client.post(
+            f"/api/v1/workbench/tasks/{task_id}/retry",
+            json={
+                "expected_revision": detail["revision"],
+                "expected_case_revision": listed["revision"],
+            },
+        )
+        assert forbidden_retry.status_code == 409
+        assert forbidden_retry.json()["detail"]["code"] == "ARCHIVE_RETRY_NOT_ALLOWED"
+        rejected = client.post(
+            f"/api/v1/workbench/tasks/{task_id}/cancel",
+            json={"expected_revision": detail["revision"], "status": "succeeded"},
+        )
+        assert rejected.status_code == 422
+        cancelled = client.post(
+            f"/api/v1/workbench/tasks/{task_id}/cancel",
+            json={"expected_revision": detail["revision"]},
+        )
+        assert cancelled.status_code == 200
+        assert cancelled.json()["data"]["status"] == "cancelled"
+
+        case = client.get(f"/api/v1/workbench/cases/{case_id}").json()["data"]["shell"]
+        retried = client.post(
+            f"/api/v1/workbench/tasks/{task_id}/retry",
+            json={
+                "expected_revision": cancelled.json()["data"]["revision"],
+                "expected_case_revision": case["revision"],
+            },
+        )
+        assert retried.status_code == 200, retried.text
+        retry_task = retried.json()["data"]["task"]
+        assert retry_task["task_id"] != task_id
+        history = client.get(
+            f"/api/v1/workbench/cases/{case_id}/archive-history",
+        ).json()["data"]
+        assert [item["task_id"] for item in history["items"]] == [
+            retry_task["task_id"], task_id,
+        ]
+
+        serialized = json.dumps(
+            client.get("/api/v1/workbench/cases").json(), ensure_ascii=False,
+        )
+        for forbidden in (
+            "process_binding", "process_tree_id", "staging_asset_id",
+            "ownership_marker_token", "process_pid", "staging_locator",
+            "C:\\Users\\", "Traceback", "raw_log",
+        ):
+            assert forbidden not in serialized
+
+
+def test_unverified_manifest_never_projects_completed_or_result(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+    from app.repository.archive_task_repository import ArchiveTaskRepository
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir)},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+        client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        )
+        tasks = ArchiveTaskRepository(app_services.database)
+        task = tasks.get_current_or_recent(case_id)
+        running = tasks.update_state(task["task_id"], {
+            "status": "running", "worker_state": "owned_running",
+        }, task["revision"])
+        done = tasks.update_state(running["task_id"], {
+            "status": "succeeded", "stage": "completed",
+        }, running["revision"])
+
+        listed = client.get("/api/v1/workbench/cases").json()["data"]["items"][0]
+        summary = listed["archive_task_summary"]
+        assert summary["status"] == "interrupted"
+        assert summary["stage"] == "manifest"
+        assert summary["percent"] == 95
+        assert "view_result" not in summary["allowed_actions"]
+        result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
+        assert result.status_code == 422
+
+
+def test_archive_failure_detail_is_safe_and_stale_commands_conflict(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+    from app.repository.archive_task_repository import ArchiveTaskRepository
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir)},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+        client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        )
+        tasks = ArchiveTaskRepository(app_services.database)
+        task = tasks.get_current_or_recent(case_id)
+        running = tasks.update_state(task["task_id"], {
+            "status": "running", "worker_state": "owned_running",
+        }, task["revision"])
+        failed = tasks.update_state(running["task_id"], {
+            "status": "failed_retryable",
+            "error_code": "SYNTHETIC_SAFE_CODE",
+            "error_summary": "C:\\Users\\TEST\\secret.rar\nTraceback\n at worker.py:42",
+        }, running["revision"])
+
+        detail_response = client.get(
+            f"/api/v1/workbench/tasks/{failed['task_id']}/details",
+        )
+        detail = detail_response.json()["data"]
+        assert detail["error_summary"] == "[local path redacted]"
+        assert detail["error_code"] == "SYNTHETIC_SAFE_CODE"
+        assert "process_binding" not in detail_response.text
+        stale = client.post(
+            f"/api/v1/workbench/tasks/{failed['task_id']}/retry",
+            json={"expected_revision": failed["revision"] - 1, "expected_case_revision": 0},
+        )
+        assert stale.status_code == 409
+
+
+def test_archive_mapping_and_verified_result_routes(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+    from app.repository.archive_manifest_repository import ArchiveManifestRepository
+    from app.repository.archive_plan_repository import ArchivePlanRepository
+    from app.repository.archive_task_repository import ArchiveTaskRepository
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir)},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+        plan = ArchivePlanRepository(app_services.database).create({
+            "plan_id": "SYNTHETIC-PLAN-API",
+            "case_id": case_id,
+            "plan_revision": 1,
+            "input_inventory_revision": 1,
+            "mapping_revision": 0,
+            "volume_slots": [{
+                "slot_id": "SYNTHETIC-SLOT-API",
+                "ordinal": 1,
+                "plan_revision": 1,
+                "lineage_key": "SYNTHETIC-LINEAGE",
+                "planned_input_bytes": 1024,
+                "status": "pending",
+                "disc_mapping": None,
+            }],
+        })
+        mapped = client.patch(
+            f"/api/v1/workbench/cases/{case_id}/archive-plan",
+            json={
+                "expected_revision": plan["revision"],
+                "mappings": [{
+                    "slot_id": "SYNTHETIC-SLOT-API",
+                    "disc_number": "SYNTHETIC-DISC-001",
+                    "disc_date": "2026-07-30",
+                    "source": "user",
+                    "confirmation": "confirmed",
+                }],
+            },
+        )
+        assert mapped.status_code == 200, mapped.text
+        assert mapped.json()["data"]["mapping_revision"] == 1
+        assert client.get(
+            f"/api/v1/workbench/cases/{case_id}/archive-plan",
+        ).json()["data"]["volume_slots"][0]["disc_mapping"]["confirmation"] == "confirmed"
+
+        decision = client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        )
+        assert decision.status_code == 200
+        tasks = ArchiveTaskRepository(app_services.database)
+        task = tasks.get_current_or_recent(case_id)
+        running = tasks.update_state(task["task_id"], {
+            "status": "running", "worker_state": "owned_running",
+        }, task["revision"])
+        done = tasks.update_state(running["task_id"], {
+            "status": "succeeded", "stage": "completed",
+        }, running["revision"])
+        attempt_id = done["process_binding"]["staging_asset_id"]
+        with app_services.database.transaction() as connection:
+            connection.execute(
+                "UPDATE archive_attempts SET status='succeeded',manifest_id=?,finished_at=? "
+                "WHERE attempt_id=?",
+                ("SYNTHETIC-MANIFEST-API", done["finished_at"], attempt_id),
+            )
+        filename = "SYNTHETIC-RESULT.part1.rar"
+        payload = b"SYNTHETIC-ARCHIVE-PART"
+        final_dir = app_services.archive_attempts.output_root / "compressed" / "SYNTHETIC-RESULT"
+        final_dir.mkdir(parents=True)
+        (final_dir / filename).write_bytes(payload)
+        ArchiveManifestRepository(app_services.archive_attempts.output_root).save(
+            source_key="a" * 64,
+            input_fingerprint="b" * 64,
+            archive_fingerprint="c" * 64,
+            manifest_id="SYNTHETIC-MANIFEST-API",
+            final_dir=final_dir,
+            workbench_attempt_id=attempt_id,
+            public_manifest={
+                "manifest_id": "SYNTHETIC-MANIFEST-API",
+                "archive_base_name": "SYNTHETIC-RESULT",
+                "volume_size_bytes": 4_000_000_000,
+                "max_part_count": 1,
+                "actual_archive_bytes": len(payload),
+                "validation_status": "validated",
+                "parts": [{
+                    "part_id": "SYNTHETIC-PART-API",
+                    "part_number": 1,
+                    "filename": filename,
+                    "size_bytes": len(payload),
+                    "md5": hashlib.md5(payload).hexdigest(),
+                    "disc_number": "SYNTHETIC-DISC-001",
+                    "disc_date": "2026-07-30",
+                    "disc_capacity_bytes": 4_000_000_000,
+                    "volume_size_bytes": 4_000_000_000,
+                }],
+            },
+        )
+        result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
+        assert result.status_code == 200
+        assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"
+        assert result.json()["data"]["parts"][0]["part_id"] == "SYNTHETIC-PART-API"
+        assert "internal_locator" not in result.text
+        download = client.get(
+            f"/api/v1/workbench/tasks/{done['task_id']}/result/parts/SYNTHETIC-PART-API",
+        )
+        assert download.status_code == 200
+        assert download.content == payload
+        assert filename in download.headers["content-disposition"]
 
 
 def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_not(app_services):
@@ -699,12 +968,19 @@ def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_no
         ).json()["data"]
         case_id = created["shell"]["case_id"]
         ready = _wait_for_parse(client, case_id)
-        immediate = client.post(
-            f"/api/v1/workbench/cases/{case_id}/archive-decision",
-            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
-        ).json()["data"]
-        context_id = immediate["archive_context_id"]
-        attempt_id = immediate["archive_attempt_id"]
+        contexts: list[str] = []
+        create_context = app_services.sources.create_legacy_preview_source
+        with patch.object(
+            app_services.sources, "create_legacy_preview_source",
+            side_effect=lambda value: contexts.append(create_context(value)) or contexts[-1],
+        ):
+            immediate = client.post(
+                f"/api/v1/workbench/cases/{case_id}/archive-decision",
+                json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+            ).json()["data"]
+        task = app_services.archive_api.tasks.get_current_or_recent(case_id)
+        attempt_id = task["process_binding"]["staging_asset_id"]
+        context_id = contexts[0]
         manifest = {"manifest_id": "SYNTHETIC-MANIFEST-H4", "parts": []}
 
         with patch.object(
@@ -726,7 +1002,7 @@ def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_no
                 "report_json": json.dumps(REPORT, ensure_ascii=False),
             })
             assert omitted.status_code == 409
-            assert omitted.json()["detail"]["code"] == "ARCHIVE_ATTEMPT_REQUIRED"
+            assert omitted.json()["detail"]["code"] == "ARCHIVE_TASK_API_REQUIRED"
             execute.assert_not_called()
 
             wrong = client.post("/api/v1/records/archive", data={
@@ -735,7 +1011,7 @@ def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_no
                 "report_json": json.dumps(REPORT, ensure_ascii=False),
             })
             assert wrong.status_code == 409
-            assert wrong.json()["detail"]["code"] == "ARCHIVE_ATTEMPT_CONTEXT_MISMATCH"
+            assert wrong.json()["detail"]["code"] == "ARCHIVE_TASK_API_REQUIRED"
             execute.assert_not_called()
 
             replaced = copy.deepcopy(REPORT)
@@ -746,7 +1022,7 @@ def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_no
                 "report_json": json.dumps(replaced, ensure_ascii=False),
             })
             assert mismatch.status_code == 409
-            assert mismatch.json()["detail"]["code"] == "ARCHIVE_REPORT_MISMATCH"
+            assert mismatch.json()["detail"]["code"] == "ARCHIVE_TASK_API_REQUIRED"
             execute.assert_not_called()
 
             correct = client.post("/api/v1/records/archive", data={
@@ -754,9 +1030,9 @@ def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_no
                 "archive_attempt_id": attempt_id,
             })
             assert correct.status_code == 409
-            assert correct.json()["detail"]["code"] == "ARCHIVE_COMPLETION_EVIDENCE_REQUIRED"
-            assert execute.call_args.kwargs["workbench_context_id"] == context_id
-            assert app_services.archive_attempts.repository.get_public(attempt_id)["status"] == "running"
+            assert correct.json()["detail"]["code"] == "ARCHIVE_TASK_API_REQUIRED"
+            execute.assert_not_called()
+            assert app_services.archive_attempts.repository.get_public(attempt_id)["status"] == "accepted"
             assert app_services.lifecycle.detail(case_id)["shell"]["lifecycle"] == "archive_queued"
 
 

@@ -80,6 +80,11 @@ async def execute_archive_endpoint(
         )
     attempt_service = get_workbench_services().archive_attempts
     binding = attempt_service.context_binding(archive_context_id) if attempt_service else None
+    if binding:
+        raise HTTPException(status_code=409, detail={
+            "code": "ARCHIVE_TASK_API_REQUIRED",
+            "message": "工作台归档必须由后台归档任务执行。",
+        })
     if binding and not archive_attempt_id:
         raise HTTPException(status_code=409, detail={
             "code": "ARCHIVE_ATTEMPT_REQUIRED", "message": "工作台归档必须使用已绑定的归档尝试。",
