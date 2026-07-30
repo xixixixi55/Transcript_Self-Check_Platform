@@ -15,9 +15,12 @@ import tempfile
 from datetime import datetime
 from collections.abc import Mapping
 
+from ..repository.template_approval_repository import TemplateApprovalRepository
+from ..repository.template_registry_repository import TemplateRegistryRepository
 from .document_builder_service import build_record_document
 from .template_filler_service import fill_template
 from .legacy_report_projection_service import project_ordered_legacy_report
+from .template_profile_service import require_registered_template
 
 # 模板文件路径
 _TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
@@ -53,7 +56,10 @@ def _run_officecli(*args: str) -> subprocess.CompletedProcess:
 
 
 def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str = None,
-                  archive_manifest: Mapping | None = None) -> str:
+                  archive_manifest: Mapping | None = None,
+                  template_ref: Mapping | None = None,
+                  template_registry: TemplateRegistryRepository | None = None,
+                  template_approvals: TemplateApprovalRepository | None = None) -> str:
     """
     生成检查笔录 .docx 文件。
     优先使用模板填充，模板不存在时回退到 officecli batch 方案。
@@ -61,6 +67,17 @@ def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str =
     """
     if output_dir is None:
         output_dir = tempfile.mkdtemp()
+
+    template_path = _TEMPLATE_PATH
+    template_fingerprint = None
+    if template_ref is not None:
+        if template_registry is None or template_approvals is None:
+            raise ValueError("template registry dependencies are required")
+        registered = require_registered_template(
+            template_registry, template_approvals, template_ref,
+        )
+        template_path = registered["internal_locator"]
+        template_fingerprint = registered["fingerprint"]
 
     report = project_ordered_legacy_report(report)
 
@@ -74,16 +91,26 @@ def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str =
     filepath = os.path.join(output_dir, filename)
 
     # 优先使用模板填充
-    if os.path.isfile(_TEMPLATE_PATH):
+    if os.path.isfile(template_path):
+        template_options = (
+            {} if template_fingerprint is None
+            else {"expected_template_fingerprint": template_fingerprint}
+        )
         try:
             if archive_manifest is None:
-                fill_template(report, _TEMPLATE_PATH, filepath, photo_paths or [])
+                fill_template(
+                    report, template_path, filepath, photo_paths or [],
+                    **template_options,
+                )
             else:
-                fill_template(report, _TEMPLATE_PATH, filepath, photo_paths or [], archive_manifest)
+                fill_template(
+                    report, template_path, filepath, photo_paths or [], archive_manifest,
+                    **template_options,
+                )
             if os.path.isfile(filepath) and os.path.getsize(filepath) > 0:
                 return filepath
         except Exception as e:
-            if archive_manifest is not None:
+            if archive_manifest is not None or template_ref is not None:
                 raise
             # 模板填充失败时回退到 batch 方案
             import traceback

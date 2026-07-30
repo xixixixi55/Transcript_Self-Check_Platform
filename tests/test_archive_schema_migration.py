@@ -43,7 +43,7 @@ def test_v5_archive_task_migrates_with_safe_restart_defaults(tmp_path: Path) -> 
 
     database = WorkbenchDatabase(path, "SYNTHETIC-LEGACY")
     task = TaskRecordRepository(database).get("SYNTHETIC-LEGACY-TASK")
-    assert database.schema_version() == 6
+    assert database.schema_version() == 7
     assert task["updated_at"] == "2026-07-30T00:00:00+00:00"
     assert task["worker_state"] == "waiting_reclaim"
     assert task["output_bytes"] is None

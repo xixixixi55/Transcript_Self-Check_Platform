@@ -30,6 +30,7 @@ from .attachment_plan_service import build_attachment_plan
 from .attachment_docx_renderer_service import render_attachment_plan
 from .docx_output_sanitizer_service import sanitize_generated_docx
 from .template_profile_service import (
+    CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     validate_current_template_profile,
     validate_template_package_fingerprint,
 )
@@ -38,7 +39,8 @@ from .legacy_report_projection_service import project_ordered_legacy_report
 
 def fill_template(report: dict, template_path: str, output_path: str,
                   photo_paths: list[str] = None,
-                  archive_manifest: Mapping | None = None) -> str:
+                  archive_manifest: Mapping | None = None,
+                  expected_template_fingerprint: str | None = None) -> str:
     """
     用 InspectionReport 数据填充模板，生成输出文档。
     返回 output_path。
@@ -50,6 +52,9 @@ def fill_template(report: dict, template_path: str, output_path: str,
     plan = None
     profile = None
     photo_assets = ()
+    expected_fingerprint = (
+        expected_template_fingerprint or CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
+    )
     if archive_manifest is not None:
         raw_source_image_ids = (report.get("attachments") or {}).get("photo_ids") or []
         if not isinstance(raw_source_image_ids, list):
@@ -66,10 +71,12 @@ def fill_template(report: dict, template_path: str, output_path: str,
         plan_report.setdefault("attachments", {})["photo_ids"] = list(source_image_ids)
         plan = build_attachment_plan(archive_manifest, plan_report)
         photo_assets = validate_attachment2_photos(photo_paths, source_image_ids)
-        validate_template_package_fingerprint(template_path)
+        validate_template_package_fingerprint(template_path, expected_fingerprint)
     doc = Document(template_path)
     if archive_manifest is not None:
-        profile = validate_current_template_profile(template_path, doc)
+        profile = validate_current_template_profile(
+            template_path, doc, expected_fingerprint,
+        )
     flat = _flatten_report(report)
     flat["photo_count"] = str(plan.attachment2_state.photo_count if plan else len(photo_paths))
     if plan is not None:

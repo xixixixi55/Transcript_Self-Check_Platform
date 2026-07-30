@@ -22,6 +22,8 @@ REQUIRED_SCHEMA = {
     "archive_publish_fences": {"fence_id", "attempt_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "context_hash", "shell_revision", "status", "reason", "created_at", "updated_at"},
     "archive_plans": {"plan_id", "schema_version", "case_id", "plan_revision", "input_inventory_revision", "mapping_revision", "volume_slots_json", "verified_slots_json", "created_at", "updated_at", "revision"},
     "archive_assets": {"asset_id", "schema_version", "case_id", "task_id", "plan_id", "asset_kind", "status", "internal_locator", "metadata_json", "created_at", "updated_at", "revision"},
+    "template_versions": {"template_id", "version", "schema_version", "display_name", "fingerprint", "validation_rules_json", "asset_id", "internal_locator", "registered_at"},
+    "template_approvals": {"approval_record_id", "template_id", "version", "status", "acceptance_summary", "recorded_at"},
 }
 
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
@@ -94,6 +96,11 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
         "CREATE INDEX archive_task_current ON task_records(case_id, kind, status, updated_at DESC)",
         "CREATE INDEX archive_asset_task ON archive_assets(task_id, status)",
     )),
+    (7, (
+        "CREATE TABLE template_versions (template_id TEXT NOT NULL, version TEXT NOT NULL, schema_version INTEGER NOT NULL, display_name TEXT NOT NULL, fingerprint TEXT NOT NULL, validation_rules_json TEXT NOT NULL, asset_id TEXT NOT NULL UNIQUE, internal_locator TEXT NOT NULL, registered_at TEXT NOT NULL, PRIMARY KEY(template_id, version))",
+        "CREATE TABLE template_approvals (approval_record_id TEXT PRIMARY KEY, template_id TEXT NOT NULL, version TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'rejected', 'revoked')), acceptance_summary TEXT NOT NULL, recorded_at TEXT NOT NULL, FOREIGN KEY(template_id, version) REFERENCES template_versions(template_id, version))",
+        "CREATE INDEX template_approval_history ON template_approvals(template_id, version, recorded_at DESC, approval_record_id DESC)",
+    )),
 )
 
 REQUIRED_INDEXES = {
@@ -101,6 +108,7 @@ REQUIRED_INDEXES = {
     "archive_context_attempt", "archive_publish_attempt", "archive_publish_fence_active_case",
     "archive_publish_fence_active_attempt", "archive_publish_fence_reconciliation",
     "archive_plan_case_revision", "archive_task_current", "archive_asset_task",
+    "template_approval_history",
 }
 
 

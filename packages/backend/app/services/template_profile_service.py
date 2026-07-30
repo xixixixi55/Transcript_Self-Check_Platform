@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..repository.template_approval_repository import TemplateApprovalRepository
+from ..repository.template_registry_repository import TemplateRegistryRepository
+from ..repository.workbench_database import utc_now
+from ..repository.workbench_errors import WorkbenchPersistenceError
 from .docx_package_service import (
     OOXML_PACKAGE_FINGERPRINT_ALGORITHM,
     DocxPackageError,
@@ -18,6 +22,10 @@ from .attachment2_image_service import (
 
 CURRENT_TEMPLATE_PROFILE_ID = "current-template-v1"
 CURRENT_TEMPLATE_PACKAGE_FINGERPRINT = "616E3D1200C98DFD55C6DA7D5FB7DBB1C395BEF9FD78B1B6F59DC79BC4E814A7"
+CURRENT_TEMPLATE_VALIDATION_RULE = {
+    "rule_id": "current-template-profile",
+    "version": "1.0.0",
+}
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _V_NS = "urn:schemas-microsoft-com:vml"
 
@@ -64,16 +72,16 @@ class CurrentTemplateProfile:
     expected_vml_textboxes: int = 2
 
 
-def current_template_profile() -> CurrentTemplateProfile:
+def current_template_profile(package_fingerprint: str = CURRENT_TEMPLATE_PACKAGE_FINGERPRINT) -> CurrentTemplateProfile:
     return CurrentTemplateProfile(
         CURRENT_TEMPLATE_PROFILE_ID,
         OOXML_PACKAGE_FINGERPRINT_ALGORITHM,
-        CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+        package_fingerprint,
     )
 
 
-def validate_template_package_fingerprint(template_path: str) -> CurrentTemplateProfile:
-    profile = current_template_profile()
+def validate_template_package_fingerprint(template_path: str, expected_fingerprint: str = CURRENT_TEMPLATE_PACKAGE_FINGERPRINT) -> CurrentTemplateProfile:
+    profile = current_template_profile(expected_fingerprint)
     path = Path(template_path)
     if not path.is_file():
         raise TemplateProfileError("当前模板资产不存在或已漂移。")
@@ -86,8 +94,11 @@ def validate_template_package_fingerprint(template_path: str) -> CurrentTemplate
     return profile
 
 
-def validate_current_template_profile(template_path: str, doc: Any) -> CurrentTemplateProfile:
-    profile = validate_template_package_fingerprint(template_path)
+def validate_current_template_profile(
+    template_path: str, doc: Any,
+    expected_fingerprint: str = CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+) -> CurrentTemplateProfile:
+    profile = validate_template_package_fingerprint(template_path, expected_fingerprint)
     body = doc.element.body
     if _find_paragraph(body, profile.attachment1_label, exact=True) is None:
         raise TemplateProfileError("当前模板缺少附件一定位锚点。")
@@ -137,6 +148,71 @@ def validate_current_template_profile(template_path: str, doc: Any) -> CurrentTe
     if _find_paragraph(body, profile.attachment3_end_anchor) is None:
         raise TemplateProfileError("当前模板缺少附件三结束锚点。")
     return profile
+
+
+def require_registered_template(
+    registry: TemplateRegistryRepository,
+    approvals: TemplateApprovalRepository,
+    template_ref: Any,
+) -> dict[str, Any]:
+    """Resolve an approved version and revalidate its immutable asset and profile."""
+    try:
+        template = registry.get_internal(template_ref)
+        approvals.require_approved(template_ref)
+    except WorkbenchPersistenceError as error:
+        code = error.code if error.code in {"TEMPLATE_UNKNOWN", "TEMPLATE_NOT_APPROVED"} else "TEMPLATE_UNKNOWN"
+        raise TemplateProfileError(_safe_template_summary(code), code) from error
+    path = Path(template["internal_locator"])
+    if not path.is_file():
+        code = "TEMPLATE_ASSET_MISSING"
+        raise TemplateProfileError(_safe_template_summary(code), code)
+    if template["validation_rules"] != [CURRENT_TEMPLATE_VALIDATION_RULE]:
+        code = "TEMPLATE_RULE_VALIDATION_FAILED"
+        raise TemplateProfileError(_safe_template_summary(code), code)
+    try:
+        actual = compute_ooxml_package_fingerprint(path)
+    except DocxPackageError as error:
+        code = "TEMPLATE_RULE_VALIDATION_FAILED"
+        raise TemplateProfileError(_safe_template_summary(code), code) from error
+    if actual != template["fingerprint"]:
+        code = "TEMPLATE_FINGERPRINT_MISMATCH"
+        raise TemplateProfileError(_safe_template_summary(code), code)
+    try:
+        from docx import Document
+        validate_current_template_profile(
+            str(path), Document(str(path)), template["fingerprint"],
+        )
+    except (OSError, ValueError, TemplateProfileError) as error:
+        code = "TEMPLATE_RULE_VALIDATION_FAILED"
+        raise TemplateProfileError(_safe_template_summary(code), code) from error
+    return template
+
+
+def validate_registered_template(
+    registry: TemplateRegistryRepository,
+    approvals: TemplateApprovalRepository,
+    template_ref: Any,
+) -> dict[str, Any]:
+    try:
+        template = require_registered_template(registry, approvals, template_ref)
+    except TemplateProfileError as error:
+        return {"valid": False, "error_code": error.code, "safe_summary": error.safe_message}
+    approval = approvals.require_approved(template_ref)
+    return {
+        "valid": True,
+        "template": registry.public_with_approval(template_ref, approval),
+        "validated_at": utc_now(),
+    }
+
+
+def _safe_template_summary(code: str) -> str:
+    return {
+        "TEMPLATE_UNKNOWN": "所选模板版本不存在。",
+        "TEMPLATE_NOT_APPROVED": "所选模板版本未通过审核。",
+        "TEMPLATE_ASSET_MISSING": "所选模板资产不可用。",
+        "TEMPLATE_FINGERPRINT_MISMATCH": "所选模板指纹校验失败。",
+        "TEMPLATE_RULE_VALIDATION_FAILED": "所选模板结构校验失败。",
+    }[code]
 
 
 def body_children(doc: Any) -> list[Any]:

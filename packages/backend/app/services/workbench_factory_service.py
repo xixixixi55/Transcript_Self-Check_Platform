@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from ..config import OUTPUT_BASE, UPLOAD_BASE
 from ..repository.workbench_database import WorkbenchDatabase, database_path_for_deployment
 from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.resource_snapshot_repository import ResourceSnapshotRepository
+from ..repository.template_approval_repository import TemplateApprovalRepository
+from ..repository.template_registry_repository import TemplateRegistryRepository
 from .archive_authorization_service import ArchiveAuthorizationService
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_progress_service import ArchiveProgressService
@@ -24,6 +27,11 @@ from .edit_lease_service import EditLeaseService
 from .shared_defaults_service import SharedDefaultsService
 from .source_record_service import SourceRecordService
 from .task_record_service import TaskRecordService
+from .template_profile_service import (
+    CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+    CURRENT_TEMPLATE_VALIDATION_RULE,
+)
+from .template_registry_service import TemplateRegistryService
 
 
 @dataclass
@@ -42,6 +50,9 @@ class WorkbenchServices:
     archive_scheduler: ArchiveSchedulerService | None = None
     archive_worker: ArchiveWorkerService | None = None
     archive_api: ArchiveTaskApiService | None = None
+    template_registry: TemplateRegistryRepository | None = None
+    template_approvals: TemplateApprovalRepository | None = None
+    templates: TemplateRegistryService | None = None
 
 
 def build_workbench_services(
@@ -58,6 +69,12 @@ def build_workbench_services(
         archive_tasks, ResourceSnapshotRepository(database),
     )
     attempts = ArchiveAttemptService(database, OUTPUT_BASE)
+    template_root = Path(__file__).parents[4] / "word_templates"
+    template_registry = TemplateRegistryRepository(
+        database, (template_root, database.database_path.parent / "template-assets"),
+    )
+    template_approvals = TemplateApprovalRepository(database, template_registry)
+    _register_current_template(template_registry, template_approvals, template_root)
     services = WorkbenchServices(
         database=database,
         cases=CaseDraftService(database, source_service=sources),
@@ -77,11 +94,37 @@ def build_workbench_services(
             if archive_admission_config is not None else None
         ),
         archive_worker=ArchiveWorkerService(archive_tasks, archive_progress),
+        template_registry=template_registry,
+        template_approvals=template_approvals,
+        templates=TemplateRegistryService(database, template_registry, template_approvals),
     )
     services.archive_api = ArchiveTaskApiService(
         database, attempts, sources, archive_progress,
     )
     return services
+
+
+def _register_current_template(
+    registry: TemplateRegistryRepository,
+    approvals: TemplateApprovalRepository,
+    template_root: Path,
+) -> None:
+    reference = {"template_id": "electronic-inspection-record", "version": "1.0.0"}
+    registry.register({
+        "schema_version": 1,
+        "template_ref": reference,
+        "display_name": "电子数据检查笔录（current-template-v1）",
+        "fingerprint": CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+        "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
+        "asset_id": "template-asset-current-v1",
+        "registered_at": "2026-07-30T00:00:00+00:00",
+    }, template_root / "template.docx")
+    approvals.record(reference, {
+        "approval_record_id": "template-approval-current-v1",
+        "status": "approved",
+        "acceptance_summary": "current-template-v1 已通过既有 Word、VML、分页、表格和附件验收。",
+        "recorded_at": "2026-07-30T00:00:00+00:00",
+    })
 
 
 _SERVICES: WorkbenchServices | None = None

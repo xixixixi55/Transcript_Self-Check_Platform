@@ -552,10 +552,17 @@ T017 adds the frontend registry client and review-page selector. The client
 filters for complete approved versions, displays only the template ID, version
 and safe acceptance summary, and submits only `TemplateVersionRef`, draft
 revision and edit-lease proof. It accepts a selection result only when the
-returned impact preserves archive, Manifest and disc-mapping facts. T018/T019
-still own the registry persistence, generation-time validation and HTTP
-implementation; until then the current production renderer remains
-`current-template-v1`.
+returned impact preserves archive, Manifest and disc-mapping facts.
+
+T018 adds the persistent backend registry, immutable approval history and
+case-template reference update. Registered versions bind a controlled internal
+asset locator to their immutable ID, version, package fingerprint and validation
+rules; public projections remain path-free. Listing and formal generation both
+require the current approved status and revalidate the asset fingerprint and
+Word structure before use. Switching a case reference invalidates only the Word
+artifact and does not mutate archive planning, tasks, Manifest or disc mapping.
+Existing cases without a reference continue to use `current-template-v1`. T019
+still owns the HTTP list and case-selection controller/route implementation.
 
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type ArchiveProgressKind,

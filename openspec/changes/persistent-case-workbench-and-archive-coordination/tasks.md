@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 已开始，T016/T016T、T017/T017T 已完成，T018–T019T 未开始；Phase 5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 已开始，T016/T016T、T017/T017T、T018/T018T 已完成，T019/T019T 未开始；Phase 5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -405,8 +405,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 20/21 — Template registry and generator
 
-- [ ] **T018** 新增 `packages/backend/app/repository/template_registry_repository.py`、`template_approval_repository.py`；改造 `template_profile_service.py`、`record_generator_service.py` 按案件模板版本读取受控资产并重新校验。
-- [ ] **T018T** 新增 `tests/test_template_registry_repository.py`、`tests/test_template_profile_service.py`、`tests/test_record_generator_service.py`；使用合成/已审核 fixture，覆盖指纹变化、规则校验、VML/分页/表格/附件安全门控和模板切换不启动压缩。
+- [x] **T018** 新增 `packages/backend/app/repository/template_registry_repository.py`、`template_approval_repository.py`；改造 `template_profile_service.py`、`record_generator_service.py` 按案件模板版本读取受控资产并重新校验。
+- [x] **T018T** 新增 `tests/test_template_registry_repository.py`、`tests/test_template_profile_service.py`、`tests/test_record_generator_service.py`；使用合成/已审核 fixture，覆盖指纹变化、规则校验、VML/分页/表格/附件安全门控和模板切换不启动压缩。
 
 ### Layer 22/23 — Template API
 
