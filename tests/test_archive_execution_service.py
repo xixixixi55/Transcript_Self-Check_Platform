@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -100,6 +101,64 @@ def test_replans_upward_and_manifest_uses_final_plan(tmp_path):
     assert fake.calls == [4, 22]
     manifest_dir = output / "compressed" / context_id / outcome.manifest_id
     assert manifest_dir.is_dir()
+
+
+def test_workbench_publish_removes_staging_marker_exactly_once(
+    tmp_path, monkeypatch,
+):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+
+    class AttemptService:
+        remove_calls = 0
+
+        @staticmethod
+        def staging_initializer(_attempt_id):
+            return lambda _staging: None
+
+        @staticmethod
+        def process_started_callback(_attempt_id):
+            return lambda _pid: None
+
+        def remove_marker(self, _staging):
+            self.remove_calls += 1
+
+    attempts = AttemptService()
+    monkeypatch.setattr(
+        "app.services.archive_execution_service.WinRarExecutor",
+        lambda *_args, **_kwargs: fake,
+    )
+    monkeypatch.setattr(
+        "app.services.archive_execution_service.record_attempt_completion",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def publish(staging_dir, final_dir, *_args, attempt_service=None, **_kwargs):
+        assert attempt_service is attempts
+        assert attempts.remove_calls == 0
+        attempt_service.remove_marker(staging_dir)
+        final_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(staging_dir), str(final_dir))
+
+    monkeypatch.setattr(
+        "app.services.archive_execution_service.publish_staged_archive", publish,
+    )
+
+    outcome = execute_archive(
+        context_id,
+        valid_report(),
+        output_root=str(output),
+        policy=policy(4),
+        capability=capability,
+        integrity_runner=integrity_ok,
+        attempt_id="SYNTHETIC-ATTEMPT",
+        attempt_service=attempts,
+        workbench_context_id="SYNTHETIC-WORKBENCH-CONTEXT",
+    )
+
+    assert outcome.manifest_id
+    assert attempts.remove_calls == 1
 
 
 def test_successful_manifest_is_reused_only_for_same_snapshot_and_review(tmp_path):

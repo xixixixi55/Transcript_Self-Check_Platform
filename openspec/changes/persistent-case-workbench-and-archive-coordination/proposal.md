@@ -1,7 +1,7 @@
 # Proposal: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 状态：进行中（Phase 1–2 实现完成；Phase 3 实现完成、自动验证通过、轻量冒烟通过；Phase 4 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 5 未开始；Phase 3–4 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成）
+> 状态：进行中（Phase 1–4 实现完成，阶段自动验证和轻量冒烟通过；2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；Phase 5 未开始；Phase 3–4 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成）
 > 日期：2026-07-26
 > 级别：Level 3
 

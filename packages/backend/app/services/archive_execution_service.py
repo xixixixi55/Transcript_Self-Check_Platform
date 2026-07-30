@@ -180,8 +180,6 @@ def execute_archive(
                 manifest_id = str(public_manifest["manifest_id"])
                 final_dir = Path(output_root) / "compressed" / context_id / manifest_id
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
-                if marker_enabled and attempt_service is not None:
-                    attempt_service.remove_marker(execution.staging_dir)
                 created_at = time.time()
                 record = ArchiveManifestRecord(
                     manifest_id, context_id, fingerprint, public_manifest, final_dir,

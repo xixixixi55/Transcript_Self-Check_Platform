@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2–4 已实现完成，自动验证和轻量开发冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 5 未开始。Phase 3–4 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；Phase 5 未开始。Phase 3–4 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -420,6 +420,14 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] 未审核或未知 DOCX 不能进入案件模板引用，现有 Word 安全门控保持通过。
 - [x] Phase 4 阶段状态（2026-07-30）：实现完成、自动验证通过、轻量冒烟通过；等待 Phase 1–4 最终集成人工验收。
 - [ ] Phase 4 正式人工验收（并入 Phase 1–4 最终集成人工验收）；不得以本阶段合成测试或轻量冒烟替代。
+
+### Phase 1–4 最终集成人工验收记录（2026-07-30）
+
+- [x] 修复正式归档发布中 staging ownership marker 被执行层和发布层重复删除的直接集成回归；发布层保持唯一删除所有者，定向测试、受影响回归和重新执行的完整 Harness 通过。
+- [x] 使用 D 盘隔离目录、纯合成案件和受控模板完成 API、持久化、模板治理、revision 冲突、Word artifact 失效、正式 Word、Legacy/VML/6 页分页、附件顺序、真实 WinRAR、RAR inventory/完整性/MD5/Manifest/发布链路核验；验收资产已清理，未进入仓库。
+- [x] 模板未知、未审核、指纹不匹配和规则失败均被稳定安全错误拒绝；正式生成前会重新校验当前模板，失败时不生成看似成功的 Word。
+- [ ] Phase 3/4 及 Phase 1–4 最终集成人工验收：通过真实 HTTP 工作台创建的归档任务持续为 `queued`/`unassigned`，应用运行时没有调用现有 scheduler/worker 取得并执行任务；服务层直接调用 Worker 可成功生成并发布验证通过的 RAR/Manifest，但不能替代公共主链路验收。
+- [ ] 浏览器视觉验收：本轮 Codex 内置浏览器运行时因 node_repl kernel assets 路径错误不可用；仅完成真实服务、HTTP/API、正式生成链路及 officecli/Word 的 6 页 DOCX 视觉核验，不以路由可访问性冒充页面视觉验收。
 
 ## Phase 5 — 综合验收、清理和 Shadow 边界
 
