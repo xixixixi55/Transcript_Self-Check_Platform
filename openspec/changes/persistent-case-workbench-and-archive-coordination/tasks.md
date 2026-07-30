@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 已开始，T016/T016T 已完成，T017–T019T 未开始；Phase 5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 4 已开始，T016/T016T、T017/T017T 已完成，T018–T019T 未开始；Phase 5 未开始。Phase 3 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -400,8 +400,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 10/11/12 — Template selection UI
 
-- [ ] **T017** 新增 `useTemplateRegistry.ts`、`TemplateSelector.tsx`，改造审核页显示 approved 模板的 ID/版本/验收摘要，保存案件模板引用并提示旧 Word artifact 失效。
-- [ ] **T017T** 增加 Hook、组件和 E2E 测试；覆盖只显示 approved 版本、选择/切换、旧 Word 失效和切换不触发压缩。
+- [x] **T017** 新增 `useTemplateRegistry.ts`、`TemplateSelector.tsx`，改造审核页显示 approved 模板的 ID/版本/验收摘要，保存案件模板引用并提示旧 Word artifact 失效。
+- [x] **T017T** 增加 Hook、组件和 E2E 测试；覆盖只显示 approved 版本、选择/切换、旧 Word 失效和切换不触发压缩。仓库当前没有 Playwright 依赖或可执行 E2E harness，使用可执行的 Hook 单测、组件 RTL 和页面级 HTTP 流程集成测试覆盖同一场景；不以不可运行的伪 E2E 文件替代证据。
 
 ### Layer 20/21 — Template registry and generator
 

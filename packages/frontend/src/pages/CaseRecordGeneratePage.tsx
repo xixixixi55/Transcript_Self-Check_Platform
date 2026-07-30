@@ -4,6 +4,7 @@ import { Alert, Button, Card, Spin, Steps, message } from 'antd'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { InspectorLibraryRecord } from '@biji/shared/types'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
+import { useTemplateRegistry } from '../hooks/useTemplateRegistry'
 import { useRecordExport } from '../hooks/useRecordExport'
 import { getReviewPendingItems } from '../hooks/useReviewChecklist'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
@@ -21,6 +22,7 @@ import { SourceReselectionPanel } from '../components/SourceReselectionPanel'
 import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
 import { ReviewSourceLegend } from '../components/ReviewSourceLegend'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
+import { TemplateSelector } from '../components/TemplateSelector'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import { runWithSourceExportRiskConfirmation } from '../hooks/useSourceExportRisk'
 export default function CaseRecordGeneratePage() {
@@ -37,6 +39,18 @@ export default function CaseRecordGeneratePage() {
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const [defaultDiscPrefix, setDefaultDiscPrefix] = useState('')
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
+  const templateRegistry = useTemplateRegistry({
+    caseId,
+    currentTemplateRef: session.draft?.template_ref || null,
+    expectedRevision: session.draft?.revision ?? null,
+    enabled: Boolean(session.draft),
+    editingEnabled: session.editingEnabled
+      && !session.autosave.hasPending
+      && session.autosave.draftState.status !== 'saving',
+    leaseId: session.lease.lease?.lease_id,
+    leaseToken: session.lease.lease?.lease_token,
+    onSelected: async () => { await session.loadServerVersion() },
+  })
   useEffect(() => {
     axios.get(API_ENDPOINTS.DEVICES).then(response => setDevices(response.data.data || [])).catch(() => undefined)
     setInspectorLoading(true)
@@ -156,6 +170,16 @@ export default function CaseRecordGeneratePage() {
           sharedDefaults={session.sharedDefaultsSaveState.status === 'not_changed'
             ? session.autosave.sharedState : session.sharedDefaultsSaveState}
           onRetry={() => { void session.retrySave() }} onLoadServer={() => { void loadServer() }} />
+        <TemplateSelector
+          templates={templateRegistry.templates}
+          currentTemplateRef={session.draft?.template_ref || null}
+          loading={templateRegistry.loading}
+          saving={templateRegistry.saving}
+          disabled={!session.editingEnabled || session.autosave.hasPending}
+          errorCode={templateRegistry.errorCode}
+          impact={templateRegistry.impact}
+          onSelect={templateRegistry.selectTemplate}
+        />
         {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
         <div className="case-workbench-page__toolbar">文号来源：<FieldProvenanceBadge state={session.draft?.field_states.document_number} /></div>
         <ReviewSourceLegend />
