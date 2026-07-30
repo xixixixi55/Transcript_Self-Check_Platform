@@ -7,8 +7,14 @@ from dataclasses import dataclass, field
 
 from ..config import OUTPUT_BASE, UPLOAD_BASE
 from ..repository.workbench_database import WorkbenchDatabase, database_path_for_deployment
+from ..repository.archive_task_repository import ArchiveTaskRepository
+from ..repository.resource_snapshot_repository import ResourceSnapshotRepository
 from .archive_authorization_service import ArchiveAuthorizationService
 from .archive_attempt_service import ArchiveAttemptService
+from .archive_progress_service import ArchiveProgressService
+from .archive_resource_admission_service import ArchiveAdmissionConfig, ArchiveResourceAdmissionService
+from .archive_scheduler_service import ArchiveSchedulerService
+from .archive_worker_service import ArchiveWorkerService
 from .case_asset_service import CaseAssetService
 from .case_draft_service import CaseDraftService
 from .case_parse_dispatcher_service import CaseParseDispatcher
@@ -31,14 +37,24 @@ class WorkbenchServices:
     archive_attempts: ArchiveAttemptService | None = None
     dispatcher: CaseParseDispatcher = field(default_factory=CaseParseDispatcher)
     assets: CaseAssetService | None = None
+    archive_progress: ArchiveProgressService | None = None
+    archive_scheduler: ArchiveSchedulerService | None = None
+    archive_worker: ArchiveWorkerService | None = None
 
 
-def build_workbench_services(database: WorkbenchDatabase) -> WorkbenchServices:
+def build_workbench_services(
+    database: WorkbenchDatabase,
+    archive_admission_config: ArchiveAdmissionConfig | None = None,
+) -> WorkbenchServices:
     sources = SourceRecordService(
         database, ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE),
     )
     leases = EditLeaseService(database)
     assets = CaseAssetService(database, leases)
+    archive_tasks = ArchiveTaskRepository(database)
+    archive_progress = ArchiveProgressService(
+        archive_tasks, ResourceSnapshotRepository(database),
+    )
     return WorkbenchServices(
         database=database,
         cases=CaseDraftService(database, source_service=sources),
@@ -49,6 +65,15 @@ def build_workbench_services(database: WorkbenchDatabase) -> WorkbenchServices:
         tasks=TaskRecordService(database),
         archive_attempts=ArchiveAttemptService(database, OUTPUT_BASE),
         assets=assets,
+        archive_progress=archive_progress,
+        archive_scheduler=(
+            ArchiveSchedulerService(
+                archive_tasks,
+                ArchiveResourceAdmissionService(archive_admission_config),
+            )
+            if archive_admission_config is not None else None
+        ),
+        archive_worker=ArchiveWorkerService(archive_tasks, archive_progress),
     )
 
 
@@ -62,8 +87,10 @@ def get_workbench_services() -> WorkbenchServices:
         data_root = os.environ.get("BIJI_WORKBENCH_DATA_ROOT")
         path = database_path_for_deployment(data_root, deployment_id)
         services = build_workbench_services(WorkbenchDatabase(path, deployment_id))
-        services.tasks.recover_after_restart()
-        if services.archive_attempts is not None:
+        services.tasks.recover_after_restart(include_archive=False)
+        if services.archive_worker is not None and services.archive_attempts is not None:
+            services.archive_worker.recover_after_restart(services.archive_attempts)
+        elif services.archive_attempts is not None:
             services.archive_attempts.recover_after_restart()
         services.leases.recover_after_restart()
         services.sources.recover_pending_after_startup(services.dispatcher)

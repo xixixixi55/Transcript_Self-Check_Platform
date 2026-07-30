@@ -17,6 +17,11 @@ from .winrar_timeout_policy import (  # noqa: E402
     compute_timeout as _compute_timeout,
     timeout_bounds as _timeout_bounds,
 )
+from .winrar_process_monitor import (
+    OwnedProcessCancelled, OwnedProcessOwnershipLost,
+    OwnedProcessTerminationFailed, monitor_owned_process,
+    terminate_process_tree,
+)
 
 class ArchiveExecutionError(RuntimeError):
     def __init__(self, code: str, message: str):
@@ -47,46 +52,7 @@ StagingInitializer = Callable[[Path], None]
 ProcessStartedCallback = Callable[[int], None]
 
 def _terminate_process(process: subprocess.Popen[str], pid: int) -> bool:
-    """Guarantee the process tree is dead; return True iff confirmed.
-
-    On Windows the saved *pid* anchors tree termination even if the
-    direct child has already exited (child processes survive parent
-    exit on Windows).  ``taskkill /T /F`` is always attempted first;
-    ``process.kill()`` is only a fallback when tree kill is unavailable
-    or fails.
-    """
-    if os.name == "nt":
-        # 1. Always tree-kill first — the parent exiting does not mean
-        #    its children are dead on Windows.
-        if _kill_process_tree_impl(pid):
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                pass
-            if process.poll() is not None:
-                return True
-
-        # 2. Fallback — direct kill of the parent handle
-        try:
-            process.kill()
-        except OSError:
-            pass
-        try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            pass
-        return process.poll() is not None
-
-    # POSIX — SIGKILL reaches the process group
-    try:
-        process.kill()
-    except OSError:
-        pass
-    try:
-        process.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        pass
-    return process.poll() is not None
+    return terminate_process_tree(process, pid, _kill_process_tree_impl)
 
 class WinRarExecutor:
     """The only component that constructs and invokes the WinRAR argument array."""
@@ -97,12 +63,16 @@ class WinRarExecutor:
                  timeout_seconds: int | None = None,
                  process_runner: ProcessRunner | None = None,
                  staging_initializer: StagingInitializer | None = None,
-                 process_started_callback: ProcessStartedCallback | None = None) -> None:
+                 process_started_callback: ProcessStartedCallback | None = None,
+                 activity_callback: Callable[[Path], None] | None = None,
+                 cancellation_check: Callable[[], bool] | None = None) -> None:
         self.staging_root = Path(staging_root)
         self._explicit_timeout = timeout_seconds
         self._process_runner = process_runner
         self._staging_initializer = staging_initializer
         self._process_started_callback = process_started_callback
+        self._activity_callback = activity_callback
+        self._cancellation_check = cancellation_check
     @staticmethod
     def compute_timeout(input_bytes: int) -> int:
         return _compute_timeout(input_bytes)
@@ -194,7 +164,33 @@ class WinRarExecutor:
                         raise ArchiveExecutionError(
                             "ARCHIVE_EXECUTION_FAILED", "归档进程登记失败。",
                         ) from error
-                process.communicate(timeout=timeout)
+                if self._activity_callback is None and self._cancellation_check is None:
+                    process.communicate(timeout=timeout)
+                else:
+                    try:
+                        monitor_owned_process(
+                            process, pid=win_pid, args=args, timeout=timeout,
+                            staging_dir=staging_dir, terminate=_terminate_process,
+                            activity_callback=self._activity_callback,
+                            cancellation_check=self._cancellation_check,
+                        )
+                    except OwnedProcessCancelled as error:
+                        shutil.rmtree(staging_dir, ignore_errors=True)
+                        raise ArchiveExecutionError(
+                            "ARCHIVE_EXECUTION_CANCELLED",
+                            "The archive task was cancelled.",
+                        ) from error
+                    except OwnedProcessOwnershipLost as error:
+                        shutil.rmtree(staging_dir, ignore_errors=True)
+                        raise ArchiveExecutionError(
+                            "ARCHIVE_TASK_OWNERSHIP_LOST",
+                            "Archive task ownership was lost.",
+                        ) from error
+                    except OwnedProcessTerminationFailed as error:
+                        raise ArchiveExecutionError(
+                            "ARCHIVE_EXECUTION_FAILED",
+                            "The owned archive process could not be stopped safely.",
+                        ) from error
             except subprocess.TimeoutExpired:
                 if not _terminate_process(process, win_pid):
                     raise ArchiveExecutionError(

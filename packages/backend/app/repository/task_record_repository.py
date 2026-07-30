@@ -131,7 +131,6 @@ class TaskRecordRepository:
             }, task["revision"]))
         return results
 
-
 def _normalized_task(task: Mapping[str, Any], *, existing: bool = False) -> dict[str, Any]:
     result = dict(task)
     result["task_id"] = validate_opaque_id(task.get("task_id"))
@@ -170,7 +169,6 @@ def _normalized_task(task: Mapping[str, Any], *, existing: bool = False) -> dict
         raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
     result["allowed_actions"] = list(actions)
     return result
-
 
 def _task_dict(row: Mapping[str, Any]) -> dict[str, Any]:
     keys = set(row.keys())
@@ -213,7 +211,6 @@ def _task_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         "revision": int(row["revision"]),
     }
 
-
 def _validate_progress(value: Any) -> None:
     if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100):
         raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
@@ -230,7 +227,10 @@ def _process_binding(value: Any) -> dict[str, Any] | None:
         return None
     if not isinstance(value, Mapping) or set(value) - {"process_tree_id", "staging_asset_id"}:
         raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
-    validate_opaque_id(value.get("process_tree_id"))
+    if value.get("process_tree_id") is None and value.get("staging_asset_id") is None:
+        raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
+    if value.get("process_tree_id") is not None:
+        validate_opaque_id(value.get("process_tree_id"))
     if value.get("staging_asset_id") is not None:
         validate_opaque_id(value.get("staging_asset_id"))
     return dict(value)

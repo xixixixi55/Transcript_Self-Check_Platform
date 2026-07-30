@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策、T011/T011T 共享合同、T012/T012T 卡片摘要 UI 及 T013/T013T 持久化已完成，T014–T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策、T011/T011T 共享合同、T012/T012T 卡片摘要 UI、T013/T013T 持久化及 T014/T014T Worker/调度执行已完成，T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -370,8 +370,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 21 — Planner, scheduler and archive worker
 
-- [ ] **T014**（依赖：T011、T013）改造 planner 并新增 mapping/progress/scheduler/worker/resource-admission services。Worker 按受控频率写心跳，观察当前 attempt 受控 staging 中匹配分卷数量和总字节，节流更新活动摘要但不推算百分比；只在真实安全边界推进 `workflow_milestone`，WinRAR 期间固定 30。准确持久化进程退出、失败、取消和 Worker 所有权/恢复状态；服务重启后未重新取得任务所有权前保持恢复中/等待接管，取得任务记录所有权不等于连接旧 WinRAR、复用半成品或续压。保留 inventory、路径/链接/变化、WinRAR、完整性、MD5、Manifest、发布和 Legacy 显式压缩门控。
-- [ ] **T014T**（依赖：T014）新增 mapping/progress/scheduler/worker service 测试；覆盖并发/资源排队、真实门控推进、WinRAR 固定 30、心跳和分卷/字节活动更新、活动停滞不单独判失败或取消、节流、进程退出/失败/取消、重启恢复/等待接管/新 Worker 所有权、旧 WinRAR/半成品不接管、重试新 attempt、Legacy 兼容及全部正式安全门控。
+- [x] **T014**（依赖：T011、T013）改造 planner 并新增 mapping/progress/scheduler/worker/resource-admission services。Worker 按受控频率写心跳，观察当前 attempt 受控 staging 中匹配分卷数量和总字节，节流更新活动摘要但不推算百分比；只在真实安全边界推进 `workflow_milestone`，WinRAR 期间固定 30。准确持久化进程退出、失败、取消和 Worker 所有权/恢复状态；服务重启后未重新取得任务所有权前保持恢复中/等待接管，取得任务记录所有权不等于连接旧 WinRAR、复用半成品或续压。保留 inventory、路径/链接/变化、WinRAR、完整性、MD5、Manifest、发布和 Legacy 显式压缩门控。
+- [x] **T014T**（依赖：T014）新增 mapping/progress/scheduler/worker service 测试；覆盖并发/资源排队、真实门控推进、WinRAR 固定 30、心跳和分卷/字节活动更新、活动停滞不单独判失败或取消、节流、进程退出/失败/取消、重启恢复/等待接管/新 Worker 所有权、旧 WinRAR/半成品不接管、重试新 attempt、Legacy 兼容及全部正式安全门控。
 
 ### Layer 22/23 — Task API
 

@@ -26,8 +26,8 @@ class TaskRecordService:
         self.workflow.cancel_parse(current["case_id"], task_id, expected_revision)
         return self.repository.get(task_id)
 
-    def recover_after_restart(self) -> list[str]:
-        return self.workflow.recover_after_restart()
+    def recover_after_restart(self, *, include_archive: bool = True) -> list[str]:
+        return self.workflow.recover_after_restart(include_archive=include_archive)
 
     def retryable(self, task: Mapping[str, Any]) -> bool:
         return task.get("kind") == "parse" and task.get("status") in {"failed_retryable", "interrupted"}

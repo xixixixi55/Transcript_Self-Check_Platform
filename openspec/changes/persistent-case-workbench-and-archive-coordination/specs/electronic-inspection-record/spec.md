@@ -2,7 +2,7 @@
 
 本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–2 已实现并
 确认的合同可以同步到 `openspec/specs/` 下的 living spec；Phase 3 已完成进度产品/架构决策
-及 T011/T011T 共享合同，T012/T012T 卡片摘要 UI 与 T013/T013T 持久化已实现，T014–T015 尚未实现；Phase 4–5 尚未实现。未实现合同仍只保留在本 delta spec 中，不得提前写成
+及 T011/T011T 共享合同、T012/T012T 卡片摘要 UI、T013/T013T 持久化与 T014/T014T Worker/调度执行已实现，T015 尚未实现；Phase 4–5 尚未实现。未实现合同仍只保留在本 delta spec 中，不得提前写成
 当前生产事实。
 
 ## Contract vocabulary
@@ -11,7 +11,7 @@
 - CaseDraft：解析成功后的可编辑草稿；report 始终是 Legacy InspectionReport。
 - SourceRecord：受控来源记录，保存 opaque 来源 ID、允许根授权、内部路径、绑定关系和复核结果。
 - FieldState：可编辑字段、检材字段、人员项或附件图片组的来源与确认状态。
-- TaskRecord：Phase 1 中是可恢复解析任务和最小归档尝试记录；Phase 3 共享合同已增加归档里程碑、活动和 Worker 状态字段，T013/T013T 已实现计划、任务和安全卡片摘要的持久化事实源；持久化 Worker 与真实 API 对接仍由 T014–T015 实现。
+- TaskRecord：Phase 1 中是可恢复解析任务和最小归档尝试记录；Phase 3 共享合同已增加归档里程碑、活动和 Worker 状态字段，T013/T013T 已实现计划、任务和安全卡片摘要的持久化事实源，T014/T014T 已实现复用该事实源的 Worker 与调度执行；真实 API 对接仍由 T015 实现。
 - VolumeSlot：不依赖预计 RAR 文件名的稳定逻辑分卷槽位。
 - VerifiedManifest：完整归档门控通过后生成并验证的正式 Manifest。
 

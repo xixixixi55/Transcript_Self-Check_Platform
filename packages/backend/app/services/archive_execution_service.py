@@ -11,35 +11,18 @@ from typing import Callable
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
 from ..repository.archive_input_repository import ArchiveInputError, verify_input_inventory
 from ..repository.archive_manifest_repository import (
-    ArchiveManifestRepository,
-    ArchiveManifestRepositoryError,
-)
+    ArchiveManifestRepository, ArchiveManifestRepositoryError)
 from ..repository.filesystem_identity_repository import directory_content_fingerprint
 from ..repository.archive_validator_repository import validate_archive_parts
 from ..repository.winrar_discovery_repository import WinRarCapability, discover_winrar
 from ..repository.winrar_executor_repository import ArchiveExecutionError, WinRarExecutor
-from .archive_manifest_service import (
-    assemble_archive_manifest,
-    validate_manifest_files,
-)
+from .archive_manifest_service import assemble_archive_manifest, validate_manifest_files
 from .archive_manifest_access_service import (
-    ArchiveGateError,
-    archive_report_fingerprint as _fingerprint,
-    get_valid_manifest,
-)
+    ArchiveGateError, archive_report_fingerprint as _fingerprint, get_valid_manifest)
 from .archive_planner_service import (
-    ArchiveDiagnostic,
-    ArchivePlan,
-    ArchivePolicy,
-    ArchiveSourceEntry,
-    PRODUCTION_ARCHIVE_POLICY,
-    plan_archive,
-    replan_to_next_tier,
-)
-from .archive_runtime_service import (
-    ARCHIVE_RUNTIME_STORE,
-    ArchiveManifestRecord,
-)
+    ArchiveDiagnostic, ArchivePlan, ArchivePolicy, ArchiveSourceEntry,
+    PRODUCTION_ARCHIVE_POLICY, plan_archive, replan_to_next_tier)
+from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord
 from .archive_manifest_reuse_service import restore_persisted_manifest
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_attempt_completion_service import record_attempt_completion
@@ -78,6 +61,9 @@ def execute_archive(
     attempt_id: str | None = None,
     attempt_service: ArchiveAttemptService | None = None,
     workbench_context_id: str | None = None,
+    stage_observer: Callable[[str], None] | None = None,
+    activity_observer: Callable[[Path], None] | None = None,
+    cancellation_check: Callable[[], bool] | None = None,
 ) -> ArchiveExecutionOutcome:
     """Run at most one initial execution plus two upward replans per context."""
     context = ARCHIVE_RUNTIME_STORE.acquire_context(context_id)
@@ -88,6 +74,7 @@ def execute_archive(
     try:
         pre_gate = pre_archive_gate(report)
         raise_gate(pre_gate)
+        _observe(stage_observer, "inventory")
         first_disc_number = str((report.get("attachments") or {}).get("disc_number"))
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         verify_input_inventory(context.inventory)
@@ -143,17 +130,21 @@ def execute_archive(
         if plan.status != "planned":
             code = plan.diagnostics[0].code if plan.diagnostics else "ARCHIVE_PLAN_INVALID"
             raise ArchiveGateError((ExportGateIssue(code, "archive", "归档计划未通过校验。"),))
+        _observe(stage_observer, "preflight_verified")
         staging_root = Path(output_root) / "compressed" / ".staging"
         marker_enabled = executor is None and attempt_id is not None and attempt_service is not None
         active_executor = executor or WinRarExecutor(
             staging_root,
             staging_initializer=attempt_service.staging_initializer(attempt_id) if marker_enabled else None,
             process_started_callback=attempt_service.process_started_callback(attempt_id) if marker_enabled else None,
+            activity_callback=activity_observer,
+            cancellation_check=cancellation_check,
         )
         retry_count = 0
         while True:
             try:
                 context.execution_state = "compressing"
+                _observe(stage_observer, "winrar")
                 execution = active_executor.execute(plan, context.inventory.files, context.inventory.source_root, winrar)
             except ArchiveExecutionError as error:
                 raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
@@ -161,6 +152,9 @@ def execute_archive(
                 active_executor.cleanup(execution)
                 raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_EXECUTION_FAILED, "archive", "归档执行失败。"),))
             validation_kwargs = {"integrity_runner": integrity_runner} if integrity_runner else {}
+            validation_kwargs["integrity_started_callback"] = (
+                lambda: _observe(stage_observer, "integrity")
+            )
             context.execution_state = "validating"
             validation = validate_archive_parts(execution.staging_dir, plan, winrar, **validation_kwargs)
             if not validation.valid:
@@ -176,10 +170,13 @@ def execute_archive(
                     continue
                 raise ArchiveGateError((ExportGateIssue(validation.diagnostic_code or ExportGateCode.ARCHIVE_PARTS_INVALID, "archive", validation.safe_message),))
             try:
+                _observe(stage_observer, "integrity_verified")
                 context.execution_state = "hashing"
+                _observe(stage_observer, "md5")
                 public_manifest, _paths = assemble_archive_manifest(
                     plan, validation, winrar, retry_count=retry_count,
                 )
+                _observe(stage_observer, "manifest")
                 manifest_id = str(public_manifest["manifest_id"])
                 final_dir = Path(output_root) / "compressed" / context_id / manifest_id
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -241,3 +238,8 @@ def execute_archive(
             state=final_state if not success else "completed",
             successful_manifest_id=successful_manifest_id,
         )
+
+
+def _observe(observer: Callable[[str], None] | None, stage: str) -> None:
+    if observer is not None:
+        observer(stage)

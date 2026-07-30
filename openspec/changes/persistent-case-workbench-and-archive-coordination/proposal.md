@@ -1,7 +1,7 @@
 # Proposal: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 状态：进行中（Phase 1–2 实现完成；Phase 3 进度产品/架构决策、T011/T011T 共享合同、T012/T012T 卡片摘要 UI 及 T013/T013T 持久化已完成，T014–T015 未开始；Phase 4–5 未开始；`1D-017R`、Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成）
+> 状态：进行中（Phase 1–2 实现完成；Phase 3 进度产品/架构决策、T011/T011T 共享合同、T012/T012T 卡片摘要 UI、T013/T013T 持久化及 T014/T014T Worker/调度执行已完成，T015 未开始；Phase 4–5 未开始；`1D-017R`、Phase 1–4 最终集成人工验收、Production Review 和归档解除均未完成）
 > 日期：2026-07-26
 > 级别：Level 3
 

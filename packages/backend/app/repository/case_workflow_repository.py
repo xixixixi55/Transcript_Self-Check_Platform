@@ -7,6 +7,7 @@ from typing import Any
 from .workbench_constants import CASE_TRANSITIONS, TASK_TRANSITIONS
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import WorkbenchPersistenceError
+from .task_recovery_repository import recover_tasks_after_restart
 from .workbench_legacy_report import validate_legacy_report
 from .workbench_repository_helpers import bool_int, json_text
 from .workbench_serialization import (
@@ -179,22 +180,10 @@ class CaseWorkflowRepository:
             updated = connection.execute("UPDATE task_records SET status = ?, cancel_requested = 1, revision = revision + 1, finished_at = ? WHERE task_id = ? AND revision = ?", (next_status, now if next_status == "cancelled" else None, task_id, expected_revision))
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("REVISION_CONFLICT")
-    def recover_after_restart(self) -> list[str]:
-        interrupted: list[str] = []
-        now = utc_now()
-        with self.database.transaction() as connection:
-            rows = connection.execute("SELECT task_id, case_id, kind, status FROM task_records WHERE (kind = 'parse' AND status IN ('queued','running','cancelling')) OR (kind = 'archive' AND status IN ('running','cancelling'))").fetchall()
-            for row in rows:
-                next_status = "failed_retryable" if row[3] == "queued" else "interrupted"
-                worker_state = "waiting_reclaim" if row[2] == "archive" else None
-                actions = '["view_details","retry"]' if row[2] == "archive" else "[]"
-                updated = connection.execute("UPDATE task_records SET status = ?, error_code = 'TASK_RESTART_INTERRUPTED', error_summary = 'TASK_RESTART_INTERRUPTED', worker_state = ?, allowed_actions_json = ?, updated_at = ?, revision = revision + 1 WHERE task_id = ? AND status IN ('queued','running','cancelling')", (next_status, worker_state, actions, now, row[0]))
-                if updated.rowcount != 1: raise WorkbenchPersistenceError("INVALID_TASK_TRANSITION")
-                if row[2] == "parse":
-                    shell_updated = connection.execute("UPDATE case_shells SET lifecycle = 'parse_failed_retryable', report_available = 0, revision = revision + 1, updated_at = ? WHERE case_id = ? AND lifecycle IN ('parse_queued', 'parsing', 'cancelling')", (now, row[1]))
-                    if shell_updated.rowcount != 1: raise WorkbenchPersistenceError("INVALID_STATE_TRANSITION")
-                interrupted.append(str(row[0]))
-        return interrupted
+    def recover_after_restart(self, *, include_archive: bool = True) -> list[str]:
+        return recover_tasks_after_restart(
+            self.database, include_archive=include_archive,
+        )
     def delete_preflight(self, case_id: str) -> dict[str, Any]:
         with self.database.connect() as connection:
             case = connection.execute("SELECT lifecycle FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()

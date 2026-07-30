@@ -59,6 +59,7 @@ def validate_archive_parts(
     *,
     integrity_runner: IntegrityRunner = subprocess.run,
     timeout_seconds: int | None = None,
+    integrity_started_callback: Callable[[], None] | None = None,
 ) -> ArchiveValidationResult:
     """Accept only numeric, continuous, non-empty `.partN.rar` output."""
 
@@ -120,6 +121,8 @@ def validate_archive_parts(
     if not capability.available or not capability.executable_path:
         return _invalid("WINRAR_UNAVAILABLE", "WinRAR 不可用，无法校验归档。")
 
+    if integrity_started_callback is not None:
+        integrity_started_callback()
     first = parts[1]
     total_archive_bytes = sum(p.size_bytes for p in parts.values())
     itimeout = (

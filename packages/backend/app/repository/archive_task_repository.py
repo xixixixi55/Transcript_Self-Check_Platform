@@ -9,7 +9,8 @@ from typing import Any
 from .task_record_repository import TaskRecordRepository
 from .workbench_constants import ARCHIVE_TASK_ACTIONS, ARCHIVE_WORKFLOW_MILESTONES
 from .workbench_database import WorkbenchDatabase, utc_now
-from .workbench_errors import WorkbenchPersistenceError
+from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
+from .workbench_repository_helpers import json_text, row_json
 from .workbench_serialization import validate_opaque_id
 
 _ACTIVE = ("queued", "running", "cancelling", "blocked")
@@ -96,21 +97,102 @@ class ArchiveTaskRepository:
             ).fetchall()
         return [self.get(str(row[0])) for row in rows]
 
-    def recover_after_restart(self) -> list[dict[str, Any]]:
+    def list_queued(self) -> list[dict[str, Any]]:
+        """Return the durable queue ordered by priority and creation time."""
         with self.database.connect() as connection:
             rows = connection.execute(
-                "SELECT task_id FROM task_records WHERE kind='archive' "
-                "AND status IN ('running','cancelling')"
+                "SELECT task_id,counters_json,created_at FROM task_records "
+                "WHERE kind='archive' AND status='queued'"
             ).fetchall()
+        ranked = sorted(
+            rows,
+            key=lambda row: (
+                -float(row_json(row, "counters_json").get("priority", 0)),
+                str(row["created_at"]),
+                str(row["task_id"]),
+            ),
+        )
+        return [self.get(str(row["task_id"])) for row in ranked]
+
+    def claim(
+        self,
+        task_id: str,
+        *,
+        owner_token: str,
+        attempt_id: str,
+        expected_revision: int,
+        max_running: int,
+    ) -> dict[str, Any]:
+        """Atomically enforce the concurrency cap and bind one queued task."""
+        task_id = validate_opaque_id(task_id)
+        owner_token = validate_opaque_id(owner_token)
+        attempt_id = validate_opaque_id(attempt_id)
+        now = utc_now()
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT status,revision FROM task_records "
+                "WHERE task_id=? AND kind='archive'", (task_id,),
+            ).fetchone()
+            if row is None:
+                raise WorkbenchPersistenceError("ARCHIVE_TASK_NOT_FOUND")
+            if int(row["revision"]) != expected_revision:
+                raise RevisionConflictError(
+                    "task", expected_revision, int(row["revision"]),
+                )
+            if row["status"] != "queued":
+                raise WorkbenchPersistenceError("ARCHIVE_TASK_NOT_CLAIMABLE")
+            running = int(connection.execute(
+                "SELECT COUNT(*) FROM task_records WHERE kind='archive' "
+                "AND status IN ('running','cancelling')"
+            ).fetchone()[0])
+            if running >= max_running:
+                raise WorkbenchPersistenceError("ARCHIVE_CONCURRENCY_LIMIT")
+            updated = connection.execute(
+                "UPDATE task_records SET status='running',worker_state='starting',"
+                "process_binding_json=?,started_at=COALESCE(started_at,?),updated_at=?,"
+                "error_code=NULL,error_summary=NULL,allowed_actions_json=?,revision=revision+1 "
+                "WHERE task_id=? AND revision=? AND status='queued'",
+                (
+                    json_text({
+                        "process_tree_id": owner_token,
+                        "staging_asset_id": attempt_id,
+                    }),
+                    now, now, json_text(ARCHIVE_TASK_ACTIONS["running"]),
+                    task_id, expected_revision,
+                ),
+            )
+            if updated.rowcount != 1:
+                raise RevisionConflictError(
+                    "task", expected_revision, int(row["revision"]),
+                )
+        return self.get(task_id)
+
+    def is_owned_by(self, task_id: str, owner_token: str) -> bool:
+        task = self.get(task_id)
+        binding = task.get("process_binding") or {}
+        return (
+            task["status"] in {"running", "cancelling"}
+            and binding.get("process_tree_id") == validate_opaque_id(owner_token)
+        )
+
+    def recover_after_restart(self) -> list[dict[str, Any]]:
+        rows = self.list_inflight()
         recovered = []
-        for row in rows:
-            task = self.get(str(row[0]))
+        for task in rows:
             recovered.append(self.update_state(task["task_id"], {
                 "status": "interrupted", "worker_state": "waiting_reclaim",
                 "error_code": "ARCHIVE_WAITING_RECLAIM",
                 "error_summary": "Archive task is waiting for safe reclaim.",
             }, task["revision"]))
         return recovered
+
+    def list_inflight(self) -> list[dict[str, Any]]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT task_id FROM task_records WHERE kind='archive' "
+                "AND status IN ('running','cancelling') ORDER BY created_at,task_id"
+            ).fetchall()
+        return [self.get(str(row[0])) for row in rows]
 
     def get_card_summary(self, case_id: str) -> dict[str, Any] | None:
         task = self.get_current_or_recent(case_id)

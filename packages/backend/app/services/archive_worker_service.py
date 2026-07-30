@@ -1,0 +1,179 @@
+"""Persistent archive Worker over the existing formal execution chain."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from ..repository.archive_task_repository import ArchiveTaskRepository
+from ..repository.workbench_database import utc_now
+from ..repository.workbench_errors import WorkbenchPersistenceError
+from .archive_attempt_service import ArchiveAttemptService
+from .archive_execution_service import ArchiveGateError, execute_archive
+from .archive_planner_service import safe_archive_base_name
+from .archive_progress_service import ArchiveProgressService
+from .archive_scheduler_service import ArchiveTaskClaim
+
+
+@dataclass(frozen=True)
+class ArchiveWorkItem:
+    formal_context_id: str
+    report: dict[str, Any]
+    output_root: str
+    attempt_service: ArchiveAttemptService
+    workbench_context_id: str | None = None
+    configured_winrar_path: str | None = None
+
+
+class ArchiveWorkerService:
+    def __init__(
+        self,
+        tasks: ArchiveTaskRepository,
+        progress: ArchiveProgressService,
+    ) -> None:
+        self.tasks = tasks
+        self.progress = progress
+
+    def run(
+        self, claim: ArchiveTaskClaim, item: ArchiveWorkItem,
+    ) -> dict[str, Any]:
+        self._assert_claim(claim)
+        attempt = item.attempt_service.repository.get_internal(claim.attempt_id)
+        if attempt["status"] == "accepted":
+            item.attempt_service.start(claim.attempt_id)
+        elif attempt["status"] != "running":
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_STATE_INVALID")
+        base_name = safe_archive_base_name(str(
+            (item.report.get("introduction") or {}).get("case_summary") or ""
+        ))
+        try:
+            outcome = execute_archive(
+                item.formal_context_id,
+                item.report,
+                output_root=item.output_root,
+                configured_winrar_path=item.configured_winrar_path,
+                attempt_id=claim.attempt_id,
+                attempt_service=item.attempt_service,
+                workbench_context_id=item.workbench_context_id,
+                stage_observer=lambda stage: self.progress.advance(
+                    claim.task_id, claim.owner_token, stage,
+                ),
+                activity_observer=lambda root: self._record_activity(
+                    claim, root, base_name,
+                ),
+                cancellation_check=lambda: self.progress.cancellation_requested(
+                    claim.task_id, claim.owner_token,
+                ),
+            )
+        except Exception as error:
+            return self._finish_error(claim, item.attempt_service, error)
+        if self.progress.cancellation_requested(claim.task_id, claim.owner_token):
+            return self.progress.cancel(claim.task_id, claim.owner_token)
+        if outcome.reused:
+            return self._complete_reused(claim)
+        return self.progress.complete(claim.task_id, claim.owner_token)
+
+    def recover_after_restart(
+        self, attempt_service: ArchiveAttemptService,
+    ) -> list[dict[str, Any]]:
+        attempt_service.recover_after_restart()
+        results = []
+        for task in self.tasks.list_inflight():
+            attempt_id = (task.get("process_binding") or {}).get("staging_asset_id")
+            succeeded = False
+            if attempt_id:
+                try:
+                    succeeded = (
+                        attempt_service.repository.get_internal(attempt_id)["status"]
+                        == "succeeded"
+                    )
+                except WorkbenchPersistenceError:
+                    pass
+            if succeeded and task["status"] == "running":
+                results.append(self.tasks.update_state(task["task_id"], {
+                    "status": "succeeded", "stage": "completed",
+                    "worker_state": "released",
+                }, task["revision"]))
+            elif task["status"] == "cancelling":
+                results.append(self.tasks.update_state(task["task_id"], {
+                    "status": "cancelled", "cancel_requested": True,
+                    "worker_state": "released",
+                }, task["revision"]))
+            else:
+                results.append(self.tasks.update_state(task["task_id"], {
+                    "status": "interrupted", "worker_state": "waiting_reclaim",
+                    "error_code": "ARCHIVE_WAITING_RECLAIM",
+                    "error_summary": "Archive task is waiting for safe reclaim.",
+                }, task["revision"]))
+        return results
+
+    def _record_activity(
+        self, claim: ArchiveTaskClaim, root: Path, base_name: str,
+    ) -> None:
+        pattern = re.compile(
+            rf"^{re.escape(base_name)}(?:\.part[1-9][0-9]*)?\.rar$"
+        )
+        outputs = [
+            path for path in root.iterdir()
+            if path.is_file() and pattern.fullmatch(path.name)
+        ]
+        total = 0
+        for path in outputs:
+            try:
+                total += path.stat().st_size
+            except OSError:
+                continue
+        self.progress.activity(claim.task_id, claim.owner_token, {
+            "observed_at": utc_now(),
+            "output_bytes": total if outputs else None,
+            "output_volume_count": len(outputs) if outputs else None,
+        })
+
+    def _finish_error(
+        self,
+        claim: ArchiveTaskClaim,
+        attempt_service: ArchiveAttemptService,
+        error: Exception,
+    ) -> dict[str, Any]:
+        code, summary = _safe_failure(error)
+        try:
+            attempt_service.fail(claim.attempt_id, code)
+        except WorkbenchPersistenceError:
+            pass
+        if self.progress.cancellation_requested(claim.task_id, claim.owner_token):
+            return self.progress.cancel(claim.task_id, claim.owner_token)
+        return self.progress.fail(
+            claim.task_id, claim.owner_token,
+            error_code=code, error_summary=summary,
+            retryable=code != "ARCHIVE_INPUT_CHANGED",
+        )
+
+    def _complete_reused(self, claim: ArchiveTaskClaim) -> dict[str, Any]:
+        current = self.tasks.get(claim.task_id)
+        if not self.tasks.is_owned_by(claim.task_id, claim.owner_token):
+            raise WorkbenchPersistenceError("ARCHIVE_TASK_OWNERSHIP_LOST")
+        return self.tasks.update_state(claim.task_id, {
+            "status": "succeeded", "stage": "completed",
+            "worker_state": "released",
+        }, current["revision"])
+
+    def _assert_claim(self, claim: ArchiveTaskClaim) -> None:
+        task = self.tasks.get(claim.task_id)
+        binding = task.get("process_binding") or {}
+        if (
+            task["revision"] != claim.revision
+            or binding.get("process_tree_id") != claim.owner_token
+            or binding.get("staging_asset_id") != claim.attempt_id
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_TASK_OWNERSHIP_LOST")
+
+
+def _safe_failure(error: Exception) -> tuple[str, str]:
+    if isinstance(error, ArchiveGateError) and error.blockers:
+        blocker = error.blockers[0]
+        raw_code = blocker.code.value if hasattr(blocker.code, "value") else blocker.code
+        return str(raw_code), str(blocker.message)
+    code = getattr(error, "code", "ARCHIVE_EXECUTION_FAILED")
+    return str(code), "Archive execution failed safely."
