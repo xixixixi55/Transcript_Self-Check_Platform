@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策、T011/T011T 共享合同及 T012/T012T 卡片摘要 UI 已完成，T013–T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1 实现、历史阶段合成验收和自动验证已完成，当前为 Demo-ready（有条件）但不是 Production-ready。Phase 2 已实现完成，自动验证和轻量开发冒烟通过；Phase 3 进度产品/架构决策、T011/T011T 共享合同、T012/T012T 卡片摘要 UI 及 T013/T013T 持久化已完成，T014–T015 未开始；Phase 4–5 未开始。Phase 1–4 最终集成人工验收、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -365,8 +365,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 ### Layer 20 — Archive metadata and process repositories
 
-- [ ] **T013**（依赖：T011）新增 `packages/backend/app/repository/archive_plan_repository.py`、`archive_task_repository.py`、`archive_asset_repository.py`、`resource_snapshot_repository.py`；持久化计划/槽位/映射、阶段与里程碑、开始/更新/结束/心跳时间、输出总字节、分卷数、最近输出变化、Worker 持有/恢复、错误/取消、进程绑定、临时目录和正式产物索引。活动快照按受控节奏聚合写入，不为每个文件系统变化写数据库；内部诊断可比卡片摘要更完整，并提供当前/最近任务的安全投影查询。
-- [ ] **T013T**（依赖：T013）新增对应 pytest；覆盖事务/版本冲突、真实阶段原子持久化、心跳与活动快照节流、输出暂不变化不自动失败/取消、失败/取消最后阶段、刷新/重启重载、Worker 恢复状态、当前/最近任务选择、内部诊断与卡片安全投影隔离、正式产物独立于案件删除和路径不泄露。
+- [x] **T013**（依赖：T011）新增 `packages/backend/app/repository/archive_plan_repository.py`、`archive_task_repository.py`、`archive_asset_repository.py`、`resource_snapshot_repository.py`；持久化计划/槽位/映射、阶段与里程碑、开始/更新/结束/心跳时间、输出总字节、分卷数、最近输出变化、Worker 持有/恢复、错误/取消、进程绑定、临时目录和正式产物索引。活动快照按受控节奏聚合写入，不为每个文件系统变化写数据库；内部诊断可比卡片摘要更完整，并提供当前/最近任务的安全投影查询。
+- [x] **T013T**（依赖：T013）新增对应 pytest；覆盖事务/版本冲突、真实阶段原子持久化、心跳与活动快照节流、输出暂不变化不自动失败/取消、失败/取消最后阶段、刷新/重启重载、Worker 恢复状态、当前/最近任务选择、内部诊断与卡片安全投影隔离、正式产物独立于案件删除和路径不泄露。
 
 ### Layer 21 — Planner, scheduler and archive worker
 

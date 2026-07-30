@@ -2,6 +2,9 @@
 
 from .asset_reference_repository import AssetReferenceRepository
 from .archive_attempt_repository import ArchiveAttemptRepository
+from .archive_asset_repository import ArchiveAssetRepository
+from .archive_plan_repository import ArchivePlanRepository
+from .archive_task_repository import ArchiveTaskRepository
 from .case_asset_storage import CaseAssetStorage
 from .case_archive_decision_repository import CaseArchiveDecisionRepository
 from .audit_event_repository import AuditEventRepository
@@ -12,12 +15,15 @@ from .shared_defaults_repository import SharedDefaultsRepository
 from .source_record_repository import SourceRecordRepository
 from .source_locator_repository import SourceLocatorRepository
 from .task_record_repository import TaskRecordRepository
+from .resource_snapshot_repository import ResourceSnapshotRepository
 from .workbench_database import WorkbenchDatabase, database_path_for_deployment, default_workbench_data_root
 
 __all__ = [
-    "AssetReferenceRepository", "ArchiveAttemptRepository", "CaseAssetStorage", "AuditEventRepository", "CaseArchiveDecisionRepository", "CaseDraftRepository",
+    "AssetReferenceRepository", "ArchiveAssetRepository", "ArchiveAttemptRepository",
+    "ArchivePlanRepository", "ArchiveTaskRepository", "CaseAssetStorage", "AuditEventRepository", "CaseArchiveDecisionRepository", "CaseDraftRepository",
     "CaseShellRepository", "EditLeaseRepository", "SharedDefaultsRepository",
     "CaseWorkflowRepository",
-    "SourceRecordRepository", "SourceLocatorRepository", "TaskRecordRepository", "WorkbenchDatabase",
+    "ResourceSnapshotRepository", "SourceRecordRepository", "SourceLocatorRepository",
+    "TaskRecordRepository", "WorkbenchDatabase",
     "database_path_for_deployment", "default_workbench_data_root",
 ]

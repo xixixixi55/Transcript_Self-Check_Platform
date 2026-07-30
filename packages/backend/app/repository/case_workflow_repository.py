@@ -53,8 +53,8 @@ class CaseWorkflowRepository:
                     (case_id, case_number, case_name, case_summary, source_id, task_id, now, now),
                 )
                 connection.execute(
-                    "INSERT INTO task_records VALUES (?, 1, ?, 'parse', 'queued', 'parse', NULL, ?, 0, 0, NULL, NULL, NULL, 0, ?, NULL, NULL, 0)",
-                    (task_id, case_id, json_text({}), now),
+                    "INSERT INTO task_records(task_id, schema_version, case_id, kind, status, stage, percent, counters_json, input_revision, attempt, process_binding_json, error_code, error_summary, cancel_requested, created_at, started_at, updated_at, finished_at, allowed_actions_json, revision) VALUES (?, 1, ?, 'parse', 'queued', 'parse', NULL, ?, 0, 0, NULL, NULL, NULL, 0, ?, NULL, ?, NULL, '[]', 0)",
+                    (task_id, case_id, json_text({}), now, now),
                 )
                 connection.execute(
                     "INSERT INTO source_records(source_id, schema_version, case_id, task_id, source_type, internal_path, allowed_root, allowed_root_id, metadata_json, fingerprint_json, access_status, requires_reselection, revalidation_error_code, last_verified_at, revision, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, 0, ?, ?)",
@@ -183,12 +183,12 @@ class CaseWorkflowRepository:
         interrupted: list[str] = []
         now = utc_now()
         with self.database.transaction() as connection:
-            # Parse recovery never owns an archive publish fence; a fenced
-            # archive is reconciled by ArchiveAttemptService instead.
-            rows = connection.execute("SELECT task_id, case_id, kind, status FROM task_records WHERE status IN ('queued', 'running', 'cancelling')").fetchall()
+            rows = connection.execute("SELECT task_id, case_id, kind, status FROM task_records WHERE (kind = 'parse' AND status IN ('queued','running','cancelling')) OR (kind = 'archive' AND status IN ('running','cancelling'))").fetchall()
             for row in rows:
                 next_status = "failed_retryable" if row[3] == "queued" else "interrupted"
-                updated = connection.execute("UPDATE task_records SET status = ?, error_code = 'TASK_RESTART_INTERRUPTED', error_summary = 'TASK_RESTART_INTERRUPTED', revision = revision + 1 WHERE task_id = ? AND status IN ('queued', 'running', 'cancelling')", (next_status, row[0]))
+                worker_state = "waiting_reclaim" if row[2] == "archive" else None
+                actions = '["view_details","retry"]' if row[2] == "archive" else "[]"
+                updated = connection.execute("UPDATE task_records SET status = ?, error_code = 'TASK_RESTART_INTERRUPTED', error_summary = 'TASK_RESTART_INTERRUPTED', worker_state = ?, allowed_actions_json = ?, updated_at = ?, revision = revision + 1 WHERE task_id = ? AND status IN ('queued','running','cancelling')", (next_status, worker_state, actions, now, row[0]))
                 if updated.rowcount != 1: raise WorkbenchPersistenceError("INVALID_TASK_TRANSITION")
                 if row[2] == "parse":
                     shell_updated = connection.execute("UPDATE case_shells SET lifecycle = 'parse_failed_retryable', report_available = 0, revision = revision + 1, updated_at = ? WHERE case_id = ? AND lifecycle IN ('parse_queued', 'parsing', 'cancelling')", (now, row[1]))
