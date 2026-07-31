@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..repository.archive_asset_repository import ArchiveAssetRepository
 from ..repository.archive_plan_repository import ArchivePlanRepository
@@ -17,6 +17,9 @@ from .archive_source_runtime_service import discard_preview_source
 from .archive_task_result_service import ArchiveTaskResultService
 from .source_record_service import SourceRecordService
 
+if TYPE_CHECKING:
+    from .archive_runtime_coordinator_service import ArchiveRuntimeCoordinator
+
 
 class ArchiveTaskApiService:
     def __init__(
@@ -25,11 +28,13 @@ class ArchiveTaskApiService:
         attempts: ArchiveAttemptService,
         sources: SourceRecordService,
         progress: ArchiveProgressService,
+        runtime: ArchiveRuntimeCoordinator | None = None,
     ) -> None:
         self.database = database
         self.attempts = attempts
         self.sources = sources
         self.progress = progress
+        self.runtime = runtime
         self.tasks = ArchiveTaskRepository(database)
         self.plans = ArchivePlanRepository(database)
         self.assets = ArchiveAssetRepository(database)
@@ -48,14 +53,21 @@ class ArchiveTaskApiService:
             active = self._reconcile_or_reject_active(active)
         self.sources.require_available(shell["source_id"])
         context_id = self.sources.create_legacy_preview_source(case_id)
+        task_id = f"archive-task-{secrets.token_hex(20)}"
+        registered = False
         try:
             source = self.sources.get(shell["source_id"])
             attempt = self.attempts.accept(
                 case_id, source["source_id"], source["revision"],
                 context_id, expected_case_revision,
             )
+            # Register before publishing the durable task row so a running
+            # lifecycle cannot claim a task before its bound context is ready.
+            if self.runtime is not None:
+                self.runtime.register(task_id, context_id)
+                registered = True
             task = self.tasks.create({
-                "task_id": f"archive-task-{secrets.token_hex(20)}",
+                "task_id": task_id,
                 "case_id": case_id,
                 "status": "queued",
                 "stage": "queued",
@@ -65,6 +77,8 @@ class ArchiveTaskApiService:
                 "created_at": utc_now(),
             })
         except Exception:
+            if registered and self.runtime is not None:
+                self.runtime.unregister(task_id)
             discard_preview_source(context_id)
             if "attempt" in locals():
                 try:
@@ -83,6 +97,8 @@ class ArchiveTaskApiService:
         self._require_action(task, "cancel", expected_revision)
         result = self.progress.request_cancel(task_id, expected_revision)
         if result["status"] == "cancelled":
+            if self.runtime is not None:
+                self.runtime.unregister(task_id)
             attempt_id = (result.get("process_binding") or {}).get("staging_asset_id")
             if attempt_id:
                 self.attempts.fail(str(attempt_id), "ARCHIVE_CANCELLED")
@@ -173,6 +189,8 @@ class ArchiveTaskApiService:
             except WorkbenchPersistenceError:
                 pass
         if task["status"] == "queued" and attempt_status in {"failed", "interrupted"}:
+            if self.runtime is not None:
+                self.runtime.unregister(task["task_id"])
             recovering = self.tasks.update_state(task["task_id"], {
                 "status": "running",
                 "worker_state": "recovering",

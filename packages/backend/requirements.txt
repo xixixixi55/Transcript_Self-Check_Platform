@@ -30,3 +30,4 @@ httpx>=0.28.0  # 用于 TestClient
 # 文件处理
 python-multipart>=0.0.17
 aiofiles>=24.1.0
+psutil>=6.1.0

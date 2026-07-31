@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.workbench_database import utc_now
@@ -37,7 +37,11 @@ class ArchiveWorkerService:
         self.progress = progress
 
     def run(
-        self, claim: ArchiveTaskClaim, item: ArchiveWorkItem,
+        self,
+        claim: ArchiveTaskClaim,
+        item: ArchiveWorkItem,
+        *,
+        interruption_check: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         self._assert_claim(claim)
         attempt = item.attempt_service.repository.get_internal(claim.attempt_id)
@@ -65,15 +69,42 @@ class ArchiveWorkerService:
                 ),
                 cancellation_check=lambda: self.progress.cancellation_requested(
                     claim.task_id, claim.owner_token,
-                ),
+                ) or bool(interruption_check and interruption_check()),
             )
         except Exception as error:
+            if interruption_check and interruption_check():
+                return self._finish_interrupted(claim, item.attempt_service)
             return self._finish_error(claim, item.attempt_service, error)
+        if interruption_check and interruption_check():
+            attempt_state = item.attempt_service.repository.get_internal(
+                claim.attempt_id,
+            )
+            if attempt_state["status"] != "succeeded":
+                return self._finish_interrupted(claim, item.attempt_service)
         if self.progress.cancellation_requested(claim.task_id, claim.owner_token):
             return self.progress.cancel(claim.task_id, claim.owner_token)
         if outcome.reused:
             return self._complete_reused(claim)
         return self.progress.complete(claim.task_id, claim.owner_token)
+
+    def _finish_interrupted(
+        self,
+        claim: ArchiveTaskClaim,
+        attempt_service: ArchiveAttemptService,
+    ) -> dict[str, Any]:
+        from ..repository.archive_attempt_restart_repository import interrupt_attempt
+
+        try:
+            interrupt_attempt(attempt_service.database, claim.attempt_id)
+        except WorkbenchPersistenceError:
+            pass
+        current = self.tasks.get(claim.task_id)
+        return self.tasks.update_state(claim.task_id, {
+            "status": "interrupted",
+            "worker_state": "waiting_reclaim",
+            "error_code": "ARCHIVE_RUNTIME_INTERRUPTED",
+            "error_summary": "Archive runtime stopped before completion.",
+        }, current["revision"])
 
     def recover_after_restart(
         self, attempt_service: ArchiveAttemptService,

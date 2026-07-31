@@ -16,9 +16,16 @@ from .archive_authorization_service import ArchiveAuthorizationService
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_progress_service import ArchiveProgressService
 from .archive_resource_admission_service import ArchiveAdmissionConfig, ArchiveResourceAdmissionService
+from .archive_runtime_coordinator_service import ArchiveRuntimeCoordinator
+from .archive_runtime_resource_service import (
+    ArchiveRuntimeResourceProvider,
+    build_archive_admission_config,
+    positive_float_env,
+)
 from .archive_scheduler_service import ArchiveSchedulerService
+from .archive_source_runtime_service import prepare_archive_source
 from .archive_task_api_service import ArchiveTaskApiService
-from .archive_worker_service import ArchiveWorkerService
+from .archive_worker_service import ArchiveWorkItem, ArchiveWorkerService
 from .case_asset_service import CaseAssetService
 from .case_draft_service import CaseDraftService
 from .case_parse_dispatcher_service import CaseParseDispatcher
@@ -49,6 +56,7 @@ class WorkbenchServices:
     archive_progress: ArchiveProgressService | None = None
     archive_scheduler: ArchiveSchedulerService | None = None
     archive_worker: ArchiveWorkerService | None = None
+    archive_runtime: ArchiveRuntimeCoordinator | None = None
     archive_api: ArchiveTaskApiService | None = None
     template_registry: TemplateRegistryRepository | None = None
     template_approvals: TemplateApprovalRepository | None = None
@@ -75,6 +83,13 @@ def build_workbench_services(
     )
     template_approvals = TemplateApprovalRepository(database, template_registry)
     _register_current_template(template_registry, template_approvals, template_root)
+    admission_config = archive_admission_config or build_archive_admission_config()
+    archive_scheduler = ArchiveSchedulerService(
+        archive_tasks,
+        ArchiveResourceAdmissionService(admission_config),
+    )
+    archive_worker = ArchiveWorkerService(archive_tasks, archive_progress)
+    resource_provider = ArchiveRuntimeResourceProvider(OUTPUT_BASE)
     services = WorkbenchServices(
         database=database,
         cases=CaseDraftService(database, source_service=sources),
@@ -86,22 +101,52 @@ def build_workbench_services(
         archive_attempts=attempts,
         assets=assets,
         archive_progress=archive_progress,
-        archive_scheduler=(
-            ArchiveSchedulerService(
-                archive_tasks,
-                ArchiveResourceAdmissionService(archive_admission_config),
-            )
-            if archive_admission_config is not None else None
-        ),
-        archive_worker=ArchiveWorkerService(archive_tasks, archive_progress),
+        archive_scheduler=archive_scheduler,
+        archive_worker=archive_worker,
         template_registry=template_registry,
         template_approvals=template_approvals,
         templates=TemplateRegistryService(database, template_registry, template_approvals),
     )
+    services.archive_runtime = ArchiveRuntimeCoordinator(
+        archive_scheduler,
+        archive_worker,
+        attempts,
+        archive_progress,
+        item_factory=lambda claim, context_id: _archive_work_item(
+            attempts, claim, context_id,
+        ),
+        snapshot_provider=resource_provider.snapshot,
+        poll_interval_seconds=positive_float_env(
+            "BIJI_ARCHIVE_POLL_INTERVAL_SECONDS", 1.0,
+        ),
+        shutdown_timeout_seconds=positive_float_env(
+            "BIJI_ARCHIVE_SHUTDOWN_TIMEOUT_SECONDS", 30.0,
+        ),
+    )
     services.archive_api = ArchiveTaskApiService(
-        database, attempts, sources, archive_progress,
+        database, attempts, sources, archive_progress, services.archive_runtime,
     )
     return services
+
+
+def _archive_work_item(
+    attempts: ArchiveAttemptService,
+    claim: object,
+    context_id: str,
+) -> ArchiveWorkItem:
+    attempt_id = str(getattr(claim, "attempt_id"))
+    report = attempts.workbench_report(attempt_id, context_id)
+    formal_context_id = prepare_archive_source(
+        context_id, report, output_root=OUTPUT_BASE,
+    )
+    return ArchiveWorkItem(
+        formal_context_id,
+        report,
+        OUTPUT_BASE,
+        attempts,
+        workbench_context_id=context_id,
+        configured_winrar_path=os.environ.get("BIJI_WINRAR_PATH"),
+    )
 
 
 def _register_current_template(
@@ -165,6 +210,7 @@ def ensure_archive_task_api(services: WorkbenchServices) -> ArchiveTaskApiServic
         services.archive_progress = progress
     services.archive_api = ArchiveTaskApiService(
         services.database, services.archive_attempts, services.sources, progress,
+        services.archive_runtime,
     )
     return services.archive_api
 
@@ -172,4 +218,6 @@ def ensure_archive_task_api(services: WorkbenchServices) -> ArchiveTaskApiServic
 def reset_workbench_services() -> None:
     """Test/support hook; production callers keep the deployment singleton."""
     global _SERVICES
+    if _SERVICES is not None and _SERVICES.archive_runtime is not None:
+        _SERVICES.archive_runtime.stop()
     _SERVICES = None

@@ -1,8 +1,16 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；Phase 5 未开始。Phase 3–4 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；2026-07-31 已完成最小运行时接线修复和自动化回归，仍等待用户重新执行受影响人工验收；Phase 5 未开始。Phase 3–4 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
+
+## 2026-07-31 最终集成人工验收阻塞记录（保持未通过）
+
+- **发现现象**：公共 HTTP 工作台创建的归档任务持续为 `queued`、`worker_state=unassigned`、`workflow_milestone=0`；直接调用现有 `ArchiveSchedulerService.claim_next` 和 `ArchiveWorkerService.run` 可以完成归档，不能替代公共主链路证据。
+- **根因**：工作树中虽已构造 `ArchiveRuntimeCoordinator`，但 `packages/backend/app/main.py` 仍创建无 lifespan 的静态 FastAPI 对象，从未在正式 startup 调用 runtime `start()`；同时任务 API 尚未把新任务的已绑定 opaque context 登记到该 coordinator，且工厂传入 runtime 的构造契约未闭合。因此 HTTP 创建的 durable queued 任务没有被应用运行时接管。
+- **修复**：增加惰性 `create_app`/FastAPI lifespan 启停；复用同一 Scheduler、Worker、任务仓储和资源准入；任务记录发布前登记既有 attempt/context，启动前已存在的 queued 任务可被同一服务实例接管；shutdown 使用有界等待并把未完成 claim 安全转为 interrupted，Worker 停止检查不伪造成功；未引入第二套队列、调度器或 Worker。
+- **自动化证据（本轮）**：`tests/test_archive_runtime_lifecycle.py` 3 passed（启动前 queued 接管、公共 HTTP 自动接管并完成合成 Manifest 发布、单任务失败后继续处理、重复 startup、空队列退避和 shutdown）；Scheduler/Worker 回归 15 passed；工作台公共 HTTP/任务/revision/来源回归 26 passed；恢复/发布/Manifest/marker 受影响回归 66 passed，marker 唯一删除回归 1 passed；`verify:full` 通过（架构、typecheck、前端 208 tests、后端 764 passed/3 skipped、构建、严格文档），Python `compileall`、仓库资产检查、OpenSpec strict 和 `git diff --check` 通过。所有证据均为隔离合成测试；仍不替代用户人工验收。
+- **验收状态**：本记录不勾选 Phase 3/4 正式人工验收、Phase 1–4 最终集成人工验收、`1D-017R`、最终 Review 或 Production Review；自动测试和轻量 HTTP 冒烟不能替代用户重新执行受影响人工验收。不得归档、commit 或 push。
 
 ## 执行规则
 
