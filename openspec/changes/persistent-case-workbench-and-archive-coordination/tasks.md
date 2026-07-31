@@ -437,6 +437,18 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [ ] Phase 3/4 及 Phase 1–4 最终集成人工验收：通过真实 HTTP 工作台创建的归档任务持续为 `queued`/`unassigned`，应用运行时没有调用现有 scheduler/worker 取得并执行任务；服务层直接调用 Worker 可成功生成并发布验证通过的 RAR/Manifest，但不能替代公共主链路验收。
 - [ ] 浏览器视觉验收：本轮 Codex 内置浏览器运行时因 node_repl kernel assets 路径错误不可用；仅完成真实服务、HTTP/API、正式生成链路及 officecli/Word 的 6 页 DOCX 视觉核验，不以路由可访问性冒充页面视觉验收。
 
+### Windows Archive Runtime 兼容修复（2026-07-31）
+
+- **发现现象**：真实 Windows 启动时，`psutil.disk_io_counters()` 返回合法的 `sdiskio`，但对象只有 `read_time`/`write_time` 等字段而没有 `busy_time`；`ArchiveRuntimeResourceProvider._io_busy_percent()` 无条件访问该字段，导致每次 Scheduler 迭代抛出 `AttributeError`。Coordinator 虽安全捕获并等待下一轮，但公共 HTTP 创建的任务无法被接管。
+- **合同核对**：现有 `ArchiveResourceSnapshot` 只有数值型 `io_busy_percent`，不能表达可选指标不可用；资源准入必须继续保护空间、CPU、输入规模、WinRAR 进程数、并发、租约和所有权等既有门控。
+- **修复语义**：`io_busy_percent=None` 明确表示 I/O 忙碌指标不可用。Windows 缺少 `busy_time` 或 `disk_io_counters()` 返回 `None` 时，采样器不读取不存在的属性、不从 `read_time`/`write_time` 伪造百分比，并清空连续采样基线；准入只跳过 I/O 忙碌阈值，其他门控继续生效。不可用诊断按 ResourceProvider 生命周期限流，避免每轮刷屏。
+
+- [x] **WIO-001** 修改 `ArchiveResourceSnapshot`、资源准入和 `ArchiveRuntimeResourceProvider`，支持不可用 I/O 指标；保持存在 `busy_time` 平台的初始化、时间差为零和计数器重置行为，不新增第二套采样器、Scheduler 或 Worker。
+- [x] **WIO-001T** 增加合成测试：`disk_io_counters()` 为 `None`、Windows 风格 `sdiskio` 缺少 `busy_time`、存在 `busy_time` 的既有采样、连续采样初始化/零时间差/计数器重置、不可用指标下 Scheduler 不永久失败或忙循环，以及正式 `create_app + TestClient + 公共 HTTP` 生命周期自动接管 queued 任务；继续运行 shutdown、重复 startup、单任务失败、marker 唯一删除、取消、租约、revision、恢复、Manifest 和发布门控回归。测试数据必须为 `SYNTHETIC/TEST/FIXTURE`。
+- [x] **WIO-001V** 通过“恢复无条件 `busy_time` 访问后 Windows 兼容测试失败”的测试有效性验证；完成定向测试、Runtime/Scheduler/Worker/资源准入/公共 HTTP 回归、取消/恢复/发布/Manifest/marker 回归、真实 Windows 轻量启动、`verify:full`、OpenSpec strict、Python `compileall`、仓库资产检查和 `git diff --check`。人工验收状态仍不变，不勾选 Phase 3/4、Phase 1–4 最终集成、`1D-017R`、最终 Review、Production Review，不开始 Phase 5。
+
+- **自动化与真实运行证据（2026-07-31）**：资源采样/Runtime 生命周期定向 `9 passed`；资源、Scheduler、Worker、Runtime、公共 HTTP、取消、租约、revision 和任务回归 `74 passed, 3 warnings`；恢复、发布、Manifest、marker、Legacy 归档门控及来源回归 `80 passed, 5 warnings`；架构检查和 TypeScript typecheck 通过。将无条件 `busy_time` 访问临时恢复后，Windows 兼容用例按预期以 `AttributeError` 失败，修复已恢复。真实 Windows `pnpm dev` 以指定 `BIJI_ALLOWED_INPUT_ROOTS` 启动，公共 HTTP 纯合成任务最终观察到 `queued/unassigned/0 → succeeded/released/100/completed`；日志仅有一次 `ARCHIVE_IO_METRIC_UNAVAILABLE`，无 `busy_time`/`AttributeError`/Scheduler 迭代异常；服务进程树有界停止，合成输入、RAR、Manifest 索引记录、隔离数据库、日志和临时资产已清理。`verify:full` 退出码 `0`（前端 `208 passed`，后端全量 `773 collected` 无失败）；OpenSpec strict、Python `compileall`、仓库资产检查和 `git diff --check` 均通过。人工验收状态仍未通过，不能替代用户重新验收。
+
 ## Phase 5 — 综合验收、清理和 Shadow 边界
 
 **阶段目标**：验证五阶段合同在恢复、并发、清理和正式输出保护下闭合；Shadow 只保留暂停声明。

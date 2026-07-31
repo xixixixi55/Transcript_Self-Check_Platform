@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 import os
 import sys
 import time
@@ -35,6 +36,9 @@ from app.services.archive_resource_admission_service import (  # noqa: E402
 )
 from app.services.archive_runtime_coordinator_service import (  # noqa: E402
     ArchiveRuntimeCoordinator,
+)
+from app.services.archive_runtime_resource_service import (  # noqa: E402
+    ArchiveRuntimeResourceProvider,
 )
 from app.services.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
 from app.services.archive_scheduler_service import ArchiveSchedulerService  # noqa: E402
@@ -301,6 +305,54 @@ def test_http_task_is_claimed_and_one_failure_does_not_stop_runtime(
         completed = _wait_task(client, queued["task_id"], {"succeeded"})
         assert completed["percent"] == 100
         assert services.archive_runtime.loop_start_count == 1
+
+
+def test_public_http_task_is_claimed_with_windows_style_resource_snapshot(
+    tmp_path: Path, caplog,
+) -> None:
+    services, worker = _services(tmp_path)
+    provider = ArchiveRuntimeResourceProvider(services.archive_attempts.output_root)
+    services.archive_runtime.snapshot_provider = provider.snapshot
+    windows_counters = type(
+        "sdiskio",
+        (),
+        {
+            "read_count": 1,
+            "write_count": 2,
+            "read_bytes": 3,
+            "write_bytes": 4,
+            "read_time": 5,
+            "write_time": 6,
+        },
+    )()
+    with patch(
+        "app.services.archive_runtime_resource_service.psutil.disk_io_counters",
+        return_value=windows_counters,
+    ), caplog.at_level(
+        logging.WARNING,
+        logger="app.services.archive_runtime_resource_service",
+    ), _controller_patches(services), TestClient(
+        create_app(service_provider=lambda: services)
+    ) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        completed = _wait_task(client, queued["task_id"], {"succeeded"})
+        assert completed["status"] == "succeeded"
+        assert completed["worker_state"] == "released"
+
+    unavailable = [
+        record for record in caplog.records
+        if "ARCHIVE_IO_METRIC_UNAVAILABLE" in record.getMessage()
+    ]
+    assert len(unavailable) == 1
+    assert not any(
+        "busy_time" in record.getMessage()
+        or "Archive scheduler iteration failed safely" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_runtime_start_is_idempotent_and_empty_queue_waits(tmp_path: Path) -> None:

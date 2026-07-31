@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：进行中。Phase 1–4 实现完成，阶段自动验证和轻量冒烟通过；2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；2026-07-31 已完成最小 FastAPI runtime 接线及自动化回归，仍等待用户重新执行受影响人工验收。根因、修复范围和证据以 `tasks.md` 的“最终集成人工验收阻塞记录”为唯一详细记录；Demo-ready（有条件）但不是 Production-ready；Phase 3–4 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 5 未开始
+> 设计状态：进行中。Phase 1–4 实现完成，阶段自动验证和轻量冒烟通过；2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；2026-07-31 已完成最小 FastAPI runtime 接线及 Windows `sdiskio` 缺少 `busy_time` 的跨平台采样兼容修复，定向回归、真实 Windows 合成 HTTP 冒烟和完整门控通过，仍等待用户重新执行受影响人工验收。根因、修复范围和证据以 `tasks.md` 的“最终集成人工验收阻塞记录”和“Windows Archive Runtime 兼容修复”为详细记录；Demo-ready（有条件）但不是 Production-ready；Phase 3–4 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 5 未开始
 
 ## 1. 总体架构决策
 
@@ -250,6 +250,8 @@ replan 接收上一版 `VolumeSlot[]` 和新规划结果，使用槽位 lineage/
 2. **资源准入层**：在启动每个 WinRAR 前读取配置化的最小可用磁盘空间、临时空间、CPU 使用率、IO 使用率、输入规模上限、WinRAR 进程数和全局进程数。任一条件不满足则保留 queued，并返回具体原因。
 
 准入配置保存在部署配置中并有版本；不允许前端覆盖安全阈值。任务运行中若资源降至保护阈值，调度器停止启动新任务并可请求当前任务有序取消；不强杀已写入的正式产物。WinRAR 进程必须由任务记录绑定。服务重启时不自动重连或接管 WinRAR：先把原 running 任务标记为 `interrupted`/`failed_retryable`，只终止能够证明由本系统启动的进程树，清理本系统拥有的 staging，并将半成品 RAR/Manifest 标记为不可发布；用户确认后重新执行。断点续压和 WinRAR 重连不在本包范围内。
+
+`ArchiveResourceSnapshot.io_busy_percent` 是资源准入的可选服务器事实：当 `psutil.disk_io_counters()` 返回 `None`，或平台返回对象没有 `busy_time`（例如合法的 Windows `sdiskio`）时，采样器必须显式返回 `None`，并清空连续采样基线。`None` 表示“该可选指标不可用”，不是 `0%`；资源准入只跳过 I/O 忙碌阈值这一项，仍执行输出/临时空间、CPU、输入规模、WinRAR 进程数、并发上限以及任务所有权/租约等其他门控。采样器不得从 `read_time`/`write_time` 伪造忙碌百分比，并对不可用诊断做提供者生命周期内的一次性限流记录。
 
 上述调度器、资源准入和 `workflow_milestone` 属于 Phase 3，不在 Phase 1D 实现。Phase 1D 只在现有同步 Legacy 归档调用外围登记最小归档尝试和恢复日志；它不创建持久化归档 Worker，不维护归档队列，不自动拉起新进程，也不把旧 `TaskRecord.percent` 当作归档进度权威。
 

@@ -38,7 +38,7 @@ class ArchiveResourceSnapshot:
     output_free_bytes: int
     temporary_free_bytes: int
     cpu_percent: float
-    io_busy_percent: float
+    io_busy_percent: float | None
     winrar_process_count: int
 
     def __post_init__(self) -> None:
@@ -49,7 +49,10 @@ class ArchiveResourceSnapshot:
                 self.winrar_process_count,
             ) < 0
             or not 0 <= self.cpu_percent <= 100
-            or not 0 <= self.io_busy_percent <= 100
+            or (
+                self.io_busy_percent is not None
+                and not 0 <= self.io_busy_percent <= 100
+            )
         ):
             raise ValueError("ARCHIVE_RESOURCE_SNAPSHOT_INVALID")
 
@@ -89,19 +92,17 @@ class ArchiveResourceAdmissionService:
                 snapshot.cpu_percent > self.config.maximum_cpu_percent,
                 "ARCHIVE_CPU_BUSY",
             ),
-            (
-                snapshot.io_busy_percent > self.config.maximum_io_busy_percent,
-                "ARCHIVE_IO_BUSY",
-            ),
-            (
-                snapshot.winrar_process_count
-                >= self.config.maximum_winrar_processes,
-                "ARCHIVE_WINRAR_LIMIT",
-            ),
         )
         for denied, reason in checks:
             if denied:
                 return self._deny(reason)
+        if (
+            snapshot.io_busy_percent is not None
+            and snapshot.io_busy_percent > self.config.maximum_io_busy_percent
+        ):
+            return self._deny("ARCHIVE_IO_BUSY")
+        if snapshot.winrar_process_count >= self.config.maximum_winrar_processes:
+            return self._deny("ARCHIVE_WINRAR_LIMIT")
         return ArchiveAdmissionDecision(True, None, self.config.version)
 
     def _deny(self, reason: str) -> ArchiveAdmissionDecision:

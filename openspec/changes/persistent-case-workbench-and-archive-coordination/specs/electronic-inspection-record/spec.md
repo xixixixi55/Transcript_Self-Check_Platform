@@ -390,6 +390,8 @@ builders still running.
 
 归档进度类型 MUST 固定为 `workflow_milestone`。它表示工作流已经进入或完成的真实阶段，不表示 WinRAR 内部压缩字节百分比。版本化合同 MUST 使用固定且单调的 `0/10/20/30/75/85/90/95/100` 里程碑，分别对应等待归档或资源准入、核对 inventory/路径、前置检查通过、创建 RAR 分卷、RAR 成功后开始完整性校验、完整性通过、开始 MD5、开始写入并验证 Manifest、正式归档完成。
 
+资源快照的 `io_busy_percent` MUST 允许明确的不可用状态（内部以 `None` 表达）。当 `psutil.disk_io_counters()` 返回 `None`，或平台返回对象不含 `busy_time` 时，采样器 MUST 返回不可用状态并重新初始化连续采样基线；不得以 `0%`、`read_time`/`write_time` 或其他推测值替代。资源准入在该可选指标不可用时 MUST 仅跳过 I/O 忙碌阈值，继续执行磁盘空间、临时空间、CPU、输入规模、WinRAR 进程数、并发、租约、所有权和其他已有门控；诊断必须是有限、非刷屏且不包含平台路径、堆栈或原始异常。存在 `busy_time` 的平台必须保持既有初始化、时间差和计数器重置计算行为。
+
 TaskRecord MUST 复用已有 `status`、`stage`、`percent`、`created_at`、`started_at`、`finished_at`、`error_code`、`error_summary` 和 `cancel_requested`；Phase 3 增加或内部持久化 `stage_label`、1-based `stage_index`、版本化 `stage_count`、`progress_kind=workflow_milestone`、`updated_at`、`last_heartbeat_at`、`output_volume_count`、`output_bytes`、`last_output_change_at`、`worker_state` 和后端权威 `allowed_actions`。`percent` 在归档任务中表示固定里程碑；不得创建 `progress_percent`、`completed_at` 或 `error_message` 等同义字段。
 
 案件列表 MUST 使用 `ArchiveTaskCardSummary` 或等价安全摘要投影，不直接返回全部 TaskRecord/Worker 诊断字段。摘要只表达卡片所需的状态、阶段文字/序号、里程碑、展示时间、紧凑活动指标、安全失败摘要和 `allowed_actions`；不得包含 Worker ID、内部租约、绝对路径、堆栈、技术日志、完整错误代码、完整进程信息或完整任务历史。
@@ -400,6 +402,13 @@ TaskRecord MUST 复用已有 `status`、`stage`、`percent`、`created_at`、`st
 - **THEN** 系统询问立即开始或暂不压缩，暂不压缩不创建运行中的压缩进程
 - **WHEN** 并发上限或资源准入不满足
 - **THEN** 新任务排队并显示原因
+
+#### Scenario: 可选磁盘 I/O 忙碌指标不可用
+
+- **WHEN** 平台的 `disk_io_counters()` 返回 `None` 或合法返回对象不含 `busy_time`
+- **THEN** 资源快照明确表达 I/O 忙碌指标不可用，不伪装成 `0%` 或精确百分比
+- **AND** Scheduler 不因该可选指标永久失败或忙循环，仅跳过 I/O 忙碌阈值并继续执行其他资源、任务所有权和租约门控
+- **AND** 存在 `busy_time` 的平台继续使用原有连续采样公式；初始化、零时间差和计数器回退不会产生跨平台异常
 
 #### Scenario: 真实阶段才推进固定里程碑
 

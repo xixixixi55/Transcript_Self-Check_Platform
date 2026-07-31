@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import logging
 import shutil
 import tempfile
 import time
@@ -14,6 +15,8 @@ from .archive_resource_admission_service import (
     ArchiveAdmissionConfig,
     ArchiveResourceSnapshot,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def build_archive_admission_config() -> ArchiveAdmissionConfig:
@@ -73,6 +76,7 @@ class ArchiveRuntimeResourceProvider:
         self.output_root = Path(output_root)
         self._last_io_busy_ms: int | None = None
         self._last_observed_at: float | None = None
+        self._io_unavailable_logged = False
 
     def snapshot(self) -> ArchiveResourceSnapshot:
         self.output_root.mkdir(parents=True, exist_ok=True)
@@ -86,10 +90,16 @@ class ArchiveRuntimeResourceProvider:
             winrar_process_count=self._winrar_process_count(),
         )
 
-    def _io_busy_percent(self) -> float:
+    def _io_busy_percent(self) -> float | None:
         now = time.monotonic()
-        counters = psutil.disk_io_counters()
-        busy_ms = int(counters.busy_time) if counters is not None else 0
+        try:
+            counters = psutil.disk_io_counters()
+        except (OSError, psutil.Error):
+            return self._unavailable_io_metric()
+        busy_value = getattr(counters, "busy_time", None)
+        if busy_value is None:
+            return self._unavailable_io_metric()
+        busy_ms = int(busy_value)
         result = 0.0
         if self._last_io_busy_ms is not None and self._last_observed_at is not None:
             elapsed_ms = max((now - self._last_observed_at) * 1000, 1)
@@ -97,6 +107,16 @@ class ArchiveRuntimeResourceProvider:
         self._last_io_busy_ms = busy_ms
         self._last_observed_at = now
         return max(0.0, min(100.0, result))
+
+    def _unavailable_io_metric(self) -> None:
+        self._last_io_busy_ms = None
+        self._last_observed_at = None
+        if not self._io_unavailable_logged:
+            logger.warning(
+                "ARCHIVE_IO_METRIC_UNAVAILABLE: skipping optional I/O busy gate."
+            )
+            self._io_unavailable_logged = True
+        return None
 
     @staticmethod
     def _winrar_process_count() -> int:

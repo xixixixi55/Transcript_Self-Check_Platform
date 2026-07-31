@@ -1,7 +1,7 @@
 # Proposal: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 状态：进行中（Phase 1–4 实现完成，阶段自动验证和轻量冒烟通过；2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；2026-07-31 已完成最小 FastAPI runtime 接线及自动化回归，仍等待用户重新执行受影响人工验收；根因和证据详见同变更包 `tasks.md`；Phase 5 未开始；Phase 3–4 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成）
+> 状态：进行中（Phase 1–4 实现完成，阶段自动验证和轻量冒烟通过；2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；2026-07-31 已完成最小 FastAPI runtime 接线及 Windows `sdiskio` 缺少 `busy_time` 的跨平台采样兼容修复，定向回归、真实 Windows 合成 HTTP 冒烟、完整 Harness、OpenSpec strict、compileall、资产和 diff 门控通过，仍等待用户重新执行受影响人工验收；根因和证据详见同变更包 `tasks.md`；Phase 5 未开始；Phase 3–4 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成）
 > 日期：2026-07-26
 > 级别：Level 3
 
@@ -96,7 +96,7 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 
 ## Impact
 
-本变更跨越所有业务层，但本轮只新增本变更包文档，不修改生产代码。
+本变更跨越所有业务层；本轮 Windows 兼容修复只影响后端 Layer 21 资源采样/准入和合成测试，不改变公共 HTTP DTO、Legacy 正式输出门控或 Scheduler/Worker 的第二套实现。
 
 | 层级 | 计划影响 | 计划内容 |
 |---|---|---|
@@ -107,7 +107,7 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 | Layer 11 FE Components | 新增/修改 | 工作台卡片、来源标记、检材/人员拖拽卡片、归档映射表、状态进度和模板选择 |
 | Layer 12 FE Pages | 新增/修改 | 工作台路由与审核页编排；保留现有 Legacy 审核和导出边界 |
 | Layer 20 BE Repository | 新增 | SQLite 业务 DTO/元数据与 opaque asset 引用、SourceRecord、文件系统资产索引、模板注册、任务锁和运行清理记录 |
-| Layer 21 BE Services | 新增/修改 | 案件壳/解析失败、默认值双写、租约、任务调度、资源准入、归档阶段里程碑、WinRAR spike 决策、模板和生命周期服务 |
+| Layer 21 BE Services | 新增/修改 | 案件壳/解析失败、默认值双写、租约、任务调度、资源准入、跨平台资源采样、归档阶段里程碑、WinRAR spike 决策、模板和生命周期服务 |
 | Layer 22 BE Controllers | 新增 | 工作台、默认值、任务、模板和映射 API 的参数校验与 DTO 转换 |
 | Layer 23 BE Routes | 新增 | REST 路由注册；现有 `/records/*` 以 Legacy 兼容适配器保留 |
 
