@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：进行中。Phase 1–4 实现完成，阶段自动验证和轻量冒烟通过；2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；2026-07-31 已完成最小 FastAPI runtime 接线及 Windows `sdiskio` 缺少 `busy_time` 的跨平台采样兼容修复，定向回归、真实 Windows 合成 HTTP 冒烟和完整门控通过，仍等待用户重新执行受影响人工验收。根因、修复范围和证据以 `tasks.md` 的“最终集成人工验收阻塞记录”和“Windows Archive Runtime 兼容修复”为详细记录；Demo-ready（有条件）但不是 Production-ready；Phase 3–4 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留；Phase 5 未开始
+> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入 Archive Scheduler/Worker，随后补齐 runtime 接线、Windows 缺少 `busy_time` 的可选指标降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。设计仍为 Demo-ready（有条件），不是 Production-ready；`1D-017R`、Final Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成；TD-1 至 TD-6 保留。
 
 ## 1. 总体架构决策
 
@@ -222,7 +222,7 @@ Word builder 只接收字段值和 Legacy 投影，不接收 UI 来源颜色。�
 - 可信完成服务在数据库写事务内重新读取并校验 attempt、SourceRecord、CaseShell、CaseDraft、active binding 和 publish intent；attempt、shell、draft 更新必须各恰好影响一行，任一失败整体回滚。数据库成功后但 intent `verified` 标记前崩溃只补阶段标记，不回退 succeeded。
 - 恢复错误只在明确身份错配、目标冲突、Manifest/RAR 完整性失败或篡改时进入 `conflict`。SQLite 锁、index 暂不可用、文件占用、临时 I/O/权限异常保留当前意图阶段和正式产物，不删除、不覆盖、不重复发布，后续只由显式恢复核验再次尝试；不引入 Worker、队列、调度或后台自动重试。
 
-本轮新增 `1D-025` 至 `1D-029T` 已完成，`1D-030T`、新的完整 Harness gate、`1D-017R`、独立 Review gate 和归档解除 gate 均保持未完成；Phase 2–4 未开始。
+本轮新增 `1D-025` 至 `1D-029T` 已完成，`1D-030T`、新的完整 Harness gate、`1D-017R`、独立 Review gate 和归档解除 gate 均保持未完成；截至本段对应的历史节点 Phase 2–4 尚未开始，后续状态见变更包 `tasks.md` 的各 Phase gate。
 
 ### D-003E：第四次独立 Review 的 publish fence、运行态恢复与真实来源摘要
 

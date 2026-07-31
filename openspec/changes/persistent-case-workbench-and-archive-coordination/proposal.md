@@ -1,7 +1,7 @@
 # Proposal: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 状态：进行中（Phase 1–4 实现完成，阶段自动验证和轻量冒烟通过；2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；2026-07-31 已完成最小 FastAPI runtime 接线及 Windows `sdiskio` 缺少 `busy_time` 的跨平台采样兼容修复，定向回归、真实 Windows 合成 HTTP 冒烟、完整 Harness、OpenSpec strict、compileall、资产和 diff 门控通过，仍等待用户重新执行受影响人工验收；根因和证据详见同变更包 `tasks.md`；Phase 5 未开始；Phase 3–4 正式人工验收、`1D-017R`、Phase 1–4 最终集成人工验收、最终 Review、Production Review 和归档解除均未完成）
+> 状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务缺少正式应用生命周期内的 Scheduler/Worker 接管，随后补齐运行时接线、Windows `sdiskio` 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过：公共工作台任务由 Scheduler/Worker 自动完成，RAR、Manifest、MD5、取消/重试、停止/重启恢复及真实双会话冲突均符合合同；Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过。自动化验证、原生 Word 视觉检查、真实浏览器人工验收及限制边界详见同变更包 `tasks.md`；Phase 5、`1D-017R`、Final Review、Production Review 和 OpenSpec archive 仍未完成。
 > 日期：2026-07-26
 > 级别：Level 3
 

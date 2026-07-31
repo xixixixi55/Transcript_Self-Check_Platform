@@ -1,16 +1,16 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 完整 Harness 与合成端到端核验通过，但最终集成人工验收发现 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 queued/unassigned，因此验收未通过；2026-07-31 已完成最小运行时接线修复和自动化回归，仍等待用户重新执行受影响人工验收；Phase 5 未开始。Phase 3–4 正式人工验收、Phase 1–4 最终集成人工验收、最终 Review、`1D-017R`、Production Review 和归档解除均未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 `queued/unassigned`；2026-07-31 完成 runtime 接线、Windows 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序和工作台 autosave/revision 协调四项修复，并在 D 盘隔离环境完成真实浏览器复验。Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；自动化验证、原生 Word 视觉检查、真实浏览器人工验收和限制边界见下文。Phase 5、最终 Review、`1D-017R`、Production Review 和归档解除仍未完成；TD-1 至 TD-6 保留。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
-## 2026-07-31 最终集成人工验收阻塞记录（保持未通过）
+## 2026-07-31 最终集成人工验收阻塞记录（历史首次结果）
 
 - **发现现象**：公共 HTTP 工作台创建的归档任务持续为 `queued`、`worker_state=unassigned`、`workflow_milestone=0`；直接调用现有 `ArchiveSchedulerService.claim_next` 和 `ArchiveWorkerService.run` 可以完成归档，不能替代公共主链路证据。
 - **根因**：工作树中虽已构造 `ArchiveRuntimeCoordinator`，但 `packages/backend/app/main.py` 仍创建无 lifespan 的静态 FastAPI 对象，从未在正式 startup 调用 runtime `start()`；同时任务 API 尚未把新任务的已绑定 opaque context 登记到该 coordinator，且工厂传入 runtime 的构造契约未闭合。因此 HTTP 创建的 durable queued 任务没有被应用运行时接管。
 - **修复**：增加惰性 `create_app`/FastAPI lifespan 启停；复用同一 Scheduler、Worker、任务仓储和资源准入；任务记录发布前登记既有 attempt/context，启动前已存在的 queued 任务可被同一服务实例接管；shutdown 使用有界等待并把未完成 claim 安全转为 interrupted，Worker 停止检查不伪造成功；未引入第二套队列、调度器或 Worker。
 - **自动化证据（本轮）**：`tests/test_archive_runtime_lifecycle.py` 3 passed（启动前 queued 接管、公共 HTTP 自动接管并完成合成 Manifest 发布、单任务失败后继续处理、重复 startup、空队列退避和 shutdown）；Scheduler/Worker 回归 15 passed；工作台公共 HTTP/任务/revision/来源回归 26 passed；恢复/发布/Manifest/marker 受影响回归 66 passed，marker 唯一删除回归 1 passed；`verify:full` 通过（架构、typecheck、前端 208 tests、后端 764 passed/3 skipped、构建、严格文档），Python `compileall`、仓库资产检查、OpenSpec strict 和 `git diff --check` 通过。所有证据均为隔离合成测试；仍不替代用户人工验收。
-- **验收状态**：本记录不勾选 Phase 3/4 正式人工验收、Phase 1–4 最终集成人工验收、`1D-017R`、最终 Review 或 Production Review；自动测试和轻量 HTTP 冒烟不能替代用户重新执行受影响人工验收。不得归档、commit 或 push。
+- **历史验收状态**：本记录保留首次人工验收未通过的事实；自动测试和轻量 HTTP 冒烟当时不能替代用户重新执行受影响人工验收。2026-07-31 真实浏览器复验已完成并通过，当前结论见“Phase 1–4 最终集成人工验收记录”；`1D-017R`、最终 Review、Production Review、Phase 5 和 OpenSpec archive 仍保持未完成，不得归档、commit 或 push。
 
 ## 执行规则
 
@@ -213,7 +213,7 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 
 ### Demo checkpoint 状态（2026-07-28）
 
-本次独立 Review 结论接受为甲方 Demo checkpoint 判定：Phase 1D 为 **Demo-ready（有条件）**，不是 Production-ready；当前 `Production-ready = 否`。本结论不等同于独立 Level 3 Production Review 通过，不解除 OpenSpec 归档阻断，也不完成 `1D-017R`。历史 Demo 冒烟与阶段验收记录可以保留，但 Phase 1–4 最终集成人工验收仍未完成；允许在独立工作范围内继续甲方 Demo 后续功能，但不得宣称本 Level 3 变更包已生产完成。
+本次独立 Review 结论接受为甲方 Demo checkpoint 判定：Phase 1D 为 **Demo-ready（有条件）**，不是 Production-ready；当前 `Production-ready = 否`。本结论不等同于独立 Level 3 Production Review 通过，不解除 OpenSpec 归档阻断，也不完成 `1D-017R`。历史 Demo 冒烟与阶段验收记录可以保留；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，但不得据此宣称本 Level 3 变更包已生产完成。允许在独立工作范围内继续甲方 Demo 后续功能。
 
 #### Demo 后生产加固技术债
 
@@ -318,7 +318,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 - [x] **T005P** 统一新案件六字段优先级为“当前案件用户手工修改 > Parser 非空解析值 > 非空共享默认值 > 系统默认值或空值”；共享默认值只补齐 Parser 空白、缺失或空数组，已有案件不回写。
 - [x] **T005PT** 增加旧实现下失败的后端回归测试，并复用前端纯规则、草稿刷新、稀疏 patch、revision conflict 和跨案件隔离测试；验证人员结构/顺序与光盘完整编号不会被共享值错误覆盖。测试有效性证据：旧实现 `2 failed, 5 passed`；最终后端定向回归 `238 passed, 3 warnings`，其中共享默认值/工作台 `41 passed, 1 warning`、Legacy Parser/Word/VML/分页 `91 passed`、Manifest/附件投影/显式归档 `106 passed, 2 warnings`；前端定向回归 `16 passed`。
-- [x] **T005PV** 本次 typecheck、`lint:arch`、前端生产构建、严格文档检查、资产检查和 `git diff --check` 通过。当前状态为“实现完成、自动验证通过、等待 Phase 1–4 最终集成人工验收”。未执行前后端全量测试、完整 Harness、`1D-017R`、最终集成人工验收、最终 Review 或归档，Phase 3–5 保持未开始。
+- [x] **T005PV** 本次 typecheck、`lint:arch`、前端生产构建、严格文档检查、资产检查和 `git diff --check` 通过。历史阶段状态为“实现完成、自动验证通过、等待 Phase 1–4 最终集成人工验收”；该验收已于 2026-07-31 通过。`1D-017R`、最终 Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成。
 
 ## Phase 2 — 审核顺序、人员卡片、字段来源和导出命名
 
@@ -349,8 +349,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] 拖拽后的案件检材/人员顺序刷新后仍一致，所有 Legacy 投影和 Word 输出共用该顺序。
 - [x] 默认值、报告解析值和人工修改值可区分，待确认有文字提示并进入门控。
 - [x] Word 名称按次输入且只影响下载名；服务器物理文件名安全、唯一、不可覆盖。
-- [x] Phase 2 阶段状态（2026-07-29）：实现完成、自动验证通过、轻量冒烟通过；等待 Phase 1–4 最终集成人工验收。
-- [ ] Phase 2 正式人工验收（并入 Phase 1–4 最终集成人工验收）；不得以本阶段合成测试或轻量冒烟替代。
+- [x] Phase 2 阶段状态（2026-07-29）：实现完成、自动验证通过、轻量冒烟通过；最终人工结论并入 2026-07-31 Phase 1–4 最终集成人工验收。
+- [x] Phase 2 正式人工验收（并入 Phase 1–4 最终集成人工验收）：2026-07-31 随最终集成范围通过；本项结论不以本阶段合成测试或轻量冒烟替代。
 
 ## Phase 3 — 归档映射、后台归档和阶段里程碑进度
 
@@ -394,8 +394,8 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] 案件工作台每张案件卡片以受控信息密度直接显示当前或最近归档任务摘要；WinRAR 主要使用 indeterminate 活动态和最多两行活动信息，状态化内容、响应式和无障碍合同通过；详情扩展信息不得替代卡片主入口或泄露到列表摘要。
 - [x] 计划映射经校验后进入 Manifest，附件 3、Word 和完成状态只读取验证后的 Manifest。
 - [x] 现有正式 inventory、变化、WinRAR、完整性、MD5、Manifest 和 Word 门控全量定向回归通过。
-- [x] Phase 3 阶段状态（2026-07-30）：实现完成、自动验证通过、轻量冒烟通过；等待 Phase 1–4 最终集成人工验收。
-- [ ] Phase 3 正式人工验收（并入 Phase 1–4 最终集成人工验收）；不得以本阶段合成测试或轻量冒烟替代。
+- [x] Phase 3 阶段状态（2026-07-30）：实现完成、自动验证通过、轻量冒烟通过；2026-07-31 受影响主链路真实浏览器复验通过。
+- [x] Phase 3 正式人工验收（并入 Phase 1–4 最终集成人工验收）：2026-07-31 通过真实工作台/公共 HTTP、Scheduler/Worker 自动接管、阶段里程碑、RAR、Manifest、MD5、取消/重试和停止/重启恢复复验；不得以本阶段合成测试或轻量冒烟替代。
 
 ## Phase 4 — 已审核预置模板
 
@@ -426,16 +426,17 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] 每个模板有独立 ID、版本、指纹、规则和验收记录，案件可复现所选版本。
 - [x] 模板切换不重新压缩、不重建 Manifest；下一次导出重新校验并生成 Legacy Word。
 - [x] 未审核或未知 DOCX 不能进入案件模板引用，现有 Word 安全门控保持通过。
-- [x] Phase 4 阶段状态（2026-07-30）：实现完成、自动验证通过、轻量冒烟通过；等待 Phase 1–4 最终集成人工验收。
-- [ ] Phase 4 正式人工验收（并入 Phase 1–4 最终集成人工验收）；不得以本阶段合成测试或轻量冒烟替代。
+- [x] Phase 4 阶段状态（2026-07-30）：实现完成、自动验证通过、轻量冒烟通过；2026-07-31 受影响主链路真实浏览器复验通过。
+- [x] Phase 4 正式人工验收（并入 Phase 1–4 最终集成人工验收）：2026-07-31 通过真实工作台模板/Word 相关流程和最终集成范围复验；不得以本阶段合成测试或轻量冒烟替代。
 
-### Phase 1–4 最终集成人工验收记录（2026-07-30）
+### Phase 1–4 最终集成人工验收记录（2026-07-30 首次失败；2026-07-31 复验通过）
 
 - [x] 修复正式归档发布中 staging ownership marker 被执行层和发布层重复删除的直接集成回归；发布层保持唯一删除所有者，定向测试、受影响回归和重新执行的完整 Harness 通过。
 - [x] 使用 D 盘隔离目录、纯合成案件和受控模板完成 API、持久化、模板治理、revision 冲突、Word artifact 失效、正式 Word、Legacy/VML/6 页分页、附件顺序、真实 WinRAR、RAR inventory/完整性/MD5/Manifest/发布链路核验；验收资产已清理，未进入仓库。
 - [x] 模板未知、未审核、指纹不匹配和规则失败均被稳定安全错误拒绝；正式生成前会重新校验当前模板，失败时不生成看似成功的 Word。
-- [ ] Phase 3/4 及 Phase 1–4 最终集成人工验收：通过真实 HTTP 工作台创建的归档任务持续为 `queued`/`unassigned`，应用运行时没有调用现有 scheduler/worker 取得并执行任务；服务层直接调用 Worker 可成功生成并发布验证通过的 RAR/Manifest，但不能替代公共主链路验收。
-- [ ] 浏览器视觉验收：本轮 Codex 内置浏览器运行时因 node_repl kernel assets 路径错误不可用；仅完成真实服务、HTTP/API、正式生成链路及 officecli/Word 的 6 页 DOCX 视觉核验，不以路由可访问性冒充页面视觉验收。
+- [x] Phase 3/4 及 Phase 1–4 最终集成人工验收：2026-07-30 首次真实 HTTP 验收发现任务持续为 `queued`/`unassigned`，原因是正式应用生命周期未接入现有 Scheduler/Worker；2026-07-31 补齐四项修复后，在 D 盘隔离环境由真实工作台/公共 HTTP 创建纯合成归档任务，任务自动经历 `queued/unassigned/0` 到归档阶段并达到 `succeeded/released/100/completed`。取消不虚假成功，重试创建新 attempt，停止/重启后已有任务安全恢复；RAR、inventory、完整性、MD5、Manifest、光盘映射和 staging marker 发布均通过。
+- [x] 浏览器视觉及输出边界验收：2026-07-31 真实浏览器完成编辑光盘编号后立即压缩、快速连续点击、取消/重试、停止/重启和双会话 revision 冲突复验；页面不再出现要求刷新重试的 409，真实冲突仍安全拒绝且不创建归档任务。原生 Word 视觉检查作为独立证据已完成；本次小型纯合成输入只生成单卷 RAR，多分卷边界由 Harness/自动化覆盖，不冒充多分卷人工视觉验收。首次 Codex 浏览器不可用属于历史环境限制，不覆盖本次真实浏览器证据。
+- [x] 四项修复收口：运行时 coordinator 接入正式应用 lifespan；Windows 缺少 `busy_time` 时以 `io_busy_percent=None` 跳过可选 I/O 阈值而不伪造 `0%`；staging ownership marker 由发布层保持唯一删除所有者；工作台立即归档先等待 autosave、`PATCH → reload detail → archive decision` 使用最新 revision，并由 `archiveDecisionInFlight` 与服务端唯一活动任务门控防止重复计划/任务。
 
 ### Windows Archive Runtime 兼容修复（2026-07-31）
 
@@ -445,9 +446,9 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 - [x] **WIO-001** 修改 `ArchiveResourceSnapshot`、资源准入和 `ArchiveRuntimeResourceProvider`，支持不可用 I/O 指标；保持存在 `busy_time` 平台的初始化、时间差为零和计数器重置行为，不新增第二套采样器、Scheduler 或 Worker。
 - [x] **WIO-001T** 增加合成测试：`disk_io_counters()` 为 `None`、Windows 风格 `sdiskio` 缺少 `busy_time`、存在 `busy_time` 的既有采样、连续采样初始化/零时间差/计数器重置、不可用指标下 Scheduler 不永久失败或忙循环，以及正式 `create_app + TestClient + 公共 HTTP` 生命周期自动接管 queued 任务；继续运行 shutdown、重复 startup、单任务失败、marker 唯一删除、取消、租约、revision、恢复、Manifest 和发布门控回归。测试数据必须为 `SYNTHETIC/TEST/FIXTURE`。
-- [x] **WIO-001V** 通过“恢复无条件 `busy_time` 访问后 Windows 兼容测试失败”的测试有效性验证；完成定向测试、Runtime/Scheduler/Worker/资源准入/公共 HTTP 回归、取消/恢复/发布/Manifest/marker 回归、真实 Windows 轻量启动、`verify:full`、OpenSpec strict、Python `compileall`、仓库资产检查和 `git diff --check`。人工验收状态仍不变，不勾选 Phase 3/4、Phase 1–4 最终集成、`1D-017R`、最终 Review、Production Review，不开始 Phase 5。
+- [x] **WIO-001V** 通过“恢复无条件 `busy_time` 访问后 Windows 兼容测试失败”的测试有效性验证；完成定向测试、Runtime/Scheduler/Worker/资源准入/公共 HTTP 回归、取消/恢复/发布/Manifest/marker 回归、真实 Windows 轻量启动、`verify:full`、OpenSpec strict、Python `compileall`、仓库资产检查和 `git diff --check`。相关真实浏览器复验随后于 2026-07-31 通过 Phase 3/4 及 Phase 1–4 最终集成验收；`1D-017R`、最终 Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成。
 
-- **自动化与真实运行证据（2026-07-31）**：资源采样/Runtime 生命周期定向 `9 passed`；资源、Scheduler、Worker、Runtime、公共 HTTP、取消、租约、revision 和任务回归 `74 passed, 3 warnings`；恢复、发布、Manifest、marker、Legacy 归档门控及来源回归 `80 passed, 5 warnings`；架构检查和 TypeScript typecheck 通过。将无条件 `busy_time` 访问临时恢复后，Windows 兼容用例按预期以 `AttributeError` 失败，修复已恢复。真实 Windows `pnpm dev` 以指定 `BIJI_ALLOWED_INPUT_ROOTS` 启动，公共 HTTP 纯合成任务最终观察到 `queued/unassigned/0 → succeeded/released/100/completed`；日志仅有一次 `ARCHIVE_IO_METRIC_UNAVAILABLE`，无 `busy_time`/`AttributeError`/Scheduler 迭代异常；服务进程树有界停止，合成输入、RAR、Manifest 索引记录、隔离数据库、日志和临时资产已清理。`verify:full` 退出码 `0`（前端 `208 passed`，后端全量 `773 collected` 无失败）；OpenSpec strict、Python `compileall`、仓库资产检查和 `git diff --check` 均通过。人工验收状态仍未通过，不能替代用户重新验收。
+- **自动化与真实运行证据（2026-07-31）**：资源采样/Runtime 生命周期定向 `9 passed`；资源、Scheduler、Worker、Runtime、公共 HTTP、取消、租约、revision 和任务回归 `74 passed, 3 warnings`；恢复、发布、Manifest、marker、Legacy 归档门控及来源回归 `80 passed, 5 warnings`；架构检查和 TypeScript typecheck 通过。将无条件 `busy_time` 访问临时恢复后，Windows 兼容用例按预期以 `AttributeError` 失败，修复已恢复。真实 Windows `pnpm dev` 以指定 `BIJI_ALLOWED_INPUT_ROOTS` 启动，公共 HTTP 纯合成任务最终观察到 `queued/unassigned/0 → succeeded/released/100/completed`；日志仅有一次 `ARCHIVE_IO_METRIC_UNAVAILABLE`，无 `busy_time`/`AttributeError`/Scheduler 迭代异常；服务进程树有界停止，合成输入、RAR、Manifest 索引记录、隔离数据库、日志和临时资产已清理。`verify:full` 退出码 `0`（前端 `208 passed`，后端全量 `773 collected` 无失败）；OpenSpec strict、Python `compileall`、仓库资产检查和 `git diff --check` 均通过。以上是自动化和真实运行证据，与下方真实浏览器人工验收及原生 Word 视觉检查分别记录。
 
 ### 工作台立即归档 revision 竞态修复与浏览器复验（2026-07-31）
 
@@ -457,7 +458,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **自动化证据**：新增页面级公共 HTTP 交互测试 `3 passed`（旧实现恢复为旧 revision 后关键竞态用例 `2 failed`，断言从期望 `6` 回退为 `5`）；新增后端公共 TestClient 流程 `1 passed`；工作台/autosave/session/归档规则前端定向 `25 passed`，工作台控制器/持久化后端定向 `47 passed`。随后前端全量 `44 files / 211 tests`、后端全量 `774 collected`、`verify:full` 均通过。
 - **真实浏览器与公共 HTTP 证据**：D 盘隔离环境、纯合成报告和真实 `pnpm dev` 下，浏览器未等待编辑 `SY20260731-002` 后立即点击压缩，服务日志顺序为 `PATCH draft 200 → GET case detail 200 → POST archive-decision 200`，页面显示“已进入等待归档”，无 409/刷新提示；任务由 Scheduler/Worker 自动接管并达到 `succeeded / completed / 100 / released`。公共结果、实际 RAR 和 Manifest 的 MD5 均为 `e7d8db6e3234f3b10669539aba1b827e`，Manifest 光盘编号为 `SY20260731-002`，ownership marker 发布通过且无重复删除错误。快速连续点击的真实页面公共历史仅有 `1` 个 task、`attempt=1`，最终成功。
 - **真实并发冲突证据**：两个浏览器会话同时打开同一纯合成案件；第二会话保持只读并记录租约冲突，随后通过其公共 Draft API 将 revision 从 `1` 保存为 `2`。第一会话仍持有旧草稿，立即压缩时保存请求返回 HTTP 409；页面显示“案件版本发生冲突，当前输入未覆盖服务端新版本”，没有刷新提示、没有 archive-decision 请求、公共归档历史为 `0`，服务端 revision 和租约合同继续生效。
-- **状态保持**：本记录只补充竞态缺陷、修复和复验证据；Phase 3/4 正式人工验收、Phase 1–4 最终集成人工验收、`1D-017R`、最终 Review、Production Review 均仍未勾选，Phase 5 未开始，等待用户重新验收受影响主链路。
+- **状态保持**：本记录补充竞态缺陷、修复和最终复验证据；Phase 3/4 正式人工验收及 Phase 1–4 最终集成人工验收已于 2026-07-31 通过。`1D-017R`、Final Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成。
 
 ## Phase 5 — 综合验收、清理和 Shadow 边界
 

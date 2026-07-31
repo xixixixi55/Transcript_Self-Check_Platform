@@ -7,7 +7,7 @@
 
 当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + 案件明确引用且当前重新校验通过的 approved TemplateProfile 渲染唯一正式 DOCX；没有模板引用的兼容案件继续使用 `current-template-v1`。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
 
-当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` metadata 使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Canonical 正式生产切换、完整人工验收和 OpenSpec 归档仍未完成。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证，只阻塞 Canonical 成为默认唯一正式输出及本变更最终验收/归档，除非补测通过或发布负责人明确接受风险。
+当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` metadata 使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，但 Canonical 正式生产切换和 OpenSpec 归档仍未完成。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证，只阻塞 Canonical 成为默认唯一正式输出及本变更归档，除非补测通过或发布负责人明确接受风险。
 
 当前有两个必须区分的入口边界：持久化案件工作台是前端主生产入口，先持久化
 CaseShell、SourceRecord 和解析任务，解析成功后保存 CaseDraft；用户审核和保存草稿后，
@@ -443,7 +443,8 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 4GB 双卷与 22GB 单卷只有部分脱敏真实证据，不宣称全部档位验收完成
 - AND 22GB 双卷、45GB 真实执行和真实向上 replan 继续延期，不是失败、取消或完成
 - AND 这些资源型验收不阻塞日常 Legacy/Shadow 功能开发、Shadow 真实样本差异治理或 Canonical 代码、只读预览、编辑门控、候选输出隔离和回滚演练
-- AND 这些资源型验收阻塞 Canonical 成为默认唯一正式生产输出，也阻塞本变更最终验收和 OpenSpec 归档
+- AND 2026-07-31 D 盘隔离环境的真实浏览器复验使用小型纯合成输入，仅生成单卷 RAR；多分卷边界由 Harness/自动化覆盖，不宣称已完成多分卷人工视觉验收；原生 Word 视觉检查单独记录，不与浏览器验收混同
+- AND 这些资源型验收仍阻塞 Canonical 成为默认唯一正式生产输出和 OpenSpec 归档，但不否定已完成的 Phase 1–4 最终集成人工验收
 - AND 只有在有足够资源的验收机器上补测通过，或由发布负责人明确记录风险接受后，才可解除上述正式发布门槛
 
 ---

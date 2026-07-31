@@ -4,7 +4,7 @@
 > 新增 type/interface 后 MUST 同步更新本文档。
 > 一致性由 npx tsx scripts/check-docs.ts 自动检查。
 >
-> 本文件同时区分“类型已存在”和“生产已接线”：类型定义及单元测试只能证明基础实现存在，不能证明生产 Controller 已启用该管线。当前正式输出仍使用 `InspectionReport` legacy DTO；Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路并只提供脱敏诊断，Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产类型、构造和消费。解析缓存、`ArchiveContext` metadata 快照和请求存活性治理属于已接入的运行时能力，但不改变正式归档的全量安全校验。延期资源验收不阻塞 Canonical 类型、适配器、只读预览、编辑门控、候选输出隔离或回滚演练的开发/验证；它只阻塞 Canonical 成为默认唯一正式输出，以及本变更最终验收和归档，除非补测通过或发布负责人接受风险。
+> 本文件同时区分“类型已存在”和“生产已接线”：类型定义及单元测试只能证明基础实现存在，不能证明生产 Controller 已启用该管线。当前正式输出仍使用 `InspectionReport` legacy DTO；Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路并只提供脱敏诊断，Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产类型、构造和消费。解析缓存、`ArchiveContext` metadata 快照和请求存活性治理属于已接入的运行时能力，但不改变正式归档的全量安全校验。Phase 1–4 最终集成人工验收已于 2026-07-31 通过；延期资源验收不阻塞 Canonical 类型、适配器、只读预览、编辑门控、候选输出隔离或回滚演练的开发/验证，但仍阻塞 Canonical 成为默认唯一正式输出以及 OpenSpec 归档，除非补测通过或发布负责人接受风险。真实浏览器小型纯合成输入仅产生单卷 RAR，多分卷边界由 Harness/自动化覆盖。
 
 ## 实体定义
 
