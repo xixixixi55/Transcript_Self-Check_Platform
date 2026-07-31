@@ -449,6 +449,16 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 - **自动化与真实运行证据（2026-07-31）**：资源采样/Runtime 生命周期定向 `9 passed`；资源、Scheduler、Worker、Runtime、公共 HTTP、取消、租约、revision 和任务回归 `74 passed, 3 warnings`；恢复、发布、Manifest、marker、Legacy 归档门控及来源回归 `80 passed, 5 warnings`；架构检查和 TypeScript typecheck 通过。将无条件 `busy_time` 访问临时恢复后，Windows 兼容用例按预期以 `AttributeError` 失败，修复已恢复。真实 Windows `pnpm dev` 以指定 `BIJI_ALLOWED_INPUT_ROOTS` 启动，公共 HTTP 纯合成任务最终观察到 `queued/unassigned/0 → succeeded/released/100/completed`；日志仅有一次 `ARCHIVE_IO_METRIC_UNAVAILABLE`，无 `busy_time`/`AttributeError`/Scheduler 迭代异常；服务进程树有界停止，合成输入、RAR、Manifest 索引记录、隔离数据库、日志和临时资产已清理。`verify:full` 退出码 `0`（前端 `208 passed`，后端全量 `773 collected` 无失败）；OpenSpec strict、Python `compileall`、仓库资产检查和 `git diff --check` 均通过。人工验收状态仍未通过，不能替代用户重新验收。
 
+### 工作台立即归档 revision 竞态修复与浏览器复验（2026-07-31）
+
+- **人工发现的操作时序**：真实工作台直接编辑光盘编号，在 debounce/autosave 完成前点击“立即开始压缩”，旧实现先完成草稿 PATCH，随后用页面缓存的旧 `CaseDetail.shell.revision` 提交归档决策，公共接口返回 HTTP 409；页面只能提示“压缩决策未完成，请刷新案件后重试”。
+- **根因分类**：主因是归档提交读取陈旧 revision；保存成功后草稿 revision 已更新，但本地 `CaseDetail.shell.revision` 没有同步更新。旧路径还只在 `hasPending` 判断为真时调用 `saveNow()`，不能把立即操作统一建模为“先确认保存”。光盘编号没有第二套本地状态，后端 draft/shell 原子 revision、租约、编号校验和归档计划事实源均保持不变。
+- **修复合同**：立即归档路径无条件等待现有 autosave 的在飞请求或当前待保存 patch；保存失败、租约失败或真实冲突直接终止，不发送归档决策。保存后通过既有 `reloadDetail` 读取服务端权威 `CaseDetail.shell.revision`，归档决策只使用该 revision，并在成功后重新加载详情；不新增 revision/保存队列。`archiveDecisionInFlight` 只抑制同一次点击并发，服务端仍以 revision/租约/唯一活动任务门控拒绝真实冲突。
+- **自动化证据**：新增页面级公共 HTTP 交互测试 `3 passed`（旧实现恢复为旧 revision 后关键竞态用例 `2 failed`，断言从期望 `6` 回退为 `5`）；新增后端公共 TestClient 流程 `1 passed`；工作台/autosave/session/归档规则前端定向 `25 passed`，工作台控制器/持久化后端定向 `47 passed`。随后前端全量 `44 files / 211 tests`、后端全量 `774 collected`、`verify:full` 均通过。
+- **真实浏览器与公共 HTTP 证据**：D 盘隔离环境、纯合成报告和真实 `pnpm dev` 下，浏览器未等待编辑 `SY20260731-002` 后立即点击压缩，服务日志顺序为 `PATCH draft 200 → GET case detail 200 → POST archive-decision 200`，页面显示“已进入等待归档”，无 409/刷新提示；任务由 Scheduler/Worker 自动接管并达到 `succeeded / completed / 100 / released`。公共结果、实际 RAR 和 Manifest 的 MD5 均为 `e7d8db6e3234f3b10669539aba1b827e`，Manifest 光盘编号为 `SY20260731-002`，ownership marker 发布通过且无重复删除错误。快速连续点击的真实页面公共历史仅有 `1` 个 task、`attempt=1`，最终成功。
+- **真实并发冲突证据**：两个浏览器会话同时打开同一纯合成案件；第二会话保持只读并记录租约冲突，随后通过其公共 Draft API 将 revision 从 `1` 保存为 `2`。第一会话仍持有旧草稿，立即压缩时保存请求返回 HTTP 409；页面显示“案件版本发生冲突，当前输入未覆盖服务端新版本”，没有刷新提示、没有 archive-decision 请求、公共归档历史为 `0`，服务端 revision 和租约合同继续生效。
+- **状态保持**：本记录只补充竞态缺陷、修复和复验证据；Phase 3/4 正式人工验收、Phase 1–4 最终集成人工验收、`1D-017R`、最终 Review、Production Review 均仍未勾选，Phase 5 未开始，等待用户重新验收受影响主链路。
+
 ## Phase 5 — 综合验收、清理和 Shadow 边界
 
 **阶段目标**：验证五阶段合同在恢复、并发、清理和正式输出保护下闭合；Shadow 只保留暂停声明。

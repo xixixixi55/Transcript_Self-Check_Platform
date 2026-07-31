@@ -197,17 +197,18 @@ export function useCaseRecordSession(caseId: string) {
   const retrySave = useCallback(() => autosave.retry(), [autosave])
 
   const decideArchive = useCallback(async (decision: ArchiveDecision) => {
-    if (!workbench.detail) throw new Error('CASE_NOT_LOADED')
+    const latestDetail = await workbench.reloadDetail(caseId)
+    if (!latestDetail) throw new Error('CASE_NOT_LOADED')
     const response = await axios.post<{ data: ArchiveDecisionResult }>(
       API_ENDPOINTS.WORKBENCH_ARCHIVE_DECISION(caseId), {
         decision,
-        expected_revision: workbench.detail.shell.revision,
+        expected_revision: latestDetail.shell.revision,
         identity,
       },
     )
     await workbench.reloadDetail(caseId)
     return response.data.data
-  }, [caseId, identity, workbench.detail, workbench.reloadDetail])
+  }, [caseId, identity, workbench.reloadDetail])
 
   const loadServerVersion = useCallback(async () => {
     await workbench.reloadDetail(caseId)

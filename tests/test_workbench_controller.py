@@ -314,6 +314,50 @@ def test_http_draft_save_reports_shared_defaults_partial_success_and_current_rev
         assert client.get("/api/v1/workbench/defaults").json()["data"]["inspection_place"] == "SYNTHETIC-RETRIED-PLACE"
 
 
+def test_http_saved_disc_number_precedes_immediate_archive_decision(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+    from app.repository.archive_task_repository import ArchiveTaskRepository
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir), "case_name": "SYNTHETIC-DISC-RACE"},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+
+        draft = copy.deepcopy(ready["draft"])
+        draft.pop("lifecycle", None)
+        draft["report"]["attachments"]["disc_number"] = "SY20260731-001"
+        saved = client.patch(
+            f"/api/v1/workbench/cases/{case_id}/draft",
+            json={"draft": draft, "expected_revision": ready["draft"]["revision"], "identity": IDENTITY},
+        )
+        assert saved.status_code == 200
+        saved_detail = client.get(f"/api/v1/workbench/cases/{case_id}").json()["data"]
+        assert saved_detail["draft"]["report"]["attachments"]["disc_number"] == "SY20260731-001"
+        assert saved_detail["shell"]["revision"] == ready["shell"]["revision"] + 1
+
+        expected_revision = saved_detail["shell"]["revision"]
+        decision = client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": expected_revision, "identity": IDENTITY},
+        )
+        assert decision.status_code == 200
+        task_id = decision.json()["data"]["archive_task"]["task_id"]
+        assert ArchiveTaskRepository(app_services.database).get_current_or_recent(case_id)["task_id"] == task_id
+
+        stale = client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"], "identity": IDENTITY},
+        )
+        assert stale.status_code == 409
+        assert stale.json()["detail"]["code"] in {"REVISION_CONFLICT", "ARCHIVE_TASK_ALREADY_ACTIVE"}
+        assert ArchiveTaskRepository(app_services.database).get_current_or_recent(case_id)["task_id"] == task_id
+
+
 def test_dispatch_failure_keeps_retryable_case_and_retry_endpoint(app_services):
     from app.main import app
     from app.controllers import workbench_controller

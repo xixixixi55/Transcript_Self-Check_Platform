@@ -1,5 +1,5 @@
 // Layer 12: FE_Pages — case-id based full editor using the Legacy production mappings.
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Spin, Steps, message } from 'antd'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { InspectorLibraryRecord } from '@biji/shared/types'
@@ -37,6 +37,7 @@ export default function CaseRecordGeneratePage() {
   const [inspectorError, setInspectorError] = useState<string | null>(null)
   const [inspectorLoading, setInspectorLoading] = useState(false)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
+  const archiveDecisionInFlight = useRef(false)
   const [defaultDiscPrefix, setDefaultDiscPrefix] = useState('')
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
   const templateRegistry = useTemplateRegistry({
@@ -105,18 +106,34 @@ export default function CaseRecordGeneratePage() {
     if (window.confirm('当前案件可能仍由其他页面编辑。强制接管会使旧页面失去写入资格，并记录本地会话审计。确定继续吗？')) void session.lease.acquire(true)
   }
   const chooseArchive = async (decision: 'immediate' | 'deferred') => {
+    if (archiveDecisionInFlight.current) return
     if (!session.editingEnabled) { message.warning('当前页面没有有效编辑租约，不能修改压缩决策。'); return }
+    archiveDecisionInFlight.current = true
     setArchiveDecisionBusy(true)
     try {
-      if (decision === 'immediate' && session.autosave.hasPending && !await session.autosave.saveNow()) {
-        message.warning('当前输入尚未保存成功，请先完成保存后再开始压缩。')
-        return
+      if (decision === 'immediate') {
+        const saved = await session.autosave.saveNow()
+        if (!saved) {
+          message.warning('当前输入尚未保存成功，请先完成保存后再开始压缩。')
+          return
+        }
       }
       const result = await session.decideArchive(decision)
       if (result.archive_task) message.success('归档任务已进入后台队列，可在案件卡片查看状态。')
       if (decision === 'deferred') message.info('已选择稍后压缩，案件和草稿已保留。')
-    } catch { message.error('压缩决策未完成，请刷新案件后重试。') }
-    finally { setArchiveDecisionBusy(false) }
+    } catch (error) {
+      const responseCode = (error as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
+      if (responseCode === 'REVISION_CONFLICT') {
+        message.error('案件已被其他会话修改，当前压缩未启动；请加载服务端版本并确认后再操作。')
+      } else if (responseCode === 'EDIT_LEASE_REQUIRED' || responseCode === 'EDIT_LEASE_LOST') {
+        message.error('编辑租约已失效，当前压缩未启动；请重新获取编辑权限后再操作。')
+      } else {
+        message.error('压缩决策未完成，请检查案件保存状态后再试。')
+      }
+    } finally {
+      archiveDecisionInFlight.current = false
+      setArchiveDecisionBusy(false)
+    }
   }
   useShortcuts({ onSave: saveNow, previewOpen, onClosePreview: () => setPreviewOpen(false), enabled: Boolean(session.report) })
   useEffect(() => {
