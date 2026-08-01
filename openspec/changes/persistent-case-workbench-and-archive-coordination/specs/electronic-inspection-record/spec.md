@@ -1,6 +1,6 @@
 # Electronic Inspection Record: Persistent Workbench Contract
 
-本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–4 已实现并完成自动化验证、原生 Word 视觉检查及真实浏览器人工验收；2026-07-31 独立 Level 3 Review 发现 M-1 至 M-4 四项归档一致性/恢复/外部变更风险及 L-1 marker 顺序风险，本轮加固合同已实现并通过故障注入、受影响回归、完整 `verify:full` 及补充门控，等待 `1D-017R` 独立重审。`1D-017R`、Phase 5、Final Review、Production Review 和 OpenSpec archive 尚未完成。未实现合同仍只保留在本 delta spec 中，不得提前写成当前生产事实。
+本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–4 已实现并完成自动化验证、原生 Word 视觉检查及真实浏览器人工验收；2026-07-31 独立 Level 3 Review 发现 M-1 至 M-4 四项归档一致性/恢复/外部变更风险及 L-1 marker 顺序风险，本轮加固合同已实现并通过故障注入、受影响回归和完整 `verify:full`。2026-08-01 完整 Harness 退出码为 `0`，随后门控后的独立 Level 3 Review 结论为 `PASS`，Critical/High/Medium/Low 阻断均为 0，`1D-017R` 已完成。Phase 5、Final Review、Production Review 和 OpenSpec archive 尚未完成。未实现合同仍只保留在本 delta spec 中，不得提前写成当前生产事实。
 
 ## Contract vocabulary
 
@@ -726,4 +726,4 @@ Legacy output pipeline; they are not a competing persistent workbench flow.
 - **WHEN** bounded shutdown or recovery handles a pending/running archive claim
 - **THEN** it re-reads current durable revision, deployment owner, worker owner token, attempt and fence, and performs bounded CAS only while the current claim remains owned and interruptible
 - **AND** revision races are retried or reported as unresolved, never silently ignored; transferred ownership and durable succeeded facts are not downgraded
-- **AND** staging markers bind task, attempt, deployment, controlled root, fence and random token, and only the matching publisher deletes once after durable intent/fence and formal move; an already-deleted marker for the same publication is idempotent success
+- **AND** staging markers serialize task, attempt, deployment, controlled root and random token; their fence binding is established by cross-checking the durable intent `fence_id` and current DB fence before deletion, and only the matching publisher deletes once after durable intent/fence and formal move; an already-deleted marker for the same publication is idempotent success

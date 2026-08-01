@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 `queued/unassigned`；2026-07-31 完成 runtime 接线、Windows 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序和工作台 autosave/revision 协调四项修复，并在 D 盘隔离环境完成真实浏览器复验。Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；自动化验证、原生 Word 视觉检查、真实浏览器人工验收和限制边界见下文。Phase 5、最终 Review、`1D-017R`、Production Review 和归档解除仍未完成；TD-1 至 TD-6 保留。
+> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 `queued/unassigned`；2026-07-31 完成 runtime 接线、Windows 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序和工作台 autosave/revision 协调四项修复，并在 D 盘隔离环境完成真实浏览器复验。Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；2026-08-01 完整 `verify:full` 退出码为 `0`，随后独立 Level 3 Review 通过。Phase 5、Final Review、Production Review 和 OpenSpec archive 仍未完成；TD-1/TD-2 已关闭，TD-4/TD-5 保留为环境债务，TD-3/TD-6 保留为 Low 技术债。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -146,7 +146,7 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 - [x] **1D-014** 将来源 revision conflict 作为过期复核结果重新读取，调度、并发和临时错误不得走空 fingerprint 失效路径；真实 fingerprint 变化仍进入 `requires_reselection`。
 - [x] **1D-015** staging cleanup 明确拒绝根目录，仅接受受控根的 attempt 专属直接子目录且 marker/记录/部署/root 全部匹配；其他 attempt 和未知资源保持不动。
 - [x] **1D-016T** 运行各发现定向测试、Phase 1D、Legacy Parser/Word/Manifest/归档兼容、前端工作台与导出测试、后端全量、typecheck、lint:arch、严格文档、资产及 diff 检查；2026-07-28 用户在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`：后端 `650 passed, 3 skipped, 10 warnings`，前端 TypeScript 与生产构建通过，`verify:docs:strict` 通过，未出现 `KeyboardInterrupt`、测试失败或递归脚本失败。已知非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
-- [ ] **1D-017R** 完整 Harness 退出码为 0 后重新执行独立 Level 3 Code Review；无阻断性 Critical/High/Medium 后才恢复 OpenSpec 归档准备。按当前统一验收策略，本项延后到 Phase 1–4 实现、功能冻结、全量自动测试、完整 Harness 和最终集成人工验收之后执行；当前不得据历史 Harness 或阶段验收提前勾选。
+- [x] **1D-017R** 完整 Harness 退出码为 0 后重新执行独立 Level 3 Code Review；无阻断性 Critical/High/Medium 后才恢复 OpenSpec 归档准备。2026-08-01 完整 `verify:full` 退出码为 `0`，随后独立 Level 3 Review 结论为 `PASS`（Critical/High/Medium/Low 阻断均为 0）；本项完成，但不等同于 Final Review、Production Review、Phase 5 或 OpenSpec archive 完成。
 
 #### Second independent Review remediation (2026-07-28)
 
@@ -300,6 +300,15 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
   - 缺失测试：不同文件数量、单文件大小、并发读写和失败重试下的耗时/资源基线测试。
   - 计划：Demo 后生产加固阶段处理。
 
+#### 当前技术债处置（2026-08-01）
+
+- **TD-1：已关闭**。Publish intent 已使用完整身份比较，并与 task、attempt、deployment、fence 交叉校验；原段落保留为历史发现。
+- **TD-2：已关闭**。Marker 删除已后置到 durable intent/fence 建立及正式原子移动之后，并由发布层承担唯一删除责任；原段落保留为历史发现。
+- **TD-3：保留 Low**。无正式目录的失效 intent 仍由恢复扫描处理，当前以终态 conflict/invalidated 和幂等恢复收敛；后续可优化扫描成本。
+- **TD-4：保留环境债务**。应用无法阻止外部程序修改授权来源目录，但 sealed snapshot、前后证据和 fail-closed 门控覆盖支持链路；不属于本轮代码阻断。
+- **TD-5：保留环境债务**。应用无法完全阻止管理员级正式目录篡改，但 Manifest、MD5、SQLite 身份和公共下载/复用校验会拒绝不一致结果；不属于本轮代码阻断。
+- **TD-6：保留 Low**。真实字节 fingerprint 的性能优化仍需生产规模基线，不得以 metadata-only 缓存替代当前安全算法。
+
 #### 甲方 Demo 人工冒烟验收清单
 
 验收数据只能使用合成或脱敏数据。每项由实际操作人勾选并记录结果；本清单通过不代表 Production-ready 或 OpenSpec 可归档。
@@ -332,7 +341,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] 上一轮新的完整 Harness gate（第二次 Review remediation 历史）已完成：2026-07-28 用户在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端 `661 passed, 3 skipped, 12 warnings`，前端 TypeScript 通过，前端生产构建通过，`verify:docs:strict` 通过，未出现 `KeyboardInterrupt`、测试失败或递归脚本失败。非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
 - [x] 第三次 Review remediation 的新完整 Harness gate 已完成：用户于 2026-07-28 在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端 `671 passed, 3 skipped, 12 warnings`，前端 TypeScript/生产构建及文档门控通过。该记录不等同于独立 Level 3 Review 通过。
 - [x] 第四次 Review remediation 的新完整 Harness gate 已完成：用户于 2026-07-28 在独立 PowerShell 执行完整 Harness，退出码为 `0`；后端 `679 passed, 3 skipped, 12 warnings`，前端 TypeScript/生产构建及 `verify:docs:strict` 通过。非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。该记录不等同于独立 Level 3 Review 通过。
-- [ ] 独立 Level 3 复审无阻断性 Critical、High 或 Medium。
+- [x] 独立 Level 3 复审无阻断性 Critical、High 或 Medium；2026-08-01 复审结果为 Critical/High/Medium/Low 均为 0。
 - [ ] OpenSpec 归档阻断解除。
 
 ### Phase 1 gate
@@ -517,9 +526,9 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [ ] **T024T** 准备人工验收清单：合成案件自动化证据 + 用户指定的真实大报告外部验证；不把真实输入、人员、路径、RAR、Manifest、DOCX 或运行输出写入仓库。完整 `verify:full` 前按 `AGENTS.md` 询问用户由谁执行。
 - [ ] **T025** 进行 Level 3 独立 Code Review，重点检查持久化迁移、并发/租约、任务恢复、资源准入、正式门控、清理白名单、Legacy 兼容和 Shadow 边界。验证：审查结论和修复项回写本变更包，不进入 Canonical 或 Shadow 真实治理。
 
-## 2026-08-01 第二轮独立 Review 安全加固（实现完成，等待独立重审）
+## 2026-08-01 第二轮独立 Review 安全加固（实现完成，门控后独立重审通过）
 
-本轮基线为本地提交 `ac49518` 及其相对 `origin/codex/demo-next-stage` 的完整实现。第二次独立 Level 3 Review 结论为 `REJECT`：Critical 0、High 0、Medium 5（M-1、M-2、M-3、M-4A、M-4B）和 Low 1（L-1）。以下任务只修复这些阻断项及关联 marker owner；`1D-017R` 必须保持未勾选，修复后另行独立重审。
+本轮基线为本地提交 `ac49518` 及其相对 `origin/codex/demo-next-stage` 的完整实现。第二次独立 Level 3 Review 结论为 `REJECT`：Critical 0、High 0、Medium 5（M-1、M-2、M-3、M-4A、M-4B）和 Low 1（L-1）。以下任务在实现阶段只修复这些阻断项及关联 marker owner；当时 `1D-017R` 保持未勾选，修复后另行独立重审。2026-08-01 门控后的独立重审已完成并通过，当前状态见下方最终记录。
 
 - [x] **1D-044** 在本变更包中固化“sealed execution input”和“durable publication generation”两个安全边界，明确 SQLite 事实源、派生 index、共享 deployment owner、磁盘快照成本和旧记录兼容策略；不以离散源目录扫描或完成前最后一次 MD5 作为完整证明。
 - [x] **1D-045**（M-1）补齐 task-bound intent/fence/attempt/publication 身份链和 schema migration；服务层一次性绑定 task/attempt，公共 API 不接受内部绑定字段，跨 task/staging/intent/recovery 复用安全拒绝，缺 task 身份的旧记录按冲突/恢复策略处理。
@@ -527,12 +536,12 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] **1D-047**（M-3）实现 task/attempt 所有的 copying→verified→sealed 输入快照；逐文件复制、链接/reparse 防护、完整集合/大小/摘要验证、取消/崩溃/失败清理和新 attempt 隔离；WinRAR 实际读取 sealed 快照而非外部源目录。
 - [x] **1D-048**（M-4A）实现 task-bound publication generation seal、同文件系统原子移动、受保护/read-only 边界、durable publication 摘要及完成事务内的 attempt/task succeeded 提交；恢复只完成同一 intent/fence/generation，历史正式资产不覆盖。
 - [x] **1D-049**（M-4B）把 SQLite durable intent/publication 作为 Manifest index 唯一事实源；损坏/缺失/结构异常 index fail-closed 或从可信事实重建，加入跨进程锁、flush/fsync、原子替换和并发追加保护，index 失败不得报告成功。
-- [x] **1D-050**（L-1）将 marker 绑定 task/attempt/deployment/root/fence/token，删除前验证发布所有权；正式移动后仅发布层删除一次，同一合法重入的已删除 marker 幂等成功，身份不匹配不得删除。
-- [x] **1D-051T** 为每个阻断项先加入可在修复前失败的真实故障注入，再完成 repository/service/controller/recovery/多 deployment/Windows 文件系统回归和测试有效性验证；仅使用合成数据，保持 `1D-017R`、Final Review、Production Review、Phase 5 和 archive 未完成。
+- [x] **1D-050**（L-1）将 marker 绑定 task/attempt/deployment/root/token，并在删除前通过 durable intent `fence_id` 与当前 DB fence 交叉验证发布所有权；正式移动后仅发布层删除一次，同一合法重入的已删除 marker 幂等成功，身份不匹配不得删除。
+- [x] **1D-051T** 为每个阻断项先加入可在修复前失败的真实故障注入，再完成 repository/service/controller/recovery/多 deployment/Windows 文件系统回归和测试有效性验证；仅使用合成数据；实现阶段保持 `1D-017R`、Final Review、Production Review、Phase 5 和 archive 未完成，待门控后的独立重审另行收口。
 
 ### 本轮实现与验证证据（2026-08-01）
 
-- **安全边界与 schema**：`archive_input_snapshots` 以 copying→validated（校验事实）→sealed→cleaned/invalidated 持久化 task/attempt/deployment 绑定输入快照；WinRAR、inventory、RAR 和 Manifest 只读取 sealed 快照。SQLite schema/migration 升至 v10，补齐 task/deployment、attempt snapshot、publication identity、deployment owner 和恢复状态表；共享 SQLite 路径由 durable deployment owner 启动门控拒绝第二 deployment。
+- **安全边界与 schema**：`archive_input_snapshots` 持久化 copying→sealed→cleaned/invalidated 状态；seal 前完成并记录逐文件集合、大小和内容摘要校验，校验事实不是额外的持久化状态。WinRAR、inventory、RAR 和 Manifest 只读取 sealed 快照。SQLite schema/migration 升至 v10，补齐 task/deployment、attempt snapshot、publication identity、deployment owner 和恢复状态表；共享 SQLite 路径由 durable deployment owner 启动门控拒绝第二 deployment。
 - **M-1/M-2**：publish intent/fence/attempt/task/publication 完整身份比较与一次性绑定已进入 repository/service/recovery 链；缺 task identity 的旧 intent 被显式标为 conflict，不作为合法重入。shutdown 重读当前 claim revision、owner token、deployment、attempt 和 fence 后做有界 CAS；竞争重读、所有权转移、已完成发布、重复 shutdown 与恢复均有测试。
 - **M-3**：快照在复制完成、逐文件集合/大小/内容摘要验证和 durable seal 前不会进入 WinRAR；源文件在执行期间改写后恢复原字节/大小/mtime 也不影响 sealed 输入；未 sealed 快照在重启中只做任务目录白名单清理，失败或取消不被后续 attempt 复用。
 - **M-4A/M-4B**：publication generation 用 task/attempt/deployment/fence/Manifest/file-set digest 固定身份；同文件系统原子改名后正式目录只读保护，完成事务引用同一 sealed generation。SQLite 是唯一 durable publication/index 事实源，JSON index 为可重建投影；跨进程锁、临时文件 flush/fsync/原子替换和损坏 index fail-closed/rebuild 已实现，index 失败不报告成功。
@@ -540,7 +549,16 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **测试有效性**：临时破坏 M-1 完整身份比较时 `test_task_b_cannot_bind_or_reuse_task_a_identity` 以 `DID NOT RAISE` 失败；绕过 M-2 当前 revision 收敛时 `test_shutdown_rereads_revision_after_worker_activity` 得到错误的 unresolved 状态；移除 M-3 sealed 前源证据校验时 `test_snapshot_change_before_seal_invalidates_input_and_never_executes` 以 `DID NOT RAISE` 失败；移除 M-4A 原子移动后的正式产物校验时 `test_publication_cutpoint_tamper_never_becomes_durable_success` 以 `DID NOT RAISE` 失败。四项临时破坏均已恢复，恢复后测试通过。
 - **门控**：第二轮安全/Worker/恢复/既有发布回归定向集合 `65 passed, 5 warnings`；修正 task-bound 发布顺序的公共 HTTP 合成夹具 `1 passed`。重新执行完整 `verify:full` 通过：前端 `44` 个文件、`211 passed`，后端 `796 passed, 3 skipped, 16 warnings`，架构检查、TypeScript、生产构建和 `verify:docs:strict` 均通过。补充 `python -m compileall -q packages/backend/app`、仓库资产检查（540 个跟踪文件）和 `git diff --check` 均通过。
 - **D 盘轻量冒烟边界**：在工作区 D 盘隔离 `--basetemp` 目录中使用纯合成数据执行公共 HTTP 自动接管/单任务失败后继续处理及 Windows `sdiskio` 缺少 `busy_time` 的回归，`2 passed, 1 warning`；临时目录已清理。该证据是 HTTP/TestClient 轻量自动化，不冒充新的浏览器人工验收；本轮没有修改 `word_templates/template.docx`。
-- **状态限制**：上述实现和门控不等同于独立 `1D-017R` 通过。`1D-017R` 继续未勾选；Final Review、Production Review、Phase 5 和 OpenSpec archive 均未开始，等待下一轮独立 Level 3 Review。
+- **状态限制**：上述实现和门控已由 2026-08-01 门控后的独立 Level 3 Review 正式裁定为 `PASS`，因此 `1D-017R` 已完成。Final Review、Production Review、Phase 5 和 OpenSpec archive 仍未开始，不能据此提前宣称 Production-ready 或完成归档。
+
+### 2026-08-01 `1D-017R` 门控后独立 Level 3 Review 结果
+
+- **基线与范围**：`origin/codex/demo-next-stage..HEAD`；base `374057992ce863f1c1a9eca591f2b5fc0ba82eb0`，HEAD `29d3c1e14031e9dbda4244cd785ca8dd22d9b466`，66 files，`+4311/-737`；工作树 clean，未修改产品代码或测试。
+- **完整 Harness**：在独立审查前执行 `npm.cmd run verify:full`，沙箱外退出码为 `0`；架构、类型、前端测试、后端测试、生产构建和 `verify:docs:strict` 全部通过；后端 `796 passed, 3 skipped, 16 warnings`。沙箱内首轮的 `EPERM: lstat C:\Users\SYNTHETIC` 仅为执行环境权限失败，不作为代码结果。
+- **独立安全裁定**：M-1、M-2、M-3、M-4A、M-4B、L-1 均 `PASS`；Critical、High、Medium、Low 阻断均为 `0`。未发现支持边界内的 durable false succeeded、历史正式资产覆盖、不可逆损坏、跨 task 复用或绕过 revision/ownership/fence/integrity 的主链路问题。
+- **TD 状态**：TD-1 已关闭；TD-2 已关闭；TD-4/TD-5 保留为外部环境债务，现有 sealed snapshot、Manifest/MD5/SQLite 校验在支持链路中 fail-closed；TD-3、TD-6 保留为 Low 技术债。
+- **文档澄清**：marker 序列化 payload 不直接存 `fence_id`；fence 绑定由 durable intent 的 `fence_id` 与当前 DB fence 在删除前交叉校验实现，不构成本轮阻断。此前技术债段落保留历史发现，以上述当前状态为准。
+- **剩余门控**：`1D-017R` 完成；Final Review、Production Review、Phase 5、OpenSpec archive 和 `OpenSpec 归档阻断解除` 仍保持未完成。
 
 ### Phase 5 gate
 

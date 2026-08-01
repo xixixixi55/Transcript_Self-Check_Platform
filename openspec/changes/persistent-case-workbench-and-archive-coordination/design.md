@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入 Archive Scheduler/Worker，随后补齐 runtime 接线、Windows 缺少 `busy_time` 的可选指标降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。随后独立 Level 3 Review 发现 M-1 至 M-4 与 L-1；本轮归档一致性、恢复和外部变更加固已完成并通过故障注入、受影响回归、完整 `verify:full` 及补充门控，等待 `1D-017R` 独立重审。设计仍为 Demo-ready（有条件），不是 Production-ready；`1D-017R`、Final Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成；TD-1 至 TD-6 保留。
+> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入 Archive Scheduler/Worker，随后补齐 runtime 接线、Windows 缺少 `busy_time` 的可选指标降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。随后独立 Level 3 Review 发现 M-1 至 M-4 与 L-1；本轮归档一致性、恢复和外部变更加固已完成并通过故障注入、受影响回归和完整 `verify:full`。2026-08-01 完整 Harness 退出码为 `0`，门控后的独立 Level 3 Review 结论为 `PASS`，`1D-017R` 已完成。设计仍为 Demo-ready（有条件），不是 Production-ready；Final Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成；TD-1/TD-2 已关闭，TD-4/TD-5 为环境债务，TD-3/TD-6 为 Low 技术债。
 
 ## 1. 总体架构决策
 
@@ -248,9 +248,9 @@ SQLite 是 intent、fence、snapshot 和 publication generation 的唯一 durabl
 
 新的 task、attempt、intent 和 fence 均 durable 记录 `task_id` 与 `deployment_instance_id`；attempt 只能通过服务层一次性绑定到尚未绑定的 task，task 的 staging binding 也必须反向验证同一 attempt 的 task 身份。公共 HTTP 输入不接受这些内部字段。shutdown 使用数据库中最新 task revision 重新读取 owner token、deployment、attempt、lease/fence 和状态，按有界 CAS 重试；CAS 竞争失败不能静默忽略，所有权转移或 durable succeeded 均不得降级。共享 SQLite 路径下，启动恢复和 active-fence normalization 只处理当前 deployment 的 durable owner；新 task 绑定当前 deployment，不能依赖默认路径偶然隔离。
 
-staging marker 内容绑定 task、attempt、deployment、受控 staging root、fence（已建立时）和随机 token。marker 删除只发生在 intent/fence durable 建立及 publication 原子移动之后，由明确发布所有者执行；同一合法发布已经删除 marker 时返回幂等成功，身份不匹配不得删除。marker 仍存在于 pending publication 时由恢复沿同一 owner/fence 边界处理。
+staging marker 的序列化 payload 绑定 task、attempt、deployment、受控 staging root 和随机 token；fence 绑定由 durable intent 的 `fence_id` 与当前 DB fence 在删除前交叉校验实现，payload 不要求重复存储 `fence_id`。marker 删除只发生在 intent/fence durable 建立及 publication 原子移动之后，由明确发布所有者执行；同一合法发布已经删除 marker 时返回幂等成功，身份不匹配不得删除。marker 仍存在于 pending publication 时由恢复沿同一 owner/fence 边界处理。
 
-本轮实现任务、schema/migration、故障注入和测试有效性记录在 `tasks.md` 的 `1D-044` 至 `1D-051T`；`1D-017R` 仍保持未完成，修复后必须另行启动独立重审。
+本轮实现任务、schema/migration、故障注入和测试有效性记录在 `tasks.md` 的 `1D-044` 至 `1D-051T`；2026-08-01 已在完整 Harness 退出码为 `0` 后完成 `1D-017R` 独立重审并通过。Final Review、Production Review、Phase 5 和 OpenSpec archive 仍按后续门控执行。
 
 ### D-003E：第四次独立 Review 的 publish fence、运行态恢复与真实来源摘要
 
