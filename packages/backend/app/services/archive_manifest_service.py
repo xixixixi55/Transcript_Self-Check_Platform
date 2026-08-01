@@ -11,6 +11,7 @@ from ..repository.archive_hash_repository import compute_md5_streaming
 from ..repository.archive_validator_repository import ArchiveValidationResult
 from ..repository.winrar_discovery_repository import WinRarCapability
 from .disc_sequence_service import generate_disc_numbers
+from .archive_staging_security_service import OWNERSHIP_MARKER_NAME
 
 # Disc capacity tiers (ascending decimal bytes).  A part's disc capacity is the
 # smallest tier that can hold its actual `size_bytes`.
@@ -168,10 +169,7 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         return False
     archive_names = {
         entry.name for entry in root.iterdir()
-        if entry.is_file() and (
-            entry.suffix.casefold() == ".rar"
-            or re.search(r"\.r\d+$", entry.name, re.IGNORECASE)
-        )
+        if entry.is_file() and entry.name != OWNERSHIP_MARKER_NAME
     }
     if archive_names != filenames:
         return False

@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository.archive_manifest_repository import (  # noqa: E402
     ArchiveManifestRepository,
+    ArchiveManifestRepositoryError,
 )
 from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 
@@ -67,6 +68,34 @@ def test_input_change_marks_old_record_stale_without_deleting_rar(tmp_path):
 
     assert not repository.find_reusable(source, "2" * 64, "3" * 64)
     assert rar.is_file()
+
+
+def test_manifest_id_cannot_be_rebound_to_a_different_identity(tmp_path):
+    output = tmp_path / "output"
+    first_dir = output / "compressed" / "context-1" / "manifest-1"
+    second_dir = output / "compressed" / "context-2" / "manifest-1"
+    first_dir.mkdir(parents=True)
+    second_dir.mkdir(parents=True)
+    repository = ArchiveManifestRepository(output)
+    values = {"source_key": "1" * 64, "input_fingerprint": "2" * 64, "archive_fingerprint": "3" * 64}
+    repository.save(
+        **values, manifest_id="manifest-1", final_dir=first_dir,
+        public_manifest=manifest(), workbench_attempt_id="attempt-1",
+    )
+
+    try:
+        repository.save(
+            source_key="4" * 64, input_fingerprint=values["input_fingerprint"],
+            archive_fingerprint=values["archive_fingerprint"], manifest_id="manifest-1",
+            final_dir=second_dir, public_manifest=manifest(), workbench_attempt_id="attempt-2",
+        )
+    except ArchiveManifestRepositoryError as error:
+        assert str(error) == "归档 Manifest 身份冲突。"
+    else:
+        raise AssertionError("manifest identity was rebound")
+
+    assert repository.find_for_attempt("attempt-1")[0].relative_final_dir == "context-1/manifest-1"
+    assert not repository.find_for_attempt("attempt-2")
 
 
 def test_mark_invalid_keeps_manifest_directory_and_rar(tmp_path):

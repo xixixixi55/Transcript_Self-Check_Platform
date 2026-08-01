@@ -46,6 +46,19 @@ def test_content_fingerprint_changes_with_report_content(tmp_path):
     assert directory_content_fingerprint(report) != first
 
 
+def test_content_fingerprint_rejects_same_size_same_timestamp_byte_change(tmp_path):
+    report = tmp_path / "report"
+    report.mkdir()
+    source = report / "data.json"
+    source.write_bytes(b"SYNTHETIC-A")
+    first_stat = source.stat()
+    first = directory_content_fingerprint(report)
+    source.write_bytes(b"SYNTHETIC-B")
+    os.utime(source, ns=(first_stat.st_atime_ns, first_stat.st_mtime_ns))
+
+    assert directory_content_fingerprint(report) != first
+
+
 def test_selected_content_fingerprint_reuses_unchanged_bytes_and_tracks_paths(tmp_path):
     report = tmp_path / "report"
     report.mkdir()

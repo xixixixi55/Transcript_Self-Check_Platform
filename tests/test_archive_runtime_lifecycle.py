@@ -8,11 +8,13 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
@@ -25,6 +27,7 @@ from app.repository import (  # noqa: E402
     database_path_for_deployment,
 )
 from app.repository.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
+from app.repository.archive_attempt_restart_repository import interrupt_owned_claim  # noqa: E402
 from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive_attempt_completion_service import record_attempt_completion  # noqa: E402
 from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
@@ -355,6 +358,35 @@ def test_public_http_task_is_claimed_with_windows_style_resource_snapshot(
     )
 
 
+def test_public_result_rejects_formal_part_tamper_after_completion(tmp_path: Path) -> None:
+    services, _worker = _services(tmp_path)
+    with _controller_patches(services), TestClient(
+        create_app(service_provider=lambda: services)
+    ) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        completed = _wait_task(client, queued["task_id"], {"succeeded"})
+        result = client.get(f"/api/v1/workbench/tasks/{queued['task_id']}/result")
+        assert result.status_code == 200
+        part = result.json()["data"]["parts"][0]
+        registry = ArchiveManifestRepository(services.archive_attempts.output_root)
+        task = ArchiveTaskRepository(services.database).get(queued["task_id"])
+        attempt_id = task["process_binding"]["staging_asset_id"]
+        record = registry.find_for_attempt(attempt_id)[0]
+        part_path = registry.resolve_final_dir(record) / part["filename"]
+        part_path.write_bytes(b"SYNTHETIC/TEST/FORMAL-TAMPER")
+        rejected = client.get(f"/api/v1/workbench/tasks/{queued['task_id']}/result")
+        assert rejected.status_code == 422
+        rejected_download = client.get(
+            f"/api/v1/workbench/tasks/{queued['task_id']}/result/parts/{part['part_id']}"
+        )
+        assert rejected_download.status_code == 422
+        assert completed["status"] == "succeeded"
+
+
 def test_runtime_start_is_idempotent_and_empty_queue_waits(tmp_path: Path) -> None:
     services, _worker = _services(tmp_path)
     calls = 0
@@ -371,3 +403,58 @@ def test_runtime_start_is_idempotent_and_empty_queue_waits(tmp_path: Path) -> No
     services.archive_runtime.stop()
     assert services.archive_runtime.loop_start_count == 1
     assert calls <= 4
+
+
+@pytest.mark.parametrize("start_attempt", [False, True])
+def test_runtime_timeout_persists_owned_claim_as_interrupted(
+    tmp_path: Path, start_attempt: bool,
+) -> None:
+    services, _worker = _services(tmp_path)
+    started = threading.Event()
+    release = threading.Event()
+
+    class BlockingWorker:
+        def run(self, claim, _item, *, interruption_check=None):
+            started.set()
+            if start_attempt:
+                services.archive_attempts.start(claim.attempt_id)
+            release.wait(5)
+            return None
+
+    app = create_app(service_provider=lambda: services, enable_archive_runtime=False)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+
+    runtime = services.archive_runtime
+    runtime.worker = BlockingWorker()  # type: ignore[assignment]
+    runtime.shutdown_timeout_seconds = 0.05
+    runtime.start()
+    assert started.wait(2)
+    task = runtime.scheduler.tasks.get(queued["task_id"])
+    claim = runtime._claims[next(iter(runtime._claims))]
+    assert task["status"] == "running"
+    assert interrupt_owned_claim(
+        services.database, task_id=claim.task_id, owner_token="SYNTHETIC-WRONG-OWNER",
+        attempt_id=claim.attempt_id, task_revision=claim.revision,
+    ) == "ignored"
+    assert runtime.scheduler.tasks.get(queued["task_id"])["status"] == "running"
+
+    assert runtime.stop() is False
+    interrupted = runtime.scheduler.tasks.get(queued["task_id"])
+    assert interrupted["status"] == "interrupted"
+    assert interrupted["percent"] != 100
+    assert interrupted["worker_state"] == "waiting_reclaim"
+    assert services.archive_attempts.repository.get_internal(claim.attempt_id)["status"] == "interrupted"
+
+    release.set()
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline and runtime.is_running:
+        time.sleep(0.01)
+    runtime.stop()
+    final_task = runtime.scheduler.tasks.get(queued["task_id"])
+    assert final_task["status"] == "interrupted"
+    assert final_task["percent"] != 100

@@ -933,11 +933,25 @@ def test_archive_mapping_and_verified_result_routes(app_services):
             f"/api/v1/workbench/cases/{case_id}/archive-plan",
         ).json()["data"]["volume_slots"][0]["disc_mapping"]["confirmation"] == "confirmed"
 
-        decision = client.post(
-            f"/api/v1/workbench/cases/{case_id}/archive-decision",
-            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
-        )
+        context_ids = []
+        original_create_preview = app_services.sources.create_legacy_preview_source
+
+        def capture_preview(case_id_value):
+            context_value = original_create_preview(case_id_value)
+            context_ids.append(context_value)
+            return context_value
+
+        with patch.object(
+            app_services.sources,
+            "create_legacy_preview_source",
+            side_effect=capture_preview,
+        ):
+            decision = client.post(
+                f"/api/v1/workbench/cases/{case_id}/archive-decision",
+                json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+            )
         assert decision.status_code == 200
+        context_id = context_ids[-1]
         tasks = ArchiveTaskRepository(app_services.database)
         task = tasks.get_current_or_recent(case_id)
         running = tasks.update_state(task["task_id"], {
@@ -947,17 +961,30 @@ def test_archive_mapping_and_verified_result_routes(app_services):
             "status": "succeeded", "stage": "completed",
         }, running["revision"])
         attempt_id = done["process_binding"]["staging_asset_id"]
-        with app_services.database.transaction() as connection:
-            connection.execute(
-                "UPDATE archive_attempts SET status='succeeded',manifest_id=?,finished_at=? "
-                "WHERE attempt_id=?",
-                ("SYNTHETIC-MANIFEST-API", done["finished_at"], attempt_id),
-            )
         filename = "SYNTHETIC-RESULT.part1.rar"
         payload = b"SYNTHETIC-ARCHIVE-PART"
-        final_dir = app_services.archive_attempts.output_root / "compressed" / "SYNTHETIC-RESULT"
+        final_dir = app_services.archive_attempts.output_root / "compressed" / "SYNTHETIC-RESULT" / "SYNTHETIC-MANIFEST-API"
         final_dir.mkdir(parents=True)
         (final_dir / filename).write_bytes(payload)
+        public_manifest = {
+            "manifest_id": "SYNTHETIC-MANIFEST-API",
+            "archive_base_name": "SYNTHETIC-RESULT",
+            "volume_size_bytes": 4_000_000_000,
+            "max_part_count": 1,
+            "actual_archive_bytes": len(payload),
+            "validation_status": "validated",
+            "parts": [{
+                "part_id": "SYNTHETIC-PART-API",
+                "part_number": 1,
+                "filename": filename,
+                "size_bytes": len(payload),
+                "md5": hashlib.md5(payload).hexdigest(),
+                "disc_number": "SYNTHETIC-DISC-001",
+                "disc_date": "2026-07-30",
+                "disc_capacity_bytes": 4_000_000_000,
+                "volume_size_bytes": 4_000_000_000,
+            }],
+        }
         ArchiveManifestRepository(app_services.archive_attempts.output_root).save(
             source_key="a" * 64,
             input_fingerprint="b" * 64,
@@ -965,26 +992,28 @@ def test_archive_mapping_and_verified_result_routes(app_services):
             manifest_id="SYNTHETIC-MANIFEST-API",
             final_dir=final_dir,
             workbench_attempt_id=attempt_id,
-            public_manifest={
-                "manifest_id": "SYNTHETIC-MANIFEST-API",
-                "archive_base_name": "SYNTHETIC-RESULT",
-                "volume_size_bytes": 4_000_000_000,
-                "max_part_count": 1,
-                "actual_archive_bytes": len(payload),
-                "validation_status": "validated",
-                "parts": [{
-                    "part_id": "SYNTHETIC-PART-API",
-                    "part_number": 1,
-                    "filename": filename,
-                    "size_bytes": len(payload),
-                    "md5": hashlib.md5(payload).hexdigest(),
-                    "disc_number": "SYNTHETIC-DISC-001",
-                    "disc_date": "2026-07-30",
-                    "disc_capacity_bytes": 4_000_000_000,
-                    "volume_size_bytes": 4_000_000_000,
-                }],
-            },
+            public_manifest=public_manifest,
         )
+        app_services.archive_attempts.persist_publish_intent(
+            attempt_id,
+            context_id=context_id,
+            source_key="a" * 64,
+            input_fingerprint="b" * 64,
+            archive_fingerprint="c" * 64,
+            manifest_id="SYNTHETIC-MANIFEST-API",
+            final_dir=final_dir,
+            target_context_id="SYNTHETIC-RESULT",
+            public_manifest=public_manifest,
+        )
+        app_services.archive_attempts.mark_publish_phase(attempt_id, "published")
+        app_services.archive_attempts.mark_publish_phase(attempt_id, "indexed")
+        app_services.archive_attempts.mark_publish_phase(attempt_id, "verified")
+        with app_services.database.transaction() as connection:
+            connection.execute(
+                "UPDATE archive_attempts SET status='succeeded',manifest_id=?,finished_at=? "
+                "WHERE attempt_id=?",
+                ("SYNTHETIC-MANIFEST-API", done["finished_at"], attempt_id),
+            )
         result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
         assert result.status_code == 200
         assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"

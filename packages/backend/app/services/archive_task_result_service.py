@@ -8,6 +8,7 @@ from typing import Any
 from ..repository.archive_asset_repository import ArchiveAssetRepository
 from ..repository.archive_manifest_repository import ArchiveManifestRepository
 from ..repository.archive_plan_repository import ArchivePlanRepository
+from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
@@ -64,6 +65,8 @@ class ArchiveTaskResultService:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         attempt_id = (task.get("process_binding") or {}).get("staging_asset_id")
         attempt = self.attempts.repository.get_public(str(attempt_id))
+        if attempt["status"] != "succeeded":
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         manifest = self._verified_manifest(str(attempt_id), str(attempt["manifest_id"]))
         part = next(
             (
@@ -90,6 +93,18 @@ class ArchiveTaskResultService:
         if len(records) != 1:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         record = records[0]
+        intent = ArchivePublishIntentRepository(self.attempts.database).get_for_attempt(attempt_id)
+        if intent is None or intent["phase"] != "verified" or any(
+            intent[key] != value for key, value in {
+                "manifest_id": record.manifest_id,
+                "source_key": record.source_key,
+                "input_fingerprint": record.input_fingerprint,
+                "archive_fingerprint": record.archive_fingerprint,
+                "relative_final_dir": record.relative_final_dir,
+                "public_manifest": record.public_manifest,
+            }.items()
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         view = SimpleNamespace(
             manifest_id=record.manifest_id,
             public_manifest=record.public_manifest,

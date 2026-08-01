@@ -18,7 +18,6 @@ def publish_staged_archive(
     workbench_context_id: str | None,
 ) -> None:
     if attempt_id is not None and attempt_service is not None:
-        attempt_service.remove_marker(staging_dir)
         attempt_service.revalidate_before_publish(attempt_id, report)
         attempt_service.persist_publish_intent(
             attempt_id,
@@ -38,7 +37,10 @@ def publish_staged_archive(
         if final_dir.exists():
             raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_CONFLICT")
     os.replace(staging_dir, final_dir)
+    if not validate_published_manifest(record):
+        raise ValueError("ARCHIVE_PARTS_INVALID")
     if attempt_id is not None and attempt_service is not None:
+        attempt_service.remove_marker(final_dir)
         attempt_service.mark_publish_phase(attempt_id, "published")
     if not validate_published_manifest(record):
         raise ValueError("ARCHIVE_PARTS_INVALID")

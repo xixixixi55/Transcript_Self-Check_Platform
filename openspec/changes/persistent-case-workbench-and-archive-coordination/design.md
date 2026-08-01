@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入 Archive Scheduler/Worker，随后补齐 runtime 接线、Windows 缺少 `busy_time` 的可选指标降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。设计仍为 Demo-ready（有条件），不是 Production-ready；`1D-017R`、Final Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成；TD-1 至 TD-6 保留。
+> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入 Archive Scheduler/Worker，随后补齐 runtime 接线、Windows 缺少 `busy_time` 的可选指标降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。随后独立 Level 3 Review 发现 M-1 至 M-4 与 L-1；本轮归档一致性、恢复和外部变更加固已完成并通过故障注入、受影响回归、完整 `verify:full` 及补充门控，等待 `1D-017R` 独立重审。设计仍为 Demo-ready（有条件），不是 Production-ready；`1D-017R`、Final Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成；TD-1 至 TD-6 保留。
 
 ## 1. 总体架构决策
 
@@ -233,6 +233,18 @@ Word builder 只接收字段值和 Legacy 投影，不接收 UI 来源颜色。�
 - Reconciliation 以所有非终态 publish intent 为入口，覆盖 accepted/running/failed/interrupted 等 attempt 状态。临时 index/SQLite/I/O/权限错误保持 interrupted、pending verification fence 和现有证据；仅确认性身份/完整性/目标冲突进入 conflict。可信证据通过同一完成服务从 interrupted/pending verification 收敛到 succeeded，并在同一事务内严格校验 source、draft、shell、attempt 和 fence，三次状态更新均要求恰好一行。
 - SourceRecord 来源 fingerprint 使用规范化相对路径、条目类型、实际文件字节摘要和稳定排序结构；每个文件使用句柄前后 `fstat`，文件读取两次并比较摘要，整个集合在摘要前后重新扫描。文件变化、消失、加入、删除、I/O 或权限异常返回临时不可验证结果，由 SourceRecord 保持 pending；不使用 metadata-only 缓存、绝对路径或 USN/Canonical/Shadow 机制。
 - `ReportParseInFlightRegistry` 用 completing map 表示 Future 已脱离 active registry 但 callback 尚未完成。锁内确认 entry 身份、删除 active 并登记 completing，锁外调用 `set_result`/`set_exception`，finally 只清理相同 Future。active_count 只统计真正运行中的 builder，同 key 在 active 或 completing 期间复用同一 Future。
+
+### D-003F：2026-07-31 Review 后归档一致性、恢复与外部变更加固
+
+独立 Level 3 Review 对已通过的 Phase 1–4 复验提出 M-1 至 M-4 四项 Medium 风险及 L-1 低风险关联项。本节只细化修复合同，不改变现有 Legacy、revision、lease、ownership、fence、Manifest、Word 或模板边界：
+
+- 发布 intent 重入必须比较完整不可变身份。所有关键身份字段均缺失或不一致时安全返回 conflict；只有完整合法 intent 相同才返回已有 durable intent。历史 intent 不可被后续 attempt、计划、Manifest、source 或 fence 静默接管或改写；显示字段和本机路径不是唯一身份。
+- coordinator 有界停止后，所有仍属于本实例且 owner/attempt/revision/fence 校验通过的 pending/running claim 必须原子收敛到现有 interrupted/可恢复状态；已 durable 发布并可信完成的 attempt 只能保持成功。超时 Worker 后续返回、重复 shutdown、重复恢复和其他 deployment instance 的 claim 均必须幂等隔离。
+- 归档执行使用稳定的源材料字节证据，在开始、执行产物生成后和正式发布前重新确认集合、条目、内容及关键元数据；增加、删除、替换、截断或同大小同时间戳改写均不能形成可信发布。失败不得登记成功或污染正式 Manifest，重试必须重新建立证据。
+- 正式发布、Manifest index、完成确认、恢复、下载、复用和 Word 门控必须共同核对 durable intent、public Manifest、正式文件集合、顺序、字节数和摘要；发布后的外部替换、删除、新增卷或 Manifest 修改必须安全拒绝，不得用再次计算摘要掩盖验证对象变化。
+- marker 的删除顺序调整为 durable intent/fence 建立且正式目录移动完成之后，由明确发布所有者最多删除一次；恢复必须兼容移动后 marker 尚存的崩溃窗口，不恢复已修复的重复删除行为。
+
+本节的实现任务、故障注入和测试有效性证据记录在 `tasks.md` 的 `1D-038` 至 `1D-043T`；`1D-017R` 仍保持未完成，须在本轮完成后另行独立重审。
 
 ## 4. 归档计划、稳定槽位和 Manifest
 

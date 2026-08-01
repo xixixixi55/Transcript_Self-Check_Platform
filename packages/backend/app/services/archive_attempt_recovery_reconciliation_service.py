@@ -110,6 +110,10 @@ def _recover_published_intent(
         raise _RecoveryTransientError() from error
     if integrity_error is not None:
         raise _RecoveryConflictError(integrity_error)
+    try:
+        service.remove_marker(final_dir)
+    except (OSError, PermissionError) as error:
+        raise _RecoveryTransientError() from error
     registry = ArchiveManifestRepository(service.output_root)
     try:
         same_manifest = registry.find_by_manifest_id(intent["manifest_id"])

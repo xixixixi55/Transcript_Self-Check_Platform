@@ -8,7 +8,7 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from typing import Any, Callable
 
-from ..repository.archive_attempt_restart_repository import interrupt_attempt
+from ..repository.archive_attempt_restart_repository import interrupt_owned_claim
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_progress_service import ArchiveProgressService
@@ -108,11 +108,11 @@ class ArchiveRuntimeCoordinator:
             pending = set()
         if executor is not None:
             executor.shutdown(wait=not pending, cancel_futures=True)
-        for future in futures:
-            if future.cancelled():
+        for future in pending | {item for item in futures if item.cancelled()}:
+            with self._lock:
                 claim = self._claims.get(future)
-                if claim is not None:
-                    self._finish_interrupted(claim)
+            if claim is not None:
+                self._finish_interrupted(claim)
         with self._lock:
             stopped = (thread is None or not thread.is_alive()) and not pending
             if stopped:
@@ -186,24 +186,11 @@ class ArchiveRuntimeCoordinator:
 
     def _finish_interrupted(self, claim: ArchiveTaskClaim) -> None:
         try:
-            if self.attempts.repository.get_internal(claim.attempt_id)["status"] == "succeeded":
-                return
-        except WorkbenchPersistenceError:
-            pass
-        try:
-            interrupt_attempt(self.attempts.database, claim.attempt_id)
-        except WorkbenchPersistenceError:
-            pass
-        try:
-            current = self.scheduler.tasks.get(claim.task_id)
-            if current["status"] not in {"running", "cancelling"}:
-                return
-            self.scheduler.tasks.update_state(claim.task_id, {
-                "status": "interrupted",
-                "worker_state": "waiting_reclaim",
-                "error_code": "ARCHIVE_RUNTIME_INTERRUPTED",
-                "error_summary": "Archive runtime stopped before completion.",
-            }, current["revision"])
+            interrupt_owned_claim(
+                self.attempts.database, task_id=claim.task_id,
+                owner_token=claim.owner_token, attempt_id=claim.attempt_id,
+                task_revision=claim.revision,
+            )
         except WorkbenchPersistenceError:
             pass
 

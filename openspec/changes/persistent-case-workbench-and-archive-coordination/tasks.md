@@ -211,6 +211,33 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 
 用户随后再次在独立 PowerShell 执行完整 Harness，输出显示退出码为 `0`：后端 `679 passed, 3 skipped, 12 warnings`；前端 TypeScript 检查与生产构建通过，Vite 仅报告 chunk 大于 500 kB；`verify:docs:strict` 通过。既有 `ARCHIVE_CONFIGURED_ROOT_INVALID` warning 保持非阻断。该结果完成本轮新的完整 Harness gate，但不等同于独立 Level 3 Review 通过；`1D-017R`、独立 Level 3 Review gate、OpenSpec 归档解除 gate保持未完成，Phase 2–4 未开始。
 
+#### 2026-07-31 `1D-017R` Review 后独立归档一致性加固
+
+独立 Level 3 Review 结论为 `REJECT`，本轮只处理 M-1 至 M-4 四项 Medium 与关联 L-1：发布 intent 完整不可变身份、shutdown 有界停止后的本实例 claim 收敛、执行期间源材料一致性、正式产物发布到完成确认之间的一致性，以及 marker 与 durable intent/fence 的顺序。`1D-017R` 不在本轮重新执行，修复完成后另行独立重审。
+
+- [x] **1D-038**（M-1）按现有数据模型补齐 publish intent 的完整不可变身份比较；缺失字段、不一致身份、不同 task/attempt/revision/计划/Manifest/所有权/fence 均安全 conflict，同一合法 intent 重入保持幂等，历史 intent 不可被后续 attempt 改写。
+- [x] **1D-038T** 覆盖完整身份幂等、逐字段冲突、并发创建/恢复和既有 intent 不覆盖；临时移除完整比较防护时，关键重入测试必须失败并恢复。
+- [x] **1D-039**（M-2）在 coordinator 有界 shutdown 中收敛仍属于本实例的 pending/running claim，保留 owner、attempt、task revision、lease 和 fence 条件，已 durable 完成的 attempt 不降级，其他部署实例不受影响。
+- [x] **1D-039T** 覆盖正常/超时 Worker、pending/running claim、重复 shutdown、迟到完成、重启恢复、多实例隔离；临时移除超时收敛防护时，关键生命周期测试必须失败并恢复。
+- [x] **1D-040**（M-3）在执行开始、产物生成后和正式发布前复核稳定源材料字节证据；变化、替换、删除、新增、截断和同大小同时间戳改写安全失败，重试重新建立证据，不污染正式资产。
+- [x] **1D-040T** 覆盖多文件单文件变化、RAR 阶段/发布前变化、失败无正式 Manifest、重试新证据和稳定正常发布；临时移除源变化门控时，关键故障注入测试必须失败并恢复。
+- [x] **1D-041**（M-4）闭合正式目录、Manifest/index、完成确认、恢复、复用、下载和 Word 门控之间的 intent/fence/文件集合/摘要一致性，并保护历史正式资产。
+- [x] **1D-041T** 覆盖 staging/正式发布/索引前后修改、替换、删除、新增卷、Manifest 篡改、部分发布恢复和正常幂等发布；临时移除正式产物门控时，关键测试必须失败并恢复。
+- [x] **1D-042**（L-1）将 marker 删除移至 durable intent/fence 建立且正式移动完成之后，确保明确发布所有者最多删除一次，并覆盖移动后崩溃恢复，不恢复重复删除问题。
+- [x] **1D-042T** 覆盖 marker 成功/缺失/失败、恢复和重复发布顺序；若需要扩大公共合同，保留为独立后续风险并说明原因。
+- [x] **1D-043T** 完成本轮定向测试、受影响 Runtime/Scheduler/Worker/发布/Manifest/Word/浏览器既有回归、必要的故障注入及四个 Medium 的测试有效性验证，再运行授权的完整 `verify:full`、OpenSpec strict、compileall、资产检查、diff check 和纯合成隔离归档冒烟；保持 `1D-017R`、Final Review、Production Review、Phase 5 和 archive 未完成。
+
+#### 2026-07-31 加固验证证据（1D-038 至 1D-042T）
+
+- **M-1 / 1D-038**：`ArchivePublishIntentRepository` 现在比较 attempt、case/source、source/draft revision、report/source/input/archive fingerprint、Manifest/正式目录、public Manifest 及 fence/context 完整身份；缺失 fence 或任一字段不一致均返回 `ARCHIVE_PUBLISH_INTENT_CONFLICT`，同一完整身份重入仍返回原 intent，不改写历史记录。逐字段冲突与并发精确重入测试 `2 passed`。
+- **M-2 / 1D-039**：coordinator 有界停止后，对仍属于本实例且 revision/owner/attempt 绑定一致的 claim 使用同一事务转换为 `interrupted`；错误 owner 被忽略，已 durable succeeded 的 attempt 不降级，迟到完成和重复 shutdown 保持幂等。pending/running 参数化生命周期测试 `2 passed`，任务未出现 succeeded/100 幽灵状态。
+- **M-3 / 1D-040**：源目录使用稳定目录枚举、句柄内前后 stat、内容摘要和再次枚举；执行前、Executor 返回后、Manifest 组装后/正式移动前复核同一输入证据。同大小同时间戳改写、执行后变化、发布前变化均安全返回 `ARCHIVE_INPUT_CHANGED`，不登记正式资产；恢复原输入后重试重新建立证据。执行故障注入与文件身份测试 `4 passed`。
+- **M-4 / 1D-041**：Manifest registry 拒绝同 `manifest_id` 的身份重绑定；正式目录要求 Manifest 文件集合精确一致；完成、恢复、复用、结果下载均要求同 attempt 的 `verified` intent、fence、Manifest identity 和物理摘要一致。公共 TestClient 结果/下载在完成后篡改正式卷时返回 `422`，索引被标记无效，历史目录不被覆盖；正式产物门控、Manifest identity 和结果篡改测试通过。
+- **L-1 / 1D-042**：marker 删除已移到 durable intent/fence 建立且 staging 移动到正式目录之后；发布所有者单次删除，缺失 marker 和崩溃后恢复删除均幂等，不恢复此前重复删除回归。真实发布顺序测试通过；本轮不扩大公共 schema 或部署合同。
+- **测试有效性**：临时恢复 M-1 的旧三字段比较时，完整身份重入测试 `DID NOT RAISE` 失败；临时移除 M-2 pending 收敛时两个 timeout 参数用例仍为 `running` 而非 `interrupted`；临时移除 M-3 源变化门控时两个源变化用例 `DID NOT RAISE`；临时移除 M-4 最终物理校验时公共篡改用例收到 `200` 而非 `422`。四项实现均已恢复，恢复后关键回归 `90 passed, 5 warnings`。
+- **证据边界与限制**：本轮新增证据均为自动化、`create_app + TestClient` 和纯合成临时目录；没有把服务/组件测试冒充新的浏览器人工验收，也未重复原生 Word 视觉检查。此前真实浏览器验收和原生 Word 视觉证据仍分别保留；小型合成输入只产生单卷 RAR，多分卷边界仍以既有 Harness/自动化证据为准。`ARCHIVE_CONFIGURED_ROOT_INVALID` 等既有环境/非阻断 warning 保留记录，不作为本轮安全门控通过依据。`1D-017R` 仍未勾选，等待本轮加固完成后的独立重审。
+- **完整门控证据**：第一次 `verify:full` 暴露 6 个 `ReportParsingCacheService` 缓存回归，原因是共享 fingerprint 被错误扩大为强一致二次枚举；修复为通用 fingerprint 保持原语义、归档执行单独使用稳定字节/metadata 采样后，第二次 `verify:full` 退出码为 `0`，架构检查、TypeScript 类型检查、前端 `44 files / 211 tests`、后端 `785 collected / 3 skipped / 无失败`、生产构建和 `verify:docs:strict` 均通过。随后独立 `compileall`、仓库资产检查（539 个跟踪文件）、strict 文档检查、`git diff --check` 均通过；隔离纯合成公共 HTTP 自动接管轻量冒烟 `2 passed`。前端 jsdom/React `act`、Ant Design 弃用、Vite chunk 大小及后端 `ARCHIVE_CONFIGURED_ROOT_INVALID` 仍为既有非阻断警告/环境限制，未被本轮扩大或隐藏。
+
 ### Demo checkpoint 状态（2026-07-28）
 
 本次独立 Review 结论接受为甲方 Demo checkpoint 判定：Phase 1D 为 **Demo-ready（有条件）**，不是 Production-ready；当前 `Production-ready = 否`。本结论不等同于独立 Level 3 Production Review 通过，不解除 OpenSpec 归档阻断，也不完成 `1D-017R`。历史 Demo 冒烟与阶段验收记录可以保留；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，但不得据此宣称本 Level 3 变更包已生产完成。允许在独立工作范围内继续甲方 Demo 后续功能。

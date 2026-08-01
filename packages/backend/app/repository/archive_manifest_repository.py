@@ -62,6 +62,10 @@ class ArchiveManifestRepository:
         with _INDEX_LOCK:
             records = self._read_records()
             for item in records:
+                if item.manifest_id == manifest_id:
+                    if item.status != "validated" or not _same_manifest_identity(item, record):
+                        raise ArchiveManifestRepositoryError("归档 Manifest 身份冲突。")
+                    return copy.deepcopy(item)
                 if (
                     item.source_key == source_key
                     and item.manifest_id != manifest_id
@@ -209,3 +213,16 @@ class ArchiveManifestRepository:
                     temporary.unlink()
                 except OSError:
                     pass
+
+
+def _same_manifest_identity(
+    existing: PersistedArchiveManifest, candidate: PersistedArchiveManifest,
+) -> bool:
+    return (
+        existing.source_key == candidate.source_key
+        and existing.input_fingerprint == candidate.input_fingerprint
+        and existing.archive_fingerprint == candidate.archive_fingerprint
+        and existing.relative_final_dir == candidate.relative_final_dir
+        and existing.public_manifest == candidate.public_manifest
+        and existing.workbench_attempt_id == candidate.workbench_attempt_id
+    )

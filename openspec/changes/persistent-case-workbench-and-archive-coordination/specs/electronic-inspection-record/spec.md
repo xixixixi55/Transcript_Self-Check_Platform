@@ -1,9 +1,6 @@
 # Electronic Inspection Record: Persistent Workbench Contract
 
-本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–2 已实现并
-确认的合同可以同步到 `openspec/specs/` 下的 living spec；Phase 3 已实现完成、自动验证通过、
-轻量冒烟通过；Phase 4 实现完成、自动验证通过、轻量冒烟通过，等待 Phase 1–4 最终集成人工验收；Phase 3–4 正式人工验收和 Phase 5 尚未完成。未实现合同仍只保留在本 delta spec 中，不得提前写成
-当前生产事实。
+本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–4 已实现并完成自动化验证、原生 Word 视觉检查及真实浏览器人工验收；2026-07-31 独立 Level 3 Review 发现 M-1 至 M-4 四项归档一致性/恢复/外部变更风险及 L-1 marker 顺序风险，本轮加固合同已实现并通过故障注入、受影响回归、完整 `verify:full` 及补充门控，等待 `1D-017R` 独立重审。`1D-017R`、Phase 5、Final Review、Production Review 和 OpenSpec archive 尚未完成。未实现合同仍只保留在本 delta spec 中，不得提前写成当前生产事实。
 
 ## Contract vocabulary
 
@@ -309,6 +306,39 @@ addition, deletion, temporary access error or inconsistent scan MUST keep the
 source in a stable pending/temporarily unverifiable state rather than produce a
 trusted available fingerprint. No absolute path or metadata-only cache is part
 of the public contract.
+
+### Requirement: 独立 Review 后的归档一致性、恢复与外部变更加固
+
+归档发布、恢复和正式产物门控 MUST 在现有 Phase 1D 合同上继续使用完整不可变身份、owner/revision/lease/fence 和同一份 durable Manifest 证据，不得新增第二套发布事实源。发布 intent 的身份至少覆盖现有数据模型中 case、attempt、source、source/draft revision、report fingerprint、source/input/archive fingerprint、Manifest/public Manifest、正式相对目录、context binding 和 fence；缺失或任一不一致 MUST 安全拒绝，完整相同的合法 intent 重入 MUST 幂等返回原记录。
+
+应用停止达到有界等待上限时，属于本部署实例的 pending/running claim MUST 在 owner、attempt、task revision、lease 和 fence 条件仍成立时收敛为现有 `interrupted`/可恢复状态；不得把未完成工作标为 succeeded、completed 或 100%，不得改写其他部署实例的 claim。已经完成 durable 发布并通过可信完成门控的 attempt MUST 保持成功。重复停止、Worker 超时后的迟到返回和重启恢复 MUST 幂等。
+
+归档执行 MUST 在执行开始、产物生成后和正式发布前重新确认源材料集合、条目类型、实际字节和关键元数据。文件增加、删除、替换、截断、同大小同时间戳内容变化或读取期间不稳定 MUST 使本次执行安全失败，不得发布混合源版本的 RAR、inventory 或 Manifest；失败不产生成功状态或可复用正式索引，重试必须重新建立源证据。
+
+正式发布到索引、Manifest/MD5 确认和完成状态提交之间 MUST 继续核对同一 durable intent、fence、public Manifest、文件集合、顺序、字节数和摘要。正式卷、Manifest 或索引被替换、修改、删除、新增或重命名时 MUST 拒绝成功、复用、下载和 Word 导出；恢复遇到部分发布目录也不得直接提升为完成，不得删除或覆盖历史正式资产掩盖冲突。marker MUST 在 durable intent/fence 已建立且正式移动完成后才由明确发布所有者删除一次；恢复须安全处理移动后 marker 尚存的崩溃窗口。
+
+#### Scenario: 完整 intent 身份重入与冲突
+
+- **WHEN** 同一合法发布 intent 使用完整相同身份重入
+- **THEN** 系统返回原 durable intent 且不创建第二条记录
+- **WHEN** 任一不可变身份字段缺失或不同，或历史 intent 被其他 attempt/fence 复用
+- **THEN** 系统返回安全 conflict，不覆盖原 intent、不发布或标记成功
+
+#### Scenario: 有界停止收敛本实例 claim
+
+- **WHEN** shutdown 等待上限到达且本实例仍有 pending/running claim
+- **THEN** claim 和 attempt 进入可恢复 interrupted 状态，未完成任务不显示成功或 100%
+- **AND** 已可信完成的 attempt 保持 succeeded，其他实例 claim 不变，重复 shutdown/recovery 幂等
+
+#### Scenario: 执行期间源材料变化
+
+- **WHEN** 源文件在归档执行、产物生成或正式发布前被替换、删除、新增、截断或同大小同时间戳改写
+- **THEN** 本次归档安全失败，不登记正式 Manifest 或成功状态，重试重新获取源证据
+
+#### Scenario: 正式产物变化
+
+- **WHEN** staging 或正式发布目录中的任一卷、Manifest 或索引在后续门控前被修改、替换、删除、新增或重命名
+- **THEN** 系统拒绝完成、复用、下载和 Word 导出，不污染历史正式资产
 
 The report-parser inflight registry MUST separate active builders from a
 completing Future. It MUST remove and identity-check the active entry under the

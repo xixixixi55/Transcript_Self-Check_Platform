@@ -90,6 +90,29 @@ def directory_content_fingerprint(path: str | os.PathLike[str]) -> str:
     return digest.hexdigest()
 
 
+def stable_directory_content_fingerprint(path: str | os.PathLike[str]) -> str:
+    """Hash bytes and metadata with a stable source-directory sampling fence."""
+    root = resolve_directory(path)
+    entries = _directory_entries(root)
+    digest = hashlib.sha256()
+    for kind, relative, item, size, modified_ns in entries:
+        digest.update(kind.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(relative.replace("\\", "/").casefold().encode("utf-8"))
+        digest.update(b"\0")
+        if kind == "file":
+            digest.update(_stable_file_digest(item))
+        digest.update(f"{size}:{modified_ns}".encode("ascii"))
+        digest.update(b"\0")
+    if _directory_signature(entries) != _directory_signature(_directory_entries(root)):
+        raise FilesystemIdentityError("输入目录在指纹采样期间发生变化。")
+    return digest.hexdigest()
+
+
+def directory_fingerprint_matches(path: str | os.PathLike[str], expected: str) -> bool:
+    return stable_directory_content_fingerprint(path) == expected
+
+
 def selected_files_content_fingerprint(
     root: str | os.PathLike[str], relative_files: list[str],
 ) -> str:
@@ -137,6 +160,65 @@ def _file_content_digest(path: Path) -> str:
     except OSError as error:
         raise FilesystemIdentityError("Selected input file is unreadable.") from error
     return digest.hexdigest()
+
+
+def _directory_entries(root: Path) -> list[tuple[str, str, Path, int, int]]:
+    entries: list[tuple[str, str, Path, int, int]] = []
+    pending = [root]
+    while pending:
+        current = pending.pop()
+        try:
+            children = list(os.scandir(current))
+        except OSError as error:
+            raise FilesystemIdentityError("输入目录无法读取。") from error
+        for entry in children:
+            item = Path(entry.path)
+            if _is_unsafe_special_path(item):
+                raise FilesystemIdentityError("输入目录包含不支持的链接或特殊路径。")
+            try:
+                stat_result = entry.stat(follow_symlinks=False)
+                relative = item.relative_to(root).as_posix()
+                if entry.is_dir(follow_symlinks=False):
+                    entries.append(("directory", relative, item, 0, stat_result.st_mtime_ns))
+                    pending.append(item)
+                elif entry.is_file(follow_symlinks=False):
+                    entries.append(("file", relative, item, stat_result.st_size, stat_result.st_mtime_ns))
+            except OSError as error:
+                raise FilesystemIdentityError("输入目录无法读取。") from error
+    return sorted(entries, key=lambda value: (value[1].casefold(), value[0]))
+
+
+def _directory_signature(
+    entries: list[tuple[str, str, Path, int, int]],
+) -> list[tuple[str, str, int, int]]:
+    return [(kind, relative, size, modified_ns) for kind, relative, _item, size, modified_ns in entries]
+
+
+def _stable_file_digest(path: Path) -> bytes:
+    first = _read_stable_file_digest(path)
+    second = _read_stable_file_digest(path)
+    if first != second:
+        raise FilesystemIdentityError("输入文件在指纹采样期间发生变化。")
+    return second
+
+
+def _read_stable_file_digest(path: Path) -> bytes:
+    result = hashlib.sha256()
+    try:
+        with path.open("rb") as stream:
+            before = os.fstat(stream.fileno())
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                result.update(chunk)
+            after = os.fstat(stream.fileno())
+    except OSError as error:
+        raise FilesystemIdentityError("输入文件无法读取。") from error
+    if (
+        before.st_size != after.st_size
+        or before.st_mtime_ns != after.st_mtime_ns
+        or getattr(before, "st_ino", None) != getattr(after, "st_ino", None)
+    ):
+        raise FilesystemIdentityError("输入文件在指纹采样期间发生变化。")
+    return result.digest()
 
 
 def _is_unsafe_special_path(path: Path) -> bool:

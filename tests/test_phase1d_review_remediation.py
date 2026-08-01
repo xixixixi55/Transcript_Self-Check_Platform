@@ -7,7 +7,9 @@ import json
 import os
 import sqlite3
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -25,6 +27,7 @@ from app.services.archive_staging_security_service import cleanup_owned_staging 
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
 from app.services.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
+from app.services.archive_publish_service import publish_staged_archive  # noqa: E402
 
 from test_phase1d_recovery import (  # noqa: E402
     CASE_ID,
@@ -130,6 +133,7 @@ def test_publish_intent_rechecks_server_draft_before_formal_move(database, tmp_p
     service = ArchiveAttemptService(database, tmp_path / "SYNTHETIC-OUTPUT")
     attempt = service.accept(CASE_ID, SOURCE_ID, 0, context_id, shell["revision"])
     service.start(attempt["attempt_id"])
+    internal = service.repository.get_internal(attempt["attempt_id"])
     draft = CaseDraftRepository(database).get(CASE_ID)
     edited = {**draft, "report": {**draft["report"], "title": "SYNTHETIC/TEST/EDITED"}}
     edited.pop("lifecycle", None)
@@ -174,6 +178,90 @@ def test_publish_intent_rechecks_server_source_before_formal_move(database, tmp_
     assert stale.value.code == "ARCHIVE_ATTEMPT_BINDING_STALE"
     assert service.repository.get_internal(attempt["attempt_id"])["status"] == "running"
     assert ArchiveManifestRepository(service.output_root).find_for_attempt(attempt["attempt_id"]) == []
+
+
+def test_publish_intent_reentry_requires_complete_immutable_identity(database, tmp_path: Path) -> None:
+    shell = ready_case(database)
+    mark_source_available(database)
+    context_id = "SYNTHETIC-CONTEXT-M1-IDENTITY"
+    service = ArchiveAttemptService(database, tmp_path / "SYNTHETIC-OUTPUT")
+    attempt = service.accept(CASE_ID, SOURCE_ID, 0, context_id, shell["revision"])
+    service.start(attempt["attempt_id"])
+    internal = service.repository.get_internal(attempt["attempt_id"])
+    manifest_id = "SYNTHETIC-MANIFEST-M1-IDENTITY"
+    final_dir = service.output_root / "compressed" / context_id / manifest_id
+    manifest = _valid_manifest(manifest_id, "SYNTHETIC-CASE.rar", b"SYNTHETIC/TEST/M1")
+    identity = {
+        "attempt_id": attempt["attempt_id"], "case_id": CASE_ID, "source_id": SOURCE_ID,
+        "context_id": context_id, "target_context_id": context_id,
+        "source_revision": 0, "draft_revision": 1,
+        "report_fingerprint": internal["report_fingerprint"], "source_key": "1" * 64,
+        "input_fingerprint": "2" * 64, "archive_fingerprint": "3" * 64,
+        "manifest_id": manifest_id, "relative_final_dir": f"{context_id}/{manifest_id}",
+        "public_manifest": manifest,
+    }
+    repository = ArchivePublishIntentRepository(database)
+    original = repository.create(**identity)
+    assert repository.create(**identity) == original
+
+    variants = (
+        {"case_id": "SYNTHETIC-OTHER-CASE-001"},
+        {"source_id": "SYNTHETIC-OTHER-SOURCE-001"},
+        {"source_revision": 1},
+        {"draft_revision": 2},
+        {"report_fingerprint": "4" * 64},
+        {"source_key": "5" * 64},
+        {"input_fingerprint": "6" * 64},
+        {"archive_fingerprint": "7" * 64},
+        {"manifest_id": "SYNTHETIC-MANIFEST-M1-OTHER", "relative_final_dir": f"{context_id}/SYNTHETIC-MANIFEST-M1-OTHER"},
+        {"public_manifest": {**manifest, "manifest_id": "SYNTHETIC-MANIFEST-M1-OTHER"}},
+        {"context_id": "SYNTHETIC-CONTEXT-M1-OTHER"},
+    )
+    for variant in variants:
+        candidate = {**identity, **variant}
+        with pytest.raises(WorkbenchPersistenceError) as conflict:
+            repository.create(**candidate)
+        assert conflict.value.code == "ARCHIVE_PUBLISH_INTENT_CONFLICT"
+
+    with database.transaction() as connection:
+        connection.execute(
+            "DELETE FROM archive_publish_fences WHERE fence_id = ?", (original["fence_id"],),
+        )
+    with pytest.raises(WorkbenchPersistenceError) as missing_fence:
+        repository.create(**identity)
+    assert missing_fence.value.code == "ARCHIVE_PUBLISH_INTENT_CONFLICT"
+
+
+def test_concurrent_exact_publish_intent_creation_is_idempotent(database, tmp_path: Path) -> None:
+    shell = ready_case(database)
+    mark_source_available(database)
+    context_id = "SYNTHETIC-CONTEXT-M1-CONCURRENT"
+    service = ArchiveAttemptService(database, tmp_path / "SYNTHETIC-OUTPUT")
+    attempt = service.accept(CASE_ID, SOURCE_ID, 0, context_id, shell["revision"])
+    service.start(attempt["attempt_id"])
+    internal = service.repository.get_internal(attempt["attempt_id"])
+    manifest_id = "SYNTHETIC-MANIFEST-M1-CONCURRENT"
+    identity = {
+        "attempt_id": attempt["attempt_id"], "case_id": CASE_ID, "source_id": SOURCE_ID,
+        "context_id": context_id, "target_context_id": context_id,
+        "source_revision": 0, "draft_revision": 1,
+        "report_fingerprint": internal["report_fingerprint"], "source_key": "8" * 64,
+        "input_fingerprint": "9" * 64, "archive_fingerprint": "a" * 64,
+        "manifest_id": manifest_id, "relative_final_dir": f"{context_id}/{manifest_id}",
+        "public_manifest": _valid_manifest(manifest_id, "SYNTHETIC-CASE.rar", b"SYNTHETIC/TEST/M1-CONCURRENT"),
+    }
+    repository = ArchivePublishIntentRepository(database)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _value: repository.create(**identity), (1, 2)))
+    assert results[0]["intent_id"] == results[1]["intent_id"]
+    connection = database.connect()
+    try:
+        assert connection.execute(
+            "SELECT COUNT(*) AS count FROM archive_publish_intents WHERE attempt_id = ?",
+            (attempt["attempt_id"],),
+        ).fetchone()["count"] == 1
+    finally:
+        connection.close()
 
 
 def test_completion_transaction_rechecks_source_after_external_validation(
@@ -281,6 +369,14 @@ def test_completion_service_rejects_wrong_index_missing_rar_and_source_revision(
         service.complete_verified(attempt["attempt_id"], registry, record)
     assert wrong_attempt.value.code == "ARCHIVE_COMPLETION_EVIDENCE_REQUIRED"
 
+    with pytest.raises(ArchiveManifestRepositoryError):
+        registry.save(
+            source_key="1" * 64, input_fingerprint="2" * 64, archive_fingerprint="3" * 64,
+            manifest_id=record.manifest_id, final_dir=final_dir, public_manifest=manifest,
+            workbench_attempt_id=attempt["attempt_id"],
+        )
+    registry.index_path.unlink()
+    registry = ArchiveManifestRepository(output)
     registry.save(
         source_key="1" * 64, input_fingerprint="2" * 64, archive_fingerprint="3" * 64,
         manifest_id=record.manifest_id, final_dir=final_dir, public_manifest=manifest,
@@ -821,6 +917,66 @@ def test_success_commit_before_verified_phase_is_reconciled_without_rollback(
     assert service.recover_after_restart() == []
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
     assert ArchivePublishIntentRepository(database).get_for_attempt(attempt["attempt_id"])["phase"] == "verified"
+
+
+def test_completion_rejects_formal_part_changed_after_index_and_invalidates_index(
+    database, tmp_path: Path,
+) -> None:
+    service, attempt, registry, record = _trusted_completion(
+        database, tmp_path, "SYNTHETIC-CONTEXT-M4-FORMAL", "SYNTHETIC-MANIFEST-M4-FORMAL",
+    )
+    filename = str(record.public_manifest["parts"][0]["filename"])
+    (record.final_dir / filename).write_bytes(b"SYNTHETIC/TEST/M4-TAMPERED")
+
+    with pytest.raises(WorkbenchPersistenceError) as changed:
+        service.complete_verified(attempt["attempt_id"], registry, record)
+    assert changed.value.code == "ARCHIVE_COMPLETION_EVIDENCE_INVALID"
+    assert service.repository.get_public(attempt["attempt_id"])["status"] == "running"
+    assert registry.find_for_attempt(attempt["attempt_id"]) == []
+    assert (record.final_dir / filename).is_file()
+
+
+def test_publish_moves_before_single_marker_removal(database, tmp_path: Path, monkeypatch) -> None:
+    shell = ready_case(database)
+    mark_source_available(database)
+    output = tmp_path / "SYNTHETIC-OUTPUT"
+    context_id = "SYNTHETIC-CONTEXT-L1-ORDER"
+    manifest_id = "SYNTHETIC-MANIFEST-L1-ORDER"
+    service = ArchiveAttemptService(database, output)
+    attempt = service.accept(CASE_ID, SOURCE_ID, 0, context_id, shell["revision"])
+    service.start(attempt["attempt_id"])
+    staging_dir = service.staging_root / "SYNTHETIC-STAGING-L1"
+    staging_dir.mkdir(parents=True)
+    service.staging_initializer(attempt["attempt_id"])(staging_dir)
+    payload = b"SYNTHETIC/TEST/L1-MARKER"
+    (staging_dir / "SYNTHETIC-CASE.rar").write_bytes(payload)
+    final_dir = output / "compressed" / context_id / manifest_id
+    final_dir.parent.mkdir(parents=True)
+    manifest = _valid_manifest(manifest_id, "SYNTHETIC-CASE.rar", payload)
+    record = ArchiveManifestRecord(
+        manifest_id, context_id, "3" * 64, manifest, final_dir, 0.0, 9999999999.0,
+    )
+    context = SimpleNamespace(
+        context_id=context_id, source_key="1" * 64, input_fingerprint="2" * 64,
+    )
+    report = CaseDraftRepository(database).get(CASE_ID)["report"]
+    calls: list[Path] = []
+    original_remove = service.remove_marker
+
+    def record_remove(path: Path) -> None:
+        calls.append(path)
+        original_remove(path)
+
+    monkeypatch.setattr(service, "remove_marker", record_remove)
+    publish_staged_archive(
+        staging_dir, final_dir, record, report, context=context,
+        attempt_id=attempt["attempt_id"], attempt_service=service,
+        workbench_context_id=context_id,
+    )
+
+    assert calls == [final_dir]
+    assert not (final_dir / ".workbench-staging-owner.json").exists()
+    assert ArchivePublishIntentRepository(database).get_for_attempt(attempt["attempt_id"])["phase"] == "published"
 
 
 def _trusted_completion(database, tmp_path: Path, context_id: str, manifest_id: str):

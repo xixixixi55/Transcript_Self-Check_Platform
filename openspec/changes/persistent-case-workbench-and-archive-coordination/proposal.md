@@ -1,9 +1,23 @@
 # Proposal: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务缺少正式应用生命周期内的 Scheduler/Worker 接管，随后补齐运行时接线、Windows `sdiskio` 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过：公共工作台任务由 Scheduler/Worker 自动完成，RAR、Manifest、MD5、取消/重试、停止/重启恢复及真实双会话冲突均符合合同；Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过。自动化验证、原生 Word 视觉检查、真实浏览器人工验收及限制边界详见同变更包 `tasks.md`；Phase 5、`1D-017R`、Final Review、Production Review 和 OpenSpec archive 仍未完成。
+> 状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务缺少正式应用生命周期内的 Scheduler/Worker 接管，随后补齐运行时接线、Windows `sdiskio` 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过：公共工作台任务由 Scheduler/Worker 自动完成，RAR、Manifest、MD5、取消/重试、停止/重启恢复及真实双会话冲突均符合合同；Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过。随后独立 Level 3 Review 发现 M-1 至 M-4 四项 Medium 归档一致性/恢复/外部变更风险及 L-1 低风险 marker 顺序项；本轮独立加固已完成，并通过定向故障注入、受影响回归、完整 `verify:full` 和全部补充门控，等待 `1D-017R` 独立重审。自动化验证、原生 Word 视觉检查、真实浏览器人工验收及限制边界详见同变更包 `tasks.md`；Phase 5、Final Review、Production Review 和 OpenSpec archive 仍未完成。
 > 日期：2026-07-26
 > 级别：Level 3
+
+## 2026-07-31 独立 Review 加固范围与根因记录
+
+本轮只处理 `1D-017R` 独立 Level 3 Review 的 M-1 至 M-4 与关联低风险项 L-1；不重新执行 `1D-017R`，也不开始 Phase 5、Final Review、Production Review 或 OpenSpec archive。以下记录基于 Review 指向的实际调用链：
+
+| 项 | 当前状态转换/持久化顺序 | 身份、并发或外部变化窗口 | 失败后 durable/file 状态及影响 | 可复现故障模型 |
+|---|---|---|---|---|
+| M-1 | `persist_publish_intent` 在同一 attempt 重入时先查已有 intent，但原比较只覆盖 Manifest、目标目录和 archive fingerprint；其余身份仍可进入同一返回路径。 | source key、input fingerprint、source/draft revision、report fingerprint、public Manifest、context/fence 等不可变事实可变化，而旧 intent 已 durable。 | 旧 intent 可能被错误复用，后续 published/indexed/verified 证据会关联到不同来源、计划或 fence；历史 intent 不能安全区分。 | 同一 attempt 以单个未比较字段不同的参数重入，原实现返回已有 intent 而非冲突；并发恢复可能沿用错误身份。 |
+| M-2 | coordinator 停止时只对 `Future.cancelled()` 的 claim 调用 interrupted 收敛；超出有界等待的仍存活 Future 没有统一落库转换。 | shutdown deadline 与 Worker 完成之间存在窗口；本实例 claim 仍持有 task owner，但实际 Worker 可能已脱离；其他部署实例不应被本实例改写。 | 数据库可永久显示 running/claimed 而无存活 Worker；重启恢复只能看到不完整事实，且不能把未完成任务安全标为 succeeded。 | 使用阻塞 Worker 超过 shutdown 上限，原实现 stop 返回后 task/attempt 仍 running；Worker 后续返回还可能与恢复状态竞争。 |
+| M-3 | 执行开始验证 inventory 并计算一次 input fingerprint，WinRAR/归档产物生成后没有在关键阶段再次确认源目录。 | 文件可在归档执行中增加、删除、替换、截断或同大小同时间戳改写；仅路径、数量或 metadata 不能证明字节未变。 | RAR、inventory 或 Manifest 可能来自混合源版本；若继续发布会污染正式资产，重试也可能复用不可信证据。 | 执行器完成后或正式移动前修改一个源文件（保持名称/大小/时间戳），原实现仍可完成发布。 |
+| M-4 | staging 移动后依次写 intent phase、Manifest index、完成状态；验证对象与最终目录、索引和完成提交之间缺少统一的外部变化闭合检查。 | staging 发布前、正式发布后到索引/完成之间，正式卷、Manifest 或索引可被替换、删除、新增或重命名。 | 任务可能成功而正式对象已不是验证对象；恢复、下载、复用或 Word 导出可能读取篡改后的资产，或历史 index 被冲突覆盖。 | 在 staging 验证、正式发布、索引或完成确认的边界注入单卷替换/Manifest 修改/新增卷，原实现不能始终阻止成功。 |
+| L-1 | 旧顺序先删除 staging ownership marker，再持久化 intent/fence 并移动；marker 删除与 durable 发布身份不是同一安全边界。 | 删除后进程崩溃或 intent/fence 创建失败时，目录可能失去归属证据；恢复难以判断是否仍为本实例发布资源。 | 低概率留下未知 staging 或让恢复过早清理；不能恢复旧的重复删除行为，也不应由 marker 取代 intent/fence。 | 在 marker 删除与 intent/fence 建立之间注入崩溃/失败，观察归属证明和恢复分类。 |
+
+选定合同：发布 intent 的身份必须使用现有 Spec/数据模型中的完整不可变集合（case、attempt、source、source/draft revision、report fingerprint、source/input/archive fingerprint、Manifest/public Manifest、正式相对目录、context binding 与 fence），缺失或不一致一律 conflict，只有完整合法相同才幂等重入。shutdown 只收敛本实例且仍满足 owner、attempt、lease/revision/fence 的 claim；未完成只能进入现有 interrupted/可恢复状态，已经 durable verified 的状态不得降级。源材料在开始、执行完成后和正式发布前使用稳定字节证据复核；正式发布、索引和完成确认重新核对同一 intent、Manifest、文件集合、顺序、字节数和摘要。marker 仅在 durable intent/fence 已建立且正式移动完成后由明确发布所有者删除一次，恢复沿同一边界处理。
 
 ## Why
 

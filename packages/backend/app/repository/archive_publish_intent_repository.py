@@ -52,11 +52,17 @@ class ArchivePublishIntentRepository:
                 "SELECT * FROM archive_publish_intents WHERE attempt_id = ?", (attempt_id,),
             ).fetchone()
             if existing is not None:
-                if (
-                    existing["manifest_id"] != manifest_id
-                    or existing["relative_final_dir"] != relative_final_dir
-                    or existing["archive_fingerprint"] != archive_fingerprint
+                if not _same_publish_identity(
+                    connection, existing, attempt_id=attempt_id, case_id=case_id,
+                    source_id=source_id, source_revision=source_revision,
+                    draft_revision=draft_revision, report_fingerprint=report_fingerprint,
+                    source_key=source_key, input_fingerprint=input_fingerprint,
+                    archive_fingerprint=archive_fingerprint, manifest_id=manifest_id,
+                    relative_final_dir=relative_final_dir, serialized_manifest=serialized,
+                    context_hash=context_binding_hash(context_id),
                 ):
+                    raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_CONFLICT")
+                if existing["phase"] == "conflict":
                     raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_CONFLICT")
                 return _dict(existing)
             attempt = connection.execute(
@@ -202,3 +208,38 @@ def _dict(row: Any) -> dict[str, Any]:
     value["draft_revision"] = int(value["draft_revision"])
     value["public_manifest"] = json.loads(value.pop("public_manifest_json"))
     return value
+
+
+def _same_publish_identity(
+    connection: Any, existing: Any, *, attempt_id: str, case_id: str,
+    source_id: str, source_revision: int, draft_revision: int,
+    report_fingerprint: str, source_key: str, input_fingerprint: str,
+    archive_fingerprint: str, manifest_id: str, relative_final_dir: str,
+    serialized_manifest: str, context_hash: str,
+) -> bool:
+    expected = {
+        "attempt_id": attempt_id, "case_id": case_id, "source_id": source_id,
+        "source_revision": source_revision, "draft_revision": draft_revision,
+        "report_fingerprint": report_fingerprint, "source_key": source_key,
+        "input_fingerprint": input_fingerprint, "archive_fingerprint": archive_fingerprint,
+        "manifest_id": manifest_id, "relative_final_dir": relative_final_dir,
+        "public_manifest_json": serialized_manifest,
+    }
+    if any(existing[key] != value for key, value in expected.items()):
+        return False
+    fence = connection.execute(
+        "SELECT * FROM archive_publish_fences WHERE fence_id = ? AND attempt_id = ?",
+        (existing["fence_id"], attempt_id),
+    ).fetchone()
+    return bool(
+        fence is not None
+        and fence["fence_id"] == f"fence-{attempt_id}"
+        and fence["case_id"] == case_id
+        and fence["attempt_id"] == attempt_id
+        and fence["source_id"] == source_id
+        and int(fence["source_revision"]) == source_revision
+        and int(fence["draft_revision"]) == draft_revision
+        and fence["report_fingerprint"] == report_fingerprint
+        and fence["context_hash"] == context_hash
+        and fence["status"] in {"active", "pending_verification", "consumed"}
+    )

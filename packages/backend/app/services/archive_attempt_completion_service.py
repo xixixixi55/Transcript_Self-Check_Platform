@@ -103,12 +103,14 @@ def complete_verified(
         float(_record_value(manifest_record, "created_at")), time.time() + 60,
     )
     if validate_manifest_files(record) is not None:
+        registry.mark_invalid(indexed.manifest_id)
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
     if (
         indexed.public_manifest != record.public_manifest
         or indexed.archive_fingerprint != record.fingerprint
         or registry.resolve_final_dir(indexed).resolve(strict=False) != record.final_dir.resolve(strict=False)
     ):
+        registry.mark_invalid(indexed.manifest_id)
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
     if any(intent[key] != value for key, value in {
         "manifest_id": indexed.manifest_id, "source_key": indexed.source_key,
@@ -164,14 +166,22 @@ def record_attempt_completion(
     intent = ArchivePublishIntentRepository(attempt_service.database).get_for_attempt(attempt_id)
     if intent is None:
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
-    if intent["phase"] == "intent_persisted":
-        if validate_manifest_files(manifest_record) is not None:
-            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
-        mark_publish_phase(attempt_service, attempt_id, "published")
-        intent = ArchivePublishIntentRepository(attempt_service.database).get_for_attempt(attempt_id)
-    if intent is None or intent["phase"] == "published":
-        mark_publish_phase(attempt_service, attempt_id, "indexed")
-    complete_verified(attempt_service, attempt_id, registry, manifest_record)
+    try:
+        if intent["phase"] == "intent_persisted":
+            if validate_manifest_files(manifest_record) is not None:
+                raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
+            mark_publish_phase(attempt_service, attempt_id, "published")
+            intent = ArchivePublishIntentRepository(attempt_service.database).get_for_attempt(attempt_id)
+        if intent is None or intent["phase"] == "published":
+            mark_publish_phase(attempt_service, attempt_id, "indexed")
+        complete_verified(attempt_service, attempt_id, registry, manifest_record)
+    except WorkbenchPersistenceError as error:
+        if error.code in {
+            "ARCHIVE_COMPLETION_EVIDENCE_CONFLICT", "ARCHIVE_COMPLETION_EVIDENCE_INVALID",
+            "ARCHIVE_COMPLETION_EVIDENCE_REQUIRED", "ARCHIVE_PUBLISH_TARGET_MISMATCH",
+        }:
+            registry.mark_invalid(manifest_record.manifest_id)
+        raise
 
 
 def _record_value(record: Any, name: str) -> Any:

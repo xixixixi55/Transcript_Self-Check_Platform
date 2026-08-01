@@ -196,7 +196,9 @@ class ArchiveAttemptService:
         return lambda pid: self.repository.bind_process(attempt_id, pid, utc_now())
 
     def remove_marker(self, staging_dir: Path) -> None:
-        remove_ownership_marker(staging_dir)
+        marker = staging_dir / ".workbench-staging-owner.json"
+        if marker.exists():
+            remove_ownership_marker(staging_dir)
 
     def recover_after_restart(self) -> list[str]:
         from .archive_attempt_recovery_reconciliation_service import recover_after_restart
