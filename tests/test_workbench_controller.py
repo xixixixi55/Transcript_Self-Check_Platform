@@ -733,6 +733,7 @@ def test_archive_decision_endpoint_persists_deferred_and_returns_safe_queued_tas
 def test_archive_task_list_actions_history_and_safe_projection(app_services):
     from app.main import app
     from app.controllers import workbench_controller
+    from app.repository.archive_task_repository import ArchiveTaskRepository
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
@@ -786,8 +787,39 @@ def test_archive_task_list_actions_history_and_safe_projection(app_services):
             },
         )
         assert retried.status_code == 200, retried.text
-        retry_task = retried.json()["data"]["task"]
+        retry_data = retried.json()["data"]
+        assert set(retry_data) == {"task"}
+        retry_task = retry_data["task"]
         assert retry_task["task_id"] != task_id
+
+        archive_tasks = ArchiveTaskRepository(app_services.database)
+        old_attempt_id = archive_tasks.get(task_id)["process_binding"]["staging_asset_id"]
+        new_attempt_id = archive_tasks.get(retry_task["task_id"])["process_binding"]["staging_asset_id"]
+        assert new_attempt_id != old_attempt_id
+        assert app_services.archive_attempts.repository.get_internal(new_attempt_id)["task_id"] == retry_task["task_id"]
+
+        retry_serialized = json.dumps(retried.json(), ensure_ascii=False)
+        for forbidden in (
+            "archive_context_id", "archive_attempt_id", "context_hash", "fence_id",
+            "lease_id", "lease_token", "owner_token", "deployment_instance_id",
+            "source_id", "source_revision", "draft_revision", "report_fingerprint",
+            "publication_id", "publication_digest", "process_binding", "process_tree_id",
+            "staging_asset_id", "staging_locator", "ownership_marker_token",
+            "internal_locator", "internal_path", "absolute_path", "raw_log",
+        ):
+            assert forbidden not in retry_serialized
+
+        rejected_internal_input = client.post(
+            f"/api/v1/workbench/tasks/{task_id}/retry",
+            json={
+                "expected_revision": cancelled.json()["data"]["revision"],
+                "expected_case_revision": case["revision"],
+                "archive_context_id": "SYNTHETIC-INTERNAL-CONTEXT",
+                "archive_attempt_id": "SYNTHETIC-INTERNAL-ATTEMPT",
+            },
+        )
+        assert rejected_internal_input.status_code == 422
+
         history = client.get(
             f"/api/v1/workbench/cases/{case_id}/archive-history",
         ).json()["data"]

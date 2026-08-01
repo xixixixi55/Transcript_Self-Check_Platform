@@ -125,9 +125,10 @@ async def cancel_task_endpoint(task_id: str, body: TaskCommandRequest):
 @router.post("/workbench/tasks/{task_id}/retry")
 async def retry_archive_task_endpoint(task_id: str, body: TaskRetryRequest):
     try:
-        return _envelope(_archive_api().retry(
+        result = _archive_api().retry(
             task_id, body.expected_revision, body.expected_case_revision,
-        ))
+        )
+        return _envelope({"task": result["task"]})
     except Exception as error:
         _handle(error)
 

@@ -310,6 +310,57 @@ def test_http_task_is_claimed_and_one_failure_does_not_stop_runtime(
         assert services.archive_runtime.loop_start_count == 1
 
 
+def test_retry_returns_safe_task_and_runtime_claims_new_attempt(tmp_path: Path) -> None:
+    services, worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        worker.fail_next = True
+        first = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        failed = _wait_task(client, first["task_id"], {"failed_retryable"})
+
+        tasks = ArchiveTaskRepository(services.database)
+        old_attempt_id = tasks.get(first["task_id"])["process_binding"]["staging_asset_id"]
+        current_case = client.get(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}"
+        ).json()["data"]
+        retried = client.post(
+            f"/api/v1/workbench/tasks/{first['task_id']}/retry",
+            json={
+                "expected_revision": failed["revision"],
+                "expected_case_revision": current_case["shell"]["revision"],
+            },
+        )
+        assert retried.status_code == 200, (
+            f"{retried.text} task_revision={failed['revision']} "
+            f"case_revision={current_case['shell']['revision']}"
+        )
+        retry_data = retried.json()["data"]
+        assert set(retry_data) == {"task"}
+        retry_task = retry_data["task"]
+        assert retry_task["task_id"] != first["task_id"]
+        for forbidden in (
+            "archive_context_id", "archive_attempt_id", "context_hash", "fence_id",
+            "lease_id", "lease_token", "owner_token", "deployment_instance_id",
+            "source_id", "source_revision", "draft_revision", "report_fingerprint",
+            "publication_id", "publication_digest", "process_binding", "staging_locator",
+            "ownership_marker_token", "internal_locator", "internal_path",
+        ):
+            assert forbidden not in retried.text
+
+        new_attempt_id = tasks.get(retry_task["task_id"])["process_binding"]["staging_asset_id"]
+        assert new_attempt_id != old_attempt_id
+        assert services.archive_attempts.repository.get_internal(new_attempt_id)["task_id"] == retry_task["task_id"]
+        completed = _wait_task(client, retry_task["task_id"], {"succeeded"})
+        assert completed["status"] == "succeeded"
+        assert completed["worker_state"] == "released"
+
+    assert worker.calls == [first["task_id"], retry_task["task_id"]]
+
+
 def test_public_http_task_is_claimed_with_windows_style_resource_snapshot(
     tmp_path: Path, caplog,
 ) -> None:

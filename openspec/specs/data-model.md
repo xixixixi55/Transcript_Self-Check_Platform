@@ -369,9 +369,22 @@ validate; it then completes the same attempt atomically instead of publishing a
 second artifact. These internal binding and recovery fields are not exposed by the
 public DTO or public Manifest.
 
-The durable workbench database is schema version 5. An internal attempt binding
-stores `source_revision`, `draft_revision` and a canonical `report_fingerprint`;
-the public attempt projection continues to omit these internal evidence fields.
+The durable workbench database is schema version 10. This is an internal
+persistence version, not a public API version. A deployment-scoped durable owner
+claims the SQLite database before workbench services start; a second deployment
+instance sharing that database is rejected. This owner is a local storage
+boundary and does not claim authenticated multi-user isolation.
+
+Before formal archive execution, each workbench task/attempt creates a bound
+input snapshot in the `copying` state and can use it only after the snapshot is
+sealed. The sealed snapshot is the execution input for inventory, WinRAR and
+Manifest generation; source locators, snapshot locators and binding evidence
+remain backend-only. A failed, cancelled or interrupted snapshot is not reused
+by a later attempt.
+
+An internal attempt binding stores `source_revision`, `draft_revision` and a
+canonical `report_fingerprint`; the public attempt projection continues to omit
+these internal evidence fields.
 The active workbench context binding additionally stores the opaque `source_id`,
 the same source/draft revisions and report fingerprint, `context_kind`, expiry
 and consumption timestamps. A workbench archive execution must re-read the
@@ -381,13 +394,22 @@ only a compatibility payload: for a workbench context it is rejected when its
 content fingerprint differs and is never the authoritative report. A true
 Legacy context continues to use the existing Legacy report contract.
 
-Schema version 5 also persists one immutable `archive_publish_intents` record
-per workbench attempt. It contains the case/attempt/source identities, source
-and draft revisions, report fingerprint, manifest/archive/input identities,
-safe relative final-directory identity and the public Manifest snapshot. Its
-phase is monotonic: `intent_persisted` → `published` → `indexed` → `verified`,
-with `conflict` as a terminal safety state. This is a recovery record, not a
-worker queue, scheduler, progress record or automatic retry mechanism.
+Schema version 10 also persists one immutable `archive_publish_intents` record
+per workbench attempt and binds it to a task-bound `publication_id` generation.
+It contains the case/attempt/source identities, source and draft revisions,
+report fingerprint, manifest/archive/input identities, safe relative
+final-directory identity and the public Manifest snapshot. Its phase is
+monotonic: `intent_persisted` → `published` → `indexed` → `verified`, with
+`conflict` as a terminal safety state. This is a durable recovery record, not a
+public worker queue, scheduler, progress record or automatic retry mechanism.
+
+SQLite durable intent/publication records are the authoritative publication
+facts. The path-free JSON Manifest index is a derived projection: it must match
+the durable publication identity, digest and file set, may be rebuilt from
+trusted durable evidence, and fails closed when that evidence is missing or
+inconsistent. Public task/result projections expose only the approved opaque
+artifact metadata and never expose the generation, owner, fence or filesystem
+locator that binds the publication.
 
 The intent's context binding is the persistent workbench context hash; its
 relative final-directory identity is the formal runtime context plus the
@@ -415,7 +437,7 @@ physical final directory together:
 Only a validated completion evidence service may write `succeeded` and
 `archive_verified`; a caller-provided Manifest ID alone is not evidence.
 
-Schema version 5 adds the internal `archive_publish_fences` table. A fence binds
+Schema version 10 adds the internal `archive_publish_fences` table. A fence binds
 one case and attempt to the source ID/revision, draft revision, report
 fingerprint, one-way context hash and shell revision. At most one fence for a
 case and one for an attempt may be `active`. The controlled publish-intent

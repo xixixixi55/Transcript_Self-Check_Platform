@@ -560,6 +560,23 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **文档澄清**：marker 序列化 payload 不直接存 `fence_id`；fence 绑定由 durable intent 的 `fence_id` 与当前 DB fence 在删除前交叉校验实现，不构成本轮阻断。此前技术债段落保留历史发现，以上述当前状态为准。
 - **剩余门控**：`1D-017R` 完成；Final Review、Production Review、Phase 5、OpenSpec archive 和 `OpenSpec 归档阻断解除` 仍保持未完成。
 
+## 2026-08-01 Final Review 有限 remediation
+
+本轮只处理 Final Review 明确的四项阻断：retry 公共响应安全投影、delta requirement 严格 Scenario、living specs 严格格式/schema v10 同步和 proposal 状态同步。不重新打开 `1D-017R`、M-1 至 M-4B/L-1，不修改 sealed-input/publication 架构，不开始 Production Review、Phase 5 或 OpenSpec archive。
+
+- [x] **1D-052** 将 retry 公共 HTTP 响应收敛为批准的安全 `task` projection；保持内部 `enqueue()`/attempt/context/runtime 绑定结构、任务创建、revision、lease、冲突/失败合同和 `TaskRetryRequest` 的内部字段拒绝不变。
+- [x] **1D-052T** 补充 retry API 回归：响应只含安全 `task`、不含 context/attempt/fence/lease/owner/路径等内部绑定字段；仍创建新 attempt，并由 Runtime/Scheduler/Worker 接管；覆盖 revision、lease、冲突和失败路径。定向集合通过：工作台 `5 passed`，runtime/attempt/worker/persistence `30 passed`，新 retry runtime 用例连续 5 次通过。
+- [x] **1D-053** 修复 Phase 1D delta requirement 的合法 Scenario；将 electronic-inspection-record living spec 迁移到 `## Purpose`/`## Requirements` 严格结构并保留 REQ 身份、语义和场景；同步 data-model 的 schema v10 与已批准的 durable/projection 边界；同步 proposal 当前状态。
+- [x] **1D-053T** 2026-08-01 通过 change strict、living specs strict、`verify:docs:strict`、`git diff --check` 和授权环境 `npm.cmd run verify:full`；完整门控为架构/类型/前端 `44 files, 211 passed`/后端 `797 passed, 3 skipped, 16 warnings`/构建/严格文档全部通过。已完成本轮 remediation diff 的独立定向审阅，Final Review 仍待重新执行。
+
+#### 本轮状态
+
+- `1D-017R`：已于 2026-08-01 通过，保持完成，不重新审查。
+- Final Review：此前因上述四项问题为 `REJECT`；本轮 remediation 完成后仍需重新执行 Final Review，当前不得标记通过。
+- Production Review：未开始。
+- Phase 5：未开始。
+- OpenSpec archive：未开始；`OpenSpec 归档阻断解除` 保持未勾选。
+
 ### Phase 5 gate
 
 - [ ] 五阶段合同均有定向测试和人工验收证据，且没有依赖隐式前端状态。

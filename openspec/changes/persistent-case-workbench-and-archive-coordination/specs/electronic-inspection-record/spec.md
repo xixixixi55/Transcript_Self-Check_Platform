@@ -307,6 +307,12 @@ source in a stable pending/temporarily unverifiable state rather than produce a
 trusted available fingerprint. No absolute path or metadata-only cache is part
 of the public contract.
 
+#### Scenario: 归档中断时保持可恢复且不发布半成品
+
+- **WHEN** 归档执行在正式产物验证和可信完成提交前中断，或重启发现未完成归档尝试
+- **THEN** 系统将未完成归档尝试和案件状态按既有恢复合同标记为 `interrupted`/`archive_interrupted`，不伪造 `succeeded`、`completed` 或 `100%`
+- **AND** 未通过完整 Manifest/RAR、来源、所有权和绑定完整性门控的资产不得成为正式发布结果；可恢复状态和后续处理沿现有 deferred 或新 attempt 合同执行
+
 ### Requirement: 独立 Review 后的归档一致性、恢复与外部变更加固
 
 归档发布、恢复和正式产物门控 MUST 在现有 Phase 1D 合同上继续使用完整不可变身份、owner/revision/lease/fence 和同一份 durable Manifest 证据，不得新增第二套发布事实源。发布 intent 的身份至少覆盖现有数据模型中 case、attempt、source、source/draft revision、report fingerprint、source/input/archive fingerprint、Manifest/public Manifest、正式相对目录、context binding 和 fence；缺失或任一不一致 MUST 安全拒绝，完整相同的合法 intent 重入 MUST 幂等返回原记录。

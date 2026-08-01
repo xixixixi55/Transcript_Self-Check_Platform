@@ -3,6 +3,8 @@
 > 能力：CAP-001 ~ CAP-011
 > 状态：MODIFIED（2026-07-23: 文档真相源与当前归档生产状态收口）
 
+## Purpose
+
 > 本文件是 living spec，只描述当前生产已经具备的能力。已批准但尚未正式输出启用的 Canonical/`DocumentRenderPlan` 目标见 active change `openspec/changes/extensible-report-template-platform/spec.md`；Shadow 已作为不改变Legacy响应的脱敏旁路接线，当前实现与验收进度见其 `tasks.md`。代码和测试是实现证据，不自动覆盖已批准的业务合同。
 
 当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + 案件明确引用且当前重新校验通过的 approved TemplateProfile 渲染唯一正式 DOCX；没有模板引用的兼容案件继续使用 `current-template-v1`。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
@@ -17,10 +19,13 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ---
 
-## CAP-001: HTML 报告上传与解析
+## Requirements
 
-### REQ-001: 提交受授权的本地报告目录
+**CAP-001: HTML 报告上传与解析**
 
+### Requirement: REQ-001: 提交受授权的本地报告目录
+
+系统 MUST 满足以下现有合同：
 **标准文件夹格式**（美亚手机大师 FL-901V5 生成）：
 
 ```
@@ -37,41 +42,42 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 ├── assets/  md/  static/            ← 不解析，生成归档时原样打包
 ```
 
-**Scenario: 工作台登记本地报告目录并解析**
+#### Scenario: 工作台登记本地报告目录并解析
 - WHEN 用户在持久化案件工作台输入受授权的本地报告目录路径
 - THEN 前端以 `source_path` 提交该路径，不使用 `webkitdirectory` 上传目录中的 JSON 文件
 - AND 后端先授权并持久化 CaseShell、SourceRecord 和解析任务，再异步解析目录以提取案件信息、设备信息、工具版本和数据分类统计
 - AND 解析成功后在同一案件上保存 CaseDraft，解析阶段不调用 WinRAR、不生成最终 `ArchiveManifest`
 - AND 用户审核和保存草稿后显式选择立即压缩或稍后压缩；进入预览本身不启动归档
 
-**Scenario: Legacy 兼容入口解析本地报告目录**
+#### Scenario: Legacy 兼容入口解析本地报告目录
 - WHEN 兼容客户端调用 `/records/*` 解析入口并以 `report_dir` 提交受授权目录
 - THEN 后端继续按 Legacy 请求/响应合同读取和解析目录，并可返回 opaque `archive_context_id`
 - AND 解析阶段不调用 WinRAR、不生成最终 `ArchiveManifest`
 - AND 该兼容合同不改变工作台先持久化案件壳、再由用户显式决定压缩时机的流程
 
-**Scenario: deprecated compress 参数不控制解析归档**
+#### Scenario: deprecated compress 参数不控制解析归档
 - WHEN 兼容请求传入任意 `compress` 值
 - THEN 当前 UI 不暴露该参数，解析阶段无论其值为何均不调用 WinRAR
 - AND `compress` 不决定解析成功后是否创建 `ArchiveContext`
 - AND 该参数不能用来推断 `rar_info` 是否为 null 或归档是否完成
 
-**Scenario: 上传 .rar/.zip 压缩包（CAP-007）**
+#### Scenario: 上传 .rar/.zip 压缩包（CAP-007）
 - WHEN 用户通过文件选择器选择 .rar 或 .zip 文件上传
 - THEN 后端解压到临时目录，解析内部 JSON 数据
 - AND 直接计算上传文件的 MD5 和文件大小
 - AND 跳过压缩步骤
 
-**Scenario: 缺少必需文件**
+#### Scenario: 缺少必需文件
 - WHEN data/ 目录下缺少必需 JSON 文件
 - THEN 返回 422 错误，明确提示缺少哪个文件
 
-**Scenario: 文件类型不支持**
+#### Scenario: 文件类型不支持
 - WHEN 用户选择非 .rar/.zip 格式的文件
 - THEN 前端阻止上传，提示"仅支持 .rar 和 .zip 格式"
 
-### REQ-002: 解析案件信息
+### Requirement: REQ-002: 解析案件信息
 
+系统 MUST 满足以下现有合同：
 系统从 data_case_info.json 自动提取以下字段：
 
 | 字段 | 数据来源 | 映射到笔录 |
@@ -84,9 +90,14 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 | 案件类型 | contents[tp=案件类型] | —（备用） |
 | 报告时间 | contents[tp=报告时间] | 一(七) 检查结束时间 |
 
-### REQ-003: 解析设备信息
+#### Scenario: 解析案件字段供当前笔录使用
+- **WHEN** 解析受授权报告目录中的 `data_case_info.json`
+- **THEN** 系统提取表中字段并填入当前 `InspectionReport`/`CaseDraft`，无法确认的字段保持为空，不伪造案件事实
 
-**Scenario: 从检材子目录提取设备详情**
+### Requirement: REQ-003: 解析设备信息
+
+系统 MUST 满足以下现有合同：
+#### Scenario: 从检材子目录提取设备详情
 - WHEN 解析 `data/[检材编号]/` 下各直接子目录中的 JSON 文件（不限于 Base/，也包含 Phone/ 等）
 - THEN 优先从结构化 JSON 中提取设备字段
 - AND 支持多种 JSON 格式：
@@ -101,19 +112,25 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 结构化解析失败时回退到正则匹配
 - AND 返回结构化设备列表（含 device_type / model / imei1 / imei2 / serial_number / evidence_number）
 
-### REQ-004: 解析取证工具信息
+### Requirement: REQ-004: 解析取证工具信息
 
+系统 MUST 满足以下现有合同：
 - WHEN 解析 data_report_info.json
 - THEN 提取产品版本（如 FL-901V5 V3.2.12922）、平台版本、应用版本
 - AND 返回版本信息供笔录填充
 
+#### Scenario: 解析取证工具版本
+- **WHEN** 解析受授权报告目录中的 `data_report_info.json`
+- **THEN** 系统提取可确认的产品、平台和应用版本供当前笔录填充，无法确认的值保持未确认
+
 ---
 
-## CAP-002: 笔录 Web 预览
+**CAP-002: 笔录 Web 预览**
 
-### REQ-005: 生成笔录预览
+### Requirement: REQ-005: 生成笔录预览
 
-**Scenario: 解析完成后展示完整笔录预览**
+系统 MUST 满足以下现有合同：
+#### Scenario: 解析完成后展示完整笔录预览
 - WHEN 解析完成
 - THEN 系统将提取数据填入笔录模板，在页面上渲染完整笔录预览
 - AND 预览包含所有章节：
@@ -124,23 +141,23 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
   - 签名区
 - AND 网页预览是可编辑的结构化内容展示，不承诺等同于最终 Word 的分页和版式渲染
 
-**Scenario: 缺失字段留空**
+#### Scenario: 缺失字段留空
 - WHEN 某个字段无法从 HTML 报告中提取（如检查人员、检查地点）
 - THEN 该字段在预览中显示为空白输入框，等待民警填写
 
-**Scenario: 按已确认检材类型显示设备标识**
+#### Scenario: 按已确认检材类型显示设备标识
 - WHEN 检材类型已由报告或用户确认为手机
 - THEN 审核预览、检查过程和正式 Word 只显示该检材存在且合法的 IMEI1/IMEI2，不显示序列号
 - WHEN 检材类型已由报告或用户确认为平板
 - THEN 审核预览、检查过程和正式 Word 只显示该检材序列号，不显示 IMEI
 - AND 原始解析字段继续保留，显示策略不得通过删除原始标识实现
 
-**Scenario: 工作台预览不自动启动归档**
+#### Scenario: 工作台预览不自动启动归档
 - WHEN 工作台案件已解析并进入审核或 Word 预览
 - THEN 预览只使用当前 CaseDraft，不自动启动 WinRAR
 - AND 用户选择“立即开始压缩”后才进入受控 Legacy 显式归档入口，选择“稍后压缩”时保持 `archive_deferred`
 
-**Scenario: Legacy 兼容入口生成并核对真实归档**
+#### Scenario: Legacy 兼容入口生成并核对真实归档
 - WHEN Legacy 兼容客户端的解析结果已建立 `ArchiveContext`、首个光盘编号有效且显式调用独立归档入口
 - THEN 系统异步启动真实 WinRAR 归档，不阻塞其他报告字段的审核和编辑
 - AND 归档区域按真实执行阶段显示等待开始、压缩中、完整性校验中、MD5计算中、已完成或失败
@@ -148,9 +165,10 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 后端使用与 Word 相同的 Manifest→legacy附件投影生成附件1预览表格，前端显示每个 part 的文件名、审核后检材来源、当前固定提取方式和MD5；不得继续显示解析期空表或旧 `rar_info`
 - AND WinRAR 不可用或归档失败时仍允许继续审核和编辑，但正式 Word 导出保持阻止
 
-### REQ-006: 检查过程自动生成
+### Requirement: REQ-006: 检查过程自动生成
 
-**Scenario: 按模板生成检查过程**
+系统 MUST 满足以下现有合同：
+#### Scenario: 按模板生成检查过程
 - WHEN 系统生成检查过程章节
 - THEN 按以下模板自动填充：
   - 步骤1: "将[设备型号]（IMEI1：[值]；IMEI2：[值]）编号为[检材编号]。"
@@ -161,11 +179,12 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ---
 
-## CAP-003: 全文在线编辑
+**CAP-003: 全文在线编辑**
 
-### REQ-007: 任意字段可编辑
+### Requirement: REQ-007: 任意字段可编辑
 
-**Scenario: 工作台共享六项默认值**
+系统 MUST 满足以下现有合同：
+#### Scenario: 工作台共享六项默认值
 - WHEN 用户在工作台明确修改文号、检查地点、检查方法、检查硬件设备、有序检查人员快照或光盘编号前缀，并且当前草稿成功保存
 - THEN 系统通过后端部署实例/本地操作者作用域的共享默认值事实源，稀疏更新本次明确修改的非空字段
 - AND 六项范围不得扩大，未修改字段不进入共享 patch，空值不清除已保存的共享默认值
@@ -176,40 +195,41 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 后端持久化是工作台事实源，`localStorage` 仅可用于一次性导入/忽略旧值的兼容迁移，不是案件或共享默认值事实源
 - AND 当前合同不宣称多用户隔离
 
-**Scenario: 点击字段进入编辑**
+#### Scenario: 点击字段进入编辑
 - WHEN 民警在预览页面上点击任意文本字段
 - THEN 该字段切换为可编辑状态（输入框/文本域）
 - AND 修改后自动保存到当前会话
 
-**Scenario: 修改委托人**
+#### Scenario: 修改委托人
 - WHEN 民警修改委托人字段
 - THEN 预览实时更新显示新值
 
-**Scenario: 修改案件简要情况**
+#### Scenario: 修改案件简要情况
 - WHEN 民警编辑案件简要情况（自由文本）
 - THEN 预览实时更新
 
-**Scenario: 修改检查设备硬件**
+#### Scenario: 修改检查设备硬件
 - WHEN 民警从硬件下拉框选择不同设备
 - THEN 检查设备章节自动更新
 
-**Scenario: 修改软件版本号**
+#### Scenario: 修改软件版本号
 - WHEN 民警修改软件版本号
 - THEN 检查过程和检查设备章节中的版本号同步更新
 
-### REQ-008: 附件图片上传
+### Requirement: REQ-008: 附件图片上传
 
-**Scenario: 上传检材照片**
+系统 MUST 满足以下现有合同：
+#### Scenario: 上传检材照片
 - WHEN 民警在附件区域点击"添加照片"按钮
 - THEN 弹出文件选择器，支持选择本地 .jpg/.png 图片文件
 - AND 支持一次选择多张图片
 
-**Scenario: 预览和管理已上传照片**
+#### Scenario: 预览和管理已上传照片
 - WHEN 图片上传完成
 - THEN 预览区展示已上传的缩略图列表
 - AND 每张图片支持删除和拖拽排序
 
-**Scenario: 导出时图片嵌入 .docx**
+#### Scenario: 导出时图片嵌入 .docx
 - WHEN 导出 .docx 时
 - THEN 附件2使用显式 `MaterialPhotoGroup`，每组绑定一个检材及其两张图片
 - AND Renderer 不得根据文件名或数组位置猜测检材归属
@@ -217,11 +237,12 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ---
 
-## CAP-004: 导出 .docx
+**CAP-004: 导出 .docx**
 
-### REQ-009: 导出标准格式笔录
+### Requirement: REQ-009: 导出标准格式笔录
 
-**Scenario: 确认无误后导出**
+系统 MUST 满足以下现有合同：
+#### Scenario: 确认无误后导出
 - WHEN 民警点击"导出 Word"按钮
 - THEN 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
 - AND 工作台案件使用其明确引用且当前重新校验通过的 approved 模板版本生成 .docx；没有模板引用的 Legacy 兼容案件继续使用 `word_templates/template.docx` 和 `current-template-v1`
@@ -231,33 +252,35 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 文件文号格式为 "xx电检〔YYYY〕xx号"
 - AND 自动触发浏览器下载
 
-**Scenario: 导出后仍可修改**
+#### Scenario: 导出后仍可修改
 - WHEN 导出完成后
 - THEN 预览页面不关闭，民警可继续修改并再次导出
 
 ---
 
-## CAP-005: 硬件设备管理
+**CAP-005: 硬件设备管理**
 
-### REQ-010: 硬件设备 CRUD
+### Requirement: REQ-010: 硬件设备 CRUD
 
-**Scenario: 查看设备列表**
+系统 MUST 满足以下现有合同：
+#### Scenario: 查看设备列表
 - WHEN 民警进入设备管理页面
 - THEN 展示所有已配置的取证硬件设备（名称、型号、描述）
 
-**Scenario: 添加新设备**
+#### Scenario: 添加新设备
 - WHEN 民警填写设备名称、型号并保存
 - THEN 该设备出现在生成笔录的硬件下拉框中
 
-**Scenario: 删除设备**
+#### Scenario: 删除设备
 - WHEN 民警删除某个设备
 - THEN 该设备从列表中移除，但不影响已生成的笔录
 
 ---
 
-## REQ-011: 解析缓存
+### Requirement: REQ-011: 解析缓存
 
-**Scenario: 首次解析后缓存**
+系统 MUST 满足以下现有合同：
+#### Scenario: 首次解析后缓存
 - WHEN 首次解析某个报告目录成功
 - THEN 将完整解析结果（InspectionReport + rar_info）保存为 JSON 缓存文件
 - AND 缓存键由现有 Windows 路径规范化后的具体报告目录生成，同一目录不因大小写、尾部分隔符或 deprecated `compress` 参数产生重复记录
@@ -265,7 +288,7 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 缓存载荷中的 `cache_version` 当前为 `7`，用于隔离主软件及逐检材设备名称新解析语义
 - AND 有效解析缓存最多保留 5 条，按 LRU 规则淘汰最久未使用记录，淘汰顺序在访问时间相同或并发写入时保持稳定
 
-**Scenario: 重复解析时复用缓存**
+#### Scenario: 重复解析时复用缓存
 - WHEN 再次请求解析相同的报告目录
 - AND 规范化目录键相同、缓存版本相同且源内容指纹未变化
 - THEN 直接返回缓存中的解析结果，跳过原始报告文件读取与解析
@@ -273,43 +296,44 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 解析缓存与最终归档/Manifest 缓存彼此分离
 - AND 缓存命中不会在解析阶段执行 WinRAR，也不会复用或伪造 WinRAR 结果
 
-**Scenario: 缓存失效**
+#### Scenario: 缓存失效
 - WHEN 报告目录的源内容指纹变化、缓存损坏或缓存版本过期
 - THEN 重新解析并更新缓存
 - AND 无效记录在读取或淘汰时清除，不占用有效缓存上限
 
-**Scenario: LRU 淘汰**
+#### Scenario: LRU 淘汰
 - WHEN 新建第 6 个不同报告目录的有效解析缓存
 - THEN 删除 `last_accessed_at` 最早的一条记录，并保留最近使用的 5 条
 - AND 淘汰只删除 `output/parsed/` 中的解析缓存文件，不调用归档文件删除逻辑
 
-**Scenario: 用户一键清空解析缓存**
+#### Scenario: 用户一键清空解析缓存
 - WHEN 用户在阶段 1 主流程点击“清空解析缓存”并确认
 - THEN 调用 `DELETE /api/v1/cache/report-parsing`，返回 `cleared_count`
 - AND 清理中按钮禁止重复提交，成功、空缓存和失败均显示明确结果
 - AND 清空后下次解析报告必须重新读取原始目录；当前页面已加载到前端内存的报告和编辑内容不要求立即清除
 - AND 清空不删除 RAR、ArchiveManifest、归档下载文件、Word 导出、原始报告目录、默认设置或其他输出
 
-## REQ-012: 解析与最终归档分离
+### Requirement: REQ-012: 解析与最终归档分离
 
-**Scenario: 工作台解析阶段不执行真实压缩**
+系统 MUST 满足以下现有合同：
+#### Scenario: 工作台解析阶段不执行真实压缩
 - WHEN 工作台报告目录登记成功并进入解析
 - THEN 系统先持久化案件壳、来源绑定和解析任务，解析成功后保存 CaseDraft
 - AND 解析、审核、草稿保存和预览均不自动调用 WinRAR，也不生成占位 Manifest
 - AND 只有用户显式选择“立即开始压缩”后才进入受控 Legacy 显式归档入口；选择“稍后压缩”时持久化 `archive_deferred`
 
-**Scenario: Legacy 兼容解析建立归档上下文但不压缩**
+#### Scenario: Legacy 兼容解析建立归档上下文但不压缩
 - WHEN `/records/*` Legacy 兼容入口解析报告目录，无论 deprecated `compress` 参数为何值
 - THEN 解析阶段可以建立不透明 `archive_context_id`，但不调用 WinRAR、不生成占位 Manifest
 - AND 真实归档仍需兼容客户端显式调用独立归档入口，不能由工作台预览动作隐式触发
 
-**Scenario: 预览归档与正式导出分离**
+#### Scenario: 预览归档与正式导出分离
 - WHEN 预览阶段已生成 validated `ArchiveManifest`
 - THEN 正式 Word 只消费该 Manifest，不再次调用 WinRAR
 - AND Word 导出前和每个 part 下载前都重新校验同一物理文件的存在性、精确大小和完整 MD5
 - AND 前端、Manifest、Word 与下载文件的文件名、字节数、MD5及分卷顺序必须一致
 
-**Scenario: 已验证 Manifest 的安全复用**
+#### Scenario: 已验证 Manifest 的安全复用
 - WHEN 同一归档上下文、输入目录快照、案件归档基础名和首光盘编号均未变化，且已有已验证 Manifest
 - THEN 文书失败后的同次安全重试可以复用该归档结果而不重复执行 WinRAR
 - AND 新的导出请求仍重新验证实际 part 的存在性、大小和完整 MD5
@@ -321,11 +345,12 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ---
 
-## CAP-006: 废弃兼容参数边界
+**CAP-006: 废弃兼容参数边界**
 
-### REQ-013: deprecated compress 请求参数
+### Requirement: REQ-013: deprecated compress 请求参数
 
-**Scenario: 当前 UI 不提供压缩开关**
+系统 MUST 满足以下现有合同：
+#### Scenario: 当前 UI 不提供压缩开关
 - WHEN 用户通过当前页面提交本地报告目录
 - THEN 页面不展示“压缩为 .rar”复选框，也不提供默认勾选或取消勾选操作
 - AND 后端仅为旧请求兼容保留 `compress` 参数
@@ -333,38 +358,40 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ---
 
-## CAP-007: 压缩包直接上传
+**CAP-007: 压缩包直接上传**
 
-### REQ-014: Legacy 兼容入口上传 .rar/.zip 压缩包
+### Requirement: REQ-014: Legacy 兼容入口上传 .rar/.zip 压缩包
 
-**Scenario: 上传 .rar 文件并解析**
+系统 MUST 满足以下现有合同：
+#### Scenario: 上传 .rar 文件并解析
 - WHEN 用户通过文件选择器选择 .rar 文件上传
 - THEN 后端接收文件，调用 WinRAR CLI 解压到临时目录
 - AND 解析 JSON 数据，构建 InspectionReport
 - AND 直接计算上传的 .rar 文件的 MD5 和文件大小
 - AND 跳过压缩步骤
 
-**Scenario: 上传 .zip 文件并解析**
+#### Scenario: 上传 .zip 文件并解析
 - WHEN 用户选择 .zip 文件上传
 - THEN 使用 Python zipfile 标准库解压
 
-**Scenario: 压缩包内缺少必需文件**
+#### Scenario: 压缩包内缺少必需文件
 - WHEN 解压后的 data/ 目录下缺少必需 JSON 文件
 - THEN 返回 422 错误，明确提示缺少哪个文件
 
 ---
 
-## CAP-008: 文件信息展示
+**CAP-008: 文件信息展示**
 
-### REQ-015: 展示 MD5 和文件大小
+### Requirement: REQ-015: 展示 MD5 和文件大小
 
+系统 MUST 满足以下现有合同：
 `rar_info` 是旧解析响应兼容字段，不是最终归档事实源，也不能驱动正式附件或最终导出。
 
-**Scenario: 压缩包直接上传返回兼容文件信息**
+#### Scenario: 压缩包直接上传返回兼容文件信息
 - WHEN 用户直接上传 `.rar` 或 `.zip` 压缩包并解析成功
 - THEN `rar_info` 包含该上传压缩包的实际文件名、MD5、`size_bytes` 和格式化大小
 
-**Scenario: 文件夹解析不产生最终归档信息**
+#### Scenario: 文件夹解析不产生最终归档信息
 - WHEN 后端直接读取 `report_dir` 完成文件夹解析
 - THEN `rar_info` 中的空值或零值仅为 legacy 兼容数据，不表示最终归档已完成
 - AND `compress=false` 不能作为 `rar_info=null` 的可靠语义
@@ -372,10 +399,11 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ---
 
-## CAP-009: 软件工具列表动态生成
+**CAP-009: 软件工具列表动态生成**
 
-### REQ-016: 按实际操作生成 software_tools
+### Requirement: REQ-016: 按实际操作生成 software_tools
 
+系统 MUST 满足以下现有合同：
 系统 MUST 根据报告来源和实际运行环境生成 `software_tools`。主软件名称和版本均为可靠候选时，列表包含主软件、WinRAR 和 Python hashlib；主软件名称或版本不完整时，不加入主软件工具，只保留 WinRAR 和 Python hashlib。主软件确认状态由 `inspection.primary_software` 和统一导出门控管理，不写死具体厂商或产品名称。
 
 | 条件 | 名称 | 版本来源 |
@@ -384,17 +412,17 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 | 始终 | WinRAR压缩管理软件 | `detect_winrar_version()`；未检测到时版本为空并标记未确认 |
 | 始终 | Python hashlib | `sys.version_info`（如 "3.11.0"） |
 
-**Scenario: WinRAR 始终显示**
+#### Scenario: WinRAR 始终显示
 - WHEN 生成 software_tools
 - THEN 始终包含"WinRAR压缩管理软件"
 - AND 版本号为实际检测值；未检测到时不伪造默认版本
 - AND 用户可在预览中修改版本号
 
-**Scenario: Python hashlib 显示实际 Python 版本**
+#### Scenario: Python hashlib 显示实际 Python 版本
 - WHEN 生成 software_tools
 - THEN 包含"Python hashlib"，版本号为当前运行 Python 解释器的实际版本（如 "3.11.0"）
 
-**Scenario: 主软件候选不完整时不加入主软件工具**
+#### Scenario: 主软件候选不完整时不加入主软件工具
 - WHEN 主软件名称或版本缺失，或尚未形成可靠候选
 - THEN `software_tools` 不加入主软件工具
 - AND 仍包含 WinRAR 和 Python hashlib
@@ -402,11 +430,12 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ---
 
-## CAP-010: 附件1 电子数据提取固定清单自动填充
+**CAP-010: 附件1 电子数据提取固定清单自动填充**
 
-### REQ-017: 从最终 ArchiveManifest 生成提取清单
+### Requirement: REQ-017: 从最终 ArchiveManifest 生成提取清单
 
-**Scenario: 归档完成后生成附件1**
+系统 MUST 满足以下现有合同：
+#### Scenario: 归档完成后生成附件1
 - WHEN 独立归档执行完成且最终 `ArchiveManifest` 验证通过
 - THEN `AttachmentPlan` 按 Manifest 中每个实际 part 生成一行数据：
   - 列结构固定为：序号、电子数据、来源、提取方式、文件MD5哈希值
@@ -416,17 +445,18 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
   - 文件MD5哈希值 = 该实际 part 的 MD5 哈希值
 - AND Word 和附件3使用同一 Manifest，不从 `rar_info`、ArchivePlan 或目录扫描重新生成卷列表
 
-**Scenario: 解析响应兼容字段不驱动附件1**
+#### Scenario: 解析响应兼容字段不驱动附件1
 - WHEN 文件夹解析仅返回空值/零值 `rar_info`，或压缩包直传返回上传文件的兼容 `rar_info`
 - THEN 这些解析响应字段均不作为正式附件1或最终导出的归档事实源
 - AND 正式附件1只按已验证 `ArchiveManifest` 派生的 `AttachmentPlan` 生成
 
 ---
 
-## CAP-011: 受控分卷归档与最终 Manifest
+**CAP-011: 受控分卷归档与最终 Manifest**
 
-### REQ-018: 当前生产归档合同
+### Requirement: REQ-018: 当前生产归档合同
 
+系统 MUST 满足以下现有合同：
 - WinRAR 分卷档位固定为十进制 4GB、22GB、45GB；4GB 和 22GB 档预计超过 2 卷时升级，45GB 档最多 3 卷，输入超过 135GB 在执行前阻止。
 - 初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 是档位每卷上限，`size_bytes` 是 WinRAR 实际 part 文件大小。
 - 每个 part 的 `disc_capacity_bytes` 必须只根据该 part 的 `size_bytes` 独立选择最小可容纳容量；不得继承 Manifest 档位值。
@@ -435,7 +465,7 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - WinRAR 以原始报告目录的父目录为工作目录、以原始报告根文件夹名为输入；归档内部保留该根文件夹、全部相对目录、多级嵌套、同名文件和业务空目录，不包含绝对路径、盘符、staging、cache、UUID或项目输出路径。
 - 每个 part 只能通过有效 `archive_context_id`、`manifest_id` 和不透明 `part_id` 下载；客户端不得提交服务器路径，下载前必须重新验证 Manifest 对应物理文件。
 
-**Scenario: 真实验收边界**
+#### Scenario: 真实验收边界
 - WHEN 判断当前归档生产验收状态
 - THEN 4GB 双卷和 22GB 单卷已有部分脱敏真实证据，但不宣称全部档位验收完成
 - AND 22GB 双卷、45GB 真实执行和真实 replan 为延期，不是失败、取消或已完成

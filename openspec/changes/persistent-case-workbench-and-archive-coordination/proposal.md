@@ -1,7 +1,7 @@
 # Proposal: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务缺少正式应用生命周期内的 Scheduler/Worker 接管，随后补齐运行时接线、Windows `sdiskio` 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过：公共工作台任务由 Scheduler/Worker 自动完成，RAR、Manifest、MD5、取消/重试、停止/重启恢复及真实双会话冲突均符合合同；Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过。随后独立 Level 3 Review 发现 M-1 至 M-4 四项 Medium 归档一致性/恢复/外部变更风险及 L-1 低风险 marker 顺序项；本轮独立加固已完成，并通过定向故障注入、受影响回归、完整 `verify:full` 和全部补充门控，等待 `1D-017R` 独立重审。自动化验证、原生 Word 视觉检查、真实浏览器人工验收及限制边界详见同变更包 `tasks.md`；Phase 5、Final Review、Production Review 和 OpenSpec archive 仍未完成。
+> 状态：Phase 1–4 已完成；完整 Harness 和最终集成人工验收已通过；`1D-017R` 已于 2026-08-01 通过。Final Review 随后因 retry 公共响应内部身份泄露、delta requirement 缺少 Scenario、living spec 严格格式/schema 版本滞后和 proposal 状态滞后四项有限问题判定为 `REJECT`；本轮只覆盖这四项的 remediation 已完成，等待重新执行 Final Review。Production Review、Phase 5 和 OpenSpec archive 尚未开始；不得据此宣称 Final Review 已通过或解除归档阻断。自动化验证、原生 Word 视觉检查、真实浏览器人工验收及限制边界详见同变更包 `tasks.md`。
 > 日期：2026-07-26
 > 级别：Level 3
 
