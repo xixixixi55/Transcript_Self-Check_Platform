@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入 Archive Scheduler/Worker，随后补齐 runtime 接线、Windows 缺少 `busy_time` 的可选指标降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。随后独立 Level 3 Review 发现 M-1 至 M-4 与 L-1；本轮归档一致性、恢复和外部变更加固已完成并通过故障注入、受影响回归和完整 `verify:full`。2026-08-01 完整 Harness 退出码为 `0`，门控后的独立 Level 3 Review 结论为 `PASS`，`1D-017R` 已完成；Final Review remediation 后的复审结论亦为 `PASS`，当前允许进入 Production Review。设计仍为 Demo-ready（有条件），不是 Production-ready；Production Review、OpenSpec archive 和 Phase 5 尚未开始；TD-1/TD-2 已关闭，TD-4/TD-5 为环境债务，TD-3/TD-6 为 Low 技术债。
+> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入 Archive Scheduler/Worker，随后补齐 runtime 接线、Windows 缺少 `busy_time` 的可选指标降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。随后独立 Level 3 Review 发现 M-1 至 M-4 与 L-1；本轮归档一致性、恢复和外部变更加固已完成并通过故障注入、受影响回归和完整 `verify:full`。2026-08-01 完整 Harness 退出码为 `0`，门控后的独立 Level 3 Review、Final Review 和 Production Review 均已通过；`1D-017R` 已完成。Production Review 结论适用于本节的 Legacy-only、单 Windows 实例支持模型；现有 gate 的 `OpenSpec 归档阻断解除` 已记录为解除，但 OpenSpec archive 和 Phase 5 尚未开始；TD-1/TD-2 已关闭，TD-4/TD-5 为环境债务，TD-3/TD-6 为 Low 技术债。
 
 ## 1. 总体架构决策
 
@@ -250,7 +250,7 @@ SQLite 是 intent、fence、snapshot 和 publication generation 的唯一 durabl
 
 staging marker 的序列化 payload 绑定 task、attempt、deployment、受控 staging root 和随机 token；fence 绑定由 durable intent 的 `fence_id` 与当前 DB fence 在删除前交叉校验实现，payload 不要求重复存储 `fence_id`。marker 删除只发生在 intent/fence durable 建立及 publication 原子移动之后，由明确发布所有者执行；同一合法发布已经删除 marker 时返回幂等成功，身份不匹配不得删除。marker 仍存在于 pending publication 时由恢复沿同一 owner/fence 边界处理。
 
-本轮实现任务、schema/migration、故障注入和测试有效性记录在 `tasks.md` 的 `1D-044` 至 `1D-051T`；2026-08-01 已在完整 Harness 退出码为 `0` 后完成 `1D-017R` 独立重审并通过。随后对 remediation diff 按现有 Phase 1D Review gate 重新执行 Final Review，四项阻断均已关闭并判定 `PASS`；当前允许进入 Production Review。Production Review、Phase 5 和 OpenSpec archive 仍未开始，详细基线和证据见 `tasks.md` 的 Final Review 结果记录。
+本轮实现任务、schema/migration、故障注入和测试有效性记录在 `tasks.md` 的 `1D-044` 至 `1D-051T`；2026-08-01 已在完整 Harness 退出码为 `0` 后完成 `1D-017R` 独立重审并通过。随后对 remediation diff 按现有 Phase 1D Review gate 重新执行 Final Review，四项阻断均已关闭并判定 `PASS`；Production Review 随后按本节支持模型完成并判定 `PASS`，现有 gate 的归档阻断已解除。Phase 5 和 OpenSpec archive 仍未开始，详细基线和证据见 `tasks.md` 的 Review 结果记录。
 
 ### D-003E：第四次独立 Review 的 publish fence、运行态恢复与真实来源摘要
 
@@ -443,3 +443,86 @@ The workbench submission request performs only source authorization and bounded 
 - 仍需保留的现有 Legacy 安全门控和已验收模板资产作为兼容依赖，不复制其实现合同。
 
 若活跃包的设计与本包的 Legacy-only、Shadow 暂停或正式产物保护边界冲突，必须在开始实现前记录冲突处理决定；不能靠任务执行顺序或前端 feature flag 隐式解决。
+
+## 13. Production Review 部署与运维边界（2026-08-01）
+
+本节是当前实现可支持的正式部署模型，不是新的产品功能或 Phase 5 合同。支持范围为单个 Windows 应用实例、单个前端、单个 FastAPI 进程和该实例拥有的 in-process Scheduler/Worker；每个 deployment 必须使用独立的应用安装目录、SQLite 数据根、输出根和 staging 根。不同 deployment 不得共享 SQLite 文件、`packages/output` 或其 `.staging`/`.inputs` 子目录，也不支持多节点、远程数据库、共享 NAS、对象存储或高可用接管。
+
+### 13.1 安装、配置和正式启动
+
+正式启动前，部署人员必须使用干净的应用副本，按以下实际依赖安装：Node.js `>=18`、pnpm `9.15.0`（根 `package.json` 的 `packageManager`）、Python `>=3.11`、`packages/backend/requirements.txt` 中的 Python 依赖、支持 RAR 分卷的 WinRAR/RAR CLI，以及 PATH 中可执行的 `officecli`/`officecli.cmd`。当前 Word 生成模块在导入时即检查 officecli；其余依赖不由应用运行时自动下载，也不要求单独启动 Redis/Celery 服务。
+
+```powershell
+pnpm install --frozen-lockfile
+python -m pip install -r packages/backend/requirements.txt
+npm install -g officecli
+pnpm --filter @biji/frontend build
+```
+
+后端必须从 `packages/backend` 目录启动，前端使用已构建的 Vite preview；运维人员不需要也不得手工启动 Scheduler 或 Worker：
+
+```powershell
+# PowerShell 窗口 1
+Set-Location packages/backend
+python -m uvicorn app.main:app --host 127.0.0.1 --port 30010
+
+# PowerShell 窗口 2（仓库根目录）
+pnpm --filter @biji/frontend preview --host localhost --port 30000
+```
+
+前端通过 `http://localhost:30000` 访问，后端健康接口为 `http://localhost:30010/health`，前端代理和 CORS 只覆盖该本机来源；不把 `0.0.0.0`、远程浏览器或跨主机访问描述为当前支持模型。启动后应检查 `/health` 和 `/api/v1/demo/readiness`：后者只返回后端、来源授权、WinRAR 和输出根的安全状态，不返回路径、环境值、堆栈或异常文本。
+
+配置来源和当前行为如下：
+
+| 配置 | 当前合同和部署要求 |
+|---|---|
+| `BIJI_DEPLOYMENT_INSTANCE_ID` | 可选，默认 `local`；正式部署必须使用唯一的 `[A-Za-z0-9_-]{1,64}` 值。SQLite 的 durable owner 与它绑定，其他 deployment 打开同一数据库会安全失败。 |
+| `BIJI_WORKBENCH_DATA_ROOT` | 可选；未设置时 Windows 使用 `%LOCALAPPDATA%\文枢\data`，数据库位于 `instances\<deployment>\workbench.sqlite3`。设置时必须是该 deployment 独占、绝对且可写的数据根；相对路径不属于支持配置，代码不会静默回退到默认根，无法创建/打开时启动失败。 |
+| `BIJI_APP_DATA_DIR` | 可选的检查人员 JSON 数据根；当 `BIJI_WORKBENCH_DATA_ROOT` 被覆盖时也必须显式设为同一 deployment 的独占绝对目录，避免 `inspectors.json` 与工作台数据库跨 deployment 复用。 |
+| `BIJI_ALLOWED_INPUT_ROOTS` | 分号分隔的既有绝对目录；应用还会尝试安装目录内的 `packages/uploads`。无效项只产生安全 warning 并被忽略；没有有效授权根时 readiness 为未配置，来源登记被拒绝，不会改用任意目录。 |
+| `BIJI_WINRAR_PATH` | 可选显式路径；发现顺序为该路径、环境路径、PATH 和标准 WinRAR 位置，并要求可探测的 RAR 分卷能力。没有可用能力时返回 `WINRAR_UNAVAILABLE`，归档被阻断，不降级为 ZIP。 |
+| `BIJI_PIPELINE_MODE` | 空值默认为 `legacy`；支持 `legacy`/`shadow`/`canonical`。非法值安全回退为 Legacy 并带 `invalid_fallback` 诊断；Canonical 正式输出当前仍未启用，Legacy 是唯一正式输出。 |
+| `BIJI_ARCHIVE_MIN_OUTPUT_FREE_BYTES`、`BIJI_ARCHIVE_MIN_TEMP_FREE_BYTES`、`BIJI_ARCHIVE_MAX_CPU_PERCENT`、`BIJI_ARCHIVE_MAX_IO_BUSY_PERCENT`、`BIJI_ARCHIVE_MAX_INPUT_BYTES`、`BIJI_ARCHIVE_MAX_WINRAR_PROCESSES` | 资源准入阈值；缺省值由代码提供（输入上限为十进制 `135 GB`、WinRAR 并发默认 `6`、CPU/IO 默认 `95`、空间阈值默认 `0`）。越界/非法值使配置构建失败，不静默降低门控。 |
+| `BIJI_ARCHIVE_POLL_INTERVAL_SECONDS`、`BIJI_ARCHIVE_SHUTDOWN_TIMEOUT_SECONDS` | 运行时轮询/有界停止配置，默认 `1` 秒/`30` 秒；非正值使启动配置失败。 |
+| `BIJI_ARCHIVE_TIMEOUT_SECONDS` | 单次 WinRAR 执行超时覆盖；非法值按现有策略记录脱敏 warning 并回退到按输入规模计算的安全上限，不改变正式失败门控。 |
+
+`packages/output` 和 `packages/uploads` 是由当前安装目录推导的固定根，不是可由公共 API 或客户端提交的路径；归档 staging 固定为 `packages/output/compressed/.staging`。因此一个 deployment 必须对应一个应用安装副本并由 Windows ACL 阻止普通用户直接写入数据库、`packages/output`、staging、快照和模板资产。该 ACL/进程边界不宣称能够防御管理员级本机篡改。
+
+### 13.2 启停、恢复和故障行为
+
+FastAPI lifespan 在 startup 创建并启动唯一 `ArchiveRuntimeCoordinator`，它拥有 Scheduler loop 和有界 Worker pool；重复 startup 不创建第二个 loop，空队列按轮询等待而不忙循环。shutdown 先停止调度、等待有界时间并收敛当前实例仍能证明拥有的 claim；未完成任务进入既有 `interrupted`/可恢复失败状态，不能虚假成功，已经 durable succeeded 的 attempt 不降级。Windows 缺少 `busy_time` 时只跳过可选 IO gate，并保留空间、CPU、输入规模、WinRAR 数量、并发、lease、revision 和 ownership gate。
+
+启动恢复会处理已有 queued/running、pending publication、来源复核和可清理的本实例资源；Worker/WinRAR 不跨进程自动续跑或断点接管。取消、失败、崩溃和重启后的残留由 task/attempt/deployment/marker 所有权校验处理；未知 staging、非本实例目录和不匹配快照不删除。用户必须在工作台通过既有 retry/重新确认建立新 attempt，不能手工调用 Scheduler/Worker 或把半成品标记成功。
+
+### 13.3 数据、产物和权限边界
+
+当前正式资产位置和权威关系如下：
+
+| 资产 | 位置/生命周期 |
+|---|---|
+| SQLite durable 事实 | `<BIJI_WORKBENCH_DATA_ROOT>\instances\<deployment>\workbench.sqlite3`，当前 schema v10；Case/Task/Attempt/Intent/Fence/Publication、模板注册和资产引用以此为权威。 |
+| 案件图片与模板资产 | 数据库实例目录下的 `assets`、`template-assets`；公共 DTO 只返回 opaque ID、指纹和安全元数据。 |
+| 原始输入 | 只来自已授权根；不进入 Git、不由工作台复制回原目录。执行前复制到 `packages/output/compressed/.inputs/<snapshot>`，逐文件核验后 sealed 并只读；失败/取消/中断快照不可被后续 attempt 复用。 |
+| staging | `packages/output/compressed/.staging` 下带 marker 的当前 attempt 临时目录；只清理当前 deployment/task/attempt 拥有且 marker 匹配的目录。 |
+| 正式 RAR/Manifest | `packages/output/compressed/<context>/<manifest>`；同文件系统原子发布后由 SQLite publication generation、Manifest 和物理文件共同校验。 |
+| Manifest index | `packages/output/compressed/.archive-manifest-index.json`，是可重建的 path-free 派生投影，不是 durable 权威；缺失、损坏或不一致时 fail-closed 或从可信 SQLite 事实重建。 |
+| Word | `packages/output/exports/`；默认只使用仓库跟踪的 `word_templates/template.docx`/`current-template-v1`，或已批准且指纹复核通过的实例模板。模板部署资产必须只读，正式导出须有已验证 Manifest；下载和 Word 导出都会重新校验 RAR 存在性、大小和 MD5。 |
+| 解析缓存、temp 和日志 | `packages/output/parsed/` 及现有临时目录可重建/清理；正式 RAR、Manifest、Word 不被解析缓存清理删除。应用日志当前写进程 stdout/stderr，不写公共路径；部署环境必须捕获并轮换进程日志。 |
+
+输入、数据库、输出和 staging 不得相互混放；`output` 与授权输入重叠时请求被拒绝。普通 UI/API 只返回稳定错误码和摘要，不返回绝对路径、环境变量、栈、token、fence、lease、attempt/context 身份或内部 locator。真实案件、真实材料和生成资产不得提交 Git，验证材料必须带 `SYNTHETIC/TEST/FIXTURE` 标记。
+
+### 13.4 备份、恢复、升级和回滚
+
+备份必须在停止前端和后端、确认没有正在写入的任务后进行。至少备份同一时间点的 deployment-owned SQLite、正式 `compressed` RAR/Manifest、`exports` Word、已批准的 `word_templates/template.docx`/模板指纹，以及该 deployment 使用的 `assets`、`template-assets`、`inspectors.json`/备份文件和硬件配置。不能只备份 `.archive-manifest-index.json`。`.staging`、未完成 `.inputs`、解析缓存和临时文件不是成功事实，可不备份；若按本地取证策略保留，也不能单独恢复为成功结果。
+
+恢复必须同时使用匹配的 deployment ID、数据库、正式输出根和模板版本；禁止把一个 deployment 的 SQLite 与另一个 deployment 的 output 拼接。恢复后启动会按现有 owner、revision、lease、fence、publication 和文件摘要规则处理 queued/running/interrupted/pending publication；缺失、损坏、身份不匹配或校验失败只能保持失败/中断/冲突并要求新准备，不能把部分目录提升为 succeeded。JSON index 可由可信 durable 记录重建，SQLite durable 事实不可由 index 反推。
+
+升级前必须停止服务并完成上述匹配备份。`WorkbenchDatabase.initialize()` 以事务方式执行迁移并验证 schema v10；迁移异常回滚当前事务，不能接受部分 schema。已升级到 v10 的数据库不能由旧代码降级打开；代码回滚不等于数据回滚，必须同时恢复匹配的旧代码、SQLite、正式资产和模板备份，不支持把 Git 回退描述为完整数据恢复。
+
+### 13.5 诊断、容量和已知债务
+
+`/health` 只证明 FastAPI 进程存活，`/api/v1/demo/readiness` 证明后端、输入授权、WinRAR 和输出根的固定能力摘要，工作台任务状态/里程碑显示 queued、running、interrupted、failed、cancelled 和 succeeded。Scheduler/Worker 异常写安全的进程日志；`ARCHIVE_IO_METRIC_UNAVAILABLE` 在提供者生命周期内限流一次。当前没有集中式监控或内建日志轮换，这属于单机支持模型下的非阻断运维债务，部署人员必须使用 Windows 进程/日志采集策略观察磁盘、进程退出和稳定错误码。
+
+sealed snapshot、staging、RAR、Manifest、Word 和临时空间会叠加占用正式数据盘；D 盘/正式数据盘必须预留峰值空间，不能依赖容量不足的系统临时盘。超过 `135 GB` 的输入在执行前阻止；多分卷、超大输入和取消操作可能长时间占用磁盘和 WinRAR。当前 4GB 双卷、22GB 单卷有证据，22GB 双卷、45GB、真实向上 replan 和完整 `15.1/15.1T` 人工验收仍按 `REQ-018` 记录为延期；TD-6 的生产规模字节 fingerprint 基线也未完成。该限制不被描述为已验证能力，不改变当前 Legacy-only 支持边界。
+
+TD-3（失效 intent 重复扫描）由终态 conflict/invalidated 和幂等恢复补偿，规模化扫描优化后续处理；TD-4（外部修改授权来源）由 sealed snapshot、源证据复核和 fail-closed 补偿；TD-5（管理员级正式产物篡改）由 Manifest/MD5/SQLite publication 身份以及下载/复用/Word 门控检测并拒绝；TD-6（生产规模 fingerprint 性能）由输入上限、资源准入和容量提示补偿。它们均有触发条件、可见的稳定失败/排队行为和恢复路径，不阻断本次单机支持部署，但不应被写成已消除。

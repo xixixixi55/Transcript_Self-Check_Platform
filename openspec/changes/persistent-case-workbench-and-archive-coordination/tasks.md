@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 `queued/unassigned`；2026-07-31 完成 runtime 接线、Windows 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序和工作台 autosave/revision 协调四项修复，并在 D 盘隔离环境完成真实浏览器复验。Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；2026-08-01 完整 `verify:full` 退出码为 `0`，随后独立 Level 3 Review 通过。Final Review remediation 已完成并通过，当前允许进入 Production Review；Production Review、Phase 5 和 OpenSpec archive 尚未开始。TD-1/TD-2 已关闭，TD-4/TD-5 保留为环境债务，TD-3/TD-6 保留为 Low 技术债。
+> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证、完整 Harness 和最终集成人工验收均已通过。2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 `queued/unassigned`；2026-07-31 完成 runtime 接线、Windows 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序和工作台 autosave/revision 协调四项修复，并在 D 盘隔离环境完成真实浏览器复验。`1D-017R`、Final Review 和 2026-08-01 Production Review 均已通过；Production Review 结论适用于现有 Legacy-only、单 Windows 实例支持模型，当前已具备归档准备条件，`OpenSpec 归档阻断解除` 已按现有 gate 记录为解除。Phase 5 和 OpenSpec archive 尚未开始。TD-1/TD-2 已关闭，TD-4/TD-5 保留为环境债务，TD-3/TD-6 保留为 Low 技术债。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -352,7 +352,18 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **额外只读检查**：`npm.cmd run verify:docs:strict` 通过，`git diff --check` 通过。前次已提交的定向测试、授权环境 `verify:full` 和独立 remediation Review 证据与当前 HEAD 一致，本轮未重复执行测试、Harness、浏览器或 Word 视觉检查。
 - **非阻断说明**：既有 `ARCHIVE_CONFIGURED_ROOT_INVALID`、UI/Vite 警告以及 TD-3、TD-4、TD-5、TD-6 仍按已批准边界记录为非阻断技术债/环境债务；未发现 Critical、High 或阻断性 Medium，也未发现本次 remediation 直接引入的支持链路回归。
 
-- [ ] OpenSpec 归档阻断解除。
+#### 2026-08-01 Production Review 结果
+
+- **实际 gate 与基线**：当前 `tasks.md` 没有独立的 Production Review 任务编号；本轮使用既有 `Phase 1D Review gate`、其前置的 Phase 1–4/完整 Harness/最终集成人工验收/`1D-017R`/Final Review 证据，以及同 gate 的 `OpenSpec 归档阻断解除` checkbox。审查基线为 `HEAD=072cc50e5f14f0b8d8ffe5a55619b45dd75330a0`，只做部署准备、运行生命周期、资产边界、恢复升级和运维证据核对，不重新打开 M-1 至 M-4B/L-1，不开始 Phase 5 或 archive。
+- **支持部署模型**：单个 Windows 应用实例、单个 FastAPI 进程、单个前端和该实例拥有的 in-process Scheduler/Worker；每个 deployment 独占应用安装目录、SQLite 数据根、`packages/output`、`compressed/.staging` 和 `.inputs`。不支持共享 SQLite/输出根、多节点、远程数据库、共享 NAS、对象存储或管理员级篡改防御。
+- **部署与配置合同**：`design.md` 第 13 节已补齐当前实际的 Node/pnpm/Python/requirements、WinRAR/RAR 分卷、officecli、前端 build/preview、后端 uvicorn 启停命令、端口、Windows ACL 和全部现有 `BIJI_*` 关键配置。输入根无效时 readiness/授权 fail-closed；数据根无效不回退默认根；输出根为安装目录固定根且无替代根；WinRAR 不可用返回 `WINRAR_UNAVAILABLE`，不降级为 ZIP；非法资源/运行时阈值不静默降低门控。
+- **生命周期与资产结论**：FastAPI lifespan 统一启动/有界停止 runtime；重复 startup、空队列、Windows 缺少 `busy_time`、单任务失败、取消、重启恢复、stale revision/fence、durable succeeded 和未知 staging 均符合既有合同。SQLite schema v10 是 durable 权威；sealed input、marker、staging、publication generation、RAR、Manifest、JSON index、Word 和下载链路的边界、权限和 fail-closed 行为均已记录。前端/API 只显示稳定错误码和摘要，不暴露路径、栈、token、fence、lease、attempt/context 或内部 locator。
+- **备份/恢复/升级/回滚结论**：已记录停止一致状态后同时备份匹配的 SQLite、正式 RAR/Manifest、Word、模板和 deployment 资产；不以 JSON index 单独备份或恢复；staging/未完成 snapshot/cache 不能提升为成功。恢复要求匹配 deployment/database/output/template，缺失或不一致保持 interrupted/failed/conflict。schema v10 迁移为事务门控且失败回滚；旧代码不能打开 v10，Git 回退不等于数据回滚。
+- **诊断与容量结论**：`/health`、`/api/v1/demo/readiness`、任务状态/里程碑和安全进程日志足以支持当前单机模型；集中监控和内建日志轮换登记为非阻断运维债务。sealed snapshot、staging、RAR、Manifest、Word 和 temp 的峰值容量、`135 GB` 输入上限、D 盘/正式数据盘要求及 TD-3/TD-4/TD-5/TD-6 均已准确记录；4GB 双卷、22GB 单卷证据与延期的大容量人工验收未被夸大为已完成能力。
+- **风险接受与结论**：按照本轮指定的当前 Legacy-only 支持模型，未完成的大容量人工验收/TD-6 只约束未声明支持的规模，不阻断本次单机部署准备；仍保留 `REQ-018` 的容量边界和延期记录。未发现正式支持主链路中的 Critical、High 或阻断性 Medium，未发现配置/运行/资产/恢复与实际代码的阻断性矛盾，Production Review = `PASS`。因此既有 gate 的 `OpenSpec 归档阻断解除` 可记录为 `[x]`；这不等同于执行 Phase 5 或 OpenSpec archive。
+- **状态**：`1D-017R` 已通过；Final Review 已通过；Production Review 已通过；`OpenSpec 归档阻断解除` 已勾选；Phase 5 和 OpenSpec archive 尚未开始。
+
+- [x] OpenSpec 归档阻断解除。
 
 ### Phase 1 gate
 
@@ -583,9 +594,9 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 - `1D-017R`：已于 2026-08-01 通过，保持完成，不重新审查。
 - Final Review：此前因上述四项问题为 `REJECT`；2026-08-01 remediation 后已重新执行并判定为 `PASS`，当前允许进入 Production Review。
-- Production Review：未开始。
+- Production Review：2026-08-01 已按 Legacy-only、单 Windows 实例支持模型审查并判定为 `PASS`。
 - Phase 5：未开始。
-- OpenSpec archive：未开始；`OpenSpec 归档阻断解除` 保持未勾选。
+- OpenSpec archive：未开始；`OpenSpec 归档阻断解除` 已按现有 gate 勾选。
 
 ### Phase 5 gate
 
