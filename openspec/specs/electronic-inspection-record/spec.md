@@ -1,7 +1,7 @@
 # Spec: 电子数据检查笔录自动生成
 
 > 能力：CAP-001 ~ CAP-011
-> 状态：MODIFIED（2026-07-23: 文档真相源与当前归档生产状态收口）
+> 状态：MODIFIED（2026-08-01: Phase 1–4 workbench/archive contracts and archive-readiness reconciliation）
 
 ## Purpose
 
@@ -9,7 +9,7 @@
 
 当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + 案件明确引用且当前重新校验通过的 approved TemplateProfile 渲染唯一正式 DOCX；没有模板引用的兼容案件继续使用 `current-template-v1`。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
 
-当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` metadata 使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，但 Canonical 正式生产切换和 OpenSpec 归档仍未完成。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证，只阻塞 Canonical 成为默认唯一正式输出及本变更归档，除非补测通过或发布负责人明确接受风险。
+当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` metadata 使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，Canonical 正式生产切换未启用，OpenSpec archive 尚未执行。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证；它仍限制 Canonical 成为默认唯一正式输出和未声明的大规模能力。本变更的 Production Review 已记录当前 Legacy-only 单 Windows 支持模型下的发布负责人风险接受，因此当前只进入 archive-readiness reconciliation，不把延期资源验收写成已完成能力。
 
 当前有两个必须区分的入口边界：持久化案件工作台是前端主生产入口，先持久化
 CaseShell、SourceRecord 和解析任务，解析成功后保存 CaseDraft；用户审核和保存草稿后，
@@ -183,7 +183,7 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ### Requirement: REQ-007: 任意字段可编辑
 
-系统 MUST 满足以下现有合同：
+系统 MUST 满足以下现有合同。工作台编辑通过后端自动保存并携带草稿 revision；编辑会话使用心跳租约，连续无心跳达到既定超时后才允许用户确认接管。版本冲突、租约冲突和保存失败不得静默覆盖后端草稿。
 #### Scenario: 工作台共享六项默认值
 - WHEN 用户在工作台明确修改文号、检查地点、检查方法、检查硬件设备、有序检查人员快照或光盘编号前缀，并且当前草稿成功保存
 - THEN 系统通过后端部署实例/本地操作者作用域的共享默认值事实源，稀疏更新本次明确修改的非空字段
@@ -216,6 +216,58 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - WHEN 民警修改软件版本号
 - THEN 检查过程和检查设备章节中的版本号同步更新
 
+#### Scenario: 编辑保存和版本冲突
+- WHEN 用户修改字段、顺序、来源状态或模板选择
+- THEN 客户端去抖后通过后端保存并显示保存成功、冲突或失败
+- AND 版本冲突不得静默覆盖后端草稿
+
+#### Scenario: 同一案件互斥和接管
+- WHEN 第二个会话打开仍有有效心跳的案件
+- THEN 后端拒绝普通编辑
+- WHEN 租约连续 2 分钟无心跳且用户确认强制接管
+- THEN 后端记录旧 session、新 client、部署实例和时间并允许接管
+
+#### Scenario: 服务重启使旧租约失效
+- WHEN 服务重启后存在上一个部署实例创建的 active lease
+- THEN 旧 session 不再被显示为有效编辑者，租约按恢复合同失效或进入 expired
+- AND 新会话可以重新获取租约，不得被旧租约永久阻塞
+- AND 强制接管仍记录旧 session、新 client、部署实例和时间的本地会话审计事件
+
+#### Scenario: 双写部分失败可见
+- WHEN 当前草稿保存成功而共享默认值保存失败，或反向发生
+- THEN 页面分别显示两种保存结果和可重试动作
+- AND 不得显示为一次全部成功
+
+#### Scenario: 人员拖拽同步两种顺序
+- WHEN 用户拖拽当前案件检查人员卡片并保存
+- THEN 当前案件 InspectorSnapshot 顺序变为 user 确认顺序
+- AND 草稿保存成功后，共享默认人员顺序通过稀疏更新保存，并分别返回两种保存状态
+
+#### Scenario: 新案件继承且已有案件不回写
+- WHEN 后端已保存一个或多个非空共享默认值，随后创建新案件
+- THEN 新案件仅在对应报告值缺失、为空或无法识别时优先使用这些共享默认值
+- AND 更新共享默认值不得修改此前已创建案件的草稿或来源状态
+
+#### Scenario: 旧 localStorage 迁移
+- WHEN 浏览器存在旧默认值且部署实例尚无迁移决定
+- THEN 系统提示导入或忽略，不得静默写入共享默认值
+- AND 导入或忽略只能成功一次并记录本地会话审计信息
+- AND 迁移完成前后，localStorage 均不得成为工作台事实源
+
+#### Scenario: 有效报告值优先
+- WHEN 报告提供有效非空值且共享默认值也存在
+- THEN 案件使用报告值并设为 report 来源
+
+#### Scenario: 报告值缺失或不可用
+- WHEN 报告字段缺失、为空或无法识别且共享默认值有效
+- THEN 案件使用共享默认值并设为 system_default 来源
+- AND 两种来源都不可用时保留 pending 或待填写提示
+
+#### Scenario: 用户修改来源迁移
+- WHEN 用户修改 report 或 system_default 字段
+- THEN 对应 FieldState.source 统一变为 user
+- AND confirmation 按业务规则独立保留或转为 pending
+
 ### Requirement: REQ-008: 附件图片上传
 
 系统 MUST 满足以下现有合同：
@@ -235,13 +287,28 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND Renderer 不得根据文件名或数组位置猜测检材归属
 - AND 当前排版规则：一个检材组左右两张图片居中，两个检材组上下两组
 
+#### Scenario: 上传成功后持久化并恢复
+- WHEN 用户在有效编辑租约下上传合法 JPG/JPEG/PNG
+- THEN 后端校验真实签名、扩展名、大小和案件配额，原子写入资产后返回 opaque 引用
+- AND 只有上传成功的引用才进入 CaseDraft，刷新、切换案件或重启后端仍能读取同一图片
+
+#### Scenario: 图片变更受租约和 revision 保护
+- WHEN 用户替换或删除图片
+- THEN 新资产成功写入后才替换旧引用，草稿使用 expected revision 保存，冲突不得静默覆盖另一会话
+- AND 只读或失效租约不能上传、替换或删除图片，未引用资产按宽限期安全清理
+
+#### Scenario: 图片读取失败阻止静默导出
+- WHEN 草稿引用的图片缺失、损坏或不属于当前案件
+- THEN 资产列表、预览或读取接口返回稳定可恢复错误，工作台提示重新上传
+- AND Word 预览/导出不得静默生成缺图结果，正式模板和 Legacy 输出规则保持不变
+
 ---
 
 **CAP-004: 导出 .docx**
 
 ### Requirement: REQ-009: 导出标准格式笔录
 
-系统 MUST 满足以下现有合同：
+系统 MUST 满足以下现有合同。所有正式 Word、RAR 和 Manifest 继续由 Legacy 链路生成和验证；工作台案件不要求 Canonical 才能审核或导出，Shadow 比较不参与案件状态、进度、门控或正式产物。
 #### Scenario: 确认无误后导出
 - WHEN 民警点击"导出 Word"按钮
 - THEN 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
@@ -255,6 +322,20 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 #### Scenario: 导出后仍可修改
 - WHEN 导出完成后
 - THEN 预览页面不关闭，民警可继续修改并再次导出
+
+#### Scenario: 每次询问、取消和物理文件隔离
+- WHEN 用户点击导出
+- THEN 系统重新打开文件名输入框，默认值为文号加 `.docx`；文号为空时默认值为空
+- AND 取消、空名称或非法 Windows 名称不创建任务或文件
+- WHEN 用户输入合法名称
+- THEN 下载名按输入补全 `.docx`，服务器物理文件使用唯一安全名且不覆盖正式产物
+
+#### Scenario: Legacy 安全门控和 Shadow 边界
+- WHEN 案件满足导出条件并开始正式输出
+- THEN 继续执行完整 inventory、路径/链接/文件变化、WinRAR、完整性、MD5、Manifest 和 Word 门控
+- AND 任一门控失败都不得发布正式完成状态
+- WHEN 本变更的案件、任务或模板流程运行
+- THEN 不启动 Shadow 真实样本治理，不调用 Canonical 作为正式输入；未来比较只能在独立边界和明确开关下进行
 
 ---
 
@@ -342,6 +423,37 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 重新解析同一报告目录时，若原始输入内容指纹、归档审核指纹和已登记 Manifest 均未变化，且所有 RAR 分卷存在、大小和 MD5 校验有效，则允许跨新 archive context 复用已有 Manifest/RAR
 - AND 若 RAR 缺失、大小变化或 MD5 不一致，禁止复用并重新生成归档；旧归档文件由独立归档生命周期策略处理
 - AND 解析缓存被 LRU 淘汰或一键清空不会删除已验证 RAR、Manifest、当前页面下载或 Word 导出所需的运行时登记
+
+#### Scenario: 稍后压缩可恢复
+- WHEN 用户选择“稍后压缩”
+- THEN 案件和草稿生命周期持久化为 `archive_deferred`，页面显示“暂未压缩”
+- AND 刷新或后端重启后仍显示该状态，并可从案件操作区再次选择立即压缩
+
+#### Scenario: 立即压缩保持受控 Legacy 边界
+- WHEN 用户选择“立即开始压缩”
+- THEN 后端校验 case/source/draft revision，创建唯一 attempt，持久化 workbench context 绑定并进入既有受控 Legacy/Archive Runtime 入口
+- AND 不显示伪造进度；任务只按真实的 `workflow_milestone`、所有权、租约、完整性和 Manifest 门控推进
+- AND 任一步准备失败时数据库状态全部回滚，不把案件标为成功
+
+#### Scenario: 立即压缩在重启后必须重新确认
+- WHEN 案件处于 `archive_queued` 或归档执行中，应用随后重启且尚无已验证正式产物
+- THEN 案件生命周期转为 `archive_interrupted`，归档尝试标记为 `interrupted`
+- AND 页面说明上次压缩未完成，旧运行时 handle 不恢复、不续跑、不自动生成新的压缩任务
+- WHEN 用户重新进入案件并确认立即压缩
+- THEN 后端先复核 SourceRecord，再生成新的 opaque 归档上下文和 attempt；旧 handle 的状态不能影响新尝试
+
+#### Scenario: archive_interrupted 的可查看、编辑和退出路径
+- WHEN 案件处于 `archive_interrupted`
+- THEN 已存在的 CaseDraft 仍可查看和编辑，半成品 RAR、半成品 Manifest 和旧运行时 handle 不得作为正式产物、Word 输入或新尝试输入
+- WHEN 用户选择“稍后压缩”并提交有效 revision
+- THEN 案件允许转为 `archive_deferred`，不创建新的尝试，同时保留中断审计记录
+- WHEN 用户重新确认来源并再次点击“立即压缩”
+- THEN 后端原子接受新的 attempt 和归档上下文；失败时案件保持 `archive_interrupted`
+- AND `archive_interrupted` 不得直接转为 `archiving`、`archive_verified`、`exporting_word` 或 `exported`
+
+#### Scenario: 解析失败不询问压缩
+- WHEN 目录解析失败
+- THEN 案件卡片保留失败和重试入口，但不得返回或显示压缩时机询问
 
 ---
 
@@ -460,6 +572,8 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - WinRAR 分卷档位固定为十进制 4GB、22GB、45GB；4GB 和 22GB 档预计超过 2 卷时升级，45GB 档最多 3 卷，输入超过 135GB 在执行前阻止。
 - 初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 是档位每卷上限，`size_bytes` 是 WinRAR 实际 part 文件大小。
 - 每个 part 的 `disc_capacity_bytes` 必须只根据该 part 的 `size_bytes` 独立选择最小可容纳容量；不得继承 Manifest 档位值。
+- 每个 `VolumeSlot` MUST 有稳定身份、序号、计划版本和容量/输入范围；光盘编号默认由共享前缀连续生成，用户可修改完整编号但必须非空且在案件内唯一，允许不连续，刻录日期独立保存。
+- replan 必须保留仍有效的人工槽位映射；新增槽位进入 pending，删除槽位清除映射，匹配不得依赖预计 RAR 文件名；最终以通过验证的 Manifest 槽位、卷序和光盘编号为准。
 - 最终 `ArchiveManifest` 是 Word 正文、附件1和附件3归档字段的唯一事实源。
 - RAR 外部基础名来自报告案件名称并清理 Windows 非法字符、结尾空格和点；单卷为 `<案件名>.rar`，多卷为 `<案件名>.partN.rar`。
 - WinRAR 以原始报告目录的父目录为工作目录、以原始报告根文件夹名为输入；归档内部保留该根文件夹、全部相对目录、多级嵌套、同名文件和业务空目录，不包含绝对路径、盘符、staging、cache、UUID或项目输出路径。
@@ -476,6 +590,368 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 2026-07-31 D 盘隔离环境的真实浏览器复验使用小型纯合成输入，仅生成单卷 RAR；多分卷边界由 Harness/自动化覆盖，不宣称已完成多分卷人工视觉验收；原生 Word 视觉检查单独记录，不与浏览器验收混同
 - AND 这些资源型验收仍阻塞 Canonical 成为默认唯一正式生产输出和 OpenSpec 归档，但不否定已完成的 Phase 1–4 最终集成人工验收
 - AND 只有在有足够资源的验收机器上补测通过，或由发布负责人明确记录风险接受后，才可解除上述正式发布门槛
+
+#### Scenario: 初始计划、编号和 replan
+- WHEN 用户在压缩前查看或修改计划
+- THEN 页面逐卷显示预计分卷和光盘编号，拒绝空值或重复值，允许非连续唯一值
+- WHEN inventory 变化并 replan
+- THEN 仍存在的槽位保留有效人工编号，新槽位待确认，删除槽位清除映射，匹配不依赖预计 RAR 文件名
+
+#### Scenario: Manifest 验证收敛
+- WHEN 归档完成并通过 Manifest 验证
+- THEN 验证后的 Manifest 保存最终槽位、卷序和光盘编号并成为权威
+- AND 草稿计划与 Manifest 不一致时阻止交付完成状态
+
+---
+
+### Requirement: REQ-019: 案件壳和多案件工作台可恢复
+
+系统 MUST 在用户提交报告后立即分配稳定 `case_id`，创建案件壳和持久化解析任务。解析成功后才写入完整 Legacy `InspectionReport`；解析失败时保留失败任务卡片，但该记录不得成为可审核、可归档或可导出的正式草稿。案件名称与案件摘要独立，修改案件名称不得改变正式 RAR 基础名规则。
+
+#### Scenario: 提交报告后立即创建案件壳
+- WHEN 用户提交报告来源
+- THEN 系统立即创建案件壳和解析任务，工作台显示排队或解析中卡片
+- AND 案件壳在解析成功前不可审核、归档或导出
+
+#### Scenario: 解析成功或失败
+- WHEN 解析成功
+- THEN 写入完整 Legacy `InspectionReport`、`SourceRecord` 引用和解析版本并转为可审核
+- WHEN 解析失败
+- THEN 保留失败卡片、结构化错误和重试入口，不生成正式草稿
+
+#### Scenario: 刷新或重启后恢复
+- WHEN 用户刷新浏览器或关闭软件后重新打开
+- THEN 后端返回尚未清理的案件壳/草稿和任务状态
+- AND CaseShell、CaseDraft、revision、案件生命周期、解析/归档决定、SourceRecord、图片资产引用和自动保存结果均以后端持久化状态为准
+- AND `queued` 解析任务转为 `failed_retryable`，`running/cancelling` 解析任务转为 `interrupted`，用户显式重试前不得重新执行
+- AND `review_ready` 案件不得因为重启而重复解析
+- AND 重启前已选择或开始立即压缩的案件转为 `archive_interrupted`，不得保持虚假的 `archive_queued` 或运行中状态
+- AND 重启前运行中的 WinRAR 任务不默认成功、不自动重连、不自动接管、不自动续跑
+
+### Requirement: REQ-020: 字段来源和待确认状态可追踪
+
+每个可编辑叶子字段、检材字段、人员项和附件图片组 MUST 有 `FieldState`，包含稳定字段路径、来源 `report | user | system_default`、确认状态 `confirmed | pending` 和 revision。纯派生不可编辑字段继承来源，不单独维护状态；来源颜色不得进入 Word，pending 必须有文字提示。
+
+#### Scenario: 来源展示和导出隔离
+- WHEN 字段来自报告、系统默认值或人工修改
+- THEN 审核界面显示相应来源
+- AND Word 使用正式黑字，不携带来源颜色
+
+#### Scenario: 待确认不只靠颜色
+- WHEN 检材、关键字段或图片组处于 pending
+- THEN 页面显示待人工确认文字和影响范围
+- AND 正式导出执行现有确认门控
+
+### Requirement: REQ-021: SourceRecord 保护来源可访问性
+
+系统 MUST 为每个工作台来源创建 `SourceRecord`。来源提交合同是本机报告目录路径而非 ZIP/RAR 或其他上传文件。后端 MUST 校验路径存在、是允许的目录类型、位于授权来源根、当前账户可访问且包含可识别报告结构，再保存 opaque `source_id`、允许根授权、`source_type`、`case_id/task_id` 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于受控后端 locator 中；API、卡片、草稿 DTO、任务 DTO、审计摘要、普通日志和 SQLite 公共字段不得暴露绝对路径；来源失效时必须要求重新选择目录。
+
+#### Scenario: 来源绑定和重启复核
+- WHEN 用户提交经后端验证的报告目录并创建解析任务
+- THEN SourceRecord 绑定案件壳和 task_id，并保存允许根授权及 metadata/fingerprint
+- AND 递归 metadata/fingerprint 可先保持 pending 并由独立来源复核完成；快速解析按 `Legacy Parser → 草稿持久化 → review_ready` 顺序执行，不以完整复核阻塞审核入口
+- WHEN 服务重启或任务恢复前访问来源
+- THEN 后端复核允许根、路径、权限、链接安全性和 fingerprint/metadata，并识别仍处于待复核的 SourceRecord
+- AND 恢复事务不得把 pending 复核标记为可信或来源变化；应用启动后按 `source_id + revision` 去重调度复核
+- AND 调度失败保持 pending，记录 `SOURCE_REVALIDATION_PENDING` 并允许后续启动或显式重试
+- AND 已经 `review_ready` 的案件不得因恢复重复创建或执行 Parser
+- AND 暂时 I/O、权限或资源不可用保持 pending，草稿可以查看和编辑；归档继续等待来源可信状态，Word 导出须显示明确风险确认
+- AND 已确认的路径、允许根、链接安全性、报告结构或 fingerprint 发生变化，或来源被替换/不可用时，才标记 `requires_reselection`，阻止归档并要求重新选择和重新解析
+
+#### Scenario: 来源风险不阻止 Word 导出
+- WHEN SourceRecord 为 `available`
+- THEN 工作台直接执行现有 Legacy Word 导出，不显示来源风险确认
+- WHEN SourceRecord 为 `pending`
+- THEN 导出动作显示来源复核尚未完成的可取消确认，用户确认后继续现有 Legacy 导出
+- WHEN SourceRecord 为 `requires_reselection`
+- THEN 显示来源已变化、不可用或需要重新选择的更强确认，用户确认后仍可继续现有 Legacy 导出
+- AND 提示状态来自当前后端 CaseDetail，不使用 localStorage、不伪造 `available`
+- AND Legacy `/records/export` 不因 SourceRecord 状态增加拒绝门控；来源可信状态仍严格约束归档
+
+#### Scenario: 来源路径不对外泄露
+- WHEN API 返回错误、任务进度或审计日志
+- THEN 只使用 opaque ID、错误码和安全摘要
+- AND 不包含绝对路径、原始文件名集合或完整来源 JSON
+
+#### Scenario: 工作台拒绝上传文件和无效目录
+- WHEN 工作台请求使用 ZIP、RAR、普通文件、不存在目录、越界目录、无权限目录或结构无效目录
+- THEN 后端拒绝创建案件，并返回稳定原因码，不回显完整路径
+- AND 不复制整个报告目录到上传目录，也不把报告内容或完整文件列表写入 SQLite 公共数据
+
+### Requirement: REQ-022: Phase 1D 最小归档中断和产物保护
+
+Phase 1D MUST 只在现有 Legacy `/records/archive` 显式入口外围记录一次归档尝试，不建设第二套发布事实源。归档尝试记录只用于识别重启前未完成的归档操作、证明自有 staging/进程资源归属、记录接受/完成/中断/失败/清理结果，以及支撑幂等恢复和正式产物保护；它不是新的公共输出链路，也不改变现有 Scheduler/Worker、进度、自动重试或正式 Manifest 合同。
+
+受控工作台准备路径 MUST 将 attempt 绑定到 case、source ID、shell/draft revision、服务端 report fingerprint 和单向 context hash。正式完成 MUST 使用同一个可信证据服务处理正常执行和重启恢复；调用方提供的 Manifest ID 单独不能把 attempt 或案件变成 succeeded/verified。完成前必须验证 publish intent、Manifest index identity、public Manifest、source/draft 绑定和物理 RAR 内容。
+
+发布 intent 只能在事务重新读取服务端 CaseShell、SourceRecord、CaseDraft 和 active workbench binding 后创建。正式目录身份绑定 Legacy executor 的正式 runtime context 和 Manifest ID，workbench context 仍是单向绑定权威。文件移动前必须再次执行相同 source/draft/report/context 校验；revision 或 source trust 改变必须阻止移动、索引登记和成功证据。
+
+如果可信正式目录已存在而 intent 仍为 `intent_persisted`，恢复只能在验证 intent、attempt、case、source/draft/report identity、Manifest index 和物理 RAR 后按 `published`、`indexed` 顺序推进，不得直接跳到 indexed 或发布第二份资产。正常路径和恢复路径调用同一可信完成服务；该服务在写事务内重新读取 SourceRecord、CaseShell、CaseDraft，并要求 attempt、shell、draft 各恰好更新一行，零行更新时回滚全部状态。成功提交后但尚未写入最终 verified marker 的崩溃不得把 succeeded 降级为 interrupted。
+
+恢复必须区分身份/完整性/目标冲突与临时 SQLite lock、index 不可用、文件锁和瞬时 I/O/权限错误。临时错误保留当前可恢复状态和证据，确认性冲突进入安全 conflict；不得以不完整证据发布成功。输入 snapshot、Manifest、index、marker 和正式目录的失败清理只处理已证明属于当前 attempt 的资源；未知资源不删除、不覆盖、不终止。
+
+SourceRecord 目录 fingerprint MUST 使用规范化相对路径、条目类型、真实文件字节摘要和稳定排序集合。每个文件必须在打开句柄前后检查，并在摘要后重新扫描；任何变化、消失、新增、删除、临时访问错误或不一致都必须保持 pending/暂时不可验证，不得生成可信 available fingerprint。绝对路径和 metadata-only cache 不属于公共合同。
+
+#### Scenario: 归档中断时保持可恢复且不发布半成品
+- WHEN 归档执行在正式产物验证和可信完成提交前中断，或重启发现未完成归档尝试
+- THEN 系统将未完成归档尝试和案件状态按既有恢复合同标记为 `interrupted`/`archive_interrupted`，不伪造 `succeeded`、`completed` 或 `100%`
+- AND 未通过完整 Manifest/RAR、来源、所有权和绑定完整性门控的资产不得成为正式发布结果；可恢复状态和后续处理沿既有 deferred 或新 attempt 合同执行
+
+### Requirement: REQ-023: 独立 Review 后的归档一致性、恢复与外部变更加固
+
+归档发布、恢复和正式产物门控 MUST 继续使用完整不可变身份、owner/revision/lease/fence 和同一份 durable Manifest 证据，不得新增第二套发布事实源。发布 intent 的身份至少覆盖 case、attempt、source、source/draft revision、report fingerprint、source/input/archive fingerprint、Manifest/public Manifest、正式相对目录、context binding 和 fence；缺失或任一不一致 MUST 安全拒绝，完整相同的合法 intent 重入 MUST 幂等返回原记录。
+
+应用停止达到有界等待上限时，属于本部署实例的 pending/running claim MUST 在 owner、attempt、task revision、lease 和 fence 条件仍成立时收敛为现有 `interrupted`/可恢复状态；不得把未完成工作标为 succeeded、completed 或 100%，不得改写其他部署实例的 claim。已经完成 durable 发布并通过可信完成门控的 attempt MUST 保持成功。重复停止、Worker 超时后的迟到返回和重启恢复 MUST 幂等。
+
+归档执行 MUST 在执行开始、产物生成后和正式发布前重新确认源材料集合、条目类型、实际字节和关键元数据。文件增加、删除、替换、截断、同大小同时间戳内容变化或读取期间不稳定 MUST 使本次执行安全失败，不得发布混合源版本的 RAR、inventory 或 Manifest；失败不产生成功状态或可复用正式索引，重试必须重新建立源证据。
+
+正式发布到索引、Manifest/MD5 确认和完成状态提交之间 MUST 继续核对同一 durable intent、fence、public Manifest、文件集合、顺序、字节数和摘要。正式卷、Manifest 或索引被替换、修改、删除、新增或重命名时 MUST 拒绝成功、复用、下载和 Word 导出；恢复遇到部分发布目录也不得直接提升为完成，不得删除或覆盖历史正式资产掩盖冲突。marker MUST 在 durable intent/fence 已建立且正式移动完成后才由明确发布所有者删除一次。
+
+归档尝试内部状态为 `accepted | running | succeeded | failed | interrupted`，另有 `cleanup_status` 为 `not_required | pending | succeeded | failed | unknown`。恢复主要处理未完成的 accepted/running；已完成但停在 indexed 的 intent 只允许补写最终 verified，绝不把 succeeded 改回 interrupted。新的用户确认必须创建新的 attempt_id，不得复用旧记录。attempt_id、revision、PID、内部 staging locator 和 marker 摘要只能用于后端归属证明和诊断，API、DTO、错误和普通日志不得返回这些内部字段。
+
+#### Scenario: 完整 intent 身份重入与冲突
+- WHEN 同一合法发布 intent 使用完整相同身份重入
+- THEN 系统返回原 durable intent 且不创建第二条记录
+- WHEN 任一不可变身份字段缺失或不同，或历史 intent 被其他 attempt/fence 复用
+- THEN 系统返回安全 conflict，不覆盖原 intent、不发布或标记成功
+
+#### Scenario: 有界停止收敛本实例 claim
+- WHEN shutdown 等待上限到达且本实例仍有 pending/running claim
+- THEN claim 和 attempt 进入可恢复 interrupted 状态，未完成任务不显示成功或 100%
+- AND 已可信完成的 attempt 保持 succeeded，其他实例 claim 不变，重复 shutdown/recovery 幂等
+
+#### Scenario: 执行期间源材料变化
+- WHEN 源文件在归档执行、产物生成或正式发布前被替换、删除、新增、截断或同大小同时间戳改写
+- THEN 本次归档安全失败，不登记正式 Manifest 或成功状态，重试重新获取源证据
+
+#### Scenario: 正式产物变化
+- WHEN staging 或正式发布目录中的任一卷、Manifest 或索引在后续门控前被修改、替换、删除、新增或重命名
+- THEN 系统拒绝完成、复用、下载和 Word 导出，不污染历史正式资产
+
+#### Scenario: 重启后不自动接管归档资源
+- WHEN 应用重启时存在未完成的 Legacy 归档尝试、WinRAR 进程或 staging
+- THEN 归档尝试标记为 `interrupted`，案件进入 `archive_interrupted`，用户确认前不得重新执行
+- AND 系统不得连接、等待、接管或自动终止无法证明属于本系统的 WinRAR 进程
+- AND 系统不得仅凭目录名、PID、进程名或命令行片段认定 staging 或进程归属
+
+#### Scenario: 自有 staging 的最低归属证明
+- WHEN staging 位于应用控制的 staging 根，具有系统生成且不可猜测的 attempt_id，数据库或受控索引存在对应记录，且 ownership marker 与 attempt_id、部署实例和受控根匹配
+- THEN 系统可以将未完成 staging 标记为隔离或执行安全清理
+- AND 多次恢复或清理必须幂等，清理失败不得阻止案件、草稿、任务和图片资产恢复
+- AND marker 格式和存储结构不得进入公共 DTO
+
+#### Scenario: staging 归属证据缺失或冲突
+- WHEN 任一最低归属证据缺失、记录冲突、marker 不匹配或无法确认
+- THEN 资源一律视为未知，不删除、不终止相关进程、不覆盖
+- AND 系统只记录不含绝对路径的安全诊断结果
+
+#### Scenario: 半成品和正式产物隔离
+- WHEN 重启或失败后发现未验证的 RAR 或 Manifest
+- THEN 半成品 RAR 不进入正式产物索引，半成品 Manifest 不注册、不返回、不驱动 Word 导出
+- AND 已完成并通过校验的 RAR、Manifest 和 Word 不因案件恢复或普通清理被删除
+
+#### Scenario: 归档恢复不泄露路径
+- WHEN API、DTO、错误响应、任务状态或普通日志返回归档恢复结果
+- THEN 只返回 opaque ID、稳定错误码和安全摘要
+- AND 不返回绝对路径、staging 物理路径、完整进程命令行或原始文件列表
+
+### Requirement: REQ-024: 检材和人员顺序由案件权威数组驱动
+
+检材默认排序 MUST 使用自然升序；编号重复或无法识别时保持报告原始相对顺序。用户拖拽后，案件数组成为审核界面、正文、附件摘要、附件 1、附件 2、附件 3 和 Word 的唯一顺序来源。人员卡片顺序同理，并同步更新共享默认人员顺序。
+
+#### Scenario: 默认排序和拖拽一致性
+- WHEN 编号全部可识别且互不重复
+- THEN 按自然升序建立默认数组
+- WHEN 编号重复或无法识别
+- THEN 保持报告原始相对顺序
+- WHEN 用户拖拽并保存
+- THEN 正文、附件和 Word 使用同一有序数组，不得下游二次排序
+
+### Requirement: REQ-025: 后台归档阶段里程碑和资源准入可恢复
+
+解析任务可以并行；压缩任务最多 6 个 running，但不要求启动 6 个 WinRAR。调度器 MUST 综合配置化的磁盘空间、临时空间、CPU、IO、输入规模和当前进程数决定运行或排队。归档任务覆盖 inventory、规划、WinRAR、完整性、MD5、Manifest 生成和验证。
+
+归档进度类型 MUST 固定为 `workflow_milestone`，使用单调的 `0/10/20/30/75/85/90/95/100` 里程碑；它表示真实工作流阶段，不表示 WinRAR 内部压缩字节百分比。TaskRecord 复用现有状态、阶段、percent、时间、错误和 cancel 字段，内部补充阶段、心跳、活动指标、worker 状态和后端权威 allowed_actions；公共案件卡片只返回安全摘要，不返回 Worker ID、内部租约、绝对路径、堆栈、技术日志、完整错误代码或完整进程信息。
+
+资源快照的 `io_busy_percent` MUST 允许明确不可用状态。平台没有 `busy_time` 时仅跳过可选 I/O 忙碌阈值，继续执行空间、CPU、输入规模、WinRAR 进程数、并发、租约、所有权和其他门控；诊断必须有限、非刷屏且不含平台路径、堆栈或原始异常。
+
+#### Scenario: 立即或稍后压缩及资源排队
+- WHEN 报告解析成功
+- THEN 系统询问立即开始或暂不压缩，暂不压缩不创建运行中的压缩进程
+- WHEN 并发上限或资源准入不满足
+- THEN 新任务排队并显示安全原因
+
+#### Scenario: 可选磁盘 I/O 忙碌指标不可用
+- WHEN 平台的 `disk_io_counters()` 返回 `None` 或合法返回对象不含 `busy_time`
+- THEN 资源快照明确表达 I/O 忙碌指标不可用，不伪装成 `0%` 或精确百分比
+- AND Scheduler 不因该可选指标永久失败或忙循环，仅跳过 I/O 忙碌阈值并继续执行其他资源、任务所有权和租约门控
+- AND 存在 `busy_time` 的平台继续使用原有连续采样公式
+
+#### Scenario: 真实阶段才推进固定里程碑
+- WHEN 任务进入归档阶段
+- THEN 后端只在真实阶段开始或门控成功时持久化对应的固定里程碑，并同时返回阶段文字
+- AND 里程碑单调不下降，不读取 WinRAR CLI 连续百分比，不使用历史最大值、钳制、平滑、过滤、时间、文件/字节数量或输出大小制造中间百分比
+- AND WinRAR 执行期间保持 30%；WinRAR 成功后才进入 75%，完整性通过后才进入 85%，MD5 和 Manifest 真实开始后才分别进入 90% 和 95%，完整 Manifest 验证及正式完成提交成功后才进入 100%
+
+#### Scenario: WinRAR 长耗时阶段以真实活动摘要证明仍在运行
+- WHEN 大文件归档长时间停留在创建 RAR 分卷阶段
+- THEN 案件卡片主要显示归档阶段文字、阶段 X/N、indeterminate 活动态、已运行时间、任务状态、最近心跳、当前检测分卷数量和当前输出总字节数
+- AND output_volume_count 只表示当前 attempt 受控 staging 中匹配分卷名规则的文件数量，output_bytes 只表示这些文件当前已写出的总字节数
+- AND 两项活动指标不得换算为压缩完成比例；输出大小暂时不变化不得单独判定失败、卡死或触发自动取消
+
+#### Scenario: Worker 心跳和所有权状态准确
+- WHEN Worker 持有并执行当前归档任务
+- THEN Worker 按受控频率更新 last_heartbeat_at，并节流写入聚合后的分卷数、输出字节数和 last_output_change_at
+- AND 不得为每个文件系统变化事件写数据库
+- WHEN Worker 未持有任务、正在恢复或等待接管
+- THEN worker_state 和卡片文字准确显示未分配、恢复中或等待接管，不得显示仍在运行
+
+#### Scenario: 失败取消和重启恢复最后阶段
+- WHEN 归档任务失败、取消或被服务重启中断
+- THEN 持久化任务状态、当前或失败阶段、最后里程碑、时间和安全错误信息
+- AND 失败或取消不得进入 100%，半成品 RAR/Manifest 不得成为正式结果
+- AND 页面刷新从 TaskRecord 恢复阶段、里程碑、时间、心跳、活动指标、Worker 状态、失败/取消和允许操作
+- AND 服务重启先显示恢复中或等待接管；Worker 重新取得持久化任务所有权后才更新心跳并显示仍在运行
+- AND 重新取得任务所有权不表示自动连接旧 WinRAR、复用旧半成品或断点续压
+
+#### Scenario: 案件工作台卡片是主进度入口
+- WHEN 用户打开案件工作台而未进入案件详情
+- THEN 每张案件卡片直接显示该案件当前或最近一次归档任务安全摘要，包含案件信息、状态/阶段、活动摘要和主要操作
+- AND 允许操作按状态表达取消、重试或查看结果；前端不得只显示数字百分比
+- AND 创建 RAR 分卷阶段不得以静止 30% 进度条作为主要反馈，indeterminate 动画必须同时提供无障碍文字
+- AND 不得以与案件卡片分离的归档任务卡片作为唯一入口
+
+#### Scenario: 卡片内容随归档状态替换
+- WHEN 案件尚未归档
+- THEN 卡片显示未归档状态和归档入口，不显示空进度或空活动指标
+- WHEN 任务等待执行、恢复中或等待 Worker 接管
+- THEN 卡片显示等待/恢复文字和最后确认里程碑，不得显示仍在运行
+- WHEN 任务正在执行
+- THEN 卡片突出当前阶段，显示活动文字、已运行时间和取消操作
+- WHEN 任务失败、取消或完成
+- THEN 卡片分别显示安全失败摘要、取消时阶段或完成信息和查看结果操作；完成后不再显示心跳、Worker 状态或动态动画
+
+#### Scenario: 默认卡片不展开技术详情
+- WHEN 当前或历史归档任务包含完整阶段时间线、逐卷文件名/大小/MD5、Manifest 路径/内容、Worker ID、内部租约、精确心跳时间戳、完整错误代码、堆栈、技术日志、重试/调度诊断或进程信息
+- THEN 默认案件卡片不平铺这些字段，只提供归档详情或查看结果入口
+- AND 案件列表 API 不返回绝对路径、堆栈、Worker ID、内部租约或完整技术日志
+
+#### Scenario: 卡片响应式和无障碍
+- WHEN 卡片处于窄屏、长文号、长失败摘要或大数字场景
+- THEN 次要活动指标可以隐藏或收起，但案件信息、状态、阶段文字和主要操作必须保留
+- AND 成功、失败、取消和运行中状态不得只依赖颜色；减少动态效果时仍通过文字得知当前阶段或恢复状态
+
+#### Scenario: 重启中断而非自动接管
+- WHEN 服务重启时存在 running 任务或 WinRAR 进程
+- THEN 任务标记为 interrupted 或 failed_retryable
+- AND 只终止能够证明由本系统启动的进程树，清理本系统拥有的 staging，不信任或发布半成品 RAR/Manifest
+- AND 用户确认后重新执行，不实现断点续压或 WinRAR 重连
+
+### Requirement: REQ-026: WinRAR 进度策略决策保留 Legacy 安全边界
+
+Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构决策。RAR 5.90、RAR 7.23 普通 pipe 及 RAR 7.23 ConPTY 的合成实验已经证明 CLI 百分比混合不同作用域且可重复回退。当前合同不读取连续 WinRAR 百分比，而使用 `workflow_milestone`；现有 WinRAR、RAR 分卷、Legacy 显式压缩、inventory、路径/变化、完整性、MD5、Manifest、Word 和发布门控保持不变。
+
+#### Scenario: 失败 spike 形成明确适配决定
+- WHEN 普通 pipe 和 ConPTY spike 均证明 WinRAR CLI 百分比不可作为稳定总进度
+- THEN 产品/架构决定采用固定 workflow_milestone，并允许按任务顺序实现后台归档能力
+- AND spike 文档和合成测试继续作为放弃连续 CLI 百分比的证据
+- AND 该决定本身不表示其他后台任务或 Phase 3 人工验收自动完成
+
+#### Scenario: 里程碑适配不削弱 Legacy
+- WHEN 后台任务包装现有归档执行
+- THEN WinRAR 运行期间只报告正在创建 RAR 分卷的阶段里程碑和活动状态
+- AND 不解析或推断内部连续百分比，不改变 RAR 分卷或基础名规则
+- AND 任一既有正式安全门控失败时不得推进到后续里程碑或正式完成
+
+### Requirement: REQ-027: 预置模板版本可复现且切换不触发归档
+
+系统只允许选择已注册且审核通过的模板版本。每个版本 MUST 有独立模板 ID、版本号、指纹、校验规则和验收记录。案件保存所选模板及版本。切换模板不重新压缩、不重新生成 Manifest，仅使旧 Word 失效；下次导出重新校验模板并生成 Word。
+
+#### Scenario: 选择和切换模板
+- WHEN 用户打开模板选择器或切换 approved 版本
+- THEN 只显示 approved 版本，保存案件引用并使旧 Word 失效
+- AND 未知 DOCX、未审核版本、RAR、Manifest 和光盘映射不受模板切换影响
+
+#### Scenario: 导出前重新验证
+- WHEN 用户切换模板后再次导出
+- THEN 后端按 ID、版本、指纹和规则重新校验并执行现有 VML、分页、表格、附件和 Word 安全门控
+- AND 校验失败时不发布 Word
+
+### Requirement: REQ-028: 无登录环境的审计身份不冒充认证身份
+
+强制接管、默认值迁移、共享默认值修改和重要任务操作 MUST 记录 client instance ID、session ID、可选本地显示名称、部署实例和时间。系统不得把这些字段描述为真实人员身份或认证结果。
+
+#### Scenario: 记录接管和默认值操作
+- WHEN 用户确认接管、导入/忽略旧默认值或修改共享默认值
+- THEN 审计记录保存上述无认证身份字段集合
+- AND 界面显示为本地会话审计，不显示已认证人员
+
+### Requirement: REQ-029: 案件工作台承接完整生成笔录能力
+
+案件工作台 MUST 是电子检查笔录的主生产入口，使用既有 Legacy `InspectionReport` 字段合同、校验规则、日期时间处理、附件模型、预览投影和 Word 导出映射。工作台可以重组布局并增加案件状态、自动保存、租约、来源和多案件控制，但不得维护简化的第二编辑器。后端 `/records/*` 保留为 Legacy 兼容入口和唯一正式 Legacy 输出管线，不构成第二个持久化工作台流程。
+
+#### Scenario: 完整审核编辑器
+- WHEN 案件达到 `review_ready`
+- THEN 工作台暴露全部 Legacy 审核字段、数据摘要、附件信息、图片编辑、必填/格式校验、预览、正式 Word 导出和自定义下载名称
+- AND CaseDraft、revision 和编辑租约仍是工作台写入权威
+
+#### Scenario: 统一入口和兼容路由
+- WHEN 用户打开旧前端生成 URL
+- THEN URL 引导到工作台，不暴露竞争性的上传/编辑流程
+- AND 后端 `/records/*` 兼容合同、Legacy Parser、Word、Manifest 和正式归档安全门控保持可用
+
+#### Scenario: 工作台预览不自动归档
+- WHEN 工作台已持久化 CaseShell、SourceRecord 和解析任务，并在解析成功后保存 CaseDraft
+- THEN 用户可以审核和保存草稿，预览动作本身不得启动 WinRAR 或创建归档任务
+- AND 只有用户显式选择“立即开始压缩”后才进入受控 Legacy/Archive Runtime 入口
+- AND 用户选择“稍后压缩”时持久化 `archive_deferred`，不启动归档
+
+#### Scenario: 完整能力不退化工作台优化
+- WHEN 用户切换案件、刷新、失去租约或收到来源警告
+- THEN 工作台保留案件卡片状态、自动保存结果、只读警告、来源状态、重试和返回列表体验
+- AND 不重新引入旧页面的混合归档上传流程或重复字段、校验、附件和导出规则
+
+### Requirement: REQ-ARCHIVE-IMMUTABLE-INPUT
+
+The archive execution input MUST be a task/attempt/deployment-bound sealed snapshot; mutable source bytes MUST NOT be used as the execution or publication authority.
+
+#### Scenario: sealed execution input
+- WHEN a task begins archive execution
+- THEN the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory without following links or reparse points, verifies every relative path, size and SHA-256, flushes the copy, and durably marks it `sealed`
+- AND WinRAR, inventory, RAR validation and Manifest generation read only the sealed snapshot, never the mutable source directory
+- AND an unsealed, missing, owner-mismatched, incomplete or digest-mismatched snapshot cannot enter WinRAR, publication, reuse or success
+- AND source changes after sealing cannot change the bytes read by this attempt; failure, cancellation, crash and retry never reuse a prior attempt snapshot
+
+### Requirement: REQ-ARCHIVE-PUBLICATION-GENERATION
+
+Formal publication MUST use a unique durable publication generation bound to the task, attempt, deployment, fence, Manifest and exact physical file set; partial or tampered generations MUST fail closed.
+
+#### Scenario: durable publication generation
+- WHEN a validated staging set is published
+- THEN a unique `publication_id` and generation digest bind task, attempt, deployment, fence, Manifest, exact file set, sizes and MD5 values in the durable publish intent
+- AND the staging set is sealed before same-filesystem atomic rename, historical formal directories are never overwritten, and a partial/crashed generation remains pending or recoverable rather than succeeded
+- AND the completion transaction can set attempt and task to `succeeded` only when the sealed publication identity, intent/fence, current revisions, Manifest and index projection agree
+- AND download, reuse, recovery and Word export resolve the durable publication identity and re-run the existing physical integrity gate; post-completion tampering is rejected
+
+### Requirement: REQ-ARCHIVE-MANIFEST-PROJECTION
+
+The JSON Manifest index MUST remain a rebuildable projection of SQLite durable publication facts and MUST NOT be treated as an independent success authority.
+
+#### Scenario: fail-closed derived index
+- WHEN the JSON Manifest index is missing, malformed, structurally invalid, digest-inconsistent or concurrently updated
+- THEN it is never interpreted as an empty authoritative list
+- AND SQLite durable publication facts are the only authority and may rebuild the projection under a cross-process lock with temp-file flush/fsync and atomic replacement
+- AND if the projection cannot be rebuilt or persisted, public completion cannot report success
+
+### Requirement: REQ-ARCHIVE-OWNERSHIP-CAS
+
+Shutdown and recovery MUST use bounded compare-and-set ownership checks for task revision, deployment owner, worker owner, attempt and fence before changing claims or deleting markers.
+
+#### Scenario: current claim shutdown and marker ownership
+- WHEN bounded shutdown or recovery handles a pending/running archive claim
+- THEN it re-reads current durable revision, deployment owner, worker owner token, attempt and fence, and performs bounded CAS only while the current claim remains owned and interruptible
+- AND revision races are retried or reported as unresolved, never silently ignored; transferred ownership and durable succeeded facts are not downgraded
+- AND staging markers serialize task, attempt, deployment, controlled root and random token; their fence binding is established by cross-checking the durable intent `fence_id` and current DB fence before deletion, and only the matching publisher deletes once after durable intent/fence and formal move; an already-deleted marker for the same publication is idempotent success
 
 ---
 
@@ -504,3 +980,4 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - **MUST**: 设备解析时优先结构化 JSON，再正则回退；按检材分别读取手机品牌及手机型号/设备型号，以单个空格生成设备名称，型号已含品牌时不重复；“手机”只作为检材类型，品牌和型号均缺失时才参与兜底
 - **MUST**: 当前模板附件2中同一检材的两张照片固定在同一表格行的左右两个槽位，单元格边距为零并分别向中间对齐；保持图片比例且不修改正式模板资产
 - **MUST**: DOCX 生成格式遵循项目模板/构建器定义的标准结构；自动化验证不替代人工视觉验收
+- **MUST**: SQLite 只保存案件业务 DTO、任务/租约/revision/索引元数据、SourceRecord 和 opaque 资产引用；图片、来源快照、缓存、临时文件和正式产物保存在受控文件系统资产中，不写入 Base64、完整 HTML、原始 JSON 集合或不可控二进制

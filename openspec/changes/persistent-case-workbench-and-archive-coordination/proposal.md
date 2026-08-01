@@ -138,7 +138,7 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 ## Acceptance overview
 
 - 用户登记并验证授权报告目录后立即出现排队/解析中案件壳卡片；解析成功才写入完整 Legacy `InspectionReport`，解析失败保留失败任务卡片但不可审核、归档或导出。
-- 解析成功后必须询问“立即开始压缩”或“稍后压缩”；稍后压缩持久化为 `archive_deferred`，立即压缩只进入现有 Legacy 显式压缩入口，不伪造 Phase 3 后台进度。
+- 解析成功后必须询问“立即开始压缩”或“稍后压缩”；稍后压缩持久化为 `archive_deferred`，立即压缩进入现有受控 Legacy/Archive Runtime 入口，只报告真实 `workflow_milestone`，不伪造 WinRAR 内部连续进度。
 - 目录不存在、无权限、越界、结构无效和压缩包输入均以稳定错误码拒绝；API、卡片、任务、审计摘要和 SQLite 公共字段不包含绝对路径。
 - 刷新浏览器和关闭软件后，案件卡片、草稿、任务状态、来源状态、顺序和模板引用可恢复；重启前运行中的 WinRAR 任务只标记 interrupted/failed_retryable，不自动重连或接管。
 - 同一案件正常情况下只有一个有效编辑租约；接管有警告并留下审计记录。
@@ -155,3 +155,11 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 ## Risks and mitigations
 
 主要风险是从内存状态迁移到持久化状态时出现案件/共享默认值双写不一致、来源授权失效、旧草稿版本不兼容、重启后误接管 WinRAR、replan 错配人工编号、里程碑早于真实门控推进和清理误删正式产物。设计通过分别返回草稿/共享默认值结果、SourceRecord 复核、版本化迁移、任务 interrupted 状态与自有进程树回收、稳定槽位 ID、固定阶段转换、WinRAR pipe/ConPTY 失败证据、独立正式产物索引和删除白名单降低风险；具体决策见 `design.md`，实施顺序和验证证据见 `tasks.md`。
+
+## 2026-08-01 OpenSpec archive-readiness reconciliation
+
+本轮仅收敛归档前文档状态，不执行 `openspec archive`。原有 30 个未勾选项已逐项分类：15 项甲方 Demo 清单由既有最终集成人工验收证据完成记录；T020–T025 及 Phase 5 gate 明确转为 `DEFERRED` follow-up，保留编号、目的和后续治理依赖，不代表已实现。
+
+当前 delta 的 25 个 requirement block 已按 OpenSpec 合并语义处理：REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束吸收重叠合同；新增 workbench、SourceRecord、Phase 1D recovery、Review consistency、ordering、runtime milestone、WinRAR 进度决策、template、audit、完整工作台及四个 `REQ-ARCHIVE-*` 进入 living spec；SQLite DTO/opaque asset 边界已由 living data model 覆盖；案件清理/保留期 block 因属于未开始的 Phase 5 follow-up，保留在 active delta 和 deferred 记录中，不提升为当前生产能力。
+
+Phase 1–4、最终集成人工验收、`1D-017R`、Final Review 和 Production Review 结论不变；当前 archive-readiness reconciliation 已完成，Phase 5 尚未开始，OpenSpec archive 尚未执行，等待下一轮单独授权。

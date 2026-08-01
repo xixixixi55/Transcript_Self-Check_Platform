@@ -336,9 +336,12 @@ large objects without embedding their content in SQLite.
 
 `WordDownloadName` is the Phase 2 T007 shared DTO for a browser-facing download
 name only. It never contains a server physical artifact name. Its introduction
-does not enable the Phase 2 dialog or change the current Legacy export behavior;
-the remaining order, provenance and export interaction contract stays in the
-active change delta spec until those tasks are implemented.
+is used by the current Phase 2 download-name dialog and Legacy export flow:
+each export asks for a validated client-facing name, cancellation creates no
+download artifact, and the server physical artifact name remains unique and
+independent. The current order, provenance and export interaction contract is
+recorded in the living electronic-inspection-record spec; this DTO still never
+contains a server locator or physical artifact name.
 
 Phase 1D recovery keeps parse and source verification state durable across process
 restart. Queued/running/cancelling parse tasks become retryable or interrupted

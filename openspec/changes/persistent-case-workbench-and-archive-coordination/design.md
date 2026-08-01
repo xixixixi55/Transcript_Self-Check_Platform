@@ -526,3 +526,11 @@ FastAPI lifespan 在 startup 创建并启动唯一 `ArchiveRuntimeCoordinator`�
 sealed snapshot、staging、RAR、Manifest、Word 和临时空间会叠加占用正式数据盘；D 盘/正式数据盘必须预留峰值空间，不能依赖容量不足的系统临时盘。超过 `135 GB` 的输入在执行前阻止；多分卷、超大输入和取消操作可能长时间占用磁盘和 WinRAR。当前 4GB 双卷、22GB 单卷有证据，22GB 双卷、45GB、真实向上 replan 和完整 `15.1/15.1T` 人工验收仍按 `REQ-018` 记录为延期；TD-6 的生产规模字节 fingerprint 基线也未完成。该限制不被描述为已验证能力，不改变当前 Legacy-only 支持边界。
 
 TD-3（失效 intent 重复扫描）由终态 conflict/invalidated 和幂等恢复补偿，规模化扫描优化后续处理；TD-4（外部修改授权来源）由 sealed snapshot、源证据复核和 fail-closed 补偿；TD-5（管理员级正式产物篡改）由 Manifest/MD5/SQLite publication 身份以及下载/复用/Word 门控检测并拒绝；TD-6（生产规模 fingerprint 性能）由输入上限、资源准入和容量提示补偿。它们均有触发条件、可见的稳定失败/排队行为和恢复路径，不阻断本次单机支持部署，但不应被写成已消除。
+
+## 14. OpenSpec archive-readiness reconciliation（2026-08-01）
+
+本轮只同步 living specs 并收敛归档前任务状态，不执行 archive。甲方 Demo 清单的 15 个历史 checkbox 由 2026-07-31 最终集成人工验收、`1D-008` 和原生 Word/真实浏览器证据覆盖后改为完成记录；T020–T025 及 Phase 5 gate 保留为明确的 `DEFERRED` follow-up，未开始实现、测试、Review 或 Phase 5。
+
+active delta 的 25 个 requirement block 已逐项映射：重叠内容合并到既有 REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束；新增内容写入 living `electronic-inspection-record`，包括四个 `REQ-ARCHIVE-*`。SQLite durable DTO/opaque asset、schema v10、deployment owner、sealed snapshot、publication generation、Manifest index 派生投影和 fail-closed 语义继续以 `openspec/specs/data-model.md` 为权威，不复制实现细节。唯一未提升为当前 living capability 的是案件清理/保留期合同，因为其实现属于尚未开始的 Phase 5；该边界记录在 tasks 的 deferred follow-up 中。
+
+本次 reconciliation 不改变产品代码、测试、模板、部署支持模型、Final Review、Production Review 或风险债务结论。当前 change 的 Phase 1–4 归档范围已完成文档收敛，但 OpenSpec archive 仍未执行，Phase 5 仍未开始。

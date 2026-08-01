@@ -313,21 +313,23 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 
 验收数据只能使用合成或脱敏数据。每项由实际操作人勾选并记录结果；本清单通过不代表 Production-ready 或 OpenSpec 可归档。
 
-- [ ] 启动前后端，确认使用本地 Demo 配置且没有加载真实案件、真实人员或真实运行资产。
-- [ ] 创建至少两个案件，并分别选择不同的合成/脱敏报告目录。
-- [ ] 分别解析两个报告，确认两个案件都进入可编辑状态。
-- [ ] 编辑各自草稿并等待自动保存，确认保存结果清晰可见。
-- [ ] 在两个案件之间切换，确认标题、来源、草稿字段和状态不串案。
-- [ ] 为两个案件分别添加不同图片，确认图片引用属于对应案件。
-- [ ] 刷新页面，确认案件、草稿和图片均可恢复。
-- [ ] 预览 Word，确认预览使用当前案件内容。
-- [ ] 导出 Word，确认导出成功且文件名属于当前案件。
-- [ ] 检查 Word 的 VML 文本框、总页数、附件摘要第 3 页，以及附件 1/2/3 分别位于第 4/5/6 页；确认无多余空白页，默认数据摘要正确。
-- [ ] 将一个案件置于 `pending` 来源状态，确认风险提示说明复核未完成，但用户确认后仍能导出 Word。
-- [ ] 将另一个案件置于 `requires_reselection` 来源状态，确认出现更强风险提示，但用户风险确认后仍能导出 Word。
-- [ ] 对一个状态正常且来源可信的案件执行一次显式归档。
-- [ ] 检查该案件的 RAR、Manifest 和 Word 身份一致，属于同一案件且没有重复正式产物。
-- [ ] 确认没有串案、错误文件名、异常页面提示或未预期的归档状态。
+以下 15 项已由 2026-07-31 D 盘隔离环境的 Phase 1–4 最终集成人工验收覆盖：合成双案件、来源/草稿/图片隔离与恢复、Word/VML/分页、来源风险确认、显式归档、RAR/Manifest/Word 身份一致性及无异常状态。原始首次失败和复验通过记录保留在“Phase 1–4 最终集成人工验收记录”及 `1D-008` 证据中。
+
+- [x] 启动前后端，确认使用本地 Demo 配置且没有加载真实案件、真实人员或真实运行资产。
+- [x] 创建至少两个案件，并分别选择不同的合成/脱敏报告目录。
+- [x] 分别解析两个报告，确认两个案件都进入可编辑状态。
+- [x] 编辑各自草稿并等待自动保存，确认保存结果清晰可见。
+- [x] 在两个案件之间切换，确认标题、来源、草稿字段和状态不串案。
+- [x] 为两个案件分别添加不同图片，确认图片引用属于对应案件。
+- [x] 刷新页面，确认案件、草稿和图片均可恢复。
+- [x] 预览 Word，确认预览使用当前案件内容。
+- [x] 导出 Word，确认导出成功且文件名属于当前案件。
+- [x] 检查 Word 的 VML 文本框、总页数、附件摘要第 3 页，以及附件 1/2/3 分别位于第 4/5/6 页；确认无多余空白页，默认数据摘要正确。
+- [x] 将一个案件置于 `pending` 来源状态，确认风险提示说明复核未完成，但用户确认后仍能导出 Word。
+- [x] 将另一个案件置于 `requires_reselection` 来源状态，确认出现更强风险提示，但用户风险确认后仍能导出 Word。
+- [x] 对一个状态正常且来源可信的案件执行一次显式归档。
+- [x] 检查该案件的 RAR、Manifest 和 Word 身份一致，属于同一案件且没有重复正式产物。
+- [x] 确认没有串案、错误文件名、异常页面提示或未预期的归档状态。
 
 Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归档开始后不再编辑该案件；归档期间不修改来源目录；不重启前后端；不模拟 WinRAR 崩溃、文件锁、数据库锁、断电或极端并发；不得将 Demo 描述为生产级容灾版本。
 
@@ -517,35 +519,28 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **真实并发冲突证据**：两个浏览器会话同时打开同一纯合成案件；第二会话保持只读并记录租约冲突，随后通过其公共 Draft API 将 revision 从 `1` 保存为 `2`。第一会话仍持有旧草稿，立即压缩时保存请求返回 HTTP 409；页面显示“案件版本发生冲突，当前输入未覆盖服务端新版本”，没有刷新提示、没有 archive-decision 请求、公共归档历史为 `0`，服务端 revision 和租约合同继续生效。
 - **状态保持**：本记录补充竞态缺陷、修复和最终复验证据；Phase 3/4 正式人工验收及 Phase 1–4 最终集成人工验收已于 2026-07-31 通过。`1D-017R`、Final Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成。
 
-## Phase 5 — 综合验收、清理和 Shadow 边界
+## Deferred follow-up work — Phase 5（未开始）
 
-**阶段目标**：验证五阶段合同在恢复、并发、清理和正式输出保护下闭合；Shadow 只保留暂停声明。
+以下工作不属于本次已完成并准备归档的 Phase 1–4 范围，未开始实现、验证或审查。它们保留原任务编号和目的，但不再以未完成 checkbox 伪装为当前归档阻断；后续实施必须创建新的 active change 或按适用治理流程处理。本轮不设计、不实现这些任务。
 
-### Layer 0/1/2 — Retention contract
+- **DEFERRED T020**：在 `packages/shared/types/` 和 `packages/shared/constants/` 固化案件记录、任务、临时文件和正式产物的独立清理策略、30 天默认保留期、配置项及清理结果 DTO；不得添加正式产物删除 API 合同。
+- **DEFERRED T020T**：在共享测试中覆盖到期条件、活动任务保护、尚未导出保护、失败待重试保护和正式产物不随案件记录清理删除。
+- **DEFERRED T021**：完成案件工作台与任务、模板、来源和清理状态的后续整合，补充错误边界，不重新引入独立生成页面或 Canonical/Shadow 正式调用。
+- **DEFERRED T021T**：增加 `tests/e2e/persistent-case-workbench.spec.ts`，覆盖后续综合验收所需的多案件、多任务、清理、模板和产物保护场景。
+- **DEFERRED T022**：新增案件记录/正式产物保留和恢复编排服务，实现配置化保留、活跃/未导出/失败案件跳过、取消收尾及独立清理策略。
+- **DEFERRED T022T**：为上述清理和恢复服务增加 pytest，覆盖只删案件记录、不删 RAR/Manifest/Word、活跃任务保护、失败处理和幂等。
+- **DEFERRED T023**：完成后续 controllers/routes 兼容适配和错误边界，保持 Legacy `/records/*`、SharedTypes 及正式产物保护边界。
+- **DEFERRED T023T**：增加后续后端集成回归，覆盖 API 恢复、取消、清理保护、Legacy 输出、Manifest/Word 门控及 Canonical/Shadow 未调用。
+- **DEFERRED T024**：更新后续阶段所需的 Harness、API/数据模型文档及变更包状态，处理活跃变更包重叠和依赖。
+- **DEFERRED T024T**：准备后续人工验收清单及真实大报告外部验证边界，不将真实输入、人员、路径或生成资产写入仓库。
+- **DEFERRED T025**：对后续综合范围进行新的 Level 3 独立 Code Review，重点覆盖清理白名单、迁移、并发/租约、恢复和 Shadow 边界。
 
-- [ ] **T020** 在 `packages/shared/types/` 和 `packages/shared/constants/` 固化案件记录/任务/临时文件/正式产物的独立清理策略、30 天默认保留期、配置项和清理结果 DTO；不得添加正式产物删除 API 合同。
-- [ ] **T020T** 在共享测试中覆盖到期条件、活动任务保护、尚未导出保护、失败待重试保护和正式产物永不随案件记录清理删除。验证：Vitest。
+### Deferred Phase 5 gate（未开始）
 
-### Layer 10/11/12 — Integrated workbench UI
-
-- [ ] **T021** 完成案件工作台与任务、模板、来源和清理状态的后续整合；补充错误边界，不重新引入独立生成页面，也不增加 Canonical/Shadow 正式调用。
-- [ ] **T021T** 增加 `tests/e2e/persistent-case-workbench.spec.ts`；使用合成多案件、多任务和合成模板覆盖刷新/重启、6 卡片分页、切换案件、唯一租约、取消后删除、顺序一致、来源状态、案件卡片 `workflow_milestone`、模板切换和产物保护。
-
-### Layer 20/21 — Cleanup and recovery services
-
-- [ ] **T022** 新增 `packages/backend/app/services/case_cleanup_service.py`、`artifact_retention_service.py` 和恢复编排入口；实现成功导出记录默认 30 天、配置化保留、活跃/未导出/失败案件跳过、取消后清理和案件/正式产物独立策略。
-- [ ] **T022T** 新增 `tests/test_case_cleanup_service.py`、`tests/test_artifact_retention_service.py`；覆盖到期只删案件记录、不删 RAR/Manifest/Word、活跃任务保护、取消收尾、临时文件清理失败和重复清理幂等。
-
-### Layer 22/23 — Integrated API boundary
-
-- [ ] **T023** 完成 `packages/backend/app/controllers/`、`packages/backend/app/routes/` 的兼容适配和错误边界；确认旧 `/records/*` 仍使用 Legacy，工作台 API 只通过 SharedTypes，删除和清理接口不得触碰正式产物。
-- [ ] **T023T** 增加后端集成回归；使用合成数据验证 API 恢复、任务取消、清理保护、Legacy 输出、Manifest/Word 门控和 Canonical/Shadow 未调用。
-
-### Documentation and manual gates
-
-- [ ] **T024** 更新 `harness/directory.md`、必要 API/数据模型文档和本变更包状态；同时记录已有活跃变更包的重叠关系、暂停项和保留依赖，确认 proposal/spec/design/tasks 与实现状态不漂移。验证：`git diff --check`、文档检查。
-- [ ] **T024T** 准备人工验收清单：合成案件自动化证据 + 用户指定的真实大报告外部验证；不把真实输入、人员、路径、RAR、Manifest、DOCX 或运行输出写入仓库。完整 `verify:full` 前按 `AGENTS.md` 询问用户由谁执行。
-- [ ] **T025** 进行 Level 3 独立 Code Review，重点检查持久化迁移、并发/租约、任务恢复、资源准入、正式门控、清理白名单、Legacy 兼容和 Shadow 边界。验证：审查结论和修复项回写本变更包，不进入 Canonical 或 Shadow 真实治理。
+- **DEFERRED**：五阶段合同的后续综合测试和人工验收闭合。
+- **DEFERRED**：案件记录清理与正式 RAR、Manifest、Word 的独立保留策略实现及验证。
+- **DEFERRED**：Legacy 唯一正式输出、Shadow 暂停和 Canonical 未进入正式链路的后续综合 gate。
+- **DEFERRED**：由人类确认的 Phase 5 verify/review/archive 前状态 gate；本轮仍不提交、不推送。
 
 ## 2026-08-01 第二轮独立 Review 安全加固（实现完成，门控后独立重审通过）
 
@@ -596,11 +591,19 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - Final Review：此前因上述四项问题为 `REJECT`；2026-08-01 remediation 后已重新执行并判定为 `PASS`，当前允许进入 Production Review。
 - Production Review：2026-08-01 已按 Legacy-only、单 Windows 实例支持模型审查并判定为 `PASS`。
 - Phase 5：未开始。
-- OpenSpec archive：未开始；`OpenSpec 归档阻断解除` 已按现有 gate 勾选。
+- OpenSpec archive：未开始；本轮 archive-readiness reconciliation 完成后保持等待实际 archive 命令；`OpenSpec 归档阻断解除` 已按现有 gate 勾选。
 
-### Phase 5 gate
+### Deferred Phase 5 gate（未开始）
 
-- [ ] 五阶段合同均有定向测试和人工验收证据，且没有依赖隐式前端状态。
-- [ ] 案件记录清理和正式产物管理完全分离，首版没有误删正式 RAR、Manifest 或 Word 的路径。
-- [ ] Legacy 是唯一正式输出，Shadow 真实样本治理仍暂停，Canonical 未进入生产链路。
-- [ ] Level 3 verify、独立 review 和归档前状态由人类确认后再执行；本轮不提交、不推送。
+- **DEFERRED**：五阶段合同的后续综合测试和人工验收闭合。
+- **DEFERRED**：案件记录清理与正式 RAR、Manifest、Word 的独立保留策略实现及验证。
+- **DEFERRED**：Legacy 唯一正式输出、Shadow 暂停和 Canonical 未进入正式链路的后续综合 gate。
+- **DEFERRED**：由人类确认的 Phase 5 verify/review/archive 前状态 gate；本轮仍不提交、不推送。
+
+## 2026-08-01 OpenSpec archive-readiness reconciliation（本轮未归档）
+
+- [x] 逐项处理原有 30 个未勾选项：甲方 Demo 清单 15 项由 2026-07-31 最终集成人工验收和既有 `1D-008` 证据覆盖并完成记录；T020–T025 及 Phase 5 gate 转为明确的 `DEFERRED` follow-up，未虚假勾选。
+- [x] 对当前 Phase 1–4、Final Review、Production Review 和 archive-readiness 范围逐项复核；没有发现仍属于当前范围且未完成的真实阻断任务。
+- [x] 按 OpenSpec delta 合并语义同步 living `electronic-inspection-record`：重叠合同并入 REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束；新增的 workbench、SourceRecord、Phase 1D recovery、review consistency、ordering、runtime milestone、template、audit、full workbench 及四个 `REQ-ARCHIVE-*` 保留为当前合同；未实现的案件清理/保留期合同继续只作为 deferred follow-up，不提升为当前生产能力。
+- [x] 核对 living `data-model.md` 已准确记录 schema v10、deployment owner、task/attempt 绑定、sealed snapshot、publication generation、SQLite durable authority、JSON Manifest index 派生投影及兼容/fail-closed 语义；没有回退 Final Review 或 Production Review 合同。
+- [x] 本轮仅完成 archive-readiness reconciliation；没有执行 `openspec archive`，没有开始 Phase 5，没有修改产品代码、测试、模板或生成资产，不提交、不推送。
