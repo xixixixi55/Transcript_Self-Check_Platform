@@ -15,7 +15,12 @@ from .workbench_constants import (
 from .workbench_database import WorkbenchDatabase, normalize_optional_utc, normalize_utc, utc_now
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import bool_int, json_text, row_json
-from .workbench_serialization import validate_opaque_id, validate_safe_string
+from .workbench_serialization import validate_opaque_id
+from .task_record_validation_repository import (
+    counter_map as _counter_map, non_negative_int as _non_negative_int,
+    process_binding as _process_binding, validate_error_fields as _validate_error_fields,
+    validate_progress as _validate_progress,
+)
 
 _UPDATE_FIELDS = {
     "status", "stage", "percent", "counters", "process_binding", "error_code",
@@ -35,7 +40,8 @@ class TaskRecordRepository:
             "input_revision, attempt, process_binding_json, error_code, error_summary, "
             "cancel_requested, created_at, started_at, updated_at, finished_at, progress_kind, "
             "stage_label, stage_index, stage_count, last_heartbeat_at, output_bytes, "
-            "output_volume_count, last_output_change_at, worker_state, allowed_actions_json, revision"
+            "output_volume_count, last_output_change_at, worker_state, allowed_actions_json, "
+            "revision, deployment_instance_id"
         )
         values = (
             value["task_id"], 1, value["case_id"], value["kind"], value["status"],
@@ -47,7 +53,7 @@ class TaskRecordRepository:
             value["progress_kind"], value["stage_label"], value["stage_index"],
             value["stage_count"], value["last_heartbeat_at"], value["output_bytes"],
             value["output_volume_count"], value["last_output_change_at"], value["worker_state"],
-            json_text(value["allowed_actions"]), 0,
+            json_text(value["allowed_actions"]), 0, value["deployment_instance_id"],
         )
         with self.database.transaction() as connection:
             try:
@@ -135,6 +141,11 @@ def _normalized_task(task: Mapping[str, Any], *, existing: bool = False) -> dict
     result = dict(task)
     result["task_id"] = validate_opaque_id(task.get("task_id"))
     result["case_id"] = validate_opaque_id(task.get("case_id"))
+    deployment_instance_id = task.get("deployment_instance_id")
+    if deployment_instance_id is not None:
+        result["deployment_instance_id"] = validate_opaque_id(deployment_instance_id)
+    else:
+        result["deployment_instance_id"] = None
     result["kind"] = str(task.get("kind", "parse"))
     result["status"] = str(task.get("status", "queued"))
     result["stage"] = str(task.get("stage", "parse"))
@@ -188,6 +199,7 @@ def _task_dict(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": int(row["schema_version"]), "task_id": row["task_id"],
         "case_id": row["case_id"], "kind": kind, "status": status, "stage": stage,
+        "deployment_instance_id": row["deployment_instance_id"] if "deployment_instance_id" in keys else None,
         "percent": row["percent"], "counters": row_json(row, "counters_json"),
         "input_revision": int(row["input_revision"]), "attempt": int(row["attempt"]),
         "process_binding": None if row["process_binding_json"] is None else row_json(row, "process_binding_json"),
@@ -210,40 +222,3 @@ def _task_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         else (row_json(row, "allowed_actions_json") if value["allowed_actions_json"] else []),
         "revision": int(row["revision"]),
     }
-
-def _validate_progress(value: Any) -> None:
-    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100):
-        raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
-
-
-def _counter_map(value: Any) -> dict[str, int | float]:
-    if not isinstance(value, Mapping) or any(not isinstance(k, str) or isinstance(v, bool) or not isinstance(v, (int, float)) for k, v in value.items()):
-        raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
-    return dict(value)
-
-
-def _process_binding(value: Any) -> dict[str, Any] | None:
-    if value is None:
-        return None
-    if not isinstance(value, Mapping) or set(value) - {"process_tree_id", "staging_asset_id"}:
-        raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
-    if value.get("process_tree_id") is None and value.get("staging_asset_id") is None:
-        raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
-    if value.get("process_tree_id") is not None:
-        validate_opaque_id(value.get("process_tree_id"))
-    if value.get("staging_asset_id") is not None:
-        validate_opaque_id(value.get("staging_asset_id"))
-    return dict(value)
-
-
-def _validate_error_fields(code: Any, summary: Any) -> None:
-    if code is not None:
-        validate_safe_string(code, "INVALID_TASK_RECORD")
-    if summary is not None:
-        validate_safe_string(summary, "INVALID_TASK_RECORD")
-
-
-def _non_negative_int(value: Any) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
-    return value

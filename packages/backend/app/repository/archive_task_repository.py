@@ -6,6 +6,9 @@ from collections.abc import Mapping
 from typing import Any
 
 from .task_record_repository import TaskRecordRepository
+from .archive_task_progress_repository import milestone as _milestone
+from .archive_task_progress_repository import stage_index as _stage_index
+from .archive_task_progress_repository import validate_milestone as _validate_milestone
 from .workbench_constants import ARCHIVE_TASK_ACTIONS, ARCHIVE_WORKFLOW_MILESTONES
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
@@ -27,6 +30,9 @@ class ArchiveTaskRepository:
         status = str(task.get("status", "queued"))
         value = {
             **task, "kind": "archive", "status": status, "stage": stage,
+            "deployment_instance_id": task.get(
+                "deployment_instance_id", self.database.deployment_instance_id,
+            ),
             "percent": task.get("percent", milestone[0]),
             "progress_kind": "workflow_milestone", "stage_label": milestone[1],
             "stage_index": _stage_index(stage),
@@ -34,6 +40,8 @@ class ArchiveTaskRepository:
             "worker_state": task.get("worker_state", "unassigned"),
             "allowed_actions": ARCHIVE_TASK_ACTIONS[status],
         }
+        if value["deployment_instance_id"] != self.database.deployment_instance_id:
+            raise WorkbenchPersistenceError("ARCHIVE_DEPLOYMENT_MISMATCH")
         _validate_milestone(value)
         return self.tasks.create(value)
 
@@ -41,7 +49,14 @@ class ArchiveTaskRepository:
         task = self.tasks.get(task_id)
         if task["kind"] != "archive":
             raise WorkbenchPersistenceError("ARCHIVE_TASK_NOT_FOUND")
+        if task.get("deployment_instance_id") != self.database.deployment_instance_id:
+            raise WorkbenchPersistenceError("ARCHIVE_TASK_NOT_FOUND")
         return task
+
+    def bind_attempt(self, task_id: str, attempt_id: str) -> dict[str, Any]:
+        from .archive_task_binding_repository import bind_archive_task_attempt
+        bind_archive_task_attempt(self.database, task_id, attempt_id)
+        return self.get(task_id)
 
     def update_state(
         self, task_id: str, changes: Mapping[str, Any], expected_revision: int
@@ -74,15 +89,16 @@ class ArchiveTaskRepository:
         with self.database.connect() as connection:
             row = connection.execute(
                 f"SELECT task_id FROM task_records WHERE case_id=? AND kind='archive' "
-                f"AND status IN ({placeholders}) ORDER BY updated_at DESC, created_at DESC LIMIT 1",
-                (case_id, *_ACTIVE),
+                f"AND deployment_instance_id=? AND status IN ({placeholders}) "
+                f"ORDER BY updated_at DESC, created_at DESC LIMIT 1",
+                (case_id, self.database.deployment_instance_id, *_ACTIVE),
             ).fetchone()
             if row is None:
                 row = connection.execute(
                     "SELECT task_id FROM task_records WHERE case_id=? AND kind='archive' "
-                    "AND status NOT IN ('queued','running','cancelling','blocked') "
+                    "AND deployment_instance_id=? AND status NOT IN ('queued','running','cancelling','blocked') "
                     "ORDER BY COALESCE(finished_at,updated_at,created_at) DESC LIMIT 1",
-                    (case_id,),
+                    (case_id, self.database.deployment_instance_id),
                 ).fetchone()
         return None if row is None else self.get(str(row[0]))
 
@@ -90,7 +106,8 @@ class ArchiveTaskRepository:
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT task_id FROM task_records WHERE case_id=? AND kind='archive' "
-                "ORDER BY created_at DESC, task_id DESC", (validate_opaque_id(case_id),)
+                "AND deployment_instance_id=? ORDER BY created_at DESC, task_id DESC",
+                (validate_opaque_id(case_id), self.database.deployment_instance_id),
             ).fetchall()
         return [self.get(str(row[0])) for row in rows]
 
@@ -99,7 +116,8 @@ class ArchiveTaskRepository:
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT task_id,counters_json,created_at FROM task_records "
-                "WHERE kind='archive' AND status='queued'"
+                "WHERE kind='archive' AND deployment_instance_id=? AND status='queued'",
+                (self.database.deployment_instance_id,),
             ).fetchall()
         ranked = sorted(
             rows,
@@ -127,8 +145,9 @@ class ArchiveTaskRepository:
         now = utc_now()
         with self.database.transaction() as connection:
             row = connection.execute(
-                "SELECT status,revision FROM task_records "
-                "WHERE task_id=? AND kind='archive'", (task_id,),
+                "SELECT case_id,status,revision,deployment_instance_id,process_binding_json "
+                "FROM task_records WHERE task_id=? AND kind='archive' AND deployment_instance_id=?",
+                (task_id, self.database.deployment_instance_id),
             ).fetchone()
             if row is None:
                 raise WorkbenchPersistenceError("ARCHIVE_TASK_NOT_FOUND")
@@ -138,24 +157,46 @@ class ArchiveTaskRepository:
                 )
             if row["status"] != "queued":
                 raise WorkbenchPersistenceError("ARCHIVE_TASK_NOT_CLAIMABLE")
+            if row["deployment_instance_id"] != self.database.deployment_instance_id:
+                raise WorkbenchPersistenceError("ARCHIVE_DEPLOYMENT_MISMATCH")
             running = int(connection.execute(
                 "SELECT COUNT(*) FROM task_records WHERE kind='archive' "
-                "AND status IN ('running','cancelling')"
+                "AND deployment_instance_id=? AND status IN ('running','cancelling')",
+                (self.database.deployment_instance_id,),
             ).fetchone()[0])
             if running >= max_running:
                 raise WorkbenchPersistenceError("ARCHIVE_CONCURRENCY_LIMIT")
+            attempt = connection.execute(
+                "SELECT task_id, deployment_instance_id, case_id, status FROM archive_attempts "
+                "WHERE attempt_id=? AND deployment_instance_id=?",
+                (attempt_id, self.database.deployment_instance_id),
+            ).fetchone()
+            legacy_binding = None if row["process_binding_json"] is None else row_json(
+                row, "process_binding_json",
+            )
+            if attempt is None and (
+                not legacy_binding or legacy_binding.get("staging_asset_id") != attempt_id
+            ):
+                raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_MISMATCH")
+            if attempt is not None and (
+                attempt["task_id"] != task_id
+                or attempt["deployment_instance_id"] != self.database.deployment_instance_id
+                or attempt["case_id"] != row["case_id"]
+                or attempt["status"] not in {"accepted", "running"}
+            ):
+                raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_MISMATCH")
             updated = connection.execute(
                 "UPDATE task_records SET status='running',worker_state='starting',"
                 "process_binding_json=?,started_at=COALESCE(started_at,?),updated_at=?,"
                 "error_code=NULL,error_summary=NULL,allowed_actions_json=?,revision=revision+1 "
-                "WHERE task_id=? AND revision=? AND status='queued'",
+                "WHERE task_id=? AND deployment_instance_id=? AND revision=? AND status='queued'",
                 (
                     json_text({
                         "process_tree_id": owner_token,
                         "staging_asset_id": attempt_id,
                     }),
                     now, now, json_text(ARCHIVE_TASK_ACTIONS["running"]),
-                    task_id, expected_revision,
+                    task_id, self.database.deployment_instance_id, expected_revision,
                 ),
             )
             if updated.rowcount != 1:
@@ -187,7 +228,9 @@ class ArchiveTaskRepository:
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT task_id FROM task_records WHERE kind='archive' "
-                "AND status IN ('running','cancelling') ORDER BY created_at,task_id"
+                "AND deployment_instance_id=? AND status IN ('running','cancelling') "
+                "ORDER BY created_at,task_id",
+                (self.database.deployment_instance_id,),
             ).fetchall()
         return [self.get(str(row[0])) for row in rows]
 
@@ -199,21 +242,3 @@ class ArchiveTaskRepository:
 
     def get_task_card_summary(self, task_id: str) -> dict[str, Any]:
         return build_archive_task_card_summary(self.database, self.get(task_id))
-
-
-def _milestone(stage: str) -> tuple[int, str]:
-    try:
-        return ARCHIVE_WORKFLOW_MILESTONES[stage]
-    except KeyError as error:
-        raise WorkbenchPersistenceError("INVALID_ARCHIVE_STAGE") from error
-
-
-def _stage_index(stage: str) -> int:
-    return list(ARCHIVE_WORKFLOW_MILESTONES).index(stage) + 1
-
-
-def _validate_milestone(task: Mapping[str, Any]) -> None:
-    if task.get("progress_kind") != "workflow_milestone":
-        raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
-    if task.get("percent") != _milestone(str(task.get("stage")))[0]:
-        raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")

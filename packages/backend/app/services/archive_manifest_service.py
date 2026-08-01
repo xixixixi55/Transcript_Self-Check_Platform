@@ -12,28 +12,11 @@ from ..repository.archive_validator_repository import ArchiveValidationResult
 from ..repository.winrar_discovery_repository import WinRarCapability
 from .disc_sequence_service import generate_disc_numbers
 from .archive_staging_security_service import OWNERSHIP_MARKER_NAME
-
-# Disc capacity tiers (ascending decimal bytes).  A part's disc capacity is the
-# smallest tier that can hold its actual `size_bytes`.
-_DISC_CAPACITY_TIERS = (4_000_000_000, 22_000_000_000, 45_000_000_000)
-_DISC_MAX_CAPACITY: int = _DISC_CAPACITY_TIERS[-1]
-
-
-def compute_disc_capacity(size_bytes: int) -> int:
-    """Return the smallest disc capacity that can hold *size_bytes*.
-
-    Raises ValueError when *size_bytes* is non-positive or exceeds the
-    maximum disc capacity.
-    """
-    if not isinstance(size_bytes, int) or isinstance(size_bytes, bool):
-        raise ValueError("disc_capacity: size_bytes must be an integer")
-    if size_bytes <= 0:
-        raise ValueError("disc_capacity: size_bytes must be positive")
-    for tier in _DISC_CAPACITY_TIERS:
-        if size_bytes <= tier:
-            return tier
-    raise ValueError("disc_capacity: size_bytes exceeds maximum disc capacity")
-
+from .archive_manifest_output_security_service import (
+    assert_safe_output_file as _assert_safe_output_file,
+    compute_disc_capacity,
+    is_safe_output_file as _is_safe_output_file,
+)
 
 def _disc_date(first_disc_number: str) -> str:
     return f"{first_disc_number[2:6]}-{first_disc_number[6:8]}-{first_disc_number[8:10]}"
@@ -132,6 +115,9 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         path = (root / filename).resolve(strict=False)
         try:
             path.relative_to(root)
+            if not path.exists():
+                return False
+            _assert_safe_output_file(path)
             size = path.stat().st_size
         except (OSError, ValueError):
             return False
@@ -167,11 +153,10 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         return False
     if isinstance(max_part_count, int) and len(parts) > max_part_count:
         return False
-    archive_names = {
-        entry.name for entry in root.iterdir()
-        if entry.is_file() and entry.name != OWNERSHIP_MARKER_NAME
-    }
-    if archive_names != filenames:
+    entries = [entry for entry in root.iterdir() if entry.name != OWNERSHIP_MARKER_NAME]
+    if any(not _is_safe_output_file(entry) for entry in entries):
+        return False
+    if {entry.name for entry in entries} != filenames:
         return False
     return actual_total == manifest.get("actual_archive_bytes")
 
@@ -232,8 +217,13 @@ def validate_manifest_files(record) -> str | None:
         path = (root / filename).resolve(strict=False)
         try:
             path.relative_to(root)
+            if not path.exists():
+                return "ARCHIVE_MANIFEST_PART_MISSING"
+            _assert_safe_output_file(path)
         except ValueError:
             return "ARCHIVE_MANIFEST_INVALID"
+        except OSError:
+            return "ARCHIVE_MANIFEST_PART_CHANGED"
         try:
             size = path.stat().st_size
         except OSError:

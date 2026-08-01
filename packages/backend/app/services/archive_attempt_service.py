@@ -8,20 +8,25 @@ from typing import Any
 
 from ..repository.archive_attempt_repository import ArchiveAttemptRepository
 from ..repository.archive_preparation_repository import ArchivePreparationRepository
-from ..repository.archive_context_binding_repository import (
-    find_active_binding_for_attempt, find_binding, report_fingerprint,
-)
+from ..repository.archive_context_binding_repository import find_binding, report_fingerprint
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.source_record_repository import SourceRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_staging_security_service import (
-    cleanup_owned_staging,
     controlled_staging_root_id,
     remove_ownership_marker,
     write_ownership_marker,
 )
+from .archive_input_snapshot_service import (
+    SealedInputSnapshot, assert_sealed_input, cleanup_sealed_input_snapshot,
+    create_sealed_input_snapshot, load_sealed_input_snapshot,
+)
 from ..repository.workbench_serialization import validate_opaque_id
+from .archive_attempt_failure_service import fail_attempt
+from .archive_attempt_marker_service import remove_owned_marker
+from .archive_attempt_validation_service import expired as _expired
+from .archive_attempt_validation_service import revalidate_before_publish as _revalidate_before_publish
 
 
 class ArchiveAttemptService:
@@ -38,15 +43,21 @@ class ArchiveAttemptService:
 
     def accept(
         self, case_id: str, source_id: str, source_revision: int,
-        context_id: str, expected_case_revision: int,
+        context_id: str, expected_case_revision: int, task_id: str | None = None,
     ) -> dict[str, Any]:
         self._require_archive_source(source_id)
         context_id = validate_opaque_id(context_id)
         draft = CaseDraftRepository(self.database).get(case_id)
-        return self.preparation.prepare(
+        result = self.preparation.prepare(
             case_id, source_id, source_revision, context_id, expected_case_revision,
             int(draft["revision"]), report_fingerprint(draft["report"]),
+            task_id=task_id,
         )
+        if task_id is not None:
+            bound = self.repository.get_internal(result["attempt_id"]).get("task_id")
+            if bound != task_id:
+                raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_MISMATCH")
+        return result
 
     def start(self, attempt_id: str) -> dict[str, Any]:
         return self.repository.mark_running(attempt_id)
@@ -113,29 +124,7 @@ class ArchiveAttemptService:
         return persist_publish_intent(self, attempt_id, **kwargs)
 
     def revalidate_before_publish(self, attempt_id: str, report: object) -> None:
-        """Re-read server facts immediately before the filesystem publish boundary."""
-        attempt = self.repository.get_internal(attempt_id)
-        binding = find_active_binding_for_attempt(self.database, attempt_id)
-        shell = CaseShellRepository(self.database).get(attempt["case_id"])
-        source = self.sources.get(attempt["source_id"])
-        draft = CaseDraftRepository(self.database).get(attempt["case_id"])
-        if (
-            not binding or _expired(binding.get("expires_at"))
-            or binding["context_kind"] != "workbench"
-            or binding["case_id"] != attempt["case_id"]
-            or binding["source_id"] != attempt["source_id"]
-            or binding["source_revision"] != int(attempt["source_revision"])
-            or binding["draft_revision"] != int(attempt["draft_revision"])
-            or binding["report_fingerprint"] != attempt["report_fingerprint"]
-            or shell["source_id"] != attempt["source_id"]
-            or shell["lifecycle"] not in {"archive_queued", "archiving"}
-            or source["access_status"] != "available"
-            or int(source["revision"]) != int(attempt["source_revision"])
-            or int(draft["revision"]) != int(attempt["draft_revision"])
-            or report_fingerprint(draft["report"]) != attempt["report_fingerprint"]
-            or report_fingerprint(report) != attempt["report_fingerprint"]
-        ):
-            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
+        _revalidate_before_publish(self, attempt_id, report)
 
     def mark_publish_phase(self, attempt_id: str, phase: str) -> dict[str, Any]:
         from .archive_attempt_completion_service import mark_publish_phase
@@ -148,42 +137,25 @@ class ArchiveAttemptService:
         return complete_verified(self, attempt_id, registry, manifest_record, recovery=recovery)
 
     def fail(self, attempt_id: str, error_code: str) -> dict[str, Any]:
-        from ..repository.archive_attempt_restart_repository import interrupt_attempt
-        from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
-        intent = ArchivePublishIntentRepository(self.database).get_for_attempt(attempt_id)
-        if intent and intent["phase"] not in {"verified", "conflict"}:
-            result = interrupt_attempt(self.database, attempt_id)
-            record = self.repository.get_internal(attempt_id)
-            if record["staging_locator"]:
-                cleanup = cleanup_owned_staging(
-                    record, self.staging_root, self.database.deployment_instance_id,
-                )
-                if cleanup != "not_required":
-                    cleanup_error = "ARCHIVE_STAGING_CLEANUP_UNKNOWN" if cleanup == "unknown" else None
-                    if cleanup == "failed":
-                        cleanup_error = "ARCHIVE_STAGING_CLEANUP_FAILED"
-                    result = self.repository.mark_cleanup(attempt_id, cleanup, cleanup_error)
-            return result
-        result = self.repository.mark_failed(attempt_id, error_code)
-        self.repository.interrupt_case(attempt_id)
-        record = self.repository.get_internal(attempt_id)
-        if record["staging_locator"]:
-            cleanup = cleanup_owned_staging(
-                record, self.staging_root, self.database.deployment_instance_id,
-            )
-            if cleanup != "not_required":
-                cleanup_error = "ARCHIVE_STAGING_CLEANUP_UNKNOWN" if cleanup == "unknown" else None
-                if cleanup == "failed":
-                    cleanup_error = "ARCHIVE_STAGING_CLEANUP_FAILED"
-                result = self.repository.mark_cleanup(attempt_id, cleanup, cleanup_error)
-        return result
+        return fail_attempt(self, attempt_id, error_code)
+
+    def _cleanup_execution_input_best_effort(self, attempt_id: str) -> None:
+        try:
+            self.cleanup_execution_input(attempt_id)
+        except Exception:
+            # The durable snapshot row remains non-sealed/diagnosable for
+            # recovery; never turn a failed archive into a false success.
+            pass
 
     def staging_initializer(self, attempt_id: str) -> Callable[[Path], None]:
         root_id = self.staging_root_id
         deployment_id = self.database.deployment_instance_id
+        task_id = self.repository.get_internal(attempt_id).get("task_id")
 
         def initialize(staging_dir: Path) -> None:
-            token = write_ownership_marker(staging_dir, attempt_id, deployment_id, root_id)
+            token = write_ownership_marker(
+                staging_dir, attempt_id, deployment_id, root_id, task_id,
+            )
             try:
                 self.repository.bind_staging(attempt_id, str(staging_dir), root_id, token)
             except Exception:
@@ -195,10 +167,42 @@ class ArchiveAttemptService:
     def process_started_callback(self, attempt_id: str) -> Callable[[int], None]:
         return lambda pid: self.repository.bind_process(attempt_id, pid, utc_now())
 
-    def remove_marker(self, staging_dir: Path) -> None:
-        marker = staging_dir / ".workbench-staging-owner.json"
-        if marker.exists():
-            remove_ownership_marker(staging_dir)
+    def seal_execution_input(self, attempt_id: str, inventory: Any) -> SealedInputSnapshot:
+        return create_sealed_input_snapshot(
+            self.database, self.output_root, self.repository.get_internal(attempt_id), inventory,
+        )
+
+    def load_execution_input(self, attempt_id: str) -> SealedInputSnapshot:
+        return load_sealed_input_snapshot(self.database, self.output_root, attempt_id)
+
+    @staticmethod
+    def assert_execution_input(snapshot: SealedInputSnapshot) -> None:
+        assert_sealed_input(snapshot)
+
+    def cleanup_execution_input(self, attempt_id: str) -> str:
+        return cleanup_sealed_input_snapshot(self.database, self.output_root, attempt_id)
+
+    def remove_marker(self, staging_dir: Path, attempt_id: str | None = None) -> None:
+        remove_owned_marker(self, staging_dir, attempt_id)
+
+    def _publish_intent(self, attempt_id: str) -> dict[str, Any] | None:
+        from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
+        return ArchivePublishIntentRepository(self.database).get_for_attempt(attempt_id)
+
+    def _attempt_for_final_dir(self, final_dir: Path) -> str | None:
+        try:
+            relative = final_dir.resolve(strict=False).relative_to(
+                (self.output_root / "compressed").resolve(strict=False),
+            ).as_posix()
+        except ValueError:
+            return None
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT attempt_id FROM archive_publish_intents WHERE relative_final_dir=? "
+                "AND deployment_instance_id=? ORDER BY created_at DESC LIMIT 1",
+                (relative, self.database.deployment_instance_id),
+            ).fetchone()
+        return None if row is None else str(row[0])
 
     def recover_after_restart(self) -> list[str]:
         from .archive_attempt_recovery_reconciliation_service import recover_after_restart
@@ -210,14 +214,3 @@ class ArchiveAttemptService:
             raise WorkbenchPersistenceError("SOURCE_REVALIDATION_PENDING")
         if status != "available":
             raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
-
-
-def _expired(value: object) -> bool:
-    if value is None:
-        return False
-    try:
-        from datetime import datetime, timezone
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        return parsed <= datetime.now(timezone.utc)
-    except (TypeError, ValueError):
-        return True

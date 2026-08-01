@@ -12,18 +12,20 @@ REQUIRED_SCHEMA = {
     "case_drafts": {"case_id", "schema_version", "report_json", "report_version", "field_states_json", "asset_refs_json", "template_ref_json", "archive_plan_id", "lifecycle", "revision", "created_at", "updated_at"},
     "source_records": {"source_id", "schema_version", "case_id", "task_id", "source_type", "internal_path", "allowed_root", "allowed_root_id", "metadata_json", "fingerprint_json", "access_status", "requires_reselection", "revalidation_error_code", "last_verified_at", "revision", "created_at", "updated_at"},
     "shared_defaults": {"deployment_instance_id", "schema_version", "revision", "values_json", "migration_decision", "updated_at"},
-    "task_records": {"task_id", "schema_version", "case_id", "kind", "status", "stage", "percent", "counters_json", "input_revision", "attempt", "process_binding_json", "error_code", "error_summary", "cancel_requested", "created_at", "started_at", "updated_at", "finished_at", "progress_kind", "stage_label", "stage_index", "stage_count", "last_heartbeat_at", "output_bytes", "output_volume_count", "last_output_change_at", "worker_state", "allowed_actions_json", "revision"},
+    "task_records": {"task_id", "schema_version", "case_id", "kind", "status", "stage", "percent", "counters_json", "input_revision", "attempt", "process_binding_json", "error_code", "error_summary", "cancel_requested", "created_at", "started_at", "updated_at", "finished_at", "progress_kind", "stage_label", "stage_index", "stage_count", "last_heartbeat_at", "output_bytes", "output_volume_count", "last_output_change_at", "worker_state", "allowed_actions_json", "revision", "deployment_instance_id"},
     "edit_leases": {"lease_id", "schema_version", "case_id", "session_id", "client_instance_id", "lease_token", "last_heartbeat_at", "expires_at", "status", "takeover_of_lease_id", "revision"},
     "asset_references": {"asset_id", "case_id", "asset_kind", "fingerprint", "metadata_json", "status", "created_at"},
     "audit_events": {"event_id", "event_type", "deployment_instance_id", "client_instance_id", "session_id", "local_display_name", "identity_kind", "case_id", "task_id", "payload_json", "created_at"},
-    "archive_attempts": {"attempt_id", "schema_version", "case_id", "source_id", "input_revision", "source_revision", "draft_revision", "report_fingerprint", "status", "cleanup_status", "error_code", "manifest_id", "manifest_source_key", "manifest_input_fingerprint", "manifest_archive_fingerprint", "staging_root_id", "staging_locator", "ownership_marker_token", "process_pid", "process_started_at", "created_at", "started_at", "finished_at", "revision"},
+    "archive_attempts": {"attempt_id", "schema_version", "case_id", "task_id", "deployment_instance_id", "source_id", "input_revision", "source_revision", "draft_revision", "report_fingerprint", "status", "cleanup_status", "error_code", "manifest_id", "manifest_source_key", "manifest_input_fingerprint", "manifest_archive_fingerprint", "input_snapshot_id", "input_snapshot_root_id", "input_snapshot_locator", "input_snapshot_fingerprint", "input_snapshot_status", "staging_root_id", "staging_locator", "ownership_marker_token", "process_pid", "process_started_at", "created_at", "started_at", "finished_at", "revision"},
     "archive_context_bindings": {"context_hash", "attempt_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "context_kind", "active", "expires_at", "consumed_at", "created_at"},
-    "archive_publish_intents": {"intent_id", "attempt_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "source_key", "input_fingerprint", "archive_fingerprint", "manifest_id", "relative_final_dir", "public_manifest_json", "fence_id", "phase", "created_at", "updated_at"},
-    "archive_publish_fences": {"fence_id", "attempt_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "context_hash", "shell_revision", "status", "reason", "created_at", "updated_at"},
+    "archive_publish_intents": {"intent_id", "attempt_id", "task_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "source_key", "input_fingerprint", "archive_fingerprint", "manifest_id", "relative_final_dir", "public_manifest_json", "publication_id", "publication_relative_dir", "publication_digest", "publication_file_set_json", "publication_status", "fence_id", "phase", "created_at", "updated_at"},
+    "archive_publish_fences": {"fence_id", "attempt_id", "task_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "context_hash", "shell_revision", "status", "reason", "created_at", "updated_at"},
+    "archive_input_snapshots": {"snapshot_id", "task_id", "attempt_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision", "source_root_id", "snapshot_root_id", "snapshot_locator", "manifest_json", "input_fingerprint", "status", "marker_token", "created_at", "sealed_at", "updated_at"},
     "archive_plans": {"plan_id", "schema_version", "case_id", "plan_revision", "input_inventory_revision", "mapping_revision", "volume_slots_json", "verified_slots_json", "created_at", "updated_at", "revision"},
     "archive_assets": {"asset_id", "schema_version", "case_id", "task_id", "plan_id", "asset_kind", "status", "internal_locator", "metadata_json", "created_at", "updated_at", "revision"},
     "template_versions": {"template_id", "version", "schema_version", "display_name", "fingerprint", "validation_rules_json", "asset_id", "internal_locator", "registered_at"},
     "template_approvals": {"approval_record_id", "template_id", "version", "status", "acceptance_summary", "recorded_at"},
+    "workbench_deployment_owner": {"owner_id", "deployment_instance_id", "claimed_at"},
 }
 
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
@@ -101,6 +103,38 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
         "CREATE TABLE template_approvals (approval_record_id TEXT PRIMARY KEY, template_id TEXT NOT NULL, version TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'rejected', 'revoked')), acceptance_summary TEXT NOT NULL, recorded_at TEXT NOT NULL, FOREIGN KEY(template_id, version) REFERENCES template_versions(template_id, version))",
         "CREATE INDEX template_approval_history ON template_approvals(template_id, version, recorded_at DESC, approval_record_id DESC)",
     )),
+    (8, (
+        "ALTER TABLE task_records ADD COLUMN deployment_instance_id TEXT",
+        "ALTER TABLE archive_attempts ADD COLUMN task_id TEXT",
+        "ALTER TABLE archive_attempts ADD COLUMN deployment_instance_id TEXT",
+        "ALTER TABLE archive_attempts ADD COLUMN input_snapshot_id TEXT",
+        "ALTER TABLE archive_attempts ADD COLUMN input_snapshot_root_id TEXT",
+        "ALTER TABLE archive_attempts ADD COLUMN input_snapshot_locator TEXT",
+        "ALTER TABLE archive_attempts ADD COLUMN input_snapshot_fingerprint TEXT",
+        "ALTER TABLE archive_attempts ADD COLUMN input_snapshot_status TEXT",
+        "ALTER TABLE archive_publish_intents ADD COLUMN task_id TEXT",
+        "ALTER TABLE archive_publish_intents ADD COLUMN deployment_instance_id TEXT",
+        "ALTER TABLE archive_publish_intents ADD COLUMN publication_id TEXT",
+        "ALTER TABLE archive_publish_intents ADD COLUMN publication_relative_dir TEXT",
+        "ALTER TABLE archive_publish_intents ADD COLUMN publication_digest TEXT",
+        "ALTER TABLE archive_publish_intents ADD COLUMN publication_file_set_json TEXT",
+        "ALTER TABLE archive_publish_intents ADD COLUMN publication_status TEXT",
+        "ALTER TABLE archive_publish_fences ADD COLUMN task_id TEXT",
+        "ALTER TABLE archive_publish_fences ADD COLUMN deployment_instance_id TEXT",
+        "CREATE TABLE archive_input_snapshots (snapshot_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, attempt_id TEXT NOT NULL UNIQUE REFERENCES archive_attempts(attempt_id), deployment_instance_id TEXT NOT NULL, case_id TEXT NOT NULL REFERENCES case_shells(case_id), source_id TEXT NOT NULL REFERENCES source_records(source_id), source_revision INTEGER NOT NULL, draft_revision INTEGER NOT NULL, source_root_id TEXT NOT NULL, snapshot_root_id TEXT NOT NULL, snapshot_locator TEXT NOT NULL, manifest_json TEXT NOT NULL, input_fingerprint TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('copying', 'sealed', 'invalidated', 'cleaned')), marker_token TEXT NOT NULL, created_at TEXT NOT NULL, sealed_at TEXT, updated_at TEXT NOT NULL)",
+        "CREATE INDEX archive_task_deployment_status ON task_records(deployment_instance_id, kind, status, updated_at DESC)",
+        "CREATE INDEX archive_attempt_task ON archive_attempts(task_id, deployment_instance_id, status)",
+        "CREATE INDEX archive_snapshot_attempt ON archive_input_snapshots(attempt_id, status)",
+        "CREATE INDEX archive_snapshot_owner ON archive_input_snapshots(task_id, deployment_instance_id, status)",
+        "CREATE INDEX archive_publish_intent_task ON archive_publish_intents(task_id, deployment_instance_id, phase)",
+        "CREATE INDEX archive_publish_fence_task ON archive_publish_fences(task_id, deployment_instance_id, status)",
+    )),
+    (9, (
+        "CREATE TABLE workbench_deployment_owner (owner_id INTEGER PRIMARY KEY CHECK(owner_id = 1), deployment_instance_id TEXT NOT NULL, claimed_at TEXT NOT NULL)",
+    )),
+    (10, (
+        "CREATE INDEX archive_attempt_deployment_status ON archive_attempts(deployment_instance_id, status, created_at)",
+    )),
 )
 
 REQUIRED_INDEXES = {
@@ -108,7 +142,9 @@ REQUIRED_INDEXES = {
     "archive_context_attempt", "archive_publish_attempt", "archive_publish_fence_active_case",
     "archive_publish_fence_active_attempt", "archive_publish_fence_reconciliation",
     "archive_plan_case_revision", "archive_task_current", "archive_asset_task",
-    "template_approval_history",
+    "template_approval_history", "archive_task_deployment_status", "archive_attempt_task",
+    "archive_snapshot_attempt", "archive_snapshot_owner", "archive_publish_intent_task",
+    "archive_publish_fence_task", "archive_attempt_deployment_status",
 }
 
 

@@ -3,49 +3,26 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
-from .archive_attempt_projection_repository import internal_attempt, public_attempt
+from .archive_attempt_projection_repository import internal_attempt
+from .archive_attempt_evidence_repository import bind_manifest_evidence
+from .archive_attempt_lookup_repository import public as _public, row as _row
 from .archive_context_binding_repository import deactivate_bindings, report_fingerprint
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import WorkbenchPersistenceError
 from .workbench_serialization import validate_opaque_id
-
-_FINGERPRINT = re.compile(r"^[0-9a-f]{64}$")
-
-
-def bind_manifest_evidence(
-    database: WorkbenchDatabase,
-    attempt_id: str,
-    manifest_id: str,
-    source_key: str,
-    input_fingerprint: str,
-    archive_fingerprint: str,
-) -> None:
-    values = (source_key, input_fingerprint, archive_fingerprint)
-    if not all(isinstance(value, str) and _FINGERPRINT.fullmatch(value) for value in values):
-        raise WorkbenchPersistenceError("INVALID_ARCHIVE_COMPLETION_EVIDENCE")
-    with database.transaction() as connection:
-        updated = connection.execute(
-            "UPDATE archive_attempts SET manifest_id = ?, manifest_source_key = ?, "
-            "manifest_input_fingerprint = ?, manifest_archive_fingerprint = ?, "
-            "revision = revision + 1 WHERE attempt_id = ? AND status IN ('accepted', 'running')",
-            (
-                validate_opaque_id(manifest_id), *values,
-                validate_opaque_id(attempt_id),
-            ),
-        )
-        if updated.rowcount != 1:
-            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_STATE_INVALID")
-
+from .workbench_repository_helpers import json_text
+from .workbench_constants import ARCHIVE_TASK_ACTIONS
 
 def list_unfinished(database: WorkbenchDatabase) -> list[dict[str, Any]]:
     connection = database.connect()
     try:
         rows = connection.execute(
-            "SELECT * FROM archive_attempts WHERE status IN ('accepted', 'running') "
+            "SELECT * FROM archive_attempts WHERE deployment_instance_id=? "
+            "AND status IN ('accepted', 'running') "
             "ORDER BY created_at, attempt_id",
+            (database.deployment_instance_id,),
         ).fetchall()
     finally:
         connection.close()
@@ -65,9 +42,10 @@ def complete_verified_attempt(
     attempt_id = validate_opaque_id(evidence.get("attempt_id"))
     manifest_id = validate_opaque_id(evidence.get("manifest_id"))
     required = (
-        "case_id", "source_id", "source_revision", "draft_revision",
+        "task_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision",
         "report_fingerprint", "source_key", "input_fingerprint", "archive_fingerprint",
-        "relative_final_dir", "shell_revision",
+        "relative_final_dir", "shell_revision", "publication_id", "publication_digest",
+        "publication_file_set",
     )
     if any(key not in evidence for key in required):
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
@@ -75,11 +53,21 @@ def complete_verified_attempt(
     now = utc_now()
     with database.transaction() as connection:
         row = connection.execute(
-            "SELECT * FROM archive_attempts WHERE attempt_id = ?",
-            (attempt_id,),
+            "SELECT * FROM archive_attempts WHERE attempt_id = ? AND deployment_instance_id=?",
+            (attempt_id, database.deployment_instance_id),
         ).fetchone()
         if row is None:
             raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_NOT_FOUND")
+        legacy_attempt = (
+            evidence["task_id"] == f"legacy-task-{attempt_id}"
+            and row["task_id"] in (None, f"legacy-task-{attempt_id}")
+        )
+        if (
+            (not legacy_attempt and row["task_id"] != evidence["task_id"])
+            or row["deployment_instance_id"] != evidence["deployment_instance_id"]
+            or row["deployment_instance_id"] != database.deployment_instance_id
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         if row["status"] == "succeeded":
             if row["manifest_id"] != manifest_id:
                 raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
@@ -96,13 +84,28 @@ def complete_verified_attempt(
         ):
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         intent = connection.execute(
-            "SELECT * FROM archive_publish_intents WHERE attempt_id = ?", (attempt_id,),
+            "SELECT * FROM archive_publish_intents WHERE attempt_id = ? "
+            "AND deployment_instance_id=?",
+            (attempt_id, database.deployment_instance_id),
         ).fetchone()
         if intent is None or intent["phase"] not in {"indexed", "verified"}:
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
+        if (
+            intent["task_id"] != evidence["task_id"]
+            or intent["deployment_instance_id"] != database.deployment_instance_id
+            or intent["publication_id"] != evidence["publication_id"]
+            or intent["publication_digest"] != evidence["publication_digest"]
+            or intent["publication_file_set_json"] != json.dumps(
+                evidence["publication_file_set"], ensure_ascii=False,
+                sort_keys=True, separators=(",", ":"),
+            )
+            or intent["publication_status"] not in {"sealed", "published", "verified"}
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         fence = connection.execute(
-            "SELECT * FROM archive_publish_fences WHERE fence_id = ? AND attempt_id = ?",
-            (intent["fence_id"], attempt_id),
+            "SELECT * FROM archive_publish_fences WHERE fence_id = ? AND attempt_id = ? "
+            "AND deployment_instance_id=?",
+            (intent["fence_id"], attempt_id, database.deployment_instance_id),
         ).fetchone() if intent["fence_id"] else None
         expected_fence_statuses = {"active"} if not recovery else {"pending_verification"}
         if (
@@ -133,6 +136,11 @@ def complete_verified_attempt(
             "SELECT revision, report_json, lifecycle FROM case_drafts WHERE case_id = ?",
             (evidence["case_id"],),
         ).fetchone()
+        task = None if legacy_attempt else connection.execute(
+            "SELECT * FROM task_records WHERE task_id=? AND kind='archive' "
+            "AND deployment_instance_id=?",
+            (evidence["task_id"], database.deployment_instance_id),
+        ).fetchone()
         binding_query = (
             "SELECT context_hash, case_id, source_id, source_revision, draft_revision, report_fingerprint, "
             "context_kind, active FROM archive_context_bindings WHERE attempt_id = ? "
@@ -141,7 +149,13 @@ def complete_verified_attempt(
         binding = connection.execute(binding_query, (attempt_id,)).fetchall()
         allowed_lifecycles = {"archive_queued", "archiving"} if not recovery else {"archive_interrupted"}
         if (
-            shell is None or source is None or draft is None or len(binding) != 1
+            ((not legacy_attempt) and (
+                task is None or task["deployment_instance_id"] != database.deployment_instance_id
+                or task["case_id"] != evidence["case_id"]
+                or task["status"] not in ({"running", "cancelling", "interrupted", "succeeded"}
+                                            if recovery else {"running", "cancelling"})
+            ))
+            or shell is None or source is None or draft is None or len(binding) != 1
             or int(shell["revision"]) != int(evidence["shell_revision"])
             or shell["source_id"] != evidence["source_id"]
             or shell["lifecycle"] not in allowed_lifecycles
@@ -162,16 +176,30 @@ def complete_verified_attempt(
         ):
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         cleanup = "succeeded" if row["staging_locator"] else "not_required"
-        updated_attempt = connection.execute(
+        attempt_sql = (
             "UPDATE archive_attempts SET status = 'succeeded', manifest_id = ?, "
             "manifest_source_key = ?, manifest_input_fingerprint = ?, manifest_archive_fingerprint = ?, "
-            "cleanup_status = ?, error_code = NULL, finished_at = ?, revision = revision + 1 "
-            "WHERE attempt_id = ?",
-            (
-                manifest_id, evidence["source_key"], evidence["input_fingerprint"],
-                evidence["archive_fingerprint"], cleanup, now, attempt_id,
-            ),
+            "cleanup_status = ?, error_code = NULL, finished_at = ?, revision = revision + 1, "
+            "input_snapshot_status = COALESCE(input_snapshot_status, 'sealed') "
+            "WHERE attempt_id = ? AND deployment_instance_id=? "
+            "AND (task_id IS NULL OR task_id=?)"
+            if legacy_attempt else
+            "UPDATE archive_attempts SET status = 'succeeded', manifest_id = ?, "
+            "manifest_source_key = ?, manifest_input_fingerprint = ?, manifest_archive_fingerprint = ?, "
+            "cleanup_status = ?, error_code = NULL, finished_at = ?, revision = revision + 1, "
+            "input_snapshot_status = COALESCE(input_snapshot_status, 'sealed') "
+            "WHERE attempt_id = ? AND task_id = ? AND deployment_instance_id = ?"
         )
+        attempt_params = (
+            (manifest_id, evidence["source_key"], evidence["input_fingerprint"],
+             evidence["archive_fingerprint"], cleanup, now, attempt_id,
+             database.deployment_instance_id, f"legacy-task-{attempt_id}")
+            if legacy_attempt else
+            (manifest_id, evidence["source_key"], evidence["input_fingerprint"],
+             evidence["archive_fingerprint"], cleanup, now, attempt_id,
+             evidence["task_id"], database.deployment_instance_id)
+        )
+        updated_attempt = connection.execute(attempt_sql, attempt_params)
         if updated_attempt.rowcount != 1:
             raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_STATE_INVALID")
         deactivate_bindings(connection, attempt_id)
@@ -192,23 +220,29 @@ def complete_verified_attempt(
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         updated_fence = connection.execute(
             "UPDATE archive_publish_fences SET status = 'consumed', reason = 'ARCHIVE_COMPLETION_VERIFIED', updated_at = ? "
-            "WHERE fence_id = ? AND status IN ('active', 'pending_verification')",
-            (now, fence["fence_id"]),
+            "WHERE fence_id = ? AND attempt_id=? AND task_id=? AND deployment_instance_id=? "
+            "AND status IN ('active', 'pending_verification')",
+            (now, fence["fence_id"], attempt_id, evidence["task_id"], database.deployment_instance_id),
         )
         if updated_fence.rowcount != 1:
             raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_FENCE_STATE_INVALID")
+        updated_intent = connection.execute(
+            "UPDATE archive_publish_intents SET phase='verified', publication_status='verified', "
+            "updated_at=? WHERE attempt_id=? AND task_id=? AND deployment_instance_id=? "
+            "AND phase IN ('indexed','verified') AND publication_status IN ('sealed','published','verified')",
+            (now, attempt_id, evidence["task_id"], database.deployment_instance_id),
+        )
+        if updated_intent.rowcount != 1:
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_STATE_INVALID")
+        if not legacy_attempt and task["status"] != "succeeded":
+            updated_task = connection.execute(
+                "UPDATE task_records SET status='succeeded', stage='completed', percent=100, "
+                "error_code=NULL, error_summary=NULL, cancel_requested=0, updated_at=?, "
+                "finished_at=?, worker_state='released', allowed_actions_json=?, revision=revision+1 "
+                "WHERE task_id=? AND deployment_instance_id=? AND status IN ('running','cancelling','interrupted')",
+                (now, now, json_text(ARCHIVE_TASK_ACTIONS["succeeded"]),
+                 evidence["task_id"], database.deployment_instance_id),
+            )
+            if updated_task.rowcount != 1:
+                raise WorkbenchPersistenceError("ARCHIVE_TASK_STATE_INVALID")
     return _public(database, attempt_id)
-
-
-def _public(database: WorkbenchDatabase, attempt_id: str) -> dict[str, Any]:
-    return public_attempt(_row(database, attempt_id))
-
-
-def _row(database: WorkbenchDatabase, attempt_id: str) -> Any:
-    connection = database.connect()
-    try:
-        return connection.execute(
-            "SELECT * FROM archive_attempts WHERE attempt_id = ?", (attempt_id,),
-        ).fetchone()
-    finally:
-        connection.close()

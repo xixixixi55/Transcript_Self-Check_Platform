@@ -224,6 +224,34 @@ Word builder 只接收字段值和 Legacy 投影，不接收 UI 来源颜色。�
 
 本轮新增 `1D-025` 至 `1D-029T` 已完成，`1D-030T`、新的完整 Harness gate、`1D-017R`、独立 Review gate 和归档解除 gate 均保持未完成；截至本段对应的历史节点 Phase 2–4 尚未开始，后续状态见变更包 `tasks.md` 的各 Phase gate。
 
+## 2026-08-01 第二轮归档安全加固：先定义不可变边界
+
+本节是本轮实现的前置合同。此前在执行开始、Executor 返回和正式移动前重复扫描外部来源目录，只能提供离散时点的证据，不能证明 WinRAR 在整个执行期间读取的是同一组字节；正式目录扫描也不能与 SQLite 事务组成跨资源原子事务。本轮不再把这些扫描当作 M-3/M-4 的完整证明。
+
+### 不可变执行输入边界（M-3）
+
+任务绑定的 attempt 在第一次进入归档执行前，必须在受控输出根下创建唯一的输入快照目录。快照目录只能由当前 deployment、task 和 attempt 共同拥有；复制过程使用不跟随符号链接/reparse point 的逐文件读取，记录相对路径、文件大小、原始 mtime 和完整 SHA-256，复制完成后再次核对快照文件集合、大小和摘要，并以同文件系统原子改名从 `copying` 目录提升为 `sealed` 目录。durable `archive_input_snapshots` 记录只有在上述验证和目录/标记 flush 完成后才进入 `sealed`。
+
+WinRAR、RAR 完整性校验、inventory 和 Manifest 只能读取 `sealed` 快照；原始来源目录在快照 sealed 后的任何新增、删除、替换、截断、重命名或内容变化都不能改变本次归档读取的字节。快照未 sealed、快照摘要不一致、拥有者/任务/attempt 不一致或复制失败时，attempt 必须安全失败，不能进入 WinRAR、正式发布或复用。取消、崩溃和失败快照只允许由匹配 deployment/task/attempt/token 的清理路径处理；新的 retry 必须建立新的 task/attempt/snapshot。
+
+快照不移动、改名或锁死用户原始来源目录；其磁盘占用是归档执行的显式运行时成本，快照目录只允许落在配置的受控输出根内。快照清理不得越过该根或删除其他 task 的目录。旧的无快照 attempt 不自动补认身份：它们只能被恢复为 interrupted/conflict，不能作为新的正式输入证据。
+
+### Durable publication generation 边界（M-4A/M-4B）
+
+每次正式发布生成唯一 `publication_id`，并在 durable publish intent 中固定 task、attempt、deployment、fence、Manifest、正式相对目录、文件集合和 publication 摘要。staging 在移动前必须完成当前 Manifest 的精确集合/顺序/大小/MD5 校验；随后计算包含相对文件名、大小、MD5、Manifest 摘要和 publication 身份的 generation digest，并将 intent 的 publication 状态提升为 `sealed`。只有该 sealed generation 才能通过同一文件系统的原子改名进入正式目录；目标目录已存在或身份不一致时拒绝，不覆盖历史资产。
+
+SQLite 是 intent、fence、snapshot 和 publication generation 的唯一 durable 事实源。`.archive-manifest-index.json` 仅是由这些事实重建的派生投影：缺失、解析失败、结构异常或摘要不一致不得被解释为空列表；有可信 SQLite 事实时只能按事实重建，重建失败则完成失败。投影写入使用跨进程文件锁、临时文件 flush/fsync 和同文件系统原子替换，不使用进程内 `threading.Lock` 作为唯一协调。
+
+`archive_attempts` 与任务成功状态只能在 sealed publication generation、对应 intent/fence、Manifest/index 投影和当前案件 revision 均一致后，于一个 SQLite 完成事务内提交；该事务同时把 task 置为 succeeded。这里明确不声称 SQLite 与文件系统构成分布式事务：文件系统的原子改名和 sealed/read-only generation 是发布边界，SQLite 记录 generation 身份，所有后续下载、复用、恢复和 Word 导出都必须按 durable generation 解析并重新执行现有物理篡改门控。崩溃只能留下可识别的 pending publication，不得把未 sealed 或身份未固定的对象标为 succeeded。
+
+### Task/deployment 所有权链（M-1/M-2/L-1）
+
+新的 task、attempt、intent 和 fence 均 durable 记录 `task_id` 与 `deployment_instance_id`；attempt 只能通过服务层一次性绑定到尚未绑定的 task，task 的 staging binding 也必须反向验证同一 attempt 的 task 身份。公共 HTTP 输入不接受这些内部字段。shutdown 使用数据库中最新 task revision 重新读取 owner token、deployment、attempt、lease/fence 和状态，按有界 CAS 重试；CAS 竞争失败不能静默忽略，所有权转移或 durable succeeded 均不得降级。共享 SQLite 路径下，启动恢复和 active-fence normalization 只处理当前 deployment 的 durable owner；新 task 绑定当前 deployment，不能依赖默认路径偶然隔离。
+
+staging marker 内容绑定 task、attempt、deployment、受控 staging root、fence（已建立时）和随机 token。marker 删除只发生在 intent/fence durable 建立及 publication 原子移动之后，由明确发布所有者执行；同一合法发布已经删除 marker 时返回幂等成功，身份不匹配不得删除。marker 仍存在于 pending publication 时由恢复沿同一 owner/fence 边界处理。
+
+本轮实现任务、schema/migration、故障注入和测试有效性记录在 `tasks.md` 的 `1D-044` 至 `1D-051T`；`1D-017R` 仍保持未完成，修复后必须另行启动独立重审。
+
 ### D-003E：第四次独立 Review 的 publish fence、运行态恢复与真实来源摘要
 
 第四次独立 Level 3 Review 于 2026-07-28 未通过（Critical 0、High 4、Medium 1）。本轮已完成 `1D-033` 至 `1D-037T` 的本地实现和定向验证；新的完整 Harness 与独立 Review gate 仍未完成。实现不引入 Worker、队列、调度、自动续跑、进程接管或 Phase 2–4 能力。

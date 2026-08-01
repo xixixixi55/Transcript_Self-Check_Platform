@@ -517,6 +517,31 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [ ] **T024T** 准备人工验收清单：合成案件自动化证据 + 用户指定的真实大报告外部验证；不把真实输入、人员、路径、RAR、Manifest、DOCX 或运行输出写入仓库。完整 `verify:full` 前按 `AGENTS.md` 询问用户由谁执行。
 - [ ] **T025** 进行 Level 3 独立 Code Review，重点检查持久化迁移、并发/租约、任务恢复、资源准入、正式门控、清理白名单、Legacy 兼容和 Shadow 边界。验证：审查结论和修复项回写本变更包，不进入 Canonical 或 Shadow 真实治理。
 
+## 2026-08-01 第二轮独立 Review 安全加固（实现完成，等待独立重审）
+
+本轮基线为本地提交 `ac49518` 及其相对 `origin/codex/demo-next-stage` 的完整实现。第二次独立 Level 3 Review 结论为 `REJECT`：Critical 0、High 0、Medium 5（M-1、M-2、M-3、M-4A、M-4B）和 Low 1（L-1）。以下任务只修复这些阻断项及关联 marker owner；`1D-017R` 必须保持未勾选，修复后另行独立重审。
+
+- [x] **1D-044** 在本变更包中固化“sealed execution input”和“durable publication generation”两个安全边界，明确 SQLite 事实源、派生 index、共享 deployment owner、磁盘快照成本和旧记录兼容策略；不以离散源目录扫描或完成前最后一次 MD5 作为完整证明。
+- [x] **1D-045**（M-1）补齐 task-bound intent/fence/attempt/publication 身份链和 schema migration；服务层一次性绑定 task/attempt，公共 API 不接受内部绑定字段，跨 task/staging/intent/recovery 复用安全拒绝，缺 task 身份的旧记录按冲突/恢复策略处理。
+- [x] **1D-046**（M-2）让 bounded shutdown 基于当前 task revision、deployment owner、worker owner、attempt、lease/fence 做有界 CAS 收敛；revision 竞争重读重试，所有权转移和 durable succeeded 不降级，共享 SQLite recovery/active-fence normalization 只处理当前 deployment。
+- [x] **1D-047**（M-3）实现 task/attempt 所有的 copying→verified→sealed 输入快照；逐文件复制、链接/reparse 防护、完整集合/大小/摘要验证、取消/崩溃/失败清理和新 attempt 隔离；WinRAR 实际读取 sealed 快照而非外部源目录。
+- [x] **1D-048**（M-4A）实现 task-bound publication generation seal、同文件系统原子移动、受保护/read-only 边界、durable publication 摘要及完成事务内的 attempt/task succeeded 提交；恢复只完成同一 intent/fence/generation，历史正式资产不覆盖。
+- [x] **1D-049**（M-4B）把 SQLite durable intent/publication 作为 Manifest index 唯一事实源；损坏/缺失/结构异常 index fail-closed 或从可信事实重建，加入跨进程锁、flush/fsync、原子替换和并发追加保护，index 失败不得报告成功。
+- [x] **1D-050**（L-1）将 marker 绑定 task/attempt/deployment/root/fence/token，删除前验证发布所有权；正式移动后仅发布层删除一次，同一合法重入的已删除 marker 幂等成功，身份不匹配不得删除。
+- [x] **1D-051T** 为每个阻断项先加入可在修复前失败的真实故障注入，再完成 repository/service/controller/recovery/多 deployment/Windows 文件系统回归和测试有效性验证；仅使用合成数据，保持 `1D-017R`、Final Review、Production Review、Phase 5 和 archive 未完成。
+
+### 本轮实现与验证证据（2026-08-01）
+
+- **安全边界与 schema**：`archive_input_snapshots` 以 copying→validated（校验事实）→sealed→cleaned/invalidated 持久化 task/attempt/deployment 绑定输入快照；WinRAR、inventory、RAR 和 Manifest 只读取 sealed 快照。SQLite schema/migration 升至 v10，补齐 task/deployment、attempt snapshot、publication identity、deployment owner 和恢复状态表；共享 SQLite 路径由 durable deployment owner 启动门控拒绝第二 deployment。
+- **M-1/M-2**：publish intent/fence/attempt/task/publication 完整身份比较与一次性绑定已进入 repository/service/recovery 链；缺 task identity 的旧 intent 被显式标为 conflict，不作为合法重入。shutdown 重读当前 claim revision、owner token、deployment、attempt 和 fence 后做有界 CAS；竞争重读、所有权转移、已完成发布、重复 shutdown 与恢复均有测试。
+- **M-3**：快照在复制完成、逐文件集合/大小/内容摘要验证和 durable seal 前不会进入 WinRAR；源文件在执行期间改写后恢复原字节/大小/mtime 也不影响 sealed 输入；未 sealed 快照在重启中只做任务目录白名单清理，失败或取消不被后续 attempt 复用。
+- **M-4A/M-4B**：publication generation 用 task/attempt/deployment/fence/Manifest/file-set digest 固定身份；同文件系统原子改名后正式目录只读保护，完成事务引用同一 sealed generation。SQLite 是唯一 durable publication/index 事实源，JSON index 为可重建投影；跨进程锁、临时文件 flush/fsync/原子替换和损坏 index fail-closed/rebuild 已实现，index 失败不报告成功。
+- **L-1**：marker 绑定 task、attempt、deployment、staging root 和随机 token；删除前交叉验证当前 intent/fence/发布所有权，正式移动后仅发布层删除一次。同一合法发布的并发/重入删除返回幂等成功，错配 marker 不删除。
+- **测试有效性**：临时破坏 M-1 完整身份比较时 `test_task_b_cannot_bind_or_reuse_task_a_identity` 以 `DID NOT RAISE` 失败；绕过 M-2 当前 revision 收敛时 `test_shutdown_rereads_revision_after_worker_activity` 得到错误的 unresolved 状态；移除 M-3 sealed 前源证据校验时 `test_snapshot_change_before_seal_invalidates_input_and_never_executes` 以 `DID NOT RAISE` 失败；移除 M-4A 原子移动后的正式产物校验时 `test_publication_cutpoint_tamper_never_becomes_durable_success` 以 `DID NOT RAISE` 失败。四项临时破坏均已恢复，恢复后测试通过。
+- **门控**：第二轮安全/Worker/恢复/既有发布回归定向集合 `65 passed, 5 warnings`；修正 task-bound 发布顺序的公共 HTTP 合成夹具 `1 passed`。重新执行完整 `verify:full` 通过：前端 `44` 个文件、`211 passed`，后端 `796 passed, 3 skipped, 16 warnings`，架构检查、TypeScript、生产构建和 `verify:docs:strict` 均通过。补充 `python -m compileall -q packages/backend/app`、仓库资产检查（540 个跟踪文件）和 `git diff --check` 均通过。
+- **D 盘轻量冒烟边界**：在工作区 D 盘隔离 `--basetemp` 目录中使用纯合成数据执行公共 HTTP 自动接管/单任务失败后继续处理及 Windows `sdiskio` 缺少 `busy_time` 的回归，`2 passed, 1 warning`；临时目录已清理。该证据是 HTTP/TestClient 轻量自动化，不冒充新的浏览器人工验收；本轮没有修改 `word_templates/template.docx`。
+- **状态限制**：上述实现和门控不等同于独立 `1D-017R` 通过。`1D-017R` 继续未勾选；Final Review、Production Review、Phase 5 和 OpenSpec archive 均未开始，等待下一轮独立 Level 3 Review。
+
 ### Phase 5 gate
 
 - [ ] 五阶段合同均有定向测试和人工验收证据，且没有依赖隐式前端状态。

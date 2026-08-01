@@ -27,7 +27,9 @@ class ArchiveTaskResultService:
         self.plans = plans
         self.assets = assets
         self.attempts = attempts
-        self.manifests = ArchiveManifestRepository(attempts.output_root)
+        self.manifests = ArchiveManifestRepository(
+            attempts.output_root, database=attempts.database,
+        )
 
     def result(self, task_id: str) -> dict[str, Any]:
         task = self.tasks.get(task_id)
@@ -35,10 +37,13 @@ class ArchiveTaskResultService:
         if "view_result" not in summary["allowed_actions"] or summary["status"] != "succeeded":
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         attempt_id = (task.get("process_binding") or {}).get("staging_asset_id")
-        attempt = self.attempts.repository.get_public(str(attempt_id))
+        if not attempt_id:
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
+        attempt = self.attempts.repository.get_internal(str(attempt_id))
+        self._assert_task_attempt(task, attempt)
         if attempt["status"] != "succeeded" or not attempt["manifest_id"]:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
-        manifest = self._verified_manifest(str(attempt_id), str(attempt["manifest_id"]))
+        manifest = self._verified_manifest(task_id, str(attempt_id), str(attempt["manifest_id"]))
         plan = self.plans.get_latest_for_case(task["case_id"])
         return {
             "task_id": task_id,
@@ -64,10 +69,13 @@ class ArchiveTaskResultService:
         if "view_result" not in summary["allowed_actions"]:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         attempt_id = (task.get("process_binding") or {}).get("staging_asset_id")
-        attempt = self.attempts.repository.get_public(str(attempt_id))
+        if not attempt_id:
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
+        attempt = self.attempts.repository.get_internal(str(attempt_id))
+        self._assert_task_attempt(task, attempt)
         if attempt["status"] != "succeeded":
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
-        manifest = self._verified_manifest(str(attempt_id), str(attempt["manifest_id"]))
+        manifest = self._verified_manifest(task_id, str(attempt_id), str(attempt["manifest_id"]))
         part = next(
             (
                 item for item in manifest.public_manifest["parts"]
@@ -85,7 +93,7 @@ class ArchiveTaskResultService:
             raise WorkbenchPersistenceError("ARCHIVE_PART_NOT_FOUND") from error
         return str(part["filename"]), path
 
-    def _verified_manifest(self, attempt_id: str, manifest_id: str) -> Any:
+    def _verified_manifest(self, task_id: str, attempt_id: str, manifest_id: str) -> Any:
         records = [
             item for item in self.manifests.find_for_attempt(attempt_id)
             if item.manifest_id == manifest_id
@@ -94,7 +102,7 @@ class ArchiveTaskResultService:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         record = records[0]
         intent = ArchivePublishIntentRepository(self.attempts.database).get_for_attempt(attempt_id)
-        if intent is None or intent["phase"] != "verified" or any(
+        if intent is None or intent["phase"] != "verified" or intent.get("publication_status") != "verified" or any(
             intent[key] != value for key, value in {
                 "manifest_id": record.manifest_id,
                 "source_key": record.source_key,
@@ -105,6 +113,13 @@ class ArchiveTaskResultService:
             }.items()
         ):
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
+        if (
+            intent.get("task_id") != task_id
+            or intent.get("deployment_instance_id") != self.attempts.database.deployment_instance_id
+            or record.publication_id != intent.get("publication_id")
+            or record.publication_digest != intent.get("publication_digest")
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         view = SimpleNamespace(
             manifest_id=record.manifest_id,
             public_manifest=record.public_manifest,
@@ -113,3 +128,11 @@ class ArchiveTaskResultService:
         if validate_manifest_files(view) is not None:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         return record
+
+    def _assert_task_attempt(self, task: dict[str, Any], attempt: dict[str, Any]) -> None:
+        if (
+            attempt.get("task_id") != task["task_id"]
+            or attempt.get("deployment_instance_id") != self.attempts.database.deployment_instance_id
+            or attempt.get("case_id") != task["case_id"]
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")

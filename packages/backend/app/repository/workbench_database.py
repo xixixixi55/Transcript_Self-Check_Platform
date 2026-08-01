@@ -111,8 +111,23 @@ class WorkbenchDatabase:
                 )
             connection.execute(f"PRAGMA user_version = {WORKBENCH_DATABASE_SCHEMA_VERSION}")
             validate_schema(connection)
+            owner = connection.execute(
+                "SELECT deployment_instance_id FROM workbench_deployment_owner WHERE owner_id=1",
+            ).fetchone()
+            if owner is None:
+                connection.execute(
+                    "INSERT INTO workbench_deployment_owner(owner_id, deployment_instance_id, claimed_at) "
+                    "VALUES (1, ?, ?)",
+                    (self.deployment_instance_id, utc_now()),
+                )
+            elif owner["deployment_instance_id"] != self.deployment_instance_id:
+                raise WorkbenchPersistenceError("WORKBENCH_DEPLOYMENT_OWNER_MISMATCH")
+            _migrate_legacy_archive_identity(connection, self.deployment_instance_id)
             connection.commit()
         except SchemaIncompatibleError:
+            connection.rollback()
+            raise
+        except WorkbenchPersistenceError:
             connection.rollback()
             raise
         except sqlite3.DatabaseError as error:
@@ -152,3 +167,36 @@ class WorkbenchDatabase:
             return {str(row[0]) for row in rows}
         finally:
             connection.close()
+
+
+def _migrate_legacy_archive_identity(connection: sqlite3.Connection, deployment_id: str) -> None:
+    """Give pre-task records an explicit attempt-bound compatibility identity."""
+    connection.execute(
+        "UPDATE task_records SET deployment_instance_id=? WHERE deployment_instance_id IS NULL",
+        (deployment_id,),
+    )
+    connection.execute(
+        "UPDATE archive_attempts SET deployment_instance_id=?, "
+        "task_id=COALESCE(task_id, 'legacy-task-' || attempt_id) "
+        "WHERE deployment_instance_id IS NULL OR task_id IS NULL",
+        (deployment_id,),
+    )
+    connection.execute(
+        "UPDATE archive_publish_intents SET deployment_instance_id=?, "
+        "task_id=COALESCE(task_id, 'legacy-task-' || attempt_id), "
+        "publication_id=COALESCE(publication_id, 'publication-' || attempt_id || '-' || manifest_id), "
+        "publication_relative_dir=COALESCE(publication_relative_dir, relative_final_dir), "
+        "publication_status=CASE WHEN task_id IS NULL OR publication_id IS NULL "
+        "OR publication_status IS NULL THEN 'conflict' ELSE publication_status END, "
+        "phase=CASE WHEN task_id IS NULL OR publication_id IS NULL "
+        "OR publication_status IS NULL THEN 'conflict' ELSE phase END "
+        "WHERE deployment_instance_id IS NULL OR task_id IS NULL OR publication_id IS NULL",
+        (deployment_id,),
+    )
+    connection.execute(
+        "UPDATE archive_publish_fences SET deployment_instance_id=?, "
+        "task_id=COALESCE(task_id, (SELECT task_id FROM archive_attempts a "
+        "WHERE a.attempt_id=archive_publish_fences.attempt_id)) "
+        "WHERE deployment_instance_id IS NULL OR task_id IS NULL",
+        (deployment_id,),
+    )

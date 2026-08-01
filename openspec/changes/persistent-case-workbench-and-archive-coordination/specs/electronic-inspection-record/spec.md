@@ -685,3 +685,45 @@ Legacy output pipeline; they are not a competing persistent workbench flow.
   source status, retry, and return-to-list experience
 - **AND** it does not reintroduce the old page's mixed archive-upload flow or duplicate field,
   validation, attachment, or export rules
+
+## 2026-08-01 第二轮归档安全加固合同（active change）
+
+以下合同在本轮实现完成并经后续独立 Review 前，属于 active change 约束，不得提前当作已通过的生产事实。
+
+### REQ-ARCHIVE-IMMUTABLE-INPUT
+
+**Scenario: sealed execution input**
+
+- **WHEN** a task begins archive execution
+- **THEN** the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory without following links or reparse points, verifies every relative path, size and SHA-256, flushes the copy, and durably marks it `sealed`
+- **AND** WinRAR, inventory, RAR validation and Manifest generation read only the sealed snapshot, never the mutable source directory
+- **AND** an unsealed, missing, owner-mismatched, incomplete or digest-mismatched snapshot cannot enter WinRAR, publication, reuse or success
+- **AND** source changes after sealing cannot change the bytes read by this attempt; failure, cancellation, crash and retry never reuse a prior attempt snapshot
+
+### REQ-ARCHIVE-PUBLICATION-GENERATION
+
+**Scenario: durable publication generation**
+
+- **WHEN** a validated staging set is published
+- **THEN** a unique `publication_id` and generation digest bind task, attempt, deployment, fence, Manifest, exact file set, sizes and MD5 values in the durable publish intent
+- **AND** the staging set is sealed before same-filesystem atomic rename, historical formal directories are never overwritten, and a partial/crashed generation remains pending or recoverable rather than succeeded
+- **AND** the completion transaction can set attempt and task to `succeeded` only when the sealed publication identity, intent/fence, current revisions, Manifest and index projection agree
+- **AND** download, reuse, recovery and Word export resolve the durable publication identity and re-run the existing physical integrity gate; post-completion tampering is rejected
+
+### REQ-ARCHIVE-MANIFEST-PROJECTION
+
+**Scenario: fail-closed derived index**
+
+- **WHEN** the JSON Manifest index is missing, malformed, structurally invalid, digest-inconsistent or concurrently updated
+- **THEN** it is never interpreted as an empty authoritative list
+- **AND** SQLite durable publication facts are the only authority and may rebuild the projection under a cross-process lock with temp-file flush/fsync and atomic replacement
+- **AND** if the projection cannot be rebuilt or persisted, public completion cannot report success
+
+### REQ-ARCHIVE-OWNERSHIP-CAS
+
+**Scenario: current claim shutdown and marker ownership**
+
+- **WHEN** bounded shutdown or recovery handles a pending/running archive claim
+- **THEN** it re-reads current durable revision, deployment owner, worker owner token, attempt and fence, and performs bounded CAS only while the current claim remains owned and interruptible
+- **AND** revision races are retried or reported as unresolved, never silently ignored; transferred ownership and durable succeeded facts are not downgraded
+- **AND** staging markers bind task, attempt, deployment, controlled root, fence and random token, and only the matching publisher deletes once after durable intent/fence and formal move; an already-deleted marker for the same publication is idempotent success

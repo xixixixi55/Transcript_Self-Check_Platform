@@ -96,12 +96,20 @@ def test_empty_init_upgrade_repeat_and_deployment_isolation(tmp_path: Path) -> N
     first_path = database_path_for_deployment(tmp_path, "SYNTHETIC-A")
     second_path = database_path_for_deployment(tmp_path, "SYNTHETIC-B")
     first = WorkbenchDatabase(first_path, "SYNTHETIC-A")
-    assert first.schema_version() == 7
-    assert {"schema_migrations", "case_shells", "case_drafts", "source_records", "shared_defaults", "task_records", "edit_leases", "asset_references", "audit_events", "archive_attempts", "archive_context_bindings", "archive_publish_intents", "archive_publish_fences", "archive_plans", "archive_assets", "template_versions", "template_approvals"}.issubset(first.table_names())
+    assert first.schema_version() == 10
+    assert {"schema_migrations", "case_shells", "case_drafts", "source_records", "shared_defaults", "task_records", "edit_leases", "asset_references", "audit_events", "archive_attempts", "archive_context_bindings", "archive_publish_intents", "archive_publish_fences", "archive_plans", "archive_assets", "template_versions", "template_approvals", "workbench_deployment_owner"}.issubset(first.table_names())
     WorkbenchDatabase(first_path, "SYNTHETIC-A")
     second = WorkbenchDatabase(second_path, "SYNTHETIC-B")
     assert first_path != second_path
-    assert second.schema_version() == 7
+    assert second.schema_version() == 10
+
+
+def test_shared_sqlite_path_rejects_a_second_deployment_owner(tmp_path: Path) -> None:
+    shared_path = tmp_path / "SYNTHETIC-shared-workbench.sqlite3"
+    WorkbenchDatabase(shared_path, "SYNTHETIC-OWNER-A")
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        WorkbenchDatabase(shared_path, "SYNTHETIC-OWNER-B")
+    assert error.value.code == "WORKBENCH_DEPLOYMENT_OWNER_MISMATCH"
 
 
 def test_default_database_root_is_application_data_not_repository_root() -> None:

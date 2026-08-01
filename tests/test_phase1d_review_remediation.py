@@ -535,7 +535,7 @@ def test_verified_manifest_is_reconciled_before_restart_interruption(database, t
     assert recovered["manifest_source_key"] == identity["source_key"]
 
 
-def test_move_completed_before_published_phase_is_recovered_without_republish(
+def test_move_before_sealed_publication_cannot_become_succeeded(
     database, tmp_path: Path,
 ) -> None:
     shell = ready_case(database)
@@ -561,16 +561,18 @@ def test_move_completed_before_published_phase_is_recovered_without_republish(
         attempt["attempt_id"], context_id=context_id, **identity,
         manifest_id=manifest_id, final_dir=final_dir, public_manifest=manifest,
     )
-    # Simulate os.replace having completed before the process died.  The intent
-    # must still be in intent_persisted because mark_phase was never reached.
+    # A move before the publication generation is sealed is not recoverable as
+    # success.  The intent remains the only authority and must reject cleanup.
     assert service.context_binding(context_id)["attempt_id"] == attempt["attempt_id"]
-    ArchiveManifestRepository(output).find_for_attempt(attempt["attempt_id"])
+    with pytest.raises(ArchiveManifestRepositoryError, match="ARCHIVE_INDEX_MISSING"):
+        ArchiveManifestRepository(output).find_for_attempt(attempt["attempt_id"])
     restarted = ArchiveAttemptService(database, output)
+    assert restarted.recover_after_restart() == [attempt["attempt_id"]]
+    assert restarted.repository.get_public(attempt["attempt_id"])["status"] == "interrupted"
+    intent = restarted._publish_intent(attempt["attempt_id"])
+    assert intent["phase"] == "conflict"
+    assert not final_dir.exists()
     assert restarted.recover_after_restart() == []
-    assert restarted.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
-    assert restarted.recover_after_restart() == []
-    assert len(ArchiveManifestRepository(output).find_for_attempt(attempt["attempt_id"])) == 1
-    assert final_dir.joinpath(filename).read_bytes() == payload
 
 
 def test_damaged_manifest_evidence_remains_interrupted(database, tmp_path: Path) -> None:
@@ -733,6 +735,7 @@ def test_transient_publish_phase_database_lock_keeps_intent_retryable(
         input_fingerprint="8" * 64, archive_fingerprint="9" * 64,
         manifest_id=manifest_id, final_dir=final_dir, public_manifest=manifest,
     )
+    service.mark_publish_phase(attempt["attempt_id"], "published")
 
     def fail_phase(*_args, **_kwargs):
         raise sqlite3.OperationalError("database is locked")
@@ -740,7 +743,7 @@ def test_transient_publish_phase_database_lock_keeps_intent_retryable(
     monkeypatch.setattr(ArchivePublishIntentRepository, "mark_phase", fail_phase)
     assert service.recover_after_restart() == []
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "interrupted"
-    assert ArchivePublishIntentRepository(database).get_for_attempt(attempt["attempt_id"])["phase"] == "intent_persisted"
+    assert ArchivePublishIntentRepository(database).get_for_attempt(attempt["attempt_id"])["phase"] == "published"
     monkeypatch.undo()
     assert service.recover_after_restart() == []
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
@@ -895,7 +898,7 @@ def test_completion_transaction_rejects_draft_zero_row_race(
         assert connection.execute("SELECT lifecycle FROM case_drafts WHERE case_id = ?", (CASE_ID,)).fetchone()[0] == "review_ready"
 
 
-def test_success_commit_before_verified_phase_is_reconciled_without_rollback(
+def test_success_commit_and_verified_phase_share_one_transaction(
     database, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service, attempt, registry, record = _trusted_completion(
@@ -909,10 +912,11 @@ def test_success_commit_before_verified_phase_is_reconciled_without_rollback(
         return original_mark_phase(repository, attempt_id, phase)
 
     monkeypatch.setattr(ArchivePublishIntentRepository, "mark_phase", fail_verified)
-    with pytest.raises(sqlite3.OperationalError):
-        service.complete_verified(attempt["attempt_id"], registry, record)
+    # Completion no longer has a post-commit mark_phase call.  A failure
+    # injected there must not create a false intermediate success window.
+    service.complete_verified(attempt["attempt_id"], registry, record)
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
-    assert ArchivePublishIntentRepository(database).get_for_attempt(attempt["attempt_id"])["phase"] == "indexed"
+    assert ArchivePublishIntentRepository(database).get_for_attempt(attempt["attempt_id"])["phase"] == "verified"
     monkeypatch.undo()
     assert service.recover_after_restart() == []
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"

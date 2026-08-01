@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import shutil
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ def controlled_staging_root_id(staging_root: Path, deployment_id: str) -> str:
 
 def write_ownership_marker(
     staging_dir: Path, attempt_id: str, deployment_id: str, staging_root_id: str,
+    task_id: str | None = None,
 ) -> str:
     token = secrets.token_urlsafe(32)
     payload = {
@@ -30,6 +32,8 @@ def write_ownership_marker(
         "staging_root_id": staging_root_id,
         "marker_token": token,
     }
+    if task_id is not None:
+        payload["task_id"] = task_id
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -48,7 +52,31 @@ def write_ownership_marker(
 
 
 def remove_ownership_marker(staging_dir: Path) -> None:
-    (staging_dir / OWNERSHIP_MARKER_NAME).unlink()
+    marker = staging_dir / OWNERSHIP_MARKER_NAME
+    try:
+        marker.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        staging_dir.chmod(
+            stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
+            | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
+            | stat.S_IROTH | stat.S_IXOTH
+        )
+    except OSError:
+        pass
+    try:
+        marker.unlink()
+    except PermissionError:
+        # A concurrent legal publisher may have removed the marker and then
+        # restored the directory read-only.  Recheck before retrying so the
+        # caller can treat that exact race as idempotent success.
+        if not marker.exists():
+            raise FileNotFoundError(marker)
+        marker.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        staging_dir.chmod(
+            stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
+            | stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP
+            | stat.S_IROTH | stat.S_IWOTH | stat.S_IXOTH
+        )
+        marker.unlink()
 
 
 def cleanup_owned_staging(
@@ -81,6 +109,8 @@ def cleanup_owned_staging(
         "staging_root_id": record.get("staging_root_id"),
         "marker_token": record.get("ownership_marker_token"),
     }
+    if record.get("task_id") is not None:
+        expected["task_id"] = record.get("task_id")
     if marker != expected or _process_is_active(record.get("process_pid")):
         return "unknown"
     try:

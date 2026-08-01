@@ -6,10 +6,7 @@ import json
 import re
 from typing import Any
 
-from .archive_context_binding_repository import (
-    context_binding_hash, report_fingerprint as calculate_report_fingerprint,
-)
-from .archive_publish_fence_repository import active_for_case
+from .archive_publish_identity_repository import intent_dict, same_publish_identity
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import WorkbenchPersistenceError
 from .workbench_serialization import validate_opaque_id
@@ -28,147 +25,43 @@ class ArchivePublishIntentRepository:
         source_revision: int, draft_revision: int, report_fingerprint: str,
         source_key: str, input_fingerprint: str, archive_fingerprint: str,
         manifest_id: str, relative_final_dir: str,
-        public_manifest: dict[str, Any],
+        public_manifest: dict[str, Any], task_id: str | None = None,
+        deployment_instance_id: str | None = None, publication_id: str | None = None,
     ) -> dict[str, Any]:
-        values = (source_key, input_fingerprint, archive_fingerprint, report_fingerprint)
-        if not all(isinstance(value, str) and _HASH.fullmatch(value) for value in values):
-            raise WorkbenchPersistenceError("INVALID_ARCHIVE_COMPLETION_EVIDENCE")
-        attempt_id = validate_opaque_id(attempt_id)
-        case_id = validate_opaque_id(case_id)
-        source_id = validate_opaque_id(source_id)
-        context_id = validate_opaque_id(context_id)
-        target_context_id = validate_opaque_id(target_context_id)
-        manifest_id = validate_opaque_id(manifest_id)
-        if not isinstance(relative_final_dir, str) or not relative_final_dir or relative_final_dir.startswith(("/", "\\")) or ".." in relative_final_dir.replace("\\", "/").split("/"):
-            raise WorkbenchPersistenceError("INVALID_ARCHIVE_PUBLISH_INTENT")
-        if not isinstance(public_manifest, dict):
-            raise WorkbenchPersistenceError("INVALID_ARCHIVE_PUBLISH_INTENT")
-        if relative_final_dir.replace("\\", "/") != f"{target_context_id}/{manifest_id}":
-            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
-        serialized = json.dumps(public_manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        now = utc_now()
-        with self.database.transaction() as connection:
-            existing = connection.execute(
-                "SELECT * FROM archive_publish_intents WHERE attempt_id = ?", (attempt_id,),
-            ).fetchone()
-            if existing is not None:
-                if not _same_publish_identity(
-                    connection, existing, attempt_id=attempt_id, case_id=case_id,
-                    source_id=source_id, source_revision=source_revision,
-                    draft_revision=draft_revision, report_fingerprint=report_fingerprint,
-                    source_key=source_key, input_fingerprint=input_fingerprint,
-                    archive_fingerprint=archive_fingerprint, manifest_id=manifest_id,
-                    relative_final_dir=relative_final_dir, serialized_manifest=serialized,
-                    context_hash=context_binding_hash(context_id),
-                ):
-                    raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_CONFLICT")
-                if existing["phase"] == "conflict":
-                    raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_CONFLICT")
-                return _dict(existing)
-            attempt = connection.execute(
-                "SELECT case_id, source_id, input_revision, source_revision, draft_revision, report_fingerprint, status "
-                "FROM archive_attempts WHERE attempt_id = ?", (attempt_id,),
-            ).fetchone()
-            if attempt is None:
-                raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_NOT_FOUND")
-            if (
-                attempt["case_id"] != case_id or attempt["source_id"] != source_id
-                or int(attempt["source_revision"] or attempt["input_revision"]) != source_revision
-                or int(attempt["draft_revision"] or 0) != draft_revision
-                or attempt["report_fingerprint"] != report_fingerprint
-                or attempt["status"] not in {"accepted", "running"}
-            ):
-                raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
-            shell = connection.execute(
-                "SELECT source_id, lifecycle, revision FROM case_shells WHERE case_id = ?",
-                (case_id,),
-            ).fetchone()
-            source = connection.execute(
-                "SELECT case_id, revision, access_status FROM source_records WHERE source_id = ?",
-                (source_id,),
-            ).fetchone()
-            draft = connection.execute(
-                "SELECT revision, report_json, lifecycle FROM case_drafts WHERE case_id = ?",
-                (case_id,),
-            ).fetchone()
-            binding = connection.execute(
-                "SELECT case_id, source_id, source_revision, draft_revision, report_fingerprint, "
-                "context_kind, active FROM archive_context_bindings "
-                "WHERE context_hash = ? AND attempt_id = ?",
-                (context_binding_hash(context_id), attempt_id),
-            ).fetchone()
-            if (
-                shell is None or source is None or draft is None or binding is None
-                or shell["source_id"] != source_id
-                or shell["lifecycle"] not in {"archive_queued", "archiving"}
-                or source["case_id"] != case_id
-                or int(source["revision"]) != source_revision
-                or source["access_status"] != "available"
-                or int(draft["revision"]) != draft_revision
-                or draft["lifecycle"] not in {"archive_queued", "archiving"}
-                or calculate_report_fingerprint(json.loads(draft["report_json"])) != report_fingerprint
-                or binding["case_id"] != case_id
-                or binding["source_id"] != source_id
-                or int(binding["source_revision"]) != source_revision
-                or int(binding["draft_revision"]) != draft_revision
-                or binding["report_fingerprint"] != report_fingerprint
-                or binding["context_kind"] != "workbench"
-                or not bool(binding["active"])
-            ):
-                raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
-            existing_fence = active_for_case(connection, case_id)
-            if existing_fence is not None and existing_fence["attempt_id"] != attempt_id:
-                raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_FENCE_ACTIVE")
-            intent_id = f"publish-{attempt_id}-{manifest_id}"
-            fence_id = f"fence-{attempt_id}"
-            connection.execute(
-                "INSERT INTO archive_publish_fences(fence_id, attempt_id, case_id, source_id, source_revision, draft_revision, report_fingerprint, context_hash, shell_revision, status, reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?)",
-                (
-                    fence_id, attempt_id, case_id, source_id, source_revision,
-                    draft_revision, report_fingerprint, context_binding_hash(context_id),
-                    int(shell["revision"]), now, now,
-                ),
-            )
-            connection.execute(
-                "INSERT INTO archive_publish_intents(intent_id, attempt_id, case_id, source_id, source_revision, draft_revision, report_fingerprint, source_key, input_fingerprint, archive_fingerprint, manifest_id, relative_final_dir, public_manifest_json, fence_id, phase, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'intent_persisted', ?, ?)",
-                (
-                    intent_id, attempt_id, case_id, source_id, source_revision,
-                    draft_revision, report_fingerprint, source_key, input_fingerprint,
-                    archive_fingerprint, manifest_id, relative_final_dir, serialized,
-                    fence_id, now, now,
-                ),
-            )
-            return {
-                "intent_id": intent_id, "attempt_id": attempt_id, "case_id": case_id,
-                "source_id": source_id, "source_revision": source_revision,
-                "draft_revision": draft_revision, "report_fingerprint": report_fingerprint,
-                "source_key": source_key, "input_fingerprint": input_fingerprint,
-                "archive_fingerprint": archive_fingerprint, "manifest_id": manifest_id,
-                "relative_final_dir": relative_final_dir, "public_manifest": public_manifest,
-                "fence_id": fence_id,
-                "phase": "intent_persisted", "created_at": now, "updated_at": now,
-            }
-
+        from .archive_publish_intent_create_repository import create_intent
+        return create_intent(
+            self, attempt_id=attempt_id, case_id=case_id, source_id=source_id,
+            context_id=context_id, target_context_id=target_context_id,
+            source_revision=source_revision, draft_revision=draft_revision,
+            report_fingerprint=report_fingerprint, source_key=source_key,
+            input_fingerprint=input_fingerprint, archive_fingerprint=archive_fingerprint,
+            manifest_id=manifest_id, relative_final_dir=relative_final_dir,
+            public_manifest=public_manifest, task_id=task_id,
+            deployment_instance_id=deployment_instance_id, publication_id=publication_id,
+        )
     def get_for_attempt(self, attempt_id: str) -> dict[str, Any] | None:
         connection = self.database.connect()
         try:
             row = connection.execute(
-                "SELECT * FROM archive_publish_intents WHERE attempt_id = ?",
-                (validate_opaque_id(attempt_id),),
+                "SELECT * FROM archive_publish_intents WHERE attempt_id = ? "
+                "AND deployment_instance_id=?",
+                (validate_opaque_id(attempt_id), self.database.deployment_instance_id),
             ).fetchone()
         finally:
             connection.close()
-        return None if row is None else _dict(row)
+        return None if row is None else intent_dict(row)
 
     def list_unfinished(self) -> list[dict[str, Any]]:
         connection = self.database.connect()
         try:
             rows = connection.execute(
-                "SELECT * FROM archive_publish_intents WHERE phase NOT IN ('verified', 'conflict') ORDER BY created_at, intent_id",
+                "SELECT * FROM archive_publish_intents WHERE deployment_instance_id=? "
+                "AND phase NOT IN ('verified', 'conflict') ORDER BY created_at, intent_id",
+                (self.database.deployment_instance_id,),
             ).fetchall()
         finally:
             connection.close()
-        return [_dict(row) for row in rows]
+        return [intent_dict(row) for row in rows]
 
     def mark_phase(self, attempt_id: str, phase: str) -> dict[str, Any]:
         if phase not in _PHASES:
@@ -176,11 +69,17 @@ class ArchivePublishIntentRepository:
         with self.database.transaction() as connection:
             attempt_id = validate_opaque_id(attempt_id)
             current = connection.execute(
-                "SELECT phase FROM archive_publish_intents WHERE attempt_id = ?", (attempt_id,),
+                "SELECT phase, publication_status FROM archive_publish_intents "
+                "WHERE attempt_id = ? AND deployment_instance_id=?",
+                (attempt_id, self.database.deployment_instance_id),
             ).fetchone()
             if current is None:
                 raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_NOT_FOUND")
             current_phase = str(current["phase"])
+            if phase in {"published", "indexed", "verified"} and current["publication_status"] not in {
+                "sealed", "published", "verified",
+            }:
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_NOT_SEALED")
             allowed = {
                 "intent_persisted": {"intent_persisted", "published", "conflict"},
                 "published": {"published", "indexed", "conflict"},
@@ -191,55 +90,86 @@ class ArchivePublishIntentRepository:
             if phase not in allowed.get(current_phase, set()):
                 raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_STATE_INVALID")
             updated = connection.execute(
-                "UPDATE archive_publish_intents SET phase = ?, updated_at = ? WHERE attempt_id = ?",
-                (phase, utc_now(), attempt_id),
+                "UPDATE archive_publish_intents SET phase = ?, updated_at = ? "
+                "WHERE attempt_id = ? AND deployment_instance_id=?",
+                (phase, utc_now(), attempt_id, self.database.deployment_instance_id),
             )
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_NOT_FOUND")
             row = connection.execute(
-                "SELECT * FROM archive_publish_intents WHERE attempt_id = ?", (attempt_id,),
+                "SELECT * FROM archive_publish_intents WHERE attempt_id = ? AND deployment_instance_id=?",
+                (attempt_id, self.database.deployment_instance_id),
             ).fetchone()
-        return _dict(row)
+        return intent_dict(row)
 
+    def seal_publication(
+        self, attempt_id: str, publication_digest: str,
+        file_set: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not _HASH.fullmatch(publication_digest):
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_IDENTITY_INVALID")
+        attempt_id = validate_opaque_id(attempt_id)
+        serialized = json.dumps(file_set, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM archive_publish_intents WHERE attempt_id=? AND deployment_instance_id=?",
+                (attempt_id, self.database.deployment_instance_id),
+            ).fetchone()
+            if row is None:
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_NOT_FOUND")
+            current = row["publication_status"] or "pending"
+            if current in {"sealed", "published", "verified"}:
+                if row["publication_digest"] != publication_digest or row["publication_file_set_json"] != serialized:
+                    raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_IDENTITY_CONFLICT")
+                return intent_dict(row)
+            if current != "pending" or row["phase"] != "intent_persisted":
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_STATE_INVALID")
+            fence = connection.execute(
+                "SELECT status, task_id, deployment_instance_id FROM archive_publish_fences "
+                "WHERE fence_id=? AND attempt_id=? AND deployment_instance_id=?",
+                (row["fence_id"], attempt_id, self.database.deployment_instance_id),
+            ).fetchone()
+            if (
+                fence is None or fence["status"] != "active"
+                or fence["deployment_instance_id"] != self.database.deployment_instance_id
+                or fence["task_id"] != row["task_id"]
+            ):
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_FENCE_REQUIRED")
+            connection.execute(
+                "UPDATE archive_publish_intents SET publication_digest=?, "
+                "publication_file_set_json=?, publication_status='sealed', updated_at=? "
+                "WHERE attempt_id=? AND deployment_instance_id=? AND publication_status='pending'",
+                (publication_digest, serialized, utc_now(), attempt_id, self.database.deployment_instance_id),
+            )
+            result = connection.execute(
+                "SELECT * FROM archive_publish_intents WHERE attempt_id=? AND deployment_instance_id=?",
+                (attempt_id, self.database.deployment_instance_id),
+            ).fetchone()
+        return intent_dict(result)
 
-def _dict(row: Any) -> dict[str, Any]:
-    value = dict(row)
-    value["source_revision"] = int(value["source_revision"])
-    value["draft_revision"] = int(value["draft_revision"])
-    value["public_manifest"] = json.loads(value.pop("public_manifest_json"))
-    return value
-
-
-def _same_publish_identity(
-    connection: Any, existing: Any, *, attempt_id: str, case_id: str,
-    source_id: str, source_revision: int, draft_revision: int,
-    report_fingerprint: str, source_key: str, input_fingerprint: str,
-    archive_fingerprint: str, manifest_id: str, relative_final_dir: str,
-    serialized_manifest: str, context_hash: str,
-) -> bool:
-    expected = {
-        "attempt_id": attempt_id, "case_id": case_id, "source_id": source_id,
-        "source_revision": source_revision, "draft_revision": draft_revision,
-        "report_fingerprint": report_fingerprint, "source_key": source_key,
-        "input_fingerprint": input_fingerprint, "archive_fingerprint": archive_fingerprint,
-        "manifest_id": manifest_id, "relative_final_dir": relative_final_dir,
-        "public_manifest_json": serialized_manifest,
-    }
-    if any(existing[key] != value for key, value in expected.items()):
-        return False
-    fence = connection.execute(
-        "SELECT * FROM archive_publish_fences WHERE fence_id = ? AND attempt_id = ?",
-        (existing["fence_id"], attempt_id),
-    ).fetchone()
-    return bool(
-        fence is not None
-        and fence["fence_id"] == f"fence-{attempt_id}"
-        and fence["case_id"] == case_id
-        and fence["attempt_id"] == attempt_id
-        and fence["source_id"] == source_id
-        and int(fence["source_revision"]) == source_revision
-        and int(fence["draft_revision"]) == draft_revision
-        and fence["report_fingerprint"] == report_fingerprint
-        and fence["context_hash"] == context_hash
-        and fence["status"] in {"active", "pending_verification", "consumed"}
-    )
+    def mark_publication_state(self, attempt_id: str, state: str) -> dict[str, Any]:
+        if state not in {"published", "verified", "conflict"}:
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_STATE_INVALID")
+        attempt_id = validate_opaque_id(attempt_id)
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM archive_publish_intents WHERE attempt_id=? AND deployment_instance_id=?",
+                (attempt_id, self.database.deployment_instance_id),
+            ).fetchone()
+            if row is None:
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_NOT_FOUND")
+            current = row["publication_status"] or "pending"
+            if current == state:
+                return intent_dict(row)
+            if state in {"published", "verified"} and current not in {"sealed", "published", "verified"}:
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_NOT_SEALED")
+            connection.execute(
+                "UPDATE archive_publish_intents SET publication_status=?, updated_at=? "
+                "WHERE attempt_id=? AND deployment_instance_id=?",
+                (state, utc_now(), attempt_id, self.database.deployment_instance_id),
+            )
+            result = connection.execute(
+                "SELECT * FROM archive_publish_intents WHERE attempt_id=? AND deployment_instance_id=?",
+                (attempt_id, self.database.deployment_instance_id),
+            ).fetchone()
+        return intent_dict(result)

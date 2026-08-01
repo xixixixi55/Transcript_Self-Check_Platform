@@ -67,6 +67,8 @@ class ArchiveManifestRecord:
     created_at: float
     expires_at: float
     context_ids: set[str] = field(default_factory=set)
+    publication_id: str | None = None
+    publication_digest: str | None = None
 
     def __post_init__(self) -> None:
         self.context_ids.add(self.context_id)

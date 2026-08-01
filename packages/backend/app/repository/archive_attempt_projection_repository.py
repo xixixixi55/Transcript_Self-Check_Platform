@@ -30,5 +30,11 @@ def internal_attempt(row: Mapping[str, Any]) -> dict[str, Any]:
         "source_revision": int(row["source_revision"] if row["source_revision"] is not None else row["input_revision"]),
         "draft_revision": int(row["draft_revision"] or 0),
         "report_fingerprint": row["report_fingerprint"] or None,
+        "task_id": row["task_id"], "deployment_instance_id": row["deployment_instance_id"],
+        "input_snapshot_id": row["input_snapshot_id"],
+        "input_snapshot_root_id": row["input_snapshot_root_id"],
+        "input_snapshot_locator": row["input_snapshot_locator"],
+        "input_snapshot_fingerprint": row["input_snapshot_fingerprint"],
+        "input_snapshot_status": row["input_snapshot_status"],
     })
     return result

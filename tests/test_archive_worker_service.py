@@ -225,6 +225,11 @@ def test_restart_waits_and_retry_uses_new_task_and_attempt(setup) -> None:
 def test_composition_root_keeps_archive_recovery_with_archive_worker(setup) -> None:
     database, tasks, _, _ = setup
     queued = queue(tasks)
+    queued = tasks.update_state(queued["task_id"], {
+        "process_binding": {
+            "staging_asset_id": "SYNTHETIC-MISSING-OLD-ATTEMPT",
+        },
+    }, queued["revision"])
     tasks.claim(
         queued["task_id"], owner_token="SYNTHETIC-RESTART-OWNER",
         attempt_id="SYNTHETIC-MISSING-OLD-ATTEMPT",

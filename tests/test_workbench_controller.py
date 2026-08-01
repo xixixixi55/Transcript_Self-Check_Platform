@@ -19,6 +19,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
+from app.repository.workbench_database import utc_now  # noqa: E402
 from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.case_draft_service import CaseDraftService  # noqa: E402
@@ -888,6 +889,7 @@ def test_archive_mapping_and_verified_result_routes(app_services):
     from app.controllers import workbench_controller
     from app.repository.archive_manifest_repository import ArchiveManifestRepository
     from app.repository.archive_plan_repository import ArchivePlanRepository
+    from app.repository.archive_publish_intent_repository import ArchivePublishIntentRepository
     from app.repository.archive_task_repository import ArchiveTaskRepository
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
@@ -957,10 +959,7 @@ def test_archive_mapping_and_verified_result_routes(app_services):
         running = tasks.update_state(task["task_id"], {
             "status": "running", "worker_state": "owned_running",
         }, task["revision"])
-        done = tasks.update_state(running["task_id"], {
-            "status": "succeeded", "stage": "completed",
-        }, running["revision"])
-        attempt_id = done["process_binding"]["staging_asset_id"]
+        attempt_id = running["process_binding"]["staging_asset_id"]
         filename = "SYNTHETIC-RESULT.part1.rar"
         payload = b"SYNTHETIC-ARCHIVE-PART"
         final_dir = app_services.archive_attempts.output_root / "compressed" / "SYNTHETIC-RESULT" / "SYNTHETIC-MANIFEST-API"
@@ -985,15 +984,6 @@ def test_archive_mapping_and_verified_result_routes(app_services):
                 "volume_size_bytes": 4_000_000_000,
             }],
         }
-        ArchiveManifestRepository(app_services.archive_attempts.output_root).save(
-            source_key="a" * 64,
-            input_fingerprint="b" * 64,
-            archive_fingerprint="c" * 64,
-            manifest_id="SYNTHETIC-MANIFEST-API",
-            final_dir=final_dir,
-            workbench_attempt_id=attempt_id,
-            public_manifest=public_manifest,
-        )
         app_services.archive_attempts.persist_publish_intent(
             attempt_id,
             context_id=context_id,
@@ -1005,17 +995,38 @@ def test_archive_mapping_and_verified_result_routes(app_services):
             target_context_id="SYNTHETIC-RESULT",
             public_manifest=public_manifest,
         )
+        intent = ArchivePublishIntentRepository(app_services.database).get_for_attempt(attempt_id)
+        assert intent is not None
         app_services.archive_attempts.mark_publish_phase(attempt_id, "published")
+        intent = ArchivePublishIntentRepository(app_services.database).get_for_attempt(attempt_id)
+        assert intent is not None
+        ArchiveManifestRepository(app_services.archive_attempts.output_root).save(
+            source_key="a" * 64,
+            input_fingerprint="b" * 64,
+            archive_fingerprint="c" * 64,
+            manifest_id="SYNTHETIC-MANIFEST-API",
+            final_dir=final_dir,
+            workbench_attempt_id=attempt_id,
+            public_manifest=public_manifest,
+            publication_id=intent["publication_id"],
+            publication_digest=intent["publication_digest"],
+        )
         app_services.archive_attempts.mark_publish_phase(attempt_id, "indexed")
         app_services.archive_attempts.mark_publish_phase(attempt_id, "verified")
+        ArchivePublishIntentRepository(app_services.database).mark_publication_state(
+            attempt_id, "verified",
+        )
         with app_services.database.transaction() as connection:
             connection.execute(
                 "UPDATE archive_attempts SET status='succeeded',manifest_id=?,finished_at=? "
                 "WHERE attempt_id=?",
-                ("SYNTHETIC-MANIFEST-API", done["finished_at"], attempt_id),
+                ("SYNTHETIC-MANIFEST-API", utc_now(), attempt_id),
             )
+        done = tasks.update_state(running["task_id"], {
+            "status": "succeeded", "stage": "completed",
+        }, running["revision"])
         result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
-        assert result.status_code == 200
+        assert result.status_code == 200, result.text
         assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"
         assert result.json()["data"]["parts"][0]["part_id"] == "SYNTHETIC-PART-API"
         assert "internal_locator" not in result.text

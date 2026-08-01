@@ -23,6 +23,8 @@ class PersistedArchiveManifest:
     last_accessed_at: float
     status: str = "validated"
     workbench_attempt_id: str | None = None
+    publication_id: str | None = None
+    publication_digest: str | None = None
 
 
 def parse_manifest_record(raw: object) -> PersistedArchiveManifest | None:
@@ -40,6 +42,8 @@ def parse_manifest_record(raw: object) -> PersistedArchiveManifest | None:
     accessed = raw.get("last_accessed_at")
     status = raw.get("status", "validated")
     attempt_id = raw.get("workbench_attempt_id")
+    publication_id = raw.get("publication_id")
+    publication_digest = raw.get("publication_digest")
     if (
         not all(isinstance(value, str) and _HASH_PATTERN.fullmatch(value) for value in hashes)
         or not isinstance(manifest_id, str) or not manifest_id
@@ -55,11 +59,15 @@ def parse_manifest_record(raw: object) -> PersistedArchiveManifest | None:
                 or not OPAQUE_ID_PATTERN.fullmatch(attempt_id)
             )
         )
+        or (publication_id is not None and not isinstance(publication_id, str))
+        or (publication_digest is not None and (
+            not isinstance(publication_digest, str) or not _HASH_PATTERN.fullmatch(publication_digest)
+        ))
     ):
         return None
     return PersistedArchiveManifest(
         *hashes, manifest_id, relative, manifest, float(created), float(accessed),
-        status, attempt_id,
+        status, attempt_id, publication_id, publication_digest,
     )
 
 
@@ -75,6 +83,8 @@ def manifest_record_dict(record: PersistedArchiveManifest) -> dict[str, object]:
         "last_accessed_at": record.last_accessed_at,
         "status": record.status,
         "workbench_attempt_id": record.workbench_attempt_id,
+        "publication_id": record.publication_id,
+        "publication_digest": record.publication_digest,
     }
 
 

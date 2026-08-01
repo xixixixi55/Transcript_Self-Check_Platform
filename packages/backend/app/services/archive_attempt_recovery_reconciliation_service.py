@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import shutil
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +17,8 @@ from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import ArchiveManifestRecord
 from .archive_staging_security_service import cleanup_owned_staging
+from .archive_publication_identity_service import publication_digest
+from .archive_input_snapshot_recovery_service import cleanup_unfinished_snapshots
 
 if TYPE_CHECKING:
     from .archive_attempt_service import ArchiveAttemptService
@@ -57,6 +60,10 @@ def recover_after_restart(service: ArchiveAttemptService) -> list[str]:
             continue
         except _RecoveryConflictError:
             current = intents.get_for_attempt(attempt_id)
+            if current and current.get("publication_status") not in {
+                "sealed", "published", "verified",
+            }:
+                _cleanup_unsealed_publication(service, current)
             if current and current["phase"] != "conflict":
                 intents.mark_phase(attempt_id, "conflict")
             if current and current.get("fence_id"):
@@ -69,7 +76,30 @@ def recover_after_restart(service: ArchiveAttemptService) -> list[str]:
             continue
         if not outcome and attempt_id not in interrupted:
             interrupted.append(attempt_id)
+    cleanup_unfinished_snapshots(
+        service.database, service.output_root,
+    )
     return interrupted
+
+
+def _cleanup_unsealed_publication(
+    service: ArchiveAttemptService, intent: dict[str, Any],
+) -> None:
+    """Remove only a task-bound, never-sealed final candidate after recovery conflict."""
+    compressed_root = (service.output_root / "compressed").resolve(strict=False)
+    candidate = (compressed_root / str(intent["relative_final_dir"])).resolve(strict=False)
+    try:
+        candidate.relative_to(compressed_root)
+    except ValueError:
+        return
+    if candidate == compressed_root or not candidate.exists() or candidate.is_symlink():
+        return
+    try:
+        shutil.rmtree(candidate)
+    except OSError:
+        # The durable conflict remains authoritative if cleanup is temporarily
+        # unavailable; recovery must never promote this candidate.
+        return
 
 
 def _cleanup_interrupted(service: ArchiveAttemptService, record: dict[str, Any]) -> None:
@@ -92,6 +122,25 @@ def _recover_published_intent(
         "report_fingerprint": attempt["report_fingerprint"],
     }.items()):
         raise _RecoveryConflictError("intent binding mismatch")
+    legacy_attempt = (
+        attempt.get("task_id") in (None, f"legacy-task-{attempt['attempt_id']}")
+        and intent.get("task_id") == f"legacy-task-{attempt['attempt_id']}"
+    )
+    if (
+        ((not legacy_attempt) and (
+            not attempt.get("task_id")
+            or intent.get("task_id") != attempt.get("task_id")
+        ))
+        or intent.get("deployment_instance_id") != service.database.deployment_instance_id
+        or intent.get("publication_status") not in {"sealed", "published", "verified"}
+    ):
+        raise _RecoveryConflictError("publication identity missing")
+    expected_digest, expected_file_set = publication_digest(intent, intent["public_manifest"])
+    if (
+        intent.get("publication_digest") != expected_digest
+        or intent.get("publication_file_set") != expected_file_set
+    ):
+        raise _RecoveryConflictError("publication generation mismatch")
     final_dir = (service.output_root / "compressed" / intent["relative_final_dir"]).resolve(strict=False)
     compressed_root = (service.output_root / "compressed").resolve(strict=False)
     try:
@@ -101,6 +150,7 @@ def _recover_published_intent(
     record = ArchiveManifestRecord(
         intent["manifest_id"], attempt["attempt_id"], intent["archive_fingerprint"],
         intent["public_manifest"], final_dir, 0.0, time.time() + 60,
+        publication_id=intent["publication_id"], publication_digest=intent["publication_digest"],
     )
     try:
         if not final_dir.is_dir():
@@ -114,20 +164,13 @@ def _recover_published_intent(
         service.remove_marker(final_dir)
     except (OSError, PermissionError) as error:
         raise _RecoveryTransientError() from error
-    registry = ArchiveManifestRepository(service.output_root)
+    registry = ArchiveManifestRepository(service.output_root, database=service.database)
     try:
         same_manifest = registry.find_by_manifest_id(intent["manifest_id"])
         if any(item.workbench_attempt_id != attempt["attempt_id"] for item in same_manifest):
             raise _RecoveryConflictError("manifest belongs to another attempt")
         indexed = next((item for item in same_manifest if item.workbench_attempt_id == attempt["attempt_id"]), None)
-        if indexed is None:
-            registry.save(
-                source_key=intent["source_key"], input_fingerprint=intent["input_fingerprint"],
-                archive_fingerprint=intent["archive_fingerprint"], manifest_id=intent["manifest_id"],
-                final_dir=final_dir, public_manifest=intent["public_manifest"],
-                workbench_attempt_id=attempt["attempt_id"],
-            )
-        elif (
+        if indexed is not None and (
             indexed.relative_final_dir != intent["relative_final_dir"]
             or indexed.public_manifest != intent["public_manifest"]
             or indexed.source_key != intent["source_key"]
@@ -135,7 +178,19 @@ def _recover_published_intent(
             or indexed.archive_fingerprint != intent["archive_fingerprint"]
         ):
             raise _RecoveryConflictError("indexed evidence mismatch")
+        # Always rewrite the derived projection from the durable intent.  This
+        # also repairs a missing/corrupt index after a crash without treating
+        # the JSON file as a second authority.
+        registry.save(
+            source_key=intent["source_key"], input_fingerprint=intent["input_fingerprint"],
+            archive_fingerprint=intent["archive_fingerprint"], manifest_id=intent["manifest_id"],
+            final_dir=final_dir, public_manifest=intent["public_manifest"],
+            workbench_attempt_id=attempt["attempt_id"],
+            publication_id=intent["publication_id"],
+            publication_digest=intent["publication_digest"],
+        )
         if intent["phase"] == "intent_persisted":
+            intents.mark_publication_state(attempt["attempt_id"], "published")
             intents.mark_phase(attempt["attempt_id"], "published")
             intent = intents.get_for_attempt(attempt["attempt_id"]) or intent
         if intent["phase"] == "published":

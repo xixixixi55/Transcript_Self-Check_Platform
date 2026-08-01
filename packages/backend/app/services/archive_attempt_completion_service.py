@@ -17,6 +17,9 @@ from ..repository.case_workbench_repository import CaseDraftRepository, CaseShel
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import ArchiveManifestRecord
+from .archive_publication_identity_service import (
+    assert_publication_identity, publication_digest, publication_id,
+)
 
 
 if TYPE_CHECKING:
@@ -28,6 +31,7 @@ def persist_publish_intent(
     input_fingerprint: str, archive_fingerprint: str, manifest_id: str,
     final_dir: Path, public_manifest: dict[str, Any], context_id: str,
     target_context_id: str | None = None,
+    publication_id_value: str | None = None,
 ) -> dict[str, Any]:
     attempt = service.repository.get_internal(attempt_id)
     relative = final_dir.resolve(strict=False).relative_to(
@@ -40,11 +44,30 @@ def persist_publish_intent(
         report_fingerprint=attempt["report_fingerprint"], source_key=source_key,
         input_fingerprint=input_fingerprint, archive_fingerprint=archive_fingerprint,
         manifest_id=manifest_id, relative_final_dir=relative, public_manifest=public_manifest,
+        task_id=attempt.get("task_id"),
+        deployment_instance_id=attempt.get("deployment_instance_id"),
+        publication_id=publication_id_value or publication_id(attempt_id, manifest_id),
     )
 
 
 def mark_publish_phase(service: ArchiveAttemptService, attempt_id: str, phase: str) -> dict[str, Any]:
-    return ArchivePublishIntentRepository(service.database).mark_phase(attempt_id, phase)
+    repository = ArchivePublishIntentRepository(service.database)
+    intent = repository.get_for_attempt(attempt_id)
+    if intent is None:
+        raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_NOT_FOUND")
+    if phase in {"published", "indexed", "verified"} and intent.get("publication_status") in {None, "pending"}:
+        final_dir = (service.output_root / "compressed" / intent["relative_final_dir"]).resolve(strict=False)
+        record = ArchiveManifestRecord(
+            intent["manifest_id"], intent.get("target_context_id", "legacy"),
+            intent["archive_fingerprint"], intent["public_manifest"], final_dir,
+            0.0, time.time() + 60,
+        )
+        if validate_manifest_files(record) is not None:
+            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
+        digest, file_set = publication_digest(intent, record.public_manifest)
+        repository.seal_publication(attempt_id, digest, file_set)
+        repository.mark_publication_state(attempt_id, "published")
+    return repository.mark_phase(attempt_id, phase)
 
 
 def complete_verified(
@@ -56,6 +79,17 @@ def complete_verified(
     intent = ArchivePublishIntentRepository(service.database).get_for_attempt(attempt_id)
     if intent is None:
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
+    legacy_task_id = f"legacy-task-{attempt_id}"
+    legacy_attempt = (
+        attempt.get("task_id") in (None, legacy_task_id)
+        and intent.get("task_id") == legacy_task_id
+    )
+    if (
+        (not legacy_attempt and attempt.get("task_id") is None)
+        or (not legacy_attempt and intent.get("task_id") != attempt.get("task_id"))
+        or intent.get("deployment_instance_id") != service.database.deployment_instance_id
+    ):
+        raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
     if intent["phase"] not in {"indexed", "verified"}:
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
     if not intent.get("fence_id"):
@@ -78,6 +112,14 @@ def complete_verified(
         if attempt["manifest_id"] != manifest_id:
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         return service.repository.get_public(attempt_id)
+    if intent.get("publication_status") not in {"sealed", "published", "verified"}:
+        raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_NOT_SEALED")
+    expected_digest, expected_file_set = publication_digest(intent, intent["public_manifest"])
+    if (
+        intent.get("publication_digest") != expected_digest
+        or intent.get("publication_file_set") != expected_file_set
+    ):
+        raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_IDENTITY_CONFLICT")
     source = service.sources.get(attempt["source_id"])
     shell = CaseShellRepository(service.database).get(attempt["case_id"])
     draft = CaseDraftRepository(service.database).get(attempt["case_id"])
@@ -101,6 +143,8 @@ def complete_verified(
         manifest_id, attempt_id, archive_fingerprint, _record_value(manifest_record, "public_manifest"),
         Path(_record_value(manifest_record, "final_dir")),
         float(_record_value(manifest_record, "created_at")), time.time() + 60,
+        publication_id=intent.get("publication_id"),
+        publication_digest=intent.get("publication_digest"),
     )
     if validate_manifest_files(record) is not None:
         registry.mark_invalid(indexed.manifest_id)
@@ -123,9 +167,11 @@ def complete_verified(
         "report_fingerprint": attempt["report_fingerprint"],
     }.items()):
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
+    assert_publication_identity(record, intent)
     expected_final_dir = (service.output_root / "compressed" / intent["relative_final_dir"]).resolve(strict=False)
     if expected_final_dir != record.final_dir.resolve(strict=False):
         raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
+    bound_task_id = attempt.get("task_id") or intent["task_id"]
     result = complete_verified_attempt(service.database, {
         "attempt_id": attempt_id, "manifest_id": record.manifest_id,
         "case_id": attempt["case_id"], "source_id": attempt["source_id"],
@@ -134,9 +180,18 @@ def complete_verified(
         "report_fingerprint": attempt["report_fingerprint"], "source_key": indexed.source_key,
         "input_fingerprint": indexed.input_fingerprint, "archive_fingerprint": indexed.archive_fingerprint,
         "relative_final_dir": intent["relative_final_dir"], "recovery": recovery,
+        "task_id": bound_task_id,
+        "deployment_instance_id": service.database.deployment_instance_id,
+        "publication_id": intent["publication_id"],
+        "publication_digest": intent["publication_digest"],
+        "publication_file_set": intent["publication_file_set"],
     })
-    if intent and intent["phase"] != "verified":
-        ArchivePublishIntentRepository(service.database).mark_phase(attempt_id, "verified")
+    try:
+        service.cleanup_execution_input(attempt_id)
+    except Exception:
+        # Durable success is already committed; leave the sealed row for a
+        # bounded cleanup/recovery pass rather than downgrading the result.
+        pass
     return result
 
 
@@ -145,43 +200,11 @@ def record_attempt_completion(
     registry: Any, context: Any, archive_fingerprint: str, manifest_record: Any,
     context_binding_id: str | None = None,
 ) -> None:
-    if attempt_service is None or attempt_id is None:
-        return
-    persist_publish_intent(
-        attempt_service, attempt_id, source_key=context.source_key,
-        input_fingerprint=context.input_fingerprint, archive_fingerprint=archive_fingerprint,
-        manifest_id=manifest_record.manifest_id, final_dir=manifest_record.final_dir,
-        public_manifest=manifest_record.public_manifest,
-        context_id=context_binding_id or context.context_id,
-        target_context_id=context.context_id,
+    from .archive_attempt_completion_record_service import record_attempt_completion as implementation
+    implementation(
+        attempt_service, attempt_id, registry, context, archive_fingerprint,
+        manifest_record, context_binding_id,
     )
-    matches = registry.find_reusable(context.source_key, context.input_fingerprint, archive_fingerprint)
-    if not any(item.manifest_id == manifest_record.manifest_id and item.workbench_attempt_id == attempt_id for item in matches):
-        registry.save(
-            source_key=context.source_key, input_fingerprint=context.input_fingerprint,
-            archive_fingerprint=archive_fingerprint, manifest_id=manifest_record.manifest_id,
-            final_dir=manifest_record.final_dir, public_manifest=manifest_record.public_manifest,
-            created_at=manifest_record.created_at, workbench_attempt_id=attempt_id,
-        )
-    intent = ArchivePublishIntentRepository(attempt_service.database).get_for_attempt(attempt_id)
-    if intent is None:
-        raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
-    try:
-        if intent["phase"] == "intent_persisted":
-            if validate_manifest_files(manifest_record) is not None:
-                raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
-            mark_publish_phase(attempt_service, attempt_id, "published")
-            intent = ArchivePublishIntentRepository(attempt_service.database).get_for_attempt(attempt_id)
-        if intent is None or intent["phase"] == "published":
-            mark_publish_phase(attempt_service, attempt_id, "indexed")
-        complete_verified(attempt_service, attempt_id, registry, manifest_record)
-    except WorkbenchPersistenceError as error:
-        if error.code in {
-            "ARCHIVE_COMPLETION_EVIDENCE_CONFLICT", "ARCHIVE_COMPLETION_EVIDENCE_INVALID",
-            "ARCHIVE_COMPLETION_EVIDENCE_REQUIRED", "ARCHIVE_PUBLISH_TARGET_MISMATCH",
-        }:
-            registry.mark_invalid(manifest_record.manifest_id)
-        raise
 
 
 def _record_value(record: Any, name: str) -> Any:

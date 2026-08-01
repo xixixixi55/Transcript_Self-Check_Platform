@@ -92,6 +92,7 @@ class ArchiveRuntimeCoordinator:
             return True
 
     def stop(self) -> bool:
+        self._collect_finished()
         with self._lock:
             thread = self._thread
             executor = self._executor
@@ -108,13 +109,16 @@ class ArchiveRuntimeCoordinator:
             pending = set()
         if executor is not None:
             executor.shutdown(wait=not pending, cancel_futures=True)
+        converged = True
         for future in pending | {item for item in futures if item.cancelled()}:
             with self._lock:
                 claim = self._claims.get(future)
             if claim is not None:
-                self._finish_interrupted(claim)
+                converged = self._finish_interrupted(claim) and converged
+        self._collect_finished()
         with self._lock:
-            stopped = (thread is None or not thread.is_alive()) and not pending
+            remaining = {future for future in self._futures if not future.done()}
+            stopped = (thread is None or not thread.is_alive()) and not remaining and converged
             if stopped:
                 self._thread = None
                 self._executor = None
@@ -184,15 +188,20 @@ class ArchiveRuntimeCoordinator:
         except WorkbenchPersistenceError:
             pass
 
-    def _finish_interrupted(self, claim: ArchiveTaskClaim) -> None:
+    def _finish_interrupted(self, claim: ArchiveTaskClaim) -> bool:
         try:
-            interrupt_owned_claim(
+            result = interrupt_owned_claim(
                 self.attempts.database, task_id=claim.task_id,
                 owner_token=claim.owner_token, attempt_id=claim.attempt_id,
                 task_revision=claim.revision,
             )
+            if result == "unresolved":
+                logger.error("Archive shutdown could not converge claim %s", claim.task_id)
+                return False
+            return True
         except WorkbenchPersistenceError:
-            pass
+            logger.exception("Archive shutdown claim settlement failed: %s", claim.task_id)
+            return False
 
     def _collect_finished(self) -> None:
         with self._lock:

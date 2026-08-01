@@ -6,34 +6,34 @@ import copy
 import json
 import os
 import tempfile
-import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 from .archive_manifest_record_repository import (
     OPAQUE_ID_PATTERN,
     PersistedArchiveManifest,
     manifest_record_dict,
-    parse_manifest_record,
 )
+from .archive_manifest_index_repository import (
+    ArchiveManifestIndexMixin, ArchiveManifestRepositoryError, _INDEX_FILENAME,
+)
+from .workbench_database import WorkbenchDatabase
 
 _INDEX_VERSION = 1
-_INDEX_FILENAME = ".archive-manifest-index.json"
-_INDEX_LOCK = threading.RLock()
 
-
-class ArchiveManifestRepositoryError(RuntimeError):
-    """Safe registry diagnostics without local paths or report content."""
-
-
-class ArchiveManifestRepository:
+class ArchiveManifestRepository(ArchiveManifestIndexMixin):
     """Keep archive metadata addressable while never deleting published parts."""
 
-    def __init__(self, output_root: str | os.PathLike[str], clock=time.time) -> None:
+    def __init__(
+        self, output_root: str | os.PathLike[str], clock=time.time,
+        database: WorkbenchDatabase | None = None,
+    ) -> None:
         self.output_root = Path(output_root)
         self.compressed_root = self.output_root / "compressed"
         self.index_path = self.compressed_root / _INDEX_FILENAME
         self._clock = clock
+        self.database = database
 
     def save(
         self,
@@ -46,6 +46,8 @@ class ArchiveManifestRepository:
         public_manifest: dict[str, object],
         created_at: float | None = None,
         workbench_attempt_id: str | None = None,
+        publication_id: str | None = None,
+        publication_digest: str | None = None,
     ) -> PersistedArchiveManifest:
         if workbench_attempt_id is not None and not OPAQUE_ID_PATTERN.fullmatch(
             workbench_attempt_id
@@ -58,13 +60,16 @@ class ArchiveManifestRepository:
             relative, copy.deepcopy(public_manifest),
             float(created_at if created_at is not None else now), now,
             workbench_attempt_id=workbench_attempt_id,
+            publication_id=publication_id, publication_digest=publication_digest,
         )
-        with _INDEX_LOCK:
-            records = self._read_records()
+        with self._index_lock():
+            records = self._read_records(bootstrap_relative=relative)
             for item in records:
                 if item.manifest_id == manifest_id:
                     if item.status != "validated" or not _same_manifest_identity(item, record):
                         raise ArchiveManifestRepositoryError("归档 Manifest 身份冲突。")
+                    if self.database is not None or not self.index_path.is_file():
+                        self._write_records(records)
                     return copy.deepcopy(item)
                 if (
                     item.source_key == source_key
@@ -83,10 +88,13 @@ class ArchiveManifestRepository:
 
     def find_reusable(
         self, source_key: str, input_fingerprint: str, archive_fingerprint: str,
+        *, bootstrap_relative: str | None = None,
     ) -> list[PersistedArchiveManifest]:
-        with _INDEX_LOCK:
+        with self._index_lock():
             return [
-                copy.deepcopy(item) for item in self._read_records()
+                copy.deepcopy(item) for item in self._read_records(
+                    bootstrap_relative=bootstrap_relative,
+                )
                 if item.status == "validated"
                 and item.source_key == source_key
                 and item.input_fingerprint == input_fingerprint
@@ -96,7 +104,7 @@ class ArchiveManifestRepository:
     def find_for_attempt(self, attempt_id: str) -> list[PersistedArchiveManifest]:
         if not OPAQUE_ID_PATTERN.fullmatch(attempt_id):
             return []
-        with _INDEX_LOCK:
+        with self._index_lock():
             return [
                 copy.deepcopy(item) for item in self._read_records()
                 if item.status == "validated"
@@ -105,14 +113,14 @@ class ArchiveManifestRepository:
 
     def find_by_manifest_id(self, manifest_id: str) -> list[PersistedArchiveManifest]:
         """Find validated records sharing an identity before any reuse/save operation."""
-        with _INDEX_LOCK:
+        with self._index_lock():
             return [
                 copy.deepcopy(item) for item in self._read_records()
                 if item.status == "validated" and item.manifest_id == manifest_id
             ]
 
     def touch(self, manifest_id: str) -> None:
-        with _INDEX_LOCK:
+        with self._index_lock():
             records = self._read_records()
             changed = False
             for item in records:
@@ -124,7 +132,7 @@ class ArchiveManifestRepository:
                 self._write_records(records)
 
     def mark_invalid(self, manifest_id: str) -> None:
-        with _INDEX_LOCK:
+        with self._index_lock():
             records = self._read_records()
             for item in records:
                 if item.manifest_id == manifest_id and item.status == "validated":
@@ -140,7 +148,7 @@ class ArchiveManifestRepository:
         archive_fingerprint: str,
     ) -> None:
         """Retire older generations before a replacement archive is attempted."""
-        with _INDEX_LOCK:
+        with self._index_lock():
             records = self._read_records()
             changed = False
             for item in records:
@@ -159,6 +167,7 @@ class ArchiveManifestRepository:
         except ValueError as error:
             raise ArchiveManifestRepositoryError("归档登记目录无效。") from error
         return candidate
+
     def _relative_final_dir(self, final_dir: str | os.PathLike[str]) -> str:
         root = self.compressed_root.resolve(strict=False)
         candidate = Path(final_dir).resolve(strict=False)
@@ -170,23 +179,6 @@ class ArchiveManifestRepository:
         if not value or value == "." or ".." in Path(value).parts:
             raise ArchiveManifestRepositoryError("归档登记目录无效。")
         return value
-    def _read_records(self) -> list[PersistedArchiveManifest]:
-        if not self.index_path.is_file():
-            return []
-        try:
-            with self.index_path.open("r", encoding="utf-8") as stream:
-                payload = json.load(stream)
-        except (OSError, ValueError, TypeError):
-            return []
-        raw_records = payload.get("records") if isinstance(payload, dict) else None
-        if not isinstance(raw_records, list):
-            return []
-        records = []
-        for raw in raw_records:
-            parsed = parse_manifest_record(raw)
-            if parsed:
-                records.append(parsed)
-        return records
 
     def _write_records(self, records: list[PersistedArchiveManifest]) -> None:
         payload = {
@@ -205,6 +197,14 @@ class ArchiveManifestRepository:
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, self.index_path)
+            try:
+                descriptor = os.open(str(self.compressed_root), os.O_RDONLY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+            except OSError:
+                pass
         except (OSError, TypeError, ValueError) as error:
             raise ArchiveManifestRepositoryError("归档登记无法保存。") from error
         finally:
@@ -225,4 +225,13 @@ def _same_manifest_identity(
         and existing.relative_final_dir == candidate.relative_final_dir
         and existing.public_manifest == candidate.public_manifest
         and existing.workbench_attempt_id == candidate.workbench_attempt_id
+        and existing.publication_id == candidate.publication_id
+        and existing.publication_digest == candidate.publication_digest
     )
+
+
+def _epoch(value: str) -> float:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError, OverflowError):
+        return 0.0

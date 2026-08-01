@@ -1,57 +1,41 @@
-"""Synchronous archive orchestration: gate, plan, execute, validate, hash, publish."""
+"""Synchronous archive orchestration over sealed input and publication boundaries."""
+
 from __future__ import annotations
 
-import shutil
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
 from ..repository.archive_input_repository import ArchiveInputError, verify_input_inventory
 from ..repository.archive_manifest_repository import (
-    ArchiveManifestRepository, ArchiveManifestRepositoryError)
-from ..repository.filesystem_identity_repository import stable_directory_content_fingerprint
+    ArchiveManifestRepository, ArchiveManifestRepositoryError,
+)
 from ..repository.archive_validator_repository import validate_archive_parts
 from ..repository.winrar_discovery_repository import WinRarCapability, discover_winrar
 from ..repository.winrar_executor_repository import ArchiveExecutionError, WinRarExecutor
-from .archive_manifest_service import assemble_archive_manifest, validate_manifest_files
+from .archive_attempt_completion_service import record_attempt_completion
+from .archive_attempt_service import ArchiveAttemptService
+from .archive_execution_models_service import ArchiveExecutionOutcome, create_archive_context
+from .archive_execution_support_service import find_reusable, observe_stage
+from .archive_gate_policy_service import pre_archive_gate, raise_gate, with_archive_gate
+from .archive_input_snapshot_service import (
+    SealedInputSnapshot, assert_sealed_input, cleanup_ephemeral_input_snapshot,
+    create_ephemeral_sealed_input_snapshot,
+)
 from .archive_manifest_access_service import (
-    ArchiveGateError, archive_report_fingerprint as _fingerprint, get_valid_manifest)
+    ArchiveGateError, archive_report_fingerprint as _fingerprint, get_valid_manifest,
+)
+from .archive_manifest_reuse_service import restore_persisted_manifest
+from .archive_manifest_service import assemble_archive_manifest, validate_manifest_files
 from .archive_planner_service import (
     ArchiveDiagnostic, ArchivePlan, ArchivePolicy, ArchiveSourceEntry,
-    PRODUCTION_ARCHIVE_POLICY, plan_archive, replan_to_next_tier)
-from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord
-from .archive_manifest_reuse_service import restore_persisted_manifest
-from .archive_attempt_service import ArchiveAttemptService
-from .archive_attempt_completion_service import record_attempt_completion
-from .export_gate_service import ExportGateCode, ExportGateIssue
-from .archive_gate_policy_service import pre_archive_gate, raise_gate, with_archive_gate
+    PRODUCTION_ARCHIVE_POLICY, plan_archive, replan_to_next_tier,
+)
 from .archive_publish_service import publish_staged_archive
-from .archive_execution_support_service import assert_source_unchanged, find_reusable, observe_stage
-@dataclass(frozen=True)
-class ArchiveExecutionOutcome:
-    status: str
-    manifest_id: str | None
-    plan: ArchivePlan | None
-    diagnostics: tuple[ArchiveDiagnostic, ...] = ()
-    reused: bool = False
-def create_archive_context(
-    authorized_input: AuthorizedInputRoot,
-    report: dict,
-    *,
-    output_root: str,
-    cleanup_root: str | None = None,
-) -> str:
-    case_name = report.get("introduction", {}).get("case_summary", "")
-    record = ARCHIVE_RUNTIME_STORE.create_context(
-        authorized_input, str(case_name), output_root=output_root, cleanup_root=cleanup_root,
-    )
-    return record.context_id
+from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord
+from .export_gate_service import ExportGateCode, ExportGateIssue
 def execute_archive(
-    context_id: str,
-    report: dict,
-    *,
-    output_root: str,
+    context_id: str, report: dict, *, output_root: str,
     configured_winrar_path: str | None = None,
     policy: ArchivePolicy = PRODUCTION_ARCHIVE_POLICY,
     capability: WinRarCapability | None = None,
@@ -64,12 +48,15 @@ def execute_archive(
     activity_observer: Callable[[Path], None] | None = None,
     cancellation_check: Callable[[], bool] | None = None,
 ) -> ArchiveExecutionOutcome:
-    """Run at most one initial execution plus two upward replans per context."""
     context = ARCHIVE_RUNTIME_STORE.acquire_context(context_id)
     success = False
     successful_manifest_id: str | None = None
     final_state = "failed"
-    registry = ArchiveManifestRepository(output_root)
+    registry = ArchiveManifestRepository(
+        output_root,
+        database=getattr(attempt_service, "database", None),
+    )
+    sealed_input: SealedInputSnapshot | None = None
     try:
         pre_gate = pre_archive_gate(report)
         raise_gate(pre_gate)
@@ -77,21 +64,30 @@ def execute_archive(
         first_disc_number = str((report.get("attachments") or {}).get("disc_number"))
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         verify_input_inventory(context.inventory)
-        try:
-            context.input_fingerprint = stable_directory_content_fingerprint(context.inventory.source_root)
-        except Exception as error:
+        if (
+            attempt_service is not None and attempt_id is not None
+            and hasattr(attempt_service, "seal_execution_input")
+        ):
+            sealed_input = attempt_service.seal_execution_input(attempt_id, context.inventory)
+        else:
+            sealed_input = create_ephemeral_sealed_input_snapshot(output_root, context.inventory)
+        execution_inventory = sealed_input.inventory
+        context.input_fingerprint = sealed_input.input_fingerprint
+        if execution_inventory.total_input_bytes <= 0:
             raise ArchiveGateError((ExportGateIssue(
-                ExportGateCode.ARCHIVE_INPUT_CHANGED, "archive", "归档输入在执行前已变化。",
-            ),)) from error
-        if context.inventory.total_input_bytes <= 0:
-            raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_INPUT_EMPTY, "archive", "归档输入不能为空。"),))
-        fingerprint = _fingerprint(report, context.inventory, first_disc_number)
+                ExportGateCode.ARCHIVE_INPUT_EMPTY, "archive", "Archive input is empty.",
+            ),))
+        fingerprint = _fingerprint(
+            report, execution_inventory, first_disc_number,
+            content_fingerprint=sealed_input.input_fingerprint,
+        )
         registry.mark_source_changed(
-            source_key=context.source_key,
-            input_fingerprint=context.input_fingerprint,
+            source_key=context.source_key, input_fingerprint=context.input_fingerprint,
             archive_fingerprint=fingerprint,
         )
-        reusable = find_reusable(ARCHIVE_RUNTIME_STORE, context_id, fingerprint, attempt_service, attempt_id)
+        reusable = find_reusable(
+            ARCHIVE_RUNTIME_STORE, context_id, fingerprint, attempt_service, attempt_id,
+        )
         if reusable and validate_manifest_files(reusable) is None:
             record_attempt_completion(
                 attempt_service, attempt_id, registry, context, fingerprint, reusable,
@@ -104,8 +100,8 @@ def execute_archive(
         if reusable:
             registry.mark_invalid(reusable.manifest_id)
         persisted = restore_persisted_manifest(
-            context, fingerprint, registry,
-            attempt_service=attempt_service, attempt_id=attempt_id,
+            context, fingerprint, registry, attempt_service=attempt_service,
+            attempt_id=attempt_id,
         )
         if persisted:
             record_attempt_completion(
@@ -119,18 +115,17 @@ def execute_archive(
         raise_gate(with_archive_gate(pre_gate, winrar))
         entries = tuple(
             ArchiveSourceEntry(item.relative_path, item.size_bytes, item.modified_time_ns)
-            for item in context.inventory.files
+            for item in execution_inventory.files
         )
         case_display_name = str(
             (report.get("introduction") or {}).get("case_summary") or ""
         ).strip()
         plan = plan_archive(
-            case_display_name, entries,
-            first_disc_number=first_disc_number, policy=policy,
+            case_display_name, entries, first_disc_number=first_disc_number, policy=policy,
         )
         if plan.status != "planned":
             code = plan.diagnostics[0].code if plan.diagnostics else "ARCHIVE_PLAN_INVALID"
-            raise ArchiveGateError((ExportGateIssue(code, "archive", "归档计划未通过校验。"),))
+            raise ArchiveGateError((ExportGateIssue(code, "archive", "Archive plan rejected."),))
         observe_stage(stage_observer, "preflight_verified")
         staging_root = Path(output_root) / "compressed" / ".staging"
         marker_enabled = executor is None and attempt_id is not None and attempt_service is not None
@@ -144,42 +139,47 @@ def execute_archive(
         retry_count = 0
         while True:
             try:
-                context.execution_state = "compressing"
                 observe_stage(stage_observer, "winrar")
-                execution = active_executor.execute(plan, context.inventory.files, context.inventory.source_root, winrar)
+                if getattr(active_executor, "uses_archive_root_name", False):
+                    execution = active_executor.execute(
+                        plan, execution_inventory.files, execution_inventory.source_root,
+                        winrar, context.inventory.source_root.name,
+                    )
+                else:
+                    execution = active_executor.execute(
+                        plan, execution_inventory.files, execution_inventory.source_root, winrar,
+                    )
             except ArchiveExecutionError as error:
                 raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
             if execution.returncode != 0:
                 active_executor.cleanup(execution)
-                raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_EXECUTION_FAILED, "archive", "归档执行失败。"),))
+                raise ArchiveGateError((ExportGateIssue(
+                    ExportGateCode.ARCHIVE_EXECUTION_FAILED, "archive", "Archive execution failed.",
+                ),))
             try:
-                assert_source_unchanged(context)
-            except ArchiveGateError:
+                assert_sealed_input(sealed_input)
+            except ArchiveInputError as error:
                 active_executor.cleanup(execution)
-                raise
+                raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
             validation_kwargs = {"integrity_runner": integrity_runner} if integrity_runner else {}
-            validation_kwargs["integrity_started_callback"] = (
-                lambda: observe_stage(stage_observer, "integrity")
-            )
-            context.execution_state = "validating"
+            validation_kwargs["integrity_started_callback"] = lambda: observe_stage(stage_observer, "integrity")
             validation = validate_archive_parts(execution.staging_dir, plan, winrar, **validation_kwargs)
             if not validation.valid:
                 active_executor.cleanup(execution)
-                if validation.replan_allowed:
-                    if retry_count >= plan.max_replan_attempts:
-                        raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_REPLAN_EXHAUSTED, "archive", "归档重规划次数已用尽。"),))
+                if validation.replan_allowed and retry_count < plan.max_replan_attempts:
                     next_plan = replan_to_next_tier(plan, policy)
-                    if next_plan is None or next_plan.status != "planned":
-                        raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_REPLAN_EXHAUSTED, "archive", "没有可用的更高归档档位。"),))
-                    retry_count += 1
-                    plan = next_plan
-                    continue
-                raise ArchiveGateError((ExportGateIssue(validation.diagnostic_code or ExportGateCode.ARCHIVE_PARTS_INVALID, "archive", validation.safe_message),))
+                    if next_plan and next_plan.status == "planned":
+                        retry_count += 1
+                        plan = next_plan
+                        continue
+                code = validation.diagnostic_code or ExportGateCode.ARCHIVE_PARTS_INVALID
+                if validation.replan_allowed:
+                    code = ExportGateCode.ARCHIVE_REPLAN_EXHAUSTED
+                raise ArchiveGateError((ExportGateIssue(code, "archive", validation.safe_message),))
             try:
                 observe_stage(stage_observer, "integrity_verified")
-                context.execution_state = "hashing"
                 observe_stage(stage_observer, "md5")
-                public_manifest, _paths = assemble_archive_manifest(
+                public_manifest, _ = assemble_archive_manifest(
                     plan, validation, winrar, retry_count=retry_count,
                 )
                 observe_stage(stage_observer, "manifest")
@@ -191,7 +191,7 @@ def execute_archive(
                     manifest_id, context_id, fingerprint, public_manifest, final_dir,
                     created_at, created_at + 24 * 60 * 60,
                 )
-                assert_source_unchanged(context)
+                assert_sealed_input(sealed_input)
                 publish_staged_archive(
                     execution.staging_dir, final_dir, record, report, context=context,
                     attempt_id=attempt_id if marker_enabled else None,
@@ -205,21 +205,20 @@ def execute_archive(
             except Exception as error:
                 if execution.staging_dir.exists():
                     active_executor.cleanup(execution)
-                raise ArchiveGateError((ExportGateIssue(ExportGateCode.ARCHIVE_PARTS_INVALID, "archive", "归档清单生成失败。"),)) from error
+                raise ArchiveGateError((ExportGateIssue(
+                    ExportGateCode.ARCHIVE_PARTS_INVALID, "archive", "Archive publication failed.",
+                ),)) from error
             ARCHIVE_RUNTIME_STORE.save_manifest(record)
             try:
                 registry.save(
-                    source_key=context.source_key,
-                    input_fingerprint=context.input_fingerprint,
-                    archive_fingerprint=fingerprint,
-                    manifest_id=manifest_id,
-                    final_dir=final_dir,
-                    public_manifest=public_manifest,
-                    created_at=created_at,
-                    workbench_attempt_id=attempt_id,
+                    source_key=context.source_key, input_fingerprint=context.input_fingerprint,
+                    archive_fingerprint=fingerprint, manifest_id=manifest_id,
+                    final_dir=final_dir, public_manifest=public_manifest,
+                    created_at=created_at, workbench_attempt_id=attempt_id,
+                    publication_id=record.publication_id,
+                    publication_digest=record.publication_digest,
                 )
             except ArchiveManifestRepositoryError:
-                # The current in-memory context remains usable; no archive file is removed.
                 if attempt_id is not None:
                     raise
             record_attempt_completion(
@@ -242,8 +241,9 @@ def execute_archive(
     except ArchiveInputError as error:
         raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
     finally:
+        if sealed_input is not None and attempt_service is None:
+            cleanup_ephemeral_input_snapshot(sealed_input)
         ARCHIVE_RUNTIME_STORE.release_context(
-            context_id,
-            state=final_state if not success else "completed",
+            context_id, state=final_state if not success else "completed",
             successful_manifest_id=successful_manifest_id,
         )

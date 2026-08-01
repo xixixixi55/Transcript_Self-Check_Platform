@@ -21,9 +21,12 @@ class ArchivePreparationRepository:
         self, case_id: str, source_id: str, source_revision: int,
         context_id: str, expected_case_revision: int, draft_revision: int,
         report_hash: str, context_expires_at: str | None = None,
+        task_id: str | None = None,
     ) -> dict[str, Any]:
         case_id = validate_opaque_id(case_id)
         source_id = validate_opaque_id(source_id)
+        if task_id is not None:
+            task_id = validate_opaque_id(task_id)
         now = utc_now()
         attempt_id = f"attempt-{secrets.token_hex(20)}"
         with self.database.transaction() as connection:
@@ -49,8 +52,10 @@ class ArchivePreparationRepository:
                 raise WorkbenchPersistenceError("DRAFT_REVISION_CONFLICT")
             if str(shell[1]) == "archive_queued":
                 active = connection.execute(
-                    "SELECT * FROM archive_attempts WHERE case_id = ? AND status IN ('accepted', 'running') ORDER BY created_at DESC LIMIT 1",
-                    (case_id,),
+                    "SELECT * FROM archive_attempts WHERE case_id = ? AND "
+                    "deployment_instance_id = ? AND status IN ('accepted', 'running') "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (case_id, self.database.deployment_instance_id),
                 ).fetchone()
                 if active is None:
                     raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_NOT_ALLOWED")
@@ -72,8 +77,15 @@ class ArchivePreparationRepository:
                 raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_NOT_ALLOWED")
             else:
                 connection.execute(
-                    "INSERT INTO archive_attempts(attempt_id, schema_version, case_id, source_id, input_revision, source_revision, draft_revision, report_fingerprint, status, cleanup_status, error_code, manifest_id, staging_root_id, staging_locator, ownership_marker_token, process_pid, process_started_at, created_at, started_at, finished_at, revision) VALUES (?, 1, ?, ?, ?, ?, ?, ?, 'accepted', 'not_required', NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, NULL, NULL, 0)",
-                    (attempt_id, case_id, source_id, source_revision, source_revision, draft_revision, report_hash, now),
+                    "INSERT INTO archive_attempts(attempt_id, schema_version, case_id, "
+                    "task_id, deployment_instance_id, source_id, input_revision, source_revision, "
+                    "draft_revision, report_fingerprint, status, cleanup_status, error_code, "
+                    "manifest_id, staging_root_id, staging_locator, ownership_marker_token, "
+                    "process_pid, process_started_at, created_at, started_at, finished_at, revision) "
+                    "VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', 'not_required', NULL, "
+                    "NULL, NULL, NULL, NULL, NULL, NULL, ?, NULL, NULL, 0)",
+                    (attempt_id, case_id, task_id, self.database.deployment_instance_id, source_id,
+                     source_revision, source_revision, draft_revision, report_hash, now),
                 )
                 replace_active_binding(
                     connection, attempt_id, case_id, context_id,
@@ -112,8 +124,10 @@ class ArchivePreparationRepository:
             ).fetchone()
             draft = connection.execute("SELECT revision FROM case_drafts WHERE case_id = ?", (case_id,)).fetchone()
             attempt = connection.execute(
-                "SELECT attempt_id FROM archive_attempts WHERE case_id = ? AND status = 'accepted' ORDER BY created_at DESC LIMIT 1",
-                (case_id,),
+                "SELECT attempt_id FROM archive_attempts WHERE case_id = ? AND "
+                "deployment_instance_id = ? AND status = 'accepted' "
+                "ORDER BY created_at DESC LIMIT 1",
+                (case_id, self.database.deployment_instance_id),
             ).fetchone()
             if shell is None or source is None or attempt is None or draft is None:
                 raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_NOT_ALLOWED")

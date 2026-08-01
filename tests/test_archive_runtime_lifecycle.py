@@ -440,7 +440,7 @@ def test_runtime_timeout_persists_owned_claim_as_interrupted(
     assert interrupt_owned_claim(
         services.database, task_id=claim.task_id, owner_token="SYNTHETIC-WRONG-OWNER",
         attempt_id=claim.attempt_id, task_revision=claim.revision,
-    ) == "ignored"
+    ) == "ownership_lost"
     assert runtime.scheduler.tasks.get(queued["task_id"])["status"] == "running"
 
     assert runtime.stop() is False

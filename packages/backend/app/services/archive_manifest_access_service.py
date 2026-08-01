@@ -21,14 +21,19 @@ class ArchiveGateError(ArchiveRuntimeError):
         self.blockers = blockers
 
 
-def archive_report_fingerprint(report: dict, inventory, first_disc_number: str) -> str:
+def archive_report_fingerprint(
+    report: dict, inventory, first_disc_number: str,
+    *, content_fingerprint: str | None = None,
+) -> str:
     payload = {
         "archive_base_name": str(
             (report.get("introduction") or {}).get("case_summary") or ""
         ).strip(),
         "first_disc_number": first_disc_number,
         "input": inventory.public_entries(),
-        "input_content_fingerprint": directory_content_fingerprint(inventory.source_root),
+        "input_content_fingerprint": content_fingerprint or directory_content_fingerprint(
+            inventory.source_root,
+        ),
     }
     return hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode()
@@ -56,7 +61,10 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
             raise ArchiveGateError((ExportGateIssue(
                 error.code, "archive_manifest", "归档输入已变化，请重新解析。",
             ),)) from error
-        if record.fingerprint != archive_report_fingerprint(report, context.inventory, first_disc):
+        if record.fingerprint != archive_report_fingerprint(
+            report, context.inventory, first_disc,
+            content_fingerprint=context.input_fingerprint or None,
+        ):
             raise ArchiveGateError((ExportGateIssue(
                 "ARCHIVE_MANIFEST_MISSING", "archive_manifest", "审核数据已变化，请重新生成归档。",
             ),))

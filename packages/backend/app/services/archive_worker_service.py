@@ -82,9 +82,17 @@ class ArchiveWorkerService:
             if attempt_state["status"] != "succeeded":
                 return self._finish_interrupted(claim, item.attempt_service)
         if self.progress.cancellation_requested(claim.task_id, claim.owner_token):
+            attempt_state = item.attempt_service.repository.get_internal(
+                claim.attempt_id,
+            )
+            if attempt_state["status"] == "succeeded":
+                return self._complete_succeeded(claim)
             return self.progress.cancel(claim.task_id, claim.owner_token)
         if outcome.reused:
             return self._complete_reused(claim)
+        current = self.tasks.get(claim.task_id)
+        if current["status"] == "succeeded":
+            return current
         return self.progress.complete(claim.task_id, claim.owner_token)
 
     def _finish_interrupted(
@@ -92,18 +100,35 @@ class ArchiveWorkerService:
         claim: ArchiveTaskClaim,
         attempt_service: ArchiveAttemptService,
     ) -> dict[str, Any]:
-        from ..repository.archive_attempt_restart_repository import interrupt_attempt
+        from ..repository.archive_attempt_restart_repository import interrupt_owned_claim
 
         try:
-            interrupt_attempt(attempt_service.database, claim.attempt_id)
-        except WorkbenchPersistenceError:
-            pass
+            result = interrupt_owned_claim(
+                attempt_service.database,
+                task_id=claim.task_id,
+                owner_token=claim.owner_token,
+                attempt_id=claim.attempt_id,
+                task_revision=claim.revision,
+            )
+        except WorkbenchPersistenceError as error:
+            raise WorkbenchPersistenceError(
+                "ARCHIVE_RUNTIME_INTERRUPTION_UNRESOLVED",
+            ) from error
+        if result in {"ownership_lost", "unresolved"}:
+            raise WorkbenchPersistenceError(
+                "ARCHIVE_RUNTIME_INTERRUPTION_UNRESOLVED",
+            )
+        return self.tasks.get(claim.task_id)
+
+    def _complete_succeeded(self, claim: ArchiveTaskClaim) -> dict[str, Any]:
         current = self.tasks.get(claim.task_id)
+        if current["status"] == "succeeded":
+            return current
+        if not self.tasks.is_owned_by(claim.task_id, claim.owner_token):
+            raise WorkbenchPersistenceError("ARCHIVE_TASK_OWNERSHIP_LOST")
         return self.tasks.update_state(claim.task_id, {
-            "status": "interrupted",
-            "worker_state": "waiting_reclaim",
-            "error_code": "ARCHIVE_RUNTIME_INTERRUPTED",
-            "error_summary": "Archive runtime stopped before completion.",
+            "status": "succeeded", "stage": "completed",
+            "worker_state": "released", "cancel_requested": False,
         }, current["revision"])
 
     def recover_after_restart(
@@ -122,7 +147,7 @@ class ArchiveWorkerService:
                     )
                 except WorkbenchPersistenceError:
                     pass
-            if succeeded and task["status"] == "running":
+            if succeeded and task["status"] in {"running", "cancelling"}:
                 results.append(self.tasks.update_state(task["task_id"], {
                     "status": "succeeded", "stage": "completed",
                     "worker_state": "released",
@@ -174,6 +199,9 @@ class ArchiveWorkerService:
         except WorkbenchPersistenceError:
             pass
         if self.progress.cancellation_requested(claim.task_id, claim.owner_token):
+            attempt_state = attempt_service.repository.get_internal(claim.attempt_id)
+            if attempt_state["status"] == "succeeded":
+                return self._complete_succeeded(claim)
             return self.progress.cancel(claim.task_id, claim.owner_token)
         return self.progress.fail(
             claim.task_id, claim.owner_token,
@@ -183,6 +211,8 @@ class ArchiveWorkerService:
 
     def _complete_reused(self, claim: ArchiveTaskClaim) -> dict[str, Any]:
         current = self.tasks.get(claim.task_id)
+        if current["status"] == "succeeded":
+            return current
         if not self.tasks.is_owned_by(claim.task_id, claim.owner_token):
             raise WorkbenchPersistenceError("ARCHIVE_TASK_OWNERSHIP_LOST")
         return self.tasks.update_state(claim.task_id, {

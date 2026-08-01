@@ -59,7 +59,7 @@ class ArchiveTaskApiService:
             source = self.sources.get(shell["source_id"])
             attempt = self.attempts.accept(
                 case_id, source["source_id"], source["revision"],
-                context_id, expected_case_revision,
+                context_id, expected_case_revision, task_id=task_id,
             )
             # Register before publishing the durable task row so a running
             # lifecycle cannot claim a task before its bound context is ready.
@@ -73,9 +73,9 @@ class ArchiveTaskApiService:
                 "stage": "queued",
                 "input_revision": self.drafts.get(case_id)["revision"],
                 "attempt": len(self.tasks.get_history(case_id)) + 1,
-                "process_binding": {"staging_asset_id": attempt["attempt_id"]},
                 "created_at": utc_now(),
             })
+            task = self.tasks.bind_attempt(task_id, attempt["attempt_id"])
         except Exception:
             if registered and self.runtime is not None:
                 self.runtime.unregister(task_id)

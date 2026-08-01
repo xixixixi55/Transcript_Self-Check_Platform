@@ -21,6 +21,14 @@
 
 ## Why
 
+## 2026-08-01 第二轮独立 Review remediation
+
+本轮独立 Level 3 Review 已确认上一轮 M-1 至 M-4 为阻断项，当前只实施这些阻断项及关联 L-1，不重新执行 `1D-017R`，不开始 Final Review、Production Review、Phase 5 或 OpenSpec archive。修复前置安全模型如下：外部来源目录只负责形成一次受授权的输入，任务在 WinRAR 前复制、逐文件验证并 durable seal 一个 task/attempt/deployment 绑定的不可变执行输入快照；WinRAR、inventory、RAR 和 Manifest 只读取该 sealed 快照。
+
+正式发布使用任务绑定的 `publication_id` generation。SQLite 的 publish intent/fence/publication 记录是唯一 durable 事实源；正式目录通过同文件系统原子改名进入受保护 generation，JSON Manifest index 只是可重建投影。只有 sealed generation、完整 Manifest/index 投影、owner/fence 和当前 revision 在同一完成事务中一致时，attempt 与 task 才能进入 succeeded。旧的缺 task identity 或缺 publication identity 记录不自动补认，按冲突/恢复策略处理。
+
+本轮实现会按 Level 3 规则完成 schema/migration、repository/service/recovery 链路和真实文件系统/SQLite 故障注入；磁盘快照成本、受控输出根和共享 SQLite 的 deployment ownership 均在 `design.md` 中明确。所有新证据使用 `SYNTHETIC/TEST/FIXTURE` 数据，`word_templates/template.docx` 不变。
+
 当前电子检查笔录流程以单个页面和 React 内存状态为中心。解析结果、编辑结果、归档准备状态和默认值没有共同的后端持久化模型；归档执行仍是同步链路；审核顺序、字段来源、光盘编号映射和模板选择没有成为可恢复的案件合同。
 
 甲方已经确认本轮需要把这些能力统一到多案件工作台中，同时继续保持最近完成的大型报告快速预览和“用户明确操作后才启动完整归档”的边界。若分别为排序、默认值、任务进度和模板选择增加局部状态，容易再次出现刷新丢失、Word 顺序不一致、replan 覆盖人工编号和正式产物被错误清理等问题，因此本变更包把案件草稿、共享默认值、后台任务、来源状态、归档计划和模板引用定义为一套版本化合同。

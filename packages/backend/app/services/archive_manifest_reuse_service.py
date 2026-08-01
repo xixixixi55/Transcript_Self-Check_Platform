@@ -36,10 +36,21 @@ def restore_persisted_manifest(
                 }.items()
             ):
                 continue
+            attempt = attempt_service.repository.get_internal(persisted.workbench_attempt_id)
+            if (
+                intent.get("publication_status") != "verified"
+                or intent.get("task_id") != attempt.get("task_id")
+                or intent.get("deployment_instance_id") != attempt_service.database.deployment_instance_id
+                or persisted.publication_id != intent.get("publication_id")
+                or persisted.publication_digest != intent.get("publication_digest")
+            ):
+                continue
         record = ArchiveManifestRecord(
             persisted.manifest_id, context.context_id, fingerprint,
             persisted.public_manifest, registry.resolve_final_dir(persisted),
             persisted.created_at, time.time() + ARCHIVE_MANIFEST_TTL_SECONDS,
+            publication_id=persisted.publication_id,
+            publication_digest=persisted.publication_digest,
         )
         if validate_manifest_files(record) is not None:
             registry.mark_invalid(persisted.manifest_id)

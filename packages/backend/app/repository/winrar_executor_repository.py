@@ -7,10 +7,13 @@ import shutil
 import subprocess
 import tempfile
 import threading
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Callable
 
+from .winrar_execution_models_repository import (
+    ArchiveExecutionError, PlanEntry, PlanLike, ProcessRunner,
+    ProcessStartedCallback, StagingInitializer, WinRarExecutionResult,
+)
 from .winrar_discovery_repository import WinRarCapability
 from .winrar_timeout_policy import (  # noqa: E402
     _kill_process_tree_impl,
@@ -23,39 +26,12 @@ from .winrar_process_monitor import (
     terminate_process_tree,
 )
 
-class ArchiveExecutionError(RuntimeError):
-    def __init__(self, code: str, message: str):
-        super().__init__(message)
-        self.code = code
-        self.safe_message = message
-
-class PlanEntry(Protocol):
-    relative_path: str
-    absolute_path: Path
-
-class PlanLike(Protocol):
-    plan_id: str
-    archive_base_name: str
-    volume_size_bytes: int
-
-@dataclass(frozen=True)
-class WinRarExecutionResult:
-    plan_id: str
-    staging_dir: Path
-    returncode: int
-    timed_out: bool
-    diagnostic_code: str | None = None
-    safe_output: str = ""
-
-ProcessRunner = Callable[..., subprocess.CompletedProcess[str]]
-StagingInitializer = Callable[[Path], None]
-ProcessStartedCallback = Callable[[int], None]
-
 def _terminate_process(process: subprocess.Popen[str], pid: int) -> bool:
     return terminate_process_tree(process, pid, _kill_process_tree_impl)
 
 class WinRarExecutor:
     """The only component that constructs and invokes the WinRAR argument array."""
+    uses_archive_root_name = True
     _active_plans: set[str] = set()
     _active_guard = threading.Lock()
 
@@ -104,6 +80,7 @@ class WinRarExecutor:
 
     def execute(self, plan: PlanLike, inventory_files: tuple[PlanEntry, ...],
                 source_root: Path, capability: WinRarCapability,
+                archive_root_name: str | None = None,
                 ) -> WinRarExecutionResult:
         if not capability.available or not capability.executable_path:
             raise ArchiveExecutionError("WINRAR_UNAVAILABLE", "WinRAR 不可用，无法执行归档。")
@@ -124,8 +101,17 @@ class WinRarExecutor:
             archive_path = staging_dir / f"{plan.archive_base_name}.rar"
             total_bytes = sum(item.absolute_path.stat().st_size for item in inventory_files)
             timeout = self._timeout_for(total_bytes)
+            # A sealed snapshot may have a generated directory name.  Use the
+            # original relative name only for the legacy same-root case;
+            # otherwise pass the sealed absolute path so WinRAR cannot resolve
+            # the mutable source directory or an unrelated sibling.
+            input_argument = (
+                source_root.name
+                if not archive_root_name or archive_root_name == source_root.name
+                else str(source_root)
+            )
             args = [capability.executable_path, "a", "-r", "-y", "-inul",
-                    f"-v{plan.volume_size_bytes}b", str(archive_path), source_root.name]
+                    f"-v{plan.volume_size_bytes}b", str(archive_path), input_argument]
 
             if self._process_runner is not None:
                 try:
