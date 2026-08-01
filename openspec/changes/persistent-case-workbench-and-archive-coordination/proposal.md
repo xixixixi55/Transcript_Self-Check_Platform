@@ -1,7 +1,7 @@
 # Proposal: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 状态：Phase 1–4 已完成；完整 Harness 和最终集成人工验收已通过；`1D-017R` 已于 2026-08-01 通过。Final Review 随后因 retry 公共响应内部身份泄露、delta requirement 缺少 Scenario、living spec 严格格式/schema 版本滞后和 proposal 状态滞后四项有限问题判定为 `REJECT`；本轮只覆盖这四项的 remediation 已完成，等待重新执行 Final Review。Production Review、Phase 5 和 OpenSpec archive 尚未开始；不得据此宣称 Final Review 已通过或解除归档阻断。自动化验证、原生 Word 视觉检查、真实浏览器人工验收及限制边界详见同变更包 `tasks.md`。
+> 状态：Phase 1–4 已完成；完整 Harness 和最终集成人工验收已通过；`1D-017R` 已于 2026-08-01 通过。Final Review 随后因 retry 公共响应内部身份泄露、delta requirement 缺少 Scenario、living spec 严格格式/schema 版本滞后和 proposal 状态滞后四项有限问题判定为 `REJECT`；本轮只覆盖这四项的 remediation 已完成，并于 2026-08-01 重新执行 Final Review 后判定为 `PASS`，当前允许进入 Production Review。Production Review、Phase 5 和 OpenSpec archive 尚未开始；OpenSpec 归档阻断仍未解除，不得据此宣称 Production Review 或归档完成。自动化验证、原生 Word 视觉检查、真实浏览器人工验收及限制边界详见同变更包 `tasks.md`。
 > 日期：2026-07-26
 > 级别：Level 3
 

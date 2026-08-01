@@ -1,6 +1,6 @@
 # Tasks: persistent-case-workbench-and-archive-coordination
 
-> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 `queued/unassigned`；2026-07-31 完成 runtime 接线、Windows 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序和工作台 autosave/revision 协调四项修复，并在 D 盘隔离环境完成真实浏览器复验。Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；2026-08-01 完整 `verify:full` 退出码为 `0`，随后独立 Level 3 Review 通过。Phase 5、Final Review、Production Review 和 OpenSpec archive 仍未完成；TD-1/TD-2 已关闭，TD-4/TD-5 保留为环境债务，TD-3/TD-6 保留为 Low 技术债。
+> 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证和轻量开发冒烟通过，当前为 Demo-ready（有条件）但不是 Production-ready。2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 `queued/unassigned`；2026-07-31 完成 runtime 接线、Windows 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序和工作台 autosave/revision 协调四项修复，并在 D 盘隔离环境完成真实浏览器复验。Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；2026-08-01 完整 `verify:full` 退出码为 `0`，随后独立 Level 3 Review 通过。Final Review remediation 已完成并通过，当前允许进入 Production Review；Production Review、Phase 5 和 OpenSpec archive 尚未开始。TD-1/TD-2 已关闭，TD-4/TD-5 保留为环境债务，TD-3/TD-6 保留为 Low 技术债。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
 > 设计：`design.md`
 
@@ -342,6 +342,16 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] 第三次 Review remediation 的新完整 Harness gate 已完成：用户于 2026-07-28 在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端 `671 passed, 3 skipped, 12 warnings`，前端 TypeScript/生产构建及文档门控通过。该记录不等同于独立 Level 3 Review 通过。
 - [x] 第四次 Review remediation 的新完整 Harness gate 已完成：用户于 2026-07-28 在独立 PowerShell 执行完整 Harness，退出码为 `0`；后端 `679 passed, 3 skipped, 12 warnings`，前端 TypeScript/生产构建及 `verify:docs:strict` 通过。非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。该记录不等同于独立 Level 3 Review 通过。
 - [x] 独立 Level 3 复审无阻断性 Critical、High 或 Medium；2026-08-01 复审结果为 Critical/High/Medium/Low 均为 0。
+
+#### 2026-08-01 Final Review 结果（remediation 后）
+
+- **审查基线与范围**：基线为 `1ffd6ba7b4b24cb894a75263f64b54c27ddadf3c`，当前 `HEAD` 为 `de36694e0e84aaf83360db933cdba6ecdbf7ec1f1`；remediation diff 为 8 个预期文件、`+251/-92`，只复核前次四项阻断及其直接回归，不重新打开 `1D-017R`、M-1 至 M-4B/L-1，不扩大产品合同。
+- **retry 公共投影**：公共 retry 响应仅返回安全 `task` projection；代码和已通过的工作台、runtime/attempt/worker/persistence 回归确认不含 `archive_context_id`、`archive_attempt_id`、fence、lease、owner、内部路径或其他持久化绑定字段。请求模型继续拒绝内部绑定字段；新 attempt 创建、revision、lease、冲突/失败和 Runtime/Scheduler/Worker 接管合同保持不变，前端仍只消费 `data.task`。
+- **change/living strict 与 schema v10**：`openspec validate persistent-case-workbench-and-archive-coordination --strict --no-interactive` 通过；`openspec validate --specs --strict --no-interactive` 为 `1 passed, 0 failed`；Phase 1D delta Scenario 具有实际中断、不可虚假成功、半成品不得正式发布及既有恢复/完整性门控语义。living spec 已具备 `## Purpose`/`## Requirements` 和合法 Requirement/Scenario 层级，data model 记录 schema v10 及已批准的 sealed snapshot、deployment owner、publication generation 和 Manifest durable/projection 边界。
+- **状态合同**：proposal、design 和本节当前状态一致：Phase 1–4、完整 Harness、最终集成人工验收和 `1D-017R` 已完成；前次 Final Review 因四项问题为 `REJECT`，remediation 已完成，本次复审判定 `Final Review = PASS`；当前允许进入 Production Review，但 Production Review、Phase 5 和 OpenSpec archive 尚未开始。
+- **额外只读检查**：`npm.cmd run verify:docs:strict` 通过，`git diff --check` 通过。前次已提交的定向测试、授权环境 `verify:full` 和独立 remediation Review 证据与当前 HEAD 一致，本轮未重复执行测试、Harness、浏览器或 Word 视觉检查。
+- **非阻断说明**：既有 `ARCHIVE_CONFIGURED_ROOT_INVALID`、UI/Vite 警告以及 TD-3、TD-4、TD-5、TD-6 仍按已批准边界记录为非阻断技术债/环境债务；未发现 Critical、High 或阻断性 Medium，也未发现本次 remediation 直接引入的支持链路回归。
+
 - [ ] OpenSpec 归档阻断解除。
 
 ### Phase 1 gate
@@ -558,7 +568,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **独立安全裁定**：M-1、M-2、M-3、M-4A、M-4B、L-1 均 `PASS`；Critical、High、Medium、Low 阻断均为 `0`。未发现支持边界内的 durable false succeeded、历史正式资产覆盖、不可逆损坏、跨 task 复用或绕过 revision/ownership/fence/integrity 的主链路问题。
 - **TD 状态**：TD-1 已关闭；TD-2 已关闭；TD-4/TD-5 保留为外部环境债务，现有 sealed snapshot、Manifest/MD5/SQLite 校验在支持链路中 fail-closed；TD-3、TD-6 保留为 Low 技术债。
 - **文档澄清**：marker 序列化 payload 不直接存 `fence_id`；fence 绑定由 durable intent 的 `fence_id` 与当前 DB fence 在删除前交叉校验实现，不构成本轮阻断。此前技术债段落保留历史发现，以上述当前状态为准。
-- **剩余门控**：`1D-017R` 完成；Final Review、Production Review、Phase 5、OpenSpec archive 和 `OpenSpec 归档阻断解除` 仍保持未完成。
+- **剩余门控（`1D-017R` 完成时、Final Review remediation 前快照）**：`1D-017R` 完成；Final Review、Production Review、Phase 5、OpenSpec archive 和 `OpenSpec 归档阻断解除` 仍保持未完成。
 
 ## 2026-08-01 Final Review 有限 remediation
 
@@ -572,7 +582,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 #### 本轮状态
 
 - `1D-017R`：已于 2026-08-01 通过，保持完成，不重新审查。
-- Final Review：此前因上述四项问题为 `REJECT`；本轮 remediation 完成后仍需重新执行 Final Review，当前不得标记通过。
+- Final Review：此前因上述四项问题为 `REJECT`；2026-08-01 remediation 后已重新执行并判定为 `PASS`，当前允许进入 Production Review。
 - Production Review：未开始。
 - Phase 5：未开始。
 - OpenSpec archive：未开始；`OpenSpec 归档阻断解除` 保持未勾选。
