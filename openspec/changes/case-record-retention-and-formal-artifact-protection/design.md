@@ -11,6 +11,53 @@
 - 时间合同：durable 时间、比较、CAS、审计和 retention 计算使用带时区 UTC；API 返回带时区 ISO 8601；界面和人工验收按 `Asia/Shanghai` 展示；默认 30 天按连续 720 小时计算。
 - 规划结论：允许提交 Phase 5 立项包，Planning Review 到此终止。PASS 只批准规划基线，不表示实现完成；Phase 5A 开始前必须先执行 active change/schema overlap gate 和当前 v10 事实复核，不得绕过 tasks 批量实现。
 
+## Phase 5A Pre-implementation Gate
+
+### Gate record
+
+- Gate：`Phase 5A pre-implementation overlap gate and v10 fact verification`。
+- 对应任务：现有 `1.1 T024`；本节不新增任务编号。
+- 审查基线：`3edcd2c41b732efbb8d264798e2c3d980be33e5a`。
+- 结果：`PASS`。active change/schema overlap、publication/Word authority overlap、retention policy overlap 和 v10 事实核对均完成；没有发现需要修改冻结公共合同的直接冲突。
+- 本 Gate 只允许进入 Slice 5A-1 的实现准备，不表示 v11 migration、publication revalidation、Word artifact、Coordinator、preview、清理、API/UI 或测试已经实现。
+
+### Active change overlap audit
+
+| Active change | 文件/合同交集 | 实际冲突结论 | 实施顺序/阻断 |
+|---|---|---|---|
+| `case-shared-defaults` | SharedTypes/constants、deployment defaults、`shared_defaults` | 只维护既有共享默认值；没有 v11、retention mode/days/interval/batch 或 publication authority 合同 | retention policy 保持独立 durable row；未来同时迁移时合并事务，当前不阻断 |
+| `extensible-report-template-platform` | template identity、Manifest/Word renderer、Legacy/Canonical/Shadow | 当前明确 Legacy 是正式链路，Canonical 未启用、Shadow 不是正式输出；没有 v11 或第二 publication authority | Phase 5 只记录模板 identity/version，继续 Legacy-only；不阻断 |
+| `large-report-preview-liveness` | preview、runtime context、cache、`/records/*` | runtime context 是未清理兼容事实，不是 cleaned-case formal authority；没有 v11/policy/Word identity 冲突 | 先实施本 change 的 stable identity 访问；不阻断 |
+| `report-parsing-cache-management` | `output/parsed` 等 parsing cache | 只允许 work cache，不触碰 RAR/Manifest/Word/原始来源，也不提供 durable authority | 不纳入 retention authority/资格；不阻断 |
+| Word/template changes | template、分页、渲染和导出文件名 | 没有第二 Word identity；template identity/version 可被 `formal_word_artifacts` 记录，模板合同不变 | Word artifact implementation 后于 Slice 5A-1；不阻断 |
+| 其他 active changes | parser、UI、上传、demo、请求存活性和历史兼容 | 未发现引用 workbench migration、schema v11、publication authority 或 retention policy 的直接相反设计 | 仅保留依赖登记；潜在文件交集不阻断 |
+
+当前实际核对的其他 active change 包括 `audit-edit-enhancement`、`demo-readiness-and-source-guidance`、`docx-vml-pagination`、`export-name-and-datetime-controls`、`preview-export-correction`、`report-request-liveness-fix`、`review-page-modern-government-ui`、`support-legacy-and-new-report-formats`、`template-2026` 和 `upload-compression-toggle-fix`。没有任何一个明确占用 v11、定义另一套 retention policy durable authority、替换 `archive_publish_intents`，或要求 Canonical/Shadow 进入 Phase 5 正式输出链路。
+
+### v10 fact verification baseline
+
+| Area | 当前实现事实 | 对 Slice 5A-1 的含义 |
+|---|---|---|
+| Schema/migration | `workbench_schema.py` 当前 migration 1–10；`WorkbenchDatabase.initialize()` 用 `BEGIN IMMEDIATE` 应用 migration、写 `schema_migrations`/`user_version`、执行 `validate_schema` 和 owner check，异常 rollback；`connect()` 开启 `foreign_keys` | v11 必须沿用单事务、旧版本拒绝、幂等和 `foreign_key_check` 边界；本轮不改代码 |
+| Source/FK | SQL FK 包括 `case_drafts→case_shells` cascade、`source_records.case_id→case_shells`、`source_records.task_id→task_records`、`task_records.case_id→case_shells`、`archive_attempts.case_id/source_id`、`archive_context_bindings.attempt_id/case_id`、`archive_publish_intents.attempt_id/case_id/source_id`、`archive_publish_fences.attempt_id/case_id/source_id`、`archive_input_snapshots.attempt_id/case_id/source_id`；`case_shells.source_id`、`archive_context_bindings.source_id` 和 `archive_assets` 的关联是逻辑引用/无 FK | v11 table rebuild 必须保留 source identity、逐项处理 snapshot work-only DELETE 和正式 FK；不以 cascade 或关闭 foreign key 绕过 |
+| Source/snapshot/reference repository | source repository 当前持有内部路径、allowed root、metadata、fingerprint 和 revision；snapshot repository create/seal/recovery 后当前把 row 标为 `cleaned`；`asset_references` 仅管理草稿/工作引用并可按 case/asset 删除 | row DELETE、source tombstone、引用保护和文件阶段顺序仍由 2.1/2.6/2.8 实现；本轮只核对事实 |
+| Publication | `archive_publish_intents` 保存 attempt/case/source、publication identity、Manifest/digest/file set、phase/status、fence 和可变 `updated_at`；seal 依赖 active fence；`.archive-manifest-index.json` 是可重建投影 | v10 没有 `publication_verified_at`；不得以 `updated_at`/文件 mtime/index 时间推断 anchor；NULL-only CAS/revalidation 后续实现 |
+| Word/access | `record_generator_service.generate_docx()` 从 request report/context/template 生成文件；`/records/export` 依赖 `report_json`，Manifest/parts 访问使用 runtime context；当前无 Word durable row/`word_artifact_id` | `formal_word_artifacts` durable 接入和 cleaned identity 访问是后续任务；Slice 5A-1 只建立 schema/contract foundation |
+| Runtime/concurrency | task/case revision CAS、edit lease heartbeat/expiry、task recovery、publish fence、publish-intent recovery 和 FastAPI lifespan runtime start/stop 已存在 | cleanup claim/CAS 与双向互斥在后续 2.3/3.3/3.6/3.7 实现；不在本 Gate 改 Phase 1–4 合同 |
+
+`normalize_utc()` 已要求 timezone-aware 输入并归一化为 UTC；当前 Word 文件名仍使用展示用途的本地 `datetime.now()`，它不作为 Phase 5 持久化或 retention 事实。v10 与冻结设计之间的缺口（v11 对象、`publication_verified_at`、Word durable artifact、snapshot row DELETE）均已有对应实现任务，不构成当前 foundation slice 的实质 migration 冲突。
+
+### Slice 5A-1 boundary
+
+允许的首批实现是共享合同与 schema v11 migration foundation：
+
+- 增加 retention mode/blocker/policy/status/preview/run/Word identity 的 SharedTypes/constants 安全合同和配置解析合同；
+- 以单事务、可回滚、旧版本拒绝、重复启动幂等为约束实现 v10→v11 migration；
+- 创建 `case_retention_policies`、`case_retention_records`、`case_cleanup_runs`、`formal_word_artifacts`，并扩展 `case_shells`、`source_records`、`task_records` 与 `archive_publish_intents.publication_verified_at`；
+- 建立唯一约束、恢复/lease/query 索引、source FK rebuild 和 `foreign_key_check` migration fixture。
+
+本轮不启动 Scheduler/Coordinator、enforce、preview 扫描、实际清理/删除、历史 publication 自动 verified、Word 生成或持久化、清理执行 API、公共 UI/API route、完整测试/Harness/构建或人工验收。Slice 5A-1 完成并定向验证后，才按 tasks 进入后续 Phase 5B/5C。
+
 ## Context
 
 Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢复的单机持久化模型。当前 SQLite schema 为 v10；案件包含 CaseShell、CaseDraft、SourceRecord、TaskRecord、编辑租约和 revision；归档包含 sealed input snapshot、ArchiveAttempt、ArchivePlan、publish intent/fence、publication generation、Manifest/index、RAR/分卷、Word 和安全下载/复用门控。现有 Scheduler/Worker/Coordinator 已具备 ownership、lease、CAS、取消、重试、启动恢复和有界停止。

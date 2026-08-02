@@ -37,7 +37,17 @@
 
 ## 1. Phase 5A — 范围、重叠和合同（T020、T024）
 
-- [ ] 1.1 **T024** 审计 `openspec/changes/` 下所有 active change，更新 `design.md` 依赖矩阵，逐项记录 shared/API/schema/正式产物/Legacy/Canonical/Shadow 边界；完成条件：覆盖 `case-shared-defaults`、`extensible-report-template-platform`、`report-parsing-cache-management`、`large-report-preview-liveness` 及其他当前 active change，未修改其他 change；验证：active change status 和 Git 审计；证据：本 change `design.md`。
+- [x] 1.1 **T024** 审计 `openspec/changes/` 下所有 active change，更新 `design.md` 依赖矩阵，逐项记录 shared/API/schema/正式产物/Legacy/Canonical/Shadow 边界；完成条件：覆盖 `case-shared-defaults`、`extensible-report-template-platform`、`report-parsing-cache-management`、`large-report-preview-liveness` 及其他当前 active change，未修改其他 change；验证：active change status 和 Git 审计；证据：本 change `design.md`。
+  - Phase 5A pre-implementation gate：`PASS`；审查基线 `3edcd2c41b732efbb8d264798e2c3d980be33e5a`。
+  - overlap 结论：未发现其他 active change 明确占用 schema v11、替换 `archive_publish_intents` authority、定义冲突的 Word identity 或 retention policy durable authority；已登记的潜在文件交集不阻断。
+  - v10 事实证据：`workbench_schema.py`/`workbench_database.py`、source/snapshot/reference、publication/fence/asset、Word/controller、lease/revision/recovery/runtime 代码已核对；具体结果记录于本 change `design.md` 的 Phase 5A Gate section。
+  - 首批切片确认：仅允许进入 Slice 5A-1 共享合同与 v11 migration foundation；本任务未执行 migration、清理、Coordinator、API/UI 或测试实现。
+
+### Phase 5A first implementation slice confirmation（记录，不新增任务编号）
+
+- 允许下一步：SharedTypes/constants/config parsing contract、v10→v11 migration foundation、四个新增 durable 对象、既定字段扩展、唯一约束/索引、source FK rebuild 和 `foreign_key_check` fixture。
+- 明确排除：Scheduler/Coordinator、`enforce`、preview 扫描、任何案件/文件删除、历史 publication 自动 verified、Word 生成/持久化、清理执行 API、公共 UI/API route 改造和完整测试/Harness/人工验收。
+- 当前仅完成 gate 与事实核对；不得将本记录解释为 Slice 5A-1 或任何产品能力已实现。
 - [ ] 1.2 **T020** 在 `packages/shared/types/`、`packages/shared/constants/` 和 `packages/shared/utils/` 冻结 policy mode、eligibility、preview/status/run、case/publication/word artifact identity、稳定错误码和安全投影；完成条件：公共类型不包含路径、表名、owner token、lease/fence/attempt/context，且不包含公共人工执行/force-delete 合同；验证：SharedTypes contract、typecheck 和 `tests/test_check_contracts.py`；证据：类型测试与 delta/data-model 文档。
 - [ ] 1.3 **T020** 将 v10 的 `case_shells`、`case_drafts`、source/work projections、`asset_references`、task、lease/revision、`archive_input_snapshots`/binding/plan、attempt、intent、fence、asset、Manifest index、audit 和 global control tables 逐项映射为 `KEEP`、`COMPACT`、`DELETE`、`DERIVED/REBUILDABLE` 或 `NEW`；完成条件：每行都有字段、资格、引用、顺序、失败恢复和清理后验证，明确 `archive_input_snapshots.source_id` 为 work-only DELETE、source row 删除前必须删除 snapshot row、source tombstone/FK 方案；验证：SQLite `foreign_key_list`/schema introspection fixture；证据：design 矩阵和 migration fixture。
 - [ ] 1.4 **T020** 冻结 30 天 deployment policy、`disabled/preview_only/enforce`、anchor 三个 durable 来源、`publication_verified_at` 的 NULL-only CAS/v10 revalidation/enforce gate、UTC timezone-aware 时间、`expires_at_utc = anchor_utc + retention_days × 24 hours`、API ISO 8601、Asia/Shanghai 展示、5 分钟未来时间阈值、缺失 blocker code 和 required Word/publication set；完成条件：不使用创建时间/首次导出时间/普通 `updated_at` 单独计算；验证：shared/backend contract tests；证据：retention delta 和配置测试。
