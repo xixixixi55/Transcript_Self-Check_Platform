@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -10,6 +11,21 @@ from .workbench_database import WorkbenchDatabase, utc_now_z
 from .workbench_errors import WorkbenchPersistenceError
 
 _STATUSES = {"pending", "verified", "invalid"}
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_MAX_FILE_SIZE = 2**53 - 1
+
+
+def _digest(value: Any) -> str:
+    digest = text(value, "INVALID_WORD_ARTIFACT")
+    if not _SHA256.fullmatch(digest):
+        raise WorkbenchPersistenceError("INVALID_WORD_ARTIFACT")
+    return digest
+
+
+def _file_size(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= _MAX_FILE_SIZE:
+        raise WorkbenchPersistenceError("INVALID_WORD_ARTIFACT")
+    return value
 
 
 class FormalWordArtifactRepository:
@@ -24,19 +40,17 @@ class FormalWordArtifactRepository:
         if status not in _STATUSES:
             raise WorkbenchPersistenceError("INVALID_WORD_ARTIFACT")
         verified_at = optional_time(value.get("verified_at"))
-        if status == "verified" and verified_at is None:
+        if (status == "verified") != (verified_at is not None):
             raise WorkbenchPersistenceError("INVALID_WORD_ARTIFACT")
         now = utc_now_z()
         fields = (
             artifact_id, self.database.deployment_instance_id, case_id, publication_id,
-            relative_path(value.get("internal_relative_path")), text(value.get("file_digest")),
-            int(value.get("file_size", -1)), text(value.get("source_manifest_digest")),
+            relative_path(value.get("internal_relative_path")), _digest(value.get("file_digest")),
+            _file_size(value.get("file_size", -1)), _digest(value.get("source_manifest_digest")),
             identifier(value.get("template_identity")), identifier(value.get("template_version")),
             required_time(value.get("generated_at", now)), verified_at, status,
             required_time(value.get("created_at", now)), required_time(value.get("updated_at", now)),
         )
-        if fields[6] < 0:
-            raise WorkbenchPersistenceError("INVALID_WORD_ARTIFACT")
         with self.database.transaction() as connection:
             publication = connection.execute(
                 "SELECT phase,publication_status,publication_verified_at FROM archive_publish_intents "
@@ -64,14 +78,27 @@ class FormalWordArtifactRepository:
         return self.get_internal(artifact_id)
 
     def get_internal(self, artifact_id: str) -> dict[str, Any]:
-        with self.database.connect() as connection:
+        with self.database.transaction() as connection:
             row = connection.execute(
                 "SELECT * FROM formal_word_artifacts WHERE word_artifact_id=? AND deployment_instance_id=?",
                 (identifier(artifact_id), self.database.deployment_instance_id),
             ).fetchone()
-        if row is None:
-            raise WorkbenchPersistenceError("WORD_ARTIFACT_NOT_FOUND")
-        return dict(row)
+            if row is None:
+                raise WorkbenchPersistenceError("WORD_ARTIFACT_NOT_FOUND")
+            publication = connection.execute(
+                "SELECT phase,publication_status,publication_verified_at FROM archive_publish_intents "
+                "WHERE publication_id=? AND deployment_instance_id=? AND case_id=?",
+                (row["publication_id"], self.database.deployment_instance_id, row["case_id"]),
+            ).fetchone()
+            if publication is None:
+                raise WorkbenchPersistenceError("WORD_ARTIFACT_PUBLICATION_NOT_FOUND")
+            if row["status"] == "verified" and (
+                publication["phase"] != "verified"
+                or publication["publication_status"] != "verified"
+                or publication["publication_verified_at"] is None
+            ):
+                raise WorkbenchPersistenceError("WORD_ARTIFACT_PUBLICATION_UNVERIFIED")
+            return dict(row)
 
     def get_public(self, artifact_id: str) -> dict[str, Any]:
         value = self.get_internal(artifact_id)
