@@ -137,6 +137,7 @@
   - 回滚边界：明确 Git/application rollback 不等于 data rollback；v10→v11 继续使用现有单事务 migration、`foreign_keys=ON`、integrity/FK/schema validation；旧应用打开 v11 必须拒绝，不执行逆向 SQL、手工降表或 undelete。备份引擎和生产恢复执行仍不作为本任务新增 API，需在集中 Production Review/受控人工演练中执行。
   - 验证：`python -m pytest tests/test_workbench_persistence.py::test_corrupt_or_incompatible_database_fails_safe -q`：1 passed；`npm.cmd run verify:docs:strict`、`openspec.cmd validate case-record-retention-and-formal-artifact-protection --strict --no-interactive`、`openspec.cmd validate --specs --strict --no-interactive` 均通过。
   - 未完成边界：未复制或覆盖任何真实数据库、正式文件、模板或凭据；实际生产备份/恢复和旧版本二进制演练留给 T024T/Production Review，v11 migration/FK 失败矩阵的新增 pytest 留给 2.8。
+  - 提交/推送：`5210319`（`docs(retention): define backup recovery boundaries`），commit hook `verify:quick` 通过；tasks 证据补充后推送 `origin/codex/demo-next-stage`。
 - [ ] 2.8 **T022T** 为 v11 migration、完整 source FK 顺序（含 `archive_input_snapshots.source_id`）、snapshot work-only DELETE、deployment isolation、tombstone、Word artifact backfill、`publication_verified_at` NULL-only CAS/revalidation、authority 保留和升级失败增加 pytest；完成条件：失败不留下半成品 schema，既有 publication facts 不降级，snapshot row 不在 source 删除/compact 后残留；验证：定向 pytest；证据：migration/retention test report。
 
 ## 3. Phase 5C — 后端安全核心（T022、T022T）
