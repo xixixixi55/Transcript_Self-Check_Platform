@@ -154,7 +154,7 @@
   - 验证：`python -m pytest tests/test_case_retention_service.py -q`：4 passed；受影响回归（publication CAS、Word、UTC-Z、contract matrix、tombstone）：46 passed；`npm.cmd run test:backend`：864 passed、3 skipped、16 warnings；`npm.cmd run lint:arch`、`npm.cmd run typecheck`、`git diff --check` 通过。Mutation validity：临时将 anchor `max` 改为首项后正向 anchor 测试按预期失败（`2026-07-01` != `2026-07-10`），恢复后定向与全量 backend 通过。
   - 文档同步：living `openspec/specs/data-model.md` 已补充 3.1 retention service、受控 publication revalidation、UTC/future fail-closed、Word verification boundary 和 `enforce_allowed`；明确 preview/Coordinator/物理文件复验/清理/API/UI 仍未交付。
   - Review 节奏：遵循当前执行指令，不为普通 Slice 创建 Independent Implementation Review；统一 T025 Independent Level 3 Code Review 保持未执行，待 T020–T024 实现完成后进行。
-  - 提交/推送：待本轮稳定提交创建后补记 commit hash 和远端状态。
+  - 提交/推送：实现与验证提交 `4f662ce`（`feat(retention): add eligibility and publication revalidation service`）已推送 `origin/codex/demo-next-stage`；后续文档证据提交仍属于本任务收尾。
 - [ ] 3.2 **T022** 实现确定性 preview/dry-run；完成条件：按 case ID 稳定排序，返回候选/跳过、原因、清理/保留类别、anchor/due、policy/case revision、任务/租约/恢复摘要和安全 digest，不含内部身份；验证：DTO snapshot 和敏感字段断言；证据：preview tests。
 - [ ] 3.3 **T022** 实现仅由 `enforce` Coordinator 调用的清理执行和四个二次校验点；完成条件：claim 前、文件前、SQLite 事务前、succeeded 前均重验 revision、lease、任务、retry/recovery、publication、Word、authority、ownership、policy 和 owner；客户端不能扩展白名单；验证：stale/concurrent tests；证据：cleanup execution tests。
 - [ ] 3.4 **T022** 实现 `planned→claimed→preflighted→work_files_cleaned→records_cleaned→verified→succeeded` 状态机及 blocked/stale/cancelled/interrupted/partial/failed 状态；完成条件：文件/DB 非原子失败显式记录，重复请求幂等，不把部分成功标为 succeeded；验证：文件、SQLite、最终 authority 故障注入；证据：cleanup recovery tests。
