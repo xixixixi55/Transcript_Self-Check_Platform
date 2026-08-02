@@ -209,7 +209,7 @@ def _ensure_initial_retention_policy(
         return
     parsed = parse_retention_environment(
         os.environ,
-        legacy_days=legacy_retention_days(os.environ),
+        legacy_days=legacy_retention_days(os.environ) if allow_legacy_days else None,
         allow_legacy_days=allow_legacy_days,
     )
     if parsed.diagnostic_code:

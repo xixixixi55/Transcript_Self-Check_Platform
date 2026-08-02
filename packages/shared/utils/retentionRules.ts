@@ -12,8 +12,15 @@ export function isUtcIsoTimestamp(value: unknown): value is string {
   return Number.isFinite(parsed)
 }
 
-export function expiresAtUtc(anchor: string, retentionDays: number): string {
+export function isTrustedUtcTimestamp(value: unknown, nowMs = Date.now()): value is string {
+  if (!isUtcIsoTimestamp(value)) return false
+  const timestampMs = Date.parse(value)
+  return timestampMs <= nowMs + RETENTION_DEFAULTS.future_clock_skew_seconds * 1000
+}
+
+export function expiresAtUtc(anchor: string, retentionDays: number, nowMs = Date.now()): string {
   if (!isUtcIsoTimestamp(anchor)) throw new Error('RETENTION_TIME_INVALID')
+  if (!isTrustedUtcTimestamp(anchor, nowMs)) throw new Error('RETENTION_TIME_IN_FUTURE')
   if (!Number.isSafeInteger(retentionDays)
     || retentionDays < RETENTION_DEFAULTS.minimum_days
     || retentionDays > RETENTION_DEFAULTS.maximum_days) {

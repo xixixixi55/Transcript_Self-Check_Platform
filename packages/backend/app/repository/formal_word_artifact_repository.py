@@ -38,6 +38,19 @@ class FormalWordArtifactRepository:
         if fields[6] < 0:
             raise WorkbenchPersistenceError("INVALID_WORD_ARTIFACT")
         with self.database.transaction() as connection:
+            publication = connection.execute(
+                "SELECT phase,publication_status,publication_verified_at FROM archive_publish_intents "
+                "WHERE publication_id=? AND deployment_instance_id=? AND case_id=?",
+                (publication_id, self.database.deployment_instance_id, case_id),
+            ).fetchone()
+            if publication is None:
+                raise WorkbenchPersistenceError("WORD_ARTIFACT_PUBLICATION_NOT_FOUND")
+            if status == "verified" and (
+                publication["phase"] != "verified"
+                or publication["publication_status"] != "verified"
+                or publication["publication_verified_at"] is None
+            ):
+                raise WorkbenchPersistenceError("WORD_ARTIFACT_PUBLICATION_UNVERIFIED")
             try:
                 connection.execute(
                     "INSERT INTO formal_word_artifacts(word_artifact_id,deployment_instance_id,case_id,"

@@ -7,7 +7,13 @@ from typing import Any
 
 from .retention_policy_config import RetentionPolicyConfig, parse_retention_environment
 from .retention_repository_helpers import identifier, optional_time, required_time
-from .workbench_constants import RETENTION_POLICY_MODES
+from .workbench_constants import (
+    RETENTION_CONFIG_BATCH_SIZE_KEY,
+    RETENTION_CONFIG_DAYS_KEY,
+    RETENTION_CONFIG_MODE_KEY,
+    RETENTION_CONFIG_SCAN_INTERVAL_KEY,
+    RETENTION_POLICY_MODES,
+)
 from .workbench_database import WorkbenchDatabase, utc_now_z
 from .workbench_errors import WorkbenchPersistenceError
 
@@ -53,6 +59,46 @@ class RetentionPolicyRepository:
                 ).fetchone()
         return _policy_dict(row)
 
+    def sync_from_environment(self, environ: Mapping[str, str]) -> dict[str, Any]:
+        """Apply explicit canonical deployment settings to the durable row.
+
+        This is the operator/bootstrap boundary. Once the row exists, legacy
+        settings are deliberately not passed to the parser and ordinary reads
+        never consult process environment state.
+        """
+        if not _has_canonical_input(environ):
+            return self.get()
+        parsed = parse_retention_environment(environ)
+        if not parsed.valid:
+            raise WorkbenchPersistenceError(parsed.diagnostic_code or "RETENTION_CONFIG_INVALID")
+
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM case_retention_policies WHERE deployment_instance_id=?",
+                (self.database.deployment_instance_id,),
+            ).fetchone()
+            if row is None:
+                raise WorkbenchPersistenceError("RETENTION_POLICY_NOT_FOUND")
+            if _policy_matches(row, parsed):
+                return _policy_dict(row)
+            revision = int(row["policy_revision"]) + 1
+            now = utc_now_z()
+            updated = connection.execute(
+                "UPDATE case_retention_policies SET mode=?,retention_days=?,"
+                "scan_interval_seconds=?,batch_size=?,policy_revision=?,activated_at=?,updated_at=? "
+                "WHERE deployment_instance_id=? AND policy_revision=?",
+                (parsed.mode, parsed.retention_days, parsed.scan_interval_seconds,
+                 parsed.batch_size, revision, now, now,
+                 self.database.deployment_instance_id, int(row["policy_revision"])),
+            )
+            if updated.rowcount != 1:
+                raise WorkbenchPersistenceError("RETENTION_POLICY_STALE")
+            refreshed = connection.execute(
+                "SELECT * FROM case_retention_policies WHERE deployment_instance_id=?",
+                (self.database.deployment_instance_id,),
+            ).fetchone()
+        return _policy_dict(refreshed)
+
     def create_for_test(self, value: Mapping[str, Any]) -> dict[str, Any]:
         """Persist an already validated policy without running a coordinator."""
         mode = value.get("mode")
@@ -92,3 +138,21 @@ def _policy_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         "activated_at": row["activated_at"], "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+
+
+def _has_canonical_input(environ: Mapping[str, str]) -> bool:
+    return any(key in environ for key in (
+        RETENTION_CONFIG_MODE_KEY,
+        RETENTION_CONFIG_DAYS_KEY,
+        RETENTION_CONFIG_SCAN_INTERVAL_KEY,
+        RETENTION_CONFIG_BATCH_SIZE_KEY,
+    ))
+
+
+def _policy_matches(row: Mapping[str, Any], parsed: RetentionPolicyConfig) -> bool:
+    return (
+        row["mode"] == parsed.mode
+        and int(row["retention_days"]) == parsed.retention_days
+        and int(row["scan_interval_seconds"]) == parsed.scan_interval_seconds
+        and int(row["batch_size"]) == parsed.batch_size
+    )

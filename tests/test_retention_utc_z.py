@@ -16,6 +16,8 @@ from app.repository import (  # noqa: E402
     CleanupRunRepository,
     FormalWordArtifactRepository,
     RetentionPolicyRepository,
+    SourceRecordRepository,
+    TaskRecordRepository,
     WorkbenchDatabase,
 )
 from app.repository.workbench_database import normalize_utc_z, utc_now_z  # noqa: E402
@@ -36,6 +38,41 @@ def _case(database: WorkbenchDatabase) -> None:
     })
 
 
+def _verified_publication(database: WorkbenchDatabase) -> None:
+    TaskRecordRepository(database).create({
+        "task_id": "SYNTHETIC-TASK-UTC-Z", "case_id": "SYNTHETIC-CASE-UTC-Z",
+        "kind": "archive", "status": "succeeded", "stage": "completed",
+    })
+    SourceRecordRepository(database).create({
+        "source_id": "SYNTHETIC-SOURCE-UTC-Z", "case_id": "SYNTHETIC-CASE-UTC-Z",
+        "task_id": "SYNTHETIC-TASK-UTC-Z", "source_type": "report_directory",
+        "internal_path": "SYNTHETIC/TEST/source", "allowed_root": "SYNTHETIC/TEST",
+        "allowed_root_id": "SYNTHETIC-ROOT", "fingerprint": "SYNTHETIC-FINGERPRINT", "metadata": {},
+    })
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO archive_attempts(attempt_id,schema_version,case_id,task_id,"
+            "deployment_instance_id,source_id,input_revision,source_revision,draft_revision,"
+            "report_fingerprint,status,cleanup_status,created_at,revision) VALUES (?,?,?,?,?,?,?,?,?,?,?,'not_required',?,0)",
+            ("SYNTHETIC-ATTEMPT-UTC-Z", 1, "SYNTHETIC-CASE-UTC-Z", "SYNTHETIC-TASK-UTC-Z",
+             database.deployment_instance_id, "SYNTHETIC-SOURCE-UTC-Z", 0, 0, 0,
+             "SYNTHETIC-REPORT", "succeeded", "2026-08-01T00:00:00Z"),
+        )
+        connection.execute(
+            "INSERT INTO archive_publish_intents(intent_id,attempt_id,task_id,deployment_instance_id,"
+            "case_id,source_id,source_revision,draft_revision,report_fingerprint,source_key,input_fingerprint,"
+            "archive_fingerprint,manifest_id,relative_final_dir,public_manifest_json,publication_id,"
+            "publication_relative_dir,publication_digest,publication_file_set_json,publication_status,fence_id,"
+            "phase,publication_verified_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("SYNTHETIC-INTENT-UTC-Z", "SYNTHETIC-ATTEMPT-UTC-Z", "SYNTHETIC-TASK-UTC-Z",
+             database.deployment_instance_id, "SYNTHETIC-CASE-UTC-Z", "SYNTHETIC-SOURCE-UTC-Z", 0, 0,
+             "SYNTHETIC-REPORT", "SYNTHETIC-SOURCE-KEY", "SYNTHETIC-INPUT", "SYNTHETIC-ARCHIVE",
+             "SYNTHETIC-MANIFEST", "formal", "{}", "SYNTHETIC-PUBLICATION-UTC-Z", "formal",
+             "c" * 64, "[]", "verified", None, "verified", "2026-08-02T05:30:00Z",
+             "2026-08-01T00:00:00Z", "2026-08-01T00:00:00Z"),
+        )
+
+
 def test_utc_z_helpers_normalize_offsets_and_reject_naive() -> None:
     assert utc_now_z().endswith("Z")
     assert not utc_now_z().endswith("+00:00")
@@ -49,6 +86,7 @@ def test_utc_z_helpers_normalize_offsets_and_reject_naive() -> None:
 def test_new_v11_retention_rows_store_canonical_z_times(tmp_path: Path) -> None:
     database = _database(tmp_path)
     _case(database)
+    _verified_publication(database)
 
     policy = RetentionPolicyRepository(database).get()
     assert policy["created_at"].endswith("Z")

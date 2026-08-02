@@ -43,6 +43,42 @@ def _case(database: WorkbenchDatabase) -> None:
     })
 
 
+def _publication_authority(database: WorkbenchDatabase) -> None:
+    TaskRecordRepository(database).create({
+        "task_id": "SYNTHETIC-TASK-RETENTION", "case_id": "SYNTHETIC-CASE-RETENTION",
+        "kind": "archive", "status": "succeeded", "stage": "completed",
+    })
+    SourceRecordRepository(database).create({
+        "source_id": "SYNTHETIC-SOURCE-RETENTION", "case_id": "SYNTHETIC-CASE-RETENTION",
+        "task_id": "SYNTHETIC-TASK-RETENTION", "source_type": "report_directory",
+        "internal_path": "SYNTHETIC/TEST/source", "allowed_root": "SYNTHETIC/TEST",
+        "allowed_root_id": "SYNTHETIC-ROOT", "fingerprint": "SYNTHETIC-FINGERPRINT", "metadata": {},
+    })
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO archive_attempts(attempt_id,schema_version,case_id,task_id,"
+            "deployment_instance_id,source_id,input_revision,source_revision,draft_revision,"
+            "report_fingerprint,status,cleanup_status,created_at,revision) VALUES (?,?,?,?,?,?,?,?,?,?,?,'not_required',?,0)",
+            ("SYNTHETIC-ATTEMPT-RETENTION", 1, "SYNTHETIC-CASE-RETENTION",
+             "SYNTHETIC-TASK-RETENTION", database.deployment_instance_id,
+             "SYNTHETIC-SOURCE-RETENTION", 0, 0, 0, "SYNTHETIC-REPORT", "succeeded",
+             "2026-08-01T00:00:00Z"),
+        )
+        connection.execute(
+            "INSERT INTO archive_publish_intents(intent_id,attempt_id,task_id,deployment_instance_id,"
+            "case_id,source_id,source_revision,draft_revision,report_fingerprint,source_key,input_fingerprint,"
+            "archive_fingerprint,manifest_id,relative_final_dir,public_manifest_json,publication_id,"
+            "publication_relative_dir,publication_digest,publication_file_set_json,publication_status,fence_id,"
+            "phase,publication_verified_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("SYNTHETIC-INTENT-RETENTION", "SYNTHETIC-ATTEMPT-RETENTION", "SYNTHETIC-TASK-RETENTION",
+             database.deployment_instance_id, "SYNTHETIC-CASE-RETENTION", "SYNTHETIC-SOURCE-RETENTION",
+             0, 0, "SYNTHETIC-REPORT", "SYNTHETIC-SOURCE-KEY", "SYNTHETIC-INPUT", "SYNTHETIC-ARCHIVE",
+             "SYNTHETIC-MANIFEST", "formal", "{}", "SYNTHETIC-PUBLICATION-001", "formal",
+             "c" * 64, "[]", "verified", None, "verified", None,
+             "2026-08-01T00:00:00Z", "2026-08-01T00:00:00Z"),
+        )
+
+
 def test_v11_schema_has_safe_defaults_and_no_cleanup_run(tmp_path: Path) -> None:
     database = _database(tmp_path)
     assert WORKBENCH_SCHEMA_VERSION == 11
@@ -173,9 +209,54 @@ def test_retention_config_is_pure_and_legacy_key_cannot_enable_cleanup() -> None
     assert invalid_mode.mode == "disabled"
 
 
+def test_policy_authority_sync_is_explicit_monotonic_and_stops_legacy_reads(tmp_path: Path) -> None:
+    database = _database(tmp_path)
+    repository = RetentionPolicyRepository(database)
+    initial = repository.get()
+    changed = repository.sync_from_environment({
+        "BIJI_CASE_RETENTION_MODE": "preview_only",
+        "BIJI_CASE_RETENTION_DAYS": "45",
+        "BIJI_CASE_RETENTION_SCAN_INTERVAL_SECONDS": "3600",
+        "BIJI_CASE_RETENTION_BATCH_SIZE": "10",
+        "workbench.successful_case_retention_days": "999",
+    })
+    assert changed["mode"] == "preview_only"
+    assert changed["retention_days"] == 45
+    assert changed["policy_revision"] == initial["policy_revision"] + 1
+    assert changed["activated_at"] == changed["updated_at"]
+
+    unchanged = repository.sync_from_environment({
+        "BIJI_CASE_RETENTION_MODE": "preview_only",
+        "BIJI_CASE_RETENTION_DAYS": "45",
+        "BIJI_CASE_RETENTION_SCAN_INTERVAL_SECONDS": "3600",
+        "BIJI_CASE_RETENTION_BATCH_SIZE": "10",
+        "workbench.successful_case_retention_days": "1",
+    })
+    assert unchanged["policy_revision"] == changed["policy_revision"]
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        repository.sync_from_environment({
+            "BIJI_CASE_RETENTION_MODE": "enforce",
+            "BIJI_CASE_RETENTION_DAYS": "invalid",
+            "workbench.successful_case_retention_days": "1",
+        })
+    assert error.value.code == "RETENTION_CONFIG_INVALID_DAYS"
+    assert repository.get()["policy_revision"] == changed["policy_revision"]
+
+
+def test_policy_row_is_authority_when_environment_changes(tmp_path: Path) -> None:
+    database = _database(tmp_path)
+    repository = RetentionPolicyRepository(database)
+    repository.sync_from_environment({"BIJI_CASE_RETENTION_DAYS": "60"})
+    durable = repository.get()
+    assert repository.get()["retention_days"] == 60
+    assert durable["mode"] == "disabled"
+    assert repository.get()["retention_days"] != 30
+
+
 def test_foundation_repositories_keep_public_projections_safe(tmp_path: Path) -> None:
     database = _database(tmp_path)
     _case(database)
+    _publication_authority(database)
     policy = RetentionPolicyRepository(database).get()
     assert policy["mode"] == "disabled"
 
