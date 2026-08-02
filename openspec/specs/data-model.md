@@ -737,6 +737,28 @@ are rejected with `CASE_RECORD_CLEANED`; formal Word/publication rows remain
 untouched and can still be read by durable identity. Physical path validation,
 file deletion, and public artifact listing/download remain later capabilities.
 
+#### v11 backup, recovery, and application rollback boundary
+
+Phase 5 defines a controlled operational backup/recovery boundary but does not
+add a public backup or undelete API. A recoverable generation is a quiesced,
+cross-checked set containing the v11 SQLite database, formal RAR/Manifest/MD5
+publication files and durable authority, formal Word rows/files, approved
+template identity/version and files, owned work assets, retention policy and
+audit facts. The generation records deployment/schema identity, UTC-Z time,
+relative locators, sizes and digests; SQLite integrity/FK/schema validation and
+publication/Word authority checks are required before restore.
+
+Restore is first performed in an isolated synthetic deployment with policy
+`disabled`; formal files are read by durable `publication_id` and
+`word_artifact_id`, and the derived Manifest index is rebuilt only from SQLite
+publication facts. Missing or mismatched groups, ownership uncertainty, FK
+errors, or a possible formal/source overwrite fail closed. Git/application
+rollback is not data rollback: a v10 application must reject a v11 database,
+and post-migration application rollback requires a matching v10 or v11 grouped
+backup rather than reverse SQL or manual deletion. The controlled rehearsal
+checklist is maintained in
+`[harness/retention-backup-recovery.md](../../harness/retention-backup-recovery.md)`.
+
 Existing v11 foundation fields are:
 
 - `case_shells`: `deployment_instance_id`, `record_cleaned`,

@@ -132,7 +132,11 @@
   - 验证：`python -m pytest tests/test_case_record_cleanup_repository.py -q`：5 passed；`python -m pytest tests/test_case_tombstone_repository.py tests/test_case_record_cleanup_repository.py -q`：12 passed；`npm.cmd run verify:backend`：859 passed、3 skipped、16 warnings；`npm.cmd run lint:arch`、`npm.cmd run typecheck` 通过。禁用 snapshot row 删除的 mutation 使正向测试按预期失败（残留 1 条 snapshot row），恢复后联合测试通过。
   - 回滚/保护边界：snapshot active/recovery/ownership/file-failure blocker 在任何记录变更前拒绝；未知 temporary asset 和 FK/正式引用冲突由事务整体 rollback；正式 publication/Word/Manifest/MD5/已发布 asset 未进入删除白名单，原始来源物理文件未触碰。
   - 提交/推送：代码、测试和 living spec 提交 `63c621b`（`feat(retention): add whitelist records cleanup`），commit hook `verify:quick` 通过；tasks 证据提交后推送 `origin/codex/demo-next-stage`。
-- [ ] 2.7 **T022** 补充 SQLite、正式 RAR/Manifest/MD5、Word、template、assets、policy、authority/audit 的成组备份、恢复和应用回滚边界；完成条件：明确 Git rollback 不等于 data rollback，旧应用拒绝 v11；验证：文档和受控恢复演练计划；证据：design/data-model 文档。
+- [x] 2.7 **T022** 补充 SQLite、正式 RAR/Manifest/MD5、Word、template、assets、policy、authority/audit 的成组备份、恢复和应用回滚边界；完成条件：明确 Git rollback 不等于 data rollback，旧应用拒绝 v11；验证：文档和受控恢复演练计划；证据：design/data-model 文档。
+  - 实现范围：新增 `harness/retention-backup-recovery.md` 作为受控运维演练计划，并在 living `openspec/specs/data-model.md` 记录 v11 grouped backup、隔离恢复、derived index rebuild、policy disabled、authority/Word/FK 校验和应用回滚边界。覆盖 SQLite、正式 RAR/Manifest/MD5、Word、template、owned work assets、policy 和 audit 七组事实。
+  - 回滚边界：明确 Git/application rollback 不等于 data rollback；v10→v11 继续使用现有单事务 migration、`foreign_keys=ON`、integrity/FK/schema validation；旧应用打开 v11 必须拒绝，不执行逆向 SQL、手工降表或 undelete。备份引擎和生产恢复执行仍不作为本任务新增 API，需在集中 Production Review/受控人工演练中执行。
+  - 验证：`python -m pytest tests/test_workbench_persistence.py::test_corrupt_or_incompatible_database_fails_safe -q`：1 passed；`npm.cmd run verify:docs:strict`、`openspec.cmd validate case-record-retention-and-formal-artifact-protection --strict --no-interactive`、`openspec.cmd validate --specs --strict --no-interactive` 均通过。
+  - 未完成边界：未复制或覆盖任何真实数据库、正式文件、模板或凭据；实际生产备份/恢复和旧版本二进制演练留给 T024T/Production Review，v11 migration/FK 失败矩阵的新增 pytest 留给 2.8。
 - [ ] 2.8 **T022T** 为 v11 migration、完整 source FK 顺序（含 `archive_input_snapshots.source_id`）、snapshot work-only DELETE、deployment isolation、tombstone、Word artifact backfill、`publication_verified_at` NULL-only CAS/revalidation、authority 保留和升级失败增加 pytest；完成条件：失败不留下半成品 schema，既有 publication facts 不降级，snapshot row 不在 source 删除/compact 后残留；验证：定向 pytest；证据：migration/retention test report。
 
 ## 3. Phase 5C — 后端安全核心（T022、T022T）
@@ -167,7 +171,7 @@
 
 ## 6. Phase 5F — Harness、文档和验收边界（T024、T024T）
 
-- [x] 6.1 **T024** 在每个已完成 slice 的实现和验证证据完成后同步 living `electronic-inspection-record`、`data-model`、API/data-model 文档；完成条件：只同步已实现行为，不伪称后续能力已存在；验证：OpenSpec specs strict 和 docs strict；证据：Slice 5A-1 UTC-Z reconciliation record、2.4–2.6 data-model evidence、docs report。本次勾选覆盖截至 2.6 已同步的真实交付，Phase 5 后续实现及验收仍未完成。
+- [x] 6.1 **T024** 在每个已完成 slice 的实现和验证证据完成后同步 living `electronic-inspection-record`、`data-model`、API/data-model 文档；完成条件：只同步已实现行为，不伪称后续能力已存在；验证：OpenSpec specs strict 和 docs strict；证据：Slice 5A-1 UTC-Z reconciliation record、2.4–2.7 data-model/Harness evidence、docs report。本次勾选覆盖截至 2.7 已同步的真实交付，Phase 5 后续实现及验收仍未完成。
 - T022 living sync evidence：`openspec/specs/data-model.md` 补充 cleanup-run repository 的当前 revision CAS、lease takeover/fence、phase/result CAS 和 public projection 边界；明确本 slice 仍未实现 Scheduler、文件删除或 records compact。
 - T022/2.4 living sync evidence：`openspec/specs/data-model.md` 补充 formal Word artifact repository 的 SHA-256/size/status 校验、publication authority 创建/读取 fail-closed、UTC-Z 和安全 projection 边界；明确本 slice 仍未实现真实 Word 文件生成、物理摘要复验或 cleaned-case 下载链路。
 - T022/2.5 living sync evidence：`openspec/specs/data-model.md` 补充 cleaned tombstone 的 claim/authority/blocker 前置条件、case_drafts 原子删除、shell safe summary/identity 保留、formal rows 保留、`records_cleaned` 边界和 `CASE_RECORD_CLEANED` 不可编辑行为；在 2.5 边界明确 snapshot/source/task whitelist cleanup、物理文件删除和公共 artifact 查询仍未实现。
