@@ -702,6 +702,17 @@ are internal persistence facts only: this slice does not schedule candidates,
 delete files or compact records, and the public run projection excludes owner,
 token, lease and fence fields.
 
+The formal Word artifact repository persists only durable artifact metadata and
+does not store the complete `report_json`. It validates lower-case SHA-256
+file/Manifest digests, a non-negative JavaScript-safe file size, controlled
+relative paths, UTC-Z timestamps and the consistency of `status` with
+`verified_at`. Creation and reads require a current publication row bound to
+the same deployment and case; reads of a verified artifact additionally
+revalidate the existing publication's verified phase/status and non-null
+`publication_verified_at`. The safe projection omits the internal relative
+path. This is a durable metadata foundation: physical Word generation,
+file-content verification and cleaned-case download remain later capabilities.
+
 Existing v11 foundation fields are:
 
 - `case_shells`: `deployment_instance_id`, `record_cleaned`,
