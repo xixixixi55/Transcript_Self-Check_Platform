@@ -719,16 +719,23 @@ The cleaned-case tombstone repository now performs the records boundary only
 after rechecking the claimed cleanup run, current policy revision, case
 revision, durable retention anchor, verified publication set, verified formal
 Word artifact and absence of active task, edit lease or publication recovery.
-Within one SQLite transaction it deletes the `case_drafts` editable payload,
-retains the deployment/case shell identity and safe summary, clears case
-number/source/task work references, marks `record_cleaned`, increments the
-tombstone/cleanup/case revisions, advances the cleanup run to
+Within one SQLite transaction it consumes a path-free file-step receipt whose
+snapshot and temporary-asset IDs exactly match the durable rows already marked
+`cleaned`, then deletes snapshot rows, compacts formal attempt/task payloads,
+deletes inactive work contexts, orphan attempts/tasks, owned temporary assets,
+plans, drafts and work asset references, and deletes unreferenced source rows.
+Sources still referenced by formal attempts/intents/fences become minimum
+tombstones so the existing publication authority keeps its source FK. Formal
+intent/fence/attempt, publication, Word and published asset facts are retained;
+`PRAGMA foreign_key_check` is required before the surrounding transaction can
+commit. The shell then retains its deployment/case identity and safe summary,
+clears case number/source/task work references, marks `record_cleaned`,
+increments the tombstone/cleanup/case revisions, advances the cleanup run to
 `records_cleaned`, and updates the matching retention record to `completed`.
 The cleaned shell remains queryable, while draft save/lifecycle transitions
 are rejected with `CASE_RECORD_CLEANED`; formal Word/publication rows remain
-untouched and can still be read by durable identity. Snapshot/source/task
-whitelist cleanup, physical file verification/deletion, and public artifact
-listing/download are not implemented by this slice.
+untouched and can still be read by durable identity. Physical path validation,
+file deletion, and public artifact listing/download remain later capabilities.
 
 Existing v11 foundation fields are:
 
@@ -739,9 +746,9 @@ Existing v11 foundation fields are:
   `case_number`, `source_id`, `parse_task_id` and `report_available` while
   preserving the safe title/summary and durable formal rows.
 - `source_records`: `deployment_instance_id`, `tombstone_state`, nullable
-  `tombstoned_at` and `tombstone_revision`. Existing sensitive work fields and
-  source identity are preserved by migration; no source compact/delete occurs
-  in this foundation.
+  `tombstoned_at` and `tombstone_revision`. Cleanup deletes rows without
+  formal references and compacts formally referenced rows to a minimum
+  tombstone while preserving the source identity required by publication FKs.
 - `task_records`: `deployment_instance_id`, nullable `publication_id`,
   nullable `word_artifact_id` and nullable `formal_verified_at`.
 - `archive_publish_intents`: nullable `publication_verified_at`, which remains

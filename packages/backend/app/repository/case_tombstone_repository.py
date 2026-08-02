@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .cleanup_run_helpers import claim_matches, lease_live, select_run
+from .case_record_cleanup_repository import CaseRecordCleanupRepository
 from .retention_repository_helpers import identifier, required_time
 from .workbench_database import WorkbenchDatabase, utc_now_z
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
@@ -32,6 +33,7 @@ class CaseTombstoneRepository:
         policy_revision: int,
         safe_display_summary: str,
         retention_anchor_utc: str,
+        file_step_result: Any = None,
         now: str | None = None,
     ) -> dict[str, Any]:
         case_id = identifier(case_id)
@@ -68,7 +70,9 @@ class CaseTombstoneRepository:
             retention_cleanup_revision = self._assert_retention_fact(connection, case_id, shell, policy_revision, anchor)
             self._assert_no_active_work(connection, case_id)
             self._assert_formal_authority(connection, case_id)
-            connection.execute("DELETE FROM case_drafts WHERE case_id=?", (case_id,))
+            CaseRecordCleanupRepository(self.database).compact_work_records(
+                connection, case_id, file_step_result=file_step_result, now=now_value,
+            )
             updated = connection.execute(
                 "UPDATE case_shells SET case_number=NULL,case_summary=?,source_id=NULL,"
                 "parse_task_id=NULL,report_available=0,lifecycle='record_cleaned',revision=revision+1,"

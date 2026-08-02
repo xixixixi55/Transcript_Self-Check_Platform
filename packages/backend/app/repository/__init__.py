@@ -10,6 +10,7 @@ from .case_archive_decision_repository import CaseArchiveDecisionRepository
 from .audit_event_repository import AuditEventRepository
 from .case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from .case_tombstone_repository import CaseTombstoneRepository
+from .case_record_cleanup_repository import CaseRecordCleanupRepository
 from .case_template_reference_repository import CaseTemplateReferenceRepository
 from .case_workflow_repository import CaseWorkflowRepository
 from .edit_lease_repository import EditLeaseRepository
@@ -29,7 +30,7 @@ from .workbench_database import WorkbenchDatabase, database_path_for_deployment,
 __all__ = [
     "AssetReferenceRepository", "ArchiveAssetRepository", "ArchiveAttemptRepository",
     "ArchivePlanRepository", "ArchiveTaskRepository", "CaseAssetStorage", "AuditEventRepository", "CaseArchiveDecisionRepository", "CaseDraftRepository",
-    "CaseShellRepository", "CaseTombstoneRepository", "CaseTemplateReferenceRepository", "EditLeaseRepository",
+    "CaseShellRepository", "CaseTombstoneRepository", "CaseRecordCleanupRepository", "CaseTemplateReferenceRepository", "EditLeaseRepository",
     "SharedDefaultsRepository",
     "CaseWorkflowRepository",
     "ResourceSnapshotRepository", "CaseRetentionRepository", "CleanupRunRepository",
