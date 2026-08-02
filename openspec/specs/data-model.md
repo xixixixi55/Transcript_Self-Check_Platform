@@ -651,8 +651,15 @@ category names in `preserved_formal_artifact_categories`, nullable anchor and
 expiry timestamps, and the boolean summaries `has_running_task`,
 `has_edit_lease`, `has_recovery` and `has_conflict`.
 `CleanupPreviewDto` contains a `RetentionPolicyDto`, an `items` array and
-`generated_at`. These are type-level safe preview contracts; no preview scan or
-cleanup execution is enabled by this foundation.
+`generated_at`. The backend-only `CaseRetentionPreviewService` now builds this
+projection from the current deployment's durable case shells and the shared
+`CaseRetentionService` eligibility predicate. It sorts case IDs ascending,
+returns `candidate`, `skipped` or `blocked` state with stable blocker reasons,
+planned/preserved categories, anchor/expiry, policy/case revisions and boolean
+task/lease/recovery summaries. Each item and the complete result carry a
+canonical SHA-256 digest. The service is path-free, does not create cleanup
+runs, and does not delete or mutate case records; public route/API/UI wiring
+and Coordinator execution remain later capabilities.
 
 `CleanupRunStatusDto` contains opaque `run_id`, `case_id`, `phase`, `status`,
 nullable `result_code`, nullable `error_code`, `updated_at` and nullable
@@ -821,8 +828,8 @@ retention calculation or CAS facts.
 #### Not yet a living capability
 
 The active Phase 5 delta still defines future behavior that is not delivered by
-the current foundation and 3.1 service: deterministic preview scanning,
-Coordinator and enforce execution, work-record/file cleanup, physical
+the current foundation and 3.1/3.2 services: public preview route/API/UI
+wiring, Coordinator and enforce execution, work-record/file cleanup, physical
 publication/Word file revalidation integration, formal Word file generation and
 download, cleaned-case routes, API/UI behavior, Windows deletion, E2E and
 manual acceptance. Those behaviors remain in the active change until their
