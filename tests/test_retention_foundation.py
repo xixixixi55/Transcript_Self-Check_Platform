@@ -300,7 +300,7 @@ def test_foundation_repositories_keep_public_projections_safe(tmp_path: Path) ->
     claimed = runs.claim(
         run["cleanup_run_id"], owner_instance_id="SYNTHETIC-OWNER",
         claim_token="SYNTHETIC-CLAIM", lease_expires_at="2026-08-01T00:00:00Z",
-        expected_case_revision=0,
+        expected_case_revision=0, now="2026-07-31T00:00:00Z",
     )
     public_run = runs.get_public(claimed["cleanup_run_id"])
     assert "claim_token" not in public_run

@@ -692,6 +692,16 @@ The v11 foundation contains these new tables:
 | `case_cleanup_runs` | run/case/deployment identity, policy and case revisions, owner/claim/lease/fence fields, current phase, retry/file/result/error fields and timestamps; a partial unique index permits at most one active run per deployment/case, with recovery, lease and deployment scan indexes. These internal claim fields are not public DTO fields. |
 | `formal_word_artifacts` | Word artifact/deployment/case/publication identity, controlled internal relative path, digest, size, source Manifest digest, template identity/version, generated/verified timestamps and status; Word identity and case/publication query indexes are present. This slice creates the durable row foundation but does not persist real Word files. |
 
+The cleanup-run repository foundation now persists planned runs and performs
+deployment-scoped claim CAS against the planned policy/case revisions. A
+successful claim assigns an owner, opaque claim token, lease expiry and a
+monotonic fence epoch; a live claim conflicts, while an expired owned claim
+can be taken over with a new fence. Owned phase/result/retry/lease updates
+remain CAS-protected, and recovery listing is durable and restart-safe. These
+are internal persistence facts only: this slice does not schedule candidates,
+delete files or compact records, and the public run projection excludes owner,
+token, lease and fence fields.
+
 Existing v11 foundation fields are:
 
 - `case_shells`: `deployment_instance_id`, `record_cleaned`,

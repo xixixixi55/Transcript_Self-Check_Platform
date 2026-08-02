@@ -137,7 +137,7 @@ def test_new_v11_retention_rows_store_canonical_z_times(tmp_path: Path) -> None:
     claimed = runs.claim(
         run["cleanup_run_id"], owner_instance_id="SYNTHETIC-OWNER-UTC-Z",
         claim_token="SYNTHETIC-CLAIM-UTC-Z", lease_expires_at="2026-08-02T14:30:00+08:00",
-        expected_case_revision=0,
+        expected_case_revision=0, now="2026-08-02T05:30:00Z",
     )
     assert claimed["lease_expires_at"] == "2026-08-02T06:30:00Z"
     assert claimed["updated_at"].endswith("Z")
