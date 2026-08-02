@@ -143,6 +143,7 @@
   - 相关回归：`python -m pytest tests/test_retention_migration_graph.py -q`：3 passed；migration/FK/publication/Word/tombstone/records-cleaned 联合回归：38 passed；`archive_input_snapshots.source_id` 仍为 NOT NULL FK，records cleanup 后无遗留 snapshot row，formal publication/Word authority 与 source tombstone 保护通过。
   - 全量结果：`npm.cmd run verify:backend` 收集 863 项，859 passed、3 skipped；唯一失败为既有 `test_submit_returns_before_slow_parse_task_finishes` 的 0.3 秒时序阈值（0.329 秒），隔离重跑 1 passed、1 warning，未触及 2.8 代码或断言。最终 Phase 5 全量门控将再次重跑并记录稳定结果。
   - 提交边界：未改变 migration/product contract；新增 pytest 仅强化失败回滚证据。现有 living data-model 已准确描述该 migration/rollback 行为，本任务仅需同步 tasks evidence 后提交推送。
+  - 提交/推送：`e7acc5e`（`test(retention): cover migration rollback matrix`），commit hook `verify:quick` 通过；tasks 证据补充后推送 `origin/codex/demo-next-stage`。
 
 ## 3. Phase 5C — 后端安全核心（T022、T022T）
 
