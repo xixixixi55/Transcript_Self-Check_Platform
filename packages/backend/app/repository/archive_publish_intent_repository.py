@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 from .archive_publish_identity_repository import intent_dict, same_publish_identity
-from .workbench_database import WorkbenchDatabase, utc_now
+from .workbench_database import WorkbenchDatabase, normalize_utc_z, utc_now
 from .workbench_errors import WorkbenchPersistenceError
 from .workbench_serialization import validate_opaque_id
 
@@ -173,3 +173,62 @@ class ArchivePublishIntentRepository:
                 (attempt_id, self.database.deployment_instance_id),
             ).fetchone()
         return intent_dict(result)
+
+    def mark_publication_verified(
+        self, publication_id: str, verified_at: str, *, publication_digest: str,
+        file_set: list[dict[str, Any]], fence_id: str, case_id: str,
+    ) -> dict[str, Any]:
+        """Record the first verified UTC fact without changing publication identity.
+
+        Revalidation is intentionally not performed here. The caller must
+        supply facts already checked against the durable publication authority.
+        The NULL-only predicate prevents ordinary reads or repeated checks from
+        moving the retention anchor.
+        """
+        publication_id = validate_opaque_id(publication_id)
+        fence_id = validate_opaque_id(fence_id)
+        case_id = validate_opaque_id(case_id)
+        if not _HASH.fullmatch(publication_digest):
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_IDENTITY_INVALID")
+        serialized = json.dumps(file_set, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        timestamp = normalize_utc_z(verified_at)
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM archive_publish_intents WHERE publication_id=? "
+                "AND deployment_instance_id=? AND case_id=?",
+                (publication_id, self.database.deployment_instance_id, case_id),
+            ).fetchone()
+            if row is None:
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_NOT_FOUND")
+            if row["publication_verified_at"] is not None:
+                return intent_dict(row, include_publication_verified_at=True)
+            fence = connection.execute(
+                "SELECT status FROM archive_publish_fences WHERE fence_id=? AND attempt_id=? "
+                "AND deployment_instance_id=?",
+                (fence_id, row["attempt_id"], self.database.deployment_instance_id),
+            ).fetchone()
+            if (
+                row["publication_digest"] != publication_digest
+                or row["publication_file_set_json"] != serialized
+                or row["fence_id"] != fence_id
+                or row["publication_status"] not in {"published", "verified"}
+                or row["phase"] != "verified"
+                or fence is None
+                or fence["status"] not in {"active", "pending_verification", "consumed"}
+            ):
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_VERIFICATION_BLOCKED")
+            updated = connection.execute(
+                "UPDATE archive_publish_intents SET publication_verified_at=? WHERE intent_id=? "
+                "AND deployment_instance_id=? AND publication_verified_at IS NULL "
+                "AND publication_id=? AND case_id=? AND publication_digest=? "
+                "AND publication_file_set_json=? AND fence_id=?",
+                (timestamp, row["intent_id"], self.database.deployment_instance_id,
+                 publication_id, case_id, publication_digest, serialized, fence_id),
+            )
+            if updated.rowcount != 1:
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_VERIFICATION_CONFLICT")
+            result = connection.execute(
+                "SELECT * FROM archive_publish_intents WHERE intent_id=? AND deployment_instance_id=?",
+                (row["intent_id"], self.database.deployment_instance_id),
+            ).fetchone()
+        return intent_dict(result, include_publication_verified_at=True)

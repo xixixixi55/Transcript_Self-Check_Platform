@@ -6,8 +6,10 @@ import json
 from typing import Any
 
 
-def intent_dict(row: Any) -> dict[str, Any]:
+def intent_dict(row: Any, *, include_publication_verified_at: bool = False) -> dict[str, Any]:
     value = dict(row)
+    if not include_publication_verified_at:
+        value.pop("publication_verified_at", None)
     value["source_revision"] = int(value["source_revision"])
     value["draft_revision"] = int(value["draft_revision"])
     value["public_manifest"] = json.loads(value.pop("public_manifest_json"))

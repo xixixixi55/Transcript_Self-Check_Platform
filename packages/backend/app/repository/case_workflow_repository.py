@@ -50,19 +50,30 @@ class CaseWorkflowRepository:
         try:
             with self.database.transaction() as connection:
                 connection.execute(
-                    "INSERT INTO case_shells VALUES (?, 1, ?, ?, ?, ?, ?, 'parse_queued', 0, 0, ?, ?)",
-                    (case_id, case_number, case_name, case_summary, source_id, task_id, now, now),
+                    "INSERT INTO case_shells(case_id,schema_version,case_number,case_name,case_summary,"
+                    "source_id,parse_task_id,lifecycle,report_available,revision,created_at,updated_at,"
+                    "deployment_instance_id) VALUES (?,1,?,?,?,?,?,'parse_queued',0,0,?,?,?)",
+                    (case_id, case_number, case_name, case_summary, source_id, task_id, now, now,
+                     self.database.deployment_instance_id),
                 )
                 connection.execute(
-                    "INSERT INTO task_records(task_id, schema_version, case_id, kind, status, stage, percent, counters_json, input_revision, attempt, process_binding_json, error_code, error_summary, cancel_requested, created_at, started_at, updated_at, finished_at, allowed_actions_json, revision) VALUES (?, 1, ?, 'parse', 'queued', 'parse', NULL, ?, 0, 0, NULL, NULL, NULL, 0, ?, NULL, ?, NULL, '[]', 0)",
-                    (task_id, case_id, json_text({}), now, now),
+                    "INSERT INTO task_records(task_id,schema_version,case_id,kind,status,stage,percent,"
+                    "counters_json,input_revision,attempt,process_binding_json,error_code,error_summary,"
+                    "cancel_requested,created_at,started_at,updated_at,finished_at,allowed_actions_json,"
+                    "revision,deployment_instance_id) VALUES (?,1,?,'parse','queued','parse',NULL,?,0,0,"
+                    "NULL,NULL,NULL,0,?,NULL,?,NULL,'[]',0,?)",
+                    (task_id, case_id, json_text({}), now, now, self.database.deployment_instance_id),
                 )
                 connection.execute(
-                    "INSERT INTO source_records(source_id, schema_version, case_id, task_id, source_type, internal_path, allowed_root, allowed_root_id, metadata_json, fingerprint_json, access_status, requires_reselection, revalidation_error_code, last_verified_at, revision, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, 0, ?, ?)",
+                    "INSERT INTO source_records(source_id,schema_version,case_id,task_id,source_type,"
+                    "internal_path,allowed_root,allowed_root_id,metadata_json,fingerprint_json,access_status,"
+                    "requires_reselection,revalidation_error_code,last_verified_at,revision,created_at,"
+                    "updated_at,deployment_instance_id) VALUES (?,1,?,?,?,?,?,?,?,?, 'pending',0,NULL,NULL,0,?,?,?)",
                     (
                         source_id, case_id, task_id, source_type, source["internal_path"],
                         source["allowed_root"], validate_opaque_id(source["allowed_root_id"]),
                         json_text(metadata), json_text({"value": fingerprint}), now, now,
+                        self.database.deployment_instance_id,
                     ),
                 )
                 if identity is not None:

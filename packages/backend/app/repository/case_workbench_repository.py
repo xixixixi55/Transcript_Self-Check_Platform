@@ -29,7 +29,7 @@ class CaseShellRepository:
         case_summary = validate_safe_string(shell.get("case_summary", ""), "INVALID_CASE_SHELL")
         values = (
             case_id, 1, case_number, case_name, case_summary, source_id, parse_task_id,
-            shell.get("lifecycle", "parse_queued"), 0, 0, created_at, now,
+            shell.get("lifecycle", "parse_queued"), 0, 0, created_at, now, self.database.deployment_instance_id,
         )
         if values[8] != 0 or values[6] is None or values[5] is None:
             raise WorkbenchPersistenceError("INVALID_CASE_SHELL")
@@ -38,7 +38,7 @@ class CaseShellRepository:
         with self.database.transaction() as connection:
             try:
                 connection.execute(
-                    "INSERT INTO case_shells(case_id, schema_version, case_number, case_name, case_summary, source_id, parse_task_id, lifecycle, report_available, revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO case_shells(case_id, schema_version, case_number, case_name, case_summary, source_id, parse_task_id, lifecycle, report_available, revision, created_at, updated_at, deployment_instance_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     values,
                 )
             except Exception as error:

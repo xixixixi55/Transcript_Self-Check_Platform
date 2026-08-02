@@ -6,36 +6,19 @@ import re
 import sqlite3
 import os
 import tempfile
+import logging
 from contextlib import contextmanager
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from .retention_policy_config import legacy_retention_days, parse_retention_environment
 from .workbench_constants import WORKBENCH_DATABASE_SCHEMA_VERSION
 from .workbench_errors import SchemaIncompatibleError, WorkbenchPersistenceError
 from .workbench_schema import MIGRATIONS, validate_schema
+from .workbench_time import normalize_optional_utc, normalize_utc, normalize_utc_z, utc_now, utc_now_z
 
 _DEPLOYMENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def normalize_utc(value: str | None) -> str:
-    if value is None:
-        return utc_now()
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            raise ValueError("naive timestamp")
-        return parsed.astimezone(timezone.utc).isoformat()
-    except (TypeError, ValueError) as error:
-        raise WorkbenchPersistenceError("UTC_TIMESTAMP_REQUIRED") from error
-
-
-def normalize_optional_utc(value: str | None) -> str | None:
-    return None if value is None else normalize_utc(value)
-
+_LOGGER = logging.getLogger(__name__)
 
 def default_workbench_data_root() -> Path:
     if os.name == "nt":
@@ -88,6 +71,7 @@ class WorkbenchDatabase:
         try:
             connection.execute("BEGIN IMMEDIATE")
             current = int(connection.execute("PRAGMA user_version").fetchone()[0])
+            was_v10_upgrade = current == 10
             migration_table = connection.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'"
             ).fetchone()
@@ -123,6 +107,8 @@ class WorkbenchDatabase:
             elif owner["deployment_instance_id"] != self.deployment_instance_id:
                 raise WorkbenchPersistenceError("WORKBENCH_DEPLOYMENT_OWNER_MISMATCH")
             _migrate_legacy_archive_identity(connection, self.deployment_instance_id)
+            _ensure_deployment_identity(connection, self.deployment_instance_id)
+            _ensure_initial_retention_policy(connection, self.deployment_instance_id, was_v10_upgrade)
             connection.commit()
         except SchemaIncompatibleError:
             connection.rollback()
@@ -199,4 +185,40 @@ def _migrate_legacy_archive_identity(connection: sqlite3.Connection, deployment_
         "WHERE a.attempt_id=archive_publish_fences.attempt_id)) "
         "WHERE deployment_instance_id IS NULL OR task_id IS NULL",
         (deployment_id,),
+    )
+
+
+def _ensure_deployment_identity(connection: sqlite3.Connection, deployment_id: str) -> None:
+    connection.execute(
+        "UPDATE case_shells SET deployment_instance_id=? WHERE deployment_instance_id IS NULL",
+        (deployment_id,),
+    )
+    connection.execute(
+        "UPDATE source_records SET deployment_instance_id=? WHERE deployment_instance_id IS NULL",
+        (deployment_id,),
+    )
+
+
+def _ensure_initial_retention_policy(
+    connection: sqlite3.Connection, deployment_id: str, allow_legacy_days: bool
+) -> None:
+    if connection.execute(
+        "SELECT 1 FROM case_retention_policies WHERE deployment_instance_id=?",
+        (deployment_id,),
+    ).fetchone() is not None:
+        return
+    parsed = parse_retention_environment(
+        os.environ,
+        legacy_days=legacy_retention_days(os.environ),
+        allow_legacy_days=allow_legacy_days,
+    )
+    if parsed.diagnostic_code:
+        _LOGGER.warning(parsed.diagnostic_code)
+    now = utc_now_z()
+    # New installations and v10 upgrades never start executable retention work.
+    connection.execute(
+        "INSERT INTO case_retention_policies(deployment_instance_id,mode,retention_days,"
+        "scan_interval_seconds,batch_size,policy_revision,activated_at,created_at,updated_at) "
+        "VALUES (?, 'disabled', ?, ?, ?, 1, NULL, ?, ?)",
+        (deployment_id, parsed.retention_days, parsed.scan_interval_seconds, parsed.batch_size, now, now),
     )

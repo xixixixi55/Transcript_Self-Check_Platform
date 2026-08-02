@@ -39,11 +39,12 @@ class SourceRecordRepository:
             json_text(metadata),
             json_text(fingerprint_json), status, bool_int(bool(record.get("requires_reselection", False))),
             normalize_optional_utc(record.get("last_verified_at")), 0, normalize_utc(record.get("created_at")), now,
+            self.database.deployment_instance_id,
         )
         with self.database.transaction() as connection:
             try:
                 connection.execute(
-                    "INSERT INTO source_records(source_id, schema_version, case_id, task_id, source_type, internal_path, allowed_root, allowed_root_id, metadata_json, fingerprint_json, access_status, requires_reselection, last_verified_at, revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO source_records(source_id, schema_version, case_id, task_id, source_type, internal_path, allowed_root, allowed_root_id, metadata_json, fingerprint_json, access_status, requires_reselection, last_verified_at, revision, created_at, updated_at, deployment_instance_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     values,
                 )
             except Exception as error:
@@ -183,8 +184,8 @@ class SourceRecordRepository:
                 raise WorkbenchPersistenceError("SOURCE_REPLACEMENT_NOT_ALLOWED")
             try:
                 connection.execute(
-                    "INSERT INTO source_records(source_id, schema_version, case_id, task_id, source_type, internal_path, allowed_root, allowed_root_id, metadata_json, fingerprint_json, access_status, requires_reselection, revalidation_error_code, last_verified_at, revision, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, 0, ?, ?)",
-                    (source_id, case_id, task_id, source_type, record["internal_path"], record["allowed_root"], allowed_root_id, json_text(metadata), json_text({"value": record["fingerprint"]}), now, now),
+                    "INSERT INTO source_records(source_id, schema_version, case_id, task_id, source_type, internal_path, allowed_root, allowed_root_id, metadata_json, fingerprint_json, access_status, requires_reselection, revalidation_error_code, last_verified_at, revision, created_at, updated_at, deployment_instance_id) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, 0, ?, ?, ?)",
+                    (source_id, case_id, task_id, source_type, record["internal_path"], record["allowed_root"], allowed_root_id, json_text(metadata), json_text({"value": record["fingerprint"]}), now, now, self.database.deployment_instance_id),
                 )
                 connection.execute(
                     "UPDATE source_records SET access_status = 'requires_reselection', requires_reselection = 1, revalidation_error_code = NULL, revision = revision + 1, updated_at = ? WHERE source_id = ?",

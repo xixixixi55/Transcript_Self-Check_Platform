@@ -1,6 +1,6 @@
 # Tasks: 案件记录保留与正式产物保护
 
-> 除本条已记录的 Planning Review 外，所有产品实现、测试、E2E、人工验收和后续 Review 任务保持未勾选。创建或修订本 change 不等于产品能力已完成。
+> 除本条已记录的 Planning Review，以及下方明确标记为 Slice 5A-1 foundation 的已完成任务外，所有产品实现、测试、E2E、人工验收和后续 Review 任务保持未勾选。创建或修订本 change 不等于 Phase 5 产品能力已完成。
 > 原任务 T020–T025 和 Phase 5 gate 通过任务编号保留追溯；本节的 Spec Freeze Remediation 不新增原任务编号。
 
 ## Spec Freeze Remediation（规划修订，不属于原 T020–T025 编号）
@@ -25,7 +25,7 @@
   - 验证证据：change strict、living strict（`openspec validate --specs --strict --no-interactive`）、`verify:docs:strict`、`git diff --check` 和 OpenSpec status 通过。
   - 结论：允许提交 Phase 5 立项包；Planning Review 到此终止，不再增加新的 Spec Freeze Review。此项只批准规划基线，不表示产品实现完成。
 
-除上述规划 Review gate 外，Phase 5A 及后续产品实现、schema migration、publication revalidation、Coordinator、API/UI、单元测试、集成测试、E2E、Harness、人工验收、T025 Code Review、Final Review、Production Review、archive readiness 和 OpenSpec archive 均保持未勾选；后续必须从 Phase 5A 开始，并先执行 active change/schema overlap gate 和当前 v10 事实复核。
+除上述规划 Review gate 和下方 Slice 5A-1 foundation 任务外，Phase 5A 后续产品实现、publication revalidation、Coordinator、API/UI、集成测试、E2E、Harness、人工验收、T025 Code Review、Final Review、Production Review、archive readiness 和 OpenSpec archive 均保持未勾选；后续必须继续按 tasks 执行，不得把 foundation 解释为完整 retention 能力。
 
 本轮 remediation 已将以下实施前决策写入 proposal/design/delta；这些是规划证据，不代表产品实现完成：
 
@@ -47,16 +47,56 @@
 
 - 允许下一步：SharedTypes/constants/config parsing contract、v10→v11 migration foundation、四个新增 durable 对象、既定字段扩展、唯一约束/索引、source FK rebuild 和 `foreign_key_check` fixture。
 - 明确排除：Scheduler/Coordinator、`enforce`、preview 扫描、任何案件/文件删除、历史 publication 自动 verified、Word 生成/持久化、清理执行 API、公共 UI/API route 改造和完整测试/Harness/人工验收。
-- 当前仅完成 gate 与事实核对；不得将本记录解释为 Slice 5A-1 或任何产品能力已实现。
-- [ ] 1.2 **T020** 在 `packages/shared/types/`、`packages/shared/constants/` 和 `packages/shared/utils/` 冻结 policy mode、eligibility、preview/status/run、case/publication/word artifact identity、稳定错误码和安全投影；完成条件：公共类型不包含路径、表名、owner token、lease/fence/attempt/context，且不包含公共人工执行/force-delete 合同；验证：SharedTypes contract、typecheck 和 `tests/test_check_contracts.py`；证据：类型测试与 delta/data-model 文档。
-- [ ] 1.3 **T020** 将 v10 的 `case_shells`、`case_drafts`、source/work projections、`asset_references`、task、lease/revision、`archive_input_snapshots`/binding/plan、attempt、intent、fence、asset、Manifest index、audit 和 global control tables 逐项映射为 `KEEP`、`COMPACT`、`DELETE`、`DERIVED/REBUILDABLE` 或 `NEW`；完成条件：每行都有字段、资格、引用、顺序、失败恢复和清理后验证，明确 `archive_input_snapshots.source_id` 为 work-only DELETE、source row 删除前必须删除 snapshot row、source tombstone/FK 方案；验证：SQLite `foreign_key_list`/schema introspection fixture；证据：design 矩阵和 migration fixture。
+- Gate 完成后，Slice 5A-1 foundation 已实现；不得将本记录解释为完整 retention、cleanup、Coordinator、API/UI 或正式 Word 能力已实现。
+- [x] 1.2 **T020** 在 `packages/shared/types/`、`packages/shared/constants/` 和 `packages/shared/utils/` 冻结 policy mode、eligibility、preview/status/run、case/publication/word artifact identity、稳定错误码和安全投影；完成条件：公共类型不包含路径、表名、owner token、lease/fence/attempt/context，且不包含公共人工执行/force-delete 合同；验证：SharedTypes contract、typecheck 和 `tests/test_check_contracts.py`；证据：类型测试与 delta/data-model 文档。
+  - Slice 5A-1 evidence：新增 retention SharedTypes、constants、UTC utility 和纯配置解析合同；`python -m pytest tests/test_check_contracts.py -q`、shared build/typecheck 和 `npm.cmd run verify:quick` 的 `lint:arch`/`typecheck` 阶段通过；quick 文档阶段仍报告 13 个待后续 living `data-model` 同步的 type drift。
+- [x] 1.3 **T020** 将 v10 的 `case_shells`、`case_drafts`、source/work projections、`asset_references`、task、lease/revision、`archive_input_snapshots`/binding/plan、attempt、intent、fence、asset、Manifest index、audit 和 global control tables 逐项映射为 `KEEP`、`COMPACT`、`DELETE`、`DERIVED/REBUILDABLE` 或 `NEW`；完成条件：每行都有字段、资格、引用、顺序、失败恢复和清理后验证，明确 `archive_input_snapshots.source_id` 为 work-only DELETE、source row 删除前必须删除 snapshot row、source tombstone/FK 方案；验证：SQLite `foreign_key_list`/schema introspection fixture；证据：design 矩阵和 migration fixture。
+  - Slice 5A-1 evidence：v11 migration 保留 source identity、重建所有 source FK 相关表、保持 snapshot `source_id` 非空 FK，提交前执行 `foreign_key_check`；migration fixture 和 targeted foundation tests 通过。
 - [ ] 1.4 **T020** 冻结 30 天 deployment policy、`disabled/preview_only/enforce`、anchor 三个 durable 来源、`publication_verified_at` 的 NULL-only CAS/v10 revalidation/enforce gate、UTC timezone-aware 时间、`expires_at_utc = anchor_utc + retention_days × 24 hours`、API ISO 8601、Asia/Shanghai 展示、5 分钟未来时间阈值、缺失 blocker code 和 required Word/publication set；完成条件：不使用创建时间/首次导出时间/普通 `updated_at` 单独计算；验证：shared/backend contract tests；证据：retention delta 和配置测试。
 - [ ] 1.5 **T020** 冻结现有 `archive_publish_intents` 为 RAR/Manifest/MD5 唯一 authority、fence/asset/index 边界、durable Word artifact 和 cleaned case 稳定访问身份；完成条件：不创建竞争性 `formal_artifact_authority` 表、不提供正式产物删除 API；验证：authority delta 和 Legacy gate 审查；证据：formal-artifact-authority/electronic-inspection-record specs。
 - [ ] 1.6 **T020T** 建立规划合同测试矩阵，覆盖 modes、到期/未来时间、活动任务/租约、未导出、失败待重试、Word/publication authority 缺失、稳定身份访问和正式产物保护；完成条件：每个 blocker 有稳定反向断言；验证：测试计划审查；证据：T022T/T023T 测试映射。
 
 ## 2. Phase 5B — 数据模型与迁移（T022、T022T）
 
-- [ ] 2.1 **T022** 在 `workbench_schema.py`/`workbench_database.py` 实现规划中冻结的 v10→v11 事务 migration；完成条件：版本正式为 11，新增 policy/retention/run/Word artifact、`publication_verified_at`、source tombstone、nullable shell references、`archive_input_snapshots.source_id` work-only NOT NULL FK/DELETE 边界、`asset_references` 清理边界和 shell/task 最小字段，未新增 RAR/Manifest 平行 authority；验证：迁移前后 schema、所有 source FK/check、旧版本拒绝、重复启动幂等、revalidation NULL 初始状态和回滚测试；证据：migration tests。
+- [x] 2.1 **T022** 在 `workbench_schema.py`/`workbench_database.py` 实现规划中冻结的 v10→v11 事务 migration；完成条件：版本正式为 11，新增 policy/retention/run/Word artifact、`publication_verified_at`、source tombstone、nullable shell references、`archive_input_snapshots.source_id` work-only NOT NULL FK/DELETE 边界、`asset_references` 清理边界和 shell/task 最小字段，未新增 RAR/Manifest 平行 authority；验证：迁移前后 schema、所有 source FK/check、旧版本拒绝、重复启动幂等、revalidation NULL 初始状态和回滚测试；证据：migration tests。
+  - Slice 5A-1 evidence：`python -m pytest tests/test_retention_foundation.py tests/test_publication_verified_foundation.py tests/test_workbench_persistence.py tests/test_archive_schema_migration.py tests/test_template_controller.py tests/test_template_profile_service.py -q` 通过；v10 fixture、v11 fresh schema、FK check、NULL publication time、初始 disabled policy、幂等和现有回归均有断言。
+
+### Slice 5A-1 validation record
+
+- `python -m pytest tests/test_check_contracts.py -q`：5 passed；Slice foundation targeted pytest：38 passed；`npm.cmd run test:backend`（`verify:backend` 的实际脚本）：802 passed、3 skipped、16 warnings。
+- `npm.cmd run verify:quick`：`lint:arch`、shared/frontend typecheck 通过；文档阶段以 1 退出，原因是新增 SharedTypes 尚未同步到 living `openspec/specs/data-model.md` 的 13 个 type-drift。本轮禁止修改 living specs，该同步保留给后续文档任务。
+- `openspec.cmd validate case-record-retention-and-formal-artifact-protection --strict --no-interactive`、`openspec.cmd validate --specs --strict --no-interactive` 和 `git diff --check` 通过；`npm.cmd run verify:docs:strict` 同样仅因上述 13 个 deferred type-drift 失败。
+
+### Slice 5A-1 Review Remediation
+
+- Independent Implementation Review result: `REJECT`.
+- High finding closed: `publication_verified_at` NULL-only CAS now accepts only `phase='verified'`; `indexed`, `publishing`, `failed` and other non-verified phases fail closed while digest, file-set, fence, deployment/case and ownership checks remain required.
+- Blocking Medium findings closed: `partial_failure` is represented consistently in the shared phase union, backend repository validation/status projection, SQLite v11 CHECK/index contract, living data model and round-trip/invalid-phase tests; the non-empty v10 graph fixture now covers deployment, case, draft, task, source, attempt, snapshot, context binding, intent, fence, work/formal assets and asset reference relationships.
+- Migration evidence: successful v10→v11 upgrade preserves identities, source FK relationships, non-empty draft/work/publication authority, `archive_input_snapshots.source_id` NOT NULL, NULL historical `publication_verified_at`, disabled policy, no cleanup run and no formal Word artifact; `foreign_key_check` is empty and reopen is idempotent. Failure injection rolls back to v10 with the complete graph intact and no partial v11 tables, after which a clean retry succeeds.
+- Remediation evidence: `python -m pytest tests/test_publication_verified_foundation.py tests/test_retention_phase_foundation.py tests/test_retention_migration_graph.py tests/test_retention_foundation.py tests/test_retention_utc_z.py tests/test_check_contracts.py -q` — 21 passed; `npm.cmd run verify:backend` — 813 passed, 3 skipped. A standalone full pytest run had one existing archive-retry timing failure; the isolated retry passed and the repository backend gate passed.
+- `6.1 T024` remains checked because the living data-model reconciliation and final documentation gates are now evidenced. No new task is checked here; all cleanup, Coordinator, revalidation, durable Word, API/UI, E2E/Harness, manual acceptance, Code Review, Final Review, Production Review and archive tasks remain unchecked. The known `CaseRetentionRepository.upsert` insert-only warning remains deferred to its later repository task.
+
+### Slice 5A-1 Second Independent Implementation Review（记录，不新增业务任务编号）
+
+- [x] `Slice 5A-1 Second Independent Implementation Review = PASS`
+  - 审查基线：`928bd629790953ac0fb7e03c4e3adc404bf85c5f`；该 baseline 是 Slice 开始前的 Git HEAD，审查对象是该 HEAD 上的完整未提交工作树。
+  - Publication CAS blocker：`CLOSED`；仅允许 `phase='verified'`，`indexed` fail-closed，并继续绑定 publication/deployment/case、digest、file-set、fence、ownership 和 NULL-only 条件。
+  - `partial_failure` blocker：`CLOSED`；已贯通 SharedTypes、Python、SQLite、repository、living model 和测试，不映射为 `succeeded`。
+  - Migration evidence blocker：`CLOSED`；完整非空 v10 数据图 migration 成功，rollback 后 schema 和完整数据图仍为 v10，`foreign_key_check` 为空，历史 `publication_verified_at` 保持 `NULL`，policy 默认 `disabled`，不创建 cleanup run 或 formal Word artifact，v11 重开幂等。
+  - 复审结论：无 Critical、High 或阻断性 Medium；SharedTypes/living model 无 drift、UTC-Z 无回归、schema/FK 无回归，Slice 边界无越界。
+  - 验证证据：第二次复审定向测试 10 passed；remediation 定向测试 21 passed；UTC-Z 12 passed；`verify:backend` 813 passed/3 skipped；`verify:quick`、`verify:docs:strict`、change strict、living specs strict、`git diff --check` 全部 PASS。
+  - retry timing 测试曾偶发失败，隔离重跑通过且最终 `verify:backend` 通过，记录为非阻断 flaky evidence。
+  - 结论边界：允许形成一个 Slice 5A-1 本地实现提交；不代表 Phase 5 全部完成，不代表 T025 独立 Level 3 Code Review 已完成，不允许开始 Slice 5A-2/后续功能或 archive。
+  - 非阻断 Warning：`CaseRetentionRepository.upsert` 当前为 INSERT-only，交由后续 retention repository/service 任务处理。
+
+### Slice 5A-1 UTC-Z contract remediation and living data-model reconciliation
+
+- 首次 living data-model reconciliation 判定为 `BLOCKED`：除 13 个真实公共 SharedTypes type-drift 外，部分新 v11 repository 通过 `utc_now()`/`normalize_utc()` 写入 `+00:00`，不符合 Phase 5 durable SQLite UTC `Z` 合同。
+- 根因已核实：旧 helper 仍服务既有 v10/Phase 1–4 读取和持久化路径；新 v11 policy、retention record、cleanup run、formal Word artifact 写入路径需要显式的 canonical UTC-Z helper。
+- 修复方式：新增集中式 `workbench_time.py` 的 `utc_now_z()`/`normalize_utc_z()`；保留 `utc_now()`/`normalize_utc()` 的历史读取兼容；新 v11 repository 和 retention 时间 helper 全部切换到 UTC `Z`；不重写历史时间、不回填 `publication_verified_at`、不启动 revalidation/cleanup。
+- UTC-Z 定向证据：`python -m pytest tests/test_retention_utc_z.py tests/test_retention_foundation.py tests/test_publication_verified_foundation.py tests/test_check_contracts.py -q`：12 passed；覆盖 aware offset 转换、naive 拒绝、policy/retention/run/Word durable 写入、NULL-only publication 时间和无 SQL 本地时间默认值。
+- living data-model 已同步实际的 13 个公共 SharedTypes、schema v11 foundation、FK/唯一约束/索引、UTC `Z` 写入及安全投影边界；后续 cleanup、Coordinator、preview/enforce、历史 publication revalidation、Word 文件持久化、cleaned-case routes、API/UI、Windows 删除和 E2E 仍仅保留在 active delta/tasks。
+- 最终门控证据：`npm.cmd run verify:docs:strict`、`npm.cmd run verify:quick`、change/living OpenSpec strict 和 `git diff --check` 全部通过；本次同步未修改 delta specs、proposal/design 或后续实现任务。
 - [ ] 2.2 **T022** 新增 deployment-scoped policy/retention repository；完成条件：`disabled/preview_only/enforce`、30 天、`scan_interval_seconds`、batch、policy revision、anchor/due/blocker、canonical `BIJI_CASE_RETENTION_*` 配置和 deployment isolation 均 durable；旧键只在 v10→v11 首次创建 policy row 且新 DAYS 缺失时读取，非法旧值使用 30 并记录诊断，policy row 创建后不再直接读取；验证：非法配置、旧键兼容/优先级/停读、版本切换和重启测试；证据：retention repository tests。
 - [ ] 2.3 **T022** 新增 cleanup run/claim repository；完成条件：run identity、owner、claim token、lease expiry、fence epoch、policy/case revision、phase、retry、file result 和 error/result durable，同一 deployment/case 只有一个 active run；验证：唯一约束/CAS/owner takeover 测试；证据：cleanup repository tests。
 - [ ] 2.4 **T022** 新增 `formal_word_artifacts` repository；完成条件：持久化 `word_artifact_id`、case/publication/deployment、digest/size、相对路径、Manifest digest、template identity/version、生成/验证时间和状态；不保存完整 `report_json`，不创建 RAR/Manifest authority 表；验证：Word artifact 重启、摘要和孤立文件 fail-closed 测试；证据：Word artifact tests。
@@ -97,7 +137,7 @@
 
 ## 6. Phase 5F — Harness、文档和验收边界（T024、T024T）
 
-- [ ] 6.1 **T024** 在全部实现和验证证据完成后再同步 living `electronic-inspection-record`、`data-model`、API/data-model 文档；完成条件：实现前不伪称能力已存在；验证：OpenSpec specs strict 和 docs strict；证据：docs report。
+- [x] 6.1 **T024** 在每个已完成 slice 的实现和验证证据完成后同步 living `electronic-inspection-record`、`data-model`、API/data-model 文档；完成条件：只同步已实现 foundation，不伪称后续能力已存在；验证：OpenSpec specs strict 和 docs strict；证据：Slice 5A-1 UTC-Z reconciliation record、docs report。本次勾选仅覆盖 Slice 5A-1，Phase 5 后续实现及验收仍未完成。
 - [ ] 6.2 **T024** 更新 `harness/directory.md`、架构/测试入口和 Level 3 verify/review/archive 记录（如新增目录）；完成条件：层级、测试入口、依赖和命令可追溯；验证：架构/docs 检查；证据：Harness report。
 - [ ] 6.3 **T024** 维护 active change 依赖矩阵、schema version overlap gate 和实施先后；完成条件：不修改、合并或归档其他 change，直接冲突未解决时阻止实现；验证：Git/status 审计；证据：design/tasks/review notes。
 - [ ] 6.4 **T024T** 准备人工验收清单，使用 `SYNTHETIC/TEST/FIXTURE` 输入和外部受控大报告边界；完成条件：不写真实输入、人员、路径或生成资产；验证：asset policy scan 和验收记录；证据：repository-assets policy。

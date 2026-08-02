@@ -593,6 +593,149 @@ generation sends only opaque case identity and revision; the backend resolves
 the persisted reference and revalidates current approval, fingerprint, rules and
 structure through the T018 registry before the existing Legacy generator runs.
 
+### Phase 5A retention shared contract and v11 foundation
+
+Slice 5A-1 adds the public retention contract foundation and the SQLite persistence
+foundation only. These types and tables do not mean that cleanup execution,
+Coordinator scheduling, publication revalidation, formal Word file persistence,
+cleaned-case download routes, API/UI wiring, E2E or manual acceptance are
+implemented.
+
+#### Retention public types
+
+The following public types are exported from `packages/shared/types/retention.ts`
+and re-exported from the shared export index. They are safe contracts: they carry
+opaque case/publication/artifact identities, status, bounded summaries,
+revision/digest facts and timestamps, but never absolute paths, database table
+names, owner/claim tokens, leases, fences, internal attempt/context identities
+or client-controlled deletion file lists.
+
+`RetentionPolicyMode` is `disabled | preview_only | enforce`.
+`RetentionEligibility` is `eligible | ineligible | unknown`.
+`RetentionStatus` is `unknown | not_expired | eligible | blocked | planned |
+processing | completed | failed`.
+`CleanupRunPhase` is `planned | claimed | preflighted | work_files_cleaned |
+records_cleaned | verified | succeeded | blocked | stale | cancel_requested |
+cancelled | interrupted | partial_failure | failed_retryable | failed_terminal`.
+`CleanupRunStatus` is `active | succeeded | cancelled | failed | blocked`.
+
+`RetentionBlockerCode` is the stable union:
+`RETENTION_CASE_MUTATION_TIME_MISSING`, `RETENTION_PUBLICATION_MISSING`,
+`RETENTION_PUBLICATION_UNVERIFIED`, `RETENTION_PUBLICATION_TIME_MISSING`,
+`RETENTION_WORD_ARTIFACT_MISSING`, `RETENTION_WORD_ARTIFACT_UNVERIFIED`,
+`RETENTION_TIME_INVALID`, `RETENTION_TIME_IN_FUTURE`,
+`RETENTION_NOT_EXPIRED`, `RETENTION_ACTIVE_TASK`, `RETENTION_ACTIVE_LEASE`,
+`RETENTION_RECOVERY_IN_PROGRESS`, `RETENTION_OWNERSHIP_UNKNOWN`,
+`RETENTION_AUTHORITY_INCONSISTENT`, `RETENTION_SNAPSHOT_ACTIVE`,
+`RETENTION_SNAPSHOT_RECOVERY_REFERENCED` and
+`RETENTION_SNAPSHOT_OWNERSHIP_UNKNOWN`.
+
+`CleanupErrorCode` is the stable union:
+`CLEANUP_PATH_OUTSIDE_ALLOWED_ROOT`, `CLEANUP_OWNERSHIP_UNKNOWN`,
+`CLEANUP_SYMLINK_OR_JUNCTION_REJECTED`, `CLEANUP_FILE_IN_USE`,
+`CLEANUP_ACCESS_DENIED`, `CLEANUP_FILE_CHANGED`,
+`CLEANUP_FILE_DELETE_FAILED`, `CLEANUP_SNAPSHOT_DELETE_FAILED`,
+`CLEANUP_STALE_REQUEST` and `CLEANUP_CONFLICT`.
+
+`RetentionPolicyDto` contains `mode`, `retention_days`,
+`scan_interval_seconds`, `batch_size`, `policy_revision`, nullable
+`activated_at` and `updated_at`.
+
+`RetentionStatusDto` contains `case_id`, `status`, `eligibility`, nullable
+`retention_anchor_utc`, nullable `expires_at_utc`, nullable
+`blocker_code`, `policy_revision`, `case_revision` and `updated_at`.
+
+`CleanupPreviewItemDto` contains `case_id`, `eligibility`, nullable
+`blocker_code`, public category names in `planned_data_categories`, public
+category names in `preserved_formal_artifact_categories`, nullable anchor and
+expiry timestamps, and the boolean summaries `has_running_task`,
+`has_edit_lease`, `has_recovery` and `has_conflict`.
+`CleanupPreviewDto` contains a `RetentionPolicyDto`, an `items` array and
+`generated_at`. These are type-level safe preview contracts; no preview scan or
+cleanup execution is enabled by this foundation.
+
+`CleanupRunStatusDto` contains opaque `run_id`, `case_id`, `phase`, `status`,
+nullable `result_code`, nullable `error_code`, `updated_at` and nullable
+`completed_at`. Internal claim, lease and fence fields are not part of this
+projection.
+
+`FormalWordArtifactSafeProjection` contains `word_artifact_id`, `case_id`,
+`publication_id`, `file_digest`, `file_size`, `source_manifest_digest`,
+`template_identity`, `template_version`, `generated_at`, nullable
+`verified_at` and `status` (`pending | verified | invalid`). The internal
+relative path is deliberately absent from this public projection.
+
+The backend-only `RetentionPolicyConfig` parser result is not a SharedTypes
+public model and is intentionally not included in the public export list. Its
+deployment inputs are `BIJI_CASE_RETENTION_MODE`,
+`BIJI_CASE_RETENTION_DAYS`, `BIJI_CASE_RETENTION_SCAN_INTERVAL_SECONDS` and
+`BIJI_CASE_RETENTION_BATCH_SIZE`, with defaults `disabled`, 30, 86400 and 20;
+the legacy days key is migration-only compatibility input and cannot enable
+retention work.
+
+#### v11 persistence foundation
+
+The SQLite persistence schema is now `WORKBENCH_DATABASE_SCHEMA_VERSION = 11`;
+the existing API envelope version remains v1. The v10→v11 migration is
+transactional, keeps `foreign_keys=ON`, validates `foreign_key_check`, preserves
+existing source/attempt/snapshot identities and rejects unsupported future
+versions. It does not delete records or files, backfill historical publication
+verification times, create cleanup runs, or enable `enforce`. New installations
+and upgrades initialize the durable policy in `disabled` mode.
+
+The v11 foundation contains these new tables:
+
+| Table | Implemented durable fields and constraints |
+|---|---|
+| `case_retention_policies` | deployment primary identity, `mode`, `retention_days` (1–3650), `scan_interval_seconds` (at least 3600), `batch_size` (1–1000), `policy_revision`, nullable `activated_at`, `created_at` and `updated_at`; deployment identity is unique. |
+| `case_retention_records` | `retention_record_id`, deployment/case identity, `eligibility`, `status`, nullable `last_meaningful_mutation_at`, `latest_verified_formal_publication_at`, `latest_successful_word_export_at`, `retention_anchor_utc`, `expires_at_utc`, `last_blocker_code`, policy/case/cleanup revisions and timestamps; `(deployment_instance_id, case_id)` is unique. |
+| `case_cleanup_runs` | run/case/deployment identity, policy and case revisions, owner/claim/lease/fence fields, current phase, retry/file/result/error fields and timestamps; a partial unique index permits at most one active run per deployment/case, with recovery, lease and deployment scan indexes. These internal claim fields are not public DTO fields. |
+| `formal_word_artifacts` | Word artifact/deployment/case/publication identity, controlled internal relative path, digest, size, source Manifest digest, template identity/version, generated/verified timestamps and status; Word identity and case/publication query indexes are present. This slice creates the durable row foundation but does not persist real Word files. |
+
+Existing v11 foundation fields are:
+
+- `case_shells`: `deployment_instance_id`, `record_cleaned`,
+  `tombstone_revision`, `retention_state`, `cleanup_state`, nullable
+  `cleaned_at`, `last_meaningful_mutation_at`, `retention_anchor_utc`,
+  `safe_display_summary` and `cleanup_revision`; `source_id` and
+  `parse_task_id` are nullable for the future cleaned tombstone boundary.
+- `source_records`: `deployment_instance_id`, `tombstone_state`, nullable
+  `tombstoned_at` and `tombstone_revision`. Existing sensitive work fields and
+  source identity are preserved by migration; no source compact/delete occurs
+  in this foundation.
+- `task_records`: `deployment_instance_id`, nullable `publication_id`,
+  nullable `word_artifact_id` and nullable `formal_verified_at`.
+- `archive_publish_intents`: nullable `publication_verified_at`, which remains
+  part of the existing publication durable facts rather than a second
+  publication authority.
+
+The new critical indexes include `source_deployment_state`,
+`archive_publication_verified`, `case_retention_case`,
+`cleanup_run_active_case`, `cleanup_run_recoverable`, `cleanup_run_lease`,
+`cleanup_run_deployment_scan`, `formal_word_case` and
+`formal_word_publication`. No new table uses `CURRENT_TIMESTAMP`,
+`datetime('now')` or another SQLite-local time expression.
+
+#### Phase 5 durable time contract
+
+New Phase 5 durable timestamps are written as timezone-aware UTC ISO 8601 with
+the canonical `Z` suffix. Aware timestamps with another offset are converted to
+UTC before writing; naive timestamps are rejected. This applies to new policy,
+retention record, cleanup run, Word artifact and `publication_verified_at`
+writes. Existing v10 timestamps remain readable and are not rewritten merely
+to change their textual offset. API timestamp fields retain timezone information
+and `Asia/Shanghai` is display-only; it never changes UTC comparison,
+retention calculation or CAS facts.
+
+#### Not yet a living capability
+
+The active Phase 5 delta still defines future behavior that is not delivered by
+this foundation: eligibility calculation, preview scanning, Coordinator and
+enforce execution, work-record/file cleanup, publication revalidation, formal
+Word file persistence and download, cleaned-case routes, API/UI behavior,
+Windows deletion, E2E and manual acceptance. Those behaviors remain in the
+active change until their implementation and verification tasks complete.
+
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type ArchiveProgressKind,
 type ArchiveWorkerState, type ArchiveTaskAction, type ArchiveWorkflowStage,
@@ -625,4 +768,10 @@ type WordArtifactValidity, interface TemplateVersionRef,
 interface TemplateApprovalRecord, interface TemplateValidationRuleRef,
 interface TemplateVersion, interface TemplateValidationSuccess,
 interface TemplateValidationFailure, type TemplateValidationResult,
-interface TemplateSelectionImpact.
+interface TemplateSelectionImpact,
+type RetentionPolicyMode, type RetentionEligibility, type RetentionStatus,
+type CleanupRunPhase, type CleanupRunStatus, type RetentionBlockerCode,
+type CleanupErrorCode, interface RetentionPolicyDto,
+interface RetentionStatusDto, interface CleanupPreviewItemDto,
+interface CleanupPreviewDto, interface CleanupRunStatusDto,
+interface FormalWordArtifactSafeProjection.

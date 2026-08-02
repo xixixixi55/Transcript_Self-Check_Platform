@@ -53,7 +53,8 @@ class TaskRecordRepository:
             value["progress_kind"], value["stage_label"], value["stage_index"],
             value["stage_count"], value["last_heartbeat_at"], value["output_bytes"],
             value["output_volume_count"], value["last_output_change_at"], value["worker_state"],
-            json_text(value["allowed_actions"]), 0, value["deployment_instance_id"],
+            json_text(value["allowed_actions"]), 0,
+            value["deployment_instance_id"] or self.database.deployment_instance_id,
         )
         with self.database.transaction() as connection:
             try:

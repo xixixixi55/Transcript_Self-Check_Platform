@@ -10,6 +10,7 @@ export * from './softwareProjectionUtils'
 export * from './workbenchRules'
 export * from './archiveTaskRules'
 export * from './archivePlanRules'
+export * from './retentionRules'
 
 /** 验证是否为有效的 ISO 8601 日期字符串 */
 export function isValidISODate(str: string): boolean {

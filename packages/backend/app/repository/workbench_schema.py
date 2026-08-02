@@ -5,20 +5,21 @@ from __future__ import annotations
 import sqlite3
 
 from .workbench_errors import SchemaIncompatibleError
+from .workbench_schema_v11 import V11_MIGRATION
 
 REQUIRED_SCHEMA = {
     "schema_migrations": {"version", "applied_at"},
-    "case_shells": {"case_id", "schema_version", "case_number", "case_name", "case_summary", "source_id", "parse_task_id", "lifecycle", "report_available", "revision", "created_at", "updated_at"},
+    "case_shells": {"case_id", "schema_version", "case_number", "case_name", "case_summary", "source_id", "parse_task_id", "lifecycle", "report_available", "revision", "created_at", "updated_at", "deployment_instance_id", "record_cleaned", "tombstone_revision", "retention_state", "cleanup_state", "cleaned_at", "last_meaningful_mutation_at", "retention_anchor_utc", "safe_display_summary", "cleanup_revision"},
     "case_drafts": {"case_id", "schema_version", "report_json", "report_version", "field_states_json", "asset_refs_json", "template_ref_json", "archive_plan_id", "lifecycle", "revision", "created_at", "updated_at"},
-    "source_records": {"source_id", "schema_version", "case_id", "task_id", "source_type", "internal_path", "allowed_root", "allowed_root_id", "metadata_json", "fingerprint_json", "access_status", "requires_reselection", "revalidation_error_code", "last_verified_at", "revision", "created_at", "updated_at"},
+    "source_records": {"source_id", "schema_version", "case_id", "task_id", "source_type", "internal_path", "allowed_root", "allowed_root_id", "metadata_json", "fingerprint_json", "access_status", "requires_reselection", "revalidation_error_code", "last_verified_at", "revision", "created_at", "updated_at", "deployment_instance_id", "tombstone_state", "tombstoned_at", "tombstone_revision"},
     "shared_defaults": {"deployment_instance_id", "schema_version", "revision", "values_json", "migration_decision", "updated_at"},
-    "task_records": {"task_id", "schema_version", "case_id", "kind", "status", "stage", "percent", "counters_json", "input_revision", "attempt", "process_binding_json", "error_code", "error_summary", "cancel_requested", "created_at", "started_at", "updated_at", "finished_at", "progress_kind", "stage_label", "stage_index", "stage_count", "last_heartbeat_at", "output_bytes", "output_volume_count", "last_output_change_at", "worker_state", "allowed_actions_json", "revision", "deployment_instance_id"},
+    "task_records": {"task_id", "schema_version", "case_id", "kind", "status", "stage", "percent", "counters_json", "input_revision", "attempt", "process_binding_json", "error_code", "error_summary", "cancel_requested", "created_at", "started_at", "updated_at", "finished_at", "progress_kind", "stage_label", "stage_index", "stage_count", "last_heartbeat_at", "output_bytes", "output_volume_count", "last_output_change_at", "worker_state", "allowed_actions_json", "revision", "deployment_instance_id", "publication_id", "word_artifact_id", "formal_verified_at"},
     "edit_leases": {"lease_id", "schema_version", "case_id", "session_id", "client_instance_id", "lease_token", "last_heartbeat_at", "expires_at", "status", "takeover_of_lease_id", "revision"},
     "asset_references": {"asset_id", "case_id", "asset_kind", "fingerprint", "metadata_json", "status", "created_at"},
     "audit_events": {"event_id", "event_type", "deployment_instance_id", "client_instance_id", "session_id", "local_display_name", "identity_kind", "case_id", "task_id", "payload_json", "created_at"},
     "archive_attempts": {"attempt_id", "schema_version", "case_id", "task_id", "deployment_instance_id", "source_id", "input_revision", "source_revision", "draft_revision", "report_fingerprint", "status", "cleanup_status", "error_code", "manifest_id", "manifest_source_key", "manifest_input_fingerprint", "manifest_archive_fingerprint", "input_snapshot_id", "input_snapshot_root_id", "input_snapshot_locator", "input_snapshot_fingerprint", "input_snapshot_status", "staging_root_id", "staging_locator", "ownership_marker_token", "process_pid", "process_started_at", "created_at", "started_at", "finished_at", "revision"},
     "archive_context_bindings": {"context_hash", "attempt_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "context_kind", "active", "expires_at", "consumed_at", "created_at"},
-    "archive_publish_intents": {"intent_id", "attempt_id", "task_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "source_key", "input_fingerprint", "archive_fingerprint", "manifest_id", "relative_final_dir", "public_manifest_json", "publication_id", "publication_relative_dir", "publication_digest", "publication_file_set_json", "publication_status", "fence_id", "phase", "created_at", "updated_at"},
+    "archive_publish_intents": {"intent_id", "attempt_id", "task_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "source_key", "input_fingerprint", "archive_fingerprint", "manifest_id", "relative_final_dir", "public_manifest_json", "publication_id", "publication_relative_dir", "publication_digest", "publication_file_set_json", "publication_status", "fence_id", "phase", "publication_verified_at", "created_at", "updated_at"},
     "archive_publish_fences": {"fence_id", "attempt_id", "task_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision", "report_fingerprint", "context_hash", "shell_revision", "status", "reason", "created_at", "updated_at"},
     "archive_input_snapshots": {"snapshot_id", "task_id", "attempt_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision", "source_root_id", "snapshot_root_id", "snapshot_locator", "manifest_json", "input_fingerprint", "status", "marker_token", "created_at", "sealed_at", "updated_at"},
     "archive_plans": {"plan_id", "schema_version", "case_id", "plan_revision", "input_inventory_revision", "mapping_revision", "volume_slots_json", "verified_slots_json", "created_at", "updated_at", "revision"},
@@ -26,6 +27,10 @@ REQUIRED_SCHEMA = {
     "template_versions": {"template_id", "version", "schema_version", "display_name", "fingerprint", "validation_rules_json", "asset_id", "internal_locator", "registered_at"},
     "template_approvals": {"approval_record_id", "template_id", "version", "status", "acceptance_summary", "recorded_at"},
     "workbench_deployment_owner": {"owner_id", "deployment_instance_id", "claimed_at"},
+    "case_retention_policies": {"deployment_instance_id", "mode", "retention_days", "scan_interval_seconds", "batch_size", "policy_revision", "activated_at", "created_at", "updated_at"},
+    "case_retention_records": {"retention_record_id", "deployment_instance_id", "case_id", "eligibility", "status", "last_meaningful_mutation_at", "latest_verified_formal_publication_at", "latest_successful_word_export_at", "retention_anchor_utc", "expires_at_utc", "last_blocker_code", "policy_revision", "case_revision", "cleanup_revision", "created_at", "updated_at"},
+    "case_cleanup_runs": {"cleanup_run_id", "deployment_instance_id", "case_id", "policy_revision", "case_revision_at_plan", "case_revision_at_claim", "owner_instance_id", "claim_token", "lease_expires_at", "fence_epoch", "current_phase", "retry_count", "file_step_result", "result_code", "error_code", "created_at", "updated_at", "completed_at"},
+    "formal_word_artifacts": {"word_artifact_id", "deployment_instance_id", "case_id", "publication_id", "internal_relative_path", "file_digest", "file_size", "source_manifest_digest", "template_identity", "template_version", "generated_at", "verified_at", "status", "created_at", "updated_at"},
 }
 
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
@@ -135,6 +140,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (10, (
         "CREATE INDEX archive_attempt_deployment_status ON archive_attempts(deployment_instance_id, status, created_at)",
     )),
+    (11, V11_MIGRATION),
 )
 
 REQUIRED_INDEXES = {
@@ -144,7 +150,10 @@ REQUIRED_INDEXES = {
     "archive_plan_case_revision", "archive_task_current", "archive_asset_task",
     "template_approval_history", "archive_task_deployment_status", "archive_attempt_task",
     "archive_snapshot_attempt", "archive_snapshot_owner", "archive_publish_intent_task",
-    "archive_publish_fence_task", "archive_attempt_deployment_status",
+    "archive_publish_fence_task", "archive_attempt_deployment_status", "source_deployment_state",
+    "archive_publication_verified", "case_retention_case", "cleanup_run_active_case",
+    "cleanup_run_recoverable", "cleanup_run_lease", "cleanup_run_deployment_scan",
+    "formal_word_case", "formal_word_publication",
 }
 
 

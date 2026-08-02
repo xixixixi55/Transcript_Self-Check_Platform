@@ -46,7 +46,9 @@ def template_api(tmp_path: Path):
     report["inspection"].pop("primary_software", None)
     with database.transaction() as connection:
         connection.execute(
-            "INSERT INTO case_shells VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO case_shells(case_id,schema_version,case_number,case_name,case_summary,"
+            "source_id,parse_task_id,lifecycle,report_available,revision,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 CASE_ID, 1, "SYNTHETIC-001", "SYNTHETIC template API case",
                 "SYNTHETIC summary", "source-SYNTHETIC-template-api",

@@ -19,6 +19,10 @@ from .task_record_repository import TaskRecordRepository
 from .template_approval_repository import TemplateApprovalRepository
 from .template_registry_repository import TemplateRegistryRepository
 from .resource_snapshot_repository import ResourceSnapshotRepository
+from .case_retention_repository import CaseRetentionRepository
+from .cleanup_run_repository import CleanupRunRepository
+from .formal_word_artifact_repository import FormalWordArtifactRepository
+from .retention_policy_repository import RetentionPolicyRepository
 from .workbench_database import WorkbenchDatabase, database_path_for_deployment, default_workbench_data_root
 
 __all__ = [
@@ -27,7 +31,8 @@ __all__ = [
     "CaseShellRepository", "CaseTemplateReferenceRepository", "EditLeaseRepository",
     "SharedDefaultsRepository",
     "CaseWorkflowRepository",
-    "ResourceSnapshotRepository", "SourceRecordRepository", "SourceLocatorRepository",
+    "ResourceSnapshotRepository", "CaseRetentionRepository", "CleanupRunRepository",
+    "FormalWordArtifactRepository", "RetentionPolicyRepository", "SourceRecordRepository", "SourceLocatorRepository",
     "TaskRecordRepository", "TemplateApprovalRepository", "TemplateRegistryRepository",
     "WorkbenchDatabase",
     "database_path_for_deployment", "default_workbench_data_root",

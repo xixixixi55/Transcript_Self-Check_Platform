@@ -10,6 +10,7 @@
 - 证据：change strict、living specs strict、`verify:docs:strict`、`git diff --check` 和 OpenSpec status 全部通过。
 - 时间合同：durable 时间、比较、CAS、审计和 retention 计算使用带时区 UTC；API 返回带时区 ISO 8601；界面和人工验收按 `Asia/Shanghai` 展示；默认 30 天按连续 720 小时计算。
 - 规划结论：允许提交 Phase 5 立项包，Planning Review 到此终止。PASS 只批准规划基线，不表示实现完成；Phase 5A 开始前必须先执行 active change/schema overlap gate 和当前 v10 事实复核，不得绕过 tasks 批量实现。
+- 当前实施状态：Slice 5A-1 foundation 已完成并通过定向验证；后续 Phase 5B–5G 任务仍未开始，且本状态不改变已冻结的公共范围或 Review gate。
 
 ## Phase 5A Pre-implementation Gate
 
@@ -57,6 +58,12 @@
 - 建立唯一约束、恢复/lease/query 索引、source FK rebuild 和 `foreign_key_check` migration fixture。
 
 本轮不启动 Scheduler/Coordinator、enforce、preview 扫描、实际清理/删除、历史 publication 自动 verified、Word 生成或持久化、清理执行 API、公共 UI/API route、完整测试/Harness/构建或人工验收。Slice 5A-1 完成并定向验证后，才按 tasks 进入后续 Phase 5B/5C。
+
+### Slice 5A-1 implementation record
+
+- 已完成：SharedTypes/constants/UTC utility 与 retention 配置解析合同；v10→v11 单事务 migration；四个 Phase 5 durable 对象；`case_shells`、`source_records`、`task_records` 和 `archive_publish_intents.publication_verified_at` foundation 字段；source FK rebuild、索引/唯一约束、`foreign_key_check`；policy/retention/cleanup-run/formal-Word repository 的安全基础读写。
+- 已验证：fresh v11、v10 fixture upgrade、旧版本拒绝、重复初始化幂等、migration rollback/FK、历史 publication 验证时间保持 `NULL`、初始 policy `disabled`、active cleanup run 唯一约束与 claim CAS、公共 safe projection，以及既有 backend 回归。
+- 明确未实现：自动 revalidation、Word 文件持久化/下载、Coordinator/preview/enforce、任何 records/files cleanup、清理执行 API、工作台 UI、E2E/Harness/人工验收和后续 Review/archive。
 
 ## Context
 

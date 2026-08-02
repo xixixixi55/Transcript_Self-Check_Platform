@@ -4,7 +4,7 @@
 > 级别：Level 3
 > 范围：Phase 5 完整范围（T020–T025）
 > 基线：Phase 1–4 归档于 `2026-08-01-persistent-case-workbench-and-archive-coordination`
-> 状态：Spec frozen / Planning Review passed；本文件记录已冻结的规划基线，不表示 Phase 5 产品实现、测试、人工验收或后续 Review gate 已完成
+> 状态：Spec frozen / Planning Review passed；Slice 5A-1 foundation 已实现并完成定向验证。Phase 5 其余产品实现、完整测试、人工验收和后续 Review gate 仍未完成。
 
 ## Planning Review Record
 
@@ -50,6 +50,12 @@
 下一步允许实施的首批切片是“共享合同与 schema v11 migration foundation”，只建立 durable foundation：retention mode/blocker/policy/status/preview/run/Word identity 安全 DTO 和 constants/config parsing contract；v10→v11 单事务 migration；`case_retention_policies`、`case_retention_records`、`case_cleanup_runs`、`formal_word_artifacts`；`case_shells`、`source_records`、`task_records` 和 `archive_publish_intents.publication_verified_at` 的最小扩展；必要索引、唯一约束、source FK rebuild 和 `foreign_key_check` migration fixtures。
 
 本轮明确不包含：启动 Scheduler/Coordinator、创建 enforce run、preview 扫描、实际案件或文件清理、任何现有记录删除、历史 publication 自动标记 verified、Word 生成/持久化链路、清理执行 API、公共 UI、API route 改造或完整测试/Harness/人工验收。只有 Slice 5A-1 的 migration 和共享合同实现及其定向验证完成后，才可进入后续 5B/5C 任务。
+
+### Slice 5A-1 implementation status
+
+Slice 5A-1 已完成共享合同、纯配置解析、schema v11 foundation、v10→v11 transactional migration、source FK table rebuild、`publication_verified_at` 的 NULL-only repository foundation、`formal_word_artifacts` durable repository foundation 以及对应定向测试。迁移保持既有数据和 source identity，初始 retention policy 为 `disabled`，不自动 verified 历史 publication，也不创建 cleanup run。
+
+本状态不表示完整 retention 能力已经完成。Scheduler/Coordinator、preview/eligibility、实际清理、publication revalidation、Word 文件正式持久化、清理后正式产物 routes、API/UI、E2E、Harness、人工验收和后续 Review gate 仍按 tasks 保持未完成。
 
 ## Why
 
