@@ -40,6 +40,8 @@ class CaseLifecycleService:
     def detail(self, case_id: str) -> dict[str, Any]:
         for _ in range(3):
             shell = self.shells.get(case_id)
+            if shell["record_cleaned"]:
+                return {"shell": shell, "draft": None, "source": None, "parse_task": None}
             task = self.tasks.get(shell["parse_task_id"])
             source = self._source_public(case_id)
             draft = None

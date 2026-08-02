@@ -119,13 +119,13 @@ def test_case_selection_only_updates_version_ref_and_invalidates_word(tmp_path: 
     with database.transaction() as connection:
         connection.execute(
             "INSERT INTO case_shells(case_id,schema_version,case_number,case_name,case_summary,"
-            "source_id,parse_task_id,lifecycle,report_available,revision,created_at,updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "source_id,parse_task_id,lifecycle,report_available,revision,created_at,updated_at,deployment_instance_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 "case-SYNTHETIC-template", 1, "SYNTHETIC-001", "SYNTHETIC case",
                 "SYNTHETIC summary", "source-SYNTHETIC-template",
                 "task-SYNTHETIC-template", "review_ready", 1, 4,
-                "2026-07-30T00:00:00+00:00", "2026-07-30T00:00:00+00:00",
+                "2026-07-30T00:00:00+00:00", "2026-07-30T00:00:00+00:00", "SYNTHETIC-PROFILE",
             ),
         )
         connection.execute(

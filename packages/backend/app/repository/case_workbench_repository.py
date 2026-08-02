@@ -12,6 +12,7 @@ from .workbench_legacy_report import validate_legacy_report
 from .workbench_repository_helpers import bool_int, json_text, row_json
 from .workbench_serialization import validate_field_states, validate_opaque_asset_refs, validate_opaque_id, validate_safe_string
 from .archive_publish_fence_repository import invalidate_pending, reject_if_active
+from .case_tombstone_repository import shell_tombstone_projection
 
 
 class CaseShellRepository:
@@ -49,7 +50,7 @@ class CaseShellRepository:
         case_id = validate_opaque_id(case_id)
         connection = self.database.connect()
         try:
-            row = connection.execute("SELECT * FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
+            row = connection.execute("SELECT * FROM case_shells WHERE case_id = ? AND deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
         finally:
             connection.close()
         if row is None:
@@ -61,10 +62,7 @@ class CaseShellRepository:
             raise WorkbenchPersistenceError("INVALID_PAGE")
         connection = self.database.connect()
         try:
-            rows = connection.execute(
-                "SELECT * FROM case_shells ORDER BY updated_at DESC, case_id DESC LIMIT ? OFFSET ?",
-                (limit, offset),
-            ).fetchall()
+            rows = connection.execute("SELECT * FROM case_shells WHERE deployment_instance_id = ? ORDER BY updated_at DESC, case_id DESC LIMIT ? OFFSET ?", (self.database.deployment_instance_id, limit, offset)).fetchall()
         finally:
             connection.close()
         return [_shell_dict(row) for row in rows]
@@ -76,30 +74,23 @@ class CaseShellRepository:
         if lifecycle == "archive_queued":
             raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_REQUIRED")
         with self.database.transaction() as connection:
+            row = connection.execute("SELECT revision,record_cleaned FROM case_shells WHERE case_id = ? AND deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
+            if row is None or bool(row["record_cleaned"]):
+                raise WorkbenchPersistenceError("CASE_RECORD_CLEANED" if row is not None else "CASE_NOT_FOUND")
             reject_if_active(connection, case_id=case_id)
             invalidate_pending(connection, case_id=case_id)
-            row = connection.execute("SELECT revision FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
-            if row is None:
-                raise WorkbenchPersistenceError("CASE_NOT_FOUND")
-            actual = int(row[0])
+            actual = int(row["revision"])
             if actual != expected_revision:
                 raise RevisionConflictError("case_shell", expected_revision, actual)
-            current_row = connection.execute(
-                "SELECT lifecycle, report_available FROM case_shells WHERE case_id = ?", (case_id,)
-            ).fetchone()
+            current_row = connection.execute("SELECT lifecycle, report_available FROM case_shells WHERE case_id = ? AND deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
             current = str(current_row[0])
             if lifecycle not in CASE_TRANSITIONS.get(str(current), set()):
                 raise WorkbenchPersistenceError("INVALID_STATE_TRANSITION")
             if lifecycle in REVIEWABLE_LIFECYCLES:
-                draft = connection.execute(
-                    "SELECT 1 FROM case_drafts WHERE case_id = ?", (case_id,)
-                ).fetchone()
+                draft = connection.execute("SELECT 1 FROM case_drafts JOIN case_shells ON case_shells.case_id = case_drafts.case_id WHERE case_drafts.case_id = ? AND case_shells.deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
                 if not bool(current_row[1]) or draft is None:
                     raise WorkbenchPersistenceError("DRAFT_NOT_REVIEWABLE")
-            updated = connection.execute(
-                "UPDATE case_shells SET lifecycle = ?, revision = revision + 1, updated_at = ? WHERE case_id = ? AND revision = ?",
-                (lifecycle, utc_now(), case_id, expected_revision),
-            )
+            updated = connection.execute("UPDATE case_shells SET lifecycle = ?, revision = revision + 1, updated_at = ? WHERE case_id = ? AND deployment_instance_id = ? AND revision = ?", (lifecycle, utc_now(), case_id, self.database.deployment_instance_id, expected_revision))
             if updated.rowcount != 1:
                 raise RevisionConflictError("case_shell", expected_revision, actual)
         return self.get(case_id)
@@ -134,17 +125,17 @@ class CaseDraftRepository:
         case_name = validate_safe_string(draft.get("case_name", ""), "INVALID_CASE_DRAFT")
         case_summary = validate_safe_string(draft.get("case_summary", ""), "INVALID_CASE_DRAFT")
         with self.database.transaction() as connection:
-            shell = connection.execute("SELECT * FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
-            if shell is None:
-                raise WorkbenchPersistenceError("CASE_NOT_FOUND")
+            shell = connection.execute("SELECT * FROM case_shells WHERE case_id = ? AND deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
+            if shell is None or bool(shell["record_cleaned"]):
+                raise WorkbenchPersistenceError("CASE_RECORD_CLEANED" if shell is not None else "CASE_NOT_FOUND")
             reject_if_active(connection, case_id=case_id)
             invalidate_pending(connection, case_id=case_id)
             asset_ids = [str(item["asset_id"]) for item in asset_refs]
             if asset_ids:
                 placeholders = ", ".join("?" for _ in asset_ids)
                 rows = connection.execute(
-                    f"SELECT asset_id, asset_kind, fingerprint, metadata_json FROM asset_references WHERE case_id = ? AND asset_id IN ({placeholders})",
-                    (case_id, *asset_ids),
+                    f"SELECT asset_references.asset_id, asset_references.asset_kind, asset_references.fingerprint, asset_references.metadata_json FROM asset_references JOIN case_shells ON case_shells.case_id = asset_references.case_id WHERE asset_references.case_id = ? AND case_shells.deployment_instance_id = ? AND asset_references.asset_id IN ({placeholders})",
+                    (case_id, self.database.deployment_instance_id, *asset_ids),
                 ).fetchall()
                 registered = {str(row["asset_id"]): row for row in rows}
                 if set(registered) != set(asset_ids):
@@ -157,7 +148,7 @@ class CaseDraftRepository:
                         raise WorkbenchPersistenceError("ASSET_REFERENCE_MISMATCH")
                     if "metadata" in reference and reference["metadata"] != row_json(stored, "metadata_json"):
                         raise WorkbenchPersistenceError("ASSET_REFERENCE_MISMATCH")
-            existing = connection.execute("SELECT revision, created_at FROM case_drafts WHERE case_id = ?", (case_id,)).fetchone()
+            existing = connection.execute("SELECT case_drafts.revision, case_drafts.created_at FROM case_drafts JOIN case_shells ON case_shells.case_id = case_drafts.case_id WHERE case_drafts.case_id = ? AND case_shells.deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
             current_lifecycle = str(shell["lifecycle"])
             if not lifecycle_was_submitted and current_lifecycle == "archive_queued":
                 lifecycle = current_lifecycle
@@ -175,10 +166,7 @@ class CaseDraftRepository:
                 lifecycle, revision, existing[1] if existing else now, now,
             )
             if existing:
-                updated = connection.execute(
-                    "UPDATE case_drafts SET schema_version = ?, report_json = ?, report_version = ?, field_states_json = ?, asset_refs_json = ?, template_ref_json = ?, archive_plan_id = ?, lifecycle = ?, revision = ?, updated_at = ? WHERE case_id = ? AND revision = ?",
-                    (values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[11], case_id, actual),
-                )
+                updated = connection.execute("UPDATE case_drafts SET schema_version = ?, report_json = ?, report_version = ?, field_states_json = ?, asset_refs_json = ?, template_ref_json = ?, archive_plan_id = ?, lifecycle = ?, revision = ?, updated_at = ? WHERE case_id = ? AND revision = ? AND EXISTS (SELECT 1 FROM case_shells WHERE case_id = case_drafts.case_id AND deployment_instance_id = ?)", (values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[11], case_id, actual, self.database.deployment_instance_id))
                 if updated.rowcount != 1:
                     raise RevisionConflictError("case_draft", actual, actual)
             else:
@@ -187,10 +175,7 @@ class CaseDraftRepository:
                     values,
                 )
             shell_revision = int(shell["revision"])
-            updated_shell = connection.execute(
-                "UPDATE case_shells SET case_number = ?, case_name = ?, case_summary = ?, report_available = 1, lifecycle = ?, revision = revision + 1, updated_at = ? WHERE case_id = ? AND revision = ?",
-                (case_number if "case_number" in draft else shell["case_number"], case_name if "case_name" in draft else shell["case_name"], case_summary if "case_summary" in draft else shell["case_summary"], lifecycle, now, case_id, shell_revision),
-            )
+            updated_shell = connection.execute("UPDATE case_shells SET case_number = ?, case_name = ?, case_summary = ?, report_available = 1, lifecycle = ?, revision = revision + 1, updated_at = ? WHERE case_id = ? AND deployment_instance_id = ? AND revision = ?", (case_number if "case_number" in draft else shell["case_number"], case_name if "case_name" in draft else shell["case_name"], case_summary if "case_summary" in draft else shell["case_summary"], lifecycle, now, case_id, self.database.deployment_instance_id, shell_revision))
             if updated_shell.rowcount != 1:
                 raise RevisionConflictError("case_shell", shell_revision, shell_revision)
         return self.get(case_id)
@@ -200,13 +185,13 @@ class CaseDraftRepository:
         connection = self.database.connect()
         try:
             row = connection.execute(
-                "SELECT case_drafts.*, case_shells.case_number, case_shells.case_name, case_shells.case_summary, case_shells.report_available FROM case_drafts JOIN case_shells ON case_shells.case_id = case_drafts.case_id WHERE case_drafts.case_id = ?",
-                (case_id,),
+                "SELECT case_drafts.*, case_shells.case_number, case_shells.case_name, case_shells.case_summary, case_shells.report_available, case_shells.record_cleaned FROM case_drafts JOIN case_shells ON case_shells.case_id = case_drafts.case_id WHERE case_drafts.case_id = ? AND case_shells.deployment_instance_id = ?",
+                (case_id, self.database.deployment_instance_id),
             ).fetchone()
         finally:
             connection.close()
-        if row is None:
-            raise WorkbenchPersistenceError("DRAFT_NOT_FOUND")
+        if row is None or bool(row["record_cleaned"]):
+            raise WorkbenchPersistenceError("CASE_RECORD_CLEANED" if row is not None else "DRAFT_NOT_FOUND")
         if not bool(row["report_available"]) or row["lifecycle"] not in REVIEWABLE_LIFECYCLES:
             raise WorkbenchPersistenceError("DRAFT_NOT_REVIEWABLE")
         validate_legacy_report(row_json(row, "report_json"))
@@ -223,6 +208,7 @@ def _shell_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         "parse_task_id": row["parse_task_id"], "lifecycle": row["lifecycle"],
         "report_available": bool(row["report_available"]), "revision": int(row["revision"]),
         "created_at": row["created_at"], "updated_at": row["updated_at"],
+        **shell_tombstone_projection(row),
     }
 
 
