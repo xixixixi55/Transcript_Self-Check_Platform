@@ -737,6 +737,29 @@ are rejected with `CASE_RECORD_CLEANED`; formal Word/publication rows remain
 untouched and can still be read by durable identity. Physical path validation,
 file deletion, and public artifact listing/download remain later capabilities.
 
+The 3.1 retention service now evaluates one case from those durable facts. It
+uses the retention record's meaningful-mutation time, the maximum verified time
+from every current publication intent, and the maximum verified time from the
+formal Word artifact rows; no shell `updated_at`, file mtime, download time or
+derived Manifest index time is substituted. The resulting anchor and continuous
+24-hour expiry are persisted through the deployment/case retention projection
+upsert, with `Z` timestamps and the current durable policy/case revisions.
+
+Historical publication intents with a null `publication_verified_at` remain
+unverified until a controlled internal revalidator proves the exact durable
+publication identity, file inventory, RAR/Manifest/MD5 checks, fence, ownership,
+deployment and case binding. Only then does the existing NULL-only publication
+CAS write the supplied trusted UTC verification time. Missing or failed
+revalidation leaves the field null; no timestamp is inferred and no new
+publication identity is created. The same service fails closed for malformed or
+future timestamps, incomplete publication/Word authority, active tasks or edit
+leases, publication/recovery/snapshot/context conflicts, active cleanup runs and
+non-terminal case state. It returns an internal `enforce_allowed` gate only when
+the durable policy mode is `enforce`; this slice does not add a scheduler,
+preview route or public cleanup execution API. The Word verifier boundary
+requires the durable artifact digest, size, Manifest digest and ownership to
+match; physical file resolution remains with the later cleanup/access work.
+
 #### v11 backup, recovery, and application rollback boundary
 
 Phase 5 defines a controlled operational backup/recovery boundary but does not
@@ -798,11 +821,12 @@ retention calculation or CAS facts.
 #### Not yet a living capability
 
 The active Phase 5 delta still defines future behavior that is not delivered by
-this foundation: eligibility calculation, preview scanning, Coordinator and
-enforce execution, work-record/file cleanup, publication revalidation, formal
-Word file persistence and download, cleaned-case routes, API/UI behavior,
-Windows deletion, E2E and manual acceptance. Those behaviors remain in the
-active change until their implementation and verification tasks complete.
+the current foundation and 3.1 service: deterministic preview scanning,
+Coordinator and enforce execution, work-record/file cleanup, physical
+publication/Word file revalidation integration, formal Word file generation and
+download, cleaned-case routes, API/UI behavior, Windows deletion, E2E and
+manual acceptance. Those behaviors remain in the active change until their
+implementation and verification tasks complete.
 
 Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
 type TaskKind, type TaskStatus, type TaskStage, type ArchiveProgressKind,

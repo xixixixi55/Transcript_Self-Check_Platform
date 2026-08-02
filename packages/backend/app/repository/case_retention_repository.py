@@ -41,7 +41,16 @@ class CaseRetentionRepository:
                     "INSERT INTO case_retention_records(retention_record_id,deployment_instance_id,case_id,"
                     "eligibility,status,last_meaningful_mutation_at,latest_verified_formal_publication_at,"
                     "latest_successful_word_export_at,retention_anchor_utc,expires_at_utc,last_blocker_code,"
-                    "policy_revision,case_revision,cleanup_revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "policy_revision,case_revision,cleanup_revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(deployment_instance_id,case_id) DO UPDATE SET "
+                    "eligibility=excluded.eligibility,status=excluded.status,"
+                    "last_meaningful_mutation_at=excluded.last_meaningful_mutation_at,"
+                    "latest_verified_formal_publication_at=excluded.latest_verified_formal_publication_at,"
+                    "latest_successful_word_export_at=excluded.latest_successful_word_export_at,"
+                    "retention_anchor_utc=excluded.retention_anchor_utc,expires_at_utc=excluded.expires_at_utc,"
+                    "last_blocker_code=excluded.last_blocker_code,policy_revision=excluded.policy_revision,"
+                    "case_revision=excluded.case_revision,cleanup_revision=excluded.cleanup_revision,"
+                    "updated_at=excluded.updated_at",
                     fields,
                 )
             except Exception as error:
