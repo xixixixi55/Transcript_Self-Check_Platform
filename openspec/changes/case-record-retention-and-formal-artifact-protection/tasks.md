@@ -162,7 +162,7 @@
   - 门控：`npm.cmd run lint:arch`、`npm.cmd run typecheck`、`npm.cmd run verify:quick`、`npm.cmd run verify:docs:strict`、`openspec.cmd validate case-record-retention-and-formal-artifact-protection --strict --no-interactive`、`openspec.cmd validate --specs --strict --no-interactive` 和 `git diff --check` 均通过。
   - 文档同步：living `openspec/specs/data-model.md` 已记录 3.2 backend preview projection、部署隔离、稳定排序、分类/摘要/digest 和无删除副作用；明确 public route/API/UI、Coordinator、文件清理和后续验收仍未交付。
   - Review 节奏：遵循当前执行指令，不创建独立 Slice Implementation Review；统一 T025 Independent Level 3 Code Review 保持未执行。
-  - 提交/推送：本轮稳定提交后补记 commit hash、验证结果和 `origin/codex/demo-next-stage` 推送状态。
+  - 提交/推送：`3368e35`（`feat(retention): add deterministic cleanup preview`）已通过 commit hook 并推送 `origin/codex/demo-next-stage`；推送后本地/远端 ahead/behind 为 `0/0`。
 - [ ] 3.3 **T022** 实现仅由 `enforce` Coordinator 调用的清理执行和四个二次校验点；完成条件：claim 前、文件前、SQLite 事务前、succeeded 前均重验 revision、lease、任务、retry/recovery、publication、Word、authority、ownership、policy 和 owner；客户端不能扩展白名单；验证：stale/concurrent tests；证据：cleanup execution tests。
 - [ ] 3.4 **T022** 实现 `planned→claimed→preflighted→work_files_cleaned→records_cleaned→verified→succeeded` 状态机及 blocked/stale/cancelled/interrupted/partial/failed 状态；完成条件：文件/DB 非原子失败显式记录，重复请求幂等，不把部分成功标为 succeeded；验证：文件、SQLite、最终 authority 故障注入；证据：cleanup recovery tests。
 - [ ] 3.5 **T022** 实现受控 Windows work-file cleanup；完成条件：canonical roots、ownership、case-insensitive root check、symlink/junction、UNC/设备路径、owned leaf、正式 output/source root 保护和稳定错误码符合 design；验证：synthetic Windows fixtures；证据：Windows cleanup tests。
@@ -197,6 +197,7 @@
 - T022/2.5 living sync evidence：`openspec/specs/data-model.md` 补充 cleaned tombstone 的 claim/authority/blocker 前置条件、case_drafts 原子删除、shell safe summary/identity 保留、formal rows 保留、`records_cleaned` 边界和 `CASE_RECORD_CLEANED` 不可编辑行为；在 2.5 边界明确 snapshot/source/task whitelist cleanup、物理文件删除和公共 artifact 查询仍未实现。
 - T022/2.6 living sync evidence：`openspec/specs/data-model.md` 补充 path-free file-step receipt、snapshot row 删除顺序、formal source minimum tombstone、非正式 source/work whitelist、formal authority 保留和 `foreign_key_check` 提交前置条件；明确物理路径安全、实际文件删除和公共 artifact listing/download 仍留给后续任务。
 - T022/3.1 living sync evidence：`openspec/specs/data-model.md` 补充 retention service 的 durable anchor/expiry、publication NULL-only controlled revalidation、Word verified fact、UTC/future fail-closed、活动任务/租约/恢复/authority blocker 和 durable `enforce_allowed` gate；明确 preview、Coordinator、物理文件复验、清理、API/UI 和人工验收仍留给后续任务。
+- T022/3.2 living sync evidence：`openspec/specs/data-model.md` 补充 backend-only deterministic preview projection 的 deployment-scoped case ID 排序、candidate/skipped/blocked 状态、稳定 blocker、清理/保留类别、anchor/expiry、revision、任务/租约/恢复摘要、SHA-256 digest 和无 cleanup side effect 边界；明确 public route/API/UI、Coordinator、物理文件清理和后续验收仍未交付。
 - [ ] 6.2 **T024** 更新 `harness/directory.md`、架构/测试入口和 Level 3 verify/review/archive 记录（如新增目录）；完成条件：层级、测试入口、依赖和命令可追溯；验证：架构/docs 检查；证据：Harness report。
 - [ ] 6.3 **T024** 维护 active change 依赖矩阵、schema version overlap gate 和实施先后；完成条件：不修改、合并或归档其他 change，直接冲突未解决时阻止实现；验证：Git/status 审计；证据：design/tasks/review notes。
 - [ ] 6.4 **T024T** 准备人工验收清单，使用 `SYNTHETIC/TEST/FIXTURE` 输入和外部受控大报告边界；完成条件：不写真实输入、人员、路径或生成资产；验证：asset policy scan 和验收记录；证据：repository-assets policy。
