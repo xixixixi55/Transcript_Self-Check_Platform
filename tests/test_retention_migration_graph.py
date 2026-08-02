@@ -198,3 +198,37 @@ def test_populated_v10_graph_migration_rolls_back_as_a_unit(tmp_path: Path, monk
     monkeypatch.undo()
     database = WorkbenchDatabase(path, _DEPLOYMENT)
     _assert_graph(database)
+
+
+def test_v11_statement_failure_rolls_back_without_half_built_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "SYNTHETIC-v11-statement-failure.sqlite3"
+    _build_v10_graph(path)
+    broken_migrations = tuple(
+        (version, statements + ("CREATE TABLE case_shells (synthetic_failure TEXT)",))
+        if version == 11 else (version, statements)
+        for version, statements in MIGRATIONS
+    )
+    monkeypatch.setattr(database_module, "MIGRATIONS", broken_migrations)
+    with pytest.raises(WorkbenchPersistenceError, match="SQLITE_CORRUPTED"):
+        WorkbenchDatabase(path, _DEPLOYMENT)
+
+    with sqlite3.connect(path) as connection:
+        connection.execute("PRAGMA foreign_keys = ON")
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 10
+        assert connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 10
+        assert connection.execute(
+            "SELECT source_id FROM archive_input_snapshots WHERE snapshot_id=?", (_SNAPSHOT,)
+        ).fetchone()[0] == _SOURCE
+        assert connection.execute(
+            "SELECT publication_id FROM archive_publish_intents WHERE intent_id=?", (_INTENT,)
+        ).fetchone()[0] == _PUBLICATION
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE name IN (?,?)", ("case_retention_policies", "formal_word_artifacts")
+        ).fetchone() is None
+        assert connection.execute("SELECT name FROM sqlite_master WHERE name LIKE '%_v10'").fetchone() is None
+        assert connection.execute("PRAGMA foreign_key_check").fetchone() is None
+
+    monkeypatch.undo()
+    _assert_graph(WorkbenchDatabase(path, _DEPLOYMENT))

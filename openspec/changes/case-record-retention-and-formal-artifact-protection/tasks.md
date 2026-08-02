@@ -138,7 +138,11 @@
   - 验证：`python -m pytest tests/test_workbench_persistence.py::test_corrupt_or_incompatible_database_fails_safe -q`：1 passed；`npm.cmd run verify:docs:strict`、`openspec.cmd validate case-record-retention-and-formal-artifact-protection --strict --no-interactive`、`openspec.cmd validate --specs --strict --no-interactive` 均通过。
   - 未完成边界：未复制或覆盖任何真实数据库、正式文件、模板或凭据；实际生产备份/恢复和旧版本二进制演练留给 T024T/Production Review，v11 migration/FK 失败矩阵的新增 pytest 留给 2.8。
   - 提交/推送：`5210319`（`docs(retention): define backup recovery boundaries`），commit hook `verify:quick` 通过；tasks 证据补充后推送 `origin/codex/demo-next-stage`。
-- [ ] 2.8 **T022T** 为 v11 migration、完整 source FK 顺序（含 `archive_input_snapshots.source_id`）、snapshot work-only DELETE、deployment isolation、tombstone、Word artifact backfill、`publication_verified_at` NULL-only CAS/revalidation、authority 保留和升级失败增加 pytest；完成条件：失败不留下半成品 schema，既有 publication facts 不降级，snapshot row 不在 source 删除/compact 后残留；验证：定向 pytest；证据：migration/retention test report。
+- [x] 2.8 **T022T** 为 v11 migration、完整 source FK 顺序（含 `archive_input_snapshots.source_id`）、snapshot work-only DELETE、deployment isolation、tombstone、Word artifact backfill、`publication_verified_at` NULL-only CAS/revalidation、authority 保留和升级失败增加 pytest；完成条件：失败不留下半成品 schema，既有 publication facts 不降级，snapshot row 不在 source 删除/compact 后残留；验证：定向 pytest；证据：migration/retention test report。
+  - 实现范围：扩展 `tests/test_retention_migration_graph.py`，注入 v11 migration 中途 SQL failure，断言事务整体回滚到 v10、schema_migrations/旧 source/snapshot/publication facts 保持、无 `_v10` 半成品和无 v11 新表；恢复后再次升级并通过完整 graph 校验。既有 graph 同时覆盖 non-empty v10→v11、完整 source FK、snapshot source identity、deployment owner、policy disabled、Word 无伪造 backfill、publication verified time 保持 NULL、重复初始化和 validation rollback。
+  - 相关回归：`python -m pytest tests/test_retention_migration_graph.py -q`：3 passed；migration/FK/publication/Word/tombstone/records-cleaned 联合回归：38 passed；`archive_input_snapshots.source_id` 仍为 NOT NULL FK，records cleanup 后无遗留 snapshot row，formal publication/Word authority 与 source tombstone 保护通过。
+  - 全量结果：`npm.cmd run verify:backend` 收集 863 项，859 passed、3 skipped；唯一失败为既有 `test_submit_returns_before_slow_parse_task_finishes` 的 0.3 秒时序阈值（0.329 秒），隔离重跑 1 passed、1 warning，未触及 2.8 代码或断言。最终 Phase 5 全量门控将再次重跑并记录稳定结果。
+  - 提交边界：未改变 migration/product contract；新增 pytest 仅强化失败回滚证据。现有 living data-model 已准确描述该 migration/rollback 行为，本任务仅需同步 tasks evidence 后提交推送。
 
 ## 3. Phase 5C — 后端安全核心（T022、T022T）
 
