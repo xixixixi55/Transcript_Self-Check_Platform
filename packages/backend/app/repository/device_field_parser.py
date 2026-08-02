@@ -2,6 +2,7 @@
 
 import json
 import re
+import unicodedata
 from typing import Any
 
 _GENERIC_DEVICE_LABELS = frozenset({
@@ -45,13 +46,17 @@ def extract_device_fields(
         if not value_text:
             return
         key = _normalise_key(label)
-        if key in {"device_type", "devicetype", "materialtype", "设备类型", "检材类型"}:
+        if key in {
+            "device_type", "devicetype", "materialtype", "设备类型", "检材类型", "终端类型",
+        }:
             result["device_type"] = result["device_type"] or value_text
-        elif key in {"设备名称", "手机名称", "devicename", "phonename", "productname"}:
+        elif key in {
+            "设备名称", "检材名称", "手机名称", "devicename", "phonename", "productname",
+        }:
             result["device_name"] = result["device_name"] or value_text
         elif key in {
             "手机品牌", "设备品牌", "品牌", "品牌名称", "制造商", "厂商",
-            "制造商名称", "phonebrand", "devicebrand", "brand", "manufacturer",
+            "制造商名称", "生产厂商", "phonebrand", "devicebrand", "brand", "manufacturer",
         }:
             result["brand"] = result["brand"] or value_text
         elif key in {
@@ -61,7 +66,7 @@ def extract_device_fields(
             "hardwaremodel",
         }:
             result["model"] = result["model"] or value_text
-        elif key in {"imei1", "imei-1"}:
+        elif key in {"imei", "imei1", "imei-1"}:
             result["imei1"] = result["imei1"] or normalise_imei(value_text)
         elif key in {"imei2", "imei-2"}:
             result["imei2"] = result["imei2"] or normalise_imei(value_text)
@@ -75,13 +80,13 @@ def extract_device_fields(
 
     if allow_text_fallback:
         for field, aliases in {
-            "imei1": r"IMEI\s*1|IMEI1",
-            "imei2": r"IMEI\s*2|IMEI2",
+            "imei1": r"IMEI(?!\s*[/／]\s*MEID)(?:\s*[-:：]?\s*1)?(?!\s*[-:：]?\s*2)",
+            "imei2": r"IMEI\s*[-:：]?\s*2",
             "serial_number": r"序列号|serial[_ ]?number|serial|sn",
-            "device_name": r"设备名称|手机名称|device[_ ]?name|phone[_ ]?name",
-            "brand": r"手机品牌|设备品牌|品牌(?:名称)?|制造商|厂商|manufacturer|phone[_ ]?brand|device[_ ]?brand",
+            "device_name": r"设备名称|检材名称|手机名称|device[_ ]?name|phone[_ ]?name",
+            "brand": r"手机品牌|设备品牌|品牌(?:名称)?|制造商|厂商|生产厂商|manufacturer|phone[_ ]?brand|device[_ ]?brand",
             "model": r"设备型号|产品型号|手机型号|设备机型|手机机型|硬件型号|机型|型号|model",
-            "device_type": r"设备类型|检材类型|device[_ ]?type|material[_ ]?type",
+            "device_type": r"设备类型|检材类型|终端类型|device[_ ]?type|material[_ ]?type",
         }.items():
             match = re.search(
                 rf"(?:{aliases})\D{{0,20}}([A-Za-z0-9][A-Za-z0-9 ._-]{{2,60}})",
@@ -174,7 +179,8 @@ def normalise_imei(value: Any) -> str:
 
 
 def _normalise_key(value: str) -> str:
-    return re.sub(r"[\s_\-:：/／]", "", value).lower()
+    normalized = unicodedata.normalize("NFKC", str(value))
+    return re.sub(r"[\s_\-:：/／]", "", normalized).lower()
 
 
 def is_generic_device_label(value: Any) -> bool:

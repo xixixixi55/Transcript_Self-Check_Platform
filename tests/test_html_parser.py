@@ -22,12 +22,14 @@ from app.repository.html_parser import (
     parse_navigation,
     parse_report_info,
 )
+from app.repository.report_parse_input_repository import build_report_parse_input_snapshot
 from app.repository.report_format_adapter import (
     ReportFormat,
     ReportFormatError,
     detect_report_format,
     extract_main_software_version,
 )
+from app.services.material_policy_service import enrich_report_material_types
 
 
 def _write_json(path, payload):
@@ -139,6 +141,85 @@ def test_new_fixture_uses_tb2_and_strong_device_table(tmp_path):
     }
 
 
+def test_device_metadata_table_variant_a_reads_phone_table_and_keeps_missing_imei_empty(tmp_path):
+    data_dir = _write_report_fixture(tmp_path, "legacy")
+    (data_dir / "JC01" / "Base" / "device.json").unlink()
+    phone_dir = data_dir / "JC01" / "Phone"
+    phone_dir.mkdir()
+    _write_json(phone_dir / "data_SYNTHETIC-A.json", {"rows": [
+        {"c1": "检材名称", "c2": "SYNTHETIC-A-PHONE"},
+        {"c1": "手机品牌", "c2": "SYNTHETIC-A-BRAND"},
+        {"c1": "手机型号", "c2": "SYNTHETIC-A-MODEL"},
+        {"c1": "设备类型", "c2": "手机"},
+        {"c1": "IMEI", "c2": ""},
+        {"c1": "IMEI2", "c2": ""},
+        {"c1": "序列号", "c2": "SYNTHETIC-SERIAL-A"},
+    ]})
+
+    snapshot = build_report_parse_input_snapshot(str(tmp_path))
+    fields = snapshot.device_base_info["JC01"]
+
+    assert fields["device_name"] == "SYNTHETIC-A-PHONE"
+    assert fields["brand"] == "SYNTHETIC-A-BRAND"
+    assert fields["model"] == "SYNTHETIC-A-MODEL"
+    assert fields["device_type"] == "手机"
+    assert fields["imei1"] == ""
+    assert fields["imei2"] == ""
+
+
+def test_device_metadata_nested_variant_b_accepts_imei_aliases_and_ignores_identifier_noise(tmp_path):
+    data_dir = _write_report_fixture(tmp_path, "new")
+    (data_dir / "JC01" / "Base" / "device_table.json").unlink()
+    base_dir = data_dir / "JC01" / "Base"
+    _write_json(base_dir / "data_SYNTHETIC-B.json", {"metadata": {"rows": [
+        {"c1": "设备名称", "c2": "SYNTHETIC-B-PHONE"},
+        {"c1": "设备品牌", "c2": "SYNTHETIC-B-BRAND"},
+        {"c1": "设备型号", "c2": "SYNTHETIC-B-MODEL"},
+        {"c1": "终端类型", "c2": "手机"},
+        {"c1": "IMEI", "c2": "123456789012345"},
+        {"c1": "IMEI 2", "c2": "543210987654321"},
+        {"c1": "序列号", "c2": "SYNTHETIC-SERIAL-B"},
+    ]}})
+    _write_json(base_dir / "data_SYNTHETIC-B-noise.json", {"rows": [
+        {"c1": "IMSI", "c2": "123456789012345"},
+        {"c1": "ICCID", "c2": "1234567890123456789"},
+        {"c1": "MEID", "c2": "123456789012345"},
+    ]})
+
+    fields = parse_device_base(str(data_dir), "JC01")
+
+    assert fields["device_name"] == "SYNTHETIC-B-PHONE"
+    assert fields["brand"] == "SYNTHETIC-B-BRAND"
+    assert fields["model"] == "SYNTHETIC-B-MODEL"
+    assert fields["device_type"] == "手机"
+    assert fields["imei1"] == "123456789012345"
+    assert fields["imei2"] == "543210987654321"
+
+
+def test_device_type_label_variant_c_enriches_existing_name_and_imei(tmp_path):
+    data_dir = _write_report_fixture(tmp_path, "new")
+    device_file = data_dir / "data_device_lists.json"
+    device_data = json.loads(device_file.read_text(encoding="utf-8"))
+    device_data["contents"][0]["tb2"].append({"tt": "检材类型", "ct": "手机"})
+    _write_json(device_file, device_data)
+
+    device = parse_device_lists(str(data_dir))[0]
+    fields = parse_device_base(str(data_dir), "JC01")
+    enriched = enrich_report_material_types({
+        "introduction": {"evidence_list": [{
+            "id": "JC01", "device_type": device["device_type"],
+            "device_name": fields["device_name"], "imei1": device["imei1"],
+            "imei2": device["imei2"],
+        }]},
+    })["introduction"]["evidence_list"][0]
+
+    assert fields["device_name"] == "合成新手机"
+    assert device["imei1"] == "111111111111111"
+    assert device["imei2"] == "222222222222222"
+    assert enriched["material_type"] == "phone"
+    assert enriched["material_type_status"] == "confirmed_by_report"
+
+
 def test_mixed_format_prefers_tb2_and_new_device_rules(tmp_path):
     data_dir = _write_report_fixture(tmp_path, "new", mixed=True)
     assert detect_report_format(str(data_dir)) == ReportFormat.NEW
@@ -177,6 +258,22 @@ def test_extract_device_fields_supports_confirmed_aliases_and_tables():
     assert extract_device_fields(tt_ct, "", allow_tt_ct=True)["model"] == "Model-TT"
     generic = extract_device_fields({"设备名称": "手机"}, "")
     assert generic["model"] == ""
+
+
+def test_device_field_normalization_keeps_empty_candidates_safe_and_identifiers_distinct():
+    fields = extract_device_fields({"rows": [
+        {"c1": "IMEI", "c2": ""},
+        {"c1": "IMEI\n1", "c2": "123 456 789 012 345"},
+        {"c1": "IMEI：2", "c2": "543210987654321"},
+        {"c1": "IMSI", "c2": "999999999999999"},
+        {"c1": "ICCID", "c2": "999999999999999"},
+        {"c1": "MEID", "c2": "999999999999999"},
+    ]}, "")
+    text_only = extract_device_fields({}, "IMEI/MEID：123456789012345")
+
+    assert fields["imei1"] == "123456789012345"
+    assert fields["imei2"] == "543210987654321"
+    assert text_only["imei1"] == ""
 
 
 def test_strong_tt_ct_device_table_is_accepted_only_as_a_table():

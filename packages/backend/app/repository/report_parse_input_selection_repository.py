@@ -17,13 +17,23 @@ from .report_parse_input_models import (
 _METADATA_DIRECTORY_NAMES = ("base", "phone")
 _DEVICE_FILENAME_MARKERS = (
     "device", "phone", "mobile", "metadata", "equipment", "material",
-    "base", "basic", "info", "property",
+    "base", "basic", "info", "property", "data_",
 )
 _DEVICE_FILENAME_PRIORITY = {
     "device_metadata.json": 0,
     "device_table.json": 1,
     "device.json": 2,
 }
+# Device tables in the supported exports place their row labels in the JSON
+# header. Keep the bounded probe small because ordinary data_ files can be
+# multi-megabyte; the full parser still reads only files that pass this probe.
+_DATA_FILE_SCAN_BYTES = 16 * 1024
+_STRUCTURED_DEVICE_LABELS = (
+    "设备类型", "检材类型", "终端类型", "设备名称", "检材名称", "手机名称",
+    "手机品牌", "设备品牌", "设备型号", "产品型号", "手机型号",
+    "device_type", "material_type", "device_name", "phone_name", "phone_brand",
+    "device_brand", "device_model", "product_model", "phone_model", "IMEI",
+)
 
 
 def build_evidence_directory_index(
@@ -78,6 +88,7 @@ def split_vendor_device_name(value: str) -> tuple[str, str]:
 
 def select_device_candidate_files(
     evidence_dir: str, data_root: Path, *, report_format: ReportFormat,
+    include_data_files: bool = True,
 ) -> tuple[list[Path], tuple[CandidateDirectoryIndex, ...]]:
     if not evidence_dir:
         return [], ()
@@ -100,6 +111,7 @@ def select_device_candidate_files(
         candidate_entries = [
             entry for entry in file_entries(directory.path)
             if is_json(entry.name) and is_device_metadata_name(entry.name)
+            and (include_data_files or not _is_data_file(entry.name))
         ]
         role_files[role] = [Path(entry.path) for entry in candidate_entries]
         indexes.append(CandidateDirectoryIndex(
@@ -109,26 +121,34 @@ def select_device_candidate_files(
                 key=lambda item: item.relative_path.casefold(),
             )),
         ))
-    for role in _METADATA_DIRECTORY_NAMES:
-        files = role_files.get(role, [])
-        if files:
-            if report_format == ReportFormat.LEGACY:
-                # The Legacy parser historically merged all direct JSON files
-                # in the named Base/Phone metadata directory. Keep that
-                # compatibility rule without touching media or other report
-                # directories; vendor files are often split across files.
-                return sorted(files, key=lambda item: item.name.casefold()), tuple(indexes)
-            best_priority = min(_device_filename_priority(item.name) for item in files)
-            selected = [
-                item for item in files
-                if _device_filename_priority(item.name) == best_priority
-            ]
-            return sorted(
-                selected,
-                key=lambda item: (
-                    _device_filename_priority(item.name), item.name.casefold(),
-                ),
-            ), tuple(indexes)
+    named_files = [
+        item for role in _METADATA_DIRECTORY_NAMES
+        for item in role_files.get(role, [])
+        if not _is_data_file(item.name)
+    ]
+    files = named_files or [
+        item for role in _METADATA_DIRECTORY_NAMES
+        for item in role_files.get(role, [])
+        if _is_selected_data_file(item)
+    ]
+    if files:
+        if report_format == ReportFormat.LEGACY:
+            # The Legacy parser historically merged all direct JSON files in
+            # the named Base/Phone metadata directories. Keep that rule while
+            # allowing exports whose authoritative table is in Phone and
+            # whose Base directory contains only auxiliary data_ files.
+            return sorted(files, key=lambda item: str(item).casefold()), tuple(indexes)
+        best_priority = min(_device_filename_priority(item.name) for item in files)
+        selected = [
+            item for item in files
+            if _device_filename_priority(item.name) == best_priority
+        ]
+        return sorted(
+            selected,
+            key=lambda item: (
+                _device_filename_priority(item.name), str(item).casefold(),
+            ),
+        ), tuple(indexes)
     return [], tuple(indexes)
 
 
@@ -145,7 +165,29 @@ def _candidate_file_record(path: str, data_root: Path) -> CandidateFileRecord:
 
 def is_device_metadata_name(name: str) -> bool:
     stem = Path(name).stem.casefold()
-    return any(marker in stem for marker in _DEVICE_FILENAME_MARKERS)
+    return any(
+        stem.startswith(marker) if marker == "data_" else marker in stem
+        for marker in _DEVICE_FILENAME_MARKERS
+    )
+
+
+def _is_data_file(name: str) -> bool:
+    return Path(name).stem.casefold().startswith("data_")
+
+
+def _is_selected_data_file(path: Path) -> bool:
+    """Select data_ JSON only when its header contains a structured table.
+
+    Large exports put ordinary evidence tables beside device metadata. A
+    bounded label probe keeps the one-pass snapshot responsive and does not
+    rely on a report-specific filename or node number.
+    """
+    try:
+        with path.open("rb") as stream:
+            sample = stream.read(_DATA_FILE_SCAN_BYTES).decode("utf-8", errors="ignore")
+    except OSError:
+        return False
+    return sum(label in sample for label in _STRUCTURED_DEVICE_LABELS) >= 2
 
 
 def is_json(name: str) -> bool:

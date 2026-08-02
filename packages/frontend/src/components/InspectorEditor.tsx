@@ -1,7 +1,7 @@
 // Layer 11: FE_Components — 检查人员库多选和有序快照编辑器
 import React from 'react'
 import { Alert, Button, Card, Select, Space, Typography } from 'antd'
-import { DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons'
+import { DeleteOutlined } from '@ant-design/icons'
 import type { FieldState, InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
 import { FieldProvenanceBadge } from './FieldProvenanceBadge'
 
@@ -69,15 +69,6 @@ export default function InspectorEditor({
     onChange(normalizeOrder(next))
   }
 
-  const move = (index: number, offset: number) => {
-    const target = index + offset
-    if (target < 0 || target >= snapshots.length) return
-    const next = [...snapshots]
-    const [item] = next.splice(index, 1)
-    next.splice(target, 0, item)
-    onChange(normalizeOrder(next))
-  }
-
   const remove = (index: number) => {
     onChange(normalizeOrder(snapshots.filter((_, itemIndex) => itemIndex !== index)))
   }
@@ -110,10 +101,12 @@ export default function InspectorEditor({
       {!loading && !error && availableInspectors.length === 0 && (
         <Text type="secondary">暂无可选择的启用人员，请先在检查人员管理中添加或启用人员。</Text>
       )}
-      <div className="inspector-selector__selected" aria-label="已选择检查人员">
+      <div className="inspector-selector__selected" role="list" aria-label="已选择检查人员，可拖拽卡片调整顺序">
         {snapshots.length > 0 && <Text type="secondary">可拖拽卡片调整检查人员顺序。</Text>}
         {snapshots.map((snapshot, index) => (
           <div className="inspector-selector__item" key={`${snapshot.snapshot_id || snapshot.inspector_id || 'legacy'}-${index}`}
+            role="listitem" aria-label={`检查人员 ${index + 1}，可拖拽调整顺序`}
+            aria-grabbed={draggedIndex === index ? 'true' : 'false'}
             data-testid={`inspector-card-${index}`} draggable
             onDragStart={() => setDraggedIndex(index)}
             onDragOver={event => event.preventDefault()}
@@ -126,8 +119,6 @@ export default function InspectorEditor({
               <Text type="secondary">警号：{snapshot.police_number}</Text>
             </Space>
             <Space>
-              <Button aria-label={`上移${index + 1}`} icon={<UpOutlined />} disabled={index === 0} onClick={() => move(index, -1)} />
-              <Button aria-label={`下移${index + 1}`} icon={<DownOutlined />} disabled={index === snapshots.length - 1} onClick={() => move(index, 1)} />
               <Button aria-label={`移除${index + 1}`} danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
             </Space>
           </Card>

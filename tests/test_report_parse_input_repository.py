@@ -112,6 +112,22 @@ def test_snapshot_reads_core_and_selected_device_json_once(tmp_path):
     assert all(str(tmp_path) not in item.relative_path for item in snapshot.dependencies)
 
 
+def test_snapshot_does_not_probe_data_files_when_named_device_table_exists(tmp_path):
+    data_root = _write_snapshot_fixture(tmp_path)
+    noise_path = data_root / "JC-SYN-01" / "Base" / "data_SYNTHETIC-NOISE.json"
+    _write_json(noise_path, {"rows": [
+        {"c1": "设备名称", "c2": "SYNTHETIC-NOISE"},
+        {"c1": "设备型号", "c2": "SYNTHETIC-NOISE-MODEL"},
+    ]})
+    calls, counted_open = _count_data_opens(data_root)
+
+    with patch("pathlib.Path.open", new=counted_open):
+        snapshot = build_report_parse_input_snapshot(str(tmp_path))
+
+    assert snapshot.device_base_info["JC-SYN-01"]["model"] == "SYNTHETIC-MODEL-1"
+    assert calls["JC-SYN-01/Base/data_SYNTHETIC-NOISE.json"] == 0
+
+
 def test_snapshot_preserves_parser_evidence_order_for_case_initialization(tmp_path):
     data_root = _write_snapshot_fixture(tmp_path)
     rename_map = {

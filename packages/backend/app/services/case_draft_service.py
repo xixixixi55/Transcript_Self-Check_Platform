@@ -18,6 +18,7 @@ from .report_parser_service import parse_report
 from .disc_sequence_service import apply_disc_sequence_to_attachments
 from .case_order_service import CaseOrderService
 from .field_provenance_service import FieldProvenanceService
+from .material_policy_service import enrich_report_material_types
 from .shared_defaults_service import SharedDefaultsService
 from .source_record_service import SourceRecordService
 
@@ -77,7 +78,9 @@ class CaseDraftService:
             report = parsed.get("report")
             if not isinstance(report, Mapping):
                 raise WorkbenchPersistenceError("INVALID_LEGACY_REPORT")
-            initialized, field_states = _initialize_draft(report, self.defaults.get())
+            initialized, field_states = _initialize_draft(
+                enrich_report_material_types(report), self.defaults.get(),
+            )
             self.workflow.complete_parse(case_id, task_id, initialized, field_states)
         except Exception as error:
             try:

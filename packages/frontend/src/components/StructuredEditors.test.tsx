@@ -40,8 +40,6 @@ vi.mock('antd', () => ({
 vi.mock('@ant-design/icons', () => ({
   PlusOutlined: () => null,
   DeleteOutlined: () => null,
-  UpOutlined: () => null,
-  DownOutlined: () => null,
 }))
 vi.mock('./EditableField', () => ({
   default: ({ value, placeholder, onChange }: { value: string; placeholder?: string; onChange: (value: string) => void }) => (
@@ -127,7 +125,7 @@ describe('结构化编辑器', () => {
     ])
   })
 
-  it('检查人员快照支持上移、下移和移除且保持顺序', () => {
+  it('检查人员卡片不渲染上下调序入口', () => {
     const onChange = vi.fn()
     render(<InspectorEditor
       snapshots={[
@@ -138,10 +136,33 @@ describe('结构化编辑器', () => {
       onChange={onChange}
     />)
 
-    fireEvent.click(screen.getByRole('button', { name: '下移1' }))
+    expect(screen.queryByRole('button', { name: /上移|下移/ })).toBeNull()
+    expect(screen.queryByLabelText(/上移|下移/)).toBeNull()
+    expect(screen.queryByTestId(/inspector-(up|down|move)/)).toBeNull()
+  })
+
+  it('检查人员卡片通过拖拽排序并支持移除且保持顺序', () => {
+    const onChange = vi.fn()
+    render(<InspectorEditor
+      snapshots={[
+        { inspector_id: 'one', name: '甲', unit: '单位甲', police_number: '001', selected_order: 0 },
+        { inspector_id: 'two', name: '乙', unit: '单位乙', police_number: '002', selected_order: 1 },
+      ]}
+      availableInspectors={[]}
+      onChange={onChange}
+    />)
+
+    fireEvent.dragStart(screen.getByTestId('inspector-card-0'))
+    expect(screen.getByTestId('inspector-card-0').getAttribute('aria-grabbed')).toBe('true')
+    fireEvent.drop(screen.getByTestId('inspector-card-1'))
     expect(onChange).toHaveBeenCalledWith([
       expect.objectContaining({ inspector_id: 'two', selected_order: 0 }),
       expect.objectContaining({ inspector_id: 'one', selected_order: 1 }),
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: '移除1' }))
+    expect(onChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ inspector_id: 'two', selected_order: 0 }),
     ])
   })
 

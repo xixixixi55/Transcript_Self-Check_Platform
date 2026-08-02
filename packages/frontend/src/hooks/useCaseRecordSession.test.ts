@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InspectionReport } from '@biji/shared/types'
+import { applyReportEdit } from '@biji/shared/utils'
 import { shouldHydrateServerDraft } from './useCaseDraftHydration'
 import { sharedPatchForEdit } from './useCaseRecordSession'
 
@@ -37,6 +38,31 @@ describe('shouldHydrateServerDraft', () => {
     })
     expect(sharedPatchForEdit(report, 'attachments.disc_number')).toEqual({
       disc_number_prefix: 'ABC',
+    })
+  })
+
+  it('projects dragged inspector order to both the form and shared export input', () => {
+    const report = {
+      introduction: {
+        inspectors: [
+          { name: 'SYNTHETIC-A', unit: 'SYNTHETIC-UNIT-A', badge_number: 'SYNTHETIC-001' },
+          { name: 'SYNTHETIC-B', unit: 'SYNTHETIC-UNIT-B', badge_number: 'SYNTHETIC-002' },
+        ],
+      },
+    } as InspectionReport
+    const dragged = [
+      { name: 'SYNTHETIC-B', unit: 'SYNTHETIC-UNIT-B', police_number: 'SYNTHETIC-002', selected_order: 0 },
+      { name: 'SYNTHETIC-A', unit: 'SYNTHETIC-UNIT-A', police_number: 'SYNTHETIC-001', selected_order: 1 },
+    ]
+
+    const edited = applyReportEdit(report, 'introduction.inspector_snapshots', dragged)
+
+    expect(edited.introduction.inspectors.map(item => item.name)).toEqual(['SYNTHETIC-B', 'SYNTHETIC-A'])
+    expect(sharedPatchForEdit(edited, 'introduction.inspector_snapshots')).toEqual({
+      inspector_order: [
+        'SYNTHETIC-B|SYNTHETIC-UNIT-B|SYNTHETIC-002',
+        'SYNTHETIC-A|SYNTHETIC-UNIT-A|SYNTHETIC-001',
+      ],
     })
   })
 })

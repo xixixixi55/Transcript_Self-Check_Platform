@@ -3,6 +3,17 @@
 > 除本条已记录的 Planning Review，以及下方明确标记为 Slice 5A-1 foundation 的已完成任务外，所有产品实现、测试、E2E、人工验收和后续 Review 任务保持未勾选。创建或修订本 change 不等于 Phase 5 产品能力已完成。
 > 原任务 T020–T025 和 Phase 5 gate 通过任务编号保留追溯；本节的 Spec Freeze Remediation 不新增原任务编号。
 
+## Phase 5 Human Acceptance Remediation — Inspector ordering and device metadata parsing
+
+- [x] 记录人工验收发现的两项问题：检查人员卡片仍提供上移/下移入口；三份真实报告在设备名称、IMEI 或设备类型解析/审核展示上存在差异。
+- [x] 检查人员顺序仅保留拖拽：移除上下调序按钮及仅供按钮使用的状态/处理器，保留新增、删除、编辑检查人员、拖拽手柄、可访问名称/拖拽状态，以及表单和导出输入的稳定顺序投影。
+- [x] 记录三份真实报告的解析根因分类（仅保留脱敏证据）：real report sample A 的权威设备表位于 Phone 角色的结构化 `data_` JSON，且报告没有 IMEI 值；real report sample B 的设备元数据位于 Base 角色的结构化 `data_` JSON，普通文件名候选规则未纳入该表；real report sample C 的名称/IMEI 原有来源正常，但工作台未对明确报告设备类型执行材料类型 enrichment。
+- [x] 修复方式：对 `data_` JSON 使用受控结构化标签探针和多强字段候选选择，不依赖案件/人员/日期/目录/固定节点；标准化空白、全角/半角符号和受控设备字段别名，支持 `IMEI`/`IMEI1`/`IMEI2` 变体，空候选不覆盖非空候选，并明确排除 IMSI、ICCID、MEID、序列号和手机号码；审核设备名称继续按报告品牌/设备品牌 + 型号/设备型号合同展示；工作台解析接入现有材料类型 enrichment。
+- [x] 建立脱敏结构回归 fixture：`device_metadata_table_variant_a`（Phone 表格、设备类型正确、IMEI 源为空）、`device_metadata_nested_variant_b`（Base 嵌套表格、IMEI 标签变体和标识噪声）、`device_type_label_variant_c`（既有名称/IMEI 保持不变、明确类型完成审核确认）。
+- [x] 定向验证：`python -m pytest tests/test_html_parser.py tests/test_report_parse_input_repository.py tests/test_report_parser_service.py tests/test_workbench_services.py -q`（84 passed）；`npm.cmd run verify:frontend`（类型检查、45 个前端测试文件/217 项测试通过，包含本轮卡片、CRUD 和顺序投影回归）；三份本地真实报告只读复测通过：sample A 名称/类型正确且 IMEI 为空，sample B 名称/类型正确且 IMEI 有效，sample C 三个设备的品牌+型号名称/IMEI 保持正确且类型在审核 enrichment 后确认。
+- [x] 最终门控：新增解析候选回归 `python -m pytest tests/test_html_parser.py tests/test_report_parse_input_repository.py -q`（39 passed）；`npm.cmd run verify:backend`（871 passed, 3 skipped）；`npm.cmd run verify:quick`、`npm.cmd run verify:docs:strict`、当前 change 严格校验、全规格严格校验和 `git diff --check` 全部通过。
+- [x] 人工验收 remediation 状态：实现和定向验证完成；3.3 保持暂停，不自动恢复；待本轮全量工程/文档/OpenSpec 门控、提交和推送完成后汇报。
+
 ## Spec Freeze Remediation（规划修订，不属于原 T020–T025 编号）
 
 - [x] 固定 publication/Word/tombstone 的清理后稳定访问模型；

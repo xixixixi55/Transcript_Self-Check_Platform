@@ -25,7 +25,7 @@ vi.mock('antd', () => {
     Form,
     Input: ({ value, onChange, 'aria-label': ariaLabel, placeholder }: any) => <input aria-label={ariaLabel} placeholder={placeholder} value={value || ''} onChange={onChange} />,
     Modal: ({ open, children, onOk }: any) => open ? <div role="dialog"><button onClick={onOk}>确定</button>{children}</div> : null,
-    Popconfirm: ({ children }: any) => <>{children}</>,
+    Popconfirm: ({ children, onConfirm }: any) => <span onClick={onConfirm}>{children}</span>,
     Space: ({ children }: any) => <div>{children}</div>,
     Switch: ({ checked, checkedChildren, unCheckedChildren, onChange }: any) => <button onClick={() => onChange(!checked)}>{checked ? checkedChildren : unCheckedChildren}</button>,
     Table: ({ columns, dataSource, locale }: any) => (
@@ -72,6 +72,20 @@ describe('InspectorManager', () => {
     fireEvent.click(screen.getByRole('button', { name: '新增检查人员' }))
     fireEvent.click(screen.getByRole('button', { name: '确定' }))
     await waitFor(() => expect(mocks.axios.post).toHaveBeenCalledWith('/api/v1/inspectors', expect.any(Object)))
+  })
+
+  it('支持编辑和删除检查人员', async () => {
+    render(<InspectorManager />)
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }))
+    fireEvent.click(screen.getByRole('button', { name: '确定' }))
+    await waitFor(() => expect(mocks.axios.put).toHaveBeenCalledWith(
+      '/api/v1/inspectors/inspector-1', expect.any(Object),
+    ))
+
+    fireEvent.click(await screen.findByRole('button', { name: '删除' }))
+    await waitFor(() => expect(mocks.axios.delete).toHaveBeenCalledWith(
+      '/api/v1/inspectors/inspector-1',
+    ))
   })
 
   it('显示加载失败状态', async () => {

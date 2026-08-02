@@ -76,6 +76,10 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
     vendor_device_names = find_vendor_device_names(
         evidence_numbers, root_entries,
     )
+    use_vendor_names_without_data_scan = (
+        len(vendor_device_names) == len(device_rows)
+        and all(_has_core_device_identity(row) for row in device_rows)
+    )
     device_base_info: dict[str, dict[str, str]] = {}
     candidate_indexes: list[CandidateDirectoryIndex] = []
     for row in device_rows:
@@ -83,6 +87,7 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
         candidate_files, indexes = select_device_candidate_files(
             evidence_directories.get(evidence_number, ""), data_root,
             report_format=report_format,
+            include_data_files=not use_vendor_names_without_data_scan,
         )
         candidate_indexes.extend(indexes)
         payloads: list[tuple[Any, str]] = []
@@ -169,6 +174,12 @@ def _fingerprint_records(records: tuple[DependencyRecord, ...]) -> str:
         digest.update(record.stable_identity.encode("ascii"))
         digest.update(b"\0" + record.content_digest.encode("ascii") + b"\0")
     return digest.hexdigest()
+
+
+def _has_core_device_identity(row: dict[str, str]) -> bool:
+    return any(str(row.get(key) or "").strip() for key in (
+        "device_type", "imei1", "imei2",
+    ))
 
 
 def _is_device_metadata_name(name: str) -> bool:

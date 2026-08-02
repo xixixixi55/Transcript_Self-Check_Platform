@@ -104,6 +104,28 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path):
     assert calls and Path(calls[0][0]) == report_dir
 
 
+def test_parse_task_enriches_report_device_type_for_review_editor(database, tmp_path):
+    parsed_report = copy.deepcopy(REPORT)
+    parsed_report["introduction"]["evidence_list"] = [{
+        "id": "SYNTHETIC-EVIDENCE-1", "evidence_number": "SYNTHETIC-1",
+        "device_type": "手机", "device_name": "SYNTHETIC-BRAND SYNTHETIC-MODEL",
+        "brand": "SYNTHETIC-BRAND", "model": "SYNTHETIC-MODEL",
+        "imei1": "123456789012345", "imei2": "",
+    }]
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(parsed_report)}, source_service,
+    )
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+
+    evidence = lifecycle.detail(identifiers["case_id"])["draft"]["report"]["introduction"]["evidence_list"][0]
+    assert evidence["device_name"] == "SYNTHETIC-BRAND SYNTHETIC-MODEL"
+    assert evidence["imei1"] == "123456789012345"
+    assert evidence["material_type"] == "phone"
+    assert evidence["material_type_status"] == "confirmed_by_report"
+
+
 def test_case_save_persists_dragged_card_order_and_field_provenance(database, tmp_path):
     parsed_report = copy.deepcopy(REPORT)
     parsed_report["introduction"].update({
