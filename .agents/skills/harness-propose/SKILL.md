@@ -7,9 +7,9 @@ description: "创建需求变更包并按 Harness 架构约束编排。当用户
 
 **快速参考**（完整步骤见命令文件）：
 1. 读取 `AGENTS.md` + `harness/iteration-guide.md` + `harness/architecture.md`
-2. 创建变更包：proposal + specs + design + tasks
-3. 影响分析按架构分层矩阵
-4. tasks 按层级从低到高排序
+2. 扫描活跃变更包，按目标范围关联或确认无匹配
+3. 按 `AGENTS.md` 判断 Level；Level 1 直接修改，Level 2 仅创建 tasks.md，Level 3 创建 proposal + specs + design + tasks
+4. 影响分析按架构分层矩阵，tasks 按层级从低到高排序
 5. 展示摘要等待确认
 
 **与 OpenSpec propose 的区别**：

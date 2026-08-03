@@ -36,14 +36,13 @@
 | 命令 | 作用 | 使用时机 |
 |------|------|---------|
 | `/opsx:new` | 创建空的变更目录 | 手动组织变更包时 |
-| `/opsx:ff` | 快速推进（跳过某些步骤） | 小改动不需要完整流程时 |
 | `/opsx:verify` | 验证变更是否符合 spec 规范 | ⑤ 与 Harness 验证配合使用 |
 | `/opsx:sync` | 同步 `openspec/specs/` 与代码实际状态 | 代码先行改了但 spec 没更新时 |
 | `/opsx:continue` | 继续未完成的变更包 | 变更做到一半中断后恢复 |
 | `/opsx:bulk-archive` | 批量归档多个已完成变更 | 积压了多个变更时 |
 | `/opsx:onboard` | 从现有项目代码生成初始 specs | 棕地项目接入 OpenSpec 时 |
 
-> **注**：`/opsx:propose` = `/opsx:new` + `/opsx:ff` 的便捷组合。需要分步控制时可拆开使用。
+> **注**：本仓库不依赖未在 `.agents/commands/` 中定义的 OpenSpec 快捷命令。命令不可用时，按 `AGENTS.md` 的级别规则手动创建对应工件。
 >
 > 本命令参考基于 OpenSpec 1.5.0。如版本升级导致命令变更，以 OpenSpec 官方文档为准，并同步更新此表。
 
@@ -51,9 +50,9 @@
 
 ## ① 需求定义（OpenSpec: `/opsx:propose`）
 
-**执行**：运行 `/opsx:propose "<功能描述>"` 或手动创建变更包
+**执行**：Level 3 运行 `/opsx:propose "<功能描述>"` 或手动创建完整变更包；Level 1/2 按 `AGENTS.md` 的轻量路径执行
 
-**产出物**：`openspec/changes/<功能名>/` 目录下的完整变更包
+**产出物**：Level 3 为 `openspec/changes/<功能名>/` 目录下的完整变更包；Level 2 仅创建 `tasks.md`，Level 1 不创建变更包
 
 ```
 openspec/changes/<功能名>/
@@ -128,8 +127,8 @@ openspec/changes/<功能名>/
 3. Agent 为改变交互、业务行为或数据处理的实现写配套测试；纯样式、文案、图标和不改变交互的展示调整不强制新增测试
 4. Agent **MUST** 运行测试
    - 运行受影响的定向测试；同一候选版本不重复运行已经覆盖且未改变的模块套件
-   - pytest 默认使用 `-q --tb=short`，先读取退出码和最终汇总；通过时不逐条读取通过用例
-   - 失败时只阅读失败用例及其 traceback，自主修复后先重跑失败用例，再按需重跑受影响模块
+   - 所有自动化测试（pytest、Vitest、模块测试和完整门控子命令）先读取退出码、最终汇总和失败数量；通过时不逐条读取通过用例
+   - pytest 默认使用 `-q --tb=short`，前端 Vitest 优先使用非 verbose 模式；失败时只阅读失败用例及其 traceback，自主修复后先重跑失败用例，再按需重跑受影响模块
    - **MUST**: 连续失败 3 次 → 停止，报告问题，请求人类介入
 5. Agent **SHOULD** 验证测试有效性（**Level 3 核心业务逻辑为 MUST**）：在源码中注释掉本次新增/修改的核心逻辑，重新运行测试
    - 测试失败 → 好，测试有效，恢复源码，进入下一步
@@ -271,33 +270,31 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 ### 场景 A：新增一个功能
 
 ```
-① /harness:propose "新增 XX 功能"
-   → 生成 openspec/changes/<功能名>/ 变更包
-② 审阅 proposal.md 的 Impact + design.md 的架构决策
-③ 审阅 tasks.md 的任务拆解
-④ /harness:apply — 按任务开发
-⑤ /harness:verify + /harness:review
-⑥ /harness:archive — 归档 + 迭代记录
+① 扫描活跃变更包，确认没有同目标或重叠范围的现有变更
+② 按 AGENTS.md 判断级别：Level 1 直接修改；Level 2 创建 tasks.md；Level 3 使用 /harness:propose
+③ Level 2 审阅 tasks.md；Level 3 审阅 proposal.md 的 Impact、design.md 的架构决策和 tasks.md
+④ 按对应级别开发：Level 1 直接修改；Level 2 按 tasks.md；Level 3 使用 /harness:apply
+⑤ 按对应级别验证：Level 1 定向验证；Level 2 verify:quick + 受影响测试 + scoped strict docs；Level 3 verify:full + /harness:review
+⑥ 仅 Level 3 执行 /harness:archive；Level 2 不强制归档
 ```
 
 ### 场景 B：修改现有功能的行为
 
 ```
-① /harness:propose "修改 XX 行为"
-   → 变更包中的 specs/ 包含对现有能力 spec 的修改（标记 MODIFIED）
-② 审阅影响范围
-③ 审阅任务
-④ /harness:apply — Harness 约束自动生效
-⑤ /harness:verify + 回归测试
-⑥ /harness:archive（自动合并修改后的 spec 到主线）
+① 扫描活跃变更包，确认是否属于已有需求；匹配时继续原变更包
+② 无匹配时按 AGENTS.md 判断级别：Level 1 直接修改；Level 2 创建 tasks.md；Level 3 使用 /harness:propose，并在 specs/ 中标记 MODIFIED
+③ 审阅对应级别的影响范围和任务
+④ 按对应级别开发；Level 3 使用 /harness:apply
+⑤ 按对应级别运行验证和回归测试
+⑥ 仅 Level 3 执行 /harness:archive；Level 2 不强制归档
 ```
 
 ### 场景 C：修 Bug
 
 **Level 1（局部 Bug 修复）**：
 ```
-① 检查 Git 状态，阅读直接相关代码和测试
-② 搜索调用范围
+① 先扫描活跃变更包并确认没有匹配或重叠候选
+② 检查 Git 状态，阅读直接相关代码和测试，搜索调用范围
 ③ 实施最小修改
 ④ 运行针对性测试或 lint:arch + typecheck
 ⑤ 检查 git diff
@@ -306,13 +303,12 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 
 **Level 2/3（复杂 Bug，影响范围较大）**：
 ```
-① /harness:fix "修复 XX Bug"（Level 2：仅 tasks.md）
-   → 复杂 Bug 使用 /harness:propose（Level 3：完整变更包）
-② 定位到具体文件和层级
-③ 通常 1-2 个任务
-④ Agent 修复（仍遵循对应级别的开发节奏）
-⑤ /harness:verify — 验证 Bug 已修复
-⑥ Level 2 默认不强制完整归档门控
+① 先扫描活跃变更包；匹配时在原包内修复，多个候选无法排除时请求用户选择
+② 无匹配时按行为影响、调用范围和回滚风险判断 Level；不确定时默认 Level 2
+③ Level 2 创建 tasks.md；Level 3 创建完整变更包
+④ 定位到具体文件和层级并实施修复
+⑤ Level 2：verify:quick + 受影响模块原始测试 + scoped strict docs；Level 3：verify:full + Review
+⑥ Level 2 默认不强制完整归档门控；Level 3 按完整归档协议执行
 ```
 
 ### 场景 D：从现有项目接入 OpenSpec

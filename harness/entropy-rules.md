@@ -137,7 +137,7 @@ Agent 在执行 Level 3 归档（⑥）时 **MUST** 按以下流程操作：
 
 ### 快速修复豁免（Level 2）
 
-通过 `/harness:fix` 执行的 Level 2 修复，使用当前变更包范围的轻量检查；只有确实收尾时才运行 `verify:docs:strict -- --change <名称>`。不因 Level 2 自动执行 Level 3 的完整归档协议。
+通过 `/harness:fix` 执行的 Level 2 修复，运行 `verify:quick`、受影响模块原始测试，并在当前变更收尾运行 `verify:docs:strict -- --change <名称>`。不因 Level 2 自动执行 Level 3 的完整归档协议，也不要求重复运行 `verify:full`。
 
 > **注意**：判断依据为行为影响和回滚风险，不按修改文件数量机械判断。Level 3 重大变更应使用完整归档协议。
 
