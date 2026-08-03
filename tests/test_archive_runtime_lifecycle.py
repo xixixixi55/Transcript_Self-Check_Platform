@@ -307,6 +307,16 @@ def test_http_task_is_claimed_and_one_failure_does_not_stop_runtime(
         ).json()["data"]["archive_task"]
         completed = _wait_task(client, queued["task_id"], {"succeeded"})
         assert completed["percent"] == 100
+        result = client.get(
+            f"/api/v1/workbench/tasks/{queued['task_id']}/result",
+        ).json()["data"]
+        part = result["parts"][0]
+        saved = client.get(
+            f"/api/v1/workbench/cases/{second['shell']['case_id']}",
+        ).json()["data"]["draft"]["report"]["inspection"]["result"]
+        assert saved["rar_filename"] == part["filename"]
+        assert saved["md5_hash"] == part["md5"]
+        assert saved["file_size"] == str(part["size_bytes"])
         assert services.archive_runtime.loop_start_count == 1
 
 

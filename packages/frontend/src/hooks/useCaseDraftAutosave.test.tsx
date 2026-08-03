@@ -121,6 +121,40 @@ describe('useCaseDraftAutosave', () => {
     expect(patchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('waits for a newer attachment edit queued behind an in-flight save', async () => {
+    const resolvers: Array<(value: unknown) => void> = []
+    patchMock.mockImplementation(() => new Promise(resolve => { resolvers.push(resolve) }))
+    const firstReport = { attachments: { photo_ids: ['asset-synthetic-1'] } } as CaseDraft['report']
+    const secondReport = { attachments: { photo_ids: ['asset-synthetic-1', 'asset-synthetic-2'] } } as CaseDraft['report']
+    const view = renderHook(
+      ({ value, token }) => useCaseDraftAutosave(options({ draft: value, changeToken: token })),
+      { initialProps: { value: draft(3, firstReport), token: 1 } },
+    )
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
+
+    view.rerender({ value: draft(3, secondReport), token: 2 })
+    let manualSave: Promise<boolean> | undefined
+    act(() => { manualSave = view.result.current.saveNow() })
+    await act(async () => {
+      resolvers[0]({ data: { data: {
+        draft_save_status: { status: 'saved', revision: 4 },
+        shared_defaults_save_status: { status: 'unchanged', revision: 0 },
+        draft: draft(4, firstReport),
+      } } })
+    })
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(2))
+    resolvers[1]({ data: { data: {
+      draft_save_status: { status: 'saved', revision: 5 },
+      shared_defaults_save_status: { status: 'unchanged', revision: 0 },
+      draft: draft(5, secondReport),
+    } } })
+
+    await expect(manualSave).resolves.toBe(true)
+    await waitFor(() => expect(view.result.current.hasPending).toBe(false))
+    expect((patchMock.mock.calls[1][1] as { expected_revision: number; draft: CaseDraft }).expected_revision).toBe(4)
+    expect((patchMock.mock.calls[1][1] as { draft: CaseDraft }).draft.report).toEqual(secondReport)
+  })
+
   it('queues a newer edit behind the in-flight draft revision', async () => {
     const resolvers: Array<(value: unknown) => void> = []
     patchMock.mockImplementation(() => new Promise(resolve => { resolvers.push(resolve) }))

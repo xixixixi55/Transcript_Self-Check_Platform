@@ -14,6 +14,15 @@
 - [x] 最终门控：新增解析候选回归 `python -m pytest tests/test_html_parser.py tests/test_report_parse_input_repository.py -q`（39 passed）；`npm.cmd run verify:backend`（871 passed, 3 skipped）；`npm.cmd run verify:quick`、`npm.cmd run verify:docs:strict`、当前 change 严格校验、全规格严格校验和 `git diff --check` 全部通过。
 - [x] 人工验收 remediation 状态：实现和定向验证完成；3.3 保持暂停，不自动恢复；待本轮全量工程/文档/OpenSpec 门控、提交和推送完成后汇报。
 
+## Phase 5 Human Acceptance Remediation — Photo asset save and Word export
+
+- [x] 记录人工验收问题：一次选择两张图片后，图片保存与草稿自动保存存在竞态，点击保存后导出 Word 仍提示案件有未完成保存；同时共享默认值偶发保存失败。
+- [x] 根因分类：Ant Design 多选在 `beforeUpload=false` 时会对同一批文件连续触发 `onChange`，异步 React state 防重不及时导致重复上传和重复草稿变更；自动保存的 `saveNow` 原先只等待当前请求，未排空其后排队的较新图片草稿；共享默认值失败属于草稿成功后的部分失败，不能阻断 Word 导出。
+- [x] 修复方式：使用同步上传锁合并同一批多选回调；`saveNow` 在手动保存和导出前排空飞行请求及较新 pending 草稿；图片上传期间禁用保存/导出入口；Word 导出先等待草稿保存，沿用“草稿成功、共享默认值失败”公共合同。
+- [x] 脱敏回归 fixture：`useCasePhotoAssets.test.tsx` 中的 SYNTHETIC 两图片多选与重复回调，`useCaseDraftAutosave.test.tsx` 中的 SYNTHETIC attachment revision 队列，以及 `CaseRecordGeneratePage.test.tsx` 中的 SYNTHETIC shared-default failure / Word export 页面流程；不依赖本地报告路径。
+- [x] 测试命令和结果：三份定向测试 3 个文件、17 项通过；前端完整验证 45 个测试文件、221 项通过；后端完整验证 875 项通过、3 项跳过；`npm.cmd run verify:quick`、`npm.cmd run verify:docs:strict`、当前 change 严格校验、全规格严格校验和 `git diff --check` 均通过。变异测试分别移除图片同步锁和保存队列排空逻辑后均被新增回归捕获，原实现已恢复。
+- [x] 人工验收 remediation 状态：修复和验证完成；3.3 保持暂停，不自动恢复；本轮不提交、不推送，先向用户汇报进度。
+
 ## Spec Freeze Remediation（规划修订，不属于原 T020–T025 编号）
 
 - [x] 固定 publication/Word/tombstone 的清理后稳定访问模型；

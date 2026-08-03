@@ -45,6 +45,17 @@ export interface TemplateVersion {
   registered_at: string
 }
 
+export interface TemplateManagementRecord extends TemplateVersion {
+  is_default: boolean
+  can_delete: boolean
+}
+
+export interface TemplateManagementResponse {
+  templates: TemplateManagementRecord[]
+  default_template_ref: TemplateVersionRef | null
+  defaults_revision: number
+}
+
 export interface TemplateValidationSuccess {
   valid: true
   template: TemplateVersion

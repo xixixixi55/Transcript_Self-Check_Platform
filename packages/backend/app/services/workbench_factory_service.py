@@ -12,6 +12,7 @@ from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.resource_snapshot_repository import ResourceSnapshotRepository
 from ..repository.template_approval_repository import TemplateApprovalRepository
 from ..repository.template_registry_repository import TemplateRegistryRepository
+from ..repository.shared_defaults_repository import SharedDefaultsRepository
 from .archive_authorization_service import ArchiveAuthorizationService
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_progress_service import ArchiveProgressService
@@ -82,7 +83,10 @@ def build_workbench_services(
         database, (template_root, database.database_path.parent / "template-assets"),
     )
     template_approvals = TemplateApprovalRepository(database, template_registry)
-    _register_current_template(template_registry, template_approvals, template_root)
+    current_template_ref = _register_current_template(
+        template_registry, template_approvals, template_root,
+    )
+    SharedDefaultsRepository(database).ensure_default_template(current_template_ref)
     admission_config = archive_admission_config or build_archive_admission_config()
     archive_scheduler = ArchiveSchedulerService(
         archive_tasks,
@@ -153,7 +157,7 @@ def _register_current_template(
     registry: TemplateRegistryRepository,
     approvals: TemplateApprovalRepository,
     template_root: Path,
-) -> None:
+) -> dict[str, str]:
     reference = {"template_id": "electronic-inspection-record", "version": "1.0.0"}
     registry.register({
         "schema_version": 1,
@@ -170,6 +174,7 @@ def _register_current_template(
         "acceptance_summary": "current-template-v1 已通过既有 Word、VML、分页、表格和附件验收。",
         "recorded_at": "2026-07-30T00:00:00+00:00",
     })
+    return reference
 
 
 _SERVICES: WorkbenchServices | None = None

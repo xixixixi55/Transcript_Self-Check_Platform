@@ -66,6 +66,7 @@ export function useCaseDraftAutosave(options: Options) {
   const inFlight = useRef<Promise<boolean> | null>(null)
   const inFlightToken = useRef<number | null>(null)
   const rerunAfterFlight = useRef(false)
+  const flushRequested = useRef(false)
   const sendRef = useRef<((snapshot?: CaseDraft) => Promise<boolean>) | null>(null)
   const [draftState, setDraftState] = useState<AutosaveViewState>({ status: 'idle' })
   const [sharedState, setSharedState] = useState<AutosaveViewState>({ status: 'not_changed' })
@@ -166,7 +167,7 @@ export function useCaseDraftAutosave(options: Options) {
       inFlightToken.current = null
       const rerun = success && rerunAfterFlight.current && pending.current !== null
       rerunAfterFlight.current = false
-      if (rerun) {
+      if (rerun && !flushRequested.current) {
         clearTimer()
         window.setTimeout(() => { void sendRef.current?.() }, 0)
       }
@@ -193,10 +194,22 @@ export function useCaseDraftAutosave(options: Options) {
 
   const saveNow = useCallback(() => {
     clearTimer()
-    if (inFlight.current) return inFlight.current
     if (!pending.current && changeToken > 0 && draft) pending.current = cloneDraft(draft)
-    if (!pending.current) return Promise.resolve(true)
-    return send()
+    if (!pending.current && !inFlight.current) return Promise.resolve(true)
+    flushRequested.current = true
+    const flush = async () => {
+      try {
+        let success = true
+        while (pending.current || inFlight.current) {
+          success = await send()
+          if (!success) return false
+        }
+        return true
+      } finally {
+        flushRequested.current = false
+      }
+    }
+    return flush()
   }, [changeToken, clearTimer, draft, send])
 
   const retry = useCallback(() => send(), [send])

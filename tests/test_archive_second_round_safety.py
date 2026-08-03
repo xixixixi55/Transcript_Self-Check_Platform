@@ -32,7 +32,14 @@ from app.repository.archive_task_repository import ArchiveTaskRepository  # noqa
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive_input_snapshot_service import (  # noqa: E402
-    assert_sealed_input, create_ephemeral_sealed_input_snapshot,
+    assert_sealed_input, cleanup_ephemeral_input_snapshot,
+    create_ephemeral_sealed_input_snapshot,
+)
+from app.services.archive_input_snapshot_files_service import (  # noqa: E402
+    resolve_snapshot_dir,
+)
+from app.services.archive_input_snapshot_layout_service import (  # noqa: E402
+    EXTERNAL_SNAPSHOT_ROOT, choose_snapshot_layout,
 )
 from app.services.archive_manifest_service import validate_manifest_files  # noqa: E402
 from app.services.archive_publish_service import publish_staged_archive  # noqa: E402
@@ -267,6 +274,66 @@ def test_snapshot_is_read_only_and_executor_input_is_not_mutable_source(tmp_path
     assert_sealed_input(snapshot)
     (source / "data.bin").write_bytes(b"SYNTHETIC/SOURCE-CHANGED")
     assert (snapshot.snapshot_dir / "data.bin").read_bytes() == b"SYNTHETIC/SEALED"
+
+
+def test_long_snapshot_paths_use_short_private_root_without_changing_source_tree(tmp_path: Path) -> None:
+    output = tmp_path / "o"
+    source = tmp_path / "s"
+    snapshot_id = "snapshot-" + "a" * 48
+    standard_temp = output / "compressed" / ".inputs" / f".{snapshot_id}.copying"
+    short_temp = output / ".i" / f".s{'a' * 16}.copying"
+    relative_length = 250 - len(str(short_temp)) - 1
+    assert relative_length > 120
+    middle_length = relative_length - len("folder/") - 80 - len("/fixture.bin") - 1
+    relative = f"folder/{'x' * 80}/{'y' * middle_length}/fixture.bin"
+    directories = ["folder", f"folder/{'x' * 80}"]
+
+    layout = choose_snapshot_layout(output, snapshot_id, [relative], directories)
+    assert layout.locator.startswith(".i/")
+    assert len(str(layout.root / f".{layout.snapshot_name}.copying" / relative)) < 260
+    assert len(str(standard_temp / relative)) >= 260
+
+    source_file = source / relative
+    source_file.parent.mkdir(parents=True)
+    source_file.write_bytes(b"SYNTHETIC/LONG-PATH")
+    snapshot = create_ephemeral_sealed_input_snapshot(
+        output, build_input_inventory(source, output_root=output),
+    )
+    try:
+        assert snapshot.snapshot_dir.parent == output / ".i"
+        assert resolve_snapshot_dir(
+            output, f".i/{snapshot.snapshot_dir.name}",
+        ) == snapshot.snapshot_dir.resolve()
+        assert snapshot.snapshot_dir.joinpath(relative).read_bytes() == b"SYNTHETIC/LONG-PATH"
+    finally:
+        cleanup_ephemeral_input_snapshot(snapshot)
+
+
+def test_very_long_output_root_uses_external_private_snapshot_root(tmp_path: Path) -> None:
+    output = tmp_path / ("output-" + "x" * 130)
+    source = tmp_path / "source"
+    output.mkdir()
+    snapshot_id = "snapshot-" + "b" * 48
+    relative = f"folder/{'x' * 50}/fixture.bin"
+    source_file = source / relative
+    source_file.parent.mkdir(parents=True)
+    source_file.write_bytes(b"SYNTHETIC/EXTERNAL-LONG-PATH")
+
+    layout = choose_snapshot_layout(
+        output, snapshot_id, [relative], ["folder", f"folder/{'x' * 50}"],
+    )
+    assert layout.locator.startswith(f"{EXTERNAL_SNAPSHOT_ROOT}/")
+    snapshot = create_ephemeral_sealed_input_snapshot(
+        output, build_input_inventory(source, output_root=output),
+    )
+    try:
+        assert snapshot.snapshot_dir.parent == layout.root
+        assert snapshot.snapshot_dir.joinpath(relative).read_bytes() == b"SYNTHETIC/EXTERNAL-LONG-PATH"
+        assert resolve_snapshot_dir(
+            output, f"{EXTERNAL_SNAPSHOT_ROOT}/{snapshot.snapshot_dir.name}",
+        ) == snapshot.snapshot_dir.resolve()
+    finally:
+        cleanup_ephemeral_input_snapshot(snapshot)
 
 
 def test_restart_cleans_unsealed_snapshot_without_reusing_old_attempt(

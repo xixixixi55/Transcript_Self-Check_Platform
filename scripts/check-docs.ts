@@ -5,7 +5,7 @@
  * 1.  [E-A1] 目录结构：directory.md vs 实际文件系统
  * 2.  [补充] npm 命令：AGENTS.md 声明 vs package.json
  * 3.  [补充] 已完成 tasks.md 文件引用 vs 实际存在性            [strict]
- * 4.  [补充] tasks.md 完成状态 vs 源码文件存在性               [strict]
+ * 4.  [补充] 必选任务完成状态（只读取显式 checklist 标记）     [strict]
  * 5.  [补充] specs 能力目录 vs directory.md/AGENTS.md 中列出的能力名 [strict]
  * 6.  [E-A2] [按需] data-model.md 接口字段 vs 类型定义文件实际字段
  * 7.  [补充] AGENTS.md 行数限制（默认模式：仅警告）
@@ -16,14 +16,15 @@
  *
  * 用法：
  *   npx tsx scripts/check-docs.ts             默认模式（低噪音检查）
- *   npx tsx scripts/check-docs.ts --strict    严格模式（全部检查）
+ *   npx tsx scripts/check-docs.ts --strict --change <name> 当前变更严格模式
+ *   npx tsx scripts/check-docs.ts --strict --all         全局严格模式
  * 退出码：0 = 通过，1 = 存在偏差
  */
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { getCompletedTaskFileReferences } from './check-docs-utils'
+import { getCompletedTaskFileReferences, getRequiredIncompleteTasks } from './check-docs-utils'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -46,7 +47,9 @@ const DIRECTORY_MD = path.join(DOCS_DIR, 'directory.md')
 
 /** 期望的命令列表 */
 const EXPECTED_COMMANDS: string[] = [
-  'dev', 'build', 'lint:arch', 'typecheck', 'verify', 'test', 'check-docs', 'pre-commit',
+  'dev', 'build', 'lint:arch', 'typecheck', 'test', 'test:frontend', 'test:backend',
+  'test:governance', 'verify:quick', 'verify:frontend', 'verify:backend', 'verify:full', 'verify:full:all', 'verify', 'verify:docs',
+  'verify:docs:strict', 'verify:docs:strict:all', 'check:repository-assets', 'check-docs', 'pre-commit',
 ]
 
 /** 期望的源码目录（相对于各 SRC_ROOT，key 为 SRC_ROOT 索引） */
@@ -68,17 +71,48 @@ const TYPES_DIR = path.join(ROOT, 'packages/shared/types')
 // ─── MODE ──────────────────────────────────────────────────────
 
 const STRICT_MODE = process.argv.includes('--strict')
+const SHOW_DETAILS = process.argv.includes('--details')
+const ALL_SCOPE = process.argv.includes('--all')
+
+function getOptionValue(name: string): string | undefined {
+  const exactIndex = process.argv.indexOf(name)
+  if (exactIndex >= 0) return process.argv[exactIndex + 1]
+  const prefix = `${name}=`
+  const inline = process.argv.find((arg) => arg.startsWith(prefix))
+  return inline?.slice(prefix.length)
+}
+
+/** Strict task checks require an explicit current-change or all-active scope. */
+const CHANGE_NAME = getOptionValue('--change')
 
 // ─── END PROJECT CONFIG ──────────────────────────────────────────
 
 type DriftType =
   | 'missing-in-code' | 'missing-in-docs' | 'command-missing'
-  | 'task-status-stale' | 'spec-not-listed' | 'file-not-in-tree'
+  | 'task-file-missing' | 'task-incomplete' | 'spec-not-listed' | 'file-not-in-tree'
   | 'type-drift' | 'broken-link' | 'version-mismatch'
   | 'template-candidate-backlog' | 'lesson-not-fed-back'
   | 'agents-size-exceeded'
 
 interface Drift { type: DriftType; message: string }
+
+function printDriftCounts(drifts: Drift[]): void {
+  const counts = new Map<DriftType, number>()
+  for (const drift of drifts) counts.set(drift.type, (counts.get(drift.type) ?? 0) + 1)
+
+  if (counts.size === 0) return
+
+  console.log('Drift counts:')
+  for (const [type, count] of [...counts.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    console.log(`  [${type}] ${count}`)
+  }
+}
+
+function printDriftDetails(drifts: Drift[]): void {
+  if (drifts.length === 0) return
+  console.log(`\n⚠️  Found ${drifts.length} drift(s):\n`)
+  for (const drift of drifts) console.log(`  [${drift.type}] ${drift.message}`)
+}
 
 // ─── Helpers ────────────────────────────────
 
@@ -143,43 +177,56 @@ function checkCommands(): Drift[] {
   return drifts
 }
 
-// ─── Check 3: tasks.md 文件引用 ─────────────
+// ─── Check 3/4: active tasks.md scope and status ──
 
-function getActiveTasksContents(): string[] {
+interface ActiveTaskFile {
+  changeName: string
+  tasksPath: string
+  content: string
+}
+
+function getActiveTaskFiles(changeName?: string): ActiveTaskFile[] {
   const changesDir = path.join(OPENSPEC_DIR, 'changes')
-  if (!fs.existsSync(changesDir)) return []
-  const contents: string[] = []
-  for (const entry of fs.readdirSync(changesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name === 'archive') continue
-    const tasksPath = path.join(changesDir, entry.name, 'tasks.md')
-    const content = readFileIfExists(tasksPath)
-    if (content) contents.push(content)
+  if (changeName) {
+    const tasksPath = path.join(changesDir, changeName, 'tasks.md')
+    return [{ changeName, tasksPath, content: readFileIfExists(tasksPath) }]
   }
-  return contents
+
+  if (!fs.existsSync(changesDir)) return []
+  return fs.readdirSync(changesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== 'archive')
+    .map((entry) => {
+      const tasksPath = path.join(changesDir, entry.name, 'tasks.md')
+      return { changeName: entry.name, tasksPath, content: readFileIfExists(tasksPath) }
+    })
 }
 
 function checkTaskFiles(): Drift[] {
   const drifts: Drift[] = []
-  for (const content of getActiveTasksContents()) {
-    for (const filePath of getCompletedTaskFileReferences(content)) {
+  for (const taskFile of getActiveTaskFiles(CHANGE_NAME)) {
+    if (!taskFile.content) {
+      drifts.push({ type: 'task-file-missing', message: `${taskFile.changeName}: tasks.md is missing` })
+      continue
+    }
+    for (const filePath of getCompletedTaskFileReferences(taskFile.content)) {
       if (filePath.includes('*') || filePath.includes('<')) continue
       if (filePath.includes('/') && !fs.existsSync(path.join(ROOT, filePath)))
-        drifts.push({ type: 'missing-in-code', message: `tasks.md references "${filePath}" but file does not exist` })
+        drifts.push({ type: 'missing-in-code', message: `${taskFile.changeName}: tasks.md references "${filePath}" but file does not exist` })
     }
   }
   return drifts
 }
 
-// ─── Check 4: tasks.md 完成状态 ─────────────
+// ─── Check 4: 必选 tasks.md 完成状态 ─────────
 
-function checkTaskCompletion(): Drift[] {
+function checkRequiredTaskCompletion(): Drift[] {
   const drifts: Drift[] = []
-  for (const content of getActiveTasksContents()) {
-    for (const line of content.split('\n')) {
-      const m = line.match(/^- \[ \] (T\d+).*`([^`]+\.[a-z]+)`/)
-      if (!m) continue
-      if (fs.existsSync(path.join(ROOT, m[2])))
-        drifts.push({ type: 'task-status-stale', message: `${m[1]} marked [ ] but "${m[2]}" exists — forgot [x]?` })
+  for (const taskFile of getActiveTaskFiles(CHANGE_NAME)) {
+    for (const task of getRequiredIncompleteTasks(taskFile.content)) {
+      drifts.push({
+        type: 'task-incomplete',
+        message: `${taskFile.changeName}: required task at line ${task.lineNumber} is not checked — ${task.text}`,
+      })
     }
   }
   return drifts
@@ -352,8 +399,18 @@ function checkLessonFeedback(): Drift[] {
 // ─── Main ────────────────────────────────────
 
 function main() {
+  if (STRICT_MODE && ALL_SCOPE && CHANGE_NAME) {
+    console.error('Strict docs scope error: use either --all or --change <name>, not both.')
+    process.exit(2)
+  }
+  if (STRICT_MODE && !ALL_SCOPE && !CHANGE_NAME) {
+    console.error('Strict docs scope error: use --change <name> or use --all.')
+    process.exit(2)
+  }
+
   const modeLabel = STRICT_MODE ? 'strict (all checks)' : 'quick (low-noise checks)'
-  console.log(`🔍 Documentation Drift Check — mode: ${modeLabel}\n`)
+  const scopeLabel = CHANGE_NAME ? `change:${CHANGE_NAME}` : ALL_SCOPE ? 'all-active-changes' : 'default'
+  console.log(`🔍 Documentation Drift Check — mode: ${modeLabel} | task scope: ${scopeLabel}\n`)
 
   // Default mode: core checks only
   const allDrifts: Drift[] = [
@@ -373,14 +430,14 @@ function main() {
   if (STRICT_MODE) {
     allDrifts.push(
       ...checkTaskFiles(),
-      ...checkTaskCompletion(),
+      ...checkRequiredTaskCompletion(),
       ...checkSpecsListed(),
       ...checkOpenSpecVersion(),
       ...checkTemplateCandidateBacklog(),
       ...checkLessonFeedback(),
     )
     checks.push(
-      'task-file-refs', 'task-completion', 'specs-listed',
+      'task-file-refs', 'required-task-completion', 'specs-listed',
       'E-A4:openspec-version', 'E-A5:template-candidate-backlog', 'E-A6:lesson-feedback',
     )
   }
@@ -389,22 +446,27 @@ function main() {
   const errors = allDrifts.filter(d => d.type !== 'agents-size-exceeded')
   const warnings = allDrifts.filter(d => d.type === 'agents-size-exceeded')
 
-  // In default mode, AGENTS.md size is a warning (don't fail)
-  if (!STRICT_MODE && warnings.length > 0) {
-    for (const w of warnings) console.log(`  ⚠️  [${w.type}] ${w.message}`)
-  }
+  const severe = STRICT_MODE ? [...errors, ...warnings] : errors
+  console.log(`Summary: ${severe.length === 0 ? 'PASS' : 'FAIL'} | checks=${checks.length} | drifts=${severe.length}`)
 
-  if (errors.length === 0 && (STRICT_MODE || warnings.length === 0)) {
+  if (severe.length === 0) {
     console.log('✅ Documentation is consistent with codebase!\n')
     console.log(`   Active checks (${checks.length}): ${checks.join(', ')}`)
+    if (warnings.length > 0) {
+      console.log(`\nWarnings: ${warnings.length}`)
+      printDriftCounts(warnings)
+      if (SHOW_DETAILS) printDriftDetails(warnings)
+    }
     process.exit(0)
   } else {
-    const severe = STRICT_MODE ? [...errors, ...warnings] : errors
-    if (severe.length > 0) {
-      console.log(`⚠️  Found ${severe.length} drift(s):\n`)
-      for (const d of severe) console.log(`  [${d.type}] ${d.message}`)
-      console.log('\n💡 Fix: update documentation to match code, or create missing code.')
+    printDriftCounts(severe)
+    if (SHOW_DETAILS) {
+      printDriftDetails(severe)
+    } else {
+      const scope = CHANGE_NAME ? ` --change ${CHANGE_NAME}` : ''
+      console.log(`\nDetails hidden. Re-run with --details${scope} to inspect individual drifts.`)
     }
+    console.log('\n💡 Fix: update documentation to match code, or create missing code.')
     process.exit(severe.length > 0 ? 1 : 0)
   }
 }

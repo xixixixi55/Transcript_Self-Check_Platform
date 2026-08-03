@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from ..repository.archive_input_repository import ArchiveInputError, InputInventory
+from .archive_input_snapshot_layout_service import (
+    EXTERNAL_SNAPSHOT_ROOT as _EXTERNAL_SNAPSHOT_ROOT,
+    SHORT_SNAPSHOT_ROOT as _SHORT_SNAPSHOT_ROOT,
+)
+from .archive_input_snapshot_layout_service import private_snapshot_root
 
 
 def assert_matches(inventory: InputInventory, manifest: list[dict[str, Any]]) -> None:
@@ -68,13 +73,37 @@ def safe_child(root: Path, relative: str) -> Path:
 
 
 def resolve_snapshot_dir(output_root: str | Path, locator: str) -> Path:
-    base = (Path(output_root) / "compressed" / ".inputs").resolve(strict=False)
-    candidate = (Path(output_root) / "compressed" / locator).resolve(strict=False)
+    if not isinstance(locator, str):
+        raise ArchiveInputError("ARCHIVE_INPUT_SNAPSHOT_INVALID", "Snapshot locator is invalid.")
+    normalized = locator.replace("\\", "/")
+    if normalized.startswith(".inputs/"):
+        base = (Path(output_root) / "compressed" / ".inputs").resolve(strict=False)
+        relative = normalized.removeprefix(".inputs/")
+    elif normalized.startswith(f"{_SHORT_SNAPSHOT_ROOT}/"):
+        base = (Path(output_root) / _SHORT_SNAPSHOT_ROOT).resolve(strict=False)
+        relative = normalized.removeprefix(f"{_SHORT_SNAPSHOT_ROOT}/")
+    elif normalized.startswith(f"{_EXTERNAL_SNAPSHOT_ROOT}/"):
+        base = private_snapshot_root().resolve(strict=False)
+        relative = normalized.removeprefix(f"{_EXTERNAL_SNAPSHOT_ROOT}/")
+    else:
+        raise ArchiveInputError("ARCHIVE_INPUT_SNAPSHOT_INVALID", "Snapshot locator is invalid.")
+    parts = relative.split("/")
+    if not relative or len(parts) != 1 or any(part in {"", ".", ".."} for part in parts):
+        raise ArchiveInputError("ARCHIVE_INPUT_SNAPSHOT_INVALID", "Snapshot locator is invalid.")
+    candidate = (base / Path(relative)).resolve(strict=False)
     try:
         candidate.relative_to(base)
     except ValueError as error:
         raise ArchiveInputError("ARCHIVE_INPUT_SNAPSHOT_INVALID", "Snapshot locator is invalid.") from error
     return candidate
+
+
+def snapshot_name_matches_id(snapshot_id: str, snapshot_name: str) -> bool:
+    """Bind both legacy names and short fallback aliases to the full ID."""
+    if snapshot_name == snapshot_id:
+        return True
+    token = snapshot_id.removeprefix("snapshot-")
+    return snapshot_name.startswith("s") and len(snapshot_name) > 1 and token.startswith(snapshot_name[1:])
 
 
 def marker_path(snapshot_dir: Path) -> Path:

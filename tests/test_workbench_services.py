@@ -22,6 +22,7 @@ from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E4
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
 from app.services.task_record_service import TaskRecordService  # noqa: E402
+from app.repository.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
 
 REPORT = {
     "title": "SYNTHETIC/TEST/InspectionReport", "document_number": "SYNTHETIC-DOC-001",
@@ -104,6 +105,21 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path):
     assert calls and Path(calls[0][0]) == report_dir
 
 
+def test_parse_applies_deployment_default_template_to_new_draft(database, tmp_path):
+    default_ref = {"template_id": "template-SYNTHETIC-default", "version": "1.0.0"}
+    defaults = SharedDefaultsRepository(database)
+    defaults.patch({"default_template_ref": default_ref}, defaults.get()["revision"])
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service,
+    )
+
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+
+    assert lifecycle.detail(identifiers["case_id"])["draft"]["template_ref"] == default_ref
+
+
 def test_parse_task_enriches_report_device_type_for_review_editor(database, tmp_path):
     parsed_report = copy.deepcopy(REPORT)
     parsed_report["introduction"]["evidence_list"] = [{
@@ -124,6 +140,44 @@ def test_parse_task_enriches_report_device_type_for_review_editor(database, tmp_
     assert evidence["imei1"] == "123456789012345"
     assert evidence["material_type"] == "phone"
     assert evidence["material_type_status"] == "confirmed_by_report"
+
+
+def test_parse_task_backfills_case_shell_from_parser_metadata_without_overwriting_user_values(database, tmp_path):
+    parsed_report = copy.deepcopy(REPORT)
+    parsed_report["introduction"]["case_summary"] = "SYNTHETIC-REPORT-SUMMARY"
+    parser_result = {
+        "report": parsed_report,
+        "_case_metadata": {
+            "case_name": "SYNTHETIC-REPORT-NAME",
+            "case_number": "SYNTHETIC-REPORT-NUMBER",
+            "case_summary": "SYNTHETIC-REPORT-SUMMARY",
+        },
+    }
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: copy.deepcopy(parser_result), source_service,
+    )
+    identifiers = cases.submit(
+        source_descriptor(source_service, tmp_path)[0],
+        case_name="SYNTHETIC-MANUAL-NAME",
+        case_summary="SYNTHETIC-MANUAL-SUMMARY",
+        case_number="SYNTHETIC-MANUAL-NUMBER",
+    )
+    cases.run_parse_task(**identifiers)
+
+    detail = lifecycle.detail(identifiers["case_id"])
+    assert detail["shell"]["case_name"] == "SYNTHETIC-MANUAL-NAME"
+    assert detail["shell"]["case_summary"] == "SYNTHETIC-MANUAL-SUMMARY"
+    assert detail["shell"]["case_number"] == "SYNTHETIC-MANUAL-NUMBER"
+
+    blank_identifiers = cases.submit(source_descriptor(source_service, tmp_path, "SYNTHETIC-REPORT-2")[0])
+    cases.run_parse_task(**blank_identifiers)
+    blank_detail = lifecycle.detail(blank_identifiers["case_id"])
+    assert blank_detail["shell"]["case_name"] == "SYNTHETIC-REPORT-NAME"
+    assert blank_detail["shell"]["case_summary"] == "SYNTHETIC-REPORT-SUMMARY"
+    assert blank_detail["shell"]["case_number"] == "SYNTHETIC-REPORT-NUMBER"
+    assert blank_detail["draft"]["case_name"] == "SYNTHETIC-REPORT-NAME"
+    assert blank_detail["draft"]["case_summary"] == "SYNTHETIC-REPORT-SUMMARY"
 
 
 def test_case_save_persists_dragged_card_order_and_field_provenance(database, tmp_path):

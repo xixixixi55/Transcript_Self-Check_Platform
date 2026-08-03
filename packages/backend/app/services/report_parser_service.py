@@ -36,7 +36,7 @@ from .material_policy_service import material_from_legacy_item, select_display_i
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 14  # v14: sort parsed evidence by natural evidence number order
+_CACHE_VERSION = 15  # v15: preserve parsed case metadata for the workbench shell
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
@@ -139,12 +139,29 @@ def _build_parse_result(
     )
     return {
         "report": report,
+        "_case_metadata": _case_metadata(data_dir, input_snapshot, report),
         "cache_version": _CACHE_VERSION,
         "parsed_files": [
             "data_case_info.json", "data_device_lists.json",
             "data_report_info.json", "data_navigation.json",
         ],
         "rar_info": _build_rar_info(report),
+    }
+
+
+def _case_metadata(
+    data_dir: str, input_snapshot: ReportParseInputSnapshot | None,
+    report: dict,
+) -> dict[str, str]:
+    case = input_snapshot.case_info if input_snapshot is not None else {}
+    if input_snapshot is None and os.path.isfile(os.path.join(data_dir, "data_case_info.json")):
+        case = parse_case_info(data_dir)
+    introduction = report.get("introduction") if isinstance(report, dict) else None
+    summary = introduction.get("case_summary", "") if isinstance(introduction, dict) else ""
+    return {
+        "case_name": str(case.get("case_name") or "").strip(),
+        "case_number": str(case.get("case_number") or "").strip(),
+        "case_summary": str(summary or "").strip(),
     }
 
 

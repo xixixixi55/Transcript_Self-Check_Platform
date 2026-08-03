@@ -12,7 +12,7 @@ from typing import Any
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
-from ..repository.workbench_database import WorkbenchDatabase
+from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .report_parser_service import parse_report
 from .disc_sequence_service import apply_disc_sequence_to_attachments
@@ -78,10 +78,16 @@ class CaseDraftService:
             report = parsed.get("report")
             if not isinstance(report, Mapping):
                 raise WorkbenchPersistenceError("INVALID_LEGACY_REPORT")
+            defaults = self.defaults.get()
             initialized, field_states = _initialize_draft(
-                enrich_report_material_types(report), self.defaults.get(),
+                enrich_report_material_types(report), defaults,
             )
-            self.workflow.complete_parse(case_id, task_id, initialized, field_states)
+            default_template_ref = defaults.get("default_template_ref")
+            self.workflow.complete_parse(
+                case_id, task_id, initialized, field_states,
+                template_ref=default_template_ref,
+                case_metadata=_parse_case_metadata(parsed, initialized),
+            )
         except Exception as error:
             try:
                 if self.tasks.get(task_id)["status"] in {"cancelled", "cancelling"}:
@@ -126,7 +132,7 @@ def _parse_source(path: Path, output: Path) -> Mapping[str, Any]:
 
 def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     value = copy.deepcopy(dict(report))
-    now = _now()
+    now = utc_now()
     fields: dict[str, dict[str, Any]] = {}
     candidates = (
         ("document_number", ("document_number",), defaults.get("document_number")),
@@ -174,6 +180,27 @@ def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) ->
     return ordered, FieldProvenanceService().initialize(ordered, fields)
 
 
+def _parse_case_metadata(parsed: Mapping[str, Any], report: Mapping[str, Any]) -> dict[str, str]:
+    """Extract parser-only case metadata without adding fields to InspectionReport."""
+    result: dict[str, str] = {}
+    metadata = parsed.get("_case_metadata")
+    if isinstance(metadata, Mapping):
+        for key in ("case_name", "case_number", "case_summary"):
+            value = metadata.get(key)
+            if isinstance(value, str) and value.strip():
+                result[key] = value.strip()
+    introduction = report.get("introduction")
+    if "case_summary" not in result and isinstance(introduction, Mapping):
+        value = introduction.get("case_summary")
+        if isinstance(value, str) and value.strip():
+            result["case_summary"] = value.strip()
+    if "case_number" not in result:
+        value = report.get("case_number")
+        if isinstance(value, str) and value.strip():
+            result["case_number"] = value.strip()
+    return result
+
+
 def _inspector_from_default(value: str) -> dict[str, str]:
     parts = value.split("|", 2)
     return {"name": parts[0], "unit": parts[1] if len(parts) > 1 else "", "badge_number": parts[2] if len(parts) > 2 else ""}
@@ -218,8 +245,3 @@ def _safe_parse_error(error: Exception) -> str:
 
 def _opaque_id(prefix: str) -> str:
     return f"{prefix}-{secrets.token_hex(16)}"
-
-
-def _now() -> str:
-    from ..repository.workbench_database import utc_now
-    return utc_now()

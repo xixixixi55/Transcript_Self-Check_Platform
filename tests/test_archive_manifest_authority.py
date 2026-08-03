@@ -8,6 +8,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.services.archive_manifest_projection_service import (  # noqa: E402
     project_manifest_to_legacy_report,
 )
+from app.repository.archive_report_metadata_repository import (  # noqa: E402
+    apply_verified_archive_result,
+)
 
 
 def report():
@@ -80,3 +83,14 @@ def test_projection_does_not_add_absolute_paths_or_manifest_as_client_data():
     assert "client.rar" not in serialized
     assert "C:\\" not in serialized
     assert "manifest_id" not in projected["attachments"]
+
+
+def test_verified_manifest_backfills_existing_report_result_fields():
+    projected = apply_verified_archive_result(report(), manifest())
+    result = projected["inspection"]["result"]
+    assert result == {
+        "rar_filename": "server.part1.rar、server.part2.rar",
+        "md5_hash": "1" * 32 + "、" + "2" * 32,
+        "file_size": "100、200",
+    }
+    assert "manifest_id" not in result

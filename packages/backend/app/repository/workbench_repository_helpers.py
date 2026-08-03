@@ -6,7 +6,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from .workbench_database import utc_now
-from .workbench_serialization import dump_bounded_json, load_bounded_json
+from .workbench_errors import WorkbenchPersistenceError
+from .workbench_serialization import dump_bounded_json, load_bounded_json, validate_safe_string
 
 
 def value_or_none(value: Any) -> Any:
@@ -27,6 +28,27 @@ def json_text(value: Any) -> str:
 
 def now_or(value: str | None) -> str:
     return value or utc_now()
+
+
+def case_shell_values(
+    shell: Mapping[str, Any], metadata: Mapping[str, Any] | None,
+) -> tuple[Any, Any, Any]:
+    """Fill only blank shell labels from parser metadata."""
+    values = [shell["case_number"], shell["case_name"], shell["case_summary"]]
+    incoming = metadata if metadata is not None else {}
+    if not isinstance(incoming, Mapping):
+        raise WorkbenchPersistenceError("INVALID_CASE_SHELL")
+    for index, key in enumerate(("case_number", "case_name", "case_summary")):
+        candidate = incoming.get(key)
+        if candidate is not None:
+            candidate = validate_safe_string(candidate, "INVALID_CASE_SHELL")
+        if not str(values[index] or "").strip() and candidate:
+            values[index] = candidate
+    return tuple(values)
+
+
+def optional_safe(value: Any, code: str) -> str | None:
+    return None if value is None else validate_safe_string(value, code)
 
 
 def public_source_record(row: Mapping[str, Any]) -> dict[str, Any]:

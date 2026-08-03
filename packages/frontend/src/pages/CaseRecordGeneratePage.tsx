@@ -71,7 +71,11 @@ export default function CaseRecordGeneratePage() {
   const handleExport = async (requestedFileName: string) => {
     const report = session.report, detail = session.detail
     if (!report || !detail || exporting) return false
-    if (session.autosave.hasPending || session.autosave.draftState.status === 'saving') {
+    if (session.photoAssets.uploading) {
+      message.warning('图片仍在保存，请完成图片保存后再生成 Word。')
+      return false
+    }
+    if (!await session.autosave.saveNow()) {
       message.warning('案件仍有未完成保存，完成保存后才能生成 Word。')
       return false
     }
@@ -220,7 +224,7 @@ export default function CaseRecordGeneratePage() {
           fieldStates={session.draft?.field_states}
           defaultDiscPrefix={defaultDiscPrefix}
           saveStatus={reviewStatus}
-          saveBusy={session.autosave.draftState.status === 'saving'}
+          saveBusy={session.photoAssets.uploading || session.autosave.draftState.status === 'saving'}
           onSave={saveNow}
           pendingItems={pendingItems}
           workbenchMode

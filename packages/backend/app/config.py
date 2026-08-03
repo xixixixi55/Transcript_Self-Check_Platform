@@ -9,4 +9,5 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 UPLOAD_BASE = os.path.join(_PROJECT_ROOT, "uploads")
 OUTPUT_BASE = os.path.join(_PROJECT_ROOT, "output")
 ARCHIVE_MAX_SIZE = 500 * 1024 * 1024  # 500MB
+TEMPLATE_MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
 REPORT_PARSING_CACHE_LIMIT = 5

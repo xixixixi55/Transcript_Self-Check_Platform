@@ -8,7 +8,7 @@
 ### 类型一致性
 - **MUST**: 类型定义文件与 OpenSpec 数据模型 Spec 保持一致
 - **MUST**: 新增 type/interface 后同步更新 OpenSpec 数据模型 Spec
-- **MUST**: npx tsx scripts/check-docs.ts 自动检查一致性
+- **MUST**: `npm run verify:docs` 自动检查一致性；当前变更严格收尾使用 `npm run verify:docs:strict -- --change <name>`，全局归档使用 `npm run verify:docs:strict:all`
 
 #### 一致性检查清单
 

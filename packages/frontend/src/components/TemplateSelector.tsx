@@ -54,7 +54,7 @@ export function TemplateSelector({
 
   return (
     <Card className="case-workbench-page__toolbar" title="案件 Word 模板" size="small">
-      <p>只可选择已注册且审核通过的预置版本；案件仅保存模板 ID 和版本。</p>
+      <p>只可选择已注册且审核通过的版本；案件仅保存模板 ID 和版本。</p>
       {loading ? <Spin size="small" aria-label="正在加载已审核模板" /> : (
         <label>
           <span>已审核模板版本</span>

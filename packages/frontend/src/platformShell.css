@@ -468,6 +468,37 @@
   overflow-x: auto;
 }
 
+.template-manager__card {
+  margin-top: 24px;
+  border-color: var(--review-border);
+  box-shadow: 0 2px 8px rgba(31, 52, 73, 0.05);
+}
+
+.template-manager__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.template-manager__header-copy {
+  min-width: 0;
+}
+
+.template-manager__title {
+  margin: 0 0 6px !important;
+  color: var(--review-text) !important;
+}
+
+.template-manager__secondary-text {
+  font-size: 12px;
+}
+
+.template-manager__alert {
+  margin-bottom: 16px;
+}
+
 @media (max-width: 1050px) {
   .platform-shell:not(.platform-shell--collapsed) .platform-sidebar {
     width: 240px !important;
@@ -510,5 +541,13 @@
 
   .case-workbench-page {
     padding: 20px 16px;
+  }
+
+  .template-manager__header {
+    flex-direction: column;
+  }
+
+  .template-manager__header .ant-btn {
+    width: 100%;
   }
 }

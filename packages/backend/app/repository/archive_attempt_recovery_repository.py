@@ -9,6 +9,7 @@ from .archive_attempt_projection_repository import internal_attempt
 from .archive_attempt_evidence_repository import bind_manifest_evidence
 from .archive_attempt_lookup_repository import public as _public, row as _row
 from .archive_context_binding_repository import deactivate_bindings, report_fingerprint
+from .archive_report_metadata_repository import update_verified_draft
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import WorkbenchPersistenceError
 from .workbench_serialization import validate_opaque_id
@@ -211,13 +212,10 @@ def complete_verified_attempt(
         )
         if updated_shell.rowcount != 1:
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
-        updated_draft = connection.execute(
-            "UPDATE case_drafts SET lifecycle = 'archive_verified', updated_at = ? "
-            "WHERE case_id = ? AND revision = ? AND lifecycle IN ('archive_queued', 'archiving', 'archive_interrupted')",
-            (now, evidence["case_id"], int(evidence["draft_revision"])),
+        update_verified_draft(
+            connection, draft, intent, evidence["case_id"],
+            int(evidence["draft_revision"]), now,
         )
-        if updated_draft.rowcount != 1:
-            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         updated_fence = connection.execute(
             "UPDATE archive_publish_fences SET status = 'consumed', reason = 'ARCHIVE_COMPLETION_VERIFIED', updated_at = ? "
             "WHERE fence_id = ? AND attempt_id=? AND task_id=? AND deployment_instance_id=? "

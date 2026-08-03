@@ -8,7 +8,7 @@ from typing import Any
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import bool_int, json_text, row_json
-from .workbench_serialization import validate_safe_string
+from .workbench_serialization import validate_opaque_id, validate_safe_string
 
 _DEFAULT_VALUES = {
     "document_number": "",
@@ -17,6 +17,7 @@ _DEFAULT_VALUES = {
     "hardware_device": "",
     "inspector_order": [],
     "disc_number_prefix": "",
+    "default_template_ref": None,
 }
 _MIGRATION_DECISIONS = {"pending", "imported", "ignored"}
 
@@ -120,6 +121,16 @@ class SharedDefaultsRepository:
     def get(self) -> dict[str, Any]:
         return self.get_or_create()
 
+    def ensure_default_template(self, template_ref: Mapping[str, Any]) -> dict[str, Any]:
+        normalized = _normalize_template_ref(template_ref)
+        if normalized is None:
+            raise WorkbenchPersistenceError("INVALID_TEMPLATE_REFERENCE")
+        current = self.get_or_create()
+        if current.get("default_template_ref") is not None:
+            return current
+        result = self.patch({"default_template_ref": normalized}, current["revision"])
+        return result["defaults"]
+
 
 def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(values, Mapping):
@@ -136,6 +147,9 @@ def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
         validate_safe_string(normalized[key], "INVALID_SHARED_DEFAULTS")
     for item in normalized["inspector_order"]:
         validate_safe_string(item, "INVALID_SHARED_DEFAULTS")
+    normalized["default_template_ref"] = _normalize_template_ref(
+        normalized.get("default_template_ref"),
+    )
     json_text(normalized)
     return normalized
 
@@ -168,11 +182,26 @@ def _normalize_patch(values: Mapping[str, Any]) -> dict[str, Any]:
                 raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
         if normalized_items:
             normalized["inspector_order"] = normalized_items
+    if "default_template_ref" in values:
+        normalized["default_template_ref"] = _normalize_template_ref(
+            values["default_template_ref"],
+        )
     return normalized
 
 
+def _normalize_template_ref(value: Any) -> dict[str, str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping) or set(value) != {"template_id", "version"}:
+        raise WorkbenchPersistenceError("INVALID_TEMPLATE_REFERENCE")
+    return {
+        "template_id": validate_opaque_id(value["template_id"]),
+        "version": validate_opaque_id(value["version"]),
+    }
+
+
 def _defaults_dict(row: Mapping[str, Any]) -> dict[str, Any]:
-    values = row_json(row, "values_json")
+    values = {**_DEFAULT_VALUES, **row_json(row, "values_json")}
     return {
         "schema_version": int(row["schema_version"]),
         "deployment_instance_id": row["deployment_instance_id"],

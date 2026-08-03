@@ -11,7 +11,7 @@ from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_input_snapshot_files_service import (
     assert_marker, assert_snapshot_tree_safe, make_tree_writable,
-    resolve_snapshot_dir,
+    resolve_snapshot_dir, snapshot_name_matches_id,
 )
 
 
@@ -21,9 +21,9 @@ def cleanup_unfinished_snapshot(
     """Remove only a durable row's exact task-owned copying/sealed paths.
 
     A copying row is durable ownership evidence even when the marker was not
-    flushed before a process died.  The locator is still resolved below the
-    controlled ``.inputs`` root and the only candidates are the row's exact
-    final name and its exact ``.copying`` sibling.
+    flushed before a process died.  The locator is still resolved below a
+    controlled legacy or short snapshot root and the only candidates are the
+    row's exact final name and its exact ``.copying`` sibling.
     """
     if value.get("deployment_instance_id") != database.deployment_instance_id:
         raise WorkbenchPersistenceError("ARCHIVE_INPUT_SNAPSHOT_OWNER_MISMATCH")
@@ -31,12 +31,15 @@ def cleanup_unfinished_snapshot(
     if not snapshot_id:
         raise WorkbenchPersistenceError("ARCHIVE_INPUT_SNAPSHOT_INVALID")
     final = resolve_snapshot_dir(output_root, str(value.get("snapshot_locator") or ""))
-    root = (Path(output_root) / "compressed" / ".inputs").resolve(strict=False)
-    expected_final = (root / snapshot_id).resolve(strict=False)
-    if final != expected_final or final.parent != root:
+    root = final.parent
+    expected_final = (root / final.name).resolve(strict=False)
+    if (
+        final != expected_final
+        or not snapshot_name_matches_id(snapshot_id, final.name)
+    ):
         raise WorkbenchPersistenceError("ARCHIVE_INPUT_SNAPSHOT_OWNER_MISMATCH")
-    copying = root / f".{snapshot_id}.copying"
-    marker = root / f".{snapshot_id}.owner.json"
+    copying = root / f".{final.name}.copying"
+    marker = root / f".{final.name}.owner.json"
     status = str(value.get("status") or "")
     if status not in {"copying", "invalidated", "sealed"}:
         return "not_required" if status == "cleaned" else "unknown"

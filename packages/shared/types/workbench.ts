@@ -101,6 +101,7 @@ export interface SharedDefaults {
   hardware_device: string
   inspector_order: string[]
   disc_number_prefix: string
+  default_template_ref?: TemplateVersionRef | null
   migration_decision: 'pending' | 'imported' | 'ignored'
   updated_at: string
 }

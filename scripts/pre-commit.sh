@@ -19,5 +19,5 @@ echo ""
 
 echo "═══════════════════════════════════════"
 echo "  ✅ Pre-commit 通过！"
-echo "  💡 推送前建议运行：npm run verify:full"
+echo "  💡 当前变更推送前建议运行：npm run verify:full -- --change <name>"
 echo "═══════════════════════════════════════"

@@ -11,15 +11,15 @@
 
 ## 核心原则
 
-1. **可脚本化的检查 → 纳入 `check_docs` 脚本，作为 pre-commit 门控的一部分**
+1. **可脚本化的检查 → 纳入 `check_docs` 脚本，按默认或严格模式执行**
 2. **确定性检查（有标准答案）→ Agent 自治执行 + 自动修复，无需人工介入**
 3. **判断性检查（需语义推理）→ Agent 输出分析报告 + 人工快速审阅确认**
 
 ---
 
-## 自动化检查（MUST 纳入 npx tsx scripts/check-docs.ts）
+## 自动化检查（由 `npm run verify:docs` / `npm run verify:docs:strict` / `npm run verify:docs:strict:all` 执行）
 
-以下检查 **MUST** 由 `check_docs` 脚本自动执行，pre-commit 不通过则阻断提交：
+以下检查由 `check_docs` 脚本自动执行；默认模式用于轻量提交门控，严格模式用于 Level 2 收尾、Level 3 最终门控和全局归档：
 
 ### E-A1: directory.md 与文件系统一致性（目录维度）
 - 扫描 `harness/directory.md` 中声明的源码目录
@@ -47,7 +47,13 @@
 
 ### E-A6: 迭代记录教训反哺完整性
 - 扫描最近一份 `harness/archive/iterations/*.md`
-- 如果「沉淀的经验」章节非空，但「已反哺到 Harness」章节为空 → 报 error
+  - 如果「沉淀的经验」章节非空，但「已反哺到 Harness」章节为空 → 报 error
+
+### E-A7: 必选任务状态（仅严格模式）
+- 普通 checklist 任务默认必选。
+- 同一任务行末尾明确标记 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时，未勾选不阻塞。
+- 只检查显式 checklist 状态，不根据任务标题、源码文件存在性或自然语言推断任务完成。
+- `--change <名称>` 只检查指定变更包；全局检查使用 `npm run verify:docs:strict:all`，不通过隐式缺省参数推断全局范围。
 
 ---
 
@@ -108,8 +114,10 @@
 
 | 时机 | 脚本自动化检查 | Agent 自治检查 | Agent 辅助 + 人工确认 |
 |------|---------------|---------------|---------------------|
-| 每次提交 | E-A1 ~ E-A6（pre-commit 门控） | — | — |
-| 每次迭代归档 | E-A1 ~ E-A6（再次确认） | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
+| 每次提交 | 默认模式检查（结构、命令、类型文档、链接和资产） | — | — |
+| Level 2 收尾 | 严格模式 + `--change <名称>`，只检查当前变更包任务状态 | — | 按需 |
+| Level 3 当前变更收尾 | 当前变更 scoped full gate + 严格任务检查 | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
+| 全局发布/集中归档 | `verify:full:all` / `verify:docs:strict:all` 检查全部活跃变更包 | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
 | 每个里程碑 | — | — | TEMPLATE_CANDIDATE 积压审阅（E-A5 warning 触发） |
 
 ---
@@ -118,7 +126,7 @@
 
 Agent 在执行 Level 3 归档（⑥）时 **MUST** 按以下流程操作：
 
-1. 运行 npx tsx scripts/check-docs.ts — 脚本自动化检查全部通过
+1. 运行 `npm run verify:docs:strict:all` — 脚本自动化检查全部活跃变更包通过
 2. 执行 Agent 自治检查（E-M1, E-M3, E-M4）— 自动检查并修复，输出结果摘要
 3. 执行 Agent 辅助检查（E-M2, E-M5）— 输出分析报告，请求人类快速确认
 4. 人类确认后，执行 `/opsx:archive`
@@ -129,11 +137,7 @@ Agent 在执行 Level 3 归档（⑥）时 **MUST** 按以下流程操作：
 
 ### 快速修复豁免（Level 2）
 
-通过 `/harness:fix` 执行的 Level 2 修复归档，适用以下简化流程：
-
-- **MUST** 执行自动化门控（E-A1 ~ E-A6）— 不可省略
-- **MUST** 执行 Agent 自治检查（E-M1, E-M3, E-M4）— 不可省略
-- **MAY** 省略 Agent 辅助检查（E-M2, E-M5）— 快速修复通常不新增 Harness 规则或产生跨项目教训
+通过 `/harness:fix` 执行的 Level 2 修复，使用当前变更包范围的轻量检查；只有确实收尾时才运行 `verify:docs:strict -- --change <名称>`。不因 Level 2 自动执行 Level 3 的完整归档协议。
 
 > **注意**：判断依据为行为影响和回滚风险，不按修改文件数量机械判断。Level 3 重大变更应使用完整归档协议。
 

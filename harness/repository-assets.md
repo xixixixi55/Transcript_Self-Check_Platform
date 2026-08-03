@@ -73,4 +73,4 @@ Run before committing:
 npx tsx scripts/check-repository-assets.ts
 ```
 
-This gate is also wired into `pnpm verify:quick`.
+This gate is also wired into `npm run verify:quick`.

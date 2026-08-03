@@ -1,7 +1,7 @@
 // Layer 10: FE_Hooks — case editor session, persistence, source and lease coordination.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
-import { API_ENDPOINTS } from '@biji/shared/constants'
+import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
 import { applyReportEdit, parseDiscSequence } from '@biji/shared/utils'
 import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, ClientIdentity, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
 import { useCaseDraftAutosave } from './useCaseDraftAutosave'
@@ -16,6 +16,7 @@ const SHARED_FIELD_PATHS = new Set([
   'document_number', 'introduction.inspection_place', 'inspection.method', 'inspection.hardware_device',
   'introduction.inspectors', 'introduction.inspector_snapshots', 'attachments.disc_number',
 ])
+const ACTIVE_ARCHIVE_LIFECYCLES = new Set(['archive_queued', 'archiving'])
 
 export function sharedPatchForEdit(report: InspectionReport, path: string): Record<string, unknown> | null {
   if (path === 'document_number') return { document_number: report.document_number || '' }
@@ -96,6 +97,15 @@ export function useCaseRecordSession(caseId: string) {
     const timer = window.setInterval(() => { void workbench.reloadDetail(caseId, { background: true }) }, 1500)
     return () => window.clearInterval(timer)
   }, [caseId, workbench.detail?.source.access_status, workbench.reloadDetail])
+
+  const archiveLifecycle = workbench.detail?.shell.lifecycle
+  useEffect(() => {
+    if (!archiveLifecycle || !ACTIVE_ARCHIVE_LIFECYCLES.has(archiveLifecycle)) return
+    const timer = window.setInterval(() => {
+      void workbench.reloadDetail(caseId, { background: true })
+    }, CASE_TASK_POLL_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [archiveLifecycle, caseId, workbench.reloadDetail])
 
   const lease = useEditLease({
     caseId,

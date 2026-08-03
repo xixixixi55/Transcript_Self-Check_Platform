@@ -571,6 +571,12 @@ invalidated by a template change. `TemplateSelectionImpact` fixes the Phase 4
 boundary: a template change invalidates Word while leaving archive planning,
 archive-task creation, the verified Manifest and disc mapping unchanged.
 
+`TemplateManagementRecord` is the path-free management-page projection of a
+`TemplateVersion`, adding `is_default` and `can_delete`. The corresponding
+`TemplateManagementResponse` returns the available records, the nullable
+`default_template_ref`, and the monotonic `defaults_revision` used by default
+template updates.
+
 T017 adds the frontend registry client and review-page selector. The client
 filters for complete approved versions, displays only the template ID, version
 and safe acceptance summary, and submits only `TemplateVersionRef`, draft
@@ -865,7 +871,8 @@ interface DemoReadiness,
 type TemplateId, type TemplateApprovalStatus, type TemplateErrorCode,
 type WordArtifactValidity, interface TemplateVersionRef,
 interface TemplateApprovalRecord, interface TemplateValidationRuleRef,
-interface TemplateVersion, interface TemplateValidationSuccess,
+interface TemplateVersion, interface TemplateManagementRecord,
+interface TemplateManagementResponse, interface TemplateValidationSuccess,
 interface TemplateValidationFailure, type TemplateValidationResult,
 interface TemplateSelectionImpact,
 type RetentionPolicyMode, type RetentionEligibility, type RetentionStatus,

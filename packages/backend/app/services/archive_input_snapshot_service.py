@@ -16,10 +16,11 @@ from ..repository.workbench_database import WorkbenchDatabase
 from .archive_input_snapshot_copy_service import (
     assert_source_matches as _assert_source_matches, copy_inventory, source_evidence,
 )
+from .archive_input_snapshot_layout_service import choose_snapshot_layout
 from .archive_input_snapshot_files_service import (
     assert_marker, assert_matches, assert_snapshot_tree_safe, fingerprint,
-    fsync_dir, make_tree_read_only, make_tree_writable, marker_path,
-    marker_payload, remove_paths, required, resolve_snapshot_dir,
+    fsync_dir, make_tree_read_only, make_tree_writable, marker_path, marker_payload,
+    remove_paths, required, resolve_snapshot_dir,
     root_id as root_identifier,
     write_marker,
 )
@@ -52,11 +53,16 @@ def create_sealed_input_snapshot(
     snapshot_id = f"snapshot-{token}"
     root_id = f"snapshot-root-{token}"
     marker_token = f"snapshot-marker-{secrets.token_hex(20)}"
-    root = Path(output_root) / "compressed" / ".inputs"
-    temporary = root / f".{snapshot_id}.copying"
-    final = root / snapshot_id
-    marker = root / f".{snapshot_id}.owner.json"
     current, evidence = source_evidence(source_inventory)
+    layout = choose_snapshot_layout(
+        output_root, snapshot_id,
+        (item.relative_path for item in current.files),
+        (item.relative_path for item in current.directories),
+    )
+    root = layout.root
+    temporary = root / f".{layout.snapshot_name}.copying"
+    final = root / layout.snapshot_name
+    marker = marker_path(final)
     source_root_id = root_identifier(current.source_root)
     repository = ArchiveInputSnapshotRepository(database)
     repository.create_copying({
@@ -65,7 +71,7 @@ def create_sealed_input_snapshot(
         "source_revision": int(attempt["source_revision"]),
         "draft_revision": int(attempt.get("draft_revision") or 0),
         "source_root_id": source_root_id, "snapshot_root_id": root_id,
-        "snapshot_locator": f".inputs/{snapshot_id}", "marker_token": marker_token,
+        "snapshot_locator": layout.locator, "marker_token": marker_token,
     })
     try:
         root.mkdir(parents=True, exist_ok=True)
@@ -109,10 +115,15 @@ def create_ephemeral_sealed_input_snapshot(
     attempt_id = f"ephemeral-attempt-{token}"
     root_id = f"snapshot-root-{token}"
     marker_token = f"snapshot-marker-{secrets.token_hex(20)}"
-    root = Path(output_root) / "compressed" / ".inputs"
-    temporary = root / f".{snapshot_id}.copying"
-    final = root / snapshot_id
-    marker = root / f".{snapshot_id}.owner.json"
+    layout = choose_snapshot_layout(
+        output_root, snapshot_id,
+        (item.relative_path for item in current.files),
+        (item.relative_path for item in current.directories),
+    )
+    root = layout.root
+    temporary = root / f".{layout.snapshot_name}.copying"
+    final = root / layout.snapshot_name
+    marker = marker_path(final)
     try:
         root.mkdir(parents=True, exist_ok=True)
         temporary.mkdir()

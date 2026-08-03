@@ -15,4 +15,4 @@ description: "运行工程验证门控（架构检查 + 类型 + 构建 + 测试
 - verify = 工程验证（自动化脚本，检查结构正确性）
 - review = 需求验证（Agent 对照 spec 场景，检查语义覆盖）
 
-建议同时运行两者以获得完整验证。
+需求 Review 与工程验证按当前级别分别执行；Level 2 不因模块验证再重复运行完整门控，Level 3 收尾使用 `npm run verify:full -- --change <变更包名称>`。

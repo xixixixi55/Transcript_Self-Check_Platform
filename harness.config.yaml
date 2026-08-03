@@ -118,13 +118,19 @@ testing:
   test_file_pattern: "<name>.test.ts(x) / test_<name>.py"
 
 commands:
-  dev: "concurrently \"pnpm --filter frontend dev\" \"pnpm --filter backend dev\""
-  build: "pnpm --filter frontend build"
-  lint_arch: "npx tsx scripts/lint-arch.ts"
-  verify: "npm run lint:arch && npm run typecheck && npm run build"
-  test: "pnpm --filter frontend test && pnpm --filter backend test"
-  check_docs: "npx tsx scripts/check-docs.ts"
-  pre_commit: "npm run verify && npm run test && npm run check-docs"
+  # package.json 是验证命令的唯一来源；此处只引用，不再复制命令清单。
+  dev: "npm run dev"
+  build: "npm run build"
+  lint_arch: "npm run lint:arch"
+  test: "npm run test"
+  verify_quick: "npm run verify:quick"
+  verify_full: "npm run verify:full -- --change <change-name>"
+  verify_full_all: "npm run verify:full:all"
+  verify: "npm run verify:full:all"
+  check_docs: "npm run verify:docs"
+  check_docs_strict: "npm run verify:docs:strict -- --change <change-name>"
+  check_docs_strict_all: "npm run verify:docs:strict:all"
+  pre_commit: "npm run pre-commit"
 
 naming:
   conventions:
@@ -176,5 +182,5 @@ features:
   context_isolation: true
   enhanced_verification: false
   prompt_templates: false
-  # 默认关闭。Level 3 或高风险任务（公共接口/核心数据模型/安全边界）可手动启用。
+  # 默认关闭；Level 3 的 Review 证据也可由人工或其他独立审查记录提供。
   code_review_agent: false

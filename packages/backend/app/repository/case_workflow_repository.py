@@ -1,7 +1,6 @@
 """Atomic persistence operations used by the Phase 1B workbench services."""
 from __future__ import annotations
 import sqlite3
-import secrets
 from collections.abc import Mapping
 from typing import Any
 from .workbench_constants import CASE_TRANSITIONS, TASK_TRANSITIONS
@@ -9,7 +8,7 @@ from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import WorkbenchPersistenceError
 from .task_recovery_repository import recover_tasks_after_restart
 from .workbench_legacy_report import validate_legacy_report
-from .workbench_repository_helpers import bool_int, json_text
+from .workbench_repository_helpers import bool_int, case_shell_values, json_text, optional_safe
 from .workbench_serialization import (
     validate_field_states,
     validate_opaque_asset_refs,
@@ -17,7 +16,9 @@ from .workbench_serialization import (
     validate_safe_string,
 )
 from .case_archive_decision_repository import CaseArchiveDecisionRepository
+from .case_workbench_repository import _validate_template_ref
 from .archive_publish_fence_repository import reject_if_active
+from .case_workflow_helpers import ensure_asset_refs, insert_audit_event, normalize_source_metadata
 class CaseWorkflowRepository:
     """Keep cross-record case/task/source changes in one SQLite transaction."""
     def __init__(self, database: WorkbenchDatabase) -> None:
@@ -34,7 +35,7 @@ class CaseWorkflowRepository:
             raise WorkbenchPersistenceError("INVALID_CASE_SUBMISSION")
         if task.get("task_id") != source.get("task_id"):
             raise WorkbenchPersistenceError("INVALID_CASE_SUBMISSION")
-        case_number = _optional_safe(shell.get("case_number"), "INVALID_CASE_SHELL")
+        case_number = optional_safe(shell.get("case_number"), "INVALID_CASE_SHELL")
         case_name = validate_safe_string(shell.get("case_name", ""), "INVALID_CASE_SHELL")
         case_summary = validate_safe_string(shell.get("case_summary", ""), "INVALID_CASE_SHELL")
         source_type = str(source.get("source_type", ""))
@@ -42,7 +43,7 @@ class CaseWorkflowRepository:
             raise WorkbenchPersistenceError("INVALID_SOURCE_STATUS")
         if source.get("access_status", "pending") != "pending":
             raise WorkbenchPersistenceError("SOURCE_REVALIDATION_REQUIRED")
-        metadata = _metadata(source.get("metadata", {}))
+        metadata = normalize_source_metadata(source.get("metadata", {}))
         fingerprint = source.get("fingerprint")
         if not isinstance(fingerprint, str) or not fingerprint:
             raise WorkbenchPersistenceError("INVALID_SOURCE_FINGERPRINT")
@@ -77,7 +78,7 @@ class CaseWorkflowRepository:
                     ),
                 )
                 if identity is not None:
-                    _insert_audit(connection, identity, case_id, task_id, now)
+                    insert_audit_event(connection, identity, case_id, task_id, now)
         except sqlite3.IntegrityError as error:
             raise WorkbenchPersistenceError("CASE_SUBMISSION_CREATE_FAILED") from error
     def start_parse(self, case_id: str, task_id: str) -> None:
@@ -91,10 +92,13 @@ class CaseWorkflowRepository:
         *,
         report_version: str = "legacy-v1",
         asset_refs: list[Mapping[str, Any]] | None = None,
+        template_ref: Mapping[str, Any] | None = None,
+        case_metadata: Mapping[str, Any] | None = None,
     ) -> None:
         validate_legacy_report(report)
         validate_field_states(field_states)
         refs = validate_opaque_asset_refs(asset_refs or [])
+        normalized_template_ref = _validate_template_ref(template_ref)
         validate_opaque_id(report_version)
         now = utc_now()
         with self.database.transaction() as connection:
@@ -110,14 +114,20 @@ class CaseWorkflowRepository:
                 raise WorkbenchPersistenceError("INVALID_STATE_TRANSITION")
             if source is None or source[0] not in {"pending", "available"}:
                 raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
-            _ensure_assets(connection, case_id, refs)
+            ensure_asset_refs(connection, case_id, refs)
+            case_number, case_name, case_summary = case_shell_values(shell, case_metadata)
             connection.execute(
-                "INSERT INTO case_drafts VALUES (?, 1, ?, ?, ?, ?, NULL, NULL, 'review_ready', 1, ?, ?)",
-                (case_id, json_text(report), report_version, json_text(field_states), json_text(refs), now, now),
+                "INSERT INTO case_drafts VALUES (?, 1, ?, ?, ?, ?, ?, NULL, 'review_ready', 1, ?, ?)",
+                (
+                    case_id, json_text(report), report_version, json_text(field_states),
+                    json_text(refs),
+                    None if normalized_template_ref is None else json_text(normalized_template_ref),
+                    now, now,
+                ),
             )
             shell_updated = connection.execute(
-                "UPDATE case_shells SET report_available = 1, lifecycle = 'review_ready', revision = revision + 1, updated_at = ? WHERE case_id = ? AND lifecycle = 'parsing'",
-                (now, case_id),
+                "UPDATE case_shells SET case_number = ?, case_name = ?, case_summary = ?, report_available = 1, lifecycle = 'review_ready', revision = revision + 1, updated_at = ? WHERE case_id = ? AND lifecycle = 'parsing'",
+                (case_number, case_name, case_summary, now, case_id),
             )
             if shell_updated.rowcount != 1:
                 raise WorkbenchPersistenceError("INVALID_STATE_TRANSITION")
@@ -220,30 +230,3 @@ class CaseWorkflowRepository:
             now = utc_now()
             connection.execute("UPDATE case_shells SET lifecycle = ?, revision = revision + 1, updated_at = ? WHERE case_id = ?", (lifecycle, now, case_id))
             connection.execute("UPDATE task_records SET status = ?, started_at = ?, revision = revision + 1 WHERE task_id = ?", (status, now, task_id))
-def _optional_safe(value: Any, code: str) -> str | None:
-    return None if value is None else validate_safe_string(value, code)
-def _metadata(value: Any) -> dict[str, str | int | float | bool]:
-    if not isinstance(value, Mapping) or any(not isinstance(k, str) or isinstance(v, (dict, list, tuple, bytes, bytearray)) or not isinstance(v, (str, int, float, bool)) for k, v in value.items()):
-        raise WorkbenchPersistenceError("INVALID_SOURCE_METADATA")
-    return dict(value)
-def _ensure_assets(connection: Any, case_id: str, refs: list[Mapping[str, Any]]) -> None:
-    if not refs:
-        return
-    ids = [str(item["asset_id"]) for item in refs]
-    placeholders = ",".join("?" for _ in ids)
-    rows = connection.execute(f"SELECT asset_id FROM asset_references WHERE case_id = ? AND asset_id IN ({placeholders})", (case_id, *ids)).fetchall()
-    if len(rows) != len(ids):
-        raise WorkbenchPersistenceError("ASSET_REFERENCE_NOT_FOUND")
-def _insert_audit(connection: Any, identity: Mapping[str, Any], case_id: str, task_id: str, now: str) -> None:
-    if identity.get("identity_kind") != "local_session" or identity.get("deployment_instance_id") is None:
-        raise WorkbenchPersistenceError("UNAUTHENTICATED_IDENTITY_REQUIRED")
-    client_id = validate_opaque_id(identity.get("client_instance_id"))
-    session_id = validate_opaque_id(identity.get("session_id"))
-    deployment_id = validate_opaque_id(identity.get("deployment_instance_id"))
-    display_name = identity.get("local_display_name")
-    if display_name is not None:
-        display_name = validate_safe_string(display_name, "INVALID_CLIENT_IDENTITY")
-    connection.execute(
-        "INSERT INTO audit_events VALUES (?, 'case_submitted', ?, ?, ?, ?, 'local_session', ?, ?, '{}', ?)",
-        (f"audit-{secrets.token_hex(16)}", deployment_id, client_id, session_id, display_name, case_id, task_id, now),
-    )

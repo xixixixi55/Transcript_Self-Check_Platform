@@ -23,15 +23,16 @@ argument-hint: "[变更包名称]"
 
 2. **Harness 自动化门控（MUST 全部通过，在归档前执行）**
    ```
-   npx tsx scripts/check-docs.ts
+   npm run verify:docs:strict:all
    ```
-   检查项（详见 `harness/entropy-rules.md` E-A1 ~ E-A6）：
+   检查项（详见 `harness/entropy-rules.md` E-A1 ~ E-A7）：
    - E-A1: directory.md 与文件系统一致（目录维度）
    - E-A2: 数据模型 Spec 与类型定义一致
    - E-A3: 文档链接有效
    - E-A4: OpenSpec 版本一致
    - E-A5: TEMPLATE_CANDIDATE 积压
    - E-A6: 迭代记录教训反哺完整性
+   - E-A7: 必选任务状态（普通任务必选，行尾 `[OPTIONAL]`/`[DEFERRED]`/`[N/A]` 可豁免）
 
    **不通过则停止，修复后重试。**
 

@@ -206,6 +206,72 @@ def test_selection_rejects_client_governance_fields_lease_and_stale_revision(tem
     assert str(client) not in response.text
 
 
+def test_template_management_supports_upload_default_and_safe_revoke(template_api):
+    client, services, _lease = template_api
+    management_response = client.get("/api/v1/workbench/templates/management")
+    assert management_response.status_code == 200, management_response.text
+    management = management_response.json()["data"]
+    assert management["default_template_ref"] == REFERENCE
+    assert management["templates"][0]["is_default"] is True
+    assert management["templates"][0]["can_delete"] is False
+
+    source_template = Path(__file__).parents[1] / "word_templates" / "template.docx"
+    upload_response = client.post(
+        "/api/v1/workbench/templates",
+        data={
+            "template_id": "template-SYNTHETIC-uploaded",
+            "version": "1.0.0",
+            "display_name": "SYNTHETIC 上传笔录模版",
+        },
+        files={
+            "file": (
+                "SYNTHETIC-template.docx", source_template.read_bytes(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        },
+    )
+    assert upload_response.status_code == 200, upload_response.text
+    uploaded_ref = {"template_id": "template-SYNTHETIC-uploaded", "version": "1.0.0"}
+    assert upload_response.json()["data"]["template_ref"] == uploaded_ref
+
+    updated = client.get("/api/v1/workbench/templates/management").json()["data"]
+    assert any(item["template_ref"] == uploaded_ref for item in updated["templates"])
+    with services.database.transaction() as connection:
+        connection.execute(
+            "UPDATE case_drafts SET template_ref_json = ? WHERE case_id = ?",
+            (json.dumps(uploaded_ref), CASE_ID),
+        )
+    in_use_response = client.delete(
+        "/api/v1/workbench/templates/template-SYNTHETIC-uploaded/1.0.0",
+    )
+    assert in_use_response.status_code == 409
+    assert in_use_response.json()["detail"]["code"] == "TEMPLATE_IN_USE"
+
+    default_response = client.put(
+        "/api/v1/workbench/templates/default",
+        json={
+            "template_ref": uploaded_ref,
+            "expected_defaults_revision": updated["defaults_revision"],
+        },
+    )
+    assert default_response.status_code == 200, default_response.text
+    assert default_response.json()["data"]["default_template_ref"] == uploaded_ref
+
+    revoke_response = client.delete(
+        "/api/v1/workbench/templates/electronic-inspection-record/1.0.0",
+    )
+    assert revoke_response.status_code == 200, revoke_response.text
+    remaining = revoke_response.json()["data"]
+    assert all(item["template_ref"] != REFERENCE for item in remaining["templates"])
+
+    blocked_response = client.delete(
+        "/api/v1/workbench/templates/template-SYNTHETIC-uploaded/1.0.0",
+    )
+    assert blocked_response.status_code == 409
+    assert blocked_response.json()["detail"]["code"] == "DEFAULT_TEMPLATE_CANNOT_DELETE"
+    assert services.defaults.get()["default_template_ref"] == uploaded_ref
+
+
 def test_formal_export_resolves_server_reference_and_safely_revalidates(
     template_api, tmp_path: Path,
 ):

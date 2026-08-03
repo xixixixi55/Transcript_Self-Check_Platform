@@ -120,20 +120,22 @@ openspec/changes/<功能名>/
 - 后端迭代：MUST 确认数据库测试环境可用
 - 运行一个最小测试确认测试链路通畅后再开始正式开发
 
-**开发节奏**（Level 3 的每个 Task）：
+**开发节奏**（Level 3 的实现阶段）：
 1. Agent 写代码
 2. Agent **MUST** 运行架构检查 + 类型检查
    - 失败 → Agent 阅读错误信息，自主修复，重新运行，直到通过
    - **MUST**: 连续失败 3 次 → 停止，报告问题，请求人类介入
-3. Agent 写配套测试
+3. Agent 为改变交互、业务行为或数据处理的实现写配套测试；纯样式、文案、图标和不改变交互的展示调整不强制新增测试
 4. Agent **MUST** 运行测试
-   - 失败 → Agent 阅读错误信息，自主修复，重新运行，直到通过
+   - 运行受影响的定向测试；同一候选版本不重复运行已经覆盖且未改变的模块套件
+   - pytest 默认使用 `-q --tb=short`，先读取退出码和最终汇总；通过时不逐条读取通过用例
+   - 失败时只阅读失败用例及其 traceback，自主修复后先重跑失败用例，再按需重跑受影响模块
    - **MUST**: 连续失败 3 次 → 停止，报告问题，请求人类介入
 5. Agent **SHOULD** 验证测试有效性（**Level 3 核心业务逻辑为 MUST**）：在源码中注释掉本次新增/修改的核心逻辑，重新运行测试
    - 测试失败 → 好，测试有效，恢复源码，进入下一步
    - 测试仍通过 → 测试无效，Agent 补充更有意义的断言，回到第 4 步
    - 完成后 **MUST** 恢复源码到注释前的状态
-   - **风险分级**：核心业务逻辑、关键 Hook、权限、安全、数据转换和高风险算法为 MUST；普通组件、页面、Repository、样式、文案和低风险适配代码为 SHOULD
+   - **核心业务逻辑、权限、安全、关键数据转换和高风险算法为 MUST**；普通组件、页面、Repository、样式、文案和低风险适配代码按是否改变行为判断
 6. 标记 Task 为 `[x]`，进入下一个
 
 **硬性终止条件**：
@@ -175,22 +177,27 @@ Agent **MUST** 在人类介入完成后：
 **OpenSpec 验证**：
 - 运行 `/opsx:verify` 检查代码是否符合 spec 中定义的场景
 
-**Harness 自动验证**：
+**Harness 自动验证**（命令唯一来源是根目录 `package.json`）：
 
 ```bash
-npx tsx scripts/lint-arch.ts   # 架构约束检查（依赖方向、文件大小、命名）
-npx tsc --noEmit               # TypeScript 类型检查
-pnpm --filter frontend build   # 前端构建验证
-npm run test                   # 全部测试（前端 Vitest + 后端 pytest）
-npx tsx scripts/check-docs.ts  # 文档一致性检查
+npm run verify:quick           # Level 1/2 共用的轻量工程检查
+npm run test:frontend          # Level 2 前端受影响模块
+npm run test:backend           # Level 2 后端受影响模块
+npm run verify:full -- --change <name>  # 全仓库自动化工程检查；严格任务状态限定当前变更
+npm run verify:full -- --change <name> --dry-run  # 只输出最终命令列表，不执行检查
+npm run verify:full:all                 # 全局发布/集中归档完整门控
+npm run verify:docs:strict -- --change <name>  # 当前变更严格文档检查
+npm run verify:docs:strict:all               # 全局严格文档检查
 ```
+
+`verify:full -- --change <name>` 执行全仓库架构、类型、治理、资产、测试和构建检查，但严格任务状态只检查指定变更包；`verify:full:all` 才检查全部活跃变更包。两者都不包含当前未启用的 E2E、mypy、真实桌面环境和 Word/PDF 人工验收。
 
 **门控分级**：
 
 | 时机 | 跑什么 | 触发方式 | 说明 |
 |------|--------|---------|------|
 | 开发中 | 单文件测试 | 手动 | 改哪层测哪层，秒级反馈 |
-| pre-commit | 综合验证 + 测试 + 文档检查 | Git Hook（Husky）自动触发 | 不通过则阻断 `git commit` |
+| pre-commit | `npm run verify:quick` 轻量检查 | Git Hook（Husky）自动触发 | 不通过则阻断 `git commit`；不替代 Level 2/3 模块或完整门控 |
 | 手动/CI | E2E 测试 | 手动或 CI pipeline | 完整验证 |
 
 > **Git Hook 绑定**：`pre-commit` 门控通过 Husky 绑定到 `git commit`，确保每次提交前自动运行。
@@ -203,7 +210,7 @@ npx tsx scripts/check-docs.ts  # 文档一致性检查
 - 如果是约束问题 → 更新 Linter 规则或架构文档
 
 **测试有效性**：
-已在④开发节奏的第 5 步中自动化——Agent 写完测试后 MUST 注释掉核心逻辑验证测试是否失败。项目规模增大后可考虑引入 mutation testing 工具进一步自动化。
+核心业务逻辑、权限、安全和关键数据转换必须验证断言具有区分度；普通组件、页面、Repository、样式和文案按实际行为变化判断，不强制执行突变式验证。
 
 ---
 
@@ -219,12 +226,14 @@ npx tsx scripts/check-docs.ts  # 文档一致性检查
 
 **Step 1 — 自动化门控（MUST 全部通过）：**
 
-运行 npx tsx scripts/check-docs.ts，以下检查自动执行（详见 `harness/entropy-rules.md` E-A1 ~ E-A6）：
+运行当前变更的 `npm run verify:docs:strict -- --change <name>`；全局归档运行 `npm run verify:docs:strict:all`。以下检查自动执行（详见 `harness/entropy-rules.md` E-A1 ~ E-A7）：
 - [ ] directory.md 与文件系统一致
 - [ ] 数据模型 Spec 与类型定义一致
 - [ ] 文档链接引用有效
 - [ ] OpenSpec 版本一致
 - [ ] 迭代记录教训反哺完整性
+
+严格模式的任务状态规则：普通 checklist 任务默认必选；同一行末尾明确标记 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时可不勾选。Level 2 和 Level 3 当前变更收尾传 `--change <变更包名称>`，只检查当前变更包；全局发布/集中归档使用 `verify:full:all` 或 `verify:docs:strict:all`。
 
 **Step 2 — Agent 自治检查（自动执行 + 自动修复）：**
 
@@ -333,7 +342,7 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 - **文档中硬编码会变的数字** — 只写"详见 xxx"的链接引用，或让脚本自己输出
 - **绕过 OpenSpec 直接改 specs/** — Level 3 变更的所有 spec 变更必须通过变更包走流程。Level 1/2 事实源修复按 AGENTS.md 执行
 - **照搬 PRD 的数据模型建议** — PRD §数据模型是产品视角的参考，技术方案应从业务需求（用户要看什么/做什么/筛选什么）独立推导实体和关系，区分编译时常量 vs 运行时配置
-- **先写完所有代码再补测试** — 测试是每个 Task 的必须步骤（c/d/e），不是迭代末尾的"补充工作"。"类型检查覆盖"是借口，类型检查不验证行为。先把测试基础设施配好，再开始写代码
+- **先写完所有代码再补测试** — 对行为变化，测试应在实现阶段同步完成，不得用类型检查替代行为测试；纯展示调整不因流程规则被迫增加低价值测试
 - **Spec 要求抛出的错误被降级为 warn/log** — Spec 中 WHEN/THEN 明确要求 throw 的场景，代码 MUST 抛出对应错误，不可用 try-catch 吞掉或降级为日志。开发时 MUST 逐条对照 Spec 场景
 
 ---

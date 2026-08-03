@@ -92,6 +92,12 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
     expect(screen.queryByText(/总体里程碑/)).toBeNull()
   })
 
+  it('renders the persisted case name and summary on the card', () => {
+    renderCard()
+    expect(screen.getByText(shell.case_name)).toBeTruthy()
+    expect(screen.getByText(shell.case_summary)).toBeTruthy()
+  })
+
   it('shows queued and recovery states without claiming the task is running', () => {
     const { rerender } = render(
       <MemoryRouter>

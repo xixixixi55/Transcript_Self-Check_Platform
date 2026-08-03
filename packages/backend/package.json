@@ -5,7 +5,7 @@
   "description": "笔录自检平台后端 (Python FastAPI)",
   "scripts": {
     "dev": "uvicorn app.main:app --reload --host 0.0.0.0 --port 30010",
-    "test": "cd app && python -m pytest ../../../tests/ -v",
+    "test": "cd app && python -m pytest ../../../tests/ -q --tb=short",
     "typecheck": "echo 'Python: run mypy for type checking (configured in verify.sh)'"
   }
 }

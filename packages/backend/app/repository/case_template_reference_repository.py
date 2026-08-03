@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from typing import Any
 
@@ -40,6 +41,18 @@ class CaseTemplateReferenceRepository:
                 raise RevisionConflictError("case_draft", expected_revision, actual)
         return self.drafts.get(case_id)
 
+    def is_referenced(self, template_ref: Mapping[str, Any]) -> bool:
+        reference = _reference(template_ref)
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT template_ref_json FROM case_drafts "
+                "WHERE template_ref_json IS NOT NULL"
+            ).fetchall()
+        return any(
+            _safe_json_reference(row["template_ref_json"]) == reference
+            for row in rows
+        )
+
 
 def _reference(value: Any) -> dict[str, str]:
     if not isinstance(value, Mapping) or set(value) != {"template_id", "version"}:
@@ -48,3 +61,13 @@ def _reference(value: Any) -> dict[str, str]:
         "template_id": validate_opaque_id(value["template_id"]),
         "version": validate_opaque_id(value["version"]),
     }
+
+
+def _safe_json_reference(value: str) -> dict[str, str] | None:
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(parsed, Mapping):
+        return None
+    return parsed if set(parsed) == {"template_id", "version"} else None

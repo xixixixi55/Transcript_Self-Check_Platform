@@ -55,10 +55,12 @@ describe('platform shell navigation', () => {
 
     expect(screen.getByText('首页')).toBeTruthy()
     expect(screen.getByText('电子数据检查笔录')).toBeTruthy()
-    expect(screen.getByText('模块首页')).toBeTruthy()
+    expect(screen.queryByText('模块首页')).toBeNull()
+    expect(screen.getByRole('link', { name: '电子数据检查笔录' }).getAttribute('href')).toBe('/electronic-inspection')
     expect(screen.getByText('案件工作台')).toBeTruthy()
     expect(screen.queryByText('生成笔录')).toBeNull()
     expect(screen.getByText('电子设备管理')).toBeTruthy()
+    expect(screen.getByText('笔录模版管理')).toBeTruthy()
     expect(screen.getAllByText('暂未开放')).toHaveLength(5)
   })
 
@@ -90,18 +92,16 @@ describe('platform shell navigation', () => {
     expect(screen.getByRole('main').contains(screen.getByText('页面内容'))).toBe(true)
   })
 
-  it('点击一级菜单文字可展开，再次点击可收起', () => {
+  it('点击一级菜单文字直接进入模块首页', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/electronic-inspection/workbench']}>
         <PlatformSidebar collapsed={false} onToggle={vi.fn()} />
+        <RedirectLocationProbe />
       </MemoryRouter>,
     )
     const label = screen.getByText('电子数据检查笔录')
-    expect(getModuleExpandedState()).toBe('false')
     fireEvent.click(label)
-    expect(getModuleExpandedState()).toBe('true')
-    fireEvent.click(label)
-    expect(getModuleExpandedState()).toBe('false')
+    expect(screen.getByTestId('redirected-location').textContent).toBe('/electronic-inspection')
   })
 
   it.each([
@@ -161,6 +161,19 @@ describe('platform shell navigation', () => {
     expect(deviceLink.getAttribute('href')).toBe('/electronic-inspection/devices')
     expect(getModuleExpandedState()).toBe('true')
     expect(deviceLink.closest('.ant-menu-item')?.className).toContain('ant-menu-item-selected')
+  })
+
+  it('模板管理与检查人员管理处于同级并可高亮', () => {
+    render(
+      <MemoryRouter initialEntries={['/electronic-inspection/templates']}>
+        <PlatformSidebar collapsed={false} onToggle={vi.fn()} />
+      </MemoryRouter>,
+    )
+    const templateLink = screen.getByRole('link', { name: '笔录模版管理' })
+    expect(templateLink.getAttribute('href')).toBe('/electronic-inspection/templates')
+    const templateItem = templateLink.closest('.ant-menu-item')
+    expect(templateItem?.className).toContain('ant-menu-item-selected')
+    expect(templateItem?.querySelector('.ant-menu-item-icon')).toBeNull()
   })
 })
 

@@ -9,6 +9,7 @@ from ..repository.archive_authorization_repository import (
     ArchiveAuthorizationStore,
     AuthorizedInputRoot,
 )
+from .archive_input_snapshot_layout_service import private_snapshot_root
 
 
 class ArchiveAuthorizationService:
@@ -24,6 +25,7 @@ class ArchiveAuthorizationService:
             str(Path(output_base) / "caches"),
             str(Path(output_base) / "temp"),
             str(Path(output_base) / "tmp"),
+            str(private_snapshot_root()),
         )
 
     def authorize_report_directory(

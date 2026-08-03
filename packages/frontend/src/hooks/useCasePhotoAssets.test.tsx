@@ -61,6 +61,40 @@ describe('useCasePhotoAssets', () => {
     expect(view.result.current.assetError).toContain('图片保存失败')
   })
 
+  it('coalesces repeated Ant Design callbacks for one two-image selection', async () => {
+    const onAssetRefsChange = vi.fn(() => true)
+    const firstFile = new File(['SYNTHETIC-FRONT'], 'front.png', { type: 'image/png' })
+    const secondFile = new File(['SYNTHETIC-BACK'], 'back.png', { type: 'image/png' })
+    const firstAsset = { ...ref('asset-synthetic-front'), content_status: 'available' as const }
+    const secondAsset = { ...ref('asset-synthetic-back'), content_status: 'available' as const }
+    const uploadResolvers: Array<(value: unknown) => void> = []
+    postMock.mockImplementation(() => new Promise(resolve => { uploadResolvers.push(resolve) }) as any)
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+    const files = [
+      { uid: 'local-front', name: firstFile.name, originFileObj: firstFile as unknown as NonNullable<UploadFile['originFileObj']> },
+      { uid: 'local-back', name: secondFile.name, originFileObj: secondFile as unknown as NonNullable<UploadFile['originFileObj']> },
+    ]
+    let uploadPromise!: Promise<void>
+    act(() => { uploadPromise = view.result.current.handleChange(files) })
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2))
+    await act(async () => { await view.result.current.handleChange(files) })
+    expect(postMock).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      uploadResolvers[0]({ data: { data: firstAsset } })
+      uploadResolvers[1]({ data: { data: secondAsset } })
+      await uploadPromise
+    })
+    expect(onAssetRefsChange).toHaveBeenCalledTimes(1)
+    const savedRefs = (onAssetRefsChange.mock.calls[0] as unknown as [OpaqueAssetRef[]])[0]
+    expect(savedRefs.map(item => item.asset_id)).toEqual([
+      firstAsset.asset_id, secondAsset.asset_id,
+    ])
+    expect(view.result.current.files).toHaveLength(2)
+  })
+
   it('removes an existing persisted reference without mixing another case', async () => {
     const stored = ref('asset-synthetic-2')
     const onAssetRefsChange = vi.fn(() => true)

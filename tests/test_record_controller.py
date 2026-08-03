@@ -73,7 +73,11 @@ def test_export_allows_report_only_word_without_archive_manifest(client, tmp_pat
             "name": "SYNTHETIC 取证软件",
             "version": "V1.0",
             "confirmation_status": "confirmed_by_user",
-        }, "result": {}},
+        }, "result": {
+            "rar_filename": "SYNTHETIC-archive.rar",
+            "md5_hash": "a" * 32,
+            "file_size": "1024",
+        }},
         "attachments": {"disc_number": "GP20260720-01"},
     }
     docx_path = tmp_path / "SYNTHETIC-report.docx"
@@ -88,6 +92,15 @@ def test_export_allows_report_only_word_without_archive_manifest(client, tmp_pat
     assert response.status_code == 200
     assert response.content == b"SYNTHETIC-DOCX"
     assert generate.call_args.kwargs["archive_manifest"] is None
+    exported_result = generate.call_args.args[0]["inspection"]["result"]
+    assert {
+        key: exported_result[key]
+        for key in ("rar_filename", "md5_hash", "file_size")
+    } == {
+        "rar_filename": "SYNTHETIC-archive.rar",
+        "md5_hash": "a" * 32,
+        "file_size": "1024",
+    }
     observe.assert_not_called()
 
 

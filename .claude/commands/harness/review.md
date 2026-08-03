@@ -29,9 +29,9 @@ argument-hint: "[变更包名称]"
    > 来源：OpenSpec verify spec — Requirement 2
 
    a. **任务完成检查**
-      - 读取 tasks.md，统计 `[x]` 和 `[ ]`
-      - 报告 "Tasks: X/N complete"
-      - 未完成任务标记为 **CRITICAL**
+      - 读取 tasks.md；普通 checklist 任务默认必选
+      - 同一任务行末尾明确标记 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时，不把未勾选标记为 CRITICAL
+      - 报告必选任务完成数量，并列出未完成必选任务
 
    b. **spec 覆盖检查**
       - 如果变更包有 specs/，提取所有需求

@@ -46,6 +46,7 @@ export function useCasePhotoAssets(options: Options) {
   const [files, setFiles] = useState<UploadFile[]>([])
   const [assetError, setAssetError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const uploadingRef = useRef(false)
   const requestSequence = useRef(0)
   const filesRef = useRef<UploadFile[]>([])
   const refsRef = useRef(assetRefs)
@@ -93,7 +94,7 @@ export function useCasePhotoAssets(options: Options) {
   }, [caseId, lease])
 
   const handleChange = useCallback(async (nextFiles: UploadFile[]) => {
-    if (!editingEnabled || uploading) return
+    if (!editingEnabled || uploadingRef.current) return
     const newFiles = nextFiles.filter(file => file.originFileObj && !refsRef.current.some(ref => ref.asset_id === file.uid))
     if (!newFiles.length) {
       filesRef.current = nextFiles
@@ -105,6 +106,7 @@ export function useCasePhotoAssets(options: Options) {
       }
       return
     }
+    uploadingRef.current = true
     setUploading(true)
     setAssetError(null)
     setFiles(nextFiles.map(file => newFiles.some(item => item.uid === file.uid) ? { ...file, status: 'uploading' } : file))
@@ -128,9 +130,10 @@ export function useCasePhotoAssets(options: Options) {
       setFiles(filesRef.current)
       setAssetError(errorMessage(error))
     } finally {
+      uploadingRef.current = false
       setUploading(false)
     }
-  }, [caseId, editingEnabled, onAssetRefsChange, upload, uploading])
+  }, [caseId, editingEnabled, onAssetRefsChange, upload])
 
   const readFiles = useCallback(async (): Promise<File[]> => {
     try {

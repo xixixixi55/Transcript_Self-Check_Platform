@@ -38,12 +38,13 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let decisionBodies: Record<string, unknown>[] = []
   let events: string[] = []
   let rejectSave = false
+  let failSharedDefaults = false
   let conflictDecision = false
   let holdSave = false
   let resolveSave: (() => void) | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictDecision = false; holdSave = false; resolveSave = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; resolveSave = null
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
@@ -62,13 +63,17 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         if (body && (body as Record<string, unknown>).expected_revision !== 6) throw { response: { status: 409, data: { detail: { code: 'REVISION_CONFLICT', message: '案件已被其他会话修改。' } } } }
         return { data: { data: { case: detail(7, 6, 'archive_queued', 'GP20260731-002'), decision: 'immediate', archive_status: 'archive_task_queued', archive_task: { task_id: 'archive-synthetic-1' } } } }
       }
+      if (url === API_ENDPOINTS.EXPORT_RECORD) return { data: new Blob(['SYNTHETIC-DOCX']) }
       return { data: { data: {} } }
     })
     patchMock.mockImplementation(async (_url: string, body: unknown) => {
       events.push('draft-save')
       if (rejectSave) throw new Error('SYNTHETIC_SAVE_FAILED')
       const request = body as { draft: CaseDraft }
-      const savedResponse = { data: { data: { draft_save_status: { status: 'saved', revision: 6 }, shared_defaults_save_status: { status: 'unchanged', revision: 0 }, draft: { ...request.draft, lifecycle: 'review_ready', revision: 6, updated_at: '2026-01-01T00:00:01Z' } } } }
+      const sharedDefaultsSaveStatus = failSharedDefaults
+        ? { status: 'failed', revision: 0, error_code: 'SYNTHETIC_DEFAULT_FAILURE' }
+        : { status: 'unchanged', revision: 0 }
+      const savedResponse = { data: { data: { draft_save_status: { status: 'saved', revision: 6 }, shared_defaults_save_status: sharedDefaultsSaveStatus, draft: { ...request.draft, lifecycle: 'review_ready', revision: 6, updated_at: '2026-01-01T00:00:01Z' } } } }
       if (holdSave) return new Promise(resolve => { resolveSave = () => resolve(savedResponse) })
       return savedResponse
     })
@@ -78,7 +83,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     return render(<MemoryRouter initialEntries={[`/electronic-inspection/cases/${caseId}`]}><Routes><Route path="/electronic-inspection/cases/:caseId" element={<CaseRecordGeneratePage />} /></Routes></MemoryRouter>)
   }
 
-  async function editDiscAndClick() {
+  async function editDiscNumber() {
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_LEASE(caseId), expect.anything()))
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
@@ -86,6 +91,10 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     const input = await screen.findByDisplayValue('GP20260731-001')
     fireEvent.change(input, { target: { value: 'GP20260731-002' } })
     fireEvent.blur(input)
+  }
+
+  async function editDiscAndClick() {
+    await editDiscNumber()
     fireEvent.click(screen.getByRole('button', { name: /立即开始压缩/ }))
   }
 
@@ -121,5 +130,32 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(decisionBodies[0].expected_revision).toBe(6)
     expect(patchMock).toHaveBeenCalledTimes(1)
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DECISION(caseId))).toHaveLength(1)
+  }, 15000)
+
+  it('allows Word export after the draft saves even when shared defaults fail', async () => {
+    failSharedDefaults = true
+    const previousCreateObjectUrl = window.URL.createObjectURL
+    const previousRevokeObjectUrl = window.URL.revokeObjectURL
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:synthetic') })
+    Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    try {
+      renderPage()
+      await editDiscNumber()
+      await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
+      expect(await screen.findByText('草稿已保存，共享默认值更新失败。')).toBeTruthy()
+
+      fireEvent.click(screen.getByRole('button', { name: /导出 Word/ }))
+      fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
+      await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)).toBe(true))
+      const exportCall = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)
+      const formData = exportCall?.[1] as FormData
+      expect(formData.get('case_id')).toBe(caseId)
+      expect(formData.get('case_revision')).toBe('6')
+    } finally {
+      anchorClick.mockRestore()
+      Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: previousCreateObjectUrl })
+      Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: previousRevokeObjectUrl })
+    }
   }, 15000)
 })
