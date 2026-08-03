@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
 import type { CaseDraft, ClientIdentity } from '@biji/shared/types'
@@ -93,6 +93,64 @@ describe('useCaseDraftAutosave', () => {
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(patchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles one manual save when the caller applies the returned draft and clears the change token', async () => {
+    patchMock.mockImplementation(async (_url, body) => {
+      const request = body as { draft: CaseDraft }
+      const savedDraft = { ...request.draft, revision: request.draft.revision + 1, updated_at: '2026-01-01T00:00:01Z' }
+      return { data: { data: {
+        draft_save_status: { status: 'saved', revision: savedDraft.revision },
+        shared_defaults_save_status: { status: 'unchanged', revision: 0 },
+        draft: savedDraft,
+      } } }
+    })
+    const view = renderHook(() => {
+      const [value, setValue] = useState(draft())
+      const [token, setToken] = useState(1)
+      const autosave = useCaseDraftAutosave({
+        ...options(),
+        draft: value,
+        changeToken: token,
+        onSaved: (savedDraft, _sharedStatus, meta) => {
+          setValue(savedDraft)
+          setToken(current => meta.hasNewerChanges ? current : 0)
+        },
+      })
+      return { autosave, token }
+    })
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(view.result.current.autosave.hasPending).toBe(false))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(patchMock).toHaveBeenCalledTimes(1)
+    expect(view.result.current.token).toBe(0)
+  })
+
+  it('does not resend an identical draft when a token changes during the request', async () => {
+    patchMock.mockImplementation(async (_url, body) => {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      const request = body as { draft: CaseDraft }
+      const savedDraft = { ...request.draft, revision: request.draft.revision + 1, updated_at: '2026-01-01T00:00:01Z' }
+      return { data: { data: {
+        draft_save_status: { status: 'saved', revision: savedDraft.revision },
+        shared_defaults_save_status: { status: 'unchanged', revision: 0 },
+        draft: savedDraft,
+      } } }
+    })
+    const view = renderHook(() => {
+      const [token, setToken] = useState(1)
+      useEffect(() => {
+        const timer = window.setTimeout(() => setToken(2), 710)
+        return () => window.clearTimeout(timer)
+      }, [])
+      return useCaseDraftAutosave(options({ changeToken: token }))
+    })
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 2000 })
+    await new Promise(resolve => setTimeout(resolve, 600))
+    expect(patchMock).toHaveBeenCalledTimes(1)
+    expect(view.result.current.hasPending).toBe(false)
   })
 
   it('coalesces save-now with the same in-flight autosave request', async () => {

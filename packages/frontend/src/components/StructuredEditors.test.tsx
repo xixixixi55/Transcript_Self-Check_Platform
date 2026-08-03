@@ -3,7 +3,6 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import EvidenceEditor from './EvidenceEditor'
 import ExtractListEditor from './ExtractListEditor'
-import InspectorEditor from './InspectorEditor'
 
 vi.mock('antd', () => ({
   Alert: ({ message }: { message: React.ReactNode }) => <div>{message}</div>,
@@ -108,81 +107,6 @@ describe('结构化编辑器', () => {
     expect(screen.queryByText('IMEI1：')).toBeNull()
   })
 
-  it('检查人员字段通过 EditableField 回调更新数据', () => {
-    const onChange = vi.fn()
-    render(<InspectorEditor
-      snapshots={[]}
-      availableInspectors={[{
-        id: 'inspector-1', name: '张三', unit: '单位', police_number: '001',
-        enabled: true, created_at: 'now', updated_at: 'now',
-      }]}
-      onChange={onChange}
-    />)
-
-    fireEvent.change(screen.getByLabelText('选择检查人员'), { target: { value: 'inspector-1' } })
-    expect(onChange).toHaveBeenCalledWith([
-      expect.objectContaining({ inspector_id: 'inspector-1', name: '张三', unit: '单位', police_number: '001', selected_order: 0 }),
-    ])
-  })
-
-  it('检查人员卡片不渲染上下调序入口', () => {
-    const onChange = vi.fn()
-    render(<InspectorEditor
-      snapshots={[
-        { inspector_id: 'one', name: '甲', unit: '单位甲', police_number: '001', selected_order: 0 },
-        { inspector_id: 'two', name: '乙', unit: '单位乙', police_number: '002', selected_order: 1 },
-      ]}
-      availableInspectors={[]}
-      onChange={onChange}
-    />)
-
-    expect(screen.queryByRole('button', { name: /上移|下移/ })).toBeNull()
-    expect(screen.queryByLabelText(/上移|下移/)).toBeNull()
-    expect(screen.queryByTestId(/inspector-(up|down|move)/)).toBeNull()
-  })
-
-  it('检查人员卡片通过拖拽排序并支持移除且保持顺序', () => {
-    const onChange = vi.fn()
-    render(<InspectorEditor
-      snapshots={[
-        { inspector_id: 'one', name: '甲', unit: '单位甲', police_number: '001', selected_order: 0 },
-        { inspector_id: 'two', name: '乙', unit: '单位乙', police_number: '002', selected_order: 1 },
-      ]}
-      availableInspectors={[]}
-      onChange={onChange}
-    />)
-
-    fireEvent.dragStart(screen.getByTestId('inspector-card-0'))
-    expect(screen.getByTestId('inspector-card-0').getAttribute('aria-grabbed')).toBe('true')
-    fireEvent.drop(screen.getByTestId('inspector-card-1'))
-    expect(onChange).toHaveBeenCalledWith([
-      expect.objectContaining({ inspector_id: 'two', selected_order: 0 }),
-      expect.objectContaining({ inspector_id: 'one', selected_order: 1 }),
-    ])
-
-    fireEvent.click(screen.getByRole('button', { name: '移除1' }))
-    expect(onChange).toHaveBeenLastCalledWith([
-      expect.objectContaining({ inspector_id: 'two', selected_order: 0 }),
-    ])
-  })
-
-  it('停用人员仍保留在当前快照中，启用列表不展示该人员', () => {
-    const onChange = vi.fn()
-    render(<InspectorEditor
-      snapshots={[{ inspector_id: 'disabled', name: '停用甲', unit: '单位甲', police_number: '001' }]}
-      availableInspectors={[{ id: 'active', name: '启用乙', unit: '单位乙', police_number: '002', enabled: true, created_at: 'now', updated_at: 'now' }]}
-      onChange={onChange}
-    />)
-
-    expect(screen.queryByText('停用甲')).toBeTruthy()
-    expect(screen.queryByRole('option', { name: /停用甲/ })).toBeNull()
-    fireEvent.change(screen.getByLabelText('选择检查人员'), { target: { value: 'active' } })
-    expect(onChange).toHaveBeenCalledWith([
-      expect.objectContaining({ inspector_id: 'disabled' }),
-      expect.objectContaining({ inspector_id: 'active', selected_order: 1 }),
-    ])
-  })
-
   it('提取清单保留默认表头，并通过 EditableField 更新单元格', () => {
     const onChange = vi.fn()
     render(<ExtractListEditor tableData={{ columns: [], rows: [] }} onChange={onChange} />)
@@ -192,33 +116,6 @@ describe('结构化编辑器', () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       rows: [expect.objectContaining({ electronic_data: '已修改' })],
     }))
-  })
-
-  it('检查人员卡片可拖拽排序，并呈现姓名、单位和警号及来源文字', () => {
-    const onChange = vi.fn()
-    render(<InspectorEditor
-      snapshots={[
-        { snapshot_id: 'snapshot-1', inspector_id: 'one', name: '甲', unit: '单位甲', police_number: '001', selected_order: 0 },
-        { snapshot_id: 'snapshot-2', inspector_id: 'two', name: '乙', unit: '单位乙', police_number: '002', selected_order: 1 },
-      ]}
-      fieldStates={{ 'inspectors.snapshot-1.name': {
-        field_path: 'inspectors.snapshot-1.name', source: 'user', confirmation: 'pending', revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
-      } }}
-      availableInspectors={[]}
-      onChange={onChange}
-    />)
-
-    expect(screen.getByText('甲')).toBeTruthy()
-    expect(screen.getByText('单位：单位甲')).toBeTruthy()
-    expect(screen.getByText('警号：001')).toBeTruthy()
-    expect(screen.getByText('人工修改')).toBeTruthy()
-    expect(screen.getByText('待人工确认')).toBeTruthy()
-    fireEvent.dragStart(screen.getByTestId('inspector-card-0'))
-    fireEvent.drop(screen.getByTestId('inspector-card-1'))
-    expect(onChange).toHaveBeenLastCalledWith([
-      expect.objectContaining({ snapshot_id: 'snapshot-2', selected_order: 0 }),
-      expect.objectContaining({ snapshot_id: 'snapshot-1', selected_order: 1 }),
-    ])
   })
 
   it('prefers brand and concrete model for the device name display', () => {

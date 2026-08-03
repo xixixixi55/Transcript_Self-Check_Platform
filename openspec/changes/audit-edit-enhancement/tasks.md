@@ -168,6 +168,30 @@
   - 依赖：T014
   - 验证：`npm run pre-commit`
 
+## 🟢 Phase 5: 检查人员卡片布局与添加入口
+
+- [x] T016 **改造检查人员卡片布局和添加入口**
+  - 文件：`packages/frontend/src/components/InspectorEditor.tsx`、`packages/frontend/src/reviewWorkspace.css`
+  - 内容：检查人员卡片使用紧凑正方形网格，宽屏每行最多 3 个，窄屏自动降为 2 个或 1 个；列表末尾始终保留虚线加号卡片，点击后直接展示未添加的启用人员卡片并立即添加；保留删除和拖拽排序行为。
+  - 覆盖 Spec：REQ-030
+  - 验证：前端组件定向测试、类型检查和人工窄屏验收。
+  - 人工验收：通过（用户确认，2026-08-03）。
+
+- [x] T017 **补充检查人员卡片布局和添加流程测试**
+  - 文件：`packages/frontend/src/components/StructuredEditors.test.tsx`、`packages/frontend/src/components/InspectorEditor.test.tsx`
+  - 内容：覆盖空列表、已有人员、超过 3 人换行所需的网格标记、加号卡片持续存在、直接展示并添加未添加人员以及现有删除/拖拽回归。
+  - 依赖：T016
+  - 覆盖 Spec：REQ-030
+  - 验证：`pnpm --filter @biji/frontend exec vitest run src/components/StructuredEditors.test.tsx src/components/InspectorEditor.test.tsx`（2 个文件、11 个用例通过）
+
+## 🟢 Phase 6: 检查人员保存收敛修复
+
+- [x] T018 **修复人员修改后的重复 PATCH 保存循环**
+  - 文件：`packages/frontend/src/hooks/useCaseDraftAutosave.ts`、`packages/frontend/src/hooks/useCaseDraftAutosave.test.tsx`、`packages/frontend/src/hooks/useCaseRecordSession.ts`、`packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx`
+  - 内容：为成功保存的草稿建立可编辑内容签名；令牌变化但草稿内容未变化时清理 pending，不重复发送相同请求；真实后续修改继续串行保存。
+  - 覆盖 Spec：REQ-031
+  - 验证：Hook 保存并发回归、审核编辑页面人员选择保存回归；测试汇总为 2 个相关文件/10 个 Hook 用例通过及页面用例通过。
+
 ---
 
 ## 任务摘要
@@ -178,6 +202,7 @@
 | 🟣 P2 | Components (11) | 5 | EditableField + ProcessStepsEditor + SoftwareToolsList + ExtractListEditor + 测试 |
 | 🔵 P3 | Pages (12) | 3 | 补齐字段 + 替换交互 + 集成验证 |
 | 🟠 P4 | Components / 验证 | 5 | 审查整改、组件测试、工程门控 |
-| **合计** | **Layer 2、10~12、21** | **15** | |
+| 🟢 P5 | Components / 样式 | 2 | 检查人员卡片布局、加号添加入口与测试 |
+| **合计** | **Layer 2、10~12、21** | **18** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。

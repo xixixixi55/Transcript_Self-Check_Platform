@@ -118,6 +118,7 @@ export function useCaseRecordSession(caseId: string) {
   const onSaved = useCallback((savedDraft: CaseDraft, sharedStatus: SharedDefaultsSaveStatus, meta: AutosaveSaveMeta) => {
     setDraft(savedDraft)
     setChangeToken(current => meta.hasNewerChanges ? current : 0)
+    if (!meta.hasNewerChanges) setReport(JSON.parse(JSON.stringify(savedDraft.report)) as InspectionReport)
     if (sharedStatus.status === 'updated' || sharedStatus.status === 'unchanged' || (sharedStatus.status as string) === 'saved') {
       const appliedPatch = meta.sharedDefaultsPatch || {}
       setDefaults(current => current ? {

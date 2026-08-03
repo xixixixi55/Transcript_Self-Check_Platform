@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_DRAFT_AUTOSAVE_DEBOUNCE_MS } from '@biji/shared/constants'
 import type { CaseDraft, ClientIdentity, SaveStatus, SharedDefaultsSaveStatus } from '@biji/shared/types'
-
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'conflict' | 'not_changed'
 
 export interface AutosaveViewState {
@@ -11,7 +10,6 @@ export interface AutosaveViewState {
   revision?: number
   errorCode?: string
 }
-
 interface Options {
   caseId: string
   draft: CaseDraft | null
@@ -27,32 +25,35 @@ interface Options {
   leaseToken?: string | null
   onSaved: (draft: CaseDraft, sharedStatus: SharedDefaultsSaveStatus, meta: AutosaveSaveMeta) => void
 }
-
 export interface AutosaveSaveMeta {
   hasNewerChanges: boolean
   sharedDefaultsPatch: Record<string, unknown> | null
 }
-
 interface SaveResponse {
   draft_save_status: SaveStatus
   shared_defaults_save_status: SharedDefaultsSaveStatus
   draft: CaseDraft | null
 }
-
 function errorCode(error: any): string {
   const detail = error?.response?.data?.detail
   return typeof detail?.code === 'string' ? detail.code : 'DRAFT_SAVE_FAILED'
 }
-
 function conflictResult(error: any): SaveResponse | null {
   const result = error?.response?.data?.detail?.data
   return result && typeof result === 'object' ? result as SaveResponse : null
 }
-
 function cloneDraft(draft: CaseDraft): CaseDraft {
   return JSON.parse(JSON.stringify(draft)) as CaseDraft
 }
-
+function saveSignature(
+  draft: CaseDraft,
+  sharedDefaultsPatch: Record<string, unknown> | null,
+  sharedDefaultsRevision: number | null,
+): string {
+  const cloned = cloneDraft(draft)
+  const { lifecycle: _lifecycle, revision: _revision, updated_at: _updatedAt, ...editable } = cloned
+  return JSON.stringify({ draft: editable, sharedDefaultsPatch, sharedDefaultsRevision })
+}
 export function useCaseDraftAutosave(options: Options) {
   const {
     caseId, draft, identity, sharedDefaultsPatch, sharedValues, sharedDefaultsRevision,
@@ -67,14 +68,13 @@ export function useCaseDraftAutosave(options: Options) {
   const inFlightToken = useRef<number | null>(null)
   const rerunAfterFlight = useRef(false)
   const flushRequested = useRef(false)
+  const lastSavedSignature = useRef<string | null>(null)
   const sendRef = useRef<((snapshot?: CaseDraft) => Promise<boolean>) | null>(null)
   const [draftState, setDraftState] = useState<AutosaveViewState>({ status: 'idle' })
   const [sharedState, setSharedState] = useState<AutosaveViewState>({ status: 'not_changed' })
   const [hasPending, setHasPending] = useState(false)
-
   latest.current = { draft, identity, sharedDefaultsPatch: sharedDefaultsPatch ?? sharedValues, sharedDefaultsRevision, includeSharedDefaults, changeToken, leaseId, leaseToken }
   onSavedRef.current = onSaved
-
   const clearTimer = useCallback(() => {
     if (timer.current !== null) window.clearTimeout(timer.current)
     timer.current = null
@@ -88,6 +88,13 @@ export function useCaseDraftAutosave(options: Options) {
     const requestChangeToken = current.changeToken
     const includeDefaults = current.includeSharedDefaults && current.sharedDefaultsPatch && Object.keys(current.sharedDefaultsPatch).length > 0 && current.sharedDefaultsRevision !== null
     const requestSharedPatch = includeDefaults ? { ...current.sharedDefaultsPatch } : null
+    const requestSignature = saveSignature(value, requestSharedPatch, includeDefaults ? current.sharedDefaultsRevision : null)
+    if (!snapshot && pending.current && requestSignature === lastSavedSignature.current) {
+      pending.current = null
+      setHasPending(false)
+      setDraftState({ status: 'saved', revision: value.revision })
+      return true
+    }
     setDraftState({ status: 'saving' })
     setSharedState(includeDefaults ? { status: 'saving' } : { status: 'not_changed' })
     const controller = new AbortController()
@@ -113,6 +120,7 @@ export function useCaseDraftAutosave(options: Options) {
         ? { status: toAutosaveStatus(sharedStatus.status), revision: sharedStatus.revision, errorCode: sharedStatus.error_code }
         : { status: 'not_changed' })
       if (result.draft) {
+        lastSavedSignature.current = requestSignature
         const hasNewerChanges = latest.current.changeToken > requestChangeToken
         if (hasNewerChanges && pending.current) {
           pending.current = {
@@ -219,6 +227,7 @@ export function useCaseDraftAutosave(options: Options) {
     sequence.current += 1
     rerunAfterFlight.current = false
     pending.current = null
+    lastSavedSignature.current = null
     setHasPending(false)
     setDraftState({ status: 'idle' })
     setSharedState({ status: 'not_changed' })

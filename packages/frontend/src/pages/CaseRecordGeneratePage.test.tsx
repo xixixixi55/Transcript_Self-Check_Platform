@@ -14,6 +14,7 @@ const patchMock = vi.mocked(axios.patch)
 const caseId = 'case-synthetic-archive-race'
 const identity: ClientIdentity = { client_instance_id: 'client-synthetic', session_id: 'session-synthetic', deployment_instance_id: 'synthetic-uat', observed_at: '2026-01-01T00:00:00Z', identity_kind: 'local_session' }
 const defaults: SharedDefaults = { schema_version: 1, deployment_instance_id: 'synthetic-uat', revision: 0, document_number: '', inspection_place: '', inspection_method: '', hardware_device: '', inspector_order: [], disc_number_prefix: 'GP', migration_decision: 'ignored', updated_at: '2026-01-01T00:00:00Z' }
+const availableInspector = { id: 'inspector-synthetic', name: '张三', unit: 'SYNTHETIC-UNIT', police_number: 'SYN-001', enabled: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
 const task: TaskRecord = { schema_version: 1, task_id: 'task-synthetic-parse', case_id: caseId, kind: 'parse', status: 'succeeded', stage: 'parse', percent: 100, counters: {}, input_revision: 0, attempt: 1, cancel_requested: false, revision: 0, created_at: '2026-01-01T00:00:00Z', finished_at: '2026-01-01T00:00:00Z' }
 const lease: EditLease = { schema_version: 1, lease_id: 'lease-synthetic', case_id: caseId, session_id: identity.session_id, client_instance_id: identity.client_instance_id, lease_token: 'token-synthetic', last_heartbeat_at: '2026-01-01T00:00:00Z', expires_at: '2026-01-01T00:02:00Z', status: 'active', takeover_of_lease_id: null, revision: 0 }
 
@@ -51,7 +52,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: [] } } }
       if (url === API_ENDPOINTS.WORKBENCH_TEMPLATES || url === API_ENDPOINTS.DEVICES) return { data: { data: [] } }
-      if (url === API_ENDPOINTS.INSPECTORS) return { data: { data: [] } }
+      if (url === API_ENDPOINTS.INSPECTORS) return { data: { data: [availableInspector] } }
       throw new Error(`unexpected GET ${url}`)
     })
     postMock.mockImplementation(async (url: string, body?: unknown) => {
@@ -69,10 +70,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     patchMock.mockImplementation(async (_url: string, body: unknown) => {
       events.push('draft-save')
       if (rejectSave) throw new Error('SYNTHETIC_SAVE_FAILED')
-      const request = body as { draft: CaseDraft }
+      const request = body as { draft: CaseDraft; shared_defaults_patch?: Record<string, unknown> | null }
       const sharedDefaultsSaveStatus = failSharedDefaults
         ? { status: 'failed', revision: 0, error_code: 'SYNTHETIC_DEFAULT_FAILURE' }
-        : { status: 'unchanged', revision: 0 }
+        : request.shared_defaults_patch
+          ? { status: 'updated', revision: 1 }
+          : { status: 'unchanged', revision: 0 }
       const savedResponse = { data: { data: { draft_save_status: { status: 'saved', revision: 6 }, shared_defaults_save_status: sharedDefaultsSaveStatus, draft: { ...request.draft, lifecycle: 'review_ready', revision: 6, updated_at: '2026-01-01T00:00:01Z' } } } }
       if (holdSave) return new Promise(resolve => { resolveSave = () => resolve(savedResponse) })
       return savedResponse
@@ -157,5 +160,19 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: previousCreateObjectUrl })
       Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: previousRevokeObjectUrl })
     }
+  }, 15000)
+
+  it('saves a newly selected inspector once without entering a PATCH loop', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_LEASE(caseId), expect.anything()))
+    await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
+
+    fireEvent.click(screen.getByRole('button', { name: '添加检查人员' }))
+    fireEvent.click(await screen.findByRole('button', { name: '添加张三' }))
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
+    await new Promise(resolve => setTimeout(resolve, 1200))
+    expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
 })

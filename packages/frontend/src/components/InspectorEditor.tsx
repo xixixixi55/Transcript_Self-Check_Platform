@@ -1,7 +1,7 @@
 // Layer 11: FE_Components — 检查人员库多选和有序快照编辑器
 import React from 'react'
-import { Alert, Button, Card, Select, Space, Typography } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Modal, Space, Typography } from 'antd'
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import type { FieldState, InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
 import { FieldProvenanceBadge } from './FieldProvenanceBadge'
 
@@ -44,9 +44,12 @@ export default function InspectorEditor({
   onChange,
 }: Props) {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null)
+  const [pickerOpen, setPickerOpen] = React.useState(false)
   const selectedIds = snapshots
     .map(snapshot => snapshot.inspector_id)
     .filter((id): id is string => Boolean(id))
+  const addableInspectors = availableInspectors.filter(record => !selectedIds.includes(record.id))
+  const pickerDisabled = loading || Boolean(error) || addableInspectors.length === 0
 
   const handleSelect = (ids: string[]) => {
     const existing = new Map<string, InspectorSnapshot>()
@@ -81,28 +84,28 @@ export default function InspectorEditor({
     onChange(normalizeOrder(next))
   }
 
+  const openPicker = () => {
+    if (pickerDisabled) return
+    setPickerOpen(true)
+  }
+
+  const closePicker = () => {
+    setPickerOpen(false)
+  }
+
+  const addInspector = (id: string) => {
+    handleSelect([...selectedIds, id])
+    closePicker()
+  }
+
   return (
     <div className="inspector-selector">
       {error && <Alert type="error" showIcon message={error} />}
-      <Select
-        mode="multiple"
-        aria-label="选择检查人员"
-        value={selectedIds}
-        loading={loading}
-        disabled={loading || Boolean(error)}
-        placeholder={loading ? '正在加载启用人员…' : '请选择启用人员'}
-        options={availableInspectors.map(record => ({
-          label: `${record.name}｜${record.unit}｜${record.police_number}`,
-          value: record.id,
-        }))}
-        onChange={handleSelect}
-        style={{ width: '100%' }}
-      />
       {!loading && !error && availableInspectors.length === 0 && (
         <Text type="secondary">暂无可选择的启用人员，请先在检查人员管理中添加或启用人员。</Text>
       )}
       <div className="inspector-selector__selected" role="list" aria-label="已选择检查人员，可拖拽卡片调整顺序">
-        {snapshots.length > 0 && <Text type="secondary">可拖拽卡片调整检查人员顺序。</Text>}
+        {snapshots.length > 0 && <Text className="inspector-selector__hint" type="secondary">可拖拽卡片调整检查人员顺序。</Text>}
         {snapshots.map((snapshot, index) => (
           <div className="inspector-selector__item" key={`${snapshot.snapshot_id || snapshot.inspector_id || 'legacy'}-${index}`}
             role="listitem" aria-label={`检查人员 ${index + 1}，可拖拽调整顺序`}
@@ -112,20 +115,47 @@ export default function InspectorEditor({
             onDragOver={event => event.preventDefault()}
             onDrop={() => { if (draggedIndex !== null) moveTo(draggedIndex, index); setDraggedIndex(null) }}
             onDragEnd={() => setDraggedIndex(null)}>
-          <Card size="small" title={`检查人员 ${index + 1}`} extra={<FieldProvenanceBadge state={inspectorState(snapshot, fieldStates)} />}>
-            <Space direction="vertical" size={0}>
-              <Text>{snapshot.name}</Text>
-              <Text type="secondary">单位：{snapshot.unit}</Text>
-              <Text type="secondary">警号：{snapshot.police_number}</Text>
-            </Space>
-            <Space>
-              <Button aria-label={`移除${index + 1}`} danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
-            </Space>
-          </Card>
+            <Card size="small" title={`检查人员 ${index + 1}`} extra={<FieldProvenanceBadge state={inspectorState(snapshot, fieldStates)} />}>
+              <Space direction="vertical" size={0}>
+                <Text>{snapshot.name}</Text>
+                <Text type="secondary">单位：{snapshot.unit}</Text>
+                <Text type="secondary">警号：{snapshot.police_number}</Text>
+              </Space>
+              <Space>
+                <Button aria-label={`移除${index + 1}`} danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
+              </Space>
+            </Card>
           </div>
         ))}
+        <div className="inspector-selector__item inspector-selector__item--add" role="listitem" data-testid="inspector-add-card">
+          <button type="button" className="inspector-selector__add-card" aria-label="添加检查人员"
+            disabled={pickerDisabled} onClick={openPicker}>
+            <PlusOutlined />
+            <span>添加检查人员</span>
+          </button>
+        </div>
       </div>
-      {snapshots.length === 0 && !loading && !error && <Text type="secondary">当前报告尚未选择检查人员，可选择任意数量。</Text>}
+      {snapshots.length === 0 && !loading && !error && availableInspectors.length > 0 && (
+        <Text className="inspector-selector__empty" type="secondary">点击加号卡片添加检查人员。</Text>
+      )}
+      <Modal title="添加检查人员" open={pickerOpen} onCancel={closePicker} footer={null}>
+        <div className="inspector-picker" role="list" aria-label="未添加检查人员">
+          {addableInspectors.map(record => (
+            <button
+              key={record.id}
+              type="button"
+              className="inspector-picker__option"
+              data-testid={`inspector-option-${record.id}`}
+              aria-label={`添加${record.name}`}
+              onClick={() => addInspector(record.id)}
+            >
+              <strong>{record.name}</strong>
+              <span>单位：{record.unit}</span>
+              <span>警号：{record.police_number}</span>
+            </button>
+          ))}
+        </div>
+      </Modal>
     </div>
   )
 }

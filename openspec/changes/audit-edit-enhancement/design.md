@@ -129,6 +129,16 @@ Step 1（审核编辑）的 Form 区域重新组织：
 
 ---
 
+## AD-005：检查人员卡片布局与添加入口
+
+检查人员区域使用 CSS Grid 渲染紧凑的正方形卡片，宽屏固定最多三列，在 760px 和 480px 断点分别降为两列和一列。添加入口不再占用审核页面顶部的常驻多选框，而是作为列表末尾始终存在的虚线加号卡片；点击后打开人员选择面板，直接展示尚未选择的启用人员卡片，不再嵌套下拉框。点击人员卡片立即追加到当前快照，删除和拖拽排序继续由卡片直接提供。
+
+## AD-006：草稿保存请求收敛
+
+自动保存 Hook 以可编辑草稿内容、共享默认值补丁和对应 revision 形成请求签名。成功保存后，若后续只发生了令牌变化但内容签名未变化，不重复发送相同 PATCH，而是清理 pending 状态并结束手动保存等待；真实内容变化仍按 revision 顺序排队保存。保存成功后页面同步服务端草稿，避免保存按钮长期保持 loading。
+
+---
+
 ## 文件变更清单
 
 | 文件 | 层级 | 操作 | 说明 |
@@ -136,6 +146,12 @@ Step 1（审核编辑）的 Form 区域重新组织：
 | `packages/frontend/src/hooks/useEditableState.ts` | L10 | **新增** | 页面级编辑协调 Hook（预留）；EditableField 使用内置 `useState` 管理各自编辑态 |
 | `packages/frontend/src/components/EditableField.tsx` | L11 | **新增** | click-to-edit 通用组件 |
 | `packages/frontend/src/components/RecordEditorForm.tsx` | L11 | 新增 | 审核编辑区编排与组件集成 |
+| `packages/frontend/src/components/InspectorEditor.tsx` | L11 | 修改 | 紧凑正方形卡片、加号添加入口和直接人员选择面板 |
+| `packages/frontend/src/reviewWorkspace.css` | L11 | 修改 | 紧凑卡片、三列/两列/一列响应式布局和人员选择面板样式 |
+| `packages/frontend/src/hooks/useCaseDraftAutosave.ts` | L10 | 修改 | 成功草稿签名去重，防止重复 PATCH 保存循环 |
+| `packages/frontend/src/hooks/useCaseRecordSession.ts` | L10 | 修改 | 保存成功且无后续修改时同步服务端规范化草稿 |
+| `packages/frontend/src/hooks/useCaseDraftAutosave.test.tsx` | L10 | 修改 | 保存成功、并发修改和相同内容令牌变化回归测试 |
+| `packages/frontend/src/components/InspectorEditor.test.tsx` | L11 | 新增 | 加号面板、直接添加、删除和拖拽排序测试 |
 | `packages/frontend/src/pages/RecordGeneratePage.tsx` | L12 | 修改 | 上传、导出与页面状态编排 |
 | `packages/shared/types/` | L0 | — | 无变更 |
 | `packages/shared/constants/` | L1 | — | 无变更 |
