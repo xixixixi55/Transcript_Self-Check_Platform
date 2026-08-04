@@ -17,8 +17,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.services.template_filler_service import fill_template  # noqa: E402
 from app.services.attachment2_image_service import (  # noqa: E402
+    ATTACHMENT2_CAPTION_LINE_TWIPS,
+    ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS,
+    ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU,
+    ATTACHMENT2_GROUP_GAP_TWIPS,
     ATTACHMENT2_SLOT_HEIGHT_EMU,
     ATTACHMENT2_SLOT_WIDTH_EMU,
+    calculate_fixed_geometry,
 )
 from app.services.template_profile_service import (  # noqa: E402
     TemplateProfileError,
@@ -174,7 +179,9 @@ def attachment2_tables(root):
         if [len(row.findall("./{%s}tc" % W_NS))
             for row in table.findall("./{%s}tr" % W_NS)] in ([2], [2, 1], [2, 2])
         or [len(row.findall("./{%s}tc" % W_NS))
-            for row in table.findall("./{%s}tr" % W_NS)] in ([1, 1], [2, 1, 2, 1])
+            for row in table.findall("./{%s}tr" % W_NS)] in (
+                [1, 1], [2, 1, 2, 1], [2, 1, 1, 2, 1],
+            )
         or (
             [len(row.findall("./{%s}tc" % W_NS))
              for row in table.findall("./{%s}tr" % W_NS)] == [1]
@@ -364,7 +371,7 @@ def test_attachment2_uses_fixed_pair_grids_and_preserves_order(tmp_path, photo_c
     )
     assert f"经对编号为{evidence_label}号检材使用主取证软件" in text
     expected_shapes = [[2, 1]] if photo_count == 2 else (
-        [[2, 1, 2, 1]] * (photo_count // 4) + ([[2, 1]] if photo_count % 4 else [])
+        [[2, 1, 1, 2, 1]] * (photo_count // 4) + ([[2, 1]] if photo_count % 4 else [])
     )
     assert [
         [len(row.findall("./{%s}tc" % W_NS))
@@ -417,7 +424,7 @@ def test_attachment2_uses_fixed_pair_grids_and_preserves_order(tmp_path, photo_c
     assert len(drawing_ids) == len(set(drawing_ids))
 
 
-@pytest.mark.parametrize(("photo_count", "expected_rows"), [(2, 2), (4, 4)])
+@pytest.mark.parametrize(("photo_count", "expected_rows"), [(2, 2), (4, 5)])
 def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
     tmp_path, photo_count, expected_rows,
 ):
@@ -439,9 +446,14 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
     assert len(table.findall("./{%s}tblGrid/{%s}gridCol" % (W_NS, W_NS))) == expected_columns
     rows = table.findall("./{%s}tr" % W_NS)
     assert len(rows) == expected_rows
-    for row in rows[::2]:
+    image_rows = [row for row in rows if row.findall(".//{%s}drawing" % W_NS)]
+    for row in image_rows:
         height = row.find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS))
-        assert height.get("{%s}val" % W_NS) == str(profile.attachment2_slot_row_height_twips)
+        expected_height = (
+            ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS
+            if photo_count == 4 else profile.attachment2_slot_row_height_twips
+        )
+        assert height.get("{%s}val" % W_NS) == str(expected_height)
         assert height.get("{%s}hRule" % W_NS) == "exact"
         for cell in row.findall("./{%s}tc" % W_NS):
             tc_pr = cell.find("./{%s}tcPr" % W_NS)
@@ -455,7 +467,45 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
             paragraph_pr = cell.find("./{%s}p/{%s}pPr" % (W_NS, W_NS))
             assert paragraph_pr.find("./{%s}spacing" % W_NS) is not None
             alignment = paragraph_pr.find("./{%s}jc" % W_NS).get("{%s}val" % W_NS)
-            assert alignment in {"left", "right"} if photo_count == 2 else alignment == "center"
+            assert alignment == "center"
+    caption_rows = [
+        row for row in rows
+        if any(paragraph_text(p) for p in row.findall(".//{%s}p" % W_NS))
+    ]
+    expected_caption_heights = [ATTACHMENT2_CAPTION_LINE_TWIPS] * (
+        2 if photo_count == 4 else 1
+    )
+    for row, expected_height in zip(caption_rows, expected_caption_heights):
+        height = row.find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS))
+        assert height.get("{%s}val" % W_NS) == str(expected_height)
+        assert height.get("{%s}hRule" % W_NS) == "exact"
+    spacer_rows = [
+        row for row in rows
+        if not row.findall(".//{%s}drawing" % W_NS)
+        and not any(paragraph_text(p) for p in row.findall(".//{%s}p" % W_NS))
+    ]
+    assert len(spacer_rows) == (1 if photo_count == 4 else 0)
+    if spacer_rows:
+        spacer_height = spacer_rows[0].find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS))
+        assert spacer_height.get("{%s}val" % W_NS) == str(ATTACHMENT2_GROUP_GAP_TWIPS)
+        assert spacer_height.get("{%s}hRule" % W_NS) == "exact"
+    slot_height_emu = (
+        ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU
+        if photo_count == 4 else ATTACHMENT2_SLOT_HEIGHT_EMU
+    )
+    extents = [
+        (int(extent.get("cx")), int(extent.get("cy")))
+        for extent in table.findall(".//{%s}extent" % WP_NS)
+    ]
+    assert extents == [
+        (
+            calculate_fixed_geometry(600 + index, 400 + index,
+                                     slot_height_emu=slot_height_emu).render_width_emu,
+            calculate_fixed_geometry(600 + index, 400 + index,
+                                     slot_height_emu=slot_height_emu).render_height_emu,
+        )
+        for index in range(photo_count)
+    ]
     first_cell_runs = table.findall("./{%s}tr[1]/{%s}tc[1]/{%s}p/{%s}r" % (
         W_NS, W_NS, W_NS, W_NS,
     ))
@@ -500,8 +550,11 @@ def test_attachment2_drawing_extents_are_fixed_for_landscape_and_portrait(
     assert len(tables) == 1
     assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[0].findall("./{%s}tr" % W_NS)] == [2, 1]
     assert extents == [
-        (ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU),
-        (ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU),
+        (
+            calculate_fixed_geometry(width, height).render_width_emu,
+            calculate_fixed_geometry(width, height).render_height_emu,
+        )
+        for width, height in ((1600, 400), (400, 1600))
     ]
     assert transform_extents == extents
 
@@ -519,12 +572,18 @@ def test_three_material_attachment2_centers_single_group_continuation(tmp_path):
     root = document_root(output)
     tables = attachment2_tables(root)
     assert len(tables) == 2
-    assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[0].findall("./{%s}tr" % W_NS)] == [2, 1, 2, 1]
+    assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[0].findall("./{%s}tr" % W_NS)] == [2, 1, 1, 2, 1]
     assert [len(row.findall("./{%s}tc" % W_NS)) for row in tables[1].findall("./{%s}tr" % W_NS)] == [2, 1]
     body = root.find("./{%s}body" % W_NS)
-    previous = list(body)[list(body).index(tables[1]) - 1]
-    spacing = previous.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS))
-    assert spacing.get("{%s}after" % W_NS) == str(current_template_profile().attachment2_single_group_center_after_twips)
+    page_breaks = [list(body)[list(body).index(table) - 1] for table in tables]
+    profile = current_template_profile()
+    assert [paragraph_text(page) for page in page_breaks] == ["附件2：", ""]
+    assert [
+        page.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS)).get("{%s}after" % W_NS)
+        for page in page_breaks
+    ] == ["0", str(profile.attachment2_page_break_after_twips)]
+    assert page_breaks[0].find("./{%s}pPr" % W_NS) is not None
+    assert page_breaks[1].find("./{%s}pPr" % W_NS) is not None
 
 
 def test_attachment2_continuation_titles_are_empty_break_paragraphs(tmp_path):

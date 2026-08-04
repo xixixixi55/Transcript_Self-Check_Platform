@@ -88,31 +88,38 @@ def test_exif_orientation_is_used_when_calculating_render_geometry(tmp_path):
 
     assert (asset.width_px, asset.height_px, asset.orientation) == (4000, 1000, 6)
     assert (geometry.render_width_emu, geometry.render_height_emu) == (
-        ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
+        ATTACHMENT2_SLOT_WIDTH_EMU, 693102,
     )
-    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 0)
+    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 819309)
 
 
-@pytest.mark.parametrize("dimensions", [(4000, 1000), (1000, 4000), (2000, 2000), (3000, 2000)])
-def test_fixed_geometry_uses_identical_dimensions_for_all_aspect_ratios(dimensions):
+@pytest.mark.parametrize(("dimensions", "expected"), [
+    ((4000, 1000), (2772410, 693102, 0, 819309)),
+    ((1000, 4000), (582930, 2331720, 1094740, 0)),
+    ((2000, 2000), (2331720, 2331720, 220345, 0)),
+    ((3000, 2000), (2772410, 1848273, 0, 241723)),
+])
+def test_contain_geometry_maximizes_each_aspect_ratio(dimensions, expected):
     assert (ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU) == (
-        2_030_400, 2_707_200,
+        2_772_410, 2_331_720,
     )
     width, height = dimensions
     geometry = calculate_fixed_geometry(width, height)
 
-    assert (geometry.render_width_emu, geometry.render_height_emu) == (
-        ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
-    )
-    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 0)
+    assert (
+        geometry.render_width_emu,
+        geometry.render_height_emu,
+        geometry.offset_x_emu,
+        geometry.offset_y_emu,
+    ) == expected
 
 
-def test_small_images_are_stretched_to_the_same_fixed_size():
+def test_small_images_are_enlarged_without_distortion():
     geometry = calculate_fixed_geometry(96, 96)
     assert (geometry.render_width_emu, geometry.render_height_emu) == (
-        ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
+        ATTACHMENT2_SLOT_HEIGHT_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
     )
-    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 0)
+    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (220345, 0)
 
 
 @pytest.mark.parametrize("filename,content", [

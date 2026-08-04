@@ -12,21 +12,44 @@ from typing import Sequence
 from docx.image.image import Image
 
 EMU_PER_INCH = 914400
-EMU_PER_CM = 360000
 DEFAULT_DISPLAY_DPI = 96
-ATTACHMENT2_FIXED_WIDTH_CM = 5.64
-ATTACHMENT2_FIXED_HEIGHT_CM = 7.52
-ATTACHMENT2_SLOT_WIDTH_EMU = round(ATTACHMENT2_FIXED_WIDTH_CM * EMU_PER_CM)
-ATTACHMENT2_SLOT_HEIGHT_EMU = round(ATTACHMENT2_FIXED_HEIGHT_CM * EMU_PER_CM)
+EMU_PER_TWIP = 635
+ATTACHMENT2_PAGE_CONTENT_WIDTH_EMU = 5_544_820
+ATTACHMENT2_PAGE_CONTENT_HEIGHT_TWIPS = 13_550
+ATTACHMENT2_PAGE_TITLE_LINE_TWIPS = 360
+ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS = 3925
+ATTACHMENT2_CAPTION_LINE_TWIPS = 480
+ATTACHMENT2_GROUP_GAP_TWIPS = 360
+ATTACHMENT2_PAGE_SAFETY_TWIPS = 600
+ATTACHMENT2_DUAL_GROUP_REGION_TWIPS = (
+    ATTACHMENT2_PAGE_CONTENT_HEIGHT_TWIPS
+    - ATTACHMENT2_PAGE_TITLE_LINE_TWIPS
+    - ATTACHMENT2_PAGE_SAFETY_TWIPS
+    - ATTACHMENT2_GROUP_GAP_TWIPS
+) // 2
+ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS = (
+    ATTACHMENT2_DUAL_GROUP_REGION_TWIPS - ATTACHMENT2_CAPTION_LINE_TWIPS
+)
+ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU = (
+    ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS * EMU_PER_TWIP
+)
+ATTACHMENT2_SLOT_WIDTH_EMU = ATTACHMENT2_PAGE_CONTENT_WIDTH_EMU // 2
+ATTACHMENT2_SLOT_ROW_HEIGHT_TWIPS = (
+    ATTACHMENT2_PAGE_CONTENT_HEIGHT_TWIPS
+    - ATTACHMENT2_PAGE_TITLE_LINE_TWIPS
+    - ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS
+    - ATTACHMENT2_CAPTION_LINE_TWIPS * 2
+    - ATTACHMENT2_GROUP_GAP_TWIPS
+    - ATTACHMENT2_PAGE_SAFETY_TWIPS
+) // 2
+ATTACHMENT2_SLOT_HEIGHT_EMU = ATTACHMENT2_SLOT_ROW_HEIGHT_TWIPS * EMU_PER_TWIP
 SUPPORTED_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png"})
-
 
 class Attachment2ImageError(ValueError):
     """Stable, path-free error for an image that cannot be rendered."""
 
     code = "ATTACHMENT2_IMAGE_INVALID"
     safe_message = "附件图片无法读取、解码或格式不受支持。"
-
 
 @dataclass(frozen=True)
 class Attachment2PhotoAsset:
@@ -39,14 +62,12 @@ class Attachment2PhotoAsset:
     vert_dpi: int
     orientation: int = 1
 
-
 @dataclass(frozen=True)
 class Attachment2ImageGeometry:
     render_width_emu: int
     render_height_emu: int
     offset_x_emu: int
     offset_y_emu: int
-
 
 def validate_attachment2_photos(
     photo_paths: Sequence[str], source_image_ids: Sequence[str] = (),
@@ -97,12 +118,21 @@ def calculate_fixed_geometry(
     slot_width_emu: int = ATTACHMENT2_SLOT_WIDTH_EMU,
     slot_height_emu: int = ATTACHMENT2_SLOT_HEIGHT_EMU,
 ) -> Attachment2ImageGeometry:
-    """Use one fixed drawing size for every valid Attachment2 image."""
+    """Maximize an image inside the fixed slot without changing its ratio."""
     if (width_px <= 0 or height_px <= 0
             or slot_width_emu <= 0 or slot_height_emu <= 0):
         raise ValueError("image dimensions must be positive")
+    if slot_width_emu * height_px <= slot_height_emu * width_px:
+        render_width_emu = slot_width_emu
+        render_height_emu = round(slot_width_emu * height_px / width_px)
+    else:
+        render_width_emu = round(slot_height_emu * width_px / height_px)
+        render_height_emu = slot_height_emu
     return Attachment2ImageGeometry(
-        slot_width_emu, slot_height_emu, 0, 0,
+        render_width_emu,
+        render_height_emu,
+        (slot_width_emu - render_width_emu) // 2,
+        (slot_height_emu - render_height_emu) // 2,
     )
 
 
@@ -211,6 +241,8 @@ def _safe_display_name(value: str, sequence_number: int) -> str:
 
 
 __all__ = [
+    "ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS",
+    "ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU",
     "ATTACHMENT2_SLOT_HEIGHT_EMU", "ATTACHMENT2_SLOT_WIDTH_EMU", "EMU_PER_INCH",
     "Attachment2ImageError", "Attachment2ImageGeometry", "Attachment2PhotoAsset",
     "calculate_fixed_geometry", "validate_attachment2_photos",

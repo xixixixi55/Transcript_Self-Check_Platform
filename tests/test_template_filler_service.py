@@ -14,14 +14,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.services.template_filler_service import _flatten_report, fill_template
 from app.services.attachment2_image_service import (
+    ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU,
     ATTACHMENT2_SLOT_HEIGHT_EMU,
-    ATTACHMENT2_SLOT_WIDTH_EMU,
+    calculate_fixed_geometry,
 )
+from app.services.template_profile_service import current_template_profile
 
 
 _ROOT = Path(__file__).parents[1]
 _TEMPLATE = _ROOT / "word_templates" / "template.docx"
 _DEFAULT_SUMMARY = "即时通讯、手机信息"
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 
 def _report(data_summary_marker=...):
@@ -309,13 +312,95 @@ def test_photo_regression_scenarios_keep_images_and_page_xml(tmp_path, sizes):
         for extent in root.findall(
             ".//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}extent")
     ]
-    for (render_width, render_height) in extents:
-        assert (render_width, render_height) == (
-            ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
+    assert extents == [
+        (
+            calculate_fixed_geometry(width, height).render_width_emu,
+            calculate_fixed_geometry(width, height).render_height_emu,
         )
+        for width, height in sizes
+    ]
     assert document_xml.count('w:type="page"') == 4
     assert 'w:type="oddPage"' not in document_xml
     assert 'w:type="evenPage"' not in document_xml
     assert "w:pageBreakBefore" not in document_xml
     assert "w:keepNext" not in document_xml
     assert "w:keepLines" not in document_xml
+
+
+def test_report_only_export_keeps_three_material_photo_groups(tmp_path):
+    report = _report()
+    evidence_list = [
+        {"id": f"material-{index}", "evidence_number": f"JC-{letter}", "device_type": "合成设备"}
+        for index, letter in enumerate(("A", "B", "C"), 1)
+    ]
+    photo_ids = [f"photo-{index}" for index in range(1, 7)]
+    report["introduction"]["evidence_list"] = evidence_list
+    report["attachments"]["photo_ids"] = photo_ids
+    report["attachments"]["photo_groups"] = [
+        {
+            "material_id": item["id"],
+            "material_number": item["evidence_number"],
+            "display_text": f"检材{item['evidence_number']}照片",
+            "ordered_image_ids": photo_ids[index * 2:index * 2 + 2],
+            "source_order": index + 1,
+        }
+        for index, item in enumerate(evidence_list)
+    ]
+    photo_paths = []
+    sizes = [
+        (1600, 400), (400, 1600), (1000, 1000),
+        (1200, 600), (600, 1200), (800, 800),
+    ]
+    for index, (width, height) in enumerate(sizes, 1):
+        path = tmp_path / f"SYNTHETIC-photo-{index}.png"
+        _write_png(path, width, height)
+        photo_paths.append(str(path))
+
+    output = tmp_path / "report-only-three-materials.docx"
+    fill_template(report, str(_TEMPLATE), str(output), photo_paths)
+
+    root = ET.fromstring(zipfile.ZipFile(output).read("word/document.xml"))
+    body = root.find("./{%s}body" % W_NS)
+    tables = [
+        table for table in body.findall("./{%s}tbl" % W_NS)
+        if "检材JC-" in "".join(table.itertext())
+    ]
+    assert len(tables) == 2
+    assert [
+        [len(row.findall("./{%s}tc" % W_NS)) for row in table.findall("./{%s}tr" % W_NS)]
+        for table in tables
+    ] == [[2, 1, 1, 2, 1], [2, 1]]
+    page_breaks = [list(body)[list(body).index(table) - 1] for table in tables]
+    profile = current_template_profile()
+    assert ["".join(page.itertext()).strip() for page in page_breaks] == ["附件2：", ""]
+    assert [
+        page.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS)).get("{%s}after" % W_NS)
+        for page in page_breaks
+    ] == ["0", str(profile.attachment2_page_break_after_twips)]
+    extents = [
+        (int(extent.get("cx")), int(extent.get("cy")))
+        for extent in root.findall(
+            ".//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}extent"
+        )
+    ]
+    assert extents == [
+        (
+            calculate_fixed_geometry(
+                width, height,
+                slot_height_emu=(
+                    ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU
+                    if index < 4 else ATTACHMENT2_SLOT_HEIGHT_EMU
+                ),
+            ).render_width_emu,
+            calculate_fixed_geometry(
+                width, height,
+                slot_height_emu=(
+                    ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU
+                    if index < 4 else ATTACHMENT2_SLOT_HEIGHT_EMU
+                ),
+            ).render_height_emu,
+        )
+        for index, (width, height) in enumerate(sizes)
+    ]
+    text = "".join(root.itertext())
+    assert [text.count(f"检材JC-{letter}照片") for letter in ("A", "B", "C")] == [1, 1, 1]

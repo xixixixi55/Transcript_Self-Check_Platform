@@ -379,9 +379,9 @@
 
 ### Requirement: Attachment two photo page plan
 
-系统 MUST 先生成 `PhotoPagePlan` 再渲染附件二。0 张图片允许导出且不生成附件二图片页；正数图片数量 MUST 为偶数，否则禁止导出；每页最多四张；四张使用 2×2，二张使用左右布局且在页面上下居中；支持任意偶数数量。每张图片 MUST 在 5.64cm × 7.52cm 框内按比例完整显示，不裁剪、不拉伸。附件二多页时仅第一页显示“附件2”，后续页不重复标题但保持相同图片区域和版式；没有附件二时附件三仍显示“附件3”，不重新编号。
+系统 MUST 先生成 `PhotoPagePlan` 再渲染附件二。0 张图片允许导出且不生成附件二图片页；正数图片数量 MUST 为偶数，否则禁止导出；每页最多四张；四张使用 2×2，二张使用左右布局且在页面上下居中；支持任意偶数数量。图片 MUST 按当前 `current-template-v1` 附件二页面母版的统一图片区域等比例完整显示，不裁剪、不拉伸，并尽量填满该母版区域。页面母版 MUST 以包含“附件2”标题锚点的第一页为唯一版式基准，一次确定图片区域、列宽、行高和分页锚点间距；不得根据后续页没有标题文字而重新计算或放大。附件二多页时仅第一页显示“附件2”，后续页清空标题文字但保留同等高度的空白标题锚点，并保持相同图片区域和版式；没有附件二时附件三仍显示“附件3”，不重新编号。
 
-当前模板 MUST 以检材组为附件2的领域单位。每个参与附件2的检材 MUST 绑定恰好两张有效图片；`PhotoPagePlan` MUST 先建立 `MaterialPhotoGroup` 再按检材组分页。每个 `MaterialPhotoGroup` MUST 包含 `material_id`、`material_number`、相关显示文字、两张有序图片和 `source_order`；同一检材的两张图片 MUST 同页左右排列，不得跨页或与其他检材图片交叉。每个 `Attachment2PagePlan` MUST 包含本页的 `material_groups`、`inspection_result_material_numbers` 和布局类型；每页最多两个检材组，每组固定两张图片，两个组按上下区域排列，剩余单组页使用同一可用区域居中布局。
+当前模板 MUST 以检材组为附件2的领域单位。每个参与附件2的检材 MUST 绑定恰好两张有效图片；`PhotoPagePlan` MUST 先建立 `MaterialPhotoGroup` 再按检材组分页。每个 `MaterialPhotoGroup` MUST 包含 `material_id`、`material_number`、相关显示文字、两张有序图片和 `source_order`；同一检材的两张图片 MUST 同页左右排列，不得跨页或与其他检材图片交叉。每个检材组的说明文字 MUST 使用独立的可读行框，不得被图片或表格边界遮挡；同页两个检材组 MUST 使用相同高度的上下区域并保留一致的组间间隔，两个完整检材组（图片和说明文字）分别在上、下区域内居中，不得连续堆叠在页面下半部。每个 `Attachment2PagePlan` MUST 包含本页的 `material_groups`、`inspection_result_material_numbers` 和布局类型；每页最多两个检材组，每组固定两张图片，两个组按上下区域排列，剩余单组页使用同一可用区域居中布局。
 
 图片归属 MUST 来自审核后明确提交的 `photo_groups` 映射，而不是 Renderer 根据扁平数组位置、文件名或图片方向重新猜测。导出前 MUST 校验每张图片恰好归属一个检材、每组有且仅有两张图片、检材和组内图片顺序稳定、组内图片 ID 覆盖全部实际图片且无孤立图片。页面检查结果文字 MUST 只显示当前页 `inspection_result_material_numbers` 去重后的有序编号；两组时合并显示两个编号，单组页只显示该组编号。
 
@@ -400,7 +400,7 @@
 #### Scenario: 两张图片
 
 - **WHEN** 用户上传两张图片
-- **THEN** 两张图片左右排列，每个图片框保持规定尺寸并在页面可用高度内上下居中
+- **THEN** 两张图片左右排列，沿用附件二页面母版的统一列宽、图片区域和行高，并在该母版区域内上下居中
 
 #### Scenario: 奇数图片禁止导出
 
@@ -411,7 +411,7 @@
 
 - **WHEN** 正偶数图片数量大于四张并生成多页附件二
 - **THEN** 只有第一页显示“附件2”
-- **AND** 后续页面不重复标题并保持相同图片区域和版式
+- **AND** 后续页面不重复标题但保留同高的空白标题锚点，并保持相同分页间距、图片区域和版式
 
 ### Requirement: Attachment three follows the final manifest
 

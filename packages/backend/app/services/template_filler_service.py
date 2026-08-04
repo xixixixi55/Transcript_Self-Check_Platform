@@ -26,11 +26,18 @@ from .attachment2_image_service import (
     calculate_fixed_geometry,
     validate_attachment2_photos,
 )
+from .attachment2_plan_service import (
+    build_attachment2_pages,
+    material_photo_groups,
+    photo_values,
+)
+from .attachment2_docx_renderer_service import render_attachment2_pages
 from .attachment_plan_service import build_attachment_plan
 from .attachment_docx_renderer_service import render_attachment_plan
 from .docx_output_sanitizer_service import sanitize_generated_docx
 from .template_profile_service import (
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+    current_template_profile,
     validate_current_template_profile,
     validate_template_package_fingerprint,
 )
@@ -563,6 +570,13 @@ def _handle_photos(doc: Document, photo_paths: list[str], report: dict):
     """处理附件2 检材照片 — 标题在图片下方，自适应布局"""
     from lxml import etree
 
+    attachments = report.get("attachments") or {}
+    if photo_paths and isinstance(attachments, Mapping) and isinstance(
+        attachments.get("photo_groups"), list,
+    ):
+        _handle_grouped_photos(doc, photo_paths, report)
+        return
+
     v_imagedata = '{urn:schemas-microsoft-com:vml}imagedata'
     w_ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
     body = doc.element.body
@@ -616,6 +630,19 @@ def _handle_photos(doc: Document, photo_paths: list[str], report: dict):
                 elif "first_evidence_number" in run.text:
                     run.text = run.text.replace("first_evidence_number", evidence_num or "")
             break
+
+
+def _handle_grouped_photos(
+    doc: Document, photo_paths: list[str], report: dict,
+) -> None:
+    """Render report-only exports with the same material-pair layout as formal exports."""
+    source_image_ids = photo_values(report)
+    groups = material_photo_groups(report)
+    pages = build_attachment2_pages(groups)
+    assets = validate_attachment2_photos(photo_paths, source_image_ids)
+    render_attachment2_pages(
+        doc, pages, len(photo_paths), current_template_profile(), assets,
+    )
 
 
 def _make_single_image(doc, photo_path, w_ns):

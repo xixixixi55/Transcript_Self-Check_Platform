@@ -22,12 +22,15 @@ _WP_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing
 
 def build_attachment2_drawing(
     doc: Any, asset: Attachment2PhotoAsset, profile: CurrentTemplateProfile,
-    used_drawing_ids: set[int],
+    used_drawing_ids: set[int], slot_height_emu: int | None = None,
 ) -> Any:
     geometry = calculate_fixed_geometry(
         asset.width_px, asset.height_px,
         slot_width_emu=profile.attachment2_slot_width_emu,
-        slot_height_emu=profile.attachment2_slot_height_emu,
+        slot_height_emu=(
+            profile.attachment2_slot_height_emu
+            if slot_height_emu is None else slot_height_emu
+        ),
     )
     temporary = Document()
     run = temporary.add_paragraph().add_run()
@@ -83,7 +86,30 @@ def twips(emu: int) -> int:
     return round(emu / 635)
 
 
+def append_fixed_table_spacer(
+    table: Any, height_twips: int, width_twips: int, column_count: int,
+) -> None:
+    row = etree.SubElement(table, qn(W_NS, "tr"))
+    height = etree.SubElement(etree.SubElement(row, qn(W_NS, "trPr")), qn(W_NS, "trHeight"))
+    height.attrib.update({qn(W_NS, "val"): str(height_twips), qn(W_NS, "hRule"): "exact"})
+    cell = etree.SubElement(row, qn(W_NS, "tc"))
+    cell_pr = etree.SubElement(cell, qn(W_NS, "tcPr"))
+    etree.SubElement(cell_pr, qn(W_NS, "tcW"), {
+        qn(W_NS, "w"): str(width_twips), qn(W_NS, "type"): "dxa",
+    })
+    if column_count > 1:
+        etree.SubElement(cell_pr, qn(W_NS, "gridSpan")).set(
+            qn(W_NS, "val"), str(column_count),
+        )
+    paragraph = etree.SubElement(cell, qn(W_NS, "p"))
+    paragraph_pr = etree.SubElement(paragraph, qn(W_NS, "pPr"))
+    etree.SubElement(paragraph_pr, qn(W_NS, "spacing"), {
+        qn(W_NS, "before"): "0", qn(W_NS, "after"): "0",
+    })
+
+
 __all__ = [
-    "assign_drawing_ids", "build_attachment2_drawing", "existing_drawing_ids",
-    "find_attachment2_paragraph", "twips",
+    "append_fixed_table_spacer", "assign_drawing_ids",
+    "build_attachment2_drawing", "existing_drawing_ids", "find_attachment2_paragraph",
+    "twips",
 ]

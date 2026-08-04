@@ -16,7 +16,10 @@ from .docx_package_service import (
     compute_ooxml_package_fingerprint,
 )
 from .attachment2_image_service import (
+    ATTACHMENT2_GROUP_GAP_TWIPS,
+    ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS,
     ATTACHMENT2_SLOT_HEIGHT_EMU,
+    ATTACHMENT2_SLOT_ROW_HEIGHT_TWIPS,
     ATTACHMENT2_SLOT_WIDTH_EMU,
 )
 
@@ -29,7 +32,6 @@ CURRENT_TEMPLATE_VALIDATION_RULE = {
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _V_NS = "urn:schemas-microsoft-com:vml"
 
-
 class TemplateProfileError(ValueError):
     """Raised when the fixed template is missing or has drifted."""
 
@@ -37,7 +39,6 @@ class TemplateProfileError(ValueError):
         super().__init__(message)
         self.code = code
         self.safe_message = message
-
 
 @dataclass(frozen=True)
 class CurrentTemplateProfile:
@@ -51,8 +52,9 @@ class CurrentTemplateProfile:
     attachment2_caption_anchor: str = "检材{{first_evidence_number}}照片"
     attachment2_slot_width_emu: int = ATTACHMENT2_SLOT_WIDTH_EMU
     attachment2_slot_height_emu: int = ATTACHMENT2_SLOT_HEIGHT_EMU
-    attachment2_slot_row_height_twips: int = 4263
-    attachment2_single_group_center_after_twips: int = 3925
+    attachment2_slot_row_height_twips: int = ATTACHMENT2_SLOT_ROW_HEIGHT_TWIPS
+    attachment2_page_break_after_twips: int = ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS
+    attachment2_group_gap_twips: int = ATTACHMENT2_GROUP_GAP_TWIPS
     attachment2_slot_count: int = 2
     attachment2_slot_columns: int = 2
     attachment2_two_image_table_columns: int = 2

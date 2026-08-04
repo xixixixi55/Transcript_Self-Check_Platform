@@ -1,19 +1,15 @@
 """Render the fixed current-template-v1 attachment-two image slots."""
-
 from __future__ import annotations
-
 import copy
 from typing import Any, Sequence
-
 from lxml import etree
-
-from .attachment2_image_service import Attachment2PhotoAsset
-from .attachment2_docx_xml_service import (
-    build_attachment2_drawing,
-    existing_drawing_ids,
-    find_attachment2_paragraph,
-    twips,
+from .attachment2_image_service import (
+    ATTACHMENT2_CAPTION_LINE_TWIPS,
+    ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS,
+    ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU,
+    Attachment2PhotoAsset,
 )
+from .attachment2_docx_xml_service import append_fixed_table_spacer, build_attachment2_drawing, existing_drawing_ids, find_attachment2_paragraph, twips
 from .attachment_plan_models_service import Attachment2PagePlan, AttachmentPlan
 from .attachment_plan_service import AttachmentPlanError
 from .docx_attachment_xml_service import (
@@ -24,10 +20,23 @@ from .docx_attachment_xml_service import (
     text_of,
 )
 from .template_profile_service import CurrentTemplateProfile, TemplateProfileError
-
 def render_attachment2(
     doc: Any,
     plan: AttachmentPlan,
+    profile: CurrentTemplateProfile,
+    assets: Sequence[Attachment2PhotoAsset],
+) -> None:
+    render_attachment2_pages(
+        doc,
+        plan.attachment2_pages,
+        plan.attachment2_state.photo_count,
+        profile,
+        assets,
+    )
+def render_attachment2_pages(
+    doc: Any,
+    pages: Sequence[Attachment2PagePlan],
+    photo_count: int,
     profile: CurrentTemplateProfile,
     assets: Sequence[Attachment2PhotoAsset],
 ) -> None:
@@ -47,23 +56,20 @@ def render_attachment2(
     )
     if caption is None:
         raise TemplateProfileError("当前模板附件二图片说明锚点丢失。")
-    if not plan.attachment2_pages:
+    if not pages:
         for element in children[start:end]:
             body.remove(element)
         return
-    _validate_assets(plan, assets)
+    _validate_assets(pages, photo_count, assets)
     page_break_anchor = copy.deepcopy(label2)
     preserved_caption = copy.deepcopy(caption)
     for element in children[start:end]:
         body.remove(element)
     nodes: list[Any] = []
     used_drawing_ids = existing_drawing_ids(body)
-    for page_index, page in enumerate(plan.attachment2_pages):
+    for page_index, page in enumerate(pages):
         page_break = label2 if page_index == 0 else clone_page_break(page_break_anchor)
-        if page.layout == "two_centered":
-            _set_single_group_center_spacing(
-                page_break, profile.attachment2_single_group_center_after_twips,
-            )
+        _set_attachment2_page_spacing(page_break, 0 if page.layout == "four_grid" else profile.attachment2_page_break_after_twips)
         nodes.append(page_break)
         nodes.append(_build_page_table(
             doc, page, assets, profile, used_drawing_ids,
@@ -71,8 +77,6 @@ def render_attachment2(
         ))
     for offset, node in enumerate(nodes):
         body.insert(start + offset, node)
-
-
 def _build_page_table(
     doc: Any,
     page: Attachment2PagePlan,
@@ -85,6 +89,15 @@ def _build_page_table(
     _validate_material_groups(page)
     grid = _page_grid(page)
     column_count = len(grid[0])
+    is_dual_group = page.layout == "four_grid"
+    image_row_height = (
+        ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS
+        if is_dual_group else profile.attachment2_slot_row_height_twips
+    )
+    slot_height_emu = (
+        ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU
+        if is_dual_group else profile.attachment2_slot_height_emu
+    )
     expected_columns = (
         profile.attachment2_two_image_table_columns
         if page.layout == "two_centered"
@@ -106,6 +119,9 @@ def _build_page_table(
     for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
         etree.SubElement(borders, qn(W_NS, edge)).set(qn(W_NS, "val"), "nil")
     etree.SubElement(tbl_pr, qn(W_NS, "tblLayout")).set(qn(W_NS, "type"), "fixed")
+    cell_margins = etree.SubElement(tbl_pr, qn(W_NS, "tblCellMar"))
+    for edge in ("top", "left", "bottom", "right"):
+        etree.SubElement(cell_margins, qn(W_NS, edge), {qn(W_NS, "w"): "0", qn(W_NS, "type"): "dxa"})
     table_grid = etree.SubElement(table, qn(W_NS, "tblGrid"))
     grid_widths = [slot_width_twips] * column_count
     for width in grid_widths:
@@ -118,7 +134,7 @@ def _build_page_table(
         row = etree.SubElement(table, qn(W_NS, "tr"))
         row_pr = etree.SubElement(row, qn(W_NS, "trPr"))
         height = etree.SubElement(row_pr, qn(W_NS, "trHeight"))
-        height.set(qn(W_NS, "val"), str(profile.attachment2_slot_row_height_twips))
+        height.set(qn(W_NS, "val"), str(image_row_height))
         height.set(qn(W_NS, "hRule"), "exact")
         for cell_index, image_group in enumerate(row_groups):
             cell = etree.SubElement(row, qn(W_NS, "tc"))
@@ -140,18 +156,20 @@ def _build_page_table(
             etree.SubElement(paragraph_pr, qn(W_NS, "spacing"), {
                 qn(W_NS, "before"): "0", qn(W_NS, "after"): "0",
             })
-            alignment = "center"
-            if page.layout == "two_centered":
-                alignment = "right" if cell_index == 0 else "left"
             etree.SubElement(paragraph_pr, qn(W_NS, "jc")).set(
-                qn(W_NS, "val"), alignment,
+                qn(W_NS, "val"), "center",
             )
             for image in image_group:
                 asset = assets[image.sequence_number - 1]
                 run = etree.SubElement(paragraph, qn(W_NS, "r"))
-                run.append(build_attachment2_drawing(doc, asset, profile, used_drawing_ids))
+                run.append(build_attachment2_drawing(
+                    doc, asset, profile, used_drawing_ids, slot_height_emu,
+                ))
         caption = captions[row_index]
+        caption_gap = profile.attachment2_group_gap_twips if is_dual_group and row_index < len(grid) - 1 else 0
         caption_row = etree.SubElement(table, qn(W_NS, "tr"))
+        caption_height = etree.SubElement(etree.SubElement(caption_row, qn(W_NS, "trPr")), qn(W_NS, "trHeight"))
+        caption_height.attrib.update({qn(W_NS, "val"): str(ATTACHMENT2_CAPTION_LINE_TWIPS), qn(W_NS, "hRule"): "exact"})
         caption_cell = etree.SubElement(caption_row, qn(W_NS, "tc"))
         caption_pr = etree.SubElement(caption_cell, qn(W_NS, "tcPr"))
         etree.SubElement(caption_pr, qn(W_NS, "tcW"), {
@@ -163,11 +181,15 @@ def _build_page_table(
             )
         etree.SubElement(caption_pr, qn(W_NS, "vAlign")).set(qn(W_NS, "val"), "center")
         caption_node = copy.deepcopy(caption_template)
+        caption_spacing = caption_node.find("./%s/%s" % (qn(W_NS, "pPr"), qn(W_NS, "spacing")))
+        if caption_spacing is not None:
+            caption_spacing.set(qn(W_NS, "before"), "0")
+            caption_spacing.set(qn(W_NS, "after"), "0")
         set_paragraph_text(caption_node, f"检材{caption}照片")
         caption_cell.append(caption_node)
+        if caption_gap:
+            append_fixed_table_spacer(table, caption_gap, sum(grid_widths), column_count)
     return table
-
-
 def _validate_material_groups(page: Attachment2PagePlan) -> None:
     """Ensure the renderer consumes the planner's groups without re-pairing."""
     if not 1 <= len(page.material_groups) <= 2:
@@ -184,8 +206,6 @@ def _validate_material_groups(page: Attachment2PagePlan) -> None:
         if (len(group.images) != 2
                 or any(image.evidence_number != group.material_number for image in group.images)):
             raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2检材图片组必须固定为两张。")
-
-
 def _page_grid(page: Attachment2PagePlan) -> list[list[tuple[Any, ...]]]:
     """Convert explicit slots into a fixed table grid, never Word auto-flow."""
     by_slot = {image.slot: image for image in page.images}
@@ -203,22 +223,22 @@ def _page_grid(page: Attachment2PagePlan) -> list[list[tuple[Any, ...]]]:
             [(by_slot["bottom-left"],), (by_slot["bottom-right"],)],
         ]
     raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2页面布局类型无效。")
-
-
-def _validate_assets(plan: AttachmentPlan, assets: Sequence[Attachment2PhotoAsset]) -> None:
-    if len(assets) != plan.attachment2_state.photo_count:
+def _validate_assets(
+    pages: Sequence[Attachment2PagePlan],
+    photo_count: int,
+    assets: Sequence[Attachment2PhotoAsset],
+) -> None:
+    if len(assets) != photo_count:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件二图片计划与有效图片数量不一致。")
     expected = [
-        image for page in plan.attachment2_pages
+        image for page in pages
         for image in page.images
     ]
     if [image.sequence_number for image in expected] != list(range(1, len(assets) + 1)):
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件二图片顺序计划无效。")
-    for page in plan.attachment2_pages:
+    for page in pages:
         _page_grid(page)
-
-
-def _set_single_group_center_spacing(paragraph: Any, after_twips: int) -> None:
+def _set_attachment2_page_spacing(paragraph: Any, after_twips: int) -> None:
     p_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
     if p_pr is None:
         raise TemplateProfileError("当前模板附件二分页锚点缺少段落属性。")
@@ -226,6 +246,4 @@ def _set_single_group_center_spacing(paragraph: Any, after_twips: int) -> None:
     if spacing is None:
         raise TemplateProfileError("当前模板附件二分页锚点缺少行距属性。")
     spacing.set(qn(W_NS, "after"), str(after_twips))
-
-
-__all__ = ["render_attachment2"]
+__all__ = ["render_attachment2", "render_attachment2_pages"]
