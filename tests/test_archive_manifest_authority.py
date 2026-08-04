@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.services.archive_manifest_projection_service import (  # noqa: E402
     project_manifest_to_legacy_report,
+    project_verified_manifest_to_legacy_attachments,
 )
 from app.repository.archive_report_metadata_repository import (  # noqa: E402
     apply_verified_archive_result,
@@ -83,6 +84,18 @@ def test_projection_does_not_add_absolute_paths_or_manifest_as_client_data():
     assert "client.rar" not in serialized
     assert "C:\\" not in serialized
     assert "manifest_id" not in projected["attachments"]
+
+
+def test_verified_attachment_projection_keeps_ordered_manifest_rows_without_size_column():
+    projection = project_verified_manifest_to_legacy_attachments(report(), manifest())
+    table = projection["extract_list"]
+    assert [row["no"] for row in table["rows"]] == ["1", "2"]
+    assert [row["electronic_data"] for row in table["rows"]] == [
+        "server.part1.rar", "server.part2.rar",
+    ]
+    assert [row["md5_hash"] for row in table["rows"]] == ["1" * 32, "2" * 32]
+    assert "file_size" not in {column["key"] for column in table["columns"]}
+    assert all("file_size" not in row for row in table["rows"])
 
 
 def test_verified_manifest_backfills_existing_report_result_fields():

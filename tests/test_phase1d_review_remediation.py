@@ -528,7 +528,12 @@ def test_verified_manifest_is_reconciled_before_restart_interruption(database, t
     assert restarted.recover_after_restart() == []
     assert restarted.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
     assert CaseShellRepository(database).get(CASE_ID)["lifecycle"] == "archive_verified"
-    assert CaseDraftRepository(database).get(CASE_ID)["lifecycle"] == "archive_verified"
+    draft = CaseDraftRepository(database).get(CASE_ID)
+    assert draft["lifecycle"] == "archive_verified"
+    attachment_rows = draft["report"]["attachments"]["extract_list"]["rows"]
+    assert [row["electronic_data"] for row in attachment_rows] == [filename]
+    assert [row["md5_hash"] for row in attachment_rows] == [hashlib.md5(payload).hexdigest()]
+    assert all("file_size" not in row for row in attachment_rows)
     assert (final_dir / filename).read_bytes() == payload
     assert len(ArchiveManifestRepository(output).find_reusable(**identity)) == 1
     recovered = restarted.repository.get_internal(attempt["attempt_id"])

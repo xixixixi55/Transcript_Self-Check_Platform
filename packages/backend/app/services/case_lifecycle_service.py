@@ -51,7 +51,15 @@ class CaseLifecycleService:
                 if error.code != "DRAFT_NOT_FOUND":
                     raise
             if self.shells.get(case_id)["revision"] == shell["revision"]:
-                return {"shell": shell, "draft": draft, "source": source, "parse_task": task}
+                return {
+                    "shell": {
+                        **shell,
+                        "archive_task_summary": self.archive_tasks.get_card_summary(case_id),
+                    },
+                    "draft": draft,
+                    "source": source,
+                    "parse_task": task,
+                }
         raise WorkbenchPersistenceError("CASE_DETAIL_CHANGED_DURING_READ")
 
     def save_draft(

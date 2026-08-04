@@ -4,6 +4,7 @@ import { Alert, Button, Space, Typography } from 'antd'
 import type {
   ArchiveLifecycleStatus,
   ArchiveManifest,
+  ArchiveTaskResult,
   InspectorLibraryRecord,
   InspectionReport,
   FieldState,
@@ -52,6 +53,7 @@ interface Props {
   onPrepareArchive?: () => void
   archiveManifest?: ArchiveManifest | null
   archiveError?: string | null
+  archiveResult?: { result: ArchiveTaskResult | null; loading: boolean; error: string | null }
   workbenchMode?: boolean
   readOnly?: boolean
   draftSaveStatus?: string
@@ -82,6 +84,7 @@ export default function RecordEditorForm({
   onPrepareArchive = () => undefined,
   archiveManifest = null,
   archiveError = null,
+  archiveResult = { result: null, loading: false, error: null },
   workbenchMode = false,
   readOnly = false,
   draftSaveStatus = '',
@@ -136,13 +139,15 @@ export default function RecordEditorForm({
         </ReviewSection>
 
         <ReviewSection id={REVIEW_SECTION_IDS.attachments} title="附件" pendingCount={countFor(REVIEW_SECTION_IDS.attachments)}>
-        {!workbenchMode && <ArchiveStatusCard
+        {(!workbenchMode || archiveResult.result || archiveResult.error) && <ArchiveStatusCard
             contextId={archiveContextId}
-            status={archiveStatus}
+            status={archiveResult.result ? 'completed' : archiveResult.error ? 'failed' : archiveStatus}
             loading={archivePreparing}
             onPrepare={onPrepareArchive}
             manifest={archiveManifest}
-            error={archiveError}
+            resultParts={archiveResult.result?.parts}
+            taskId={archiveResult.result?.task_id}
+            error={archiveError || archiveResult.error}
           />}
         <ReviewAttachmentsSection attachments={attachments} photoFiles={photoFiles}
           onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport}

@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { CaseDetail, CaseDraft, CaseShell, ClientIdentity, EditLease, InspectionReport, SharedDefaults, SourceRecord, TaskRecord } from '@biji/shared/types'
+import type { ArchiveTaskCardSummary, ArchiveTaskResult, CaseDetail, CaseDraft, CaseShell, ClientIdentity, EditLease, InspectionReport, SharedDefaults, SourceRecord, TaskRecord } from '@biji/shared/types'
 import CaseRecordGeneratePage from './CaseRecordGeneratePage'
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn() } }))
@@ -16,6 +16,21 @@ const identity: ClientIdentity = { client_instance_id: 'client-synthetic', sessi
 const defaults: SharedDefaults = { schema_version: 1, deployment_instance_id: 'synthetic-uat', revision: 0, document_number: '', inspection_place: '', inspection_method: '', hardware_device: '', inspector_order: [], disc_number_prefix: 'GP', migration_decision: 'ignored', updated_at: '2026-01-01T00:00:00Z' }
 const availableInspector = { id: 'inspector-synthetic', name: '张三', unit: 'SYNTHETIC-UNIT', police_number: 'SYN-001', enabled: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
 const task: TaskRecord = { schema_version: 1, task_id: 'task-synthetic-parse', case_id: caseId, kind: 'parse', status: 'succeeded', stage: 'parse', percent: 100, counters: {}, input_revision: 0, attempt: 1, cancel_requested: false, revision: 0, created_at: '2026-01-01T00:00:00Z', finished_at: '2026-01-01T00:00:00Z' }
+const archiveTaskSummary: ArchiveTaskCardSummary = {
+  progress_kind: 'workflow_milestone', stage: 'completed', stage_label: '归档完成', stage_index: 7,
+  stage_count: 7, percent: 100, updated_at: '2026-01-01T00:00:00Z', last_heartbeat_at: null,
+  output_bytes: 579, output_volume_count: 2, last_output_change_at: null, worker_state: 'released',
+  task_id: 'archive-synthetic-1', case_id: caseId, status: 'succeeded', started_at: '2026-01-01T00:00:00Z',
+  finished_at: '2026-01-01T00:00:10Z', error_summary: null, allowed_actions: ['view_result'],
+}
+const completedArchiveResult: ArchiveTaskResult = {
+  task_id: archiveTaskSummary.task_id, case_id: caseId, manifest_id: 'manifest-synthetic', verified_slots: [], assets: [],
+  parts: [
+    { part_id: 'part-1', filename: '合成案件.part1.rar', size_bytes: 123, md5: 'a'.repeat(32), disc_number: 'GP20260731-01', disc_date: '2026-07-31' },
+    { part_id: 'part-2', filename: '合成案件.part2.rar', size_bytes: 456, md5: 'b'.repeat(32), disc_number: 'GP20260731-02', disc_date: '2026-07-31' },
+  ],
+  finished_at: archiveTaskSummary.finished_at,
+}
 const lease: EditLease = { schema_version: 1, lease_id: 'lease-synthetic', case_id: caseId, session_id: identity.session_id, client_instance_id: identity.client_instance_id, lease_token: 'token-synthetic', last_heartbeat_at: '2026-01-01T00:00:00Z', expires_at: '2026-01-01T00:02:00Z', status: 'active', takeover_of_lease_id: null, revision: 0 }
 
 function report(discNumber = 'GP20260731-001'): InspectionReport {
@@ -27,9 +42,9 @@ function report(discNumber = 'GP20260731-001'): InspectionReport {
   }
 }
 
-function detail(shellRevision: number, draftRevision: number, lifecycle: CaseShell['lifecycle'] = 'review_ready', discNumber = 'GP20260731-001'): CaseDetail {
+function detail(shellRevision: number, draftRevision: number, lifecycle: CaseShell['lifecycle'] = 'review_ready', discNumber = 'GP20260731-001', archiveSummary: ArchiveTaskCardSummary | null = null): CaseDetail {
   const draft: CaseDraft = { schema_version: 1, case_id: caseId, case_name: 'SYNTHETIC-CASE', case_summary: 'SYNTHETIC/TEST', case_number: 'SYN-CASE-001', report: report(discNumber), report_version: 'legacy-v1', field_states: {}, asset_refs: [], template_ref: null, archive_plan_id: null, lifecycle: lifecycle === 'archive_queued' ? 'review_ready' : lifecycle, revision: draftRevision, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
-  const shell: CaseShell = { schema_version: 1, case_id: caseId, case_name: 'SYNTHETIC-CASE', case_summary: 'SYNTHETIC/TEST', case_number: 'SYN-CASE-001', source_id: 'source-synthetic', parse_task_id: task.task_id, lifecycle, report_available: true, revision: shellRevision, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
+  const shell: CaseShell = { schema_version: 1, case_id: caseId, case_name: 'SYNTHETIC-CASE', case_summary: 'SYNTHETIC/TEST', case_number: 'SYN-CASE-001', source_id: 'source-synthetic', parse_task_id: task.task_id, lifecycle, report_available: true, revision: shellRevision, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', archive_task_summary: archiveSummary }
   const source: SourceRecord = { schema_version: 1, source_id: 'source-synthetic', source_type: 'report_directory', case_id: caseId, allowed_root_id: 'root-synthetic', metadata: {}, fingerprint: 'fingerprint-synthetic', access_status: 'available', requires_reselection: false, revalidation_error_code: null, last_verified_at: '2026-01-01T00:00:00Z', revision: 0 }
   return { shell, draft, source, parse_task: task }
 }
@@ -42,14 +57,16 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let failSharedDefaults = false
   let conflictDecision = false
   let holdSave = false
+  let showCompletedArchive = false
   let resolveSave: (() => void) | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; resolveSave = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; resolveSave = null
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
-      if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
+      if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
+      if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) return { data: { data: completedArchiveResult } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: [] } } }
       if (url === API_ENDPOINTS.WORKBENCH_TEMPLATES || url === API_ENDPOINTS.DEVICES) return { data: { data: [] } }
       if (url === API_ENDPOINTS.INSPECTORS) return { data: { data: [availableInspector] } }
@@ -174,5 +191,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     await new Promise(resolve => setTimeout(resolve, 1200))
     expect(patchMock).toHaveBeenCalledTimes(1)
+  }, 15000)
+
+  it('shows completed archive parts and their disc mapping in the attachments section', async () => {
+    showCompletedArchive = true
+    renderPage()
+    expect(await screen.findByText('合成案件.part1.rar')).toBeTruthy()
+    expect(screen.getByText('合成案件.part2.rar')).toBeTruthy()
+    expect(screen.getByText('GP20260731-01')).toBeTruthy()
+    expect(screen.getByText('GP20260731-02')).toBeTruthy()
+    expect(getMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id))
   }, 15000)
 })

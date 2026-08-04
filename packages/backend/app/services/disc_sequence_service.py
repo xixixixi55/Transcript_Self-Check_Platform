@@ -100,3 +100,20 @@ def generate_disc_numbers(
         f"{sequence.start_number + index:0{sequence.number_width}d}"
         for index in range(count)
     ]
+
+
+def validate_disc_mapping(
+    part_numbers: list[int], metadata: list[tuple[str, str]],
+) -> bool:
+    if not metadata:
+        return True
+    if len(metadata) != len(part_numbers):
+        return False
+    ordered = [item for _, item in sorted(zip(part_numbers, metadata), key=lambda pair: pair[0])]
+    first_disc = parse_disc_sequence(ordered[0][0])
+    if not first_disc.valid or first_disc.sequence is None:
+        return True  # Preserve legacy synthetic opaque disc identifiers.
+    return (
+        [item[0] for item in ordered] == generate_disc_numbers(first_disc.sequence, len(ordered))
+        and all(item[1] == first_disc.sequence.date for item in ordered)
+    )

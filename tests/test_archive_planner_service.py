@@ -27,6 +27,7 @@ def entry(size: int) -> list[ArchiveSourceEntry]:
     [
         (1, 4, 1, "planned"),
         (4 * GB, 4, 1, "planned"),
+        (7 * GB, 4, 2, "planned"),
         (8 * GB, 4, 2, "planned"),
         (8 * GB + 1, 22, 1, "planned"),
         (22 * GB, 22, 1, "planned"),

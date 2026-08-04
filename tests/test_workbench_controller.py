@@ -1057,6 +1057,9 @@ def test_archive_mapping_and_verified_result_routes(app_services):
         done = tasks.update_state(running["task_id"], {
             "status": "succeeded", "stage": "completed",
         }, running["revision"])
+        case_shell = client.get(f"/api/v1/workbench/cases/{case_id}").json()["data"]["shell"]
+        assert case_shell["archive_task_summary"]["task_id"] == done["task_id"]
+        assert case_shell["archive_task_summary"]["status"] == "succeeded"
         result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
         assert result.status_code == 200, result.text
         assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"
@@ -1189,7 +1192,13 @@ def test_interrupted_archive_stays_consistent_when_context_or_attempt_creation_f
             )
         assert failed_context.status_code == 422
         after_context = app_services.lifecycle.detail(case_id)
-        assert after_context["shell"] == before_shell
+        assert {
+            key: value for key, value in after_context["shell"].items()
+            if key != "archive_task_summary"
+        } == {
+            key: value for key, value in before_shell.items()
+            if key != "archive_task_summary"
+        }
         assert after_context["draft"] == before_draft
 
         created_context: list[str] = []
@@ -1215,7 +1224,13 @@ def test_interrupted_archive_stays_consistent_when_context_or_attempt_creation_f
         with pytest.raises(ArchiveRuntimeError):
             ARCHIVE_SOURCE_RUNTIME_STORE.public_summary(created_context[0])
         after_attempt = app_services.lifecycle.detail(case_id)
-        assert after_attempt["shell"] == before_shell
+        assert {
+            key: value for key, value in after_attempt["shell"].items()
+            if key != "archive_task_summary"
+        } == {
+            key: value for key, value in before_shell.items()
+            if key != "archive_task_summary"
+        }
         assert after_attempt["draft"] == before_draft
 
 

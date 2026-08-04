@@ -11,6 +11,7 @@ import { useCaseWorkbench } from './useCaseWorkbench'
 import { createClientIdentity, useEditLease } from './useEditLease'
 import { useTaskRecords } from './useTaskRecords'
 import { shouldHydrateServerDraft } from './useCaseDraftHydration'
+import { useCompletedArchiveResult } from './useCompletedArchiveResult'
 
 const SHARED_FIELD_PATHS = new Set([
   'document_number', 'introduction.inspection_place', 'inspection.method', 'inspection.hardware_device',
@@ -99,6 +100,9 @@ export function useCaseRecordSession(caseId: string) {
   }, [caseId, workbench.detail?.source.access_status, workbench.reloadDetail])
 
   const archiveLifecycle = workbench.detail?.shell.lifecycle
+  const completedArchive = useCompletedArchiveResult(
+    workbench.detail?.shell.archive_task_summary, workbench.archiveResult,
+  )
   useEffect(() => {
     if (!archiveLifecycle || !ACTIVE_ARCHIVE_LIFECYCLES.has(archiveLifecycle)) return
     const timer = window.setInterval(() => {
@@ -230,5 +234,6 @@ export function useCaseRecordSession(caseId: string) {
     ...workbench, draft, report, defaults, identity, parseTask, taskRecords, lease, editingEnabled,
     leaseLost, autosave, sharedDefaultsPatch, sharedDefaultsSaveState, retrySave,
     updateReport, updatePhotoAssetRefs, photoAssets, replaceSource, decideArchive, loadServerVersion,
+    completedArchive,
   }
 }

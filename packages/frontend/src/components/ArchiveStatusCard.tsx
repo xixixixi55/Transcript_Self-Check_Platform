@@ -3,7 +3,7 @@ import React from 'react'
 import { Alert, Button, Card, Descriptions, Space, Tag, Typography } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { ArchiveLifecycleStatus, ArchiveManifest } from '@biji/shared/types'
+import type { ArchiveLifecycleStatus, ArchiveManifest, ArchiveTaskResult } from '@biji/shared/types'
 
 const { Text } = Typography
 const LABELS: Record<ArchiveLifecycleStatus, string> = {
@@ -27,7 +27,20 @@ interface Props {
   loading?: boolean
   onPrepare?: () => void
   manifest: ArchiveManifest | null
+  resultParts?: ArchiveTaskResult['parts'] | null
+  taskId?: string | null
   error: string | null
+}
+
+interface DisplayPart {
+  part_id: string
+  part_number: number
+  filename: string
+  size_bytes: number
+  md5: string
+  disc_number: string
+  disc_date: string
+  disc_capacity_bytes?: number
 }
 
 function readableSize(bytes: number): string {
@@ -35,7 +48,11 @@ function readableSize(bytes: number): string {
   return `${mb.toFixed(2)} MB（${bytes} 字节）`
 }
 
-export function ArchiveStatusCard({ contextId, status, loading = false, onPrepare = () => undefined, manifest, error }: Props) {
+export function ArchiveStatusCard({ contextId, status, loading = false, onPrepare = () => undefined,
+  manifest, resultParts = null, taskId = null, error }: Props) {
+  const parts: DisplayPart[] = manifest?.parts || resultParts?.map((part, index) => ({
+    ...part, part_number: index + 1,
+  })) || []
   return (
     <Card size="small" title="真实 RAR 归档">
       <Space direction="vertical" style={{ width: '100%' }}>
@@ -48,22 +65,23 @@ export function ArchiveStatusCard({ contextId, status, loading = false, onPrepar
             {status === 'failed' ? '重试归档准备' : '开始准备归档'}
           </Button>
         )}
-        {manifest?.parts.map(part => (
+        {parts.map(part => (
           <Card size="small" key={part.part_id}>
             <Descriptions column={1} size="small">
               <Descriptions.Item label="RAR文件名">{part.filename}</Descriptions.Item>
               <Descriptions.Item label="文件大小">{readableSize(part.size_bytes)}</Descriptions.Item>
               <Descriptions.Item label="MD5"><Text code>{part.md5}</Text></Descriptions.Item>
               <Descriptions.Item label="分卷序号">{part.part_number}</Descriptions.Item>
-              <Descriptions.Item label="光盘容量">{readableSize(part.disc_capacity_bytes)}</Descriptions.Item>
+              <Descriptions.Item label="光盘编号">{part.disc_number}</Descriptions.Item>
+              {part.disc_capacity_bytes !== undefined && <Descriptions.Item label="光盘容量">{readableSize(part.disc_capacity_bytes)}</Descriptions.Item>}
               <Descriptions.Item label="归档状态">已验证</Descriptions.Item>
             </Descriptions>
-            {contextId && (
+            {(contextId || taskId) && (
               <Button
                 icon={<DownloadOutlined />}
-                href={API_ENDPOINTS.ARCHIVE_PART(
-                  contextId, manifest.manifest_id, part.part_id,
-                )}
+                href={contextId && manifest
+                  ? API_ENDPOINTS.ARCHIVE_PART(contextId, manifest.manifest_id, part.part_id)
+                  : taskId ? API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT_PART(taskId, part.part_id) : undefined}
                 download={part.filename}
               >
                 下载该 RAR

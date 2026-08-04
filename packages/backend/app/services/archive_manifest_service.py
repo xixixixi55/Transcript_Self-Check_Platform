@@ -10,7 +10,7 @@ from uuid import uuid4
 from ..repository.archive_hash_repository import compute_md5_streaming
 from ..repository.archive_validator_repository import ArchiveValidationResult
 from ..repository.winrar_discovery_repository import WinRarCapability
-from .disc_sequence_service import generate_disc_numbers
+from .disc_sequence_service import generate_disc_numbers, validate_disc_mapping
 from .archive_staging_security_service import OWNERSHIP_MARKER_NAME
 from .archive_manifest_output_security_service import (
     assert_safe_output_file as _assert_safe_output_file,
@@ -83,10 +83,11 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         return False
     manifest = record.public_manifest
     parts = manifest.get("parts")
-    if not isinstance(parts, list):
+    if not isinstance(parts, list) or not parts:
         return False
     filenames: set[str] = set()
     numbers: list[int] = []
+    disc_metadata: list[tuple[str, str]] = []
     base_name = manifest.get("archive_base_name")
     volume_size = manifest.get("volume_size_bytes")
     max_part_count = manifest.get("max_part_count")
@@ -94,6 +95,12 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
     for item in parts:
         if not isinstance(item, dict):
             return False
+        disc_number = item.get("disc_number")
+        disc_date = item.get("disc_date")
+        if disc_number is not None or disc_date is not None:
+            if not isinstance(disc_number, str) or not isinstance(disc_date, str):
+                return False
+            disc_metadata.append((disc_number, disc_date))
         filename = item.get("filename")
         if not isinstance(filename, str) or Path(filename).name != filename:
             return False
@@ -150,6 +157,8 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
             return False
         actual_total += size
     if sorted(numbers) != list(range(1, len(numbers) + 1)):
+        return False
+    if not validate_disc_mapping(numbers, disc_metadata):
         return False
     if isinstance(max_part_count, int) and len(parts) > max_part_count:
         return False

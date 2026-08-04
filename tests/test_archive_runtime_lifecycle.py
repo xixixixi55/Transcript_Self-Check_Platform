@@ -311,12 +311,19 @@ def test_http_task_is_claimed_and_one_failure_does_not_stop_runtime(
             f"/api/v1/workbench/tasks/{queued['task_id']}/result",
         ).json()["data"]
         part = result["parts"][0]
-        saved = client.get(
+        saved_report = client.get(
             f"/api/v1/workbench/cases/{second['shell']['case_id']}",
-        ).json()["data"]["draft"]["report"]["inspection"]["result"]
+        ).json()["data"]["draft"]["report"]
+        saved = saved_report["inspection"]["result"]
         assert saved["rar_filename"] == part["filename"]
         assert saved["md5_hash"] == part["md5"]
         assert saved["file_size"] == str(part["size_bytes"])
+        attachment_table = saved_report["attachments"]["extract_list"]
+        assert [row["no"] for row in attachment_table["rows"]] == ["1"]
+        assert [row["electronic_data"] for row in attachment_table["rows"]] == [part["filename"]]
+        assert [row["md5_hash"] for row in attachment_table["rows"]] == [part["md5"]]
+        assert "file_size" not in {column["key"] for column in attachment_table["columns"]}
+        assert saved_report["attachments"]["disc_number"] == part["disc_number"]
         assert services.archive_runtime.loop_start_count == 1
 
 

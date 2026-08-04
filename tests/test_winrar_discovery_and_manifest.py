@@ -110,19 +110,52 @@ def test_manifest_uses_actual_numeric_order_streaming_md5_and_disc_date(tmp_path
     first.write_bytes(b"first")
     second.write_bytes(b"second")
     plan = SimpleNamespace(
-        plan_id="plan", archive_base_name="案件", volume_size_bytes=10,
-        volume_tier_gb=4, max_part_count=2, total_input_bytes=8,
-        first_disc_number="GP20260718-09", expected_disc_numbers=("GP20260718-09", "GP20260718-10"),
+        plan_id="plan", archive_base_name="案件", volume_size_bytes=4_000_000_000,
+        volume_tier_gb=4, max_part_count=2, total_input_bytes=7_000_000_000,
+        first_disc_number="GP20260718-01", expected_disc_numbers=("GP20260718-01", "GP20260718-02"),
     )
     capability = SimpleNamespace(available=True, executable_path="fake", executable_name="WinRAR.exe", version="6.24", supports_rar_volumes=True,
                                  public_dict=lambda: {"available": True, "executable_name": "WinRAR.exe", "version": "6.24", "supports_rar_volumes": True})
     validation = validate_archive_parts(tmp_path, plan, capability, integrity_runner=probe_ok)
     manifest, paths = assemble_archive_manifest(plan, validation, capability, retry_count=0)
     assert [part["part_number"] for part in manifest["parts"]] == [1, 2]
+    assert [part["disc_number"] for part in manifest["parts"]] == [
+        "GP20260718-01", "GP20260718-02",
+    ]
     assert manifest["parts"][0]["filename"] == "案件.part1.rar"
     assert manifest["parts"][0]["md5"] == hashlib.md5(b"first").hexdigest()
     assert manifest["parts"][0]["disc_date"] == "2026-07-18"
     assert all(Path(name).name == name for name in paths)
+
+
+def test_published_manifest_rejects_disc_mapping_not_contiguous(tmp_path):
+    first = tmp_path / "case.part1.rar"
+    second = tmp_path / "case.part2.rar"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+    manifest = {
+        "archive_base_name": "case", "volume_size_bytes": 4_000_000_000,
+        "max_part_count": 2, "actual_archive_bytes": 11,
+        "parts": [
+            {
+                "part_number": 1, "filename": first.name, "size_bytes": 5,
+                "md5": hashlib.md5(b"first").hexdigest(),
+                "disc_number": "GP20260718-02", "disc_date": "2026-07-18",
+                "disc_capacity_bytes": 4_000_000_000,
+                "volume_size_bytes": 4_000_000_000,
+            },
+            {
+                "part_number": 2, "filename": second.name, "size_bytes": 6,
+                "md5": hashlib.md5(b"second").hexdigest(),
+                "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
+                "disc_capacity_bytes": 4_000_000_000,
+                "volume_size_bytes": 4_000_000_000,
+            },
+        ],
+    }
+    record = SimpleNamespace(final_dir=tmp_path, public_manifest=manifest)
+
+    assert not validate_published_manifest(record)
 
 
 def test_manifest_uses_actual_part_count_when_less_than_expected(tmp_path):

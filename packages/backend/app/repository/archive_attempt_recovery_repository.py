@@ -46,7 +46,7 @@ def complete_verified_attempt(
         "task_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision",
         "report_fingerprint", "source_key", "input_fingerprint", "archive_fingerprint",
         "relative_final_dir", "shell_revision", "publication_id", "publication_digest",
-        "publication_file_set",
+        "publication_file_set", "attachment_projection",
     )
     if any(key not in evidence for key in required):
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
@@ -214,7 +214,7 @@ def complete_verified_attempt(
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         update_verified_draft(
             connection, draft, intent, evidence["case_id"],
-            int(evidence["draft_revision"]), now,
+            int(evidence["draft_revision"]), now, evidence["attachment_projection"],
         )
         updated_fence = connection.execute(
             "UPDATE archive_publish_fences SET status = 'consumed', reason = 'ARCHIVE_COMPLETION_VERIFIED', updated_at = ? "

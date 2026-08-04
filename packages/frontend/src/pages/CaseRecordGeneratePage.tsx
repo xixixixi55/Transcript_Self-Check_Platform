@@ -233,6 +233,7 @@ export default function CaseRecordGeneratePage() {
           sharedDefaultsSaveStatus={session.sharedDefaultsSaveState.status === 'not_changed'
             ? session.autosave.sharedState.status : session.sharedDefaultsSaveState.status}
           archiveContextId={null}
+          archiveResult={session.completedArchive}
         />
       </div>
       <WordDownloadNameDialog

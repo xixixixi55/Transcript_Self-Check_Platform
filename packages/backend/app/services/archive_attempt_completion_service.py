@@ -16,6 +16,9 @@ from ..repository.archive_publish_fence_repository import get as get_fence
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_manifest_service import validate_manifest_files
+from .archive_manifest_projection_service import (
+    project_verified_manifest_to_legacy_attachments,
+)
 from .archive_runtime_service import ArchiveManifestRecord
 from .archive_publication_identity_service import (
     assert_publication_identity, publication_digest, publication_id,
@@ -171,6 +174,9 @@ def complete_verified(
     expected_final_dir = (service.output_root / "compressed" / intent["relative_final_dir"]).resolve(strict=False)
     if expected_final_dir != record.final_dir.resolve(strict=False):
         raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
+    attachment_projection = project_verified_manifest_to_legacy_attachments(
+        draft["report"], record.public_manifest,
+    )
     bound_task_id = attempt.get("task_id") or intent["task_id"]
     result = complete_verified_attempt(service.database, {
         "attempt_id": attempt_id, "manifest_id": record.manifest_id,
@@ -180,6 +186,7 @@ def complete_verified(
         "report_fingerprint": attempt["report_fingerprint"], "source_key": indexed.source_key,
         "input_fingerprint": indexed.input_fingerprint, "archive_fingerprint": indexed.archive_fingerprint,
         "relative_final_dir": intent["relative_final_dir"], "recovery": recovery,
+        "attachment_projection": attachment_projection,
         "task_id": bound_task_id,
         "deployment_instance_id": service.database.deployment_instance_id,
         "publication_id": intent["publication_id"],
