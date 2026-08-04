@@ -1,6 +1,8 @@
 
 # Implementation Tasks: extensible-report-template-platform
 
+workflow_level: 3
+
 ## 验证执行节奏（本变更约束）
 
 - 开发过程中运行定向测试和必要架构检查；

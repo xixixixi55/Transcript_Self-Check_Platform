@@ -23,18 +23,22 @@ argument-hint: "[变更包名称]"
 
 2. **Harness 自动化门控（MUST 全部通过，在归档前执行）**
    ```
+   npm run verify:docs:strict -- --change <变更包名称>
+   # 全局发布/集中归档才使用：
    npm run verify:docs:strict:all
    ```
-   检查项（详见 `harness/entropy-rules.md` E-A1 ~ E-A7）：
+   检查项（详见 `harness/entropy-rules.md` E-A1 ~ E-A9）：
    - E-A1: directory.md 与文件系统一致（目录维度）
    - E-A2: 数据模型 Spec 与类型定义一致
    - E-A3: 文档链接有效
    - E-A4: OpenSpec 版本一致
    - E-A5: TEMPLATE_CANDIDATE 积压
    - E-A6: 迭代记录教训反哺完整性
+   - E-A8: workflow_level 与 delta spec 基本结构
+   - E-A9: `.agents` 与 `.claude` 镜像一致性
    - E-A7: 必选任务状态（普通任务必选，行尾 `[OPTIONAL]`/`[DEFERRED]`/`[N/A]` 可豁免）
 
-   **不通过则停止，修复后重试。**
+   **不通过则停止，修复后重试。`--change` 只阻断当前变更包；其他活跃包的迁移债务仅在全局 `--all` 门控中检查。**
 
 3. **Agent 自治检查（自动执行 + 自动修复）**
 
@@ -55,6 +59,8 @@ argument-hint: "[变更包名称]"
    **用户确认后方可继续。**
 
 5. **调用 OpenSpec 执行归档**
+
+   Level 2 或包含 delta spec 的变更包，必须先完成 `delta spec → 实现核对 → sync → living spec 检查`。不得选择跳过 sync 后正式归档；只有已有主规格完整同步的历史包，才可依据迁移台账中的 `reconciled` 证据继续。
 
    执行 `/opsx:archive` 命令完成归档操作：
    - 合并 delta specs 到 `openspec/specs/`

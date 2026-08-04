@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs'
+import * as path from 'node:path'
+
 export interface VerifyScope {
   all: boolean
   change?: string
@@ -7,6 +10,55 @@ export interface VerifyCommand {
   script: string
   args: string[]
   cwd: string
+}
+
+export interface NpmInvocation {
+  executable: string
+  args: string[]
+}
+
+export interface NpmRuntime {
+  platform: NodeJS.Platform
+  execPath: string
+  npmExecPath?: string
+  fileExists?: (filePath: string) => boolean
+}
+
+/**
+ * Resolve npm to a directly executable Node entry point.
+ * Windows npm.cmd is a shell shim and cannot be passed to spawnSync directly.
+ */
+export function resolveNpmInvocation(
+  runtime: NpmRuntime = {
+    platform: process.platform,
+    execPath: process.execPath,
+    npmExecPath: process.env.npm_execpath,
+  },
+): NpmInvocation {
+  const fileExists = runtime.fileExists ?? existsSync
+  const npmExecPath = runtime.npmExecPath?.trim()
+  const runtimePath = runtime.platform === 'win32' ? path.win32 : path.posix
+
+  if (npmExecPath && !npmExecPath.toLowerCase().endsWith('.cmd') && fileExists(npmExecPath)) {
+    return { executable: runtime.execPath, args: [npmExecPath] }
+  }
+
+  const bundledNpmCli = runtimePath.join(
+    runtimePath.dirname(runtime.execPath),
+    'node_modules',
+    'npm',
+    'bin',
+    'npm-cli.js',
+  )
+  if (fileExists(bundledNpmCli)) {
+    return { executable: runtime.execPath, args: [bundledNpmCli] }
+  }
+
+  if (runtime.platform !== 'win32') return { executable: 'npm', args: [] }
+
+  throw new Error(
+    'Unable to locate a directly executable npm CLI on Windows; set npm_execpath to npm-cli.js or install npm with Node.js.',
+  )
 }
 
 function optionValue(args: string[], name: string): string | undefined {

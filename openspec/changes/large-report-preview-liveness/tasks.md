@@ -2,6 +2,7 @@
 
 > Change: `large-report-preview-liveness`
 > Level: 3
+workflow_level: 3
 > Status: `PROPOSED`; implementation, external real-report acceptance, and full Harness verification are complete. T19 and the remaining final review gates are still open.
 > Scope: preview liveness, parser snapshot/cache identity, in-flight reuse, and deferred full ArchiveContext.
 > Explicitly out of scope: Shadow, Canonical, and complete Harness execution.

@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
-import { getRequiredIncompleteTasks, getTaskEntries } from './check-docs-utils'
+import {
+  getRequiredIncompleteTasks,
+  getTaskEntries,
+  parseWorkflowLevel,
+  validateDeltaSpec,
+} from './check-docs-utils'
 import {
   buildVerifyCommands,
   parseVerifyScope,
+  resolveNpmInvocation,
   runVerifyCommands,
 } from './verify-full-utils'
 
@@ -17,6 +23,17 @@ const content = [
 ].join('\n')
 
 assert.equal(getTaskEntries(content).length, 7)
+assert.equal(parseWorkflowLevel('workflow_level: 2\n'), 2)
+assert.equal(parseWorkflowLevel('workflow_level: 3\n'), 3)
+assert.equal(parseWorkflowLevel('workflow_level: one\n'), undefined)
+assert.deepEqual(validateDeltaSpec([
+  '## MODIFIED Requirements',
+  '### Requirement: REQ-001: Example',
+  '#### Scenario: Valid case',
+  '- WHEN the condition holds',
+  '- THEN the result is stable',
+].join('\n')), [])
+assert.ok(validateDeltaSpec('## MODIFIED Requirements\n### Requirement: REQ-001').includes('missing Scenario heading'))
 assert.deepEqual(
   getRequiredIncompleteTasks(content).map((task) => task.text),
   ['T1 ordinary task', 'T5 OPTIONAL in ordinary prose', 'T6 task [OPTIONAL] with trailing prose'],
@@ -34,6 +51,40 @@ assert.deepEqual(parseVerifyScope(['--change', 'current-change']), {
 assert.deepEqual(parseVerifyScope(['--all']), { all: true })
 assert.throws(() => parseVerifyScope([]), /current change is required/)
 assert.throws(() => parseVerifyScope(['--all', '--change', 'current-change']), /either --all or --change/)
+
+const windowsNode = 'C:\\Program Files\\nodejs\\node.exe'
+const windowsNpmCli = 'C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js'
+assert.deepEqual(resolveNpmInvocation({
+  platform: 'win32',
+  execPath: windowsNode,
+  npmExecPath: 'C:\\Program Files\\nodejs\\npm.cmd',
+  fileExists: (filePath) => filePath === windowsNpmCli,
+}), {
+  executable: windowsNode,
+  args: [windowsNpmCli],
+})
+assert.deepEqual(resolveNpmInvocation({
+  platform: 'linux',
+  execPath: '/usr/bin/node',
+  npmExecPath: '/opt/npm/bin/npm-cli.js',
+  fileExists: (filePath) => filePath === '/opt/npm/bin/npm-cli.js',
+}), {
+  executable: '/usr/bin/node',
+  args: ['/opt/npm/bin/npm-cli.js'],
+})
+assert.deepEqual(resolveNpmInvocation({
+  platform: 'darwin',
+  execPath: '/usr/local/bin/node',
+  fileExists: () => false,
+}), {
+  executable: 'npm',
+  args: [],
+})
+assert.throws(() => resolveNpmInvocation({
+  platform: 'win32',
+  execPath: 'C:\\node\\node.exe',
+  fileExists: () => false,
+}), /Unable to locate a directly executable npm CLI/)
 
 const cwd = 'D:\\中文目录\\with spaces（test）'
 const scopedCommands = buildVerifyCommands(

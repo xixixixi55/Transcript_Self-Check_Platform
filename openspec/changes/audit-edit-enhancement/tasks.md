@@ -1,5 +1,7 @@
 # Tasks: 审核编辑界面增强
 
+workflow_level: 3
+
 > Spec: `openspec/changes/audit-edit-enhancement/specs/electronic-inspection-record/spec.md`
 > 按架构层级从低到高排列（Layer 2、10 → 12、21）；包含审核编辑增强与既有解析/导出缺陷修复。
 

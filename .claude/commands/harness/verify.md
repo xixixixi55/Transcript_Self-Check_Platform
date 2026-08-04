@@ -29,6 +29,7 @@ argument-hint: ""
    npm run verify:docs:strict -- --change <变更包名称>
    npm run verify:docs:strict:all                  # 全局严格文档检查
    ```
+   Level 2 的 strict docs 必须只检查显式 `--change <变更包名称>` 当前包的 tasks.md、`workflow_level` 和 delta spec；`--all` 才检查全部活跃包。脚本只做基本结构和格式检查，不宣称自动判断代码与规格的完整语义一致性。
 
 3. **完整自动化工程门控（Level 3）**
    ```
@@ -39,7 +40,8 @@ argument-hint: ""
 
 4. **报告结果**
    - 先展示汇总状态和计数；全部通过后再提示后续 Review/归档
-   - 有失败：默认展示按类型汇总；追加 `--details` 后展开错误详情，分析是代码问题还是约束问题
+   - pytest、Vitest、模块测试和完整门控子命令通过时不逐条读取通过用例
+   - 有失败：默认展示按类型汇总，再下钻失败用例和 traceback；只有命令实际支持时才使用详细输出参数，不虚构通用 `--details`
 
 **如果验证失败**
 - 代码问题 → 建议修复方向

@@ -1,5 +1,7 @@
 # Tasks: 案件记录保留与正式产物保护
 
+workflow_level: 3
+
 > 除本条已记录的 Planning Review，以及下方明确标记为 Slice 5A-1 foundation 的已完成任务外，所有产品实现、测试、E2E、人工验收和后续 Review 任务保持未勾选。创建或修订本 change 不等于 Phase 5 产品能力已完成。
 > 原任务 T020–T025 和 Phase 5 gate 通过任务编号保留追溯；本节的 Spec Freeze Remediation 不新增原任务编号。
 

@@ -1,5 +1,10 @@
 # 案件共享默认值持久化
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007; openspec/specs/data-model.md SharedDefaults
+
 ## 级别与范围
 
 - 级别：Level 2。

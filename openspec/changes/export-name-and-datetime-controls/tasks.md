@@ -1,5 +1,10 @@
 # export-name-and-datetime-controls：导出文件名与日期时间控件
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-009
+
 ## 级别与范围
 
 - 级别：Level 2。

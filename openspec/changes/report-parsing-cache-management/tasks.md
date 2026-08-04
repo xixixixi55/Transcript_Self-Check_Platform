@@ -1,5 +1,10 @@
 # Level 2 任务：阶段 1 报告解析缓存管理
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: T9 living spec sync; openspec/specs/electronic-inspection-record/spec.md REQ-011/REQ-012
+
 > 范围：阶段 1 主流程的报告解析缓存，以及与 RAR/ArchiveManifest 独立生命周期所需的安全复用登记。
 > 非范围：Canonical、Shadow、阶段 2、阶段 3、LLM，以及独立的归档文件清理 UI。
 

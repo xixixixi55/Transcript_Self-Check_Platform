@@ -1,5 +1,10 @@
 # 支持新旧电子数据检查报告格式
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-002/REQ-003
+
 ## 目标
 
 在不改变现有 `InspectionReport` 公共模型、审核页面和 Word 导出流程的前提下，

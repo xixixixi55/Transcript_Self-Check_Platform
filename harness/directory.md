@@ -19,7 +19,8 @@
 │   ├── config.yaml                        # 🔧 项目配置（上下文 + 规则）
 │   ├── specs/                             # 📋 当前生效的能力 spec（单一真相源）
 │   │   ├── data-model.md                  #    💾 数据模型定义
-│   │   └── electronic-inspection-record/  #    📋 电子数据检查笔录
+│   │   ├── electronic-inspection-record/  #    📋 电子数据检查笔录
+│   │   └── harness-workflow/              #    🛡️ Level 2 工作流合同
 │   └── changes/                           # 🔄 变更管理
 │       └── archive/                       #    归档（完成的变更包）
 │
@@ -29,6 +30,7 @@
 │   ├── tasks.md                           # ✅ 任务管理规则 + 模板
 │   ├── iteration-guide.md                 # 🔄 迭代流程指南
 │   ├── entropy-rules.md                   # 🧹 熵治理规则
+│   ├── level2-spec-migration-ledger.md     # 🧾 Level 2 living spec 迁移台账
 │   ├── directory.md                       # 🗂️ 本文件（目录结构）
 │   └── archive/                           # 📦 归档
 │       └── iterations/                    #    迭代记录归档

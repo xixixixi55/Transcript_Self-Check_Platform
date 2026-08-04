@@ -1,6 +1,6 @@
 ---
 name: "Harness: Fix"
-description: "快速修 Bug（Level 1 局部修复直接修改；Level 2 使用 tasks.md；Level 3 使用完整变更包）"
+description: "快速修 Bug（Level 1 局部修复直接修改；Level 2 使用 tasks.md + delta spec；Level 3 使用完整变更包）"
 argument-hint: "<Bug 描述>"
 ---
 
@@ -35,7 +35,8 @@ argument-hint: "<Bug 描述>"
 1. **创建或选择变更包**
 
    - 已有匹配包：继续使用原变更包，不创建重复包。
-   - 没有匹配包：Level 2 仅创建 `openspec/changes/<名称>/tasks.md`；Level 3 创建完整变更包（proposal + specs + design + tasks）。
+   - 没有匹配包：Level 2 创建 `openspec/changes/<名称>/tasks.md` + 至少一个 `specs/<能力>/spec.md` 精简 delta，并记录 `workflow_level: 2`；Level 3 创建完整变更包（proposal + specs + design + tasks）。
+   - Level 2 不得使用 `Spec impact: N/A`；没有行为 delta 时应重新归为 Level 1。
    - 不依赖未在仓库入口中定义的快捷命令；不能使用 OpenSpec 快速命令时按上述规则手动创建。
 
 2. **定位问题**
@@ -53,11 +54,11 @@ argument-hint: "<Bug 描述>"
    - 确认 Bug 已修复
 
 5. **归档**（按级别）
-   - Level 2：仅执行 Level 2 的自动化门控，不执行 Level 3 完整归档协议
+   - Level 2：仅执行 Level 2 的自动化门控，不执行 Level 3 完整归档协议；正式归档前必须完成 delta → 实现核对 → sync → living spec 检查。
    - Level 3：完整归档协议（详见 `harness/entropy-rules.md`）
 
 **Guardrails**
 - 判断依据为行为影响和回滚风险，不按文件数量判断
 - Level 1 不创建 OpenSpec change
 - 复杂 Bug 或不确定时，可升级为 Level 2 或 3
-- 行为、交互、数据处理或安全修复 MUST 有受影响层的有效测试；纯样式、文案、图标和不改变交互的展示修复不强制新增低价值测试
+- 修复仍 MUST 有配套测试

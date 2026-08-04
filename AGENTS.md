@@ -50,11 +50,11 @@
 
 ### 需求/功能任务的变更包关联检查
 
-提出新需求或修改现有功能时，必须先扫描 `openspec/changes/` 下除 `archive/` 外的活跃变更包，并读取范围相近候选包的 `tasks.md` 及必要的 proposal/spec/design。完全属于已有变更目标时，必须继续在原变更包内补充任务和证据，不得重复创建；仅名称相似但范围不一致时不得强行挂靠；存在多个无法排除的重叠候选时暂停并请求人类选择。确认没有匹配的活跃变更包后，才按下述 Level 规则选择 Level 1 直接修改、Level 2 `tasks.md` 或 Level 3 完整变更包。
+提出新需求或修改现有功能时，必须先扫描 `openspec/changes/` 下除 `archive/` 外的活跃变更包，并读取范围相近候选包的 `tasks.md` 及必要的 proposal/spec/design。完全属于已有变更目标时，必须继续在原变更包内补充任务和证据，不得重复创建；仅名称相似但范围不一致时不得强行挂靠；存在多个无法排除的重叠候选时暂停并请求人类选择。确认没有匹配的活跃变更包后，才按下述 Level 规则选择 Level 1 直接修改、Level 2 `tasks.md` + delta spec 或 Level 3 完整变更包。
 
 ### Bug/回归任务的变更包关联检查
 
-修复 Bug 或回归问题时，必须先扫描 `openspec/changes/` 下除 `archive/` 外的活跃变更包，并读取候选包的 `tasks.md` 及必要的 proposal/spec/design，确认问题是否属于已有需求范围。已有匹配变更包时，必须在原变更包内修复、更新任务状态和测试证据，不得重复创建同目标变更包；仅名称相似但范围不一致时不得强行挂靠。存在多个无法排除的候选包时暂停并请求人类选择。确认没有匹配的活跃变更包后，才按下述 Level 规则判断是直接修复、创建 Level 2 `tasks.md`，还是创建 Level 3 完整变更包；已归档变更不直接改写，通常新建修复变更包。
+修复 Bug 或回归问题时，必须先扫描 `openspec/changes/` 下除 `archive/` 外的活跃变更包，并读取候选包的 `tasks.md` 及必要的 proposal/spec/design，确认问题是否属于已有需求范围。已有匹配变更包时，必须在原变更包内修复、更新任务状态和测试证据，不得重复创建同目标变更包；仅名称相似但范围不一致时不得强行挂靠。存在多个无法排除的候选包时暂停并请求人类选择。确认没有匹配的活跃变更包后，才按下述 Level 规则判断是直接修复、创建 Level 2 `tasks.md` + delta spec，还是创建 Level 3 完整变更包；已归档变更不直接改写，通常新建修复变更包。
 
 ---
 
@@ -70,7 +70,7 @@
 
 ## 5. Level 1 — 轻量修改
 
-**适用**：局部 Bug、文案、样式、错误提示、配置默认值、局部字段映射、模板占位符调整、单模块小重构、不改变公共接口和架构的修改。
+**适用**：纯样式、文案、小修复、内部重构、测试调整，以及其他不新增或改变正式行为的修改。
 
 **流程**：检查 Git → 读相关代码和测试 → 搜索调用范围 → 最小修改 → 针对性验证（相关测试或 `lint:arch` + `typecheck`）→ 检查 diff → 汇报。不创建 OpenSpec change、proposal/spec/design、迭代记录。不要求读取 `iteration-guide.md`、独立 Code Review Agent、归档。
 
@@ -80,7 +80,9 @@
 
 **适用**：引入新的可观察行为或扩大现有能力，影响范围中等，但仍保持现有公共契约和总体架构。模块数和文件数仅作参考。
 
-**默认创建** `openspec/changes/<name>/tasks.md`（含目标、验收标准、任务列表、必要说明）。设计说明写入 tasks.md，不自动扩大为变更包。默认不强制 proposal.md、独立 spec.md、design.md、完整归档门控。
+**固定产物**：`openspec/changes/<name>/tasks.md` 与至少一个 `openspec/changes/<name>/specs/<capability>/spec.md`。在 tasks.md 持久化 `workflow_level: 2`；delta spec 只记录最终行为要求和关键场景，必须使用 ADDED/MODIFIED/REMOVED/RENAMED 结构。不得使用 `Spec impact: N/A` 绕过；没有行为 delta 时重新归为 Level 1。不因此新增 proposal.md、design.md、verify 或 review 要求。
+
+**收尾**：实现完成后核对 delta 与最终行为，按 `delta spec → 实现核对 → sync → 检查 living spec` 同步到 `openspec/specs`；主规格未同步不得正式归档。
 
 ---
 
@@ -121,10 +123,10 @@ Review 驳回后，修改了被审查源码、接口、数据模型或行为时�
 | 级别 | 验证命令 | OpenSpec | 归档 |
 |:----:|------|---------|:----:|
 | Level 1 | 按变化执行定向测试，或 `npm run verify:quick` | 不创建 | 不归档 |
-| Level 2 | `npm run verify:quick` + 受影响模块原始测试；收尾执行 `npm run verify:docs:strict -- --change <name>` | 仅 tasks.md | 不强制 |
+| Level 2 | `npm run verify:quick` + 受影响模块原始测试；收尾执行 scoped strict docs | tasks.md + delta specs | sync 后方可正式归档 |
 | Level 3 | 执行全仓库自动化工程检查；严格任务状态仅检查 `npm run verify:full -- --change <name>` 指定的变更包；全局发布/集中归档执行 `npm run verify:full:all` | 完整变更包 | 完整归档协议 |
 
-Level 2 的严格任务状态只检查 `<name>` 当前变更包；Level 3 当前变更收尾也只检查显式传入的 `<name>`，全局发布/集中归档才检查所有活跃变更包。普通 checklist 任务默认必选；只有任务行末尾明确写成 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时可不勾选。脚本只读取这些显式状态，不根据标题、源码文件或自然语言推断完成度。
+Level 2 的严格任务状态和 delta 结构只检查 `<name>` 当前变更包；Level 3 当前变更收尾也只检查显式传入的 `<name>`，全局发布/集中归档才检查所有活跃变更包。普通 checklist 任务默认必选；只有任务行末尾明确写成 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时可不勾选。脚本只读取显式状态和 `workflow_level`，不根据 proposal/design 是否存在反向猜测级别，也不宣称能自动判断代码与规格的完整语义一致性。
 
 `npm run verify:full -- --change <name>` 执行全仓库自动化工程检查，但严格任务状态只检查指定变更包；`npm run verify:full:all` 才检查全部活跃变更包。两者都不等同于完整系统验收；当前不包含 Playwright E2E、mypy、真实桌面环境和 Word/PDF 人工验收。未提供 scope 时，`verify:full` 不猜测当前变更，直接提示使用 `--change` 或 `--all`。
 
@@ -137,6 +139,7 @@ Level 2 的严格任务状态只检查 `<name>` 当前变更包；Level 3 当前
 ## 11. 工具兼容 + 旧变更包迁移
 
 - `.claude/`、`.agents/` 下命令和 Skill 是工具快捷入口，不得维护与本文件冲突的流程规则。
+- `.agents/` 与 `.claude/` 的对应文件必须保持内容一致（忽略 CRLF/LF 行尾差异）；默认和 strict docs 都执行镜像检查。
 - `/harness:fix` 支持 Level 1（不创建 OpenSpec change）。
 - **现有活跃变更包**不自动删除或降级，继续按原约定处理或后续逐个评估迁移。新三级规则默认适用于新任务。
 

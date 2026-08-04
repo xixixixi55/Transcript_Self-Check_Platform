@@ -33,6 +33,8 @@ argument-hint: "[变更包名称]"
    - 读取 tasks.md + specs/ + design.md
    - MUST 遵循 `openspec/config.yaml` 中 `rules` 定义的质量标准
 
+   Level 2 必须同时读取 `tasks.md` 和至少一个 `specs/<能力>/spec.md` 精简 delta；`workflow_level: 2` 是已完成分级结论，不能通过 proposal/design 是否存在反向猜测。
+
 2. **按顺序执行 Task（Harness 开发节奏）**
 
    **MUST** 按以下节奏完成未完成任务（这是 Harness 注入的，OpenSpec apply 不管这些）：
@@ -53,8 +55,8 @@ argument-hint: "[变更包名称]"
       - 测试分层对应：详见 `architecture.md` 测试文件组织
 
    d. **运行测试**
-      - pytest 默认使用 `-q --tb=short`，先读取退出码和最终汇总；通过时不逐条读取通过用例
-      - 失败时只阅读失败用例及其 traceback；修复后先重跑失败用例，再按需重跑受影响模块
+      - 所有自动化测试（pytest、Vitest、模块测试和完整门控子命令）先读取退出码、最终汇总和失败数量；通过时不逐条读取通过用例
+      - pytest 默认使用 `-q --tb=short`，前端 Vitest 优先使用非 verbose 模式；失败时只阅读失败用例及其 traceback；修复后先重跑失败用例，再按需重跑受影响模块
       - **连续失败 3 次 → 停止，报告问题**
 
    e. **按需验证测试有效性**
@@ -62,6 +64,8 @@ argument-hint: "[变更包名称]"
       - 普通组件、页面、样式、文案和低风险适配不强制执行突变式验证
 
    f. **标记已完成的必选 Task 为 `[x]`**，进入下一个
+
+   Level 2 收尾必须核对 delta 与最终行为，然后按 `delta spec → 实现核对 → sync → living spec 检查` 完成同步；未同步主规格不得正式归档。该流程不增加 proposal、design、verify 或 review 要求。
 
 3. **全部实现完成后冻结候选版本**
    - Level 3 统一进行一次 Code Review，不按 Task 启动

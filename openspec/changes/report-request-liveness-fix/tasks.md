@@ -1,5 +1,10 @@
 # Level 2 任务：报告解析与缓存清理请求可用性
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-011
+
 ## 目标
 
 保证报告解析和解析缓存清理在同步文件系统工作、网络失败或请求超时后都能结束请求并反馈可重试状态；解析缓存清理不触碰归档生命周期。

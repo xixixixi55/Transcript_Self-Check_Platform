@@ -1,5 +1,10 @@
 # 审核编辑页现代政务工作台样板
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-029
+
 ## 目标
 
 在不改变报告解析、字段数据结构、上传、附件处理和 Word 导出行为的前提下，为平台建立现代政务工作台全局外壳，并在电子数据检查笔录流程中保留已验收的审核编辑页样板。

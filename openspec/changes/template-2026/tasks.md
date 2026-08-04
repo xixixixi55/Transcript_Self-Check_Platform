@@ -1,5 +1,10 @@
 # template-2026: 2026报告模板转换
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-009
+
 ## 目标
 
 将业务方认可的参考文档「2026报告模板（one压缩包）最终提交.docx」转换为项目可用的 Word 模板，支持 `{{placeholder}}` 动态填充。同时升级 `entrust_person` 字段以支持多委托人场景。

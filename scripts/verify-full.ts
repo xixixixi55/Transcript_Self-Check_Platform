@@ -1,18 +1,34 @@
 import { spawnSync } from 'node:child_process'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildVerifyCommands, parseVerifyScope, runVerifyCommands } from './verify-full-utils'
+import {
+  buildVerifyCommands,
+  parseVerifyScope,
+  resolveNpmInvocation,
+  runVerifyCommands,
+} from './verify-full-utils'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 
 function runNpm(command: { script: string; args: string[]; cwd: string }): number {
-  const result = spawnSync(NPM, ['run', command.script, ...command.args], {
-    cwd: command.cwd,
-    stdio: 'inherit',
-  })
+  let invocation
+  try {
+    invocation = resolveNpmInvocation()
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    return 1
+  }
+
+  const result = spawnSync(
+    invocation.executable,
+    [...invocation.args, 'run', command.script, ...command.args],
+    {
+      cwd: command.cwd,
+      stdio: 'inherit',
+    },
+  )
   if (result.error) {
-    console.error(`Failed to run ${NPM}: ${result.error.message}`)
+    console.error(`Failed to run npm CLI via ${invocation.executable}: ${result.error.message}`)
     return 1
   }
   return result.status ?? 1

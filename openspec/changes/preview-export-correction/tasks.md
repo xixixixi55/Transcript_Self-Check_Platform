@@ -1,5 +1,7 @@
 # Tasks：预览字段映射与 Word 导出修复
 
+workflow_level: 3
+
 ## Phase 1 — 文档与解析（Layer 20/21）
 
 - [x] T001 [P0] 在 `html_parser.py` 增加设备名称、IMEI1/2、序列号的键值/文本兼容解析，并为检材编号提供目录回退；验证：新增/更新 `tests/test_html_parser.py`。

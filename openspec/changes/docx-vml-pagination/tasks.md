@@ -1,5 +1,10 @@
 # docx-vml-pagination：模板 VML 与附件分页修复
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-009
+
 ## 目标
 
 修复项目模板填充后正文 VML 文本框丢失、附件区域空白页，以及 `data_summary` 缺失值渲染为空的问题，使生成文档与甲方认可模板保持结构和分页一致。

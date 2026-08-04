@@ -24,7 +24,14 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { getCompletedTaskFileReferences, getRequiredIncompleteTasks } from './check-docs-utils'
+import {
+  getCompletedTaskFileReferences,
+  getRequiredIncompleteTasks,
+  getWorkflowMetadata,
+  parseWorkflowLevel,
+  validateDeltaSpec,
+  type WorkflowLevel,
+} from './check-docs-utils'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -92,7 +99,9 @@ type DriftType =
   | 'task-file-missing' | 'task-incomplete' | 'spec-not-listed' | 'file-not-in-tree'
   | 'type-drift' | 'broken-link' | 'version-mismatch'
   | 'template-candidate-backlog' | 'lesson-not-fed-back'
-  | 'agents-size-exceeded'
+  | 'agents-size-exceeded' | 'workflow-level-missing' | 'workflow-level-invalid'
+  | 'level2-delta-spec-missing' | 'delta-spec-invalid'
+  | 'legacy-reconciliation-invalid' | 'agent-tooling-mirror-drift'
 
 interface Drift { type: DriftType; message: string }
 
@@ -125,6 +134,25 @@ function getAllFiles(dir: string, ext: string[], prefix = ''): string[] {
     else if (ext.some((e) => entry.name.endsWith(e))) results.push(rel)
   }
   return results
+}
+
+function getAllRelativeFiles(dir: string, prefix = ''): string[] {
+  const results: string[] = []
+  if (!fs.existsSync(dir)) return results
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name
+    if (entry.isDirectory()) results.push(...getAllRelativeFiles(path.join(dir, entry.name), rel))
+    else results.push(rel)
+  }
+  return results
+}
+
+function toPosixPath(value: string): string {
+  return value.replaceAll('\\', '/')
+}
+
+function readNormalizedText(filePath: string): string {
+  return fs.readFileSync(filePath, 'utf-8').replaceAll('\r\n', '\n').replaceAll('\r', '\n')
 }
 
 function getActualDirs(baseDir: string, prefix = ''): string[] {
@@ -185,6 +213,16 @@ interface ActiveTaskFile {
   content: string
 }
 
+interface ActiveChangeMetadata extends ActiveTaskFile {
+  workflowLevel?: WorkflowLevel
+  rawWorkflowLevel?: string
+  legacyMigration?: boolean
+  rawLegacyMigration?: string
+  specSyncStatus?: string
+  specSyncEvidence?: string
+  deltaSpecPaths: string[]
+}
+
 function getActiveTaskFiles(changeName?: string): ActiveTaskFile[] {
   const changesDir = path.join(OPENSPEC_DIR, 'changes')
   if (changeName) {
@@ -199,6 +237,32 @@ function getActiveTaskFiles(changeName?: string): ActiveTaskFile[] {
       const tasksPath = path.join(changesDir, entry.name, 'tasks.md')
       return { changeName: entry.name, tasksPath, content: readFileIfExists(tasksPath) }
     })
+}
+
+function getDeltaSpecPaths(changeName: string): string[] {
+  const specsDir = path.join(OPENSPEC_DIR, 'changes', changeName, 'specs')
+  return getAllRelativeFiles(specsDir)
+    .filter((filePath) => path.basename(filePath).toLowerCase() === 'spec.md')
+    .map((filePath) => toPosixPath(path.posix.join('specs', filePath)))
+}
+
+function getActiveChangeMetadata(changeName?: string): ActiveChangeMetadata[] {
+  return getActiveTaskFiles(changeName).map((taskFile) => {
+    const rawWorkflowLevel = getWorkflowMetadata(taskFile.content, 'workflow_level')
+    const rawLegacyMigration = getWorkflowMetadata(taskFile.content, 'legacy_migration')
+    const rawSpecSyncStatus = getWorkflowMetadata(taskFile.content, 'spec_sync_status')
+    const rawSpecSyncEvidence = getWorkflowMetadata(taskFile.content, 'spec_sync_evidence')
+    return {
+      ...taskFile,
+      workflowLevel: parseWorkflowLevel(taskFile.content),
+      rawWorkflowLevel,
+      legacyMigration: rawLegacyMigration === 'true' ? true : rawLegacyMigration === 'false' ? false : undefined,
+      rawLegacyMigration,
+      specSyncStatus: rawSpecSyncStatus,
+      specSyncEvidence: rawSpecSyncEvidence,
+      deltaSpecPaths: getDeltaSpecPaths(taskFile.changeName),
+    }
+  })
 }
 
 function checkTaskFiles(): Drift[] {
@@ -226,6 +290,126 @@ function checkRequiredTaskCompletion(): Drift[] {
       drifts.push({
         type: 'task-incomplete',
         message: `${taskFile.changeName}: required task at line ${task.lineNumber} is not checked — ${task.text}`,
+      })
+    }
+  }
+  return drifts
+}
+
+// ─── Check 4b: workflow level and delta spec contract ─────────────
+
+function checkWorkflowLevelAndDeltaSpecs(): Drift[] {
+  const drifts: Drift[] = []
+  for (const change of getActiveChangeMetadata(CHANGE_NAME)) {
+    if (!change.content) continue
+
+    if (!change.rawWorkflowLevel) {
+      drifts.push({
+        type: 'workflow-level-missing',
+        message: `${change.changeName}: tasks.md must persist workflow_level: 2 or workflow_level: 3`,
+      })
+      continue
+    }
+    if (!change.workflowLevel) {
+      drifts.push({
+        type: 'workflow-level-invalid',
+        message: `${change.changeName}: workflow_level must be exactly 2 or 3 (found "${change.rawWorkflowLevel}")`,
+      })
+      continue
+    }
+
+    if (change.rawLegacyMigration && change.legacyMigration === undefined) {
+      drifts.push({
+        type: 'legacy-reconciliation-invalid',
+        message: `${change.changeName}: legacy_migration must be true or false when present`,
+      })
+    }
+
+    const validSyncStatuses = new Set(['pending', 'partial', 'reconciled'])
+    if (change.specSyncStatus && !validSyncStatuses.has(change.specSyncStatus)) {
+      drifts.push({
+        type: 'legacy-reconciliation-invalid',
+        message: `${change.changeName}: spec_sync_status must be pending, partial, or reconciled`,
+      })
+    }
+    if (change.specSyncStatus === 'reconciled' && !change.specSyncEvidence) {
+      drifts.push({
+        type: 'legacy-reconciliation-invalid',
+        message: `${change.changeName}: spec_sync_status: reconciled requires spec_sync_evidence`,
+      })
+    }
+    if (change.legacyMigration === true && !change.specSyncStatus) {
+      drifts.push({
+        type: 'legacy-reconciliation-invalid',
+        message: `${change.changeName}: legacy_migration: true requires spec_sync_status`,
+      })
+    }
+
+    if (change.workflowLevel === 2 && /^\s*Spec impact:\s*N\/A\s*$/im.test(change.content)) {
+      drifts.push({
+        type: 'level2-delta-spec-missing',
+        message: `${change.changeName}: Level 2 cannot use "Spec impact: N/A"; reclassify as Level 1 when there is no behavior delta`,
+      })
+    }
+
+    if (change.workflowLevel === 2) {
+      const hasReconciledHistoricalSpec =
+        change.legacyMigration === true &&
+        change.specSyncStatus === 'reconciled' &&
+        Boolean(change.specSyncEvidence)
+      if (change.deltaSpecPaths.length === 0 && !hasReconciledHistoricalSpec) {
+        drifts.push({
+          type: 'level2-delta-spec-missing',
+          message: `${change.changeName}: workflow_level 2 requires at least one specs/<capability>/spec.md delta spec`,
+        })
+      }
+
+      for (const deltaSpecPath of change.deltaSpecPaths) {
+        const deltaContent = readFileIfExists(path.join(OPENSPEC_DIR, 'changes', change.changeName, deltaSpecPath))
+        const formatErrors = validateDeltaSpec(deltaContent)
+        for (const formatError of formatErrors) {
+          drifts.push({
+            type: 'delta-spec-invalid',
+            message: `${change.changeName}: ${deltaSpecPath} ${formatError}`,
+          })
+        }
+      }
+    }
+  }
+  return drifts
+}
+
+// ─── Check 4c: .agents/.claude mirror contract ───────────────────
+
+function checkAgentToolingMirror(): Drift[] {
+  const drifts: Drift[] = []
+  const agentsDir = path.join(ROOT, '.agents')
+  const claudeDir = path.join(ROOT, '.claude')
+  const agentsFiles = getAllRelativeFiles(agentsDir)
+  const claudeFiles = getAllRelativeFiles(claudeDir)
+  const relativeFiles = [...new Set([...agentsFiles, ...claudeFiles])].sort()
+
+  for (const relativeFile of relativeFiles) {
+    const agentsPath = path.join(agentsDir, relativeFile)
+    const claudePath = path.join(claudeDir, relativeFile)
+    if (!fs.existsSync(agentsPath)) {
+      drifts.push({
+        type: 'agent-tooling-mirror-drift',
+        message: `.claude/${relativeFile} has no matching .agents/${relativeFile}`,
+      })
+      continue
+    }
+    if (!fs.existsSync(claudePath)) {
+      drifts.push({
+        type: 'agent-tooling-mirror-drift',
+        message: `.agents/${relativeFile} has no matching .claude/${relativeFile}`,
+      })
+      continue
+    }
+    if (readNormalizedText(agentsPath) !== readNormalizedText(claudePath)) {
+      drifts.push({
+        type: 'agent-tooling-mirror-drift',
+        message: `.agents/${relativeFile} and .claude/${relativeFile} differ after line-ending normalization`,
       })
     }
   }
@@ -419,11 +603,12 @@ function main() {
     ...checkDataModelConsistency(),        // E-A2
     ...checkAgentsSize(),                  // AGENTS.md size (warn in default, error in strict)
     ...checkDocLinks(),                    // E-A3
+    ...checkAgentToolingMirror(),          // mirrored command/skill source
   ]
 
   const checks = [
     'E-A1:directory-structure', 'npm-commands',
-    'E-A2:data-model-consistency', 'agents-md-size', 'E-A3:doc-links',
+    'E-A2:data-model-consistency', 'agents-md-size', 'E-A3:doc-links', 'agent-tooling-mirror',
   ]
 
   // Strict mode: add governance checks
@@ -431,13 +616,14 @@ function main() {
     allDrifts.push(
       ...checkTaskFiles(),
       ...checkRequiredTaskCompletion(),
+      ...checkWorkflowLevelAndDeltaSpecs(),
       ...checkSpecsListed(),
       ...checkOpenSpecVersion(),
       ...checkTemplateCandidateBacklog(),
       ...checkLessonFeedback(),
     )
     checks.push(
-      'task-file-refs', 'required-task-completion', 'specs-listed',
+      'task-file-refs', 'required-task-completion', 'workflow-level-and-delta-spec', 'specs-listed',
       'E-A4:openspec-version', 'E-A5:template-candidate-backlog', 'E-A6:lesson-feedback',
     )
   }

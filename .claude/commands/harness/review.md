@@ -109,8 +109,9 @@ argument-hint: "[变更包名称]"
 **灵活的工件处理**
 > 来源：OpenSpec verify spec — Requirement 6
 
-- **仅有 tasks.md**：只验证任务完成度，跳过 spec 和 design 检查
-- **有 specs/ 无 design.md**：验证完整性 + 正确性，跳过 design 遵循检查，仍检查 Harness 架构约束
+- **Level 1**：没有 OpenSpec change，不由本命令验证
+- **Level 2**：必须读取 tasks.md 和至少一个精简 delta spec，验证完整性 + 正确性；无 design.md 时跳过 design 遵循检查，仍检查 Harness 架构约束
+- **仅有 tasks.md 的历史包**：只能在已记录 `legacy_migration: true` + `spec_sync_status: reconciled` + `spec_sync_evidence` 的情况下按迁移台账处理，不得作为新 Level 2 模板
 - **完整变更包**：执行所有三维度验证
 
 **Guardrails**

@@ -5,7 +5,7 @@
 >
 > **适用范围**：本文档的完整归档和熵治理门控主要适用于 **Level 3**。
 > Level 1 不创建变更包，因此不执行归档流程。
-> Level 2 默认只维护 tasks.md，不强制执行完整归档门控。
+> Level 2 固定维护 `tasks.md` + 至少一个精简 delta spec；不新增 Level 3 的 proposal/design/review 要求，但收尾必须完成 delta → 实现核对 → sync → living spec 检查。
 
 ---
 
@@ -54,6 +54,17 @@
 - 同一任务行末尾明确标记 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时，未勾选不阻塞。
 - 只检查显式 checklist 状态，不根据任务标题、源码文件存在性或自然语言推断任务完成。
 - `--change <名称>` 只检查指定变更包；全局检查使用 `npm run verify:docs:strict:all`，不通过隐式缺省参数推断全局范围。
+
+### E-A8: workflow level 与 Level 2 delta（仅严格模式）
+- 活跃变更包的 `tasks.md` 必须显式记录 `workflow_level: 2` 或 `workflow_level: 3`；脚本不根据 proposal/design 是否存在反向猜测级别。
+- Level 2 必须有至少一个 `specs/<capability>/spec.md`，并通过 ADDED/MODIFIED/REMOVED/RENAMED、Requirement、Scenario、WHEN、THEN 的基本结构检查。
+- Level 2 不得使用 `Spec impact: N/A`；没有行为 delta 时应重新判断为 Level 1。
+- 历史包只有同时记录 `legacy_migration: true`、`spec_sync_status: reconciled` 和 `spec_sync_evidence` 时，才可用“已完整同步/已核对”例外代替重复 delta；这不是新建 Level 2 的绕过路径。
+- 该检查只确认文档工件和格式存在，不宣称能够自动判断代码与规格的完整语义一致性。
+
+### E-A9: `.agents` 与 `.claude` 镜像（默认与严格模式）
+- 对应命令和 Skill 文件必须在两个目录同时存在且内容一致；检查忽略 CRLF/LF 行尾差异。
+- 缺失、额外或内容不同都会报告 drift；该检查是仓库级工具一致性检查，不把其他变更包迁移债务带入 scoped change 检查。
 
 ---
 
@@ -115,7 +126,7 @@
 | 时机 | 脚本自动化检查 | Agent 自治检查 | Agent 辅助 + 人工确认 |
 |------|---------------|---------------|---------------------|
 | 每次提交 | 默认模式检查（结构、命令、类型文档、链接和资产） | — | — |
-| Level 2 收尾 | 严格模式 + `--change <名称>`，只检查当前变更包任务状态 | — | 按需 |
+| Level 2 收尾 | 严格模式 + `--change <名称>`，只检查当前变更包任务、workflow level 和 delta 结构 | delta 已通过 sync 后按需归档 | 按需 |
 | Level 3 当前变更收尾 | 当前变更 scoped full gate + 严格任务检查 | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
 | 全局发布/集中归档 | `verify:full:all` / `verify:docs:strict:all` 检查全部活跃变更包 | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
 | 每个里程碑 | — | — | TEMPLATE_CANDIDATE 积压审阅（E-A5 warning 触发） |
@@ -137,7 +148,7 @@ Agent 在执行 Level 3 归档（⑥）时 **MUST** 按以下流程操作：
 
 ### 快速修复豁免（Level 2）
 
-通过 `/harness:fix` 执行的 Level 2 修复，运行 `verify:quick`、受影响模块原始测试，并在当前变更收尾运行 `verify:docs:strict -- --change <名称>`。不因 Level 2 自动执行 Level 3 的完整归档协议，也不要求重复运行 `verify:full`。
+通过 `/harness:fix` 执行的 Level 2 修复，运行 `verify:quick`、受影响模块原始测试，并在当前变更收尾运行 `verify:docs:strict -- --change <名称>`。完成 delta 与实现核对后，必须按当前实际支持的 sync 流程同步 living spec；不因 Level 2 自动执行 Level 3 的完整归档协议，也不要求重复运行 `verify:full`。
 
 > **注意**：判断依据为行为影响和回滚风险，不按修改文件数量机械判断。Level 3 重大变更应使用完整归档协议。
 

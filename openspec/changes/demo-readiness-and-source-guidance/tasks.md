@@ -1,5 +1,10 @@
 # Demo 就绪提示与来源目录开关边界
 
+workflow_level: 2
+legacy_migration: true
+spec_sync_status: reconciled
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-029
+
 ## 级别与范围
 
 - 级别：Level 2。

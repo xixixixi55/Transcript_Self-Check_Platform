@@ -29,6 +29,7 @@ argument-hint: ""
    npm run verify:docs:strict -- --change <变更包名称>
    npm run verify:docs:strict:all                  # 全局严格文档检查
    ```
+   Level 2 的 strict docs 必须只检查显式 `--change <变更包名称>` 当前包的 tasks.md、`workflow_level` 和 delta spec；`--all` 才检查全部活跃包。脚本只做基本结构和格式检查，不宣称自动判断代码与规格的完整语义一致性。
 
 3. **完整自动化工程门控（Level 3）**
    ```

@@ -41,3 +41,44 @@ export function getCompletedTaskFileReferences(content: string): string[] {
     .flatMap((line) => line.match(/`[^`]+\.[a-z]+`/g) || [])
     .map((ref) => ref.replace(/`/g, ''))
 }
+
+export type WorkflowLevel = 2 | 3
+export type SpecSyncStatus = 'pending' | 'partial' | 'reconciled'
+
+/** Read a stable top-level scalar from the metadata header in tasks.md. */
+export function getWorkflowMetadata(content: string, key: string): string | undefined {
+  const pattern = new RegExp(`^${key}:\\s*([^\\r\\n#]+?)\\s*$`, 'mi')
+  return content.match(pattern)?.[1]?.trim()
+}
+
+/** Parse the persisted workflow level; never infer it from other artifacts. */
+export function parseWorkflowLevel(content: string): WorkflowLevel | undefined {
+  const value = getWorkflowMetadata(content, 'workflow_level')
+  if (value === '2' || value === '3') return Number(value) as WorkflowLevel
+  return undefined
+}
+
+/** Validate only the structural contract of an OpenSpec delta, not its semantics. */
+export function validateDeltaSpec(content: string): string[] {
+  const errors: string[] = []
+  const sections = [...content.matchAll(/^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)(?:\s+Requirements?|\s*:)/gim)]
+    .map((match) => match[1].toUpperCase())
+
+  if (sections.length === 0) errors.push('missing ADDED/MODIFIED/REMOVED/RENAMED section')
+
+  const hasRequirement = /^###\s+(?:Requirement:\s*.+|(?:REQ|CAP)[-_][\w-]+.*)$/im.test(content)
+  if (!hasRequirement && sections.some((section) => section !== 'RENAMED')) {
+    errors.push('missing Requirement heading')
+  }
+
+  const needsScenario = sections.some((section) => section === 'ADDED' || section === 'MODIFIED')
+  if (needsScenario) {
+    if (!/(?:^#{2,4}\s*Scenario:\s*.+|^\*\*Scenario:\s*.+)/im.test(content)) {
+      errors.push('missing Scenario heading')
+    }
+    if (!/\bWHEN\b/i.test(content)) errors.push('missing WHEN clause')
+    if (!/\bTHEN\b/i.test(content)) errors.push('missing THEN clause')
+  }
+
+  return errors
+}

@@ -52,7 +52,7 @@
 
 **执行**：Level 3 运行 `/opsx:propose "<功能描述>"` 或手动创建完整变更包；Level 1/2 按 `AGENTS.md` 的轻量路径执行
 
-**产出物**：Level 3 为 `openspec/changes/<功能名>/` 目录下的完整变更包；Level 2 仅创建 `tasks.md`，Level 1 不创建变更包
+**产出物**：Level 3 为 `openspec/changes/<功能名>/` 目录下的完整变更包；Level 2 固定创建 `tasks.md` + `specs/<能力>/spec.md` 精简 delta，Level 1 不创建变更包
 
 ```
 openspec/changes/<功能名>/
@@ -99,7 +99,7 @@ openspec/changes/<功能名>/
 
 ## ③ 任务拆解（OpenSpec: 变更包内的 tasks.md）
 
-**产出物**：`openspec/changes/<功能名>/tasks.md`
+**产出物**：Level 2 的 `openspec/changes/<功能名>/tasks.md`（含 `workflow_level: 2`）与至少一个 `specs/<能力>/spec.md` delta；Level 3 的完整 tasks.md
 
 **规则**：详见 `openspec/config.yaml` 中的 `rules.tasks`
 
@@ -232,7 +232,7 @@ npm run verify:docs:strict:all               # 全局严格文档检查
 - [ ] OpenSpec 版本一致
 - [ ] 迭代记录教训反哺完整性
 
-严格模式的任务状态规则：普通 checklist 任务默认必选；同一行末尾明确标记 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时可不勾选。Level 2 和 Level 3 当前变更收尾传 `--change <变更包名称>`，只检查当前变更包；全局发布/集中归档使用 `verify:full:all` 或 `verify:docs:strict:all`。
+严格模式的任务状态规则：普通 checklist 任务默认必选；同一行末尾明确标记 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时可不勾选。Level 2 和 Level 3 当前变更收尾传 `--change <变更包名称>`，只检查当前变更包；全局发布/集中归档使用 `verify:full:all` 或 `verify:docs:strict:all`。脚本读取 tasks.md 的 `workflow_level` 和 delta 结构，但不自动判断代码与规格的完整语义一致性。
 
 **Step 2 — Agent 自治检查（自动执行 + 自动修复）：**
 
@@ -259,7 +259,7 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 
 - ❌ 不要在多个文件中复制目录树（用 `详见 harness/directory.md` 代替）
 - ❌ 不要在 AGENTS.md 中写教育性内容（"为什么"放独立文档，AGENTS.md 只写"是什么"和"怎么做"）
-- ❌ Level 3 变更不要绕过 OpenSpec 直接在 `openspec/specs/` 中手动修改——通过变更包（changes/）走流程。Level 1/2 按 AGENTS.md 治理规则执行，事实源修复优先
+- ❌ 不要先手工修改 `openspec/specs/` 再执行 sync。Level 2 和历史漂移优先走 delta spec → 核对实现 → sync → 检查 living spec；只有现有 sync 无法完成历史修复时，才允许一次性手工 reconciliation，并登记迁移台账。
 
 ---
 
@@ -271,22 +271,22 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 
 ```
 ① 扫描活跃变更包，确认没有同目标或重叠范围的现有变更
-② 按 AGENTS.md 判断级别：Level 1 直接修改；Level 2 创建 tasks.md；Level 3 使用 /harness:propose
-③ Level 2 审阅 tasks.md；Level 3 审阅 proposal.md 的 Impact、design.md 的架构决策和 tasks.md
-④ 按对应级别开发：Level 1 直接修改；Level 2 按 tasks.md；Level 3 使用 /harness:apply
-⑤ 按对应级别验证：Level 1 定向验证；Level 2 verify:quick + 受影响测试 + scoped strict docs；Level 3 verify:full + /harness:review
-⑥ 仅 Level 3 执行 /harness:archive；Level 2 不强制归档
+② 按 AGENTS.md 判断级别：Level 1 直接修改；Level 2 创建 tasks.md + delta spec；Level 3 使用 /harness:propose
+③ Level 2 核对 tasks.md + delta spec；Level 3 审阅 proposal.md 的 Impact、design.md 的架构决策和 tasks.md
+④ 按对应级别开发：Level 1 直接修改；Level 2 按 tasks.md 对照 delta；Level 3 使用 /harness:apply
+⑤ 按对应级别验证：Level 1 定向验证；Level 2 verify:quick + 受影响测试 + scoped strict docs
+⑥ Level 2 完成 delta → 实现核对 → sync → living spec 检查后方可正式归档；Level 3 执行 /harness:archive
 ```
 
 ### 场景 B：修改现有功能的行为
 
 ```
 ① 扫描活跃变更包，确认是否属于已有需求；匹配时继续原变更包
-② 无匹配时按 AGENTS.md 判断级别：Level 1 直接修改；Level 2 创建 tasks.md；Level 3 使用 /harness:propose，并在 specs/ 中标记 MODIFIED
+② 无匹配时按 AGENTS.md 判断级别：Level 1 直接修改；Level 2 创建 tasks.md + delta spec；Level 3 使用 /harness:propose，并在 specs/ 中标记 MODIFIED
 ③ 审阅对应级别的影响范围和任务
 ④ 按对应级别开发；Level 3 使用 /harness:apply
 ⑤ 按对应级别运行验证和回归测试
-⑥ 仅 Level 3 执行 /harness:archive；Level 2 不强制归档
+⑥ Level 2 收尾先 sync 并检查 living spec；需要正式归档时必须先通过 sync；Level 3 执行 /harness:archive
 ```
 
 ### 场景 C：修 Bug
@@ -305,10 +305,10 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 ```
 ① 先扫描活跃变更包；匹配时在原包内修复，多个候选无法排除时请求用户选择
 ② 无匹配时按行为影响、调用范围和回滚风险判断 Level；不确定时默认 Level 2
-③ Level 2 创建 tasks.md；Level 3 创建完整变更包
+③ Level 2 创建 tasks.md + delta spec；Level 3 创建完整变更包
 ④ 定位到具体文件和层级并实施修复
 ⑤ Level 2：verify:quick + 受影响模块原始测试 + scoped strict docs；Level 3：verify:full + Review
-⑥ Level 2 默认不强制完整归档门控；Level 3 按完整归档协议执行
+⑥ Level 2 只执行 scoped strict docs，完成 delta→实现核对→sync→living spec 检查；Level 3 按完整归档协议执行
 ```
 
 ### 场景 D：从现有项目接入 OpenSpec
@@ -336,7 +336,7 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 - **运营文档和学习文档混在一起** — 教育性内容和运营内容分离
 - **文档没有和代码同等级别的约束** — 数据模型与类型一致性等，全部由自动检查覆盖
 - **文档中硬编码会变的数字** — 只写"详见 xxx"的链接引用，或让脚本自己输出
-- **绕过 OpenSpec 直接改 specs/** — Level 3 变更的所有 spec 变更必须通过变更包走流程。Level 1/2 事实源修复按 AGENTS.md 执行
+- **绕过 sync 直接改 living spec** — Level 2 和历史漂移先写 delta、核对实现，再使用实际支持的 sync；只有 sync 无法完成历史修复时才做一次性手工 reconciliation，并记录迁移台账。
 - **照搬 PRD 的数据模型建议** — PRD §数据模型是产品视角的参考，技术方案应从业务需求（用户要看什么/做什么/筛选什么）独立推导实体和关系，区分编译时常量 vs 运行时配置
 - **先写完所有代码再补测试** — 对行为变化，测试应在实现阶段同步完成，不得用类型检查替代行为测试；纯展示调整不因流程规则被迫增加低价值测试
 - **Spec 要求抛出的错误被降级为 warn/log** — Spec 中 WHEN/THEN 明确要求 throw 的场景，代码 MUST 抛出对应错误，不可用 try-catch 吞掉或降级为日志。开发时 MUST 逐条对照 Spec 场景

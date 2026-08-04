@@ -51,7 +51,7 @@ Archive a completed change in the experimental workflow.
 
 4. **Assess delta spec sync state**
 
-   Use `artifactPaths.specs.existingOutputPaths` from status JSON to check for delta specs. If none exist, proceed without sync prompt.
+   Use `artifactPaths.specs.existingOutputPaths` from status JSON to check for delta specs. If none exist, continue only when the active package is an explicitly recorded historical reconciliation (`legacy_migration: true`, `spec_sync_status: reconciled`, and non-empty `spec_sync_evidence`); a new Level 2 without delta is an error.
 
    **If delta specs exist:**
    - Compare each delta spec with its corresponding main spec at `openspec/specs/<capability>/spec.md`
@@ -59,10 +59,10 @@ Archive a completed change in the experimental workflow.
    - Show a combined summary before prompting
 
    **Prompt options:**
-   - If changes needed: "Sync now (recommended)", "Archive without syncing"
+   - If changes needed: "Sync now (required)", "Cancel"
    - If already synced: "Archive now", "Sync anyway", "Cancel"
 
-   If user chooses sync, use Task tool (subagent_type: "general-purpose", prompt: "Use Skill tool to invoke openspec-sync-specs for change '<name>'. Delta spec analysis: <include the analyzed delta spec summary>"). Proceed to archive regardless of choice.
+   If user chooses sync, use Task tool (subagent_type: "general-purpose", prompt: "Use Skill tool to invoke openspec-sync-specs for change '<name>'. Delta spec analysis: <include the analyzed delta spec summary>"). Do not proceed to archive unless sync completed and the corresponding living spec was inspected.
 
 5. **Perform the archive**
 
@@ -87,7 +87,7 @@ Archive a completed change in the experimental workflow.
    - Change name
    - Schema that was used
    - Archive location
-   - Spec sync status (synced / sync skipped / no delta specs)
+   - Spec sync status (synced / already reconciled / blocked)
    - Note about any warnings (incomplete artifacts/tasks)
 
 **Output On Success**
@@ -103,7 +103,7 @@ Archive a completed change in the experimental workflow.
 All artifacts complete. All tasks complete.
 ```
 
-**Output On Success (No Delta Specs)**
+**Output On Success (Historical Reconciliation)**
 
 ```
 ## Archive Complete
@@ -111,7 +111,7 @@ All artifacts complete. All tasks complete.
 **Change:** <change-name>
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
-**Specs:** No delta specs
+**Specs:** ✓ Historical reconciliation evidence checked; living spec already complete
 
 All artifacts complete. All tasks complete.
 ```
@@ -124,12 +124,12 @@ All artifacts complete. All tasks complete.
 **Change:** <change-name>
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
-**Specs:** Sync skipped (user chose to skip)
+**Specs:** Sync not completed; archive blocked
 
 **Warnings:**
 - Archived with 2 incomplete artifacts
 - Archived with 3 incomplete tasks
-- Delta spec sync was skipped (user chose to skip)
+- Delta spec sync and living spec inspection are required before archive
 
 Review the archive if this was not intentional.
 ```
