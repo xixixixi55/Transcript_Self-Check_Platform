@@ -8,6 +8,8 @@
 
 最近生产稳定化事实：旧版报告与同厂商新版报告均由 Legacy 兼容 DTO 输出；解析和清缓存请求有存活性边界；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` 的 metadata 使用有 TTL 和容量限制的快照。上述缓存与快照优化不改变正式归档的完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验边界。
 
+需求6补充：来源目录根白名单校验保留为可恢复能力，但当前浏览器用户可在电子数据检查笔录首页关闭该校验。首页开关状态持久化在浏览器本地；关闭后允许登记任意满足基础路径安全校验的本机报告目录，开启后恢复配置根目录校验。案件工作台不展示开关。
+
 延期的大容量归档验收只约束发布门槛：它不阻塞 Shadow 真实样本差异治理，也不阻塞 Canonical 代码、只读预览、编辑门控、候选输出隔离或回滚演练的开发与验证；但在验收机器补测通过或发布负责人明确记录风险接受前，Canonical 不得成为默认唯一正式生产输出，本变更不得完成最终验收或 OpenSpec 归档。
 
 ## ADDED Requirements
@@ -165,33 +167,39 @@
 - **WHEN** 首编号不符合 `GPyyyyMMdd-序号`、日期无效或序号溢出
 - **THEN** 系统在规划前返回字段级错误，不执行压缩、不生成 DOCX
 
-### Requirement: Archive input authorization uses opaque contexts
+### Requirement: Archive input paths use a persisted optional authorization mode
 
-系统 MUST 支持多个配置型允许根目录：`UPLOAD_BASE` 加部署者配置的 `BIJI_ALLOWED_INPUT_ROOTS`。案件目录 MUST 是允许根目录的真实严格子目录，默认不得直接把允许根目录本身作为一个案件输入；不同磁盘和不同案件父目录可以并存，系统不得要求搬迁或复制既有案件。
+系统 MUST 保留 `UPLOAD_BASE`、`BIJI_ALLOWED_INPUT_ROOTS` 和精确目录授权令牌的既有校验实现，并支持按来源登记请求选择授权模式。请求未提供 `source_authorization_enabled` 时 MUST 默认为 `true`，保持直接 API 调用的既有安全行为；浏览器首页开关首次使用时默认为 `false`，并将用户选择持久化在浏览器本地。
 
-普通远程请求提交 `report_dir` MUST 不能自动获得信任。当前没有受控本机目录选择桥时，根目录外目录 MUST 返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`。未来精确目录授权只能由受控本机操作产生短期、不可预测、绑定单一具体目录的一次性令牌，令牌不能扩大到父目录、相邻目录或整盘，普通前端不能自行构造。
+当 `source_authorization_enabled=true` 时，案件目录 MUST 是配置允许根目录的真实严格子目录，或通过受控精确目录令牌授权；根目录外普通 `report_dir` MUST 返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`。当 `source_authorization_enabled=false` 时，系统 MUST 跳过配置根目录/精确令牌的授权边界，允许登记任意满足基础路径安全校验的本机报告目录。两种模式都 MUST 保留空/相对/穿越/UNC/设备路径、symlink、junction、mount point、其他 reparse point、输入输出区域重叠和不支持报告结构校验。
 
-路径校验 MUST 拒绝空/相对/穿越/UNC/设备路径、symlink、junction、mount point 和其他 reparse point，并检查目录链和每个清单文件；输入目录与输出、staging、cache 互相包含时 MUST 返回 `ARCHIVE_INPUT_OUTPUT_OVERLAP`。创建上下文和调用 WinRAR 前 MUST 再次校验文件清单和指纹；变化返回 `ARCHIVE_INPUT_CHANGED`，不得继续执行。
+开关 MUST 只出现在电子数据检查笔录首页；案件工作台不得重复展示或提供该开关，但其登记和来源重新登记请求 MUST 读取首页持久化偏好。用户重新开启开关后，后续登记请求恢复授权根校验；已登记来源的后续解析、归档和 Manifest 校验边界不因开关变化而放宽。
 
-`report_dir` MUST 标记为 deprecated，仅允许用于创建带随机 UUID 的 `archive_context_id`。上下文公共摘要只能包含标识、文件数、总字节数、状态和时间，不得包含完整本地路径。规划、WinRAR、验证、MD5、Manifest、重试和 DOCX 接口 MUST 只接受 `archive_context_id`；上下文过期、不存在和并发分别返回 `ARCHIVE_CONTEXT_EXPIRED`、`ARCHIVE_CONTEXT_NOT_FOUND` 和 `ARCHIVE_CONTEXT_BUSY`。当前上下文只保存在进程内存中，服务重启后按不存在处理；清理不得删除用户原始输入。
+`report_dir` MUST 标记为 deprecated，仅允许用于创建带随机 UUID 的 `archive_context_id`。上下文公共摘要只能包含标识、文件数、总字节数、状态和时间，不得包含完整本地路径。规划、WinRAR、验证、MD5、Manifest、重试和 DOCX 接口只接受 `archive_context_id`；上下文过期、不存在和并发分别返回稳定错误码，清理不得删除用户原始输入。
 
-#### Scenario: 配置根目录下不同案件目录
+#### Scenario: 首页关闭校验并持久化
 
-- **WHEN** 用户选择 `UPLOAD_BASE` 或 `BIJI_ALLOWED_INPUT_ROOTS` 下的具体案件子目录
-- **THEN** 系统建立上下文并返回不含路径的公共摘要
-- **AND** 其他案件目录仍可独立选择，不共享案件授权范围
+- **WHEN** 用户在电子数据检查笔录首页关闭“来源目录校验”并重新打开系统
+- **THEN** 开关仍保持关闭，案件工作台不显示该开关
+- **AND** 后续目录登记请求携带 `source_authorization_enabled=false`
 
-#### Scenario: 根目录外普通 report_dir
+#### Scenario: 关闭校验时登记任意本机目录
 
-- **WHEN** 普通 API 提交不在配置根目录内的 `report_dir` 且没有受控精确授权令牌
+- **WHEN** `source_authorization_enabled=false` 且用户提交配置根目录外的有效本机报告目录
+- **THEN** 系统建立来源和不含路径的公共上下文摘要
+- **AND** 不返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`
+
+#### Scenario: 重新开启校验后恢复边界
+
+- **WHEN** `source_authorization_enabled=true` 且用户提交没有配置授权或精确令牌的根目录外 `report_dir`
 - **THEN** 系统返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`
-- **AND** 不建立上下文、不扫描目录、不调用 WinRAR
+- **AND** 不建立来源、不调用解析器或 WinRAR
 
-#### Scenario: 无效的固定根目录配置
+#### Scenario: 两种模式都保留基础路径安全校验
 
-- **WHEN** `UPLOAD_BASE` 或 `BIJI_ALLOWED_INPUT_ROOTS` 中包含不存在、相对、不可访问或非目录项
-- **THEN** 系统忽略该配置项并记录不含路径的 `ARCHIVE_CONFIGURED_ROOT_INVALID` 安全 warning
-- **AND** 不会因为配置无效而放宽为任意 `report_dir`，未获其他根目录授权的案件仍返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`
+- **WHEN** 任一模式提交相对、UNC、设备、链接或与系统输出区域重叠的路径
+- **THEN** 系统返回对应稳定路径错误
+- **AND** 不扫描目录、不建立上下文、不回显完整路径
 
 #### Scenario: 后续接口只接受 archive_context_id
 

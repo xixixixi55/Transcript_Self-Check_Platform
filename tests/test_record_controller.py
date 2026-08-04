@@ -220,6 +220,17 @@ def test_parse_rejects_unconfigured_root_and_does_not_echo_path(client):
     assert outside not in response.text
 
 
+def test_parse_allows_unconfigured_directory_when_authorization_is_disabled(client):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
+        response = client.post(
+            "/api/v1/reports/parse",
+            data={"report_dir": tmpdir, "source_authorization_enabled": "false"},
+        )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+
 def test_parse_rejects_configured_root_itself(client):
     configured = Path(tempfile.gettempdir())
     root_response = client.post("/api/v1/reports/parse", data={"report_dir": str(configured)})

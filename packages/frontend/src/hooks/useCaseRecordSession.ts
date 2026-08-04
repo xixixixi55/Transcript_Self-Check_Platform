@@ -12,6 +12,7 @@ import { createClientIdentity, useEditLease } from './useEditLease'
 import { useTaskRecords } from './useTaskRecords'
 import { shouldHydrateServerDraft } from './useCaseDraftHydration'
 import { useCompletedArchiveResult } from './useCompletedArchiveResult'
+import { buildSourceReplacementRequest } from './useSourceAuthorizationRequests'
 
 const SHARED_FIELD_PATHS = new Set([
   'document_number', 'introduction.inspection_place', 'inspection.method', 'inspection.hardware_device',
@@ -201,10 +202,9 @@ export function useCaseRecordSession(caseId: string) {
 
   const replaceSource = useCallback(async (sourcePath: string) => {
     if (!workbench.detail?.source) return false
-    await axios.post(API_ENDPOINTS.WORKBENCH_SOURCE(caseId), {
-      source_path: sourcePath,
-      expected_revision: workbench.detail.shell.revision,
-    })
+    await axios.post(API_ENDPOINTS.WORKBENCH_SOURCE(caseId), buildSourceReplacementRequest(
+      sourcePath, workbench.detail.shell.revision,
+    ))
     await workbench.reloadDetail(caseId)
     return true
   }, [caseId, workbench.detail?.source, workbench.reloadDetail])

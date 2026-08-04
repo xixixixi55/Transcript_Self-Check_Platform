@@ -171,9 +171,17 @@ class ArchiveAuthorizationStore:
         *,
         grant_token: str | None = None,
         output_roots: tuple[str | os.PathLike[str], ...] = (),
+        source_authorization_enabled: bool = True,
     ) -> AuthorizedInputRoot:
         resolved = _resolve_directory(selected_path)
         self.validate_output_separation(resolved, output_roots)
+        if not source_authorization_enabled:
+            return AuthorizedInputRoot(
+                resolved,
+                "unrestricted_local_directory",
+                self._root_id(resolved.parent),
+                resolved.parent,
+            )
         if grant_token:
             return self._consume_grant(grant_token, resolved)
         for root in self._configured_roots:

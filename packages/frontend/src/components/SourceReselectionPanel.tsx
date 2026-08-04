@@ -2,7 +2,6 @@
 import React, { useState } from 'react'
 import { Alert, Button, Input, Space } from 'antd'
 import { SourceStatusBadge } from './SourceStatusBadge'
-import { SourceAuthorizationNotice } from './SourceAuthorizationNotice'
 import { resolveWorkbenchError } from '../hooks'
 
 interface Props {
@@ -28,7 +27,6 @@ export function SourceReselectionPanel({ required, onReselect }: Props) {
       showIcon
       message={<Space><SourceStatusBadge status="requires_reselection" />来源已失效，请重新登记报告目录。</Space>}
       description={<Space direction="vertical" style={{ width: '100%' }}>
-        <SourceAuthorizationNotice />
         <Input aria-label="重新选择报告目录路径" value={sourcePath} onChange={event => setSourcePath(event.target.value)} placeholder="粘贴报告目录的本机绝对路径" />
         <Button loading={busy} onClick={() => { void choose() }}>重新登记来源目录</Button>
         {error && <span className="review-field__error">{error}</span>}

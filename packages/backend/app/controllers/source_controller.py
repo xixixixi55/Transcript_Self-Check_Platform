@@ -18,6 +18,7 @@ class SourceReplacementRequest(BaseModel):
     source_path: str
     expected_revision: int = Field(ge=0)
     directory_grant_token: str | None = None
+    source_authorization_enabled: bool = True
 
 
 @router.get("/workbench/sources/{source_id}")
@@ -41,7 +42,11 @@ async def replace_case_source_endpoint(case_id: str, body: SourceReplacementRequ
     try:
         services = get_workbench_services()
         source = services.sources.replace_case_source(
-            case_id, body.source_path, body.expected_revision, body.directory_grant_token,
+            case_id,
+            body.source_path,
+            body.expected_revision,
+            body.directory_grant_token,
+            source_authorization_enabled=body.source_authorization_enabled,
         )
         task_id = services.lifecycle.detail(case_id)["shell"]["parse_task_id"]
         try:

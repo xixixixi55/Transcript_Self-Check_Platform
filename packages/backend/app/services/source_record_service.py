@@ -35,7 +35,11 @@ class SourceRecordService:
     _MAX_REVISION_CONFLICT_RETRIES = 3
 
     def register_report_directory(
-        self, report_dir: str, grant_token: str | None = None,
+        self,
+        report_dir: str,
+        grant_token: str | None = None,
+        *,
+        source_authorization_enabled: bool = True,
     ) -> dict[str, Any]:
         if not isinstance(report_dir, str) or not report_dir.strip():
             raise WorkbenchPersistenceError("SOURCE_DIRECTORY_REQUIRED")
@@ -44,7 +48,11 @@ class SourceRecordService:
             if candidate.suffix.casefold() in {".rar", ".zip"}:
                 raise WorkbenchPersistenceError("SOURCE_ARCHIVE_NOT_ALLOWED")
             raise WorkbenchPersistenceError("SOURCE_DIRECTORY_REQUIRED")
-        authorized = self.authorization.authorize_report_directory(report_dir, grant_token=grant_token)
+        authorized = self.authorization.authorize_report_directory(
+            report_dir,
+            grant_token=grant_token,
+            source_authorization_enabled=source_authorization_enabled,
+        )
         self._validate_report_structure(authorized.resolved_input_root)
         source_id = opaque_id("source")
         allowed_root = authorized.authorized_scope or authorized.resolved_input_root.parent
@@ -72,8 +80,14 @@ class SourceRecordService:
     def replace_case_source(
         self, case_id: str, report_dir: str, expected_revision: int,
         grant_token: str | None = None,
+        *,
+        source_authorization_enabled: bool = True,
     ) -> dict[str, Any]:
-        descriptor = self.register_report_directory(report_dir, grant_token)
+        descriptor = self.register_report_directory(
+            report_dir,
+            grant_token,
+            source_authorization_enabled=source_authorization_enabled,
+        )
         committed = False
         try:
             shell = CaseShellRepository(self.database).get(case_id)

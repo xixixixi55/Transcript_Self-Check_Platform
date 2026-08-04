@@ -376,6 +376,25 @@ def test_directory_source_rejects_archives_outside_roots_and_invalid_structure(d
         source_service.register_report_directory(str(outside))
     assert root_error.value.code == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
 
+    unrestricted = tmp_path / "SYNTHETIC-OUTSIDE" / "SYNTHETIC-REPORT"
+    shutil.copytree(make_report_directory(tmp_path, "SYNTHETIC-BASELINE"), unrestricted)
+    descriptor = source_service.register_report_directory(
+        str(unrestricted), source_authorization_enabled=False,
+    )
+    assert descriptor["source_type"] == "report_directory"
+
+    invalid_external = tmp_path / "SYNTHETIC-OUTSIDE" / "SYNTHETIC-INVALID"
+    invalid_external.mkdir(parents=True)
+    with pytest.raises(WorkbenchPersistenceError) as structure_error:
+        source_service.register_report_directory(
+            str(invalid_external), source_authorization_enabled=False,
+        )
+    assert structure_error.value.code == "SOURCE_STRUCTURE_INVALID"
+
+    with pytest.raises(ArchiveAuthorizationError) as enabled_error:
+        source_service.register_report_directory(str(unrestricted), source_authorization_enabled=True)
+    assert enabled_error.value.code == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
+
     invalid = tmp_path / "SYNTHETIC-ALLOWED-ROOT" / "SYNTHETIC-INVALID"
     invalid.mkdir(parents=True)
     with pytest.raises(WorkbenchPersistenceError) as structure_error:

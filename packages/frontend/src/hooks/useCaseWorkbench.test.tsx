@@ -1,11 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
+import { API_ENDPOINTS } from '@biji/shared/constants'
 import { useCaseWorkbench } from './useCaseWorkbench'
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 
 const getMock = vi.mocked(axios.get)
+const postMock = vi.mocked(axios.post)
 const detail = {
   shell: { case_id: 'case-synthetic', revision: 1 },
   draft: null,
@@ -14,6 +16,11 @@ const detail = {
 } as any
 
 describe('useCaseWorkbench detail reload', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    window.localStorage.clear()
+  })
+
   it('keeps the editor out of loading state during background source polling', async () => {
     getMock.mockResolvedValueOnce({ data: { data: detail } })
     const view = renderHook(() => useCaseWorkbench('case-synthetic'))
@@ -33,5 +40,22 @@ describe('useCaseWorkbench detail reload', () => {
     expect(view.result.current.detailLoading).toBe(false)
     release()
     await act(async () => { await reload })
+  })
+
+  it('sends the persisted source authorization mode when submitting a case', async () => {
+    window.localStorage.setItem('biji.sourceAuthorization.enabled', 'true')
+    getMock.mockResolvedValue({ data: { data: { items: [], offset: 0, limit: 6, has_more: false } } })
+    postMock.mockResolvedValue({ data: { data: {
+      shell: { case_id: 'case-synthetic', revision: 0 }, source: {}, parse_task: {},
+    } } })
+    const view = renderHook(() => useCaseWorkbench())
+    await waitFor(() => expect(getMock).toHaveBeenCalled())
+
+    await act(async () => { await view.result.current.submitCase('C:\\SYNTHETIC\\REPORT') })
+
+    expect(postMock).toHaveBeenCalledWith(
+      API_ENDPOINTS.WORKBENCH_CASES,
+      expect.objectContaining({ source_authorization_enabled: true }),
+    )
   })
 })

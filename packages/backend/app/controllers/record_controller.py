@@ -49,7 +49,7 @@ async def parse_report_endpoint(
     report_dir: str = Form(""),
     archive_file: Optional[UploadFile] = File(None),
     compress: bool = Form(True),
-    directory_grant_token: str = Form(""),
+    directory_grant_token: str = Form(""), source_authorization_enabled: bool = Form(True),
 ):
     """解析文件夹或压缩包中的 HTML 报告。"""
     settings = pipeline_settings_for_request(request)
@@ -86,7 +86,7 @@ async def parse_report_endpoint(
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
         else:
-            authorized_input = await run_in_threadpool(ARCHIVE_AUTHORIZATION_SERVICE.authorize_report_directory, report_dir, directory_grant_token or None)
+            authorized_input = await run_in_threadpool(ARCHIVE_AUTHORIZATION_SERVICE.authorize_report_directory, report_dir, directory_grant_token or None, source_authorization_enabled=source_authorization_enabled)
             result = await run_in_threadpool(parse_report, str(authorized_input.resolved_input_root), OUTPUT_BASE, compress=compress)
         result.pop("_case_metadata", None)
         result["report"] = enrich_report_material_types(result["report"])

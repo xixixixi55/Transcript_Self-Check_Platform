@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from ..repository.demo_readiness_repository import (
     probe_archive_output,
@@ -19,38 +18,6 @@ def _item(
         "key": key, "label": label, "status": status,
         "code": code, "guidance": guidance,
     }
-
-
-def _source_item(authorization_store: Any | None) -> dict[str, str | None]:
-    if authorization_store is None:
-        return _item(
-            "source_authorization", "来源目录授权", "unknown",
-            "DEMO_SOURCE_AUTH_UNKNOWN", "请检查后端配置并重启后再次确认。",
-        )
-    try:
-        roots = authorization_store.configured_roots
-        warnings = authorization_store.configuration_warnings
-    except Exception:
-        return _item(
-            "source_authorization", "来源目录授权", "unknown",
-            "DEMO_SOURCE_AUTH_UNKNOWN", "请检查后端配置并重启后再次确认。",
-        )
-    if not roots:
-        return _item(
-            "source_authorization", "来源目录授权", "not_configured",
-            "DEMO_SOURCE_AUTH_NOT_CONFIGURED",
-            "请在后端启动前配置授权输入根，修改后重启后端。",
-        )
-    if warnings:
-        return _item(
-            "source_authorization", "来源目录授权", "unknown",
-            "DEMO_SOURCE_AUTH_PARTIAL",
-            "部分授权配置无法确认，请修正配置并重启后端。",
-        )
-    return _item(
-        "source_authorization", "来源目录授权", "ready", None,
-        "仅可登记位于后端授权输入根内的报告目录。",
-    )
 
 
 def _winrar_item(
@@ -97,7 +64,6 @@ def _output_item(
 
 
 def build_demo_readiness(
-    authorization_store: Any | None,
     output_root: str,
     *,
     winrar_probe: Callable[[], WinRarCapability] = probe_winrar,
@@ -106,7 +72,6 @@ def build_demo_readiness(
     return {
         "items": [
             _item("backend", "后端服务", "ready", None, "后端服务可用。"),
-            _source_item(authorization_store),
             _winrar_item(winrar_probe),
             _output_item(output_root, output_probe),
         ],

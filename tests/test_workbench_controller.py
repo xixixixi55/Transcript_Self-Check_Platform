@@ -120,6 +120,24 @@ def test_submit_list_detail_task_and_source_contract(app_services):
         assert str(app_services.synthetic_report_dir) not in response.text
 
 
+def test_submit_accepts_external_report_directory_when_authorization_is_disabled(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    external = app_services.synthetic_report_dir.parent.parent / "SYNTHETIC-EXTERNAL-ROOT" / "SYNTHETIC-REPORT"
+    shutil.copytree(app_services.synthetic_report_dir, external)
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        response = TestClient(app).post(
+            "/api/v1/workbench/cases",
+            json={
+                "source_path": str(external),
+                "source_authorization_enabled": False,
+            },
+        )
+    assert response.status_code == 200
+    assert response.json()["data"]["source"]["source_type"] == "report_directory"
+
+
 def test_two_synthetic_cases_reload_independently_after_draft_edit(app_services):
     from app.main import app
     from app.controllers import workbench_controller

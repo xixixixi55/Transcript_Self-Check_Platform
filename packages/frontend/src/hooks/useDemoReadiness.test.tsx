@@ -26,9 +26,9 @@ describe('useDemoReadiness', () => {
     getMock.mockRejectedValue(new Error('SYNTHETIC/TEST network failure'))
     const view = renderHook(() => useDemoReadiness())
 
-    await waitFor(() => expect(view.result.current?.items).toHaveLength(4))
+    await waitFor(() => expect(view.result.current?.items).toHaveLength(3))
     expect(view.result.current?.items.map(item => item.status)).toEqual([
-      'unavailable', 'unknown', 'unknown', 'unknown',
+      'unavailable', 'unknown', 'unknown',
     ])
     expect(JSON.stringify(view.result.current)).not.toContain('SYNTHETIC/TEST')
   })

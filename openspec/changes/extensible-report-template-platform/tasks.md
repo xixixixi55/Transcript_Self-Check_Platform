@@ -88,10 +88,15 @@ WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核�
 - [x] 8.1T 增加 mock/真实小 fixture 测试，覆盖 `-v...b`、`.partN.rar`、跳号、卷数、大小、MD5、连续性和 staging 清理；验收：预计文件名/大小/卷数不能进入最终 Manifest。
 - [x] 8.2 实现实际结果不符合计划时的有限重规划：最多两次重试，重试仍失败返回明确错误且不提交归档/Word。输入：执行结果与 ArchivePlan；输出：最终 manifest 或阻止错误；验收：4→22→45 的升级和耗尽路径可回归。
 - [x] 8.2T 增加压缩比导致少卷、超卷、无下一档和重试耗尽测试；验收：不会静默降级 ZIP 或自动回退 legacy。
-- [x] 8.3 实现归档输入双轨授权与不透明 `archive_context_id` 生命周期：`UPLOAD_BASE` 加 `BIJI_ALLOWED_INPUT_ROOTS` 只允许具体案件目录；根目录外普通 `report_dir` 拒绝；精确目录令牌仅保留为受控本机桥接预留，不提供普通 API 发令牌；后续规划、执行、Manifest 和 DOCX 只接受上下文标识；上下文过期、输入变化、并发和服务重启行为返回稳定代码。
-- [x] 8.3T 增加固定根目录、前缀相邻目录、大小写、相对/穿越、链接/reparse、UNC/设备路径、输入输出重叠、精确授权令牌、上下文摘要/过期/并发/清理、解析接口稳定错误码和前端提示测试；验收：公共响应和错误不包含完整本地路径，原始案件不会被清理。
+- [x] 8.3 实现归档输入授权与不透明 `archive_context_id` 生命周期：保留 `UPLOAD_BASE`、`BIJI_ALLOWED_INPUT_ROOTS`、精确目录令牌和后续规划/执行/Manifest 只接受上下文标识的既有能力；路径安全和上下文生命周期保持不变。需求6通过 8.4 增加可恢复的授权模式切换，不删除本任务的实现。
+- [x] 8.3T 增加固定根目录、前缀相邻目录、大小写、相对/穿越、链接/reparse、UNC/设备路径、输入输出重叠、精确授权令牌、上下文摘要/过期/并发/清理、解析接口稳定错误码测试；验收：公共响应和错误不包含完整本地路径，原始案件不会被清理。
 
 8.3/8.3T 的完成边界：本轮完成固定根目录生产能力、精确目录授权安全模型/令牌验证/拒绝边界及其自动化测试；未完成且不得宣称完成的是本机目录选择器或可信桌面桥接签发入口，以及精确授权端到端人工验收。两项未接线能力不另增本轮任务计数，保留为后续工作边界。
+
+- [x] 8.4 在 `packages/frontend/src/hooks/useSourceAuthorizationPreference.ts`、`packages/frontend/src/pages/ElectronicInspectionModulePage.tsx`、`packages/frontend/src/hooks/useCaseWorkbench.ts`、`packages/frontend/src/hooks/useCaseRecordSession.ts`、`packages/backend/app/controllers/record_controller.py`、`packages/backend/app/controllers/workbench_controller.py`、`packages/backend/app/controllers/source_controller.py`、`packages/backend/app/services/source_record_service.py`、`packages/backend/app/services/archive_authorization_service.py` 和 `packages/backend/app/repository/archive_authorization_repository.py` 增加可持久化的 `source_authorization_enabled` 模式开关。首页默认关闭授权根校验，用户选择保存在浏览器本地；工作台不展示开关，登记/重新登记请求读取该偏好；关闭时仅跳过根目录/精确令牌边界，路径安全、输出隔离和报告结构校验继续执行，开启时恢复既有授权规则。验证：前后端请求契约、首页刷新持久化、工作台不展示开关、任意本机目录登记和重新开启后的根目录拒绝。
+- [x] 8.4T 在 `tests/test_archive_authorization.py`、`tests/test_workbench_services.py`、`tests/test_record_controller.py`、`tests/test_workbench_controller.py`、`packages/frontend/src/hooks/useSourceAuthorizationPreference.test.tsx` 和 `packages/frontend/src/pages/ElectronicInspectionModulePage.test.tsx` 增加关闭/开启两种模式、持久化和安全边界断言；同时移除来源授权就绪状态和工作台授权说明测试。验证：关闭模式允许合成的根目录外报告目录，开启模式仍返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`，非法/链接/输出重叠路径在两种模式均被拒绝。
+
+8.4 验证证据：后端受影响测试 98 passed、前端受影响测试 22 passed；`lint:arch`、`typecheck` 和核心授权分支突变有效性验证通过。共享请求 DTO 位于 `packages/shared/types/sourceAuthorization.ts`，legacy 目录解析请求构造器位于 `packages/frontend/src/hooks/useSourceAuthorizationRequests.ts`；当前前端生产路由没有直接调用 deprecated `/reports/parse` 的页面，直接 API 缺省仍保持开启。
 
 ## 9. 附件一页面计划（Layer 21）
 

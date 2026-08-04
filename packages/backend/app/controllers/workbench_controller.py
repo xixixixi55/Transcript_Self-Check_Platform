@@ -37,6 +37,7 @@ class CaseSubmissionRequest(BaseModel):
     case_summary: str = ""
     case_number: str | None = None
     directory_grant_token: str | None = None
+    source_authorization_enabled: bool = True
     client_instance_id: str = "local-client"
     session_id: str = "local-session"
     local_display_name: str | None = None
@@ -51,7 +52,7 @@ class ArchiveDecisionRequest(BaseModel):
 
 @router.post("/workbench/cases")
 def submit_case_endpoint(body: CaseSubmissionRequest):
-    """Persist a case shell before scheduling parsing of an authorized directory."""
+    """Persist a case shell before scheduling parsing of a selected directory."""
     services = get_workbench_services()
     identity = {
         "identity_kind": "local_session",
@@ -61,7 +62,11 @@ def submit_case_endpoint(body: CaseSubmissionRequest):
         "deployment_instance_id": services.database.deployment_instance_id,
     }
     try:
-        descriptor = services.sources.register_report_directory(body.source_path, body.directory_grant_token)
+        descriptor = services.sources.register_report_directory(
+            body.source_path,
+            body.directory_grant_token,
+            source_authorization_enabled=body.source_authorization_enabled,
+        )
         identifiers = services.cases.submit(
             descriptor,
             case_name=body.case_name,

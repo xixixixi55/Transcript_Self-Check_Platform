@@ -6,7 +6,6 @@ export type DemoReadinessState =
 
 export type DemoReadinessKey =
   | 'backend'
-  | 'source_authorization'
   | 'winrar'
   | 'archive_output'
 

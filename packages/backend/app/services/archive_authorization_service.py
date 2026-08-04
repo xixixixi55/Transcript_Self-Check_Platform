@@ -32,9 +32,14 @@ class ArchiveAuthorizationService:
         self,
         report_dir: str,
         grant_token: str | None = None,
+        *,
+        source_authorization_enabled: bool = True,
     ) -> AuthorizedInputRoot:
         return self.store.authorize_directory(
-            report_dir, grant_token=grant_token, output_roots=self.output_roots,
+            report_dir,
+            grant_token=grant_token,
+            output_roots=self.output_roots,
+            source_authorization_enabled=source_authorization_enabled,
         )
 
     def authorize_server_source(

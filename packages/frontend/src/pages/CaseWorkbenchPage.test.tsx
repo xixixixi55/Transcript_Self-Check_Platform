@@ -25,6 +25,7 @@ describe('CaseWorkbenchPage', () => {
   let listItems = Array.from({ length: 6 }, (_, i) => shell(i + 1))
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
     listItems = Array.from({ length: 6 }, (_, i) => shell(i + 1))
     getMock.mockImplementation(async (url: string) => {
       if (url.endsWith('/demo/readiness')) return { data: { data: { items: [
@@ -42,7 +43,7 @@ describe('CaseWorkbenchPage', () => {
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
     expect(document.querySelector('input[type="file"]')).toBeNull()
     expect(screen.getByTitle('2')).toBeTruthy()
-    expect(screen.getByText('来源目录授权说明')).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: '来源目录校验开关' })).toBeNull()
     expect(screen.getAllByRole('button', { name: '更多操作' })).toHaveLength(6)
   })
 
@@ -71,7 +72,27 @@ describe('CaseWorkbenchPage', () => {
     fireEvent.change(inputs[0], { target: { value: 'C:\\SYNTHETIC\\REPORT' } })
     fireEvent.click(document.querySelector('.case-workbench-page__toolbar button.ant-btn-primary') as HTMLElement)
     await waitFor(() => expect(screen.getAllByText('SYNTHETIC-NEW-CASE').length).toBeGreaterThan(0))
-    expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases'), expect.objectContaining({ source_path: 'C:\\SYNTHETIC\\REPORT' }))
+    expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases'), expect.objectContaining({
+      source_path: 'C:\\SYNTHETIC\\REPORT',
+      source_authorization_enabled: false,
+    }))
+  })
+
+  it('sends enabled authorization when the persisted homepage switch is on', async () => {
+    window.localStorage.setItem('biji.sourceAuthorization.enabled', 'true')
+    const submitted = { ...shell(100), case_name: 'SYNTHETIC-ENABLED-CASE' }
+    postMock.mockImplementationOnce(async () => ({
+      data: { data: { shell: submitted, source: {}, parse_task: {} } },
+    }))
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'C:\\SYNTHETIC\\REPORT' } })
+    fireEvent.click(document.querySelector('.case-workbench-page__toolbar button.ant-btn-primary') as HTMLElement)
+
+    await waitFor(() => expect(screen.getAllByText('SYNTHETIC-ENABLED-CASE').length).toBeGreaterThan(0))
+    expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases'), expect.objectContaining({
+      source_authorization_enabled: true,
+    }))
   })
 
   it('shows the backend safe submission error instead of hiding its cause', async () => {

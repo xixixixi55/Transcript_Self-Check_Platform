@@ -4,8 +4,9 @@ import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import type {
   ArchiveTaskHistory, ArchiveTaskPublicDetail, ArchiveTaskResult,
-  CaseDetail, CaseListPage, CaseShell, CaseSubmission, TaskRecord,
+  CaseDetail, CaseListPage, CaseShell, CaseSubmission, CaseSubmissionRequest, TaskRecord,
 } from '@biji/shared/types'
+import { getSourceAuthorizationEnabled } from './useSourceAuthorizationPreference'
 
 export const CASE_PAGE_SIZE = 6
 
@@ -105,7 +106,7 @@ export function useCaseWorkbench(caseId?: string) {
   }, [caseId, loadDetail, loadPage])
 
   const submitCase = useCallback(async (sourcePath: string, fields: CaseSubmissionFields = {}) => {
-    const response = await axios.post<{ data: CaseSubmission }>(API_ENDPOINTS.WORKBENCH_CASES, {
+    const request: CaseSubmissionRequest = {
       source_path: sourcePath,
       case_name: fields.caseName || '',
       case_summary: fields.caseSummary || '',
@@ -113,7 +114,9 @@ export function useCaseWorkbench(caseId?: string) {
       client_instance_id: fields.clientInstanceId || undefined,
       session_id: fields.sessionId || undefined,
       directory_grant_token: fields.directoryGrantToken || undefined,
-    })
+      source_authorization_enabled: getSourceAuthorizationEnabled(),
+    }
+    const response = await axios.post<{ data: CaseSubmission }>(API_ENDPOINTS.WORKBENCH_CASES, request)
     const submission = dataOf(response)
     setTaskSyncVersion(version => version + 1)
     setPage(current => current.offset === 0

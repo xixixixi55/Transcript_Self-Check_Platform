@@ -10,10 +10,6 @@ const unavailableItems: DemoReadinessItem[] = [
     code: 'DEMO_BACKEND_UNAVAILABLE', guidance: '请启动或检查后端服务后重试。',
   },
   {
-    key: 'source_authorization', label: '来源目录授权', status: 'unknown',
-    code: 'DEMO_SOURCE_AUTH_UNKNOWN', guidance: '后端恢复后可再次确认授权配置。',
-  },
-  {
     key: 'winrar', label: 'WinRAR', status: 'unknown',
     code: 'DEMO_WINRAR_UNKNOWN', guidance: '后端恢复后可再次确认 WinRAR 能力。',
   },

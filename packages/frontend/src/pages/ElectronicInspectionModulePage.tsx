@@ -1,12 +1,15 @@
 import React from 'react'
-import { Button, Card, Col, Row, Typography } from 'antd'
+import { Alert, Button, Card, Col, Row, Space, Switch, Typography } from 'antd'
 import { AppstoreOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
+import { useSourceAuthorizationPreference } from '../hooks'
 
 const { Paragraph, Title } = Typography
 
 export default function ElectronicInspectionModulePage() {
+  const { enabled, setEnabled } = useSourceAuthorizationPreference()
+
   return (
     <div className="platform-page platform-module-page">
       <div className="platform-page__eyebrow">业务模块</div>
@@ -15,6 +18,26 @@ export default function ElectronicInspectionModulePage() {
         案件工作台是电子数据检查笔录的统一生产入口，负责案件登记、解析、审核、保存和导出。
       </Paragraph>
       <DemoReadinessNotice />
+      <Alert
+        className="platform-module-page__source-authorization-toggle"
+        type={enabled ? 'warning' : 'success'}
+        showIcon
+        message={(
+          <Space align="center">
+            <span>来源目录校验</span>
+            <Switch
+              aria-label="来源目录校验开关"
+              checked={enabled}
+              checkedChildren="开启"
+              unCheckedChildren="关闭"
+              onChange={setEnabled}
+            />
+          </Space>
+        )}
+        description={enabled
+          ? '已开启来源目录授权校验，只允许登记已配置或明确授权的目录。'
+          : '已关闭预先配置的来源目录授权校验，可登记任意满足基础安全检查的本机报告目录。'}
+      />
       <Row gutter={[16, 16]} className="platform-module-page__entries">
         <Col xs={24} md={12}>
           <Card className="platform-entry-card" bordered>

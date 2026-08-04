@@ -343,6 +343,23 @@ independent. The current order, provenance and export interaction contract is
 recorded in the living electronic-inspection-record spec; this DTO still never
 contains a server locator or physical artifact name.
 
+### Source authorization request types
+
+`SourceAuthorizationRequest` is the shared request fragment for the ordinary
+frontend source-directory switch. `source_authorization_enabled` is explicit:
+the persisted homepage preference controls the workbench and legacy directory
+parsing requests, while direct API callers retain strict authorization by
+default. `CaseSubmissionRequest` carries the initial workbench source path and
+optional case metadata; `SourceReplacementRequest` carries a replacement path
+and the expected source revision; `ParseReportDirectoryRequest` is the legacy
+directory parsing contract. All three request types may carry the optional
+`directory_grant_token`, but disabled authorization never removes the backend's
+basic local-path and output-separation safety checks.
+
+Type index: `interface SourceAuthorizationRequest`,
+`interface CaseSubmissionRequest`, `interface SourceReplacementRequest`,
+`interface ParseReportDirectoryRequest`.
+
 Phase 1D recovery keeps parse and source verification state durable across process
 restart. Queued/running/cancelling parse tasks become retryable or interrupted
 according to their persisted state, pending source verification remains pending for
@@ -512,9 +529,10 @@ versioned envelopes. `CaseSubmission` also exposes the current server-read
 shared defaults so a newly created case can show its prefill before parsing;
 the deployment instance remains server-authoritative.
 
-`DemoReadiness` is a read-only Demo capability snapshot containing four fixed
-`DemoReadinessItem` entries: backend service, source authorization, WinRAR and
-archive output. `DemoReadinessKey` fixes those identities and
+`DemoReadiness` is a read-only Demo capability snapshot containing three fixed
+`DemoReadinessItem` entries: backend service, WinRAR and archive output.
+The homepage source authorization switch is a separate persisted frontend
+preference, not a readiness item. `DemoReadinessKey` fixes those identities and
 `DemoReadinessState` is limited to `ready`, `not_configured`, `unavailable` and
 `unknown`. Items expose only a safe label, stable error code and fixed guidance;
 they never contain configured roots, absolute paths, executable details,
