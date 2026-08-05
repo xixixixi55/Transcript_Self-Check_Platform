@@ -7,7 +7,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..repository.workbench_errors import WorkbenchPersistenceError
+from ..services.case_submission_service import submit_case
 from ..services.workbench_factory_service import ensure_archive_task_api, get_workbench_services
+from .workbench_error_messages_controller import message_for_workbench_error as _message
 
 router = APIRouter()
 
@@ -43,6 +46,17 @@ class CaseSubmissionRequest(BaseModel):
     local_display_name: str | None = None
 
 
+class DirectoryCaseSubmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    case_name: str = ""
+    case_summary: str = ""
+    case_number: str | None = None
+    source_authorization_enabled: bool = False
+    client_instance_id: str = "local-client"
+    session_id: str = "local-session"
+    local_display_name: str | None = None
+
+
 class ArchiveDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     decision: str
@@ -54,34 +68,46 @@ class ArchiveDecisionRequest(BaseModel):
 def submit_case_endpoint(body: CaseSubmissionRequest):
     """Persist a case shell before scheduling parsing of a selected directory."""
     services = get_workbench_services()
-    identity = {
-        "identity_kind": "local_session",
-        "client_instance_id": body.client_instance_id or "local-client",
-        "session_id": body.session_id or "local-session",
-        "local_display_name": body.local_display_name,
-        "deployment_instance_id": services.database.deployment_instance_id,
-    }
     try:
-        descriptor = services.sources.register_report_directory(
+        return _envelope(submit_case(
+            services,
             body.source_path,
-            body.directory_grant_token,
-            source_authorization_enabled=body.source_authorization_enabled,
-        )
-        identifiers = services.cases.submit(
-            descriptor,
             case_name=body.case_name,
             case_summary=body.case_summary,
             case_number=body.case_number,
-            identity=identity,
-            dispatch=lambda case_id, task_id: _dispatch_parse(services, case_id, task_id),
-        )
+            directory_grant_token=body.directory_grant_token,
+            source_authorization_enabled=body.source_authorization_enabled,
+            client_instance_id=body.client_instance_id,
+            session_id=body.session_id,
+            local_display_name=body.local_display_name,
+        ))
     except Exception as error:
         _handle(error)
-    detail = services.lifecycle.detail(identifiers["case_id"])
-    return _envelope({
-        **{key: detail[key] for key in ("shell", "source", "parse_task")},
-        "shared_defaults": services.defaults.get(),
-    })
+
+
+@router.post("/workbench/cases/select-directory")
+def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
+    """Pick a local folder and immediately submit it through the directory contract."""
+    services = get_workbench_services()
+    try:
+        if services.directory_picker is None:
+            raise WorkbenchPersistenceError("DIRECTORY_PICKER_UNAVAILABLE")
+        selected_path = services.directory_picker.select()
+        if selected_path is None:
+            return _envelope({"cancelled": True})
+        return _envelope(submit_case(
+            services,
+            selected_path,
+            case_name=body.case_name,
+            case_summary=body.case_summary,
+            case_number=body.case_number,
+            source_authorization_enabled=body.source_authorization_enabled,
+            client_instance_id=body.client_instance_id,
+            session_id=body.session_id,
+            local_display_name=body.local_display_name,
+        ))
+    except Exception as error:
+        _handle(error)
 
 
 @router.get("/workbench/cases")
@@ -202,33 +228,3 @@ def _handle(error: Exception) -> None:
         code = "WORKBENCH_REQUEST_FAILED"
     status = 404 if code.endswith("NOT_FOUND") or code == "CASE_NOT_FOUND" else 409 if code in {"REVISION_CONFLICT", "LEASE_CONFLICT", "LEASE_TAKEOVER_REQUIRED", "LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "SOURCE_RESELECTION_REQUIRED", "SOURCE_REVALIDATION_PENDING", "ARCHIVE_ATTEMPT_NOT_ALLOWED", "ARCHIVE_ATTEMPT_REQUIRED", "ARCHIVE_ATTEMPT_BINDING_MISMATCH", "ARCHIVE_ATTEMPT_BINDING_STALE", "ARCHIVE_REPORT_MISMATCH", "ARCHIVE_TASK_ALREADY_ACTIVE", "ARCHIVE_TASK_STALE", "ARCHIVE_CANCEL_NOT_ALLOWED", "ARCHIVE_RETRY_NOT_ALLOWED", "ARCHIVE_MAPPING_LOCKED"} else 422
     raise HTTPException(status_code=status, detail={"code": code, "message": _message(code)}) from error
-def _message(code: str) -> str:
-    messages = {
-        "SOURCE_REQUIRED": "请登记报告目录路径。",
-        "SOURCE_DIRECTORY_REQUIRED": "案件来源必须是报告目录，不接受文件或压缩包。",
-        "SOURCE_ARCHIVE_NOT_ALLOWED": "案件来源不接受 ZIP、RAR 或其他压缩包。",
-        "SOURCE_STRUCTURE_INVALID": "所选目录不包含可识别的报告结构。",
-        "SOURCE_ACCESS_DENIED": "所选目录当前无法访问。",
-        "ARCHIVE_INPUT_PATH_INVALID": "所选报告目录不存在或无效。",
-        "ARCHIVE_INPUT_ROOT_NOT_ALLOWED": "所选报告目录未获授权。",
-        "ARCHIVE_INPUT_LINK_NOT_ALLOWED": "所选报告目录包含不支持的链接或特殊路径。",
-        "ARCHIVE_INPUT_OUTPUT_OVERLAP": "所选报告目录与系统输出区域冲突。",
-        "ARCHIVE_AUTHORIZATION_INVALID": "所选报告目录授权无效。",
-        "ARCHIVE_AUTHORIZATION_EXPIRED": "所选报告目录授权已过期。",
-        "REVISION_CONFLICT": "案件已被其他会话修改，请重新读取后再保存。",
-        "LEASE_CONFLICT": "案件当前由其他编辑会话占用。",
-        "LEASE_TAKEOVER_REQUIRED": "编辑租约已过期但需要确认接管。",
-        "SOURCE_RESELECTION_REQUIRED": "报告来源已失效，请重新选择来源。",
-        "SOURCE_REVALIDATION_PENDING": "报告来源正在等待复核，请稍后重试。",
-        "ARCHIVE_ATTEMPT_NOT_ALLOWED": "当前案件不能开始新的归档尝试。",
-        "ARCHIVE_ATTEMPT_REQUIRED": "归档必须通过受控准备流程创建归档尝试。",
-        "ARCHIVE_ATTEMPT_BINDING_MISMATCH": "归档上下文绑定不一致，请重新确认来源和草稿。",
-        "ARCHIVE_ATTEMPT_BINDING_STALE": "草稿或来源已变化，请重新确认归档。",
-        "ARCHIVE_REPORT_MISMATCH": "归档报告与服务端草稿不一致，请重新读取案件。",
-        "UNKNOWN_SHARED_DEFAULT_FIELD": "共享默认值字段不在允许范围内。",
-        "INVALID_SHARED_DEFAULTS": "共享默认值内容无效。",
-        "UNAUTHENTICATED_IDENTITY_REQUIRED": "客户端身份必须由服务端当前部署实例确认。",
-        "INVALID_ARCHIVE_DECISION": "压缩决策无效，请重新选择。",
-        "CASE_DELETE_FAILED": "案件删除未完成，请刷新后重试。",
-    }
-    return messages.get(code, "工作台请求未完成，请稍后重试。")

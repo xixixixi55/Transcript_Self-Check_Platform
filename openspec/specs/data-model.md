@@ -356,9 +356,15 @@ directory parsing contract. All three request types may carry the optional
 `directory_grant_token`, but disabled authorization never removes the backend's
 basic local-path and output-separation safety checks.
 
+`CaseDirectorySubmissionRequest` is the pathless workbench request used by the
+trusted local Windows folder-picker bridge. It carries optional case metadata
+and the persisted authorization preference; the browser never supplies the
+selected absolute path. The backend chooses the directory and immediately
+feeds the path into the same source registration and parse-submission chain.
+
 Type index: `interface SourceAuthorizationRequest`,
 `interface CaseSubmissionRequest`, `interface SourceReplacementRequest`,
-`interface ParseReportDirectoryRequest`.
+`interface ParseReportDirectoryRequest`, `interface CaseDirectorySubmissionRequest`.
 
 Phase 1D recovery keeps parse and source verification state durable across process
 restart. Queued/running/cancelling parse tasks become retryable or interrupted
@@ -529,6 +535,11 @@ exists; it does not delete records or artifacts. `CaseListResponse`,
 versioned envelopes. `CaseSubmission` also exposes the current server-read
 shared defaults so a newly created case can show its prefill before parsing;
 the deployment instance remains server-authoritative.
+`DirectorySelectionCancelled` is the path-free `{ cancelled: true }` result
+returned when the native folder dialog is cancelled. `CaseDirectorySubmissionResult`
+is the union of that cancellation result and `CaseSubmission`, and
+`CaseDirectorySubmissionResponse` is its versioned envelope; none of these
+types expose the selected absolute path.
 `CaseDeletionResult` is the minimal successful response for a confirmed case
 deletion and contains only the opaque case ID plus `deleted: true`. The
 corresponding server operation removes the case's workbench records and
@@ -886,11 +897,13 @@ interface SharedDefaultsSaveStatus,
 interface DualSaveResult, interface RevisionConflictDto, interface WorkbenchApiEnvelope,
 interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecordResponse,
 interface SharedDefaultsResponse, interface TaskRecordResponse, interface CaseListPage,
-interface CaseDetail, interface CaseSubmission, type ArchiveDecision,
+interface CaseDetail, interface CaseSubmission, interface DirectorySelectionCancelled,
+type CaseDirectorySubmissionResult, type ArchiveDecision,
 type ArchiveDecisionStatus, interface ArchiveDecisionResult, interface DeletePreflight,
 interface CaseDeletionResult,
 interface ArchiveAttemptRecord, type ArchiveAttemptStatus, type ArchiveCleanupStatus,
 interface CaseListResponse, interface CaseDetailResponse, interface CaseSubmissionResponse,
+interface CaseDirectorySubmissionResponse,
 type DemoReadinessState, type DemoReadinessKey, interface DemoReadinessItem,
 interface DemoReadiness,
 type TemplateId, type TemplateApprovalStatus, type TemplateErrorCode,

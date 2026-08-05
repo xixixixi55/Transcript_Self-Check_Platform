@@ -210,6 +210,10 @@ DiscSequence { prefix, date, start_number, number_width, first_disc_number }
 3. 首页开关只持久化在当前浏览器的本地存储中；案件工作台和重新登记组件不提供第二个开关，而是在请求发送时读取同一偏好。直接未携带偏好字段的 API 调用默认保持授权开启，避免旧客户端静默扩大范围。
 4. 前后端请求字段的共享事实源是 `packages/shared/types/sourceAuthorization.ts`；当前前端生产路由使用工作台登记/来源替换链路，deprecated `/reports/parse` 没有直接调用页面。若恢复 legacy 目录解析页面，必须使用 `useSourceAuthorizationRequests.ts` 构造携带当前偏好的请求。
 
+5. 本机选择器采用后端受控的 Windows 桌面桥接：工作台调用无路径参数的“选择目录并登记案件”端点，后端通过 Windows 原生文件夹对话框取得路径后，立即调用现有 `SourceRecordService.register_report_directory` 和 `CaseDraftService.submit`。绝对路径只存在于当前后端请求栈和既有受控 locator，不进入浏览器 DTO、日志或异常；选择器不设置桌面目录白名单，是否启用配置根授权仍由首页持久化偏好决定。浏览器 `webkitdirectory` 不作为实现，因为它会上传文件并且不能向后端提供真实绝对路径。
+
+6. 选择器进程使用固定的本机 PowerShell/WinForms 原生命令，不拼接用户输入；取消以无副作用结果返回，进程启动失败、非交互桌面和超时映射为稳定错误码。后端端点保持同步阻塞选择行为，由 FastAPI 的同步线程池承载，选择成功后才登记来源和 dispatch 解析；所有既有来源路径安全、报告结构和授权校验继续生效。
+
 固定根目录配置仍在进程启动时统一读取一次：Windows 分号分隔，空项忽略，真实路径按大小写不敏感方式去重。不存在、不可访问、不是目录、相对路径或特殊路径配置不会扩大授权范围；该项被忽略并记录不含路径的 `ARCHIVE_CONFIGURED_ROOT_INVALID` 安全 warning。授权关闭时这些配置不会阻止用户登记目录，但重新开启后继续生效。
 
 `report_dir` 只作为 deprecated 的一次性上下文创建兼容参数。后端先做绝对路径、规范真实路径和输入/输出/staging/cache 隔离检查，再建立随机 UUID `archive_context_id`。后续 `ArchivePlan`、WinRAR、分卷校验、MD5、`ArchiveManifest`、失败重试和 DOCX 导出只接受该上下文标识，不再接受或信任 `report_dir`。公共响应只包含上下文标识、文件数、总字节数、状态和创建/过期时间；不返回案件目录、允许根目录、用户主目录或 WinRAR 安装路径。

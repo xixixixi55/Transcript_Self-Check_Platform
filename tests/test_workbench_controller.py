@@ -121,6 +121,44 @@ def test_submit_list_detail_task_and_source_contract(app_services):
         assert str(app_services.synthetic_report_dir) not in response.text
 
 
+def test_select_directory_endpoint_submits_selected_directory_without_exposing_path(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    picker = MagicMock()
+    picker.select.return_value = str(app_services.synthetic_report_dir)
+    app_services.directory_picker = picker
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        response = client.post(
+            "/api/v1/workbench/cases/select-directory",
+            json={"case_name": "SYNTHETIC-PICKED-CASE"},
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()["data"]
+        assert data["shell"]["case_name"] == "SYNTHETIC-PICKED-CASE"
+        assert data["source"]["source_type"] == "report_directory"
+        assert str(app_services.synthetic_report_dir) not in response.text
+        picker.select.assert_called_once_with()
+        _wait_for_parse(client, data["shell"]["case_id"])
+
+
+def test_select_directory_endpoint_cancel_does_not_create_case(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    picker = MagicMock()
+    picker.select.return_value = None
+    app_services.directory_picker = picker
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        response = client.post("/api/v1/workbench/cases/select-directory", json={})
+        assert response.status_code == 200, response.text
+        assert response.json()["data"] == {"cancelled": True}
+        assert client.get("/api/v1/workbench/cases").json()["data"]["items"] == []
+        picker.select.assert_called_once_with()
+
+
 def test_delete_case_endpoint_removes_case_from_workbench(app_services):
     from app.main import app
     from app.controllers import workbench_controller

@@ -39,10 +39,12 @@ describe('CaseWorkbenchPage', () => {
   })
   afterEach(() => { vi.useRealTimers() })
 
-  it('shows at most six cards, pagination, and a directory-only input', async () => {
+  it('shows at most six cards and a native directory picker card', async () => {
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
     expect(document.querySelector('input[type="file"]')).toBeNull()
+    expect(screen.queryByRole('textbox', { name: '报告目录路径' })).toBeNull()
+    expect(screen.getByRole('button', { name: '上传报告目录' })).toBeTruthy()
     expect(screen.getByTitle('2')).toBeTruthy()
     expect(screen.queryByRole('switch', { name: '来源目录校验开关' })).toBeNull()
     expect(screen.getAllByRole('button', { name: '更多操作' })).toHaveLength(6)
@@ -61,7 +63,7 @@ describe('CaseWorkbenchPage', () => {
     expect(document.querySelector('.case-workbench-page__toolbar button')).toBeTruthy()
   })
 
-  it('shows a submission response as an immediate case card and sends a directory path', async () => {
+  it('shows a submission response as an immediate case card through the native directory picker endpoint', async () => {
     const submitted = { ...shell(99), case_name: 'SYNTHETIC-NEW-CASE' }
     postMock.mockImplementationOnce(async () => {
       listItems = [submitted, ...listItems.slice(0, 5)]
@@ -69,14 +71,12 @@ describe('CaseWorkbenchPage', () => {
     })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-    const inputs = screen.getAllByRole('textbox')
-    fireEvent.change(inputs[0], { target: { value: 'C:\\SYNTHETIC\\REPORT' } })
-    fireEvent.click(document.querySelector('.case-workbench-page__toolbar button.ant-btn-primary') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
     await waitFor(() => expect(screen.getAllByText('SYNTHETIC-NEW-CASE').length).toBeGreaterThan(0))
-    expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases'), expect.objectContaining({
-      source_path: 'C:\\SYNTHETIC\\REPORT',
+    expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases/select-directory'), expect.objectContaining({
       source_authorization_enabled: false,
     }))
+    expect(postMock.mock.calls[0][1]).not.toHaveProperty('source_path')
   })
 
   it('sends enabled authorization when the persisted homepage switch is on', async () => {
@@ -87,8 +87,7 @@ describe('CaseWorkbenchPage', () => {
     }))
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'C:\\SYNTHETIC\\REPORT' } })
-    fireEvent.click(document.querySelector('.case-workbench-page__toolbar button.ant-btn-primary') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
 
     await waitFor(() => expect(screen.getAllByText('SYNTHETIC-ENABLED-CASE').length).toBeGreaterThan(0))
     expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases'), expect.objectContaining({
@@ -102,9 +101,21 @@ describe('CaseWorkbenchPage', () => {
     })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'C:\\SYNTHETIC\\REPORT' } })
-    fireEvent.click(document.querySelector('.case-workbench-page__toolbar button.ant-btn-primary') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
     await waitFor(() => expect(screen.getByText('所选目录不包含可识别的报告结构。')).toBeTruthy())
+  })
+
+  it('keeps the workbench unchanged when the native directory picker is cancelled', async () => {
+    postMock.mockResolvedValueOnce({ data: { data: { cancelled: true } } })
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+
+    fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(
+      expect.stringContaining('/workbench/cases/select-directory'),
+      expect.not.objectContaining({ source_path: expect.anything() }),
+    ))
+    expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6)
   })
 
   it('refreshes queued, parsing, and review_ready shell states without remounting', async () => {

@@ -93,12 +93,21 @@ WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核�
 - [x] 8.3 实现归档输入授权与不透明 `archive_context_id` 生命周期：保留 `UPLOAD_BASE`、`BIJI_ALLOWED_INPUT_ROOTS`、精确目录令牌和后续规划/执行/Manifest 只接受上下文标识的既有能力；路径安全和上下文生命周期保持不变。需求6通过 8.4 增加可恢复的授权模式切换，不删除本任务的实现。
 - [x] 8.3T 增加固定根目录、前缀相邻目录、大小写、相对/穿越、链接/reparse、UNC/设备路径、输入输出重叠、精确授权令牌、上下文摘要/过期/并发/清理、解析接口稳定错误码测试；验收：公共响应和错误不包含完整本地路径，原始案件不会被清理。
 
-8.3/8.3T 的完成边界：本轮完成固定根目录生产能力、精确目录授权安全模型/令牌验证/拒绝边界及其自动化测试；未完成且不得宣称完成的是本机目录选择器或可信桌面桥接签发入口，以及精确授权端到端人工验收。两项未接线能力不另增本轮任务计数，保留为后续工作边界。
+8.3/8.3T 的完成边界：本轮完成固定根目录生产能力、精确目录授权安全模型/令牌验证/拒绝边界及其自动化测试；本机目录选择器和可信桌面桥接由 8.5 单独承接，不改变 8.3 的路径安全合同。
 
 - [x] 8.4 在 `packages/frontend/src/hooks/useSourceAuthorizationPreference.ts`、`packages/frontend/src/pages/ElectronicInspectionModulePage.tsx`、`packages/frontend/src/hooks/useCaseWorkbench.ts`、`packages/frontend/src/hooks/useCaseRecordSession.ts`、`packages/backend/app/controllers/record_controller.py`、`packages/backend/app/controllers/workbench_controller.py`、`packages/backend/app/controllers/source_controller.py`、`packages/backend/app/services/source_record_service.py`、`packages/backend/app/services/archive_authorization_service.py` 和 `packages/backend/app/repository/archive_authorization_repository.py` 增加可持久化的 `source_authorization_enabled` 模式开关。首页默认关闭授权根校验，用户选择保存在浏览器本地；工作台不展示开关，登记/重新登记请求读取该偏好；关闭时仅跳过根目录/精确令牌边界，路径安全、输出隔离和报告结构校验继续执行，开启时恢复既有授权规则。验证：前后端请求契约、首页刷新持久化、工作台不展示开关、任意本机目录登记和重新开启后的根目录拒绝。
 - [x] 8.4T 在 `tests/test_archive_authorization.py`、`tests/test_workbench_services.py`、`tests/test_record_controller.py`、`tests/test_workbench_controller.py`、`packages/frontend/src/hooks/useSourceAuthorizationPreference.test.tsx` 和 `packages/frontend/src/pages/ElectronicInspectionModulePage.test.tsx` 增加关闭/开启两种模式、持久化和安全边界断言；同时移除来源授权就绪状态和工作台授权说明测试。验证：关闭模式允许合成的根目录外报告目录，开启模式仍返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`，非法/链接/输出重叠路径在两种模式均被拒绝。
 
 8.4 验证证据：后端受影响测试 98 passed、前端受影响测试 22 passed；`lint:arch`、`typecheck` 和核心授权分支突变有效性验证通过。共享请求 DTO 位于 `packages/shared/types/sourceAuthorization.ts`，legacy 目录解析请求构造器位于 `packages/frontend/src/hooks/useSourceAuthorizationRequests.ts`；当前前端生产路由没有直接调用 deprecated `/reports/parse` 的页面，直接 API 缺省仍保持开启。
+
+## 8.5 本地 Windows 文件夹选择桥接（新增需求）
+
+- [x] 8.5.1 **SharedTypes / Constants**：新增“选择报告目录并登记案件”请求/结果契约和工作台端点常量；结果成功时只返回现有 `CaseSubmission` 摘要，取消时返回无副作用的取消标记，不返回绝对路径。验证：shared typecheck。
+- [x] 8.5.2 **FE Hook**：在 `useCaseWorkbench` 增加选择目录并提交案件的方法，携带案件名称、案件编号和首页持久化的来源授权偏好；取消选择不创建案件，成功后沿用现有案件列表刷新和任务同步。验证：Hook 测试覆盖成功、取消和错误传播。
+- [x] 8.5.3 **FE Component / Page**：新增类似审核编辑检查人员加号卡片的“上传报告目录/添加案件”入口，移除工作台报告路径输入框和独立登记按钮；点击卡片调用后端原生选择桥接，保留可选案件字段和刷新入口，卡片显示加载/错误可恢复状态。验证：组件/页面测试覆盖点击、取消、成功和失败状态，确认不使用 `webkitdirectory` 上传文件。
+- [x] 8.5.4 **BE Service**：新增 Windows 本机目录选择服务，通过本机原生文件夹选择窗口取得真实绝对路径；取消返回空选择，窗口不可用/超时返回稳定错误；不硬编码桌面目录、不上传或复制报告内容，路径只传给既有来源登记服务。验证：Service 单测覆盖成功、取消、不可用、非法选择和超时。
+- [x] 8.5.5 **BE Controller / Composition**：新增选择目录并登记案件端点，后端在同一请求内选择目录、登记 `SourceRecord`、创建 `CaseShell`/解析任务并 dispatch；公共响应和错误不得包含完整路径，继续使用既有来源授权、路径安全和报告结构校验。验证：Controller 集成测试覆盖根目录外有效目录（授权关闭）、取消无副作用、路径安全错误和解析任务创建。
+- [ ] 8.5.6 **真实验收与门控**：使用本地 Windows 应用流程验证卡片点击后弹出原生文件夹窗口，选择任意有效本机报告目录后直接进入排队/解析，取消不创建案件；运行受影响前后端测试、`lint:arch`、typecheck、`verify:quick`、资产检查和 `git diff --check`。
 
 ## 9. 附件一页面计划（Layer 21）
 

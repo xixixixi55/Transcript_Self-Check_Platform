@@ -60,6 +60,35 @@ describe('useCaseWorkbench detail reload', () => {
     )
   })
 
+  it('submits the native directory selection through a pathless request', async () => {
+    getMock.mockResolvedValue({ data: { data: { items: [], offset: 0, limit: 6, has_more: false } } })
+    postMock.mockResolvedValue({ data: { data: {
+      shell: { case_id: 'case-synthetic', revision: 0 }, source: {}, parse_task: {}, shared_defaults: {},
+    } } })
+    const view = renderHook(() => useCaseWorkbench())
+    await waitFor(() => expect(getMock).toHaveBeenCalled())
+
+    await act(async () => { await view.result.current.selectDirectoryAndSubmitCase({ caseName: 'SYNTHETIC-PICKED' }) })
+
+    expect(postMock).toHaveBeenCalledWith(
+      API_ENDPOINTS.WORKBENCH_SELECT_DIRECTORY_CASE,
+      expect.objectContaining({ case_name: 'SYNTHETIC-PICKED', source_authorization_enabled: false }),
+    )
+    expect(postMock.mock.calls[0][1]).not.toHaveProperty('source_path')
+  })
+
+  it('returns null when the native directory selection is cancelled', async () => {
+    getMock.mockResolvedValue({ data: { data: { items: [], offset: 0, limit: 6, has_more: false } } })
+    postMock.mockResolvedValue({ data: { data: { cancelled: true } } })
+    const view = renderHook(() => useCaseWorkbench())
+    await waitFor(() => expect(getMock).toHaveBeenCalled())
+
+    let result: unknown
+    await act(async () => { result = await view.result.current.selectDirectoryAndSubmitCase() })
+
+    expect(result).toBeNull()
+  })
+
   it('deletes a case through the workbench delete endpoint', async () => {
     getMock.mockResolvedValue({ data: { data: { items: [], offset: 0, limit: 6, has_more: false } } })
     deleteMock.mockResolvedValue({ data: { data: { case_id: 'case-synthetic', deleted: true } } })

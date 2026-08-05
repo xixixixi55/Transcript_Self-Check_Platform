@@ -200,6 +200,12 @@ export interface CaseSubmission {
   shared_defaults: SharedDefaults
 }
 
+export interface DirectorySelectionCancelled {
+  cancelled: true
+}
+
+export type CaseDirectorySubmissionResult = CaseSubmission | DirectorySelectionCancelled
+
 export interface DeletePreflight {
   allowed: boolean
   blockers: string[]
@@ -213,3 +219,4 @@ export interface CaseDeletionResult {
 export interface CaseListResponse extends WorkbenchApiEnvelope<CaseListPage> {}
 export interface CaseDetailResponse extends WorkbenchApiEnvelope<CaseDetail> {}
 export interface CaseSubmissionResponse extends WorkbenchApiEnvelope<CaseSubmission> {}
+export interface CaseDirectorySubmissionResponse extends WorkbenchApiEnvelope<CaseDirectorySubmissionResult> {}

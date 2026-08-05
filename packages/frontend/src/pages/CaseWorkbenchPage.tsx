@@ -1,7 +1,7 @@
 // Layer 12: FE_Pages — persistent multi-case workbench entry.
 import React, { useCallback, useState } from 'react'
 import { Alert, Button, Col, Empty, Input, Modal, Pagination, Row, Space, Spin, Typography, message } from 'antd'
-import { FolderOpenOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
+import { InboxOutlined, ReloadOutlined } from '@ant-design/icons'
 import type {
   ArchiveTaskAction, ArchiveTaskHistory, ArchiveTaskPublicDetail,
   ArchiveTaskResult, CaseShell,
@@ -9,6 +9,7 @@ import type {
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
 import { CaseCard } from '../components/CaseCard'
+import { CaseWorkbenchDirectoryPickerCard } from '../components/CaseWorkbenchDirectoryPickerCard'
 import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
 
 const { Paragraph, Title } = Typography
@@ -30,18 +31,18 @@ export default function CaseWorkbenchPage() {
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
   const [caseName, setCaseName] = useState('')
   const [caseNumber, setCaseNumber] = useState('')
-  const [sourcePath, setSourcePath] = useState('')
   const [archiveDetail, setArchiveDetail] = useState<ArchiveTaskPublicDetail | null>(null)
   const [archiveHistory, setArchiveHistory] = useState<ArchiveTaskHistory | null>(null)
   const [archiveResult, setArchiveResult] = useState<ArchiveTaskResult | null>(null)
 
   const submit = async () => {
-    if (!sourcePath.trim()) { message.warning('请先登记报告目录路径。'); return }
     setSubmitBusy(true)
     try {
-      await workbench.submitCase(sourcePath.trim(), { caseName: caseName.trim(), caseNumber: caseNumber.trim() })
-      setCaseName(''); setCaseNumber(''); setSourcePath('')
-      message.success('案件壳已创建，解析任务已进入工作台。')
+      const submission = await workbench.selectDirectoryAndSubmitCase({ caseName: caseName.trim(), caseNumber: caseNumber.trim() })
+      if (submission) {
+        setCaseName(''); setCaseNumber('')
+        message.success('案件壳已创建，解析任务已进入工作台。')
+      }
     } catch (error) {
       message.error(resolveWorkbenchError(error).message)
     } finally { setSubmitBusy(false) }
@@ -122,13 +123,14 @@ export default function CaseWorkbenchPage() {
       <Title level={1}>电子数据检查案件</Title>
       <Paragraph className="platform-page__description">案件提交、解析、审核和后台任务状态均以服务端持久状态为准；每页最多显示6个案件。</Paragraph>
       <DemoReadinessNotice />
-      <Space wrap className="case-workbench-page__toolbar">
-        <Input aria-label="报告目录路径" value={sourcePath} onChange={event => setSourcePath(event.target.value)} placeholder="粘贴报告目录的本机绝对路径" />
-        <Input aria-label="案件名称" value={caseName} onChange={event => setCaseName(event.target.value)} placeholder="案件名称（可选）" />
-        <Input aria-label="案件编号" value={caseNumber} onChange={event => setCaseNumber(event.target.value)} placeholder="案件编号（可选）" />
-        <Button type="primary" icon={<FolderOpenOutlined />} loading={submitBusy} onClick={() => { void submit() }}>登记并解析报告目录</Button>
+      <div className="case-workbench-page__submission">
+        <CaseWorkbenchDirectoryPickerCard loading={submitBusy} onClick={() => { void submit() }} />
+        <div className="case-workbench-page__fields">
+          <Input aria-label="案件名称" value={caseName} onChange={event => setCaseName(event.target.value)} placeholder="案件名称（可选）" />
+          <Input aria-label="案件编号" value={caseNumber} onChange={event => setCaseNumber(event.target.value)} placeholder="案件编号（可选）" />
+        </div>
         <Button icon={<ReloadOutlined />} onClick={() => workbench.loadPage(workbench.page.offset)} loading={workbench.pageLoading}>刷新</Button>
-      </Space>
+      </div>
 
       {workbench.pageError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={workbench.pageError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
       {taskError && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={taskError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
@@ -151,7 +153,7 @@ export default function CaseWorkbenchPage() {
             />
           </Col>)}
         </Row>
-      ) : <div className="case-workbench-page__empty"><Empty image={<InboxOutlined />} description="还没有案件，登记报告目录后会立即出现案件卡片。"><Button type="primary" icon={<FolderOpenOutlined />} loading={submitBusy} onClick={() => { void submit() }}>登记第一个报告目录</Button></Empty></div>}
+      ) : <div className="case-workbench-page__empty"><Empty image={<InboxOutlined />} description="还没有案件，选择报告目录后会立即出现案件卡片。"><CaseWorkbenchDirectoryPickerCard loading={submitBusy} onClick={() => { void submit() }} /></Empty></div>}
 
       {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={pageNumber => { void workbench.loadPage((pageNumber - 1) * CASE_PAGE_SIZE) }} /></div>}
       <Modal

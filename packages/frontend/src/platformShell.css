@@ -304,6 +304,78 @@
   margin-top: 16px;
 }
 
+.case-workbench-page__submission {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.case-workbench-page__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: min(100%, 440px);
+  flex: 1 1 440px;
+}
+
+.case-workbench-page__fields .ant-input {
+  flex: 1 1 200px;
+}
+
+.case-workbench-directory-picker {
+  display: flex;
+  flex: 0 0 250px;
+  min-height: 142px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 16px;
+  color: var(--review-primary);
+  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
+  border: 1px dashed var(--review-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.case-workbench-directory-picker__plus {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.case-workbench-directory-picker strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+}
+
+.case-workbench-directory-picker > span:last-child {
+  color: var(--review-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.case-workbench-directory-picker:hover:not(:disabled),
+.case-workbench-directory-picker:focus-visible {
+  background: #eef7ff;
+  border-color: #1677ff;
+  box-shadow: 0 0 0 3px rgb(22 119 255 / 12%);
+}
+
+.case-workbench-directory-picker:focus-visible {
+  outline: none;
+}
+
+.case-workbench-directory-picker:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .case-workbench-grid {
   margin-top: 24px;
 }

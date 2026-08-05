@@ -5,6 +5,7 @@ import { API_ENDPOINTS } from '@biji/shared/constants'
 import type {
   ArchiveTaskHistory, ArchiveTaskPublicDetail, ArchiveTaskResult,
   CaseDeletionResult, CaseDetail, CaseListPage, CaseShell, CaseSubmission,
+  CaseDirectorySubmissionRequest, CaseDirectorySubmissionResult,
   CaseSubmissionRequest, TaskRecord,
 } from '@biji/shared/types'
 import { getSourceAuthorizationEnabled } from './useSourceAuthorizationPreference'
@@ -127,6 +128,32 @@ export function useCaseWorkbench(caseId?: string) {
     return submission
   }, [loadPage, page.offset])
 
+  const selectDirectoryAndSubmitCase = useCallback(async (
+    fields: CaseSubmissionFields = {},
+  ): Promise<CaseSubmission | null> => {
+    const request: CaseDirectorySubmissionRequest = {
+      case_name: fields.caseName || '',
+      case_summary: fields.caseSummary || '',
+      case_number: fields.caseNumber || null,
+      client_instance_id: fields.clientInstanceId || undefined,
+      session_id: fields.sessionId || undefined,
+      local_display_name: undefined,
+      source_authorization_enabled: getSourceAuthorizationEnabled(),
+    }
+    const response = await axios.post<{ data: CaseDirectorySubmissionResult }>(
+      API_ENDPOINTS.WORKBENCH_SELECT_DIRECTORY_CASE,
+      request,
+    )
+    const result = dataOf(response)
+    if ('cancelled' in result) return null
+    setTaskSyncVersion(version => version + 1)
+    setPage(current => current.offset === 0
+      ? { ...current, items: [result.shell, ...current.items.filter(item => item.case_id !== result.shell.case_id)].slice(0, CASE_PAGE_SIZE) }
+      : current)
+    void loadPage(page.offset)
+    return result
+  }, [loadPage, page.offset])
+
   const retryCase = useCallback(async (requestedCaseId: string) => {
     const response = await axios.post<{ data: CaseDetail }>(API_ENDPOINTS.WORKBENCH_RETRY(requestedCaseId))
     await loadPage(page.offset)
@@ -201,7 +228,7 @@ export function useCaseWorkbench(caseId?: string) {
   }, [])
 
   return {
-    page, pageLoading, pageError, loadPage, submitCase, retryCase, cancelTask, checkDelete, deleteCase,
+    page, pageLoading, pageError, loadPage, submitCase, selectDirectoryAndSubmitCase, retryCase, cancelTask, checkDelete, deleteCase,
     archiveTaskDetails, cancelArchiveTask, retryArchiveTask, archiveHistory, archiveResult,
     detail, detailLoading, detailError, reloadDetail: loadDetail, taskSyncVersion,
   }

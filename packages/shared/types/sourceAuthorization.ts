@@ -14,6 +14,16 @@ export interface CaseSubmissionRequest extends SourceAuthorizationRequest {
   local_display_name?: string | null
 }
 
+/** Pathless request used by the trusted local Windows directory picker bridge. */
+export interface CaseDirectorySubmissionRequest extends SourceAuthorizationRequest {
+  case_name?: string
+  case_summary?: string
+  case_number?: string | null
+  client_instance_id?: string
+  session_id?: string
+  local_display_name?: string | null
+}
+
 export interface SourceReplacementRequest extends SourceAuthorizationRequest {
   source_path: string
   expected_revision: number

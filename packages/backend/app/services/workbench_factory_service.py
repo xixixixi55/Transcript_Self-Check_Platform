@@ -33,6 +33,7 @@ from .case_draft_service import CaseDraftService
 from .case_parse_dispatcher_service import CaseParseDispatcher
 from .case_lifecycle_service import CaseLifecycleService
 from .edit_lease_service import EditLeaseService
+from .local_directory_picker_service import LocalDirectoryPickerService
 from .shared_defaults_service import SharedDefaultsService
 from .source_record_service import SourceRecordService
 from .task_record_service import TaskRecordService
@@ -63,6 +64,7 @@ class WorkbenchServices:
     template_registry: TemplateRegistryRepository | None = None
     template_approvals: TemplateApprovalRepository | None = None
     templates: TemplateRegistryService | None = None
+    directory_picker: LocalDirectoryPickerService | None = None
 
 
 def build_workbench_services(
@@ -114,6 +116,7 @@ def build_workbench_services(
         template_registry=template_registry,
         template_approvals=template_approvals,
         templates=TemplateRegistryService(database, template_registry, template_approvals),
+        directory_picker=LocalDirectoryPickerService(),
     )
     services.archive_runtime = ArchiveRuntimeCoordinator(
         archive_scheduler,

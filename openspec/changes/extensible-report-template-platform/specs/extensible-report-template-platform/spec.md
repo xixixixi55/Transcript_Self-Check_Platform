@@ -28,3 +28,20 @@
 
 - **WHEN** 报告结构或模板没有已确认的 Profile
 - **THEN** 系统展示候选/推荐及来源和置信信息，要求用户确认或修正；在确认前不得静默解析、套用或导出
+
+### Requirement: Local Windows directory picker preserves the path-based source contract
+
+本地 Windows 案件工作台 MUST 提供点击式“上传报告目录/添加案件”入口。入口 MUST 由后端在本机交互桌面会话中弹出原生文件夹选择窗口；选择成功后 MUST 在同一请求内使用真实绝对路径登记既有 `SourceRecord`、创建案件壳和解析任务。浏览器 MUST NOT 上传或复制报告目录，公共响应、日志和浏览器状态 MUST NOT 暴露绝对路径；选择范围 MUST NOT 被硬编码为桌面目录。取消选择 MUST 是无副作用操作。
+
+#### Scenario: 选择目录后直接登记并解析
+
+- **WHEN** 用户点击工作台的上传报告目录卡片并在 Windows 原生窗口选择有效报告文件夹
+- **THEN** 后端直接完成来源登记、案件壳/解析任务持久化和解析 dispatch
+- **AND** 前端显示排队或解析中的案件卡片，不再要求先填写路径再点击登记按钮
+- **AND** 原始目录仍由既有后端路径合同直接读取，不生成浏览器上传副本
+
+#### Scenario: 取消或无法打开选择器
+
+- **WHEN** 用户取消选择，或 Windows 选择器不可用/超时
+- **THEN** 取消不创建任何案件数据；不可用/超时返回稳定错误和可重试状态
+- **AND** 错误响应不包含绝对路径、PowerShell 命令或内部异常
