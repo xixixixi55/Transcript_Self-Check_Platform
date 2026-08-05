@@ -28,6 +28,7 @@ from .archive_source_runtime_service import prepare_archive_source
 from .archive_task_api_service import ArchiveTaskApiService
 from .archive_worker_service import ArchiveWorkItem, ArchiveWorkerService
 from .case_asset_service import CaseAssetService
+from .case_artifact_deletion_service import CaseArtifactDeletionService
 from .case_draft_service import CaseDraftService
 from .case_parse_dispatcher_service import CaseParseDispatcher
 from .case_lifecycle_service import CaseLifecycleService
@@ -97,7 +98,10 @@ def build_workbench_services(
     services = WorkbenchServices(
         database=database,
         cases=CaseDraftService(database, source_service=sources),
-        lifecycle=CaseLifecycleService(database, asset_service=assets),
+        lifecycle=CaseLifecycleService(
+            database, asset_service=assets,
+            artifact_deletion_service=CaseArtifactDeletionService(database, OUTPUT_BASE),
+        ),
         defaults=SharedDefaultsService(database),
         leases=leases,
         sources=sources,

@@ -6,10 +6,11 @@ import { CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
 import CaseWorkbenchPage from './CaseWorkbenchPage'
 import type { ArchiveTaskCardSummary, CaseShell } from '@biji/shared/types'
 
-vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
+vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
 
 const getMock = vi.mocked(axios.get)
 const postMock = vi.mocked(axios.post)
+const deleteMock = vi.mocked(axios.delete)
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) })
 })
@@ -199,5 +200,36 @@ describe('CaseWorkbenchPage', () => {
       { expected_revision: 7 },
     ))
     expect(postMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels the deletion confirmation without calling the delete API', async () => {
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+
+    fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
+    fireEvent.click(screen.getAllByRole('menuitem', { name: '删除' })[0])
+    expect(screen.getByText('确认删除吗？')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /^取\s*消$/ }))
+    expect(deleteMock).not.toHaveBeenCalled()
+    expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6)
+  })
+
+  it('deletes the case after confirmation and refreshes the workbench list', async () => {
+    deleteMock.mockImplementationOnce(async () => {
+      listItems = []
+      return { data: { data: { case_id: 'case-synthetic-1', deleted: true } } }
+    })
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+
+    fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
+    fireEvent.click(screen.getAllByRole('menuitem', { name: '删除' })[0])
+    fireEvent.click(screen.getByRole('button', { name: /确\s*认/ }))
+
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(
+      expect.stringContaining('/workbench/cases/case-synthetic-1'),
+    ))
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(0))
   })
 })

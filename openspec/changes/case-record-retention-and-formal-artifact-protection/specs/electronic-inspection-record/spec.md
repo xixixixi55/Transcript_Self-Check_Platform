@@ -1,5 +1,28 @@
 # OpenSpec Delta: electronic-inspection-record
 
+## MODIFIED Requirements
+
+### Requirement: REQ-007: 任意字段可编辑
+
+系统 MUST 通过后端 revision 合同自动保存工作台编辑；版本冲突、租约冲突和保存失败不得静默覆盖后端草稿。后端即使以 HTTP 2xx 返回业务层保存结果，前端也 MUST 根据 `draft_save_status` 和持久化 `draft` 是否存在判断保存是否真正成功；当状态不是 `saved` 或 `draft` 为空时，页面 MUST 显示失败/冲突状态、保留当前输入和待保存标记，并让手动保存返回失败，不得调用成功回调或重复发送同一请求形成循环。导出 Word MUST 在存在未完成保存时停止并显示可重试提示；没有未完成保存时仍可直接进入既有 Legacy Word 导出链路。
+
+#### Scenario: HTTP 200 业务失败不会形成保存循环
+
+- **WHEN** 用户修改案件字段后导出 Word，后端返回 HTTP 200 但 `draft_save_status` 不是 `saved` 或 `draft` 为空
+- **THEN** 页面显示保存失败/冲突并保留当前输入，手动保存返回失败
+- **AND** 不持续重发 `PATCH /draft`，导出显示保存未完成提示且不调用 Word 导出接口
+
+#### Scenario: 无待保存修改仍可直接导出
+
+- **WHEN** 案件没有未完成的草稿保存，用户不上传图片直接点击导出 Word
+- **THEN** 页面跳过保存循环并进入既有 Legacy Word 导出链路，成功生成并触发下载
+
+#### Scenario: 归档完成案件上传图片仍沿用当前生命周期保存
+
+- **WHEN** 用户在 `archive_verified` 案件中上传图片并保存/导出，编辑请求按草稿保存合同省略 `lifecycle`
+- **THEN** 后端沿用服务端当前案件生命周期，不把缺省值误判为 `review_ready` 的状态流转
+- **AND** 图片资产引用与草稿一并保存成功，导出可以继续进入既有 Legacy Word 导出链路
+
 ## ADDED Requirements
 
 ### Requirement: REQ-EIR-RET-001: Legacy 是清理前后正式输出唯一链路
@@ -36,7 +59,7 @@ Canonical MUST remain outside formal output, retention eligibility, cleanup auth
 
 ### Requirement: REQ-EIR-RET-003: 工作台只呈现保留/preview/run 生命周期
 
-持久化案件工作台 MUST 展示 policy mode、保留、到期、eligible、skipped、blocked、previewed、processing、cancelled、partial failure、failed、retryable、recoverable 和 `record_cleaned` 等安全状态及稳定原因。Preview MUST 使用 opaque case ID、revision/digest，不要求客户端提交路径、数据库身份或正式文件删除列表。工作台 MUST 不提供普通案件立即删除、公共人工 execute 或正式产物删除按钮；清理完成后不得编辑草稿，但正式产物入口 MUST 按 case/publication/Word artifact authority 状态单独展示。所有时间值 MUST 来自 timezone-aware UTC durable facts，公共 API MUST 返回带时区 ISO 8601，工作台显示 MUST 统一转换为 `Asia/Shanghai`。
+持久化案件工作台 MUST 展示 policy mode、保留、到期、eligible、skipped、blocked、previewed、processing、cancelled、partial failure、failed、retryable、recoverable 和 `record_cleaned` 等安全状态及稳定原因。Preview MUST 使用 opaque case ID、revision/digest，不要求客户端提交路径、数据库身份或正式文件删除列表。Retention UI/API MUST 不提供自动清理的公共人工 execute、force-delete 或正式产物删除选项；显式 `case-workbench-delete` DELETE 由其自身确认和受控路径规则处理。清理完成后不得编辑草稿，但正式产物入口 MUST 按 case/publication/Word artifact authority 状态单独展示。所有时间值 MUST 来自 timezone-aware UTC durable facts，公共 API MUST 返回带时区 ISO 8601，工作台显示 MUST 统一转换为 `Asia/Shanghai`。
 
 #### Scenario: 多案件工作台展示候选和跳过原因
 

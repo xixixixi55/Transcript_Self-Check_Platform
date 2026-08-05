@@ -22,6 +22,7 @@ from app.repository import WorkbenchDatabase, database_path_for_deployment  # no
 from app.repository.workbench_database import utc_now  # noqa: E402
 from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
+from app.services.case_artifact_deletion_service import CaseArtifactDeletionService  # noqa: E402
 from app.services.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
@@ -56,7 +57,7 @@ def app_services(tmp_path: Path):
     (data_dir / "data_case_info.json").write_text(json.dumps({"contents": []}), encoding="utf-8")
     (data_dir / "data_device_lists.json").write_text(json.dumps({"contents": [{"c3": "SYNTHETIC-C3"}]}), encoding="utf-8")
     (data_dir / "data_report_info.json").write_text(json.dumps({"contents": []}), encoding="utf-8")
-    services = WorkbenchServices(database, CaseDraftService(database, parser=parser, source_service=source_service), CaseLifecycleService(database), SharedDefaultsService(database), EditLeaseService(database), source_service, TaskRecordService(database))
+    services = WorkbenchServices(database, CaseDraftService(database, parser=parser, source_service=source_service), CaseLifecycleService(database, artifact_deletion_service=CaseArtifactDeletionService(database, output_root)), SharedDefaultsService(database), EditLeaseService(database), source_service, TaskRecordService(database))
     services.archive_attempts = ArchiveAttemptService(database, output_root)
     services.synthetic_report_dir = report_dir
     return services
@@ -118,6 +119,44 @@ def test_submit_list_detail_task_and_source_contract(app_services):
         source = client.get(f"/api/v1/workbench/sources/{detail['source']['source_id']}").json()["data"]
         assert "internal_path" not in json.dumps(source)
         assert str(app_services.synthetic_report_dir) not in response.text
+
+
+def test_delete_case_endpoint_removes_case_from_workbench(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir), "case_name": "SYNTHETIC-DELETE"},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        _wait_for_parse(client, case_id)
+        attempt_id = "attempt-SYNTHETIC-DELETE-ENDPOINT"
+        with app_services.database.transaction() as connection:
+            connection.execute(
+                "INSERT INTO archive_attempts(attempt_id,schema_version,case_id,task_id,deployment_instance_id,source_id,"
+                "input_revision,status,cleanup_status,created_at,revision) "
+                "VALUES (?,?,?,?,?,?,?,'interrupted','pending',?,0)",
+                (attempt_id, 1, case_id, "SYNTHETIC-DELETE-ARCHIVE-TASK",
+                 app_services.database.deployment_instance_id, created["source"]["source_id"], 0, utc_now()),
+            )
+            connection.execute(
+                "INSERT INTO archive_context_bindings(context_hash,attempt_id,case_id,source_id,source_revision,"
+                "draft_revision,report_fingerprint,context_kind,active,expires_at,consumed_at,created_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                ("SYNTHETIC-DELETE-ENDPOINT-CONTEXT", attempt_id, case_id,
+                 created["source"]["source_id"], 0, 0, "SYNTHETIC-REPORT", "workbench", 1,
+                 None, None, utc_now()),
+            )
+
+        response = client.delete(f"/api/v1/workbench/cases/{case_id}")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["data"] == {"case_id": case_id, "deleted": True}
+        listed = client.get("/api/v1/workbench/cases").json()["data"]["items"]
+        assert case_id not in {item["case_id"] for item in listed}
 
 
 def test_submit_accepts_external_report_directory_when_authorization_is_disabled(app_services):

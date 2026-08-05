@@ -1,0 +1,69 @@
+# Tasks: 案件工作台删除
+
+workflow_level: 2
+
+> Spec: `openspec/changes/case-workbench-delete/specs/electronic-inspection-record/spec.md`
+> 范围：为案件工作台补充用户确认后的真实删除能力；用户确认后允许删除任意案件状态及平台受控正式产物，外部原始资料目录仍不属于平台删除范围。
+
+## SharedTypes / SharedConstants（Layer 0–1）
+
+- [x] T001 更新工作台删除 API 契约和端点常量。
+  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/constants/index.ts`
+  - 内容：定义删除成功结果，补充删除端点常量；保留现有删除预检契约。
+  - 验证：Shared typecheck。
+
+## Frontend Hooks（Layer 10）
+
+- [x] T002 在工作台 Hook 中接入真实删除请求。
+  - 文件：`packages/frontend/src/hooks/useCaseWorkbench.ts`
+  - 内容：新增 `deleteCase`，调用案件 DELETE API；请求失败沿用现有工作台错误解析。
+  - 验证：Hook 定向测试覆盖成功请求和失败传播。
+
+## Frontend Components（Layer 11）
+
+- [x] T003 将卡片删除预检入口调整为删除入口。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/components/CaseCard.test.tsx`、`packages/frontend/src/components/CaseCardDelete.test.tsx`
+  - 内容：显示“删除”操作并将点击事件交给页面确认流程，不在组件内直接删除。
+  - 验证：组件测试覆盖删除操作回调，既有归档操作回归通过。
+
+## Frontend Pages（Layer 12）
+
+- [x] T004 在案件工作台增加确认弹窗和删除后刷新。
+  - 文件：`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx`
+  - 内容：点击删除后显示“确认删除吗？”；“取消”不调用 API；“确认”调用真实删除并刷新列表。
+  - 验证：页面测试覆盖确认、取消、删除成功和删除失败提示。
+
+## Backend Repository / Service / Controller（Layer 20–23）
+
+- [x] T005 实现事务内案件工作数据删除。
+  - 文件：`packages/backend/app/repository/case_deletion_repository.py`、`packages/backend/app/repository/case_workflow_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/controllers/workbench_controller.py`
+  - 内容：新增 DELETE `/workbench/cases/{case_id}`；按外键依赖顺序删除案件工作台记录，不再以案件状态、任务、租约、清理流程或正式产物作为用户确认后的阻断条件。
+  - 验证：Service/Controller 测试覆盖任意状态的真实删除和部署隔离。
+
+## 综合验证
+
+- [x] T006 运行受影响测试和 Level 2 门控。
+  - 文件：`tests/test_workbench_services.py`、`tests/test_workbench_controller.py`、`packages/frontend/src/hooks/useCaseWorkbench.test.tsx`、`packages/frontend/src/components/CaseCard.test.tsx`、`packages/frontend/src/components/CaseCardDelete.test.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx`
+  - 内容：补充合成数据回归，核对 delta 与实现并完成文档同步。
+  - 验证：`npm run verify:quick`、受影响前后端测试、当前变更严格文档检查、`git diff --check`。
+
+## 需求修订：确认后允许删除任意状态和正式产物
+
+- [x] T007 移除确认后的状态/任务/租约/清理/正式产物阻断。
+  - 文件：`packages/backend/app/repository/case_deletion_repository.py`、`packages/backend/app/controllers/workbench_controller.py`
+  - 内容：删除预检始终返回允许；确认后的 DELETE 对归档完成、归档中断、解析失败、处理中和已清理状态均执行真实删除。
+  - 验证：Service/Controller 状态回归。
+
+- [x] T008 清理平台自有正式产物和临时文件。
+  - 文件：`packages/backend/app/services/case_artifact_deletion_service.py`、`packages/backend/app/repository/archive_manifest_repository.py`、`packages/backend/app/repository/archive_manifest_index_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/services/workbench_factory_service.py`
+  - 内容：删除案件受控压缩目录及删除后留下的空案件上级目录、Word 产物、归档快照、临时文件和案件图片，并同步 Manifest 索引；拒绝越界路径，不删除外部来源目录。
+  - 验证：正式 RAR/Manifest/Word、图片、来源目录保留和路径安全测试。
+
+- [x] T009 补充需求修订的自动化证据。
+  - 文件：`tests/test_workbench_services.py`、`tests/test_workbench_controller.py`、`tests/test_case_artifact_deletion_service.py`
+  - 内容：覆盖归档完成、归档未完成（含上下文绑定/发布 fence 子记录）、解析失败、活动任务和正式产物删除。
+  - 验证：受影响 pytest 定向测试。
+
+- [x] T010 完成需求修订后的规格同步和 Level 2 门控。
+  - 内容：同步 delta spec、living spec 和 data-model，运行架构、类型、前后端测试、资产和严格文档检查。
+  - 验证：`npm run verify:quick`、受影响测试、`npx tsx scripts/check-docs.ts --strict --change case-workbench-delete`、`git diff --check`。

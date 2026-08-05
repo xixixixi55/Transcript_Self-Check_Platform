@@ -18,13 +18,17 @@ from .field_provenance_service import FieldProvenanceService
 
 
 class CaseLifecycleService:
-    def __init__(self, database: WorkbenchDatabase, asset_service: Any = None) -> None:
+    def __init__(
+        self, database: WorkbenchDatabase, asset_service: Any = None,
+        artifact_deletion_service: Any = None,
+    ) -> None:
         self.shells = CaseShellRepository(database)
         self.drafts = CaseDraftRepository(database)
         self.tasks = TaskRecordRepository(database)
         self.workflow = CaseWorkflowRepository(database)
         self.audit = AuditEventRepository(database)
         self.assets = asset_service
+        self.artifacts = artifact_deletion_service
         self.archive_tasks = ArchiveTaskRepository(database)
 
     def list(self, offset: int, limit: int) -> dict[str, Any]:
@@ -165,6 +169,15 @@ class CaseLifecycleService:
 
     def delete_preflight(self, case_id: str) -> dict[str, Any]:
         return self.workflow.delete_preflight(case_id)
+
+    def delete_case(self, case_id: str) -> dict[str, Any]:
+        plan = self.artifacts.prepare(case_id) if self.artifacts is not None else None
+        if plan is not None:
+            self.artifacts.cleanup(plan)
+        result = self.workflow.delete_case(case_id)
+        if plan is not None:
+            self.artifacts.remove_manifest_index(plan)
+        return result
 
     def _source_public(self, case_id: str) -> dict[str, Any]:
         row = self.shells.database.connect()

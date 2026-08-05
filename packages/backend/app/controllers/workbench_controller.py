@@ -178,6 +178,14 @@ async def delete_preflight_endpoint(case_id: str):
     except Exception as error:
         _handle(error)
 
+
+@router.delete("/workbench/cases/{case_id}")
+async def delete_case_endpoint(case_id: str):
+    try:
+        return _envelope(get_workbench_services().lifecycle.delete_case(case_id))
+    except Exception as error:
+        _handle(error)
+
 def _envelope(data: Any) -> dict[str, Any]:
     return {"api_version": "v1", "schema_version": 1, "data": data}
 
@@ -221,5 +229,6 @@ def _message(code: str) -> str:
         "INVALID_SHARED_DEFAULTS": "共享默认值内容无效。",
         "UNAUTHENTICATED_IDENTITY_REQUIRED": "客户端身份必须由服务端当前部署实例确认。",
         "INVALID_ARCHIVE_DECISION": "压缩决策无效，请重新选择。",
+        "CASE_DELETE_FAILED": "案件删除未完成，请刷新后重试。",
     }
     return messages.get(code, "工作台请求未完成，请稍后重试。")

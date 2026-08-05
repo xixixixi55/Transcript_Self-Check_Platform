@@ -25,6 +25,33 @@ workflow_level: 3
 - [x] 测试命令和结果：三份定向测试 3 个文件、17 项通过；前端完整验证 45 个测试文件、221 项通过；后端完整验证 875 项通过、3 项跳过；`npm.cmd run verify:quick`、`npm.cmd run verify:docs:strict`、当前 change 严格校验、全规格严格校验和 `git diff --check` 均通过。变异测试分别移除图片同步锁和保存队列排空逻辑后均被新增回归捕获，原实现已恢复。
 - [x] 人工验收 remediation 状态：修复和验证完成；3.3 保持暂停，不自动恢复；本轮不提交、不推送，先向用户汇报进度。
 
+## Phase 5 Human Acceptance Remediation — Late photo callback draft PATCH loop
+
+- [x] 记录人工验收问题：图片上传完成后点击导出 Word，保存状态持续转圈；后端反复收到返回 200 的 `PATCH /api/v1/workbench/cases/{case_id}/draft`，不是后端保存失败。
+- [x] 根因分类：Ant Design 可能在图片上传 Promise 完成后继续回调包含旧本地 `uid` 的 `fileList`；原逻辑只用当前持久化 `asset_refs` 判断新文件，迟到回调会再次上传同一图片并再次递增草稿变更 token。父组件新 `asset_refs` 尚未回传时，旧 props 还可能覆盖 hook 内刚完成的资产引用。
+- [x] 修复方式：在图片 hook 内保存本地 `uid → 已完成 opaque asset ref` 映射，将迟到回调还原为已完成资产；当还原后的引用集合与当前持久化集合一致时直接忽略，不再触发上传或草稿变更；使用已同步的引用 key 防止旧 props 覆盖本地最新引用。
+- [x] 脱敏回归 fixture：`useCasePhotoAssets.test.tsx` 新增 SYNTHETIC 图片上传完成后重复回调场景，断言图片 POST 和 `onAssetRefsChange` 均只发生一次，并保持已保存 asset uid。
+- [x] 验证：定向前端测试 3 个文件、22 项通过；`npm.cmd run verify:frontend` 通过（52 个测试文件、243 项）；`npm.cmd run lint:arch`、`npm.cmd run typecheck`、`npm.cmd run verify:quick`、change/living OpenSpec strict 和 `git diff --check` 通过。当前 change strict docs 仍只报告本变更包既有 30 个未完成 Level 3 任务，未新增本次修复相关缺口。
+- [x] 人工验收 remediation 状态：本次重复 PATCH 修复完成；保留 3.3 及其他后续 retention 任务未完成状态，不自动恢复或归档本 change。
+
+## Phase 5 Human Acceptance Remediation — HTTP 200 draft failure export loop
+
+- [x] 记录人工验收问题：现有归档完成案件卡片即使不上传图片，修改字段后点击导出 Word 仍持续转圈；后端重复返回 200 的 `PATCH /api/v1/workbench/cases/{case_id}/draft`，导出请求无法继续。
+- [x] 根因分类：后端以 HTTP 200 返回业务层 `draft_save_status=failed` 且 `draft=null` 时，前端 autosave 将其误判为成功；`saveNow()` 因待保存快照未清空而无限循环重发。
+- [x] 修复方式：前端先校验 `draft_save_status` 和持久化 `draft`；业务失败/冲突保留待保存输入并返回失败，不调用成功回调、不启动重复保存循环，导出流程显示可重试的保存失败提示。
+- [x] 脱敏回归 fixture：`useCaseDraftAutosaveFailure.test.tsx` 新增 SYNTHETIC 业务失败响应场景，断言手动保存返回 `false`、只发送一次 PATCH、保留 pending 状态且不会继续重试。
+- [x] 浏览器验收：使用现有归档完成案件卡片验证无图片场景；修改普通字段后仅产生有限保存请求，约 2 秒后页面显示“案件仍有未完成保存，完成保存后才能生成 Word”，不再转圈；加载服务端原始数据后直接导出显示“导出成功”，`POST /api/v1/records/export` 返回 200。
+- [x] 人工验收 remediation 状态：HTTP 200 业务失败导致的保存循环已修复；保留 3.3 及其他后续 retention 任务未完成状态，不自动恢复或归档本 change。
+
+## Phase 5 Human Acceptance Remediation — Archived case photo draft state transition
+
+- [x] 记录人工验收问题：归档完成案件上传图片后，图片接口返回成功，但草稿保存返回 HTTP 200、`draft_save_status=failed`、`error_code=INVALID_STATE_TRANSITION`，页面提示“保存未完成”，导出无法继续。
+- [x] 根因分类：前端草稿保存请求按合同省略 `lifecycle`；后端仅对 `archive_queued` 缺省生命周期做了保留，其他可编辑生命周期被错误填充为 `review_ready`，导致 `archive_verified` 案件被拒绝状态流转。
+- [x] 修复方式：已有草稿且请求省略 `lifecycle` 时，后端统一沿用当前服务端生命周期；只有新建草稿才使用默认 `review_ready`，显式生命周期仍继续执行状态流转校验。
+- [x] 脱敏回归 fixture：`test_workbench_case_assets.py` 使用 SYNTHETIC 图片和 `archive_verified` 草稿，省略 `lifecycle` 保存资产引用，断言草稿保存成功且生命周期保持 `archive_verified`。
+- [x] 浏览器验收：使用现有案件卡片真实上传两张合成 PNG，确认图片 POST 成功、草稿保存状态变为已保存，并完成 Word 导出；确认无重复 PATCH 循环，测试资产在验收结束前通过页面移除并保存。
+- [x] 人工验收 remediation 状态：实现、定向验证和浏览器复测完成；保留 3.3 及其他后续 retention 任务未完成状态，不自动恢复或归档本 change。
+
 ## Spec Freeze Remediation（规划修订，不属于原 T020–T025 编号）
 
 - [x] 固定 publication/Word/tombstone 的清理后稳定访问模型；
@@ -78,7 +105,7 @@ workflow_level: 3
   - 实现证据：`packages/shared/utils/retentionRules.ts` 增加 UTC-aware/可信时钟边界，`packages/backend/app/repository/retention_time.py` 固化 UTC-Z、5 分钟未来阈值和连续 24 小时 expiry；`RETENTION_DISPLAY_TIME_ZONE`、默认值和稳定 blocker/error constants 已存在。
   - 验证：`tests/test_retention_contract_matrix.py`、`tests/test_retention_utc_z.py`、`packages/frontend/src/__tests__/retentionRules.test.ts`；后端 32 passed、前端 retention 3 passed、lint/typecheck 通过。未把创建时间、首次导出时间或普通 `updated_at` 用作 anchor。
   - 提交/推送：实现证据已包含于 `1562948`（`feat(retention): add durable policy authority contracts`），已推送 `origin/codex/demo-next-stage`。
-- [x] 1.5 **T020** 冻结现有 `archive_publish_intents` 为 RAR/Manifest/MD5 唯一 authority、fence/asset/index 边界、durable Word artifact 和 cleaned case 稳定访问身份；完成条件：不创建竞争性 `formal_artifact_authority` 表、不提供正式产物删除 API；验证：authority delta 和 Legacy gate 审查；证据：formal-artifact-authority/electronic-inspection-record specs。
+- [x] 1.5 **T020** 冻结现有 `archive_publish_intents` 为 RAR/Manifest/MD5 唯一 authority、fence/asset/index 边界、durable Word artifact 和 cleaned case 稳定访问身份；完成条件：不创建竞争性 `formal_artifact_authority` 表、不提供 retention-specific 正式产物删除 API；显式工作台删除由 `case-workbench-delete` 变更单单独定义；验证：authority delta 和 Legacy gate 审查；证据：formal-artifact-authority/electronic-inspection-record specs。
   - 实现/审查证据：`FormalWordArtifactRepository` 仅按当前 deployment/case 绑定既有 `archive_publish_intents`，verified artifact 要求 `phase='verified'`、`publication_status='verified'` 和非空 `publication_verified_at`；safe projection 不返回内部相对路径；`test_retention_contract_matrix.py` 断言孤立 publication 被拒绝且不存在 `formal_artifact_authority` 表。Legacy/Canonical/Shadow 边界由本 change delta 与 living `electronic-inspection-record` spec 保持一致。
   - 第二轮独立只读实施复审：`PASS`，无 Critical/High/阻断 Medium；non-blocking 建议留给后续运行时资格测试。
   - 提交/推送：实现证据已包含于 `1562948`，已推送 `origin/codex/demo-next-stage`。
@@ -196,7 +223,7 @@ workflow_level: 3
 ## 4. Phase 5D — API 和兼容边界（T023、T023T）
 
 - [ ] 4.1 **T023** 在 SharedTypes/constants 增加 policy/status/preview/run、case/publication/word artifact identity、稳定错误码、UTC ISO 8601 时间和安全投影 DTO；完成条件：不含路径、表名、token、lease/fence/attempt/context，也不含公共人工执行字段；无时区 timestamp 被拒绝；验证：typecheck/contract tests；证据：SharedTypes tests。
-- [ ] 4.2 **T023** 注册 retention status、blocker、preview/dry-run、run status/progress/failure/recovery 和 cleaned formal artifact query 语义；完成条件：不提供公共逐案件 execute/delete/cancel/force-delete API，不接受路径、表名、文件列表或正式删除标记；验证：FastAPI TestClient 正反路径；证据：API controller tests。
+- [ ] 4.2 **T023** 注册 retention status、blocker、preview/dry-run、run status/progress/failure/recovery 和 cleaned formal artifact query 语义；完成条件：不提供 retention-specific 公共逐案件 execute/delete/cancel/force-delete API，不接受路径、表名、文件列表或正式删除标记；显式工作台 DELETE 不属于本 change；验证：FastAPI TestClient 正反路径；证据：API controller tests。
 - [ ] 4.3 **T023** 完成安全 projection、错误映射和日志脱敏；完成条件：覆盖 not due、active task、lease、recovery、snapshot active/recovery/ownership/file-delete failure、Word/publication missing/unverified/revalidation blocker、conflict、file busy、access denied、partial failure、config invalid 和 stale；验证：响应/日志敏感字段扫描；证据：API tests。
 - [ ] 4.4 **T023** 适配 `record_controller.py`、`archive_controller.py`、归档 task routes 的 Legacy cleaned-case 边界；完成条件：可按 case/publication/word artifact identity 访问正式产物，Legacy 仍唯一正式输出，task/context 不成为 cleaned case 唯一入口；验证：Legacy parse/export/download/Manifest/Word 集成回归；证据：controller tests。
 - [ ] 4.5 **T023** 增加 Canonical/Shadow 不调用断言；完成条件：清理不生成第二 RAR/Manifest/Word，不使用 Shadow/Canonical 作为资格、authority、审计或成功事实；验证：mock/spy integration tests；证据：Legacy/Shadow regression report。
@@ -206,7 +233,7 @@ workflow_level: 3
 
 - [ ] 5.1 **T021** 扩展 workbench hooks 消费 policy/status/preview/run/identity DTO；完成条件：刷新、多案件切换和重启后状态从后端恢复，确认/查询不携带路径或内部身份；验证：Hook tests；证据：frontend hook tests。
 - [ ] 5.2 **T021** 扩展案件卡片、状态 badge 和 archive status 展示 policy mode、到期、eligible、skipped、blocked、processing、cleaned、失败/恢复和正式产物保护状态；完成条件：工作数据状态与正式产物状态分开，所有时间按 `Asia/Shanghai` 展示且不改变 UTC 比较事实；验证：RTL tests；证据：component tests。
-- [ ] 5.3 **T021** 在工作台提供 preview/dry-run、blocker、run progress、失败/恢复提示；完成条件：不提供普通案件立即删除、人工 execute、force-delete 或正式产物删除按钮，不重新引入独立生成页；验证：page/route inspection；证据：page tests。
+- [ ] 5.3 **T021** 在工作台提供 preview/dry-run、blocker、run progress、失败/恢复提示；完成条件：不提供 retention 立即执行、人工 execute、force-delete 或正式产物删除按钮，不重新引入独立生成页；显式案件删除沿用 `case-workbench-delete` 变更单；验证：page/route inspection；证据：page tests。
 - [ ] 5.4 **T021** 处理 cleaned tombstone 的不可编辑详情和按稳定 identity 的正式产物入口；完成条件：不再提供草稿编辑，正式下载/验证以 durable authority 为准；验证：page/session tests；证据：workbench tests。
 - [ ] 5.5 **T021T** 增加多案件、多任务、policy mode、preview、到期/跳过、Word/publication 保护、刷新恢复和 Legacy compatibility E2E；完成条件：只使用 `SYNTHETIC/TEST/FIXTURE`，不写入真实输入、人员、路径或生成资产；验证：Playwright；证据：E2E report 和 asset scan。
 - [ ] 5.6 **T021T** 增加前端安全投影测试；完成条件：不渲染路径、token、lease/fence/attempt/context，不显示人工执行或 Canonical/Shadow 正式状态；验证：Vitest/RTL；证据：hook/component/page tests。

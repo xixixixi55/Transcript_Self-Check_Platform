@@ -27,6 +27,7 @@ export default function CaseWorkbenchPage() {
   })
   const [submitBusy, setSubmitBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
+  const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
   const [caseName, setCaseName] = useState('')
   const [caseNumber, setCaseNumber] = useState('')
   const [sourcePath, setSourcePath] = useState('')
@@ -62,12 +63,23 @@ export default function CaseWorkbenchPage() {
     finally { setActionCaseId(null) }
   }
 
-  const checkDelete = async (caseId: string) => {
+  const confirmDelete = async () => {
+    if (!deleteCaseId || actionCaseId) return
+    const requestedCaseId = deleteCaseId
+    setActionCaseId(requestedCaseId)
     try {
-      const result = await workbench.checkDelete(caseId)
-      if (!result.allowed) message.warning(`当前案件不可删除：${result.blockers.join('、')}`)
-      else message.info('后端已确认可删除；本阶段不提供删除案件记录入口，正式产物不会随卡片操作删除。')
-    } catch { message.error('删除条件检查失败，请稍后重试。') }
+      await workbench.deleteCase(requestedCaseId)
+      const nextOffset = workbench.page.items.length === 1 && workbench.page.offset > 0
+        ? Math.max(0, workbench.page.offset - CASE_PAGE_SIZE)
+        : workbench.page.offset
+      setDeleteCaseId(null)
+      await workbench.loadPage(nextOffset)
+      message.success('案件已删除。')
+    } catch (error) {
+      message.error(resolveWorkbenchError(error).message)
+    } finally {
+      setActionCaseId(null)
+    }
   }
 
   const handleArchiveAction = async (
@@ -129,7 +141,7 @@ export default function CaseWorkbenchPage() {
               archiveSummary={archiveSummariesByCase[shell.case_id]}
               onRetry={() => { void retry(shell.case_id) }}
               onCancel={() => { void cancel(shell.case_id) }}
-              onDeleteCheck={() => { void checkDelete(shell.case_id) }}
+              onDelete={() => setDeleteCaseId(shell.case_id)}
               onArchiveAction={action => {
                 const summary = archiveSummariesByCase[shell.case_id]
                 if (summary) void handleArchiveAction(shell, summary.task_id, action)
@@ -142,6 +154,17 @@ export default function CaseWorkbenchPage() {
       ) : <div className="case-workbench-page__empty"><Empty image={<InboxOutlined />} description="还没有案件，登记报告目录后会立即出现案件卡片。"><Button type="primary" icon={<FolderOpenOutlined />} loading={submitBusy} onClick={() => { void submit() }}>登记第一个报告目录</Button></Empty></div>}
 
       {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={pageNumber => { void workbench.loadPage((pageNumber - 1) * CASE_PAGE_SIZE) }} /></div>}
+      <Modal
+        open={Boolean(deleteCaseId)}
+        title="确认删除吗？"
+        okText="确认"
+        cancelText="取消"
+        confirmLoading={Boolean(deleteCaseId && actionCaseId === deleteCaseId)}
+        onOk={() => { void confirmDelete() }}
+        onCancel={() => { if (!actionCaseId) setDeleteCaseId(null) }}
+      >
+        删除后不可恢复，请确认是否删除当前案件。
+      </Modal>
       <Modal
         open={Boolean(archiveDetail)}
         title="归档任务详情"

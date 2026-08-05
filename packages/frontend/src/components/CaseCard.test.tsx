@@ -54,7 +54,7 @@ function renderCard(archiveSummary?: ArchiveTaskCardSummary) {
         archiveSummary={archiveSummary}
         onRetry={vi.fn()}
         onCancel={vi.fn()}
-        onDeleteCheck={vi.fn()}
+        onDelete={vi.fn()}
         onArchiveAction={onArchiveAction}
       />
     </MemoryRouter>,
@@ -104,7 +104,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
         <CaseCard shell={shell} archiveSummary={summary({
           status: 'queued', stage: 'queued', stage_label: '等待归档或资源准入',
           stage_index: 1, percent: 0, worker_state: 'unassigned',
-        })} onRetry={vi.fn()} onCancel={vi.fn()} onDeleteCheck={vi.fn()} />
+        })} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />
       </MemoryRouter>,
     )
     expect(screen.getByText('等待归档')).toBeTruthy()
@@ -115,7 +115,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
         <CaseCard shell={shell} archiveSummary={summary({
           status: 'interrupted', worker_state: 'waiting_reclaim',
           allowed_actions: ['view_details', 'retry'],
-        })} onRetry={vi.fn()} onCancel={vi.fn()} onDeleteCheck={vi.fn()} />
+        })} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />
       </MemoryRouter>,
     )
     expect(screen.getByText('等待接管')).toBeTruthy()
@@ -126,7 +126,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
         <CaseCard shell={shell} archiveSummary={summary({
           status: 'interrupted', worker_state: 'recovering',
           allowed_actions: ['view_details', 'retry'],
-        })} onRetry={vi.fn()} onCancel={vi.fn()} onDeleteCheck={vi.fn()} />
+        })} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />
       </MemoryRouter>,
     )
     expect(screen.getByText('恢复中')).toBeTruthy()
@@ -161,7 +161,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
           status: 'failed_retryable',
           error_summary: 'SYNTHETIC 安全失败摘要，已截断且不包含技术细节。',
           allowed_actions: ['view_details', 'retry'],
-        })} onRetry={vi.fn()} onCancel={vi.fn()} onDeleteCheck={vi.fn()} />
+        })} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />
       </MemoryRouter>,
     )
     expect(screen.getByText('归档失败')).toBeTruthy()
@@ -173,7 +173,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
         <CaseCard shell={shell} archiveSummary={summary({
           status: 'cancelled', finished_at: '2026-07-30T11:59:00Z',
           worker_state: 'released', allowed_actions: ['view_details', 'retry'],
-        })} onRetry={vi.fn()} onCancel={vi.fn()} onDeleteCheck={vi.fn()} />
+        })} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />
       </MemoryRouter>,
     )
     expect(screen.getByText('已取消')).toBeTruthy()
@@ -186,7 +186,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
           status: 'succeeded', stage: 'completed', stage_label: '归档完成',
           stage_index: 9, percent: 100, finished_at: '2026-07-30T11:59:00Z',
           worker_state: 'released', allowed_actions: ['view_result'],
-        })} onRetry={vi.fn()} onCancel={vi.fn()} onDeleteCheck={vi.fn()} />
+        })} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />
       </MemoryRouter>,
     )
     expect(screen.getAllByText('归档完成').length).toBeGreaterThan(0)
@@ -239,4 +239,5 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
     expect(screen.getByText(/最后活动：3 小时前/)).toBeTruthy()
     expect(screen.queryByText('归档失败')).toBeNull()
   })
+
 })

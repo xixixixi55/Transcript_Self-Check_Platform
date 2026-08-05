@@ -115,29 +115,28 @@ export function useCaseDraftAutosave(options: Options) {
       if (requestId !== sequence.current) return false
       const result = response.data.data
       const sharedStatus = result.shared_defaults_save_status
-      setDraftState({ status: 'saved', revision: result.draft_save_status.revision })
-      setSharedState(includeDefaults
-        ? { status: toAutosaveStatus(sharedStatus.status), revision: sharedStatus.revision, errorCode: sharedStatus.error_code }
-        : { status: 'not_changed' })
-      if (result.draft) {
-        lastSavedSignature.current = requestSignature
-        const hasNewerChanges = latest.current.changeToken > requestChangeToken
-        if (hasNewerChanges && pending.current) {
-          pending.current = {
-            ...pending.current,
-            revision: result.draft.revision,
-            updated_at: result.draft.updated_at,
-          }
-          rerunAfterFlight.current = true
-        } else {
-          pending.current = null
-        }
-        setHasPending(hasNewerChanges)
-        onSavedRef.current(result.draft, sharedStatus, {
-          hasNewerChanges,
-          sharedDefaultsPatch: requestSharedPatch,
-        })
+      const draftStatus = result.draft_save_status
+      if (draftStatus.status !== 'saved' || !result.draft) {
+        setDraftState({ status: draftStatus.status === 'conflict' ? 'conflict' : 'failed', revision: draftStatus.revision, errorCode: draftStatus.error_code })
+        setSharedState(includeDefaults ? { status: toAutosaveStatus(sharedStatus.status), revision: sharedStatus.revision, errorCode: sharedStatus.error_code } : { status: 'not_changed' })
+        pending.current = value
+        setHasPending(true)
+        return false
       }
+      setDraftState({ status: 'saved', revision: result.draft_save_status.revision })
+      setSharedState(includeDefaults ? { status: toAutosaveStatus(sharedStatus.status), revision: sharedStatus.revision, errorCode: sharedStatus.error_code } : { status: 'not_changed' })
+      lastSavedSignature.current = requestSignature
+      const hasNewerChanges = latest.current.changeToken > requestChangeToken
+      if (hasNewerChanges && pending.current) {
+        pending.current = {
+          ...pending.current,
+          revision: result.draft.revision,
+          updated_at: result.draft.updated_at,
+        }
+        rerunAfterFlight.current = true
+      } else pending.current = null
+      setHasPending(hasNewerChanges)
+      onSavedRef.current(result.draft, sharedStatus, { hasNewerChanges, sharedDefaultsPatch: requestSharedPatch })
       return true
     } catch (error) {
       if (requestId !== sequence.current) return false

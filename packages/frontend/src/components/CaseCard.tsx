@@ -20,7 +20,7 @@ interface Props {
   sourceRequiresReselection?: boolean
   onRetry: () => void
   onCancel: () => void
-  onDeleteCheck: () => void
+  onDelete: () => void
   archiveSummary?: ArchiveTaskCardSummary
   onArchiveAction?: (action: ArchiveTaskAction) => void
   onArchivePrecheck?: () => void
@@ -48,7 +48,7 @@ function archiveActionLabel(action: ArchiveTaskAction, summary: ArchiveTaskCardS
 
 export function CaseCard({
   shell, task, archiveSummary, sourceRequiresReselection, onRetry, onCancel,
-  onDeleteCheck, onArchiveAction, onArchivePrecheck, actionBusy = false,
+  onDelete, onArchiveAction, onArchivePrecheck, actionBusy = false,
 }: Props) {
   const reviewable = shell.report_available && shell.lifecycle !== 'parse_failed_retryable'
   const canRetry = task?.status === 'failed_retryable' || task?.status === 'interrupted'
@@ -61,7 +61,7 @@ export function CaseCard({
       label: archiveSummary ? archiveActionLabel(action, archiveSummary) : ACTION_LABELS[action],
       onClick: () => onArchiveAction?.(action),
     })),
-    { key: 'delete-check', label: '检查删除条件', onClick: onDeleteCheck },
+    { key: 'delete', label: '删除', onClick: onDelete },
   ]
   return (
     <Card

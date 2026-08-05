@@ -150,7 +150,7 @@ class CaseDraftRepository:
                         raise WorkbenchPersistenceError("ASSET_REFERENCE_MISMATCH")
             existing = connection.execute("SELECT case_drafts.revision, case_drafts.created_at FROM case_drafts JOIN case_shells ON case_shells.case_id = case_drafts.case_id WHERE case_drafts.case_id = ? AND case_shells.deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
             current_lifecycle = str(shell["lifecycle"])
-            if not lifecycle_was_submitted and current_lifecycle == "archive_queued":
+            if existing and not lifecycle_was_submitted:
                 lifecycle = current_lifecycle
             if not existing and lifecycle not in CASE_TRANSITIONS.get(current_lifecycle, set()):
                 raise WorkbenchPersistenceError("DRAFT_NOT_REVIEWABLE")

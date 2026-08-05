@@ -16,6 +16,7 @@ from .workbench_serialization import (
     validate_safe_string,
 )
 from .case_archive_decision_repository import CaseArchiveDecisionRepository
+from .case_deletion_repository import CaseDeletionRepository
 from .case_workbench_repository import _validate_template_ref
 from .archive_publish_fence_repository import reject_if_active
 from .case_workflow_helpers import ensure_asset_refs, insert_audit_event, normalize_source_metadata
@@ -24,6 +25,7 @@ class CaseWorkflowRepository:
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database
         self.archive_decisions = CaseArchiveDecisionRepository(database)
+        self.deletion = CaseDeletionRepository(database)
     def create_submission(
         self, shell: Mapping[str, Any], task: Mapping[str, Any], source: Mapping[str, Any],
         identity: Mapping[str, Any] | None = None,
@@ -206,18 +208,10 @@ class CaseWorkflowRepository:
             self.database, include_archive=include_archive,
         )
     def delete_preflight(self, case_id: str) -> dict[str, Any]:
-        with self.database.connect() as connection:
-            case = connection.execute("SELECT lifecycle FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()
-            if case is None:
-                raise WorkbenchPersistenceError("CASE_NOT_FOUND")
-            blockers: list[str] = []
-            if connection.execute("SELECT 1 FROM task_records WHERE case_id = ? AND status IN ('queued', 'running', 'cancelling', 'interrupted', 'failed_retryable')", (case_id,)).fetchone():
-                blockers.append("ACTIVE_OR_RETRYABLE_TASK")
-            if connection.execute("SELECT 1 FROM edit_leases WHERE case_id = ? AND status = 'active'", (case_id,)).fetchone():
-                blockers.append("ACTIVE_EDIT_LEASE")
-            if case[0] in {"parsing", "archiving", "exporting_word"}:
-                blockers.append("CASE_BUSY")
-            return {"allowed": not blockers, "blockers": blockers}
+        return self.deletion.preflight(case_id)
+
+    def delete_case(self, case_id: str) -> dict[str, Any]:
+        return self.deletion.delete_case(case_id)
     def _transition_parse(self, case_id: str, task_id: str, lifecycle: str, status: str) -> None:
         with self.database.transaction() as connection:
             reject_if_active(connection, case_id=case_id)

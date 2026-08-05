@@ -33,6 +33,7 @@ export const API_ENDPOINTS = {
   PHOTO_FILE: (id: string) => `${API_PREFIX}/photos/${id}`,
   WORKBENCH_CASES: `${API_PREFIX}/workbench/cases`,
   WORKBENCH_CASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}`,
+  WORKBENCH_DELETE_CASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}`,
   WORKBENCH_DRAFT: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/draft`,
   WORKBENCH_RETRY: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/retry`,
   WORKBENCH_ARCHIVE_DECISION: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/archive-decision`,

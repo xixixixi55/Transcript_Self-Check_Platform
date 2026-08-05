@@ -23,7 +23,7 @@ from .workbench_database import WorkbenchDatabase
 _INDEX_VERSION = 1
 
 class ArchiveManifestRepository(ArchiveManifestIndexMixin):
-    """Keep archive metadata addressable while never deleting published parts."""
+    """Keep archive metadata addressable until an explicit case deletion."""
 
     def __init__(
         self, output_root: str | os.PathLike[str], clock=time.time,
@@ -158,6 +158,13 @@ class ArchiveManifestRepository(ArchiveManifestIndexMixin):
                     changed = True
             if changed:
                 self._write_records(records)
+
+    def remove_for_case(
+        self, *, attempt_ids: set[str], relative_final_dirs: set[str],
+    ) -> None:
+        self.remove_records(
+            attempt_ids=attempt_ids, relative_final_dirs=relative_final_dirs,
+        )
 
     def resolve_final_dir(self, record: PersistedArchiveManifest) -> Path:
         candidate = (self.compressed_root / Path(record.relative_final_dir)).resolve(strict=False)

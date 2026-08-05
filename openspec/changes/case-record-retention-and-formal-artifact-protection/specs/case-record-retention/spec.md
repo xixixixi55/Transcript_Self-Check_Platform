@@ -84,7 +84,7 @@ max(
 
 ### Requirement: REQ-RET-005: Coordinator 执行时二次校验和清理白名单
 
-真实清理 MUST 只由 `enforce` deployment Coordinator 调用，客户端不得直接请求逐案件删除、提交路径、文件列表或删除类别。Coordinator MUST 在 claim 前、文件删除前、SQLite records 清理事务前和标记 succeeded 前重新校验 case revision、policy revision、任务、租约、retry/recovery、publication revalidation、Word artifact、authority、ownership、anchor/due、deployment owner、snapshot 状态和文件集合。执行只允许 design 明确的案件工作数据白名单；`archive_input_snapshots` 是 work-only `DELETE`，snapshot 文件和 row MUST 在 source 删除/compact 前处理，v11 不得将其 `source_id` 改为 nullable 或保留 snapshot tombstone row；正式 RAR/分卷、Manifest、MD5、Word、publication generation、现有 publication authority 和 formal Word artifact MUST NOT 被清理删除。正式引用的 attempt/intent/fence 只能保留最小 source tombstone FK，非正式 source row 和 `asset_references` 才能按矩阵删除。
+真实自动清理 MUST 只由 `enforce` deployment Coordinator 调用，客户端不得直接请求 retention 逐案件执行、提交路径、文件列表或删除类别。Coordinator MUST 在 claim 前、文件删除前、SQLite records 清理事务前和标记 succeeded 前重新校验 case revision、policy revision、任务、租约、retry/recovery、publication revalidation、Word artifact、authority、ownership、anchor/due、deployment owner、snapshot 状态和文件集合。执行只允许 design 明确的案件工作数据白名单；`archive_input_snapshots` 是 work-only `DELETE`，snapshot 文件和 row MUST 在 source 删除/compact 前处理，v11 不得将其 `source_id` 改为 nullable 或保留 snapshot tombstone row；正式 RAR/分卷、Manifest、MD5、Word、publication generation、现有 publication authority 和 formal Word artifact MUST NOT 被自动 retention 清理删除。正式引用的 attempt/intent/fence 只能保留最小 source tombstone FK，非正式 source row 和 `asset_references` 才能按矩阵删除。显式工作台 DELETE 不属于本自动清理流程。
 
 #### Scenario: 旧 preview 或陈旧 claim 被拒绝
 
@@ -100,7 +100,7 @@ max(
 
 ### Requirement: REQ-RET-006: 清理状态、幂等和部分失败必须持久化
 
-系统 MUST 为每个 cleanup run 持久化 run identity、deployment/case、policy/case revision、claim/lease/fence、phase、文件步骤结果、snapshot 删除结果、retry、稳定 error/result 和 timezone-aware UTC timestamps。成功状态机为 `planned → claimed → preflighted → work_files_cleaned → records_cleaned → verified → succeeded`；非成功状态至少包括 `blocked`、`stale`、`cancelled`、`interrupted`、`partial_failure`、`failed_retryable` 和 `failed_terminal`。同一 deployment/case 不得存在两个 active run；重复请求或重复恢复 MUST 返回同一安全结果。文件、snapshot row、数据库和最终 authority 校验的部分成功 MUST 显式记录，不得伪装为 succeeded，也不得转化为正式产物删除。
+系统 MUST 为每个 cleanup run 持久化 run identity、deployment/case、policy/case revision、claim/lease/fence、phase、文件步骤结果、snapshot 删除结果、retry、稳定 error/result 和 timezone-aware UTC timestamps。成功状态机为 `planned → claimed → preflighted → work_files_cleaned → records_cleaned → verified → succeeded`；非成功状态至少包括 `blocked`、`stale`、`cancelled`、`interrupted`、`partial_failure`、`failed_retryable` 和 `failed_terminal`。同一 deployment/case 不得存在两个 active run；重复请求或重复恢复 MUST 返回同一安全结果。文件、snapshot row、数据库和最终 authority 校验的部分成功 MUST 显式记录，不得伪装为 succeeded，也不得转化为自动正式产物删除。
 
 #### Scenario: 重复恢复返回同一结果
 
@@ -132,7 +132,7 @@ cleanup active 时，autosave、新 parse/archive/cleanup task、archive retry/r
 
 ### Requirement: REQ-RET-008: 自动调度不得被普通 API 绕过
 
-Scheduler MUST 使用 deployment policy 的 `disabled`、`preview_only`、`enforce` 模式和固定的周期/batch/单 coordinator claim 规则。canonical 配置名 MUST 为 `BIJI_CASE_RETENTION_MODE`、`BIJI_CASE_RETENTION_DAYS`、`BIJI_CASE_RETENTION_SCAN_INTERVAL_SECONDS` 和 `BIJI_CASE_RETENTION_BATCH_SIZE`；这些配置只能由 deployment bootstrap/运维路径写入 durable policy，普通 API 不得修改。旧 `workbench.successful_case_retention_days` 仅在 v10→v11 首次创建当前 deployment policy row 且新 DAYS 缺失时提供 days，合法新 DAYS 优先，非法旧值使用 30 并记录诊断，policy row 创建后 Coordinator 不得直接读取旧键，旧键不得设置 mode 或启用 enforce。`disabled` 不扫描新候选，`preview_only` 只计算 preview，`enforce` 才允许 Coordinator 执行；未完成必要 publication revalidation 的案件不得进入 enforce；默认周期为 24 小时，最小 1 小时，默认 batch size 为 20，空扫描不得忙轮询，停止 grace 为 30 秒。公共 UI/API 本期只提供 retention status、blocker、preview、run status/progress/failure/recovery 和正式产物保护查询，不提供普通用户逐案件 execute/delete/force-delete/cancel 合同。
+Scheduler MUST 使用 deployment policy 的 `disabled`、`preview_only`、`enforce` 模式和固定的周期/batch/单 coordinator claim 规则。canonical 配置名 MUST 为 `BIJI_CASE_RETENTION_MODE`、`BIJI_CASE_RETENTION_DAYS`、`BIJI_CASE_RETENTION_SCAN_INTERVAL_SECONDS` 和 `BIJI_CASE_RETENTION_BATCH_SIZE`；这些配置只能由 deployment bootstrap/运维路径写入 durable policy，普通 API 不得修改。旧 `workbench.successful_case_retention_days` 仅在 v10→v11 首次创建当前 deployment policy row 且新 DAYS 缺失时提供 days，合法新 DAYS 优先，非法旧值使用 30 并记录诊断，policy row 创建后 Coordinator 不得直接读取旧键，旧键不得设置 mode 或启用 enforce。`disabled` 不扫描新候选，`preview_only` 只计算 preview，`enforce` 才允许 Coordinator 执行；未完成必要 publication revalidation 的案件不得进入 enforce；默认周期为 24 小时，最小 1 小时，默认 batch size 为 20，空扫描不得忙轮询，停止 grace 为 30 秒。公共 UI/API 本期只提供 retention status、blocker、preview、run status/progress/failure/recovery 和正式产物保护查询，不提供 retention-specific 普通用户 execute/delete/force-delete/cancel 合同；显式工作台 DELETE 由 `case-workbench-delete` 变更单独定义。
 
 #### Scenario: Scheduler 跳过不确定案件并遵守 mode
 
@@ -142,6 +142,6 @@ Scheduler MUST 使用 deployment policy 的 `disabled`、`preview_only`、`enfor
 
 #### Scenario: 公共请求不能 force delete
 
-- **WHEN** 客户端提交逐案件删除、force-delete、路径、表名、文件列表或正式产物删除意图
+- **WHEN** 客户端提交 retention 逐案件执行、force-delete、路径、表名、文件列表或正式产物删除意图
 - **THEN** API 拒绝请求并返回安全错误
-- **AND** 不部分执行案件记录清理，真实删除仍只由受控 `enforce` Coordinator 负责
+- **AND** 不部分执行自动 retention 记录清理，自动真实清理仍只由受控 `enforce` Coordinator 负责

@@ -522,12 +522,18 @@ directory is accepted and persisted. `ArchiveDecision` is `immediate` or
 immediate decisions, the safe public summary of the newly queued archive task.
 It does not expose the internal Legacy context or archive-attempt binding.
 Deferred decisions remain visible after refresh as
-`archive_deferred`. `DeletePreflight` reports stable blockers without
-deleting case records or formal artifacts. `CaseListResponse`,
+`archive_deferred`. `DeletePreflight` is a backward-compatible read-only
+confirmation preview and returns `allowed: true` with no blockers when the case
+exists; it does not delete records or artifacts. `CaseListResponse`,
 `CaseDetailResponse` and `CaseSubmissionResponse` are the corresponding
 versioned envelopes. `CaseSubmission` also exposes the current server-read
 shared defaults so a newly created case can show its prefill before parsing;
 the deployment instance remains server-authoritative.
+`CaseDeletionResult` is the minimal successful response for a confirmed case
+deletion and contains only the opaque case ID plus `deleted: true`. The
+corresponding server operation removes the case's workbench records and
+platform-owned archive, Word and image files, while source directories supplied
+by the user remain outside the deletion boundary.
 
 `DemoReadiness` is a read-only Demo capability snapshot containing three fixed
 `DemoReadinessItem` entries: backend service, WinRAR and archive output.
@@ -882,6 +888,7 @@ interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecord
 interface SharedDefaultsResponse, interface TaskRecordResponse, interface CaseListPage,
 interface CaseDetail, interface CaseSubmission, type ArchiveDecision,
 type ArchiveDecisionStatus, interface ArchiveDecisionResult, interface DeletePreflight,
+interface CaseDeletionResult,
 interface ArchiveAttemptRecord, type ArchiveAttemptStatus, type ArchiveCleanupStatus,
 interface CaseListResponse, interface CaseDetailResponse, interface CaseSubmissionResponse,
 type DemoReadinessState, type DemoReadinessKey, interface DemoReadinessItem,

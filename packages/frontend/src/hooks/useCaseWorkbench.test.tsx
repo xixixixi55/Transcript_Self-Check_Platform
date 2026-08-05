@@ -4,10 +4,11 @@ import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import { useCaseWorkbench } from './useCaseWorkbench'
 
-vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
+vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
 
 const getMock = vi.mocked(axios.get)
 const postMock = vi.mocked(axios.post)
+const deleteMock = vi.mocked(axios.delete)
 const detail = {
   shell: { case_id: 'case-synthetic', revision: 1 },
   draft: null,
@@ -57,5 +58,20 @@ describe('useCaseWorkbench detail reload', () => {
       API_ENDPOINTS.WORKBENCH_CASES,
       expect.objectContaining({ source_authorization_enabled: true }),
     )
+  })
+
+  it('deletes a case through the workbench delete endpoint', async () => {
+    getMock.mockResolvedValue({ data: { data: { items: [], offset: 0, limit: 6, has_more: false } } })
+    deleteMock.mockResolvedValue({ data: { data: { case_id: 'case-synthetic', deleted: true } } })
+    const view = renderHook(() => useCaseWorkbench())
+    await waitFor(() => expect(getMock).toHaveBeenCalled())
+
+    let result!: { case_id: string; deleted: true }
+    await act(async () => {
+      result = await view.result.current.deleteCase('case-synthetic')
+    })
+
+    expect(deleteMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_DELETE_CASE('case-synthetic'))
+    expect(result).toEqual({ case_id: 'case-synthetic', deleted: true })
   })
 })

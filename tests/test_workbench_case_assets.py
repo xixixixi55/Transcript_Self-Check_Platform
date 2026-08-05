@@ -144,6 +144,35 @@ def test_asset_refs_require_lease_revision_and_release_content(asset_context):
     assert stale["asset_refs"][0]["asset_id"] == first["asset_id"]
 
 
+def test_archived_case_asset_save_without_lifecycle_preserves_archive_state(asset_context):
+    database, services, lease = asset_context
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE case_shells SET lifecycle = 'archive_verified' WHERE case_id = ?",
+            (CASE_ID,),
+        )
+        connection.execute(
+            "UPDATE case_drafts SET lifecycle = 'archive_verified' WHERE case_id = ?",
+            (CASE_ID,),
+        )
+
+    asset = services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-archived-photo.png", png_bytes(), lease["lease_id"], lease["lease_token"],
+    )
+    draft = CaseDraftRepository(services.database).get(CASE_ID)
+    draft.pop("lifecycle")
+    draft["asset_refs"] = [{key: asset[key] for key in ("asset_id", "asset_kind", "fingerprint", "metadata")}]
+    draft["report"]["attachments"]["photo_ids"] = [asset["asset_id"]]
+
+    saved = services.lifecycle.save_draft(
+        draft, draft["revision"], None, None, IDENTITY, lease["lease_id"], lease["lease_token"],
+    )
+
+    assert saved["draft_save_status"]["status"] == "saved"
+    assert saved["draft"]["lifecycle"] == "archive_verified"
+    assert saved["draft"]["asset_refs"][0]["asset_id"] == asset["asset_id"]
+
+
 def test_orphan_asset_cleanup_is_graceful(asset_context):
     _, services, lease = asset_context
     asset = services.assets.upload_image(CASE_ID, "SYNTHETIC-orphan.png", png_bytes(), lease["lease_id"], lease["lease_token"])

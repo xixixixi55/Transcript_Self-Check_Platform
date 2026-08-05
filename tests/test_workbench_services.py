@@ -346,7 +346,7 @@ def test_restart_recovery_is_interrupted_and_not_success(database, tmp_path):
     assert detail["shell"]["lifecycle"] == "parse_failed_retryable"
 
 
-def test_lease_takeover_is_audited_and_delete_preflight_blocks_active_work(database, tmp_path):
+def test_lease_takeover_is_audited_and_delete_preflight_allows_explicit_delete(database, tmp_path):
     source_service = make_source_service(database, tmp_path)
     cases, lifecycle = make_services(database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service)
     identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
@@ -355,11 +355,91 @@ def test_lease_takeover_is_audited_and_delete_preflight_blocks_active_work(datab
     with pytest.raises(WorkbenchPersistenceError) as conflict:
         lease_service.acquire(identifiers["case_id"], {**IDENTITY, "session_id": "SYNTHETIC-SESSION-2"})
     assert conflict.value.code == "LEASE_CONFLICT"
-    blocked = lifecycle.delete_preflight(identifiers["case_id"])
-    assert blocked["allowed"] is False
-    assert "ACTIVE_OR_RETRYABLE_TASK" in blocked["blockers"]
-    assert "ACTIVE_EDIT_LEASE" in blocked["blockers"]
-    assert first["lease_token"] not in str(blocked)
+    preflight = lifecycle.delete_preflight(identifiers["case_id"])
+    assert preflight == {"allowed": True, "blockers": []}
+    assert first["lease_token"] not in str(preflight)
+
+
+def test_delete_case_removes_workbench_records_after_confirmation_path(database, tmp_path):
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service,
+    )
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+
+    deleted = lifecycle.delete_case(identifiers["case_id"])
+
+    assert deleted == {"case_id": identifiers["case_id"], "deleted": True}
+    with database.connect() as connection:
+        for table in ("case_shells", "case_drafts", "source_records", "task_records"):
+            assert connection.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE case_id=?", (identifiers["case_id"],)
+            ).fetchone()[0] == 0
+    assert lifecycle.list(0, 6)["items"] == []
+    with pytest.raises(WorkbenchPersistenceError, match="CASE_NOT_FOUND"):
+        lifecycle.detail(identifiers["case_id"])
+
+
+def test_delete_case_allows_queued_case_after_explicit_confirmation(database, tmp_path):
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service,
+    )
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+
+    assert lifecycle.delete_case(identifiers["case_id"]) == {
+        "case_id": identifiers["case_id"], "deleted": True,
+    }
+    with database.connect() as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM case_shells WHERE case_id=?", (identifiers["case_id"],)
+        ).fetchone()[0] == 0
+
+
+def test_delete_case_allows_formal_lifecycle_after_explicit_confirmation(database, tmp_path):
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service,
+    )
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE case_shells SET lifecycle='exported' WHERE case_id=?",
+            (identifiers["case_id"],),
+        )
+
+    assert lifecycle.delete_case(identifiers["case_id"]) == {
+        "case_id": identifiers["case_id"], "deleted": True,
+    }
+
+
+@pytest.mark.parametrize("lifecycle_state", [
+    "parse_failed_retryable", "archive_interrupted", "exported",
+])
+def test_delete_case_allows_reported_manual_acceptance_states(
+    database, tmp_path, lifecycle_state,
+):
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(REPORT)}, source_service,
+    )
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE case_shells SET lifecycle=? WHERE case_id=?",
+            (lifecycle_state, identifiers["case_id"]),
+        )
+        if lifecycle_state == "parse_failed_retryable":
+            connection.execute(
+                "UPDATE task_records SET status='failed_retryable' WHERE task_id=?",
+                (identifiers["task_id"],),
+            )
+
+    assert lifecycle.delete_case(identifiers["case_id"]) == {
+        "case_id": identifiers["case_id"], "deleted": True,
+    }
 
 
 def test_directory_source_rejects_archives_outside_roots_and_invalid_structure(database, tmp_path):

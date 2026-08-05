@@ -4,7 +4,8 @@ import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import type {
   ArchiveTaskHistory, ArchiveTaskPublicDetail, ArchiveTaskResult,
-  CaseDetail, CaseListPage, CaseShell, CaseSubmission, CaseSubmissionRequest, TaskRecord,
+  CaseDeletionResult, CaseDetail, CaseListPage, CaseShell, CaseSubmission,
+  CaseSubmissionRequest, TaskRecord,
 } from '@biji/shared/types'
 import { getSourceAuthorizationEnabled } from './useSourceAuthorizationPreference'
 
@@ -192,8 +193,15 @@ export function useCaseWorkbench(caseId?: string) {
     return dataOf(response)
   }, [])
 
+  const deleteCase = useCallback(async (requestedCaseId: string) => {
+    const response = await axios.delete<{ data: CaseDeletionResult }>(
+      API_ENDPOINTS.WORKBENCH_DELETE_CASE(requestedCaseId),
+    )
+    return dataOf(response)
+  }, [])
+
   return {
-    page, pageLoading, pageError, loadPage, submitCase, retryCase, cancelTask, checkDelete,
+    page, pageLoading, pageError, loadPage, submitCase, retryCase, cancelTask, checkDelete, deleteCase,
     archiveTaskDetails, cancelArchiveTask, retryArchiveTask, archiveHistory, archiveResult,
     detail, detailLoading, detailError, reloadDetail: loadDetail, taskSyncVersion,
   }

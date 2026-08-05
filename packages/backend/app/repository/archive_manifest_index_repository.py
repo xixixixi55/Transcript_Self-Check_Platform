@@ -79,6 +79,22 @@ class ArchiveManifestIndexMixin:
             except OSError as error:
                 raise ArchiveManifestRepositoryError("ARCHIVE_PUBLISH_MOVE_FAILED") from error
 
+    def remove_records(
+        self, *, attempt_ids: set[str], relative_final_dirs: set[str],
+    ) -> None:
+        """Remove the index projection for an explicitly deleted case."""
+        if not self.index_path.is_file():
+            return
+        with self._index_lock():
+            records = self._read_index_records_for_mutation()
+            retained = [
+                item for item in records
+                if item.workbench_attempt_id not in attempt_ids
+                and item.relative_final_dir not in relative_final_dirs
+            ]
+            if len(retained) != len(records):
+                self._write_records(retained)
+
     def _read_records(self, *, bootstrap_relative: str | None = None) -> list[PersistedArchiveManifest]:
         authoritative = self._authoritative_records()
         if not self.index_path.is_file():
@@ -115,6 +131,24 @@ class ArchiveManifestIndexMixin:
             if not authoritative and records:
                 raise ArchiveManifestRepositoryError("ARCHIVE_INDEX_UNTRUSTED")
             return authoritative
+        return records
+
+    def _read_index_records_for_mutation(self) -> list[PersistedArchiveManifest]:
+        """Read the existing projection without requiring live DB authority."""
+        try:
+            with self.index_path.open("r", encoding="utf-8") as stream:
+                payload = json.load(stream)
+        except (OSError, ValueError, TypeError) as error:
+            raise ArchiveManifestRepositoryError("ARCHIVE_INDEX_CORRUPT") from error
+        raw_records = payload.get("records") if isinstance(payload, dict) else None
+        if not isinstance(raw_records, list):
+            raise ArchiveManifestRepositoryError("ARCHIVE_INDEX_CORRUPT")
+        records: list[PersistedArchiveManifest] = []
+        for raw in raw_records:
+            parsed = parse_manifest_record(raw)
+            if parsed is None:
+                raise ArchiveManifestRepositoryError("ARCHIVE_INDEX_CORRUPT")
+            records.append(parsed)
         return records
 
     def _authoritative_records(self) -> list[PersistedArchiveManifest]:

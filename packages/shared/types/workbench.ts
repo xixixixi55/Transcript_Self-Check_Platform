@@ -205,6 +205,11 @@ export interface DeletePreflight {
   blockers: string[]
 }
 
+export interface CaseDeletionResult {
+  case_id: string
+  deleted: true
+}
+
 export interface CaseListResponse extends WorkbenchApiEnvelope<CaseListPage> {}
 export interface CaseDetailResponse extends WorkbenchApiEnvelope<CaseDetail> {}
 export interface CaseSubmissionResponse extends WorkbenchApiEnvelope<CaseSubmission> {}

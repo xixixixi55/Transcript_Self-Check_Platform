@@ -87,10 +87,10 @@ Phase 1–4 已提供持久化案件工作台、版本化草稿、Archive Schedu
 - 为成功 Word 导出增加独立 durable formal Word artifact 事实：稳定 `word_artifact_id`、publication 关联、Manifest digest、模板 identity/version、摘要、大小、受控相对路径和验证时间。清理后 Word 通过 `word_artifact_id` 访问，不依赖已删除的 `report_json` 或 runtime context。
 - 清理后的公共身份固定为 `case_id`、`publication_id` 和 `word_artifact_id`。按 `case_id` 列出保留正式产物，按 `publication_id` 验证/访问 Manifest、MD5、RAR，按 `word_artifact_id` 验证/访问 Word；不得依赖 `archive_context_id`、进程内 runtime store、TTL context、普通任务 payload、路径或派生 JSON index。
 - 增加确定性 cleanup preview/dry-run：返回候选、跳过原因码、计划清理类别、明确保留类别、anchor、到期判断、任务/租约/恢复/冲突摘要和 revision/digest 安全摘要。preview 与 Coordinator 执行使用同一版本化资格规则，执行时在 claim、文件删除前、SQLite 清理前和 succeeded 前重复校验。
-- 自动真实清理只由 deployment retention policy 的受控 Coordinator 执行。本期不提供公共逐案件清理执行 API、普通工作台立即删除按钮或没有实际身份基础的人员级执行合同；公共 UI/API 只提供 retention 状态、blocker、preview、run 状态、失败和恢复信息以及正式产物保护结果。
+- 自动 retention 清理只由 deployment retention policy 的受控 Coordinator 执行。本 change 不提供 retention-specific 公共逐案件清理执行 API、人工 force-delete 或正式产物删除选项；显式工作台 DELETE 由 `case-workbench-delete` 变更单单独负责确认和平台受控路径清理。
 - 增加 cleanup run、claim、phase、partial failure、幂等、重试、取消收尾和启动恢复；清理与 autosave、parse/archive/retry、publication 更新、Word export 通过 durable claim、case revision 和 CAS 互斥。
 - 正式确定 schema v11 的最小 durable 模型，采用 v10→v11 单事务 migration、升级前成组备份、旧应用拒绝打开 v11、匹配备份回滚；不把关键事实放入内存或临时 JSON。
-- 保持 Legacy `/records/*` 为唯一正式输出链路；Canonical 不进入正式链路，Shadow 继续暂停；不增加正式产物删除 API。
+- 保持 Legacy `/records/*` 为唯一正式输出链路；Canonical 不进入正式链路，Shadow 继续暂停；本 change 不增加 retention-specific 正式产物删除 API。
 
 ### 原任务到本 change 的追溯映射
 
@@ -140,9 +140,9 @@ Phase 1–4 已提供持久化案件工作台、版本化草稿、Archive Schedu
 
 ### Non-Goals
 
-- 不增加或实现正式 RAR、分卷、Manifest、MD5、Word、publication generation 或正式 publication authority 的删除 API。
+- 不增加或实现由 retention 自动清理调用的正式 RAR、分卷、Manifest、MD5、Word、publication generation 或正式 publication authority 删除 API；显式工作台删除由独立变更单定义。
 - 不删除原始授权来源目录，不按目录名、索引缺失、文件名或模糊关联推断资产归属。
-- 不提供公共逐案件清理执行 API、普通案件立即删除按钮或没有真实权限基础的人员级执行合同。
+- 不提供 retention-specific 公共逐案件清理执行 API、没有真实身份基础的人员级执行合同或 force-delete。
 - 不实现多实例共享 SQLite/输出根、多节点、高可用、远程数据库或新的分布式队列。
 - 不实现从备份自动 undelete 已清理案件；备份恢复只定义边界。
 - 不重新引入独立生成页面，不改变 Legacy 唯一正式输出，不启用 Canonical 正式链路，不恢复 Shadow 真实治理。
@@ -155,8 +155,8 @@ Phase 1–4 已提供持久化案件工作台、版本化草稿、Archive Schedu
 - **SharedTypes/Constants/Utils**：新增 retention policy、preview/status/run、stable artifact identity、错误码和安全投影；不暴露路径、owner token、lease、fence、attempt、context 或数据库结构。
 - **SQLite/Repository/Service**：从 v10 事务升级至 v11；增加 retention policy/record、cleanup run/claim、formal Word artifact、`publication_verified_at`、source tombstone 和 shell tombstone 字段；重建必要 FK 并处理 `asset_references`；不增加 RAR/Manifest 平行 authority。
 - **Scheduler/Coordinator**：只在 `enforce` 下按 24 小时周期、最小 1 小时、batch 20 执行候选；同一 deployment 单 coordinator claim；停止 grace 30 秒；不因升级立即批量清理。
-- **Controllers/Routes**：提供 retention status、blocker、preview、run 状态和清理后正式产物安全查询/门控；不提供公共人工执行、正式删除或路径目标 API。
-- **Frontend**：展示 policy mode、保留/到期/blocker、preview、run、失败/恢复和 cleaned tombstone；不提供立即删除按钮或独立生成页。
+- **Controllers/Routes**：提供 retention status、blocker、preview、run 状态和清理后正式产物安全查询/门控；不提供 retention-specific 公共人工执行、正式删除或路径目标 API。
+- **Frontend**：展示 policy mode、保留/到期/blocker、preview、run、失败/恢复和 cleaned tombstone；不提供 retention force-delete 或独立生成页，显式工作台删除沿用独立变更单。
 - **Tests/Docs/Harness**：新增 migration/FK/authority/Word/Windows/CAS/恢复测试规划、API/data-model 文档、active overlap 矩阵和 Level 3 gates。
 
 ## Active Change Dependency Gates

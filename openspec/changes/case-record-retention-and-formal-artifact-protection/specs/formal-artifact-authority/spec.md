@@ -52,9 +52,9 @@ RAR、分卷、Manifest、MD5 和 publication generation 的正式权威 MUST �
 - **THEN** 下载、复用和 Word gate 返回稳定完整性错误并 fail closed
 - **AND** 不通过文件 mtime、目录扫描或派生 index 重新认定可信
 
-### Requirement: REQ-AUTH-004: 正式产物删除不是公共能力
+### Requirement: REQ-AUTH-004: 自动保留清理不删除正式产物
 
-本 change MUST NOT 增加正式 RAR/分卷、Manifest、MD5、Word、publication generation、正式 `archive_assets` 或其 durable authority 的删除 API。案件记录清理 MUST 由服务端白名单和受控 `enforce` Coordinator 计算，客户端不得提交文件路径、文件列表、output root、表名或“删除正式产物”选项。任何正式产物删除需求 MUST 作为独立 Level 3 范围重新评审。
+本 change 的自动案件记录清理 MUST NOT 删除正式 RAR/分卷、Manifest、MD5、Word、publication generation、正式 `archive_assets` 或其 durable authority，也不增加 retention-specific artifact deletion API。案件记录清理 MUST 由服务端白名单和受控 `enforce` Coordinator 计算，客户端不得提交文件路径、文件列表、output root、表名或“删除正式产物”选项。显式工作台 DELETE 属于独立的确认删除能力，按 `case-workbench-delete` 的受控路径规则处理，不由本 change 的自动清理资格推导。
 
 #### Scenario: 客户端尝试扩大删除范围
 
@@ -64,6 +64,6 @@ RAR、分卷、Manifest、MD5 和 publication generation 的正式权威 MUST �
 
 #### Scenario: 普通案件或 Legacy 入口不绕过保护
 
-- **WHEN** 客户端调用普通案件删除、兼容 Legacy 或未清理 task/context 入口
-- **THEN** 系统不将其解释为正式产物删除授权
+- **WHEN** 客户端调用 retention、兼容 Legacy 或未清理 task/context 入口
+- **THEN** 系统不将其解释为正式产物删除授权；显式工作台 DELETE 仍必须经过自身确认流程
 - **AND** 正式 authority、稳定 identity 和 fail-closed 门控保持不变

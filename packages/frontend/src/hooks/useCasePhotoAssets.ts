@@ -41,18 +41,36 @@ function fileType(ref: OpaqueAssetRef): string {
   return typeof value === 'string' ? value : 'image/jpeg'
 }
 
+function fileForRef(caseId: string, ref: OpaqueAssetRef): UploadFile {
+  return {
+    uid: ref.asset_id,
+    name: fileName(ref),
+    type: fileType(ref),
+    status: 'done',
+    url: API_ENDPOINTS.WORKBENCH_CASE_ASSET(caseId, ref.asset_id),
+  }
+}
+
 export function useCasePhotoAssets(options: Options) {
   const { caseId, assetRefs, editingEnabled, lease, onAssetRefsChange } = options
   const [files, setFiles] = useState<UploadFile[]>([])
   const [assetError, setAssetError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const uploadingRef = useRef(false)
+  const completedUploadsRef = useRef(new Map<string, OpaqueAssetRef>())
   const requestSequence = useRef(0)
   const filesRef = useRef<UploadFile[]>([])
   const refsRef = useRef(assetRefs)
+  const syncedRefsKey = useRef<string | null>(null)
   const refsKey = assetRefs.map(ref => `${ref.asset_id}:${ref.fingerprint || ''}`).join('|')
 
-  useEffect(() => { refsRef.current = assetRefs }, [assetRefs])
+  useEffect(() => { completedUploadsRef.current.clear() }, [caseId])
+  useEffect(() => {
+    const scopedRefsKey = `${caseId}:${refsKey}`
+    if (syncedRefsKey.current === scopedRefsKey) return
+    refsRef.current = assetRefs
+    syncedRefsKey.current = scopedRefsKey
+  }, [assetRefs, caseId, refsKey])
   useEffect(() => { filesRef.current = files }, [files])
 
   useEffect(() => {
@@ -95,11 +113,26 @@ export function useCasePhotoAssets(options: Options) {
 
   const handleChange = useCallback(async (nextFiles: UploadFile[]) => {
     if (!editingEnabled || uploadingRef.current) return
-    const newFiles = nextFiles.filter(file => file.originFileObj && !refsRef.current.some(ref => ref.asset_id === file.uid))
+    const completedUploads = completedUploadsRef.current
+    const newFiles = nextFiles.filter(file => file.originFileObj
+      && !refsRef.current.some(ref => ref.asset_id === file.uid)
+      && !completedUploads.has(file.uid))
     if (!newFiles.length) {
-      filesRef.current = nextFiles
-      setFiles(nextFiles)
-      const nextRefs = nextFiles.flatMap(file => refsRef.current.filter(ref => ref.asset_id === file.uid))
+      const nextRefs = nextFiles.flatMap(file => {
+        const completed = completedUploads.get(file.uid)
+        return completed ? [completed] : refsRef.current.filter(ref => ref.asset_id === file.uid)
+      })
+      // Ant Design can deliver an already queued callback after the upload
+      // promise has completed. If its local uid list resolves to the exact
+      // persisted refs currently shown, it is not a new user edit.
+      if (nextFiles.some(file => completedUploads.has(file.uid))
+        && JSON.stringify(nextRefs) === JSON.stringify(refsRef.current)) return
+      const restored = nextFiles.map(file => {
+        const completed = completedUploads.get(file.uid)
+        return completed ? fileForRef(caseId, completed) : file
+      })
+      filesRef.current = restored
+      setFiles(restored)
       if (JSON.stringify(nextRefs) !== JSON.stringify(refsRef.current)) {
         refsRef.current = nextRefs
         onAssetRefsChange(nextRefs)
@@ -111,16 +144,17 @@ export function useCasePhotoAssets(options: Options) {
     setAssetError(null)
     setFiles(nextFiles.map(file => newFiles.some(item => item.uid === file.uid) ? { ...file, status: 'uploading' } : file))
     try {
-      const uploaded = await Promise.all(newFiles.map(async file => [file.uid, await upload(file)] as const))
+      const uploaded = await Promise.all(newFiles.map(async file => [file.uid, refForRecord(await upload(file))] as const))
       const uploadedByUid = new Map(uploaded)
+      for (const [uid, ref] of uploaded) completedUploads.set(uid, ref)
       const nextRefs = nextFiles.flatMap(file => {
-        const created = uploadedByUid.get(file.uid)
-        if (created) return [refForRecord(created)]
+        const created = uploadedByUid.get(file.uid) || completedUploads.get(file.uid)
+        if (created) return [created]
         return refsRef.current.filter(ref => ref.asset_id === file.uid)
       })
       const restored = nextFiles.map(file => {
-        const created = uploadedByUid.get(file.uid)
-        return created ? { uid: created.asset_id, name: fileName(created), type: fileType(created), status: 'done', url: API_ENDPOINTS.WORKBENCH_CASE_ASSET(caseId, created.asset_id) } as UploadFile : file
+        const created = uploadedByUid.get(file.uid) || completedUploads.get(file.uid)
+        return created ? fileForRef(caseId, created) : file
       })
       refsRef.current = nextRefs
       filesRef.current = restored

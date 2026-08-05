@@ -95,6 +95,28 @@ describe('useCasePhotoAssets', () => {
     expect(view.result.current.files).toHaveLength(2)
   })
 
+  it('ignores a late callback with the local file list after upload completes', async () => {
+    const onAssetRefsChange = vi.fn(() => true)
+    const file = new File(['SYNTHETIC-LATE-CALLBACK'], 'late.png', { type: 'image/png' })
+    const created = { ...ref('asset-synthetic-late'), content_status: 'available' as const }
+    postMock.mockReset()
+    postMock.mockResolvedValueOnce({ data: { data: created } } as any)
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+    const localFiles = [{
+      uid: 'local-late', name: file.name,
+      originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']>,
+    }]
+
+    await act(async () => { await view.result.current.handleChange(localFiles) })
+    await act(async () => { await view.result.current.handleChange(localFiles) })
+
+    expect(postMock).toHaveBeenCalledTimes(1)
+    expect(onAssetRefsChange).toHaveBeenCalledTimes(1)
+    expect(view.result.current.files[0].uid).toBe(created.asset_id)
+  })
+
   it('removes an existing persisted reference without mixing another case', async () => {
     const stored = ref('asset-synthetic-2')
     const onAssetRefsChange = vi.fn(() => true)

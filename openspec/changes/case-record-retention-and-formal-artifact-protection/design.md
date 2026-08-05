@@ -85,7 +85,7 @@ Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢�
 
 ### Non-Goals
 
-- 不提供任何正式 RAR、分卷、Manifest、MD5、Word、publication generation 或正式 publication authority 的删除 API。
+- 不提供由 retention 自动清理调用的正式 RAR、分卷、Manifest、MD5、Word、publication generation 或正式 publication authority 删除 API；显式工作台 DELETE 属于独立变更单。
 - 不删除原始授权来源目录，不使用目录名、文件名、索引缺失或路径相似性推断 ownership。
 - 不实现多实例共享 SQLite/输出根、多节点、高可用、远程数据库或自动 undelete。
 - 不让 Canonical 进入正式链路，不恢复 Shadow，不处理 TD-3 至 TD-6。
@@ -143,7 +143,7 @@ Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢�
 - 模板 identity/version；
 - 最小审计关联。
 
-正式 Word 只有在记录存在、物理文件存在、摘要/大小匹配且来源 publication 仍为有效 verified authority 时才可下载。Word 记录和物理正式文件不受案件工作记录清理影响，不提供 Word 删除 API。不存在 durable Word 事实时，案件不得进入自动清理候选，`enforce` 也不得绕过该保护。
+正式 Word 只有在记录存在、物理文件存在、摘要/大小匹配且来源 publication 仍为有效 verified authority 时才可下载。Word 记录和物理正式文件不受自动 retention 案件工作记录清理影响；显式工作台 DELETE 是否清理平台受控 Word 文件由 `case-workbench-delete` 变更定义。不存在 durable Word 事实时，案件不得进入自动清理候选，`enforce` 也不得绕过该保护。
 
 ### 4. v10 表级 KEEP/COMPACT/DELETE/DERIVED/NEW 矩阵
 
@@ -252,7 +252,7 @@ v10→v11 migration 不安全回填 `publication_verified_at`，所有既有 pub
 
 Preview/dry-run 使用版本化 policy predicate，稳定按 case ID 排序，至少返回候选/跳过、稳定 blocker、计划清理类别、保留正式类别、anchor/due、任务/租约/恢复/冲突摘要、policy revision、case revision 和 digest。不得返回绝对路径、表名、token、lease、fence、attempt、context 或敏感原始文件名。
 
-本期没有可靠的用户、角色或人员级认证授权模型，因此不提供公共逐案件清理执行 API、普通案件立即删除按钮、没有实际身份基础的人员级执行合同或 force-delete。公共 UI/API 只允许：
+本期没有可靠的用户、角色或人员级认证授权模型，因此不提供 retention-specific 公共逐案件清理执行 API、没有实际身份基础的人员级执行合同或 force-delete。显式工作台 DELETE 由独立变更单负责确认和平台受控路径边界。公共 UI/API 只允许：
 
 - retention 状态、资格和 blocker 查询；
 - preview/dry-run；
@@ -380,6 +380,6 @@ Legacy `/records/*` 仍是唯一正式输出兼容入口；未清理案件可保
 
 - 不新增 RAR/Manifest 平行 authority；
 - 不以 `archive_context_id` 或派生 index 作为 cleaned case 唯一入口；
-- 不恢复公共人工执行/force-delete 合同；
+- 不恢复 retention-specific 公共人工执行/force-delete 合同；
 - 不把字段/FK/版本/模式/周期/claim/互斥/错误码留给实现者猜测；
 - 不在 Phase 5 修改 living specs、归档 change 或其他 active change。
