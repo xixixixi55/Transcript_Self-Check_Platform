@@ -1,0 +1,148 @@
+"""Unified export: latest Word + all RAR parts + HashMyFiles verification HTML.
+
+The service writes a complete archive bundle into a user-chosen export path.
+Inputs are pre-resolved by the controller (report, validated manifest, physical
+part files, photos, template context) so the service stays testable.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable
+from uuid import uuid4
+
+from ..config import OUTPUT_BASE
+from ..repository.audit_event_repository import AuditEventRepository
+from ..repository.workbench_database import WorkbenchDatabase
+from .hashmyfiles_service import generate_verification_html
+from .record_generator_service import generate_docx
+
+
+class UnifiedExportError(ValueError):
+    """Stable, path-free diagnostic for unified export failures."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+HashRunner = Callable[[list[Path], Path], str]
+
+
+def _require_disc_mapping(manifest: dict[str, Any]) -> None:
+    parts = manifest.get("parts") or []
+    missing = [
+        part.get("filename") for part in parts if not str(part.get("disc_number") or "").strip()
+    ]
+    if missing:
+        raise UnifiedExportError(
+            "DISC_MAPPING_INCOMPLETE", "光盘编号尚未全部补齐，无法导出。",
+        )
+
+
+def unified_export(
+    *,
+    report: dict[str, Any],
+    manifest: dict[str, Any],
+    final_dir: Path,
+    export_path: Path,
+    photo_paths: list[Path],
+    template_context: dict[str, Any],
+    database: WorkbenchDatabase | None = None,
+    case_id: str | None = None,
+    task_id: str | None = None,
+    output_root: str | Path = OUTPUT_BASE,
+    hash_runner: HashRunner | None = None,
+) -> dict[str, Any]:
+    """Write the archive bundle into ``export_path`` and return its projection."""
+    _require_disc_mapping(manifest)
+    parts = manifest.get("parts") or []
+    rar_paths = [final_dir / str(part["filename"]) for part in parts]
+    for rar in rar_paths:
+        if not rar.is_file():
+            raise UnifiedExportError("ARCHIVE_PART_MISSING", "归档分卷文件缺失，无法导出。")
+
+    export_path.mkdir(parents=True, exist_ok=True)
+    word_filename = _export_word(
+        report, manifest, export_path, photo_paths, template_context,
+    )
+
+    for rar in rar_paths:
+        shutil.copy2(rar, export_path / rar.name)
+    rar_filenames = [rar.name for rar in rar_paths]
+
+    runner = hash_runner or (
+        lambda paths, out: generate_verification_html(paths, out)
+    )
+    hash_html = runner(rar_paths, export_path)
+
+    exported_at = _utc_now()
+    _record_export(
+        database, case_id, task_id, export_path, word_filename,
+        rar_filenames, hash_html, exported_at,
+    )
+    return {
+        "export_path": str(export_path),
+        "word_filename": word_filename,
+        "rar_filenames": rar_filenames,
+        "hash_verification_html": hash_html,
+        "exported_at": exported_at,
+    }
+
+
+def _export_word(
+    report: dict[str, Any],
+    manifest: dict[str, Any],
+    export_path: Path,
+    photo_paths: list[Path],
+    template_context: dict[str, Any],
+) -> str:
+    try:
+        docx_path = generate_docx(
+            report, photo_paths=photo_paths, output_dir=str(export_path),
+            archive_manifest=manifest, **template_context,
+        )
+    except Exception as error:
+        raise UnifiedExportError(
+            "WORD_RENDER_FAILED", "Word 生成失败，导出未完成。",
+        ) from error
+    return os.path.basename(str(docx_path))
+
+
+def _record_export(
+    database: WorkbenchDatabase | None,
+    case_id: str | None,
+    task_id: str | None,
+    export_path: Path,
+    word_filename: str,
+    rar_filenames: list[str],
+    hash_html: str,
+    exported_at: str,
+) -> None:
+    if database is None:
+        return
+    AuditEventRepository(database).record({
+        "event_id": str(uuid4()),
+        "event_type": "unified_export",
+        "deployment_instance_id": database.deployment_instance_id,
+        "client_instance_id": "system",
+        "session_id": "system",
+        "local_display_name": None,
+        "identity_kind": "local_session",
+        "case_id": case_id,
+        "task_id": task_id,
+        "payload": {
+            "word_filename": word_filename,
+            "rar_filenames": rar_filenames,
+            "hash_verification_html": hash_html,
+            "exported_at": exported_at,
+        },
+        "created_at": exported_at,
+    })
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()

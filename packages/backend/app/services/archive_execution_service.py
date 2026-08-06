@@ -61,7 +61,7 @@ def execute_archive(
         pre_gate = pre_archive_gate(report)
         raise_gate(pre_gate)
         observe_stage(stage_observer, "inventory")
-        first_disc_number = str((report.get("attachments") or {}).get("disc_number"))
+        first_disc_number = str((report.get("attachments") or {}).get("disc_number") or "").strip() or None
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         verify_input_inventory(context.inventory)
         if (
@@ -78,7 +78,7 @@ def execute_archive(
                 ExportGateCode.ARCHIVE_INPUT_EMPTY, "archive", "Archive input is empty.",
             ),))
         fingerprint = _fingerprint(
-            report, execution_inventory, first_disc_number,
+            report, execution_inventory,
             content_fingerprint=sealed_input.input_fingerprint,
         )
         registry.mark_source_changed(

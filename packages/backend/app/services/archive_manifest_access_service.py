@@ -22,14 +22,15 @@ class ArchiveGateError(ArchiveRuntimeError):
 
 
 def archive_report_fingerprint(
-    report: dict, inventory, first_disc_number: str,
-    *, content_fingerprint: str | None = None,
+    report: dict, inventory, *, content_fingerprint: str | None = None,
 ) -> str:
+    # Disc numbers are a deferred per-part label mapped after compression
+    # (first number can be entered before or after). They are intentionally
+    # excluded so later mapping does not break Manifest reuse.
     payload = {
         "archive_base_name": str(
             (report.get("introduction") or {}).get("case_summary") or ""
         ).strip(),
-        "first_disc_number": first_disc_number,
         "input": inventory.public_entries(),
         "input_content_fingerprint": content_fingerprint or directory_content_fingerprint(
             inventory.source_root,
@@ -47,7 +48,6 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
             ExportGateCode.ARCHIVE_MANIFEST_CONTEXT_MISMATCH, "archive_manifest", "归档清单不属于当前归档上下文。",
         ),))
     _raise_manifest_file_error(record)
-    first_disc = str((report.get("attachments") or {}).get("disc_number"))
     context = ARCHIVE_RUNTIME_STORE.acquire_context(context_id)
     try:
         if context.successful_manifest_id != manifest_id:
@@ -62,7 +62,7 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
                 error.code, "archive_manifest", "归档输入已变化，请重新解析。",
             ),)) from error
         if record.fingerprint != archive_report_fingerprint(
-            report, context.inventory, first_disc,
+            report, context.inventory,
             content_fingerprint=context.input_fingerprint or None,
         ):
             raise ArchiveGateError((ExportGateIssue(

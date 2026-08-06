@@ -249,7 +249,7 @@ def test_successful_manifest_is_reused_only_for_same_snapshot_and_review(tmp_pat
     assert get_valid_manifest(context_id, first.manifest_id, corrected_photos)
 
 
-def test_manifest_reuse_rechecks_disc_review_and_input_snapshot(tmp_path):
+def test_manifest_reuse_rechecks_input_snapshot_and_tolerates_disc_change(tmp_path):
     source, output, context_id = make_context(tmp_path)
     fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
     capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
@@ -258,11 +258,11 @@ def test_manifest_reuse_rechecks_disc_review_and_input_snapshot(tmp_path):
         capability=capability, executor=fake, integrity_runner=integrity_ok,
     )
 
+    # Disc numbers are mapped after compression and intentionally decoupled
+    # from the reuse fingerprint: changing them must not invalidate the manifest.
     changed_disc = valid_report()
     changed_disc["attachments"]["disc_number"] = "GP20260718-02"
-    with pytest.raises(ArchiveGateError) as disc_error:
-        get_valid_manifest(context_id, first.manifest_id, changed_disc)
-    assert disc_error.value.blockers[0].code == "ARCHIVE_MANIFEST_MISSING"
+    assert get_valid_manifest(context_id, first.manifest_id, changed_disc)
 
     (source / "input.bin").write_bytes(b"changed-input")
     with pytest.raises(ArchiveGateError) as input_error:

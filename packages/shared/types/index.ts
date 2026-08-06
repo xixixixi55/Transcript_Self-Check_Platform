@@ -226,6 +226,7 @@ export interface RecordListResponse {
 
 export * from './canonical'
 export * from './archive'
+export * from './archiveCompletion'
 export * from './discSequence'
 export * from './exportGate'
 export * from './pipeline'

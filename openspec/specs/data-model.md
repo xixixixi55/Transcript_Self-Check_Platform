@@ -310,6 +310,12 @@ Manifest 的 parts 按实际文件系统结果排序，保存文件名、`size_b
 `type MaterialClassificationSource`、`interface MaterialClassification`、
 `interface InspectorLibraryRecord`。
 
+类型索引追加：`interface ArchivePartDiscMapping`、`interface DiscMappingRequest`、
+`interface DiscMappingResult`、`interface UnifiedExportRequest`、
+`interface UnifiedExportOutput`、`interface UnifiedExportResult`、
+`interface ExportRecord`、`type ArchiveCompletionStatus`。
+（盘号映射与统一导出契约：压缩允许先无盘号执行，压缩后输入首个盘号自动生成全序列并映射到 plan 槽位；统一导出把最新 Word + 全部 RAR + HashMyFiles 校验 HTML 写入用户选择路径，导出审计不保存绝对路径。）
+
 ### Additional migration support types
 
 `PrimarySoftwareCandidate` stores an explicit report candidate pair. `DiscSequenceErrorCode` identifies first-disc parsing failures, and `DiscSequenceParseResult` stores the validation result, parsed sequence, and diagnostic code.

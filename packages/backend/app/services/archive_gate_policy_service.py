@@ -10,13 +10,18 @@ from .disc_sequence_service import parse_disc_sequence
 
 def pre_archive_gate(report: dict) -> ExportGateResult:
     attachments = report.get("attachments") or {}
-    disc_result = parse_disc_sequence(attachments.get("disc_number"))
-    return evaluate_export_gate(
-        ExportGateInput(
-            disc_sequence_valid=disc_result.valid,
-            disc_sequence_error_code=disc_result.error_code,
+    disc_number = attachments.get("disc_number")
+    if disc_number is not None and str(disc_number).strip():
+        disc_result = parse_disc_sequence(str(disc_number))
+        return evaluate_export_gate(
+            ExportGateInput(
+                disc_sequence_valid=disc_result.valid,
+                disc_sequence_error_code=disc_result.error_code,
+            )
         )
-    )
+    # Deferred disc number: compression may start without it; the sequence is
+    # mapped before export, where the export gate still requires a valid number.
+    return evaluate_export_gate(ExportGateInput())
 
 
 def with_archive_gate(result: ExportGateResult, capability: WinRarCapability) -> ExportGateResult:
