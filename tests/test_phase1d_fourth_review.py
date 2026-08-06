@@ -133,7 +133,7 @@ def test_failed_attempt_with_publish_intent_is_reconciled_without_republish(data
     assert len(ArchiveManifestRepository(output).find_for_attempt(attempt["attempt_id"])) == 1
 
 
-def test_source_fingerprint_changes_for_same_size_same_mtime_bytes(tmp_path: Path) -> None:
+def test_source_fingerprint_is_metadata_only_and_detects_metadata_changes(tmp_path: Path) -> None:
     source = tmp_path / "SYNTHETIC-SOURCE"
     source.mkdir()
     item = source / "record.json"
@@ -141,13 +141,23 @@ def test_source_fingerprint_changes_for_same_size_same_mtime_bytes(tmp_path: Pat
     original = item.stat()
     first = fingerprint(source)
 
+    # A same-size, timestamp-preserving in-place rewrite is outside the
+    # metadata-only gate's guarantee by design.
     item.write_bytes(b"SYNTHETIC-TWO")
     os.utime(item, ns=(original.st_atime_ns, original.st_mtime_ns))
+    assert fingerprint(source) == first
 
+    # A size change is detected.
+    item.write_bytes(b"SYNTHETIC-THREE-LONGER")
+    assert fingerprint(source) != first
+
+    # A timestamp change is detected.
+    item.write_bytes(b"SYNTHETIC-TWO")
+    os.utime(item, ns=(original.st_atime_ns, original.st_mtime_ns + 1_000_000))
     assert fingerprint(source) != first
 
 
-def test_source_fingerprint_returns_transient_failure_for_reading_change(
+def test_source_fingerprint_returns_transient_failure_for_snapshot_change(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     source = tmp_path / "SYNTHETIC-SOURCE-CHANGE"
@@ -156,20 +166,18 @@ def test_source_fingerprint_returns_transient_failure_for_reading_change(
     item.write_bytes(b"SYNTHETIC-ORIGINAL")
     from app.services import source_record_fingerprint_service as fingerprint_module
 
-    original = fingerprint_module._read_file_digest
+    original_snapshot = fingerprint_module._snapshot
     calls = 0
 
-    def mutate_between_reads(path: Path) -> bytes:
+    def mutate_between_snapshots(path: Path):
         nonlocal calls
-        result = original(path)
+        result = original_snapshot(path)
         calls += 1
         if calls == 1:
-            stat = path.stat()
-            path.write_bytes(b"SYNTHETIC-REPLACED")
-            os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+            item.write_bytes(b"SYNTHETIC-REPLACED")
         return result
 
-    monkeypatch.setattr(fingerprint_module, "_read_file_digest", mutate_between_reads)
+    monkeypatch.setattr(fingerprint_module, "_snapshot", mutate_between_snapshots)
     with pytest.raises(fingerprint_module.SourceFingerprintTransientError):
         fingerprint(source)
 

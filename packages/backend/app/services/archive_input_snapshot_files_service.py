@@ -25,8 +25,14 @@ def assert_matches(inventory: InputInventory, manifest: list[dict[str, Any]]) ->
     if actual != expected or len(actual) != len(manifest):
         raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "Snapshot file set changed.")
     for item in manifest:
+        if "modified_time_ns" not in item:
+            continue
         path = safe_child(inventory.source_root, str(item["relative_path"]))
-        if hash_file(path) != item["sha256"]:
+        try:
+            modified = path.stat().st_mtime_ns
+        except OSError as error:
+            raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "Snapshot content changed.") from error
+        if int(modified) != int(item["modified_time_ns"]):
             raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "Snapshot content changed.")
 
 
@@ -37,18 +43,6 @@ def fingerprint(source_root_id: str, inventory: InputInventory, manifest: list[d
         "files": sorted(manifest, key=lambda item: str(item["relative_path"]).casefold()),
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-
-
-def hash_file(path: Path) -> str:
-    assert_regular(path)
-    digest = hashlib.sha256()
-    try:
-        with path.open("rb") as stream:
-            for block in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(block)
-    except OSError as error:
-        raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "Source file cannot be read safely.") from error
-    return digest.hexdigest()
 
 
 def assert_regular(path: Path) -> None:

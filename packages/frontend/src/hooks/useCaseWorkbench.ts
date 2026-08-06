@@ -1,7 +1,7 @@
 // Layer 10: FE_Hooks — persistent case list/detail requests with stale-response guards.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { API_ENDPOINTS } from '@biji/shared/constants'
+import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type {
   ArchiveTaskHistory, ArchiveTaskPublicDetail, ArchiveTaskResult,
   CaseDeletionResult, CaseDetail, CaseListPage, CaseShell, CaseSubmission,
@@ -173,6 +173,7 @@ export function useCaseWorkbench(caseId?: string) {
   const archiveTaskDetails = useCallback(async (taskId: string) => {
     const response = await axios.get<{ data: ArchiveTaskPublicDetail }>(
       API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_DETAILS(taskId),
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     return dataOf(response)
   }, [])
@@ -182,6 +183,7 @@ export function useCaseWorkbench(caseId?: string) {
     const response = await axios.post<{ data: ArchiveTaskPublicDetail }>(
       API_ENDPOINTS.WORKBENCH_CANCEL_TASK(taskId),
       { expected_revision: detail.revision },
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     await loadPage(page.offset)
     return dataOf(response)
@@ -194,6 +196,7 @@ export function useCaseWorkbench(caseId?: string) {
     const response = await axios.post<{ data: { task: ArchiveTaskPublicDetail } }>(
       API_ENDPOINTS.WORKBENCH_RETRY_ARCHIVE_TASK(taskId),
       { expected_revision: detail.revision, expected_case_revision: expectedCaseRevision },
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     await loadPage(page.offset)
     return dataOf(response)
@@ -202,6 +205,7 @@ export function useCaseWorkbench(caseId?: string) {
   const archiveHistory = useCallback(async (requestedCaseId: string) => {
     const response = await axios.get<{ data: ArchiveTaskHistory }>(
       API_ENDPOINTS.WORKBENCH_ARCHIVE_HISTORY(requestedCaseId),
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     return dataOf(response)
   }, [])
@@ -209,6 +213,7 @@ export function useCaseWorkbench(caseId?: string) {
   const archiveResult = useCallback(async (taskId: string) => {
     const response = await axios.get<{ data: ArchiveTaskResult }>(
       API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(taskId),
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     return dataOf(response)
   }, [])
@@ -223,6 +228,7 @@ export function useCaseWorkbench(caseId?: string) {
   const deleteCase = useCallback(async (requestedCaseId: string) => {
     const response = await axios.delete<{ data: CaseDeletionResult }>(
       API_ENDPOINTS.WORKBENCH_DELETE_CASE(requestedCaseId),
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     return dataOf(response)
   }, [])

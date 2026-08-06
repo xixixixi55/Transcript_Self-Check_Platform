@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
-import { CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
+import { CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import CaseWorkbenchPage from './CaseWorkbenchPage'
 import type { ArchiveTaskCardSummary, CaseShell } from '@biji/shared/types'
 
@@ -197,6 +197,7 @@ describe('CaseWorkbenchPage', () => {
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(
       expect.stringContaining('/archive-SYNTHETIC-1/cancel'),
       { expected_revision: 7 },
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     ))
     expect(postMock).toHaveBeenCalledTimes(1)
   })
@@ -225,6 +226,7 @@ describe('CaseWorkbenchPage', () => {
 
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(
       expect.stringContaining('/workbench/cases/case-synthetic-1'),
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     ))
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(0))
     expect(screen.getByRole('button', { name: '上传报告目录' })).toBeTruthy()

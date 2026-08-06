@@ -707,19 +707,21 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 ### Requirement: REQ-021: SourceRecord 保护来源可访问性
 
-系统 MUST 为每个工作台来源创建 `SourceRecord`。来源提交合同是本机报告目录路径而非 ZIP/RAR 或其他上传文件。后端 MUST 校验路径存在、是允许的目录类型、位于授权来源根、当前账户可访问且包含可识别报告结构，再保存 opaque `source_id`、允许根授权、`source_type`、`case_id/task_id` 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于受控后端 locator 中；API、卡片、草稿 DTO、任务 DTO、审计摘要、普通日志和 SQLite 公共字段不得暴露绝对路径；来源失效时必须要求重新选择目录。
+系统 MUST 为每个工作台来源创建 `SourceRecord`。来源提交合同是本机报告目录路径而非 ZIP/RAR 或其他上传文件。后端 MUST 校验路径存在、是允许的目录类型、位于授权来源根、当前账户可访问且包含可识别报告结构，再保存 opaque `source_id`、允许根授权、`source_type`、`case_id/task_id` 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于受控后端 locator 中；API、卡片、草稿 DTO、任务 DTO、审计摘要、普通日志和 SQLite 公共字段不得暴露绝对路径；来源失效时必须要求重新选择目录。来源复核与归档决策前的来源可用性检查 MUST 使用元数据级指纹（相对路径 + 类型 + 大小 + mtime），不得在复核或请求路径读取源文件内容。
 
 #### Scenario: 来源绑定和重启复核
 - WHEN 用户提交经后端验证的报告目录并创建解析任务
 - THEN SourceRecord 绑定案件壳和 task_id，并保存允许根授权及 metadata/fingerprint
 - AND 递归 metadata/fingerprint 可先保持 pending 并由独立来源复核完成；快速解析按 `Legacy Parser → 草稿持久化 → review_ready` 顺序执行，不以完整复核阻塞审核入口
+- AND 来源复核使用元数据级指纹（path/type/size/mtime），不读取文件内容，以消除大目录复核负载
 - WHEN 服务重启或任务恢复前访问来源
 - THEN 后端复核允许根、路径、权限、链接安全性和 fingerprint/metadata，并识别仍处于待复核的 SourceRecord
 - AND 恢复事务不得把 pending 复核标记为可信或来源变化；应用启动后按 `source_id + revision` 去重调度复核
 - AND 调度失败保持 pending，记录 `SOURCE_REVALIDATION_PENDING` 并允许后续启动或显式重试
 - AND 已经 `review_ready` 的案件不得因恢复重复创建或执行 Parser
 - AND 暂时 I/O、权限或资源不可用保持 pending，草稿可以查看和编辑；归档继续等待来源可信状态，Word 导出须显示明确风险确认
-- AND 已确认的路径、允许根、链接安全性、报告结构或 fingerprint 发生变化，或来源被替换/不可用时，才标记 `requires_reselection`，阻止归档并要求重新选择和重新解析
+- AND 已确认的路径、允许根、链接安全性、报告结构、大小、mtime 或元数据指纹发生变化，或来源被替换/不可用时，才标记 `requires_reselection`，阻止归档并要求重新选择和重新解析
+- AND 同尺寸且时间戳保持不变的原地内容改写不在元数据指纹门的检测范围内；归档执行仍对实际归档内容做完整性校验
 
 #### Scenario: 来源风险不阻止 Word 导出
 - WHEN SourceRecord 为 `available`
@@ -1048,9 +1050,10 @@ The archive execution input MUST be a task/attempt/deployment-bound sealed snaps
 
 #### Scenario: sealed execution input
 - WHEN a task begins archive execution
-- THEN the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory without following links or reparse points, verifies every relative path, size and SHA-256, flushes the copy, and durably marks it `sealed`
+- THEN the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory without following links or reparse points, verifies every relative path, size and modified-time metadata, flushes the copy, and durably marks it `sealed`
+- AND the snapshot manifest records per-file relative path, size and modified-time metadata, not per-file content SHA-256
 - AND WinRAR, inventory, RAR validation and Manifest generation read only the sealed snapshot, never the mutable source directory
-- AND an unsealed, missing, owner-mismatched, incomplete or digest-mismatched snapshot cannot enter WinRAR, publication, reuse or success
+- AND an unsealed, missing, owner-mismatched, incomplete or metadata-mismatched snapshot cannot enter WinRAR, publication, reuse or success
 - AND source changes after sealing cannot change the bytes read by this attempt; failure, cancellation, crash and retry never reuse a prior attempt snapshot
 
 ### Requirement: REQ-ARCHIVE-PUBLICATION-GENERATION

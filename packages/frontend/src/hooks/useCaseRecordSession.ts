@@ -1,7 +1,7 @@
 // Layer 10: FE_Hooks — case editor session, persistence, source and lease coordination.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
-import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
+import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import { applyReportEdit, parseDiscSequence } from '@biji/shared/utils'
 import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, ClientIdentity, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
 import { useCaseDraftAutosave } from './useCaseDraftAutosave'
@@ -220,6 +220,7 @@ export function useCaseRecordSession(caseId: string) {
         expected_revision: latestDetail.shell.revision,
         identity,
       },
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     await workbench.reloadDetail(caseId)
     return response.data.data

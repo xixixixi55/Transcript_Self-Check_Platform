@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
-import { API_ENDPOINTS } from '@biji/shared/constants'
+import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import { useCaseWorkbench } from './useCaseWorkbench'
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
@@ -100,7 +100,10 @@ describe('useCaseWorkbench detail reload', () => {
       result = await view.result.current.deleteCase('case-synthetic')
     })
 
-    expect(deleteMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_DELETE_CASE('case-synthetic'))
+    expect(deleteMock).toHaveBeenCalledWith(
+      API_ENDPOINTS.WORKBENCH_DELETE_CASE('case-synthetic'),
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
+    )
     expect(result).toEqual({ case_id: 'case-synthetic', deleted: true })
   })
 })

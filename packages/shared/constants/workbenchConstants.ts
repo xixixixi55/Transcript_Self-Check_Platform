@@ -12,6 +12,8 @@ export const EDIT_LEASE_TIMEOUT_SECONDS = 120
 export const CASE_DRAFT_AUTOSAVE_DEBOUNCE_MS = 700
 export const CASE_TASK_POLL_INTERVAL_MS = 5000
 export const MAX_RUNNING_ARCHIVE_TASKS = 6
+/** Archive/delete mutation calls surface a safe timeout instead of spinning forever. */
+export const WORKBENCH_REQUEST_TIMEOUT_MS = 30000
 
 export const WORKBENCH_TASK_STAGES: readonly TaskStage[] = [
   'queued', 'parse', 'inventory', 'planning', 'preflight_verified', 'winrar',

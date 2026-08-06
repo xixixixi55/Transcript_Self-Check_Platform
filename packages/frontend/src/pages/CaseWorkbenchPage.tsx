@@ -62,7 +62,7 @@ export default function CaseWorkbenchPage() {
   }
 
   const confirmDelete = async () => {
-    if (!deleteCaseId || actionCaseId) return
+    if (!deleteCaseId || actionCaseId === deleteCaseId) return
     const requestedCaseId = deleteCaseId
     setActionCaseId(requestedCaseId)
     try {

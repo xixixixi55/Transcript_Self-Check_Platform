@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import axios from 'axios'
-import { API_ENDPOINTS } from '@biji/shared/constants'
+import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type { ArchiveTaskCardSummary, ArchiveTaskResult, CaseDetail, CaseDraft, CaseShell, ClientIdentity, EditLease, InspectionReport, SharedDefaults, SourceRecord, TaskRecord } from '@biji/shared/types'
 import CaseRecordGeneratePage from './CaseRecordGeneratePage'
 
@@ -200,6 +200,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(screen.getByText('合成案件.part2.rar')).toBeTruthy()
     expect(screen.getByText('GP20260731-01')).toBeTruthy()
     expect(screen.getByText('GP20260731-02')).toBeTruthy()
-    expect(getMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id))
+    expect(getMock).toHaveBeenCalledWith(
+      API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id),
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
+    )
   }, 15000)
 })

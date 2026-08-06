@@ -34,19 +34,22 @@ def opaque_id(prefix: str) -> str:
 
 
 def fingerprint(path: Path) -> str:
+    """Metadata-only directory identity: path + type + size + mtime, no content reads.
+
+    The full content hash lives in archive execution; request/revalidation paths
+    must not read multi-gigabyte media. A same-size, timestamp-preserving in-place
+    rewrite is intentionally outside this gate's guarantee.
+    """
     if not path.is_dir() or path.is_symlink():
         raise SourceFingerprintTransientError("source unavailable")
     digest = hashlib.sha256()
     before = _snapshot(path)
-    for relative, entry_type in before:
+    for relative, entry_type, size_bytes, modified_ns in before:
         digest.update(relative.encode("utf-8"))
         digest.update(b"\0")
         digest.update(entry_type.encode("ascii"))
         digest.update(b"\0")
-        if entry_type != "file":
-            continue
-        child = path.joinpath(*relative.split("/"))
-        digest.update(_file_digest(child))
+        digest.update(f"{size_bytes}:{modified_ns}".encode("ascii"))
         digest.update(b"\0")
     after = _snapshot(path)
     if before != after:
@@ -54,8 +57,8 @@ def fingerprint(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _snapshot(path: Path) -> list[tuple[str, str]]:
-    entries: list[tuple[str, str]] = []
+def _snapshot(path: Path) -> list[tuple[str, str, int, int]]:
+    entries: list[tuple[str, str, int, int]] = []
 
     def visit(directory: Path, prefix: str) -> None:
         try:
@@ -69,10 +72,11 @@ def _snapshot(path: Path) -> list[tuple[str, str]]:
                 if item.is_symlink():
                     raise SourceFingerprintTransientError("source symlink changed")
                 if item.is_dir(follow_symlinks=False):
-                    entries.append((normalized, "directory"))
+                    entries.append((normalized, "directory", 0, int(item.stat(follow_symlinks=False).st_mtime_ns)))
                     visit(Path(item.path), normalized)
                 elif item.is_file(follow_symlinks=False):
-                    entries.append((normalized, "file"))
+                    info = item.stat(follow_symlinks=False)
+                    entries.append((normalized, "file", int(info.st_size), int(info.st_mtime_ns)))
                 else:
                     raise SourceFingerprintTransientError("unsupported source entry")
             except OSError as error:
@@ -82,36 +86,6 @@ def _snapshot(path: Path) -> list[tuple[str, str]]:
 
     visit(path, "")
     return sorted(entries, key=lambda item: (item[0], item[1]))
-
-
-def _file_digest(path: Path) -> bytes:
-    first = _read_file_digest(path)
-    second = _read_file_digest(path)
-    if first != second:
-        raise SourceFingerprintTransientError("source changed during fingerprint")
-    return second
-
-
-def _read_file_digest(path: Path) -> bytes:
-    result = hashlib.sha256()
-    try:
-        with path.open("rb") as handle:
-            before = os.fstat(handle.fileno())
-            while True:
-                chunk = handle.read(1024 * 1024)
-                if not chunk:
-                    break
-                result.update(chunk)
-            after = os.fstat(handle.fileno())
-    except OSError as error:
-        raise SourceFingerprintTransientError("source unavailable") from error
-    if (
-        before.st_size != after.st_size
-        or before.st_mtime_ns != after.st_mtime_ns
-        or getattr(before, "st_ino", None) != getattr(after, "st_ino", None)
-    ):
-        raise SourceFingerprintTransientError("source changed during fingerprint")
-    return result.digest()
 
 
 def _normalize_relative(value: str) -> str:
