@@ -169,6 +169,40 @@ class ArchiveTaskApiService:
             raise WorkbenchPersistenceError("ARCHIVE_PLAN_NOT_FOUND")
         return self.plans.update_mappings(plan["plan_id"], mappings, expected_revision)
 
+    def map_disc_numbers(
+        self,
+        case_id: str,
+        expected_revision: int,
+        first_disc_number: str,
+    ) -> dict[str, Any]:
+        """Generate the full sequence from the first disc number and persist it."""
+        current = self.tasks.get_current_or_recent(case_id)
+        if current and current["status"] in {"queued", "running", "cancelling", "blocked"}:
+            raise WorkbenchPersistenceError("ARCHIVE_MAPPING_LOCKED")
+        from .disc_mapping_service import DiscMappingError, apply_disc_mapping
+
+        try:
+            return apply_disc_mapping(
+                self.database, case_id, expected_revision, first_disc_number,
+            )
+        except DiscMappingError as error:
+            raise WorkbenchPersistenceError(error.code, error.args[0]) from error
+
+    def export_bundle(
+        self,
+        case_id: str,
+        expected_revision: int,
+        export_path: str,
+        *,
+        template_context: dict[str, object],
+    ) -> dict[str, Any]:
+        from .archive_export_service import export_bundle as _export_bundle
+
+        return _export_bundle(
+            self, case_id, expected_revision, export_path,
+            template_context=template_context,
+        )
+
     @staticmethod
     def _require_action(
         task: dict[str, Any], action: str, expected_revision: int,

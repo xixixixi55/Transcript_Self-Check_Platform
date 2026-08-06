@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..services.workbench_factory_service import ensure_archive_task_api
 from . import workbench_controller
+from .record_template_context_controller import resolve_case_template_context
 from .workbench_controller import _envelope, _handle
 
 router = APIRouter()
@@ -37,6 +38,18 @@ class MappingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_revision: int = Field(ge=0)
     mappings: list[DiscMappingRequest]
+
+
+class FirstDiscMappingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=0)
+    first_disc_number: str
+
+
+class UnifiedExportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=0)
+    export_path: str
 
 
 def _archive_api() -> Any:
@@ -147,6 +160,30 @@ async def update_archive_mapping_endpoint(case_id: str, body: MappingUpdateReque
         mappings = [mapping.model_dump() for mapping in body.mappings]
         return _envelope(_archive_api().update_mappings(
             case_id, mappings, body.expected_revision,
+        ))
+    except Exception as error:
+        _handle(error)
+
+
+@router.post("/workbench/cases/{case_id}/disc-mapping")
+async def map_disc_numbers_endpoint(case_id: str, body: FirstDiscMappingRequest):
+    """Auto-generate the full disc sequence from the first number and map it."""
+    try:
+        return _envelope(_archive_api().map_disc_numbers(
+            case_id, body.expected_revision, body.first_disc_number,
+        ))
+    except Exception as error:
+        _handle(error)
+
+
+@router.post("/workbench/cases/{case_id}/export-bundle")
+async def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
+    """Export latest Word + all RAR parts + HashMyFiles HTML to a chosen path."""
+    try:
+        template_context = resolve_case_template_context(case_id, body.expected_revision)
+        return _envelope(_archive_api().export_bundle(
+            case_id, body.expected_revision, body.export_path,
+            template_context=template_context,
         ))
     except Exception as error:
         _handle(error)

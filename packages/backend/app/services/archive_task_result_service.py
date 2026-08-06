@@ -63,6 +63,25 @@ class ArchiveTaskResultService:
             "finished_at": summary["finished_at"],
         }
 
+    def manifest_bundle(self, task_id: str) -> dict[str, Any]:
+        """Verified public manifest plus its physical final directory."""
+        task = self.tasks.get(task_id)
+        summary = self.tasks.get_task_card_summary(task_id)
+        if "view_result" not in summary["allowed_actions"] or summary["status"] != "succeeded":
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
+        attempt_id = (task.get("process_binding") or {}).get("staging_asset_id")
+        if not attempt_id:
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
+        attempt = self.attempts.repository.get_internal(str(attempt_id))
+        self._assert_task_attempt(task, attempt)
+        if attempt["status"] != "succeeded" or not attempt["manifest_id"]:
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
+        record = self._verified_manifest(task_id, str(attempt_id), str(attempt["manifest_id"]))
+        return {
+            "public_manifest": record.public_manifest,
+            "final_dir": self.manifests.resolve_final_dir(record),
+        }
+
     def download_part(self, task_id: str, part_id: str) -> tuple[str, Any]:
         task = self.tasks.get(task_id)
         summary = self.tasks.get_task_card_summary(task_id)

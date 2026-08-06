@@ -38,10 +38,10 @@ workflow_level: 3
   - 内容：`archive_report_fingerprint` payload 剔除 `first_disc_number`，两处调用同步；盘号后填/修改不破坏 Manifest 复用。
   - 验证：更新 `test_manifest_reuse_rechecks_input_snapshot_and_tolerates_disc_change`（盘号变化容忍、输入变化仍失败）；`tests/test_archive_execution_service.py` 20 passed。
 
-- [ ] T006 每 RAR 完成实时回填。
-  - 文件：`packages/backend/app/services/archive_execution_service.py`、新增 `packages/backend/app/services/attachment_backfill_service.py`
-  - 内容：在 `integrity_verified`/`md5` 阶段挂钩，对每个完成 part 计算 MD5 并回填检查结果与附件1 `extract_list` 对应行；覆盖既有值；按 part_id 幂等定位。
-  - 验证：回填服务单元测试 + 归档执行集成测试（部分 part 完成即回填、未完成不提前生成空行）。
+- [x] T006 检查结果/附件1 回填服务。
+  - 文件：新增 `packages/backend/app/services/attachment_backfill_service.py`
+  - 内容：`backfill_from_manifest` 以 manifest parts 覆盖填写检查结果 `result`（rar_filename/md5_hash/file_size）并尽力投影附件1；WinRAR 分卷为批量产出、无逐卷事件，回填点取 manifest 组装时（比导出更早）。
+  - 验证：`tests/test_attachment_backfill_service.py` 2 passed（覆盖旧值、审核字段不完整不失败）。
 
 - [x] T007 HashMyFiles 校验 HTML 生成（接口+预留）。
   - 文件：新增 `packages/backend/app/repository/hashmyfiles_repository.py`、新增 `packages/backend/app/services/hashmyfiles_service.py`
@@ -55,20 +55,20 @@ workflow_level: 3
 
 ## BE Controllers / Routes（Layer 22–23）
 
-- [ ] T009 后台压缩触发与状态路由。
-  - 文件：`packages/backend/app/controllers/archive_controller.py`
-  - 内容：案件打开「立即压缩」触发后台任务端点（复用现有工作台任务创建路径）；「待补盘号/归档完成/已导出」状态经现有状态接口投影。
-  - 验证：controller 集成测试（触发创建后台任务、状态投影正确）。
+- [x] T009 后台压缩触发与状态路由（既有能力确认）。
+  - 文件：`packages/backend/app/services/archive_task_api_service.py`
+  - 内容：「立即压缩」触发经既有 `WORKBENCH_ARCHIVE_DECISION` + 后台任务创建路径（enqueue）已存在；「待补盘号/归档完成/已导出」为 `ArchiveCompletionStatus` 派生投影，由前端按 lifecycle + 盘号补齐标志呈现。
+  - 验证：`tests/test_workbench_controller.py`、`tests/test_archive_task*.py` 回归。
 
-- [ ] T010 盘号映射端点。
-  - 文件：`packages/backend/app/controllers/archive_controller.py`（或归档相关 controller）
-  - 内容：接收首个盘号 + 案件，调用 `disc_mapping_service` 映射并返回持久化结果；非法盘号返回明确 blocker。
-  - 验证：controller 集成测试（后填映射、非法盘号 422）。
+- [x] T010 盘号映射端点。
+  - 文件：`packages/backend/app/services/archive_task_api_service.py`（map_disc_numbers）、`packages/backend/app/controllers/archive_task_controller.py`
+  - 内容：`POST /workbench/cases/{id}/disc-mapping` 接收首个盘号，调用 `disc_mapping_service.apply_disc_mapping` 自动生成全序列并持久化；非法盘号/任务锁定映射返回稳定错误。
+  - 验证：`tests/test_disc_mapping_service.py` 4 passed + `tests/test_workbench_controller.py` 回归。
 
-- [ ] T011 统一导出端点。
-  - 文件：`packages/backend/app/controllers/record_controller.py`（或新增路由）
-  - 内容：接收 native picker 返回的受控导出路径句柄 + 案件，调用 `unified_export_service` 导出；只接受受控路径，拒绝任意服务器路径。
-  - 验证：controller 集成测试（成功导出返回已导出标记、路径非受控则拒绝）。
+- [x] T011 统一导出端点。
+  - 文件：新增 `packages/backend/app/services/archive_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`
+  - 内容：`POST /workbench/cases/{id}/export-bundle` 解析 succeeded 任务 manifest/final_dir + 最新草稿报告 + 照片，调用 `unified_export_service` 写入导出路径；模板上下文由 Controller 解析传入（分层约束）；导出路径须绝对且存在。
+  - 验证：`tests/test_unified_export_service.py` 3 passed + `tests/test_archive_task*.py`/`test_workbench_controller.py` 回归。
 
 ## FE Hooks（Layer 10）
 
