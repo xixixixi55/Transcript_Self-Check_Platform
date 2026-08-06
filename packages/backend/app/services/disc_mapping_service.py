@@ -65,7 +65,9 @@ def apply_disc_mapping(
 ) -> dict[str, Any]:
     """Map the sequence for ``first_disc_number`` onto the latest case plan.
 
-    Returns the updated plan with ``parts`` (ordinal + disc_number + disc_date).
+    ``expected_revision`` guards the case shell (checked by the caller); the
+    plan write itself is CAS-guarded by the plan row's own revision so the two
+    independent counters never collide. Returns the updated plan projection.
     """
     repository = ArchivePlanRepository(database)
     plan = repository.get_latest_for_case(case_id)
@@ -76,7 +78,7 @@ def apply_disc_mapping(
         raise DiscMappingError("ARCHIVE_PLAN_EMPTY", "归档计划没有可映射的分卷。")
     mappings = build_disc_mappings(first_disc_number, slots)
     updated = repository.update_mappings(
-        plan["plan_id"], mappings, expected_revision,
+        plan["plan_id"], mappings, plan["revision"],
     )
     parts = [
         {
@@ -89,10 +91,10 @@ def apply_disc_mapping(
     ]
     return {
         "case_id": case_id,
-        "task_id": str(plan.get("plan_id") or ""),
-        "expected_revision": updated["revision"],
-        "lifecycle": "archive_disc_pending",
-        "prefix": "",
+        "task_id": "",
+        "expected_revision": expected_revision,
+        "lifecycle": "archive_verified",
+        "prefix": parts[0]["disc_number"][:2] if parts else "",
         "disc_date": parts[0]["disc_date"] if parts else "",
         "parts": parts,
     }

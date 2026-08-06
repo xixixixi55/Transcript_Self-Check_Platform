@@ -104,6 +104,26 @@ def test_replans_upward_and_manifest_uses_final_plan(tmp_path):
     assert manifest_dir.is_dir()
 
 
+def test_archive_executes_without_first_disc_number(tmp_path):
+    """REQ-030: compression must not fail when the first disc number is empty."""
+    _, output, context_id = make_context(tmp_path)
+    no_disc = valid_report()
+    no_disc["attachments"]["disc_number"] = ""
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 2)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    outcome = execute_archive(
+        context_id, no_disc, output_root=str(output), policy=policy(4),
+        capability=capability, executor=fake, integrity_runner=integrity_ok,
+    )
+    assert outcome.status == "completed"
+    assert outcome.manifest_id
+    manifest = get_valid_manifest(context_id, outcome.manifest_id, no_disc)
+    parts = manifest["parts"]
+    assert len(parts) == 2
+    assert all(part["disc_number"] == "" for part in parts)
+    assert all(part["disc_date"] == "" for part in parts)
+
+
 def test_source_change_during_execution_cannot_change_sealed_input(tmp_path):
     source, output, context_id = make_context(tmp_path)
     original_stat = (source / "input.bin").stat()

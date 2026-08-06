@@ -31,11 +31,14 @@ def assemble_archive_manifest(
 ) -> tuple[dict[str, object], dict[str, Path]]:
     if not validation.valid or not validation.parts:
         raise ValueError("ARCHIVE_PARTS_INVALID")
-    if not plan.first_disc_number:
-        raise ValueError("FIRST_DISC_NUMBER_INVALID")
     manifest_id = str(uuid4())
-    disc_date = _disc_date(plan.first_disc_number)
-    actual_disc_numbers = generate_disc_numbers(plan.first_disc_number, len(validation.parts))
+    first_disc_number = plan.first_disc_number
+    if first_disc_number:
+        disc_date = _disc_date(first_disc_number)
+        actual_disc_numbers = generate_disc_numbers(first_disc_number, len(validation.parts))
+    else:  # REQ-030: empty first disc keeps part disc metadata empty until mapped
+        disc_date = ""
+        actual_disc_numbers = [""] * len(validation.parts)
     public_parts: list[dict[str, object]] = []
     internal_paths: dict[str, Path] = {}
     total_archive_bytes = 0
@@ -196,7 +199,7 @@ def validate_manifest_files(record) -> str | None:
             or size_bytes <= 0
             or not isinstance(item.get("disc_number"), str)
             or not isinstance(item.get("disc_date"), str)
-            or not item.get("disc_date")
+            or (bool(item.get("disc_number")) != bool(item.get("disc_date")))
         ):
             return "ARCHIVE_MANIFEST_INVALID"
         if "disc_capacity_bytes" not in item:

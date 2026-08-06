@@ -120,3 +120,40 @@ def test_unified_export_missing_part_fails(database, tmp_path) -> None:
             hash_runner=fake_hash,
         )
     assert error.value.code == "ARCHIVE_PART_MISSING"
+
+
+def test_unified_export_layers_deferred_discs_onto_word_manifest(database, tmp_path, monkeypatch) -> None:
+    """REQ-030/MF-3: after disc-mapping, Word gets the layered disc metadata."""
+    final_dir = tmp_path / "SYNTHETIC-FINAL-4"
+    final_dir.mkdir(parents=True)
+    for name in ("SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"):
+        (final_dir / name).write_bytes(b"SYNTHETIC/RAR")
+    empty = manifest()
+    for part in empty["parts"]:
+        part["disc_number"] = ""
+        part["disc_date"] = ""
+    plan = {
+        "volume_slots": [
+            {"status": "active", "ordinal": 1, "disc_mapping": {"disc_number": "GP20260718-01", "disc_date": "2026-07-18"}},
+            {"status": "active", "ordinal": 2, "disc_mapping": {"disc_number": "GP20260718-02", "disc_date": "2026-07-18"}},
+        ]
+    }
+    captured: dict[str, object] = {}
+
+    def fake_docx(report, *, photo_paths, output_dir, archive_manifest, **template_context):
+        captured["manifest"] = archive_manifest
+        path = Path(output_dir) / "SYNTHETIC-CASE.docx"
+        path.write_bytes(b"SYNTHETIC/DOCX")
+        return str(path)
+
+    monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
+    export_path = tmp_path / "SYNTHETIC-EXPORT-TARGET-4"
+    result = unified_export(
+        report={"introduction": {"case_summary": "SYNTHETIC"}},
+        manifest=empty, final_dir=final_dir, export_path=export_path,
+        photo_paths=[], template_context={}, hash_runner=fake_hash, plan=plan,
+    )
+    assert captured["manifest"]["parts"][0]["disc_number"] == "GP20260718-01"
+    assert captured["manifest"]["parts"][0]["disc_date"] == "2026-07-18"
+    assert captured["manifest"]["parts"][1]["disc_number"] == "GP20260718-02"
+    assert result["word_filename"] == "SYNTHETIC-CASE.docx"

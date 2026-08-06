@@ -7,6 +7,7 @@ part files, photos, template context) so the service stays testable.
 
 from __future__ import annotations
 
+import copy
 import os
 import shutil
 from datetime import datetime, timezone
@@ -32,7 +33,23 @@ class UnifiedExportError(ValueError):
 HashRunner = Callable[[list[Path], Path], str]
 
 
-def _require_disc_mapping(manifest: dict[str, Any]) -> None:
+def _require_disc_mapping(
+    manifest: dict[str, Any], plan: dict[str, Any] | None = None,
+) -> None:
+    # REQ-030: disc numbers live on the persisted plan slots (deferred mapping),
+    # so the gate checks the plan when it exists and falls back to manifest parts
+    # for callers without a plan (e.g. direct service tests).
+    if plan is not None:
+        missing = [
+            slot for slot in plan.get("volume_slots", [])
+            if slot.get("status") != "removed"
+            and not str((slot.get("disc_mapping") or {}).get("disc_number") or "").strip()
+        ]
+        if missing:
+            raise UnifiedExportError(
+                "DISC_MAPPING_INCOMPLETE", "光盘编号尚未全部补齐，无法导出。",
+            )
+        return
     parts = manifest.get("parts") or []
     missing = [
         part.get("filename") for part in parts if not str(part.get("disc_number") or "").strip()
@@ -56,9 +73,10 @@ def unified_export(
     task_id: str | None = None,
     output_root: str | Path = OUTPUT_BASE,
     hash_runner: HashRunner | None = None,
+    plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write the archive bundle into ``export_path`` and return its projection."""
-    _require_disc_mapping(manifest)
+    _require_disc_mapping(manifest, plan)
     parts = manifest.get("parts") or []
     rar_paths = [final_dir / str(part["filename"]) for part in parts]
     for rar in rar_paths:
@@ -67,7 +85,7 @@ def unified_export(
 
     export_path.mkdir(parents=True, exist_ok=True)
     word_filename = _export_word(
-        report, manifest, export_path, photo_paths, template_context,
+        report, _with_disc_mapping(manifest, plan), export_path, photo_paths, template_context,
     )
 
     for rar in rar_paths:
@@ -91,6 +109,33 @@ def unified_export(
         "hash_verification_html": hash_html,
         "exported_at": exported_at,
     }
+
+
+def _with_disc_mapping(
+    manifest: dict[str, Any], plan: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Return a manifest copy with deferred disc numbers layered from the plan.
+
+    The stored manifest stays immutable (empty disc metadata for a deferred
+    mapping); the Word renderer needs each part's disc date/number, so the
+    mapped values are applied to a working copy before DOCX generation.
+    """
+    if plan is None:
+        return manifest
+    disc_by_ordinal = {
+        slot["ordinal"]: slot.get("disc_mapping") or {}
+        for slot in plan.get("volume_slots", [])
+        if slot["status"] != "removed"
+    }
+    working = copy.deepcopy(manifest)
+    for index, part in enumerate(working.get("parts", [])):
+        ordinal = part.get("part_number") or (index + 1)
+        mapping = disc_by_ordinal.get(ordinal, {}) or {}
+        disc_number = str(mapping.get("disc_number") or "")
+        if disc_number:
+            part["disc_number"] = disc_number
+            part["disc_date"] = str(mapping.get("disc_date") or part.get("disc_date") or "")
+    return working
 
 
 def _export_word(

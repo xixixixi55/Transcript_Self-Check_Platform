@@ -7,6 +7,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from ..repository.archive_plan_repository import ArchivePlanRepository
+from ..repository.workbench_errors import WorkbenchPersistenceError
 
 
 class ArchiveMappingService:
@@ -102,3 +103,65 @@ def _planned_bytes(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError("INVALID_ARCHIVE_PLAN")
     return value
+
+
+def persist_archive_plan(
+    plans: ArchivePlanRepository,
+    *,
+    plan_id: str,
+    case_id: str,
+    manifest_parts: list[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Project an executed plan and its manifest parts into ``archive_plans``.
+
+    Each manifest part becomes one volume slot keyed by its filename, so a later
+    deferred disc mapping (REQ-030) targets the same slots the manifest derived
+    from. Compression may run before any disc number is entered, so slots start
+    without a mapping. No-op when the case already has a persisted plan.
+    """
+    existing = plans.get_latest_for_case(case_id)
+    if existing is not None:
+        return existing
+    slots: list[dict[str, Any]] = []
+    for part in manifest_parts:
+        filename = str(part.get("filename") or "").strip()
+        if not filename:
+            continue
+        disc_number = str(part.get("disc_number") or "").strip()
+        slots.append({
+            "lineage_key": filename,
+            "planned_input_bytes": int(part.get("size_bytes") or 0),
+            "disc_mapping": (
+                {
+                    "disc_number": disc_number,
+                    "disc_date": str(part.get("disc_date") or ""),
+                    "source": "default",
+                    "confirmation": "confirmed",
+                }
+                if disc_number else None
+            ),
+        })
+    if not slots:
+        raise WorkbenchPersistenceError("ARCHIVE_PLAN_EMPTY", "归档计划没有可映射的分卷。")
+    return ArchiveMappingService(plans).create(
+        plan_id=plan_id, case_id=case_id,
+        input_inventory_revision=0, mapping_revision=0, planned_slots=slots,
+    )
+
+
+def persist_archive_plan_for_attempt(
+    attempt_service: Any, attempt_id: str | None, plan: Any, manifest: Mapping[str, Any],
+) -> None:
+    """Best-effort plan projection from a completed attempt's manifest parts."""
+    if attempt_service is None or attempt_id is None:
+        return
+    from ..repository.archive_plan_repository import ArchivePlanRepository
+
+    case_id = str(attempt_service.repository.get_internal(attempt_id).get("case_id") or "")
+    if not case_id:
+        return
+    persist_archive_plan(
+        ArchivePlanRepository(attempt_service.database),
+        plan_id=plan.plan_id, case_id=case_id,
+        manifest_parts=list(manifest.get("parts", [])),
+    )

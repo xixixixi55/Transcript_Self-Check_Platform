@@ -83,15 +83,21 @@ def test_apply_disc_mapping_persists_to_plan(database: WorkbenchDatabase) -> Non
         item["disc_mapping"]["confirmation"] == "confirmed"
         for item in active_slots(reopened)
     )
-    assert result["expected_revision"] == reopened["revision"]
+    # expected_revision is the caller's case-level guard and is returned verbatim;
+    # the plan write is CAS-guarded by the plan row's own revision.
+    assert result["expected_revision"] == plan["revision"]
+    assert result["lifecycle"] == "archive_verified"
 
 
-def test_apply_disc_mapping_stale_revision_rejected(database: WorkbenchDatabase) -> None:
+def test_apply_disc_mapping_uses_plan_revision_for_cas(database: WorkbenchDatabase) -> None:
+    """A stale case-level revision must not block the deferred mapping (REQ-030)."""
     repository = ArchivePlanRepository(database)
     plan = repository.create({
         "plan_id": "SYNTHETIC-DISC-PLAN-2", "case_id": CASE_ID, "plan_revision": 1,
         "input_inventory_revision": 4, "mapping_revision": 1,
         "volume_slots": [slot("SYNTHETIC-SLOT-A", 1)],
     })
-    with pytest.raises(Exception):
-        apply_disc_mapping(database, CASE_ID, plan["revision"] - 1, "GP20260718-01")
+    result = apply_disc_mapping(database, CASE_ID, plan["revision"] - 1, "GP20260718-01")
+    assert result["expected_revision"] == plan["revision"] - 1
+    reopened = repository.get(plan["plan_id"])
+    assert active_slots(reopened)[0]["disc_mapping"]["disc_number"] == "GP20260718-01"

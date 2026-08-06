@@ -45,21 +45,36 @@ class ArchiveTaskResultService:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         manifest = self._verified_manifest(task_id, str(attempt_id), str(attempt["manifest_id"]))
         plan = self.plans.get_latest_for_case(task["case_id"])
+        disc_by_ordinal = {
+            slot["ordinal"]: slot.get("disc_mapping") or {}
+            for slot in (plan["volume_slots"] if plan else [])
+            if slot["status"] != "removed"
+        }
+        parts = []
+        for part in manifest.public_manifest["parts"]:
+            mapping = disc_by_ordinal.get(part["part_number"], {}) or {}
+            disc_number = str(mapping.get("disc_number") or "")
+            disc_date = str(mapping.get("disc_date") or "")
+            if not disc_number:
+                # Fall back to the manifest's own disc metadata for callers that
+                # did not persist a plan (synthetic workers, pre-fill path).
+                disc_number = str(part.get("disc_number") or "")
+                disc_date = str(part.get("disc_date") or "")
+            parts.append({
+                "part_id": part["part_id"],
+                "filename": part["filename"],
+                "size_bytes": part["size_bytes"],
+                "md5": part["md5"],
+                "disc_number": disc_number,
+                "disc_date": disc_date,
+            })
         return {
             "task_id": task_id,
             "case_id": task["case_id"],
             "manifest_id": attempt["manifest_id"],
             "verified_slots": [] if plan is None else plan["verified_slots"],
             "assets": self.assets.list_public_for_task(task_id),
-            "parts": [
-                {
-                    key: part[key] for key in (
-                        "part_id", "filename", "size_bytes", "md5",
-                        "disc_number", "disc_date",
-                    )
-                }
-                for part in manifest.public_manifest["parts"]
-            ],
+            "parts": parts,
             "finished_at": summary["finished_at"],
         }
 

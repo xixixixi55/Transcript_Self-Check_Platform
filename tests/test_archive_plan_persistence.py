@@ -130,3 +130,37 @@ def test_archive_asset_internal_locator_never_enters_public_projection(
         WorkbenchDatabase(database.database_path, "SYNTHETIC-T013-PLAN")
     )
     assert reopened.get_internal(asset["asset_id"])["status"] == published["status"]
+
+
+def test_persist_archive_plan_projects_manifest_parts_to_slots(database: WorkbenchDatabase) -> None:
+    from app.services.archive_mapping_service import persist_archive_plan
+
+    repository = ArchivePlanRepository(database)
+    plan = persist_archive_plan(
+        repository, plan_id="SYNTHETIC-PERSIST-PLAN-1", case_id=CASE_ID,
+        manifest_parts=[
+            {"filename": "case.part1.rar", "size_bytes": 100,
+             "disc_number": "GP20260718-01", "disc_date": "2026-07-18"},
+            {"filename": "case.part2.rar", "size_bytes": 200,
+             "disc_number": "", "disc_date": ""},
+        ],
+    )
+    slots = plan["volume_slots"]
+    assert len(slots) == 2
+    assert [item["lineage_key"] for item in slots] == ["case.part1.rar", "case.part2.rar"]
+    # Pre-filled disc becomes a confirmed mapping; empty disc stays deferred.
+    assert slots[0]["disc_mapping"]["disc_number"] == "GP20260718-01"
+    assert slots[0]["status"] == "active"
+    assert slots[1]["disc_mapping"] is None
+    assert slots[1]["status"] == "pending"
+    reopened = repository.get_latest_for_case(CASE_ID)
+    assert reopened is not None
+    # No-op when a plan already exists for the case.
+    again = persist_archive_plan(
+        repository, plan_id="SYNTHETIC-PERSIST-PLAN-2", case_id=CASE_ID,
+        manifest_parts=[
+            {"filename": "case.part1.rar", "size_bytes": 100,
+             "disc_number": "", "disc_date": ""},
+        ],
+    )
+    assert again["plan_id"] == "SYNTHETIC-PERSIST-PLAN-1"

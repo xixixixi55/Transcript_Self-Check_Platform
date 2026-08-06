@@ -25,6 +25,7 @@ from .archive_input_snapshot_service import (
 from .archive_manifest_access_service import (
     ArchiveGateError, archive_report_fingerprint as _fingerprint, get_valid_manifest,
 )
+from .archive_mapping_service import persist_archive_plan_for_attempt
 from .archive_manifest_reuse_service import restore_persisted_manifest
 from .archive_manifest_service import assemble_archive_manifest, validate_manifest_files
 from .archive_planner_service import (
@@ -64,10 +65,7 @@ def execute_archive(
         first_disc_number = str((report.get("attachments") or {}).get("disc_number") or "").strip() or None
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         verify_input_inventory(context.inventory)
-        if (
-            attempt_service is not None and attempt_id is not None
-            and hasattr(attempt_service, "seal_execution_input")
-        ):
+        if attempt_service is not None and attempt_id is not None and hasattr(attempt_service, "seal_execution_input"):
             sealed_input = attempt_service.seal_execution_input(attempt_id, context.inventory)
         else:
             sealed_input = create_ephemeral_sealed_input_snapshot(output_root, context.inventory)
@@ -141,14 +139,9 @@ def execute_archive(
             try:
                 observe_stage(stage_observer, "winrar")
                 if getattr(active_executor, "uses_archive_root_name", False):
-                    execution = active_executor.execute(
-                        plan, execution_inventory.files, execution_inventory.source_root,
-                        winrar, context.inventory.source_root.name,
-                    )
+                    execution = active_executor.execute(plan, execution_inventory.files, execution_inventory.source_root, winrar, context.inventory.source_root.name)
                 else:
-                    execution = active_executor.execute(
-                        plan, execution_inventory.files, execution_inventory.source_root, winrar,
-                    )
+                    execution = active_executor.execute(plan, execution_inventory.files, execution_inventory.source_root, winrar)
             except ArchiveExecutionError as error:
                 raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
             if execution.returncode != 0:
@@ -225,6 +218,10 @@ def execute_archive(
                 attempt_service, attempt_id, registry, context, fingerprint, record,
                 workbench_context_id,
             )
+            try:  # plan projection is best-effort; archive already succeeded
+                persist_archive_plan_for_attempt(attempt_service, attempt_id, plan, public_manifest)
+            except Exception:
+                pass
             success = True
             final_state = "completed"
             successful_manifest_id = manifest_id
