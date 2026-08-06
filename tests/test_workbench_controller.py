@@ -1408,3 +1408,43 @@ def test_source_registration_errors_have_distinct_safe_messages():
     assert "无法访问" in initial_messages[1]
     assert "报告结构" in initial_messages[2]
     assert all("C:\\" not in message for message in initial_messages + replacement_messages)
+
+
+def test_select_export_directory_endpoint_returns_chosen_path(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    picker = MagicMock()
+    picker.select.return_value = str(app_services.synthetic_report_dir)
+    app_services.directory_picker = picker
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        response = TestClient(app).post("/api/v1/workbench/select-export-directory")
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["path"] == str(app_services.synthetic_report_dir)
+    assert isinstance(data["token"], str) and data["token"]
+    picker.select.assert_called_once_with(description="选择导出目录")
+
+
+def test_select_export_directory_endpoint_cancel_returns_cancelled(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    picker = MagicMock()
+    picker.select.return_value = None
+    app_services.directory_picker = picker
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        response = TestClient(app).post("/api/v1/workbench/select-export-directory")
+    assert response.status_code == 200, response.text
+    assert response.json()["data"] == {"cancelled": True}
+
+
+def test_select_export_directory_endpoint_fails_when_picker_unavailable(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    app_services.directory_picker = None
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        response = TestClient(app).post("/api/v1/workbench/select-export-directory")
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "DIRECTORY_PICKER_UNAVAILABLE"

@@ -478,3 +478,32 @@ def test_corrupt_or_incompatible_database_fails_safe(tmp_path: Path) -> None:
         connection.execute("PRAGMA user_version = 1")
     with pytest.raises(SchemaIncompatibleError):
         WorkbenchDatabase(incomplete, "SYNTHETIC-INCOMPLETE")
+
+
+def test_archive_verified_transitions_to_exported(database: WorkbenchDatabase) -> None:
+    """REQ-031/MF-4: unified export migrates the shell to exported after success."""
+    create_shell(database)
+    repos = CaseShellRepository(database)
+    repos.update_lifecycle(CASE_ID, "parsing", repos.get(CASE_ID)["revision"])
+    CaseDraftRepository(database).save({
+        "case_id": CASE_ID, "report": REPORT, "asset_refs": [], "field_states": {},
+    })
+    # Draft save lands the shell on review_ready; archive verification moves it
+    # on through the archive lifecycle (covered elsewhere). Jump to the verified
+    # state to exercise the deferred-mapping/export migration in isolation.
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE case_shells SET lifecycle='archive_verified', report_available=1 "
+            "WHERE case_id=? AND deployment_instance_id=?",
+            (CASE_ID, database.deployment_instance_id),
+        )
+    assert repos.get(CASE_ID)["lifecycle"] == "archive_verified"
+    exported = repos.update_lifecycle(
+        CASE_ID, "exported", repos.get(CASE_ID)["revision"],
+    )
+    assert exported["lifecycle"] == "exported"
+    # REQ-031 re-export: exported -> exported is allowed (self-loop).
+    again = repos.update_lifecycle(
+        CASE_ID, "exported", repos.get(CASE_ID)["revision"],
+    )
+    assert again["lifecycle"] == "exported"

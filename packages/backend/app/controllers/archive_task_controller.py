@@ -50,6 +50,7 @@ class UnifiedExportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_revision: int = Field(ge=0)
     export_path: str
+    directory_token: str
 
 
 def _archive_api() -> Any:
@@ -178,11 +179,12 @@ async def map_disc_numbers_endpoint(case_id: str, body: FirstDiscMappingRequest)
 
 @router.post("/workbench/cases/{case_id}/export-bundle")
 async def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
-    """Export latest Word + all RAR parts + HashMyFiles HTML to a chosen path."""
+    """Export latest Word + all RAR parts + HashMyFiles HTML to a picker-authorized path."""
     try:
         template_context = resolve_case_template_context(case_id, body.expected_revision)
         return _envelope(_archive_api().export_bundle(
             case_id, body.expected_revision, body.export_path,
+            directory_token=body.directory_token,
             template_context=template_context,
         ))
     except Exception as error:

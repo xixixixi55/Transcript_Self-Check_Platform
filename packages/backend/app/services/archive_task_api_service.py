@@ -176,15 +176,21 @@ class ArchiveTaskApiService:
         first_disc_number: str,
     ) -> dict[str, Any]:
         """Generate the full sequence from the first disc number and persist it."""
+        shell = self.shells.get(case_id)
+        if shell["revision"] != expected_revision:
+            raise WorkbenchPersistenceError("REVISION_CONFLICT")
         current = self.tasks.get_current_or_recent(case_id)
         if current and current["status"] in {"queued", "running", "cancelling", "blocked"}:
             raise WorkbenchPersistenceError("ARCHIVE_MAPPING_LOCKED")
         from .disc_mapping_service import DiscMappingError, apply_disc_mapping
 
         try:
-            return apply_disc_mapping(
+            result = apply_disc_mapping(
                 self.database, case_id, expected_revision, first_disc_number,
             )
+            if current is not None:
+                result["task_id"] = current["task_id"]
+            return result
         except DiscMappingError as error:
             raise WorkbenchPersistenceError(error.code, error.args[0]) from error
 
@@ -194,12 +200,14 @@ class ArchiveTaskApiService:
         expected_revision: int,
         export_path: str,
         *,
+        directory_token: str,
         template_context: dict[str, object],
     ) -> dict[str, Any]:
         from .archive_export_service import export_bundle as _export_bundle
 
         return _export_bundle(
             self, case_id, expected_revision, export_path,
+            directory_token=directory_token,
             template_context=template_context,
         )
 

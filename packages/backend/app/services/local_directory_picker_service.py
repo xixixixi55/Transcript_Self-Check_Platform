@@ -14,17 +14,20 @@ logger = logging.getLogger(__name__)
 
 PowerShellRunner = Callable[..., Any]
 
-_FOLDER_PICKER_SCRIPT = (
-    "Add-Type -AssemblyName System.Windows.Forms;"
-    "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;"
-    "$dialog.Description = '选择报告目录';"
-    "$dialog.RootFolder = [System.Environment+SpecialFolder]::MyComputer;"
-    "$dialog.ShowNewFolderButton = $false;"
-    "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {"
-    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;"
-    "[Console]::Write($dialog.SelectedPath)"
-    "}"
-)
+def _folder_picker_script(description: str) -> str:
+    """PowerShell folder dialog script; description is doubled up to survive single quotes."""
+    safe = description.replace("'", "''")
+    return (
+        "Add-Type -AssemblyName System.Windows.Forms;"
+        "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;"
+        f"$dialog.Description = '{safe}';"
+        "$dialog.RootFolder = [System.Environment+SpecialFolder]::MyComputer;"
+        "$dialog.ShowNewFolderButton = $false;"
+        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {"
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;"
+        "[Console]::Write($dialog.SelectedPath)"
+        "}"
+    )
 _PICKER_TIMEOUT_SECONDS = 600
 
 
@@ -44,7 +47,7 @@ class LocalDirectoryPickerService:
         self.powershell_path = powershell_path
         self.timeout_seconds = timeout_seconds
 
-    def select(self) -> str | None:
+    def select(self, description: str = "选择报告目录") -> str | None:
         if self.platform_name != "nt":
             logger.warning("directory picker: unavailable on platform %s", self.platform_name)
             raise WorkbenchPersistenceError("DIRECTORY_PICKER_UNAVAILABLE")
@@ -62,7 +65,7 @@ class LocalDirectoryPickerService:
                     "-WindowStyle",
                     "Hidden",
                     "-Command",
-                    _FOLDER_PICKER_SCRIPT,
+                    _folder_picker_script(description),
                 ],
                 capture_output=True,
                 text=True,

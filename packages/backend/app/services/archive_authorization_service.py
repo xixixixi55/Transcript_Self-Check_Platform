@@ -55,6 +55,18 @@ class ArchiveAuthorizationService:
         """Reserved for a trusted desktop bridge; no ordinary HTTP route calls it."""
         return self.store.issue_exact_directory_grant(report_dir)
 
+    def consume_exact_directory_grant(self, token: str, selected_path: str) -> bool:
+        """Consume a one-use grant produced by the native export-directory picker.
+
+        Returns False on an unknown, expired, used or path-mismatched token so
+        export-bundle only ever writes to a picker-authorised path.
+        """
+        try:
+            self.store._consume_grant(token, Path(selected_path).resolve(strict=False))
+            return True
+        except ArchiveAuthorizationError:
+            return False
+
 
 __all__ = [
     "ArchiveAuthorizationError",

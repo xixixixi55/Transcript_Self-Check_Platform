@@ -20,12 +20,19 @@ def export_bundle(
     expected_revision: int,
     export_path: str,
     *,
+    directory_token: str,
     template_context: dict[str, object],
 ) -> dict[str, Any]:
     """Write latest Word + all RAR parts + verification HTML into export_path."""
     shell = api.shells.get(case_id)
     if shell["revision"] != expected_revision:
         raise WorkbenchPersistenceError("REVISION_CONFLICT")
+    if not api.sources.authorization.consume_exact_directory_grant(
+        directory_token, export_path,
+    ):
+        raise WorkbenchPersistenceError(
+            "EXPORT_PATH_NOT_AUTHORIZED", "导出目录未授权，请通过目录选择器重新选择。",
+        )
     task = api.tasks.get_current_or_recent(case_id)
     if task is None or task["status"] != "succeeded":
         raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
@@ -42,9 +49,14 @@ def export_bundle(
             photo_paths=_resolve_photo_paths(api, case_id),
             template_context=template_context,
             database=api.database, case_id=case_id, task_id=task["task_id"],
+            plan=api.plans.get_latest_for_case(case_id),
         )
     except UnifiedExportError as error:
         raise WorkbenchPersistenceError(error.code, error.args[0]) from error
+    try:
+        api.shells.update_lifecycle(case_id, "exported", expected_revision)
+    except Exception as error:
+        raise WorkbenchPersistenceError("EXPORT_LIFECYCLE_FAILED", "导出完成但状态标记失败。") from error
     return {
         "case_id": case_id, "task_id": task["task_id"],
         "expected_revision": expected_revision, "lifecycle": "exported",

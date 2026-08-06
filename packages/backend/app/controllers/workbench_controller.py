@@ -110,6 +110,22 @@ def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
         _handle(error)
 
 
+@router.post("/workbench/select-export-directory")
+def select_export_directory_endpoint():
+    """Open the trusted native picker and return the chosen path plus a one-use grant."""
+    services = get_workbench_services()
+    try:
+        if services.directory_picker is None:
+            raise WorkbenchPersistenceError("DIRECTORY_PICKER_UNAVAILABLE")
+        selected_path = services.directory_picker.select(description="选择导出目录")
+        if selected_path is None:
+            return _envelope({"cancelled": True})
+        token = services.sources.authorization.issue_exact_directory_grant(selected_path)
+        return _envelope({"path": selected_path, "token": token})
+    except Exception as error:
+        _handle(error)
+
+
 @router.get("/workbench/cases")
 async def list_cases_endpoint(offset: int = Query(0, ge=0), limit: int = Query(6, ge=1, le=100)):
     try:
