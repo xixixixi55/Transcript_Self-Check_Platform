@@ -74,10 +74,14 @@
 - 一次性导出并锁死 → 与「可重复导出」决策相悖，拒绝。
 
 **实现要点**：
-- 新增/改造导出端点：`POST /records/export-bundle`（或扩展现有导出契约），请求含导出路径（由 native picker 后端返回的不透明句柄，不接收任意服务器路径）。
-- 路径安全：复用 `local_directory_picker_service` 的受控选择，后端只接受该 picker 返回的路径，防止任意路径写入。
+- 新增/改造导出端点：`POST /workbench/cases/{id}/export-bundle`，请求含导出路径 + 一次性 `directory_token`（由 native picker 后端返回，不接收任意服务器路径）。
+- 路径安全：`select-export-directory` 经 `issue_exact_directory_grant` 签发一次性 grant token，`export_bundle` 消费校验，未授权拒绝 `EXPORT_PATH_NOT_AUTHORIZED`，防止任意路径写入。
 - 导出前重跑导出门控（REQ-009 全门控）；任一门控失败不标记已导出。
 - 导出记录落库（路径、时间、part 集合、HTML 文件名），供「已导出」标记与审计。
+
+**apply 阶段细化（用户实测反馈）**：
+- 统一导出交互入口为**案件工作台卡片主按钮**（归档完成/已导出时，替换原「查看结果」）；工作台经 `useArchiveCompletionStatuses` 自动加载归档结果，卡片恒定派生完成态，无需先点查看。案件打开页保留「立即/稍后」与补盘号入口，不再承载导出触发。
+- 归档 inventory 性能优化：`verify_input_inventory` 改 `check_readability=False`（可读性由 seal 复制兜底）并移除第二轮重复 stat；`build_input_inventory` 文件 stat/open 用 `ThreadPoolExecutor` 并行（新增 `archive_input_inventory_worker.py`，复用 `BIJI_ARCHIVE_COPY_WORKERS`）。基准 3000 文件：verify 5.3s→0.87s、build 4.5s→1.7s。
 
 ## D6. 状态机与已导出/彻底删除
 
