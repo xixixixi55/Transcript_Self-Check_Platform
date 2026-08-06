@@ -5,11 +5,16 @@ from __future__ import annotations
 import os
 import hashlib
 import stat
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from .archive_input_inventory_worker import inspect_file, inventory_worker_count
+
 
 MAX_SAFE_INTEGER = 2**53 - 1
+
+
 class ArchiveInputError(ValueError):
     """Safe, stable input diagnostics without filesystem paths."""
 
@@ -145,6 +150,7 @@ def build_input_inventory(
     snapshots: list[InputFileSnapshot] = []
     directories: list[InputDirectorySnapshot] = []
     seen: set[str] = set()
+    file_tasks: list[tuple[str, Path]] = []
     pending = [root]
     while pending:
         current = pending.pop()
@@ -167,17 +173,11 @@ def build_input_inventory(
             if key in seen:
                 raise ArchiveInputError("ARCHIVE_PLAN_INVALID", "归档输入包含重复文件。")
             seen.add(key)
-            try:
-                info = path.stat()
-                if check_readability:
-                    with path.open("rb"):
-                        pass
-            except OSError as error:
-                raise ArchiveInputError("ARCHIVE_PLAN_INVALID", "归档输入存在不可读文件。") from error
-            if info.st_size < 0 or info.st_size > MAX_SAFE_INTEGER:
-                raise ArchiveInputError("ARCHIVE_PLAN_INVALID", "归档输入文件大小无效。")
-            snapshots.append(InputFileSnapshot(relative, path, info.st_size, info.st_mtime_ns))
+            file_tasks.append((relative, path))
 
+    if file_tasks:
+        with ThreadPoolExecutor(max_workers=inventory_worker_count()) as pool:
+            snapshots = list(pool.map(inspect_file, file_tasks, [check_readability] * len(file_tasks)))
     snapshots.sort(key=lambda item: item.relative_path.casefold())
     directories.sort(key=lambda item: item.relative_path.casefold())
     return InputInventory(
@@ -223,26 +223,19 @@ def verify_input_inventory(inventory: InputInventory) -> None:
     try:
         current_inventory = build_input_inventory(
             inventory.source_root, output_root=inventory.output_root,
+            check_readability=False,
         )
     except ArchiveInputError as error:
         if error.code == "ARCHIVE_INPUT_CHANGED":
             raise
         raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入在执行前已变化。") from error
 
+    # build_input_inventory already stats every file (size + mtime) without a
+    # per-file open; comparing the ordered public entries covers additions,
+    # removals, size and mtime changes in one pass.
     expected_entries = [item.public_entry() for item in inventory.files]
     current_entries = [item.public_entry() for item in current_inventory.files]
     expected_directories = [item.public_entry() for item in inventory.directories]
     current_directories = [item.public_entry() for item in current_inventory.directories]
     if expected_entries != current_entries or expected_directories != current_directories:
         raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入在执行前已变化。")
-
-    for expected in inventory.files:
-        try:
-            current = expected.absolute_path
-            if _is_unsafe_special_path(current) or not current.is_file():
-                raise OSError
-            info = current.stat()
-        except OSError as error:
-            raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入在执行前已变化。") from error
-        if info.st_size != expected.size_bytes or info.st_mtime_ns != expected.modified_time_ns:
-            raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入在执行前已变化。")
