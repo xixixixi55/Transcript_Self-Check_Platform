@@ -1,7 +1,7 @@
 // Layer 12: FE_Pages — persistent multi-case workbench entry.
 import React, { useCallback, useState } from 'react'
-import { Alert, Button, Col, Empty, Input, Modal, Pagination, Row, Space, Spin, Typography, message } from 'antd'
-import { InboxOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Alert, Button, Col, Modal, Pagination, Row, Space, Spin, Typography, message } from 'antd'
+import { ReloadOutlined } from '@ant-design/icons'
 import type {
   ArchiveTaskAction, ArchiveTaskHistory, ArchiveTaskPublicDetail,
   ArchiveTaskResult, CaseShell,
@@ -29,8 +29,6 @@ export default function CaseWorkbenchPage() {
   const [submitBusy, setSubmitBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
-  const [caseName, setCaseName] = useState('')
-  const [caseNumber, setCaseNumber] = useState('')
   const [archiveDetail, setArchiveDetail] = useState<ArchiveTaskPublicDetail | null>(null)
   const [archiveHistory, setArchiveHistory] = useState<ArchiveTaskHistory | null>(null)
   const [archiveResult, setArchiveResult] = useState<ArchiveTaskResult | null>(null)
@@ -38,9 +36,8 @@ export default function CaseWorkbenchPage() {
   const submit = async () => {
     setSubmitBusy(true)
     try {
-      const submission = await workbench.selectDirectoryAndSubmitCase({ caseName: caseName.trim(), caseNumber: caseNumber.trim() })
+      const submission = await workbench.selectDirectoryAndSubmitCase()
       if (submission) {
-        setCaseName(''); setCaseNumber('')
         message.success('案件壳已创建，解析任务已进入工作台。')
       }
     } catch (error) {
@@ -121,20 +118,15 @@ export default function CaseWorkbenchPage() {
     <div className="case-workbench-page">
       <div className="platform-page__eyebrow">案件工作台</div>
       <Title level={1}>电子数据检查案件</Title>
-      <Paragraph className="platform-page__description">案件提交、解析、审核和后台任务状态均以服务端持久状态为准；每页最多显示6个案件。</Paragraph>
+      <Paragraph className="platform-page__description">案件提交、解析、审核和后台任务状态均以服务端持久状态为准；每页最多显示6个案件，上传报告目录入口位于案件卡片末尾、页面未满时显示。</Paragraph>
       <DemoReadinessNotice />
       <div className="case-workbench-page__submission">
-        <CaseWorkbenchDirectoryPickerCard loading={submitBusy} onClick={() => { void submit() }} />
-        <div className="case-workbench-page__fields">
-          <Input aria-label="案件名称" value={caseName} onChange={event => setCaseName(event.target.value)} placeholder="案件名称（可选）" />
-          <Input aria-label="案件编号" value={caseNumber} onChange={event => setCaseNumber(event.target.value)} placeholder="案件编号（可选）" />
-        </div>
         <Button icon={<ReloadOutlined />} onClick={() => workbench.loadPage(workbench.page.offset)} loading={workbench.pageLoading}>刷新</Button>
       </div>
 
       {workbench.pageError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={workbench.pageError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
       {taskError && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={taskError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
-      {workbench.pageLoading && !workbench.page.items.length ? <Spin size="large" style={{ display: 'block', margin: '80px auto' }} /> : workbench.page.items.length ? (
+      {workbench.pageLoading && !workbench.page.items.length ? <Spin size="large" style={{ display: 'block', margin: '80px auto' }} /> : (
         <Row gutter={[16, 16]} className="case-workbench-grid">
           {workbench.page.items.map(shell => <Col key={shell.case_id} xs={24} md={12} lg={8}>
             <CaseCard
@@ -152,8 +144,13 @@ export default function CaseWorkbenchPage() {
               actionBusy={actionCaseId === shell.case_id}
             />
           </Col>)}
+          {workbench.page.items.length < CASE_PAGE_SIZE && (
+            <Col xs={24} md={12} lg={8}>
+              <CaseWorkbenchDirectoryPickerCard loading={submitBusy} onClick={() => { void submit() }} />
+            </Col>
+          )}
         </Row>
-      ) : <div className="case-workbench-page__empty"><Empty image={<InboxOutlined />} description="还没有案件，选择报告目录后会立即出现案件卡片。"><CaseWorkbenchDirectoryPickerCard loading={submitBusy} onClick={() => { void submit() }} /></Empty></div>}
+      )}
 
       {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={pageNumber => { void workbench.loadPage((pageNumber - 1) * CASE_PAGE_SIZE) }} /></div>}
       <Modal

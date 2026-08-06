@@ -22,6 +22,16 @@ const shell = (index: number): CaseShell => ({
   revision: 0, created_at: '2026-01-01T00:00:00+00:00', updated_at: '2026-01-01T00:00:00+00:00',
 })
 
+const archiveSummary: ArchiveTaskCardSummary = {
+  task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', status: 'running',
+  progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在创建 RAR 分卷',
+  stage_index: 4, stage_count: 9, percent: 30, started_at: '2026-07-30T11:42:00Z',
+  updated_at: '2026-07-30T12:00:00Z', finished_at: null,
+  last_heartbeat_at: '2026-07-30T12:00:00Z', output_bytes: 1024,
+  output_volume_count: 1, last_output_change_at: '2026-07-30T12:00:00Z',
+  worker_state: 'owned_running', error_summary: null, allowed_actions: ['cancel'],
+}
+
 describe('CaseWorkbenchPage', () => {
   let listItems = Array.from({ length: 6 }, (_, i) => shell(i + 1))
   beforeEach(() => {
@@ -39,12 +49,14 @@ describe('CaseWorkbenchPage', () => {
   })
   afterEach(() => { vi.useRealTimers() })
 
-  it('shows at most six cards and a native directory picker card', async () => {
+  it('shows six cards and hides the upload card when the page is full', async () => {
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
     expect(document.querySelector('input[type="file"]')).toBeNull()
     expect(screen.queryByRole('textbox', { name: '报告目录路径' })).toBeNull()
-    expect(screen.getByRole('button', { name: '上传报告目录' })).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: '案件名称' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: '案件编号' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '上传报告目录' })).toBeNull()
     expect(screen.getByTitle('2')).toBeTruthy()
     expect(screen.queryByRole('switch', { name: '来源目录校验开关' })).toBeNull()
     expect(screen.getAllByRole('button', { name: '更多操作' })).toHaveLength(6)
@@ -64,13 +76,14 @@ describe('CaseWorkbenchPage', () => {
   })
 
   it('shows a submission response as an immediate case card through the native directory picker endpoint', async () => {
+    listItems = Array.from({ length: 5 }, (_, i) => shell(i + 1))
     const submitted = { ...shell(99), case_name: 'SYNTHETIC-NEW-CASE' }
     postMock.mockImplementationOnce(async () => {
       listItems = [submitted, ...listItems.slice(0, 5)]
       return { data: { data: { shell: submitted, source: {}, parse_task: {} } } }
     })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(5))
     fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
     await waitFor(() => expect(screen.getAllByText('SYNTHETIC-NEW-CASE').length).toBeGreaterThan(0))
     expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases/select-directory'), expect.objectContaining({
@@ -81,14 +94,14 @@ describe('CaseWorkbenchPage', () => {
 
   it('sends enabled authorization when the persisted homepage switch is on', async () => {
     window.localStorage.setItem('biji.sourceAuthorization.enabled', 'true')
+    listItems = Array.from({ length: 5 }, (_, i) => shell(i + 1))
     const submitted = { ...shell(100), case_name: 'SYNTHETIC-ENABLED-CASE' }
     postMock.mockImplementationOnce(async () => ({
       data: { data: { shell: submitted, source: {}, parse_task: {} } },
     }))
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(5))
     fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
-
     await waitFor(() => expect(screen.getAllByText('SYNTHETIC-ENABLED-CASE').length).toBeGreaterThan(0))
     expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases'), expect.objectContaining({
       source_authorization_enabled: true,
@@ -96,26 +109,27 @@ describe('CaseWorkbenchPage', () => {
   })
 
   it('shows the backend safe submission error instead of hiding its cause', async () => {
+    listItems = Array.from({ length: 5 }, (_, i) => shell(i + 1))
     postMock.mockRejectedValueOnce({
       response: { data: { detail: { code: 'SOURCE_STRUCTURE_INVALID', message: '所选目录不包含可识别的报告结构。' } } },
     })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(5))
     fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
     await waitFor(() => expect(screen.getByText('所选目录不包含可识别的报告结构。')).toBeTruthy())
   })
 
   it('keeps the workbench unchanged when the native directory picker is cancelled', async () => {
+    listItems = Array.from({ length: 5 }, (_, i) => shell(i + 1))
     postMock.mockResolvedValueOnce({ data: { data: { cancelled: true } } })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(5))
     fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(
       expect.stringContaining('/workbench/cases/select-directory'),
       expect.not.objectContaining({ source_path: expect.anything() }),
     ))
-    expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6)
+    expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(5)
   })
 
   it('refreshes queued, parsing, and review_ready shell states without remounting', async () => {
@@ -138,7 +152,6 @@ describe('CaseWorkbenchPage', () => {
       }
       throw new Error(`unexpected GET ${url}`)
     })
-
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve() })
     expect(document.querySelector('.case-workbench-card')?.textContent).toContain('解析中')
@@ -153,19 +166,7 @@ describe('CaseWorkbenchPage', () => {
   })
 
   it('renders the backend card summary through the existing task polling source', async () => {
-    const archiveSummary: ArchiveTaskCardSummary = {
-      task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', status: 'running',
-      progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在创建 RAR 分卷',
-      stage_index: 4, stage_count: 9, percent: 30, started_at: '2026-07-30T11:42:00Z',
-      updated_at: '2026-07-30T12:00:00Z', finished_at: null,
-      last_heartbeat_at: '2026-07-30T12:00:00Z', output_bytes: 1024,
-      output_volume_count: 1, last_output_change_at: '2026-07-30T12:00:00Z',
-      worker_state: 'owned_running', error_summary: null, allowed_actions: ['cancel'],
-    }
-    listItems = [{
-      ...shell(1), lifecycle: 'review_ready', report_available: true,
-      archive_task_summary: archiveSummary,
-    }]
+    listItems = [{ ...shell(1), lifecycle: 'review_ready', report_available: true, archive_task_summary: archiveSummary }]
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(screen.getByRole('progressbar', {
       name: '任务正在运行：正在创建 RAR 分卷',
@@ -174,19 +175,7 @@ describe('CaseWorkbenchPage', () => {
   })
 
   it('uses backend details and revision for archive cancel without duplicate submission', async () => {
-    const archiveSummary: ArchiveTaskCardSummary = {
-      task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', status: 'running',
-      progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在创建 RAR 分卷',
-      stage_index: 4, stage_count: 9, percent: 30, started_at: '2026-07-30T11:42:00Z',
-      updated_at: '2026-07-30T12:00:00Z', finished_at: null,
-      last_heartbeat_at: '2026-07-30T12:00:00Z', output_bytes: 1024,
-      output_volume_count: 1, last_output_change_at: '2026-07-30T12:00:00Z',
-      worker_state: 'owned_running', error_summary: null, allowed_actions: ['cancel'],
-    }
-    listItems = [{
-      ...shell(1), lifecycle: 'review_ready', report_available: true,
-      archive_task_summary: archiveSummary,
-    }]
+    listItems = [{ ...shell(1), lifecycle: 'review_ready', report_available: true, archive_task_summary: archiveSummary }]
     getMock.mockImplementation(async (url: string) => {
       if (url.endsWith('/demo/readiness')) return { data: { data: { items: [] } } }
       if (url.endsWith('/workbench/cases')) {
@@ -201,7 +190,6 @@ describe('CaseWorkbenchPage', () => {
       throw new Error(`unexpected GET ${url}`)
     })
     postMock.mockResolvedValue({ data: { data: { ...archiveSummary, status: 'cancelling' } } })
-
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     const button = await screen.findByRole('button', { name: '取消归档' })
     fireEvent.click(button)
@@ -216,11 +204,9 @@ describe('CaseWorkbenchPage', () => {
   it('cancels the deletion confirmation without calling the delete API', async () => {
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-
     fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
     fireEvent.click(screen.getAllByRole('menuitem', { name: '删除' })[0])
     expect(screen.getByText('确认删除吗？')).toBeTruthy()
-
     fireEvent.click(screen.getByRole('button', { name: /^取\s*消$/ }))
     expect(deleteMock).not.toHaveBeenCalled()
     expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6)
@@ -233,7 +219,6 @@ describe('CaseWorkbenchPage', () => {
     })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-
     fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
     fireEvent.click(screen.getAllByRole('menuitem', { name: '删除' })[0])
     fireEvent.click(screen.getByRole('button', { name: /确\s*认/ }))
@@ -242,5 +227,20 @@ describe('CaseWorkbenchPage', () => {
       expect.stringContaining('/workbench/cases/case-synthetic-1'),
     ))
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(0))
+    expect(screen.getByRole('button', { name: '上传报告目录' })).toBeTruthy()
+  })
+
+  it('shows only the upload card when the workbench has no cases', async () => {
+    listItems = []
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    await waitFor(() => expect(screen.getByRole('button', { name: '上传报告目录' })).toBeTruthy())
+    expect(document.querySelector('.ant-empty')).toBeNull()
+  })
+
+  it('places the upload card inside the grid beside cases when the page is not full', async () => {
+    listItems = [shell(1)]
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(1))
+    expect(document.querySelector('.case-workbench-grid')?.contains(screen.getByRole('button', { name: '上传报告目录' }))).toBe(true)
   })
 })

@@ -306,28 +306,15 @@
 
 .case-workbench-page__submission {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 16px;
+  justify-content: flex-end;
   margin-top: 20px;
-}
-
-.case-workbench-page__fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  min-width: min(100%, 440px);
-  flex: 1 1 440px;
-}
-
-.case-workbench-page__fields .ant-input {
-  flex: 1 1 200px;
 }
 
 .case-workbench-directory-picker {
   display: flex;
-  flex: 0 0 250px;
-  min-height: 142px;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -502,14 +489,6 @@
   .archive-status-panel__activity-line--secondary {
     display: none;
   }
-}
-
-.case-workbench-page__empty {
-  padding: 56px 24px;
-  text-align: center;
-  background: var(--review-surface);
-  border: 1px dashed var(--review-border);
-  border-radius: 8px;
 }
 
 .case-workbench-page__pagination {
