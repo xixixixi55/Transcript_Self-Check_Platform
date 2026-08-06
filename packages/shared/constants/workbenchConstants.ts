@@ -14,6 +14,11 @@ export const CASE_TASK_POLL_INTERVAL_MS = 5000
 export const MAX_RUNNING_ARCHIVE_TASKS = 6
 /** Archive/delete mutation calls surface a safe timeout instead of spinning forever. */
 export const WORKBENCH_REQUEST_TIMEOUT_MS = 30000
+/**
+ * Native export-directory picker keeps the PowerShell dialog open up to
+ * 600s on the backend, so the request must outlive that window.
+ */
+export const EXPORT_DIRECTORY_PICKER_TIMEOUT_MS = 620000
 
 export const WORKBENCH_TASK_STAGES: readonly TaskStage[] = [
   'queued', 'parse', 'inventory', 'planning', 'preflight_verified', 'winrar',

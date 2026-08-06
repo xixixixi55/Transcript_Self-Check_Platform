@@ -58,13 +58,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let conflictDecision = false
   let holdSave = false
   let showCompletedArchive = false
+  let useExportedLifecycle = false
   let resolveSave: (() => void) | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; resolveSave = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; resolveSave = null
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
-      if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
+      if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) return { data: { data: completedArchiveResult } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: [] } } }
@@ -82,6 +83,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         return { data: { data: { case: detail(7, 6, 'archive_queued', 'GP20260731-002'), decision: 'immediate', archive_status: 'archive_task_queued', archive_task: { task_id: 'archive-synthetic-1' } } } }
       }
       if (url === API_ENDPOINTS.EXPORT_RECORD) return { data: new Blob(['SYNTHETIC-DOCX']) }
+      if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId)) {
+        const request = body as { expected_revision: number; first_disc_number: string }
+        return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, lifecycle: 'archive_verified', prefix: 'GP', disc_date: '2026-07-31', parts: [{ part_number: 1, disc_number: request.first_disc_number, disc_date: '2026-07-31' }] } } }
+      }
+      if (url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY) return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } }
+      if (url === API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId)) {
+        const request = body as { expected_revision: number; export_path: string; directory_token: string }
+        return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, lifecycle: 'exported', output: { export_path: request.export_path, word_filename: 'SYNTHETIC.docx', rar_filenames: ['SYNTHETIC.part1.rar'], hash_verification_html: 'SYNTHETIC-hashes.html', exported_at: '2026-01-01T00:00:00Z' } } } }
+      }
       return { data: { data: {} } }
     })
     patchMock.mockImplementation(async (_url: string, body: unknown) => {
@@ -200,9 +210,37 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(screen.getByText('合成案件.part2.rar')).toBeTruthy()
     expect(screen.getByText('GP20260731-01')).toBeTruthy()
     expect(screen.getByText('GP20260731-02')).toBeTruthy()
-    expect(getMock).toHaveBeenCalledWith(
-      API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id),
-      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
-    )
+    expect(getMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id), { timeout: WORKBENCH_REQUEST_TIMEOUT_MS })
+  }, 15000)
+
+  it('collects a first disc number after compression and posts the disc mapping', async () => {
+    const originalParts = completedArchiveResult.parts
+    completedArchiveResult.parts = originalParts.map(part => ({ ...part, disc_number: '', disc_date: '' }))
+    try {
+      showCompletedArchive = true
+      renderPage()
+      expect(await screen.findByText('待补盘号')).toBeTruthy()
+      fireEvent.change(await screen.findByPlaceholderText('如 GP20260731-01'), { target: { value: 'GP20260731-01' } })
+      fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
+      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, first_disc_number: 'GP20260731-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+    } finally {
+      completedArchiveResult.parts = originalParts
+    }
+  }, 15000)
+
+  it('chooses an export directory and triggers the unified export bundle', async () => {
+    showCompletedArchive = true
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /选择导出目录/ }))
+    await waitFor(() => expect(screen.getByText(/D:\\SYNTHETIC\\EXPORT/)).toBeTruthy())
+    fireEvent.click(await screen.findByRole('button', { name: /开始导出/ }))
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+  }, 15000)
+
+  it('shows the exported state for a re-exported case', async () => {
+    useExportedLifecycle = true
+    renderPage()
+    expect(await screen.findByRole('button', { name: /再次导出/ })).toBeTruthy()
+    expect(screen.getByText('已导出')).toBeTruthy()
   }, 15000)
 })

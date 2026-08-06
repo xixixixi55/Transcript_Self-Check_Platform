@@ -20,6 +20,7 @@ import { CaseSaveStatusPanel } from '../components/CaseSaveStatusPanel'
 import { FieldProvenanceBadge } from '../components/FieldProvenanceBadge'
 import { SourceReselectionPanel } from '../components/SourceReselectionPanel'
 import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
+import { ArchiveCompletionPanel } from '../components/ArchiveCompletionPanel'
 import { ReviewSourceLegend } from '../components/ReviewSourceLegend'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
 import { TemplateSelector } from '../components/TemplateSelector'
@@ -183,12 +184,10 @@ export default function CaseRecordGeneratePage() {
         <Steps current={1} className="review-steps"><Steps.Step title="案件工作台" /><Steps.Step title="审核编辑" /><Steps.Step title="导出 Word" /></Steps>
         <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
         {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待复核" description="来源复核尚未完成；确认风险后仍可导出 Word，归档需等待复核完成。" />}
-        {!sourceInvalid && !sourcePending && <ArchiveDecisionPanel
-            lifecycle={session.detail.shell.lifecycle}
-            busy={archiveDecisionBusy}
-            onImmediate={() => { void chooseArchive('immediate') }}
-            onDeferred={() => { void chooseArchive('deferred') }}
-          />}
+        {!sourceInvalid && !sourcePending && <>
+          <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
+          <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId} expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null} onCompleted={() => { void session.reloadDetail(caseId) }} />
+        </>}
         {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
         {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
         <CaseSaveStatusPanel draft={session.autosave.draftState}

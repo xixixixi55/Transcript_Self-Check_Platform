@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
-import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import { useArchiveCompletion } from './useArchiveCompletion'
 
 vi.mock('axios', () => ({ default: { post: vi.fn() } }))
@@ -10,7 +10,7 @@ const postMock = vi.mocked(axios.post)
 
 const MAPPING_RESULT = {
   case_id: 'case-synthetic', task_id: 'task-synthetic', expected_revision: 3,
-  lifecycle: 'archive_disc_pending', prefix: 'GP', disc_date: '2026-07-18',
+  lifecycle: 'archive_verified', prefix: 'GP', disc_date: '2026-07-18',
   parts: [{ part_number: 1, disc_number: 'GP20260718-01', disc_date: '2026-07-18' }],
 }
 
@@ -50,11 +50,11 @@ describe('useArchiveCompletion', () => {
     const { result } = renderHook(() => useArchiveCompletion())
     let exported: unknown
     await act(async () => {
-      exported = await result.current.exportBundle('case-synthetic', 3, 'D:\\SYNTHETIC\\out')
+      exported = await result.current.exportBundle('case-synthetic', 3, 'D:\\SYNTHETIC\\out', 'token-synthetic')
     })
     expect(postMock).toHaveBeenCalledWith(
       API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT('case-synthetic'),
-      { expected_revision: 3, export_path: 'D:\\SYNTHETIC\\out' },
+      { expected_revision: 3, export_path: 'D:\\SYNTHETIC\\out', directory_token: 'token-synthetic' },
       { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     expect(exported).toEqual(EXPORT_RESULT)
@@ -67,5 +67,30 @@ describe('useArchiveCompletion', () => {
       await result.current.mapping('case-synthetic', 3, 'GP20260718-01').catch(() => undefined)
     })
     expect(result.current.error).toBe('操作失败（DISC_MAPPING_INCOMPLETE）。')
+  })
+
+  it('asks the backend native picker for an export directory', async () => {
+    postMock.mockResolvedValueOnce({ data: { data: { path: 'D:\\SYNTHETIC\\out', token: 'token-synthetic' } } } as never)
+    const { result } = renderHook(() => useArchiveCompletion())
+    let chosen: unknown
+    await act(async () => {
+      chosen = await result.current.chooseDirectory()
+    })
+    expect(postMock).toHaveBeenCalledWith(
+      API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY,
+      undefined,
+      { timeout: EXPORT_DIRECTORY_PICKER_TIMEOUT_MS },
+    )
+    expect(chosen).toEqual({ path: 'D:\\SYNTHETIC\\out', token: 'token-synthetic' })
+  })
+
+  it('returns cancelled when the picker dialog is closed', async () => {
+    postMock.mockResolvedValueOnce({ data: { data: { cancelled: true } } } as never)
+    const { result } = renderHook(() => useArchiveCompletion())
+    let chosen: unknown
+    await act(async () => {
+      chosen = await result.current.chooseDirectory()
+    })
+    expect(chosen).toEqual({ cancelled: true })
   })
 })

@@ -29,6 +29,8 @@ export interface UnifiedExportRequest {
   expected_revision: number
   /** Path returned by the native directory picker; the backend re-validates it. */
   export_path: string
+  /** One-use grant issued by the picker; the backend only writes to this path. */
+  directory_token: string
 }
 
 export interface UnifiedExportOutput {
@@ -46,6 +48,16 @@ export interface UnifiedExportResult {
   lifecycle: CaseLifecycle
   output: UnifiedExportOutput
 }
+
+/**
+ * Result of the trusted native directory picker opened by the backend.
+ * The export path is always chosen by the picker, never typed by the user.
+ * The one-use grant is consumed by export-bundle so the backend only ever
+ * writes to a picker-authorised path.
+ */
+export type ExportDirectoryResult =
+  | { path: string; token: string }
+  | { cancelled: true }
 
 /** Durable export log row projected for the workbench card and audit. */
 export interface ExportRecord {

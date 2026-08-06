@@ -1,12 +1,13 @@
 // Layer 10: FE_Hooks — deferred disc mapping and unified export actions.
 import { useCallback, useState } from 'react'
 import axios from 'axios'
-import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
-import type { DiscMappingResult, UnifiedExportResult } from '@biji/shared/types'
+import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import type { DiscMappingResult, ExportDirectoryResult, UnifiedExportResult } from '@biji/shared/types'
 
 interface ArchiveCompletion {
   mapping: (caseId: string, expectedRevision: number, firstDiscNumber: string) => Promise<DiscMappingResult>
-  exportBundle: (caseId: string, expectedRevision: number, exportPath: string) => Promise<UnifiedExportResult>
+  exportBundle: (caseId: string, expectedRevision: number, exportPath: string, directoryToken: string) => Promise<UnifiedExportResult>
+  chooseDirectory: () => Promise<ExportDirectoryResult>
   busy: boolean
   error: string | null
 }
@@ -40,13 +41,15 @@ export function useArchiveCompletion(): ArchiveCompletion {
     }
   }, [])
 
-  const exportBundle = useCallback(async (caseId: string, expectedRevision: number, exportPath: string) => {
+  const exportBundle = useCallback(async (
+    caseId: string, expectedRevision: number, exportPath: string, directoryToken: string,
+  ) => {
     setBusy(true)
     setError(null)
     try {
       const response = await axios.post<{ data: UnifiedExportResult }>(
         API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId),
-        { expected_revision: expectedRevision, export_path: exportPath },
+        { expected_revision: expectedRevision, export_path: exportPath, directory_token: directoryToken },
         { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
       )
       return response.data.data
@@ -58,5 +61,23 @@ export function useArchiveCompletion(): ArchiveCompletion {
     }
   }, [])
 
-  return { mapping, exportBundle, busy, error }
+  const chooseDirectory = useCallback(async (): Promise<ExportDirectoryResult> => {
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await axios.post<{ data: ExportDirectoryResult }>(
+        API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY,
+        undefined,
+        { timeout: EXPORT_DIRECTORY_PICKER_TIMEOUT_MS },
+      )
+      return response.data.data
+    } catch (failure) {
+      setError(detailMessage(failure))
+      throw failure
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  return { mapping, exportBundle, chooseDirectory, busy, error }
 }
