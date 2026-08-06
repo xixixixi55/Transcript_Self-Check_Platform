@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
-import tempfile
 from typing import Iterable
 
 from ..repository.archive_input_repository import ArchiveInputError
@@ -15,7 +14,6 @@ _WINDOWS_FILE_PATH_LIMIT = 260
 _WINDOWS_DIRECTORY_PATH_LIMIT = 248
 SHORT_SNAPSHOT_ROOT = ".i"
 EXTERNAL_SNAPSHOT_ROOT = ".t"
-_PRIVATE_SNAPSHOT_ROOT_NAME = ".bi"
 
 
 @dataclass(frozen=True)
@@ -81,10 +79,19 @@ def _path_length(root: Path, relative_path: str) -> int:
 
 
 def private_snapshot_root() -> Path:
-    temporary_root = Path(tempfile.gettempdir())
-    if os.name == "nt":
-        return temporary_root.parent / _PRIVATE_SNAPSHOT_ROOT_NAME
-    return temporary_root / _PRIVATE_SNAPSHOT_ROOT_NAME
+    """External snapshot root, defaulting to the project drive; env-overridable.
+
+    The old default (temp dir parent) landed on the system drive, which is
+    frequently full. Default to <project>/external-snapshots so deep reports
+    write to the output drive with space. `BIJI_ARCHIVE_EXTERNAL_ROOT` still
+    overrides for deployment.
+    """
+    override = os.environ.get("BIJI_ARCHIVE_EXTERNAL_ROOT")
+    if override:
+        return Path(override)
+    from ..config import OUTPUT_BASE
+
+    return Path(OUTPUT_BASE).parent.parent / "external-snapshots"
 
 
 __all__ = [

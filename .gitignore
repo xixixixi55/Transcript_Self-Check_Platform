@@ -34,6 +34,12 @@ output/
 packages/output/
 **/output/
 
+# Archive external snapshot root (BIJI_ARCHIVE_EXTERNAL_ROOT) — local generated data
+external-snapshots/
+
+# Local verification tooling — never part of the repo
+hashmyfiles/
+
 # Persistent workbench database and controlled case assets — local only
 **/workbench.sqlite3
 **/workbench.sqlite3-*
