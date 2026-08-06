@@ -35,19 +35,18 @@
 
 ## D3. 每 RAR 完成实时覆盖回填
 
-**决策**：以 `attachment_backfill_service` 在 manifest 组装时覆盖填写检查结果 `result`（rar_filename/md5_hash/file_size）并尽力投影附件1。
+**决策**：归档 attempt 完成时经 `complete_verified` → `update_verified_draft` 覆盖填写检查结果 `result`（rar_filename/md5_hash/file_size）并投影附件1。
 
 **理由**：需求明确「每个最终 RAR 完成后同步填写检查结果与附件1」且已确认「实时填且覆盖手工值」。
-**apply 阶段细化**：WinRAR 执行器批量产出分卷、不暴露逐卷完成事件，真实的「每 part 完成」点不可得；回填点取 manifest 组装（早于导出），在现有架构下是最早可执行时刻。若未来执行器暴露逐卷回调，可在同服务追加钩子。
+**apply 阶段细化**：WinRAR 执行器批量产出分卷、不暴露逐卷完成事件，真实的「每 part 完成」点不可得；回填点取归档 attempt 完成（`complete_verified` 更新草稿，早于导出），在现有架构下是最早可执行时刻。独立 `attachment_backfill_service` 实现为重复死代码，Review 后删除。
 
 **备选与拒绝**：
-- 全部完成后一次性填（现状 usePreviewArchive）→ 回填服务在 manifest 组装时执行，早于导出且覆盖语义明确，拒绝「推迟到导出」。
+- 全部完成后一次性填（现状 usePreviewArchive）→ 回填在 attempt 完成时执行，早于导出且覆盖语义明确，拒绝「推迟到导出」。
 - 仅填空白格、保留手工值 → 与用户确认的「覆盖手工值」相悖，拒绝。
 
 **实现要点**：
-- 在 `archive_execution_service` 的 `observe_stage("md5")`/`integrity_verified` 阶段挂钩子，对已完成 part 计算 MD5 并调用回填服务。
-- 回填写入病例记录时按 `part_id` 定位 `extract_list` 行；检查结果字段按 part 顺序维护对应位置（`rar_filename/md5_hash/file_size` 以「、」分隔的位置语义需与现状一致）。
-- 回填只影响记录投影，不影响已密封快照与 RAR 物理文件。
+- `complete_verified` 用 `verified_archive_result_fields` 从 manifest parts 派生 `rar_filename/md5_hash/file_size`（「、」分隔），经 `apply_verified_archive_result` 写入草稿 `inspection.result`，`attachment_projection` 投影附件1 `extract_list`。
+- 草稿更新受 revision CAS 保护，lifecycle 迁移到 `archive_verified`；回填只影响草稿投影，不影响已密封快照与 RAR 物理文件。
 
 ## D4. HashMyFiles 校验 HTML 集成
 

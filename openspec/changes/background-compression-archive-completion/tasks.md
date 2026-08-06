@@ -16,10 +16,10 @@ workflow_level: 3
 
 ## BE Repository（Layer 20）
 
-- [ ] T002 持久化盘号映射与每 part 元数据。
-  - 文件：`packages/backend/app/repository/workbench_schema.py`（如需迁移）、归档/案件 repository
-  - 内容：持久化 part→盘号映射、每 part 的文件名/大小/MD5、导出记录与已导出标记；遵守既有 revision/CAS 与迁移约束。
-  - 验证：repository 定向测试；`npm run verify:quick` 的 schema/迁移检查。
+- [x] T002 持久化盘号映射与每 part 元数据。
+  - 文件：`packages/backend/app/repository/workbench_schema.py`、`packages/backend/app/repository/archive_plan_repository.py`
+  - 内容：`archive_plans` 表持久化 `mapping_revision`/`volume_slots_json`/`verified_slots_json`，`archive_plan_repository.update_mappings` 以 mapping_revision + 1 与 CAS 防并发持久化 part→盘号映射；每 part 文件名/大小/MD5 落在归档结果 parts 记录；导出记录经 `AuditEventRepository`（unified_export 事件）。遵守既有 revision/CAS 与迁移约束（含 v11 schema 同步）。
+  - 验证：`tests/test_disc_mapping_service.py` 4 passed（含持久化与过期 revision）+ 归档结果/导出审计相关测试回归。
 
 ## BE Services（Layer 21）
 
@@ -38,15 +38,16 @@ workflow_level: 3
   - 内容：`archive_report_fingerprint` payload 剔除 `first_disc_number`，两处调用同步；盘号后填/修改不破坏 Manifest 复用。
   - 验证：更新 `test_manifest_reuse_rechecks_input_snapshot_and_tolerates_disc_change`（盘号变化容忍、输入变化仍失败）；`tests/test_archive_execution_service.py` 20 passed。
 
-- [x] T006 检查结果/附件1 回填服务。
-  - 文件：新增 `packages/backend/app/services/attachment_backfill_service.py`
-  - 内容：`backfill_from_manifest` 以 manifest parts 覆盖填写检查结果 `result`（rar_filename/md5_hash/file_size）并尽力投影附件1；WinRAR 分卷为批量产出、无逐卷事件，回填点取 manifest 组装时（比导出更早）。
-  - 验证：`tests/test_attachment_backfill_service.py` 2 passed（覆盖旧值、审核字段不完整不失败）。
+- [x] T006 检查结果/附件1 回填（接线确认 + 死代码清理）。
+  - 文件：`packages/backend/app/services/archive_attempt_completion_service.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`
+  - 内容：回填在归档 attempt 完成时经 `complete_verified` → `update_verified_draft` 接线：`verified_archive_result_fields` 以 manifest parts 覆盖填写检查结果 `result`（rar_filename/md5_hash/file_size），`attachment_projection` 投影附件1 extract_list，并更新草稿 lifecycle 为 `archive_verified`（revision CAS 保护）。WinRAR 分卷为批量产出、无逐卷事件，回填点在 attempt 完成（早于导出）。Review（T015）发现独立 `attachment_backfill_service.backfill_from_manifest` 是重复死代码，已删除。
+  - 验证：`tests/test_archive_runtime_lifecycle.py` 断言草稿 inspection.result 与 extract_list 已回填（rar_filename/md5/file_size）。
 
-- [x] T007 HashMyFiles 校验 HTML 生成（接口+预留）。
+- [x] T007 HashMyFiles 校验 HTML 生成（接口+实测固化）。
   - 文件：新增 `packages/backend/app/repository/hashmyfiles_repository.py`、新增 `packages/backend/app/services/hashmyfiles_service.py`
-  - 内容：受控接口 + `BIJI_HASHMYFILES_PATH` 配置；真实 exe 参数为 TODO(probe)，参数未配置时明确失败（HASHMYFILES_ARGUMENTS_NOT_CONFIGURED）；缺失工具明确失败。
-  - 验证：`tests/test_hashmyfiles_service.py` 5 passed（resolve/不可用/runner 调用/无 parts）。
+  - 内容：受控接口 + `BIJI_HASHMYFILES_PATH` 配置；缺失工具明确失败（HASHMYFILES_UNAVAILABLE）。
+  - 实测（2026-08-06，本机 HashMyFiles v2.51）：`/files <多个路径>` + `/MD5 1 /SHA1 0 /CRC32 0 /SHA256 0 /SHA512 0 /SHA384 0` + `/shtml <输出路径>` 生成水平 HTML（UTF-16，含 Filename/MD5/Full Path 等列），保存后进程自动退出（returncode 0）；只开 MD5 时其余 hash 列头仍输出但值为空。`run_hashmyfiles` 据此实现，输出固定名 `hash-verification.html`（可重复导出覆盖），运行失败/输出缺失分别抛 HASHMYFILES_RUN_FAILED / HASHMYFILES_OUTPUT_MISSING（无路径泄漏）。
+  - 验证：`tests/test_hashmyfiles_service.py` 8 passed（resolve/不可用/runner 调用/无 parts/参数构造/失败路径）+ 端到端真实 exe 生成验证。
 
 - [x] T008 统一导出编排。
   - 文件：新增 `packages/backend/app/services/unified_export_service.py`
@@ -84,13 +85,25 @@ workflow_level: 3
   - 内容：卡片显示「待补盘号/归档完成/已导出」徽标；「已导出」时菜单出现「彻底删除」（复用 `case-workbench-delete` 删除确认）；工作台页按 lifecycle + 已加载 result parts 派生完成状态。
   - 验证：`CaseCard.test.tsx` 14 passed + `CaseWorkbenchPage.test.tsx` 回归（全量前端 263 passed）。
 
-- [ ] T014 案件打开页「立即/稍后」选择与补填/导出 UI。
-  - 文件：`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`
-  - 内容：案件打开呈现「立即/稍后」选择（替换审核页手动 prepare 主路径）；「待补盘号」补填入口；「归档完成」提示导出路径（native picker）并触发统一导出。工作台卡片侧集成已完成。
-  - 验证：页面定向测试（立即/稍后、补填映射、导出触发）。
+- [x] T014 案件打开页「立即/稍后」选择与补填/导出 UI。
+  - 文件：`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、新增 `packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/backend/app/controllers/workbench_controller.py`（新增 `POST /workbench/select-export-directory`）、`packages/backend/app/services/local_directory_picker_service.py`（select 支持描述）、`packages/frontend/src/hooks/useArchiveCompletion.ts`（chooseDirectory）、`packages/shared/types/archiveCompletion.ts`（ExportDirectoryResult）、`packages/shared/constants/index.ts`
+  - 内容：案件打开呈现「立即/稍后」选择（替换审核页手动 prepare 主路径）；「待补盘号」补填入口（输入首个盘号 → disc-mapping）；「归档完成」提示导出路径（native picker 经 `select-export-directory`）并触发统一导出；「已导出」可再次导出。工作台卡片侧集成已完成。
+  - 验证：`CaseRecordGeneratePage.test.tsx` 9 passed（含补填映射、导出触发、exported 再次导出）+ `useArchiveCompletion.test.tsx` 5 passed + `test_workbench_controller.py` 34 passed（含 select-export-directory 3 个新用例）。
 
 ## 综合验证
 
-- [ ] T015 受影响测试与 Level 3 门控。
-  - 内容：核对 delta 与实现，运行受影响前后端测试、`npm run verify:quick`、变更包 scoped strict docs、`git diff --check`；HashMyFiles 集成通过一次性实测证据与 mock 测试覆盖。
-  - 验证：`npm run verify:quick`、受影响模块测试、`npx tsx scripts/check-docs.ts --strict --change background-compression-archive-completion`、`git diff --check`。
+- [x] T015 受影响测试与 Level 3 门控。
+  - 独立 Code Review（生成者/评估者分离）判定 FAIL，9 项 MUST FIX 全部验证属实并修复：
+    - MF-1 空盘号压缩：`assemble_archive_manifest` 空盘号产出空 disc 元数据，`validate_manifest_files` 容忍双空。
+    - MF-2 plan 落库：`archive_mapping_service.persist_archive_plan_for_attempt` 在 execute_archive 成功后按 manifest parts 投影 `archive_plans`（先填盘号带 confirmed mapping）。
+    - MF-3 事实源统一：`archive_task_result_service.result()` 与导出 gate 从持久化 plan slots 派生 disc（plan 缺失回退 manifest），前端从「待补盘号」进入「归档完成」。
+    - MF-4 exported 持久化：`CASE_TRANSITIONS` 增 `archive_verified→exported`；`export_bundle` 成功后 `update_lifecycle(exported)`。
+    - MF-5 picker 超时：`EXPORT_DIRECTORY_PICKER_TIMEOUT_MS=620s`（后端 600s 上限）。
+    - MF-6 回填接线：确认回填已由 `complete_verified→update_verified_draft` 接线，删除重复死代码 `attachment_backfill_service`，修正 design D3。
+    - MF-7 伪造值：`apply_disc_mapping` 返回真实 lifecycle `archive_verified`，移除 `archive_disc_pending`。
+    - MF-8 CAS 对齐：`map_disc_numbers` 校验 case revision，plan 写用 plan 自身 revision。
+    - MF-9 路径受控：`select-export-directory` 签发一次性 grant token（复用 `issue_exact_directory_grant`），`export_bundle` 消费校验，未授权拒绝 `EXPORT_PATH_NOT_AUTHORIZED`。
+  - 补端到端测试：`test_archive_execution_service`（空盘号压缩）、`test_archive_plan_persistence`（persist_archive_plan）、`test_workbench_persistence`（archive_verified→exported）、新增 `test_archive_export_service`（token 门控/exported 标记/DISC_MAPPING_INCOMPLETE）；HashMyFiles 默认随包位置回退（design D4）。
+  - 复审（二轮）发现并修复 2 个回归：MUST-1 可重复导出被 MF-4 破坏（`CASE_TRANSITIONS["exported"]` 增自环，补二次迁移断言）；MUST-2 后填路径 Word 导出仍读原始空 disc manifest（`unified_export._with_disc_mapping` 把 plan slots 盘号叠加到 manifest 深拷贝供 `generate_docx`，补叠加测试）。复审最终 **CONDITIONAL PASS**（9 项 MUST FIX + 2 回归全部解决，无阻塞项）。
+  - 遗留 SHOULD（不阻塞，已注明）：工作台卡片完成态仅在查看过该案 result 后显示（补填/导出主入口在案件打开页已实现）；`execute_archive` 复用路径不重复落库 plan（首次成功已落库，复用时有 plan）；导出审计身份为 `system`（REQ-028 建议后续传真实会话）；重复导出 Word 因时间戳文件名累积；PATCH `/archive-plan` 的 `update_mappings` 用 plan revision 做 CAS（既有接口语义，与 POST `/disc-mapping` 的 case revision 校验不同，为既有设计非本包引入）。
+  - 验证：`npm run verify:quick` ✅、后端全量 940 passed（1 个并发 flaky 测试确认非本改动，文件级/单测通过）、前端 268 passed、`npx tsx scripts/check-docs.ts --strict --change background-compression-archive-completion` ✅（0 drift）、`git diff --check`。
