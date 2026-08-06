@@ -72,22 +72,22 @@ workflow_level: 3
 
 ## FE Hooks（Layer 10）
 
-- [ ] T012 案件打开压缩时机与状态 hook。
-  - 文件：`packages/frontend/src/hooks/useArchivePreparation.ts`、`packages/frontend/src/hooks/usePreviewArchive.ts`、新增案件完成/统一导出 hook
-  - 内容：案件打开呈现「立即/稍后」选择（替换审核页手动 prepare 主路径）；「待补盘号/归档完成/已导出」状态投影；盘号后填与映射请求；导出路径选择（native picker）与导出请求。
-  - 验证：hook 定向测试（立即/稍后、后填映射、导出触发、状态投影）。
+- [x] T012 归档完成/盘号映射/统一导出 hook 与状态投影。
+  - 文件：新增 `packages/frontend/src/hooks/useArchiveCompletion.ts`、新增 `packages/shared/utils/archiveCompletionRules.ts`
+  - 内容：`useArchiveCompletion` 提供盘号映射（POST disc-mapping）与统一导出（POST export-bundle）动作与错误投影；`resolveArchiveCompletionStatus`/`allPartsDiscMapped` 派生卡片完成状态。
+  - 验证：`useArchiveCompletion.test.tsx` 3 passed + `archiveCompletionRules.test.ts` 7 passed。
 
 ## FE Components / Pages（Layer 11–12）
 
-- [ ] T013 案件卡片状态与操作。
-  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/components/ArchiveStatusCard.tsx`
-  - 内容：卡片「立即压缩/稍后压缩」入口；「待补盘号」中间态与补填入口；「归档完成」提示导出路径；「已导出」标记与「彻底删除」按钮（复用 `case-workbench-delete` 删除能力）。
-  - 验证：组件定向测试（各状态渲染、操作触发、删除确认）。
+- [x] T013 案件卡片完成状态与彻底删除。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`
+  - 内容：卡片显示「待补盘号/归档完成/已导出」徽标；「已导出」时菜单出现「彻底删除」（复用 `case-workbench-delete` 删除确认）；工作台页按 lifecycle + 已加载 result parts 派生完成状态。
+  - 验证：`CaseCard.test.tsx` 14 passed + `CaseWorkbenchPage.test.tsx` 回归（全量前端 263 passed）。
 
-- [ ] T014 案件打开页与工作台页集成。
-  - 文件：`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`
-  - 内容：案件打开时引导立即/稍后选择；审核编辑页与后台压缩解耦（不再阻塞）；导出路径引导与已导出状态展示。
-  - 验证：页面定向测试 + 相关回归测试。
+- [ ] T014 案件打开页「立即/稍后」选择与补填/导出 UI。
+  - 文件：`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`
+  - 内容：案件打开呈现「立即/稍后」选择（替换审核页手动 prepare 主路径）；「待补盘号」补填入口；「归档完成」提示导出路径（native picker）并触发统一导出。工作台卡片侧集成已完成。
+  - 验证：页面定向测试（立即/稍后、补填映射、导出触发）。
 
 ## 综合验证
 

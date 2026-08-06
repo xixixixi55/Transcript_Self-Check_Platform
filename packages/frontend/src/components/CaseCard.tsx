@@ -3,7 +3,7 @@ import React from 'react'
 import { Button, Card, Dropdown, Space, Typography } from 'antd'
 import { MoreOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
-import type { ArchiveTaskAction, ArchiveTaskCardSummary, CaseShell, TaskRecord } from '@biji/shared/types'
+import type { ArchiveCompletionStatus, ArchiveTaskAction, ArchiveTaskCardSummary, CaseShell, TaskRecord } from '@biji/shared/types'
 import { CaseStatusBadge } from './CaseStatusBadge'
 import { SourceStatusBadge } from './SourceStatusBadge'
 import { ArchiveStatusPanel } from './ArchiveStatusPanel'
@@ -25,6 +25,15 @@ interface Props {
   onArchiveAction?: (action: ArchiveTaskAction) => void
   onArchivePrecheck?: () => void
   actionBusy?: boolean
+  completionStatus?: ArchiveCompletionStatus
+  onThoroughDelete?: () => void
+}
+
+const COMPLETION_LABELS: Record<ArchiveCompletionStatus, { label: string; danger?: boolean }> = {
+  compressing: { label: '压缩中' },
+  disc_pending: { label: '待补盘号' },
+  archive_complete: { label: '归档完成' },
+  exported: { label: '已导出' },
 }
 
 const ACTION_LABELS: Record<ArchiveTaskAction, string> = {
@@ -49,6 +58,7 @@ function archiveActionLabel(action: ArchiveTaskAction, summary: ArchiveTaskCardS
 export function CaseCard({
   shell, task, archiveSummary, sourceRequiresReselection, onRetry, onCancel,
   onDelete, onArchiveAction, onArchivePrecheck, actionBusy = false,
+  completionStatus, onThoroughDelete,
 }: Props) {
   const reviewable = shell.report_available && shell.lifecycle !== 'parse_failed_retryable'
   const canRetry = task?.status === 'failed_retryable' || task?.status === 'interrupted'
@@ -62,6 +72,9 @@ export function CaseCard({
       onClick: () => onArchiveAction?.(action),
     })),
     { key: 'delete', label: '删除', onClick: onDelete },
+    ...(completionStatus === 'exported' && onThoroughDelete
+      ? [{ key: 'thorough-delete', label: '彻底删除', danger: true, onClick: onThoroughDelete }]
+      : []),
   ]
   return (
     <Card
@@ -73,6 +86,13 @@ export function CaseCard({
       <div className="case-workbench-card__meta"><Text type="secondary">案件名称</Text><span>{shell.case_name || '未命名案件'}</span></div>
       <div className="case-workbench-card__meta"><Text type="secondary">更新时间</Text><span>{displayDate(shell.updated_at)}</span></div>
       <ArchiveStatusPanel summary={archiveSummary} />
+      {completionStatus && (
+        <div className="case-workbench-card__completion">
+          <Text type={completionStatus === 'exported' ? 'success' : 'secondary'}>
+            归档状态：{COMPLETION_LABELS[completionStatus].label}
+          </Text>
+        </div>
+      )}
       <Space wrap className="case-workbench-card__actions">
         {reviewable ? <Link to={`/electronic-inspection/cases/${encodeURIComponent(shell.case_id)}`}><Button type="primary">打开案件</Button></Link> : <Button disabled>等待解析完成</Button>}
         {sourceRequiresReselection && <SourceStatusBadge status="requires_reselection" />}

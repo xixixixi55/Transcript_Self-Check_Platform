@@ -3,16 +3,28 @@ import React, { useCallback, useState } from 'react'
 import { Alert, Button, Col, Modal, Pagination, Row, Space, Spin, Typography, message } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import type {
-  ArchiveTaskAction, ArchiveTaskHistory, ArchiveTaskPublicDetail,
-  ArchiveTaskResult, CaseShell,
+  ArchiveCompletionStatus, ArchiveTaskAction, ArchiveTaskHistory,
+  ArchiveTaskPublicDetail, ArchiveTaskResult, CaseShell,
 } from '@biji/shared/types'
 import { API_ENDPOINTS } from '@biji/shared/constants'
+import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared/utils'
 import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
 import { CaseCard } from '../components/CaseCard'
 import { CaseWorkbenchDirectoryPickerCard } from '../components/CaseWorkbenchDirectoryPickerCard'
 import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
 
 const { Paragraph, Title } = Typography
+
+function completionStatusFor(
+  shell: CaseShell, result: ArchiveTaskResult | null,
+): ArchiveCompletionStatus | undefined {
+  if (shell.lifecycle === 'exported') return 'exported'
+  if (shell.lifecycle !== 'archive_verified') return undefined
+  if (result && result.case_id === shell.case_id) {
+    return resolveArchiveCompletionStatus(shell.lifecycle, allPartsDiscMapped(result.parts)) ?? undefined
+  }
+  return undefined
+}
 
 export default function CaseWorkbenchPage() {
   const workbench = useCaseWorkbench()
@@ -142,6 +154,8 @@ export default function CaseWorkbenchPage() {
               }}
               onArchivePrecheck={() => message.info('请打开案件完成审核，并明确选择立即归档或稍后归档。')}
               actionBusy={actionCaseId === shell.case_id}
+              completionStatus={completionStatusFor(shell, archiveResult)}
+              onThoroughDelete={() => setDeleteCaseId(shell.case_id)}
             />
           </Col>)}
           {workbench.page.items.length < CASE_PAGE_SIZE && (
