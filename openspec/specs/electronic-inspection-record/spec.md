@@ -1050,7 +1050,9 @@ The archive execution input MUST be a task/attempt/deployment-bound sealed snaps
 
 #### Scenario: sealed execution input
 - WHEN a task begins archive execution
-- THEN the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory without following links or reparse points, verifies every relative path, size and modified-time metadata, flushes the copy, and durably marks it `sealed`
+- THEN the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory in parallel (default 4 workers, `BIJI_ARCHIVE_COPY_WORKERS`-configurable) without following links or reparse points, verifies every relative path, size and modified-time metadata, and durably marks it `sealed`
+- AND file content is flushed to the OS but not per-file fsynced at copy time; the snapshot directory rename, owner marker and file-list metadata remain durably persisted
+- AND content not yet written back at power loss can leave partial or zero-filled bytes, which size-based metadata verification catches when truncated and archive-output RAR validation plus crash-retry rebuild from source cover otherwise
 - AND the snapshot manifest records per-file relative path, size and modified-time metadata, not per-file content SHA-256
 - AND WinRAR, inventory, RAR validation and Manifest generation read only the sealed snapshot, never the mutable source directory
 - AND an unsealed, missing, owner-mismatched, incomplete or metadata-mismatched snapshot cannot enter WinRAR, publication, reuse or success
