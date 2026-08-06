@@ -9,6 +9,8 @@ import type {
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared/utils'
 import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
+import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
+import { useArchiveCompletionStatuses } from '../hooks/useArchiveCompletionStatuses'
 import { CaseCard } from '../components/CaseCard'
 import { CaseWorkbenchDirectoryPickerCard } from '../components/CaseWorkbenchDirectoryPickerCard'
 import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
@@ -38,12 +40,15 @@ export default function CaseWorkbenchPage() {
     refreshKey: workbench.taskSyncVersion,
     cases: workbench.page.items,
   })
+  const completionResults = useArchiveCompletionStatuses(
+    workbench.page.items, archiveSummariesByCase, workbench.archiveResult,
+  )
+  const archiveCompletion = useArchiveCompletion()
   const [submitBusy, setSubmitBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
   const [archiveDetail, setArchiveDetail] = useState<ArchiveTaskPublicDetail | null>(null)
   const [archiveHistory, setArchiveHistory] = useState<ArchiveTaskHistory | null>(null)
-  const [archiveResult, setArchiveResult] = useState<ArchiveTaskResult | null>(null)
 
   const submit = async () => {
     setSubmitBusy(true)
@@ -92,6 +97,24 @@ export default function CaseWorkbenchPage() {
     }
   }
 
+  const exportCase = async (shell: CaseShell) => {
+    if (actionCaseId) return
+    setActionCaseId(shell.case_id)
+    try {
+      const chosen = await archiveCompletion.chooseDirectory()
+      if ('cancelled' in chosen) return
+      const result = await archiveCompletion.exportBundle(
+        shell.case_id, shell.revision, chosen.path, chosen.token,
+      )
+      message.success(`已导出至：${result.output.export_path}`)
+      await workbench.loadPage(workbench.page.offset)
+    } catch (error) {
+      message.error(resolveWorkbenchError(error).message)
+    } finally {
+      setActionCaseId(null)
+    }
+  }
+
   const handleArchiveAction = async (
     shell: CaseShell, taskId: string, action: ArchiveTaskAction,
   ) => {
@@ -104,8 +127,6 @@ export default function CaseWorkbenchPage() {
       } else if (action === 'retry') {
         await workbench.retryArchiveTask(taskId, shell.revision)
         message.success('已创建新的归档任务，历史任务保持不变。')
-      } else if (action === 'view_result') {
-        setArchiveResult(await workbench.archiveResult(taskId))
       } else {
         const [detail, history] = await Promise.all([
           workbench.archiveTaskDetails(taskId),
@@ -154,8 +175,10 @@ export default function CaseWorkbenchPage() {
               }}
               onArchivePrecheck={() => message.info('请打开案件完成审核，并明确选择立即归档或稍后归档。')}
               actionBusy={actionCaseId === shell.case_id}
-              completionStatus={completionStatusFor(shell, archiveResult)}
+              completionStatus={completionStatusFor(shell, completionResults[shell.case_id])}
               onThoroughDelete={() => setDeleteCaseId(shell.case_id)}
+              onExport={() => { void exportCase(shell) }}
+              exporting={actionCaseId === shell.case_id}
             />
           </Col>)}
           {workbench.page.items.length < CASE_PAGE_SIZE && (
@@ -191,29 +214,6 @@ export default function CaseWorkbenchPage() {
             {archiveDetail.error_summary && <span>安全摘要：{archiveDetail.error_summary}</span>}
             <span>本案归档历史：{archiveHistory?.items.length ?? 0} 次</span>
             <span>当前计划分卷槽位：{archiveDetail.archive_plan?.volume_slots.length ?? 0}</span>
-          </Space>
-        )}
-      </Modal>
-      <Modal
-        open={Boolean(archiveResult)}
-        title="归档结果"
-        footer={null}
-        onCancel={() => setArchiveResult(null)}
-      >
-        {archiveResult && (
-          <Space direction="vertical">
-            <span>Manifest：{archiveResult.manifest_id}</span>
-            <span>已验证分卷：{archiveResult.verified_slots.length}</span>
-            <span>正式资产：{archiveResult.assets.length}</span>
-            {archiveResult.parts.map(part => (
-              <Button
-                key={part.part_id}
-                href={API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT_PART(
-                  archiveResult.task_id, part.part_id,
-                )}
-                download={part.filename}
-              >下载 {part.filename}</Button>
-            ))}
           </Space>
         )}
       </Modal>

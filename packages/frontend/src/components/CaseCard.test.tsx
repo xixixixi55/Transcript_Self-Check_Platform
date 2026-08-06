@@ -186,13 +186,15 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
           status: 'succeeded', stage: 'completed', stage_label: '归档完成',
           stage_index: 9, percent: 100, finished_at: '2026-07-30T11:59:00Z',
           worker_state: 'released', allowed_actions: ['view_result'],
-        })} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />
+        })} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()}
+          completionStatus="archive_complete" onExport={vi.fn()} />
       </MemoryRouter>,
     )
     expect(screen.getAllByText('归档完成').length).toBeGreaterThan(0)
     expect(screen.getByText('总体里程碑 100% · 3 个分卷')).toBeTruthy()
     expect(screen.queryByRole('progressbar')).toBeNull()
-    expect(screen.getByRole('button', { name: '查看结果' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '统一导出' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '查看结果' })).toBeNull()
   })
 
   it('renders only actions explicitly present in allowed_actions', () => {

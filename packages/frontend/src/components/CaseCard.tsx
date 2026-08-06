@@ -27,6 +27,8 @@ interface Props {
   actionBusy?: boolean
   completionStatus?: ArchiveCompletionStatus
   onThoroughDelete?: () => void
+  onExport?: () => void
+  exporting?: boolean
 }
 
 const COMPLETION_LABELS: Record<ArchiveCompletionStatus, { label: string; danger?: boolean }> = {
@@ -45,7 +47,7 @@ const ACTION_LABELS: Record<ArchiveTaskAction, string> = {
 
 function primaryArchiveAction(summary?: ArchiveTaskCardSummary): ArchiveTaskAction | undefined {
   if (!summary) return undefined
-  return (['view_result', 'retry', 'cancel', 'view_details'] as const)
+  return (['retry', 'cancel', 'view_details'] as const)
     .find(action => summary.allowed_actions.includes(action))
 }
 
@@ -58,13 +60,15 @@ function archiveActionLabel(action: ArchiveTaskAction, summary: ArchiveTaskCardS
 export function CaseCard({
   shell, task, archiveSummary, sourceRequiresReselection, onRetry, onCancel,
   onDelete, onArchiveAction, onArchivePrecheck, actionBusy = false,
-  completionStatus, onThoroughDelete,
+  completionStatus, onThoroughDelete, onExport, exporting = false,
 }: Props) {
   const reviewable = shell.report_available && shell.lifecycle !== 'parse_failed_retryable'
   const canRetry = task?.status === 'failed_retryable' || task?.status === 'interrupted'
   const canCancel = task?.status === 'queued' || task?.status === 'running'
   const archiveAction = primaryArchiveAction(archiveSummary)
-  const secondaryArchiveActions = archiveSummary?.allowed_actions.filter(action => action !== archiveAction) ?? []
+  const exportReady = completionStatus === 'archive_complete' || completionStatus === 'exported'
+  const secondaryArchiveActions = archiveSummary?.allowed_actions
+    .filter(action => action !== archiveAction && action !== 'view_result') ?? []
   const menuItems = [
     ...secondaryArchiveActions.map(action => ({
       key: action,
@@ -99,6 +103,9 @@ export function CaseCard({
         {!archiveSummary && canRetry && <Button onClick={onRetry} loading={actionBusy}>重试解析</Button>}
         {!archiveSummary && canCancel && <Button danger onClick={onCancel} loading={actionBusy}>取消任务</Button>}
         {!archiveSummary && reviewable && <Button onClick={onArchivePrecheck}>归档前检查</Button>}
+        {exportReady && onExport && (
+          <Button type="primary" onClick={onExport} loading={exporting || actionBusy}>统一导出</Button>
+        )}
         {archiveAction && (
           <Button
             danger={archiveAction === 'cancel'}

@@ -15,22 +15,9 @@ beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) })
 })
 
-const shell = (index: number): CaseShell => ({
-  schema_version: 1, case_id: `case-synthetic-${index}`, case_name: `SYNTHETIC-CASE-${index}`,
-  case_summary: 'SYNTHETIC/TEST summary', source_id: `source-synthetic-${index}`,
-  parse_task_id: `task-synthetic-${index}`, lifecycle: 'parsing', report_available: false,
-  revision: 0, created_at: '2026-01-01T00:00:00+00:00', updated_at: '2026-01-01T00:00:00+00:00',
-})
+const shell = (index: number): CaseShell => ({ schema_version: 1, case_id: `case-synthetic-${index}`, case_name: `SYNTHETIC-CASE-${index}`, case_summary: 'SYNTHETIC/TEST summary', source_id: `source-synthetic-${index}`, parse_task_id: `task-synthetic-${index}`, lifecycle: 'parsing', report_available: false, revision: 0, created_at: '2026-01-01T00:00:00+00:00', updated_at: '2026-01-01T00:00:00+00:00' })
 
-const archiveSummary: ArchiveTaskCardSummary = {
-  task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', status: 'running',
-  progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在创建 RAR 分卷',
-  stage_index: 4, stage_count: 9, percent: 30, started_at: '2026-07-30T11:42:00Z',
-  updated_at: '2026-07-30T12:00:00Z', finished_at: null,
-  last_heartbeat_at: '2026-07-30T12:00:00Z', output_bytes: 1024,
-  output_volume_count: 1, last_output_change_at: '2026-07-30T12:00:00Z',
-  worker_state: 'owned_running', error_summary: null, allowed_actions: ['cancel'],
-}
+const archiveSummary: ArchiveTaskCardSummary = { task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', status: 'running', progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在创建 RAR 分卷', stage_index: 4, stage_count: 9, percent: 30, started_at: '2026-07-30T11:42:00Z', updated_at: '2026-07-30T12:00:00Z', finished_at: null, last_heartbeat_at: '2026-07-30T12:00:00Z', output_bytes: 1024, output_volume_count: 1, last_output_change_at: '2026-07-30T12:00:00Z', worker_state: 'owned_running', error_summary: null, allowed_actions: ['cancel'] }
 
 describe('CaseWorkbenchPage', () => {
   let listItems = Array.from({ length: 6 }, (_, i) => shell(i + 1))
@@ -178,15 +165,9 @@ describe('CaseWorkbenchPage', () => {
     listItems = [{ ...shell(1), lifecycle: 'review_ready', report_available: true, archive_task_summary: archiveSummary }]
     getMock.mockImplementation(async (url: string) => {
       if (url.endsWith('/demo/readiness')) return { data: { data: { items: [] } } }
-      if (url.endsWith('/workbench/cases')) {
-        return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
-      }
-      if (url.endsWith('/archive-SYNTHETIC-1/details')) {
-        return { data: { data: { ...archiveSummary, revision: 7, created_at: archiveSummary.updated_at } } }
-      }
-      if (url.includes('/workbench/tasks/')) {
-        return { data: { data: { task_id: 'task-synthetic-1', case_id: 'case-synthetic-1', kind: 'parse', status: 'succeeded', stage: 'parse', percent: null, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }
-      }
+      if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
+      if (url.endsWith('/archive-SYNTHETIC-1/details')) return { data: { data: { ...archiveSummary, revision: 7, created_at: archiveSummary.updated_at } } }
+      if (url.includes('/workbench/tasks/')) return { data: { data: { task_id: 'task-synthetic-1', case_id: 'case-synthetic-1', kind: 'parse', status: 'succeeded', stage: 'parse', percent: null, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }
       throw new Error(`unexpected GET ${url}`)
     })
     postMock.mockResolvedValue({ data: { data: { ...archiveSummary, status: 'cancelling' } } })
@@ -194,11 +175,7 @@ describe('CaseWorkbenchPage', () => {
     const button = await screen.findByRole('button', { name: '取消归档' })
     fireEvent.click(button)
     fireEvent.click(button)
-    await waitFor(() => expect(postMock).toHaveBeenCalledWith(
-      expect.stringContaining('/archive-SYNTHETIC-1/cancel'),
-      { expected_revision: 7 },
-      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
-    ))
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/archive-SYNTHETIC-1/cancel'), { expected_revision: 7 }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
     expect(postMock).toHaveBeenCalledTimes(1)
   })
 
@@ -245,4 +222,28 @@ describe('CaseWorkbenchPage', () => {
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(1))
     expect(document.querySelector('.case-workbench-grid')?.contains(screen.getByRole('button', { name: '上传报告目录' }))).toBe(true)
   })
+it('exports a completed archive bundle directly from the card', async () => {
+  listItems = [{ ...shell(1), lifecycle: 'archive_verified', report_available: true, revision: 3, archive_task_summary: { ...archiveSummary, status: 'succeeded', stage: 'completed', stage_label: '归档完成', stage_index: 9, stage_count: 9, percent: 100, finished_at: '2026-07-30T12:00:00Z', allowed_actions: ['view_result'] } }]
+  const archiveResult = { task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', manifest_id: 'manifest-synthetic', verified_slots: [], assets: [], parts: [{ part_id: 'part-1', filename: 'SYNTHETIC.part1.rar', size_bytes: 4, md5: 'a'.repeat(32), disc_number: 'GP20260730-01', disc_date: '2026-07-30' }], finished_at: '2026-07-30T12:00:00Z' }
+  getMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/demo/readiness')) return { data: { data: { items: [] } } }
+    if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
+    if (url.includes('/result')) return { data: { data: archiveResult } }
+    if (url.includes('/workbench/tasks/')) return { data: { data: { task_id: 'task-synthetic-1', case_id: 'case-synthetic-1', kind: 'parse', status: 'succeeded', stage: 'parse', percent: null, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }
+    throw new Error(`unexpected GET ${url}`)
+  })
+  postMock.mockImplementation(async (url: string, body?: unknown) => {
+    if (url.endsWith('/select-export-directory')) return { data: { data: { path: 'D:\SYNTHETIC\EXPORT', token: 'token-synthetic' } } }
+    if (url.endsWith('/export-bundle')) return { data: { data: { case_id: 'case-synthetic-1', task_id: 'archive-SYNTHETIC-1', expected_revision: (body as { expected_revision: number }).expected_revision, lifecycle: 'exported', output: { export_path: 'D:\SYNTHETIC\EXPORT', word_filename: 'out.docx', rar_filenames: ['SYNTHETIC.part1.rar'], hash_verification_html: 'hash.html', exported_at: '2026-07-30T12:01:00Z' } } } }
+    return { data: { data: {} } }
+  })
+  render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+  const exportButton = await screen.findByRole('button', { name: '统一导出' })
+  expect(screen.queryByRole('button', { name: '查看结果' })).toBeNull()
+  fireEvent.click(exportButton)
+  await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+  expect(await screen.findByText(/已导出至：D:\SYNTHETIC\EXPORT/)).toBeTruthy()
 })
+})
+
+
