@@ -31,6 +31,8 @@ def test_picker_returns_selected_absolute_directory_and_uses_fixed_native_comman
     command, options = calls[0]
     assert command[:6] == ["powershell.exe", "-NoLogo", "-NoProfile", "-STA", "-WindowStyle", "Hidden"]
     assert "FolderBrowserDialog" in command[-1]
+    assert "ShowDialog($owner)" in command[-1]
+    assert "$owner.TopMost = $true" in command[-1]
     assert "-Command" in command
     assert options["timeout"] == 600
     assert options["check"] is False

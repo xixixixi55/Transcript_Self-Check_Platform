@@ -131,3 +131,17 @@ workflow_level: 3
   - 修复（前端）：`CaseWorkbenchPage` 点「统一导出」先开 `WordDownloadNameDialog`（默认案件名称），确认后走目录选择器→exportBundle；`useArchiveCompletion.exportBundle` 增 `word_filename` 参数；`ArchiveCompletionPanel` 增 `defaultWordName` 并让导出先问文件名（未选目录时自动补选）。
   - 文件：`packages/shared/types/archiveCompletion.ts`、`packages/backend/app/controllers/archive_task_controller.py`、`services/archive_task_api_service.py`、`archive_export_service.py`、`unified_export_service.py`、`record_generator_service.py`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`pages/CaseWorkbenchPage.tsx`、`pages/CaseRecordGeneratePage.tsx`、`components/ArchiveCompletionPanel.tsx` + 对应测试。
   - 测试：`test_unified_export_service`（word_filename 透传 + 落盘）、`test_archive_export_service`（export_bundle 传 word_filename）、`test_record_generator_service`（output_filename 生效/清洗）、`test_archive_runtime_lifecycle` 端到端（export-bundle 带 word_filename 200 且输出文件名正确）、前端 `CaseWorkbenchPage`/`CaseRecordGeneratePage`/`useArchiveCompletion` 均按新流程断言。验证：后端相关 23 passed、前端相关 31 passed、typecheck ✅。
+
+- [x] T019 修复已导出案件再次导出 422 EXPORT_PATH_NOT_AUTHORIZED（回归）。
+  - 现象：已导出成功的案件再次点「导出/再次导出」，`export-bundle` 返回 422。
+  - 根因：`ArchiveCompletionPanel` 缓存了首次导出的 `exportPath/directoryToken`；目录授权 token 是一次性（`consume_exact_directory_grant` 消费后标记 used），二次导出复用已消费 token → `EXPORT_PATH_NOT_AUTHORIZED` → 422。工作台卡片路径每次 `chooseDirectory()` 新开选择器，不受影响；复现：同一 token 二次 export-bundle 返回 422 EXPORT_PATH_NOT_AUTHORIZED。
+  - 修复：`ArchiveCompletionPanel` 移除缓存的 `exportPath/directoryToken` 状态与「选择导出目录」按钮，`confirmExportName` 每次导出都重新 `chooseDirectory()` 获取新 token（先填文件名→再选目录→导出），与工作台卡片行为一致。
+  - 文件：`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`tests`（`CaseRecordGeneratePage.test.tsx` 更新：删除选择目录按钮依赖，新增「fresh grant on every export」断言）。
+  - 测试：前端 `CaseRecordGeneratePage`/`CaseWorkbenchPage`/`useArchiveCompletion` 28 passed；`verify:quick` ✅、`lint:arch` ✅。
+
+- [x] T020 修复原生目录选择器窗口概率性被浏览器遮挡（人工验收反馈）。
+  - 现象：「上传报告目录」「统一导出」的 Windows 原生目录选择器（PowerShell `FolderBrowserDialog`）概率性出现在浏览器窗口后面而不可见。
+  - 根因：对话框由后台服务进程弹出，未获得前台焦点/置顶，Windows 前台锁使对话框 Z 序可能落在浏览器之下。
+  - 修复：`local_directory_picker_service._folder_picker_script` 为 `FolderBrowserDialog` 挂一个隐藏的 TopMost 所有者窗体（`$owner.TopMost = $true; ShowInTaskbar=$false; Opacity=0`），以 `ShowDialog($owner)` 展示——TopMost 使对话框 Z 序恒高于浏览器等非 TopMost 窗口，保证可见可点。
+  - 文件：`packages/backend/app/services/local_directory_picker_service.py`、`tests/test_local_directory_picker_service.py`（断言含 TopMost owner + ShowDialog($owner)）。
+  - 验证：本机 PowerShell 冒烟（对话框成功打开阻塞、无语法错误）；`test_local_directory_picker_service` 5 passed；后端全量 946 passed；`verify:quick` ✅。

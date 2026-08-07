@@ -20,8 +20,6 @@ export function ArchiveCompletionPanel({
 }: Props) {
   const archive = useArchiveCompletion()
   const [firstDiscNumber, setFirstDiscNumber] = useState('')
-  const [exportPath, setExportPath] = useState('')
-  const [directoryToken, setDirectoryToken] = useState('')
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
   const status = resolveArchiveCompletionStatus(lifecycle, allPartsDiscMapped(parts))
   useEffect(() => {
@@ -39,15 +37,6 @@ export function ArchiveCompletionPanel({
     } catch { /* error already surfaced via useArchiveCompletion.error */ }
   }
 
-  const pickExportPath = async () => {
-    try {
-      const result = await archive.chooseDirectory()
-      if ('cancelled' in result) return
-      setExportPath(result.path)
-      setDirectoryToken(result.token)
-    } catch { /* error already surfaced via useArchiveCompletion.error */ }
-  }
-
   const runExport = () => {
     setNameDialogOpen(true)
   }
@@ -55,17 +44,13 @@ export function ArchiveCompletionPanel({
   const confirmExportName = async (wordFileName: string) => {
     setNameDialogOpen(false)
     try {
-      let path = exportPath
-      let token = directoryToken
-      if (!path || !token) {
-        const chosen = await archive.chooseDirectory()
-        if ('cancelled' in chosen) return
-        path = chosen.path
-        token = chosen.token
-        setExportPath(path)
-        setDirectoryToken(token)
-      }
-      const result = await archive.exportBundle(caseId, expectedRevision, path, token, wordFileName)
+      // Directory grants are one-use and consumed by the export; always pick a
+      // fresh directory so re-export never reuses a spent token.
+      const chosen = await archive.chooseDirectory()
+      if ('cancelled' in chosen) return
+      const result = await archive.exportBundle(
+        caseId, expectedRevision, chosen.path, chosen.token, wordFileName,
+      )
       message.success(`已导出至：${result.output.export_path}`)
       onCompleted()
     } catch { /* error already surfaced via useArchiveCompletion.error */ }
@@ -97,11 +82,8 @@ export function ArchiveCompletionPanel({
           message={status === 'exported' ? '已导出' : '归档完成'}
           description={status === 'exported'
             ? '统一导出已完成，可再次导出获取最新 Word、RAR 与校验 HTML。'
-            : exportPath ? `导出目录：${exportPath}` : '全部 RAR、MD5 与盘号已对应完成，请开始导出。'}
-          action={<Space>
-            <Button loading={archive.busy} onClick={() => { void pickExportPath() }}>选择导出目录</Button>
-            <Button type="primary" loading={archive.busy} onClick={() => { runExport() }}>{status === 'exported' ? '再次导出' : '开始导出'}</Button>
-          </Space>}
+            : '全部 RAR、MD5 与盘号已对应完成，可开始导出。'}
+          action={<Button type="primary" loading={archive.busy} onClick={() => { runExport() }}>{status === 'exported' ? '再次导出' : '开始导出'}</Button>}
         />
         <WordDownloadNameDialog
           open={nameDialogOpen}

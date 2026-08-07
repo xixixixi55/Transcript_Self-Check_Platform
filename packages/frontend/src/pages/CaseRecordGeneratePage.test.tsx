@@ -228,15 +228,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     }
   }, 15000)
 
-  it('chooses an export directory and triggers the unified export bundle', async () => {
+  it('asks for a Word file name then picks a fresh directory and triggers the unified export bundle', async () => {
     showCompletedArchive = true
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: /选择导出目录/ }))
-    await waitFor(() => expect(screen.getByText(/D:\\SYNTHETIC\\EXPORT/)).toBeTruthy())
     fireEvent.click(await screen.findByRole('button', { name: /开始导出/ }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Word 下载文件名'), { target: { value: '合成案件.docx' } })
     fireEvent.click(within(dialog).getByRole('button', { name: '开始导出' }))
+    // Fresh grant on every export — re-export must not reuse a consumed token (422 regression).
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY, undefined, expect.anything()))
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic', word_filename: '合成案件.docx' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
   }, 15000)
 

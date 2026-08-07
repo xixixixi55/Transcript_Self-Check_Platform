@@ -23,10 +23,19 @@ def _folder_picker_script(description: str) -> str:
         f"$dialog.Description = '{safe}';"
         "$dialog.RootFolder = [System.Environment+SpecialFolder]::MyComputer;"
         "$dialog.ShowNewFolderButton = $false;"
-        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {"
+        # 隐藏的 TopMost 所有者窗体：从后台服务弹出的对话框默认可能落在浏览器窗口后面而不可见。
+        # TopMost 让对话框的 Z 序始终高于浏览器等非 TopMost 窗口，保证可见且可点击。
+        "$owner = New-Object System.Windows.Forms.Form;"
+        "$owner.TopMost = $true;"
+        "$owner.ShowInTaskbar = $false;"
+        "$owner.Opacity = 0;"
+        "$owner.Show();"
+        "$owner.Activate();"
+        "if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {"
         "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;"
         "[Console]::Write($dialog.SelectedPath)"
         "}"
+        "$owner.Close();"
     )
 _PICKER_TIMEOUT_SECONDS = 600
 
