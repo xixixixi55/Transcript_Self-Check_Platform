@@ -69,7 +69,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) return { data: { data: completedArchiveResult } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: [] } } }
-      if (url === API_ENDPOINTS.WORKBENCH_TEMPLATES || url === API_ENDPOINTS.DEVICES) return { data: { data: [] } }
+      if (url === API_ENDPOINTS.DEVICES) return { data: { data: [] } }
       if (url === API_ENDPOINTS.INSPECTORS) return { data: { data: [availableInspector] } }
       throw new Error(`unexpected GET ${url}`)
     })
@@ -173,7 +173,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       renderPage()
       await editDiscNumber()
       await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
-      expect(await screen.findByText('草稿已保存，共享默认值更新失败。')).toBeTruthy()
 
       fireEvent.click(screen.getByRole('button', { name: /导出 Word/ }))
       fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))

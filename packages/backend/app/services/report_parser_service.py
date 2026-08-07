@@ -31,7 +31,13 @@ from ..repository.report_parse_input_repository import (
     build_report_parse_input_snapshot,
 )
 from ..repository.hashmyfiles_repository import HASHMYFILES_DISPLAY_VERSION
-from .report_defaults_service import DEFAULT_DATA_SUMMARY
+from .report_defaults_service import (
+    DEFAULT_DATA_SUMMARY,
+    DEFAULT_DOCUMENT_NUMBER,
+    DEFAULT_HARDWARE_DEVICE,
+    DEFAULT_INSPECTION_METHOD,
+    DEFAULT_INSPECTION_PLACE,
+)
 from .material_policy_service import material_from_legacy_item, select_display_identifiers
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
@@ -367,7 +373,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
 
     return {
         "title": "电子数据检查笔录",
-        "document_number": "SYN-TEST〔2026〕000号",
+        "document_number": DEFAULT_DOCUMENT_NUMBER,
         "case_number": _case_number,  # 前端用此值生成文号
         "introduction": {
             "entrust_unit": case.get("submit_unit", ""),
@@ -378,11 +384,11 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "inspection_requirement": "上述检材内电子数据的提取、固定和恢复",
             "inspection_time_range": time_range,
             "inspectors": [],
-            "inspection_place": "合成检验鉴定中心",
+            "inspection_place": DEFAULT_INSPECTION_PLACE,
         },
         "inspection": {
-            "method": "采用 GA/T 1069-2021《法庭科学电子物证手机检验技术规范》进行检查。",
-            "hardware_device": "美亚FL-901手机取证塔",
+            "method": DEFAULT_INSPECTION_METHOD,
+            "hardware_device": DEFAULT_HARDWARE_DEVICE,
             "primary_software": {
                 "name": main_name,
                 "version": main_version,

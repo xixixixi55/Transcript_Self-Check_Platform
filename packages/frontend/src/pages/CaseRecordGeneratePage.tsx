@@ -4,7 +4,6 @@ import { Alert, Button, Card, Spin, Steps, message } from 'antd'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { InspectorLibraryRecord } from '@biji/shared/types'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
-import { useTemplateRegistry } from '../hooks/useTemplateRegistry'
 import { useRecordExport } from '../hooks/useRecordExport'
 import { getReviewPendingItems } from '../hooks/useReviewChecklist'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
@@ -16,14 +15,12 @@ import { ReviewPageHeader } from '../components/ReviewPageHeader'
 import { ReviewPendingSummary } from '../components/ReviewPendingSummary'
 import { ReviewPreviewDrawer } from '../components/ReviewPreviewDrawer'
 import { CaseStatusBadge } from '../components/CaseStatusBadge'
-import { CaseSaveStatusPanel } from '../components/CaseSaveStatusPanel'
 import { FieldProvenanceBadge } from '../components/FieldProvenanceBadge'
 import { SourceReselectionPanel } from '../components/SourceReselectionPanel'
 import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
 import { ArchiveCompletionPanel } from '../components/ArchiveCompletionPanel'
 import { ReviewSourceLegend } from '../components/ReviewSourceLegend'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
-import { TemplateSelector } from '../components/TemplateSelector'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import { runWithSourceExportRiskConfirmation } from '../hooks/useSourceExportRisk'
 export default function CaseRecordGeneratePage() {
@@ -41,18 +38,6 @@ export default function CaseRecordGeneratePage() {
   const archiveDecisionInFlight = useRef(false)
   const [defaultDiscPrefix, setDefaultDiscPrefix] = useState('')
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
-  const templateRegistry = useTemplateRegistry({
-    caseId,
-    currentTemplateRef: session.draft?.template_ref || null,
-    expectedRevision: session.draft?.revision ?? null,
-    enabled: Boolean(session.draft),
-    editingEnabled: session.editingEnabled
-      && !session.autosave.hasPending
-      && session.autosave.draftState.status !== 'saving',
-    leaseId: session.lease.lease?.lease_id,
-    leaseToken: session.lease.lease?.lease_token,
-    onSelected: async () => { await session.loadServerVersion() },
-  })
   useEffect(() => {
     axios.get(API_ENDPOINTS.DEVICES).then(response => setDevices(response.data.data || [])).catch(() => undefined)
     setInspectorLoading(true)
@@ -102,10 +87,6 @@ export default function CaseRecordGeneratePage() {
   const saveNow = () => {
     if (!session.editingEnabled) { message.warning('当前页面没有有效编辑租约，未写入案件。'); return }
     void session.autosave.saveNow()
-  }
-  const loadServer = async () => {
-    try { await session.loadServerVersion(); message.info('已加载服务端版本，当前未保存输入已放弃。') }
-    catch { message.error('服务端版本加载失败，请稍后重试。') }
   }
   const forceTakeover = () => {
     if (window.confirm('当前案件可能仍由其他页面编辑。强制接管会使旧页面失去写入资格，并记录本地会话审计。确定继续吗？')) void session.lease.acquire(true)
@@ -190,20 +171,6 @@ export default function CaseRecordGeneratePage() {
         </>}
         {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
         {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
-        <CaseSaveStatusPanel draft={session.autosave.draftState}
-          sharedDefaults={session.sharedDefaultsSaveState.status === 'not_changed'
-            ? session.autosave.sharedState : session.sharedDefaultsSaveState}
-          onRetry={() => { void session.retrySave() }} onLoadServer={() => { void loadServer() }} />
-        <TemplateSelector
-          templates={templateRegistry.templates}
-          currentTemplateRef={session.draft?.template_ref || null}
-          loading={templateRegistry.loading}
-          saving={templateRegistry.saving}
-          disabled={!session.editingEnabled || session.autosave.hasPending}
-          errorCode={templateRegistry.errorCode}
-          impact={templateRegistry.impact}
-          onSelect={templateRegistry.selectTemplate}
-        />
         {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
         <div className="case-workbench-page__toolbar">文号来源：<FieldProvenanceBadge state={session.draft?.field_states.document_number} /></div>
         <ReviewSourceLegend />
@@ -228,9 +195,6 @@ export default function CaseRecordGeneratePage() {
           pendingItems={pendingItems}
           workbenchMode
           readOnly={!session.editingEnabled}
-          draftSaveStatus={session.autosave.draftState.status}
-          sharedDefaultsSaveStatus={session.sharedDefaultsSaveState.status === 'not_changed'
-            ? session.autosave.sharedState.status : session.sharedDefaultsSaveState.status}
           archiveContextId={null}
           archiveResult={session.completedArchive}
         />

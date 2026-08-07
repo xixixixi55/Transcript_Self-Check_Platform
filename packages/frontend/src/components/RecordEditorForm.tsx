@@ -1,6 +1,6 @@
 // Layer 11: FE_Components - 笔录审核编辑表单
 import React from 'react'
-import { Alert, Button, Space, Typography } from 'antd'
+import { Button, Space, Typography } from 'antd'
 import type {
   ArchiveLifecycleStatus,
   ArchiveManifest,
@@ -56,8 +56,6 @@ interface Props {
   archiveResult?: { result: ArchiveTaskResult | null; loading: boolean; error: string | null }
   workbenchMode?: boolean
   readOnly?: boolean
-  draftSaveStatus?: string
-  sharedDefaultsSaveStatus?: string
 }
 
 export default function RecordEditorForm({
@@ -87,8 +85,6 @@ export default function RecordEditorForm({
   archiveResult = { result: null, loading: false, error: null },
   workbenchMode = false,
   readOnly = false,
-  draftSaveStatus = '',
-  sharedDefaultsSaveStatus = '',
 }: Props) {
   const introduction = report.introduction
   const attachments = report.attachments || { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' }
@@ -108,19 +104,6 @@ export default function RecordEditorForm({
         <ReviewSection id={REVIEW_SECTION_IDS.document} title="文书信息与导出设置" pendingCount={countFor(REVIEW_SECTION_IDS.document)}>
           <ReviewField label="文号" type="text" value={report.document_number}
             onChange={value => updateReport('document_number', value)} />
-          {workbenchMode && <div className="review-export-settings">
-            <div className="review-field__label">共享默认值设置</div>
-            <div>保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀</div>
-            <div>当前默认光盘编号前缀：{defaultDiscPrefix || '未设置'}</div>
-            <div>修改六项字段并成功保存后，只更新本轮明确修改的共享默认值；空值不执行清除。</div>
-          </div>}
-          {workbenchMode ? <div className="review-export-settings"><div>案件草稿和共享默认值会分别显示保存结果。</div><div>案件草稿：{draftSaveStatus || '尚未保存'}；共享默认值：{sharedDefaultsSaveStatus || '本次未更新'}</div></div> : <div className="review-export-settings">
-            <div className="review-field__label">常用字段默认设置</div>
-            <div>保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀</div>
-            <div>当前默认光盘编号前缀：{defaultDiscPrefix || '未设置'}</div>
-            <div>修改六项字段并成功保存后，只更新本轮明确修改的共享默认值；空值不执行清除。</div>
-          </div>}
-        <Alert message="请谨慎修改文号；每次导出均会询问本次 Word 下载文件名。" type="warning" showIcon />
         </ReviewSection>
 
         <ReviewSection id={REVIEW_SECTION_IDS.introduction} title="一、绪论" pendingCount={countFor(REVIEW_SECTION_IDS.introduction)}>

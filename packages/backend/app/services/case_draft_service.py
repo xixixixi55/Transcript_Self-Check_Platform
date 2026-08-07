@@ -15,6 +15,7 @@ from ..repository.task_record_repository import TaskRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .report_parser_service import parse_report
+from .report_defaults_service import DEFAULT_DOCUMENT_NUMBER, DEFAULT_HARDWARE_DEVICE, DEFAULT_INSPECTION_METHOD, DEFAULT_INSPECTION_PLACE
 from .disc_sequence_service import apply_disc_sequence_to_attachments
 from .case_order_service import CaseOrderService
 from .field_provenance_service import FieldProvenanceService
@@ -135,14 +136,14 @@ def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) ->
     now = utc_now()
     fields: dict[str, dict[str, Any]] = {}
     candidates = (
-        ("document_number", ("document_number",), defaults.get("document_number")),
-        ("introduction.inspection_place", ("introduction", "inspection_place"), defaults.get("inspection_place")),
-        ("inspection.method", ("inspection", "method"), defaults.get("inspection_method")),
-        ("inspection.hardware_device", ("inspection", "hardware_device"), defaults.get("hardware_device")),
+        ("document_number", ("document_number",), defaults.get("document_number"), DEFAULT_DOCUMENT_NUMBER),
+        ("introduction.inspection_place", ("introduction", "inspection_place"), defaults.get("inspection_place"), DEFAULT_INSPECTION_PLACE),
+        ("inspection.method", ("inspection", "method"), defaults.get("inspection_method"), DEFAULT_INSPECTION_METHOD),
+        ("inspection.hardware_device", ("inspection", "hardware_device"), defaults.get("hardware_device"), DEFAULT_HARDWARE_DEVICE),
     )
-    for field_path, path, default in candidates:
+    for field_path, path, default, system_default in candidates:
         current = _read_path(value, path)
-        selected, source = _select_value(current, default)
+        selected, source = _select_value(current, default, system_default)
         if selected is not None and (source == "system_default" or current is None or not str(current).strip()):
             _write_path(value, path, selected)
         fields[field_path] = {
@@ -206,12 +207,13 @@ def _inspector_from_default(value: str) -> dict[str, str]:
     return {"name": parts[0], "unit": parts[1] if len(parts) > 1 else "", "badge_number": parts[2] if len(parts) > 2 else ""}
 
 
-def _select_value(report_value: Any, default_value: Any) -> tuple[Any, str]:
+def _select_value(report_value: Any, default_value: Any, system_default: Any = None) -> tuple[Any, str]:
     if report_value is not None and str(report_value).strip():
-        return report_value, "report"
+        if system_default is None or str(report_value).strip() != str(system_default):
+            return report_value, "report"
     if default_value is not None and str(default_value).strip():
         return default_value, "system_default"
-    return None, "system_default"
+    return report_value, "system_default"
 
 
 def _has_items(value: Any) -> bool:

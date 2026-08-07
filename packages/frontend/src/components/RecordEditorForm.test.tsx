@@ -55,25 +55,14 @@ const report: InspectionReport = {
 }
 
 describe('RecordEditorForm', () => {
-  it('explains that each Word export asks for its download name', () => {
+  it('fires onExport when the export button is clicked and does not render the filename input inline', () => {
     const onExport = vi.fn()
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={onExport} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()} />)
 
-    expect(screen.getByText(/每次导出均会询问本次 Word 下载文件名/)).toBeTruthy()
     expect(screen.queryByLabelText('导出文件名')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '导出 Word' }))
     expect(onExport).toHaveBeenCalledOnce()
-  })
-
-  it('shows sparse shared-default behavior without a full-save or clear action', () => {
-    render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
-      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
-      defaultDiscPrefix="测试公" />)
-
-    expect(screen.getByText('保存范围：文号、检查地点、检查方法、检查硬件设备、检查人员、光盘编号前缀')).toBeTruthy()
-    expect(screen.getByText(/只更新本轮明确修改的共享默认值/)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '单独保存共享默认值' })).toBeNull()
   })
 
   it('keeps the full editor controls when rendered by the case workbench', () => {
@@ -85,7 +74,6 @@ describe('RecordEditorForm', () => {
     expect(screen.getByTestId('evidence-editor')).toBeTruthy()
     expect(screen.getByTestId('image-uploader')).toBeTruthy()
     expect(screen.queryByLabelText('导出文件名')).toBeNull()
-    expect(screen.getByText(/只更新本轮明确修改的共享默认值/)).toBeTruthy()
   })
 
   it('集成所有审核编辑区域和附件编辑器', () => {

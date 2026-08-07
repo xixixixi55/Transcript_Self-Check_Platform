@@ -13,6 +13,12 @@ from app.repository.shared_defaults_repository import SharedDefaultsRepository  
 from app.repository.workbench_database import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.case_draft_service import _initialize_draft  # noqa: E402
+from app.services.report_defaults_service import (  # noqa: E402
+    DEFAULT_DOCUMENT_NUMBER,
+    DEFAULT_HARDWARE_DEVICE,
+    DEFAULT_INSPECTION_METHOD,
+    DEFAULT_INSPECTION_PLACE,
+)
 from app.services.shared_defaults_service import SharedDefaultsService  # noqa: E402
 
 
@@ -243,3 +249,67 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
 
     assert existing_case["introduction"]["inspection_place"] == "SYNTHETIC-FIRST-PLACE"
     assert later_case["introduction"]["inspection_place"] == "SYNTHETIC-SECOND-PLACE"
+
+
+def test_parser_system_default_value_yields_to_shared_default():
+    """Parser returning only the hardcoded system defaults must not block shared-default prefill."""
+    report = {
+        "document_number": DEFAULT_DOCUMENT_NUMBER,
+        "introduction": {"inspection_place": DEFAULT_INSPECTION_PLACE, "inspectors": []},
+        "inspection": {
+            "method": DEFAULT_INSPECTION_METHOD,
+            "hardware_device": DEFAULT_HARDWARE_DEVICE,
+        },
+        "attachments": {"disc_number": ""},
+    }
+    defaults = {
+        "document_number": "SYNTHETIC-SHARED-DOC",
+        "inspection_place": "SYNTHETIC-SHARED-PLACE",
+        "inspection_method": "SYNTHETIC-SHARED-METHOD",
+        "hardware_device": "SYNTHETIC-SHARED-HARDWARE",
+        "inspector_order": [],
+        "disc_number_prefix": "",
+    }
+
+    initialized, field_states = _initialize_draft(copy.deepcopy(report), defaults)
+
+    assert initialized["document_number"] == "SYNTHETIC-SHARED-DOC"
+    assert initialized["introduction"]["inspection_place"] == "SYNTHETIC-SHARED-PLACE"
+    assert initialized["inspection"]["method"] == "SYNTHETIC-SHARED-METHOD"
+    assert initialized["inspection"]["hardware_device"] == "SYNTHETIC-SHARED-HARDWARE"
+    assert all(field_states[path]["source"] == "system_default" for path in (
+        "document_number",
+        "introduction.inspection_place",
+        "inspection.method",
+        "inspection.hardware_device",
+    ))
+
+
+def test_parser_system_default_value_kept_when_no_shared_default():
+    """Without a shared default, the parser's system default remains and is sourced as system_default."""
+    report = {
+        "document_number": DEFAULT_DOCUMENT_NUMBER,
+        "introduction": {"inspection_place": DEFAULT_INSPECTION_PLACE, "inspectors": []},
+        "inspection": {
+            "method": DEFAULT_INSPECTION_METHOD,
+            "hardware_device": DEFAULT_HARDWARE_DEVICE,
+        },
+        "attachments": {"disc_number": ""},
+    }
+    defaults = {
+        "document_number": "", "inspection_place": "", "inspection_method": "",
+        "hardware_device": "", "inspector_order": [], "disc_number_prefix": "",
+    }
+
+    initialized, field_states = _initialize_draft(copy.deepcopy(report), defaults)
+
+    assert initialized["document_number"] == DEFAULT_DOCUMENT_NUMBER
+    assert initialized["introduction"]["inspection_place"] == DEFAULT_INSPECTION_PLACE
+    assert initialized["inspection"]["method"] == DEFAULT_INSPECTION_METHOD
+    assert initialized["inspection"]["hardware_device"] == DEFAULT_HARDWARE_DEVICE
+    assert all(field_states[path]["source"] == "system_default" for path in (
+        "document_number",
+        "introduction.inspection_place",
+        "inspection.method",
+        "inspection.hardware_device",
+    ))
