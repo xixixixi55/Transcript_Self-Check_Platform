@@ -27,6 +27,7 @@ from app.repository import (  # noqa: E402
     database_path_for_deployment,
 )
 from app.repository.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
+from app.repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository  # noqa: E402
 from app.repository.archive_attempt_restart_repository import interrupt_owned_claim  # noqa: E402
 from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive_attempt_completion_service import record_attempt_completion  # noqa: E402
@@ -526,3 +527,62 @@ def test_runtime_timeout_persists_owned_claim_as_interrupted(
     final_task = runtime.scheduler.tasks.get(queued["task_id"])
     assert final_task["status"] == "interrupted"
     assert final_task["percent"] != 100
+
+
+def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
+    tmp_path: Path,
+) -> None:
+    """Unified export from a completed card must not be blocked by the
+    independent draft revision (REVISION_CONFLICT regression).
+
+    The card sends the shell revision; the template-context resolver must not
+    require it to equal the draft revision, which legitimately diverges across
+    the archive lifecycle.
+    """
+    from app.controllers import record_template_context_controller
+
+    services, _worker = _services(tmp_path)
+    export_dir = tmp_path / "SYNTHETIC-EXPORT"
+    export_dir.mkdir()
+    token = services.sources.authorization.issue_exact_directory_grant(str(export_dir))
+
+    with _controller_patches(services), \
+            patch.object(
+                record_template_context_controller, "get_workbench_services",
+                return_value=services,
+            ), TestClient(create_app(service_provider=lambda: services)) as client:
+        ready = _create_ready_case(client, services)
+        case_id = ready["shell"]["case_id"]
+        queued = client.post(
+            f"/api/v1/workbench/cases/{case_id}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        completed = _wait_task(client, queued["task_id"], {"succeeded"})
+        assert completed["status"] == "succeeded"
+
+        shell = CaseShellRepository(services.database).get(case_id)
+        draft = CaseDraftRepository(services.database).get(case_id)
+        assert shell["revision"] != draft["revision"]
+
+        def fake_docx(_report, **kwargs):
+            return export_dir / (kwargs.get("output_filename") or "out.docx")
+
+        with patch(
+            "app.services.unified_export_service.generate_docx",
+            side_effect=fake_docx,
+        ), patch(
+            "app.services.unified_export_service.generate_verification_html",
+            return_value="hash.html",
+        ):
+            response = client.post(
+                f"/api/v1/workbench/cases/{case_id}/export-bundle",
+                json={
+                    "expected_revision": shell["revision"],
+                    "export_path": str(export_dir),
+                    "directory_token": token,
+                    "word_filename": "SYNTHETIC-EXPORT.docx",
+                },
+            )
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["lifecycle"] == "exported"
+        assert response.json()["data"]["output"]["word_filename"] == "SYNTHETIC-EXPORT.docx"

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import axios from 'axios'
@@ -234,7 +234,10 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     fireEvent.click(await screen.findByRole('button', { name: /选择导出目录/ }))
     await waitFor(() => expect(screen.getByText(/D:\\SYNTHETIC\\EXPORT/)).toBeTruthy())
     fireEvent.click(await screen.findByRole('button', { name: /开始导出/ }))
-    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Word 下载文件名'), { target: { value: '合成案件.docx' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '开始导出' }))
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic', word_filename: '合成案件.docx' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
   }, 15000)
 
   it('shows the exported state for a re-exported case', async () => {

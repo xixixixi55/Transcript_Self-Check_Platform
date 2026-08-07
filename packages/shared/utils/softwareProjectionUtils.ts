@@ -23,7 +23,7 @@ export function applyPrimarySoftwareEdit(
   next.inspection.result.software_name = primary.name
   next.inspection.result.software_version = primary.version
   const runtimeTools = (next.inspection.software_tools || []).filter(tool =>
-    ['WinRAR压缩管理软件', 'Python hashlib'].includes(tool.name),
+    ['WinRAR压缩管理软件', 'Python hashlib', 'HashMyFiles'].includes(tool.name),
   )
   next.inspection.software_tools = primary.name && primary.version
     ? [{ name: primary.name, version: primary.version }, ...runtimeTools]

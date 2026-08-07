@@ -15,6 +15,9 @@ import subprocess
 from pathlib import Path
 
 _HASH_HTML_FILENAME = "hash-verification.html"
+# Probed against HashMyFiles v2.51 on Windows (2026-08-06); shown in the
+# report's software_tools runtime entry for newly parsed cases.
+HASHMYFILES_DISPLAY_VERSION = "2.51"
 _HASH_TYPES_ARGS = [
     "/MD5", "1", "/SHA1", "0", "/CRC32", "0",
     "/SHA256", "0", "/SHA512", "0", "/SHA384", "0",

@@ -48,6 +48,24 @@ def test_generator_passes_the_same_saved_order_projection_to_word_renderer(tmp_p
     assert "SYNTHETIC-UI-SOURCE" not in repr(report)
 
 
+def test_generator_uses_user_output_filename_when_provided(tmp_path: Path):
+    def fake_fill(report, _template, output, _photos):
+        Path(output).write_bytes(b"SYNTHETIC-DOCX")
+
+    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+        generated = generate_docx(_report(), output_dir=str(tmp_path), output_filename="用户命名.docx")
+    assert Path(generated).name == "用户命名.docx"
+
+    # Path separators and Windows-invalid characters are stripped; .docx ensured.
+    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+        generated = generate_docx(_report(), output_dir=str(tmp_path), output_filename=r"C:\SYNTHETIC\bad:name")
+    assert Path(generated).name == "badname.docx"
+
+    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+        generated = generate_docx(_report(), output_dir=str(tmp_path), output_filename="no-extension")
+    assert Path(generated).name == "no-extension.docx"
+
+
 def test_template_docx_uses_saved_order_without_review_metadata(tmp_path: Path):
     output = tmp_path / "SYNTHETIC-ordered.docx"
     fill_template(_report(), str(_TEMPLATE), str(output))

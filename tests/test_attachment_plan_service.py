@@ -159,6 +159,20 @@ def test_numeric_part_order_and_no_absolute_paths():
     assert all(":" not in row.filename for page in plan.attachment1_pages for row in page.serial_rows)
 
 
+def test_hashmyfiles_runtime_tool_satisfies_archive_tool_source():
+    current = report(0)
+    current["inspection"]["software_tools"] = [
+        {"name": "WinRAR压缩管理软件", "version": "6.24"},
+        {"name": "HashMyFiles", "version": "2.51"},
+    ]
+    plan = build_attachment_plan(manifest(1), current)
+    assert plan.attachment1_pages
+    assert all(
+        "计算MD5值" in page.extraction_method
+        for page in plan.attachment1_pages
+    )
+
+
 def test_old_attachment_fields_cannot_replace_manifest_values():
     value = manifest(1)
     current_report = report()

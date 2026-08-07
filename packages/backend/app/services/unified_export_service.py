@@ -68,6 +68,7 @@ def unified_export(
     export_path: Path,
     photo_paths: list[Path],
     template_context: dict[str, Any],
+    word_filename: str | None = None,
     database: WorkbenchDatabase | None = None,
     case_id: str | None = None,
     task_id: str | None = None,
@@ -85,7 +86,8 @@ def unified_export(
 
     export_path.mkdir(parents=True, exist_ok=True)
     word_filename = _export_word(
-        report, _with_disc_mapping(manifest, plan), export_path, photo_paths, template_context,
+        report, _with_disc_mapping(manifest, plan), export_path, photo_paths,
+        template_context, word_filename,
     )
 
     for rar in rar_paths:
@@ -144,11 +146,13 @@ def _export_word(
     export_path: Path,
     photo_paths: list[Path],
     template_context: dict[str, Any],
+    word_filename: str | None = None,
 ) -> str:
     try:
         docx_path = generate_docx(
             report, photo_paths=photo_paths, output_dir=str(export_path),
-            archive_manifest=manifest, **template_context,
+            archive_manifest=manifest, output_filename=word_filename,
+            **template_context,
         )
     except Exception as error:
         raise UnifiedExportError(

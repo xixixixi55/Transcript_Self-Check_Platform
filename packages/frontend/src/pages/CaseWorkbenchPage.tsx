@@ -14,6 +14,7 @@ import { useArchiveCompletionStatuses } from '../hooks/useArchiveCompletionStatu
 import { CaseCard } from '../components/CaseCard'
 import { CaseWorkbenchDirectoryPickerCard } from '../components/CaseWorkbenchDirectoryPickerCard'
 import { DemoReadinessNotice } from '../components/DemoReadinessNotice'
+import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
 
 const { Paragraph, Title } = Typography
 
@@ -49,6 +50,7 @@ export default function CaseWorkbenchPage() {
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
   const [archiveDetail, setArchiveDetail] = useState<ArchiveTaskPublicDetail | null>(null)
   const [archiveHistory, setArchiveHistory] = useState<ArchiveTaskHistory | null>(null)
+  const [exportNameCaseId, setExportNameCaseId] = useState<string | null>(null)
 
   const submit = async () => {
     setSubmitBusy(true)
@@ -97,14 +99,21 @@ export default function CaseWorkbenchPage() {
     }
   }
 
-  const exportCase = async (shell: CaseShell) => {
+  const exportCase = (shell: CaseShell) => {
     if (actionCaseId) return
+    setExportNameCaseId(shell.case_id)
+  }
+
+  const confirmExportName = async (wordFileName: string) => {
+    const shell = workbench.page.items.find(item => item.case_id === exportNameCaseId)
+    setExportNameCaseId(null)
+    if (!shell || actionCaseId) return
     setActionCaseId(shell.case_id)
     try {
       const chosen = await archiveCompletion.chooseDirectory()
       if ('cancelled' in chosen) return
       const result = await archiveCompletion.exportBundle(
-        shell.case_id, shell.revision, chosen.path, chosen.token,
+        shell.case_id, shell.revision, chosen.path, chosen.token, wordFileName,
       )
       message.success(`已导出至：${result.output.export_path}`)
       await workbench.loadPage(workbench.page.offset)
@@ -217,6 +226,13 @@ export default function CaseWorkbenchPage() {
           </Space>
         )}
       </Modal>
+      <WordDownloadNameDialog
+        open={Boolean(exportNameCaseId)}
+        documentNumber={workbench.page.items.find(item => item.case_id === exportNameCaseId)?.case_name}
+        exporting={Boolean(actionCaseId)}
+        onCancel={() => setExportNameCaseId(null)}
+        onConfirm={downloadName => { void confirmExportName(downloadName) }}
+      />
     </div>
   )
 }

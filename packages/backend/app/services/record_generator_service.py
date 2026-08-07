@@ -8,7 +8,9 @@ Layer 21: BE_Services — 笔录文档生成服务
 """
 
 import json
+import ntpath
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -55,14 +57,31 @@ def _run_officecli(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+_WINDOWS_INVALID_FILE_NAME = re.compile(r'[<>:"/\\|?*]')
+
+
+def _sanitize_docx_filename(name: str) -> str:
+    """Keep a user-supplied Word file name safe for the local export directory."""
+    # Drop any drive/path prefix defensively; the frontend already rejects these.
+    base = ntpath.basename((name or "").replace("\\", "/"))
+    base = _WINDOWS_INVALID_FILE_NAME.sub("", base).strip()
+    base = base.rstrip(". ")
+    base = base[:120] or "检查笔录"
+    if not base.casefold().endswith(".docx"):
+        base = f"{base}.docx"
+    return base
+
+
 def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str = None,
                   archive_manifest: Mapping | None = None,
                   template_ref: Mapping | None = None,
                   template_registry: TemplateRegistryRepository | None = None,
-                  template_approvals: TemplateApprovalRepository | None = None) -> str:
+                  template_approvals: TemplateApprovalRepository | None = None,
+                  output_filename: str | None = None) -> str:
     """
     生成检查笔录 .docx 文件。
     优先使用模板填充，模板不存在时回退到 officecli batch 方案。
+    ``output_filename`` 提供时作为输出文件名（统一导出时由用户指定），否则按文号+时间戳自动生成。
     返回生成的 .docx 文件路径。
     """
     if output_dir is None:
@@ -84,10 +103,13 @@ def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str =
     os.makedirs(output_dir, exist_ok=True)
 
     # 生成安全的文件名
-    doc_number = report.get("document_number", "").replace("/", "-").replace("\\", "-")
-    safe_doc_number = doc_number.replace("〔", "[").replace("〕", "]") if doc_number else ""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{safe_doc_number or '检查笔录'}_{timestamp}.docx"
+    if output_filename:
+        filename = _sanitize_docx_filename(output_filename)
+    else:
+        doc_number = report.get("document_number", "").replace("/", "-").replace("\\", "-")
+        safe_doc_number = doc_number.replace("〔", "[").replace("〕", "]") if doc_number else ""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{safe_doc_number or '检查笔录'}_{timestamp}.docx"
     filepath = os.path.join(output_dir, filename)
 
     # 优先使用模板填充

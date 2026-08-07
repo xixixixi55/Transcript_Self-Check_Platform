@@ -31,6 +31,8 @@ export interface UnifiedExportRequest {
   export_path: string
   /** One-use grant issued by the picker; the backend only writes to this path. */
   directory_token: string
+  /** User-chosen Word file name (without directory); overrides the auto-generated one. */
+  word_filename: string
 }
 
 export interface UnifiedExportOutput {

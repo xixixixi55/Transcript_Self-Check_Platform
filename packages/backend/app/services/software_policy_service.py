@@ -14,7 +14,7 @@ from .canonical_models_service import (
 )
 
 _CONFIRMED_STATUSES = {"confirmed_by_report", "confirmed_by_user"}
-_RUNTIME_TOOL_NAMES = {"winrar压缩管理软件", "python hashlib"}
+_RUNTIME_TOOL_NAMES = {"winrar压缩管理软件", "python hashlib", "hashmyfiles"}
 
 
 def _text(value: Any) -> str:
@@ -155,6 +155,8 @@ def migrate_legacy_software(
             category = "winrar"
         elif normalized_name == "python hashlib".casefold():
             category = "python_hashlib"
+        elif normalized_name == "hashmyfiles".casefold():
+            category = "hashmyfiles"
         elif primary and primary.name and primary.version and name == primary.name:
             category = "main_forensic"
         else:

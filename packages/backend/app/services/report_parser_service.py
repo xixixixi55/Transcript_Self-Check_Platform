@@ -8,7 +8,6 @@ REQ-011 缓存 / REQ-013 兼容压缩开关 / REQ-014 压缩包上传 / REQ-016 
 """
 import os
 import shutil
-import sys
 import tempfile
 from typing import Optional
 from ..repository.file_storage import (
@@ -31,6 +30,7 @@ from ..repository.report_parse_input_repository import (
     ReportParseInputSnapshot,
     build_report_parse_input_snapshot,
 )
+from ..repository.hashmyfiles_repository import HASHMYFILES_DISPLAY_VERSION
 from .report_defaults_service import DEFAULT_DATA_SUMMARY
 from .material_policy_service import material_from_legacy_item, select_display_identifiers
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
@@ -471,12 +471,13 @@ def _build_software_tools(
         ),
         "confirmation_status": "confirmed" if detected_version else "unconfirmed",
     })
-    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    # MD5 校验由 HashMyFiles.exe 执行，工具条目显示 HashMyFiles 2.51；
+    # 存量案件仍持久化旧值 Python hashlib，识别逻辑同时兼容两者。
     tools.append({
-        "category": "python_hashlib",
-        "name": "Python hashlib",
-        "version": py_ver,
-        "display_name": f"Python hashlib {py_ver}",
+        "category": "hashmyfiles",
+        "name": "HashMyFiles",
+        "version": HASHMYFILES_DISPLAY_VERSION,
+        "display_name": f"HashMyFiles {HASHMYFILES_DISPLAY_VERSION}",
         "confirmation_status": "confirmed",
     })
     return tools

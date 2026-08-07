@@ -50,11 +50,14 @@ describe('useArchiveCompletion', () => {
     const { result } = renderHook(() => useArchiveCompletion())
     let exported: unknown
     await act(async () => {
-      exported = await result.current.exportBundle('case-synthetic', 3, 'D:\\SYNTHETIC\\out', 'token-synthetic')
+      exported = await result.current.exportBundle('case-synthetic', 3, 'D:\\SYNTHETIC\\out', 'token-synthetic', '案件名.docx')
     })
     expect(postMock).toHaveBeenCalledWith(
       API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT('case-synthetic'),
-      { expected_revision: 3, export_path: 'D:\\SYNTHETIC\\out', directory_token: 'token-synthetic' },
+      {
+        expected_revision: 3, export_path: 'D:\\SYNTHETIC\\out',
+        directory_token: 'token-synthetic', word_filename: '案件名.docx',
+      },
       { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     expect(exported).toEqual(EXPORT_RESULT)

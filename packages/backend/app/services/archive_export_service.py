@@ -6,7 +6,6 @@ while reusing its repositories (drafts, results, shells, tasks, database).
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +20,7 @@ def export_bundle(
     export_path: str,
     *,
     directory_token: str,
+    word_filename: str | None = None,
     template_context: dict[str, object],
 ) -> dict[str, Any]:
     """Write latest Word + all RAR parts + verification HTML into export_path."""
@@ -38,7 +38,7 @@ def export_bundle(
         raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
     bundle = api.results.manifest_bundle(task["task_id"])
     draft = api.drafts.get(case_id)
-    report = json.loads(draft["report_json"])
+    report = draft["report"]
     export_dir = Path(export_path)
     if not export_dir.is_absolute() or not export_dir.is_dir():
         raise WorkbenchPersistenceError("EXPORT_PATH_INVALID", "导出路径无效。")
@@ -48,6 +48,7 @@ def export_bundle(
             final_dir=bundle["final_dir"], export_path=export_dir,
             photo_paths=_resolve_photo_paths(api, case_id),
             template_context=template_context,
+            word_filename=word_filename,
             database=api.database, case_id=case_id, task_id=task["task_id"],
             plan=api.plans.get_latest_for_case(case_id),
         )
@@ -73,7 +74,7 @@ def _resolve_photo_paths(api: Any, case_id: str) -> list[Path]:
     files = sorted(storage.files_for_case(case_id))
     by_asset = {path.stem: path for path in files}
     draft = api.drafts.get(case_id)
-    report = json.loads(draft["report_json"])
+    report = draft["report"]
     ordered: list[Path] = []
     for group in (report.get("attachments") or {}).get("photo_groups") or []:
         for photo in group.get("photo_ids") or []:

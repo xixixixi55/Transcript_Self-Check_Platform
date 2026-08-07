@@ -4,22 +4,25 @@ import { Alert, Button, Input, Space, message } from 'antd'
 import type { CaseLifecycle } from '@biji/shared/types'
 import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared/utils'
 import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
+import { WordDownloadNameDialog } from './WordDownloadNameDialog'
 
 interface Props {
   lifecycle: CaseLifecycle
   caseId: string
   expectedRevision: number
   parts: { disc_number?: string | null }[] | null
+  defaultWordName?: string
   onCompleted: () => void
 }
 
 export function ArchiveCompletionPanel({
-  lifecycle, caseId, expectedRevision, parts, onCompleted,
+  lifecycle, caseId, expectedRevision, parts, defaultWordName, onCompleted,
 }: Props) {
   const archive = useArchiveCompletion()
   const [firstDiscNumber, setFirstDiscNumber] = useState('')
   const [exportPath, setExportPath] = useState('')
   const [directoryToken, setDirectoryToken] = useState('')
+  const [nameDialogOpen, setNameDialogOpen] = useState(false)
   const status = resolveArchiveCompletionStatus(lifecycle, allPartsDiscMapped(parts))
   useEffect(() => {
     if (archive.error) message.error(archive.error)
@@ -45,10 +48,24 @@ export function ArchiveCompletionPanel({
     } catch { /* error already surfaced via useArchiveCompletion.error */ }
   }
 
-  const runExport = async () => {
-    if (!exportPath || !directoryToken) { message.warning('请先选择导出目录。'); return }
+  const runExport = () => {
+    setNameDialogOpen(true)
+  }
+
+  const confirmExportName = async (wordFileName: string) => {
+    setNameDialogOpen(false)
     try {
-      const result = await archive.exportBundle(caseId, expectedRevision, exportPath, directoryToken)
+      let path = exportPath
+      let token = directoryToken
+      if (!path || !token) {
+        const chosen = await archive.chooseDirectory()
+        if ('cancelled' in chosen) return
+        path = chosen.path
+        token = chosen.token
+        setExportPath(path)
+        setDirectoryToken(token)
+      }
+      const result = await archive.exportBundle(caseId, expectedRevision, path, token, wordFileName)
       message.success(`已导出至：${result.output.export_path}`)
       onCompleted()
     } catch { /* error already surfaced via useArchiveCompletion.error */ }
@@ -72,19 +89,28 @@ export function ArchiveCompletionPanel({
 
   if (status === 'archive_complete' || status === 'exported') {
     return (
-      <Alert
-        className="case-workbench-page__toolbar"
-        type="success"
-        showIcon
-        message={status === 'exported' ? '已导出' : '归档完成'}
-        description={status === 'exported'
-          ? '统一导出已完成，可再次导出获取最新 Word、RAR 与校验 HTML。'
-          : exportPath ? `导出目录：${exportPath}` : '全部 RAR、MD5 与盘号已对应完成，请选择导出目录后开始导出。'}
-        action={<Space>
-          <Button loading={archive.busy} onClick={() => { void pickExportPath() }}>选择导出目录</Button>
-          <Button type="primary" loading={archive.busy} onClick={() => { void runExport() }}>{status === 'exported' ? '再次导出' : '开始导出'}</Button>
-        </Space>}
-      />
+      <>
+        <Alert
+          className="case-workbench-page__toolbar"
+          type="success"
+          showIcon
+          message={status === 'exported' ? '已导出' : '归档完成'}
+          description={status === 'exported'
+            ? '统一导出已完成，可再次导出获取最新 Word、RAR 与校验 HTML。'
+            : exportPath ? `导出目录：${exportPath}` : '全部 RAR、MD5 与盘号已对应完成，请开始导出。'}
+          action={<Space>
+            <Button loading={archive.busy} onClick={() => { void pickExportPath() }}>选择导出目录</Button>
+            <Button type="primary" loading={archive.busy} onClick={() => { runExport() }}>{status === 'exported' ? '再次导出' : '开始导出'}</Button>
+          </Space>}
+        />
+        <WordDownloadNameDialog
+          open={nameDialogOpen}
+          documentNumber={defaultWordName}
+          exporting={archive.busy}
+          onCancel={() => setNameDialogOpen(false)}
+          onConfirm={downloadName => { void confirmExportName(downloadName) }}
+        />
+      </>
     )
   }
 

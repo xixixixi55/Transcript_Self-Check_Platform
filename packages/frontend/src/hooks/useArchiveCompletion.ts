@@ -6,7 +6,7 @@ import type { DiscMappingResult, ExportDirectoryResult, UnifiedExportResult } fr
 
 interface ArchiveCompletion {
   mapping: (caseId: string, expectedRevision: number, firstDiscNumber: string) => Promise<DiscMappingResult>
-  exportBundle: (caseId: string, expectedRevision: number, exportPath: string, directoryToken: string) => Promise<UnifiedExportResult>
+  exportBundle: (caseId: string, expectedRevision: number, exportPath: string, directoryToken: string, wordFilename: string) => Promise<UnifiedExportResult>
   chooseDirectory: () => Promise<ExportDirectoryResult>
   busy: boolean
   error: string | null
@@ -42,14 +42,18 @@ export function useArchiveCompletion(): ArchiveCompletion {
   }, [])
 
   const exportBundle = useCallback(async (
-    caseId: string, expectedRevision: number, exportPath: string, directoryToken: string,
+    caseId: string, expectedRevision: number, exportPath: string,
+    directoryToken: string, wordFilename: string,
   ) => {
     setBusy(true)
     setError(null)
     try {
       const response = await axios.post<{ data: UnifiedExportResult }>(
         API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId),
-        { expected_revision: expectedRevision, export_path: exportPath, directory_token: directoryToken },
+        {
+          expected_revision: expectedRevision, export_path: exportPath,
+          directory_token: directoryToken, word_filename: wordFilename,
+        },
         { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
       )
       return response.data.data

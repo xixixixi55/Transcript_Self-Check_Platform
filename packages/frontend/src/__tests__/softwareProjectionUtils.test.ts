@@ -34,4 +34,23 @@ describe('primary software projection', () => {
     expect(next.inspection.result.software_version).toBe('')
     expect(next.inspection.software_tools).toHaveLength(2)
   })
+
+  it('keeps HashMyFiles as a runtime tool alongside legacy Python hashlib', () => {
+    const hashReport: InspectionReport = {
+      ...report,
+      inspection: {
+        ...report.inspection,
+        software_tools: [
+          { name: 'WinRAR压缩管理软件', version: '6.24' },
+          { name: 'Python hashlib', version: '3.11.0' },
+          { name: 'HashMyFiles', version: '2.51' },
+        ],
+      },
+    }
+    const next = applyPrimarySoftwareEdit(hashReport, 'version', '')
+    const runtimeNames = next.inspection.software_tools.map(tool => tool.name)
+    expect(runtimeNames).toContain('HashMyFiles')
+    expect(runtimeNames).toContain('Python hashlib')
+    expect(runtimeNames).toContain('WinRAR压缩管理软件')
+  })
 })

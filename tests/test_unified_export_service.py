@@ -95,6 +95,34 @@ def test_unified_export_writes_bundle_and_audit(database, tmp_path, monkeypatch)
     assert (export_path / "hash.html").exists()
 
 
+def test_unified_export_forwards_user_word_filename(database, tmp_path, monkeypatch) -> None:
+    """REQ-009: the unified export uses the user-chosen Word file name."""
+    final_dir = tmp_path / "SYNTHETIC-FINAL-5"
+    final_dir.mkdir(parents=True)
+    for name in ("SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"):
+        (final_dir / name).write_bytes(b"SYNTHETIC/RAR")
+    captured: dict[str, object] = {}
+
+    def fake_docx(report, *, photo_paths, output_dir, archive_manifest,
+                  output_filename=None, **template_context):
+        captured["output_filename"] = output_filename
+        path = Path(output_dir) / (output_filename or "SYNTHETIC-CASE.docx")
+        path.write_bytes(b"SYNTHETIC/DOCX")
+        return str(path)
+
+    monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
+    export_path = tmp_path / "SYNTHETIC-EXPORT-TARGET-5"
+    result = unified_export(
+        report={"introduction": {"case_summary": "SYNTHETIC"}},
+        manifest=manifest(), final_dir=final_dir, export_path=export_path,
+        photo_paths=[], template_context={}, hash_runner=fake_hash,
+        word_filename="用户命名.docx",
+    )
+    assert captured["output_filename"] == "用户命名.docx"
+    assert result["word_filename"] == "用户命名.docx"
+    assert (export_path / "用户命名.docx").exists()
+
+
 def test_unified_export_requires_disc_mapping(database, tmp_path) -> None:
     final_dir = tmp_path / "SYNTHETIC-FINAL-2"
     final_dir.mkdir(parents=True)

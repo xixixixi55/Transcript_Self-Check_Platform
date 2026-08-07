@@ -225,7 +225,7 @@
 `imei1`、`imei2` 或 `serial_number`。`MaterialIdentifier` 保存通用标识值及
 `FieldProvenance`；`Material` 保存检材、标识和来源；`InspectorSnapshot` 保存
 按报告选择顺序排列的检查人员快照；`SoftwareCategory` 表示
-`main_forensic`、`winrar`、`python_hashlib` 或迁移期的 `unclassified`；
+`main_forensic`、`winrar`、`python_hashlib`、`hashmyfiles` 或迁移期的 `unclassified`；
 `ConfirmationStatus` 表示 `confirmed` 或 `unconfirmed`。
 
 `CanonicalCaseInfo`、`CanonicalInspectionPeriod`、`CanonicalInspectionResult`、

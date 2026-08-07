@@ -103,11 +103,11 @@ def test_software_tools_with_compress():
     names = [t["name"] for t in tools]
     assert "脱敏主取证软件" in names
     assert "WinRAR压缩管理软件" in names
-    assert "Python hashlib" in names
-    # Python hashlib 版本应为实际 Python 版本号（如 3.11.0）
-    hash_tool = next(t for t in tools if t["name"] == "Python hashlib")
-    import re
-    assert re.match(r"\d+\.\d+\.\d+", hash_tool["version"]), f"Expected semver, got: {hash_tool['version']}"
+    assert "HashMyFiles" in names
+    # MD5 校验由 HashMyFiles 执行，版本显示 2.51
+    hash_tool = next(t for t in tools if t["name"] == "HashMyFiles")
+    assert hash_tool["version"] == "2.51", f"Expected 2.51, got: {hash_tool['version']}"
+    assert hash_tool["display_name"] == "HashMyFiles 2.51"
 
 
 def test_software_tools_without_compress():
@@ -116,7 +116,7 @@ def test_software_tools_without_compress():
     names = [t["name"] for t in tools]
     assert "脱敏主取证软件" in names
     assert "WinRAR压缩管理软件" in names
-    assert "Python hashlib" in names
+    assert "HashMyFiles" in names
 
 
 def test_software_tools_rar_archive():
@@ -144,7 +144,7 @@ def test_software_tools_empty_version():
 
 def test_software_tools_never_use_historical_primary_name_fallback():
     tools = _build_software_tools("V3.2.12922", compress=False, is_rar_archive=False)
-    assert [tool["name"] for tool in tools] == ["WinRAR压缩管理软件", "Python hashlib"]
+    assert [tool["name"] for tool in tools] == ["WinRAR压缩管理软件", "HashMyFiles"]
 
 
 # ─── parse_report 集成测试（mock html_parser） ───
@@ -353,7 +353,7 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     assert evidence["serial_number"] == "SN-NEW"
     assert {tool["name"] for tool in report["inspection"]["software_tools"]} == {
         report["inspection"]["primary_software"]["name"],
-        "WinRAR压缩管理软件", "Python hashlib",
+        "WinRAR压缩管理软件", "HashMyFiles",
     }
 
 
@@ -363,7 +363,7 @@ def test_new_report_unknown_main_software_version_stays_blank(tmp_path):
     names = {tool["name"] for tool in report["inspection"]["software_tools"]}
     assert report["inspection"]["result"]["software_version"] == ""
     assert "美亚手机大师-并行版V5" not in names
-    assert names == {"WinRAR压缩管理软件", "Python hashlib"}
+    assert names == {"WinRAR压缩管理软件", "HashMyFiles"}
 
 
 def test_parser_cache_tracks_all_json_inputs_but_ignores_attachment_html(tmp_path):

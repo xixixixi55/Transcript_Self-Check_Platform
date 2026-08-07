@@ -192,7 +192,9 @@ def _extraction_method(report: Mapping[str, Any]) -> str:
         if isinstance(tool, Mapping) and _text(tool.get("name"))
     }
     winrar = next((key for key in runtime if key.casefold() in {"winrar", "winrar压缩管理软件"}), None)
-    hashlib_name = next((key for key in runtime if key.casefold() == "python hashlib"), None)
+    hashlib_name = next((
+        key for key in runtime if key.casefold() in {"python hashlib", "hashmyfiles"}
+    ), None)
     if not winrar or not hashlib_name:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "归档工具来源未确认。")
     hardware = _text(inspection.get("hardware_device")) or "取证设备"

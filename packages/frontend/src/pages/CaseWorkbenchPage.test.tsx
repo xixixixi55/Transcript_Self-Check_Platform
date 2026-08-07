@@ -61,7 +61,6 @@ describe('CaseWorkbenchPage', () => {
     await waitFor(() => expect(screen.getByText('SYNTHETIC/TEST failure')).toBeTruthy())
     expect(document.querySelector('.case-workbench-page__toolbar button')).toBeTruthy()
   })
-
   it('shows a submission response as an immediate case card through the native directory picker endpoint', async () => {
     listItems = Array.from({ length: 5 }, (_, i) => shell(i + 1))
     const submitted = { ...shell(99), case_name: 'SYNTHETIC-NEW-CASE' }
@@ -241,9 +240,10 @@ it('exports a completed archive bundle directly from the card', async () => {
   const exportButton = await screen.findByRole('button', { name: '统一导出' })
   expect(screen.queryByRole('button', { name: '查看结果' })).toBeNull()
   fireEvent.click(exportButton)
-  await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+  const nameInput = (await screen.findByRole('textbox', { name: 'Word 下载文件名' })) as HTMLInputElement
+  expect(nameInput.value).toBe('SYNTHETIC-CASE-1.docx')
+  fireEvent.change(nameInput, { target: { value: '自定义案件.docx' } }); fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
+  await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic', word_filename: '自定义案件.docx' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
   expect(await screen.findByText(/已导出至：D:\SYNTHETIC\EXPORT/)).toBeTruthy()
 })
 })
-
-

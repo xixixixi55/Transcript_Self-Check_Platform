@@ -26,7 +26,7 @@ def _api(consume_ok: bool) -> MagicMock:
         "public_manifest": {"parts": [{"filename": "case.part1.rar", "disc_number": "GP20260730-01"}]},
         "final_dir": "D:\\synthetic\\final",
     }
-    api.drafts.get.return_value = {"report_json": '{"attachments":{"disc_number":"GP20260730-01"}}'}
+    api.drafts.get.return_value = {"report": {"attachments": {"disc_number": "GP20260730-01"}}}
     api.plans.get_latest_for_case.return_value = {
         "volume_slots": [{"status": "active", "disc_mapping": {"disc_number": "GP20260730-01"}}],
     }
@@ -57,13 +57,14 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
 
     with patch("app.services.archive_export_service.unified_export") as unified:
         unified.return_value = {
-            "export_path": str(export_dir), "word_filename": "out.docx",
+            "export_path": str(export_dir), "word_filename": "用户命名.docx",
             "rar_filenames": ["case.part1.rar"],
             "hash_verification_html": "hash.html", "exported_at": "2026-01-01T00:00:00Z",
         }
         result = export_bundle(
             api, "case-synthetic", 3, str(export_dir),
-            directory_token="token-synthetic", template_context={},
+            directory_token="token-synthetic", word_filename="用户命名.docx",
+            template_context={},
         )
 
     assert result["lifecycle"] == "exported"
@@ -73,6 +74,7 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
     api.shells.update_lifecycle.assert_called_once_with(
         "case-synthetic", "exported", 3,
     )
+    assert unified.call_args.kwargs["word_filename"] == "用户命名.docx"
 
 
 def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> None:

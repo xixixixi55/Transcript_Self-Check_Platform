@@ -12,6 +12,7 @@ export type SoftwareCategory =
   | 'main_forensic'
   | 'winrar'
   | 'python_hashlib'
+  | 'hashmyfiles'
   | 'unclassified'
 
 export type ConfirmationStatus = 'confirmed_by_report' | 'confirmed_by_user' | 'unconfirmed' | 'confirmed'

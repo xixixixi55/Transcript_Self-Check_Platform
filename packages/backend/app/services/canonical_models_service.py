@@ -14,7 +14,7 @@ MaterialClassificationStatus = Literal[
 MaterialClassificationSource = Literal["report", "user", "none"]
 IdentifierType = Literal["imei1", "imei2", "serial_number"]
 SoftwareCategory = Literal[
-    "main_forensic", "winrar", "python_hashlib", "unclassified"
+    "main_forensic", "winrar", "python_hashlib", "hashmyfiles", "unclassified"
 ]
 ConfirmationStatus = Literal[
     "confirmed_by_report", "confirmed_by_user", "unconfirmed", "confirmed"

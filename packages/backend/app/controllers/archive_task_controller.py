@@ -51,6 +51,7 @@ class UnifiedExportRequest(BaseModel):
     expected_revision: int = Field(ge=0)
     export_path: str
     directory_token: str
+    word_filename: str = Field(min_length=1)
 
 
 def _archive_api() -> Any:
@@ -181,10 +182,17 @@ async def map_disc_numbers_endpoint(case_id: str, body: FirstDiscMappingRequest)
 async def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
     """Export latest Word + all RAR parts + HashMyFiles HTML to a picker-authorized path."""
     try:
-        template_context = resolve_case_template_context(case_id, body.expected_revision)
+        # The unified export is guarded on the case shell revision inside
+        # export_bundle; the template context is resolved fresh so the client
+        # shell revision must not be compared against the independent draft
+        # revision (they legitimately diverge across lifecycle transitions).
+        template_context = resolve_case_template_context(
+            case_id, body.expected_revision, require_current_revision=False,
+        )
         return _envelope(_archive_api().export_bundle(
             case_id, body.expected_revision, body.export_path,
             directory_token=body.directory_token,
+            word_filename=body.word_filename,
             template_context=template_context,
         ))
     except Exception as error:

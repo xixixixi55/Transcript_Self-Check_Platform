@@ -606,13 +606,14 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 ### Requirement: REQ-016: 按实际操作生成 software_tools
 
 系统 MUST 满足以下现有合同：
-系统 MUST 根据报告来源和实际运行环境生成 `software_tools`。主软件名称和版本均为可靠候选时，列表包含主软件、WinRAR 和 Python hashlib；主软件名称或版本不完整时，不加入主软件工具，只保留 WinRAR 和 Python hashlib。主软件确认状态由 `inspection.primary_software` 和统一导出门控管理，不写死具体厂商或产品名称。
+系统 MUST 根据报告来源和实际运行环境生成 `software_tools`。主软件名称和版本均为可靠候选时，列表包含主软件、WinRAR 和 HashMyFiles；主软件名称或版本不完整时，不加入主软件工具，只保留 WinRAR 和 HashMyFiles。主软件确认状态由 `inspection.primary_software` 和统一导出门控管理，不写死具体厂商或产品名称。
+MD5 校验由 HashMyFiles.exe 执行，新解析案件的运行时工具条目显示 HashMyFiles；存量案件仍持久化旧值 Python hashlib，识别逻辑同时兼容两者（`python hashlib`/`python_hashlib` 与 `hashmyfiles`）。
 
 | 条件 | 名称 | 版本来源 |
 |:---:|------|---------|
 | 主软件名称和版本均为可靠候选 | 报告提供的主取证软件 | 报告来源字段及 provenance |
 | 始终 | WinRAR压缩管理软件 | `detect_winrar_version()`；未检测到时版本为空并标记未确认 |
-| 始终 | Python hashlib | `sys.version_info`（如 "3.11.0"） |
+| 始终（新解析案件） | HashMyFiles | 固定 `2.51`（HashMyFiles.exe 实际使用版本） |
 
 #### Scenario: WinRAR 始终显示
 - WHEN 生成 software_tools
@@ -620,14 +621,15 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 版本号为实际检测值；未检测到时不伪造默认版本
 - AND 用户可在预览中修改版本号
 
-#### Scenario: Python hashlib 显示实际 Python 版本
+#### Scenario: HashMyFiles 显示实际校验工具版本
 - WHEN 生成 software_tools
-- THEN 包含"Python hashlib"，版本号为当前运行 Python 解释器的实际版本（如 "3.11.0"）
+- THEN 包含"HashMyFiles"，版本号为 `2.51`（MD5 校验由 HashMyFiles.exe 执行）
+- AND 存量案件报告仍保留 "Python hashlib"，不影响后续识别与导出
 
 #### Scenario: 主软件候选不完整时不加入主软件工具
 - WHEN 主软件名称或版本缺失，或尚未形成可靠候选
 - THEN `software_tools` 不加入主软件工具
-- AND 仍包含 WinRAR 和 Python hashlib
+- AND 仍包含 WinRAR 和 HashMyFiles
 - AND `inspection.primary_software` 保留确认状态，由导出门控决定是否允许正式导出
 
 ---
@@ -1181,7 +1183,7 @@ Shutdown and recovery MUST use bounded compare-and-set ownership checks for task
 - **MUST**: 基于 AGENTS.md 治理规则，Level 1 小修改无需 OpenSpec change；架构或公共合同变更仍需完整流程
 - **MUST**: `rar_info` 是 ParseReportResponse 的旧兼容字段（`RarInfo | null`）；其 null/空值/零值不由 deprecated `compress` 参数可靠决定，也不代表最终归档状态
 - **MUST**: 解压操作仅存在于 BE_Repository 层（`file_storage.py`）
-- **MUST**: 软件工具列表由报告来源与运行环境共同生成；WinRAR 和 Python hashlib 始终显示，WinRAR 未检测到时不伪造默认版本，主软件候选不完整时保持未确认
+- **MUST**: 软件工具列表由报告来源与运行环境共同生成；新解析案件 WinRAR 和 HashMyFiles 始终显示（存量案件保留 Python hashlib），WinRAR 未检测到时不伪造默认版本，主软件候选不完整时保持未确认
 - **MUST**: 主软件只从 `data_report_info.json.contents[].value` 的明确主产品句式绑定名称和紧随其后的版本；括号可属于主名称，后续“子模块/插件/组件”的名称和版本不得覆盖主字段
 - **MUST**: `entrust_time`（委托时间）使用中文格式（如 `2026年6月30日`），由 `format_time_chinese()` 转换
 - **MUST**: legacy `InspectionResult.file_size` 在文件夹解析中只保留空值/零值兼容语义；压缩包直传的实际大小位于 `rar_info.size_bytes`，最终归档大小只以已验证 `ArchiveManifest.parts[].size_bytes` 为准

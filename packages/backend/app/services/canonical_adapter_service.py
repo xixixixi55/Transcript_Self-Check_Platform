@@ -79,7 +79,7 @@ def _software_tools(case: CanonicalInspectionCase) -> list[dict[str, str]]:
     tools.extend(
         {"name": tool.name, "version": tool.version}
         for tool in case.software_tools
-        if tool.category in {"winrar", "python_hashlib"}
+        if tool.category in {"winrar", "python_hashlib", "hashmyfiles"}
     )
     return tools
 

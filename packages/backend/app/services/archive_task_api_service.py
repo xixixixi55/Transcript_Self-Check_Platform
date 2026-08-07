@@ -201,6 +201,7 @@ class ArchiveTaskApiService:
         export_path: str,
         *,
         directory_token: str,
+        word_filename: str | None = None,
         template_context: dict[str, object],
     ) -> dict[str, Any]:
         from .archive_export_service import export_bundle as _export_bundle
@@ -208,6 +209,7 @@ class ArchiveTaskApiService:
         return _export_bundle(
             self, case_id, expected_revision, export_path,
             directory_token=directory_token,
+            word_filename=word_filename,
             template_context=template_context,
         )
 

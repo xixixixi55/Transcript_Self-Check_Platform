@@ -122,6 +122,26 @@ def test_incomplete_primary_software_does_not_project_a_fake_tool():
     assert not is_primary_software_confirmed(normalized)
 
 
+def test_hashmyfiles_runtime_tool_is_preserved_by_projection():
+    report = {
+        "inspection": {
+            "primary_software": {
+                "name": "", "version": "V2.0.0",
+                "confirmation_status": "unconfirmed", "provenance": [],
+            },
+            "software_tools": [
+                {"name": "WinRAR压缩管理软件", "version": "6.24"},
+                {"name": "HashMyFiles", "version": "2.51"},
+            ],
+            "result": {"software_name": "", "software_version": "V2.0.0"},
+        }
+    }
+    normalized = normalize_primary_software_projection(report)
+    assert [tool["name"] for tool in normalized["inspection"]["software_tools"]] == [
+        "WinRAR压缩管理软件", "HashMyFiles",
+    ]
+
+
 def test_unconfirmed_primary_software_is_an_export_blocker():
     result = evaluate_export_gate(
         ExportGateInput(primary_software_confirmed=False),
