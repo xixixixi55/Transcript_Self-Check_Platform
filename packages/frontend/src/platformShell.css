@@ -400,8 +400,32 @@ body {
   overflow: hidden;
 }
 
+.case-workbench-card__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.case-workbench-card__index {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--review-primary);
+  background: #eaf3ff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .case-workbench-card__title {
   display: block;
+  min-width: 0;
+  flex: 1;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;

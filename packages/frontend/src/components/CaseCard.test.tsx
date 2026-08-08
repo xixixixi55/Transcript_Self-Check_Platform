@@ -50,6 +50,7 @@ function renderCard(archiveSummary?: ArchiveTaskCardSummary) {
   render(
     <MemoryRouter>
       <CaseCard
+        position={3}
         shell={shell}
         archiveSummary={archiveSummary}
         onRetry={vi.fn()}
@@ -86,6 +87,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
 
   it('shows an unarchived card without empty progress or activity metrics', () => {
     renderCard()
+    expect(screen.getByLabelText('案件序号 3')).toBeTruthy()
     expect(screen.getByText('未归档')).toBeTruthy()
     expect(screen.getByRole('button', { name: '归档前检查' })).toBeTruthy()
     expect(screen.queryByRole('progressbar')).toBeNull()

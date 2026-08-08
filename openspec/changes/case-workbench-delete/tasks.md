@@ -67,3 +67,26 @@ workflow_level: 2
 - [x] T010 完成需求修订后的规格同步和 Level 2 门控。
   - 内容：同步 delta spec、living spec 和 data-model，运行架构、类型、前后端测试、资产和严格文档检查。
   - 验证：`npm run verify:quick`、受影响测试、`npx tsx scripts/check-docs.ts --strict --change case-workbench-delete`、`git diff --check`。
+
+- [x] T011 将标准删除入口移出更多操作菜单。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/components/CaseCardDelete.test.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx`
+  - 内容：卡片直接展示“删除”按钮；“更多操作”不再提供标准或“彻底删除”入口，删除确认和服务端请求流程保持不变。
+  - 验证：组件测试覆盖直接点击删除回调且菜单不再包含标准删除项；页面测试覆盖取消确认和确认删除回归。
+
+- [x] T012 运行需求修订后的前端验证和 Level 2 门控。
+  - 内容：核对独立删除入口与 delta spec 一致，运行受影响前端测试、架构、类型、资产和严格文档检查。
+  - 验证：`npm run verify:quick`、受影响 Vitest、`npx tsx scripts/check-docs.ts --strict --change case-workbench-delete`、`git diff --check`。
+
+- [x] T013 统一所有案件状态的删除入口和交互语义。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/components/CaseCardCompletion.test.tsx`
+  - 内容：移除已导出案件独立的“彻底删除”菜单项；所有案件状态只使用卡片上的“删除”按钮，并复用同一确认弹窗和 DELETE API。
+  - 验证：导出完成卡片测试覆盖统一“删除”回调，更多操作菜单不出现“彻底删除”。
+
+- [x] T014 清理案件关联的短路径归档快照及其辅助文件。
+  - 文件：`packages/backend/app/services/case_artifact_deletion_service.py`、`tests/test_case_artifact_deletion_service.py`
+  - 内容：按数据库中案件绑定的快照定位清理 `.inputs`、`.i`、`.t` 受控目录中的最终快照、`.copying` 临时目录和 owner marker；不删除其他案件快照或共享根目录，并继续拒绝越界定位。
+  - 验证：后端定向测试覆盖标准相对 locator、`.i` locator、marker/临时目录清理和来源目录保留。
+
+- [x] T015 完成统一删除需求的实现核对和 Level 2 门控。
+  - 内容：核对统一入口与短路径快照清理的 delta spec、living spec 和实现一致。
+  - 验证：`npm run verify:quick`、受影响前后端测试、`npm run verify:docs:strict -- --change case-workbench-delete`、`git diff --check`。

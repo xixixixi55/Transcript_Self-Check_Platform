@@ -16,6 +16,7 @@ function displayDate(value: string) {
 }
 interface Props {
   shell: CaseShell
+  position?: number
   task?: TaskRecord
   sourceRequiresReselection?: boolean
   onRetry: () => void
@@ -26,7 +27,6 @@ interface Props {
   onArchivePrecheck?: () => void
   actionBusy?: boolean
   completionStatus?: ArchiveCompletionStatus
-  onThoroughDelete?: () => void
   onExport?: () => void
   exporting?: boolean
 }
@@ -58,9 +58,9 @@ function archiveActionLabel(action: ArchiveTaskAction, summary: ArchiveTaskCardS
 }
 
 export function CaseCard({
-  shell, task, archiveSummary, sourceRequiresReselection, onRetry, onCancel,
+  shell, position, task, archiveSummary, sourceRequiresReselection, onRetry, onCancel,
   onDelete, onArchiveAction, onArchivePrecheck, actionBusy = false,
-  completionStatus, onThoroughDelete, onExport, exporting = false,
+  completionStatus, onExport, exporting = false,
 }: Props) {
   const reviewable = shell.report_available && shell.lifecycle !== 'parse_failed_retryable'
   const canRetry = task?.status === 'failed_retryable' || task?.status === 'interrupted'
@@ -75,15 +75,16 @@ export function CaseCard({
       label: archiveSummary ? archiveActionLabel(action, archiveSummary) : ACTION_LABELS[action],
       onClick: () => onArchiveAction?.(action),
     })),
-    { key: 'delete', label: '删除', onClick: onDelete },
-    ...(completionStatus === 'exported' && onThoroughDelete
-      ? [{ key: 'thorough-delete', label: '彻底删除', danger: true, onClick: onThoroughDelete }]
-      : []),
   ]
   return (
     <Card
       className="case-workbench-card"
-      title={<span className="case-workbench-card__title" title={shell.case_number || shell.case_name}>{shell.case_number || shell.case_name}</span>}
+      title={(
+        <div className="case-workbench-card__title-row">
+          {position !== undefined && <span className="case-workbench-card__index" aria-label={`案件序号 ${position}`}>{position}</span>}
+          <span className="case-workbench-card__title" title={shell.case_number || shell.case_name}>{shell.case_number || shell.case_name}</span>
+        </div>
+      )}
       extra={<CaseStatusBadge lifecycle={shell.lifecycle} task={task} />}
     >
       <div className="case-workbench-card__summary">{shell.case_summary || '暂无案件摘要'}</div>
@@ -113,6 +114,7 @@ export function CaseCard({
             loading={actionBusy}
           >{archiveSummary ? archiveActionLabel(archiveAction, archiveSummary) : ACTION_LABELS[archiveAction]}</Button>
         )}
+        <Button danger onClick={onDelete} disabled={actionBusy}>删除</Button>
         <Dropdown menu={{ items: menuItems }} trigger={['click']}>
           <Button aria-label="更多操作" icon={<MoreOutlined />} disabled={actionBusy} />
         </Dropdown>

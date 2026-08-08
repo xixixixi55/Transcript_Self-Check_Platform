@@ -186,17 +186,22 @@ def test_explicit_delete_removes_incomplete_archive_records_with_context_binding
     now = "2026-08-05T00:00:00Z"
     staging_dir = output_root / "compressed" / ".staging" / attempt_id
     snapshot_dir = output_root / "compressed" / ".inputs" / attempt_id
+    snapshot_copying_dir = snapshot_dir.parent / f".{snapshot_dir.name}.copying"
+    snapshot_marker = snapshot_dir.parent / f".{snapshot_dir.name}.owner.json"
     staging_dir.mkdir(parents=True)
     snapshot_dir.mkdir(parents=True)
+    snapshot_copying_dir.mkdir(parents=True)
     (staging_dir / "SYNTHETIC-partial.rar").write_bytes(b"SYNTHETIC")
     (snapshot_dir / "SYNTHETIC-input.json").write_text("SYNTHETIC", encoding="utf-8")
+    (snapshot_copying_dir / "SYNTHETIC-partial.json").write_text("SYNTHETIC", encoding="utf-8")
+    snapshot_marker.write_text("SYNTHETIC", encoding="utf-8")
     with database.transaction() as connection:
         connection.execute(
             "INSERT INTO archive_attempts(attempt_id,schema_version,case_id,task_id,deployment_instance_id,source_id,"
             "input_revision,status,cleanup_status,staging_locator,input_snapshot_locator,created_at,revision) "
             "VALUES (?,?,?,?,?,?,?,'interrupted','pending',?,?,?,0)",
             (attempt_id, 1, identifiers["case_id"], identifiers["task_id"], database.deployment_instance_id,
-             identifiers["source_id"], 0, str(staging_dir), str(snapshot_dir), now),
+             identifiers["source_id"], 0, str(staging_dir), f".inputs/{attempt_id}", now),
         )
         connection.execute(
             "INSERT INTO archive_context_bindings(context_hash,attempt_id,case_id,source_id,source_revision,"
@@ -214,4 +219,46 @@ def test_explicit_delete_removes_incomplete_archive_records_with_context_binding
     }
     assert not staging_dir.exists()
     assert not snapshot_dir.exists()
+    assert not snapshot_copying_dir.exists()
+    assert not snapshot_marker.exists()
+    assert source_dir.exists()
+
+
+def test_explicit_delete_removes_short_snapshot_and_owner_artifacts(
+    tmp_path: Path,
+) -> None:
+    database = WorkbenchDatabase(
+        database_path_for_deployment(tmp_path, "SYNTHETIC-DEPLOYMENT"), "SYNTHETIC-DEPLOYMENT",
+    )
+    identifiers, source_dir = _case(database, tmp_path)
+    output_root = tmp_path / "SYNTHETIC-OUTPUT"
+    snapshot_name = "sSYNTHETIC-SHORT"
+    snapshot_root = output_root / ".i"
+    snapshot_dir = snapshot_root / snapshot_name
+    snapshot_copying_dir = snapshot_root / f".{snapshot_name}.copying"
+    snapshot_marker = snapshot_root / f".{snapshot_name}.owner.json"
+    snapshot_dir.mkdir(parents=True)
+    snapshot_copying_dir.mkdir(parents=True)
+    (snapshot_dir / "SYNTHETIC-input.json").write_text("SYNTHETIC", encoding="utf-8")
+    (snapshot_copying_dir / "SYNTHETIC-partial.json").write_text("SYNTHETIC", encoding="utf-8")
+    snapshot_marker.write_text("SYNTHETIC", encoding="utf-8")
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO archive_attempts(attempt_id,schema_version,case_id,task_id,deployment_instance_id,source_id,"
+            "input_revision,status,cleanup_status,input_snapshot_locator,created_at,revision) "
+            "VALUES (?,?,?,?,?,?,?,'interrupted','pending',?,?,0)",
+            ("attempt-SYNTHETIC-SHORT-DELETE", 1, identifiers["case_id"], identifiers["task_id"],
+             database.deployment_instance_id, identifiers["source_id"], 0, f".i/{snapshot_name}",
+             "2026-08-05T00:00:00Z"),
+        )
+
+    lifecycle = CaseLifecycleService(
+        database, artifact_deletion_service=CaseArtifactDeletionService(database, output_root),
+    )
+    assert lifecycle.delete_case(identifiers["case_id"]) == {
+        "case_id": identifiers["case_id"], "deleted": True,
+    }
+    assert not snapshot_dir.exists()
+    assert not snapshot_copying_dir.exists()
+    assert not snapshot_marker.exists()
     assert source_dir.exists()

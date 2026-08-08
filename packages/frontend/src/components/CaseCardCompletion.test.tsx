@@ -35,8 +35,8 @@ beforeAll(() => {
 })
 
 describe('CaseCard archive completion states', () => {
-  it('shows the exported completion badge with a thorough-delete action', () => {
-    const onThoroughDelete = vi.fn()
+  it('shows the exported completion badge with the unified delete action', () => {
+    const onDelete = vi.fn()
     render(
       <MemoryRouter>
         <CaseCard
@@ -44,18 +44,18 @@ describe('CaseCard archive completion states', () => {
           completionStatus="exported"
           onRetry={vi.fn()}
           onCancel={vi.fn()}
-          onDelete={vi.fn()}
-          onThoroughDelete={onThoroughDelete}
+          onDelete={onDelete}
         />
       </MemoryRouter>,
     )
     expect(screen.getByText(/归档状态：已导出/)).toBeTruthy()
     fireEvent.click(screen.getByLabelText('更多操作'))
-    fireEvent.click(screen.getByText('彻底删除'))
-    expect(onThoroughDelete).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('彻底删除')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /^删\s*除$/ }))
+    expect(onDelete).toHaveBeenCalledTimes(1)
   })
 
-  it('shows disc-pending and archive-complete badges without thorough delete', () => {
+  it('shows disc-pending and archive-complete badges without an extra delete menu', () => {
     const { unmount } = render(
       <MemoryRouter>
         <CaseCard

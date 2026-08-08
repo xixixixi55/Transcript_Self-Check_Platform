@@ -42,6 +42,9 @@ describe('CaseWorkbenchPage', () => {
     expect(screen.queryByRole('textbox', { name: '案件名称' })).toBeNull()
     expect(screen.queryByRole('textbox', { name: '案件编号' })).toBeNull()
     expect(screen.queryByRole('button', { name: '上传报告目录' })).toBeNull()
+    expect(screen.getAllByLabelText(/案件序号/)).toHaveLength(6)
+    expect(screen.getByLabelText('案件序号 1')).toBeTruthy()
+    expect(screen.getByLabelText('案件序号 6')).toBeTruthy()
     expect(screen.getByTitle('2')).toBeTruthy()
     expect(screen.getByRole('button', { name: '来源目录校验' }).getAttribute('aria-pressed')).toBe('false')
     expect(screen.getAllByRole('button', { name: '更多操作' })).toHaveLength(6)
@@ -188,8 +191,7 @@ describe('CaseWorkbenchPage', () => {
   it('cancels the deletion confirmation without calling the delete API', async () => {
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-    fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
-    fireEvent.click(screen.getAllByRole('menuitem', { name: '删除' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^删\s*除$/ })[0])
     expect(screen.getByText('确认删除吗？')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /^取\s*消$/ }))
     expect(deleteMock).not.toHaveBeenCalled()
@@ -203,8 +205,7 @@ describe('CaseWorkbenchPage', () => {
     })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-    fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
-    fireEvent.click(screen.getAllByRole('menuitem', { name: '删除' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^删\s*除$/ })[0])
     fireEvent.click(screen.getByRole('button', { name: /确\s*认/ }))
 
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(
@@ -226,6 +227,7 @@ describe('CaseWorkbenchPage', () => {
     listItems = [shell(1)]
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(1))
+    expect(screen.getByLabelText('案件序号 1')).toBeTruthy()
     expect(document.querySelector('.case-workbench-grid')?.contains(screen.getByRole('button', { name: '上传报告目录' }))).toBe(true)
   })
 it('exports a completed archive bundle directly from the card', async () => {

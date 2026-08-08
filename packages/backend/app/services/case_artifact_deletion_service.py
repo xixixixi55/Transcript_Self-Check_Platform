@@ -13,6 +13,8 @@ from ..repository.archive_manifest_repository import ArchiveManifestRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.workbench_serialization import validate_opaque_id
+from .archive_input_snapshot_files_service import marker_path
+from .archive_input_snapshot_layout_service import private_snapshot_root
 
 _INDEX_NAMES = {".archive-manifest-index.json", ".archive-manifest-index.lock"}
 
@@ -35,6 +37,8 @@ class CaseArtifactDeletionService:
         self.compressed_root = (self.output_root / "compressed").resolve(strict=False)
         self.staging_root = (self.compressed_root / ".staging").resolve(strict=False)
         self.snapshot_root = (self.compressed_root / ".inputs").resolve(strict=False)
+        self.short_snapshot_root = (self.output_root / ".i").resolve(strict=False)
+        self.external_snapshot_root = private_snapshot_root().resolve(strict=False)
         self.exports_root = (self.output_root / "exports").resolve(strict=False)
         self.assets_root = (database.database_path.parent / "assets").resolve(strict=False)
 
@@ -51,6 +55,39 @@ class CaseArtifactDeletionService:
                 "WHERE case_id=? AND deployment_instance_id=?",
                 (case_id, self.database.deployment_instance_id),
             ).fetchall()
+            snapshots = connection.execute(
+                "SELECT snapshot_locator FROM archive_input_snapshots "
+                "WHERE case_id=? AND deployment_instance_id=?",
+                (case_id, self.database.deployment_instance_id),
+            ).fetchall()
+            snapshot_locators = {
+                str(row["input_snapshot_locator"])
+                for row in attempts
+                if row["input_snapshot_locator"]
+            } | {
+                str(row["snapshot_locator"])
+                for row in snapshots
+                if row["snapshot_locator"]
+            }
+            shared_snapshot_locators: set[str] = set()
+            if snapshot_locators:
+                placeholders = ",".join("?" for _ in snapshot_locators)
+                shared_snapshot_locators.update(
+                    str(row[0]) for row in connection.execute(
+                        "SELECT DISTINCT input_snapshot_locator FROM archive_attempts "
+                        "WHERE case_id<>? AND deployment_instance_id=? AND input_snapshot_locator IN ("
+                        + placeholders + ")",
+                        (case_id, self.database.deployment_instance_id, *snapshot_locators),
+                    ).fetchall() if row[0]
+                )
+                shared_snapshot_locators.update(
+                    str(row[0]) for row in connection.execute(
+                        "SELECT DISTINCT snapshot_locator FROM archive_input_snapshots "
+                        "WHERE case_id<>? AND deployment_instance_id=? AND snapshot_locator IN ("
+                        + placeholders + ")",
+                        (case_id, self.database.deployment_instance_id, *snapshot_locators),
+                    ).fetchall() if row[0]
+                )
             intents = connection.execute(
                 "SELECT attempt_id,relative_final_dir,publication_relative_dir FROM archive_publish_intents "
                 "WHERE case_id=? AND deployment_instance_id=?",
@@ -108,8 +145,13 @@ class CaseArtifactDeletionService:
             for row in attempts if row["staging_locator"]
         )
         paths.extend(
-            self._controlled_path(self.snapshot_root, row["input_snapshot_locator"])
-            for row in attempts if row["input_snapshot_locator"]
+            path
+            for locator in (
+                [row["input_snapshot_locator"] for row in attempts if row["input_snapshot_locator"]]
+                + [row["snapshot_locator"] for row in snapshots if row["snapshot_locator"]]
+            )
+            if locator not in shared_snapshot_locators
+            for path in self._snapshot_paths(locator)
         )
         paths.extend(
             self._controlled_path(self.output_root, row["internal_locator"])
@@ -176,6 +218,32 @@ class CaseArtifactDeletionService:
         if not relative.parts or (reject_names and any(part in reject_names for part in relative.parts)):
             raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
         return candidate.absolute() if candidate.is_symlink() else resolved
+
+    def _snapshot_paths(self, locator: Any) -> tuple[Path, ...]:
+        snapshot = self._snapshot_path(locator)
+        temporary = snapshot.parent / f".{snapshot.name}.copying"
+        return snapshot, temporary, marker_path(snapshot)
+
+    def _snapshot_path(self, locator: Any) -> Path:
+        if not isinstance(locator, str) or not locator.strip():
+            raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
+        normalized = locator.replace("\\", "/")
+        roots = (
+            (".inputs/", self.snapshot_root),
+            (".i/", self.short_snapshot_root),
+            (".t/", self.external_snapshot_root),
+        )
+        if not Path(locator).is_absolute():
+            for prefix, root in roots:
+                if normalized.startswith(prefix):
+                    return self._controlled_path(root, normalized.removeprefix(prefix))
+            raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
+        for root in (self.snapshot_root, self.short_snapshot_root, self.external_snapshot_root):
+            try:
+                return self._controlled_path(root, locator)
+            except WorkbenchPersistenceError:
+                continue
+        raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
 
 
 def _unique_paths(paths: list[Path]) -> tuple[Path, ...]:

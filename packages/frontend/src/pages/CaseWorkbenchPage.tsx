@@ -186,9 +186,10 @@ export default function CaseWorkbenchPage() {
       {taskError && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={taskError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
       {workbench.pageLoading && !workbench.page.items.length ? <Spin size="large" style={{ display: 'block', margin: '80px auto' }} /> : (
         <Row gutter={[16, 16]} className="case-workbench-grid">
-          {workbench.page.items.map(shell => <Col key={shell.case_id} xs={24} md={12} lg={8}>
+          {workbench.page.items.map((shell, index) => <Col key={shell.case_id} xs={24} md={12} lg={8}>
             <CaseCard
               shell={shell}
+              position={index + 1}
               task={tasks[shell.parse_task_id]}
               archiveSummary={archiveSummariesByCase[shell.case_id]}
               onRetry={() => { void retry(shell.case_id) }}
@@ -201,7 +202,6 @@ export default function CaseWorkbenchPage() {
               onArchivePrecheck={() => message.info('请打开案件完成审核，并明确选择立即归档或稍后归档。')}
               actionBusy={actionCaseId === shell.case_id}
               completionStatus={completionStatusFor(shell, completionResults[shell.case_id])}
-              onThoroughDelete={() => setDeleteCaseId(shell.case_id)}
               onExport={() => { void exportCase(shell) }}
               exporting={actionCaseId === shell.case_id}
             />

@@ -19,9 +19,16 @@ workflow_level: 2
   - 内容：删除 `caseName`/`caseNumber` 状态和两个输入框；`submit` 改为无参登记；上传卡片渲染到网格 `Row` 末尾，仅当 `items.length < CASE_PAGE_SIZE` 时显示；空态移除 `Empty` 组件，直接渲染仅含上传卡片的网格；工具条只保留刷新按钮。
   - 验证：页面测试覆盖满页隐藏、空态仅上传卡片、输入框移除、删除到空后上传卡片恢复。
 
+## Frontend Components / Pages（Layer 11–12）
+
+- [x] T003 为案件卡片增加当前页序号。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/platformShell.css`、对应前端测试文件
+  - 内容：案件卡片按当前页渲染 1–6 的可见序号；上传报告目录卡片不参与编号。
+  - 验证：页面测试覆盖满页 1–6 序号和非满页连续编号，组件定向测试覆盖序号展示。
+
 ## 综合验证
 
-- [x] T003 运行受影响测试和 Level 2 门控。
+- [x] T004 运行受影响测试和 Level 2 门控。
   - 文件：`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx`、`packages/frontend/src/components/CaseWorkbenchDirectoryPickerCard.test.tsx`
   - 内容：核对 delta 与最终行为，运行架构、类型、前端测试和文档检查。
   - 验证：`npm run verify:quick`、受影响前端测试、`npx tsx scripts/check-docs.ts --strict --change case-workbench-upload-box-grid`、`git diff --check`。
