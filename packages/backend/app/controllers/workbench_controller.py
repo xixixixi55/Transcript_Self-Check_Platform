@@ -92,7 +92,7 @@ def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
     try:
         if services.directory_picker is None:
             raise WorkbenchPersistenceError("DIRECTORY_PICKER_UNAVAILABLE")
-        selected_path = services.directory_picker.select()
+        selected_path = services.directory_picker.select(history_kind="report")
         if selected_path is None:
             return _envelope({"cancelled": True})
         return _envelope(submit_case(
@@ -117,7 +117,10 @@ def select_export_directory_endpoint():
     try:
         if services.directory_picker is None:
             raise WorkbenchPersistenceError("DIRECTORY_PICKER_UNAVAILABLE")
-        selected_path = services.directory_picker.select(description="选择导出目录")
+        selected_path = services.directory_picker.select(
+            description="选择导出目录",
+            history_kind="export",
+        )
         if selected_path is None:
             return _envelope({"cancelled": True})
         token = services.sources.authorization.issue_exact_directory_grant(selected_path)

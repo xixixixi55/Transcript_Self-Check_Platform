@@ -175,7 +175,7 @@ def test_select_directory_endpoint_submits_selected_directory_without_exposing_p
         assert data["shell"]["case_name"] == "SYNTHETIC-PICKED-CASE"
         assert data["source"]["source_type"] == "report_directory"
         assert str(app_services.synthetic_report_dir) not in response.text
-        picker.select.assert_called_once_with()
+        picker.select.assert_called_once_with(history_kind="report")
         _wait_for_parse(client, data["shell"]["case_id"])
 
 
@@ -192,7 +192,7 @@ def test_select_directory_endpoint_cancel_does_not_create_case(app_services):
         assert response.status_code == 200, response.text
         assert response.json()["data"] == {"cancelled": True}
         assert client.get("/api/v1/workbench/cases").json()["data"]["items"] == []
-        picker.select.assert_called_once_with()
+        picker.select.assert_called_once_with(history_kind="report")
 
 
 def test_delete_case_endpoint_removes_case_from_workbench(app_services):
@@ -1475,7 +1475,10 @@ def test_select_export_directory_endpoint_returns_chosen_path(app_services):
     data = response.json()["data"]
     assert data["path"] == str(app_services.synthetic_report_dir)
     assert isinstance(data["token"], str) and data["token"]
-    picker.select.assert_called_once_with(description="选择导出目录")
+    picker.select.assert_called_once_with(
+        description="选择导出目录",
+        history_kind="export",
+    )
 
 
 def test_select_export_directory_endpoint_cancel_returns_cancelled(app_services):

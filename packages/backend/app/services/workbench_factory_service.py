@@ -9,6 +9,7 @@ from pathlib import Path
 from ..config import OUTPUT_BASE, UPLOAD_BASE
 from ..repository.workbench_database import WorkbenchDatabase, database_path_for_deployment
 from ..repository.archive_task_repository import ArchiveTaskRepository
+from ..repository.local_directory_history_repository import LocalDirectoryHistoryRepository
 from ..repository.resource_snapshot_repository import ResourceSnapshotRepository
 from ..repository.template_approval_repository import TemplateApprovalRepository
 from ..repository.template_registry_repository import TemplateRegistryRepository
@@ -116,7 +117,9 @@ def build_workbench_services(
         template_registry=template_registry,
         template_approvals=template_approvals,
         templates=TemplateRegistryService(database, template_registry, template_approvals),
-        directory_picker=LocalDirectoryPickerService(),
+        directory_picker=LocalDirectoryPickerService(
+            history=LocalDirectoryHistoryRepository(),
+        ),
     )
     services.archive_runtime = ArchiveRuntimeCoordinator(
         archive_scheduler,

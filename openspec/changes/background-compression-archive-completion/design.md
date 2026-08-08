@@ -86,6 +86,7 @@
 **apply 阶段细化（用户实测反馈）**：
 - 统一导出交互入口为**案件工作台卡片主按钮**（归档完成/已导出时，替换原「查看结果」）；工作台经 `useArchiveCompletionStatuses` 自动加载归档结果，卡片恒定派生完成态，无需先点查看。案件打开页保留「立即/稍后」与补盘号入口，不再承载导出触发。
 - 归档 inventory 性能优化：`verify_input_inventory` 改 `check_readability=False`（可读性由 seal 复制兜底）并移除第二轮重复 stat；`build_input_inventory` 文件 stat/open 用 `ThreadPoolExecutor` 并行（新增 `archive_input_inventory_worker.py`，复用 `BIJI_ARCHIVE_COPY_WORKERS`）。基准 3000 文件：verify 5.3s→0.87s、build 4.5s→1.7s。
+- 原生目录选择器由嵌入 C# 后台线程按当前 PowerShell 进程枚举真实可见窗口，直接对对话框句柄应用 TopMost Z 序并尝试前台激活，避免 PowerShell 在 `ShowDialog` 模态调用期间 WinForms Timer 回调不执行而误报 422；窗口提升失败会在对话框仍打开时持续重试，不把已成功选择的合法目录事后降级为业务 422。上传报告与统一导出分别以本地版本化偏好持久化上次成功目录，下一次作为 `FolderBrowserDialog.SelectedPath`；取消、目录失效或偏好损坏时安全回退。
 
 ## D6. 状态机与已导出/彻底删除
 

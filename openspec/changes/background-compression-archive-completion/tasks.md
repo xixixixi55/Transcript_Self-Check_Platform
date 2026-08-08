@@ -163,3 +163,10 @@ workflow_level: 3
   - 决策：移除仿制窗口绘制；用独立临时 `/cfg` 启动真实 HashMyFiles，读取原生 ListView 并核对待发布 RAR 的文件名、完整 32 位 MD5 与字节大小，通过 Windows 消息只保留 Filename、MD5、File Size 三个可见列并清除选中高亮，再用 `PrintWindow` 捕获真实窗口。进程纳入 KILL_ON_JOB_CLOSE Job Object，临时配置不修改用户个人设置，超时或完成后均清理。完整导出改为同卷暂存并带回滚发布，截图失败保留上一版完整包。
   - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、`packages/backend/app/services/unified_export_service.py`、`tests/test_hashmyfiles_service.py`、`tests/test_unified_export_service.py`、变更包 design/delta spec 与 living spec。
   - 验证：真实 HashMyFiles v2.51 对两个中文合成 RAR 截图成功，原生彩色工具栏、完整 32 位 MD5、字节大小和三列布局均经视觉确认，截图后 HashMyFiles 进程残留为 0；受影响目标测试 42 passed，独立 Code Review PASS，`verify:quick` 与 `git diff --check` 通过。
+
+- [x] T024 修复目录选择器置顶误判 422，并让上传报告与统一导出分别记忆目录（人工验收回归）。
+  - 现象：T020 的隐藏 TopMost owner 仍可能被浏览器覆盖；首轮 T024 使用 PowerShell WinForms Timer + `GetLastActivePopup` 检测置顶，但真实环境在用户成功选择后仍因状态未回写而退出 21，前端收到 422「本机文件夹选择未完成」。上传报告目录也未记忆上次选择。
+  - 内容：把窗口枚举与 TopMost 重试移入独立 C# 后台线程，避免依赖 PowerShell 模态调用期间的 Timer 回调；不再把合法选择事后降级为 422。上传报告与统一导出使用独立历史键，分别默认定位到各自上次成功选择的有效目录；取消、失效和损坏安全回退。
+  - 文件：`packages/backend/app/repository/local_directory_history_repository.py`、`packages/backend/app/services/local_directory_picker_service.py`、`packages/backend/app/services/workbench_factory_service.py`、`packages/backend/app/controllers/workbench_controller.py`、对应后端测试与本变更包文档。
+  - 验证：目录历史与 picker/controller 定向 pytest、PowerShell 脚本解析及内嵌 C# 编译、架构检查、类型检查、独立 Code Review 与当前变更 scoped full gate；真实浏览器前台下分别验收上传报告和统一导出的窗口 Z 序及再次打开默认目录。
+  - 证据：窗口提升改由嵌入 C# 后台线程按独立 PowerShell PID 枚举可见窗口并持续重试 TopMost；未确认置顶只记录安全 warning，不再把合法选择降级为 422。report/export 双历史使用进程级写锁、同目录临时文件与原子替换，兼容首轮 T024 的旧 export 偏好。定向 pytest 51 passed，PowerShell 脚本解析与内嵌 C# 编译、架构及类型检查通过；独立 Code Review 与复审均 PASS（无 MUST FIX）；`npm run verify:full -- --change background-compression-archive-completion` 的预检、架构、类型、治理、资产、全仓库测试、构建与严格文档检查全部 PASS。用户已完成人工验收，确认上传报告目录与统一导出的 Windows 选择器位于浏览器前方、操作正常，且两个入口能够分别记忆上次成功选择的目录。
