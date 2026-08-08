@@ -26,9 +26,6 @@ describe('CaseWorkbenchPage', () => {
     window.localStorage.clear()
     listItems = Array.from({ length: 6 }, (_, i) => shell(i + 1))
     getMock.mockImplementation(async (url: string) => {
-      if (url.endsWith('/demo/readiness')) return { data: { data: { items: [
-        { key: 'backend', label: '后端服务', status: 'ready', code: null, guidance: '后端服务可用。' },
-      ] } } }
       if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: true } } }
       if (url.includes('/workbench/tasks/')) return { data: { data: { task_id: url.split('/').pop(), case_id: 'case-synthetic', kind: 'parse', status: 'running', stage: 'parse', percent: 25, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }
       throw new Error(`unexpected GET ${url}`)
@@ -39,6 +36,7 @@ describe('CaseWorkbenchPage', () => {
   it('shows six cards and hides the upload card when the page is full', async () => {
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+    expect(screen.queryByText('Demo 环境就绪状态')).toBeNull()
     expect(document.querySelector('input[type="file"]')).toBeNull()
     expect(screen.queryByRole('textbox', { name: '报告目录路径' })).toBeNull()
     expect(screen.queryByRole('textbox', { name: '案件名称' })).toBeNull()
@@ -51,7 +49,6 @@ describe('CaseWorkbenchPage', () => {
 
   it('keeps API failures actionable', async () => {
     getMock.mockImplementation(async (url: string) => {
-      if (url.endsWith('/demo/readiness')) throw new Error('SYNTHETIC/TEST readiness unavailable')
       if (url.endsWith('/workbench/cases')) throw {
         response: { data: { detail: { code: 'NETWORK_ERROR', message: 'SYNTHETIC/TEST failure' } } },
       }
@@ -163,7 +160,6 @@ describe('CaseWorkbenchPage', () => {
   it('uses backend details and revision for archive cancel without duplicate submission', async () => {
     listItems = [{ ...shell(1), lifecycle: 'review_ready', report_available: true, archive_task_summary: archiveSummary }]
     getMock.mockImplementation(async (url: string) => {
-      if (url.endsWith('/demo/readiness')) return { data: { data: { items: [] } } }
       if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
       if (url.endsWith('/archive-SYNTHETIC-1/details')) return { data: { data: { ...archiveSummary, revision: 7, created_at: archiveSummary.updated_at } } }
       if (url.includes('/workbench/tasks/')) return { data: { data: { task_id: 'task-synthetic-1', case_id: 'case-synthetic-1', kind: 'parse', status: 'succeeded', stage: 'parse', percent: null, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }
@@ -225,7 +221,6 @@ it('exports a completed archive bundle directly from the card', async () => {
   listItems = [{ ...shell(1), lifecycle: 'archive_verified', report_available: true, revision: 3, archive_task_summary: { ...archiveSummary, status: 'succeeded', stage: 'completed', stage_label: '归档完成', stage_index: 9, stage_count: 9, percent: 100, finished_at: '2026-07-30T12:00:00Z', allowed_actions: ['view_result'] } }]
   const archiveResult = { task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', manifest_id: 'manifest-synthetic', verified_slots: [], assets: [], parts: [{ part_id: 'part-1', filename: 'SYNTHETIC.part1.rar', size_bytes: 4, md5: 'a'.repeat(32), disc_number: 'GP20260730-01', disc_date: '2026-07-30' }], finished_at: '2026-07-30T12:00:00Z' }
   getMock.mockImplementation(async (url: string) => {
-    if (url.endsWith('/demo/readiness')) return { data: { data: { items: [] } } }
     if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
     if (url.includes('/result')) return { data: { data: archiveResult } }
     if (url.includes('/workbench/tasks/')) return { data: { data: { task_id: 'task-synthetic-1', case_id: 'case-synthetic-1', kind: 'parse', status: 'succeeded', stage: 'parse', percent: null, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }

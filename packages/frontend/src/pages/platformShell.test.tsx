@@ -193,7 +193,7 @@ describe('electronic inspection module', () => {
     expect(document.querySelector('a[href="/electronic-inspection/workbench"]')).toBeTruthy()
     expect(document.querySelector('a[href="/electronic-inspection/devices"]')).toBeTruthy()
     expect(screen.getByText('案件工作台')).toBeTruthy()
-    expect(screen.getByText('Demo 环境就绪状态')).toBeTruthy()
+    expect(screen.queryByText('Demo 环境就绪状态')).toBeNull()
     expect(screen.queryByText('生成笔录')).toBeNull()
     expect(screen.getByText('电子设备管理')).toBeTruthy()
   })
