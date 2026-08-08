@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import axios from 'axios'
-import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { API_ENDPOINTS, UNIFIED_EXPORT_REQUEST_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type { ArchiveTaskCardSummary, ArchiveTaskResult, CaseDetail, CaseDraft, CaseShell, ClientIdentity, EditLease, InspectionReport, SharedDefaults, SourceRecord, TaskRecord } from '@biji/shared/types'
 import CaseRecordGeneratePage from './CaseRecordGeneratePage'
 
@@ -64,6 +64,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
     vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; initialLifecycle = 'review_ready'; resolveSave = null
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
@@ -138,6 +139,35 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(decisionBodies[0].expected_revision).toBe(6)
     expect(patchMock).toHaveBeenCalledTimes(1)
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DECISION(caseId))).toHaveLength(1)
+  }, 15000)
+
+  it('does not save or create an archive task when the direct-source warning is cancelled', async () => {
+    vi.mocked(window.confirm).mockReturnValue(false)
+    renderPage()
+    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
+    await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: /立即开始压缩/ }))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/请勿修改、移动或删除源文件/))
+    expect(patchMock).not.toHaveBeenCalled()
+    expect(decisionBodies).toHaveLength(0)
+  }, 15000)
+
+  it.each([
+    ['archive_deferred', /开始压缩/],
+    ['archive_interrupted', /重新确认并立即压缩/],
+  ] as const)('requires direct-source confirmation from %s before creating a task', async (lifecycle, buttonName) => {
+    initialLifecycle = lifecycle
+    vi.mocked(window.confirm).mockReturnValue(false)
+    renderPage()
+    await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
+    fireEvent.click(await screen.findByRole('button', { name: buttonName }))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/请勿修改、移动或删除源文件/))
+    expect(decisionBodies).toHaveLength(0)
+
+    vi.mocked(window.confirm).mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: buttonName }))
+    await waitFor(() => expect(decisionBodies).toHaveLength(1))
   }, 15000)
 
   it('does not create an archive task when draft persistence fails or a real revision conflict remains', async () => {
@@ -251,7 +281,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '开始导出' }))
     // Fresh grant on every export — re-export must not reuse a consumed token (422 regression).
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY, undefined, expect.anything()))
-    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic', word_filename: '合成案件.docx' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic', word_filename: '合成案件.docx' }, { timeout: UNIFIED_EXPORT_REQUEST_TIMEOUT_MS }))
   }, 15000)
 
   it('shows the exported state for a re-exported case', async () => {

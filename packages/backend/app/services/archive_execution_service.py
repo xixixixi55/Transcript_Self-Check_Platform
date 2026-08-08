@@ -1,8 +1,9 @@
-"""Synchronous archive orchestration over sealed input and publication boundaries."""
+"""Synchronous archive orchestration over authorized source and publication boundaries."""
 
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
@@ -13,15 +14,12 @@ from ..repository.archive_manifest_repository import (
 from ..repository.archive_validator_repository import validate_archive_parts
 from ..repository.winrar_discovery_repository import WinRarCapability, discover_winrar
 from ..repository.winrar_executor_repository import ArchiveExecutionError, WinRarExecutor
+from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_completion_service import record_attempt_completion
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_execution_models_service import ArchiveExecutionOutcome, create_archive_context
 from .archive_execution_support_service import find_reusable, observe_stage
 from .archive_gate_policy_service import pre_archive_gate, raise_gate, with_archive_gate
-from .archive_input_snapshot_service import (
-    SealedInputSnapshot, assert_sealed_input, cleanup_ephemeral_input_snapshot,
-    create_ephemeral_sealed_input_snapshot,
-)
 from .archive_manifest_access_service import (
     ArchiveGateError, archive_report_fingerprint as _fingerprint, get_valid_manifest,
 )
@@ -32,9 +30,12 @@ from .archive_planner_service import (
     ArchiveDiagnostic, ArchivePlan, ArchivePolicy, ArchiveSourceEntry,
     PRODUCTION_ARCHIVE_POLICY, plan_archive, replan_to_next_tier,
 )
+from .disc_sequence_service import generate_disc_numbers, parse_disc_sequence
 from .archive_publish_service import publish_staged_archive
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord
 from .export_gate_service import ExportGateCode, ExportGateIssue
+
+_PUBLICATION_EVIDENCE_RETRIES = 3
 def execute_archive(
     context_id: str, report: dict, *, output_root: str,
     configured_winrar_path: str | None = None,
@@ -57,7 +58,6 @@ def execute_archive(
         output_root,
         database=getattr(attempt_service, "database", None),
     )
-    sealed_input: SealedInputSnapshot | None = None
     try:
         pre_gate = pre_archive_gate(report)
         raise_gate(pre_gate)
@@ -65,19 +65,15 @@ def execute_archive(
         first_disc_number = str((report.get("attachments") or {}).get("disc_number") or "").strip() or None
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         verify_input_inventory(context.inventory)
-        if attempt_service is not None and attempt_id is not None and hasattr(attempt_service, "seal_execution_input"):
-            sealed_input = attempt_service.seal_execution_input(attempt_id, context.inventory)
-        else:
-            sealed_input = create_ephemeral_sealed_input_snapshot(output_root, context.inventory)
-        execution_inventory = sealed_input.inventory
-        context.input_fingerprint = sealed_input.input_fingerprint
+        execution_inventory = context.inventory
+        context.input_fingerprint = execution_inventory.metadata_fingerprint
         if execution_inventory.total_input_bytes <= 0:
             raise ArchiveGateError((ExportGateIssue(
                 ExportGateCode.ARCHIVE_INPUT_EMPTY, "archive", "Archive input is empty.",
             ),))
         fingerprint = _fingerprint(
             report, execution_inventory,
-            content_fingerprint=sealed_input.input_fingerprint,
+            content_fingerprint=context.input_fingerprint,
         )
         registry.mark_source_changed(
             source_key=context.source_key, input_fingerprint=context.input_fingerprint,
@@ -137,20 +133,31 @@ def execute_archive(
         retry_count = 0
         while True:
             try:
+                verify_input_inventory(execution_inventory)
                 observe_stage(stage_observer, "winrar")
-                if getattr(active_executor, "uses_archive_root_name", False):
-                    execution = active_executor.execute(plan, execution_inventory.files, execution_inventory.source_root, winrar, context.inventory.source_root.name)
-                else:
-                    execution = active_executor.execute(plan, execution_inventory.files, execution_inventory.source_root, winrar)
+                execution = active_executor.execute(
+                    plan, execution_inventory.files, execution_inventory.source_root, winrar,
+                )
             except ArchiveExecutionError as error:
+                try:
+                    verify_input_inventory(execution_inventory)
+                except ArchiveInputError as input_error:
+                    raise ArchiveGateError((ExportGateIssue(
+                        input_error.code, "archive", input_error.safe_message,
+                    ),)) from input_error
                 raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
             if execution.returncode != 0:
+                try:
+                    verify_input_inventory(execution_inventory)
+                except ArchiveInputError:
+                    active_executor.cleanup(execution)
+                    raise
                 active_executor.cleanup(execution)
                 raise ArchiveGateError((ExportGateIssue(
                     ExportGateCode.ARCHIVE_EXECUTION_FAILED, "archive", "Archive execution failed.",
                 ),))
             try:
-                assert_sealed_input(sealed_input)
+                verify_input_inventory(execution_inventory)
             except ArchiveInputError as error:
                 active_executor.cleanup(execution)
                 raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
@@ -170,36 +177,100 @@ def execute_archive(
                     code = ExportGateCode.ARCHIVE_REPLAN_EXHAUSTED
                 raise ArchiveGateError((ExportGateIssue(code, "archive", validation.safe_message),))
             try:
-                observe_stage(stage_observer, "integrity_verified")
-                observe_stage(stage_observer, "md5")
-                public_manifest, _ = assemble_archive_manifest(
-                    plan, validation, winrar, retry_count=retry_count,
-                )
-                observe_stage(stage_observer, "manifest")
-                manifest_id = str(public_manifest["manifest_id"])
-                final_dir = Path(output_root) / "compressed" / context_id / manifest_id
-                final_dir.parent.mkdir(parents=True, exist_ok=True)
-                created_at = time.time()
-                record = ArchiveManifestRecord(
-                    manifest_id, context_id, fingerprint, public_manifest, final_dir,
-                    created_at, created_at + 24 * 60 * 60,
-                )
-                assert_sealed_input(sealed_input)
-                publish_staged_archive(
-                    execution.staging_dir, final_dir, record, report, context=context,
-                    attempt_id=attempt_id if marker_enabled else None,
-                    attempt_service=attempt_service if marker_enabled else None,
-                    workbench_context_id=workbench_context_id,
-                )
+                publication_attempt = 0
+                while True:
+                    publication_report = report
+                    publication_snapshot = None
+                    if attempt_service is not None and attempt_id is not None:
+                        try:
+                            publication_snapshot = attempt_service.revalidate_before_publish(
+                                attempt_id, report,
+                            )
+                        except WorkbenchPersistenceError as error:
+                            if (
+                                error.code == "ARCHIVE_ATTEMPT_BINDING_STALE"
+                                and publication_attempt < _PUBLICATION_EVIDENCE_RETRIES
+                            ):
+                                publication_attempt += 1
+                                continue
+                            raise
+                        publication_report = publication_snapshot.report
+                    latest_disc = str(
+                        (publication_report.get("attachments") or {}).get("disc_number") or ""
+                    ).strip()
+                    parsed_disc = parse_disc_sequence(latest_disc)
+                    first_disc_number = (
+                        parsed_disc.sequence.first_disc_number
+                        if parsed_disc.valid and parsed_disc.sequence is not None else None
+                    )
+                    plan = replace(
+                        plan,
+                        first_disc_number=first_disc_number,
+                        expected_disc_numbers=tuple(generate_disc_numbers(
+                            first_disc_number, plan.expected_part_count,
+                        )) if first_disc_number else (),
+                    )
+                    fingerprint = _fingerprint(
+                        publication_report, execution_inventory,
+                        content_fingerprint=context.input_fingerprint,
+                    )
+                    observe_stage(stage_observer, "integrity_verified")
+                    observe_stage(stage_observer, "md5")
+                    public_manifest, _ = assemble_archive_manifest(
+                        plan, validation, winrar, retry_count=retry_count,
+                    )
+                    observe_stage(stage_observer, "manifest")
+                    manifest_id = str(public_manifest["manifest_id"])
+                    final_dir = Path(output_root) / "compressed" / context_id / manifest_id
+                    final_dir.parent.mkdir(parents=True, exist_ok=True)
+                    created_at = time.time()
+                    record = ArchiveManifestRecord(
+                        manifest_id, context_id, fingerprint, public_manifest, final_dir,
+                        created_at, created_at + 24 * 60 * 60,
+                    )
+                    try:
+                        publish_staged_archive(
+                            execution.staging_dir, final_dir, record, publication_report,
+                            context=context,
+                            attempt_id=attempt_id if marker_enabled else None,
+                            attempt_service=attempt_service if marker_enabled else None,
+                            workbench_context_id=workbench_context_id,
+                            expected_draft_revision=(
+                                publication_snapshot.draft_revision if publication_snapshot else None
+                            ),
+                            expected_report_fingerprint=(
+                                publication_snapshot.report_fingerprint if publication_snapshot else None
+                            ),
+                        )
+                        break
+                    except WorkbenchPersistenceError as error:
+                        if (
+                            error.code == "ARCHIVE_ATTEMPT_BINDING_STALE"
+                            and publication_attempt < _PUBLICATION_EVIDENCE_RETRIES
+                        ):
+                            publication_attempt += 1
+                            continue
+                        raise
             except ArchiveGateError:
                 if execution.staging_dir.exists():
                     active_executor.cleanup(execution)
                 raise
+            except WorkbenchPersistenceError as error:
+                if execution.staging_dir.exists():
+                    active_executor.cleanup(execution)
+                message = (
+                    "草稿或来源在归档期间发生了不允许的变化，请重新确认后归档。"
+                    if error.code == "ARCHIVE_ATTEMPT_BINDING_STALE"
+                    else "归档发布未完成，请重试。"
+                )
+                raise ArchiveGateError((ExportGateIssue(
+                    error.code, "archive", message,
+                ),)) from error
             except Exception as error:
                 if execution.staging_dir.exists():
                     active_executor.cleanup(execution)
                 raise ArchiveGateError((ExportGateIssue(
-                    ExportGateCode.ARCHIVE_PARTS_INVALID, "archive", "Archive publication failed.",
+                    "ARCHIVE_PUBLISH_FAILED", "archive", "Archive publication failed.",
                 ),)) from error
             ARCHIVE_RUNTIME_STORE.save_manifest(record)
             try:
@@ -238,8 +309,6 @@ def execute_archive(
     except ArchiveInputError as error:
         raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
     finally:
-        if sealed_input is not None and attempt_service is None:
-            cleanup_ephemeral_input_snapshot(sealed_input)
         ARCHIVE_RUNTIME_STORE.release_context(
             context_id, state=final_state if not success else "completed",
             successful_manifest_id=successful_manifest_id,

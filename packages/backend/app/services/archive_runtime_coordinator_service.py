@@ -6,9 +6,16 @@ import logging
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, wait
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 from ..repository.archive_attempt_restart_repository import interrupt_owned_claim
+from ..repository.archive_context_binding_repository import context_binding_hash
+from ..repository.archive_runtime_context_lease_repository import (
+    interrupt_expired_queued_contexts,
+    interrupt_queued_runtime_context,
+    lease_queued_runtime_context,
+)
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_progress_service import ArchiveProgressService
@@ -35,9 +42,13 @@ class ArchiveRuntimeCoordinator:
         snapshot_provider: SnapshotProvider,
         poll_interval_seconds: float = 1.0,
         shutdown_timeout_seconds: float = 30.0,
+        context_lease_seconds: float = 30.0,
         max_workers: int = 6,
     ) -> None:
-        if poll_interval_seconds <= 0 or shutdown_timeout_seconds <= 0 or max_workers <= 0:
+        if (
+            poll_interval_seconds <= 0 or shutdown_timeout_seconds <= 0
+            or context_lease_seconds <= 0 or max_workers <= 0
+        ):
             raise ValueError("ARCHIVE_RUNTIME_CONFIG_INVALID")
         self.scheduler = scheduler
         self.worker = worker
@@ -47,6 +58,7 @@ class ArchiveRuntimeCoordinator:
         self.snapshot_provider = snapshot_provider
         self.poll_interval_seconds = poll_interval_seconds
         self.shutdown_timeout_seconds = shutdown_timeout_seconds
+        self.context_lease_seconds = context_lease_seconds
         self.max_workers = max_workers
         self._lock = threading.RLock()
         self._stop = threading.Event()
@@ -63,6 +75,11 @@ class ArchiveRuntimeCoordinator:
             return bool(self._thread and self._thread.is_alive())
 
     def register(self, task_id: str, context_id: str) -> None:
+        if not lease_queued_runtime_context(
+            self.attempts.database, task_id=task_id,
+            context_id=context_id, expires_at=self._lease_expiry(),
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_TASK_NOT_CLAIMABLE")
         with self._lock:
             self._contexts[task_id] = context_id
 
@@ -97,8 +114,21 @@ class ArchiveRuntimeCoordinator:
             thread = self._thread
             executor = self._executor
             futures = set(self._futures)
+            queued_contexts = dict(self._contexts)
+        queued_converged = True
+        for task_id, context_id in queued_contexts.items():
+            try:
+                interrupt_queued_runtime_context(
+                    self.attempts.database, task_id=task_id,
+                    expected_context_hash=context_binding_hash(context_id),
+                )
+            except WorkbenchPersistenceError:
+                logger.exception("Archive queued context settlement failed: %s", task_id)
+                queued_converged = False
+            finally:
+                self.unregister(task_id)
         if thread is None and not futures:
-            return True
+            return queued_converged
         self._stop.set()
         deadline = time.monotonic() + self.shutdown_timeout_seconds
         if thread is not None:
@@ -109,7 +139,7 @@ class ArchiveRuntimeCoordinator:
             pending = set()
         if executor is not None:
             executor.shutdown(wait=not pending, cancel_futures=True)
-        converged = True
+        converged = queued_converged
         for future in pending | {item for item in futures if item.cancelled()}:
             with self._lock:
                 claim = self._claims.get(future)
@@ -129,10 +159,17 @@ class ArchiveRuntimeCoordinator:
     def _run_loop(self) -> None:
         while not self._stop.is_set():
             self._collect_finished()
+            self._renew_queued_contexts()
+            interrupt_expired_queued_contexts(self.attempts.database)
             submitted = False
             while not self._stop.is_set() and self._active_count() < self.max_workers:
                 try:
-                    claim = self.scheduler.claim_next(self.snapshot_provider())
+                    with self._lock:
+                        eligible_task_ids = set(self._contexts)
+                    claim = self.scheduler.claim_next(
+                        self.snapshot_provider(),
+                        eligible_task_ids=eligible_task_ids,
+                    )
                 except Exception:
                     logger.exception("Archive scheduler iteration failed safely.")
                     break
@@ -213,3 +250,22 @@ class ArchiveRuntimeCoordinator:
     def _active_count(self) -> int:
         with self._lock:
             return sum(not future.done() for future in self._futures)
+
+    def _renew_queued_contexts(self) -> None:
+        with self._lock:
+            task_ids = set(self._contexts)
+        for task_id in task_ids:
+            with self._lock:
+                context_id = self._contexts.get(task_id)
+            if context_id is None:
+                continue
+            if not lease_queued_runtime_context(
+                self.attempts.database, task_id=task_id,
+                context_id=context_id, expires_at=self._lease_expiry(),
+            ):
+                self.unregister(task_id)
+
+    def _lease_expiry(self) -> str:
+        return (
+            datetime.now(timezone.utc) + timedelta(seconds=self.context_lease_seconds)
+        ).isoformat()

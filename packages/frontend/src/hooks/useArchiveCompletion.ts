@@ -1,7 +1,7 @@
 // Layer 10: FE_Hooks — deferred disc mapping and unified export actions.
 import { useCallback, useState } from 'react'
 import axios from 'axios'
-import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, UNIFIED_EXPORT_REQUEST_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type { DiscMappingResult, ExportDirectoryResult, UnifiedExportResult } from '@biji/shared/types'
 
 interface ArchiveCompletion {
@@ -54,7 +54,7 @@ export function useArchiveCompletion(): ArchiveCompletion {
           expected_revision: expectedRevision, export_path: exportPath,
           directory_token: directoryToken, word_filename: wordFilename,
         },
-        { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
+        { timeout: UNIFIED_EXPORT_REQUEST_TIMEOUT_MS },
       )
       return response.data.data
     } catch (failure) {

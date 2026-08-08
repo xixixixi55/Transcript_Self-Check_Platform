@@ -252,10 +252,11 @@ def test_submit_accepts_external_report_directory_when_authorization_is_disabled
 
 
 def test_two_synthetic_cases_reload_independently_after_draft_edit(app_services):
-    from app.main import app
+    from app.main import create_app
     from app.controllers import workbench_controller
     from app.services.case_lifecycle_service import CaseLifecycleService
 
+    app = create_app(service_provider=lambda: app_services, enable_archive_runtime=False)
     second_report_dir = app_services.synthetic_report_dir.parent / "SYNTHETIC-SECOND-REPORT"
     shutil.copytree(app_services.synthetic_report_dir, second_report_dir)
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):

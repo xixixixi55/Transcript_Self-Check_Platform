@@ -90,6 +90,9 @@ export default function CaseRecordGeneratePage() {
   const chooseArchive = async (decision: 'immediate' | 'deferred') => {
     if (archiveDecisionInFlight.current) return
     if (!session.editingEnabled) { message.warning('当前页面没有有效编辑租约，不能修改压缩决策。'); return }
+    if (decision === 'immediate' && !window.confirm(
+      '压缩将直接读取源报告目录。\n\n压缩期间请勿修改、移动或删除源文件，也不要继续使用取证软件向该目录写入数据。\n\n请确认报告已生成完成并开始压缩。',
+    )) return
     archiveDecisionInFlight.current = true
     setArchiveDecisionBusy(true)
     try {

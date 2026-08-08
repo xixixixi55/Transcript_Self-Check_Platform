@@ -40,8 +40,11 @@ class ArchiveSchedulerService:
 
     def claim_next(
         self, snapshot: ArchiveResourceSnapshot,
+        *, eligible_task_ids: set[str] | None = None,
     ) -> ArchiveTaskClaim | None:
         for task in self.tasks.list_queued():
+            if eligible_task_ids is not None and task["task_id"] not in eligible_task_ids:
+                continue
             attempt_id = (task.get("process_binding") or {}).get("staging_asset_id")
             if not attempt_id:
                 self._record_wait(task, "ARCHIVE_ATTEMPT_REQUIRED")

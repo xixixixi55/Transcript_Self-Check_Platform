@@ -31,7 +31,6 @@ def _terminate_process(process: subprocess.Popen[str], pid: int) -> bool:
 
 class WinRarExecutor:
     """The only component that constructs and invokes the WinRAR argument array."""
-    uses_archive_root_name = True
     _active_plans: set[str] = set()
     _active_guard = threading.Lock()
 
@@ -80,7 +79,6 @@ class WinRarExecutor:
 
     def execute(self, plan: PlanLike, inventory_files: tuple[PlanEntry, ...],
                 source_root: Path, capability: WinRarCapability,
-                archive_root_name: str | None = None,
                 ) -> WinRarExecutionResult:
         if not capability.available or not capability.executable_path:
             raise ArchiveExecutionError("WINRAR_UNAVAILABLE", "WinRAR 不可用，无法执行归档。")
@@ -99,19 +97,10 @@ class WinRarExecutor:
                         "ARCHIVE_EXECUTION_FAILED", "归档临时资源登记失败。",
                     ) from error
             archive_path = staging_dir / f"{plan.archive_base_name}.rar"
-            total_bytes = sum(item.absolute_path.stat().st_size for item in inventory_files)
+            total_bytes = sum(item.size_bytes for item in inventory_files)
             timeout = self._timeout_for(total_bytes)
-            # A sealed snapshot may have a generated directory name.  Use the
-            # original relative name only for the legacy same-root case;
-            # otherwise pass the sealed absolute path so WinRAR cannot resolve
-            # the mutable source directory or an unrelated sibling.
-            input_argument = (
-                source_root.name
-                if not archive_root_name or archive_root_name == source_root.name
-                else str(source_root)
-            )
             args = [capability.executable_path, "a", "-r", "-y", "-inul",
-                    f"-v{plan.volume_size_bytes}b", str(archive_path), input_argument]
+                    f"-v{plan.volume_size_bytes}b", str(archive_path), source_root.name]
 
             if self._process_runner is not None:
                 try:

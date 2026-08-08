@@ -18,6 +18,7 @@ class ArchiveExecutionError(RuntimeError):
 class PlanEntry(Protocol):
     relative_path: str
     absolute_path: Path
+    size_bytes: int
 
 
 class PlanLike(Protocol):

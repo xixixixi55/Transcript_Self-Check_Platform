@@ -53,22 +53,19 @@ def test_executor_uses_argument_array_and_dedicated_staging(tmp_path):
     assert not (result.staging_dir / "source-list.txt").exists()
 
 
-def test_executor_uses_sealed_snapshot_path_when_root_name_differs(tmp_path):
-    source = tmp_path / "snapshot-SEALED-SYNTHETIC"
+def test_executor_never_uses_an_absolute_input_path(tmp_path):
+    source = tmp_path / "SYNTHETIC-ORIGINAL-SOURCE"
     source.mkdir()
     (source / "data.txt").write_text("SYNTHETIC/SEALED", encoding="utf-8")
     inventory = build_input_inventory(source)
     runner, calls = make_process_runner()
     executor = WinRarExecutor(tmp_path / "staging", process_runner=runner)
     plan = SimpleNamespace(plan_id="plan-snapshot", archive_base_name="synthetic", volume_size_bytes=4)
-    executor.execute(
-        plan, inventory.files, inventory.source_root, capability(),
-        archive_root_name="SYNTHETIC-ORIGINAL-SOURCE",
-    )
+    executor.execute(plan, inventory.files, inventory.source_root, capability())
     args, kwargs = calls[0]
     assert kwargs["cwd"] == str(source.resolve().parent)
-    assert args[-1] == str(source.resolve())
-    assert args[-1] != "SYNTHETIC-ORIGINAL-SOURCE"
+    assert args[-1] == "SYNTHETIC-ORIGINAL-SOURCE"
+    assert args[-1] != str(source.resolve())
 
 
 def test_executor_keeps_single_volume_base_name(tmp_path):

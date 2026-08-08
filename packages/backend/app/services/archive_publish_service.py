@@ -21,9 +21,10 @@ def publish_staged_archive(
     staging_dir: Path, final_dir: Path, record: Any, report: dict[str, Any],
     *, context: Any, attempt_id: str | None, attempt_service: ArchiveAttemptService | None,
     workbench_context_id: str | None,
+    expected_draft_revision: int | None = None,
+    expected_report_fingerprint: str | None = None,
 ) -> None:
     if attempt_id is not None and attempt_service is not None:
-        attempt_service.revalidate_before_publish(attempt_id, report)
         attempt_service.persist_publish_intent(
             attempt_id,
             source_key=context.source_key,
@@ -34,6 +35,8 @@ def publish_staged_archive(
             public_manifest=record.public_manifest,
             context_id=workbench_context_id or context.context_id,
             target_context_id=context.context_id,
+            expected_draft_revision=expected_draft_revision,
+            expected_report_fingerprint=expected_report_fingerprint,
         )
         # The durable fence is established by persist_publish_intent in the
         # same transaction as the final server-fact validation.  A second

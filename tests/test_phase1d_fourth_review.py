@@ -174,7 +174,7 @@ def test_source_fingerprint_returns_transient_failure_for_snapshot_change(
         result = original_snapshot(path)
         calls += 1
         if calls == 1:
-            item.write_bytes(b"SYNTHETIC-REPLACED")
+            item.write_bytes(b"SYNTHETIC-REPLACED-LONGER")
         return result
 
     monkeypatch.setattr(fingerprint_module, "_snapshot", mutate_between_snapshots)

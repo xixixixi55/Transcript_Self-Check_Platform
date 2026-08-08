@@ -123,8 +123,8 @@ class ArchiveAttemptService:
         from .archive_attempt_completion_service import persist_publish_intent
         return persist_publish_intent(self, attempt_id, **kwargs)
 
-    def revalidate_before_publish(self, attempt_id: str, report: object) -> None:
-        _revalidate_before_publish(self, attempt_id, report)
+    def revalidate_before_publish(self, attempt_id: str, report: object) -> Any:
+        return _revalidate_before_publish(self, attempt_id, report)
 
     def mark_publish_phase(self, attempt_id: str, phase: str) -> dict[str, Any]:
         from .archive_attempt_completion_service import mark_publish_phase

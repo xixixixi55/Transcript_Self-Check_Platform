@@ -10,6 +10,7 @@ import os
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -27,8 +28,14 @@ from app.repository import (  # noqa: E402
     database_path_for_deployment,
 )
 from app.repository.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
+from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository  # noqa: E402
 from app.repository.archive_attempt_restart_repository import interrupt_owned_claim  # noqa: E402
+from app.repository.archive_runtime_context_lease_repository import (  # noqa: E402
+    interrupt_expired_queued_contexts,
+    interrupt_queued_runtime_context,
+    lease_queued_runtime_context,
+)
 from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive_attempt_completion_service import record_attempt_completion  # noqa: E402
 from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
@@ -284,6 +291,20 @@ def test_lifespan_claims_task_queued_before_startup_and_stops(tmp_path: Path) ->
         assert services.archive_runtime.is_running
     assert not services.archive_runtime.is_running
     assert worker.calls == [queued["task_id"]]
+    task = ArchiveTaskRepository(services.database).get(queued["task_id"])
+    attempt = services.archive_attempts.repository.get_internal(
+        task["process_binding"]["staging_asset_id"],
+    )
+    assert all(attempt[field] is None for field in (
+        "input_snapshot_id", "input_snapshot_root_id", "input_snapshot_locator",
+        "input_snapshot_fingerprint", "input_snapshot_status",
+    ))
+    with services.database.connect() as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM archive_input_snapshots WHERE attempt_id=?",
+            (attempt["attempt_id"],),
+        ).fetchone()[0] == 0
+    assert services.synthetic_report_dir.is_dir()  # type: ignore[attr-defined]
 
 
 def test_http_task_is_claimed_and_one_failure_does_not_stop_runtime(
@@ -474,6 +495,130 @@ def test_runtime_start_is_idempotent_and_empty_queue_waits(tmp_path: Path) -> No
     assert calls <= 4
 
 
+def test_other_coordinator_interrupts_expired_queued_context_lease(tmp_path: Path) -> None:
+    services, worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services, enable_archive_runtime=False)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+
+    first_runtime = services.archive_runtime
+    context_id = first_runtime._contexts[queued["task_id"]]
+    observed_at = datetime.now(timezone.utc)
+    renewed_until = (observed_at + timedelta(seconds=30)).isoformat()
+    assert lease_queued_runtime_context(
+        services.database, task_id=queued["task_id"],
+        context_id=context_id, expires_at=renewed_until,
+    )
+    assert not interrupt_queued_runtime_context(
+        services.database, task_id=queued["task_id"],
+        expires_before=observed_at,
+    )
+    expired_at = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    assert lease_queued_runtime_context(
+        services.database, task_id=queued["task_id"],
+        context_id=context_id, expires_at=expired_at,
+    )
+    second_runtime = ArchiveRuntimeCoordinator(
+        first_runtime.scheduler, worker, services.archive_attempts, first_runtime.progress,
+        item_factory=first_runtime.item_factory,
+        snapshot_provider=first_runtime.snapshot_provider,
+        poll_interval_seconds=0.01,
+    )
+    second_runtime.start()
+    deadline = time.monotonic() + 2
+    task = first_runtime.scheduler.tasks.get(queued["task_id"])
+    while time.monotonic() < deadline and task["status"] == "queued":
+        time.sleep(0.01)
+        task = first_runtime.scheduler.tasks.get(queued["task_id"])
+    second_runtime.stop()
+
+    assert task["status"] == "interrupted"
+    assert task["error_code"] == "ARCHIVE_RUNTIME_CONTEXT_EXPIRED"
+    attempt_id = task["process_binding"]["staging_asset_id"]
+    assert services.archive_attempts.repository.get_internal(attempt_id)["status"] == "interrupted"
+
+
+def test_context_renewal_does_not_invalidate_queued_cancel_revision(tmp_path: Path) -> None:
+    services, _worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services, enable_archive_runtime=False)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        original_revision = queued["revision"]
+        services.archive_runtime._renew_queued_contexts()
+        renewed = services.archive_runtime.scheduler.tasks.get(queued["task_id"])
+
+        assert renewed["revision"] == original_revision
+        cancelled = client.post(
+            f"/api/v1/workbench/tasks/{queued['task_id']}/cancel",
+            json={"expected_revision": original_revision},
+        )
+        assert cancelled.status_code == 200, cancelled.text
+        assert cancelled.json()["data"]["status"] == "cancelled"
+
+
+def test_failed_initial_context_lease_converges_created_task(tmp_path: Path) -> None:
+    services, _worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services, enable_archive_runtime=False)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        with patch.object(
+            services.archive_runtime, "register",
+            side_effect=WorkbenchPersistenceError("SQLITE_BUSY"),
+        ):
+            response = client.post(
+                f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+                json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+            )
+    assert response.status_code == 422
+    history = services.archive_runtime.scheduler.tasks.get_history(ready["shell"]["case_id"])
+    assert len(history) == 1 and history[0]["status"] == "interrupted"
+    attempt_id = history[0]["process_binding"]["staging_asset_id"]
+    assert services.archive_attempts.repository.get_internal(attempt_id)["status"] == "interrupted"
+
+
+def test_ownerless_bound_task_expires_after_registration_crash(tmp_path: Path) -> None:
+    services, _worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services, enable_archive_runtime=False)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        with patch.object(services.archive_runtime, "register", return_value=None):
+            queued = client.post(
+                f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+                json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+            ).json()["data"]["archive_task"]
+    observed = datetime.now(timezone.utc) + timedelta(minutes=1)
+    assert interrupt_expired_queued_contexts(
+        services.database, observed_at=observed,
+    ) == [queued["task_id"]]
+    assert services.archive_runtime.scheduler.tasks.get(queued["task_id"])["status"] == "interrupted"
+
+
+def test_normal_stop_interrupts_registered_unclaimed_task(tmp_path: Path) -> None:
+    services, _worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services, enable_archive_runtime=False)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+    assert services.archive_runtime.stop() is True
+    task = services.archive_runtime.scheduler.tasks.get(queued["task_id"])
+    assert task["status"] == "interrupted"
+    assert services.archive_attempts.repository.get_internal(
+        task["process_binding"]["staging_asset_id"],
+    )["status"] == "interrupted"
+    assert CaseShellRepository(services.database).get(task["case_id"])["lifecycle"] == "archive_interrupted"
+
+
 @pytest.mark.parametrize("start_attempt", [False, True])
 def test_runtime_timeout_persists_owned_claim_as_interrupted(
     tmp_path: Path, start_attempt: bool,
@@ -499,6 +644,7 @@ def test_runtime_timeout_persists_owned_claim_as_interrupted(
         ).json()["data"]["archive_task"]
 
     runtime = services.archive_runtime
+    context_id = runtime._contexts[queued["task_id"]]
     runtime.worker = BlockingWorker()  # type: ignore[assignment]
     runtime.shutdown_timeout_seconds = 0.05
     runtime.start()
@@ -506,6 +652,7 @@ def test_runtime_timeout_persists_owned_claim_as_interrupted(
     task = runtime.scheduler.tasks.get(queued["task_id"])
     claim = runtime._claims[next(iter(runtime._claims))]
     assert task["status"] == "running"
+    assert services.archive_attempts.context_binding(context_id)["expires_at"] is None
     assert interrupt_owned_claim(
         services.database, task_id=claim.task_id, owner_token="SYNTHETIC-WRONG-OWNER",
         attempt_id=claim.attempt_id, task_revision=claim.revision,

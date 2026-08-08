@@ -218,7 +218,7 @@ def _inventory_metadata_fingerprint(
 
 
 def verify_input_inventory(inventory: InputInventory) -> None:
-    """Reject any source change between planning and WinRAR invocation."""
+    """Reject source metadata changes before or after WinRAR execution."""
 
     try:
         current_inventory = build_input_inventory(
@@ -228,7 +228,7 @@ def verify_input_inventory(inventory: InputInventory) -> None:
     except ArchiveInputError as error:
         if error.code == "ARCHIVE_INPUT_CHANGED":
             raise
-        raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入在执行前已变化。") from error
+        raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入已发生变化。") from error
 
     # build_input_inventory already stats every file (size + mtime) without a
     # per-file open; comparing the ordered public entries covers additions,
@@ -238,4 +238,4 @@ def verify_input_inventory(inventory: InputInventory) -> None:
     expected_directories = [item.public_entry() for item in inventory.directories]
     current_directories = [item.public_entry() for item in current_inventory.directories]
     if expected_entries != current_entries or expected_directories != current_directories:
-        raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入在执行前已变化。")
+        raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入已发生变化。")

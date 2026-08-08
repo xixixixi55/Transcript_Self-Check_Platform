@@ -283,8 +283,8 @@ def test_long_snapshot_paths_use_short_private_root_without_changing_source_tree
     standard_temp = output / "compressed" / ".inputs" / f".{snapshot_id}.copying"
     short_temp = output / ".i" / f".s{'a' * 16}.copying"
     relative_length = 250 - len(str(short_temp)) - 1
-    assert relative_length > 120
     middle_length = relative_length - len("folder/") - 80 - len("/fixture.bin") - 1
+    assert middle_length >= 16
     relative = f"folder/{'x' * 80}/{'y' * middle_length}/fixture.bin"
     directories = ["folder", f"folder/{'x' * 80}"]
 

@@ -238,6 +238,7 @@ def _binding(value: str | None) -> dict[str, Any]:
         return {}
     return parsed if isinstance(parsed, dict) else {}
 
+
 def _row(database: WorkbenchDatabase, attempt_id: str) -> Any:
     connection = database.connect()
     try:

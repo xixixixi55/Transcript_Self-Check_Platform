@@ -203,6 +203,14 @@ class ArchiveTaskRepository:
                 raise RevisionConflictError(
                     "task", expected_revision, int(row["revision"]),
                 )
+            # The short context lease only protects an unclaimed queued task.
+            # Once this transaction establishes durable running ownership, a
+            # long WinRAR execution must not expire the publication binding.
+            connection.execute(
+                "UPDATE archive_context_bindings SET expires_at=NULL "
+                "WHERE attempt_id=? AND active=1",
+                (attempt_id,),
+            )
         return self.get(task_id)
 
     def is_owned_by(self, task_id: str, owner_token: str) -> bool:

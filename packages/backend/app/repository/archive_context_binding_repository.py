@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import copy
 from typing import Any
 
 from .workbench_database import WorkbenchDatabase, utc_now
@@ -20,6 +21,17 @@ def report_fingerprint(report: object) -> str:
         report, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False,
     )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def archive_stable_report_fingerprint(report: object) -> str:
+    """Fingerprint report fields that must stay frozen while WinRAR runs."""
+    normalized = copy.deepcopy(report)
+    if isinstance(normalized, dict):
+        attachments = normalized.get("attachments")
+        if isinstance(attachments, dict):
+            for key in ("disc_number", "disc_sequence", "burning_date"):
+                attachments.pop(key, None)
+    return report_fingerprint(normalized)
 
 
 def replace_active_binding(

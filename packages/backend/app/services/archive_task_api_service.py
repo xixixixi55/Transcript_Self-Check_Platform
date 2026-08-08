@@ -61,11 +61,6 @@ class ArchiveTaskApiService:
                 case_id, source["source_id"], source["revision"],
                 context_id, expected_case_revision, task_id=task_id,
             )
-            # Register before publishing the durable task row so a running
-            # lifecycle cannot claim a task before its bound context is ready.
-            if self.runtime is not None:
-                self.runtime.register(task_id, context_id)
-                registered = True
             task = self.tasks.create({
                 "task_id": task_id,
                 "case_id": case_id,
@@ -76,9 +71,25 @@ class ArchiveTaskApiService:
                 "created_at": utc_now(),
             })
             task = self.tasks.bind_attempt(task_id, attempt["attempt_id"])
+            # The scheduler only claims process-local eligible IDs. Persist
+            # the context lease after the durable attempt binding exists, then
+            # expose the task through this coordinator's eligible set.
+            if self.runtime is not None:
+                self.runtime.register(task_id, context_id)
+                registered = True
         except Exception:
             if registered and self.runtime is not None:
                 self.runtime.unregister(task_id)
+            if "task" in locals() and "attempt" in locals():
+                try:
+                    from ..repository.archive_runtime_context_lease_repository import (
+                        interrupt_queued_runtime_context,
+                    )
+                    interrupt_queued_runtime_context(
+                        self.attempts.database, task_id=task_id,
+                    )
+                except Exception:
+                    pass
             discard_preview_source(context_id)
             if "attempt" in locals():
                 try:

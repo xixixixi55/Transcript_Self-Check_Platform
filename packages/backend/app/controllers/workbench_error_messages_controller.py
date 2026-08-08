@@ -42,6 +42,10 @@ _MESSAGES = {
     "HASHMYFILES_SCREENSHOT_MISSING": "HashMyFiles 校验截图未生成，请重试。",
     "HASHMYFILES_SCREENSHOT_INVALID": "HashMyFiles 校验截图无效，请重试。",
     "EXPORT_PUBLISH_FAILED": "统一导出文件发布失败，已保留上一版导出，请重试。",
+    "EXPORT_PATH_NOT_AUTHORIZED": "导出目录授权已失效，请重新选择导出目录。",
+    "EXPORT_PATH_INVALID": "导出目录不存在或不可用，请重新选择。",
+    "ARCHIVE_RESULT_NOT_AVAILABLE": "归档结果尚不可导出，请刷新归档状态后重试。",
+    "EXPORT_LIFECYCLE_FAILED": "文件已导出，但案件状态更新失败，请刷新后核对导出目录。",
 }
 
 

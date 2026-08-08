@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
-import { CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { CASE_TASK_POLL_INTERVAL_MS, UNIFIED_EXPORT_REQUEST_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import CaseWorkbenchPage from './CaseWorkbenchPage'
 import type { ArchiveTaskCardSummary, CaseShell } from '@biji/shared/types'
 
@@ -251,7 +251,7 @@ it('exports a completed archive bundle directly from the card', async () => {
   const nameInput = (await screen.findByRole('textbox', { name: 'Word 下载文件名' })) as HTMLInputElement
   expect(nameInput.value).toBe('SYNTHETIC-CASE-1.docx')
   fireEvent.change(nameInput, { target: { value: '自定义案件.docx' } }); fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
-  await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic', word_filename: '自定义案件.docx' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+  await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic', word_filename: '自定义案件.docx' }, { timeout: UNIFIED_EXPORT_REQUEST_TIMEOUT_MS }))
   expect(await screen.findByText(/已导出至：D:\SYNTHETIC\EXPORT/)).toBeTruthy()
 })
 })

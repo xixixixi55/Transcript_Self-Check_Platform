@@ -22,10 +22,18 @@ export function ArchiveDecisionPanel({ lifecycle, busy = false, onImmediate, onD
   )
   if (lifecycle === 'archive_queued') return (
     <Alert
-      type="info"
+      type="warning"
       showIcon
       message="已进入等待归档"
-      description="后台任务将按资源准入和安全门控执行；请返回案件工作台查看阶段与活动摘要。"
+      description="后台任务将直接读取源报告目录。压缩完成前，请勿修改、移动或删除源文件，也不要继续使用取证软件向该目录写入数据。"
+    />
+  )
+  if (lifecycle === 'archiving') return (
+    <Alert
+      type="warning"
+      showIcon
+      message="正在读取源文件并压缩"
+      description="请勿修改、移动或删除源报告目录，也不要继续向该目录写入数据。检测到变化时，本次压缩将失败且不会发布产物。"
     />
   )
   if (lifecycle === 'archive_interrupted') return (

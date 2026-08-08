@@ -12,6 +12,10 @@ from .workbench_legacy_report import validate_legacy_report
 from .workbench_repository_helpers import bool_int, json_text, row_json
 from .workbench_serialization import validate_field_states, validate_opaque_asset_refs, validate_opaque_id, validate_safe_string
 from .archive_publish_fence_repository import invalidate_pending, reject_if_active
+from .archive_context_binding_repository import (
+    archive_stable_report_fingerprint,
+    report_fingerprint,
+)
 from .case_tombstone_repository import shell_tombstone_projection
 
 
@@ -148,8 +152,20 @@ class CaseDraftRepository:
                         raise WorkbenchPersistenceError("ASSET_REFERENCE_MISMATCH")
                     if "metadata" in reference and reference["metadata"] != row_json(stored, "metadata_json"):
                         raise WorkbenchPersistenceError("ASSET_REFERENCE_MISMATCH")
-            existing = connection.execute("SELECT case_drafts.revision, case_drafts.created_at FROM case_drafts JOIN case_shells ON case_shells.case_id = case_drafts.case_id WHERE case_drafts.case_id = ? AND case_shells.deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
+            existing = connection.execute("SELECT case_drafts.revision, case_drafts.created_at, case_drafts.report_json FROM case_drafts JOIN case_shells ON case_shells.case_id = case_drafts.case_id WHERE case_drafts.case_id = ? AND case_shells.deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
             current_lifecycle = str(shell["lifecycle"])
+            if existing and current_lifecycle in {"archive_queued", "archiving"}:
+                previous_report = row_json(existing, "report_json")
+                metadata_changed = any(
+                    key in draft and draft.get(key) != shell[key]
+                    for key in ("case_number", "case_name", "case_summary")
+                )
+                if (
+                    metadata_changed
+                    or archive_stable_report_fingerprint(previous_report)
+                    != archive_stable_report_fingerprint(report)
+                ):
+                    raise WorkbenchPersistenceError("ARCHIVE_DRAFT_EDIT_NOT_ALLOWED")
             if existing and not lifecycle_was_submitted:
                 lifecycle = current_lifecycle
             if not existing and lifecycle not in CASE_TRANSITIONS.get(current_lifecycle, set()):
@@ -178,6 +194,13 @@ class CaseDraftRepository:
             updated_shell = connection.execute("UPDATE case_shells SET case_number = ?, case_name = ?, case_summary = ?, report_available = 1, lifecycle = ?, revision = revision + 1, updated_at = ? WHERE case_id = ? AND deployment_instance_id = ? AND revision = ?", (case_number if "case_number" in draft else shell["case_number"], case_name if "case_name" in draft else shell["case_name"], case_summary if "case_summary" in draft else shell["case_summary"], lifecycle, now, case_id, self.database.deployment_instance_id, shell_revision))
             if updated_shell.rowcount != 1:
                 raise RevisionConflictError("case_shell", shell_revision, shell_revision)
+            if existing and current_lifecycle in {"archive_queued", "archiving"}:
+                _sync_active_archive_draft(
+                    connection, case_id, actual, revision,
+                    report_fingerprint(row_json(existing, "report_json")),
+                    report_fingerprint(report),
+                    self.database.deployment_instance_id,
+                )
         return self.get(case_id)
 
     def get(self, case_id: str) -> dict[str, Any]:
@@ -221,6 +244,33 @@ def _validate_template_ref(value: Any) -> dict[str, str] | None:
         "template_id": validate_opaque_id(value["template_id"]),
         "version": validate_opaque_id(value["version"]),
     }
+
+
+def _sync_active_archive_draft(
+    connection: Any, case_id: str, old_revision: int, new_revision: int,
+    old_fingerprint: str, new_fingerprint: str, deployment_id: str,
+) -> None:
+    attempts = connection.execute(
+        "SELECT attempt_id FROM archive_attempts WHERE case_id=? AND deployment_instance_id=? "
+        "AND status IN ('accepted','running') ORDER BY created_at DESC",
+        (case_id, deployment_id),
+    ).fetchall()
+    if len(attempts) != 1:
+        raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
+    attempt_id = str(attempts[0]["attempt_id"])
+    updated_attempt = connection.execute(
+        "UPDATE archive_attempts SET draft_revision=?, report_fingerprint=?, revision=revision+1 "
+        "WHERE attempt_id=? AND deployment_instance_id=? AND draft_revision=? "
+        "AND report_fingerprint=? AND status IN ('accepted','running')",
+        (new_revision, new_fingerprint, attempt_id, deployment_id, old_revision, old_fingerprint),
+    )
+    updated_binding = connection.execute(
+        "UPDATE archive_context_bindings SET draft_revision=?, report_fingerprint=? "
+        "WHERE attempt_id=? AND active=1 AND draft_revision=? AND report_fingerprint=?",
+        (new_revision, new_fingerprint, attempt_id, old_revision, old_fingerprint),
+    )
+    if updated_attempt.rowcount != 1 or updated_binding.rowcount != 1:
+        raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
 
 
 def _draft_dict(row: Mapping[str, Any]) -> dict[str, Any]:

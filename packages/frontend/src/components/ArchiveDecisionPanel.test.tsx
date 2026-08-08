@@ -43,8 +43,14 @@ describe('ArchiveDecisionPanel', () => {
       onDeferred={vi.fn()}
     />)
     expect(screen.getByText('已进入等待归档')).toBeTruthy()
-    expect(screen.getByText(/后台任务将按资源准入和安全门控执行/)).toBeTruthy()
+    expect(screen.getByText(/请勿修改、移动或删除源文件/)).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('keeps the source-file warning visible while WinRAR is running', () => {
+    render(<ArchiveDecisionPanel lifecycle="archiving" onImmediate={vi.fn()} onDeferred={vi.fn()} />)
+    expect(screen.getByText('正在读取源文件并压缩')).toBeTruthy()
+    expect(screen.getByText(/检测到变化时/)).toBeTruthy()
   })
 
   it('does not ask about compression for a failed parse', () => {

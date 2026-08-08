@@ -62,9 +62,17 @@ def test_real_winrar_preserves_root_nested_names_empty_dirs_and_file_content(tmp
             [str(RAR_CLI), "lb", str(archive)],
             capture_output=True, text=True, check=True,
         ).stdout.replace("\\", "/")
-        assert f"{source.name}/root.json" in listing
-        assert f"{source.name}/中文目录/带 空格/third/same.txt" in listing
-        assert f"{source.name}/other/same.txt" in listing
+        entries = [line.strip().rstrip("/") for line in listing.splitlines() if line.strip()]
+        assert f"{source.name}/root.json" in entries
+        assert f"{source.name}/中文目录/带 空格/third/same.txt" in entries
+        assert f"{source.name}/other/same.txt" in entries
+        assert {entry.split("/", 1)[0] for entry in entries} == {source.name}
+        assert all(entry == source.name or entry.startswith(f"{source.name}/") for entry in entries)
+        assert not any(
+            marker in entry.casefold()
+            for entry in entries
+            for marker in (".i/", ".inputs/", ".t/", "snapshot-", ".copying")
+        )
         assert str(tmp_path).replace("\\", "/") not in listing
         assert "archive-" not in listing
 
@@ -74,6 +82,7 @@ def test_real_winrar_preserves_root_nested_names_empty_dirs_and_file_content(tmp
             [str(RAR_CLI), "x", "-y", "-inul", str(archive), str(extracted) + os.sep],
             check=True,
         )
+        assert {path.name for path in extracted.iterdir()} == {source.name}
         restored = extracted / source.name
         assert (restored / "业务空目录").is_dir()
         assert _hashes(restored) == _hashes(source)

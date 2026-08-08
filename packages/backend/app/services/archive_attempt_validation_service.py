@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from ..repository.archive_context_binding_repository import find_active_binding_for_attempt, report_fingerprint
+from ..repository.archive_context_binding_repository import (
+    archive_stable_report_fingerprint,
+    find_active_binding_for_attempt,
+    report_fingerprint,
+)
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.workbench_errors import WorkbenchPersistenceError
 
@@ -20,7 +25,16 @@ def expired(value: object) -> bool:
         return True
 
 
-def revalidate_before_publish(service: Any, attempt_id: str, report: object) -> None:
+@dataclass(frozen=True)
+class ArchivePublicationSnapshot:
+    report: dict[str, Any]
+    draft_revision: int
+    report_fingerprint: str
+
+
+def revalidate_before_publish(
+    service: Any, attempt_id: str, report: object,
+) -> ArchivePublicationSnapshot:
     attempt = service.repository.get_internal(attempt_id)
     binding = find_active_binding_for_attempt(service.database, attempt_id)
     shell = CaseShellRepository(service.database).get(attempt["case_id"])
@@ -38,6 +52,12 @@ def revalidate_before_publish(service: Any, attempt_id: str, report: object) -> 
         or int(source["revision"]) != int(attempt["source_revision"])
         or int(draft["revision"]) != int(attempt["draft_revision"])
         or report_fingerprint(draft["report"]) != attempt["report_fingerprint"]
-        or report_fingerprint(report) != attempt["report_fingerprint"]
+        or archive_stable_report_fingerprint(report)
+        != archive_stable_report_fingerprint(draft["report"])
     ):
         raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
+    return ArchivePublicationSnapshot(
+        report=draft["report"],
+        draft_revision=int(draft["revision"]),
+        report_fingerprint=report_fingerprint(draft["report"]),
+    )

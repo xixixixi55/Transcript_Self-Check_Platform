@@ -9,8 +9,12 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
-from app.repository.winrar_executor_repository import WinRarExecutionResult  # noqa: E402
+from app.repository.winrar_executor_repository import (  # noqa: E402
+    ArchiveExecutionError,
+    WinRarExecutionResult,
+)
 from app.repository.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
+from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive_execution_service import (  # noqa: E402
     ArchiveGateError,
     create_archive_context,
@@ -19,10 +23,10 @@ from app.services.archive_execution_service import (  # noqa: E402
 )
 from app.services.archive_runtime_service import ARCHIVE_RUNTIME_STORE  # noqa: E402
 from app.services.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
+from app.services.archive_attempt_validation_service import ArchivePublicationSnapshot  # noqa: E402
 from app.services.archive_manifest_access_service import get_manifest_part_download  # noqa: E402
 from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 from app.services.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
-import app.services.archive_execution_service as execution_module  # noqa: E402
 
 
 def valid_report():
@@ -124,63 +128,66 @@ def test_archive_executes_without_first_disc_number(tmp_path):
     assert all(part["disc_date"] == "" for part in parts)
 
 
-def test_source_change_during_execution_cannot_change_sealed_input(tmp_path):
+def test_source_metadata_change_during_execution_rejects_archive(tmp_path):
     source, output, context_id = make_context(tmp_path)
-    original_stat = (source / "input.bin").stat()
 
     class MutatingExecutor(FakeExecutor):
         def execute(self, plan, inventory_files, source_root, capability):
+            assert Path(source_root) == source.resolve()
             changed = source / "input.bin"
-            changed.write_bytes(b"87654321")
-            os.utime(changed, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
-            try:
-                assert Path(source_root) != source
-                assert (Path(source_root) / "input.bin").read_bytes() == b"12345678"
-                return super().execute(plan, inventory_files, source_root, capability)
-            finally:
-                changed.write_bytes(b"12345678")
-                os.utime(changed, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+            changed.write_bytes(b"SYNTHETIC-CHANGED")
+            return super().execute(plan, inventory_files, source_root, capability)
 
     fake = MutatingExecutor(tmp_path / "fake-staging", lambda tier: 1)
-    outcome = execute_archive(
-        context_id, valid_report(), output_root=str(output), policy=policy(4),
-        capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
-        executor=fake, integrity_runner=integrity_ok,
-    )
-    assert outcome.status == "completed"
-    assert (source / "input.bin").read_bytes() == b"12345678"
-    assert list((output / "compressed" / context_id / outcome.manifest_id).glob("*.rar"))
+    with pytest.raises(ArchiveGateError) as error:
+        execute_archive(
+            context_id, valid_report(), output_root=str(output), policy=policy(4),
+            capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+            executor=fake, integrity_runner=integrity_ok,
+        )
+    assert {str(item.code) for item in error.value.blockers} == {"ARCHIVE_INPUT_CHANGED"}
+    assert not (fake.root / "attempt-1").exists()
+    assert not list((output / "compressed").glob("**/*.rar"))
+    assert source.is_dir()
+    assert (source / "input.bin").read_bytes() == b"SYNTHETIC-CHANGED"
 
 
-def test_source_change_after_sealing_cannot_change_formal_input(
-    tmp_path, monkeypatch,
-):
+def test_source_change_takes_priority_when_winrar_also_fails(tmp_path):
+    source, output, context_id = make_context(tmp_path)
+
+    class MutatingFailedExecutor(FakeExecutor):
+        def execute(self, plan, inventory_files, source_root, capability):
+            (source / "input.bin").write_bytes(b"SYNTHETIC-CHANGED")
+            raise ArchiveExecutionError("ARCHIVE_EXECUTION_FAILED", "synthetic failure")
+
+    fake = MutatingFailedExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    with pytest.raises(ArchiveGateError) as error:
+        execute_archive(
+            context_id, valid_report(), output_root=str(output), policy=policy(4),
+            capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+            executor=fake, integrity_runner=integrity_ok,
+        )
+    assert {str(item.code) for item in error.value.blockers} == {"ARCHIVE_INPUT_CHANGED"}
+    assert source.is_dir()
+    assert not list((output / "compressed").glob("**/*.rar"))
+
+
+def test_equal_size_equal_mtime_change_documents_metadata_gate_limit(tmp_path):
     source, output, context_id = make_context(tmp_path)
     original_stat = (source / "input.bin").stat()
-    original_assemble = execution_module.assemble_archive_manifest
-    changed_once = False
 
-    def assemble_then_change(*args, **kwargs):
-        nonlocal changed_once
-        result = original_assemble(*args, **kwargs)
-        if not changed_once:
-            changed_once = True
-            changed = source / "input.bin"
-            changed.write_bytes(b"ABCDEFGH")
-            os.utime(changed, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
-        return result
-
-    monkeypatch.setattr(execution_module, "assemble_archive_manifest", assemble_then_change)
-    class SnapshotRecordingExecutor(FakeExecutor):
+    class DirectSourceExecutor(FakeExecutor):
         seen_source_root = None
 
         def execute(self, plan, inventory_files, source_root, capability):
             self.seen_source_root = Path(source_root)
-            assert self.seen_source_root != source
-            assert (self.seen_source_root / "input.bin").read_bytes() == b"12345678"
+            assert self.seen_source_root == source.resolve()
+            changed = source / "input.bin"
+            changed.write_bytes(b"ABCDEFGH")
+            os.utime(changed, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
             return super().execute(plan, inventory_files, source_root, capability)
 
-    fake = SnapshotRecordingExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    fake = DirectSourceExecutor(tmp_path / "fake-staging", lambda tier: 1)
     outcome = execute_archive(
         context_id, valid_report(), output_root=str(output), policy=policy(4),
         capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
@@ -188,9 +195,10 @@ def test_source_change_after_sealing_cannot_change_formal_input(
         integrity_runner=integrity_ok,
     )
     assert outcome.manifest_id
-    assert fake.seen_source_root is not None
-    assert not fake.seen_source_root.exists()
+    assert fake.seen_source_root == source.resolve()
     assert (source / "input.bin").read_bytes() == b"ABCDEFGH"
+    assert not (output / ".i").exists()
+    assert not (output / "compressed" / ".inputs").exists()
 
 
 def test_workbench_publish_removes_staging_marker_exactly_once(
@@ -202,6 +210,8 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
 
     class AttemptService:
         remove_calls = 0
+        latest_report = valid_report()
+        latest_report["attachments"]["disc_number"] = "GP20260808-08"
 
         @staticmethod
         def staging_initializer(_attempt_id):
@@ -210,6 +220,12 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
         @staticmethod
         def process_started_callback(_attempt_id):
             return lambda _pid: None
+
+        @staticmethod
+        def revalidate_before_publish(_attempt_id, report):
+            return ArchivePublicationSnapshot(
+                AttemptService.latest_report, 7 + publish_calls, chr(97 + publish_calls) * 64,
+            )
 
         def remove_marker(self, _staging):
             self.remove_calls += 1
@@ -224,9 +240,17 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
         lambda *_args, **_kwargs: None,
     )
 
+    publish_calls = 0
+
     def publish(staging_dir, final_dir, *_args, attempt_service=None, **_kwargs):
+        nonlocal publish_calls
         assert attempt_service is attempts
         assert attempts.remove_calls == 0
+        publish_calls += 1
+        if publish_calls == 1:
+            AttemptService.latest_report = valid_report()
+            AttemptService.latest_report["attachments"]["disc_number"] = "GP20260808-09"
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
         attempt_service.remove_marker(staging_dir)
         final_dir.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(staging_dir), str(final_dir))
@@ -248,7 +272,47 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
     )
 
     assert outcome.manifest_id
+    assert publish_calls == 2
     assert attempts.remove_calls == 1
+    manifest = get_valid_manifest(
+        context_id, outcome.manifest_id, AttemptService.latest_report,
+    )
+    assert manifest["parts"][0]["disc_number"] == "GP20260808-09"
+
+
+def test_publish_binding_error_is_not_misreported_as_invalid_rar(tmp_path, monkeypatch):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
+
+    class StaleAttemptService:
+        @staticmethod
+        def staging_initializer(_attempt_id):
+            return lambda _staging: None
+
+        @staticmethod
+        def process_started_callback(_attempt_id):
+            return lambda _pid: None
+
+        @staticmethod
+        def revalidate_before_publish(_attempt_id, _report):
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
+
+    monkeypatch.setattr(
+        "app.services.archive_execution_service.WinRarExecutor",
+        lambda *_args, **_kwargs: fake,
+    )
+    with pytest.raises(ArchiveGateError) as error:
+        execute_archive(
+            context_id, valid_report(), output_root=str(output), policy=policy(4),
+            capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+            integrity_runner=integrity_ok, attempt_id="SYNTHETIC-ATTEMPT-STALE",
+            attempt_service=StaleAttemptService(),
+            workbench_context_id="SYNTHETIC-WORKBENCH-CONTEXT-STALE",
+        )
+    assert {str(item.code) for item in error.value.blockers} == {
+        "ARCHIVE_ATTEMPT_BINDING_STALE",
+    }
+    assert not list((output / "compressed").glob("**/*.rar"))
 
 
 def test_successful_manifest_is_reused_only_for_same_snapshot_and_review(tmp_path):

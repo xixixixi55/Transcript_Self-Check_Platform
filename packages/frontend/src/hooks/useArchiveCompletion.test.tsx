@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
-import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, UNIFIED_EXPORT_REQUEST_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import { useArchiveCompletion } from './useArchiveCompletion'
 
 vi.mock('axios', () => ({ default: { post: vi.fn() } }))
@@ -58,7 +58,7 @@ describe('useArchiveCompletion', () => {
         expected_revision: 3, export_path: 'D:\\SYNTHETIC\\out',
         directory_token: 'token-synthetic', word_filename: '案件名.docx',
       },
-      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
+      { timeout: UNIFIED_EXPORT_REQUEST_TIMEOUT_MS },
     )
     expect(exported).toEqual(EXPORT_RESULT)
   })

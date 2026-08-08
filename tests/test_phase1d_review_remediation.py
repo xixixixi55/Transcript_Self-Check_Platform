@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -119,11 +120,39 @@ def test_workbench_attempt_rejects_a_new_server_draft_revision(database, tmp_pat
     draft = CaseDraftRepository(database).get(CASE_ID)
     editable = {**draft, "report": {**draft["report"], "title": "SYNTHETIC/TEST/NEW-DRAFT"}}
     editable.pop("lifecycle", None)
-    updated = CaseDraftRepository(database).save(editable, draft["revision"])
-    assert updated["lifecycle"] == "archive_queued"
     with pytest.raises(WorkbenchPersistenceError) as stale:
-        service.workbench_report(attempt["attempt_id"], "SYNTHETIC-CONTEXT-H4-STALE-DRAFT")
-    assert stale.value.code == "ARCHIVE_ATTEMPT_BINDING_STALE"
+        CaseDraftRepository(database).save(editable, draft["revision"])
+    assert stale.value.code == "ARCHIVE_DRAFT_EDIT_NOT_ALLOWED"
+    assert service.context_matches(
+        attempt["attempt_id"], "SYNTHETIC-CONTEXT-H4-STALE-DRAFT",
+    )
+
+
+def test_disc_number_save_refreshes_running_attempt_binding(database, tmp_path: Path) -> None:
+    shell = ready_case(database)
+    mark_source_available(database)
+    context_id = "SYNTHETIC-CONTEXT-H4-DISC-UPDATE"
+    service = ArchiveAttemptService(database, tmp_path / "SYNTHETIC-OUTPUT")
+    attempt = service.accept(CASE_ID, SOURCE_ID, 0, context_id, shell["revision"])
+    service.start(attempt["attempt_id"])
+    original = CaseDraftRepository(database).get(CASE_ID)
+    edited = {**original, "report": copy.deepcopy(original["report"])}
+    edited.pop("lifecycle", None)
+    edited["report"].setdefault("attachments", {})["disc_number"] = "GP20260808-01"
+
+    saved = CaseDraftRepository(database).save(edited, original["revision"])
+    internal = service.repository.get_internal(attempt["attempt_id"])
+    binding = service.context_binding(context_id)
+
+    assert internal["draft_revision"] == saved["revision"]
+    assert binding is not None and binding["draft_revision"] == saved["revision"]
+    assert internal["report_fingerprint"] == binding["report_fingerprint"]
+    latest = service.revalidate_before_publish(
+        attempt["attempt_id"], original["report"],
+    )
+    assert latest.report["attachments"]["disc_number"] == "GP20260808-01"
+    assert latest.draft_revision == saved["revision"]
+    assert latest.report_fingerprint == internal["report_fingerprint"]
 
 
 def test_publish_intent_rechecks_server_draft_before_formal_move(database, tmp_path: Path) -> None:
@@ -136,8 +165,13 @@ def test_publish_intent_rechecks_server_draft_before_formal_move(database, tmp_p
     internal = service.repository.get_internal(attempt["attempt_id"])
     draft = CaseDraftRepository(database).get(CASE_ID)
     edited = {**draft, "report": {**draft["report"], "title": "SYNTHETIC/TEST/EDITED"}}
-    edited.pop("lifecycle", None)
-    CaseDraftRepository(database).save(edited, draft["revision"])
+    # Bypass the guarded save API to prove the publication boundary still
+    # rejects an out-of-band persisted report mutation.
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE case_drafts SET report_json=?, revision=revision+1 WHERE case_id=?",
+            (json.dumps(edited["report"], ensure_ascii=False), CASE_ID),
+        )
     with pytest.raises(WorkbenchPersistenceError) as stale:
         service.persist_publish_intent(
             attempt["attempt_id"], context_id=context_id, source_key="1" * 64,

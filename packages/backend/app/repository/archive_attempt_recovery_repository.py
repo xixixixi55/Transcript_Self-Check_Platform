@@ -180,15 +180,13 @@ def complete_verified_attempt(
         attempt_sql = (
             "UPDATE archive_attempts SET status = 'succeeded', manifest_id = ?, "
             "manifest_source_key = ?, manifest_input_fingerprint = ?, manifest_archive_fingerprint = ?, "
-            "cleanup_status = ?, error_code = NULL, finished_at = ?, revision = revision + 1, "
-            "input_snapshot_status = COALESCE(input_snapshot_status, 'sealed') "
+            "cleanup_status = ?, error_code = NULL, finished_at = ?, revision = revision + 1 "
             "WHERE attempt_id = ? AND deployment_instance_id=? "
             "AND (task_id IS NULL OR task_id=?)"
             if legacy_attempt else
             "UPDATE archive_attempts SET status = 'succeeded', manifest_id = ?, "
             "manifest_source_key = ?, manifest_input_fingerprint = ?, manifest_archive_fingerprint = ?, "
-            "cleanup_status = ?, error_code = NULL, finished_at = ?, revision = revision + 1, "
-            "input_snapshot_status = COALESCE(input_snapshot_status, 'sealed') "
+            "cleanup_status = ?, error_code = NULL, finished_at = ?, revision = revision + 1 "
             "WHERE attempt_id = ? AND task_id = ? AND deployment_instance_id = ?"
         )
         attempt_params = (

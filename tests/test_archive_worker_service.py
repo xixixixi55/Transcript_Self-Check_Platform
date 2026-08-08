@@ -293,6 +293,7 @@ def test_executor_cancel_cleans_only_its_owned_staging(tmp_path: Path) -> None:
     )
     entry = SimpleNamespace(
         relative_path="SYNTHETIC.bin", absolute_path=input_path,
+        size_bytes=input_path.stat().st_size,
     )
     capability = WinRarCapability(
         True, "configured", "WinRAR.exe", "7.23", True,

@@ -128,6 +128,21 @@ def test_resource_denial_keeps_task_queued_with_server_reason(database) -> None:
     assert waiting["percent"] == 0
 
 
+def test_scheduler_does_not_claim_task_without_local_runtime_context(database) -> None:
+    tasks = ArchiveTaskRepository(database)
+    first = create_task(tasks, 1)
+    second = create_task(tasks, 2)
+    scheduler = ArchiveSchedulerService(tasks, admission())
+
+    claim = scheduler.claim_next(
+        snapshot(), eligible_task_ids={second["task_id"]},
+    )
+
+    assert claim is not None
+    assert claim.task_id == second["task_id"]
+    assert tasks.get(first["task_id"])["status"] == "queued"
+
+
 def test_owned_progress_fixed_milestones_activity_and_cancel(database) -> None:
     tasks = ArchiveTaskRepository(database)
     queued = create_task(tasks, 1)

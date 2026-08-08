@@ -35,6 +35,8 @@ def persist_publish_intent(
     final_dir: Path, public_manifest: dict[str, Any], context_id: str,
     target_context_id: str | None = None,
     publication_id_value: str | None = None,
+    expected_draft_revision: int | None = None,
+    expected_report_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     attempt = service.repository.get_internal(attempt_id)
     relative = final_dir.resolve(strict=False).relative_to(
@@ -43,8 +45,10 @@ def persist_publish_intent(
     return ArchivePublishIntentRepository(service.database).create(
         attempt_id=attempt_id, case_id=attempt["case_id"], source_id=attempt["source_id"],
         context_id=context_id, target_context_id=target_context_id or context_id,
-        source_revision=attempt["source_revision"], draft_revision=attempt["draft_revision"],
-        report_fingerprint=attempt["report_fingerprint"], source_key=source_key,
+        source_revision=attempt["source_revision"],
+        draft_revision=(attempt["draft_revision"] if expected_draft_revision is None else expected_draft_revision),
+        report_fingerprint=(attempt["report_fingerprint"] if expected_report_fingerprint is None else expected_report_fingerprint),
+        source_key=source_key,
         input_fingerprint=input_fingerprint, archive_fingerprint=archive_fingerprint,
         manifest_id=manifest_id, relative_final_dir=relative, public_manifest=public_manifest,
         task_id=attempt.get("task_id"),
