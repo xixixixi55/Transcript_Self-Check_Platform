@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-029
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-029, including unified page scrolling, default workbench entry, and compact source authorization control
 
 ## 目标
 
@@ -17,6 +17,7 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 - [x] 首页、电子数据检查笔录模块入口、生成笔录上传/解析/审核/导出流程和电子设备管理共享同一个全局 PlatformShell。
 - [x] 一级“电子数据检查笔录”与二级“生成笔录/电子设备管理”在路由和导航模型中真实体现父子关系。
 - [x] 侧栏视觉覆盖整个 `100vh`，不依赖 Header/Footer 高度计算；主内容过长时侧栏无断层，1366×768、125% 和 150% 缩放下仍可用。
+- [x] 案件工作台和审核编辑页的主内容只使用一个垂直滚动容器，浏览器文档不额外产生第二条页面滚动条。
 - [x] 旧 `/generate` 和 `/devices` 地址通过路由层重定向到新地址，并尽量保留查询参数和 hash。
 - [x] 首页只展示六类文书功能和真实开放状态，不增加统计、最近任务、使用次数或其他虚假数据。
 - [x] 电子数据检查笔录模块入口展示真实的生成笔录和电子设备管理入口。
@@ -49,6 +50,7 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 - [x] 将旧首页改造成克制的现代政务工作台首页，展示六类功能入口和真实开放状态，不增加虚假业务数据。
 - [x] 调整设备管理页面只变更路由和外层布局，保持现有设备 CRUD 行为和 API 不变。
 - [x] 移除全局 Header/Footer 对侧栏高度的影响，统一主内容滚动和 Drawer/流程底部操作栏定位。
+- [x] 统一 `html`、`body`、`#root` 的高度、默认外边距和文档溢出约束，确保案件工作台与审核编辑页只保留主内容滚动条。
 - [x] 增加全局外壳、首页、模块入口、一级/二级导航、重定向和现有流程回归测试。
 - [x] 运行前端门控、快速门控、生产构建和差异检查，并完成人工验收。
 

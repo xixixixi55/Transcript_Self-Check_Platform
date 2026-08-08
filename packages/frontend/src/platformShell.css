@@ -12,6 +12,18 @@
   --review-focus: rgba(47, 111, 163, 0.24);
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+html,
+body {
+  overflow: hidden;
+}
+
 .platform-shell {
   --platform-sidebar-width: 240px;
   min-height: 100vh;
