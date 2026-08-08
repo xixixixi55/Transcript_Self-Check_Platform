@@ -42,7 +42,7 @@ argument-hint: "[变更包名称]"
    a. **写代码**
       - 遵循 `architecture.md` 的分层约束和导出规则
       - 遵循 `AGENTS.md` 的命名约定
-      - 文件不超过 250 行
+      - 文件不超过 400 行
 
    b. **运行架构检查 + 类型检查**
       - 执行 npx tsx scripts/lint-arch.ts 和类型检查

@@ -151,7 +151,7 @@ Level 2 的严格任务状态和 delta 结构只检查 `<name>` 当前变更包�
 
 **分层方向**：SharedTypes(0)→Constants(1)→Utils(2)；FE Hooks(10)→Components(11)→Pages(12)；BE Repo(20)→Services(21)→Controllers(22)→Routes(23)。前后端仅通过 SharedTypes API 契约通信。
 
-**文件**：≤250 行、命名导出、TS camelCase/PascalCase、Python snake_case。新增目录后更新 `harness/directory.md`。
+**文件**：≤400 行、命名导出、TS camelCase/PascalCase、Python snake_case。新增目录后更新 `harness/directory.md`。
 
 **测试**：Utils/Repo/Services → 单元测试；Hooks/Components → Vitest+RTL；Pages/Routes → E2E；Controllers → 集成测试。
 

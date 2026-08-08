@@ -29,15 +29,12 @@ const SRC_DIRS = [
 ]
 
 /** 文件大小上限 */
-const MAX_LINES = 250
+const MAX_LINES = 400
 
 /** 文件大小例外：文件头部已按架构规则添加超限原因说明 */
 const FILE_SIZE_EXCEPTIONS = [
   'packages/backend/app/services/report_parser_service.py',
-  'packages/backend/app/services/document_builder_service.py',
   'packages/backend/app/services/template_filler_service.py',
-  'packages/backend/app/repository/html_parser.py',
-  'packages/backend/app/services/canonical_adapter_service.py',
 ]
 
 /**

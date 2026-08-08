@@ -1,12 +1,4 @@
-"""Adapters between report formats and the canonical inspection model.
-
-FILE_SIZE_EXCEPTION: 本文件 ~258 行，超出 250 行限制。
-原因：双向转换逻辑（legacy→canonical 和 canonical→legacy）内聚在单个
-文件中，分离将产生循环导入或需要抽取公共抽象层。转换函数共享私有
-_helper（_text、_primary_software、_software_tools 等），强行拆分会
-增加认知负担且违反高内聚原则。该文件不包含 I/O、文件系统访问或业务规则；
-它纯粹是数据形状转换。允许的例外不掩盖任何跨层依赖或循环引用。
-"""
+"""Adapters between report formats and the canonical inspection model."""
 
 from __future__ import annotations
 

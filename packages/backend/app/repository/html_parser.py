@@ -4,11 +4,6 @@ Layer 20: BE_Repository — 美亚手机大师 HTML 报告解析器
 解析美亚 FL-901V5 生成的 HTML 报告中的 JSON 数据文件。
 支持标准文件夹格式：[案件名称]_[时间戳]_html/
 
-> 文件行数超过 250 行上限：本文件是报告解析的入口，包含 6 个 JSON 文件解析函数
-  （case_info / device_lists / report_info / navigation / device_base / device_field）
-  及目录扫描、时间格式化等辅助函数。按数据源拆分会导致多层 import 循环。
-  已归档至 FILE_SIZE_EXCEPTIONS。
-
 解析目标文件：
 - data/data_case_info.json    — 案件信息
 - data/data_device_lists.json — 设备列表
