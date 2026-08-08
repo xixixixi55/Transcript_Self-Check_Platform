@@ -9,6 +9,7 @@ from app.services.export_gate_service import ExportGateInput, evaluate_export_ga
 from app.services.software_policy_service import (
     is_primary_software_confirmed,
     normalize_primary_software_projection,
+    normalize_runtime_software_tool_projection,
 )
 
 
@@ -117,9 +118,27 @@ def test_incomplete_primary_software_does_not_project_a_fake_tool():
     }
     normalized = normalize_primary_software_projection(report)
     assert [tool["name"] for tool in normalized["inspection"]["software_tools"]] == [
-        "WinRAR压缩管理软件", "Python hashlib",
+        "WinRAR压缩管理软件", "HashMyFiles",
     ]
+    assert normalized["inspection"]["software_tools"][1]["version"] == "2.51"
     assert not is_primary_software_confirmed(normalized)
+
+
+def test_legacy_hashlib_runtime_tool_is_projected_as_hashmyfiles():
+    report = {
+        "inspection": {
+            "software_tools": [
+                {"name": "WinRAR压缩管理软件", "version": "6.24"},
+                {"name": "Python hashlib", "version": "3.11.0"},
+            ],
+            "result": {"software_name": "", "software_version": ""},
+        }
+    }
+    normalized = normalize_primary_software_projection(report)
+    assert normalized["inspection"]["software_tools"] == [
+        {"name": "WinRAR压缩管理软件", "version": "6.24"},
+        {"name": "HashMyFiles", "version": "2.51"},
+    ]
 
 
 def test_hashmyfiles_runtime_tool_is_preserved_by_projection():
@@ -140,6 +159,31 @@ def test_hashmyfiles_runtime_tool_is_preserved_by_projection():
     assert [tool["name"] for tool in normalized["inspection"]["software_tools"]] == [
         "WinRAR压缩管理软件", "HashMyFiles",
     ]
+
+
+def test_runtime_detail_projection_preserves_hashmyfiles_metadata():
+    report = {"inspection": {"software_tools": [{
+        "category": "hashmyfiles", "name": "HashMyFiles", "version": "2.51",
+        "display_name": "HashMyFiles 2.51", "confirmation_status": "confirmed",
+    }]}}
+    normalized = normalize_runtime_software_tool_projection(report)
+    assert normalized["inspection"]["software_tools"] == report["inspection"]["software_tools"]
+
+
+def test_runtime_detail_projection_migrates_legacy_identity_without_losing_metadata():
+    legacy_tool = {
+        "category": "python_hashlib", "name": "Python hashlib", "version": "3.11.0",
+        "display_name": "Python hashlib 3.11.0", "confirmation_status": "confirmed",
+        "provenance": [{"source_type": "runtime"}], "extension": "SYNTHETIC/TEST",
+    }
+    report = {"inspection": {"software_tools": [legacy_tool]}}
+    normalized = normalize_runtime_software_tool_projection(report)
+    assert normalized["inspection"]["software_tools"] == [{
+        **legacy_tool,
+        "category": "hashmyfiles", "name": "HashMyFiles", "version": "2.51",
+        "display_name": "HashMyFiles 2.51",
+    }]
+    assert report["inspection"]["software_tools"] == [legacy_tool]
 
 
 def test_unconfirmed_primary_software_is_an_export_blocker():

@@ -121,6 +121,42 @@ def test_submit_list_detail_task_and_source_contract(app_services):
         assert str(app_services.synthetic_report_dir) not in response.text
 
 
+def test_case_detail_projects_legacy_hashlib_as_hashmyfiles(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir), "case_name": "SYNTHETIC-HASH-TOOL"},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        _wait_for_parse(client, case_id)
+        stored = app_services.lifecycle.drafts.get(case_id)
+        stored["report"]["inspection"]["software_tools"] = [
+            {"name": "WinRAR压缩管理软件", "version": "6.24"},
+            {
+                "category": "python_hashlib", "name": "Python hashlib", "version": "3.11.0",
+                "display_name": "Python hashlib 3.11.0", "confirmation_status": "confirmed",
+                "provenance": [{"source_type": "runtime"}],
+            },
+        ]
+        app_services.lifecycle.drafts.save(stored, expected_revision=stored["revision"])
+
+        detail = client.get(f"/api/v1/workbench/cases/{case_id}").json()["data"]
+        assert detail["draft"]["report"]["inspection"]["software_tools"] == [
+            {"name": "WinRAR压缩管理软件", "version": "6.24"},
+            {
+                "category": "hashmyfiles", "name": "HashMyFiles", "version": "2.51",
+                "display_name": "HashMyFiles 2.51", "confirmation_status": "confirmed",
+                "provenance": [{"source_type": "runtime"}],
+            },
+        ]
+        persisted = app_services.lifecycle.drafts.get(case_id)
+        assert persisted["report"]["inspection"]["software_tools"][1]["name"] == "Python hashlib"
+
+
 def test_select_directory_endpoint_submits_selected_directory_without_exposing_path(app_services):
     from app.main import app
     from app.controllers import workbench_controller
@@ -1408,6 +1444,21 @@ def test_source_registration_errors_have_distinct_safe_messages():
     assert "无法访问" in initial_messages[1]
     assert "报告结构" in initial_messages[2]
     assert all("C:\\" not in message for message in initial_messages + replacement_messages)
+
+
+def test_hashmyfiles_export_failures_have_safe_specific_messages():
+    from app.controllers.workbench_controller import _message
+
+    codes = [
+        "HASHMYFILES_NO_PARTS", "HASHMYFILES_UNAVAILABLE",
+        "HASHMYFILES_LAUNCH_FAILED", "HASHMYFILES_TIMEOUT",
+        "HASHMYFILES_RUN_FAILED", "HASHMYFILES_OUTPUT_MISSING",
+        "HASHMYFILES_RESULT_INVALID", "HASHMYFILES_SCREENSHOT_FAILED",
+        "HASHMYFILES_SCREENSHOT_MISSING", "HASHMYFILES_SCREENSHOT_INVALID",
+    ]
+    messages = [_message(code) for code in codes]
+    assert all("HashMyFiles" in message for message in messages)
+    assert all(message != "工作台请求未完成，请稍后重试。" for message in messages)
 
 
 def test_select_export_directory_endpoint_returns_chosen_path(app_services):

@@ -1,4 +1,4 @@
-"""Unified export: latest Word + all RAR parts + HashMyFiles verification HTML.
+"""Unified export: latest Word + all RAR parts + HashMyFiles verification PNG.
 
 The service writes a complete archive bundle into a user-chosen export path.
 Inputs are pre-resolved by the controller (report, validated manifest, physical
@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import os
 import shutil
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -17,8 +18,9 @@ from uuid import uuid4
 
 from ..config import OUTPUT_BASE
 from ..repository.audit_event_repository import AuditEventRepository
+from ..repository.hashmyfiles_repository import HashMyFilesError
 from ..repository.workbench_database import WorkbenchDatabase
-from .hashmyfiles_service import generate_verification_html
+from .hashmyfiles_service import generate_verification_image
 from .record_generator_service import generate_docx
 
 
@@ -85,32 +87,71 @@ def unified_export(
             raise UnifiedExportError("ARCHIVE_PART_MISSING", "归档分卷文件缺失，无法导出。")
 
     export_path.mkdir(parents=True, exist_ok=True)
-    word_filename = _export_word(
-        report, _with_disc_mapping(manifest, plan), export_path, photo_paths,
-        template_context, word_filename,
-    )
-
-    for rar in rar_paths:
-        shutil.copy2(rar, export_path / rar.name)
-    rar_filenames = [rar.name for rar in rar_paths]
-
-    runner = hash_runner or (
-        lambda paths, out: generate_verification_html(paths, out)
-    )
-    hash_html = runner(rar_paths, export_path)
+    runner = hash_runner or (lambda paths, out: generate_verification_image(paths, out))
+    with tempfile.TemporaryDirectory(prefix=".biji-export-", dir=export_path) as temp_dir:
+        staging_path = Path(temp_dir)
+        word_filename = _export_word(
+            report, _with_disc_mapping(manifest, plan), staging_path, photo_paths,
+            template_context, word_filename,
+        )
+        for rar in rar_paths:
+            shutil.copy2(rar, staging_path / rar.name)
+        rar_filenames = [rar.name for rar in rar_paths]
+        staged_rar_paths = [staging_path / name for name in rar_filenames]
+        try:
+            hash_image = runner(staged_rar_paths, staging_path)
+        except HashMyFilesError as error:
+            raise UnifiedExportError(error.code, error.args[0]) from error
+        _publish_staged_bundle(
+            staging_path, export_path,
+            [word_filename, *rar_filenames, hash_image],
+        )
 
     exported_at = _utc_now()
     _record_export(
         database, case_id, task_id, export_path, word_filename,
-        rar_filenames, hash_html, exported_at,
+        rar_filenames, hash_image, exported_at,
     )
     return {
         "export_path": str(export_path),
         "word_filename": word_filename,
         "rar_filenames": rar_filenames,
-        "hash_verification_html": hash_html,
+        "hash_verification_image": hash_image,
         "exported_at": exported_at,
     }
+
+
+def _publish_staged_bundle(
+    staging_path: Path, export_path: Path, filenames: list[str],
+) -> None:
+    """Publish one complete bundle and restore the previous version on error."""
+    names = list(dict.fromkeys(Path(name).name for name in filenames))
+    rollback_path = staging_path / ".rollback"
+    rollback_path.mkdir()
+    backed_up: list[str] = []
+    published: list[str] = []
+    try:
+        for name in [*names, "hash-verification.html"]:
+            target = export_path / name
+            if target.is_file():
+                os.replace(target, rollback_path / name)
+                backed_up.append(name)
+        for name in names:
+            source = staging_path / name
+            if not source.is_file():
+                raise OSError("staged export artifact missing")
+            os.replace(source, export_path / name)
+            published.append(name)
+    except OSError as error:
+        for name in published:
+            (export_path / name).unlink(missing_ok=True)
+        for name in backed_up:
+            backup = rollback_path / name
+            if backup.is_file():
+                os.replace(backup, export_path / name)
+        raise UnifiedExportError(
+            "EXPORT_PUBLISH_FAILED", "统一导出文件发布失败，已保留上一版导出。",
+        ) from error
 
 
 def _with_disc_mapping(
@@ -168,7 +209,7 @@ def _record_export(
     export_path: Path,
     word_filename: str,
     rar_filenames: list[str],
-    hash_html: str,
+    hash_image: str,
     exported_at: str,
 ) -> None:
     if database is None:
@@ -186,7 +227,7 @@ def _record_export(
         "payload": {
             "word_filename": word_filename,
             "rar_filenames": rar_filenames,
-            "hash_verification_html": hash_html,
+            "hash_verification_image": hash_image,
             "exported_at": exported_at,
         },
         "created_at": exported_at,

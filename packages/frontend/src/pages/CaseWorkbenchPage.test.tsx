@@ -239,7 +239,7 @@ it('exports a completed archive bundle directly from the card', async () => {
   })
   postMock.mockImplementation(async (url: string, body?: unknown) => {
     if (url.endsWith('/select-export-directory')) return { data: { data: { path: 'D:\SYNTHETIC\EXPORT', token: 'token-synthetic' } } }
-    if (url.endsWith('/export-bundle')) return { data: { data: { case_id: 'case-synthetic-1', task_id: 'archive-SYNTHETIC-1', expected_revision: (body as { expected_revision: number }).expected_revision, lifecycle: 'exported', output: { export_path: 'D:\SYNTHETIC\EXPORT', word_filename: 'out.docx', rar_filenames: ['SYNTHETIC.part1.rar'], hash_verification_html: 'hash.html', exported_at: '2026-07-30T12:01:00Z' } } } }
+    if (url.endsWith('/export-bundle')) return { data: { data: { case_id: 'case-synthetic-1', task_id: 'archive-SYNTHETIC-1', expected_revision: (body as { expected_revision: number }).expected_revision, lifecycle: 'exported', output: { export_path: 'D:\SYNTHETIC\EXPORT', word_filename: 'out.docx', rar_filenames: ['SYNTHETIC.part1.rar'], hash_verification_image: 'hash.png', exported_at: '2026-07-30T12:01:00Z' } } } }
     return { data: { data: {} } }
   })
   render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)

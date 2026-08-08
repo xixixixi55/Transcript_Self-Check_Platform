@@ -31,6 +31,17 @@ _MESSAGES = {
     "CASE_DELETE_FAILED": "案件删除未完成，请刷新后重试。",
     "DIRECTORY_PICKER_UNAVAILABLE": "本机文件夹选择器暂不可用，请在 Windows 桌面环境中重试。",
     "DIRECTORY_PICKER_FAILED": "本机文件夹选择未完成，请稍后重试。",
+    "HASHMYFILES_NO_PARTS": "没有可供 HashMyFiles 校验的 RAR 文件。",
+    "HASHMYFILES_UNAVAILABLE": "HashMyFiles 工具不可用，无法生成校验截图。",
+    "HASHMYFILES_LAUNCH_FAILED": "HashMyFiles 无法启动，请检查工具配置后重试。",
+    "HASHMYFILES_TIMEOUT": "HashMyFiles 校验超时，请重试。",
+    "HASHMYFILES_RUN_FAILED": "HashMyFiles 校验执行失败，请重试。",
+    "HASHMYFILES_OUTPUT_MISSING": "HashMyFiles 校验结果未生成，请重试。",
+    "HASHMYFILES_RESULT_INVALID": "HashMyFiles 校验结果缺失或不完整，请重试。",
+    "HASHMYFILES_SCREENSHOT_FAILED": "HashMyFiles 校验截图生成失败，请重试。",
+    "HASHMYFILES_SCREENSHOT_MISSING": "HashMyFiles 校验截图未生成，请重试。",
+    "HASHMYFILES_SCREENSHOT_INVALID": "HashMyFiles 校验截图无效，请重试。",
+    "EXPORT_PUBLISH_FAILED": "统一导出文件发布失败，已保留上一版导出，请重试。",
 }
 
 

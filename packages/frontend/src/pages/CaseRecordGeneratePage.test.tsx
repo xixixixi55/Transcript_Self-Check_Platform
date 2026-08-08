@@ -91,7 +91,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       if (url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY) return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } }
       if (url === API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId)) {
         const request = body as { expected_revision: number; export_path: string; directory_token: string }
-        return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, lifecycle: 'exported', output: { export_path: request.export_path, word_filename: 'SYNTHETIC.docx', rar_filenames: ['SYNTHETIC.part1.rar'], hash_verification_html: 'SYNTHETIC-hashes.html', exported_at: '2026-01-01T00:00:00Z' } } } }
+        return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, lifecycle: 'exported', output: { export_path: request.export_path, word_filename: 'SYNTHETIC.docx', rar_filenames: ['SYNTHETIC.part1.rar'], hash_verification_image: 'SYNTHETIC-hashes.png', exported_at: '2026-01-01T00:00:00Z' } } } }
       }
       return { data: { data: {} } }
     })

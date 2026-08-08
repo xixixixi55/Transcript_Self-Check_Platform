@@ -4,13 +4,13 @@ workflow_level: 3
 
 > Spec: `openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`
 > Design: `openspec/changes/background-compression-archive-completion/design.md`
-> 范围：案件打开「立即/稍后」后台压缩触发（替换预览手动归档主路径）；压缩不阻塞审核；每 RAR 实时覆盖回填附件1/检查结果；盘号后填与顺序映射；归档完成态与导出路径提示；统一导出最新 Word + RAR + HashMyFiles 校验 HTML；已导出标记与彻底删除（复用 `case-workbench-delete`）。
+> 范围：案件打开「立即/稍后」后台压缩触发（替换预览手动归档主路径）；压缩不阻塞审核；每 RAR 实时覆盖回填附件1/检查结果；盘号后填与顺序映射；归档完成态与导出路径提示；统一导出最新 Word + RAR + HashMyFiles 校验截图；已导出标记与彻底删除（复用 `case-workbench-delete`）。
 
 ## SharedTypes / SharedConstants（Layer 0–1）
 
 - [x] T001 统一导出与盘号映射契约。
   - 文件：`packages/shared/types/archiveCompletion.ts`、`packages/shared/types/index.ts`、`packages/shared/constants/index.ts`
-  - 内容：新增统一导出请求/结果（导出路径、part 集合、HashMyFiles HTML 文件名）、盘号映射请求/结果、`ArchiveCompletionStatus` 派生状态投影（compressing/disc_pending/archive_complete/exported）、导出记录 DTO。
+  - 内容：新增统一导出请求/结果（导出路径、part 集合、HashMyFiles 校验产物文件名）、盘号映射请求/结果、`ArchiveCompletionStatus` 派生状态投影（compressing/disc_pending/archive_complete/exported）、导出记录 DTO；产物最终由 T022 调整为 PNG 截图。
   - 设计细化（apply 阶段）：「待补盘号/归档完成」实现为派生状态投影（`archive_verified` + 盘号补齐标志），不新增 `CaseLifecycle` 枚举值，避免与 retention 包进行中的 v11 迁移冲突。
   - 验证：`pnpm --filter @biji/shared typecheck` 通过。
 
@@ -43,7 +43,7 @@ workflow_level: 3
   - 内容：回填在归档 attempt 完成时经 `complete_verified` → `update_verified_draft` 接线：`verified_archive_result_fields` 以 manifest parts 覆盖填写检查结果 `result`（rar_filename/md5_hash/file_size），`attachment_projection` 投影附件1 extract_list，并更新草稿 lifecycle 为 `archive_verified`（revision CAS 保护）。WinRAR 分卷为批量产出、无逐卷事件，回填点在 attempt 完成（早于导出）。Review（T015）发现独立 `attachment_backfill_service.backfill_from_manifest` 是重复死代码，已删除。
   - 验证：`tests/test_archive_runtime_lifecycle.py` 断言草稿 inspection.result 与 extract_list 已回填（rar_filename/md5/file_size）。
 
-- [x] T007 HashMyFiles 校验 HTML 生成（接口+实测固化）。
+- [x] T007 HashMyFiles 校验结果生成（原 HTML 接口，发布产物由 T022 替换为 PNG）。
   - 文件：新增 `packages/backend/app/repository/hashmyfiles_repository.py`、新增 `packages/backend/app/services/hashmyfiles_service.py`
   - 内容：受控接口 + `BIJI_HASHMYFILES_PATH` 配置；缺失工具明确失败（HASHMYFILES_UNAVAILABLE）。
   - 实测（2026-08-06，本机 HashMyFiles v2.51）：`/files <多个路径>` + `/MD5 1 /SHA1 0 /CRC32 0 /SHA256 0 /SHA512 0 /SHA384 0` + `/shtml <输出路径>` 生成水平 HTML（UTF-16，含 Filename/MD5/Full Path 等列），保存后进程自动退出（returncode 0）；只开 MD5 时其余 hash 列头仍输出但值为空。`run_hashmyfiles` 据此实现，输出固定名 `hash-verification.html`（可重复导出覆盖），运行失败/输出缺失分别抛 HASHMYFILES_RUN_FAILED / HASHMYFILES_OUTPUT_MISSING（无路径泄漏）。
@@ -51,7 +51,7 @@ workflow_level: 3
 
 - [x] T008 统一导出编排。
   - 文件：新增 `packages/backend/app/services/unified_export_service.py`
-  - 内容：盘号补齐校验（DISC_MAPPING_INCOMPLETE）+ 最新 Word（`generate_docx`）+ 复制全部 RAR + HashMyFiles HTML 写入导出路径；导出审计经 `AuditEventRepository`（不含绝对路径，符合资产策略）。
+  - 内容：盘号补齐校验（DISC_MAPPING_INCOMPLETE）+ 最新 Word（`generate_docx`）+ 复制全部 RAR + HashMyFiles 校验产物写入导出路径；T022 将产物更新为 PNG 截图；导出审计经 `AuditEventRepository`（不含绝对路径，符合资产策略）。
   - 验证：`tests/test_unified_export_service.py` 3 passed（成功包/盘号未补齐失败/分卷缺失失败）。
 
 ## BE Controllers / Routes（Layer 22–23）
@@ -124,6 +124,12 @@ workflow_level: 3
   - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、`packages/backend/app/services/report_parser_service.py`、`software_policy_service.py`、`attachment_plan_service.py`、`canonical_models_service.py`、`canonical_adapter_service.py`、`packages/shared/types/canonical.ts`、`packages/shared/utils/softwareProjectionUtils.ts` + 对应测试与 living spec（`openspec/specs/electronic-inspection-record/spec.md`、`openspec/specs/data-model.md`）。
   - 测试：`test_report_parser_service`（HashMyFiles/2.51 断言）、`test_software_policy_service`（新增 HashMyFiles runtime tool 投影）、`test_attachment_plan_service`（HashMyFiles 满足归档工具来源）、前端 `softwareProjectionUtils.test`（HashMyFiles 保留为 runtime tool）。验证：后端相关 162 passed、前端相关通过。
 
+- [x] T021 存量案件软件工具展示统一为 HashMyFiles 2.51（人工验收反馈）。
+  - 现象：T017 仅修改新解析案件，已有草稿仍在审核编辑界面显示 `Python hashlib 3.11.0`，与当前实际校验工具不一致。
+  - 决策：案件详情与正式导出均把旧条目投影为 `HashMyFiles 2.51`；底层迁移识别继续兼容 `python hashlib` / `python_hashlib`，无需批量改写数据库。
+  - 文件：`packages/backend/app/services/software_policy_service.py`、`case_lifecycle_service.py`、`archive_export_service.py`、`tests/test_software_policy_service.py`、`tests/test_workbench_controller.py`、`tests/test_archive_export_service.py`、delta spec 与 living spec。
+  - 测试：`test_legacy_hashlib_runtime_tool_is_projected_as_hashmyfiles` 锁定规范化规则；`test_case_detail_projects_legacy_hashlib_as_hashmyfiles` 锁定存量案件详情展示接线；`test_export_bundle_marks_shell_exported_after_success` 锁定正式导出投影。
+
 - [x] T018 统一导出先填 Word 文件名再选导出目录（人工验收反馈）。
   - 现象：工作台卡片点「统一导出」直接弹目录选择器，无 Word 文件名输入框；仅在审核编辑界面的「导出 Word」有文件名框。
   - 决策：点「统一导出」→ 先弹 Word 文件名输入框（默认案件名称，每次导出都询问）→ 再选导出目录 → 导出用该文件名；审核页 `ArchiveCompletionPanel` 的「开始导出/再次导出」同步走文件名→目录流程（默认文号）。
@@ -145,3 +151,15 @@ workflow_level: 3
   - 修复：`local_directory_picker_service._folder_picker_script` 为 `FolderBrowserDialog` 挂一个隐藏的 TopMost 所有者窗体（`$owner.TopMost = $true; ShowInTaskbar=$false; Opacity=0`），以 `ShowDialog($owner)` 展示——TopMost 使对话框 Z 序恒高于浏览器等非 TopMost 窗口，保证可见可点。
   - 文件：`packages/backend/app/services/local_directory_picker_service.py`、`tests/test_local_directory_picker_service.py`（断言含 TopMost owner + ShowDialog($owner)）。
   - 验证：本机 PowerShell 冒烟（对话框成功打开阻塞、无语法错误）；`test_local_directory_picker_service` 5 passed；后端全量 946 passed；`verify:quick` ✅。
+
+- [x] T022 HashMyFiles 校验 HTML 替换为三列 PNG 界面截图（人工验收反馈）。
+  - 需求：统一导出不再发布 HTML，改为 HashMyFiles 风格 PNG 截图；每个 RAR 一行，只显示 Filename、MD5、File Size (Bytes)。
+  - 决策：HashMyFiles.exe 仍是 MD5 事实来源；调用其 `/shtml` 生成仅供进程内解析的临时结果，校验文件名/MD5/字节大小完整性后，用受控 PowerShell `System.Drawing` 离屏渲染 PNG。临时 HTML、JSON、脚本均不进入导出包并在结束时清理，避免依赖交互式桌面会话截图。
+  - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、`services/hashmyfiles_service.py`、`unified_export_service.py`、`archive_export_service.py`、`controllers/archive_task_controller.py`、`packages/shared/types/archiveCompletion.ts`、`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、相关测试与 OpenSpec 文档。
+  - 验证：后端受影响测试 48 passed，前端受影响测试 34 passed；导出端点覆盖结果缺失、结果不完整与截图失败的具体错误提示且均不进入 exported；失败发布保留旧截图并清理临时文件；关键数据转换突变验证有效；`verify:quick` 通过。本机真实 HashMyFiles 对中文文件名、多分卷及带千位分隔的字节大小生成 PNG 成功，视觉确认仅含 Filename、MD5、File Size (Bytes)，导出目录无 HTML/JSON/脚本残留。
+
+- [x] T023 校验 PNG 改为真实 HashMyFiles.exe 窗口截图（人工验收反馈）。
+  - 现象：T022 的离屏仿制界面使用替代图标，标题栏、工具栏颜色和控件样式与用户实际打开的 HashMyFiles 不一致。
+  - 决策：移除仿制窗口绘制；用独立临时 `/cfg` 启动真实 HashMyFiles，读取原生 ListView 并核对待发布 RAR 的文件名、完整 32 位 MD5 与字节大小，通过 Windows 消息只保留 Filename、MD5、File Size 三个可见列并清除选中高亮，再用 `PrintWindow` 捕获真实窗口。进程纳入 KILL_ON_JOB_CLOSE Job Object，临时配置不修改用户个人设置，超时或完成后均清理。完整导出改为同卷暂存并带回滚发布，截图失败保留上一版完整包。
+  - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、`packages/backend/app/services/unified_export_service.py`、`tests/test_hashmyfiles_service.py`、`tests/test_unified_export_service.py`、变更包 design/delta spec 与 living spec。
+  - 验证：真实 HashMyFiles v2.51 对两个中文合成 RAR 截图成功，原生彩色工具栏、完整 32 位 MD5、字节大小和三列布局均经视觉确认，截图后 HashMyFiles 进程残留为 0；受影响目标测试 42 passed，独立 Code Review PASS，`verify:quick` 与 `git diff --check` 通过。

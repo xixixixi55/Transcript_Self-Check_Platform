@@ -15,6 +15,7 @@ from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .case_order_service import CaseOrderService
 from .field_provenance_service import FieldProvenanceService
+from .software_policy_service import normalize_runtime_software_tool_projection
 
 
 class CaseLifecycleService:
@@ -51,6 +52,10 @@ class CaseLifecycleService:
             draft = None
             try:
                 draft = self.drafts.get(case_id)
+                draft = {
+                    **draft,
+                    "report": normalize_runtime_software_tool_projection(draft["report"]),
+                }
             except WorkbenchPersistenceError as error:
                 if error.code != "DRAFT_NOT_FOUND":
                     raise

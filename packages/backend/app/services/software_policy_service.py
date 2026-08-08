@@ -6,6 +6,7 @@ import copy
 from collections.abc import Mapping
 from typing import Any
 
+from ..repository.hashmyfiles_repository import HASHMYFILES_DISPLAY_VERSION
 from .canonical_models_service import (
     FieldProvenance,
     PrimarySoftware,
@@ -15,6 +16,8 @@ from .canonical_models_service import (
 
 _CONFIRMED_STATUSES = {"confirmed_by_report", "confirmed_by_user"}
 _RUNTIME_TOOL_NAMES = {"winrar压缩管理软件", "python hashlib", "hashmyfiles"}
+_LEGACY_HASH_TOOL_NAME = "python hashlib"
+_HASHMYFILES_NAME = "HashMyFiles"
 
 
 def _text(value: Any) -> str:
@@ -53,9 +56,54 @@ def is_primary_software_confirmed(report: Mapping[str, Any]) -> bool:
     )
 
 
+def normalize_runtime_software_tool_projection(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Show the active hash tool while continuing to accept legacy stored data."""
+    normalized = copy.deepcopy(dict(report))
+    inspection = normalized.setdefault("inspection", {})
+    tools = inspection.get("software_tools") or []
+    has_hashmyfiles = any(
+        isinstance(tool, Mapping)
+        and _text(tool.get("name")).casefold() == _HASHMYFILES_NAME.casefold()
+        for tool in tools
+    )
+    projected = []
+    emitted_hashmyfiles = False
+    for tool in tools:
+        if not isinstance(tool, Mapping):
+            continue
+        name = _text(tool.get("name"))
+        normalized_name = name.casefold()
+        if normalized_name == _LEGACY_HASH_TOOL_NAME:
+            if not has_hashmyfiles and not emitted_hashmyfiles:
+                projected_tool = dict(tool)
+                projected_tool.update({
+                    "category": "hashmyfiles",
+                    "name": _HASHMYFILES_NAME,
+                    "version": HASHMYFILES_DISPLAY_VERSION,
+                    "display_name": f"{_HASHMYFILES_NAME} {HASHMYFILES_DISPLAY_VERSION}",
+                })
+                projected.append(projected_tool)
+                emitted_hashmyfiles = True
+            continue
+        if normalized_name == _HASHMYFILES_NAME.casefold():
+            if emitted_hashmyfiles:
+                continue
+            projected_tool = dict(tool)
+            projected_tool["category"] = "hashmyfiles"
+            projected_tool["name"] = _HASHMYFILES_NAME
+            projected_tool["version"] = HASHMYFILES_DISPLAY_VERSION
+            projected_tool["display_name"] = f"{_HASHMYFILES_NAME} {HASHMYFILES_DISPLAY_VERSION}"
+            projected.append(projected_tool)
+            emitted_hashmyfiles = True
+            continue
+        projected.append(dict(tool))
+    inspection["software_tools"] = projected
+    return normalized
+
+
 def normalize_primary_software_projection(report: Mapping[str, Any]) -> dict[str, Any]:
     """Derive legacy result/tool fields from the one editable primary structure."""
-    normalized = copy.deepcopy(dict(report))
+    normalized = normalize_runtime_software_tool_projection(report)
     inspection = normalized.setdefault("inspection", {})
     result = inspection.setdefault("result", {})
     facts = primary_software_facts(normalized)

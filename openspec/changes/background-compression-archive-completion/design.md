@@ -48,36 +48,40 @@
 - `complete_verified` 用 `verified_archive_result_fields` 从 manifest parts 派生 `rar_filename/md5_hash/file_size`（「、」分隔），经 `apply_verified_archive_result` 写入草稿 `inspection.result`，`attachment_projection` 投影附件1 `extract_list`。
 - 草稿更新受 revision CAS 保护，lifecycle 迁移到 `archive_verified`；回填只影响草稿投影，不影响已密封快照与 RAR 物理文件。
 
-## D4. HashMyFiles 校验 HTML 集成
+## D4. HashMyFiles 三列校验截图集成
 
-**决策**：新增 `hashmyfiles_repository`（Layer 20 边界内的命令执行）+ `hashmyfiles_service`（Layer 21），导出时调用 HashMyFiles.exe 对导出 RAR 生成校验 HTML，随导出包写入导出路径。工具路径由 `BIJI_HASHMYFILES_PATH` 配置，未配置时回退到随包默认位置，缺失则导出明确失败。
+**决策**：`hashmyfiles_repository`（Layer 20）用独立临时 `/cfg` 启动真实 HashMyFiles.exe 窗口，对导出 RAR 仅计算 MD5；等待原生 ListView 出现全部结果后，通过 Windows 消息把可见列收敛为 Filename、MD5、File Size，再以 `PrintWindow` 捕获真实窗口为 PNG。统一导出只发布 `hash-verification.png`，临时配置、JSON、脚本全部清理。工具路径由 `BIJI_HASHMYFILES_PATH` 配置，未配置时回退到随包默认位置，缺失、结果数量不完整或窗口截图失败则导出明确失败。
 
-**理由**：用户确认「系统自动调用 exe」；HashMyFiles 输出审计所需的标准校验 HTML，无需自研等价页。
+**理由**：用户进一步确认必须使用真实 HashMyFiles.exe 界面，而非仿制窗口。HashMyFiles 2.51 官方命令行提供 `/cfg` 与 `/files`，但不提供窗口截图或列筛选命令；因此使用隔离配置启动真实窗口，再在截图前临时调整其原生列表列宽，既保留真实彩色工具栏和 Windows 样式，也不污染用户日常配置。
 
 **备选与拒绝**：
-- 用户手工校验后由系统收集 HTML → 与「自动」相悖，且交互繁琐，拒绝。
-- 后端自研等价 HTML → 重复造轮子且与既有工具产物不一致，拒绝。
+- 仿制 HashMyFiles 风格窗口 → 图标、标题栏和控件样式与真实 exe 不一致，用户验收不通过，拒绝。
+- 继续发布 HTML → 与用户明确要求的截图产物不符，拒绝。
 
 **实现要点**：
-- 先在 apply 阶段实测 HashMyFiles.exe 命令行参数（如 `/scomma`、输出目录等）与 HTML 格式，写一次性脚本确认，再固化为 repository。
+- 以 Live Hashes 模式等待原生结果行数与输入 RAR 数量一致，超时、进程提前退出或数量不完整均明确失败。
+- PNG 捕获真实窗口，列顺序固定为 Filename、MD5、File Size（HashMyFiles 原生标签，值为字节），多分卷逐行展示；截图前清除默认选中高亮。
 - 命令执行安全：仅允许配置的可执行路径，禁止用户注入参数；输出写入受控导出临时目录。
+- 大体积超时：按待校验 RAR 总字节数以保守 10 MiB/s 加固定启动余量动态估算，限制在 120 秒至 6 小时，并允许 `BIJI_HASHMYFILES_TIMEOUT_SECONDS` 在同一边界内覆盖。
 - 部署：`BIJI_HASHMYFILES_PATH` 支持绝对路径或随包相对路径；hashmyfiles/ 目录按部署说明纳入（不纳入 Git 跟踪）。
 
 ## D5. 统一导出到用户路径
 
-**决策**：新增统一导出流程：前端 native picker 选择导出路径 → 后端在导出路径写入「最新编辑 Word + 全部 RAR + HashMyFiles 校验 HTML」→ 记录导出日志并标记已导出。可重复导出：每次重新生成 Word 与 HashMyFiles HTML，RAR 复用已验证分卷。
+**决策**：新增统一导出流程：前端 native picker 选择导出路径 → 后端在导出路径写入「最新编辑 Word + 全部 RAR + HashMyFiles 校验截图」→ 记录导出日志并标记已导出。可重复导出：每次重新生成 Word 与 HashMyFiles PNG，RAR 复用已验证分卷。
+
+**发布一致性**：Word、待导出 RAR 副本和真实 HashMyFiles 截图先在导出目录同卷临时区完整生成，HashMyFiles 校验该待发布副本；全部成功后才以可回滚替换发布。任一步失败保留上一版完整导出，不留下新旧文件混合包。
 
 **理由**：需求要求多文件统一导出到用户指定路径且可重复；RAR 复用避免重复压缩，Word 用最新编辑保证审计内容为最终版本。
 
 **备选与拒绝**：
-- 保持单 Word 下载 → 不含 RAR 与校验 HTML，不满足需求，拒绝。
+- 保持单 Word 下载 → 不含 RAR 与校验截图，不满足需求，拒绝。
 - 一次性导出并锁死 → 与「可重复导出」决策相悖，拒绝。
 
 **实现要点**：
 - 新增/改造导出端点：`POST /workbench/cases/{id}/export-bundle`，请求含导出路径 + 一次性 `directory_token`（由 native picker 后端返回，不接收任意服务器路径）。
 - 路径安全：`select-export-directory` 经 `issue_exact_directory_grant` 签发一次性 grant token，`export_bundle` 消费校验，未授权拒绝 `EXPORT_PATH_NOT_AUTHORIZED`，防止任意路径写入。
 - 导出前重跑导出门控（REQ-009 全门控）；任一门控失败不标记已导出。
-- 导出记录落库（路径、时间、part 集合、HTML 文件名），供「已导出」标记与审计。
+- 导出记录落库（路径、时间、part 集合、校验截图文件名），供「已导出」标记与审计；历史 HTML 字段作为旧记录兼容字段保留。
 
 **apply 阶段细化（用户实测反馈）**：
 - 统一导出交互入口为**案件工作台卡片主按钮**（归档完成/已导出时，替换原「查看结果」）；工作台经 `useArchiveCompletionStatuses` 自动加载归档结果，卡片恒定派生完成态，无需先点查看。案件打开页保留「立即/稍后」与补盘号入口，不再承载导出触发。

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ..repository.workbench_errors import WorkbenchPersistenceError
+from .software_policy_service import normalize_runtime_software_tool_projection
 from .unified_export_service import UnifiedExportError, unified_export
 
 
@@ -23,7 +24,7 @@ def export_bundle(
     word_filename: str | None = None,
     template_context: dict[str, object],
 ) -> dict[str, Any]:
-    """Write latest Word + all RAR parts + verification HTML into export_path."""
+    """Write latest Word + all RAR parts + verification PNG into export_path."""
     shell = api.shells.get(case_id)
     if shell["revision"] != expected_revision:
         raise WorkbenchPersistenceError("REVISION_CONFLICT")
@@ -38,7 +39,7 @@ def export_bundle(
         raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
     bundle = api.results.manifest_bundle(task["task_id"])
     draft = api.drafts.get(case_id)
-    report = draft["report"]
+    report = normalize_runtime_software_tool_projection(draft["report"])
     export_dir = Path(export_path)
     if not export_dir.is_absolute() or not export_dir.is_dir():
         raise WorkbenchPersistenceError("EXPORT_PATH_INVALID", "导出路径无效。")

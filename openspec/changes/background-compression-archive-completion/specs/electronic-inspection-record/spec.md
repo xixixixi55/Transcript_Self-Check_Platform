@@ -3,6 +3,15 @@
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED + ADDED（案件打开后台压缩触发、每 RAR 实时回填、盘号后填映射、归档完成态、统一导出、已导出与彻底删除）
 
+## MODIFIED: REQ-016 — 按实际操作生成 software_tools
+
+### REQ-016: HashMyFiles 作为当前 MD5 校验工具统一展示
+
+#### Scenario: 存量案件的旧 hashlib 条目按当前工具展示
+- WHEN 案件草稿仍持久化 `Python hashlib` 运行时工具条目
+- THEN 审核编辑界面和正式导出均显示 `HashMyFiles`，版本号为 `2.51`
+- AND 底层迁移与归档来源识别仍兼容 `python hashlib` / `python_hashlib`，无需批量改写存量数据库
+
 ## MODIFIED: REQ-012 — 解析与最终归档分离
 
 ### REQ-012: 解析与最终归档分离（案件打开后台压缩触发）
@@ -66,19 +75,21 @@
 
 ## MODIFIED: REQ-009 — 导出标准格式笔录
 
-### REQ-009: 统一导出最新 Word + RAR + HashMyFiles 校验 HTML
+### REQ-009: 统一导出最新 Word + RAR + HashMyFiles 三列校验截图
 
 系统 MUST 满足以下现有合同：
 #### Scenario: 确认无误后统一导出到用户路径
 - WHEN 案件进入归档完成态且民警点击「导出」
-- THEN 系统提示用户选择导出路径，并把「最新编辑数据生成的 Word + 全部 RAR 文件 + HashMyFiles 校验 HTML」统一写入该路径
+- THEN 系统提示用户选择导出路径，并把「最新编辑数据生成的 Word + 全部 RAR 文件 + HashMyFiles 校验 PNG」统一写入该路径
 - AND 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
 - AND Word 使用案件明确引用且当前重新校验通过的 approved 模板版本生成 .docx；带 Manifest 的正式渲染失败时必须明确失败，不得静默回退到无 Manifest 的 officecli batch 输出
-- AND RAR 文件复用已验证的最终分卷；HashMyFiles 校验 HTML 由后端调用 HashMyFiles.exe 对导出 RAR 生成，与 RAR 一并写入导出路径
+- AND 系统启动真实 HashMyFiles.exe 窗口对全部导出 RAR 计算 MD5，最终 PNG 捕获其原生界面，每个 RAR 一行且只显示 Filename、MD5、File Size（值为字节）
+- AND 截图使用独立临时配置，不修改用户的 HashMyFiles 配置；结果缺失、不完整或截图失败时导出必须明确失败
+- AND Word、RAR 副本和 PNG 必须先完整暂存后统一发布；HashMyFiles 校验待发布的 RAR 副本，任一步失败时保留上一版完整导出，不得形成新旧产物混合包
 
 #### Scenario: 可重复导出且 Word 用最新编辑
 - WHEN 案件已导出成功后民警再次导出
-- THEN 系统重新打开导出路径选择，Word 用导出时刻的最新编辑数据重新生成，RAR 复用已验证分卷，HashMyFiles HTML 重新生成
+- THEN 系统重新打开导出路径选择，Word 用导出时刻的最新编辑数据重新生成，RAR 复用已验证分卷，HashMyFiles PNG 重新生成
 - AND 导出成功不关闭审核编辑，民警可继续修改并再次导出
 
 #### Scenario: 导出前的完整门控

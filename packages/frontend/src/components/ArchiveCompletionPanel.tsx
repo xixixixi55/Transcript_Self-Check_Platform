@@ -90,7 +90,7 @@ export function ArchiveCompletionPanel({
           showIcon
           message={status === 'exported' ? '已导出' : '归档完成'}
           description={status === 'exported'
-            ? '统一导出已完成，可再次导出获取最新 Word、RAR 与校验 HTML。'
+            ? '统一导出已完成，可再次导出获取最新 Word、RAR 与校验截图。'
             : '全部 RAR、MD5 与盘号已对应完成，可开始导出。'}
           action={<Button type="primary" loading={archive.busy} onClick={() => { runExport() }}>{status === 'exported' ? '再次导出' : '开始导出'}</Button>}
         />

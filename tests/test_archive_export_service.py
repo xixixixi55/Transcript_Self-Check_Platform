@@ -26,7 +26,12 @@ def _api(consume_ok: bool) -> MagicMock:
         "public_manifest": {"parts": [{"filename": "case.part1.rar", "disc_number": "GP20260730-01"}]},
         "final_dir": "D:\\synthetic\\final",
     }
-    api.drafts.get.return_value = {"report": {"attachments": {"disc_number": "GP20260730-01"}}}
+    api.drafts.get.return_value = {"report": {
+        "inspection": {"software_tools": [
+            {"name": "Python hashlib", "version": "3.11.0"},
+        ]},
+        "attachments": {"disc_number": "GP20260730-01"},
+    }}
     api.plans.get_latest_for_case.return_value = {
         "volume_slots": [{"status": "active", "disc_mapping": {"disc_number": "GP20260730-01"}}],
     }
@@ -59,7 +64,7 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
         unified.return_value = {
             "export_path": str(export_dir), "word_filename": "用户命名.docx",
             "rar_filenames": ["case.part1.rar"],
-            "hash_verification_html": "hash.html", "exported_at": "2026-01-01T00:00:00Z",
+            "hash_verification_image": "hash.png", "exported_at": "2026-01-01T00:00:00Z",
         }
         result = export_bundle(
             api, "case-synthetic", 3, str(export_dir),
@@ -75,6 +80,12 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
         "case-synthetic", "exported", 3,
     )
     assert unified.call_args.kwargs["word_filename"] == "用户命名.docx"
+    assert unified.call_args.kwargs["report"]["inspection"]["software_tools"] == [
+        {
+            "category": "hashmyfiles", "name": "HashMyFiles", "version": "2.51",
+            "display_name": "HashMyFiles 2.51",
+        },
+    ]
 
 
 def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> None:
@@ -96,4 +107,24 @@ def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> Non
                 directory_token="token-synthetic", template_context={},
             )
     assert error.value.code == "DISC_MAPPING_INCOMPLETE"
+    api.shells.update_lifecycle.assert_not_called()
+
+
+def test_export_bundle_projects_hash_screenshot_failure_without_marking_exported(tmp_path: Path) -> None:
+    api = _api(consume_ok=True)
+    export_dir = tmp_path / "export-out"
+    export_dir.mkdir(parents=True)
+    from app.services.unified_export_service import UnifiedExportError
+
+    with patch("app.services.archive_export_service.unified_export", side_effect=UnifiedExportError(
+        "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
+    )):
+        with pytest.raises(WorkbenchPersistenceError) as error:
+            export_bundle(
+                api, "case-synthetic", 3, str(export_dir),
+                directory_token="token-synthetic", template_context={},
+            )
+
+    assert error.value.code == "HASHMYFILES_SCREENSHOT_FAILED"
+    assert error.value.args[0] == "HashMyFiles 校验截图生成失败。"
     api.shells.update_lifecycle.assert_not_called()
