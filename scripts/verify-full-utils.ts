@@ -24,6 +24,23 @@ export interface NpmRuntime {
   fileExists?: (filePath: string) => boolean
 }
 
+export function buildVerificationEnvironment(
+  baseEnvironment: NodeJS.ProcessEnv,
+  tempRoot: string,
+): NodeJS.ProcessEnv {
+  return {
+    ...baseEnvironment,
+    TEMP: tempRoot,
+    TMP: tempRoot,
+    npm_config_cache: path.join(tempRoot, 'npm-cache'),
+  }
+}
+
+export function normalizeExitStatus(status: number | null): number {
+  if (status === 0) return 0
+  return status !== null && status > 0 && status <= 255 ? status : 1
+}
+
 /**
  * Resolve npm to a directly executable Node entry point.
  * Windows npm.cmd is a shell shim and cannot be passed to spawnSync directly.

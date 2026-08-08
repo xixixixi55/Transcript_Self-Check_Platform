@@ -117,6 +117,12 @@ testing:
   e2e_tool: "Playwright"
   test_file_pattern: "<name>.test.ts(x) / test_<name>.py"
 
+verification:
+  preflight:
+    min_free_space_mb: 1024
+    max_temp_root_chars: 80
+    failure_tail_lines: 60
+
 commands:
   # package.json 是验证命令的唯一来源；此处只引用，不再复制命令清单。
   dev: "npm run dev"

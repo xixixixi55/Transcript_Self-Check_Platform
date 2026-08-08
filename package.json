@@ -19,6 +19,7 @@
     "verify:docs": "npx tsx scripts/check-docs.ts",
     "verify:docs:strict": "npx tsx scripts/check-docs.ts --strict",
     "verify:docs:strict:all": "npx tsx scripts/check-docs.ts --strict --all",
+    "verify:preflight": "tsx scripts/verify-preflight.ts",
     "verify:full": "tsx scripts/verify-full.ts",
     "verify:full:all": "tsx scripts/verify-full.ts --all",
     "verify": "npm run verify:full:all",

@@ -6,11 +6,18 @@ import {
   validateDeltaSpec,
 } from './check-docs-utils'
 import {
+  buildVerificationEnvironment,
   buildVerifyCommands,
+  normalizeExitStatus,
   parseVerifyScope,
   resolveNpmInvocation,
   runVerifyCommands,
 } from './verify-full-utils'
+import {
+  evaluateVerificationPreflight,
+  formatDiagnosticTail,
+  parseVerificationPreflightConfig,
+} from './verification-preflight-utils'
 
 const content = [
   '- [ ] T1 ordinary task',
@@ -85,6 +92,16 @@ assert.throws(() => resolveNpmInvocation({
   execPath: 'C:\\node\\node.exe',
   fileExists: () => false,
 }), /Unable to locate a directly executable npm CLI/)
+assert.deepEqual(buildVerificationEnvironment({ KEEP: 'yes' }, 'D:\\short-temp'), {
+  KEEP: 'yes',
+  TEMP: 'D:\\short-temp',
+  TMP: 'D:\\short-temp',
+  npm_config_cache: 'D:\\short-temp\\npm-cache',
+})
+assert.equal(normalizeExitStatus(0), 0)
+assert.equal(normalizeExitStatus(17), 17)
+assert.equal(normalizeExitStatus(-4055), 1)
+assert.equal(normalizeExitStatus(null), 1)
 
 const cwd = 'D:\\中文目录\\with spaces（test）'
 const scopedCommands = buildVerifyCommands(
@@ -106,5 +123,31 @@ const failedStatus = runVerifyCommands(scopedCommands, (command) => {
 })
 assert.equal(failedStatus, 17)
 assert.deepEqual(visited, ['lint:arch', 'typecheck', 'test:governance', 'check:repository-assets', 'test'])
+
+const preflightConfig = parseVerificationPreflightConfig([
+  'verification:',
+  '  preflight:',
+  '    min_free_space_mb: 2048',
+  '    max_temp_root_chars: 40',
+  '    failure_tail_lines: 3',
+].join('\n'))
+assert.deepEqual(preflightConfig, {
+  minFreeSpaceMb: 2048,
+  maxTempRootChars: 40,
+  failureTailLines: 3,
+})
+const failedPreflight = evaluateVerificationPreflight({
+  tempRoot: 'C:\\a-very-long-temporary-directory-name-that-exceeds-the-limit',
+  writable: false,
+  freeSpaceMb: 512,
+}, preflightConfig)
+assert.deepEqual(
+  failedPreflight.filter((check) => !check.passed).map((check) => check.name),
+  ['temp-writable', 'temp-path-length', 'temp-free-space'],
+)
+assert.equal(
+  formatDiagnosticTail('\u001b[31mfirst\u001b[0m\nsecond\nthird\nfourth\n', 2),
+  'third\nfourth',
+)
 
 console.log('check-docs-utils tests passed')

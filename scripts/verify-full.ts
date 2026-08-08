@@ -1,37 +1,77 @@
-import { spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
+import {
+  createWriteStream,
+  mkdtempSync,
+  rmSync,
+} from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  buildVerificationEnvironment,
   buildVerifyCommands,
+  normalizeExitStatus,
   parseVerifyScope,
   resolveNpmInvocation,
-  runVerifyCommands,
 } from './verify-full-utils'
+import { formatDiagnosticTail } from './verification-preflight-utils'
+import { runVerificationPreflight } from './verify-preflight'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-function runNpm(command: { script: string; args: string[]; cwd: string }): number {
+interface CommandResult {
+  status: number
+  output: string
+  error?: string
+}
+
+function runNpm(
+  command: { script: string; args: string[]; cwd: string },
+  logPath: string,
+  tempRoot: string,
+): Promise<CommandResult> {
   let invocation
   try {
     invocation = resolveNpmInvocation()
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error))
-    return 1
+    return Promise.resolve({
+      status: 1,
+      output: '',
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 
-  const result = spawnSync(
-    invocation.executable,
-    [...invocation.args, 'run', command.script, ...command.args],
-    {
-      cwd: command.cwd,
-      stdio: 'inherit',
-    },
-  )
-  if (result.error) {
-    console.error(`Failed to run npm CLI via ${invocation.executable}: ${result.error.message}`)
-    return 1
-  }
-  return result.status ?? 1
+  return new Promise((resolve) => {
+    const log = createWriteStream(logPath, { encoding: 'utf8' })
+    const child = spawn(
+      invocation.executable,
+      [...invocation.args, 'run', command.script, ...command.args],
+      {
+        cwd: command.cwd,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: buildVerificationEnvironment(process.env, tempRoot),
+      },
+    )
+    let output = ''
+    let settled = false
+    const finish = (result: CommandResult) => {
+      if (settled) return
+      settled = true
+      log.end(() => resolve(result))
+    }
+    const collect = (chunk: Buffer) => {
+      const text = chunk.toString('utf8')
+      output = `${output}${text}`.slice(-256_000)
+      log.write(chunk)
+    }
+    child.stdout.on('data', collect)
+    child.stderr.on('data', collect)
+    child.on('error', (error) => {
+      finish({ status: 1, output, error: error.message })
+    })
+    child.on('close', (status) => {
+      finish({ status: normalizeExitStatus(status), output })
+    })
+  })
 }
 
 function formatCommand(command: { script: string; args: string[]; cwd: string }): string {
@@ -39,7 +79,7 @@ function formatCommand(command: { script: string; args: string[]; cwd: string })
   return `npm run ${command.script}${args ? ` ${args}` : ''} | cwd=${JSON.stringify(command.cwd)}`
 }
 
-function main(): number {
+async function main(): Promise<number> {
   let scope: ReturnType<typeof parseVerifyScope>
   try {
     scope = parseVerifyScope(process.argv.slice(2))
@@ -58,7 +98,37 @@ function main(): number {
     return 0
   }
 
-  return runVerifyCommands(commands, runNpm)
+  const preflight = runVerificationPreflight(ROOT)
+  if (!preflight.passed) return 1
+
+  const logRoot = mkdtempSync(path.join(preflight.tempRoot, 'harness-verify-'))
+  for (const [index, command] of commands.entries()) {
+    const startedAt = Date.now()
+    const safeName = command.script.replace(/[^a-z0-9_-]+/gi, '-')
+    const logPath = path.join(logRoot, `${String(index + 1).padStart(2, '0')}-${safeName}.log`)
+    const result = await runNpm(command, logPath, preflight.tempRoot)
+    const durationSeconds = ((Date.now() - startedAt) / 1000).toFixed(1)
+    if (result.status === 0) {
+      console.log(`${command.script} | PASS | ${durationSeconds}s`)
+      rmSync(logPath, { force: true })
+      continue
+    }
+
+    console.error(`${command.script} | FAIL | exit=${result.status} | ${durationSeconds}s`)
+    if (result.error) console.error(result.error)
+    const diagnostic = formatDiagnosticTail(result.output, preflight.failureTailLines)
+    if (diagnostic) console.error(`--- diagnostic tail ---\n${diagnostic}`)
+    console.error(`full log: ${logPath}`)
+    return result.status
+  }
+
+  rmSync(logRoot, { recursive: true, force: true })
+  return 0
 }
 
-process.exit(main())
+main()
+  .then((status) => process.exit(status))
+  .catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })

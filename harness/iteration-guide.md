@@ -110,7 +110,7 @@ openspec/changes/<功能名>/
 **执行**：运行 `/opsx:apply` 或手动按 tasks.md 顺序实现
 
 **Harness 约束**（Agent 开发时自动生效）：
-- 详见 `AGENTS.md`（架构依赖方向、命名约定）+ `harness/architecture.md`（文件大小限制、导出规则、测试规则）
+- 详见 `AGENTS.md`（架构依赖方向、命名约定）+ `harness/architecture.md`（文件大小限制、导出规则、测试规则）+ `harness/verification-strategy.md`（候选冻结、人工验收与环境预检）
 
 
 **前置条件**（Level 3 MUST 在写第一个 Task 代码前完成）：
@@ -182,6 +182,7 @@ Agent **MUST** 在人类介入完成后：
 npm run verify:quick           # Level 1/2 共用的轻量工程检查
 npm run test:frontend          # Level 2 前端受影响模块
 npm run test:backend           # Level 2 后端受影响模块
+npm run verify:preflight       # 单独检查完整门控使用的临时目录环境
 npm run verify:full -- --change <name>  # 全仓库自动化工程检查；严格任务状态限定当前变更
 npm run verify:full -- --change <name> --dry-run  # 只输出最终命令列表，不执行检查
 npm run verify:full:all                 # 全局发布/集中归档完整门控
@@ -189,7 +190,7 @@ npm run verify:docs:strict -- --change <name>  # 当前变更严格文档检查
 npm run verify:docs:strict:all               # 全局严格文档检查
 ```
 
-`verify:full -- --change <name>` 执行全仓库架构、类型、治理、资产、测试和构建检查，但严格任务状态只检查指定变更包；`verify:full:all` 才检查全部活跃变更包。两者都不包含当前未启用的 E2E、mypy、真实桌面环境和 Word/PDF 人工验收。
+`verify:full -- --change <name>` 先执行环境预检，再以阶段摘要方式执行全仓库架构、类型、治理、资产、测试和构建检查，但严格任务状态只检查指定变更包；`verify:full:all` 才检查全部活跃变更包。两者都不包含当前未启用的 E2E、mypy、真实桌面环境和 Word/PDF 人工验收。候选冻结与日志下钻细则见 `harness/verification-strategy.md`。
 
 **门控分级**：
 
