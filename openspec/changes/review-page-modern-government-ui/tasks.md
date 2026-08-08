@@ -83,3 +83,33 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 - [x] “电子数据检查笔录”一级菜单整行支持鼠标及键盘展开/收起，二级菜单可正常进入模块首页、生成笔录和设备管理。
 - [x] 审核编辑页保留步骤、案件摘要、待核对提示、折叠章节、结构摘要 Drawer、底部操作栏和真实状态反馈。
 - [x] 人工视觉验收通过，确认本次 UI、全局外壳和导航改造可进入提交前核验阶段。
+
+## 第三阶段：移除模块首页并默认进入案件工作台
+
+### 目标与验收标准
+
+- [x] 保留平台总首页；移除电子数据检查笔录的独立模块首页，不再渲染 `ElectronicInspectionModulePage`。
+- [x] 访问 `/electronic-inspection` 时默认重定向到 `/electronic-inspection/workbench`，并保留查询参数和 hash。
+- [x] 点击侧栏一级“电子数据检查笔录”或平台总首页的电子数据检查入口时进入案件工作台；二级功能与父级展开、高亮行为保持可用。
+- [x] 来源目录校验控制项位于案件工作台标题区右上角，并采用紧凑的小型控件；其开启/关闭、浏览器持久化及案件登记请求语义保持不变。
+- [x] 案件工作台刷新、上传目录、分页、案件卡片和其他业务流程不回归。
+
+### Layer 11–12：前端外壳、页面与样式
+
+- [x] 调整 `packages/frontend/src/App.tsx`、`packages/frontend/src/components/PlatformSidebar.tsx` 和 `packages/frontend/src/pages/HomePage.tsx`，让电子数据检查入口统一落到案件工作台，并移除模块首页路由实现引用。
+- [x] 调整 `packages/frontend/src/pages/CaseWorkbenchPage.tsx` 与 `packages/frontend/src/platformShell.css`，将既有来源目录校验偏好控件放入标题区右上角，以紧凑样式与刷新操作共同组成页面操作区。
+- [x] 移除不再使用的电子数据检查模块首页页面文件，不得复制或改变 `useSourceAuthorizationPreference` 的持久化合同。
+- [x] 更新 `packages/frontend/src/pages/platformShell.test.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx`，并移除失去页面目标的模块首页测试；覆盖默认重定向、导航目标、控件位置/持久化和登记请求语义。
+
+### 影响范围与验证
+
+- 影响层级：Layer 11 FE_Components、Layer 12 FE_Pages；不修改共享类型、后端接口、数据模型或持久化格式。
+- 自动化验证：相关 Vitest 页面测试、`npm run verify:quick`、当前变更 `npm run verify:docs:strict -- --change review-page-modern-government-ui` 与 `git diff --check`。
+- 人工验收：确认案件工作台右上角的小型来源目录校验控件在常用桌面分辨率和侧栏收起状态下不挤压标题及刷新操作。
+
+### 第三阶段验证记录
+
+- `npm run lint:arch`、`npm run typecheck` 和 `npm run verify:quick`：通过。
+- 前端定向测试：`platformShell.test.tsx` 与 `CaseWorkbenchPage.test.tsx` 共 2 个测试文件、29 个用例通过。
+- 浏览器布局验收：1280×720 下来源目录校验按钮位于标题区右侧操作组，尺寸约 128×24；720×900 下操作组右对齐换行且无横向溢出；按钮开关状态可切换并恢复。
+- living spec 已同步 `REQ-029` 的默认案件工作台入口及紧凑来源目录校验控制项场景。

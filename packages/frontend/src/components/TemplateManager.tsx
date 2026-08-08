@@ -84,22 +84,14 @@ export default function TemplateManager() {
   const columns = [
     {
       title: '模版名称', key: 'display_name',
-      render: (_value: unknown, record: TemplateManagementRecord) => (
+      render: (_value: unknown, _record: TemplateManagementRecord) => (
         <Space direction="vertical" size={0}>
-          <Typography.Text strong>{record.display_name}</Typography.Text>
+          <Typography.Text strong>测试地区模版</Typography.Text>
           <Typography.Text type="secondary" className="template-manager__secondary-text">
             已通过 current-template-v1 结构校验
           </Typography.Text>
         </Space>
       ),
-    },
-    {
-      title: '模版 ID', key: 'template_id',
-      render: (_value: unknown, record: TemplateManagementRecord) => record.template_ref.template_id,
-    },
-    {
-      title: '版本', key: 'version',
-      render: (_value: unknown, record: TemplateManagementRecord) => record.template_ref.version,
     },
     {
       title: '状态', key: 'status',
@@ -149,7 +141,7 @@ export default function TemplateManager() {
           <div className="template-manager__header-copy">
             <Typography.Title level={4} className="template-manager__title">已校验模版</Typography.Title>
             <Typography.Text type="secondary">
-              仅可使用通过 current-template-v1 结构校验的 DOCX；案件只保存模版 ID 和版本。
+              仅可使用通过 current-template-v1 结构校验的 DOCX。
             </Typography.Text>
           </div>
           <Button type="primary" icon={<PlusOutlined />} onClick={openModal} disabled={saving}>
@@ -172,7 +164,7 @@ export default function TemplateManager() {
           loading={loading}
           size="middle"
           pagination={false}
-          scroll={{ x: 760 }}
+          scroll={{ x: 520 }}
           locale={{ emptyText: loading ? '正在加载笔录模版…' : '当前没有可用笔录模版' }}
         />
       </Card>

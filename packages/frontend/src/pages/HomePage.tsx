@@ -48,7 +48,7 @@ export default function HomePage() {
             )
             return (
               <Col key={title} xs={24} sm={12} lg={8}>
-                {available ? <Link to="/electronic-inspection" className="platform-feature-card__link">{card}</Link> : card}
+                {available ? <Link to="/electronic-inspection/workbench" className="platform-feature-card__link">{card}</Link> : card}
               </Col>
             )
           })}

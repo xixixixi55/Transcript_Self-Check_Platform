@@ -4,7 +4,6 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { PlatformShell } from '../components/PlatformShell'
 import { PlatformSidebar } from '../components/PlatformSidebar'
-import ElectronicInspectionModulePage from './ElectronicInspectionModulePage'
 import HomePage from './HomePage'
 import { LegacyRedirect } from '../App'
 
@@ -56,7 +55,7 @@ describe('platform shell navigation', () => {
     expect(screen.getByText('首页')).toBeTruthy()
     expect(screen.getByText('电子数据检查笔录')).toBeTruthy()
     expect(screen.queryByText('模块首页')).toBeNull()
-    expect(screen.getByRole('link', { name: '电子数据检查笔录' }).getAttribute('href')).toBe('/electronic-inspection')
+    expect(screen.getByRole('link', { name: '电子数据检查笔录' }).getAttribute('href')).toBe('/electronic-inspection/workbench')
     expect(screen.getByText('案件工作台')).toBeTruthy()
     expect(screen.queryByText('生成笔录')).toBeNull()
     expect(screen.getByText('电子设备管理')).toBeTruthy()
@@ -92,7 +91,7 @@ describe('platform shell navigation', () => {
     expect(screen.getByRole('main').contains(screen.getByText('页面内容'))).toBe(true)
   })
 
-  it('点击一级菜单文字直接进入模块首页', () => {
+  it('点击一级菜单文字直接进入案件工作台', () => {
     render(
       <MemoryRouter initialEntries={['/electronic-inspection/workbench']}>
         <PlatformSidebar collapsed={false} onToggle={vi.fn()} />
@@ -101,7 +100,7 @@ describe('platform shell navigation', () => {
     )
     const label = screen.getByText('电子数据检查笔录')
     fireEvent.click(label)
-    expect(screen.getByTestId('redirected-location').textContent).toBe('/electronic-inspection')
+    expect(screen.getByTestId('redirected-location').textContent).toBe('/electronic-inspection/workbench')
   })
 
   it.each([
@@ -181,25 +180,25 @@ describe('platform home', () => {
   it('只将已开放功能作为可进入入口', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>)
     expect(screen.getByText('电子数据检查文书辅助平台')).toBeTruthy()
-    expect(document.querySelectorAll('a[href="/electronic-inspection"]')).toHaveLength(1)
+    expect(document.querySelectorAll('a[href="/electronic-inspection/workbench"]')).toHaveLength(1)
     expect(screen.getAllByText('该功能暂未开放')).toHaveLength(5)
     expect(screen.getAllByText('暂未开放')).toHaveLength(5)
   })
 })
 
-describe('electronic inspection module', () => {
-  it('展示统一工作台和设备管理入口', () => {
-    render(<MemoryRouter><ElectronicInspectionModulePage /></MemoryRouter>)
-    expect(document.querySelector('a[href="/electronic-inspection/workbench"]')).toBeTruthy()
-    expect(document.querySelector('a[href="/electronic-inspection/devices"]')).toBeTruthy()
-    expect(screen.getByText('案件工作台')).toBeTruthy()
-    expect(screen.queryByText('Demo 环境就绪状态')).toBeNull()
-    expect(screen.queryByText('生成笔录')).toBeNull()
-    expect(screen.getByText('电子设备管理')).toBeTruthy()
-  })
-})
-
 describe('legacy routes', () => {
+  it('电子数据检查入口默认重定向到案件工作台并保留参数', () => {
+    render(
+      <MemoryRouter initialEntries={['/electronic-inspection?case=1#tasks']}>
+        <Routes>
+          <Route path="/electronic-inspection" element={<LegacyRedirect to="/electronic-inspection/workbench" />} />
+          <Route path="/electronic-inspection/workbench" element={<RedirectLocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByTestId('redirected-location').textContent).toBe('/electronic-inspection/workbench?case=1#tasks')
+  })
+
   it('重定向旧生成地址并保留查询参数和 hash', () => {
     render(
       <MemoryRouter initialEntries={['/generate?case=1#review']}>

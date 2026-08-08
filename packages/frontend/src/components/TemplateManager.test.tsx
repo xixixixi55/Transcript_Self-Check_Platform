@@ -56,7 +56,12 @@ beforeEach(() => {
 describe('TemplateManager', () => {
   it('shows default state and exposes add, default, and delete actions', async () => {
     render(<TemplateManager />)
-    expect(screen.getByText('SYNTHETIC 默认模版')).toBeTruthy()
+    expect(screen.getAllByText('测试地区模版')).toHaveLength(2)
+    expect(screen.queryByRole('columnheader', { name: '模版 ID' })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: '版本' })).toBeNull()
+    expect(screen.queryByText('template-SYNTHETIC-default')).toBeNull()
+    expect(screen.queryByText('1.0.0')).toBeNull()
+    expect(screen.queryByText('案件只保存模版 ID 和版本。')).toBeNull()
     expect(screen.getByText('默认模版')).toBeTruthy()
 
     fireEvent.click(screen.getAllByRole('button', { name: '设为默认' })[1])

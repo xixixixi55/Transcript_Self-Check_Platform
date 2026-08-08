@@ -1,6 +1,6 @@
 // Layer 12: FE_Pages — persistent multi-case workbench entry.
 import React, { useCallback, useState } from 'react'
-import { Alert, Button, Col, Modal, Pagination, Row, Space, Spin, Typography, message } from 'antd'
+import { Alert, Button, Col, Modal, Pagination, Row, Space, Spin, Tooltip, Typography, message } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import type {
   ArchiveCompletionStatus, ArchiveTaskAction, ArchiveTaskHistory,
@@ -8,7 +8,7 @@ import type {
 } from '@biji/shared/types'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared/utils'
-import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
+import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useSourceAuthorizationPreference, useTaskRecords } from '../hooks'
 import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
 import { useArchiveCompletionStatuses } from '../hooks/useArchiveCompletionStatuses'
 import { CaseCard } from '../components/CaseCard'
@@ -30,6 +30,7 @@ function completionStatusFor(
 
 export default function CaseWorkbenchPage() {
   const workbench = useCaseWorkbench()
+  const sourceAuthorization = useSourceAuthorizationPreference()
   const taskIds = workbench.page.items.map(item => item.parse_task_id)
   const refreshPageAfterTaskSettled = useCallback(() => {
     void workbench.loadPage(workbench.page.offset)
@@ -157,11 +158,28 @@ export default function CaseWorkbenchPage() {
 
   return (
     <div className="case-workbench-page">
-      <div className="platform-page__eyebrow">案件工作台</div>
-      <Title level={1}>电子数据检查案件</Title>
-      <Paragraph className="platform-page__description">案件提交、解析、审核和后台任务状态均以服务端持久状态为准；每页最多显示6个案件，上传报告目录入口位于案件卡片末尾、页面未满时显示。</Paragraph>
-      <div className="case-workbench-page__submission">
-        <Button icon={<ReloadOutlined />} onClick={() => workbench.loadPage(workbench.page.offset)} loading={workbench.pageLoading}>刷新</Button>
+      <div className="case-workbench-page__header">
+        <div className="case-workbench-page__heading">
+          <div className="platform-page__eyebrow">案件工作台</div>
+          <Title level={1}>电子数据检查案件</Title>
+          <Paragraph className="platform-page__description">案件提交、解析、审核和后台任务状态均以服务端持久状态为准；每页最多显示6个案件，上传报告目录入口位于案件卡片末尾、页面未满时显示。</Paragraph>
+        </div>
+        <div className="case-workbench-page__submission">
+          <Tooltip title={sourceAuthorization.enabled
+            ? '已开启，只允许登记已配置或明确授权的来源目录。'
+            : '已关闭，可登记满足基础安全检查的本机报告目录。'}>
+            <Button
+              size="small"
+              type={sourceAuthorization.enabled ? 'primary' : 'default'}
+              aria-label="来源目录校验"
+              aria-pressed={sourceAuthorization.enabled}
+              onClick={() => sourceAuthorization.setEnabled(!sourceAuthorization.enabled)}
+            >
+              来源目录校验：{sourceAuthorization.enabled ? '开' : '关'}
+            </Button>
+          </Tooltip>
+          <Button icon={<ReloadOutlined />} onClick={() => workbench.loadPage(workbench.page.offset)} loading={workbench.pageLoading}>刷新</Button>
+        </div>
       </div>
 
       {workbench.pageError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={workbench.pageError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}

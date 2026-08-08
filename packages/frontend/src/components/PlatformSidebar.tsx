@@ -56,7 +56,7 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
     if (location.pathname === '/electronic-inspection/templates' || location.pathname === '/templates') {
       return 'electronic-inspection-templates'
     }
-    if (location.pathname === '/electronic-inspection') return moduleKey
+    if (location.pathname === '/electronic-inspection') return 'electronic-inspection-workbench'
     if (location.pathname === '/electronic-inspection/workbench'
       || location.pathname.startsWith('/electronic-inspection/cases/')
       || location.pathname === '/electronic-inspection/generate' || location.pathname === '/generate') {
@@ -73,7 +73,7 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
         openKeys={openKeys} onOpenChange={keys => setOpenKeys(keys as string[])} onKeyDown={handleMenuKeyDown}>
         <Menu.Item key="home" icon={<HomeOutlined />} title="首页"><Link to="/">首页</Link></Menu.Item>
         <Menu.SubMenu key={moduleKey} icon={<FileTextOutlined />} title={
-          <Link to="/electronic-inspection" onClick={event => event.stopPropagation()}>电子数据检查笔录</Link>
+          <Link to="/electronic-inspection/workbench" onClick={event => event.stopPropagation()}>电子数据检查笔录</Link>
         }>
           <Menu.Item key="electronic-inspection-workbench" icon={<AppstoreOutlined />} title="案件工作台">
             <Link to="/electronic-inspection/workbench">案件工作台</Link>

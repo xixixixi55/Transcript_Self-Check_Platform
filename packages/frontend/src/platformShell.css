@@ -304,10 +304,24 @@
   margin-top: 16px;
 }
 
+.case-workbench-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 24px;
+}
+
+.case-workbench-page__heading {
+  min-width: 0;
+  flex: 1;
+}
+
 .case-workbench-page__submission {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+  padding-top: 24px;
 }
 
 .case-workbench-directory-picker {
@@ -592,6 +606,16 @@
 
   .case-workbench-page {
     padding: 20px 16px;
+  }
+
+  .case-workbench-page__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .case-workbench-page__submission {
+    align-self: flex-end;
+    padding-top: 0;
   }
 
   .template-manager__header {

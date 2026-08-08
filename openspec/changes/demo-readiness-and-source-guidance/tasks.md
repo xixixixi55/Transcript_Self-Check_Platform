@@ -23,7 +23,7 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 
 ## 验收标准
 
-- [x] 电子数据检查入口和案件工作台不展示 Demo 环境就绪状态；来源目录校验开关仅显示在电子数据检查笔录首页。
+- [x] 电子数据检查入口和案件工作台不展示 Demo 环境就绪状态；来源目录校验控制项显示在案件工作台标题区。
 - [x] 保留的就绪 DTO、独立投影组件和 API 仍仅使用“已就绪 / 未配置 / 当前不可用 / 无法确认”，并附稳定错误码和固定处理建议。
 - [x] API 响应不含允许根目录内容、绝对路径、WinRAR 路径、PID、命令行、环境变量值或异常堆栈。
 - [x] 来源目录校验开启时，首次登记和重新登记仍能区分未授权、不可访问、报告结构不支持等安全提示；关闭时允许登记任意满足基础路径安全检查的本机报告目录。
@@ -47,10 +47,10 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 
 - [x] 在 `packages/frontend/src/hooks/useDemoReadiness.ts` 和导出索引中实现一次性读取与网络失败安全降级。
 - [x] 在 `packages/frontend/src/hooks/useDemoReadiness.test.tsx` 覆盖正常 DTO 和后端不可用降级。
-- [x] 在 `packages/frontend/src/components/DemoReadinessNotice.tsx` 和来源重新登记组件中实现安全投影；不再显示独立来源目录授权说明，来源目录校验开关入口由电子数据检查笔录首页提供。
+- [x] 在 `packages/frontend/src/components/DemoReadinessNotice.tsx` 和来源重新登记组件中实现安全投影；不再显示独立来源目录授权说明，来源目录校验入口由案件工作台提供。
 - [x] 在对应组件测试中覆盖固定状态文案、无路径展示和三类来源错误提示；来源目录校验开启/关闭及浏览器持久化由 `extensible-report-template-platform` 的 8.4 测试覆盖。
 - [x] 在 `ElectronicInspectionModulePage.tsx`、`CaseWorkbenchPage.tsx` 移除 DemoReadinessNotice 页面挂载；`CaseCard.tsx` 保持“检查删除条件”语义。
-- [x] 更新页面测试，确认两个页面不展示 Demo 环境就绪状态，并覆盖首页来源目录校验开关、删除预检准确语义及安全错误提示。
+- [x] 更新页面测试，确认相关入口不展示 Demo 环境就绪状态，并覆盖案件工作台来源目录校验控制项、删除预检准确语义及安全错误提示。
 - [x] 根据后续产品要求移除案件前端两处 Demo 环境就绪状态展示；页面不再为该展示主动请求就绪 API，后端接口和独立安全投影组件保留。
 
 ### 验证与交付
@@ -66,7 +66,7 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 - 后端全量 pytest：用户独立运行并报告通过；未提供测试数量和 warning 明细，不在文档中推测。
 - 安全测试有效性：临时回显 SYNTHETIC WinRAR 路径时脱敏测试按预期失败；恢复固定投影后通过。
 - 本次调整的 `lint:arch`、typecheck、`verify:quick`、显式 `check:repository-assets` 和 `git diff --check`：通过；当前 scoped strict docs 仍受既有人工验收任务未勾选影响。
-- 轻量开发冒烟：后端健康检查与前端预览可启动；电子数据检查入口和案件工作台可打开；两处页面不再显示 Demo 就绪提示，首页来源目录校验开关和“检查删除条件”保持可用；未发现浏览器控制台错误、白屏、崩溃或数据库迁移失败。该结果不等于正式人工验收。
+- 轻量开发冒烟：后端健康检查与前端预览可启动；电子数据检查入口默认进入案件工作台；相关页面不再显示 Demo 就绪提示，案件工作台来源目录校验控制项和“检查删除条件”保持可用；未发现浏览器控制台错误、白屏、崩溃或数据库迁移失败。该结果不等于正式人工验收。
 
 ## 人工验收
 

@@ -43,7 +43,7 @@ describe('CaseWorkbenchPage', () => {
     expect(screen.queryByRole('textbox', { name: '案件编号' })).toBeNull()
     expect(screen.queryByRole('button', { name: '上传报告目录' })).toBeNull()
     expect(screen.getByTitle('2')).toBeTruthy()
-    expect(screen.queryByRole('switch', { name: '来源目录校验开关' })).toBeNull()
+    expect(screen.getByRole('button', { name: '来源目录校验' }).getAttribute('aria-pressed')).toBe('false')
     expect(screen.getAllByRole('button', { name: '更多操作' })).toHaveLength(6)
   })
 
@@ -75,8 +75,7 @@ describe('CaseWorkbenchPage', () => {
     expect(postMock.mock.calls[0][1]).not.toHaveProperty('source_path')
   })
 
-  it('sends enabled authorization when the persisted homepage switch is on', async () => {
-    window.localStorage.setItem('biji.sourceAuthorization.enabled', 'true')
+  it('persists the compact source authorization button and uses it for submission', async () => {
     listItems = Array.from({ length: 5 }, (_, i) => shell(i + 1))
     const submitted = { ...shell(100), case_name: 'SYNTHETIC-ENABLED-CASE' }
     postMock.mockImplementationOnce(async () => ({
@@ -84,11 +83,23 @@ describe('CaseWorkbenchPage', () => {
     }))
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(5))
+    const authorizationButton = screen.getByRole('button', { name: '来源目录校验' })
+    expect(authorizationButton.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(authorizationButton)
+    expect(authorizationButton.getAttribute('aria-pressed')).toBe('true')
+    expect(window.localStorage.getItem('biji.sourceAuthorization.enabled')).toBe('true')
     fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
     await waitFor(() => expect(screen.getAllByText('SYNTHETIC-ENABLED-CASE').length).toBeGreaterThan(0))
     expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/workbench/cases'), expect.objectContaining({
       source_authorization_enabled: true,
     }))
+  })
+
+  it('restores the persisted source authorization state on the workbench', async () => {
+    window.localStorage.setItem('biji.sourceAuthorization.enabled', 'true')
+    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
+    expect(screen.getByRole('button', { name: '来源目录校验' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('shows the backend safe submission error instead of hiding its cause', async () => {

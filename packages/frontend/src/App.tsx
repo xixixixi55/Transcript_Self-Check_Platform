@@ -2,7 +2,6 @@
 
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { PlatformShell } from './components/PlatformShell'
-import ElectronicInspectionModulePage from './pages/ElectronicInspectionModulePage'
 import DeviceManagePage from './pages/DeviceManagePage'
 import InspectorManagePage from './pages/InspectorManagePage'
 import TemplateManagePage from './pages/TemplateManagePage'
@@ -20,7 +19,7 @@ export default function App() {
     <PlatformShell>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/electronic-inspection" element={<ElectronicInspectionModulePage />} />
+        <Route path="/electronic-inspection" element={<LegacyRedirect to="/electronic-inspection/workbench" />} />
         <Route path="/electronic-inspection/workbench" element={<CaseWorkbenchPage />} />
         <Route path="/electronic-inspection/cases/:caseId" element={<CaseRecordGeneratePage />} />
         <Route path="/electronic-inspection/generate" element={<LegacyRedirect to="/electronic-inspection/workbench" />} />
