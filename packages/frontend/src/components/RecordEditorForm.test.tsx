@@ -68,12 +68,36 @@ describe('RecordEditorForm', () => {
   it('keeps the full editor controls when rendered by the case workbench', () => {
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
-      workbenchMode defaultDiscPrefix="SYN-" />)
+      workbenchMode />)
 
     expect(screen.getByText('审核编辑')).toBeTruthy()
     expect(screen.getByTestId('evidence-editor')).toBeTruthy()
     expect(screen.getByTestId('image-uploader')).toBeTruthy()
+    expect(screen.queryByText('附件3：光盘编号')).toBeNull()
     expect(screen.queryByLabelText('导出文件名')).toBeNull()
+  })
+
+  it('keeps the read-only attachment date summary for a saved valid disc number', () => {
+    const reportWithDisc = JSON.parse(JSON.stringify(report)) as InspectionReport
+    reportWithDisc.attachments.disc_number = 'GP20260718-001'
+    render(<RecordEditorForm report={reportWithDisc} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
+      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
+      workbenchMode />)
+
+    expect(screen.queryByText('附件3：光盘编号')).toBeNull()
+    expect(screen.getByText('附件摘要/附件3日期')).toBeTruthy()
+    expect(screen.getByText('后续光盘编号将在最终卷数确定后按序号自动生成。')).toBeTruthy()
+  })
+
+  it('keeps the read-only validation feedback for a saved invalid disc number', () => {
+    const reportWithDisc = JSON.parse(JSON.stringify(report)) as InspectionReport
+    reportWithDisc.attachments.disc_number = 'INVALID-DISC'
+    render(<RecordEditorForm report={reportWithDisc} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
+      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
+      workbenchMode />)
+
+    expect(screen.queryByText('附件3：光盘编号')).toBeNull()
+    expect(screen.getByText('首个光盘编号格式或日期无效，导出前必须修正。')).toBeTruthy()
   })
 
   it('集成所有审核编辑区域和附件编辑器', () => {

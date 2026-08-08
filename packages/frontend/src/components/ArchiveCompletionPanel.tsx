@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — deferred disc mapping, directory picker and unified export.
+// Layer 11: FE_Components — unified first-disc input, deferred mapping and export.
 import React, { useEffect, useState } from 'react'
 import { Alert, Button, Input, Space, message } from 'antd'
 import type { CaseLifecycle } from '@biji/shared/types'
@@ -11,28 +11,35 @@ interface Props {
   caseId: string
   expectedRevision: number
   parts: { disc_number?: string | null }[] | null
+  firstDiscNumber: string
+  onFirstDiscNumberChange: (value: string) => void
+  readOnly?: boolean
   defaultWordName?: string
   onCompleted: () => void
 }
 
 export function ArchiveCompletionPanel({
-  lifecycle, caseId, expectedRevision, parts, defaultWordName, onCompleted,
+  lifecycle, caseId, expectedRevision, parts, firstDiscNumber, onFirstDiscNumberChange,
+  readOnly = false, defaultWordName, onCompleted,
 }: Props) {
   const archive = useArchiveCompletion()
-  const [firstDiscNumber, setFirstDiscNumber] = useState('')
+  const [mappingDiscNumber, setMappingDiscNumber] = useState(firstDiscNumber)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
   const status = resolveArchiveCompletionStatus(lifecycle, allPartsDiscMapped(parts))
   useEffect(() => {
     if (archive.error) message.error(archive.error)
   }, [archive.error])
+  useEffect(() => {
+    setMappingDiscNumber(firstDiscNumber)
+  }, [firstDiscNumber])
 
   const submitMapping = async () => {
-    const candidate = firstDiscNumber.trim()
+    if (readOnly) { message.warning('当前页面为只读，不能提交光盘编号。'); return }
+    const candidate = mappingDiscNumber.trim()
     if (!candidate) { message.warning('请输入首个光盘编号。'); return }
     try {
       const result = await archive.mapping(caseId, expectedRevision, candidate)
       message.success(`已按序映射 ${result.parts.length} 个光盘编号。`)
-      setFirstDiscNumber('')
       onCompleted()
     } catch { /* error already surfaced via useArchiveCompletion.error */ }
   }
@@ -65,8 +72,10 @@ export function ArchiveCompletionPanel({
         message="待补盘号"
         description="压缩已完成，输入首个光盘编号后系统将按 part 顺序自动生成全序列映射。"
         action={<Space>
-          <Input placeholder="如 GP20260731-01" value={firstDiscNumber} onChange={event => setFirstDiscNumber(event.target.value)} />
-          <Button type="primary" loading={archive.busy} onClick={() => { void submitMapping() }}>提交盘号映射</Button>
+          <Input aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={mappingDiscNumber}
+            disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
+          <Button type="primary" loading={archive.busy} disabled={readOnly}
+            onClick={() => { void submitMapping() }}>提交盘号映射</Button>
         </Space>}
       />
     )
@@ -96,5 +105,17 @@ export function ArchiveCompletionPanel({
     )
   }
 
-  return null
+  return (
+    <Alert
+      className="case-workbench-page__toolbar"
+      type="info"
+      showIcon
+      message="光盘编号"
+      description={status === 'compressing'
+        ? '压缩正在后台进行；现在仍可填写首个光盘编号，压缩完成后将沿用该编号。'
+        : '可在开始压缩前填写首个光盘编号；修改会随案件草稿自动保存。'}
+      action={<Input aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={firstDiscNumber}
+        disabled={readOnly} onChange={event => onFirstDiscNumberChange(event.target.value)} />}
+    />
+  )
 }

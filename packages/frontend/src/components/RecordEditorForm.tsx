@@ -37,7 +37,6 @@ interface Props {
   photoFiles: UploadFile[]
   onPhotoFilesChange: (files: UploadFile[]) => void
   fieldStates?: Record<string, FieldState>
-  defaultDiscPrefix?: string
   /** Deprecated UI compatibility props; defaults are updated by successful draft saves. */
   hasReportDefaults?: boolean
   onSaveReportDefaults?: () => void
@@ -71,7 +70,6 @@ export default function RecordEditorForm({
   photoFiles,
   onPhotoFilesChange,
   fieldStates,
-  defaultDiscPrefix = '',
   saveStatus = '尚未修改',
   saveBusy = false,
   onSave = () => undefined,
@@ -133,8 +131,7 @@ export default function RecordEditorForm({
             error={archiveError || archiveResult.error}
           />}
         <ReviewAttachmentsSection attachments={attachments} photoFiles={photoFiles}
-          onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport}
-          defaultDiscPrefix={defaultDiscPrefix} />
+          onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport} />
         </ReviewSection>
       </fieldset>
 

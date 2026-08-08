@@ -36,7 +36,6 @@ export default function CaseRecordGeneratePage() {
   const [inspectorLoading, setInspectorLoading] = useState(false)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const archiveDecisionInFlight = useRef(false)
-  const [defaultDiscPrefix, setDefaultDiscPrefix] = useState('')
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
   useEffect(() => {
     axios.get(API_ENDPOINTS.DEVICES).then(response => setDevices(response.data.data || [])).catch(() => undefined)
@@ -46,9 +45,6 @@ export default function CaseRecordGeneratePage() {
       .finally(() => setInspectorLoading(false))
       .catch(() => setInspectorError('获取启用检查人员失败，请稍后重试。'))
   }, [])
-  useEffect(() => {
-    if (session.defaults) setDefaultDiscPrefix(session.defaults.disc_number_prefix)
-  }, [session.defaults?.revision])
   const pendingItems = useMemo(() => session.report ? getReviewPendingItems(session.report) : [], [session.report])
   const updateReport = useCallback((path: string, value: unknown) => {
     session.updateReport(path, value)
@@ -167,7 +163,12 @@ export default function CaseRecordGeneratePage() {
         {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待复核" description="来源复核尚未完成；确认风险后仍可导出 Word，归档需等待复核完成。" />}
         {!sourceInvalid && !sourcePending && <>
           <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
-          <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId} expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null} defaultWordName={session.report?.document_number} onCompleted={() => { void session.reloadDetail(caseId) }} />
+          <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
+            expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
+            firstDiscNumber={session.report.attachments?.disc_number || ''}
+            onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
+            readOnly={!session.editingEnabled} defaultWordName={session.report.document_number}
+            onCompleted={() => { void session.reloadDetail(caseId) }} />
         </>}
         {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
         {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
@@ -188,7 +189,6 @@ export default function CaseRecordGeneratePage() {
           photoFiles={session.photoAssets.files}
           onPhotoFilesChange={session.photoAssets.handleChange}
           fieldStates={session.draft?.field_states}
-          defaultDiscPrefix={defaultDiscPrefix}
           saveStatus={reviewStatus}
           saveBusy={session.photoAssets.uploading || session.autosave.draftState.status === 'saving'}
           onSave={saveNow}

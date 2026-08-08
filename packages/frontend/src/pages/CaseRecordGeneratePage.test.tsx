@@ -59,13 +59,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let holdSave = false
   let showCompletedArchive = false
   let useExportedLifecycle = false
+  let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; resolveSave = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; initialLifecycle = 'review_ready'; resolveSave = null
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
-      if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
+      if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) return { data: { data: completedArchiveResult } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: [] } } }
@@ -117,10 +118,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_LEASE(caseId), expect.anything()))
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-    fireEvent.click(screen.getByRole('button', { name: /GP20260731-001/ }))
-    const input = await screen.findByDisplayValue('GP20260731-001')
+    const input = await screen.findByRole('textbox', { name: '首个光盘编号' })
+    expect((input as HTMLInputElement).value).toBe('GP20260731-001')
     fireEvent.change(input, { target: { value: 'GP20260731-002' } })
-    fireEvent.blur(input)
   }
 
   async function editDiscAndClick() {
@@ -128,11 +128,13 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     fireEvent.click(screen.getByRole('button', { name: /立即开始压缩/ }))
   }
 
-  it('persists an immediate disc-number edit before posting one archive decision with the new shell revision', async () => {
+  it('allows and persists a disc-number edit before compression, then posts one archive decision with the new shell revision', async () => {
     renderPage(); await editDiscAndClick()
     await waitFor(() => expect(decisionBodies).toHaveLength(1))
     expect(events.indexOf('draft-save')).toBeGreaterThanOrEqual(0)
     expect(events.indexOf('draft-save')).toBeLessThan(events.indexOf('archive-decision'))
+    const savedDraft = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft
+    expect(savedDraft.report.attachments.disc_number).toBe('GP20260731-002')
     expect(decisionBodies[0].expected_revision).toBe(6)
     expect(patchMock).toHaveBeenCalledTimes(1)
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DECISION(caseId))).toHaveLength(1)
@@ -202,6 +204,17 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
 
+  it('keeps the top disc-number input editable and autosaved while compression is running', async () => {
+    initialLifecycle = 'archive_queued'
+    renderPage()
+    await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
+    expect(await screen.findByText('压缩正在后台进行；现在仍可填写首个光盘编号，压缩完成后将沿用该编号。')).toBeTruthy()
+    fireEvent.change(screen.getByRole('textbox', { name: '首个光盘编号' }), { target: { value: 'GP20260731-009' } })
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
+    const savedDraft = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft
+    expect(savedDraft.report.attachments.disc_number).toBe('GP20260731-009')
+  }, 15000)
+
   it('shows completed archive parts and their disc mapping in the attachments section', async () => {
     showCompletedArchive = true
     renderPage()
@@ -209,6 +222,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(screen.getByText('合成案件.part2.rar')).toBeTruthy()
     expect(screen.getByText('GP20260731-01')).toBeTruthy()
     expect(screen.getByText('GP20260731-02')).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: '首个光盘编号' })).toBeNull()
     expect(getMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id), { timeout: WORKBENCH_REQUEST_TIMEOUT_MS })
   }, 15000)
 
@@ -222,6 +236,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       fireEvent.change(await screen.findByPlaceholderText('如 GP20260731-01'), { target: { value: 'GP20260731-01' } })
       fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
       await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, first_disc_number: 'GP20260731-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+      expect(patchMock).not.toHaveBeenCalled()
     } finally {
       completedArchiveResult.parts = originalParts
     }

@@ -194,6 +194,14 @@ workflow_level: 3
   - 覆盖 Spec：REQ-031
   - 验证：Hook 保存并发回归、审核编辑页面人员选择保存回归；测试汇总为 2 个相关文件/10 个 Hook 用例通过及页面用例通过。
 
+## 🟢 Phase 7: 光盘编号输入入口收敛
+
+- [x] T019 **移除附件区重复的光盘编号输入**
+  - 文件：`packages/frontend/src/components/ReviewAttachmentsSection.tsx`、`RecordEditorForm.tsx`、`ArchiveCompletionPanel.tsx`、`ArchiveCompletionPanel.test.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、`packages/frontend/src/components/RecordEditorForm.test.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx`
+  - 内容：删除附件区“附件3：光盘编号”编辑入口及仅为其服务的默认前缀接线；页面顶部首个光盘编号输入在压缩前和压缩中常驻并写入案件草稿，压缩完成待映射时复用同一位置提交盘号映射；保留附件日期与格式校验的只读反馈。
+  - 覆盖 Spec：REQ-007
+  - 验证：`pnpm --filter @biji/frontend exec vitest run src/components/ArchiveCompletionPanel.test.tsx src/components/RecordEditorForm.test.tsx src/pages/CaseRecordGeneratePage.test.tsx` + 前端 typecheck + `lint:arch`。
+
 ---
 
 ## 任务摘要
@@ -205,6 +213,6 @@ workflow_level: 3
 | 🔵 P3 | Pages (12) | 3 | 补齐字段 + 替换交互 + 集成验证 |
 | 🟠 P4 | Components / 验证 | 5 | 审查整改、组件测试、工程门控 |
 | 🟢 P5 | Components / 样式 | 2 | 检查人员卡片布局、加号添加入口与测试 |
-| **合计** | **Layer 2、10~12、21** | **18** | |
+| **合计** | **Layer 2、10~12、21** | **19** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。
