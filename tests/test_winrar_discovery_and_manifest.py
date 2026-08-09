@@ -15,8 +15,10 @@ from app.repository.winrar_discovery_repository import (  # noqa: E402
 )
 from app.services.archive_manifest_service import (  # noqa: E402
     assemble_archive_manifest,
+    capture_archive_file_identities,
     compute_disc_capacity,
     validate_manifest_files,
+    validate_manifest_metadata,
     validate_published_manifest,
 )
 
@@ -230,6 +232,78 @@ def test_manifest_file_validation_hashes_each_part_once(monkeypatch, tmp_path):
     monkeypatch.setattr("app.services.archive_manifest_service.compute_md5_streaming", counted_md5)
     assert validate_manifest_files(record) is None
     assert calls == [first.name, second.name]
+
+
+def test_authenticated_manifest_metadata_does_not_read_part_content(monkeypatch, tmp_path):
+    part = tmp_path / "case.rar"
+    payload = b"SYNTHETIC/AUTHENTICATED-METADATA"
+    part.write_bytes(payload)
+    manifest = {
+        "manifest_id": "manifest-metadata",
+        "archive_base_name": "case",
+        "volume_size_bytes": 4_000_000_000,
+        "max_part_count": 1,
+        "validation_status": "validated",
+        "parts": [{
+            "part_number": 1, "filename": part.name, "size_bytes": len(payload),
+            "md5": hashlib.md5(payload).hexdigest(),
+            "disc_number": "", "disc_date": "",
+            "disc_capacity_bytes": 4_000_000_000,
+            "volume_size_bytes": 4_000_000_000,
+        }],
+        "actual_archive_bytes": len(payload),
+    }
+    record = SimpleNamespace(
+        manifest_id="manifest-metadata", final_dir=tmp_path, public_manifest=manifest,
+    )
+    monkeypatch.setattr(
+        "app.services.archive_manifest_service.compute_md5_streaming",
+        lambda *_args, **_kwargs: pytest.fail("metadata projection read RAR content"),
+    )
+
+    assert validate_manifest_metadata(record) is None
+    part.write_bytes(b"short")
+    assert validate_manifest_metadata(record) == "ARCHIVE_MANIFEST_PART_CHANGED"
+
+
+def test_same_run_identity_detects_equal_size_change_without_rehash(monkeypatch, tmp_path):
+    part = tmp_path / "case.rar"
+    payload = b"SYNTHETIC/ORIGINAL"
+    part.write_bytes(payload)
+    manifest = {
+        "manifest_id": "manifest-identity",
+        "archive_base_name": "case",
+        "volume_size_bytes": 4_000_000_000,
+        "max_part_count": 1,
+        "validation_status": "validated",
+        "parts": [{
+            "part_number": 1, "filename": part.name, "size_bytes": len(payload),
+            "md5": hashlib.md5(payload).hexdigest(),
+            "disc_number": "", "disc_date": "",
+            "disc_capacity_bytes": 4_000_000_000,
+            "volume_size_bytes": 4_000_000_000,
+        }],
+        "actual_archive_bytes": len(payload),
+    }
+    record = SimpleNamespace(
+        manifest_id="manifest-identity", final_dir=tmp_path, public_manifest=manifest,
+    )
+    trusted_md5s = {part.name: manifest["parts"][0]["md5"]}
+    identities = capture_archive_file_identities(tmp_path, {part.name})
+    monkeypatch.setattr(
+        "app.services.archive_manifest_service.compute_md5_streaming",
+        lambda *_args, **_kwargs: pytest.fail("same-run validation rehashed content"),
+    )
+
+    assert validate_manifest_files(
+        record, verified_md5s=trusted_md5s,
+        verified_file_identities=identities,
+    ) is None
+    part.write_bytes(b"SYNTHETIC/TAMPERED")
+    assert validate_manifest_files(
+        record, verified_md5s=trusted_md5s,
+        verified_file_identities=identities,
+    ) == "ARCHIVE_MANIFEST_PART_CHANGED"
 
 
 # ─── Disc capacity computation ───────────────────────────────────────────

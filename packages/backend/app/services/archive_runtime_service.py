@@ -17,7 +17,6 @@ from .archive_runtime_models_service import (
     ArchiveContextRecord, ArchiveContextSnapshot, ArchiveManifestRecord,
 )
 from .archive_inventory_snapshot_service import ArchiveInventorySnapshotStore
-from .archive_inventory_snapshot_service import inventory_snapshot_is_current
 
 
 ARCHIVE_CONTEXT_TTL_SECONDS = 30 * 60
@@ -68,7 +67,6 @@ class ArchiveRuntimeStore:
                     output_root=output_root,
                     check_readability=False,
                 ),
-                is_current=inventory_snapshot_is_current,
             )
         except Exception:
             if cleanup_root:

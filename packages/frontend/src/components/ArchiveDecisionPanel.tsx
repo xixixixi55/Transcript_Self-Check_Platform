@@ -33,7 +33,7 @@ export function ArchiveDecisionPanel({ lifecycle, busy = false, onImmediate, onD
       type="warning"
       showIcon
       message="正在读取源文件并压缩"
-      description="请勿修改、移动或删除源报告目录，也不要继续向该目录写入数据。检测到变化时，本次压缩将失败且不会发布产物。"
+      description="请勿修改、移动或删除源报告目录，也不要继续向该目录写入数据。系统会校验 RAR 完整性、分卷、MD5 和清单，但不会为源目录执行额外的重复全量扫描。"
     />
   )
   if (lifecycle === 'archive_interrupted') return (

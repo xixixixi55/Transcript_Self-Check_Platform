@@ -8,7 +8,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..repository.archive_input_repository import ArchiveInputError, verify_input_inventory
 from ..repository.filesystem_identity_repository import directory_content_fingerprint
 from .archive_manifest_service import compute_disc_capacity, validate_manifest_files
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord, ArchiveRuntimeError
@@ -55,12 +54,6 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
                 ExportGateCode.ARCHIVE_MANIFEST_MISSING, "archive_manifest", "归档清单不是当前上下文的成功结果。",
             ),))
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
-        try:
-            verify_input_inventory(context.inventory)
-        except ArchiveInputError as error:
-            raise ArchiveGateError((ExportGateIssue(
-                error.code, "archive_manifest", "归档输入已变化，请重新解析。",
-            ),)) from error
         if record.fingerprint != archive_report_fingerprint(
             report, context.inventory,
             content_fingerprint=context.input_fingerprint or None,

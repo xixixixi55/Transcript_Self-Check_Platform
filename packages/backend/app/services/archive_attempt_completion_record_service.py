@@ -7,7 +7,7 @@ from typing import Any
 from ..repository.archive_manifest_repository import ArchiveManifestRepository
 from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ..repository.workbench_errors import WorkbenchPersistenceError
-from .archive_manifest_service import validate_manifest_files
+from .archive_manifest_service import ArchiveFileIdentity, validate_manifest_files
 from .archive_publication_identity_service import publication_digest
 
 
@@ -15,6 +15,8 @@ def record_attempt_completion(
     attempt_service: Any, attempt_id: str | None, registry: Any, context: Any,
     archive_fingerprint: str, manifest_record: Any,
     context_binding_id: str | None = None,
+    *, verified_md5s: dict[str, str] | None = None,
+    verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
 ) -> None:
     if attempt_service is None or attempt_id is None:
         return
@@ -35,7 +37,10 @@ def record_attempt_completion(
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
     try:
         if intent["phase"] == "intent_persisted":
-            if validate_manifest_files(manifest_record) is not None:
+            if validate_manifest_files(
+                manifest_record, verified_md5s=verified_md5s,
+                verified_file_identities=verified_file_identities,
+            ) is not None:
                 raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
             digest, file_set = publication_digest(intent, manifest_record.public_manifest)
             repository = ArchivePublishIntentRepository(attempt_service.database)
@@ -63,7 +68,11 @@ def record_attempt_completion(
         )
         if intent is None or intent["phase"] == "published":
             mark_publish_phase(attempt_service, attempt_id, "indexed")
-        complete_verified(attempt_service, attempt_id, registry, manifest_record)
+        complete_verified(
+            attempt_service, attempt_id, registry, manifest_record,
+            verified_md5s=verified_md5s,
+            verified_file_identities=verified_file_identities,
+        )
     except WorkbenchPersistenceError as error:
         if error.code in {
             "ARCHIVE_COMPLETION_EVIDENCE_CONFLICT", "ARCHIVE_COMPLETION_EVIDENCE_INVALID",

@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from .archive_attempt_service import ArchiveAttemptService
-from .archive_manifest_service import validate_published_manifest
+from .archive_manifest_service import (
+    ArchiveFileIdentity,
+    archive_file_identities_match,
+    capture_archive_file_identities,
+    validate_published_manifest,
+)
 from ..repository.archive_manifest_repository import ArchiveManifestRepository
 from ..repository.archive_publish_fence_repository import assert_publishable
 from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
@@ -23,7 +28,22 @@ def publish_staged_archive(
     workbench_context_id: str | None,
     expected_draft_revision: int | None = None,
     expected_report_fingerprint: str | None = None,
-) -> None:
+    verified_md5s: dict[str, str] | None = None,
+) -> dict[str, ArchiveFileIdentity] | None:
+    verified_file_identities: dict[str, ArchiveFileIdentity] | None = None
+
+    def validate(candidate: Any) -> bool:
+        if verified_md5s is None:
+            return validate_published_manifest(candidate)
+        if not validate_published_manifest(candidate, verified_md5s=verified_md5s):
+            return False
+        return (
+            verified_file_identities is None
+            or archive_file_identities_match(
+                Path(candidate.final_dir), verified_file_identities,
+            )
+        )
+
     if attempt_id is not None and attempt_service is not None:
         attempt_service.persist_publish_intent(
             attempt_id,
@@ -46,7 +66,7 @@ def publish_staged_archive(
             raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_CONFLICT")
         staging_record = copy.copy(record)
         staging_record.final_dir = staging_dir
-        if not validate_published_manifest(staging_record):
+        if not validate(staging_record):
             raise WorkbenchPersistenceError("ARCHIVE_PARTS_INVALID")
         intent = ArchivePublishIntentRepository(attempt_service.database).get_for_attempt(attempt_id)
         if intent is None:
@@ -58,6 +78,13 @@ def publish_staged_archive(
             attempt_id, digest, file_set,
         )
         _seal_publication_directory(staging_dir)
+    if verified_md5s is not None:
+        try:
+            verified_file_identities = capture_archive_file_identities(
+                staging_dir, set(verified_md5s),
+            )
+        except (OSError, ValueError) as error:
+            raise WorkbenchPersistenceError("ARCHIVE_PARTS_INVALID") from error
     registry = ArchiveManifestRepository(
         attempt_service.output_root if attempt_service is not None else final_dir.parents[2],
         database=attempt_service.database if attempt_service is not None else None,
@@ -70,7 +97,7 @@ def publish_staged_archive(
         except ValueError as error:
             raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_STAGING_INVALID") from error
     registry.atomic_publish_generation(staging_dir, final_dir)
-    if not validate_published_manifest(record):
+    if not validate(record):
         raise ValueError("ARCHIVE_PARTS_INVALID")
     if attempt_id is not None and attempt_service is not None:
         attempt_service.remove_marker(final_dir)
@@ -78,8 +105,9 @@ def publish_staged_archive(
             attempt_id, "published",
         )
         attempt_service.mark_publish_phase(attempt_id, "published")
-    if not validate_published_manifest(record):
+    if not validate(record):
         raise ValueError("ARCHIVE_PARTS_INVALID")
+    return verified_file_identities
 
 
 def _seal_publication_directory(root: Path) -> None:

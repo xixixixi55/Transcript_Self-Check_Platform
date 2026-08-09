@@ -146,7 +146,7 @@ async def get_case_endpoint(case_id: str):
 
 
 @router.post("/workbench/cases/{case_id}/archive-decision")
-async def decide_archive_endpoint(case_id: str, body: ArchiveDecisionRequest):
+def decide_archive_endpoint(case_id: str, body: ArchiveDecisionRequest):
     try:
         services = get_workbench_services()
         context_id = None

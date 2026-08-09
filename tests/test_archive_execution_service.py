@@ -128,7 +128,30 @@ def test_archive_executes_without_first_disc_number(tmp_path):
     assert all(part["disc_date"] == "" for part in parts)
 
 
-def test_source_metadata_change_during_execution_rejects_archive(tmp_path):
+def test_new_archive_hashes_each_generated_part_once(tmp_path, monkeypatch):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 2)
+    calls: list[str] = []
+
+    def counted_md5(path, _root):
+        calls.append(path.name)
+        return __import__("hashlib").md5(path.read_bytes()).hexdigest()
+
+    monkeypatch.setattr(
+        "app.services.archive_manifest_service.compute_md5_streaming", counted_md5,
+    )
+    outcome = execute_archive(
+        context_id, valid_report(), output_root=str(output), policy=policy(4),
+        capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+        executor=fake, integrity_runner=integrity_ok,
+    )
+
+    assert outcome.status == "completed"
+    assert len(calls) == 2
+    assert sorted(calls) == ["合成案件.part1.rar", "合成案件.part2.rar"]
+
+
+def test_direct_source_execution_does_not_repeat_inventory_scan(tmp_path, monkeypatch):
     source, output, context_id = make_context(tmp_path)
 
     class MutatingExecutor(FakeExecutor):
@@ -139,20 +162,22 @@ def test_source_metadata_change_during_execution_rejects_archive(tmp_path):
             return super().execute(plan, inventory_files, source_root, capability)
 
     fake = MutatingExecutor(tmp_path / "fake-staging", lambda tier: 1)
-    with pytest.raises(ArchiveGateError) as error:
-        execute_archive(
+    monkeypatch.setattr(
+        "app.repository.archive_input_repository.verify_input_inventory",
+        lambda *_args, **_kwargs: pytest.fail("archive execution repeated the input scan"),
+    )
+    outcome = execute_archive(
             context_id, valid_report(), output_root=str(output), policy=policy(4),
             capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
             executor=fake, integrity_runner=integrity_ok,
-        )
-    assert {str(item.code) for item in error.value.blockers} == {"ARCHIVE_INPUT_CHANGED"}
-    assert not (fake.root / "attempt-1").exists()
-    assert not list((output / "compressed").glob("**/*.rar"))
+    )
+    assert outcome.status == "completed"
+    assert list((output / "compressed").glob("**/*.rar"))
     assert source.is_dir()
     assert (source / "input.bin").read_bytes() == b"SYNTHETIC-CHANGED"
 
 
-def test_source_change_takes_priority_when_winrar_also_fails(tmp_path):
+def test_winrar_failure_is_reported_without_a_second_source_scan(tmp_path):
     source, output, context_id = make_context(tmp_path)
 
     class MutatingFailedExecutor(FakeExecutor):
@@ -167,7 +192,7 @@ def test_source_change_takes_priority_when_winrar_also_fails(tmp_path):
             capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
             executor=fake, integrity_runner=integrity_ok,
         )
-    assert {str(item.code) for item in error.value.blockers} == {"ARCHIVE_INPUT_CHANGED"}
+    assert {str(item.code) for item in error.value.blockers} == {"ARCHIVE_EXECUTION_FAILED"}
     assert source.is_dir()
     assert not list((output / "compressed").glob("**/*.rar"))
 
@@ -231,13 +256,23 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
             self.remove_calls += 1
 
     attempts = AttemptService()
+    hash_calls: list[str] = []
+    completion_kwargs: dict[str, object] = {}
+
+    def counted_md5(path, _root):
+        hash_calls.append(path.name)
+        return __import__("hashlib").md5(path.read_bytes()).hexdigest()
+
+    monkeypatch.setattr(
+        "app.services.archive_manifest_service.compute_md5_streaming", counted_md5,
+    )
     monkeypatch.setattr(
         "app.services.archive_execution_service.WinRarExecutor",
         lambda *_args, **_kwargs: fake,
     )
     monkeypatch.setattr(
         "app.services.archive_execution_service.record_attempt_completion",
-        lambda *_args, **_kwargs: None,
+        lambda *_args, **kwargs: completion_kwargs.update(kwargs),
     )
 
     publish_calls = 0
@@ -254,6 +289,7 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
         attempt_service.remove_marker(staging_dir)
         final_dir.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(staging_dir), str(final_dir))
+        return {"合成案件.rar": (1, 2, 3, 4, 5)}
 
     monkeypatch.setattr(
         "app.services.archive_execution_service.publish_staged_archive", publish,
@@ -273,6 +309,11 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
 
     assert outcome.manifest_id
     assert publish_calls == 2
+    assert hash_calls == ["合成案件.rar"]
+    assert completion_kwargs["verified_md5s"]
+    assert completion_kwargs["verified_file_identities"] == {
+        "合成案件.rar": (1, 2, 3, 4, 5),
+    }
     assert attempts.remove_calls == 1
     manifest = get_valid_manifest(
         context_id, outcome.manifest_id, AttemptService.latest_report,
@@ -333,7 +374,7 @@ def test_successful_manifest_is_reused_only_for_same_snapshot_and_review(tmp_pat
     assert get_valid_manifest(context_id, first.manifest_id, corrected_photos)
 
 
-def test_manifest_reuse_rechecks_input_snapshot_and_tolerates_disc_change(tmp_path):
+def test_manifest_reuse_validates_output_without_rescanning_direct_source(tmp_path):
     source, output, context_id = make_context(tmp_path)
     fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
     capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
@@ -349,9 +390,7 @@ def test_manifest_reuse_rechecks_input_snapshot_and_tolerates_disc_change(tmp_pa
     assert get_valid_manifest(context_id, first.manifest_id, changed_disc)
 
     (source / "input.bin").write_bytes(b"changed-input")
-    with pytest.raises(ArchiveGateError) as input_error:
-        get_valid_manifest(context_id, first.manifest_id, valid_report())
-    assert input_error.value.blockers[0].code == "ARCHIVE_INPUT_CHANGED"
+    assert get_valid_manifest(context_id, first.manifest_id, valid_report())
 
 
 def test_replan_exhaustion_does_not_publish_manifest(tmp_path):
@@ -496,7 +535,7 @@ def test_reparse_same_input_reuses_persisted_manifest_after_cache_clear(tmp_path
     assert (output / "compressed" / ".archive-manifest-index.json").is_file()
 
 
-def test_reparse_after_input_change_does_not_reuse_old_manifest(tmp_path):
+def test_reparse_reuses_manifest_within_confirmed_immutable_input_window(tmp_path):
     source, output, context_id = make_context(tmp_path)
     first_fake = FakeExecutor(tmp_path / "fake-staging-first", lambda tier: 1)
     capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
@@ -515,8 +554,10 @@ def test_reparse_after_input_change_does_not_reuse_old_manifest(tmp_path):
         capability=capability, executor=second_fake, integrity_runner=integrity_ok,
     )
 
-    assert outcome.reused is False
-    assert second_fake.calls == [4]
+    # Deep input mutation is deliberately outside the confirmed immutable-input
+    # contract; a repeated source scan must not be reintroduced here.
+    assert outcome.reused is True
+    assert second_fake.calls == []
 
 
 @pytest.mark.parametrize("tamper", ["missing", "size", "md5"])

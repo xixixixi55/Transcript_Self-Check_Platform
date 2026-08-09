@@ -31,6 +31,17 @@ from test_phase1d_recovery import (  # noqa: E402
 from test_phase1d_review_remediation import _valid_manifest  # noqa: E402
 
 
+def _core_source(tmp_path: Path, name: str) -> tuple[Path, Path]:
+    source = tmp_path / name
+    data = source / "data"
+    data.mkdir(parents=True)
+    for filename in (
+        "data_case_info.json", "data_device_lists.json", "data_report_info.json",
+    ):
+        (data / filename).write_bytes(b"SYNTHETIC/TEST/CORE")
+    return source, data
+
+
 def _publish_intent(service: ArchiveAttemptService, attempt_id: str, context_id: str) -> None:
     service.persist_publish_intent(
         attempt_id,
@@ -133,10 +144,9 @@ def test_failed_attempt_with_publish_intent_is_reconciled_without_republish(data
     assert len(ArchiveManifestRepository(output).find_for_attempt(attempt["attempt_id"])) == 1
 
 
-def test_source_fingerprint_is_metadata_only_and_detects_metadata_changes(tmp_path: Path) -> None:
-    source = tmp_path / "SYNTHETIC-SOURCE"
-    source.mkdir()
-    item = source / "record.json"
+def test_source_fingerprint_is_bounded_and_detects_core_metadata_changes(tmp_path: Path) -> None:
+    source, data = _core_source(tmp_path, "SYNTHETIC-SOURCE")
+    item = data / "data_case_info.json"
     item.write_bytes(b"SYNTHETIC-ONE")
     original = item.stat()
     first = fingerprint(source)
@@ -160,9 +170,8 @@ def test_source_fingerprint_is_metadata_only_and_detects_metadata_changes(tmp_pa
 def test_source_fingerprint_returns_transient_failure_for_snapshot_change(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
-    source = tmp_path / "SYNTHETIC-SOURCE-CHANGE"
-    source.mkdir()
-    item = source / "record.json"
+    source, data = _core_source(tmp_path, "SYNTHETIC-SOURCE-CHANGE")
+    item = data / "data_case_info.json"
     item.write_bytes(b"SYNTHETIC-ORIGINAL")
     from app.services import source_record_fingerprint_service as fingerprint_module
 
@@ -185,10 +194,9 @@ def test_source_fingerprint_returns_transient_failure_for_snapshot_change(
 def test_initial_source_fingerprint_reuses_the_stable_snapshot_for_metadata(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
-    source = tmp_path / "SYNTHETIC-SOURCE-METADATA"
-    (source / "nested").mkdir(parents=True)
-    (source / "record.json").write_text("SYNTHETIC/TEST", encoding="utf-8")
-    (source / "nested" / "item.bin").write_bytes(b"SYNTHETIC")
+    source, _ = _core_source(tmp_path, "SYNTHETIC-SOURCE-METADATA")
+    (source / "deep" / "media").mkdir(parents=True)
+    (source / "deep" / "media" / "item.bin").write_bytes(b"SYNTHETIC")
     from app.services import source_record_fingerprint_service as fingerprint_module
 
     original_snapshot = fingerprint_module._snapshot
@@ -203,16 +211,13 @@ def test_initial_source_fingerprint_reuses_the_stable_snapshot_for_metadata(
     metadata, value = fingerprint_with_metadata(source)
 
     assert calls == 2
-    assert metadata["file_count"] == 2
-    assert metadata["directory_count"] == 1
+    assert metadata["identity_entry_count"] == 5
     assert value == fingerprint_module._fingerprint_entries(original_snapshot(source))
+    assert all("deep" not in relative for relative, *_ in original_snapshot(source))
 
 
 def test_source_fingerprint_traversal_honors_shutdown_cancellation(tmp_path: Path) -> None:
-    source = tmp_path / "SYNTHETIC-SOURCE-CANCEL"
-    source.mkdir()
-    for index in range(10):
-        (source / f"SYNTHETIC-{index}.txt").write_text("SYNTHETIC/TEST", encoding="utf-8")
+    source, _ = _core_source(tmp_path, "SYNTHETIC-SOURCE-CANCEL")
     from app.services.source_record_fingerprint_service import SourceFingerprintCancelledError
 
     checks = 0

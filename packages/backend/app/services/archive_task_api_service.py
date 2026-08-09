@@ -51,7 +51,8 @@ class ArchiveTaskApiService:
         active = self.tasks.get_current_or_recent(case_id)
         if active and active["status"] in {"queued", "running", "cancelling", "blocked"}:
             active = self._reconcile_or_reject_active(active)
-        self.sources.require_available(shell["source_id"])
+        # create_legacy_preview_source performs the bounded core-source check.
+        # Do not run the same source check twice in one archive-decision request.
         context_id = self.sources.create_legacy_preview_source(case_id)
         task_id = f"archive-task-{secrets.token_hex(20)}"
         registered = False

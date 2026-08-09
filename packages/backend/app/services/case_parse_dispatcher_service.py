@@ -62,7 +62,7 @@ class CaseParseDispatcher:
         source_revision: int | None = None,
         attempt: int = 1,
     ) -> None:
-        """Verify the full source after parsing, outside the review path."""
+        """Verify the bounded core-source identity after parsing."""
         key = ("source-verification", f"{source_id}:{source_revision or 0}", str(attempt))
         with self._lock:
             if self._shutdown:

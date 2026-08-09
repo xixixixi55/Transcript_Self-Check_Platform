@@ -756,31 +756,34 @@ MD5 校验由 HashMyFiles.exe 执行，新解析案件和存量案件的运行�
 - THEN 页面显示待人工确认文字和影响范围
 - AND 正式导出执行现有确认门控
 
-### Requirement: REQ-021: SourceRecord 保护来源可访问性
+### Requirement: REQ-021: 来源复核不得递归扫描完整报告目录
 
-系统 MUST 为每个工作台来源创建 `SourceRecord`。来源提交合同是本机报告目录路径而非 ZIP/RAR 或其他上传文件。后端 MUST 校验路径存在、是允许的目录类型、位于授权来源根、当前账户可访问且包含可识别报告结构，再保存 opaque `source_id`、允许根授权、`source_type`、`case_id/task_id` 绑定、metadata/fingerprint、访问状态和最近复核时间。绝对路径只能存在于受控后端 locator 中；API、卡片、草稿 DTO、任务 DTO、审计摘要、普通日志和 SQLite 公共字段不得暴露绝对路径；来源失效时必须要求重新选择目录。来源复核与归档决策前的来源可用性检查 MUST 使用元数据级指纹（相对路径 + 类型 + 大小 + mtime），不得在复核或请求路径读取源文件内容。
+系统 MUST 为每个工作台来源创建 `SourceRecord`。来源提交合同是本机报告目录路径而非 ZIP/RAR 或其他上传文件。案件为导出后可删除的短生命周期工作数据；用户确认压缩期间不修改源目录时，来源复核 MUST 只检查授权路径、允许根、链接/reparse、报告结构以及核心报告文件的路径、类型、大小和 mtime，不得为展示审核页或提交归档决策而递归枚举全部媒体文件。后端仍保存 opaque `source_id`、允许根授权、`source_type`、`case_id/task_id` 绑定、metadata/fingerprint、访问状态和最近复核时间；绝对路径只能存在受控后端 locator 中。来源目录缺失、越界、结构无效或核心报告文件身份变化时必须要求重新选择目录。
 
-#### Scenario: 来源绑定和重启复核
+#### Scenario: 来源绑定和有界重启复核
 - WHEN 用户提交经后端验证的报告目录并创建解析任务
 - THEN SourceRecord 绑定案件壳和 task_id，并保存允许根授权及 metadata/fingerprint
-- AND 递归 metadata/fingerprint 可先保持 pending 并由独立来源复核完成；快速解析按 `Legacy Parser → 草稿持久化 → review_ready` 顺序执行，不以完整复核阻塞审核入口
-- AND 来源复核使用元数据级指纹（path/type/size/mtime），不读取文件内容，以消除大目录复核负载
+- AND 有界核心来源 fingerprint 可先保持 pending 并由独立来源复核完成；快速解析按 `Legacy Parser → 草稿持久化 → review_ready` 顺序执行
+- AND 来源复核只对授权 locator、报告根目录、`data` 目录和核心报告文件计算路径/类型/大小/mtime 指纹，不读取内容或遍历深层媒体树
 - WHEN 服务重启或任务恢复前访问来源
 - THEN 后端复核允许根、路径、权限、链接安全性和 fingerprint/metadata，并识别仍处于待复核的 SourceRecord
 - AND 恢复事务不得把 pending 复核标记为可信或来源变化；应用启动后按 `source_id + revision` 去重调度复核
 - AND 调度失败保持 pending，记录 `SOURCE_REVALIDATION_PENDING` 并允许后续启动或显式重试
 - AND 已经 `review_ready` 的案件不得因恢复重复创建或执行 Parser
-- AND 暂时 I/O、权限或资源不可用保持 pending，草稿可以查看和编辑；归档继续等待来源可信状态，Word 导出须显示明确风险确认
-- AND 已确认的路径、允许根、链接安全性、报告结构、大小、mtime 或元数据指纹发生变化，或来源被替换/不可用时，才标记 `requires_reselection`，阻止归档并要求重新选择和重新解析
-- AND 同尺寸且时间戳保持不变的原地内容改写不在元数据指纹门的检测范围内；归档执行仍对实际归档内容做完整性校验
+- AND 暂时 I/O、权限或资源不可用保持 pending，草稿可以查看和编辑；归档提交时执行同一有界快速复核，Word 导出须显示明确风险确认
+- AND 已确认的路径、允许根、链接安全性、报告结构或核心报告文件路径、类型、大小、mtime 发生变化，或来源被替换/不可用时，才标记 `requires_reselection`
 
-#### Scenario: 大目录初次复核避免重复扫描并可从瞬态失败恢复
-- WHEN 初次来源复核递归采集目录统计和元数据指纹
-- THEN 后端从同一份稳定快照派生文件数、目录数和 fingerprint，不为目录统计额外执行一次全目录遍历
-- AND 来源复核使用独立的有界执行资源，不得占用报告解析工作线程
-- AND 扫描期间来源仍在写入或发生暂时 I/O/权限错误时，来源保持 `pending`，后台按有限退避自动重试，无需重启应用
-- AND 有限重试耗尽后记录稳定诊断状态，继续阻止归档，不得静默永久挂起或将来源误标为可用
-- AND 应用重载或关闭时取消仍在运行的目录遍历，来源保持 `pending`，旧后端进程不得因来源复核线程长期阻塞退出或占用服务端口
+#### Scenario: 解析完成后快速开放直接压缩
+- WHEN Parser 已成功生成可审核草稿
+- THEN 后端只对授权 locator、报告根目录、`data` 目录和核心报告文件执行有界身份检查并将来源置为可用
+- AND 审核页无需等待完整报告目录递归扫描即可显示“直接压缩”入口
+- AND 深层媒体文件的数量不得线性增加来源复核或归档决策请求耗时
+
+#### Scenario: 核心来源身份失效
+- WHEN 授权路径、允许根、链接/reparse 安全、报告结构或核心报告文件的路径、类型、大小、mtime 与已登记身份不一致
+- THEN 来源变为 `requires_reselection` 并阻止归档
+- AND 暂时 I/O/权限失败保持 `pending` 并允许有界重试
+- AND 检查不得读取媒体文件内容或递归遍历深层媒体树
 
 #### Scenario: 来源风险不阻止 Word 导出
 - WHEN SourceRecord 为 `available`
@@ -814,7 +817,12 @@ Phase 1D MUST 只在现有 Legacy `/records/archive` 显式入口外围记录一
 
 恢复必须区分身份/完整性/目标冲突与临时 SQLite lock、index 不可用、文件锁和瞬时 I/O/权限错误。临时错误保留当前可恢复状态和证据，确认性冲突进入安全 conflict；不得以不完整证据发布成功。输入 snapshot、Manifest、index、marker 和正式目录的失败清理只处理已证明属于当前 attempt 的资源；未知资源不删除、不覆盖、不终止。
 
-SourceRecord 目录 fingerprint MUST 使用规范化相对路径、条目类型、真实文件字节摘要和稳定排序集合。每个文件必须在打开句柄前后检查，并在摘要后重新扫描；任何变化、消失、新增、删除、临时访问错误或不一致都必须保持 pending/暂时不可验证，不得生成可信 available fingerprint。绝对路径和 metadata-only cache 不属于公共合同。
+SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报告结构与核心报告文件有界元数据指纹。完整媒体目录不再生成逐文件内容摘要，也不作为审核入口、归档提交或发布前的重复信任门。发布 intent、attempt/case/source/draft revision、Manifest 身份和物理 RAR 校验仍是完成权威。
+
+#### Scenario: 有界来源身份与输出权威分离
+- WHEN 工作台复核来源或归档发布核对当前来源记录
+- THEN 来源可用性只使用授权 locator、报告结构和核心报告文件有界指纹
+- AND 正式完成仍须通过 durable intent、Manifest、RAR 存在性/字节数/MD5 与发布代次门控
 
 #### Scenario: 归档中断时保持可恢复且不发布半成品
 - WHEN 归档执行在正式产物验证和可信完成提交前中断，或重启发现未完成归档尝试
@@ -827,7 +835,7 @@ SourceRecord 目录 fingerprint MUST 使用规范化相对路径、条目类型�
 
 应用停止达到有界等待上限时，属于本部署实例的 pending/running claim MUST 在 owner、attempt、task revision、lease 和 fence 条件仍成立时收敛为现有 `interrupted`/可恢复状态；不得把未完成工作标为 succeeded、completed 或 100%，不得改写其他部署实例的 claim。已经完成 durable 发布并通过可信完成门控的 attempt MUST 保持成功。重复停止、Worker 超时后的迟到返回和重启恢复 MUST 幂等。
 
-归档执行 MUST 在执行开始、产物生成后和正式发布前重新确认源材料集合、条目类型、实际字节和关键元数据。文件增加、删除、替换、截断、同大小同时间戳内容变化或读取期间不稳定 MUST 使本次执行安全失败，不得发布混合源版本的 RAR、inventory 或 Manifest；失败不产生成功状态或可复用正式索引，重试必须重新建立源证据。
+用户确认压缩期间不修改源目录后，归档执行 MUST 以 Worker 唯一完整 inventory 的路径、类型、大小和 mtime 作为容量规划与 Manifest 输入统计，WinRAR 直接读取授权源目录。产物生成后不得为证明源目录持续不变而再次执行全目录枚举；完成权威收敛到 RAR 完整性、连续分卷/容量、每卷 MD5、durable intent、Manifest 与发布代次的物理文件校验。
 
 正式发布到索引、Manifest/MD5 确认和完成状态提交之间 MUST 继续核对同一 durable intent、fence、public Manifest、文件集合、顺序、字节数和摘要。正式卷、Manifest 或索引被替换、修改、删除、新增或重命名时 MUST 拒绝成功、复用、下载和 Word 导出；恢复遇到部分发布目录也不得直接提升为完成，不得删除或覆盖历史正式资产掩盖冲突。marker MUST 在 durable intent/fence 已建立且正式移动完成后才由明确发布所有者删除一次。
 
@@ -844,9 +852,10 @@ SourceRecord 目录 fingerprint MUST 使用规范化相对路径、条目类型�
 - THEN claim 和 attempt 进入可恢复 interrupted 状态，未完成任务不显示成功或 100%
 - AND 已可信完成的 attempt 保持 succeeded，其他实例 claim 不变，重复 shutdown/recovery 幂等
 
-#### Scenario: 执行期间源材料变化
-- WHEN 源文件在归档执行、产物生成或正式发布前被替换、删除、新增、截断或同大小同时间戳改写
-- THEN 本次归档安全失败，不登记正式 Manifest 或成功状态，重试重新获取源证据
+#### Scenario: 执行期来源不变承诺
+- WHEN 用户确认后启动直接源压缩
+- THEN 系统不在 WinRAR 前后或发布前重复全量扫描源目录
+- AND 用户违反承诺导致的混合时点源内容不在额外检测保证内，但 WinRAR 或输出门观察到失败时不得发布成功
 
 #### Scenario: 正式产物变化
 - WHEN staging 或正式发布目录中的任一卷、Manifest 或索引在后续门控前被修改、替换、删除、新增或重命名
@@ -1172,19 +1181,38 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - AND 案件绑定的 `.inputs`、`.i` 或 `.t` 快照目录及其 `.copying` 临时目录、owner marker 一并清理
 - AND 用户导出路径下的外部副本不被删除；外部原始资料目录不属于平台删除范围
 
-### Requirement: REQ-ARCHIVE-IMMUTABLE-INPUT
+### Requirement: REQ-ARCHIVE-IMMUTABLE-INPUT: 用户确认边界下的单次直接源 inventory
 
-The archive execution input MUST be a task/attempt/deployment-bound sealed snapshot; mutable source bytes MUST NOT be used as the execution or publication authority.
+用户明确确认压缩期间不会修改、移动、删除源目录或继续写入后，新归档尝试 MUST 直接读取已授权源目录。系统 MUST 只构建一次完整输入 inventory 供容量规划、Manifest 输入统计和 WinRAR 执行使用，不得复制全量快照，也不得在来源复核、归档提交、WinRAR 前后或 Manifest 读取阶段重复递归扫描同一目录。
 
-#### Scenario: sealed execution input
-- WHEN a task begins archive execution
-- THEN the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory in parallel (default 4 workers, `BIJI_ARCHIVE_COPY_WORKERS`-configurable) without following links or reparse points, verifies every relative path, size and modified-time metadata, and durably marks it `sealed`
-- AND file content is flushed to the OS but not per-file fsynced at copy time; the snapshot directory rename, owner marker and file-list metadata remain durably persisted
-- AND content not yet written back at power loss can leave partial or zero-filled bytes, which size-based metadata verification catches when truncated and archive-output RAR validation plus crash-retry rebuild from source cover otherwise
-- AND the snapshot manifest records per-file relative path, size and modified-time metadata, not per-file content SHA-256
-- AND WinRAR, inventory, RAR validation and Manifest generation read only the sealed snapshot, never the mutable source directory
-- AND an unsealed, missing, owner-mismatched, incomplete or metadata-mismatched snapshot cannot enter WinRAR, publication, reuse or success
-- AND source changes after sealing cannot change the bytes read by this attempt; failure, cancellation, crash and retry never reuse a prior attempt snapshot
+#### Scenario: 直接压缩快速进入后台
+- WHEN 来源核心身份可用且用户确认立即压缩
+- THEN 归档决策请求快速创建后台任务并结束 loading
+- AND 完整输入 inventory 在归档 Worker 中构建，工作台列表、案件详情和其他 HTTP 请求保持可用
+- AND 同一 attempt 在 WinRAR 启动前只构建一次完整 inventory
+
+#### Scenario: 输出准确性门保持
+- WHEN WinRAR 完成直接源压缩
+- THEN 系统仍执行 RAR 完整性测试、连续分卷与容量校验、每卷 MD5、Manifest/发布身份和最终产物存在性校验
+- AND 任一输出校验失败不得标记归档完成或允许统一导出
+- AND 输入 inventory 的文件数、总字节数和路径元数据来自本次 Worker 的唯一完整枚举
+
+#### Scenario: 同一次新归档只读取一次 RAR 内容计算 MD5
+- WHEN RAR 完整性测试通过且 Worker 为本次新生成的每个 part 组装 Manifest
+- THEN 每个 part 只执行一次完整内容 MD5，并将该摘要绑定到 durable publish intent、Manifest 和精确文件集合
+- AND 同一 attempt 后续密封、原子发布、索引与完成提交复用该可信摘要，同时继续核对目录边界、文件类型、文件名集合、顺序、精确字节数和已哈希文件的稳定身份元数据
+- AND 发布切点观察到文件缺失、替换、增删、字节数变化或同大小文件身份/时间变化时仍必须安全失败
+
+#### Scenario: 结果展示不重复读取大文件内容
+- WHEN 已完成案件读取归档结果以展示 part、MD5 和盘号映射
+- THEN 后端验证 task/attempt/deployment、durable publication digest、Manifest 身份以及物理文件的存在性、类型、名称集合和精确字节数
+- AND 普通结果展示不得再次对全部 RAR 执行内容 MD5，也不得阻塞工作台事件循环
+- AND 结果展示不是正式文件授权；下载、统一导出、恢复与跨 attempt 复用仍执行现有完整内容校验，发现同大小内容篡改时必须拒绝
+
+#### Scenario: 用户在压缩期间修改源目录
+- WHEN 用户违反确认并在 inventory 或 WinRAR 执行期间修改、移动、删除或继续写入源目录
+- THEN 系统不承诺通过额外的压缩前后全目录扫描检测该变化
+- AND WinRAR 或输出完整性校验观察到的错误仍必须安全失败，不得伪造成功
 
 ### Requirement: REQ-ARCHIVE-PUBLICATION-GENERATION
 

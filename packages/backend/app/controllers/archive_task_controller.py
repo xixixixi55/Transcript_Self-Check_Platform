@@ -102,7 +102,7 @@ async def get_archive_history_endpoint(case_id: str):
 
 
 @router.get("/workbench/tasks/{task_id}/result")
-async def get_archive_result_endpoint(task_id: str):
+def get_archive_result_endpoint(task_id: str):
     try:
         return _envelope(_archive_api().result(task_id))
     except Exception as error:
@@ -110,7 +110,7 @@ async def get_archive_result_endpoint(task_id: str):
 
 
 @router.get("/workbench/tasks/{task_id}/result/parts/{part_id}")
-async def download_archive_result_part_endpoint(task_id: str, part_id: str):
+def download_archive_result_part_endpoint(task_id: str, part_id: str):
     try:
         filename, path = _archive_api().download_result_part(task_id, part_id)
         return FileResponse(
@@ -179,7 +179,7 @@ async def map_disc_numbers_endpoint(case_id: str, body: FirstDiscMappingRequest)
 
 
 @router.post("/workbench/cases/{case_id}/export-bundle")
-async def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
+def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
     """Export latest Word + all RAR parts + HashMyFiles PNG to a picker-authorized path."""
     try:
         # The unified export is guarded on the case shell revision inside

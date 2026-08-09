@@ -395,9 +395,9 @@ def test_publication_cutpoint_tamper_never_becomes_durable_success(
     original_validate = publish_module.validate_published_manifest
     tampered = False
 
-    def validate_then_tamper(candidate):
+    def validate_then_tamper(candidate, **kwargs):
         nonlocal tampered
-        valid = original_validate(candidate)
+        valid = original_validate(candidate, **kwargs)
         if valid and not tampered and Path(candidate.final_dir).resolve() == final_dir.resolve():
             tampered = True
             part = final_dir / "SYNTHETIC-CASE.rar"
@@ -411,12 +411,13 @@ def test_publication_cutpoint_tamper_never_becomes_durable_success(
             staging, final_dir, record, CaseDraftRepository(database).get(CASE_ID)["report"], context=context,
             attempt_id=attempt["attempt_id"], attempt_service=service,
             workbench_context_id=context_id,
+            verified_md5s={"SYNTHETIC-CASE.rar": manifest["parts"][0]["md5"]},
         )
     assert tampered
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "running"
     intent = ArchivePublishIntentRepository(database).get_for_attempt(attempt["attempt_id"])
-    assert intent["phase"] == "published"
-    assert intent["publication_status"] == "published"
+    assert intent["phase"] == "intent_persisted"
+    assert intent["publication_status"] == "sealed"
 
 
 def test_manifest_index_is_fail_closed_and_cross_instance_append_is_lossless(

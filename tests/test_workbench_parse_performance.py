@@ -87,7 +87,7 @@ def test_same_synthetic_report_profiles_legacy_and_workbench_paths(profile_fixtu
         metrics["metadata_started_perf"] = started
         metrics["fingerprint_started_perf"] = started
         metadata, value = original_fingerprint_with_metadata(path, should_cancel)
-        metrics["metadata_file_count"] = int(metadata["file_count"])
+        metrics["source_identity_entry_count"] = int(metadata["identity_entry_count"])
         metrics["metadata_ms"] = (time.perf_counter() - started) * 1000
         metrics["fingerprint_ms"] = (time.perf_counter() - started) * 1000
         return metadata, value
@@ -103,7 +103,7 @@ def test_same_synthetic_report_profiles_legacy_and_workbench_paths(profile_fixtu
             cancellation_event=cancellation_event,
         )
         metrics["verification_completed_perf"] = time.perf_counter()
-        metrics["full_source_verification_ms"] = (time.perf_counter() - started) * 1000
+        metrics["bounded_source_verification_ms"] = (time.perf_counter() - started) * 1000
         return value
 
     def timed_complete_parse(*args, **kwargs):
@@ -132,8 +132,8 @@ def test_same_synthetic_report_profiles_legacy_and_workbench_paths(profile_fixtu
         while detail["source"]["access_status"] == "pending" and time.perf_counter() < deadline:
             time.sleep(0.01)
             detail = CaseLifecycleService(database).detail(identifiers["case_id"])
-        metrics["full_verification_complete_ms"] = (time.perf_counter() - parse_started) * 1000
-        metrics["full_verification_exact_ms"] = (
+        metrics["bounded_verification_complete_ms"] = (time.perf_counter() - parse_started) * 1000
+        metrics["bounded_verification_exact_ms"] = (
             float(metrics["verification_completed_perf"]) - parse_started
         ) * 1000
     dispatcher.shutdown(wait=True)

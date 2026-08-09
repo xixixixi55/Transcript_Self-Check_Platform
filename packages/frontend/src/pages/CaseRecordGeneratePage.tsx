@@ -163,8 +163,8 @@ export default function CaseRecordGeneratePage() {
         <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
         <Steps current={1} className="review-steps"><Steps.Step title="案件工作台" /><Steps.Step title="审核编辑" /><Steps.Step title="导出 Word" /></Steps>
         <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
-        {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待复核" description="来源复核尚未完成；确认风险后仍可导出 Word，归档需等待复核完成。" />}
-        {!sourceInvalid && !sourcePending && <>
+        {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待快速复核" description="可直接选择压缩时机；开始压缩前会快速核对授权路径、报告结构和核心报告文件。" />}
+        {!sourceInvalid && <>
           <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
           <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
             expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}

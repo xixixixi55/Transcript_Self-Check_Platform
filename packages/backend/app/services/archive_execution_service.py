@@ -7,7 +7,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Callable
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
-from ..repository.archive_input_repository import ArchiveInputError, verify_input_inventory
 from ..repository.archive_manifest_repository import (
     ArchiveManifestRepository, ArchiveManifestRepositoryError,
 )
@@ -64,7 +63,6 @@ def execute_archive(
         observe_stage(stage_observer, "inventory")
         first_disc_number = str((report.get("attachments") or {}).get("disc_number") or "").strip() or None
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
-        verify_input_inventory(context.inventory)
         execution_inventory = context.inventory
         context.input_fingerprint = execution_inventory.metadata_fingerprint
         if execution_inventory.total_input_bytes <= 0:
@@ -133,34 +131,17 @@ def execute_archive(
         retry_count = 0
         while True:
             try:
-                verify_input_inventory(execution_inventory)
                 observe_stage(stage_observer, "winrar")
                 execution = active_executor.execute(
                     plan, execution_inventory.files, execution_inventory.source_root, winrar,
                 )
             except ArchiveExecutionError as error:
-                try:
-                    verify_input_inventory(execution_inventory)
-                except ArchiveInputError as input_error:
-                    raise ArchiveGateError((ExportGateIssue(
-                        input_error.code, "archive", input_error.safe_message,
-                    ),)) from input_error
                 raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
             if execution.returncode != 0:
-                try:
-                    verify_input_inventory(execution_inventory)
-                except ArchiveInputError:
-                    active_executor.cleanup(execution)
-                    raise
                 active_executor.cleanup(execution)
                 raise ArchiveGateError((ExportGateIssue(
                     ExportGateCode.ARCHIVE_EXECUTION_FAILED, "archive", "Archive execution failed.",
                 ),))
-            try:
-                verify_input_inventory(execution_inventory)
-            except ArchiveInputError as error:
-                active_executor.cleanup(execution)
-                raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
             validation_kwargs = {"integrity_runner": integrity_runner} if integrity_runner else {}
             validation_kwargs["integrity_started_callback"] = lambda: observe_stage(stage_observer, "integrity")
             validation = validate_archive_parts(execution.staging_dir, plan, winrar, **validation_kwargs)
@@ -178,6 +159,7 @@ def execute_archive(
                 raise ArchiveGateError((ExportGateIssue(code, "archive", validation.safe_message),))
             try:
                 publication_attempt = 0
+                verified_output_md5s: dict[str, str] | None = None
                 while True:
                     publication_report = report
                     publication_snapshot = None
@@ -218,7 +200,13 @@ def execute_archive(
                     observe_stage(stage_observer, "md5")
                     public_manifest, _ = assemble_archive_manifest(
                         plan, validation, winrar, retry_count=retry_count,
+                        verified_md5s=verified_output_md5s,
                     )
+                    if verified_output_md5s is None:
+                        verified_output_md5s = {
+                            str(part["filename"]): str(part["md5"])
+                            for part in public_manifest["parts"]
+                        }
                     observe_stage(stage_observer, "manifest")
                     manifest_id = str(public_manifest["manifest_id"])
                     final_dir = Path(output_root) / "compressed" / context_id / manifest_id
@@ -229,7 +217,7 @@ def execute_archive(
                         created_at, created_at + 24 * 60 * 60,
                     )
                     try:
-                        publish_staged_archive(
+                        verified_output_identities = publish_staged_archive(
                             execution.staging_dir, final_dir, record, publication_report,
                             context=context,
                             attempt_id=attempt_id if marker_enabled else None,
@@ -241,6 +229,7 @@ def execute_archive(
                             expected_report_fingerprint=(
                                 publication_snapshot.report_fingerprint if publication_snapshot else None
                             ),
+                            verified_md5s=verified_output_md5s,
                         )
                         break
                     except WorkbenchPersistenceError as error:
@@ -287,7 +276,8 @@ def execute_archive(
                     raise
             record_attempt_completion(
                 attempt_service, attempt_id, registry, context, fingerprint, record,
-                workbench_context_id,
+                workbench_context_id, verified_md5s=verified_output_md5s,
+                verified_file_identities=verified_output_identities,
             )
             try:  # plan projection is best-effort; archive already succeeded
                 persist_archive_plan_for_attempt(attempt_service, attempt_id, plan, public_manifest)
@@ -306,8 +296,6 @@ def execute_archive(
         codes = {str(item.code.value if hasattr(item.code, "value") else item.code) for item in error.blockers}
         final_state = "blocked" if codes & blocked_codes else "failed"
         raise
-    except ArchiveInputError as error:
-        raise ArchiveGateError((ExportGateIssue(error.code, "archive", error.safe_message),)) from error
     finally:
         ARCHIVE_RUNTIME_STORE.release_context(
             context_id, state=final_state if not success else "completed",

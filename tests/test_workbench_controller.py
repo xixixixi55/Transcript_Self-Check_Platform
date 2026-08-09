@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import hashlib
 import json
@@ -14,6 +15,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
@@ -474,11 +476,17 @@ def test_http_saved_disc_number_precedes_immediate_archive_decision(app_services
         assert saved_detail["shell"]["revision"] == ready["shell"]["revision"] + 1
 
         expected_revision = saved_detail["shell"]["revision"]
-        decision = client.post(
-            f"/api/v1/workbench/cases/{case_id}/archive-decision",
-            json={"decision": "immediate", "expected_revision": expected_revision, "identity": IDENTITY},
-        )
+        with patch.object(
+            app_services.sources,
+            "require_available",
+            wraps=app_services.sources.require_available,
+        ) as require_available:
+            decision = client.post(
+                f"/api/v1/workbench/cases/{case_id}/archive-decision",
+                json={"decision": "immediate", "expected_revision": expected_revision, "identity": IDENTITY},
+            )
         assert decision.status_code == 200
+        assert require_available.call_count == 1
         task_id = decision.json()["data"]["archive_task"]["task_id"]
         assert ArchiveTaskRepository(app_services.database).get_current_or_recent(case_id)["task_id"] == task_id
 
@@ -490,6 +498,98 @@ def test_http_saved_disc_number_precedes_immediate_archive_decision(app_services
         assert stale.json()["detail"]["code"] in {"REVISION_CONFLICT", "ARCHIVE_TASK_ALREADY_ACTIVE"}
         assert ArchiveTaskRepository(app_services.database).get_current_or_recent(case_id)["task_id"] == task_id
 
+
+def test_archive_decision_preparation_does_not_block_workbench_requests(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+    from app.services.archive_source_runtime_service import discard_preview_source
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        created = client.post(
+            "/api/v1/workbench/cases",
+            json={"source_path": str(app_services.synthetic_report_dir)},
+        ).json()["data"]
+        case_id = created["shell"]["case_id"]
+        ready = _wait_for_parse(client, case_id)
+        started = Event()
+        release = Event()
+        create_preview = app_services.sources.create_legacy_preview_source
+        created_contexts: list[str] = []
+
+        def delayed_preview(value: str) -> str:
+            started.set()
+            assert release.wait(2)
+            context_id = create_preview(value)
+            created_contexts.append(context_id)
+            return context_id
+
+        async def exercise() -> None:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://synthetic.test") as async_client:
+                decision_task = asyncio.create_task(async_client.post(
+                    f"/api/v1/workbench/cases/{case_id}/archive-decision",
+                    json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+                ))
+                assert await asyncio.to_thread(started.wait, 1)
+                try:
+                    listed = await asyncio.wait_for(
+                        async_client.get("/api/v1/workbench/cases"), timeout=0.75,
+                    )
+                    assert listed.status_code == 200
+                finally:
+                    release.set()
+                decision = await decision_task
+                assert decision.status_code == 200
+
+        with patch.object(
+            app_services.sources,
+            "create_legacy_preview_source",
+            side_effect=delayed_preview,
+        ):
+            asyncio.run(exercise())
+        for context_id in created_contexts:
+            discard_preview_source(context_id)
+
+
+def test_archive_result_io_does_not_block_workbench_requests(app_services):
+    from app.main import app
+    from app.controllers import archive_task_controller, workbench_controller
+
+    started = Event()
+    release = Event()
+    archive_api = MagicMock()
+
+    def delayed_result(task_id: str) -> dict:
+        started.set()
+        assert release.wait(2)
+        return {"task_id": task_id, "parts": []}
+
+    archive_api.result.side_effect = delayed_result
+
+    async def exercise() -> None:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://synthetic.test") as client:
+            result_task = asyncio.create_task(client.get(
+                "/api/v1/workbench/tasks/SYNTHETIC-SLOW-RESULT/result",
+            ))
+            assert await asyncio.to_thread(started.wait, 1)
+            try:
+                listed = await asyncio.wait_for(
+                    client.get("/api/v1/workbench/cases"), timeout=0.75,
+                )
+                assert listed.status_code == 200
+            finally:
+                release.set()
+            result = await result_task
+            assert result.status_code == 200
+
+    with patch.object(
+        workbench_controller, "get_workbench_services", return_value=app_services,
+    ), patch.object(
+        archive_task_controller, "_archive_api", return_value=archive_api,
+    ):
+        asyncio.run(exercise())
 
 def test_dispatch_failure_keeps_retryable_case_and_retry_endpoint(app_services):
     from app.main import app
@@ -1192,14 +1292,20 @@ def test_archive_mapping_and_verified_result_routes(app_services):
         case_shell = client.get(f"/api/v1/workbench/cases/{case_id}").json()["data"]["shell"]
         assert case_shell["archive_task_summary"]["task_id"] == done["task_id"]
         assert case_shell["archive_task_summary"]["status"] == "succeeded"
-        result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
-        assert result.status_code == 200, result.text
-        assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"
-        assert result.json()["data"]["parts"][0]["part_id"] == "SYNTHETIC-PART-API"
-        assert "internal_locator" not in result.text
-        download = client.get(
-            f"/api/v1/workbench/tasks/{done['task_id']}/result/parts/SYNTHETIC-PART-API",
-        )
+        with patch(
+            "app.services.archive_manifest_service.compute_md5_streaming",
+            side_effect=lambda path, _root: hashlib.md5(path.read_bytes()).hexdigest(),
+        ) as compute_md5:
+            result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
+            assert result.status_code == 200, result.text
+            assert compute_md5.call_count == 0
+            assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"
+            assert result.json()["data"]["parts"][0]["part_id"] == "SYNTHETIC-PART-API"
+            assert "internal_locator" not in result.text
+            download = client.get(
+                f"/api/v1/workbench/tasks/{done['task_id']}/result/parts/SYNTHETIC-PART-API",
+            )
+            assert compute_md5.call_count == 1
         assert download.status_code == 200
         assert download.content == payload
         assert filename in download.headers["content-disposition"]

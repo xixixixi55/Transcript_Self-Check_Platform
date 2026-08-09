@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..repository.archive_attempt_repository import ArchiveAttemptRepository
 from ..repository.archive_preparation_repository import ArchivePreparationRepository
@@ -27,6 +27,9 @@ from .archive_attempt_failure_service import fail_attempt
 from .archive_attempt_marker_service import remove_owned_marker
 from .archive_attempt_validation_service import expired as _expired
 from .archive_attempt_validation_service import revalidate_before_publish as _revalidate_before_publish
+
+if TYPE_CHECKING:
+    from .archive_manifest_service import ArchiveFileIdentity
 
 
 class ArchiveAttemptService:
@@ -131,10 +134,16 @@ class ArchiveAttemptService:
         return mark_publish_phase(self, attempt_id, phase)
 
     def complete_verified(
-        self, attempt_id: str, registry: Any, manifest_record: Any, *, recovery: bool = False,
+        self, attempt_id: str, registry: Any, manifest_record: Any, *,
+        recovery: bool = False, verified_md5s: dict[str, str] | None = None,
+        verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
     ) -> dict[str, Any]:
         from .archive_attempt_completion_service import complete_verified
-        return complete_verified(self, attempt_id, registry, manifest_record, recovery=recovery)
+        return complete_verified(
+            self, attempt_id, registry, manifest_record,
+            recovery=recovery, verified_md5s=verified_md5s,
+            verified_file_identities=verified_file_identities,
+        )
 
     def fail(self, attempt_id: str, error_code: str) -> dict[str, Any]:
         return fail_attempt(self, attempt_id, error_code)

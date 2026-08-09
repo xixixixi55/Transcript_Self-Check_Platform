@@ -59,15 +59,25 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let holdSave = false
   let showCompletedArchive = false
   let useExportedLifecycle = false
+  let sourcePending = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; initialLifecycle = 'review_ready'; resolveSave = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; initialLifecycle = 'review_ready'; resolveSave = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
-      if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) { const read = detailReads++; return { data: { data: useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002') } } }
+      if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) {
+        const read = detailReads++
+        const value = useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002')
+        if (sourcePending) {
+          value.source.access_status = 'pending'
+          value.source.fingerprint = 'pending:source-synthetic'
+          value.source.last_verified_at = null
+        }
+        return { data: { data: value } }
+      }
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) return { data: { data: completedArchiveResult } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: [] } } }
@@ -128,6 +138,16 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await editDiscNumber()
     fireEvent.click(screen.getByRole('button', { name: /立即开始压缩/ }))
   }
+
+  it('shows the direct compression decision while bounded source review is pending', async () => {
+    sourcePending = true
+    vi.mocked(window.confirm).mockReturnValue(false)
+    renderPage()
+    expect(await screen.findByText('报告来源待快速复核')).toBeTruthy()
+    const button = await screen.findByRole('button', { name: /立即开始压缩/ })
+    fireEvent.click(button)
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/请勿修改、移动或删除源文件/))
+  }, 15000)
 
   it('allows and persists a disc-number edit before compression, then posts one archive decision with the new shell revision', async () => {
     renderPage(); await editDiscAndClick()

@@ -12,7 +12,8 @@ from ..repository.archive_publish_intent_repository import ArchivePublishIntentR
 from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
-from .archive_manifest_service import validate_manifest_files
+from .archive_manifest_service import validate_manifest_files, validate_manifest_metadata
+from .archive_publication_identity_service import assert_publication_identity
 
 
 class ArchiveTaskResultService:
@@ -43,7 +44,10 @@ class ArchiveTaskResultService:
         self._assert_task_attempt(task, attempt)
         if attempt["status"] != "succeeded" or not attempt["manifest_id"]:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
-        manifest = self._verified_manifest(task_id, str(attempt_id), str(attempt["manifest_id"]))
+        manifest = self._verified_manifest(
+            task_id, str(attempt_id), str(attempt["manifest_id"]),
+            verify_content=False,
+        )
         plan = self.plans.get_latest_for_case(task["case_id"])
         disc_by_ordinal = {
             slot["ordinal"]: slot.get("disc_mapping") or {}
@@ -127,7 +131,10 @@ class ArchiveTaskResultService:
             raise WorkbenchPersistenceError("ARCHIVE_PART_NOT_FOUND") from error
         return str(part["filename"]), path
 
-    def _verified_manifest(self, task_id: str, attempt_id: str, manifest_id: str) -> Any:
+    def _verified_manifest(
+        self, task_id: str, attempt_id: str, manifest_id: str, *,
+        verify_content: bool = True,
+    ) -> Any:
         records = [
             item for item in self.manifests.find_for_attempt(attempt_id)
             if item.manifest_id == manifest_id
@@ -159,7 +166,16 @@ class ArchiveTaskResultService:
             public_manifest=record.public_manifest,
             final_dir=self.manifests.resolve_final_dir(record),
         )
-        if validate_manifest_files(view) is not None:
+        try:
+            assert_publication_identity(record, intent)
+        except WorkbenchPersistenceError as error:
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE") from error
+        validation_error = (
+            validate_manifest_files(view)
+            if verify_content
+            else validate_manifest_metadata(view)
+        )
+        if validation_error is not None:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         return record
 

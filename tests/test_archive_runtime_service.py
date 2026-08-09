@@ -86,7 +86,7 @@ def test_context_reads_recheck_authorization_boundary(tmp_path):
     assert snapshot_error.value.code == "ARCHIVE_INPUT_CHANGED"
 
 
-def test_context_reuses_preview_inventory_but_formal_verify_detects_new_file(tmp_path):
+def test_context_reuses_inventory_without_recursive_currentness_scan(tmp_path):
     source = tmp_path / "case"
     source.mkdir()
     (source / "evidence.bin").write_bytes(b"evidence")
@@ -109,15 +109,14 @@ def test_context_reuses_preview_inventory_but_formal_verify_detects_new_file(tmp
         refreshed = store.create_context(
             authorized, "Synthetic case", output_root=str(output),
         )
-        assert build_inventory.call_count == 2
-        assert refreshed.inventory is not first.inventory
+        assert build_inventory.call_count == 1
+        assert refreshed.inventory is first.inventory
 
     from app.repository.archive_input_repository import verify_input_inventory
 
     with pytest.raises(ArchiveInputError) as error:
         verify_input_inventory(first.inventory)
     assert error.value.code == "ARCHIVE_INPUT_CHANGED"
-    verify_input_inventory(refreshed.inventory)
 
 
 def test_concurrent_context_creation_builds_one_snapshot(tmp_path):

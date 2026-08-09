@@ -47,3 +47,21 @@ workflow_level: 2
 - [x] T008 重启回归后的 Level 2 收尾。
   - 内容：重新运行受影响后端测试、`verify:quick`、scoped strict docs，并同步 living spec。
   - 验证：`npm run verify:quick`、受影响后端测试、`npx tsx scripts/check-docs.ts --strict --change metadata-fingerprint-archive-path`、`git diff --check`。
+
+- [x] T009 消除大目录审核入口与归档执行的重复全量扫描。
+  - 文件：`packages/backend/app/services/source_record_fingerprint_service.py`、`packages/backend/app/services/source_record_service.py`、`packages/backend/app/services/archive_task_api_service.py`、`packages/backend/app/services/archive_runtime_service.py`、`packages/backend/app/services/archive_execution_service.py`、`packages/backend/app/services/archive_manifest_access_service.py`、`packages/backend/app/repository/archive_input_repository.py`、`packages/backend/app/controllers/workbench_controller.py` 及对应测试。
+  - 内容：按产品确认的短生命周期案件边界，将来源复核收敛为授权路径、报告结构与核心报告文件身份检查；解析完成后不再递归扫描全部媒体文件。归档提交快速进入后台，直接源归档只构建一次完整输入 inventory，随后依赖 WinRAR 完整性、RAR MD5 与 Manifest 校验，不再执行独立来源复核和压缩前后重复 inventory。
+  - 验证：SYNTHETIC 回归覆盖核心报告变化、深层媒体不触发审核入口递归扫描、归档提交仅复核一次、归档执行不重复扫描、工作台请求并发可用和输出完整性门；定向后端 79 passed，前端 20 passed，inventory/历史快照兼容 23 passed/2 skipped。用户指定目录只读基准确认来源复核收敛为毫秒级、后台唯一 inventory 较旧实现明显缩短；真实样本路径、名称、内容和统计未写入仓库。
+
+- [x] T010 完成本轮 Level 2 回归收尾。
+  - 内容：核对 delta 与最终实现，sync living spec，运行定向前后端测试、`verify:quick`、scoped strict docs 与 diff 检查。
+  - 验证：后端全量 989 passed/3 skipped，受影响前端 20 passed，`npm run verify:quick` PASS；delta 已同步到 living spec，scoped strict docs 与 `git diff --check` PASS。
+
+- [x] T011 消除归档发布重复 MD5 并恢复结果读取可用性。
+  - 文件：`packages/backend/app/services/archive_manifest_service.py`、`archive_publish_service.py`、`archive_execution_service.py`、`archive_attempt_completion_service.py`、`archive_attempt_completion_record_service.py`、`archive_task_result_service.py`、`packages/backend/app/controllers/archive_task_controller.py` 及对应后端测试。
+  - 内容：每个新生成 RAR 在 Manifest 组装阶段只做一次完整 MD5；同一 attempt 的密封、原子发布、索引和完成提交复用该可信摘要并继续核对物理文件集合、类型和字节数。普通结果展示只验证 durable publication 身份和物理元数据，不重新读取 RAR 内容；正式导出、下载、恢复和复用仍保留完整内容校验。所有可能执行大文件 I/O 的结果下载与统一导出 HTTP 入口移入 FastAPI 同步线程池，避免阻塞事件循环。WinRAR 默认压缩级别保持不变。
+  - 验证：SYNTHETIC 后端测试断言同次新归档每卷只计算一次 MD5、发布切点篡改仍安全失败、结果读取不调用内容哈希、下载/正式导出仍执行完整哈希，并发结果请求不阻塞工作台列表。
+
+- [x] T012 完成输出校验性能回归的 Level 2 收尾。
+  - 内容：核对 delta 与实现，运行受影响后端测试、架构与类型检查、`verify:quick`、scoped strict docs，sync living spec 并检查差异；浏览器人工验收由用户执行。
+  - 验证：受影响后端核心回归 119 passed；`npm run verify:quick` PASS；delta 已同步到 living spec；scoped strict docs 与 `git diff --check` PASS。浏览器人工验收按用户要求未执行。

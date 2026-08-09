@@ -18,6 +18,37 @@ from .archive_manifest_output_security_service import (
     is_safe_output_file as _is_safe_output_file,
 )
 
+ArchiveFileIdentity = tuple[int, int, int, int, int]
+
+
+def capture_archive_file_identities(
+    root: Path, filenames: set[str],
+) -> dict[str, ArchiveFileIdentity]:
+    """Capture path-independent identities for already hashed, sealed parts."""
+
+    resolved_root = root.resolve(strict=False)
+    identities: dict[str, ArchiveFileIdentity] = {}
+    for filename in filenames:
+        path = (resolved_root / filename).resolve(strict=False)
+        path.relative_to(resolved_root)
+        _assert_safe_output_file(path)
+        stat = path.stat()
+        identities[filename] = (
+            stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns,
+            stat.st_dev, stat.st_ino,
+        )
+    return identities
+
+
+def archive_file_identities_match(
+    root: Path, expected: dict[str, ArchiveFileIdentity],
+) -> bool:
+    try:
+        return capture_archive_file_identities(root, set(expected)) == expected
+    except (OSError, ValueError):
+        return False
+
+
 def _disc_date(first_disc_number: str) -> str:
     return f"{first_disc_number[2:6]}-{first_disc_number[6:8]}-{first_disc_number[8:10]}"
 
@@ -28,6 +59,7 @@ def assemble_archive_manifest(
     capability: WinRarCapability,
     *,
     retry_count: int,
+    verified_md5s: dict[str, str] | None = None,
 ) -> tuple[dict[str, object], dict[str, Path]]:
     if not validation.valid or not validation.parts:
         raise ValueError("ARCHIVE_PARTS_INVALID")
@@ -43,7 +75,13 @@ def assemble_archive_manifest(
     internal_paths: dict[str, Path] = {}
     total_archive_bytes = 0
     for part, disc_number in zip(validation.parts, actual_disc_numbers, strict=True):
-        md5 = compute_md5_streaming(part.path, validation.parts[0].path.parent)
+        md5 = (
+            verified_md5s.get(part.filename)
+            if verified_md5s is not None
+            else compute_md5_streaming(part.path, validation.parts[0].path.parent)
+        )
+        if not isinstance(md5, str) or not re.fullmatch(r"[0-9a-fA-F]{32}", md5):
+            raise ValueError("ARCHIVE_PARTS_INVALID")
         disc_capacity = compute_disc_capacity(part.size_bytes)
         public_parts.append({
             "part_id": str(uuid4()),
@@ -165,6 +203,8 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         return False
     if isinstance(max_part_count, int) and len(parts) > max_part_count:
         return False
+    if verified_md5s is not None and set(verified_md5s) != filenames:
+        return False
     entries = [entry for entry in root.iterdir() if entry.name != OWNERSHIP_MARKER_NAME]
     if any(not _is_safe_output_file(entry) for entry in entries):
         return False
@@ -173,7 +213,10 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
     return actual_total == manifest.get("actual_archive_bytes")
 
 
-def validate_manifest_files(record) -> str | None:
+def validate_manifest_files(
+    record, *, verified_md5s: dict[str, str] | None = None,
+    verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
+) -> str | None:
     """Return a stable integrity error code for the published manifest files."""
     manifest = record.public_manifest
     if manifest.get("manifest_id") != record.manifest_id or manifest.get("validation_status") != "validated":
@@ -182,7 +225,7 @@ def validate_manifest_files(record) -> str | None:
     root = Path(record.final_dir).resolve(strict=False)
     if not isinstance(parts, list) or not parts or not root.is_dir():
         return "ARCHIVE_MANIFEST_PART_MISSING"
-    verified_md5s: dict[str, str] = {}
+    observed_md5s: dict[str, str] = {}
     for item in parts:
         if not isinstance(item, dict):
             return "ARCHIVE_MANIFEST_INVALID"
@@ -242,7 +285,48 @@ def validate_manifest_files(record) -> str | None:
             return "ARCHIVE_MANIFEST_PART_MISSING"
         if size != size_bytes:
             return "ARCHIVE_MANIFEST_PART_CHANGED"
-        verified_md5s[filename] = compute_md5_streaming(path, root)
-        if verified_md5s[filename] != md5:
+        observed_md5s[filename] = (
+            verified_md5s.get(filename)
+            if verified_md5s is not None
+            else compute_md5_streaming(path, root)
+        )
+        if observed_md5s[filename] != md5:
             return "ARCHIVE_MANIFEST_PART_CHANGED"
-    return None if validate_published_manifest(record, verified_md5s=verified_md5s) else "ARCHIVE_MANIFEST_INVALID"
+    if verified_md5s is not None and set(verified_md5s) != set(observed_md5s):
+        return "ARCHIVE_MANIFEST_INVALID"
+    if verified_file_identities is not None and (
+        set(verified_file_identities) != set(observed_md5s)
+        or not archive_file_identities_match(root, verified_file_identities)
+    ):
+        return "ARCHIVE_MANIFEST_PART_CHANGED"
+    return None if validate_published_manifest(
+        record, verified_md5s=observed_md5s,
+    ) else "ARCHIVE_MANIFEST_INVALID"
+
+
+def validate_manifest_metadata(record) -> str | None:
+    """Validate authenticated Manifest identity and physical metadata without content I/O.
+
+    Callers must first authenticate the Manifest and its MD5 values against the
+    durable publication digest.  Formal download/export/reuse paths continue to
+    call ``validate_manifest_files`` without trusted hashes.
+    """
+
+    parts = record.public_manifest.get("parts")
+    if not isinstance(parts, list) or not parts:
+        return "ARCHIVE_MANIFEST_INVALID"
+    trusted_md5s: dict[str, str] = {}
+    for item in parts:
+        if not isinstance(item, dict):
+            return "ARCHIVE_MANIFEST_INVALID"
+        filename = item.get("filename")
+        md5 = item.get("md5")
+        if (
+            not isinstance(filename, str)
+            or filename in trusted_md5s
+            or not isinstance(md5, str)
+            or not re.fullmatch(r"[0-9a-fA-F]{32}", md5)
+        ):
+            return "ARCHIVE_MANIFEST_INVALID"
+        trusted_md5s[filename] = md5
+    return validate_manifest_files(record, verified_md5s=trusted_md5s)

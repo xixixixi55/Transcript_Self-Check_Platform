@@ -47,7 +47,6 @@ class InputDirectorySnapshot:
     def public_entry(self) -> dict[str, int | str]:
         return {
             "relative_path": self.relative_path,
-            "modified_time_ns": self.modified_time_ns,
             "entry_type": "directory",
         }
 
@@ -87,6 +86,14 @@ def _is_unsafe_special_path(path: Path) -> bool:
         return True
 
 
+def _is_unsafe_directory_entry(entry: os.DirEntry[str], info: os.stat_result) -> bool:
+    """Check a scanned entry using its already-cached stat result."""
+    return entry.is_symlink() or bool(
+        getattr(info, "st_file_attributes", 0)
+        & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+
+
 def _is_within(path: Path, parent: Path) -> bool:
     try:
         path.relative_to(parent)
@@ -114,9 +121,8 @@ def build_input_inventory(
 ) -> InputInventory:
     """Walk the allowed case root without following links or junctions.
 
-    Context creation can request a metadata-only snapshot so preview does not
-    open every media file. Archive execution keeps the default readability
-    check before WinRAR starts.
+    The direct-source worker requests a metadata-only inventory so planning
+    does not open every media file; WinRAR reports any later read failure.
     """
 
     root = Path(source_root)
@@ -156,16 +162,21 @@ def build_input_inventory(
         current = pending.pop()
         for entry in os.scandir(current):
             path = Path(entry.path)
-            if _is_unsafe_special_path(path):
+            try:
+                info = entry.stat(follow_symlinks=False)
+                unsafe = _is_unsafe_directory_entry(entry, info)
+            except OSError as error:
+                raise ArchiveInputError("ARCHIVE_PLAN_INVALID", "归档输入存在不可读条目。") from error
+            if unsafe:
                 raise ArchiveInputError("ARCHIVE_INPUT_LINK_NOT_ALLOWED", "归档输入不能包含符号链接或特殊路径。")
-            if entry.is_dir(follow_symlinks=False):
+            if stat.S_ISDIR(info.st_mode):
                 if not _should_skip(path, root, output):
                     relative = path.relative_to(root).as_posix()
                     _validate_relative_path(relative)
-                    directories.append(InputDirectorySnapshot(relative, path.stat().st_mtime_ns))
+                    directories.append(InputDirectorySnapshot(relative, int(info.st_mtime_ns)))
                     pending.append(path)
                 continue
-            if not entry.is_file(follow_symlinks=False) or _should_skip(path, root, output):
+            if not stat.S_ISREG(info.st_mode) or _should_skip(path, root, output):
                 continue
             relative = path.relative_to(root).as_posix()
             _validate_relative_path(relative)
@@ -173,11 +184,18 @@ def build_input_inventory(
             if key in seen:
                 raise ArchiveInputError("ARCHIVE_PLAN_INVALID", "归档输入包含重复文件。")
             seen.add(key)
-            file_tasks.append((relative, path))
+            if info.st_size < 0 or info.st_size > MAX_SAFE_INTEGER:
+                raise ArchiveInputError("ARCHIVE_PLAN_INVALID", "归档输入文件大小无效。")
+            if check_readability:
+                file_tasks.append((relative, path))
+            else:
+                snapshots.append(InputFileSnapshot(
+                    relative, path, int(info.st_size), int(info.st_mtime_ns),
+                ))
 
     if file_tasks:
         with ThreadPoolExecutor(max_workers=inventory_worker_count()) as pool:
-            snapshots = list(pool.map(inspect_file, file_tasks, [check_readability] * len(file_tasks)))
+            snapshots.extend(pool.map(inspect_file, file_tasks, [True] * len(file_tasks)))
     snapshots.sort(key=lambda item: item.relative_path.casefold())
     directories.sort(key=lambda item: item.relative_path.casefold())
     return InputInventory(
@@ -204,8 +222,6 @@ def _inventory_metadata_fingerprint(
         digest.update(b"directory\0")
         digest.update(item.relative_path.casefold().encode("utf-8"))
         digest.update(b"\0")
-        digest.update(str(item.modified_time_ns).encode("ascii"))
-        digest.update(b"\0")
     for item in files:
         digest.update(b"file\0")
         digest.update(item.relative_path.casefold().encode("utf-8"))
@@ -218,7 +234,7 @@ def _inventory_metadata_fingerprint(
 
 
 def verify_input_inventory(inventory: InputInventory) -> None:
-    """Reject source metadata changes before or after WinRAR execution."""
+    """Compatibility verifier for historical snapshot/copy workflows."""
 
     try:
         current_inventory = build_input_inventory(

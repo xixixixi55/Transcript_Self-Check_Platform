@@ -100,8 +100,8 @@ def test_injected_special_path_boundary_rejects_synthetic_link_or_reparse(tmp_pa
 
     monkeypatch.setattr(
         repository,
-        "_is_unsafe_special_path",
-        lambda path: path == synthetic,
+        "_is_unsafe_directory_entry",
+        lambda entry, _info: entry.path == str(synthetic),
     )
     with pytest.raises(ArchiveInputError) as error:
         build_input_inventory(source)

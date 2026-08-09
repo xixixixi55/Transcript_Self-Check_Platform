@@ -155,11 +155,7 @@ class SourceRecordService:
         return result
 
     def require_parse_ready(self, source_id: str, *, verify_existing: bool = False) -> dict[str, Any]:
-        """Validate only the authorized report inputs needed by the Legacy Parser.
-
-        Full metadata and content fingerprinting belongs to explicit source
-        revalidation/archive preparation and must not delay review readiness.
-        """
+        """Validate only the authorized report inputs needed by the Legacy Parser."""
         record = self.repository.get(source_id)
         if record["access_status"] in {"invalid", "requires_reselection"}:
             raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
@@ -189,7 +185,7 @@ class SourceRecordService:
         expected_revision: int | None = None,
         cancellation_event: Any | None = None,
     ) -> dict[str, Any]:
-        """Run the deferred full source verification without changing case state."""
+        """Run the deferred bounded core-source verification."""
         current = self.repository.get(source_id)
         should_cancel = cancellation_event.is_set if cancellation_event is not None else None
         if should_cancel is not None and should_cancel():

@@ -50,7 +50,8 @@ describe('ArchiveDecisionPanel', () => {
   it('keeps the source-file warning visible while WinRAR is running', () => {
     render(<ArchiveDecisionPanel lifecycle="archiving" onImmediate={vi.fn()} onDeferred={vi.fn()} />)
     expect(screen.getByText('正在读取源文件并压缩')).toBeTruthy()
-    expect(screen.getByText(/检测到变化时/)).toBeTruthy()
+    expect(screen.getByText(/RAR 完整性、分卷、MD5 和清单/)).toBeTruthy()
+    expect(screen.getByText(/不会为源目录执行额外的重复全量扫描/)).toBeTruthy()
   })
 
   it('does not ask about compression for a failed parse', () => {

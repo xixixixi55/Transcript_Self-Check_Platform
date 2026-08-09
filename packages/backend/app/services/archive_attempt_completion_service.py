@@ -15,7 +15,7 @@ from ..repository.archive_publish_intent_repository import ArchivePublishIntentR
 from ..repository.archive_publish_fence_repository import get as get_fence
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.workbench_errors import WorkbenchPersistenceError
-from .archive_manifest_service import validate_manifest_files
+from .archive_manifest_service import ArchiveFileIdentity, validate_manifest_files
 from .archive_manifest_projection_service import (
     project_verified_manifest_to_legacy_attachments,
 )
@@ -80,6 +80,8 @@ def mark_publish_phase(service: ArchiveAttemptService, attempt_id: str, phase: s
 def complete_verified(
     service: ArchiveAttemptService, attempt_id: str, registry: ArchiveManifestRepository,
     manifest_record: Any, *, recovery: bool = False,
+    verified_md5s: dict[str, str] | None = None,
+    verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
 ) -> dict[str, Any]:
     attempt = service.repository.get_internal(attempt_id)
     manifest_id = _record_value(manifest_record, "manifest_id")
@@ -153,7 +155,10 @@ def complete_verified(
         publication_id=intent.get("publication_id"),
         publication_digest=intent.get("publication_digest"),
     )
-    if validate_manifest_files(record) is not None:
+    if validate_manifest_files(
+        record, verified_md5s=verified_md5s,
+        verified_file_identities=verified_file_identities,
+    ) is not None:
         registry.mark_invalid(indexed.manifest_id)
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
     if (
@@ -210,11 +215,14 @@ def record_attempt_completion(
     attempt_service: ArchiveAttemptService | None, attempt_id: str | None,
     registry: Any, context: Any, archive_fingerprint: str, manifest_record: Any,
     context_binding_id: str | None = None,
+    *, verified_md5s: dict[str, str] | None = None,
+    verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
 ) -> None:
     from .archive_attempt_completion_record_service import record_attempt_completion as implementation
     implementation(
         attempt_service, attempt_id, registry, context, archive_fingerprint,
-        manifest_record, context_binding_id,
+        manifest_record, context_binding_id, verified_md5s=verified_md5s,
+        verified_file_identities=verified_file_identities,
     )
 
 

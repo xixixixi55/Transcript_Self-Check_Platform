@@ -5,21 +5,25 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
+import stat
 from collections.abc import Callable
 from pathlib import Path
 
 
 class SourceFingerprintTransientError(OSError):
-    """The source changed or was unavailable while its bytes were read."""
+    """The bounded source identity changed or became unavailable."""
 
 
 class SourceFingerprintCancelledError(Exception):
     """The application is stopping and no source state should be changed."""
 
 
-def directory_metadata(path: Path) -> dict[str, str | int | float | bool]:
-    entries = [item for item in path.rglob("*") if not item.is_symlink()]
-    return {"display_name": path.name, "file_count": sum(item.is_file() for item in entries), "directory_count": sum(item.is_dir() for item in entries), "modified_time_ns": int(path.stat().st_mtime_ns)}
+_CORE_REPORT_FILES = (
+    "data_case_info.json",
+    "data_device_lists.json",
+    "data_report_info.json",
+)
+_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
 
 def directory_summary(path: Path) -> dict[str, str | int | float | bool]:
@@ -39,11 +43,10 @@ def opaque_id(prefix: str) -> str:
 
 
 def fingerprint(path: Path, should_cancel: Callable[[], bool] | None = None) -> str:
-    """Metadata-only directory identity: path + type + size + mtime, no content reads.
+    """Bounded report identity: root/data/core-file metadata, no media walk.
 
-    The full content hash lives in archive execution; request/revalidation paths
-    must not read multi-gigabyte media. A same-size, timestamp-preserving in-place
-    rewrite is intentionally outside this gate's guarantee.
+    Full media inventory belongs to the background archive worker. Source review
+    and archive-decision requests must stay independent of deep media-tree size.
     """
     return _fingerprint_entries(_stable_snapshot(path, should_cancel))
 
@@ -51,13 +54,12 @@ def fingerprint(path: Path, should_cancel: Callable[[], bool] | None = None) -> 
 def fingerprint_with_metadata(
     path: Path, should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[dict[str, str | int | float | bool], str]:
-    """Derive initial metadata and identity from one stable two-pass snapshot."""
+    """Derive public root metadata and a stable bounded source identity."""
     entries = _stable_snapshot(path, should_cancel)
     metadata = {
         "display_name": path.name,
-        "file_count": sum(entry_type == "file" for _, entry_type, _, _ in entries),
-        "directory_count": sum(entry_type == "directory" for _, entry_type, _, _ in entries),
         "modified_time_ns": int(path.stat().st_mtime_ns),
+        "identity_entry_count": len(entries),
     }
     return metadata, _fingerprint_entries(entries)
 
@@ -90,36 +92,43 @@ def _fingerprint_entries(entries: list[tuple[str, str, int, int]]) -> str:
 def _snapshot(
     path: Path, should_cancel: Callable[[], bool] | None = None,
 ) -> list[tuple[str, str, int, int]]:
-    entries: list[tuple[str, str, int, int]] = []
-
-    def visit(directory: Path, prefix: str) -> None:
-        _raise_if_cancelled(should_cancel)
+    data_dir = path / "data"
+    targets: list[tuple[str, str, Path]] = [(".", "directory", path)]
+    if data_dir.is_dir():
+        targets.extend([
+            ("data", "directory", data_dir),
+            *[(f"data/{name}", "file", data_dir / name) for name in _CORE_REPORT_FILES],
+        ])
+    else:
+        # Compatibility for non-production unit fixtures. Registered report
+        # directories always pass the fixed `data`/core-file branch above.
         try:
-            children = list(os.scandir(directory))
+            targets.extend(
+                (item.name, "directory" if item.is_dir(follow_symlinks=False) else "file", Path(item.path))
+                for item in os.scandir(path)
+            )
         except OSError as error:
             raise SourceFingerprintTransientError("source unavailable") from error
-        for item in children:
-            _raise_if_cancelled(should_cancel)
-            relative = f"{prefix}/{item.name}" if prefix else item.name
-            normalized = _normalize_relative(relative)
-            try:
-                if item.is_symlink():
-                    raise SourceFingerprintTransientError("source symlink changed")
-                if item.is_dir(follow_symlinks=False):
-                    visit(Path(item.path), normalized)
-                    entries.append((normalized, "directory", 0, int(os.stat(item.path, follow_symlinks=False).st_mtime_ns)))
-                elif item.is_file(follow_symlinks=False):
-                    info = os.stat(item.path, follow_symlinks=False)
-                    entries.append((normalized, "file", int(info.st_size), int(info.st_mtime_ns)))
-                else:
-                    raise SourceFingerprintTransientError("unsupported source entry")
-            except OSError as error:
-                if isinstance(error, SourceFingerprintTransientError):
-                    raise
-                raise SourceFingerprintTransientError("source unavailable") from error
-
-    visit(path, "")
-    return sorted(entries, key=lambda item: (item[0], item[1]))
+    entries: list[tuple[str, str, int, int]] = []
+    for relative, expected_type, target in targets:
+        _raise_if_cancelled(should_cancel)
+        try:
+            info = os.lstat(target)
+            if target.is_symlink() or bool(getattr(info, "st_file_attributes", 0) & _REPARSE_POINT):
+                raise SourceFingerprintTransientError("source link changed")
+            actual_type = "directory" if stat.S_ISDIR(info.st_mode) else "file" if stat.S_ISREG(info.st_mode) else "other"
+            if actual_type != expected_type:
+                raise SourceFingerprintTransientError("source structure changed")
+            entries.append((
+                _normalize_relative(relative), actual_type,
+                int(info.st_size) if actual_type == "file" else 0,
+                int(info.st_mtime_ns),
+            ))
+        except OSError as error:
+            if isinstance(error, SourceFingerprintTransientError):
+                raise
+            raise SourceFingerprintTransientError("source unavailable") from error
+    return entries
 
 
 def _raise_if_cancelled(should_cancel: Callable[[], bool] | None) -> None:
