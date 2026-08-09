@@ -8,7 +8,11 @@ from collections.abc import Mapping
 from typing import Any
 
 from .workbench_errors import WorkbenchPersistenceError
+from .workbench_database import WorkbenchDatabase
 from .workbench_repository_helpers import json_text
+
+
+_VERIFIED_RESULT_KEYS = ("rar_filename", "md5_hash", "file_size")
 
 
 def apply_verified_archive_result(
@@ -55,6 +59,66 @@ def verified_archive_result_fields(manifest: Mapping[str, Any]) -> dict[str, str
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
         values["file_size"].append(str(size))
     return {key: "、".join(items) for key, items in values.items()}
+
+
+def preserve_verified_archive_projection(
+    report: Mapping[str, Any], verified_report: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Rebase an editor save without losing trusted archive completion fields."""
+    result = copy.deepcopy(dict(report))
+    verified_inspection = verified_report.get("inspection")
+    verified_result = (
+        verified_inspection.get("result")
+        if isinstance(verified_inspection, Mapping) else None
+    )
+    if isinstance(verified_result, Mapping):
+        inspection = result.setdefault("inspection", {})
+        if not isinstance(inspection, dict):
+            inspection = {}
+            result["inspection"] = inspection
+        target = inspection.setdefault("result", {})
+        if not isinstance(target, dict):
+            target = {}
+            inspection["result"] = target
+        for key in _VERIFIED_RESULT_KEYS:
+            value = verified_result.get(key)
+            if isinstance(value, str) and value:
+                target[key] = value
+    verified_attachments = verified_report.get("attachments")
+    extract_list = (
+        verified_attachments.get("extract_list")
+        if isinstance(verified_attachments, Mapping) else None
+    )
+    if isinstance(extract_list, Mapping):
+        attachments = result.setdefault("attachments", {})
+        if not isinstance(attachments, dict):
+            attachments = {}
+            result["attachments"] = attachments
+        attachments["extract_list"] = copy.deepcopy(dict(extract_list))
+    return result
+
+
+def is_archive_completion_revision(
+    database: WorkbenchDatabase, current: Mapping[str, Any], expected_revision: int,
+) -> bool:
+    """Identify the single draft revision written by verified completion."""
+    if (
+        current.get("lifecycle") != "archive_verified"
+        or int(current.get("revision", -1)) != expected_revision + 1
+        or not current.get("updated_at")
+    ):
+        return False
+    with database.connect() as connection:
+        row = connection.execute(
+            "SELECT 1 FROM archive_publish_intents WHERE case_id=? "
+            "AND deployment_instance_id=? AND phase='verified' "
+            "AND publication_status='verified' AND updated_at=? LIMIT 1",
+            (
+                current.get("case_id"), database.deployment_instance_id,
+                current.get("updated_at"),
+            ),
+        ).fetchone()
+    return row is not None
 
 
 def update_verified_draft(

@@ -8,6 +8,10 @@ from typing import Any
 
 from ..repository.audit_event_repository import AuditEventRepository
 from ..repository.archive_task_repository import ArchiveTaskRepository
+from ..repository.archive_report_metadata_repository import (
+    is_archive_completion_revision,
+    preserve_verified_archive_projection,
+)
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
@@ -104,8 +108,14 @@ class CaseLifecycleService:
             saved = self.drafts.save(normalized_draft, expected_revision=expected_revision)
             draft_status = {"status": "saved", "revision": saved["revision"]}
         except RevisionConflictError as error:
-            draft_status = {"status": "conflict", "error_code": error.code}
-            saved = None
+            saved = self._retry_archive_completion_save(
+                draft, normalized_draft, expected_revision,
+            )
+            draft_status = (
+                {"status": "saved", "revision": saved["revision"]}
+                if saved is not None else
+                {"status": "conflict", "error_code": error.code}
+            )
         except WorkbenchPersistenceError as error:
             draft_status = {"status": "failed", "error_code": error.code}
             saved = None
@@ -144,6 +154,35 @@ class CaseLifecycleService:
             "shared_defaults_save_status": defaults_status,
             "draft": saved,
         }
+
+    def _retry_archive_completion_save(
+        self, submitted: Mapping[str, Any], normalized: Mapping[str, Any],
+        expected_revision: int,
+    ) -> dict[str, Any] | None:
+        if "lifecycle" in submitted:
+            return None
+        current = self._draft_or_none(str(submitted["case_id"]))
+        if current is None or not is_archive_completion_revision(
+            self._database(), current, expected_revision,
+        ):
+            return None
+        retry_report = CaseOrderService().prepare_save(
+            current.get("report"), submitted.get("report", {}),
+        )
+        retry_report = preserve_verified_archive_projection(
+            retry_report, current.get("report", {}),
+        )
+        retry_draft = {**normalized, "report": retry_report}
+        retry_draft["field_states"] = FieldProvenanceService().reconcile(
+            current.get("report", {}), current.get("field_states", {}),
+            retry_report, submitted.get("field_states"),
+        )
+        try:
+            return self.drafts.save(
+                retry_draft, expected_revision=int(current["revision"]),
+            )
+        except RevisionConflictError:
+            return None
 
     def _draft_or_none(self, case_id: str) -> dict[str, Any] | None:
         try:

@@ -30,6 +30,7 @@ from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E4
 from app.services.source_record_service import SourceRecordService  # noqa: E402
 from app.services.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
 from app.services.archive_publish_service import publish_staged_archive  # noqa: E402
+from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
 
 from test_phase1d_recovery import (  # noqa: E402
     CASE_ID,
@@ -131,6 +132,11 @@ def test_workbench_attempt_refreshes_for_a_new_server_draft_revision(database, t
     assert service.context_matches(
         attempt["attempt_id"], "SYNTHETIC-CONTEXT-H4-STALE-DRAFT",
     )
+    publication = service.revalidate_before_publish(
+        attempt["attempt_id"], draft["report"],
+    )
+    assert publication.report["title"] == "SYNTHETIC/TEST/NEW-DRAFT"
+    assert publication.draft_revision == saved["revision"]
 
 
 def test_disc_number_save_refreshes_running_attempt_binding(database, tmp_path: Path) -> None:
@@ -1003,6 +1009,54 @@ def test_completion_merges_manifest_into_latest_photo_draft_during_active_fence(
     assert completed["report"]["attachments"]["photo_ids"] == photo_ids
     assert completed["report"]["attachments"]["photo_groups"][0]["ordered_image_ids"] == photo_ids
     assert completed["report"]["inspection"]["result"]["rar_filename"] == "SYNTHETIC-CASE.rar"
+
+
+def test_draft_save_rebases_once_when_verified_completion_wins_the_revision_race(
+    database, tmp_path: Path,
+) -> None:
+    service, attempt, registry, record = _trusted_completion(
+        database, tmp_path, "SYNTHETIC-CONTEXT-T027-SAVE-RACE",
+        "SYNTHETIC-MANIFEST-T027-SAVE-RACE",
+    )
+    stale = CaseDraftRepository(database).get(CASE_ID)
+    service.complete_verified(attempt["attempt_id"], registry, record)
+
+    services = build_workbench_services(database)
+    identity = {
+        "identity_kind": "local_session",
+        "client_instance_id": "SYNTHETIC-T027-CLIENT",
+        "session_id": "SYNTHETIC-T027-SESSION",
+        "deployment_instance_id": database.deployment_instance_id,
+    }
+    lease = services.leases.acquire(CASE_ID, identity)
+    reference = AssetReferenceRepository(database).create({
+        "asset_id": "asset-synthetic-t027",
+        "case_id": CASE_ID,
+        "asset_kind": "image",
+        "fingerprint": "7" * 64,
+        "metadata": {
+            "file_name": "SYNTHETIC-t027.png", "extension": ".png",
+            "media_type": "image/png", "size_bytes": 1,
+        },
+    })
+    stale.pop("lifecycle", None)
+    stale["asset_refs"] = [{
+        key: reference[key]
+        for key in ("asset_id", "asset_kind", "fingerprint", "metadata")
+    }]
+    stale["report"]["attachments"]["photo_ids"] = [reference["asset_id"]]
+
+    result = services.lifecycle.save_draft(
+        stale, stale["revision"], None, None, identity,
+        lease["lease_id"], lease["lease_token"],
+    )
+
+    assert result["draft_save_status"]["status"] == "saved"
+    saved = result["draft"]
+    assert saved["asset_refs"][0]["asset_id"] == reference["asset_id"]
+    assert saved["report"]["attachments"]["photo_ids"] == [reference["asset_id"]]
+    assert saved["report"]["inspection"]["result"]["rar_filename"] == "SYNTHETIC-CASE.rar"
+    assert saved["report"]["inspection"]["result"]["md5_hash"]
 
 
 def test_completion_retries_a_bounded_latest_draft_merge_conflict(

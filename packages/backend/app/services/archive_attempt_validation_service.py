@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..repository.archive_context_binding_repository import (
-    archive_stable_report_fingerprint,
     find_active_binding_for_attempt,
     report_fingerprint,
 )
@@ -52,8 +51,6 @@ def revalidate_before_publish(
         or int(source["revision"]) != int(attempt["source_revision"])
         or int(draft["revision"]) != int(attempt["draft_revision"])
         or report_fingerprint(draft["report"]) != attempt["report_fingerprint"]
-        or archive_stable_report_fingerprint(report)
-        != archive_stable_report_fingerprint(draft["report"])
     ):
         raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
     return ArchivePublicationSnapshot(

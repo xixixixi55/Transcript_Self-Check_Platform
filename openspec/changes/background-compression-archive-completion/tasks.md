@@ -185,3 +185,11 @@ workflow_level: 3
   - 验证：后端归档并发、图片资产、统一导出、附件2与错误文案定向组合 106 passed；前端图片上传/即时保存、确定性分组、单独导出与页面导航阻断组合 4 files / 38 passed；共享分组工具 1 passed；`lint:arch`、TypeScript 类型检查、`verify:quick` 与 `git diff --check` 通过。临时禁用“未绑定图片阻止导出”判断时对应回归明确失败，恢复后通过，断言有效。独立 Code Review 首轮发现 2 个 MUST FIX 与 2 个 SHOULD，已补 Data Router 导航阻断与失败态保护、孤儿保留期边界、`ATTACHMENT2_IMAGE_INVALID` 文案、真实草稿写竞争 CAS 测试；聚焦复审最终 **PASS**，无 remaining findings。
   - 最终门控：`npm run verify:full -- --change background-compression-archive-completion` 的预检、架构、类型、治理、资产检查、全仓测试、构建与严格文档检查全部 **PASS**。首轮全仓测试仅有一个无关的 1 秒动态导入用例在并发负载下超时，隔离重跑 4 passed；未修改该测试，原 scoped full gate 第二轮完整通过。
   - manual_acceptance: N/A（本轮以合成资产和自动化路由/导出回归覆盖该 422 链路，不涉及新增 Word 视觉版式或桌面交互）。
+
+- [x] T027 彻底解耦后台压缩与审核编辑（人工验收回归）。
+  - 现象：点击“立即压缩”后在审核编辑界面上传图片，草稿 PATCH 返回 409，归档任务在发布前因草稿内容变化中断。
+  - 根因：发布前校验把开始执行时的报告与当前草稿做归档稳定指纹比较，图片引用变化被误判为归档绑定失效；归档完成回填又会推进草稿 revision，与同一时刻的图片引用保存形成一次合法竞争。
+  - 内容：归档发布继续校验密封输入快照、来源、attempt/binding/fence 与当前绑定一致性，但不再要求审核报告内容保持不变；发布采用校验时刻的最新草稿元数据，RAR 仍只消费密封快照。草稿保存遇到仅由归档完成产生的单次 revision 推进时，在后端保留可信 RAR/MD5/附件1投影并自动重试一次，其他真实并发冲突仍返回 409。
+  - 文件：`packages/backend/app/services/archive_attempt_validation_service.py`、`packages/backend/app/repository/archive_context_binding_repository.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
+  - 验证：归档发布前任意审核编辑不再中断任务；归档完成与图片绑定保存竞争时保存成功且最终同时保留图片引用和可信归档字段；普通过期 revision 冲突仍被拒绝；执行后端定向 pytest、`npm run verify:quick`、当前变更 scoped strict docs 与 `git diff --check`。
+  - code_review: [DEFERRED] 独立审查两次因模型容量/长时间无响应未能产出结论；按用户 2026-08-09 指示先提交并推送，后续可在新候选版本上补做独立审查。
