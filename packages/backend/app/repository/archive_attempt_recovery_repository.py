@@ -46,7 +46,8 @@ def complete_verified_attempt(
         "task_id", "deployment_instance_id", "case_id", "source_id", "source_revision", "draft_revision",
         "report_fingerprint", "source_key", "input_fingerprint", "archive_fingerprint",
         "relative_final_dir", "shell_revision", "publication_id", "publication_digest",
-        "publication_file_set", "attachment_projection",
+        "publication_file_set", "attachment_projection", "merge_shell_revision",
+        "merge_draft_revision", "merge_report_fingerprint",
     )
     if any(key not in evidence for key in required):
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
@@ -116,7 +117,7 @@ def complete_verified_attempt(
             or int(fence["source_revision"]) != int(evidence["source_revision"])
             or int(fence["draft_revision"]) != int(evidence["draft_revision"])
             or fence["report_fingerprint"] != evidence["report_fingerprint"]
-            or (not recovery and int(fence["shell_revision"]) != int(evidence["shell_revision"]))
+            or int(fence["shell_revision"]) != int(evidence["shell_revision"])
         ):
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         if any(intent[key] != evidence[key] for key in (
@@ -157,15 +158,12 @@ def complete_verified_attempt(
                                             if recovery else {"running", "cancelling"})
             ))
             or shell is None or source is None or draft is None or len(binding) != 1
-            or int(shell["revision"]) != int(evidence["shell_revision"])
             or shell["source_id"] != evidence["source_id"]
             or shell["lifecycle"] not in allowed_lifecycles
             or source["case_id"] != evidence["case_id"]
             or int(source["revision"]) != int(evidence["source_revision"])
             or source["access_status"] != "available"
-            or int(draft["revision"]) != int(evidence["draft_revision"])
             or draft["lifecycle"] not in allowed_lifecycles
-            or report_fingerprint(json.loads(draft["report_json"])) != evidence["report_fingerprint"]
             or binding[0]["case_id"] != evidence["case_id"]
             or binding[0]["context_hash"] != fence["context_hash"]
             or binding[0]["source_id"] != evidence["source_id"]
@@ -176,6 +174,13 @@ def complete_verified_attempt(
             or (not recovery and not bool(binding[0]["active"]))
         ):
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
+        if (
+            int(shell["revision"]) != int(evidence["merge_shell_revision"])
+            or int(draft["revision"]) != int(evidence["merge_draft_revision"])
+            or report_fingerprint(json.loads(draft["report_json"]))
+            != evidence["merge_report_fingerprint"]
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_MERGE_CONFLICT")
         cleanup = "succeeded" if row["staging_locator"] else "not_required"
         attempt_sql = (
             "UPDATE archive_attempts SET status = 'succeeded', manifest_id = ?, "
@@ -206,13 +211,13 @@ def complete_verified_attempt(
             "UPDATE case_shells SET lifecycle = 'archive_verified', revision = revision + 1, "
             "updated_at = ? WHERE case_id = ? AND source_id = ? AND revision = ? "
             "AND lifecycle IN ('archive_queued', 'archiving', 'archive_interrupted')",
-            (now, evidence["case_id"], evidence["source_id"], int(evidence["shell_revision"])),
+            (now, evidence["case_id"], evidence["source_id"], int(evidence["merge_shell_revision"])),
         )
         if updated_shell.rowcount != 1:
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
         update_verified_draft(
             connection, draft, intent, evidence["case_id"],
-            int(evidence["draft_revision"]), now, evidence["attachment_projection"],
+            int(evidence["merge_draft_revision"]), now, evidence["attachment_projection"],
         )
         updated_fence = connection.execute(
             "UPDATE archive_publish_fences SET status = 'consumed', reason = 'ARCHIVE_COMPLETION_VERIFIED', updated_at = ? "

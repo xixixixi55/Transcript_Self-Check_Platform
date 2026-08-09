@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import type { InspectionReport } from '@biji/shared/types'
-import { getDefaultExportFileName, normalizeDataSummary, normalizeExportFileName } from '@biji/shared/utils'
+import { buildMaterialPhotoGroups, getDefaultExportFileName, normalizeDataSummary, normalizeExportFileName } from '@biji/shared/utils'
 
 interface UseRecordExportReturn {
   exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string, archiveContextId?: string | null, manifestId?: string | null, caseId?: string | null, caseRevision?: number | null) => Promise<boolean>
@@ -102,18 +102,6 @@ async function resolveExportErrorMessage(error: any): Promise<string> {
   return error.message || '导出失败'
 }
 
-function buildMaterialPhotoGroups(report: InspectionReport, photoCount: number) {
-  const evidenceList = report.introduction?.evidence_list || []
-  const groupCount = Math.floor(photoCount / 2)
-  return evidenceList.slice(0, groupCount).map((item, index) => ({
-    material_id: item.id,
-    material_number: item.evidence_number,
-    display_text: `检材${item.evidence_number}照片`,
-    ordered_image_ids: [`photo-${index * 2 + 1}`, `photo-${index * 2 + 2}`] as [string, string],
-    source_order: index + 1,
-  }))
-}
-
 export function useRecordExport(): UseRecordExportReturn {
   const [exporting, setExporting] = useState(false)
 
@@ -133,14 +121,13 @@ export function useRecordExport(): UseRecordExportReturn {
       normalizedReport.inspection.result.data_summary = normalizeDataSummary(
         normalizedReport.inspection.result.data_summary,
       )
-      const photoCount = photoIds.length
       const runtimePhotoIds = photoIds.map((_, index) => `photo-${index + 1}`)
       const reportJson = JSON.stringify({
         ...normalizedReport,
         attachments: {
           ...normalizedReport.attachments,
           photo_ids: runtimePhotoIds,
-          photo_groups: buildMaterialPhotoGroups(normalizedReport, photoCount),
+          photo_groups: buildMaterialPhotoGroups(normalizedReport, runtimePhotoIds),
         },
       })
       const formData = new FormData()

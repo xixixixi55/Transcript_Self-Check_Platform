@@ -8,9 +8,10 @@ import type { UploadFile } from 'antd'
 interface Options {
   caseId: string
   assetRefs: OpaqueAssetRef[]
+  draftRevision?: number
   editingEnabled: boolean
   lease: EditLease | null
-  onAssetRefsChange: (refs: OpaqueAssetRef[]) => boolean
+  onAssetRefsChange: (refs: OpaqueAssetRef[]) => Promise<boolean>
 }
 
 function errorMessage(error: any): string {
@@ -52,26 +53,64 @@ function fileForRef(caseId: string, ref: OpaqueAssetRef): UploadFile {
 }
 
 export function useCasePhotoAssets(options: Options) {
-  const { caseId, assetRefs, editingEnabled, lease, onAssetRefsChange } = options
+  const { caseId, assetRefs, draftRevision, editingEnabled, lease, onAssetRefsChange } = options
   const [files, setFiles] = useState<UploadFile[]>([])
   const [assetError, setAssetError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [bindingSaveFailed, setBindingSaveFailed] = useState(false)
   const uploadingRef = useRef(false)
   const completedUploadsRef = useRef(new Map<string, OpaqueAssetRef>())
+  const pendingOperationRef = useRef<Promise<boolean> | null>(null)
+  const lastOperationSucceededRef = useRef(true)
   const requestSequence = useRef(0)
   const filesRef = useRef<UploadFile[]>([])
   const refsRef = useRef(assetRefs)
+  const onAssetRefsChangeRef = useRef(onAssetRefsChange)
   const syncedRefsKey = useRef<string | null>(null)
+  const savedDraftRevisionRef = useRef(draftRevision)
   const refsKey = assetRefs.map(ref => `${ref.asset_id}:${ref.fingerprint || ''}`).join('|')
 
-  useEffect(() => { completedUploadsRef.current.clear() }, [caseId])
+  useEffect(() => {
+    completedUploadsRef.current.clear()
+    lastOperationSucceededRef.current = true
+    setBindingSaveFailed(false)
+  }, [caseId])
+  useEffect(() => {
+    if (savedDraftRevisionRef.current === draftRevision) return
+    savedDraftRevisionRef.current = draftRevision
+    lastOperationSucceededRef.current = true
+    setBindingSaveFailed(false)
+  }, [draftRevision])
+  useEffect(() => { onAssetRefsChangeRef.current = onAssetRefsChange }, [onAssetRefsChange])
   useEffect(() => {
     const scopedRefsKey = `${caseId}:${refsKey}`
     if (syncedRefsKey.current === scopedRefsKey) return
     refsRef.current = assetRefs
     syncedRefsKey.current = scopedRefsKey
-  }, [assetRefs, caseId, refsKey])
+  }, [caseId, refsKey])
   useEffect(() => { filesRef.current = files }, [files])
+
+  const beginOperation = useCallback((work: () => Promise<boolean>): Promise<boolean> => {
+    uploadingRef.current = true
+    lastOperationSucceededRef.current = false
+    setUploading(true)
+    const operation = work().then(succeeded => {
+      lastOperationSucceededRef.current = succeeded
+      setBindingSaveFailed(!succeeded)
+      return succeeded
+    }).catch(error => {
+      setBindingSaveFailed(true)
+      setAssetError(errorMessage(error))
+      return false
+    })
+    pendingOperationRef.current = operation
+    void operation.finally(() => {
+      if (pendingOperationRef.current === operation) pendingOperationRef.current = null
+      uploadingRef.current = false
+      setUploading(false)
+    })
+    return operation
+  }, [])
 
   useEffect(() => {
     const sequence = ++requestSequence.current
@@ -81,8 +120,14 @@ export function useCasePhotoAssets(options: Options) {
     axios.get<{ data: CaseAssetList }>(API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId))
       .then(response => {
         if (!active || sequence !== requestSequence.current) return
-        const records = new Map(response.data.data.items.map(item => [item.asset_id, item]))
-        const restored = assetRefs.map(ref => {
+        const items = response.data.data.items
+        const records = new Map(items.map(item => [item.asset_id, item]))
+        const referencedIds = new Set(assetRefs.map(ref => ref.asset_id))
+        const recoveredRefs = editingEnabled
+          ? items.filter(item => item.content_status === 'available' && !referencedIds.has(item.asset_id)).map(refForRecord)
+          : []
+        const effectiveRefs = [...assetRefs, ...recoveredRefs]
+        const restored = effectiveRefs.map(ref => {
           const record = records.get(ref.asset_id)
           const available = record?.content_status === 'available'
           return {
@@ -91,13 +136,21 @@ export function useCasePhotoAssets(options: Options) {
           } as UploadFile
         })
         if (restored.some(file => file.status === 'error')) setAssetError('部分图片资产无法读取，请重新上传后再导出。')
+        refsRef.current = effectiveRefs
         setFiles(restored)
+        if (recoveredRefs.length) {
+          void beginOperation(async () => {
+            const saved = await onAssetRefsChangeRef.current(effectiveRefs)
+            if (!saved && active) setAssetError('已恢复未绑定图片，但草稿保存未完成，请重试保存。')
+            return saved
+          })
+        }
       })
       .catch(error => {
         if (active && sequence === requestSequence.current) setAssetError(errorMessage(error))
       })
     return () => { active = false }
-  }, [caseId, refsKey]) // refsKey changes only when the persisted asset set changes.
+  }, [beginOperation, caseId, editingEnabled, refsKey])
 
   const upload = useCallback(async (file: UploadFile): Promise<CaseAssetRecord> => {
     if (!file.originFileObj || !lease) throw new Error('LEASE_NOT_ACTIVE')
@@ -111,8 +164,7 @@ export function useCasePhotoAssets(options: Options) {
     return response.data.data
   }, [caseId, lease])
 
-  const handleChange = useCallback(async (nextFiles: UploadFile[]) => {
-    if (!editingEnabled || uploadingRef.current) return
+  const applyChange = useCallback(async (nextFiles: UploadFile[]): Promise<boolean> => {
     const completedUploads = completedUploadsRef.current
     const newFiles = nextFiles.filter(file => file.originFileObj
       && !refsRef.current.some(ref => ref.asset_id === file.uid)
@@ -126,7 +178,7 @@ export function useCasePhotoAssets(options: Options) {
       // promise has completed. If its local uid list resolves to the exact
       // persisted refs currently shown, it is not a new user edit.
       if (nextFiles.some(file => completedUploads.has(file.uid))
-        && JSON.stringify(nextRefs) === JSON.stringify(refsRef.current)) return
+        && JSON.stringify(nextRefs) === JSON.stringify(refsRef.current)) return true
       const restored = nextFiles.map(file => {
         const completed = completedUploads.get(file.uid)
         return completed ? fileForRef(caseId, completed) : file
@@ -135,12 +187,13 @@ export function useCasePhotoAssets(options: Options) {
       setFiles(restored)
       if (JSON.stringify(nextRefs) !== JSON.stringify(refsRef.current)) {
         refsRef.current = nextRefs
-        onAssetRefsChange(nextRefs)
+        if (!await onAssetRefsChangeRef.current(nextRefs)) {
+          setAssetError('图片引用尚未保存到草稿，请重试保存。')
+          return false
+        }
       }
-      return
+      return true
     }
-    uploadingRef.current = true
-    setUploading(true)
     setAssetError(null)
     setFiles(nextFiles.map(file => newFiles.some(item => item.uid === file.uid) ? { ...file, status: 'uploading' } : file))
     try {
@@ -159,15 +212,24 @@ export function useCasePhotoAssets(options: Options) {
       refsRef.current = nextRefs
       filesRef.current = restored
       setFiles(restored)
-      onAssetRefsChange(nextRefs)
+      if (!await onAssetRefsChangeRef.current(nextRefs)) throw new Error('DRAFT_SAVE_FAILED')
+      return true
     } catch (error) {
       setFiles(filesRef.current)
       setAssetError(errorMessage(error))
-    } finally {
-      uploadingRef.current = false
-      setUploading(false)
+      return false
     }
-  }, [caseId, editingEnabled, onAssetRefsChange, upload])
+  }, [caseId, upload])
+
+  const handleChange = useCallback((nextFiles: UploadFile[]): Promise<boolean> => {
+    if (!editingEnabled || uploadingRef.current) return Promise.resolve(false)
+    return beginOperation(() => applyChange(nextFiles))
+  }, [applyChange, beginOperation, editingEnabled])
+
+  const waitForIdle = useCallback(async (): Promise<boolean> => {
+    while (pendingOperationRef.current) await pendingOperationRef.current
+    return lastOperationSucceededRef.current
+  }, [])
 
   const readFiles = useCallback(async (): Promise<File[]> => {
     try {
@@ -183,5 +245,8 @@ export function useCasePhotoAssets(options: Options) {
     }
   }, [caseId])
 
-  return { files, assetError, uploading, handleChange, readFiles }
+  return {
+    files, assetError, uploading, navigationUnsafe: uploading || bindingSaveFailed,
+    handleChange, readFiles, waitForIdle,
+  }
 }

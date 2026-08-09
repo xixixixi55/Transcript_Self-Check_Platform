@@ -20,6 +20,8 @@ from ..config import OUTPUT_BASE
 from ..repository.audit_event_repository import AuditEventRepository
 from ..repository.hashmyfiles_repository import HashMyFilesError
 from ..repository.workbench_database import WorkbenchDatabase
+from .attachment2_image_service import Attachment2ImageError
+from .attachment_plan_errors_service import AttachmentPlanError
 from .hashmyfiles_service import generate_verification_image
 from .record_generator_service import generate_docx
 
@@ -200,6 +202,8 @@ def _export_word(
             archive_manifest=manifest, output_filename=word_filename,
             **template_context,
         )
+    except (AttachmentPlanError, Attachment2ImageError) as error:
+        raise UnifiedExportError(error.code, error.safe_message) from error
     except Exception as error:
         raise UnifiedExportError(
             "WORD_RENDER_FAILED", "Word 生成失败，导出未完成。",

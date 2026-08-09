@@ -22,6 +22,7 @@ from app.services.unified_export_service import (  # noqa: E402
     unified_export,
 )
 from app.repository.hashmyfiles_repository import HashMyFilesError  # noqa: E402
+from app.services.attachment_plan_errors_service import AttachmentPlanError  # noqa: E402
 
 CASE_ID = "SYNTHETIC-UNIFIED-EXPORT-CASE"
 
@@ -66,6 +67,25 @@ def fake_hash(rar_paths, output_dir):
     assert all(Path(path).parent == Path(output_dir) for path in rar_paths)
     (Path(output_dir) / "hash.png").write_bytes(b"SYNTHETIC/PNG")
     return "hash.png"
+
+
+def test_attachment_mapping_error_is_not_wrapped_as_generic_word_failure(
+    tmp_path, monkeypatch,
+) -> None:
+    def invalid_mapping(*_args, **_kwargs):
+        raise AttachmentPlanError(
+            "ATTACHMENT2_IMAGE_MAPPING_INVALID",
+            "附件2图片必须明确归属检材并保持审核后的顺序。",
+        )
+
+    monkeypatch.setattr(unified_export_service, "generate_docx", invalid_mapping)
+    with pytest.raises(UnifiedExportError) as error:
+        unified_export_service._export_word(
+            {}, {}, tmp_path, [], {}, "SYNTHETIC.docx",
+        )
+
+    assert error.value.code == "ATTACHMENT2_IMAGE_MAPPING_INVALID"
+    assert "明确归属检材" in str(error.value)
 
 
 def test_unified_export_writes_bundle_and_audit(database, tmp_path, monkeypatch) -> None:

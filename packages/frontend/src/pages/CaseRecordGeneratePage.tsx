@@ -1,7 +1,7 @@
 // Layer 12: FE_Pages — case-id based full editor using the Legacy production mappings.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Spin, Steps, message } from 'antd'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import type { InspectorLibraryRecord } from '@biji/shared/types'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
 import { useRecordExport } from '../hooks/useRecordExport'
@@ -27,6 +27,7 @@ export default function CaseRecordGeneratePage() {
   const { caseId = '' } = useParams<{ caseId: string }>()
   const navigate = useNavigate()
   const session = useCaseRecordSession(caseId)
+  const photoNavigationBlocker = useBlocker(session.photoAssets.navigationUnsafe)
   const { exportDocx, exporting } = useRecordExport()
   const [devices, setDevices] = useState<{ id: string; name: string; model: string }[]>([])
   const [inspectors, setInspectors] = useState<InspectorLibraryRecord[]>([])
@@ -122,7 +123,7 @@ export default function CaseRecordGeneratePage() {
   }
   useShortcuts({ onSave: saveNow, previewOpen, onClosePreview: () => setPreviewOpen(false), enabled: Boolean(session.report) })
   useEffect(() => {
-    const shouldWarn = session.autosave.hasPending || session.autosave.draftState.status === 'saving'
+    const shouldWarn = session.photoAssets.navigationUnsafe || session.autosave.hasPending || session.autosave.draftState.status === 'saving'
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!shouldWarn) return
       event.preventDefault()
@@ -130,9 +131,31 @@ export default function CaseRecordGeneratePage() {
     }
     window.addEventListener('beforeunload', warnBeforeUnload)
     return () => window.removeEventListener('beforeunload', warnBeforeUnload)
-  }, [session.autosave.draftState.status, session.autosave.hasPending])
+  }, [session.autosave.draftState.status, session.autosave.hasPending, session.photoAssets.navigationUnsafe])
+  useEffect(() => {
+    if (photoNavigationBlocker.state !== 'blocked') return undefined
+    let active = true
+    const { proceed, reset } = photoNavigationBlocker
+    message.info('正在完成图片上传与草稿保存，请稍候。')
+    void session.photoAssets.waitForIdle().then(saved => {
+      if (!active) return
+      if (saved) proceed()
+      else {
+        reset()
+        message.warning('图片尚未成功保存到案件草稿，请完成保存后再切换案件。')
+      }
+    })
+    return () => { active = false }
+  }, [photoNavigationBlocker.state, session.photoAssets.waitForIdle])
 
   const handleBackToWorkbench = async () => {
+    if (session.photoAssets.navigationUnsafe) {
+      message.info('正在完成图片上传与草稿保存，请稍候。')
+      if (!await session.photoAssets.waitForIdle()) {
+        message.warning('图片尚未成功保存到案件草稿，请完成保存后再切换案件。')
+        return
+      }
+    }
     if (session.autosave.hasPending || session.autosave.draftState.status === 'saving') {
       if (!session.editingEnabled || !await session.autosave.saveNow()) {
         message.warning('当前输入尚未成功保存，仍保留在本页面；请完成保存后再切换案件。')

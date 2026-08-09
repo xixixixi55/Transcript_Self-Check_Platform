@@ -16,7 +16,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository import CaseDraftRepository, CaseShellRepository  # noqa: E402
+from app.repository import AssetReferenceRepository, CaseDraftRepository, CaseShellRepository  # noqa: E402
 from app.repository.case_archive_decision_repository import CaseArchiveDecisionRepository  # noqa: E402
 from app.repository.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
 from app.repository.archive_manifest_repository import ArchiveManifestRepositoryError  # noqa: E402
@@ -24,6 +24,7 @@ from app.repository.archive_publish_intent_repository import ArchivePublishInten
 from app.repository.source_record_repository import SourceRecordRepository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
+from app.services import archive_attempt_completion_service as completion_module  # noqa: E402
 from app.services.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
@@ -110,7 +111,7 @@ def test_archive_attempt_carries_server_draft_binding(database, tmp_path: Path) 
     assert binding["draft_revision"] == 1
 
 
-def test_workbench_attempt_rejects_a_new_server_draft_revision(database, tmp_path: Path) -> None:
+def test_workbench_attempt_refreshes_for_a_new_server_draft_revision(database, tmp_path: Path) -> None:
     shell = ready_case(database)
     mark_source_available(database)
     service = ArchiveAttemptService(database, tmp_path / "SYNTHETIC-OUTPUT")
@@ -120,9 +121,13 @@ def test_workbench_attempt_rejects_a_new_server_draft_revision(database, tmp_pat
     draft = CaseDraftRepository(database).get(CASE_ID)
     editable = {**draft, "report": {**draft["report"], "title": "SYNTHETIC/TEST/NEW-DRAFT"}}
     editable.pop("lifecycle", None)
-    with pytest.raises(WorkbenchPersistenceError) as stale:
-        CaseDraftRepository(database).save(editable, draft["revision"])
-    assert stale.value.code == "ARCHIVE_DRAFT_EDIT_NOT_ALLOWED"
+    saved = CaseDraftRepository(database).save(editable, draft["revision"])
+    internal = service.repository.get_internal(attempt["attempt_id"])
+    binding = service.context_binding("SYNTHETIC-CONTEXT-H4-STALE-DRAFT")
+
+    assert saved["report"]["title"] == "SYNTHETIC/TEST/NEW-DRAFT"
+    assert internal["draft_revision"] == saved["revision"]
+    assert binding is not None and binding["draft_revision"] == saved["revision"]
     assert service.context_matches(
         attempt["attempt_id"], "SYNTHETIC-CONTEXT-H4-STALE-DRAFT",
     )
@@ -939,6 +944,95 @@ def test_completion_transaction_rejects_draft_zero_row_race(
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "running"
     with database.connect() as connection:
         assert connection.execute("SELECT lifecycle FROM case_drafts WHERE case_id = ?", (CASE_ID,)).fetchone()[0] == "review_ready"
+
+
+def test_completion_merges_manifest_into_latest_photo_draft_during_active_fence(
+    database, tmp_path: Path,
+) -> None:
+    service, attempt, registry, record = _trusted_completion(
+        database, tmp_path, "SYNTHETIC-CONTEXT-T026-PHOTO",
+        "SYNTHETIC-MANIFEST-T026-PHOTO",
+    )
+    references = []
+    repository = AssetReferenceRepository(database)
+    for index in (1, 2):
+        references.append(repository.create({
+            "asset_id": f"asset-synthetic-t026-{index}",
+            "case_id": CASE_ID,
+            "asset_kind": "image",
+            "fingerprint": f"{index}" * 64,
+            "metadata": {
+                "file_name": f"SYNTHETIC-t026-{index}.png",
+                "extension": ".png",
+                "media_type": "image/png",
+                "size_bytes": index,
+            },
+        }))
+    current = CaseDraftRepository(database).get(CASE_ID)
+    edited = {**current, "report": copy.deepcopy(current["report"])}
+    edited.pop("lifecycle", None)
+    edited["asset_refs"] = [
+        {key: reference[key] for key in ("asset_id", "asset_kind", "fingerprint", "metadata")}
+        for reference in references
+    ]
+    edited["report"]["introduction"]["evidence_list"] = [{
+        "id": "SYNTHETIC-MATERIAL-T026",
+        "device_type": "SYNTHETIC-DEVICE",
+        "evidence_number": "SYNTHETIC-T026-1",
+    }]
+    photo_ids = [reference["asset_id"] for reference in references]
+    edited["report"]["attachments"].update({
+        "photo_ids": photo_ids,
+        "photo_groups": [{
+            "material_id": "SYNTHETIC-MATERIAL-T026",
+            "material_number": "SYNTHETIC-T026-1",
+            "display_text": "检材SYNTHETIC-T026-1照片",
+            "ordered_image_ids": photo_ids,
+            "source_order": 1,
+        }],
+    })
+
+    saved = CaseDraftRepository(database).save(edited, current["revision"])
+    assert service.repository.get_internal(attempt["attempt_id"])["draft_revision"] != saved["revision"]
+
+    service.complete_verified(attempt["attempt_id"], registry, record)
+
+    completed = CaseDraftRepository(database).get(CASE_ID)
+    assert completed["lifecycle"] == "archive_verified"
+    assert [item["asset_id"] for item in completed["asset_refs"]] == photo_ids
+    assert completed["report"]["attachments"]["photo_ids"] == photo_ids
+    assert completed["report"]["attachments"]["photo_groups"][0]["ordered_image_ids"] == photo_ids
+    assert completed["report"]["inspection"]["result"]["rar_filename"] == "SYNTHETIC-CASE.rar"
+
+
+def test_completion_retries_a_bounded_latest_draft_merge_conflict(
+    database, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, attempt, registry, record = _trusted_completion(
+        database, tmp_path, "SYNTHETIC-CONTEXT-T026-RETRY",
+        "SYNTHETIC-MANIFEST-T026-RETRY",
+    )
+    original_complete = completion_module.complete_verified_attempt
+    calls = 0
+
+    def conflict_once(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            current = CaseDraftRepository(database).get(CASE_ID)
+            edited = {**current, "report": copy.deepcopy(current["report"])}
+            edited.pop("lifecycle", None)
+            edited["report"]["title"] = "SYNTHETIC/TEST/T026-RETRY-LATEST"
+            CaseDraftRepository(database).save(edited, current["revision"])
+        return original_complete(*args, **kwargs)
+
+    monkeypatch.setattr(completion_module, "complete_verified_attempt", conflict_once)
+
+    service.complete_verified(attempt["attempt_id"], registry, record)
+
+    assert calls == 2
+    assert service.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
+    assert CaseDraftRepository(database).get(CASE_ID)["report"]["title"] == "SYNTHETIC/TEST/T026-RETRY-LATEST"
 
 
 def test_success_commit_and_verified_phase_share_one_transaction(

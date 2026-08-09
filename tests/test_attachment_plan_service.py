@@ -8,6 +8,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.attachment_plan_service import AttachmentPlanError, build_attachment_plan  # noqa: E402
+from app.services.attachment2_plan_service import with_compatible_material_photo_groups  # noqa: E402
 
 
 def report(inspector_count=2, evidence_numbers=None, photo_ids=None, photo_groups=None):
@@ -69,6 +70,23 @@ def manifest(count, *, start=1):
             for number in range(1, count + 1)
         ],
     }
+
+
+def test_missing_legacy_photo_groups_are_rebuilt_from_material_and_image_order():
+    photo_ids = ["asset-synthetic-front", "asset-synthetic-back"]
+    value = report(evidence_numbers=["SYNTHETIC-1"], photo_ids=photo_ids)
+    value["attachments"].pop("photo_groups")
+
+    compatible = with_compatible_material_photo_groups(value)
+
+    assert compatible["attachments"]["photo_groups"] == [{
+        "material_id": "material-1",
+        "material_number": "SYNTHETIC-1",
+        "display_text": "检材SYNTHETIC-1照片",
+        "ordered_image_ids": photo_ids,
+        "source_order": 1,
+    }]
+    assert "photo_groups" not in value["attachments"]
 
 
 @pytest.mark.parametrize(

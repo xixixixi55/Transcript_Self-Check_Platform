@@ -88,6 +88,53 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
     ]
 
 
+def test_export_bundle_uses_asset_ref_order_and_rebuilds_missing_photo_groups(
+    tmp_path: Path,
+) -> None:
+    api = _api(consume_ok=True)
+    export_dir = tmp_path / "export-with-photos"
+    export_dir.mkdir()
+    photo_ids = ["asset-synthetic-front", "asset-synthetic-back"]
+    api.drafts.get.return_value = {
+        "asset_refs": [
+            {"asset_id": asset_id, "asset_kind": "image"}
+            for asset_id in photo_ids
+        ],
+        "report": {
+            "introduction": {
+                "evidence_list": [{
+                    "id": "SYNTHETIC-MATERIAL-1",
+                    "evidence_number": "SYNTHETIC-1",
+                }],
+            },
+            "inspection": {"software_tools": []},
+            "attachments": {"photo_ids": [], "disc_number": "GP20260730-01"},
+        },
+    }
+
+    with patch("app.services.archive_export_service.unified_export") as unified:
+        unified.return_value = {
+            "export_path": str(export_dir), "word_filename": "SYNTHETIC.docx",
+            "rar_filenames": ["case.part1.rar"], "hash_verification_image": "hash.png",
+            "exported_at": "2026-01-01T00:00:00Z",
+        }
+        export_bundle(
+            api, "case-synthetic", 3, str(export_dir),
+            directory_token="token-synthetic", word_filename="SYNTHETIC.docx",
+            template_context={},
+        )
+
+    report = unified.call_args.kwargs["report"]
+    assert report["attachments"]["photo_ids"] == photo_ids
+    assert report["attachments"]["photo_groups"] == [{
+        "material_id": "SYNTHETIC-MATERIAL-1",
+        "material_number": "SYNTHETIC-1",
+        "display_text": "检材SYNTHETIC-1照片",
+        "ordered_image_ids": photo_ids,
+        "source_order": 1,
+    }]
+
+
 def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> None:
     api = _api(consume_ok=True)
     export_dir = tmp_path / "export-out"

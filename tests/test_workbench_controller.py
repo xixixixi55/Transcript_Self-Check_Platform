@@ -1568,6 +1568,19 @@ def test_hashmyfiles_export_failures_have_safe_specific_messages():
     assert all(message != "工作台请求未完成，请稍后重试。" for message in messages)
 
 
+def test_photo_export_failures_have_safe_actionable_messages():
+    from app.controllers.workbench_controller import _message
+
+    codes = [
+        "PHOTO_ASSETS_NOT_SAVED", "ASSET_CONTENT_MISSING", "ASSET_CONTENT_CORRUPT",
+        "ATTACHMENT2_IMAGE_MAPPING_INVALID", "ATTACHMENT2_MATERIAL_IMAGE_COUNT_INVALID",
+        "ATTACHMENT2_IMAGE_INVALID",
+    ]
+    messages = [_message(code) for code in codes]
+    assert all(message != "工作台请求未完成，请稍后重试。" for message in messages)
+    assert "返回审核页" in messages[0]
+
+
 def test_select_export_directory_endpoint_returns_chosen_path(app_services):
     from app.main import app
     from app.controllers import workbench_controller

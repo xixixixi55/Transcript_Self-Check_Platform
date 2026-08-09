@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { InspectionReport } from '@biji/shared/types'
+import type { InspectionReport, OpaqueAssetRef } from '@biji/shared/types'
 import { applyReportEdit } from '@biji/shared/utils'
 import { shouldHydrateServerDraft } from './useCaseDraftHydration'
-import { sharedPatchForEdit } from './useCaseRecordSession'
+import { reportWithPhotoAssetRefs, sharedPatchForEdit } from './useCaseRecordSession'
 
 describe('shouldHydrateServerDraft', () => {
   const draft = (caseId: string, revision: number) => ({ case_id: caseId, revision })
@@ -64,5 +64,27 @@ describe('shouldHydrateServerDraft', () => {
         'SYNTHETIC-A|SYNTHETIC-UNIT-A|SYNTHETIC-001',
       ],
     })
+  })
+
+  it('persists photo ids and deterministic material groups from asset reference order', () => {
+    const report = {
+      introduction: {
+        evidence_list: [{ id: 'SYNTHETIC-MATERIAL', evidence_number: 'SYNTHETIC-1' }],
+      },
+      attachments: { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' },
+    } as unknown as InspectionReport
+    const refs = ['asset-synthetic-front', 'asset-synthetic-back'].map(assetId => ({
+      asset_id: assetId, asset_kind: 'image', fingerprint: `fingerprint-${assetId}`,
+      metadata: { file_name: `${assetId}.png`, extension: '.png' },
+    })) as OpaqueAssetRef[]
+
+    const updated = reportWithPhotoAssetRefs(report, refs)
+
+    expect(updated.attachments.photo_ids).toEqual(refs.map(ref => ref.asset_id))
+    expect(updated.attachments.photo_groups).toEqual([{
+      material_id: 'SYNTHETIC-MATERIAL', material_number: 'SYNTHETIC-1',
+      display_text: '检材SYNTHETIC-1照片',
+      ordered_image_ids: refs.map(ref => ref.asset_id), source_order: 1,
+    }])
   })
 })

@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from .archive_attempt_service import ArchiveAttemptService
 
 
+_COMPLETION_MERGE_RETRIES = 3
+
+
 def persist_publish_intent(
     service: ArchiveAttemptService, attempt_id: str, *, source_key: str,
     input_fingerprint: str, archive_fingerprint: str, manifest_id: str,
@@ -137,8 +140,7 @@ def complete_verified(
         or shell["lifecycle"] not in ({"archive_interrupted"} if recovery else {"archive_queued", "archiving"})
         or source["access_status"] != "available"
         or int(source["revision"]) != int(attempt["source_revision"])
-        or int(draft["revision"]) != int(attempt["draft_revision"])
-        or report_fingerprint(draft["report"]) != attempt["report_fingerprint"]
+        or draft["lifecycle"] not in ({"archive_interrupted"} if recovery else {"archive_queued", "archiving"})
     ):
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
     indexed = next((item for item in registry.find_for_attempt(attempt_id) if item.manifest_id == manifest_id), None)
@@ -183,25 +185,45 @@ def complete_verified(
     expected_final_dir = (service.output_root / "compressed" / intent["relative_final_dir"]).resolve(strict=False)
     if expected_final_dir != record.final_dir.resolve(strict=False):
         raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
-    attachment_projection = project_verified_manifest_to_legacy_attachments(
-        draft["report"], record.public_manifest,
-    )
     bound_task_id = attempt.get("task_id") or intent["task_id"]
-    result = complete_verified_attempt(service.database, {
+    evidence = {
         "attempt_id": attempt_id, "manifest_id": record.manifest_id,
         "case_id": attempt["case_id"], "source_id": attempt["source_id"],
-        "shell_revision": shell["revision"],
+        "shell_revision": fence["shell_revision"],
         "source_revision": attempt["source_revision"], "draft_revision": attempt["draft_revision"],
         "report_fingerprint": attempt["report_fingerprint"], "source_key": indexed.source_key,
         "input_fingerprint": indexed.input_fingerprint, "archive_fingerprint": indexed.archive_fingerprint,
         "relative_final_dir": intent["relative_final_dir"], "recovery": recovery,
-        "attachment_projection": attachment_projection,
         "task_id": bound_task_id,
         "deployment_instance_id": service.database.deployment_instance_id,
         "publication_id": intent["publication_id"],
         "publication_digest": intent["publication_digest"],
         "publication_file_set": intent["publication_file_set"],
-    })
+    }
+    result = None
+    for merge_attempt in range(_COMPLETION_MERGE_RETRIES):
+        latest_shell = CaseShellRepository(service.database).get(attempt["case_id"])
+        latest_draft = CaseDraftRepository(service.database).get(attempt["case_id"])
+        attachment_projection = project_verified_manifest_to_legacy_attachments(
+            latest_draft["report"], record.public_manifest,
+        )
+        try:
+            result = complete_verified_attempt(service.database, {
+                **evidence,
+                "merge_shell_revision": latest_shell["revision"],
+                "merge_draft_revision": latest_draft["revision"],
+                "merge_report_fingerprint": report_fingerprint(latest_draft["report"]),
+                "attachment_projection": attachment_projection,
+            })
+            break
+        except WorkbenchPersistenceError as error:
+            if (
+                error.code != "ARCHIVE_COMPLETION_MERGE_CONFLICT"
+                or merge_attempt + 1 >= _COMPLETION_MERGE_RETRIES
+            ):
+                raise
+    if result is None:
+        raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_MERGE_CONFLICT")
     try:
         service.cleanup_execution_input(attempt_id)
     except Exception:

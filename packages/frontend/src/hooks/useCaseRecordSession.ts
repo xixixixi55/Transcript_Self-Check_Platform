@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
-import { applyReportEdit, parseDiscSequence } from '@biji/shared/utils'
+import { applyReportEdit, buildMaterialPhotoGroups, parseDiscSequence } from '@biji/shared/utils'
 import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, ClientIdentity, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
 import { useCaseDraftAutosave } from './useCaseDraftAutosave'
 import type { AutosaveSaveMeta, AutosaveViewState } from './useCaseDraftAutosave'
@@ -35,6 +35,24 @@ export function sharedPatchForEdit(report: InspectionReport, path: string): Reco
   return null
 }
 
+export function reportWithPhotoAssetRefs(
+  report: InspectionReport,
+  refs: OpaqueAssetRef[],
+): InspectionReport {
+  const photoIds = refs.map(ref => ref.asset_id)
+  const attachments = report.attachments || {
+    extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '',
+  }
+  return {
+    ...report,
+    attachments: {
+      ...attachments,
+      photo_ids: photoIds,
+      photo_groups: buildMaterialPhotoGroups(report, photoIds),
+    },
+  }
+}
+
 export function useCaseRecordSession(caseId: string) {
   const workbench = useCaseWorkbench(caseId)
   const [draft, setDraft] = useState<CaseDraft | null>(null)
@@ -48,6 +66,8 @@ export function useCaseRecordSession(caseId: string) {
   const [leaseLost, setLeaseLost] = useState(false)
   const terminalStatus = useRef<string | null>(null)
   const lastHydratedDraftKey = useRef<string | null>(null)
+  const photoSaveResolvers = useRef<Array<(saved: boolean) => void>>([])
+  const [photoSaveRequest, setPhotoSaveRequest] = useState(0)
   const handleLeaseLost = useCallback(() => setLeaseLost(true), [])
 
   useEffect(() => {
@@ -69,6 +89,8 @@ export function useCaseRecordSession(caseId: string) {
     setNeedsSharedDefaults(false)
     setSharedDefaultsPatch({})
     setLeaseLost(false)
+    for (const resolve of photoSaveResolvers.current.splice(0)) resolve(false)
+    setPhotoSaveRequest(0)
   }, [caseId])
 
   const serverDraft = workbench.detail?.draft
@@ -162,6 +184,14 @@ export function useCaseRecordSession(caseId: string) {
     leaseToken: lease.lease?.lease_token, onSaved,
   })
 
+  useEffect(() => {
+    if (photoSaveRequest <= 0 || !photoSaveResolvers.current.length) return
+    const resolvers = photoSaveResolvers.current.splice(0)
+    void autosave.saveNow().then(saved => {
+      for (const resolve of resolvers) resolve(saved)
+    })
+  }, [photoSaveRequest])
+
   const updateReport = useCallback((path: string, value: unknown) => {
     if (!editingEnabled) return
     setReport(current => {
@@ -180,23 +210,19 @@ export function useCaseRecordSession(caseId: string) {
     setChangeToken(value => value + 1)
   }, [editingEnabled])
 
-  const updatePhotoAssetRefs = useCallback((refs: OpaqueAssetRef[]) => {
-    if (!editingEnabled) return false
+  const updatePhotoAssetRefs = useCallback((refs: OpaqueAssetRef[]): Promise<boolean> => {
+    if (!editingEnabled) return Promise.resolve(false)
     setDraft(current => current ? { ...current, asset_refs: refs } : current)
-    setReport(current => {
-      if (!current) return current
-      const attachments = current.attachments || { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' }
-      return {
-        ...current,
-        attachments: { ...attachments, photo_ids: refs.map(ref => ref.asset_id), photo_groups: undefined },
-      }
-    })
+    setReport(current => current ? reportWithPhotoAssetRefs(current, refs) : current)
     setChangeToken(value => value + 1)
-    return true
+    const saved = new Promise<boolean>(resolve => photoSaveResolvers.current.push(resolve))
+    setPhotoSaveRequest(value => value + 1)
+    return saved
   }, [editingEnabled])
 
   const photoAssets = useCasePhotoAssets({
-    caseId, assetRefs: draft?.asset_refs || [], editingEnabled, lease: lease.lease,
+    caseId, assetRefs: draft?.asset_refs || [], draftRevision: draft?.revision,
+    editingEnabled, lease: lease.lease,
     onAssetRefsChange: updatePhotoAssetRefs,
   })
 

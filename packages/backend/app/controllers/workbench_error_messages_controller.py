@@ -46,6 +46,12 @@ _MESSAGES = {
     "EXPORT_PATH_INVALID": "导出目录不存在或不可用，请重新选择。",
     "ARCHIVE_RESULT_NOT_AVAILABLE": "归档结果尚不可导出，请刷新归档状态后重试。",
     "EXPORT_LIFECYCLE_FAILED": "文件已导出，但案件状态更新失败，请刷新后核对导出目录。",
+    "PHOTO_ASSETS_NOT_SAVED": "检测到已上传但尚未保存到草稿的图片，请返回审核页完成图片恢复与保存后再导出。",
+    "ASSET_CONTENT_MISSING": "草稿引用的图片文件缺失，请返回审核页重新上传并保存。",
+    "ASSET_CONTENT_CORRUPT": "草稿引用的图片文件已损坏，请返回审核页重新上传并保存。",
+    "ATTACHMENT2_IMAGE_MAPPING_INVALID": "附件2图片与检材的归属或顺序无效，请返回审核页重新确认并保存。",
+    "ATTACHMENT2_MATERIAL_IMAGE_COUNT_INVALID": "附件2中每个检材必须对应两张图片，请返回审核页补齐并保存。",
+    "ATTACHMENT2_IMAGE_INVALID": "附件2图片无法读取或格式无效，请返回审核页重新上传并保存。",
 }
 
 

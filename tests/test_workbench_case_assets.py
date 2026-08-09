@@ -9,6 +9,7 @@ import os
 import struct
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 import zlib
 
@@ -20,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository import CaseDraftRepository, CaseShellRepository, WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.services.archive_export_service import _resolve_photo_paths  # noqa: E402
 
 CASE_ID = "SYNTHETIC-ASSET-CASE"
 IDENTITY = {
@@ -178,5 +180,82 @@ def test_orphan_asset_cleanup_is_graceful(asset_context):
     asset = services.assets.upload_image(CASE_ID, "SYNTHETIC-orphan.png", png_bytes(), lease["lease_id"], lease["lease_token"])
     with services.database.transaction() as connection:
         connection.execute("UPDATE asset_references SET created_at = '2020-01-01T00:00:00+00:00' WHERE asset_id = ?", (asset["asset_id"],))
+    assert services.assets.list_images(CASE_ID)["items"] == []
+    api = SimpleNamespace(database=services.database, drafts=CaseDraftRepository(services.database))
+    assert _resolve_photo_paths(api, CASE_ID) == []
     assert services.assets.cleanup_orphans() >= 1
     assert services.assets.list_images(CASE_ID)["items"] == []
+
+
+def test_bound_asset_remains_visible_after_orphan_retention_window(asset_context):
+    _, services, lease = asset_context
+    asset = services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-bound-old.png", png_bytes(),
+        lease["lease_id"], lease["lease_token"],
+    )
+    draft = CaseDraftRepository(services.database).get(CASE_ID)
+    draft["asset_refs"] = [
+        {key: asset[key] for key in ("asset_id", "asset_kind", "fingerprint", "metadata")}
+    ]
+    draft["report"]["attachments"]["photo_ids"] = [asset["asset_id"]]
+    saved = services.lifecycle.save_draft(
+        draft, draft["revision"], None, None, IDENTITY,
+        lease["lease_id"], lease["lease_token"],
+    )
+    assert saved["draft_save_status"]["status"] == "saved"
+    with services.database.transaction() as connection:
+        connection.execute(
+            "UPDATE asset_references SET created_at = '2020-01-01T00:00:00+00:00' WHERE asset_id = ?",
+            (asset["asset_id"],),
+        )
+
+    assert [item["asset_id"] for item in services.assets.list_images(CASE_ID)["items"]] == [asset["asset_id"]]
+
+
+def test_unbound_uploaded_image_blocks_unified_export_resolution(asset_context):
+    _, services, lease = asset_context
+    services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-unbound.png", png_bytes(),
+        lease["lease_id"], lease["lease_token"],
+    )
+    api = SimpleNamespace(
+        database=services.database,
+        drafts=CaseDraftRepository(services.database),
+    )
+
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        _resolve_photo_paths(api, CASE_ID)
+
+    assert error.value.code == "PHOTO_ASSETS_NOT_SAVED"
+
+
+def test_unified_export_photo_resolution_uses_only_asset_ref_order(asset_context):
+    _, services, lease = asset_context
+    first = services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-first.png", png_bytes(),
+        lease["lease_id"], lease["lease_token"],
+    )
+    second = services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-second.png", png_bytes((80, 90, 100)),
+        lease["lease_id"], lease["lease_token"],
+    )
+    ordered = [second, first]
+    draft = CaseDraftRepository(services.database).get(CASE_ID)
+    draft["asset_refs"] = [
+        {key: asset[key] for key in ("asset_id", "asset_kind", "fingerprint", "metadata")}
+        for asset in ordered
+    ]
+    draft["report"]["attachments"]["photo_ids"] = [asset["asset_id"] for asset in ordered]
+    saved = services.lifecycle.save_draft(
+        draft, draft["revision"], None, None, IDENTITY,
+        lease["lease_id"], lease["lease_token"],
+    )
+    assert saved["draft_save_status"]["status"] == "saved"
+    api = SimpleNamespace(
+        database=services.database,
+        drafts=CaseDraftRepository(services.database),
+    )
+
+    paths = _resolve_photo_paths(api, CASE_ID)
+
+    assert [path.stem for path in paths] == [asset["asset_id"] for asset in ordered]

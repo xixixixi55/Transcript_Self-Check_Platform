@@ -59,7 +59,7 @@ def _publish_intent(service: ArchiveAttemptService, attempt_id: str, context_id:
     )
 
 
-def test_active_publish_fence_blocks_draft_write(database, tmp_path: Path) -> None:
+def test_active_publish_fence_allows_draft_write_without_rebinding_evidence(database, tmp_path: Path) -> None:
     shell = ready_case(database)
     mark_source_available(database)
     service = ArchiveAttemptService(database, tmp_path / "SYNTHETIC-OUTPUT")
@@ -67,13 +67,17 @@ def test_active_publish_fence_blocks_draft_write(database, tmp_path: Path) -> No
     attempt = service.accept(CASE_ID, SOURCE_ID, 0, context_id, shell["revision"])
     service.start(attempt["attempt_id"])
     _publish_intent(service, attempt["attempt_id"], context_id)
+    original_attempt = service.repository.get_internal(attempt["attempt_id"])
+    original_binding = service.context_binding(context_id)
 
     draft = CaseDraftRepository(database).get(CASE_ID)
     edited = {**draft, "report": {**draft["report"], "title": "SYNTHETIC/TEST/FENCE"}}
     edited.pop("lifecycle", None)
-    with pytest.raises(WorkbenchPersistenceError) as error:
-        CaseDraftRepository(database).save(edited, draft["revision"])
-    assert error.value.code == "ARCHIVE_PUBLISH_FENCE_ACTIVE"
+    saved = CaseDraftRepository(database).save(edited, draft["revision"])
+
+    assert saved["report"]["title"] == "SYNTHETIC/TEST/FENCE"
+    assert service.repository.get_internal(attempt["attempt_id"])["draft_revision"] == original_attempt["draft_revision"]
+    assert service.context_binding(context_id)["draft_revision"] == original_binding["draft_revision"]
 
 
 def test_active_publish_fence_blocks_source_write(database, tmp_path: Path) -> None:

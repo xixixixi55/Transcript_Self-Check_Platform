@@ -11,9 +11,8 @@ from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_legacy_report import validate_legacy_report
 from .workbench_repository_helpers import bool_int, json_text, row_json
 from .workbench_serialization import validate_field_states, validate_opaque_asset_refs, validate_opaque_id, validate_safe_string
-from .archive_publish_fence_repository import invalidate_pending, reject_if_active
+from .archive_publish_fence_repository import active_for_case, invalidate_pending, reject_if_active
 from .archive_context_binding_repository import (
-    archive_stable_report_fingerprint,
     report_fingerprint,
 )
 from .case_tombstone_repository import shell_tombstone_projection
@@ -132,7 +131,7 @@ class CaseDraftRepository:
             shell = connection.execute("SELECT * FROM case_shells WHERE case_id = ? AND deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
             if shell is None or bool(shell["record_cleaned"]):
                 raise WorkbenchPersistenceError("CASE_RECORD_CLEANED" if shell is not None else "CASE_NOT_FOUND")
-            reject_if_active(connection, case_id=case_id)
+            publish_fence_active = active_for_case(connection, case_id) is not None
             invalidate_pending(connection, case_id=case_id)
             asset_ids = [str(item["asset_id"]) for item in asset_refs]
             if asset_ids:
@@ -154,18 +153,6 @@ class CaseDraftRepository:
                         raise WorkbenchPersistenceError("ASSET_REFERENCE_MISMATCH")
             existing = connection.execute("SELECT case_drafts.revision, case_drafts.created_at, case_drafts.report_json FROM case_drafts JOIN case_shells ON case_shells.case_id = case_drafts.case_id WHERE case_drafts.case_id = ? AND case_shells.deployment_instance_id = ?", (case_id, self.database.deployment_instance_id)).fetchone()
             current_lifecycle = str(shell["lifecycle"])
-            if existing and current_lifecycle in {"archive_queued", "archiving"}:
-                previous_report = row_json(existing, "report_json")
-                metadata_changed = any(
-                    key in draft and draft.get(key) != shell[key]
-                    for key in ("case_number", "case_name", "case_summary")
-                )
-                if (
-                    metadata_changed
-                    or archive_stable_report_fingerprint(previous_report)
-                    != archive_stable_report_fingerprint(report)
-                ):
-                    raise WorkbenchPersistenceError("ARCHIVE_DRAFT_EDIT_NOT_ALLOWED")
             if existing and not lifecycle_was_submitted:
                 lifecycle = current_lifecycle
             if not existing and lifecycle not in CASE_TRANSITIONS.get(current_lifecycle, set()):
@@ -194,7 +181,11 @@ class CaseDraftRepository:
             updated_shell = connection.execute("UPDATE case_shells SET case_number = ?, case_name = ?, case_summary = ?, report_available = 1, lifecycle = ?, revision = revision + 1, updated_at = ? WHERE case_id = ? AND deployment_instance_id = ? AND revision = ?", (case_number if "case_number" in draft else shell["case_number"], case_name if "case_name" in draft else shell["case_name"], case_summary if "case_summary" in draft else shell["case_summary"], lifecycle, now, case_id, self.database.deployment_instance_id, shell_revision))
             if updated_shell.rowcount != 1:
                 raise RevisionConflictError("case_shell", shell_revision, shell_revision)
-            if existing and current_lifecycle in {"archive_queued", "archiving"}:
+            if (
+                existing
+                and current_lifecycle in {"archive_queued", "archiving"}
+                and not publish_fence_active
+            ):
                 _sync_active_archive_draft(
                     connection, case_id, actual, revision,
                     report_fingerprint(row_json(existing, "report_json")),

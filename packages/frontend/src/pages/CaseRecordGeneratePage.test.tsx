@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import axios from 'axios'
 import { API_ENDPOINTS, UNIFIED_EXPORT_REQUEST_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type { ArchiveTaskCardSummary, ArchiveTaskResult, CaseDetail, CaseDraft, CaseShell, ClientIdentity, EditLease, InspectionReport, SharedDefaults, SourceRecord, TaskRecord } from '@biji/shared/types'
@@ -61,12 +61,13 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let showCompletedArchive = false
   let useExportedLifecycle = false
   let sourcePending = false
+  let recoverPhotoOnLoad = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; initialLifecycle = 'review_ready'; resolveSave = null; archiveResultParts = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; initialLifecycle = 'review_ready'; resolveSave = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -84,7 +85,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) {
         return { data: { data: { ...completedArchiveResult, parts: archiveResultParts ?? completedArchiveResult.parts } } }
       }
-      if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: [] } } }
+      if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: recoverPhotoOnLoad ? [{ asset_id: 'asset-synthetic-recovered', asset_kind: 'image', fingerprint: 'a'.repeat(64), metadata: { file_name: 'SYNTHETIC-recovered.png', extension: '.png', media_type: 'image/png', size_bytes: 1 }, content_status: 'available' }] : [] } } }
       if (url === API_ENDPOINTS.DEVICES) return { data: { data: [] } }
       if (url === API_ENDPOINTS.INSPECTORS) return { data: { data: [availableInspector] } }
       throw new Error(`unexpected GET ${url}`)
@@ -131,7 +132,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   })
 
   function renderPage() {
-    return render(<MemoryRouter initialEntries={[`/electronic-inspection/cases/${caseId}`]}><Routes><Route path="/electronic-inspection/cases/:caseId" element={<CaseRecordGeneratePage />} /></Routes></MemoryRouter>)
+    const router = createMemoryRouter([
+      { path: '/electronic-inspection/workbench', element: <div>工作台路由</div> },
+      { path: '/electronic-inspection/cases/:caseId', element: <CaseRecordGeneratePage /> },
+    ], {
+      initialEntries: ['/electronic-inspection/workbench', `/electronic-inspection/cases/${caseId}`],
+      initialIndex: 1,
+    })
+    return { ...render(<RouterProvider router={router} />), router }
   }
 
   async function editDiscNumber() {
@@ -302,6 +310,23 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     } finally {
       archiveResultParts = null
     }
+  }, 15000)
+
+  it('blocks browser and SPA navigation until recovered photo bindings finish saving', async () => {
+    recoverPhotoOnLoad = true
+    holdSave = true
+    const view = renderPage()
+    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
+
+    await act(async () => { void view.router.navigate(-1) })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(screen.queryByText('工作台路由')).toBeNull()
+
+    holdSave = false
+    await act(async () => { resolveSave?.() })
+    resolveSave = null
+    await screen.findByText('工作台路由')
   }, 15000)
 
   it('asks for a Word file name then picks a fresh directory and triggers the unified export bundle', async () => {

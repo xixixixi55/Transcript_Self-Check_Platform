@@ -16,6 +16,7 @@
 **实现要点**：
 - 案件卡片/案件打开页在 `archive_deferred`/未压缩态提供「立即压缩」；点击后经现有 workbench 任务创建路径进入后台任务（attempt + 固定里程碑）。
 - 任务推进中案件仍可编辑；任务与草稿编辑互不依赖（压缩只消费密封快照）。
+- 归档发布证据继续绑定开始发布时的 attempt/binding/fence；发布短临界区内发生的审核保存不改写该证据。完成事务另以最新 shell/draft revision 与最新草稿指纹做 CAS，把 Manifest 派生字段合并到最新草稿，从而既保留证据边界，也不覆盖图片引用等审核编辑。
 - 前端 hook 改为案件打开时查询案件状态并呈现选择，替换审核页手动 prepare 主路径。
 
 ## D2. 盘号后填：plan 阶段不再要求 first_disc_number
@@ -84,6 +85,7 @@
 - 新增/改造导出端点：`POST /workbench/cases/{id}/export-bundle`，请求含导出路径 + 一次性 `directory_token`（由 native picker 后端返回，不接收任意服务器路径）。
 - 路径安全：`select-export-directory` 经 `issue_exact_directory_grant` 签发一次性 grant token，`export_bundle` 消费校验，未授权拒绝 `EXPORT_PATH_NOT_AUTHORIZED`，防止任意路径写入。
 - 导出前重跑导出门控（REQ-009 全门控）；任一门控失败不标记已导出。
+- 正式 Word 的图片事实源是最新草稿的 `asset_refs`，按该顺序解析并校验物理图片；禁止扫描案件资产目录兜底。历史草稿若仅缺 `photo_groups`，按检材顺序和每组两张图片生成确定性兼容映射；存在未绑定上传记录时明确返回图片尚未保存错误。
 - 导出记录落库（路径、时间、part 集合、校验截图文件名），供「已导出」标记与审计；历史 HTML 字段作为旧记录兼容字段保留。
 
 **apply 阶段细化（用户实测反馈）**：

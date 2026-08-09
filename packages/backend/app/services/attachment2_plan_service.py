@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+import copy
+from dataclasses import dataclass
 from pathlib import PureWindowsPath
 from typing import Any, Mapping
 
@@ -147,6 +148,35 @@ def material_photo_groups(report: Mapping[str, Any]) -> tuple[MaterialPhotoGroup
     return tuple(normalized)
 
 
+def with_compatible_material_photo_groups(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Fill only a missing legacy mapping from ordered materials and photo ids."""
+    result = copy.deepcopy(dict(report))
+    attachments = result.get("attachments")
+    if not isinstance(attachments, dict):
+        attachments = {}
+        result["attachments"] = attachments
+    photo_ids = photo_values(result)
+    raw_groups = attachments.get("photo_groups")
+    if not photo_ids or raw_groups not in (None, []):
+        return result
+    if len(photo_ids) % ATTACHMENT2_PAIR_SIZE or len(set(photo_ids)) != len(photo_ids):
+        return result
+    catalog = _material_catalog(result)
+    if len(catalog) != len(photo_ids) // ATTACHMENT2_PAIR_SIZE:
+        return result
+    attachments["photo_groups"] = [
+        {
+            "material_id": material_id,
+            "material_number": material_number,
+            "display_text": f"检材{material_number}照片",
+            "ordered_image_ids": photo_ids[index * 2:index * 2 + 2],
+            "source_order": index + 1,
+        }
+        for index, (material_id, material_number) in enumerate(catalog)
+    ]
+    return result
+
+
 def photo_values(report: Mapping[str, Any]) -> list[str]:
     value = (report.get("attachments") or {}).get("photo_ids") or []
     return [_text(item) for item in value] if isinstance(value, list) else []
@@ -195,4 +225,5 @@ __all__ = [
     "ATTACHMENT2_MAX_GROUPS_PER_PAGE", "ATTACHMENT2_MAX_IMAGES_PER_PAGE",
     "ATTACHMENT2_PAIR_SIZE", "MaterialPhotoGroupInput", "build_attachment2_pages",
     "evidence_numbers", "material_photo_groups", "photo_values",
+    "with_compatible_material_photo_groups",
 ]

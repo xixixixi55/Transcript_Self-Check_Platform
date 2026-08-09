@@ -32,7 +32,7 @@ describe('useCasePhotoAssets', () => {
       .mockResolvedValueOnce({ data: new Blob(['SYNTHETIC-IMAGE']) } as any)
     const view = renderHook(() => useCasePhotoAssets({
       caseId: 'case-synthetic', assetRefs: [stored], editingEnabled: true, lease,
-      onAssetRefsChange: vi.fn(() => true),
+      onAssetRefsChange: vi.fn(async () => true),
     }))
     await waitFor(() => expect(view.result.current.files[0]?.status).toBe('done'))
     const files = await view.result.current.readFiles()
@@ -42,7 +42,7 @@ describe('useCasePhotoAssets', () => {
   })
 
   it('writes a draft reference only after upload succeeds and preserves the old file on failure', async () => {
-    const onAssetRefsChange = vi.fn(() => true)
+    const onAssetRefsChange = vi.fn(async () => true)
     const file = new File(['SYNTHETIC-NEW'], 'new.png', { type: 'image/png' })
     const created = { ...ref('asset-synthetic-new'), content_status: 'available' as const }
     postMock.mockResolvedValueOnce({ data: { data: created } } as any)
@@ -62,7 +62,7 @@ describe('useCasePhotoAssets', () => {
   })
 
   it('coalesces repeated Ant Design callbacks for one two-image selection', async () => {
-    const onAssetRefsChange = vi.fn(() => true)
+    const onAssetRefsChange = vi.fn(async () => true)
     const firstFile = new File(['SYNTHETIC-FRONT'], 'front.png', { type: 'image/png' })
     const secondFile = new File(['SYNTHETIC-BACK'], 'back.png', { type: 'image/png' })
     const firstAsset = { ...ref('asset-synthetic-front'), content_status: 'available' as const }
@@ -76,7 +76,7 @@ describe('useCasePhotoAssets', () => {
       { uid: 'local-front', name: firstFile.name, originFileObj: firstFile as unknown as NonNullable<UploadFile['originFileObj']> },
       { uid: 'local-back', name: secondFile.name, originFileObj: secondFile as unknown as NonNullable<UploadFile['originFileObj']> },
     ]
-    let uploadPromise!: Promise<void>
+    let uploadPromise!: Promise<boolean>
     act(() => { uploadPromise = view.result.current.handleChange(files) })
     await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2))
     await act(async () => { await view.result.current.handleChange(files) })
@@ -96,7 +96,7 @@ describe('useCasePhotoAssets', () => {
   })
 
   it('ignores a late callback with the local file list after upload completes', async () => {
-    const onAssetRefsChange = vi.fn(() => true)
+    const onAssetRefsChange = vi.fn(async () => true)
     const file = new File(['SYNTHETIC-LATE-CALLBACK'], 'late.png', { type: 'image/png' })
     const created = { ...ref('asset-synthetic-late'), content_status: 'available' as const }
     postMock.mockReset()
@@ -119,7 +119,7 @@ describe('useCasePhotoAssets', () => {
 
   it('removes an existing persisted reference without mixing another case', async () => {
     const stored = ref('asset-synthetic-2')
-    const onAssetRefsChange = vi.fn(() => true)
+    const onAssetRefsChange = vi.fn(async () => true)
     getMock.mockResolvedValueOnce({ data: { data: { items: [{ ...stored, content_status: 'available' }] } } } as any)
     const view = renderHook(() => useCasePhotoAssets({
       caseId: 'case-synthetic', assetRefs: [stored], editingEnabled: true, lease, onAssetRefsChange,
@@ -135,9 +135,75 @@ describe('useCasePhotoAssets', () => {
     getMock.mockRejectedValueOnce({ response: { data: { detail: { code: 'ASSET_CONTENT_MISSING' } } } })
     const view = renderHook(() => useCasePhotoAssets({
       caseId: 'case-synthetic', assetRefs: [stored], editingEnabled: true, lease,
-      onAssetRefsChange: vi.fn(() => true),
+      onAssetRefsChange: vi.fn(async () => true),
     }))
     await waitFor(() => expect(view.result.current.assetError).toContain('图片资产缺失'))
     await act(async () => { await expect(view.result.current.readFiles()).rejects.toThrow('ASSET_CONTENT_MISSING') })
+  })
+
+  it('waits for the immediate draft binding save before an upload becomes idle', async () => {
+    const file = new File(['SYNTHETIC-IMMEDIATE-SAVE'], 'immediate.png', { type: 'image/png' })
+    const created = { ...ref('asset-synthetic-immediate'), content_status: 'available' as const }
+    let resolveSave: ((saved: boolean) => void) | undefined
+    const onAssetRefsChange = vi.fn(() => new Promise<boolean>(resolve => { resolveSave = resolve }))
+    postMock.mockResolvedValueOnce({ data: { data: created } } as any)
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+
+    let upload!: Promise<boolean>
+    act(() => {
+      upload = view.result.current.handleChange([{
+        uid: 'local-immediate', name: file.name,
+        originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']>,
+      }])
+    })
+    await waitFor(() => expect(onAssetRefsChange).toHaveBeenCalledTimes(1))
+    expect(view.result.current.uploading).toBe(true)
+
+    await act(async () => {
+      resolveSave?.(true)
+      await upload
+    })
+    expect(view.result.current.uploading).toBe(false)
+    await expect(view.result.current.waitForIdle()).resolves.toBe(true)
+  })
+
+  it('reports a non-idle-safe result when the immediate draft binding save fails', async () => {
+    const file = new File(['SYNTHETIC-FAILED-BINDING'], 'failed-binding.png', { type: 'image/png' })
+    const created = { ...ref('asset-synthetic-failed-binding'), content_status: 'available' as const }
+    postMock.mockResolvedValueOnce({ data: { data: created } } as any)
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease,
+      onAssetRefsChange: vi.fn(async () => false),
+    }))
+
+    await act(async () => {
+      await view.result.current.handleChange([{
+        uid: 'local-failed-binding', name: file.name,
+        originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']>,
+      }])
+    })
+
+    await expect(view.result.current.waitForIdle()).resolves.toBe(false)
+    expect(view.result.current.navigationUnsafe).toBe(true)
+    expect(view.result.current.files[0].uid).toBe(created.asset_id)
+    expect(view.result.current.assetError).toContain('图片保存失败')
+  })
+
+  it('recovers available registry images that are not yet bound to the draft', async () => {
+    const first = { ...ref('asset-synthetic-orphan-1'), content_status: 'available' as const }
+    const second = { ...ref('asset-synthetic-orphan-2'), content_status: 'available' as const }
+    const onAssetRefsChange = vi.fn(async () => true)
+    getMock.mockResolvedValueOnce({ data: { data: { items: [first, second] } } } as any)
+
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+
+    await waitFor(() => expect(onAssetRefsChange).toHaveBeenCalledTimes(1))
+    const recovered = (onAssetRefsChange.mock.calls[0] as unknown as [OpaqueAssetRef[]])[0]
+    expect(recovered.map(item => item.asset_id)).toEqual([first.asset_id, second.asset_id])
+    await waitFor(() => expect(view.result.current.files).toHaveLength(2))
   })
 })

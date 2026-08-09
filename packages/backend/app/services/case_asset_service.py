@@ -75,7 +75,12 @@ class CaseAssetService:
 
     def list_images(self, case_id: str) -> dict[str, Any]:
         case_id = validate_opaque_id(case_id)
-        items = [self._public(item) for item in self.references.list_case(case_id, "image")]
+        bound_ids = self._draft_asset_ids(case_id)
+        items = [
+            self._public(item)
+            for item in self.references.list_case(case_id, "image")
+            if item["asset_id"] in bound_ids or within_asset_orphan_retention(item["created_at"])
+        ]
         return {"items": items}
 
     def read_image(self, case_id: str, asset_id: str) -> tuple[bytes, dict[str, Any]]:
@@ -177,6 +182,11 @@ def _old_enough(created_at: str) -> bool:
         return datetime.now(timezone.utc) - timestamp > timedelta(seconds=ASSET_ORPHAN_RETENTION_SECONDS)
     except (TypeError, ValueError):
         return False
+
+
+def within_asset_orphan_retention(created_at: str) -> bool:
+    """Whether an unbound asset remains eligible for draft recovery."""
+    return not _old_enough(created_at)
 
 
 def _old_enough_file(path: Any) -> bool:
