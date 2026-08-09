@@ -129,7 +129,12 @@ class SourceRecordRepository:
             if updated.rowcount != 1:
                 raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
         return self.get(source_id)
-    def mark_pending_revalidation(self, source_id: str, error_code: str = "SOURCE_REVALIDATION_PENDING") -> dict[str, Any]:
+    def mark_pending_revalidation(
+        self,
+        source_id: str,
+        error_code: str = "SOURCE_REVALIDATION_PENDING",
+        expected_revision: int | None = None,
+    ) -> dict[str, Any]:
         source_id = validate_opaque_id(source_id)
         now = utc_now()
         with self.database.transaction() as connection:
@@ -138,12 +143,17 @@ class SourceRecordRepository:
             ).fetchone()
             if row is None:
                 raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
+            current_revision = int(row[1])
+            if expected_revision is not None and current_revision != expected_revision:
+                raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
             reject_if_active(connection, case_id=row[0], source_id=source_id)
             invalidate_pending(connection, case_id=row[0], source_id=source_id)
-            connection.execute(
-                "UPDATE source_records SET access_status = 'pending', requires_reselection = 0, revalidation_error_code = ?, updated_at = ?, revision = revision + 1 WHERE source_id = ?",
-                (error_code, now, source_id),
+            updated = connection.execute(
+                "UPDATE source_records SET access_status = 'pending', requires_reselection = 0, revalidation_error_code = ?, updated_at = ?, revision = revision + 1 WHERE source_id = ? AND revision = ?",
+                (error_code, now, source_id, current_revision),
             )
+            if updated.rowcount != 1:
+                raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
         return self.get(source_id)
     def pending_review_records(self) -> list[dict[str, int | str]]:
         connection = self.database.connect()

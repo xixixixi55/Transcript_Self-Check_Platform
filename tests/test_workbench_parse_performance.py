@@ -78,35 +78,30 @@ def test_same_synthetic_report_profiles_legacy_and_workbench_paths(profile_fixtu
 
     from app.services import source_record_service
 
-    original_directory_metadata = source_record_service._directory_metadata
-    original_fingerprint = source_record_service._fingerprint
+    original_fingerprint_with_metadata = source_record_service._fingerprint_with_metadata
     original_verify_after_parse = source_service.verify_after_parse
     original_complete_parse = cases.workflow.complete_parse
 
-    def timed_metadata(path: Path):
+    def timed_fingerprint_with_metadata(path: Path, should_cancel=None):
         started = time.perf_counter()
         metrics["metadata_started_perf"] = started
-        entries = [item for item in path.rglob("*") if not item.is_symlink()]
-        metrics["metadata_file_count"] = sum(item.is_file() for item in entries)
-        metrics["metadata_bytes"] = sum(item.stat().st_size for item in entries if item.is_file())
-        value = original_directory_metadata(path)
-        metrics["metadata_ms"] = (time.perf_counter() - started) * 1000
-        return value
-
-    def timed_fingerprint(path: Path):
-        started = time.perf_counter()
         metrics["fingerprint_started_perf"] = started
-        entries = [item for item in path.rglob("*") if item.is_file() and not item.is_symlink()]
-        metrics["fingerprint_file_count"] = len(entries)
-        metrics["fingerprint_bytes"] = sum(item.stat().st_size for item in entries)
-        value = original_fingerprint(path)
+        metadata, value = original_fingerprint_with_metadata(path, should_cancel)
+        metrics["metadata_file_count"] = int(metadata["file_count"])
+        metrics["metadata_ms"] = (time.perf_counter() - started) * 1000
         metrics["fingerprint_ms"] = (time.perf_counter() - started) * 1000
-        return value
+        return metadata, value
 
-    def timed_verify_after_parse(source_id: str, expected_revision: int | None = None):
+    def timed_verify_after_parse(
+        source_id: str, expected_revision: int | None = None, cancellation_event=None,
+    ):
         started = time.perf_counter()
         metrics["verification_started_perf"] = started
-        value = original_verify_after_parse(source_id, expected_revision=expected_revision)
+        value = original_verify_after_parse(
+            source_id,
+            expected_revision=expected_revision,
+            cancellation_event=cancellation_event,
+        )
         metrics["verification_completed_perf"] = time.perf_counter()
         metrics["full_source_verification_ms"] = (time.perf_counter() - started) * 1000
         return value
@@ -121,8 +116,7 @@ def test_same_synthetic_report_profiles_legacy_and_workbench_paths(profile_fixtu
     dispatcher = CaseParseDispatcher(max_workers=2)
     parse_started = time.perf_counter()
     metrics["task_start_perf"] = parse_started
-    with patch.object(source_record_service, "_directory_metadata", side_effect=timed_metadata), \
-         patch.object(source_record_service, "_fingerprint", side_effect=timed_fingerprint), \
+    with patch.object(source_record_service, "_fingerprint_with_metadata", side_effect=timed_fingerprint_with_metadata), \
          patch.object(source_service, "verify_after_parse", side_effect=timed_verify_after_parse), \
          patch.object(cases.workflow, "complete_parse", side_effect=timed_complete_parse):
         dispatcher.dispatch(cases, identifiers["case_id"], identifiers["task_id"])

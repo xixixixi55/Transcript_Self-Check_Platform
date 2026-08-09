@@ -19,7 +19,7 @@ from app.repository.archive_publish_intent_repository import ArchivePublishInten
 from app.repository.workbench_errors import WorkbenchPersistenceError
 from app.services.archive_attempt_service import ArchiveAttemptService
 from app.services.report_parse_inflight_service import ReportParseInFlightRegistry
-from app.services.source_record_fingerprint_service import fingerprint
+from app.services.source_record_fingerprint_service import fingerprint, fingerprint_with_metadata
 
 from test_phase1d_recovery import (  # noqa: E402
     CASE_ID,
@@ -169,7 +169,7 @@ def test_source_fingerprint_returns_transient_failure_for_snapshot_change(
     original_snapshot = fingerprint_module._snapshot
     calls = 0
 
-    def mutate_between_snapshots(path: Path):
+    def mutate_between_snapshots(path: Path, _should_cancel=None):
         nonlocal calls
         result = original_snapshot(path)
         calls += 1
@@ -180,6 +180,50 @@ def test_source_fingerprint_returns_transient_failure_for_snapshot_change(
     monkeypatch.setattr(fingerprint_module, "_snapshot", mutate_between_snapshots)
     with pytest.raises(fingerprint_module.SourceFingerprintTransientError):
         fingerprint(source)
+
+
+def test_initial_source_fingerprint_reuses_the_stable_snapshot_for_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    source = tmp_path / "SYNTHETIC-SOURCE-METADATA"
+    (source / "nested").mkdir(parents=True)
+    (source / "record.json").write_text("SYNTHETIC/TEST", encoding="utf-8")
+    (source / "nested" / "item.bin").write_bytes(b"SYNTHETIC")
+    from app.services import source_record_fingerprint_service as fingerprint_module
+
+    original_snapshot = fingerprint_module._snapshot
+    calls = 0
+
+    def counted_snapshot(path: Path, _should_cancel=None):
+        nonlocal calls
+        calls += 1
+        return original_snapshot(path)
+
+    monkeypatch.setattr(fingerprint_module, "_snapshot", counted_snapshot)
+    metadata, value = fingerprint_with_metadata(source)
+
+    assert calls == 2
+    assert metadata["file_count"] == 2
+    assert metadata["directory_count"] == 1
+    assert value == fingerprint_module._fingerprint_entries(original_snapshot(source))
+
+
+def test_source_fingerprint_traversal_honors_shutdown_cancellation(tmp_path: Path) -> None:
+    source = tmp_path / "SYNTHETIC-SOURCE-CANCEL"
+    source.mkdir()
+    for index in range(10):
+        (source / f"SYNTHETIC-{index}.txt").write_text("SYNTHETIC/TEST", encoding="utf-8")
+    from app.services.source_record_fingerprint_service import SourceFingerprintCancelledError
+
+    checks = 0
+
+    def should_cancel() -> bool:
+        nonlocal checks
+        checks += 1
+        return checks > 4
+
+    with pytest.raises(SourceFingerprintCancelledError):
+        fingerprint(source, should_cancel)
 
 
 def test_future_callback_can_reenter_registry_without_lock_deadlock(

@@ -48,6 +48,7 @@ def create_app(
                         logger.error("Archive runtime shutdown exceeded its bounded wait.")
                 except Exception:
                     logger.exception("Archive runtime shutdown failed safely.")
+            services.dispatcher.shutdown(wait=False)
 
     app = FastAPI(
         title="笔录自检平台（文枢）",

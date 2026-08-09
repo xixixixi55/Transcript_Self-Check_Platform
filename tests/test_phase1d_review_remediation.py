@@ -518,7 +518,11 @@ def test_source_conflict_retry_exhaustion_is_pending_and_bounded(
         raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
 
     monkeypatch.setattr(service.repository, "revalidate", always_conflicts)
-    monkeypatch.setattr(service, "_compute_current_fingerprint", lambda _source_id: fingerprint)
+    monkeypatch.setattr(
+        service,
+        "_compute_current_fingerprint",
+        lambda _source_id, _should_cancel=None: fingerprint,
+    )
     result = service.verify_after_parse(SOURCE_ID, SourceRecordRepository(database).get(SOURCE_ID)["revision"])
     assert calls == service._MAX_REVISION_CONFLICT_RETRIES * 2
     assert result["access_status"] == "pending"

@@ -233,6 +233,8 @@ def ensure_archive_task_api(services: WorkbenchServices) -> ArchiveTaskApiServic
 def reset_workbench_services() -> None:
     """Test/support hook; production callers keep the deployment singleton."""
     global _SERVICES
-    if _SERVICES is not None and _SERVICES.archive_runtime is not None:
-        _SERVICES.archive_runtime.stop()
+    if _SERVICES is not None:
+        if _SERVICES.archive_runtime is not None:
+            _SERVICES.archive_runtime.stop()
+        _SERVICES.dispatcher.shutdown(wait=False)
     _SERVICES = None

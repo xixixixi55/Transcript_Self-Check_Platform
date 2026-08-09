@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from threading import Event
 
 import pytest
 
@@ -24,6 +25,7 @@ from app.repository.case_workflow_repository import CaseWorkflowRepository  # no
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
+from app.services.case_parse_dispatcher_service import CaseParseDispatcher  # noqa: E402
 
 from test_workbench_persistence import IDENTITY, REPORT  # noqa: E402
 
@@ -276,6 +278,170 @@ def test_pending_source_is_rescheduled_and_dispatch_failure_stays_pending(databa
     assert source["revalidation_error_code"] == "SOURCE_REVALIDATION_PENDING"
 
 
+def test_source_verification_transient_pending_is_retried_until_available() -> None:
+    completed = Event()
+
+    class Sources:
+        def __init__(self) -> None:
+            self.calls: list[int | None] = []
+
+        def verify_after_parse(
+            self, _source_id: str, expected_revision: int | None = None,
+            cancellation_event=None,
+        ) -> dict:
+            self.calls.append(expected_revision)
+            if len(self.calls) == 1:
+                return {"access_status": "pending", "revision": 1}
+            completed.set()
+            return {"access_status": "available", "revision": 2}
+
+        def mark_verification_pending(
+            self, _source_id: str, _error_code: str, _expected_revision: int,
+        ) -> dict:
+            raise AssertionError("successful retry must not persist a worker failure")
+
+    sources = Sources()
+    dispatcher = CaseParseDispatcher(source_verification_retry_delay_seconds=0)
+    dispatcher.dispatch_source_verification(sources, SOURCE_ID, 0)
+
+    assert completed.wait(2)
+    dispatcher.shutdown(wait=True)
+    assert sources.calls == [0, 1]
+
+
+def test_source_verification_worker_failure_is_bounded_and_diagnosed() -> None:
+    exhausted = Event()
+
+    class Sources:
+        def __init__(self) -> None:
+            self.verify_calls = 0
+            self.revision = 0
+            self.error_codes: list[str] = []
+
+        def verify_after_parse(
+            self, _source_id: str, expected_revision: int | None = None,
+            cancellation_event=None,
+        ) -> dict:
+            self.verify_calls += 1
+            raise RuntimeError(f"SYNTHETIC/TEST/WORKER/{expected_revision}")
+
+        def get(self, _source_id: str) -> dict:
+            return {"access_status": "pending", "revision": self.revision}
+
+        def mark_verification_pending(
+            self, _source_id: str, error_code: str, expected_revision: int,
+        ) -> dict:
+            assert expected_revision == self.revision
+            self.revision += 1
+            self.error_codes.append(error_code)
+            if error_code == "SOURCE_REVALIDATION_RETRY_EXHAUSTED":
+                exhausted.set()
+            return {"access_status": "pending", "revision": self.revision}
+
+    sources = Sources()
+    dispatcher = CaseParseDispatcher(
+        source_verification_max_attempts=3,
+        source_verification_retry_delay_seconds=0,
+    )
+    dispatcher.dispatch_source_verification(sources, SOURCE_ID, 0)
+
+    assert exhausted.wait(2)
+    dispatcher.shutdown(wait=True)
+    assert sources.verify_calls == 3
+    assert sources.error_codes == [
+        "SOURCE_REVALIDATION_WORKER_FAILED",
+        "SOURCE_REVALIDATION_WORKER_FAILED",
+        "SOURCE_REVALIDATION_WORKER_FAILED",
+        "SOURCE_REVALIDATION_RETRY_EXHAUSTED",
+    ]
+
+
+def test_source_verification_does_not_block_the_parse_executor() -> None:
+    verification_started = Event()
+    release_verification = Event()
+    parse_completed = Event()
+
+    class Sources:
+        def verify_after_parse(
+            self, _source_id: str, expected_revision: int | None = None,
+            cancellation_event=None,
+        ) -> dict:
+            verification_started.set()
+            assert release_verification.wait(2)
+            return {"access_status": "available", "revision": expected_revision or 0}
+
+    class Tasks:
+        @staticmethod
+        def get(_task_id: str) -> dict:
+            return {"status": "queued", "attempt": 0}
+
+    class Cases:
+        tasks = Tasks()
+
+        @staticmethod
+        def run_parse_task(_case_id: str, _task_id: str) -> None:
+            parse_completed.set()
+
+    dispatcher = CaseParseDispatcher(max_workers=1, source_verification_max_attempts=1)
+    dispatcher.dispatch_source_verification(Sources(), SOURCE_ID, 0)
+    assert verification_started.wait(2)
+    dispatcher.dispatch(Cases(), CASE_ID, TASK_ID)
+
+    assert parse_completed.wait(2)
+    release_verification.set()
+    dispatcher.shutdown(wait=True)
+
+
+def test_dispatcher_shutdown_cancels_running_source_verification() -> None:
+    verification_started = Event()
+    verification_finished = Event()
+
+    class Sources:
+        @staticmethod
+        def verify_after_parse(
+            _source_id: str,
+            expected_revision: int | None = None,
+            cancellation_event=None,
+        ) -> dict:
+            verification_started.set()
+            assert cancellation_event is not None
+            assert cancellation_event.wait(2)
+            verification_finished.set()
+            return {"access_status": "pending", "revision": expected_revision or 0}
+
+    dispatcher = CaseParseDispatcher()
+    dispatcher.dispatch_source_verification(Sources(), SOURCE_ID, 0)
+    assert verification_started.wait(2)
+
+    dispatcher.shutdown(wait=True)
+
+    assert verification_finished.is_set()
+
+
+def test_stale_verification_diagnostic_cannot_revert_an_available_source(
+    database: WorkbenchDatabase,
+) -> None:
+    ready_case(database)
+    repository = SourceRecordRepository(database)
+    stale_revision = repository.get(SOURCE_ID)["revision"]
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE source_records SET access_status = 'available', revision = revision + 1 "
+            "WHERE source_id = ?",
+            (SOURCE_ID,),
+        )
+
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        repository.mark_pending_revalidation(
+            SOURCE_ID,
+            "SOURCE_REVALIDATION_RETRY_EXHAUSTED",
+            expected_revision=stale_revision,
+        )
+
+    assert error.value.code == "SOURCE_REVISION_CONFLICT"
+    assert repository.get(SOURCE_ID)["access_status"] == "available"
+
+
 def test_temporary_source_failure_stays_pending_but_changed_fingerprint_requires_reselection(
     database: WorkbenchDatabase, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -289,11 +455,45 @@ def test_temporary_source_failure_stays_pending_but_changed_fingerprint_requires
         )
     from app.services import source_record_service as source_module
 
-    def unavailable(_path: Path) -> str:
+    def unavailable(_path: Path, _should_cancel=None) -> str:
         raise PermissionError("SYNTHETIC-TEMPORARY")
 
     monkeypatch.setattr(source_module, "_fingerprint", unavailable)
     service = source_module.SourceRecordService(database)
     assert service.revalidate(SOURCE_ID)["access_status"] == "pending"
-    monkeypatch.setattr(source_module, "_fingerprint", lambda _path: "SYNTHETIC-CHANGED")
+    monkeypatch.setattr(
+        source_module, "_fingerprint", lambda _path, _should_cancel=None: "SYNTHETIC-CHANGED",
+    )
     assert service.revalidate(SOURCE_ID)["access_status"] == "requires_reselection"
+
+
+def test_shutdown_cancellation_preserves_the_current_source_state(
+    database: WorkbenchDatabase, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "SYNTHETIC-source-cancelled.txt"
+    path.write_text("SYNTHETIC/TEST/source", encoding="utf-8")
+    ready_case(database)
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE source_records SET source_type = 'other', internal_path = ?, "
+            "allowed_root = ?, metadata_json = ?, fingerprint_json = ?, "
+            "access_status = 'available' WHERE source_id = ?",
+            (
+                str(path), str(tmp_path), json.dumps({}),
+                json.dumps({"value": "SYNTHETIC-ORIGINAL"}), SOURCE_ID,
+            ),
+        )
+    from app.services import source_record_service as source_module
+    from app.services.source_record_fingerprint_service import SourceFingerprintCancelledError
+
+    def cancelled(_path: Path, _should_cancel=None) -> str:
+        raise SourceFingerprintCancelledError("SYNTHETIC/TEST/CANCELLED")
+
+    monkeypatch.setattr(source_module, "_fingerprint", cancelled)
+    service = source_module.SourceRecordService(database)
+    before = service.get(SOURCE_ID)
+
+    result = service.revalidate(SOURCE_ID)
+
+    assert result["access_status"] == "available"
+    assert result["revision"] == before["revision"]

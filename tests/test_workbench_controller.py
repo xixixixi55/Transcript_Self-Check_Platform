@@ -591,16 +591,16 @@ def test_submit_returns_before_slow_source_fingerprint_finishes(app_services):
     from app.controllers import workbench_controller
     from app.services import source_record_service
 
-    original_fingerprint = source_record_service._fingerprint
+    original_fingerprint = source_record_service._fingerprint_with_metadata
     started_fingerprint = Event()
     release_fingerprint = Event()
 
-    def slow_fingerprint(path):
+    def slow_fingerprint(path, should_cancel=None):
         started_fingerprint.set()
         release_fingerprint.wait(1)
-        return original_fingerprint(path)
+        return original_fingerprint(path, should_cancel)
 
-    with patch.object(source_record_service, "_fingerprint", side_effect=slow_fingerprint):
+    with patch.object(source_record_service, "_fingerprint_with_metadata", side_effect=slow_fingerprint):
         with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
             client = TestClient(app)
             started = time.perf_counter()
@@ -626,7 +626,7 @@ def test_post_parse_source_verification_failure_does_not_undo_review_ready(app_s
 
     with patch.object(
         source_record_service,
-        "_fingerprint",
+        "_fingerprint_with_metadata",
         side_effect=RuntimeError("SYNTHETIC verification failure"),
     ), patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
@@ -652,21 +652,21 @@ def test_deferred_decision_does_not_conflict_with_pending_source_verification(ap
     from app.controllers import workbench_controller
     from app.services import source_record_service
 
-    original_fingerprint = source_record_service._fingerprint
+    original_fingerprint = source_record_service._fingerprint_with_metadata
     verification_started = Event()
     verification_finished = Event()
     release_verification = Event()
 
-    def slow_fingerprint(path):
+    def slow_fingerprint(path, should_cancel=None):
         verification_started.set()
         release_verification.wait(1)
         try:
-            return original_fingerprint(path)
+            return original_fingerprint(path, should_cancel)
         finally:
             verification_finished.set()
 
     try:
-        with patch.object(source_record_service, "_fingerprint", side_effect=slow_fingerprint), patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        with patch.object(source_record_service, "_fingerprint_with_metadata", side_effect=slow_fingerprint), patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
             client = TestClient(app)
             created = client.post(
                 "/api/v1/workbench/cases", json={"source_path": str(app_services.synthetic_report_dir)},

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,14 @@ from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.report_format_adapter import ReportFormatError, require_supported_report_format
 from .archive_authorization_service import ArchiveAuthorizationService
 from .source_revalidation_policy_service import is_temporary_source_failure
-from .source_record_fingerprint_service import directory_metadata, directory_summary, fingerprint as _fingerprint, opaque_id, validate_pending_locator
-
-_directory_metadata = directory_metadata
+from .source_record_fingerprint_service import (
+    directory_summary,
+    fingerprint as _fingerprint,
+    fingerprint_with_metadata as _fingerprint_with_metadata,
+    opaque_id,
+    SourceFingerprintCancelledError,
+    validate_pending_locator,
+)
 
 
 class SourceRecordService:
@@ -100,34 +106,41 @@ class SourceRecordService:
                 self.remove_unbound_source(descriptor)
             raise
 
-    def revalidate(self, source_id: str) -> dict[str, Any]:
+    def revalidate(
+        self, source_id: str, should_cancel: Callable[[], bool] | None = None,
+    ) -> dict[str, Any]:
         record = self.repository.get(source_id)
         if (
             record["access_status"] == "pending"
             and str(record.get("fingerprint", "")).startswith(self._PENDING_FINGERPRINT_PREFIX)
         ):
-            return self._activate_pending(source_id)
+            return self._activate_pending(source_id, should_cancel)
         try:
             locator = self.repository.get_internal_locator(source_id)
             path = Path(locator["internal_path"])
             if self.repository.get(source_id)["source_type"] == "report_directory":
                 self._validate_report_structure(path)
-            current = _fingerprint(path)
+            current = _fingerprint(path, should_cancel)
+        except SourceFingerprintCancelledError:
+            return self.repository.get(source_id)
         except Exception as error:
             if is_temporary_source_failure(error):
                 return self.repository.mark_pending_revalidation(source_id)
             current = None
         return self.repository.revalidate(source_id, current_fingerprint=current)
 
-    def _activate_pending(self, source_id: str) -> dict[str, Any]:
+    def _activate_pending(
+        self, source_id: str, should_cancel: Callable[[], bool] | None = None,
+    ) -> dict[str, Any]:
         try:
             locator = self.repository.get_internal_locator(source_id)
             path = Path(locator["internal_path"])
             validate_pending_locator(path, Path(locator["allowed_root"]))
             self._validate_report_structure(path)
-            metadata = _directory_metadata(path)
-            current_fingerprint = _fingerprint(path)
+            metadata, current_fingerprint = _fingerprint_with_metadata(path, should_cancel)
             return self.repository.activate_pending(source_id, metadata, current_fingerprint)
+        except SourceFingerprintCancelledError:
+            return self.repository.get(source_id)
         except Exception as error:
             if is_temporary_source_failure(error):
                 return self.repository.mark_pending_revalidation(source_id)
@@ -170,19 +183,29 @@ class SourceRecordService:
             raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED") from error
         return record
 
-    def verify_after_parse(self, source_id: str, expected_revision: int | None = None) -> dict[str, Any]:
+    def verify_after_parse(
+        self,
+        source_id: str,
+        expected_revision: int | None = None,
+        cancellation_event: Any | None = None,
+    ) -> dict[str, Any]:
         """Run the deferred full source verification without changing case state."""
         current = self.repository.get(source_id)
+        should_cancel = cancellation_event.is_set if cancellation_event is not None else None
+        if should_cancel is not None and should_cancel():
+            return current
         if expected_revision is not None and current["revision"] != expected_revision:
             return current
         for _ in range(self._MAX_REVISION_CONFLICT_RETRIES):
             try:
-                return self.revalidate(source_id)
+                return self.revalidate(source_id, should_cancel)
             except WorkbenchPersistenceError as error:
                 if error.code != "SOURCE_REVISION_CONFLICT":
                     raise
                 try:
-                    fingerprint = self._compute_current_fingerprint(source_id)
+                    fingerprint = self._compute_current_fingerprint(source_id, should_cancel)
+                except SourceFingerprintCancelledError:
+                    return self.repository.get(source_id)
                 except Exception as fingerprint_error:
                     if is_temporary_source_failure(fingerprint_error):
                         return self.repository.mark_pending_revalidation(source_id)
@@ -194,12 +217,14 @@ class SourceRecordService:
                         raise
         return self.repository.mark_pending_revalidation(source_id, "SOURCE_REVISION_CONFLICT_RETRY_EXHAUSTED")
 
-    def _compute_current_fingerprint(self, source_id: str) -> str:
+    def _compute_current_fingerprint(
+        self, source_id: str, should_cancel: Callable[[], bool] | None = None,
+    ) -> str:
         locator = self.repository.get_internal_locator(source_id)
         path = Path(locator["internal_path"])
         if self.repository.get(source_id)["source_type"] == "report_directory":
             self._validate_report_structure(path)
-        return _fingerprint(path)
+        return _fingerprint(path, should_cancel)
 
     def recover_pending_after_startup(self, dispatcher: Any) -> list[str]:
         scheduled: list[str] = []
@@ -211,6 +236,14 @@ class SourceRecordService:
             except Exception:
                 self.repository.mark_pending_revalidation(source_id)
         return scheduled
+
+    def mark_verification_pending(
+        self, source_id: str, error_code: str, expected_revision: int,
+    ) -> dict[str, Any]:
+        """Persist a dispatcher-level verification failure without exposing the repository."""
+        return self.repository.mark_pending_revalidation(
+            source_id, error_code, expected_revision=expected_revision,
+        )
 
     def internal_path(self, source_id: str) -> Path:
         return Path(self.repository.get_internal_locator(source_id)["internal_path"])
