@@ -20,31 +20,37 @@ const DEFAULT_ROWS = [
 interface Props {
   tableData: TableData
   onChange: (data: TableData) => void
+  fallbackExtractionMethod?: string
 }
 
-export default function ExtractListEditor({ tableData, onChange }: Props) {
+export default function ExtractListEditor({ tableData, onChange, fallbackExtractionMethod = '' }: Props) {
   const cols = tableData.columns.length > 0 ? tableData.columns : DEFAULT_COLS
-  const rows = tableData.rows.length > 0 ? tableData.rows : DEFAULT_ROWS
+  const sourceRows = tableData.rows.length > 0 ? tableData.rows : DEFAULT_ROWS
+  const displayRows = sourceRows.map(row => (
+    !String(row.extraction_method || '').trim() && fallbackExtractionMethod
+      ? { ...row, extraction_method: fallbackExtractionMethod }
+      : row
+  ))
 
   const addRow = () => {
     const newRow: Record<string, string> = {}
     cols.forEach(c => { newRow[c.key] = '' })
-    onChange({ columns: [...cols], rows: [...rows, newRow] })
+    onChange({ columns: [...cols], rows: [...sourceRows, newRow] })
   }
 
   const updateCell = (rowIdx: number, colKey: string, value: string) => {
-    const updated = rows.map((r, i) => i === rowIdx ? { ...r, [colKey]: value } : r)
+    const updated = sourceRows.map((r, i) => i === rowIdx ? { ...r, [colKey]: value } : r)
     onChange({ columns: [...cols], rows: updated })
   }
 
   const removeRow = (rowIdx: number) => {
-    onChange({ columns: [...cols], rows: rows.filter((_, i) => i !== rowIdx) })
+    onChange({ columns: [...cols], rows: sourceRows.filter((_, i) => i !== rowIdx) })
   }
 
   return (
     <div>
       <Table
-        dataSource={rows.map((r, i) => ({ ...r, _key: i }))}
+        dataSource={displayRows.map((r, i) => ({ ...r, _key: i }))}
         rowKey="_key"
         pagination={false} size="small" bordered
         columns={[

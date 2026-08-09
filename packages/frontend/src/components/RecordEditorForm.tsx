@@ -130,7 +130,7 @@ export default function RecordEditorForm({
             taskId={archiveResult.result?.task_id}
             error={archiveError || archiveResult.error}
           />}
-        <ReviewAttachmentsSection attachments={attachments} photoFiles={photoFiles}
+        <ReviewAttachmentsSection attachments={attachments} hardwareDevice={report.inspection?.hardware_device || ''} photoFiles={photoFiles}
           onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport} />
         </ReviewSection>
       </fieldset>

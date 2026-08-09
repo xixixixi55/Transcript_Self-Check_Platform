@@ -12,6 +12,8 @@ export interface ArchivePartDiscMapping {
 export interface DiscMappingRequest {
   /** Case revision guard, mirrors workbench command semantics. */
   expected_revision: number
+  /** Archive-plan row revision observed with the displayed part mappings. */
+  expected_plan_row_revision: number
   first_disc_number: string
 }
 
@@ -19,6 +21,7 @@ export interface DiscMappingResult {
   case_id: string
   task_id: string
   expected_revision: number
+  plan_row_revision: number
   lifecycle: CaseLifecycle
   prefix: string
   disc_date: string

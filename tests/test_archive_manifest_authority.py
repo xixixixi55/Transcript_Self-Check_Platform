@@ -98,6 +98,22 @@ def test_verified_attachment_projection_keeps_ordered_manifest_rows_without_size
     assert all("file_size" not in row for row in table["rows"])
 
 
+def test_verified_attachment_projection_fills_extraction_method_before_review_is_complete():
+    incomplete = report()
+    incomplete["inspection"].pop("primary_software")
+    incomplete["attachments"]["extract_list"] = {
+        "rows": [{"extraction_method": ""}],
+    }
+
+    projection = project_verified_manifest_to_legacy_attachments(incomplete, manifest())
+
+    assert {
+        row["extraction_method"] for row in projection["extract_list"]["rows"]
+    } == {
+        "使用测试设备对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值",
+    }
+
+
 def test_verified_manifest_backfills_existing_report_result_fields():
     projected = apply_verified_archive_result(report(), manifest())
     result = projected["inspection"]["result"]

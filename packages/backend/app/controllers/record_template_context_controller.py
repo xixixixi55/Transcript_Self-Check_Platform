@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from ..services.disc_mapping_service import DiscMappingState, resolve_disc_mapping_state
 from ..services.workbench_factory_service import get_workbench_services
 
 
@@ -46,6 +47,14 @@ def resolve_case_template_context(
         "template_registry": services.template_registry,
         "template_approvals": services.template_approvals,
     }
+
+
+def resolve_case_disc_mapping(case_id: str) -> DiscMappingState:
+    """Resolve plan presence and its authoritative mapping for case export."""
+    if not case_id:
+        return DiscMappingState(plan_exists=False, first_disc_number=None)
+    services = get_workbench_services()
+    return resolve_disc_mapping_state(services.database, case_id)
 
 
 def _reject(

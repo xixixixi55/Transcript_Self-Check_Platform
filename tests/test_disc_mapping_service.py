@@ -16,11 +16,13 @@ from app.repository import (  # noqa: E402
     WorkbenchDatabase,
     database_path_for_deployment,
 )
+from app.repository.workbench_errors import RevisionConflictError  # noqa: E402
 from app.services.disc_mapping_service import (  # noqa: E402
     DiscMappingError,
     active_slots,
     apply_disc_mapping,
     build_disc_mappings,
+    first_mapped_disc_number,
 )
 
 CASE_ID = "SYNTHETIC-DISC-MAPPING-CASE"
@@ -72,7 +74,9 @@ def test_apply_disc_mapping_persists_to_plan(database: WorkbenchDatabase) -> Non
         "input_inventory_revision": 4, "mapping_revision": 1,
         "volume_slots": [slot("SYNTHETIC-SLOT-A", 1), slot("SYNTHETIC-SLOT-B", 2)],
     })
-    result = apply_disc_mapping(database, CASE_ID, plan["revision"], "GP20260718-01")
+    result = apply_disc_mapping(
+        database, CASE_ID, plan["revision"], plan["revision"], "GP20260718-01",
+    )
     assert result["parts"] == [
         {"part_number": 1, "disc_number": "GP20260718-01", "disc_date": "2026-07-18"},
         {"part_number": 2, "disc_number": "GP20260718-02", "disc_date": "2026-07-18"},
@@ -87,6 +91,7 @@ def test_apply_disc_mapping_persists_to_plan(database: WorkbenchDatabase) -> Non
     # the plan write is CAS-guarded by the plan row's own revision.
     assert result["expected_revision"] == plan["revision"]
     assert result["lifecycle"] == "archive_verified"
+    assert first_mapped_disc_number(database, CASE_ID) == "GP20260718-01"
 
 
 def test_apply_disc_mapping_uses_plan_revision_for_cas(database: WorkbenchDatabase) -> None:
@@ -97,7 +102,55 @@ def test_apply_disc_mapping_uses_plan_revision_for_cas(database: WorkbenchDataba
         "input_inventory_revision": 4, "mapping_revision": 1,
         "volume_slots": [slot("SYNTHETIC-SLOT-A", 1)],
     })
-    result = apply_disc_mapping(database, CASE_ID, plan["revision"] - 1, "GP20260718-01")
+    result = apply_disc_mapping(
+        database, CASE_ID, plan["revision"] - 1,
+        plan["revision"], "GP20260718-01",
+    )
     assert result["expected_revision"] == plan["revision"] - 1
     reopened = repository.get(plan["plan_id"])
     assert active_slots(reopened)[0]["disc_mapping"]["disc_number"] == "GP20260718-01"
+
+
+def test_first_mapped_disc_number_requires_every_active_slot_confirmed(database: WorkbenchDatabase) -> None:
+    ArchivePlanRepository(database).create({
+        "plan_id": "SYNTHETIC-DISC-PLAN-INCOMPLETE", "case_id": CASE_ID,
+        "plan_revision": 1, "input_inventory_revision": 4, "mapping_revision": 1,
+        "volume_slots": [
+            {
+                **slot("SYNTHETIC-SLOT-A", 1),
+                "disc_mapping": {
+                    "slot_id": "SYNTHETIC-SLOT-A",
+                    "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
+                    "source": "user", "confirmation": "confirmed",
+                },
+            },
+            {
+                **slot("SYNTHETIC-SLOT-B", 2),
+                "disc_mapping": {
+                    "slot_id": "SYNTHETIC-SLOT-B",
+                    "disc_number": "GP20260718-02", "disc_date": "2026-07-18",
+                    "source": "user", "confirmation": "pending",
+                },
+            },
+        ],
+    })
+
+    assert first_mapped_disc_number(database, CASE_ID) is None
+
+
+def test_apply_disc_mapping_rejects_stale_plan_row_revision(database: WorkbenchDatabase) -> None:
+    repository = ArchivePlanRepository(database)
+    plan = repository.create({
+        "plan_id": "SYNTHETIC-DISC-PLAN-CAS", "case_id": CASE_ID,
+        "plan_revision": 1, "input_inventory_revision": 4, "mapping_revision": 1,
+        "volume_slots": [slot("SYNTHETIC-SLOT-A", 1)],
+    })
+    first = apply_disc_mapping(
+        database, CASE_ID, 8, plan["revision"], "GP20260718-01",
+    )
+    assert first["plan_row_revision"] == plan["revision"] + 1
+
+    with pytest.raises(RevisionConflictError):
+        apply_disc_mapping(
+            database, CASE_ID, 8, plan["revision"], "GP20260718-02",
+        )

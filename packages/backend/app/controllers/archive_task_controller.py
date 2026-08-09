@@ -43,6 +43,7 @@ class MappingUpdateRequest(BaseModel):
 class FirstDiscMappingRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_revision: int = Field(ge=0)
+    expected_plan_row_revision: int = Field(ge=0)
     first_disc_number: str
 
 
@@ -172,7 +173,8 @@ async def map_disc_numbers_endpoint(case_id: str, body: FirstDiscMappingRequest)
     """Auto-generate the full disc sequence from the first number and map it."""
     try:
         return _envelope(_archive_api().map_disc_numbers(
-            case_id, body.expected_revision, body.first_disc_number,
+            case_id, body.expected_revision, body.expected_plan_row_revision,
+            body.first_disc_number,
         ))
     except Exception as error:
         _handle(error)

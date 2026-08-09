@@ -45,7 +45,10 @@ def _require_disc_mapping(
         missing = [
             slot for slot in plan.get("volume_slots", [])
             if slot.get("status") != "removed"
-            and not str((slot.get("disc_mapping") or {}).get("disc_number") or "").strip()
+            and (
+                (slot.get("disc_mapping") or {}).get("confirmation") != "confirmed"
+                or not str((slot.get("disc_mapping") or {}).get("disc_number") or "").strip()
+            )
         ]
         if missing:
             raise UnifiedExportError(
@@ -174,6 +177,8 @@ def _with_disc_mapping(
     for index, part in enumerate(working.get("parts", [])):
         ordinal = part.get("part_number") or (index + 1)
         mapping = disc_by_ordinal.get(ordinal, {}) or {}
+        if mapping.get("confirmation") != "confirmed":
+            continue
         disc_number = str(mapping.get("disc_number") or "")
         if disc_number:
             part["disc_number"] = disc_number

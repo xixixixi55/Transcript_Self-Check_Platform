@@ -10,6 +10,7 @@ interface Props {
   lifecycle: CaseLifecycle
   caseId: string
   expectedRevision: number
+  planRowRevision: number | null
   parts: { disc_number?: string | null }[] | null
   firstDiscNumber: string
   onFirstDiscNumberChange: (value: string) => void
@@ -19,26 +20,38 @@ interface Props {
 }
 
 export function ArchiveCompletionPanel({
-  lifecycle, caseId, expectedRevision, parts, firstDiscNumber, onFirstDiscNumberChange,
+  lifecycle, caseId, expectedRevision, planRowRevision, parts,
+  firstDiscNumber, onFirstDiscNumberChange,
   readOnly = false, defaultWordName, onCompleted,
 }: Props) {
   const archive = useArchiveCompletion()
-  const [mappingDiscNumber, setMappingDiscNumber] = useState(firstDiscNumber)
+  const persistedFirstDiscNumber = String(parts?.[0]?.disc_number || '').trim()
+  const effectiveFirstDiscNumber = persistedFirstDiscNumber || firstDiscNumber
+  const [mappingDiscNumber, setMappingDiscNumber] = useState(effectiveFirstDiscNumber)
+  const [mappingPlanRowRevision, setMappingPlanRowRevision] = useState(planRowRevision)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
   const status = resolveArchiveCompletionStatus(lifecycle, allPartsDiscMapped(parts))
   useEffect(() => {
     if (archive.error) message.error(archive.error)
   }, [archive.error])
   useEffect(() => {
-    setMappingDiscNumber(firstDiscNumber)
-  }, [firstDiscNumber])
+    setMappingDiscNumber(effectiveFirstDiscNumber)
+  }, [effectiveFirstDiscNumber])
+  useEffect(() => {
+    setMappingPlanRowRevision(planRowRevision)
+  }, [planRowRevision])
 
   const submitMapping = async () => {
     if (readOnly) { message.warning('当前页面为只读，不能提交光盘编号。'); return }
+    if (mappingPlanRowRevision === null) { message.warning('归档计划版本尚未加载，请刷新后重试。'); return }
     const candidate = mappingDiscNumber.trim()
     if (!candidate) { message.warning('请输入首个光盘编号。'); return }
     try {
-      const result = await archive.mapping(caseId, expectedRevision, candidate)
+      const result = await archive.mapping(
+        caseId, expectedRevision, mappingPlanRowRevision, candidate,
+      )
+      setMappingPlanRowRevision(result.plan_row_revision)
+      onFirstDiscNumberChange(candidate)
       message.success(`已按序映射 ${result.parts.length} 个光盘编号。`)
       onCompleted()
     } catch { /* error already surfaced via useArchiveCompletion.error */ }
@@ -92,7 +105,13 @@ export function ArchiveCompletionPanel({
           description={status === 'exported'
             ? '统一导出已完成，可再次导出获取最新 Word、RAR 与校验截图。'
             : '全部 RAR、MD5 与盘号已对应完成，可开始导出。'}
-          action={<Button type="primary" loading={archive.busy} onClick={() => { runExport() }}>{status === 'exported' ? '再次导出' : '开始导出'}</Button>}
+          action={<Space>
+            <Input aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={mappingDiscNumber}
+              disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
+            <Button loading={archive.busy} disabled={readOnly}
+              onClick={() => { void submitMapping() }}>更新盘号映射</Button>
+            <Button type="primary" loading={archive.busy} onClick={() => { runExport() }}>{status === 'exported' ? '再次导出' : '开始导出'}</Button>
+          </Space>}
         />
         <WordDownloadNameDialog
           open={nameDialogOpen}

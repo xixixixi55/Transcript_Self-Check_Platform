@@ -38,7 +38,10 @@ from .pipeline_controller import (
     observe_shadow_parse,
     pipeline_settings_for_request,
 )
-from .record_template_context_controller import resolve_case_template_context
+from .record_template_context_controller import (
+    resolve_case_disc_mapping,
+    resolve_case_template_context,
+)
 from ..config import OUTPUT_BASE, UPLOAD_BASE, ARCHIVE_MAX_SIZE
 router = APIRouter()
 ARCHIVE_AUTHORIZATION_SERVICE = ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
@@ -137,6 +140,11 @@ async def export_record_endpoint(
     template_context = resolve_case_template_context(case_id, case_revision)
     report = normalize_primary_software_projection(report)
     attachments = report.setdefault("attachments", {})
+    disc_mapping = resolve_case_disc_mapping(case_id)
+    if disc_mapping.plan_exists:
+        # A persisted plan is authoritative.  Incomplete/pending mappings must
+        # clear the legacy client field so they cannot bypass the export gate.
+        attachments["disc_number"] = disc_mapping.first_disc_number or ""
     disc_result = apply_disc_sequence_to_attachments(attachments)
     uploaded_photos = [photo for photo in photos if photo.filename]
     attachments["photo_ids"] = [f"photo-{index}" for index in range(1, len(uploaded_photos) + 1)]

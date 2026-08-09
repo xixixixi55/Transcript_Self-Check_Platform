@@ -104,6 +104,137 @@ def test_export_allows_report_only_word_without_archive_manifest(client, tmp_pat
     observe.assert_not_called()
 
 
+def test_case_word_export_uses_persisted_first_disc_mapping(client, tmp_path):
+    from app.controllers import record_controller, record_template_context_controller
+    from app.repository import (
+        ArchivePlanRepository,
+        CaseShellRepository,
+        WorkbenchDatabase,
+        database_path_for_deployment,
+    )
+
+    report = {
+        "title": "SYNTHETIC 电子数据检查笔录",
+        "document_number": "SYN-TEST-MAPPED-DISC",
+        "introduction": {"evidence_list": []},
+        "inspection": {"primary_software": {
+            "name": "SYNTHETIC 取证软件",
+            "version": "V1.0",
+            "confirmation_status": "confirmed_by_user",
+        }, "result": {}},
+        "attachments": {"disc_number": ""},
+    }
+    case_id = "SYNTHETIC-MAPPED-DISC-CASE"
+    database = WorkbenchDatabase(
+        database_path_for_deployment(tmp_path, "SYNTHETIC-MAPPED-DISC"),
+        "SYNTHETIC-MAPPED-DISC",
+    )
+    CaseShellRepository(database).create({
+        "case_id": case_id, "case_name": "SYNTHETIC/TEST/MappedDisc",
+        "case_summary": "SYNTHETIC/TEST", "source_id": "SYNTHETIC-SOURCE",
+        "parse_task_id": "SYNTHETIC-PARSE",
+    })
+    ArchivePlanRepository(database).create({
+        "plan_id": "SYNTHETIC-MAPPED-DISC-PLAN", "case_id": case_id,
+        "plan_revision": 1, "input_inventory_revision": 1, "mapping_revision": 1,
+        "volume_slots": [{
+            "slot_id": "SYNTHETIC-MAPPED-DISC-SLOT", "ordinal": 1,
+            "plan_revision": 1, "lineage_key": "SYNTHETIC-LINEAGE",
+            "planned_input_bytes": 1024, "status": "active",
+            "disc_mapping": {
+                "slot_id": "SYNTHETIC-MAPPED-DISC-SLOT",
+                "disc_number": "GP20260809-01", "disc_date": "2026-08-09",
+                "source": "user", "confirmation": "confirmed",
+            },
+        }],
+    })
+    docx_path = tmp_path / "SYNTHETIC-mapped-disc.docx"
+    docx_path.write_bytes(b"SYNTHETIC-DOCX")
+    with patch.object(record_controller, "resolve_case_template_context", return_value={}), \
+         patch.object(
+             record_template_context_controller, "get_workbench_services",
+             return_value=MagicMock(database=database),
+         ), \
+         patch.object(record_controller, "generate_docx", return_value=str(docx_path)) as generate:
+        response = client.post(
+            "/api/v1/records/export",
+            data={
+                "report_json": json.dumps(report, ensure_ascii=False),
+                "case_id": case_id,
+                "case_revision": "7",
+            },
+        )
+
+    assert response.status_code == 200
+    assert generate.call_args.args[0]["attachments"]["disc_number"] == "GP20260809-01"
+
+
+def test_case_word_export_rejects_pending_plan_despite_client_disc_number(client, tmp_path):
+    from app.controllers import record_controller, record_template_context_controller
+    from app.repository import (
+        ArchivePlanRepository,
+        CaseShellRepository,
+        WorkbenchDatabase,
+        database_path_for_deployment,
+    )
+
+    report = {
+        "title": "SYNTHETIC 电子数据检查笔录",
+        "document_number": "SYN-TEST-PENDING-DISC",
+        "introduction": {"evidence_list": []},
+        "inspection": {"primary_software": {
+            "name": "SYNTHETIC 取证软件",
+            "version": "V1.0",
+            "confirmation_status": "confirmed_by_user",
+        }, "result": {}},
+        "attachments": {"disc_number": "GP20260809-99"},
+    }
+    case_id = "SYNTHETIC-PENDING-DISC-CASE"
+    database = WorkbenchDatabase(
+        database_path_for_deployment(tmp_path, "SYNTHETIC-PENDING-DISC"),
+        "SYNTHETIC-PENDING-DISC",
+    )
+    CaseShellRepository(database).create({
+        "case_id": case_id, "case_name": "SYNTHETIC/TEST/PendingDisc",
+        "case_summary": "SYNTHETIC/TEST", "source_id": "SYNTHETIC-SOURCE",
+        "parse_task_id": "SYNTHETIC-PARSE",
+    })
+    ArchivePlanRepository(database).create({
+        "plan_id": "SYNTHETIC-PENDING-DISC-PLAN", "case_id": case_id,
+        "plan_revision": 1, "input_inventory_revision": 1, "mapping_revision": 1,
+        "volume_slots": [{
+            "slot_id": "SYNTHETIC-PENDING-DISC-SLOT", "ordinal": 1,
+            "plan_revision": 1, "lineage_key": "SYNTHETIC-PENDING-LINEAGE",
+            "planned_input_bytes": 1024, "status": "active",
+            "disc_mapping": {
+                "slot_id": "SYNTHETIC-PENDING-DISC-SLOT",
+                "disc_number": "GP20260809-01", "disc_date": "2026-08-09",
+                "source": "user", "confirmation": "pending",
+            },
+        }],
+    })
+    with patch.object(record_controller, "resolve_case_template_context", return_value={}), \
+         patch.object(
+             record_template_context_controller, "get_workbench_services",
+             return_value=MagicMock(database=database),
+         ), \
+         patch.object(record_controller, "generate_docx") as generate:
+        response = client.post(
+            "/api/v1/records/export",
+            data={
+                "report_json": json.dumps(report, ensure_ascii=False),
+                "case_id": case_id,
+                "case_revision": "7",
+            },
+        )
+
+    assert response.status_code == 422
+    assert [item["code"] for item in response.json()["detail"]["blockers"]] == [
+        "FIRST_DISC_NUMBER_MISSING",
+    ]
+    generate.assert_not_called()
+
+
 def test_export_blocks_odd_uploaded_attachment2_images_before_docx(client):
     report = {
         "attachments": {"disc_number": "GP20260720-01", "photo_ids": []},

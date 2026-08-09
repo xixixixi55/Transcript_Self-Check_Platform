@@ -168,10 +168,14 @@ export default function CaseRecordGeneratePage() {
           <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
           <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
             expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
+            planRowRevision={session.completedArchive.result?.plan_row_revision ?? null}
             firstDiscNumber={session.report.attachments?.disc_number || ''}
             onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
             readOnly={!session.editingEnabled} defaultWordName={session.report.document_number}
-            onCompleted={() => { void session.reloadDetail(caseId) }} />
+            onCompleted={() => {
+              session.completedArchive.reload()
+              void session.reloadDetail(caseId)
+            }} />
         </>}
         {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
         {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}

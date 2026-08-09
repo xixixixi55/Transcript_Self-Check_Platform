@@ -8,6 +8,7 @@ existing plan repository so the mapping_revision and case revision advance.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ..repository.archive_plan_repository import ArchivePlanRepository
@@ -21,6 +22,14 @@ class DiscMappingError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
+
+
+@dataclass(frozen=True)
+class DiscMappingState:
+    """Whether a case plan exists and, if complete, its first disc number."""
+
+    plan_exists: bool
+    first_disc_number: str | None
 
 
 def build_disc_mappings(
@@ -57,10 +66,45 @@ def active_slots(plan: Mapping[str, Any]) -> list[dict[str, Any]]:
     )
 
 
+def first_mapped_disc_number(
+    database: WorkbenchDatabase, case_id: str,
+) -> str | None:
+    """Return the first disc only when every active slot has a mapping."""
+    return resolve_disc_mapping_state(database, case_id).first_disc_number
+
+
+def resolve_disc_mapping_state(
+    database: WorkbenchDatabase, case_id: str,
+) -> DiscMappingState:
+    """Distinguish an absent plan from an incomplete persisted mapping."""
+    plan = ArchivePlanRepository(database).get_latest_for_case(case_id)
+    if plan is None:
+        return DiscMappingState(plan_exists=False, first_disc_number=None)
+    slots = active_slots(plan)
+    if not slots:
+        return DiscMappingState(plan_exists=True, first_disc_number=None)
+    mappings = [slot.get("disc_mapping") for slot in slots]
+    if not all(
+        isinstance(mapping, Mapping)
+        and mapping.get("confirmation") == "confirmed"
+        for mapping in mappings
+    ):
+        return DiscMappingState(plan_exists=True, first_disc_number=None)
+    numbers = [
+        str(mapping.get("disc_number") or "").strip()
+        for mapping in mappings if isinstance(mapping, Mapping)
+    ]
+    return DiscMappingState(
+        plan_exists=True,
+        first_disc_number=numbers[0] if all(numbers) else None,
+    )
+
+
 def apply_disc_mapping(
     database: WorkbenchDatabase,
     case_id: str,
     expected_revision: int,
+    expected_plan_row_revision: int,
     first_disc_number: str,
 ) -> dict[str, Any]:
     """Map the sequence for ``first_disc_number`` onto the latest case plan.
@@ -78,7 +122,7 @@ def apply_disc_mapping(
         raise DiscMappingError("ARCHIVE_PLAN_EMPTY", "归档计划没有可映射的分卷。")
     mappings = build_disc_mappings(first_disc_number, slots)
     updated = repository.update_mappings(
-        plan["plan_id"], mappings, plan["revision"],
+        plan["plan_id"], mappings, expected_plan_row_revision,
     )
     parts = [
         {
@@ -93,6 +137,7 @@ def apply_disc_mapping(
         "case_id": case_id,
         "task_id": "",
         "expected_revision": expected_revision,
+        "plan_row_revision": updated["revision"],
         "lifecycle": "archive_verified",
         "prefix": parts[0]["disc_number"][:2] if parts else "",
         "disc_date": parts[0]["disc_date"] if parts else "",

@@ -185,6 +185,7 @@ class ArchiveTaskApiService:
         self,
         case_id: str,
         expected_revision: int,
+        expected_plan_row_revision: int,
         first_disc_number: str,
     ) -> dict[str, Any]:
         """Generate the full sequence from the first disc number and persist it."""
@@ -198,7 +199,8 @@ class ArchiveTaskApiService:
 
         try:
             result = apply_disc_mapping(
-                self.database, case_id, expected_revision, first_disc_number,
+                self.database, case_id, expected_revision,
+                expected_plan_row_revision, first_disc_number,
             )
             if current is not None:
                 result["task_id"] = current["task_id"]

@@ -57,9 +57,10 @@ class ArchiveTaskResultService:
         parts = []
         for part in manifest.public_manifest["parts"]:
             mapping = disc_by_ordinal.get(part["part_number"], {}) or {}
-            disc_number = str(mapping.get("disc_number") or "")
-            disc_date = str(mapping.get("disc_date") or "")
-            if not disc_number:
+            mapping_confirmed = mapping.get("confirmation") == "confirmed"
+            disc_number = str(mapping.get("disc_number") or "") if mapping_confirmed else ""
+            disc_date = str(mapping.get("disc_date") or "") if mapping_confirmed else ""
+            if not disc_number and plan is None:
                 # Fall back to the manifest's own disc metadata for callers that
                 # did not persist a plan (synthetic workers, pre-fill path).
                 disc_number = str(part.get("disc_number") or "")
@@ -76,6 +77,7 @@ class ArchiveTaskResultService:
             "task_id": task_id,
             "case_id": task["case_id"],
             "manifest_id": attempt["manifest_id"],
+            "plan_row_revision": None if plan is None else plan["revision"],
             "verified_slots": [] if plan is None else plan["verified_slots"],
             "assets": self.assets.list_public_for_task(task_id),
             "parts": parts,

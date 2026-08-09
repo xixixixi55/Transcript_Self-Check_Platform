@@ -24,7 +24,8 @@ const archiveTaskSummary: ArchiveTaskCardSummary = {
   finished_at: '2026-01-01T00:00:10Z', error_summary: null, allowed_actions: ['view_result'],
 }
 const completedArchiveResult: ArchiveTaskResult = {
-  task_id: archiveTaskSummary.task_id, case_id: caseId, manifest_id: 'manifest-synthetic', verified_slots: [], assets: [],
+  task_id: archiveTaskSummary.task_id, case_id: caseId, manifest_id: 'manifest-synthetic',
+  plan_row_revision: 4, verified_slots: [], assets: [],
   parts: [
     { part_id: 'part-1', filename: '合成案件.part1.rar', size_bytes: 123, md5: 'a'.repeat(32), disc_number: 'GP20260731-01', disc_date: '2026-07-31' },
     { part_id: 'part-2', filename: '合成案件.part2.rar', size_bytes: 456, md5: 'b'.repeat(32), disc_number: 'GP20260731-02', disc_date: '2026-07-31' },
@@ -62,9 +63,10 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let sourcePending = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null
+  let archiveResultParts: ArchiveTaskResult['parts'] | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; initialLifecycle = 'review_ready'; resolveSave = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; initialLifecycle = 'review_ready'; resolveSave = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -79,7 +81,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         return { data: { data: value } }
       }
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
-      if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) return { data: { data: completedArchiveResult } }
+      if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) {
+        return { data: { data: { ...completedArchiveResult, parts: archiveResultParts ?? completedArchiveResult.parts } } }
+      }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: [] } } }
       if (url === API_ENDPOINTS.DEVICES) return { data: { data: [] } }
       if (url === API_ENDPOINTS.INSPECTORS) return { data: { data: [availableInspector] } }
@@ -96,8 +100,13 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       }
       if (url === API_ENDPOINTS.EXPORT_RECORD) return { data: new Blob(['SYNTHETIC-DOCX']) }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId)) {
-        const request = body as { expected_revision: number; first_disc_number: string }
-        return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, lifecycle: 'archive_verified', prefix: 'GP', disc_date: '2026-07-31', parts: [{ part_number: 1, disc_number: request.first_disc_number, disc_date: '2026-07-31' }] } } }
+        const request = body as { expected_revision: number; expected_plan_row_revision: number; first_disc_number: string }
+        archiveResultParts = completedArchiveResult.parts.map((part, index) => ({
+          ...part,
+          disc_number: index === 0 ? request.first_disc_number : 'GP20260731-02',
+          disc_date: '2026-07-31',
+        }))
+        return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, plan_row_revision: request.expected_plan_row_revision + 1, lifecycle: 'archive_verified', prefix: 'GP', disc_date: '2026-07-31', parts: archiveResultParts.map((part, index) => ({ part_number: index + 1, disc_number: part.disc_number, disc_date: part.disc_date })) } } }
       }
       if (url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY) return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } }
       if (url === API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId)) {
@@ -272,23 +281,26 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(screen.getByText('合成案件.part2.rar')).toBeTruthy()
     expect(screen.getByText('GP20260731-01')).toBeTruthy()
     expect(screen.getByText('GP20260731-02')).toBeTruthy()
-    expect(screen.queryByRole('textbox', { name: '首个光盘编号' })).toBeNull()
+    expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP20260731-01')
+    expect(screen.getByRole('button', { name: '更新盘号映射' })).toBeTruthy()
     expect(getMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id), { timeout: WORKBENCH_REQUEST_TIMEOUT_MS })
   }, 15000)
 
   it('collects a first disc number after compression and posts the disc mapping', async () => {
-    const originalParts = completedArchiveResult.parts
-    completedArchiveResult.parts = originalParts.map(part => ({ ...part, disc_number: '', disc_date: '' }))
+    archiveResultParts = completedArchiveResult.parts.map(part => ({ ...part, disc_number: '', disc_date: '' }))
     try {
       showCompletedArchive = true
       renderPage()
       expect(await screen.findByText('待补盘号')).toBeTruthy()
       fireEvent.change(await screen.findByPlaceholderText('如 GP20260731-01'), { target: { value: 'GP20260731-01' } })
       fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
-      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, first_disc_number: 'GP20260731-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
-      expect(patchMock).not.toHaveBeenCalled()
+      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, expected_plan_row_revision: 4, first_disc_number: 'GP20260731-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+      await waitFor(() => expect(screen.getByText('归档完成')).toBeTruthy())
+      expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP20260731-01')
+      expect(screen.getByText('GP20260731-02')).toBeTruthy()
+      expect(getMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id))).toHaveLength(2)
     } finally {
-      completedArchiveResult.parts = originalParts
+      archiveResultParts = null
     }
   }, 15000)
 

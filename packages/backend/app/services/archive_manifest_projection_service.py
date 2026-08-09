@@ -88,7 +88,10 @@ def _project_manifest_rows_without_review_fields(
     parts = _ordered_manifest_parts(manifest)
     attachments = result.setdefault("attachments", {})
     source = _existing_extract_value(report, "source") or _source_from_evidence(report)
-    extraction_method = _existing_extract_value(report, "extraction_method")
+    extraction_method = (
+        _existing_extract_value(report, "extraction_method")
+        or _hardware_extraction_method(report)
+    )
     attachments["disc_number"] = _text(parts[0].get("disc_number"))
     attachments["burning_date"] = _format_date_if_possible(_text(parts[0].get("disc_date")))
     attachments["extract_list"] = {
@@ -148,6 +151,15 @@ def _source_from_evidence(report: Mapping[str, Any]) -> str:
             if value and value not in values:
                 values.append(value)
     return "、".join(values) + "内提取" if values else ""
+
+
+def _hardware_extraction_method(report: Mapping[str, Any]) -> str:
+    inspection = report.get("inspection")
+    hardware = (
+        _text(inspection.get("hardware_device"))
+        if isinstance(inspection, Mapping) else ""
+    ) or "取证设备"
+    return f"使用{hardware}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值"
 
 
 def _archive_extract_columns() -> list[dict[str, str]]:

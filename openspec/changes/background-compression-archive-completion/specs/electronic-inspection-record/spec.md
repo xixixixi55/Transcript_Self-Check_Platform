@@ -75,6 +75,12 @@
 - THEN `AttachmentPlan` 按 Manifest 中每个实际 part 生成一行数据，列结构固定为：序号、电子数据、来源、提取方式、文件MD5哈希值
 - AND Word 和附件3使用同一 Manifest，不从 `rar_info`、ArchivePlan 或目录扫描重新生成卷列表
 
+#### Scenario: 审核字段未齐或存量空值时仍显示提取方式
+- WHEN 归档完成回填附件1时主取证软件等审核字段尚未齐全，或案件已保存的附件1行中“提取方式”为空
+- THEN 审核编辑界面仍按 Word 的同一硬件语义显示提取方式
+- AND 使用 `inspection.hardware_device`，缺失时使用「取证设备」
+- AND 已有非空提取方式不得被展示兜底覆盖
+
 #### Scenario: 解析响应兼容字段不驱动附件1
 - WHEN 文件夹解析仅返回空值/零值 `rar_info`，或压缩包直传返回上传文件的兼容 `rar_info`
 - THEN 这些解析响应字段均不作为正式附件1或最终导出的归档事实源
@@ -106,6 +112,12 @@
 - THEN 系统重新打开导出路径选择，Word 用导出时刻的最新编辑数据重新生成，RAR 复用已验证分卷，HashMyFiles PNG 重新生成
 - AND 导出成功不关闭审核编辑，民警可继续修改并再次导出
 
+#### Scenario: 单独 Word 导出复用已持久化盘号映射
+- WHEN 案件的归档计划已完成全部分卷盘号映射，但草稿兼容字段 `attachments.disc_number` 为空，民警在审核页单独点击导出 Word
+- THEN 系统在盘号门控前读取当前案件最新归档计划，并使用首个 active slot 的已确认盘号
+- AND 只有全部 active slot 都存在 `confirmation=confirmed` 的非空映射时才能使用该事实源，pending 或部分映射仍由门控拒绝
+- AND 不得误报 `FIRST_DISC_NUMBER_MISSING`
+
 #### Scenario: 导出前的完整门控
 - WHEN 案件满足导出条件并开始正式输出
 - THEN 继续执行完整 inventory、路径/链接/文件变化、WinRAR、完整性、MD5、Manifest 和 Word 门控
@@ -126,6 +138,13 @@
 - THEN 系统校验盘号格式与日期（`GPyyyyMMdd-序号`），按 part 顺序自动生成全序列并一一映射到各 RAR
 - AND 映射结果持久化，案件从「待补盘号」转为「归档完成」候选
 - AND 盘号仍可按 REQ-018 约定在案件内唯一前提下由用户修改，允许不连续，刻录日期独立保存
+
+#### Scenario: 归档完成或已导出后修改首盘号
+- WHEN 案件已经归档完成或已导出，用户修改首个光盘编号并重新提交
+- THEN 审核编辑界面保持可用的首盘号编辑入口，并以当前持久化首分卷映射作为输入初值
+- AND 系统按当前实际 part 顺序整体重建并持久化全部 RAR↔盘号映射，不重新压缩 RAR
+- AND 提交必须携带界面读取映射时的 plan 行 revision；过期 revision 必须拒绝，不能静默覆盖另一页面的新映射
+- AND 修改后的映射用于后续单独 Word 导出和统一导出
 
 #### Scenario: 压缩前已填盘号保持现行为
 - WHEN 用户压缩前已填写首个光盘编号

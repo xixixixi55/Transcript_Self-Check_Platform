@@ -233,8 +233,8 @@ def test_unified_export_layers_deferred_discs_onto_word_manifest(database, tmp_p
         part["disc_date"] = ""
     plan = {
         "volume_slots": [
-            {"status": "active", "ordinal": 1, "disc_mapping": {"disc_number": "GP20260718-01", "disc_date": "2026-07-18"}},
-            {"status": "active", "ordinal": 2, "disc_mapping": {"disc_number": "GP20260718-02", "disc_date": "2026-07-18"}},
+            {"status": "active", "ordinal": 1, "disc_mapping": {"disc_number": "GP20260718-01", "disc_date": "2026-07-18", "confirmation": "confirmed"}},
+            {"status": "active", "ordinal": 2, "disc_mapping": {"disc_number": "GP20260718-02", "disc_date": "2026-07-18", "confirmation": "confirmed"}},
         ]
     }
     captured: dict[str, object] = {}
@@ -256,3 +256,22 @@ def test_unified_export_layers_deferred_discs_onto_word_manifest(database, tmp_p
     assert captured["manifest"]["parts"][0]["disc_date"] == "2026-07-18"
     assert captured["manifest"]["parts"][1]["disc_number"] == "GP20260718-02"
     assert result["word_filename"] == "SYNTHETIC-CASE.docx"
+
+
+def test_unified_export_rejects_pending_disc_mapping(database, tmp_path) -> None:
+    plan = {
+        "volume_slots": [{
+            "status": "pending", "ordinal": 1,
+            "disc_mapping": {
+                "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
+                "confirmation": "pending",
+            },
+        }],
+    }
+    with pytest.raises(UnifiedExportError) as error:
+        unified_export(
+            report={}, manifest=manifest(), final_dir=tmp_path,
+            export_path=tmp_path / "out", photo_paths=[], template_context={},
+            hash_runner=fake_hash, plan=plan,
+        )
+    assert error.value.code == "DISC_MAPPING_INCOMPLETE"

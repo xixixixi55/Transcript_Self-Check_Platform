@@ -5,7 +5,7 @@ import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, UNIFIED_EXPORT_REQUE
 import type { DiscMappingResult, ExportDirectoryResult, UnifiedExportResult } from '@biji/shared/types'
 
 interface ArchiveCompletion {
-  mapping: (caseId: string, expectedRevision: number, firstDiscNumber: string) => Promise<DiscMappingResult>
+  mapping: (caseId: string, expectedRevision: number, expectedPlanRowRevision: number, firstDiscNumber: string) => Promise<DiscMappingResult>
   exportBundle: (caseId: string, expectedRevision: number, exportPath: string, directoryToken: string, wordFilename: string) => Promise<UnifiedExportResult>
   chooseDirectory: () => Promise<ExportDirectoryResult>
   busy: boolean
@@ -23,13 +23,20 @@ export function useArchiveCompletion(): ArchiveCompletion {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const mapping = useCallback(async (caseId: string, expectedRevision: number, firstDiscNumber: string) => {
+  const mapping = useCallback(async (
+    caseId: string, expectedRevision: number,
+    expectedPlanRowRevision: number, firstDiscNumber: string,
+  ) => {
     setBusy(true)
     setError(null)
     try {
       const response = await axios.post<{ data: DiscMappingResult }>(
         API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId),
-        { expected_revision: expectedRevision, first_disc_number: firstDiscNumber },
+        {
+          expected_revision: expectedRevision,
+          expected_plan_row_revision: expectedPlanRowRevision,
+          first_disc_number: firstDiscNumber,
+        },
         { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
       )
       return response.data.data

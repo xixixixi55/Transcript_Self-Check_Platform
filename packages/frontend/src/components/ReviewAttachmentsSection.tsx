@@ -10,19 +10,22 @@ const { Text } = Typography
 
 interface ReviewAttachmentsSectionProps {
   attachments: InspectionReport['attachments']
+  hardwareDevice: string
   photoFiles: UploadFile[]
   onPhotoFilesChange: (files: UploadFile[]) => void
   updateReport: (path: string, value: any) => void
 }
 
-export function ReviewAttachmentsSection({ attachments, photoFiles, onPhotoFilesChange, updateReport }: ReviewAttachmentsSectionProps) {
+export function ReviewAttachmentsSection({ attachments, hardwareDevice, photoFiles, onPhotoFilesChange, updateReport }: ReviewAttachmentsSectionProps) {
   const discResult = parseDiscSequence(attachments.disc_number || '')
+  const extractionMethod = `使用${hardwareDevice.trim() || '取证设备'}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值`
 
   return (
     <>
       <div className="review-editor-block">
         <div className="review-field__label">附件1：电子数据提取固定清单</div>
         <ExtractListEditor tableData={attachments.extract_list || { columns: [], rows: [] }}
+          fallbackExtractionMethod={extractionMethod}
           onChange={value => updateReport('attachments.extract_list', value)} />
       </div>
       <div className="review-editor-block">

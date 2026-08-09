@@ -118,6 +118,48 @@ describe('结构化编辑器', () => {
     }))
   })
 
+  it('提取方式为空时显示与 Word 一致的硬件语义兜底值', () => {
+    const fallbackA = '使用SYNTHETIC-DEVICE-A对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值'
+    const fallbackB = '使用SYNTHETIC-DEVICE-B对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值'
+    const tableData = {
+      columns: [],
+      rows: [{ no: '1', electronic_data: 'SYNTHETIC.rar', source: '', extraction_method: '', md5_hash: '' }],
+    }
+    const { rerender } = render(<ExtractListEditor
+      tableData={tableData}
+      fallbackExtractionMethod={fallbackA}
+      onChange={vi.fn()}
+    />)
+
+    expect(screen.getByText(fallbackA)).toBeTruthy()
+    rerender(<ExtractListEditor
+      tableData={tableData}
+      fallbackExtractionMethod={fallbackB}
+      onChange={vi.fn()}
+    />)
+    expect(screen.getByText(fallbackB)).toBeTruthy()
+  })
+
+  it('修改其他列时不会把提取方式展示兜底写回数据', () => {
+    const onChange = vi.fn()
+    render(<ExtractListEditor
+      tableData={{
+        columns: [],
+        rows: [{ no: '1', electronic_data: 'SYNTHETIC.rar', source: '', extraction_method: '', md5_hash: '' }],
+      }}
+      fallbackExtractionMethod="使用SYNTHETIC-DEVICE对检材进行检查"
+      onChange={onChange}
+    />)
+
+    fireEvent.click(screen.getByText('SYNTHETIC.rar'))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      rows: [expect.objectContaining({
+        electronic_data: '已修改',
+        extraction_method: '',
+      })],
+    }))
+  })
+
   it('prefers brand and concrete model for the device name display', () => {
     render(<EvidenceEditor items={[{
       id: '1', device_type: '手机', device_name: '手机',
