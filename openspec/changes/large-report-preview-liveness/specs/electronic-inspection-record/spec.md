@@ -220,6 +220,29 @@ Moving inventory out of preview MUST NOT weaken formal archive safety. Before Wi
 - THEN the context status becomes `failed` with a retryable safe error
 - AND no partial Manifest is published and no user-owned source is deleted
 
+### REQ-ARCHIVE-LIFECYCLE-004: Claimed preparation is visible and cancellation-safe
+
+After an archive task is durably claimed, full inventory preparation MUST be represented by the `inventory` milestone and MUST observe cooperative cancellation. Ownership MUST be determined by the bound owner token and archive attempt identity, not by an immutable copy of the task revision.
+
+**Scenario: A large input tree takes time to enumerate**
+
+- WHEN a claimed archive task begins full inventory traversal
+- THEN the task advances from `queued` to `inventory` before the traversal starts
+- AND the UI no longer describes the active scan as waiting for admission
+
+**Scenario: Cancellation changes the task revision during preparation**
+
+- WHEN the user cancels while the owner token and attempt binding remain unchanged
+- THEN traversal stops cooperatively and the task converges to `cancelled`
+- AND the attempt records `ARCHIVE_CANCELLED` rather than `ARCHIVE_TASK_OWNERSHIP_LOST`
+- AND an unhandled preparation error cannot overwrite `cancelling` with `failed_retryable`
+
+**Scenario: A stale worker has actually lost ownership**
+
+- WHEN the durable owner token or attempt binding no longer matches the claim
+- THEN the stale worker is rejected with `ARCHIVE_TASK_OWNERSHIP_LOST`
+- AND it cannot advance progress or start archive execution
+
 ## CAP-FRONTEND-LIVENESS: Preview and archive preparation are independent
 
 ### REQ-FRONTEND-LIVENESS-001: Preview does not auto-archive

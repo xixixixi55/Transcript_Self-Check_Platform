@@ -196,6 +196,7 @@ def prepare_archive_source(
     report: dict,
     *,
     output_root: str,
+    cancellation_check: Callable[[], bool] | None = None,
 ) -> str:
     from .archive_execution_service import create_archive_context
 
@@ -211,6 +212,7 @@ def prepare_archive_source(
             report,
             output_root=output_root,
             cleanup_root=str(cleanup) if cleanup else None,
+            cancellation_check=cancellation_check,
         ),
     )
 

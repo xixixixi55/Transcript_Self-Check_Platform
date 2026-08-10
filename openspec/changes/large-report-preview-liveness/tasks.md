@@ -3,7 +3,7 @@
 > Change: `large-report-preview-liveness`
 > Level: 3
 workflow_level: 3
-> Status: `PROPOSED`; implementation, external real-report acceptance, and full Harness verification are complete. T19 and the remaining final review gates are still open.
+> Status: `PROPOSED`; implementation and focused/full automated checks for the current repair are complete. Synthetic benchmark, post-repair manual acceptance, and final review gates remain open.
 > Scope: preview liveness, parser snapshot/cache identity, in-flight reuse, and deferred full ArchiveContext.
 > Explicitly out of scope: Shadow, Canonical, and complete Harness execution.
 
@@ -140,7 +140,7 @@ Tasks are ordered by architecture layer. Every implementation task is immediatel
 
 ## Cross-layer verification and acceptance
 
-- [ ] **T19 — Add synthetic performance/read-count benchmark**
+- [ ] **T19 — Add synthetic performance/read-count benchmark** [DEFERRED]
   - Requirements: REQ-ACCEPTANCE-001, REQ-PARSE-CACHE-001, REQ-PARSE-INFLIGHT-001.
   - Files: new synthetic benchmark/test adjacent to the backend test suite; no real report or generated output.
   - Assert preview avoids full inventory, core JSON reads are one per task, same dependency is not read once for fingerprint and again for Parser, cache hit meets the synthetic budget, and same-key concurrency runs one expensive task.
@@ -166,9 +166,29 @@ Tasks are ordered by architecture layer. Every implementation task is immediatel
   - Files: `packages/backend/app/services/report_parser_service.py`, `tests/test_report_parser_service.py`.
   - Keep `device_name` as the normalized model display value, preserve `model` and `device_type` semantics, invalidate stale parse caches, and cover synthetic Legacy/New single-material projections without changing the shared DTO shape.
 
+- [x] **T24 — Part 1: Separate mutable revisions from archive ownership**
+  - Requirements: REQ-ARCHIVE-LIFECYCLE-004.
+  - Files: `packages/backend/app/services/archive_worker_service.py`, `packages/backend/app/services/archive_runtime_coordinator_service.py`.
+  - Treat `process_tree_id` plus the bound attempt ID as the ownership identity. Converge cancellation before worker start and in the coordinator fallback without allowing `cancelling` to be overwritten by `failed_retryable`.
+
+- [x] **T25 — Verify the preparation/cancellation race fix**
+  - Requirements: REQ-ARCHIVE-LIFECYCLE-004.
+  - Files: `tests/test_archive_worker_service.py`, `tests/test_archive_runtime_lifecycle.py`.
+  - Reproduce cancellation after claim and during blocked item preparation; assert task cancellation and `ARCHIVE_CANCELLED`. Replace the owner token separately and assert the stale worker still receives `ARCHIVE_TASK_OWNERSHIP_LOST`.
+
+- [x] **T26 — Part 2: Expose and interrupt slow full-inventory preparation**
+  - Requirements: REQ-ARCHIVE-LIFECYCLE-002, REQ-ARCHIVE-LIFECYCLE-004.
+  - Files: archive runtime coordinator/source/context services and `packages/backend/app/repository/archive_input_repository.py`.
+  - Advance the claimed task to `inventory` before full traversal and propagate a cooperative cancellation callback through context preparation into directory enumeration. Preserve all formal archive gates and inventory publication rules.
+
+- [x] **T27 — Verify inventory visibility and cooperative cancellation**
+  - Requirements: REQ-ARCHIVE-LIFECYCLE-004, REQ-ACCEPTANCE-002.
+  - Files: `tests/test_archive_input_repository.py`, `tests/test_archive_runtime_lifecycle.py`, existing archive runtime/source/worker tests.
+  - Assert a blocked preparation is already at the inventory milestone, traversal stops at the cancellation boundary, and the focused archive lifecycle suite remains green.
+
 ## Post-implementation gates
 
-- [ ] Independent code review completed for Level 3.
-- [x] Human manual acceptance completed against the external multi-material report without adding sensitive artifacts. Detailed paths, business data, generated output, and performance logs remain outside the repository.
-- [x] Full Harness execution completed and passed; execution details and external evidence remain outside the repository.
-- [ ] No commit or push is performed unless separately requested.
+- [x] Independent code review completed for Level 3. Independent review passed after the stale-owner/attempt-binding guard and integration regression were added.
+- [ ] Human manual acceptance completed against the external multi-material report without adding sensitive artifacts. The earlier evidence predates T24-T27; repeat the archive-stage/cancellation acceptance without recording sensitive paths, business data, generated output, or performance logs. [DEFERRED]
+- [ ] Full Harness execution completed and passed; the earlier run predates T24-T27 and must not be reused as current evidence. [DEFERRED]
+- [ ] No commit or push is performed unless separately requested. [N/A]

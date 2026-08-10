@@ -6,6 +6,7 @@ import shutil
 import threading
 import time
 from pathlib import Path
+from typing import Callable
 from uuid import uuid4
 
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
@@ -51,6 +52,7 @@ class ArchiveRuntimeStore:
         *,
         output_root: str,
         cleanup_root: str | None = None,
+        cancellation_check: Callable[[], bool] | None = None,
     ) -> ArchiveContextRecord:
         try:
             source_key = normalized_directory_key(authorized_input.resolved_input_root)
@@ -66,8 +68,14 @@ class ArchiveRuntimeStore:
                     authorized_input.resolved_input_root,
                     output_root=output_root,
                     check_readability=False,
+                    cancellation_check=cancellation_check,
                 ),
             )
+            if cancellation_check and cancellation_check():
+                raise ArchiveRuntimeError(
+                    "ARCHIVE_EXECUTION_CANCELLED",
+                    "Archive preparation was cancelled.",
+                )
         except Exception:
             if cleanup_root:
                 _cleanup_owned_source(Path(cleanup_root))

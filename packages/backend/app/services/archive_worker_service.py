@@ -45,6 +45,10 @@ class ArchiveWorkerService:
     ) -> dict[str, Any]:
         self._assert_claim(claim)
         attempt = item.attempt_service.repository.get_internal(claim.attempt_id)
+        if self.progress.cancellation_requested(
+            claim.task_id, claim.owner_token,
+        ):
+            return self._finish_cancelled(claim, item.attempt_service)
         if attempt["status"] == "accepted":
             item.attempt_service.start(claim.attempt_id)
         elif attempt["status"] != "running":
@@ -193,21 +197,33 @@ class ArchiveWorkerService:
         attempt_service: ArchiveAttemptService,
         error: Exception,
     ) -> dict[str, Any]:
+        if self.progress.cancellation_requested(claim.task_id, claim.owner_token):
+            return self._finish_cancelled(claim, attempt_service)
         code, summary = _safe_failure(error)
         try:
             attempt_service.fail(claim.attempt_id, code)
         except WorkbenchPersistenceError:
             pass
-        if self.progress.cancellation_requested(claim.task_id, claim.owner_token):
-            attempt_state = attempt_service.repository.get_internal(claim.attempt_id)
-            if attempt_state["status"] == "succeeded":
-                return self._complete_succeeded(claim)
-            return self.progress.cancel(claim.task_id, claim.owner_token)
         return self.progress.fail(
             claim.task_id, claim.owner_token,
             error_code=code, error_summary=summary,
             retryable=code != "ARCHIVE_INPUT_CHANGED",
         )
+
+    def _finish_cancelled(
+        self,
+        claim: ArchiveTaskClaim,
+        attempt_service: ArchiveAttemptService,
+    ) -> dict[str, Any]:
+        attempt = attempt_service.repository.get_internal(claim.attempt_id)
+        if attempt["status"] == "succeeded":
+            return self._complete_succeeded(claim)
+        if attempt["status"] in {"accepted", "running"}:
+            try:
+                attempt_service.fail(claim.attempt_id, "ARCHIVE_CANCELLED")
+            except WorkbenchPersistenceError:
+                pass
+        return self.progress.cancel(claim.task_id, claim.owner_token)
 
     def _complete_reused(self, claim: ArchiveTaskClaim) -> dict[str, Any]:
         current = self.tasks.get(claim.task_id)
@@ -224,7 +240,7 @@ class ArchiveWorkerService:
         task = self.tasks.get(claim.task_id)
         binding = task.get("process_binding") or {}
         if (
-            task["revision"] != claim.revision
+            task["status"] not in {"running", "cancelling"}
             or binding.get("process_tree_id") != claim.owner_token
             or binding.get("staging_asset_id") != claim.attempt_id
         ):

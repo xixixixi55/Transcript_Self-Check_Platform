@@ -171,8 +171,68 @@ def test_cancel_wins_before_completion_and_stale_worker_cannot_write(
     )
     assert result["status"] == "cancelled"
     assert result["percent"] == 30
+    assert attempts.failed == [(
+        "SYNTHETIC-WORKER-ATTEMPT-1", "ARCHIVE_CANCELLED",
+    )]
     with pytest.raises(WorkbenchPersistenceError, match="ARCHIVE_TASK_OWNERSHIP_LOST"):
         progress.advance(owned.task_id, owned.owner_token, "integrity")
+
+
+def test_cancel_between_claim_and_worker_start_is_not_ownership_loss(
+    setup, monkeypatch,
+) -> None:
+    _, tasks, progress, tmp_path = setup
+    queue(tasks)
+    owned = claim(tasks)
+    attempts = FakeAttemptService()
+    current = tasks.get(owned.task_id)
+    cancelling = progress.request_cancel(
+        current["task_id"], current["revision"],
+    )
+
+    monkeypatch.setattr(
+        "app.services.archive_worker_service.execute_archive",
+        lambda *_args, **_kwargs: pytest.fail(
+            "cancelled preparation must not start archive execution"
+        ),
+    )
+    result = ArchiveWorkerService(tasks, progress).run(
+        owned, work_item(tmp_path, attempts),
+    )
+
+    assert cancelling["revision"] != owned.revision
+    assert result["status"] == "cancelled"
+    assert result["error_code"] is None
+    assert attempts.failed == [(
+        "SYNTHETIC-WORKER-ATTEMPT-1", "ARCHIVE_CANCELLED",
+    )]
+
+
+def test_replaced_owner_token_is_still_ownership_loss(setup, monkeypatch) -> None:
+    _, tasks, progress, tmp_path = setup
+    queue(tasks)
+    owned = claim(tasks)
+    attempts = FakeAttemptService()
+    current = tasks.get(owned.task_id)
+    tasks.update_state(owned.task_id, {
+        "process_binding": {
+            **current["process_binding"],
+            "process_tree_id": "SYNTHETIC-REPLACEMENT-OWNER",
+        },
+    }, current["revision"])
+    monkeypatch.setattr(
+        "app.services.archive_worker_service.execute_archive",
+        lambda *_args, **_kwargs: pytest.fail("stale owner must not execute"),
+    )
+
+    with pytest.raises(
+        WorkbenchPersistenceError, match="ARCHIVE_TASK_OWNERSHIP_LOST",
+    ):
+        ArchiveWorkerService(tasks, progress).run(
+            owned, work_item(tmp_path, attempts),
+        )
+
+    assert attempts.repository.status == "accepted"
 
 
 def test_worker_failure_preserves_last_real_milestone(setup, monkeypatch) -> None:

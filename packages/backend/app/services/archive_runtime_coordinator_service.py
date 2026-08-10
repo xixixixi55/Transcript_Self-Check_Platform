@@ -23,9 +23,10 @@ from .archive_resource_admission_service import ArchiveResourceSnapshot
 from .archive_scheduler_service import ArchiveSchedulerService, ArchiveTaskClaim
 from .archive_worker_service import ArchiveWorkerService
 
-WorkItemFactory = Callable[[ArchiveTaskClaim, str], Any]
+WorkItemFactory = Callable[[ArchiveTaskClaim, str, Callable[[], bool]], Any]
 SnapshotProvider = Callable[[], ArchiveResourceSnapshot]
 logger = logging.getLogger(__name__)
+_PREPARATION_CANCEL_POLL_SECONDS = 0.25
 
 
 class ArchiveRuntimeCoordinator:
@@ -198,7 +199,14 @@ class ArchiveRuntimeCoordinator:
         try:
             if not context_id:
                 raise WorkbenchPersistenceError("ARCHIVE_RUNTIME_CONTEXT_UNAVAILABLE")
-            item = self.item_factory(claim, context_id)
+            self.progress.advance(
+                claim.task_id, claim.owner_token, "inventory",
+            )
+            item = self.item_factory(
+                claim,
+                context_id,
+                self._preparation_interruption_check(claim),
+            )
             self.worker.run(
                 claim, item, interruption_check=self._stop.is_set,
             )
@@ -210,7 +218,14 @@ class ArchiveRuntimeCoordinator:
             if self._stop.is_set():
                 self._finish_interrupted(claim)
                 return
+            if self._finish_cancelled(claim):
+                return
             code = getattr(error, "code", "ARCHIVE_RUNTIME_EXECUTION_FAILED")
+            if str(code) == "ARCHIVE_TASK_OWNERSHIP_LOST":
+                logger.warning(
+                    "Archive stale owner ignored safely: %s", claim.task_id,
+                )
+                return
             try:
                 self.attempts.fail(claim.attempt_id, str(code))
             except WorkbenchPersistenceError:
@@ -224,6 +239,71 @@ class ArchiveRuntimeCoordinator:
             )
         except WorkbenchPersistenceError:
             pass
+
+    def _finish_cancelled(self, claim: ArchiveTaskClaim) -> bool:
+        """Converge a cancellation observed before a WorkItem exists.
+
+        Preparation runs before ``ArchiveWorkerService.run`` starts the attempt.
+        A client cancellation can therefore race with item construction; that
+        race must settle as a normal cancellation instead of being normalized
+        as an ownership failure.
+        """
+        if not self._claim_binding_matches(claim):
+            return False
+        try:
+            if not self.progress.cancellation_requested(
+                claim.task_id, claim.owner_token,
+            ):
+                return False
+        except WorkbenchPersistenceError:
+            return False
+        attempt = self.attempts.repository.get_internal(claim.attempt_id)
+        if attempt["status"] in {"accepted", "running"}:
+            try:
+                self.attempts.fail(claim.attempt_id, "ARCHIVE_CANCELLED")
+            except WorkbenchPersistenceError:
+                pass
+        try:
+            self.progress.cancel(claim.task_id, claim.owner_token)
+        except WorkbenchPersistenceError:
+            # A concurrent worker may have already converged the same cancel.
+            current = self.scheduler.tasks.get(claim.task_id)
+            if current["status"] != "cancelled":
+                raise
+        return True
+
+    def _claim_binding_matches(self, claim: ArchiveTaskClaim) -> bool:
+        try:
+            current = self.scheduler.tasks.get(claim.task_id)
+        except WorkbenchPersistenceError:
+            return False
+        binding = current.get("process_binding") or {}
+        return bool(
+            binding.get("process_tree_id") == claim.owner_token
+            and binding.get("staging_asset_id") == claim.attempt_id
+        )
+
+    def _preparation_interruption_check(
+        self, claim: ArchiveTaskClaim,
+    ) -> Callable[[], bool]:
+        """Poll durable cancellation without querying SQLite per file."""
+        last_checked = 0.0
+        cancelled = False
+
+        def check() -> bool:
+            nonlocal last_checked, cancelled
+            if self._stop.is_set():
+                return True
+            now = time.monotonic()
+            if now - last_checked < _PREPARATION_CANCEL_POLL_SECONDS:
+                return cancelled
+            last_checked = now
+            cancelled = self.progress.cancellation_requested(
+                claim.task_id, claim.owner_token,
+            )
+            return cancelled
+
+        return check
 
     def _finish_interrupted(self, claim: ArchiveTaskClaim) -> bool:
         try:

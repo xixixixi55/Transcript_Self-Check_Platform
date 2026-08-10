@@ -8,6 +8,7 @@ import stat
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .archive_input_inventory_worker import inspect_file, inventory_worker_count
 
@@ -118,6 +119,7 @@ def build_input_inventory(
     *,
     output_root: str | os.PathLike[str] | None = None,
     check_readability: bool = True,
+    cancellation_check: Callable[[], bool] | None = None,
 ) -> InputInventory:
     """Walk the allowed case root without following links or junctions.
 
@@ -125,6 +127,7 @@ def build_input_inventory(
     does not open every media file; WinRAR reports any later read failure.
     """
 
+    _raise_if_cancelled(cancellation_check)
     root = Path(source_root)
     if _is_unsafe_special_path(root):
         raise ArchiveInputError("ARCHIVE_INPUT_LINK_NOT_ALLOWED", "归档输入根目录不能是链接路径。")
@@ -159,8 +162,10 @@ def build_input_inventory(
     file_tasks: list[tuple[str, Path]] = []
     pending = [root]
     while pending:
+        _raise_if_cancelled(cancellation_check)
         current = pending.pop()
         for entry in os.scandir(current):
+            _raise_if_cancelled(cancellation_check)
             path = Path(entry.path)
             try:
                 info = entry.stat(follow_symlinks=False)
@@ -194,14 +199,26 @@ def build_input_inventory(
                 ))
 
     if file_tasks:
+        _raise_if_cancelled(cancellation_check)
         with ThreadPoolExecutor(max_workers=inventory_worker_count()) as pool:
             snapshots.extend(pool.map(inspect_file, file_tasks, [True] * len(file_tasks)))
+    _raise_if_cancelled(cancellation_check)
     snapshots.sort(key=lambda item: item.relative_path.casefold())
     directories.sort(key=lambda item: item.relative_path.casefold())
     return InputInventory(
         root, tuple(snapshots), tuple(directories), output,
         _inventory_metadata_fingerprint(snapshots, directories),
     )
+
+
+def _raise_if_cancelled(
+    cancellation_check: Callable[[], bool] | None,
+) -> None:
+    if cancellation_check and cancellation_check():
+        raise ArchiveInputError(
+            "ARCHIVE_EXECUTION_CANCELLED",
+            "归档输入清单生成已取消。",
+        )
 
 
 def metadata_fingerprint_for_directory(

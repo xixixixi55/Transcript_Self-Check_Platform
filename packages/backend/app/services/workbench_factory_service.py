@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from ..config import OUTPUT_BASE, UPLOAD_BASE
 from ..repository.workbench_database import WorkbenchDatabase, database_path_for_deployment
@@ -126,8 +127,8 @@ def build_workbench_services(
         archive_worker,
         attempts,
         archive_progress,
-        item_factory=lambda claim, context_id: _archive_work_item(
-            attempts, claim, context_id,
+        item_factory=lambda claim, context_id, cancellation_check: _archive_work_item(
+            attempts, claim, context_id, cancellation_check,
         ),
         snapshot_provider=resource_provider.snapshot,
         poll_interval_seconds=positive_float_env(
@@ -147,11 +148,15 @@ def _archive_work_item(
     attempts: ArchiveAttemptService,
     claim: object,
     context_id: str,
+    cancellation_check: Callable[[], bool],
 ) -> ArchiveWorkItem:
     attempt_id = str(getattr(claim, "attempt_id"))
     report = attempts.workbench_report(attempt_id, context_id)
     formal_context_id = prepare_archive_source(
-        context_id, report, output_root=OUTPUT_BASE,
+        context_id,
+        report,
+        output_root=OUTPUT_BASE,
+        cancellation_check=cancellation_check,
     )
     return ArchiveWorkItem(
         formal_context_id,

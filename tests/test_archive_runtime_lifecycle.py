@@ -211,7 +211,9 @@ def _services(tmp_path: Path) -> tuple[WorkbenchServices, RecordingWorker]:
         worker,
         attempts,
         progress,
-        item_factory=lambda _claim, context_id: {"context_id": context_id},
+        item_factory=lambda _claim, context_id, _cancellation_check: {
+            "context_id": context_id,
+        },
         snapshot_provider=lambda: ArchiveResourceSnapshot(
             1_000_000, 1_000_000, 0, 0, 0,
         ),
@@ -562,6 +564,96 @@ def test_context_renewal_does_not_invalidate_queued_cancel_revision(tmp_path: Pa
         )
         assert cancelled.status_code == 200, cancelled.text
         assert cancelled.json()["data"]["status"] == "cancelled"
+
+
+def test_cancel_during_item_preparation_converges_without_ownership_failure(
+    tmp_path: Path,
+) -> None:
+    services, _worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services, enable_archive_runtime=False)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+
+        preparing = threading.Event()
+        release = threading.Event()
+
+        def blocked_factory(_claim, _context_id, cancellation_check):
+            preparing.set()
+            assert release.wait(2)
+            assert cancellation_check() is True
+            raise RuntimeError("SYNTHETIC preparation cancellation")
+
+        services.archive_runtime.item_factory = blocked_factory
+        services.archive_runtime.start()
+        assert preparing.wait(2)
+        running = services.archive_runtime.scheduler.tasks.get(queued["task_id"])
+        assert running["stage"] == "inventory"
+        assert running["stage_label"] == "正在核对文件清单与路径"
+        response = client.post(
+            f"/api/v1/workbench/tasks/{queued['task_id']}/cancel",
+            json={"expected_revision": running["revision"]},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["status"] == "cancelling"
+        release.set()
+        cancelled = _wait_task(client, queued["task_id"], {"cancelled"})
+
+    assert services.archive_runtime.stop() is True
+    assert cancelled["error_code"] is None
+    task = services.archive_runtime.scheduler.tasks.get(queued["task_id"])
+    attempt_id = task["process_binding"]["staging_asset_id"]
+    attempt = services.archive_attempts.repository.get_internal(attempt_id)
+    assert attempt["status"] == "failed"
+    assert attempt["error_code"] == "ARCHIVE_CANCELLED"
+
+
+def test_stale_owner_error_cannot_fail_or_clean_new_owner_attempt(
+    tmp_path: Path,
+) -> None:
+    services, _worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services, enable_archive_runtime=False)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+
+    tasks = services.archive_runtime.scheduler.tasks
+    original_binding = tasks.get(queued["task_id"])["process_binding"]
+    raised = threading.Event()
+
+    class StaleOwnerWorker:
+        def run(self, claim, _item, *, interruption_check=None):
+            current = tasks.get(claim.task_id)
+            tasks.update_state(claim.task_id, {
+                "status": "cancelling",
+                "process_binding": {
+                    **current["process_binding"],
+                    "staging_asset_id": "SYNTHETIC-NEW-ATTEMPT",
+                },
+            }, current["revision"])
+            raised.set()
+            raise WorkbenchPersistenceError("ARCHIVE_TASK_OWNERSHIP_LOST")
+
+    services.archive_runtime.worker = StaleOwnerWorker()  # type: ignore[assignment]
+    services.archive_runtime.start()
+    assert raised.wait(2)
+    current = tasks.get(queued["task_id"])
+    attempt_id = original_binding["staging_asset_id"]
+    attempt = services.archive_attempts.repository.get_internal(attempt_id)
+    assert current["status"] == "cancelling"
+    assert attempt["status"] == "accepted"
+
+    restored = tasks.update_state(queued["task_id"], {
+        "process_binding": original_binding,
+    }, current["revision"])
+    assert restored["status"] == "cancelling"
+    assert services.archive_runtime.stop() is True
 
 
 def test_failed_initial_context_lease_converges_created_task(tmp_path: Path) -> None:

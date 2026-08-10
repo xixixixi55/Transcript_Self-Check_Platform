@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
 from .archive_planner_service import ArchiveDiagnostic, ArchivePlan
@@ -21,9 +22,11 @@ class ArchiveExecutionOutcome:
 def create_archive_context(
     authorized_input: AuthorizedInputRoot, report: dict, *, output_root: str,
     cleanup_root: str | None = None,
+    cancellation_check: Callable[[], bool] | None = None,
 ) -> str:
     case_name = report.get("introduction", {}).get("case_summary", "")
     return ARCHIVE_RUNTIME_STORE.create_context(
         authorized_input, str(case_name), output_root=output_root,
         cleanup_root=cleanup_root,
+        cancellation_check=cancellation_check,
     ).context_id

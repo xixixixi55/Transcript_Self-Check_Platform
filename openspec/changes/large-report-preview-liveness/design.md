@@ -179,6 +179,12 @@ The preparation operation:
 
 The current formal execution path must continue to call `verify_input_inventory`, compute the full input content fingerprint, validate the archive plan, execute WinRAR, validate archive parts, publish the Manifest, and revalidate files before download or Manifest-bound formal export. A parse snapshot or shell can never bypass those checks. Report-only Word export is a separate document-generation path and must not be treated as archive evidence.
 
+### 6.3 Claimed preparation progress and cancellation
+
+Full inventory construction is part of the claimed archive execution lifecycle even though it occurs before WinRAR. Immediately after a durable claim, the coordinator advances the task to `inventory` before traversing the source tree. The traversal receives the same cancellation/interruption signal as later execution stages and checks it between directory entries, so a large Windows tree does not remain visually at the queued admission milestone and does not defer cancellation until the complete scan returns.
+
+Task ownership is identified by the durable `process_tree_id` and bound archive attempt ID. The task revision remains a compare-and-swap version for individual writes; cancellation and progress legitimately advance it and therefore cannot be used as a long-lived ownership identity. If cancellation races with preparation or worker startup, both the worker and the coordinator fallback converge the task to `cancelled` and the attempt to `ARCHIVE_CANCELLED`. A changed owner token or attempt binding still rejects the stale worker with `ARCHIVE_TASK_OWNERSHIP_LOST`.
+
 ## 7. Response and frontend contract
 
 ### 7.1 Parse response

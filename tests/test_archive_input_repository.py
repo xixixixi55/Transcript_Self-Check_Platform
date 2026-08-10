@@ -106,3 +106,26 @@ def test_injected_special_path_boundary_rejects_synthetic_link_or_reparse(tmp_pa
     with pytest.raises(ArchiveInputError) as error:
         build_input_inventory(source)
     assert error.value.code == "ARCHIVE_INPUT_LINK_NOT_ALLOWED"
+
+
+def test_inventory_stops_when_preparation_is_cancelled(tmp_path):
+    source = tmp_path / "SYNTHETIC-CANCEL-INVENTORY"
+    source.mkdir()
+    for index in range(20):
+        (source / f"SYNTHETIC-{index:02d}.bin").write_bytes(b"TEST")
+    checks = 0
+
+    def cancelled() -> bool:
+        nonlocal checks
+        checks += 1
+        return checks >= 5
+
+    with pytest.raises(ArchiveInputError) as error:
+        build_input_inventory(
+            source,
+            check_readability=False,
+            cancellation_check=cancelled,
+        )
+
+    assert error.value.code == "ARCHIVE_EXECUTION_CANCELLED"
+    assert checks == 5
