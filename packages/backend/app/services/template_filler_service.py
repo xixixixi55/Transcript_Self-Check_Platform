@@ -11,7 +11,6 @@ import copy
 import os
 import re
 import tempfile
-from datetime import datetime
 from collections.abc import Mapping
 from typing import Any
 from docx import Document
@@ -88,7 +87,9 @@ def fill_template(report: dict, template_path: str, output_path: str,
     flat["photo_count"] = str(plan.attachment2_state.photo_count if plan else len(photo_paths))
     if plan is not None:
         flat["disc_number"] = plan.attachment_summary.disc_numbers[0]
-        flat["burning_date"] = _format_plan_date(plan.attachment_summary.inspection_date)
+        disc_date = _format_plan_date(plan.attachment_summary.inspection_date)
+        flat["burning_date"] = disc_date
+        flat["created_date"] = disc_date
 
     # 1. 展开列表块（必须先做，因为会复制段落）
     _expand_all_lists(doc, report)
@@ -288,6 +289,7 @@ def _flatten_report(report: dict) -> dict:
     insp = report.get("inspection", {})
     result = insp.get("result", {})
     attach = report.get("attachments", {})
+    burning_date = attach.get("burning_date", "")
     evidence_list = intro.get("evidence_list", [])
     evidence_numbers = tuple(
         _ordered_unique(
@@ -330,9 +332,9 @@ def _flatten_report(report: dict) -> dict:
         "md5_hash": result.get("md5_hash", ""),
         "file_size": result.get("file_size", ""),
         "disc_number": attach.get("disc_number", ""),
-        "burning_date": attach.get("burning_date", ""),
+        "burning_date": burning_date,
         "first_evidence_number": evidence_list[0].get("evidence_number", "") if evidence_list else "",
-        "created_date": datetime.now().strftime("%Y年%m月%d日").replace("年0", "年").replace("月0", "月"),
+        "created_date": burning_date,
     }
     return flat
 

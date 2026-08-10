@@ -9,6 +9,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import pytest
+from docx import Document
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
@@ -111,6 +112,40 @@ def test_flatten_report_names_all_evidence_items_in_result():
         "device_type": "测试平板",
     })
     assert _flatten_report(report)["evidence_number"] == "JC01、JC02"
+
+
+def test_flatten_report_uses_burning_date_for_attachment_summary_signature():
+    flat = _flatten_report(_report())
+
+    assert flat["created_date"] == "2026年7月16日"
+
+
+def test_manifest_disc_date_overrides_attachment_summary_signature_date(tmp_path):
+    report = _report()
+    report["inspection"]["primary_software"] = {
+        "name": "测试取证软件",
+        "version": "1.0",
+        "confirmation_status": "confirmed_by_report",
+    }
+    report["inspection"]["software_tools"] = [
+        {"name": "WinRAR压缩管理软件", "version": "6.24"},
+        {"name": "Python hashlib", "version": "3.12"},
+    ]
+    output = tmp_path / "manifest-signature-date.docx"
+    fill_template(report, str(_TEMPLATE), str(output), [], _manifest())
+
+    paragraphs = Document(output).paragraphs
+    signature_index = next(
+        index for index, paragraph in enumerate(paragraphs)
+        if "检查人签名" in paragraph.text
+    )
+    signature_date = next(
+        paragraph.text.strip()
+        for paragraph in paragraphs[signature_index + 1:signature_index + 5]
+        if paragraph.text.strip()
+    )
+
+    assert signature_date == "2026年7月6日"
 
 
 def test_fill_template_combines_all_evidence_numbers_in_result_sentence(tmp_path):
