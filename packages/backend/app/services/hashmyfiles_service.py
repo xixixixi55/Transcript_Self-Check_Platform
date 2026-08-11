@@ -17,9 +17,9 @@ Runner = Callable[[Path, list[Path], Path, int], str]
 
 _DEFAULT_RUNNER: Runner = run_hashmyfiles
 _MIN_TIMEOUT_SECONDS = 120
-_MAX_TIMEOUT_SECONDS = 6 * 60 * 60
-_ESTIMATED_BYTES_PER_SECOND = 10 * 1024 * 1024
-_TIMEOUT_OVERHEAD_SECONDS = 60
+_MAX_TIMEOUT_SECONDS = 10 * 60 * 60
+_ESTIMATED_BYTES_PER_SECOND = 5_000_000
+_TIMEOUT_OVERHEAD_SECONDS = 120
 
 
 def generate_verification_image(

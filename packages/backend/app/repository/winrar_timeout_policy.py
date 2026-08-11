@@ -43,15 +43,16 @@ _ENV_KEY = "BIJI_ARCHIVE_TIMEOUT_SECONDS"
 # Integrity-check timeout — per "rar t" invocation against part1.rar
 #
 # ``rar t part1.rar`` verifies every byte of the *entire* multi-volume set
-# (read + decompress + checksum).  Throughput is dominated by disk read:
-#   → HDD sequential read floor: 50 MB/s (conservative, allows OS contention)
-#   → 135 GB ÷ 50 MB/s = 2 700 s ≈ 45 min
-#   → cap at 2 h (7 200 s) gives >2.6× margin
+# (read + decompress + checksum).  Deployments predominantly use HDDs, where
+# old drives, fragmentation, antivirus and concurrent work can reduce the
+# effective rate far below nominal sequential-read specifications.  Use the
+# same 5 MB/s floor as archive execution plus a fixed completion margin.
 # ---------------------------------------------------------------------------
 
-_INTEGRITY_DEFAULT_TIMEOUT = 60
-_INTEGRITY_THROUGHPUT = 50_000_000  # 50 MB/s conservative HDD read floor
-_INTEGRITY_MAX_TIMEOUT = 7_200  # 2 hours
+_INTEGRITY_DEFAULT_TIMEOUT = 300
+_INTEGRITY_THROUGHPUT = 5_000_000
+_INTEGRITY_COMPLETION_GRACE_SECONDS = 600
+_INTEGRITY_MAX_TIMEOUT = 36_000  # 10 hours
 
 
 def compute_timeout(input_bytes: int) -> int:
@@ -113,9 +114,14 @@ def compute_integrity_timeout(total_archive_bytes: int) -> int:
     ``total_archive_bytes`` is the sum of all validated part sizes
     (not just part1), because ``rar t part1.rar`` verifies the full set.
 
-    Formula: ``max(60, total_bytes / 50 MB/s)`` clamped to [60, 7 200].
+    Formula: ``max(300, ceil(total_bytes / 5 MB/s) + 600)`` for non-empty
+    archives, clamped to [300, 36,000].
     """
-    size_based = max(_INTEGRITY_DEFAULT_TIMEOUT, int(total_archive_bytes / _INTEGRITY_THROUGHPUT))
+    size_based = max(
+        _INTEGRITY_DEFAULT_TIMEOUT,
+        math.ceil(total_archive_bytes / _INTEGRITY_THROUGHPUT)
+        + (_INTEGRITY_COMPLETION_GRACE_SECONDS if total_archive_bytes > 0 else 0),
+    )
     return min(size_based, _INTEGRITY_MAX_TIMEOUT)
 
 

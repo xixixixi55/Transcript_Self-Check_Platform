@@ -228,3 +228,12 @@ workflow_level: 3
   - code_review: [PASS] 独立首轮审查发现恢复不一致态与测试区分度 2 项 MUST FIX；修复为拒绝 attempt 未完成但 task 已成功的不一致恢复状态，并补“旧快照 1 卷 → 两卷 Manifest → 成功态 2 卷”事务级集成测试及非法 parts 边界。复审确认全部 CLOSED，无剩余 MUST FIX。
   - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、全仓测试、生产构建与 scoped strict docs 全部通过。
   - manual_acceptance: [PASS] 浏览器以 4.10 GB 明确合成机械盘报告执行真实 WinRAR 压缩，约 6 分 40 秒生成 4,000,000,000 与 107,749,764 字节两个已验证分卷且未超时；验收后应用案件、合成源目录及归档产物均已删除。
+
+- [x] T032 统一机械盘基线下的完整性、HashMyFiles 与统一导出请求预算（用户环境反馈）。
+  - 现象：大多数部署使用机械盘；`rar t` 仍按 50 MB/s 且无固定余量估算，HashMyFiles 内部允许长任务，但统一导出前端仍固定 30 分钟，可能在后端正常复制或校验时先报告超时。
+  - 内容：完整性与 HashMyFiles 按全部 RAR 字节数使用机械盘保守吞吐和固定余量动态计算有界超时；SharedUtils 按机械盘复制预算 + HashMyFiles 最大有效内部预算计算统一导出请求上限，两个前端入口都把当前已验证 parts 交给 Hook 汇总；普通请求超时保持不变。
+  - 文件：`packages/backend/app/repository/winrar_timeout_policy.py`、`packages/backend/app/services/hashmyfiles_service.py`、`packages/shared/constants/workbenchConstants.ts`、`packages/shared/utils/archiveCompletionRules.ts`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`packages/frontend/src/hooks/useArchiveCompletionStatuses.ts`、`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、对应后端/前端测试与本变更包 `design.md`、delta spec。
+  - 验证：定向后端 pytest 89 passed，覆盖小体积、23 GB、135 GB、上限及 HashMyFiles 环境覆盖；前端 6 files / 54 tests passed，覆盖非法大小、最小值、机械盘动态增长、最大值、两个入口传递真实 parts、exported 自动加载与同案件 task 切换；架构检查、类型检查与 `git diff --check` 通过。临时把完整性吞吐退回 50 MB/s、HashMyFiles 吞吐退回 10 MiB/s、统一导出漏传 parts 后，对应回归用例均按预期失败，恢复后通过。
+  - code_review: [PASS] 首轮独立审查发现外层预算未覆盖 HashMyFiles 环境上限、工作台事实源不准确、组件跨层依赖、设计参数漂移及非法大小边界 5 项 MUST FIX；二轮又发现同案件新 task 可能复用旧 parts。修复为按 `case_id + task_id` 绑定结果、导出前二次校验当前 task、组件经 Layer 10 派生状态并补 task 切换区分性测试；第三轮复审确认全部 CLOSED，无新 MUST FIX。
+  - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、全仓测试、生产构建与 scoped strict docs 全部通过。首次运行仅有既有工作台删除测试在全仓并发下触发 5 秒超时（56/57 files、296/297 tests 已通过）；该文件隔离重跑 15/15（目标用例 2.42 秒），未修改实现或测试，原门控重跑通过。
+  - manual_acceptance: N/A（超时预算及 task/parts 绑定由合成体积和可区分自动化测试覆盖，不改变视觉布局、Word/PDF 版式或桌面选择器交互；真实机械盘大数据可作为部署后观察。）

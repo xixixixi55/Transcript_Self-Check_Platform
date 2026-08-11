@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import axios from 'axios'
-import { API_ENDPOINTS, UNIFIED_EXPORT_REQUEST_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { unifiedExportRequestTimeoutMs } from '@biji/shared/utils'
 import type { ArchiveTaskCardSummary, ArchiveTaskResult, CaseDetail, CaseDraft, CaseShell, ClientIdentity, EditLease, InspectionReport, SharedDefaults, SourceRecord, TaskRecord } from '@biji/shared/types'
 import CaseRecordGeneratePage from './CaseRecordGeneratePage'
 
@@ -331,6 +332,10 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
   it('asks for a Word file name then picks a fresh directory and triggers the unified export bundle', async () => {
     showCompletedArchive = true
+    archiveResultParts = completedArchiveResult.parts.map((part, index) => ({
+      ...part,
+      size_bytes: index === 0 ? 22_000_000_000 : 23_000_000_000,
+    }))
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /开始导出/ }))
     const dialog = await screen.findByRole('dialog')
@@ -338,7 +343,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '开始导出' }))
     // Fresh grant on every export — re-export must not reuse a consumed token (422 regression).
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY, undefined, expect.anything()))
-    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic', word_filename: '合成案件.docx' }, { timeout: UNIFIED_EXPORT_REQUEST_TIMEOUT_MS }))
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic', word_filename: '合成案件.docx' }, { timeout: unifiedExportRequestTimeoutMs(45_000_000_000) }))
   }, 15000)
 
   it('shows the exported state for a re-exported case', async () => {

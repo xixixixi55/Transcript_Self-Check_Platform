@@ -112,8 +112,14 @@ export default function CaseWorkbenchPage() {
     try {
       const chosen = await archiveCompletion.chooseDirectory()
       if ('cancelled' in chosen) return
+      const summary = archiveSummariesByCase[shell.case_id]
+      const cachedArchiveResult = completionResults[shell.case_id]
+      const archiveResult = cachedArchiveResult?.task_id === summary?.task_id
+        ? cachedArchiveResult
+        : summary ? await workbench.archiveResult(summary.task_id) : null
       const result = await archiveCompletion.exportBundle(
         shell.case_id, shell.revision, chosen.path, chosen.token, wordFileName,
+        archiveResult?.parts ?? null,
       )
       message.success(`已导出至：${result.output.export_path}`)
       await workbench.loadPage(workbench.page.offset)

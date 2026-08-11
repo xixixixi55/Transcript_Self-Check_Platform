@@ -2,7 +2,7 @@
 
 Covers:
   - Execution timeout (5 MB/s, 36 ks cap) verified against real D2 data
-  - Integrity timeout (50 MB/s, 7.2 ks cap) based on total archive size
+  - HDD-oriented integrity timeout (5 MB/s + grace, 36 ks cap)
   - Process tree termination (always tree-kill on Windows)
   - Set-based lock lifecycle (atomic claim/release)
   - Published manifest immutability (deepcopy normalization)
@@ -91,30 +91,30 @@ class TestExecutionTimeout:
 
 
 # ============================================================================
-# 2. Integrity timeout (total archive size, 50 MB/s)
+# 2. Integrity timeout (total archive size, HDD-oriented 5 MB/s + grace)
 # ============================================================================
 
 
 class TestIntegrityTimeout:
     def test_default_for_zero(self):
-        assert compute_integrity_timeout(0) == 60
+        assert compute_integrity_timeout(0) == 300
 
     def test_45gb_plus_45gb_plus_45gb_uses_135gb(self):
         """rar t part1.rar verifies the entire set — 3 × 45 GB = 135 GB."""
         t = compute_integrity_timeout(135 * GB)
-        assert t == int(135 * GB / 50_000_000)
+        assert t == 27_600
 
     def test_22gb_plus_1gb_uses_23gb(self):
         t = compute_integrity_timeout(23 * GB)
-        assert t == int(23 * GB / 50_000_000)
+        assert t == 5_200
 
-    def test_135gb_capped_at_2_hours(self):
-        assert compute_integrity_timeout(500 * GB) == 7200
+    def test_oversized_input_is_capped_at_10_hours(self):
+        assert compute_integrity_timeout(500 * GB) == 36_000
 
     def test_bounds(self):
         lo, hi = integrity_bounds()
-        assert lo == 60
-        assert hi == 7200
+        assert lo == 300
+        assert hi == 36_000
 
 
 class TestIntegrityTimeoutViaValidator:

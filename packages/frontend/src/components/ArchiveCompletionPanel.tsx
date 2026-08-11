@@ -2,8 +2,10 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, Button, Input, Space, message } from 'antd'
 import type { CaseLifecycle } from '@biji/shared/types'
-import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared/utils'
-import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
+import {
+  resolveArchiveCompletionStatusForParts,
+  useArchiveCompletion,
+} from '../hooks/useArchiveCompletion'
 import { WordDownloadNameDialog } from './WordDownloadNameDialog'
 
 interface Props {
@@ -11,7 +13,7 @@ interface Props {
   caseId: string
   expectedRevision: number
   planRowRevision: number | null
-  parts: { disc_number?: string | null }[] | null
+  parts: { disc_number?: string | null; size_bytes?: number | null }[] | null
   firstDiscNumber: string
   onFirstDiscNumberChange: (value: string) => void
   readOnly?: boolean
@@ -30,7 +32,7 @@ export function ArchiveCompletionPanel({
   const [mappingDiscNumber, setMappingDiscNumber] = useState(effectiveFirstDiscNumber)
   const [mappingPlanRowRevision, setMappingPlanRowRevision] = useState(planRowRevision)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
-  const status = resolveArchiveCompletionStatus(lifecycle, allPartsDiscMapped(parts))
+  const status = resolveArchiveCompletionStatusForParts(lifecycle, parts)
   useEffect(() => {
     if (archive.error) message.error(archive.error)
   }, [archive.error])
@@ -70,6 +72,7 @@ export function ArchiveCompletionPanel({
       if ('cancelled' in chosen) return
       const result = await archive.exportBundle(
         caseId, expectedRevision, chosen.path, chosen.token, wordFileName,
+        parts,
       )
       message.success(`已导出至：${result.output.export_path}`)
       onCompleted()

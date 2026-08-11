@@ -12,11 +12,12 @@ export function useArchiveCompletionStatuses(
   useEffect(() => {
     let active = true
     for (const shell of cases) {
-      if (shell.lifecycle !== 'archive_verified') continue
+      if (shell.lifecycle !== 'archive_verified' && shell.lifecycle !== 'exported') continue
       const summary = summaries[shell.case_id]
-      if (!summary || summary.status !== 'succeeded' || results[shell.case_id]) continue
+      const cached = results[shell.case_id]
+      if (!summary || summary.status !== 'succeeded' || cached?.task_id === summary.task_id) continue
       void loadResult(summary.task_id).then(result => {
-        if (active && result.case_id === shell.case_id) {
+        if (active && result.case_id === shell.case_id && result.task_id === summary.task_id) {
           setResults(previous => ({ ...previous, [shell.case_id]: result }))
         }
       }).catch(() => undefined)

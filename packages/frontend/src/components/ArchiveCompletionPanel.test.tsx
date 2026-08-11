@@ -1,21 +1,32 @@
 import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared/utils'
 import { ArchiveCompletionPanel } from './ArchiveCompletionPanel'
 
 const mapping = vi.fn()
+const chooseDirectory = vi.fn()
+const exportBundle = vi.fn()
 
 vi.mock('../hooks/useArchiveCompletion', () => ({
+  resolveArchiveCompletionStatusForParts: (
+    lifecycle: Parameters<typeof resolveArchiveCompletionStatus>[0],
+    parts: { disc_number?: string | null }[] | null,
+  ) => resolveArchiveCompletionStatus(lifecycle, allPartsDiscMapped(parts)),
   useArchiveCompletion: () => ({
     busy: false,
     error: null,
     mapping,
-    chooseDirectory: vi.fn(),
-    exportBundle: vi.fn(),
+    chooseDirectory,
+    exportBundle,
   }),
 }))
 
-vi.mock('./WordDownloadNameDialog', () => ({ WordDownloadNameDialog: () => null }))
+vi.mock('./WordDownloadNameDialog', () => ({
+  WordDownloadNameDialog: ({ open, onConfirm }: { open: boolean; onConfirm: (name: string) => void }) => (
+    open ? <button onClick={() => onConfirm('SYNTHETIC.docx')}>确认导出名称</button> : null
+  ),
+}))
 
 describe('ArchiveCompletionPanel unified disc-number input', () => {
   beforeEach(() => {
@@ -24,6 +35,8 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
       plan_row_revision: 3,
       parts: [{ disc_number: 'GP20260731-002' }],
     })
+    chooseDirectory.mockResolvedValue({ path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' })
+    exportBundle.mockResolvedValue({ output: { export_path: 'D:\\SYNTHETIC\\EXPORT' } })
   })
 
   const renderPanel = (props: Partial<React.ComponentProps<typeof ArchiveCompletionPanel>> = {}) => {
@@ -120,6 +133,22 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     await vi.waitFor(() => {
       expect(mapping).toHaveBeenLastCalledWith(
         'case-synthetic-disc-input', 1, 7, 'GP20260731-008',
+      )
+    })
+  })
+
+  it('passes verified part sizes to the export hook', async () => {
+    const parts = [
+      { disc_number: 'GP20260731-001', size_bytes: 22_000_000_000 },
+      { disc_number: 'GP20260731-002', size_bytes: 23_000_000_000 },
+    ]
+    renderPanel({ lifecycle: 'archive_verified', parts })
+    fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认导出名称' }))
+    await vi.waitFor(() => {
+      expect(exportBundle).toHaveBeenCalledWith(
+        'case-synthetic-disc-input', 1, 'D:\\SYNTHETIC\\EXPORT',
+        'token-synthetic', 'SYNTHETIC.docx', parts,
       )
     })
   })

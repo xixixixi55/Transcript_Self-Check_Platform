@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
-import { CASE_TASK_POLL_INTERVAL_MS, UNIFIED_EXPORT_REQUEST_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { unifiedExportRequestTimeoutMs } from '@biji/shared/utils'
 import CaseWorkbenchPage from './CaseWorkbenchPage'
 import type { ArchiveTaskCardSummary, CaseShell } from '@biji/shared/types'
 
@@ -231,8 +232,8 @@ describe('CaseWorkbenchPage', () => {
     expect(document.querySelector('.case-workbench-grid')?.contains(screen.getByRole('button', { name: '上传报告目录' }))).toBe(true)
   })
 it('exports a completed archive bundle directly from the card', async () => {
-  listItems = [{ ...shell(1), lifecycle: 'archive_verified', report_available: true, revision: 3, archive_task_summary: { ...archiveSummary, status: 'succeeded', stage: 'completed', stage_label: '归档完成', stage_index: 9, stage_count: 9, percent: 100, finished_at: '2026-07-30T12:00:00Z', allowed_actions: ['view_result'] } }]
-  const archiveResult = { task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', manifest_id: 'manifest-synthetic', verified_slots: [], assets: [], parts: [{ part_id: 'part-1', filename: 'SYNTHETIC.part1.rar', size_bytes: 4, md5: 'a'.repeat(32), disc_number: 'GP20260730-01', disc_date: '2026-07-30' }], finished_at: '2026-07-30T12:00:00Z' }
+  listItems = [{ ...shell(1), lifecycle: 'exported', report_available: true, revision: 3, archive_task_summary: { ...archiveSummary, status: 'succeeded', stage: 'completed', stage_label: '归档完成', stage_index: 9, stage_count: 9, percent: 100, output_bytes: null, finished_at: '2026-07-30T12:00:00Z', allowed_actions: ['view_result'] } }]
+  const archiveResult = { task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', manifest_id: 'manifest-synthetic', verified_slots: [], assets: [], parts: [{ part_id: 'part-1', filename: 'SYNTHETIC.part1.rar', size_bytes: 45_000_000_000, md5: 'a'.repeat(32), disc_number: 'GP20260730-01', disc_date: '2026-07-30' }], finished_at: '2026-07-30T12:00:00Z' }
   getMock.mockImplementation(async (url: string) => {
     if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
     if (url.includes('/result')) return { data: { data: archiveResult } }
@@ -251,7 +252,7 @@ it('exports a completed archive bundle directly from the card', async () => {
   const nameInput = (await screen.findByRole('textbox', { name: 'Word 下载文件名' })) as HTMLInputElement
   expect(nameInput.value).toBe('SYNTHETIC-CASE-1.docx')
   fireEvent.change(nameInput, { target: { value: '自定义案件.docx' } }); fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
-  await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic', word_filename: '自定义案件.docx' }, { timeout: UNIFIED_EXPORT_REQUEST_TIMEOUT_MS }))
+  await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic', word_filename: '自定义案件.docx' }, { timeout: unifiedExportRequestTimeoutMs(45_000_000_000) }))
   expect(await screen.findByText(/已导出至：D:\SYNTHETIC\EXPORT/)).toBeTruthy()
 })
 })
