@@ -193,3 +193,29 @@ workflow_level: 3
   - 文件：`packages/backend/app/services/archive_attempt_validation_service.py`、`packages/backend/app/repository/archive_context_binding_repository.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
   - 验证：归档发布前任意审核编辑不再中断任务；归档完成与图片绑定保存竞争时保存成功且最终同时保留图片引用和可信归档字段；普通过期 revision 冲突仍被拒绝；执行后端定向 pytest、`npm run verify:quick`、当前变更 scoped strict docs 与 `git diff --check`。
   - code_review: [DEFERRED] 独立审查两次因模型容量/长时间无响应未能产出结论；按用户 2026-08-09 指示先提交并推送，后续可在新候选版本上补做独立审查。
+
+- [x] T028 消除上传报告目录与统一导出选择器仍可能被浏览器覆盖的竞态（人工验收回归）。
+  - 现象：T024 后两个入口的 Windows 原生目录选择器仍有概率在首次成功置顶后被浏览器重新覆盖。
+  - 根因：后台提升线程在第一次 `SetWindowPos` 成功后立即退出；对话框初始化期间若句柄重建或浏览器点击/重绘重新改变 Z 序，后续没有持续校正。枚举逻辑还会选择同一 PowerShell 进程的任意可见窗口，存在命中非目录对话框的竞态。
+  - 内容：优先选择隐藏 owner 直接拥有的窗口，再回退到标准 `#32770` 对话框；在 `ShowDialog` 整个存续期间每 100ms 以 `SWP_NOACTIVATE` 重申 TopMost，首次前台激活失败继续重试，候选句柄变化时重新激活，关闭时等待提升线程结束后再释放窗口，持续置顶但不循环抢焦点。
+  - 文件：`packages/backend/app/services/local_directory_picker_service.py`、`tests/test_local_directory_picker_service.py`、本变更包 `design.md` 与 `tasks.md`。
+  - 验证：`test_local_directory_picker_service` 11 passed；内嵌 C# `PickerWindow` 独立编译通过；结构性回归断言锁定提升循环不得提前退出、句柄变化重新激活、owner 优先、`SWP_NOACTIVATE` 与线程 Join；`npm run verify:quick`、`npx tsx scripts/check-docs.ts --strict --change background-compression-archive-completion`、前端生产构建和独立复审均 PASS。scoped full gate 的前端 288/288、后端 1009/1009（3 skipped）通过，门控仅被无关的长路径环境边界测试 `test_long_snapshot_paths_use_short_private_root_without_changing_source_tree` 在全仓并发下间歇性 `middle_length=14 < 16` 阻断；该用例隔离重跑 1 passed（此前与另一个无关性能用例组合隔离重跑 2 passed）。Windows 浏览器前台人工验收待用户执行。
+
+- [x] T029 修复多分卷已生成但 WinRAR 仍在收尾时被固定 deadline 终止（用户实测回归）。
+  - 现象：机械盘约 15 分钟已显示写出 3.9GB、检测到 2 个分卷，之后输出约 4 分钟无增长并最终报告归档超时。
+  - 内容：执行超时在环境覆盖与最大上限约束下增加固定收尾余量；监控器区分硬上限与 RAR 输出无增长空闲超时，仅在输出总大小严格增长时刷新活动计时，首个非零 RAR 出现前不启动 idle timeout；前端明确“已生成 N 个分卷（仍在压缩）”是中间进度而非完成态。
+  - 文件：`packages/backend/app/repository/winrar_timeout_policy.py`、`packages/backend/app/repository/winrar_process_monitor.py`、`packages/backend/app/repository/winrar_executor_repository.py`、`packages/frontend/src/components/ArchiveStatusPanel.tsx`、对应后端/前端测试与本变更包 `design.md`、delta spec。
+  - 验证：后端超时/执行器/Worker 定向 pytest 96 passed、1 个既有配置 warning（含增长、缩小、停滞、首个输出前硬上限、`0→非零→停滞`、环境覆盖、hard/idle 同时及跨界、executor 终止成功/失败的 staging 语义）；前端状态组件 Vitest 12 passed；架构检查与 TypeScript 类型检查通过。临时把“严格增长”退回“任意变化”、把“相等时 hard 优先”退回 idle 优先后，对应边界测试均按预期失败；恢复实现后单测与定向组合重新通过。修复后 `npm run verify:quick` PASS、当前变更 scoped strict docs 13 checks/0 drift、`git diff --check` PASS。
+  - code_review: [PASS] 首轮独立审查发现 3 项 MUST FIX：hard/idle 同时或一次跨过两个 deadline 时须按绝对 deadline 选择最早者且相等时 hard 优先；环境覆盖与 `0→非零→停滞` 边界需要区分性断言；idle timeout 终止失败时不得清理 staging。三项均已修复，独立复审确认全部 CLOSED、无新 MUST FIX。遗留 SHOULD：后续可为真实 `_rar_output_size` 增加多分卷文件系统测试，不阻塞本轮。T027 的历史 deferred 记录不作为 T029 审查证据。
+  - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、全仓测试、前端构建与 scoped strict docs 全部通过。首次运行仅因系统临时盘可用空间 285 MB 低于 1024 MB 预检门槛而在测试前停止，切换到 D 盘短临时目录后原门控通过。
+  - manual_acceptance: N/A（本轮修复不改变视觉布局或桌面交互；超时状态机由可注入时钟、输出探针及 executor 进程/清理测试覆盖。机械盘真实大数据回归可作为部署后观察，不作为自动化候选门控。）
+
+- [x] T030 修复上传图片后人工新增检材导致图片映射保持旧快照（人工验收回归）。
+  - 现象：先上传四张图片、再人工新增第二个检材后，导出仍提示每个检材必须对应两张图片；只有删除全部图片并重新上传才能成功。
+  - 根因：`photo_groups` 只在图片引用变化时按当时的检材列表生成；后续检材增删、改号或排序只更新 `evidence_list`，没有使用已持久化 `photo_ids` 重建映射。
+  - 文件：`packages/shared/utils/softwareProjectionUtils.ts`、`packages/frontend/src/__tests__/softwareProjectionUtils.test.ts`、`packages/frontend/src/hooks/useCaseDraftAutosave.test.tsx`、本变更包 delta spec；人工检材到（三）/（四）的派生同步合同记录在 `audit-edit-enhancement` T020。
+  - 内容：检材列表变化时以最新检材顺序和既有图片 ID 确定性重建 `photo_groups`，由现有草稿自动保存一并持久化；图片数量仍不匹配时保留现有明确导出门控。
+  - 验证：定向 Vitest 覆盖“先四图、后一检材”、增删改排、失配状态与 autosave PATCH 载荷，2 files / 15 passed；后端数量失配门控定向 pytest 1 passed；临时禁用投影后回归用例 1 failed、恢复后通过；完整前端测试退出码 0；架构检查、TypeScript 类型检查与 `verify:quick` 通过。
+  - code_review: [PASS] 首轮因增删改排、失配和持久化载荷覆盖不足驳回；补齐测试后第 2 轮独立复审确认 MUST FIX CLOSED，无新 MUST FIX。
+  - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、完整测试、生产构建与 scoped strict docs 全部通过。
+  - manual_acceptance: N/A（图片映射、草稿持久化载荷和导出失配门控由合成数据自动化覆盖；未改变 Word 视觉版式或桌面交互。）

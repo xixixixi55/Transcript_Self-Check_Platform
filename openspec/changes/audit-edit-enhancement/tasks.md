@@ -202,6 +202,17 @@ workflow_level: 3
   - 覆盖 Spec：REQ-007
   - 验证：`pnpm --filter @biji/frontend exec vitest run src/components/ArchiveCompletionPanel.test.tsx src/components/RecordEditorForm.test.tsx src/pages/CaseRecordGeneratePage.test.tsx` + 前端 typecheck + `lint:arch`。
 
+## 🟢 Phase 8: 人工检材派生内容同步
+
+- [x] T020 **修复人工检材未同步到检查过程和检查结果**
+  - 文件：`packages/shared/utils/softwareProjectionUtils.ts`、`packages/frontend/src/__tests__/softwareProjectionUtils.test.ts`、`packages/frontend/src/hooks/useCaseDraftAutosave.test.tsx`、本变更包 delta spec。
+  - 内容：检材列表增删、改号或排序时，统一投影（三）检查过程的检材相关步骤与（四）检查结果的检材编号；不覆盖与检材无关的环境检查步骤。
+  - 覆盖 Spec：REQ-007“人工检材同步到检查过程和检查结果”。
+  - 验证：增删、改号、排序、非检材步骤保持及 autosave PATCH 载荷定向 Vitest 2 files / 15 passed；完整前端测试退出码 0；临时禁用投影后精确回归 1 failed、恢复后通过；架构检查、TypeScript 类型检查及 `verify:quick` 通过。
+  - code_review: [PASS] 首轮因增删改排、失配和持久化载荷覆盖不足驳回；补齐测试后第 2 轮独立复审确认 MUST FIX CLOSED，无新 MUST FIX。
+  - final_gate: [PASS] 同一冻结候选以 `background-compression-archive-completion` scope 执行一次全仓 `verify:full`，预检、架构、类型、治理、资产、完整测试、生产构建和该变更严格文档全部通过；本变更另执行 scoped strict docs，13 checks / 0 drift。
+  - manual_acceptance: N/A（数据投影、持久化载荷和导出门控由合成数据自动化覆盖；未改变 Word 视觉版式或桌面交互。）
+
 ---
 
 ## 任务摘要
@@ -213,6 +224,9 @@ workflow_level: 3
 | 🔵 P3 | Pages (12) | 3 | 补齐字段 + 替换交互 + 集成验证 |
 | 🟠 P4 | Components / 验证 | 5 | 审查整改、组件测试、工程门控 |
 | 🟢 P5 | Components / 样式 | 2 | 检查人员卡片布局、加号添加入口与测试 |
-| **合计** | **Layer 2、10~12、21** | **19** | |
+| 🟢 P6 | Hooks (10) | 1 | 草稿保存收敛 |
+| 🟢 P7 | Components / Pages (11~12) | 1 | 光盘编号统一入口 |
+| 🟢 P8 | SharedUtils (2) | 1 | 人工检材派生内容同步 |
+| **合计** | **Layer 2、10~12、21** | **20** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。

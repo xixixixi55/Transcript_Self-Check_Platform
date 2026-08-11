@@ -28,21 +28,29 @@ Add-Type -TypeDefinition @'
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 public static class PickerWindow {{
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
     public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
     public const uint SWP_NOSIZE = 0x0001;
     public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_SHOWWINDOW = 0x0040;
+    public const uint GW_OWNER = 4;
+    public const int PROMOTION_INTERVAL_MS = 100;
+    public const int PROMOTION_JOIN_TIMEOUT_MS = 1000;
     public static volatile bool WasRaised;
     public static volatile bool ForegroundRequested;
     private static volatile bool stopRequested;
     private static IntPtr ownerHandle;
     private static int processId;
+    private static Thread promotionWorker;
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hWnd, uint command);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int GetClassName(IntPtr hWnd, StringBuilder className, int maxCount);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
     public static void StartPromotion(IntPtr owner) {{
@@ -51,32 +59,57 @@ public static class PickerWindow {{
         WasRaised = false;
         ForegroundRequested = false;
         stopRequested = false;
-        Thread worker = new Thread(PromoteDialog);
-        worker.IsBackground = true;
-        worker.Start();
+        promotionWorker = new Thread(PromoteDialog);
+        promotionWorker.IsBackground = true;
+        promotionWorker.Start();
     }}
-    public static void StopPromotion() {{ stopRequested = true; }}
-    private static void PromoteDialog() {{
-        while (!stopRequested) {{
-            IntPtr candidate = IntPtr.Zero;
-            EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {{
-                uint windowProcessId;
-                GetWindowThreadProcessId(hWnd, out windowProcessId);
-                if (windowProcessId == processId && hWnd != ownerHandle && IsWindowVisible(hWnd)) {{
-                    candidate = hWnd;
+    public static void StopPromotion() {{
+        stopRequested = true;
+        Thread worker = promotionWorker;
+        if (worker != null && worker != Thread.CurrentThread) {{
+            worker.Join(PROMOTION_JOIN_TIMEOUT_MS);
+        }}
+        promotionWorker = null;
+    }}
+    private static IntPtr FindDialog() {{
+        IntPtr ownedCandidate = IntPtr.Zero;
+        IntPtr dialogCandidate = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {{
+            uint windowProcessId;
+            GetWindowThreadProcessId(hWnd, out windowProcessId);
+            if (windowProcessId == processId && hWnd != ownerHandle && IsWindowVisible(hWnd)) {{
+                if (GetWindow(hWnd, GW_OWNER) == ownerHandle) {{
+                    ownedCandidate = hWnd;
                     return false;
                 }}
-                return true;
-            }}, IntPtr.Zero);
-            if (candidate != IntPtr.Zero) {{
-                uint flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW;
-                if (SetWindowPos(candidate, HWND_TOPMOST, 0, 0, 0, 0, flags)) {{
-                    WasRaised = true;
-                    ForegroundRequested = SetForegroundWindow(candidate);
-                    return;
+                StringBuilder className = new StringBuilder(64);
+                GetClassName(hWnd, className, className.Capacity);
+                if (className.ToString() == "#32770") {{
+                    dialogCandidate = hWnd;
                 }}
             }}
-            Thread.Sleep(50);
+            return true;
+        }}, IntPtr.Zero);
+        return ownedCandidate != IntPtr.Zero ? ownedCandidate : dialogCandidate;
+    }}
+    private static void PromoteDialog() {{
+        IntPtr lastCandidate = IntPtr.Zero;
+        while (!stopRequested) {{
+            IntPtr candidate = FindDialog();
+            if (candidate != IntPtr.Zero) {{
+                if (candidate != lastCandidate) {{
+                    lastCandidate = candidate;
+                    ForegroundRequested = false;
+                }}
+                uint flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW;
+                if (SetWindowPos(candidate, HWND_TOPMOST, 0, 0, 0, 0, flags)) {{
+                    WasRaised = true;
+                    if (!ForegroundRequested) {{
+                        ForegroundRequested = SetForegroundWindow(candidate);
+                    }}
+                }}
+            }}
+            Thread.Sleep(PROMOTION_INTERVAL_MS);
         }}
     }}
 }}

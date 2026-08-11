@@ -12,6 +12,7 @@ execution timeout).
 from __future__ import annotations
 
 import logging
+import math
 import os
 import subprocess
 
@@ -32,6 +33,7 @@ _logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_SECONDS = 300
 _MIN_THROUGHPUT_BYTES_PER_SEC = 5_000_000  # 5 MB/s (real-data-verified floor)
+_COMPLETION_GRACE_SECONDS = 600  # HDD/WinRAR volume finalization margin
 _MAX_COMPUTED_TIMEOUT = 36_000  # 10 hours
 _MAX_ENV_TIMEOUT = 86_400  # 24 hours (operator override ceiling)
 
@@ -57,7 +59,7 @@ def compute_timeout(input_bytes: int) -> int:
 
     1. If ``BIJI_ARCHIVE_TIMEOUT_SECONDS`` is set to a positive integer
        ≤ 86 400, use it verbatim (operator override).
-    2. Otherwise compute ``max(300, input_bytes / 5 MB/s)`` clamped to
+    2. Otherwise compute ``max(300, ceil(input_bytes / 5 MB/s) + 600)`` clamped to
        [300, 36 000].
 
     Invalid or out-of-range env values trigger exactly one sanitised
@@ -99,7 +101,8 @@ def compute_timeout(input_bytes: int) -> int:
 
     size_based = max(
         _DEFAULT_TIMEOUT_SECONDS,
-        int(input_bytes / _MIN_THROUGHPUT_BYTES_PER_SEC),
+        math.ceil(input_bytes / _MIN_THROUGHPUT_BYTES_PER_SEC)
+        + (_COMPLETION_GRACE_SECONDS if input_bytes > 0 else 0),
     )
     return min(size_based, _MAX_COMPUTED_TIMEOUT)
 

@@ -93,7 +93,7 @@
 **apply 阶段细化（用户实测反馈）**：
 - 统一导出交互入口为**案件工作台卡片主按钮**（归档完成/已导出时，替换原「查看结果」）；工作台经 `useArchiveCompletionStatuses` 自动加载归档结果，卡片恒定派生完成态，无需先点查看。案件打开页保留「立即/稍后」与补盘号入口，不再承载导出触发。
 - 归档 inventory 性能优化：`verify_input_inventory` 改 `check_readability=False`（可读性由 seal 复制兜底）并移除第二轮重复 stat；`build_input_inventory` 文件 stat/open 用 `ThreadPoolExecutor` 并行（新增 `archive_input_inventory_worker.py`，复用 `BIJI_ARCHIVE_COPY_WORKERS`）。基准 3000 文件：verify 5.3s→0.87s、build 4.5s→1.7s。
-- 原生目录选择器由嵌入 C# 后台线程按当前 PowerShell 进程枚举真实可见窗口，直接对对话框句柄应用 TopMost Z 序并尝试前台激活，避免 PowerShell 在 `ShowDialog` 模态调用期间 WinForms Timer 回调不执行而误报 422；窗口提升失败会在对话框仍打开时持续重试，不把已成功选择的合法目录事后降级为业务 422。上传报告与统一导出分别以本地版本化偏好持久化上次成功目录，下一次作为 `FolderBrowserDialog.SelectedPath`；取消、目录失效或偏好损坏时安全回退。
+- 原生目录选择器由嵌入 C# 后台线程按当前 PowerShell 进程枚举真实可见窗口，优先匹配隐藏 owner 直接拥有的窗口、再回退到标准 `#32770` 对话框；对话框整个存续期间以 `SWP_NOACTIVATE` 持续重申 TopMost Z 序，首次显式前台激活失败持续重试，窗口句柄重建时重新激活，既避免浏览器点击/重绘在首次提升后再次覆盖选择器，也不在用户主动切换应用后循环抢焦点。关闭对话框时等待提升线程退出后再释放窗口。该线程不依赖 `ShowDialog` 模态调用期间无法执行的 WinForms Timer，也不把已成功选择的合法目录事后降级为业务 422。上传报告与统一导出分别以本地版本化偏好持久化上次成功目录，下一次作为 `FolderBrowserDialog.SelectedPath`；取消、目录失效或偏好损坏时安全回退。
 
 ## D6. 状态机与已导出/彻底删除
 
@@ -109,6 +109,17 @@
 - 映射成功后审核页显式重读归档任务结果，用最新分卷映射重新派生「归档完成」并刷新分卷展示；不能只刷新不含结果明细的案件 shell。
 - 导出路径提示只在盘号补齐后出现。
 - 彻底删除按钮仅「已导出」态可见；复用既有删除能力与确认流程。
+
+## D7. 大型分卷压缩的活动感知超时
+
+**决策**：WinRAR 执行采用“带收尾余量的硬上限 + 输出无增长超时”。硬上限仍按输入体积计算，在没有操作员环境变量覆盖且未触及最大上限时，为体积预算增加固定收尾余量；监控器持续统计 staging 中 RAR 文件总字节数，只有总大小严格增长才刷新空闲计时。连续超过空闲阈值没有任何输出增长时终止进程。
+
+**理由**：机械盘上第一卷写满后，WinRAR 可能在处理下一批数据或执行卷收尾，RAR 文件会暂时不增长；前端此时已能显示已生成多个分卷，但压缩进程尚未完成。仅提高固定 timeout 会掩盖真正卡死，活动感知可以兼顾收尾时间和失控进程回收。
+
+**实现要点**：
+- `compute_timeout` 使用向上取整的体积时间并增加固定收尾余量，保留既有环境变量覆盖和最大上限；4.5 GB 与 8.5 GB 输入分别得到 1500 秒与 2300 秒硬上限。
+- `monitor_owned_process` 以 RAR 输出总大小作为活动信号，支持可注入 probe 以锁定增长、缩小与停滞边界；首个非零 RAR 输出出现前不启用 idle timeout，仍受硬上限约束。hard 与 idle 均使用绝对 deadline，最早到期者优先，相等时 hard 优先；操作员环境变量覆盖逐字作为 hard deadline 使用。
+- idle timeout 由 executor 映射为稳定的 `ARCHIVE_EXECUTION_TIMEOUT`，并先终止自有 WinRAR 进程、再清理 staging；若进程无法安全终止则返回 `ARCHIVE_EXECUTION_FAILED` 并保留 staging，禁止删除仍可能被进程使用的文件。分卷出现仅作为活动指标，不改变成功条件（正常退出、分卷校验、MD5、Manifest）。
 
 ## 依赖与风险
 

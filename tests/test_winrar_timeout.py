@@ -73,17 +73,17 @@ class TestExecutionTimeout:
 
     def test_4_5gb_covers_real_9_minutes(self):
         t = WinRarExecutor.compute_timeout(4_500_000_000)
-        assert t == int(4_500_000_000 / 5_000_000)  # 900 s
+        assert t == 1_500  # 900 s size budget + 600 s finalization grace
         assert t >= 540
 
     def test_8_5gb_covers_real_12_minutes(self):
         t = WinRarExecutor.compute_timeout(8_500_000_000)
-        assert t == int(8_500_000_000 / 5_000_000)  # 1700 s
+        assert t == 2_300  # 1700 s size budget + 600 s finalization grace
         assert t >= 720
 
     def test_135gb_not_truncated(self):
         t = WinRarExecutor.compute_timeout(135 * GB)
-        assert t == 27_000
+        assert t == 27_600
         assert t < 36_000
 
     def test_capped_at_10_hours(self):
@@ -185,7 +185,8 @@ class TestEnvTimeoutWarnings:
 
     def test_no_warning_when_valid(self, monkeypatch, caplog):
         monkeypatch.setenv("BIJI_ARCHIVE_TIMEOUT_SECONDS", "3600")
-        WinRarExecutor.compute_timeout(0)
+        result = WinRarExecutor.compute_timeout(0)
+        assert result == 3600
         assert "已回退" not in caplog.text
 
     def test_non_numeric_one_warning(self, monkeypatch, caplog):

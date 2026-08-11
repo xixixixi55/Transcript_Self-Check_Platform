@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
-import type { CaseDraft, ClientIdentity } from '@biji/shared/types'
+import type { CaseDraft, ClientIdentity, InspectionReport } from '@biji/shared/types'
+import { applyReportEdit } from '@biji/shared/utils'
 import { useCaseDraftAutosave } from './useCaseDraftAutosave'
 
 vi.mock('axios', () => ({ default: { patch: vi.fn(), get: vi.fn() } }))
@@ -36,21 +37,50 @@ describe('useCaseDraftAutosave', () => {
   })
 
   it('sends structured attachment edits with the persistent case draft', async () => {
-    const report = {
+    const firstMaterial = {
+      id: 'SYNTHETIC-MATERIAL-1', device_type: 'phone', evidence_number: 'SYNTHETIC-1',
+    }
+    const secondMaterial = {
+      id: 'SYNTHETIC-MATERIAL-2', device_type: 'tablet', evidence_number: 'SYNTHETIC-2',
+    }
+    const baseReport = {
+      title: 'SYNTHETIC REPORT', document_number: 'SYNTHETIC-DOC-1',
+      introduction: {
+        entrust_unit: '', entrust_persons: [], entrust_time: '', case_summary: '',
+        evidence_list: [firstMaterial], inspection_requirement: '', inspection_time_range: '',
+        inspectors: [], inspection_place: '',
+      },
+      inspection: {
+        method: '', hardware_device: '', software_tools: [], process_steps: [
+          { step_number: 1, content: 'SYNTHETIC old material' },
+          { step_number: 2, content: 'SYNTHETIC old photos' },
+          { step_number: 3, content: 'SYNTHETIC environment' },
+          { step_number: 4, content: 'SYNTHETIC old inspection' },
+        ],
+        result: { evidence_number: 'SYNTHETIC-1', software_name: '', software_version: '', data_summary: '', rar_filename: '', md5_hash: '', file_size: '' },
+      },
       attachments: {
-        extract_list: { columns: ['编号', '名称'], rows: [['SYN-1', 'TEST attachment']] },
-        photo_ids: ['opaque-photo-synthetic'],
-        photo_groups: [{ group_id: 'group-synthetic', title: 'TEST group', asset_ids: ['opaque-photo-synthetic'] }],
+        extract_list: { columns: [], rows: [] },
+        photo_ids: ['opaque-photo-1-front', 'opaque-photo-1-back', 'opaque-photo-2-front', 'opaque-photo-2-back'],
+        photo_groups: [{
+          material_id: firstMaterial.id, material_number: firstMaterial.evidence_number,
+          display_text: '检材SYNTHETIC-1照片',
+          ordered_image_ids: ['opaque-photo-1-front', 'opaque-photo-1-back'], source_order: 1,
+        }],
         disc_number: 'SYN-001',
       },
-    } as unknown as CaseDraft['report']
+    } as InspectionReport
+    const report = applyReportEdit(
+      baseReport, 'introduction.evidence_list', [firstMaterial, secondMaterial],
+    )
     patchMock.mockResolvedValue({ data: { data: { draft_save_status: { status: 'saved', revision: 4 }, shared_defaults_save_status: { status: 'not_changed' }, draft: draft(4, report) } } })
     const opts = options({ draft: draft(3, report), changeToken: 7 })
     renderHook(() => useCaseDraftAutosave(opts))
     await waitFor(() => expect(patchMock).toHaveBeenCalled())
-    expect(patchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
-      draft: expect.objectContaining({ report: expect.objectContaining({ attachments: report.attachments }) }),
-    }))
+    const savedReport = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft.report
+    expect(savedReport.attachments.photo_groups).toEqual(report.attachments.photo_groups)
+    expect(savedReport.attachments.photo_groups).toHaveLength(2)
+    expect(savedReport.inspection.result.evidence_number).toBe('SYNTHETIC-1、SYNTHETIC-2')
   })
 
   it('sends only the explicit sparse shared-default patch and treats draft success as final', async () => {

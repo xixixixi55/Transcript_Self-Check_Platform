@@ -22,7 +22,7 @@ from .winrar_timeout_policy import (  # noqa: E402
 )
 from .winrar_process_monitor import (
     OwnedProcessCancelled, OwnedProcessOwnershipLost,
-    OwnedProcessTerminationFailed, monitor_owned_process,
+    OwnedProcessIdleTimeout, OwnedProcessTerminationFailed, monitor_owned_process,
     terminate_process_tree,
 )
 
@@ -166,6 +166,15 @@ class WinRarExecutor:
                             "ARCHIVE_EXECUTION_FAILED",
                             "The owned archive process could not be stopped safely.",
                         ) from error
+            except OwnedProcessIdleTimeout as error:
+                if not _terminate_process(process, win_pid):
+                    raise ArchiveExecutionError(
+                        "ARCHIVE_EXECUTION_FAILED", "归档进程无法终止，请检查系统进程后重试。")
+                if staging_dir.exists():
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+                raise ArchiveExecutionError(
+                    "ARCHIVE_EXECUTION_TIMEOUT",
+                    f"RAR 输出连续 {int(error.timeout)} 秒无增长，归档执行已停止。")
             except subprocess.TimeoutExpired:
                 if not _terminate_process(process, win_pid):
                     raise ArchiveExecutionError(

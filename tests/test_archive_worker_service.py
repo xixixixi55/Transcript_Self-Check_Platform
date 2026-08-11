@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,6 +22,7 @@ from app.repository import (  # noqa: E402
 )
 from app.repository.winrar_process_monitor import (  # noqa: E402
     OwnedProcessCancelled,
+    OwnedProcessIdleTimeout,
     monitor_owned_process,
 )
 from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
@@ -320,6 +322,150 @@ class WaitingProcess:
         raise AssertionError("cancelled process must not communicate")
 
 
+class PollingProcess:
+    def poll(self):
+        return None
+
+    def wait(self, timeout=None):
+        raise subprocess.TimeoutExpired(["WinRAR.exe"], timeout)
+
+    def communicate(self):
+        return ("", "")
+
+
+def test_monitor_allows_output_growth_until_hard_deadline(tmp_path: Path) -> None:
+    output_sizes = iter([1, 1, 2, 3, 4])
+    process = PollingProcess()
+    with mock.patch(
+        "app.repository.winrar_process_monitor.time.monotonic",
+        side_effect=[0.0, 0.0, 0.5, 1.5, 2.5],
+    ):
+        with pytest.raises(subprocess.TimeoutExpired) as failure:
+            monitor_owned_process(
+                process, pid=4242, args=["WinRAR.exe"], timeout=2,
+                staging_dir=tmp_path, terminate=lambda *_: True,
+                activity_callback=None, cancellation_check=None,
+                idle_timeout_seconds=2,
+                output_size_probe=lambda _root: next(output_sizes),
+            )
+    assert not isinstance(failure.value, OwnedProcessIdleTimeout)
+
+
+def test_monitor_times_out_after_rar_output_stalls(tmp_path: Path) -> None:
+    process = PollingProcess()
+    with mock.patch(
+        "app.repository.winrar_process_monitor.time.monotonic",
+        side_effect=[0.0, 0.0, 1.0, 2.0],
+    ):
+        with pytest.raises(OwnedProcessIdleTimeout) as failure:
+            monitor_owned_process(
+                process, pid=4242, args=["WinRAR.exe"], timeout=60,
+                staging_dir=tmp_path, terminate=lambda *_: True,
+                activity_callback=None, cancellation_check=None,
+                idle_timeout_seconds=2, output_size_probe=lambda _root: 1,
+            )
+    assert failure.value.timeout == 2
+
+
+def test_monitor_does_not_treat_output_shrink_as_growth(tmp_path: Path) -> None:
+    output_sizes = iter([10, 5, 5])
+    process = PollingProcess()
+    with mock.patch(
+        "app.repository.winrar_process_monitor.time.monotonic",
+        side_effect=[0.0, 0.0, 1.0, 2.0],
+    ):
+        with pytest.raises(OwnedProcessIdleTimeout):
+            monitor_owned_process(
+                process, pid=4242, args=["WinRAR.exe"], timeout=60,
+                staging_dir=tmp_path, terminate=lambda *_: True,
+                activity_callback=None, cancellation_check=None,
+                idle_timeout_seconds=2,
+                output_size_probe=lambda _root: next(output_sizes),
+            )
+
+
+def test_monitor_waits_for_hard_deadline_before_first_rar_output(
+    tmp_path: Path,
+) -> None:
+    output_sizes = iter([0, 0, 0])
+    process = PollingProcess()
+    with mock.patch(
+        "app.repository.winrar_process_monitor.time.monotonic",
+        side_effect=[0.0, 0.5, 2.0],
+    ):
+        with pytest.raises(subprocess.TimeoutExpired) as failure:
+            monitor_owned_process(
+                process, pid=4242, args=["WinRAR.exe"], timeout=2,
+                staging_dir=tmp_path, terminate=lambda *_: True,
+                activity_callback=None, cancellation_check=None,
+                idle_timeout_seconds=1,
+                output_size_probe=lambda _root: next(output_sizes),
+            )
+    assert not isinstance(failure.value, OwnedProcessIdleTimeout)
+
+
+def test_monitor_hard_deadline_wins_when_deadlines_are_equal(
+    tmp_path: Path,
+) -> None:
+    output_sizes = iter([1, 1])
+    process = PollingProcess()
+    with mock.patch(
+        "app.repository.winrar_process_monitor.time.monotonic",
+        side_effect=[0.0, 0.0, 2.0],
+    ):
+        with pytest.raises(subprocess.TimeoutExpired) as failure:
+            monitor_owned_process(
+                process, pid=4242, args=["WinRAR.exe"], timeout=2,
+                staging_dir=tmp_path, terminate=lambda *_: True,
+                activity_callback=None, cancellation_check=None,
+                idle_timeout_seconds=2,
+                output_size_probe=lambda _root: next(output_sizes),
+            )
+    assert not isinstance(failure.value, OwnedProcessIdleTimeout)
+
+
+def test_environment_hard_deadline_wins_when_poll_crosses_both(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BIJI_ARCHIVE_TIMEOUT_SECONDS", "1")
+    hard_timeout = WinRarExecutor.compute_timeout(10_000_000_000)
+    output_sizes = iter([1, 1])
+    process = PollingProcess()
+    with mock.patch(
+        "app.repository.winrar_process_monitor.time.monotonic",
+        side_effect=[0.0, 0.0, 3.0],
+    ):
+        with pytest.raises(subprocess.TimeoutExpired) as failure:
+            monitor_owned_process(
+                process, pid=4242, args=["WinRAR.exe"], timeout=hard_timeout,
+                staging_dir=tmp_path, terminate=lambda *_: True,
+                activity_callback=None, cancellation_check=None,
+                idle_timeout_seconds=2,
+                output_size_probe=lambda _root: next(output_sizes),
+            )
+    assert hard_timeout == 1
+    assert not isinstance(failure.value, OwnedProcessIdleTimeout)
+
+
+def test_monitor_starts_idle_clock_when_first_rar_output_appears(
+    tmp_path: Path,
+) -> None:
+    output_sizes = iter([0, 5, 5, 5])
+    process = PollingProcess()
+    with mock.patch(
+        "app.repository.winrar_process_monitor.time.monotonic",
+        side_effect=[0.0, 1.0, 2.9, 3.0],
+    ):
+        with pytest.raises(OwnedProcessIdleTimeout):
+            monitor_owned_process(
+                process, pid=4242, args=["WinRAR.exe"], timeout=60,
+                staging_dir=tmp_path, terminate=lambda *_: True,
+                activity_callback=None, cancellation_check=None,
+                idle_timeout_seconds=2,
+                output_size_probe=lambda _root: next(output_sizes),
+            )
+
+
 def test_process_cancel_targets_only_owned_pid(tmp_path: Path) -> None:
     process = WaitingProcess()
     calls = []
@@ -370,3 +516,93 @@ def test_executor_cancel_cleans_only_its_owned_staging(tmp_path: Path) -> None:
     assert captured.value.code == "ARCHIVE_EXECUTION_CANCELLED"
     tree_kill.assert_called_once_with(4242)
     assert list((tmp_path / "staging").glob("archive-*")) == []
+
+
+def test_executor_idle_timeout_terminates_and_cleans_owned_staging(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    input_path = source / "SYNTHETIC.bin"
+    input_path.write_bytes(b"SYNTHETIC")
+    process = WaitingProcess()
+    process.pid = 4242
+    process.dead = False
+    process.poll = lambda: 0 if process.dead else None
+    process.wait = lambda timeout=None: setattr(process, "dead", True) or 0
+    executor = WinRarExecutor(
+        tmp_path / "staging", activity_callback=lambda _root: None,
+    )
+    plan = SimpleNamespace(
+        plan_id="SYNTHETIC-IDLE-PLAN",
+        archive_base_name="SYNTHETIC-ARCHIVE",
+        volume_size_bytes=1_000,
+    )
+    entry = SimpleNamespace(
+        relative_path="SYNTHETIC.bin", absolute_path=input_path,
+        size_bytes=input_path.stat().st_size,
+    )
+    capability = WinRarCapability(
+        True, "configured", "WinRAR.exe", "7.23", True,
+    )
+    with mock.patch(
+        "app.repository.winrar_executor_repository.subprocess.Popen",
+        return_value=process,
+    ), mock.patch(
+        "app.repository.winrar_executor_repository.monitor_owned_process",
+        side_effect=OwnedProcessIdleTimeout(["WinRAR.exe"], 600),
+    ), mock.patch(
+        "app.repository.winrar_executor_repository._kill_process_tree_impl",
+        return_value=True,
+    ) as tree_kill:
+        with pytest.raises(ArchiveExecutionError) as captured:
+            executor.execute(plan, (entry,), source, capability)
+    assert captured.value.code == "ARCHIVE_EXECUTION_TIMEOUT"
+    assert "600" in captured.value.safe_message
+    tree_kill.assert_called_once_with(4242)
+    assert list((tmp_path / "staging").glob("archive-*")) == []
+
+
+def test_executor_idle_timeout_keeps_staging_when_termination_fails(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    input_path = source / "SYNTHETIC.bin"
+    input_path.write_bytes(b"SYNTHETIC")
+    process = WaitingProcess()
+    process.pid = 4242
+    executor = WinRarExecutor(
+        tmp_path / "staging",
+        staging_initializer=lambda root: (root / "partial.rar").write_bytes(b"x"),
+        activity_callback=lambda _root: None,
+    )
+    plan = SimpleNamespace(
+        plan_id="SYNTHETIC-IDLE-TERMINATION-FAILURE",
+        archive_base_name="SYNTHETIC-ARCHIVE",
+        volume_size_bytes=1_000,
+    )
+    entry = SimpleNamespace(
+        relative_path="SYNTHETIC.bin", absolute_path=input_path,
+        size_bytes=input_path.stat().st_size,
+    )
+    capability = WinRarCapability(
+        True, "configured", "WinRAR.exe", "7.23", True,
+    )
+    with mock.patch(
+        "app.repository.winrar_executor_repository.subprocess.Popen",
+        return_value=process,
+    ), mock.patch(
+        "app.repository.winrar_executor_repository.monitor_owned_process",
+        side_effect=OwnedProcessIdleTimeout(["WinRAR.exe"], 600),
+    ), mock.patch(
+        "app.repository.winrar_executor_repository._terminate_process",
+        return_value=False,
+    ) as terminate:
+        with pytest.raises(ArchiveExecutionError) as captured:
+            executor.execute(plan, (entry,), source, capability)
+    assert captured.value.code == "ARCHIVE_EXECUTION_FAILED"
+    terminate.assert_called_once_with(process, 4242)
+    staging_dirs = list((tmp_path / "staging").glob("archive-*"))
+    assert len(staging_dirs) == 1
+    assert (staging_dirs[0] / "partial.rar").read_bytes() == b"x"

@@ -35,14 +35,43 @@ def test_picker_returns_selected_absolute_directory_and_uses_fixed_native_comman
     assert "ShowDialog($owner)" in command[-1]
     assert "$owner.TopMost = $true" in command[-1]
     assert "EnumWindows" in command[-1]
-    assert "Thread worker = new Thread(PromoteDialog)" in command[-1]
+    assert "promotionWorker = new Thread(PromoteDialog)" in command[-1]
+    assert "GetWindow(hWnd, GW_OWNER) == ownerHandle" in command[-1]
+    assert 'className.ToString() == "#32770"' in command[-1]
+    assert "return ownedCandidate != IntPtr.Zero ? ownedCandidate : dialogCandidate" in command[-1]
     assert "SetWindowPos(candidate, HWND_TOPMOST" in command[-1]
-    assert "ForegroundRequested = SetForegroundWindow(candidate)" in command[-1]
+    assert "SWP_NOACTIVATE" in command[-1]
+    assert "if (!ForegroundRequested)" in command[-1]
+    assert "Thread.Sleep(PROMOTION_INTERVAL_MS)" in command[-1]
+    assert "Thread.Sleep(50)" not in command[-1]
+    assert "worker.Join(PROMOTION_JOIN_TIMEOUT_MS)" in command[-1]
     assert "PICKER_TOPMOST_NOT_CONFIRMED" in command[-1]
     assert "exit 21" not in command[-1]
     assert "-Command" in command
     assert options["timeout"] == 600
     assert options["check"] is False
+
+
+def test_picker_promotion_loop_cannot_exit_after_first_success_and_reactivates_new_handle(tmp_path: Path):
+    commands: list[list[str]] = []
+
+    def runner(command: list[str], **_kwargs):
+        commands.append(command)
+        return SimpleNamespace(returncode=0, stdout=str(tmp_path), stderr="")
+
+    LocalDirectoryPickerService(runner=runner, platform_name="nt").select()
+
+    script = commands[0][-1]
+    promotion_body = script.split("private static void PromoteDialog() {", 1)[1].split("\n    }\n}\n'@;", 1)[0]
+    assert "while (!stopRequested)" in promotion_body
+    assert "return;" not in promotion_body
+    assert promotion_body.index("candidate != lastCandidate") < promotion_body.index(
+        "ForegroundRequested = false",
+    )
+    assert promotion_body.index("SetWindowPos(candidate, HWND_TOPMOST") < promotion_body.index(
+        "Thread.Sleep(PROMOTION_INTERVAL_MS)",
+    )
+    assert "SWP_NOACTIVATE" in promotion_body
 
 
 def test_picker_cancel_returns_none_without_path_validation(tmp_path: Path):

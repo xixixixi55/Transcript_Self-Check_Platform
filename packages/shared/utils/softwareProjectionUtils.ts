@@ -1,5 +1,66 @@
-import type { InspectionReport, InspectorSnapshot } from '../types'
+import type { EvidenceItem, InspectionReport, InspectorSnapshot, ProcessStep } from '../types'
 import { formatDiscDate, parseDiscSequence } from './discSequenceUtils'
+import { buildMaterialPhotoGroups } from './materialPhotoGroups'
+
+function text(value: unknown): string {
+  return value == null ? '' : String(value).trim()
+}
+
+function evidenceDeviceName(item: EvidenceItem): string {
+  const brand = text(item.brand)
+  const model = text(item.model)
+  if (brand && model) {
+    return model.toLocaleLowerCase().includes(brand.toLocaleLowerCase())
+      ? model : `${brand} ${model}`
+  }
+  return text(item.device_name) || model || text(item.device_type) || '未知设备'
+}
+
+function evidenceIdentifiers(item: EvidenceItem): string {
+  const imeiValues = [text(item.imei1), text(item.imei2)].filter(Boolean)
+  const serialNumber = text(item.serial_number)
+  const identifiers = item.material_type === 'tablet'
+    ? (serialNumber ? [`序列号：${serialNumber}`] : [])
+    : item.material_type === 'phone'
+      ? imeiValues.map((value, index) => `IMEI${index + 1}：${value}`)
+      : [
+          ...imeiValues.map((value, index) => `IMEI${index + 1}：${value}`),
+          ...(serialNumber ? [`序列号：${serialNumber}`] : []),
+        ]
+  return identifiers.join('；') || '设备标识待确认'
+}
+
+function projectEvidenceProcessSteps(report: InspectionReport): ProcessStep[] {
+  const evidenceList = report.introduction.evidence_list || []
+  const evidenceNumbers = evidenceList.map(item => text(item.evidence_number)).filter(Boolean)
+  const evidenceLabel = evidenceNumbers.join('、') || 'xx'
+  const descriptions = evidenceList.map(item =>
+    `${evidenceDeviceName(item)}（${evidenceIdentifiers(item)}）编号为${text(item.evidence_number) || 'xx'}`,
+  )
+  const primary = report.inspection.primary_software
+  const softwareName = text(primary?.name) || text(report.inspection.result.software_name)
+  const softwareVersion = text(primary?.version) || text(report.inspection.result.software_version)
+  const softwareDisplay = softwareName || '待确认主取证软件'
+  const projectedContent = new Map<number, string>([
+    [1, descriptions.length ? `将${descriptions.join('；')}。` : '将检材信息待确认。'],
+    [2, `对检材${evidenceLabel}进行拍照。`],
+    [4, `启动${softwareDisplay}（版本号为${softwareVersion || '待确认'}）对检材${evidenceLabel}进行检查。`],
+  ])
+  return (report.inspection.process_steps || []).map(step => ({
+    ...step,
+    content: projectedContent.get(step.step_number) ?? step.content,
+  }))
+}
+
+function applyEvidenceListProjection(report: InspectionReport): InspectionReport {
+  const evidenceNumbers = report.introduction.evidence_list
+    .map(item => text(item.evidence_number))
+    .filter(Boolean)
+  report.inspection.result.evidence_number = evidenceNumbers.join('、')
+  report.inspection.process_steps = projectEvidenceProcessSteps(report)
+  report.attachments.photo_groups = buildMaterialPhotoGroups(report, report.attachments.photo_ids || [])
+  return report
+}
 
 export function applyPrimarySoftwareEdit(
   report: InspectionReport,
@@ -52,5 +113,5 @@ export function applyReportEdit(report: InspectionReport, path: string, value: a
       name: snapshot.name, unit: snapshot.unit, badge_number: snapshot.police_number,
     }))
   }
-  return next
+  return path === 'introduction.evidence_list' ? applyEvidenceListProjection(next) : next
 }

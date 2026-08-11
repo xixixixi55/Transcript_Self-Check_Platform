@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InspectionReport } from '@biji/shared/types'
-import { applyPrimarySoftwareEdit } from '@biji/shared/utils'
+import { applyPrimarySoftwareEdit, applyReportEdit } from '@biji/shared/utils'
 
 const report: InspectionReport = {
   title: '合成笔录', document_number: 'DOC-001',
@@ -52,5 +52,121 @@ describe('primary software projection', () => {
     expect(runtimeNames).toContain('HashMyFiles')
     expect(runtimeNames).toContain('Python hashlib')
     expect(runtimeNames).toContain('WinRAR压缩管理软件')
+  })
+})
+
+const firstMaterial = {
+  id: 'SYNTHETIC-MATERIAL-1', device_type: 'phone', device_name: 'SYNTHETIC PHONE 1',
+  imei1: 'SYNTHETIC-IMEI-1', evidence_number: 'SYNTHETIC-1', material_type: 'phone' as const,
+}
+const secondMaterial = {
+  id: 'SYNTHETIC-MATERIAL-2', device_type: 'tablet', device_name: 'SYNTHETIC TABLET 2',
+  serial_number: 'SYNTHETIC-SERIAL-2', evidence_number: 'SYNTHETIC-2', material_type: 'tablet' as const,
+}
+const photoIds = [
+  'asset-synthetic-1-front', 'asset-synthetic-1-back',
+  'asset-synthetic-2-front', 'asset-synthetic-2-back',
+]
+
+function evidenceReport(): InspectionReport {
+  return {
+    ...report,
+    introduction: { ...report.introduction, evidence_list: [firstMaterial] },
+    inspection: {
+      ...report.inspection,
+      primary_software: {
+        name: 'SYNTHETIC TOOL', version: '1.0', display_name: 'SYNTHETIC TOOL 1.0',
+        confirmation_status: 'confirmed_by_report', provenance: [], candidates: [],
+      },
+      process_steps: [
+        { step_number: 1, content: 'old material description' },
+        { step_number: 2, content: 'old photo description' },
+        { step_number: 3, content: 'SYNTHETIC unchanged environment step' },
+        { step_number: 4, content: 'old inspection description' },
+      ],
+      result: { ...report.inspection.result, evidence_number: 'SYNTHETIC-1' },
+    },
+    attachments: {
+      ...report.attachments,
+      photo_ids: photoIds,
+      photo_groups: [{
+        material_id: firstMaterial.id, material_number: firstMaterial.evidence_number,
+        display_text: '检材SYNTHETIC-1照片',
+        ordered_image_ids: [photoIds[0], photoIds[1]], source_order: 1,
+      }],
+    },
+  }
+}
+
+describe('evidence list projection', () => {
+  it('updates process/result fields and rebuilds existing photo groups after adding a material', () => {
+    const initial = evidenceReport()
+
+    const updated = applyReportEdit(
+      initial, 'introduction.evidence_list', [firstMaterial, secondMaterial],
+    )
+
+    expect(updated.inspection.result.evidence_number).toBe('SYNTHETIC-1、SYNTHETIC-2')
+    expect(updated.inspection.process_steps.find(step => step.step_number === 1)?.content)
+      .toContain('SYNTHETIC TABLET 2（序列号：SYNTHETIC-SERIAL-2）编号为SYNTHETIC-2')
+    expect(updated.inspection.process_steps.find(step => step.step_number === 2)?.content)
+      .toBe('对检材SYNTHETIC-1、SYNTHETIC-2进行拍照。')
+    expect(updated.inspection.process_steps.find(step => step.step_number === 3)?.content)
+      .toBe('SYNTHETIC unchanged environment step')
+    expect(updated.inspection.process_steps.find(step => step.step_number === 4)?.content)
+      .toBe('启动SYNTHETIC TOOL（版本号为1.0）对检材SYNTHETIC-1、SYNTHETIC-2进行检查。')
+    expect(updated.attachments.photo_groups).toEqual([
+      {
+        material_id: 'SYNTHETIC-MATERIAL-1', material_number: 'SYNTHETIC-1',
+        display_text: '检材SYNTHETIC-1照片',
+        ordered_image_ids: photoIds.slice(0, 2), source_order: 1,
+      },
+      {
+        material_id: 'SYNTHETIC-MATERIAL-2', material_number: 'SYNTHETIC-2',
+        display_text: '检材SYNTHETIC-2照片',
+        ordered_image_ids: photoIds.slice(2, 4), source_order: 2,
+      },
+    ])
+  })
+
+  it('keeps renumber, reorder, removal and mismatched photo state deterministic', () => {
+    const added = applyReportEdit(
+      evidenceReport(), 'introduction.evidence_list', [firstMaterial, secondMaterial],
+    )
+    const renumberedSecond = { ...secondMaterial, evidence_number: 'SYNTHETIC-2-UPDATED' }
+    const renumbered = applyReportEdit(
+      added, 'introduction.evidence_list', [firstMaterial, renumberedSecond],
+    )
+
+    expect(renumbered.inspection.result.evidence_number).toBe('SYNTHETIC-1、SYNTHETIC-2-UPDATED')
+    expect(renumbered.inspection.process_steps.find(step => step.step_number === 2)?.content)
+      .toContain('SYNTHETIC-1、SYNTHETIC-2-UPDATED')
+    expect(renumbered.attachments.photo_groups?.[1]).toEqual(expect.objectContaining({
+      material_number: 'SYNTHETIC-2-UPDATED', display_text: '检材SYNTHETIC-2-UPDATED照片',
+    }))
+
+    const reordered = applyReportEdit(
+      renumbered, 'introduction.evidence_list', [renumberedSecond, firstMaterial],
+    )
+    expect(reordered.inspection.result.evidence_number).toBe('SYNTHETIC-2-UPDATED、SYNTHETIC-1')
+    expect(reordered.attachments.photo_groups?.map(group => ({
+      material: group.material_id, images: group.ordered_image_ids,
+    }))).toEqual([
+      { material: 'SYNTHETIC-MATERIAL-2', images: photoIds.slice(0, 2) },
+      { material: 'SYNTHETIC-MATERIAL-1', images: photoIds.slice(2, 4) },
+    ])
+    expect(reordered.inspection.process_steps.find(step => step.step_number === 3)?.content)
+      .toBe('SYNTHETIC unchanged environment step')
+
+    const removed = applyReportEdit(
+      reordered, 'introduction.evidence_list', [renumberedSecond],
+    )
+    expect(removed.inspection.result.evidence_number).toBe('SYNTHETIC-2-UPDATED')
+    expect(removed.inspection.process_steps.map(step => step.content).join(' ')).not.toContain('SYNTHETIC-1')
+    expect(removed.attachments.photo_ids).toEqual(photoIds)
+    expect(removed.attachments.photo_groups).toHaveLength(1)
+    expect(removed.attachments.photo_groups?.flatMap(group => group.ordered_image_ids))
+      .toEqual(photoIds.slice(0, 2))
+    expect(removed.attachments.photo_groups?.length).not.toBe(removed.attachments.photo_ids.length / 2)
   })
 })

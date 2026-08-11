@@ -139,7 +139,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
     expect(screen.getByText('正在创建 RAR 分卷')).toBeTruthy()
     expect(screen.getByRole('progressbar', { name: '任务正在运行：正在创建 RAR 分卷' })).toBeTruthy()
     expect(screen.getByText('总体里程碑 30% · 已运行 18 分钟')).toBeTruthy()
-    expect(screen.getByText('已检测 3 个分卷 · 已写出约 11.2 GB · 最后活动：刚刚')).toBeTruthy()
+    expect(screen.getByText('已生成 3 个分卷（仍在压缩） · 已写出约 11.2 GB · 最后活动：刚刚')).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/\b(?:31|50|74)%/)
     expect(document.querySelectorAll('.archive-status-panel__activity-line')).toHaveLength(2)
   })

@@ -50,6 +50,12 @@
 - AND 若图片保存与归档完成回填发生竞争，系统必须识别仅由归档完成产生的 revision 推进并自动合并重试，不得向审核页面返回 409；最终草稿同时保留图片引用与已验证 RAR/MD5/附件1字段
 - AND 已密封的归档输入快照、RAR 内容和发布证据仍保持不变
 
+#### Scenario: 上传图片后人工调整检材仍保持映射同步
+- WHEN 图片引用已经保存，民警随后人工新增、删除、改号或调整检材顺序
+- THEN 系统使用既有图片引用和最新检材顺序立即重建 `photo_groups`，并随同一次草稿编辑持久化
+- AND 已上传图片无需删除或重新上传即可在检材数量与图片数量重新匹配后通过导出校验
+- AND 数量仍不匹配时继续明确拒绝导出，不得丢失、复制或静默猜测图片
+
 #### Scenario: Legacy 兼容解析建立归档上下文但不压缩
 - WHEN `/records/*` Legacy 兼容入口解析报告目录，无论 deprecated `compress` 参数为何值
 - THEN 解析阶段可以建立不透明 `archive_context_id`，但不调用 WinRAR、不生成占位 Manifest
@@ -137,6 +143,25 @@
 - THEN 继续执行完整 inventory、路径/链接/文件变化、WinRAR、完整性、MD5、Manifest 和 Word 门控
 - AND 任一门控失败都不得发布正式导出成功状态
 - AND 导出路径写入失败、磁盘不可写或文件被占用时明确报错，不标记已导出
+
+## MODIFIED: REQ-025 — 后台归档任务的活动感知超时
+
+#### Scenario: 多分卷生成后仍在收尾
+- WHEN WinRAR 已在 staging 中生成一个或多个 RAR 分卷但进程仍在处理输入或执行收尾
+- THEN 任务状态继续保持“正在创建 RAR 分卷”，前端显示“已生成 N 个分卷（仍在压缩）”且不得将其视为完成
+- AND 只要 RAR 输出总大小仍在增长，监控器刷新无增长计时，不得因旧的固定 deadline 提前终止
+
+#### Scenario: 首个 RAR 输出出现前仅受硬上限约束
+- WHEN WinRAR 进程已经启动但 staging 中尚未出现非零 RAR 输出
+- THEN 监控器不得启动无增长空闲计时
+- AND 进程仍必须受操作员覆盖或按输入体积计算的硬上限约束
+
+#### Scenario: RAR 输出长时间无增长
+- WHEN WinRAR 进程在受控硬上限内连续超过无增长阈值没有任何 RAR 输出大小变化
+- THEN 后端终止归档进程、清理 staging，并返回稳定的归档超时错误
+- AND 若 hard 与 idle deadline 同时到期或一次轮询跨过两者，系统按绝对 deadline 选择最早者，相等时 hard 优先
+- AND 若自有 WinRAR 进程无法安全终止，系统不得清理仍可能被进程占用的 staging，并返回稳定的执行失败错误
+- AND 只有 WinRAR 正常退出且后续分卷完整性、MD5 与 Manifest 校验通过时任务才能成功
 
 ## ADDED: REQ-030 — 盘号后填与顺序映射
 

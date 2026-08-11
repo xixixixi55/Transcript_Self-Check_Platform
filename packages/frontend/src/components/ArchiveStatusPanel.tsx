@@ -79,7 +79,7 @@ function activityLines(summary: ArchiveTaskCardSummary, now: number): string[] {
   const elapsed = formatElapsed(summary.started_at, now)
   const first = `总体里程碑 ${summary.percent}%${elapsed ? ` · ${elapsed}` : ''}`
   const metrics = [
-    summary.output_volume_count === null ? null : `已检测 ${summary.output_volume_count} 个分卷`,
+    summary.output_volume_count === null ? null : `已生成 ${summary.output_volume_count} 个分卷（仍在压缩）`,
     formatBytes(summary.output_bytes) ? `已写出约 ${formatBytes(summary.output_bytes)}` : null,
   ].filter(Boolean).join(' · ')
   const lastActivity = formatRelative(
