@@ -45,7 +45,10 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     commands = []
 
     # ─── 标题（22pt 仿宋_GB2312 居中）───
-    commands.append(_p(report.get("title", "电子数据检查笔录"), size=22, align="center"))
+    commands.append(_p(
+        report.get("title", "电子数据检查笔录"), bold=True,
+        size=22, align="center",
+    ))
     # ─── 文号（18pt 仿宋 居中）───
     commands.append(_p(report.get("document_number", "xx电检〔20xx〕xx号"), size=18, align="center", spacing_after=400, font_ea="仿宋"))
 
@@ -53,7 +56,11 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     commands.append(_heading("一、绪论"))
 
     # (一)～(九)
-    commands.append(_p(f"（一）委托单位：{intro.get('entrust_unit', '')}"))
+    entrust_unit = (
+        str(intro.get("entrust_unit_prefix", "")).strip()
+        + str(intro.get("entrust_unit", "")).strip()
+    )
+    commands.append(_p(f"（一）委托单位：{entrust_unit}"))
     commands.append(_p(f"（二）委 托 人：{'、'.join(intro.get('entrust_persons', []))}"))
     commands.append(_p(f"（三）委托时间：{intro.get('entrust_time', '')}"))
     commands.append(_p(f"（四）案件简要情况：{intro.get('case_summary', '')}"))
@@ -118,7 +125,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
         + result.get("software_version", "") + "）进行检查，检出"
         + normalize_data_summary(result.get("data_summary")) + "等电子数据。"
         + "将检出结果生成为\"" + result.get("rar_filename", "") + "\"文件，"
-        + "文件MD5哈希值为\"" + result.get("md5_hash", "") + "\"，"
+        + "文件MD5哈希值为\"" + str(result.get("md5_hash", "")).upper() + "\"，"
         + "文件大小为\"" + result.get("file_size", "") + "\"字节。"
     )
     # 光盘记录句（参照最终 Word 标准）
@@ -142,7 +149,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     # ─── 附件1：电子数据提取固定清单 ───
     commands.append(_empty_line())
     commands.append(_p("附件1："))
-    commands.append(_p("电子数据提取固定清单", size=22, align="center"))
+    commands.append(_p("电子数据提取固定清单", bold=True, size=22, align="center"))
 
     extract_list = attach.get("extract_list", {})
     commands.extend(_build_table(extract_list))
@@ -242,7 +249,7 @@ def _build_table(table_data: dict) -> list[dict]:
     cols = table_data.get("columns") or DEFAULT_EXTRACT_COLUMNS
     rows = table_data.get("rows") or DEFAULT_EXTRACT_ROWS
     all_rows = [[column.get("title", "") for column in cols]] + [
-        [str(row.get(column.get("key", ""), "")) for column in cols]
+        [_table_cell_value(row, column.get("key", "")) for column in cols]
         for row in rows
     ]
     commands: list[dict] = [{
@@ -268,3 +275,14 @@ def _build_table(table_data: dict) -> list[dict]:
                 },
             })
     return commands
+
+
+def _table_cell_value(row: dict, key: str) -> str:
+    value = str(row.get(key, ""))
+    if key == "md5_hash":
+        return value.upper()
+    if key == "source":
+        source = value.strip()
+        if source.endswith("内提取") and not source.endswith("检材内提取"):
+            return source[:-3] + "检材内提取"
+    return value

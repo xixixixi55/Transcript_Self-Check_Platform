@@ -69,7 +69,7 @@ class ArchiveTaskResultService:
                 "part_id": part["part_id"],
                 "filename": part["filename"],
                 "size_bytes": part["size_bytes"],
-                "md5": part["md5"],
+                "md5": str(part["md5"]).upper(),
                 "disc_number": disc_number,
                 "disc_date": disc_date,
             })

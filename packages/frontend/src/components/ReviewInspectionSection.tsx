@@ -73,9 +73,12 @@ export function ReviewInspectionSection({ inspection, updateReport, deviceOption
             <Text type="secondary">{label}</Text>
             <EditableField type="text" value={key === 'data_summary'
               ? normalizeDataSummary((inspection.result as any)?.[key])
-              : String((inspection.result as any)?.[key] || '')}
+              : key === 'md5_hash'
+                ? String((inspection.result as any)?.[key] || '').toUpperCase()
+                : String((inspection.result as any)?.[key] || '')}
               onChange={value => updateReport(`inspection.result.${key}`,
-                key === 'data_summary' ? normalizeDataSummary(value) : value)} />
+                key === 'data_summary' ? normalizeDataSummary(value)
+                  : key === 'md5_hash' ? value.toUpperCase() : value)} />
           </div>
         ))}
       </div>

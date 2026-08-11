@@ -213,6 +213,29 @@ workflow_level: 3
   - final_gate: [PASS] 同一冻结候选以 `background-compression-archive-completion` scope 执行一次全仓 `verify:full`，预检、架构、类型、治理、资产、完整测试、生产构建和该变更严格文档全部通过；本变更另执行 scoped strict docs，13 checks / 0 drift。
   - manual_acceptance: N/A（数据投影、持久化载荷和导出门控由合成数据自动化覆盖；未改变 Word 视觉版式或桌面交互。）
 
+## 🟢 Phase 9: 审核提示与 Word 文案格式修正
+
+- [x] T021 **修正案件简要提示、MD5/来源/版本文案与 Word 标题格式**
+  - 文件：`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`ReviewInspectionSection.tsx`、`ExtractListEditor.tsx`、归档展示组件与相关测试；`packages/shared/utils/softwareProjectionUtils.ts`；`packages/backend/app/repository/archive_report_metadata_repository.py`；`packages/backend/app/services/report_parser_service.py`、`attachment_plan_service.py`、`archive_manifest_projection_service.py`、`archive_task_result_service.py`、`document_builder_service.py`、`template_filler_service.py` 及相关测试。
+  - 内容：案件简要始终提示报告解析可能不准确并需人工核对，尾部空格/换行时额外警告；用户可见及 Word 中的 MD5 统一大写；固定清单来源统一为“检材内提取”；步骤 4 只在“版本号为……”中展示具体版本；Word 主标题居中加粗，固定清单标题加粗。
+  - 覆盖 Spec：REQ-032。
+  - 验证：前端组件/投影定向 Vitest，后端解析/附件计划/模板填充定向 pytest，DOCX XML 与 officecli 校验、人工视觉检查，架构/类型检查及当前变更 scoped full gate。
+  - 证据：受影响后端测试 99 passed（核心四文件 94 + Manifest 投影 5），前端定向 3 files / 22 passed；审查整改后的 batch/兼容投影/模板路径 33 passed；架构检查、类型检查、`git diff --check` 通过。合成 DOCX 经 officecli validate 无错误，6 页缩略图确认主标题居中加粗、固定清单标题加粗、来源与 MD5 格式正确。独立 Code Review 首轮发现兼容投影和 batch 回退遗漏；整改、全仓回归修复及区分性断言补充后最终复审 PASS。
+  - final_gate: [PASS] 冻结候选执行 `npm run verify:full -- --change audit-edit-enhancement`，预检、架构、类型、治理、资产、全仓测试、生产构建和 scoped strict docs 全部通过。
+  - manual_acceptance: [PASS] 使用完全合成数据生成 DOCX，officecli validate 无错误；HTML 渲染 6 页缩略图确认主标题居中加粗、固定清单标题加粗，清单来源与 MD5 大小写符合要求。
+
+## 🟢 Phase 10: 委托单位共享前缀
+
+- [x] T022 **增加可清空的委托单位共享前缀并接入 Word 导出**
+  - 文件：`packages/shared/types/`；`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`packages/frontend/src/hooks/useCaseRecordSession.ts`；`packages/backend/app/repository/shared_defaults_repository.py`、`case_draft_service.py`、`canonical_*`、`template_filler_service.py`、`document_builder_service.py` 及相关测试。
+  - 内容：报告识别单位保持独立；前缀作为当前案件字段和共享默认值保存并允许清空；新案件从共享默认值预填；模板与 batch 回退导出均直接拼接前缀和识别单位。
+  - 覆盖 Spec：REQ-ENTRUST-UNIT-PREFIX-001。
+  - 验证：共享默认值/草稿初始化后端测试、审核编辑与稀疏 patch 前端测试、两条 Word 导出路径测试、架构/类型检查、独立 Review 与 scoped full gate。
+  - 证据：后端共享默认值、Canonical 与两条 Word 路径定向测试 50 passed；前端组件/Hook 2 files / 16 passed，页面集成 16 passed；核心逻辑变异校验分别得到预期 1 failed 与 2 failed，恢复后 3 passed；架构、类型和仓库资产检查通过。
+  - code_review: [PASS] 首轮发现 Canonical 跨语言契约未同步及测试 fixture 合规问题；同步共享类型/契约清单、补充三类双向投影测试并替换为显式合成数据后，独立复审确认全部 MUST/SHOULD FIX CLOSED。
+  - final_gate: [PASS] 冻结候选执行 `npm run verify:full -- --change audit-edit-enhancement`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
+  - manual_acceptance: N/A（仅新增独立文本字段与确定性字符串拼接；模板和 batch 两条 DOCX 路径均由合成数据自动化读取实际输出验证，不改变版式。）
+
 ---
 
 ## 任务摘要
@@ -227,6 +250,8 @@ workflow_level: 3
 | 🟢 P6 | Hooks (10) | 1 | 草稿保存收敛 |
 | 🟢 P7 | Components / Pages (11~12) | 1 | 光盘编号统一入口 |
 | 🟢 P8 | SharedUtils (2) | 1 | 人工检材派生内容同步 |
-| **合计** | **Layer 2、10~12、21** | **20** | |
+| 🟢 P9 | Components / Services | 1 | 审核提示与正式文书规范化 |
+| 🟢 P10 | SharedTypes / Components / Repository / Services | 1 | 委托单位共享前缀与 Word 组合 |
+| **合计** | **Layer 0、2、10~12、20~21** | **22** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。

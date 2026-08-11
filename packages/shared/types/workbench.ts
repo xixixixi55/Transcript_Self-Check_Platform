@@ -95,6 +95,7 @@ export interface SharedDefaults {
   schema_version: WorkbenchSchemaVersion
   deployment_instance_id: string
   revision: number
+  entrust_unit_prefix: string
   document_number: string
   inspection_place: string
   inspection_method: string

@@ -90,6 +90,7 @@ export interface CanonicalCaseInfo {
   case_number: string
   case_name: string
   introduction: {
+    entrust_unit_prefix: string
     entrust_unit: string
     entrust_persons: string[]
     entrust_time: string

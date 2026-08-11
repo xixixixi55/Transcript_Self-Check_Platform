@@ -42,7 +42,7 @@ vi.mock('@ant-design/icons', () => ({
 }))
 vi.mock('./EditableField', () => ({
   default: ({ value, placeholder, onChange }: { value: string; placeholder?: string; onChange: (value: string) => void }) => (
-    <button onClick={() => onChange('已修改')}>{value || placeholder || '点击编辑'}</button>
+    <button onClick={() => onChange(value === 'ABC123' ? 'def456' : '已修改')}>{value || placeholder || '点击编辑'}</button>
   ),
 }))
 
@@ -157,6 +157,22 @@ describe('结构化编辑器', () => {
         electronic_data: '已修改',
         extraction_method: '',
       })],
+    }))
+  })
+
+  it('提取清单中的 MD5 以大写显示并以大写写回', () => {
+    const onChange = vi.fn()
+    render(<ExtractListEditor
+      tableData={{
+        columns: [],
+        rows: [{ no: '1', electronic_data: 'SYNTHETIC.rar', source: '', extraction_method: '', md5_hash: 'abc123' }],
+      }}
+      onChange={onChange}
+    />)
+
+    fireEvent.click(screen.getByText('ABC123'))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      rows: [expect.objectContaining({ md5_hash: 'DEF456' })],
     }))
   })
 

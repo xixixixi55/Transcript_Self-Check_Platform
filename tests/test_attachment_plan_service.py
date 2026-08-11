@@ -118,7 +118,7 @@ def test_attachment1_uses_manifest_rows_with_four_row_page_limit(
 
 def test_attachment1_has_complete_source_and_method_on_every_page():
     plan = build_attachment_plan(manifest(5), report(20, ["JC-A", "", "JC-A", "JC-B"]))
-    assert all(page.source_text == "JC-A、JC-B内提取" for page in plan.attachment1_pages)
+    assert all(page.source_text == "JC-A、JC-B检材内提取" for page in plan.attachment1_pages)
     assert all("使用测试设备对检材进行检查" in page.extraction_method for page in plan.attachment1_pages)
     assert all("将检出数据生成报告" in page.extraction_method for page in plan.attachment1_pages)
 

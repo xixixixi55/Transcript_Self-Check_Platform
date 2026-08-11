@@ -42,7 +42,7 @@ from .material_policy_service import material_from_legacy_item, select_display_i
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 15  # v15: preserve parsed case metadata for the workbench shell
+_CACHE_VERSION = 16  # v16: normalize visible MD5 and remove duplicated step-4 version
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
@@ -180,7 +180,7 @@ def parse_from_archive(
 ) -> dict:
     """解析上传压缩包；需要后续归档时由调用方保留受控源目录。"""
     ext = os.path.splitext(archive_path)[1].lower()
-    archive_md5 = archive_md5 or compute_md5(archive_path)
+    archive_md5 = (archive_md5 or compute_md5(archive_path)).upper()
     archive_size = os.path.getsize(archive_path)
 
     # 解压到临时目录
@@ -321,7 +321,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     main_status = main_software.get("status", "unconfirmed")
     main_candidates = main_software.get("candidates", [])
     sv = main_version or _extract_version(versions)
-    main_display = " ".join(filter(None, [main_name, main_version]))
+    main_display = main_name
     process_steps = [
         {"step_number": 1, "content": f"将{'；'.join(material_descriptions)}。"},
         {"step_number": 2, "content": f"对检材{evidence_label}进行拍照。"},
@@ -359,7 +359,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "electronic_data": rar_info["filename"],
             "source": f"{evidence_label}检材内提取" if evidence_numbers else "",
             "extraction_method": "使用美亚手机取证塔对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值",
-            "md5_hash": rar_info["md5"],
+            "md5_hash": str(rar_info["md5"]).upper(),
         })
 
     # 10. 构建 InspectionReport
@@ -411,7 +411,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
                 "software_version": sv,
                 "data_summary": data_summary,
                 "rar_filename": rar_info["filename"],
-                "md5_hash": rar_info["md5"],
+                "md5_hash": str(rar_info["md5"]).upper(),
                 "file_size": str(rar_info.get("size_bytes", 0)),
             },
         },

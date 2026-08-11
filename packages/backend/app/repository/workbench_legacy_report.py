@@ -15,6 +15,8 @@ def validate_legacy_report(value: Any) -> Mapping[str, Any]:
     if "case_number" in value and value["case_number"] is not None:
         _string(value["case_number"])
     introduction = _mapping(value, "introduction")
+    if "entrust_unit_prefix" in introduction:
+        _string(introduction["entrust_unit_prefix"])
     _strings(introduction, (
         "entrust_unit", "entrust_time", "case_summary", "inspection_requirement",
         "inspection_time_range", "inspection_place",

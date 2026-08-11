@@ -581,7 +581,12 @@ def test_verified_manifest_is_reconciled_before_restart_interruption(database, t
     assert draft["lifecycle"] == "archive_verified"
     attachment_rows = draft["report"]["attachments"]["extract_list"]["rows"]
     assert [row["electronic_data"] for row in attachment_rows] == [filename]
-    assert [row["md5_hash"] for row in attachment_rows] == [hashlib.md5(payload).hexdigest()]
+    assert draft["report"]["inspection"]["result"]["md5_hash"] == (
+        hashlib.md5(payload).hexdigest().upper()
+    )
+    assert [row["md5_hash"] for row in attachment_rows] == [
+        hashlib.md5(payload).hexdigest().upper()
+    ]
     assert all("file_size" not in row for row in attachment_rows)
     assert (final_dir / filename).read_bytes() == payload
     assert len(ArchiveManifestRepository(output).find_reusable(**identity)) == 1

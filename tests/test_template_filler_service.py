@@ -120,6 +120,47 @@ def test_flatten_report_uses_burning_date_for_attachment_summary_signature():
     assert flat["created_date"] == "2026年7月16日"
 
 
+def test_flatten_report_combines_entrust_unit_prefix_without_separator():
+    report = _report()
+    report["introduction"]["entrust_unit_prefix"] = " SYNTHETIC-公安分局 "
+    report["introduction"]["entrust_unit"] = " SYNTHETIC-派出所 "
+
+    assert _flatten_report(report)["entrust_unit"] == "SYNTHETIC-公安分局SYNTHETIC-派出所"
+
+    report["introduction"]["entrust_unit_prefix"] = ""
+    assert _flatten_report(report)["entrust_unit"] == "SYNTHETIC-派出所"
+
+
+def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
+    report = _report()
+    report["introduction"]["entrust_unit_prefix"] = "SYNTHETIC-公安分局"
+    report["introduction"]["entrust_unit"] = "SYNTHETIC-派出所"
+    report["attachments"]["extract_list"]["rows"] = [{
+        "no": "1",
+        "electronic_data": "SYNTHETIC.rar",
+        "source": "JC01内提取",
+        "extraction_method": "SYNTHETIC/TEST",
+        "md5_hash": "abcdef0123456789abcdef0123456789",
+    }]
+    output = tmp_path / "normalized-format.docx"
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    document = Document(output)
+    title = next(p for p in document.paragraphs if p.text.strip() == "电子数据检查笔录")
+    extract_heading = next(
+        p for p in document.paragraphs if p.text.strip() == "电子数据提取固定清单"
+    )
+    assert title.alignment == 1
+    assert title.runs and all(run.bold for run in title.runs if run.text)
+    assert extract_heading.runs and all(run.bold for run in extract_heading.runs if run.text)
+    assert any(
+        "委托单位：SYNTHETIC-公安分局SYNTHETIC-派出所" in paragraph.text
+        for paragraph in document.paragraphs
+    )
+    assert document.tables[0].rows[1].cells[2].text.strip() == "JC01检材内提取"
+    assert document.tables[0].rows[1].cells[4].text.strip() == "ABCDEF0123456789ABCDEF0123456789"
+
+
 def test_manifest_disc_date_overrides_attachment_summary_signature_date(tmp_path):
     report = _report()
     report["inspection"]["primary_software"] = {
@@ -213,6 +254,15 @@ def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
 
     with zipfile.ZipFile(output) as package:
         document_xml = package.read("word/document.xml").decode("utf-8")
+
+    document = Document(output)
+    title = next(p for p in document.paragraphs if p.text.strip() == "电子数据检查笔录")
+    extract_heading = next(
+        p for p in document.paragraphs if p.text.strip() == "电子数据提取固定清单"
+    )
+    assert title.alignment == 1
+    assert title.runs and all(run.bold for run in title.runs if run.text)
+    assert extract_heading.runs and all(run.bold for run in extract_heading.runs if run.text)
 
     assert "经对编号为JC-A、JC-B、JC-C号检材使用已确认取证软件（版本号为3.2）" in document_xml
     for index in range(1, 4):

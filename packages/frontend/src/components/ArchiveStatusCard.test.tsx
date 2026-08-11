@@ -73,7 +73,7 @@ describe('ArchiveStatusCard', () => {
     )
     expect(screen.getByText('合成案件.rar')).toBeTruthy()
     expect(screen.getByText('123 字节', { exact: false })).toBeTruthy()
-    expect(screen.getByText('a'.repeat(32))).toBeTruthy()
+    expect(screen.getByText('A'.repeat(32))).toBeTruthy()
     const link = screen.getByRole('link', { name: /下载该 RAR/ })
     expect(link.getAttribute('href')).toContain(
       '/records/archive/context-1/manifests/manifest-1/parts/part-1',

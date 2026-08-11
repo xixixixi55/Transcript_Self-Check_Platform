@@ -53,7 +53,7 @@ def verified_archive_result_fields(manifest: Mapping[str, Any]) -> dict[str, str
         if not isinstance(part, Mapping):
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
         values["rar_filename"].append(_required_text(part, "filename"))
-        values["md5_hash"].append(_required_text(part, "md5"))
+        values["md5_hash"].append(_required_text(part, "md5").upper())
         size = part.get("size_bytes")
         if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")

@@ -39,7 +39,8 @@ export default function ExtractListEditor({ tableData, onChange, fallbackExtract
   }
 
   const updateCell = (rowIdx: number, colKey: string, value: string) => {
-    const updated = sourceRows.map((r, i) => i === rowIdx ? { ...r, [colKey]: value } : r)
+    const normalizedValue = colKey === 'md5_hash' ? value.toUpperCase() : value
+    const updated = sourceRows.map((r, i) => i === rowIdx ? { ...r, [colKey]: normalizedValue } : r)
     onChange({ columns: [...cols], rows: updated })
   }
 
@@ -58,7 +59,9 @@ export default function ExtractListEditor({ tableData, onChange, fallbackExtract
             title: col.title, key: col.key, dataIndex: col.key,
             width: col.width ? parseInt(col.width) : 120,
             render: (_: unknown, record: Record<string, string | number>, rowIdx: number) => (
-              <EditableField type="text" value={String(record[col.key] || '')}
+              <EditableField type="text" value={col.key === 'md5_hash'
+                ? String(record[col.key] || '').toUpperCase()
+                : String(record[col.key] || '')}
                 onChange={value => updateCell(rowIdx, col.key, value)} />
             ),
           })),

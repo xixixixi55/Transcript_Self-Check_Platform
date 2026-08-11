@@ -70,7 +70,7 @@ export function ArchiveStatusCard({ contextId, status, loading = false, onPrepar
             <Descriptions column={1} size="small">
               <Descriptions.Item label="RAR文件名">{part.filename}</Descriptions.Item>
               <Descriptions.Item label="文件大小">{readableSize(part.size_bytes)}</Descriptions.Item>
-              <Descriptions.Item label="MD5"><Text code>{part.md5}</Text></Descriptions.Item>
+              <Descriptions.Item label="MD5"><Text code>{part.md5.toUpperCase()}</Text></Descriptions.Item>
               <Descriptions.Item label="分卷序号">{part.part_number}</Descriptions.Item>
               <Descriptions.Item label="光盘编号">{part.disc_number}</Descriptions.Item>
               {part.disc_capacity_bytes !== undefined && <Descriptions.Item label="光盘容量">{readableSize(part.disc_capacity_bytes)}</Descriptions.Item>}

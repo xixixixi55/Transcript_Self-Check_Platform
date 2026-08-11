@@ -84,6 +84,29 @@ def test_build_document_contains_evidence_fields():
     assert "SYN-JC00000001" in paragraph_text
 
 
+def test_build_document_combines_entrust_unit_prefix_without_separator():
+    report = _report()
+    report["introduction"]["entrust_unit_prefix"] = "SYNTHETIC-公安分局"
+    report["introduction"]["entrust_unit"] = "SYNTHETIC-派出所"
+
+    commands = build_record_document(report)
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in commands
+        if command.get("type") == "paragraph"
+    )
+    assert "（一）委托单位：SYNTHETIC-公安分局SYNTHETIC-派出所" in paragraph_text
+
+    report["introduction"]["entrust_unit_prefix"] = ""
+    commands = build_record_document(report)
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in commands
+        if command.get("type") == "paragraph"
+    )
+    assert "（一）委托单位：SYNTHETIC-派出所" in paragraph_text
+
+
 def test_build_document_result_names_all_evidence_items():
     report = _report()
     report["introduction"]["evidence_list"].append({
@@ -97,6 +120,41 @@ def test_build_document_result_names_all_evidence_items():
         if command.get("type") == "paragraph"
     )
     assert "经对编号为SYN-JC00000001、SYN-JC00000002号检材使用" in paragraph_text
+
+
+def test_batch_fallback_normalizes_titles_md5_and_extract_source():
+    report = _report()
+    report["inspection"]["result"]["md5_hash"] = "abcdef0123456789abcdef0123456789"
+    report["attachments"]["extract_list"] = {
+        "columns": [],
+        "rows": [{
+            "no": "1", "electronic_data": "SYNTHETIC.rar",
+            "source": "SYN-JC00000001内提取", "extraction_method": "SYNTHETIC/TEST",
+            "md5_hash": "abcdef0123456789abcdef0123456789",
+        }],
+    }
+
+    commands = build_record_document(report)
+    paragraphs = [
+        command for command in commands if command.get("type") == "paragraph"
+    ]
+    title = next(command for command in paragraphs
+                 if command["props"].get("text") == "电子数据检查笔录")
+    extract_heading = next(command for command in paragraphs
+                           if command["props"].get("text") == "电子数据提取固定清单")
+    assert title["props"]["align"] == "center"
+    assert title["props"]["bold"] == "true"
+    assert extract_heading["props"]["bold"] == "true"
+    assert any(
+        "ABCDEF0123456789ABCDEF0123456789" in command["props"].get("text", "")
+        for command in paragraphs
+    )
+    cell_texts = [
+        command["props"]["text"] for command in commands
+        if command.get("command") == "set" and "/tc[" in command.get("path", "")
+    ]
+    assert "SYN-JC00000001检材内提取" in cell_texts
+    assert "ABCDEF0123456789ABCDEF0123456789" in cell_texts
 
 
 def test_generate_docx_rejects_empty_output(tmp_path: Path):

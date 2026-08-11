@@ -69,7 +69,7 @@ def build_attachment_plan(
             part_number=int(item["part_number"]),
             filename=str(item["filename"]),
             size_bytes=int(item["size_bytes"]),
-            md5=str(item["md5"]),
+            md5=str(item["md5"]).upper(),
             disc_capacity_bytes=_positive_int(item.get("disc_capacity_bytes")),
             disc_number=str(item["disc_number"]),
             burning_date=str(item["disc_date"]),
@@ -175,7 +175,7 @@ def _source_text(report: Mapping[str, Any]) -> str:
             values.append(value)
     if not values:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "缺少有效检材编号，无法生成来源。")
-    return "、".join(values) + "内提取"
+    return "、".join(values) + "检材内提取"
 
 
 def _extraction_method(report: Mapping[str, Any]) -> str:
@@ -205,7 +205,7 @@ def _part_row(item: Mapping[str, Any], manifest: Mapping[str, Any]) -> Attachmen
     return AttachmentPartRow(
         part_id=str(item["part_id"]), part_number=int(item["part_number"]),
         filename=str(item["filename"]), size_bytes=int(item["size_bytes"]),
-        md5=str(item["md5"]),
+        md5=str(item["md5"]).upper(),
         disc_capacity_bytes=_positive_int(item.get("disc_capacity_bytes")),
         volume_size_bytes=_positive_int(manifest.get("volume_size_bytes", 0)),
     )

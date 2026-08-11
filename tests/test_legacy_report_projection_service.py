@@ -65,10 +65,10 @@ def test_saved_drag_order_drives_body_attachment_plan_and_person_snapshot_projec
     assert [item["name"] for item in projected["introduction"]["inspectors"]] == ["SYNTHETIC-B", "SYNTHETIC-A"]
     assert [item["material_number"] for item in projected["attachments"]["photo_groups"]] == ["SYNTHETIC-10", "SYNTHETIC-2"]
     assert projected["attachments"]["photo_ids"] == ["photo-10a", "photo-10b", "photo-2a", "photo-2b"]
-    assert plan.attachment1_pages[0].source_text == "SYNTHETIC-10、SYNTHETIC-2内提取"
+    assert plan.attachment1_pages[0].source_text == "SYNTHETIC-10、SYNTHETIC-2检材内提取"
     assert [page.inspection_result_material_numbers for page in plan.attachment2_pages] == [("SYNTHETIC-10", "SYNTHETIC-2")]
     assert manifest_plan == plan
-    assert manifest_report["attachments"]["extract_list"]["rows"][0]["source"] == "SYNTHETIC-10、SYNTHETIC-2内提取"
+    assert manifest_report["attachments"]["extract_list"]["rows"][0]["source"] == "SYNTHETIC-10、SYNTHETIC-2检材内提取"
     assert manifest_plan.attachment3_pages[0].filename == "SYNTHETIC.part1.rar"
     assert "经对编号为SYNTHETIC-10、SYNTHETIC-2号检材使用" in paragraphs
     assert paragraphs.index("SYNTHETIC-B") < paragraphs.index("SYNTHETIC-A")

@@ -119,6 +119,9 @@ def fill_template(report: dict, template_path: str, output_path: str,
     # 4.3 清理附件间多余空段落
     _cleanup_attachment_spacing(doc)
 
+    # 4.4 法定标题格式在所有动态渲染完成后统一施加。
+    _apply_required_heading_styles(doc)
+
     # 4.5 清除批注引用
     _remove_comments(doc)
 
@@ -212,7 +215,7 @@ def _update_inspection_result(
     if plan is None:
         result_text += (
             f"将检出结果生成为“{flat['rar_filename']}”文件，"
-            f"文件MD5哈希值为“{flat['md5_hash']}”，"
+            f"文件MD5哈希值为“{flat['md5_hash'].upper()}”，"
             f"文件大小为“{flat['file_size']}”字节。"
         )
         if flat.get("disc_number"):
@@ -220,7 +223,7 @@ def _update_inspection_result(
     else:
         parts = plan.attachment3_pages
         part_text = "；".join(
-            f"“{part.filename}”文件，文件MD5哈希值为“{part.md5}”，"
+            f"“{part.filename}”文件，文件MD5哈希值为“{part.md5.upper()}”，"
             f"文件大小为“{part.size_bytes}”字节"
             for part in parts
         )
@@ -314,7 +317,10 @@ def _flatten_report(report: dict) -> dict:
     flat = {
         "title": report.get("title", ""),
         "document_number": report.get("document_number", ""),
-        "entrust_unit": intro.get("entrust_unit", ""),
+        "entrust_unit": (
+            str(intro.get("entrust_unit_prefix", "")).strip()
+            + str(intro.get("entrust_unit", "")).strip()
+        ),
         "entrust_persons_text": "、".join(intro.get("entrust_persons", [])),
         "entrust_time": intro.get("entrust_time", ""),
         "case_summary": intro.get("case_summary", ""),
@@ -329,7 +335,7 @@ def _flatten_report(report: dict) -> dict:
         "software_version": result.get("software_version", ""),
         "data_summary": normalize_data_summary(result.get("data_summary")),
         "rar_filename": result.get("rar_filename", ""),
-        "md5_hash": result.get("md5_hash", ""),
+        "md5_hash": str(result.get("md5_hash", "")).upper(),
         "file_size": result.get("file_size", ""),
         "disc_number": attach.get("disc_number", ""),
         "burning_date": burning_date,
@@ -844,6 +850,19 @@ def _clear_para(para):
         run.text = ""
 
 
+def _apply_required_heading_styles(doc: Document) -> None:
+    """Apply stable title formatting after template regions have been rendered."""
+    for paragraph in doc.paragraphs:
+        normalized = "".join(paragraph.text.split())
+        if normalized == "电子数据检查笔录":
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in paragraph.runs:
+                run.bold = True
+        elif normalized == "电子数据提取固定清单":
+            for run in paragraph.runs:
+                run.bold = True
+
+
 def _remove_comments(doc: Document):
     """删除文档中所有批注引用元素"""
     body = doc.element.body
@@ -940,6 +959,12 @@ def _fill_table_row(row, item: dict):
     for ci, key in enumerate(cell_keys):
         if ci < len(row.cells):
             value = item.get(key, "")
+            if key == "md5_hash":
+                value = str(value).upper()
+            elif key == "source":
+                source = str(value).strip()
+                if source.endswith("内提取") and not source.endswith("检材内提取"):
+                    value = source[:-3] + "检材内提取"
             cell = row.cells[ci]
             for para in cell.paragraphs:
                 for run in para.runs:

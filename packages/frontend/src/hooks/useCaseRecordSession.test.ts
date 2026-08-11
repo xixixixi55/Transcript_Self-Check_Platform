@@ -41,6 +41,20 @@ describe('shouldHydrateServerDraft', () => {
     })
   })
 
+  it('creates a clearable shared patch for the entrust-unit prefix', () => {
+    const report = {
+      introduction: { entrust_unit_prefix: ' SYNTHETIC-公安分局 ' },
+    } as InspectionReport
+
+    expect(sharedPatchForEdit(report, 'introduction.entrust_unit_prefix')).toEqual({
+      entrust_unit_prefix: 'SYNTHETIC-公安分局',
+    })
+    report.introduction.entrust_unit_prefix = ''
+    expect(sharedPatchForEdit(report, 'introduction.entrust_unit_prefix')).toEqual({
+      entrust_unit_prefix: '',
+    })
+  })
+
   it('projects dragged inspector order to both the form and shared export input', () => {
     const report = {
       introduction: {

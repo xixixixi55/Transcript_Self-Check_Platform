@@ -35,7 +35,7 @@ export default function FileInfoCard({ rarInfo }: FileInfoCardProps) {
       <Descriptions column={1} size="small">
         <Descriptions.Item label="文件 MD5">
           <Text code style={{ fontSize: 12, wordBreak: 'break-all' }}>
-            {rarInfo.md5}
+            {rarInfo.md5.toUpperCase()}
           </Text>
         </Descriptions.Item>
         <Descriptions.Item label="文件大小">

@@ -15,12 +15,15 @@ import { useCompletedArchiveResult } from './useCompletedArchiveResult'
 import { buildSourceReplacementRequest } from './useSourceAuthorizationRequests'
 
 const SHARED_FIELD_PATHS = new Set([
-  'document_number', 'introduction.inspection_place', 'inspection.method', 'inspection.hardware_device',
+  'document_number', 'introduction.entrust_unit_prefix', 'introduction.inspection_place', 'inspection.method', 'inspection.hardware_device',
   'introduction.inspectors', 'introduction.inspector_snapshots', 'attachments.disc_number',
 ])
 const ACTIVE_ARCHIVE_LIFECYCLES = new Set(['archive_queued', 'archiving'])
 
 export function sharedPatchForEdit(report: InspectionReport, path: string): Record<string, unknown> | null {
+  if (path === 'introduction.entrust_unit_prefix') {
+    return { entrust_unit_prefix: report.introduction?.entrust_unit_prefix?.trim() || '' }
+  }
   if (path === 'document_number') return { document_number: report.document_number || '' }
   if (path === 'introduction.inspection_place') return { inspection_place: report.introduction?.inspection_place || '' }
   if (path === 'inspection.method') return { inspection_method: report.inspection?.method || '' }

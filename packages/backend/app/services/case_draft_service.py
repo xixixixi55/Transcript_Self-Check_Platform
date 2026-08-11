@@ -136,6 +136,7 @@ def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) ->
     now = utc_now()
     fields: dict[str, dict[str, Any]] = {}
     candidates = (
+        ("introduction.entrust_unit_prefix", ("introduction", "entrust_unit_prefix"), defaults.get("entrust_unit_prefix"), None),
         ("document_number", ("document_number",), defaults.get("document_number"), DEFAULT_DOCUMENT_NUMBER),
         ("introduction.inspection_place", ("introduction", "inspection_place"), defaults.get("inspection_place"), DEFAULT_INSPECTION_PLACE),
         ("inspection.method", ("inspection", "method"), defaults.get("inspection_method"), DEFAULT_INSPECTION_METHOD),

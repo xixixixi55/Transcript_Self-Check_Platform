@@ -5,7 +5,9 @@ import type { InspectionReport } from '@biji/shared/types'
 import RecordEditorForm from './RecordEditorForm'
 
 vi.mock('antd', () => ({
-  Alert: ({ message }: { message?: React.ReactNode }) => <div>{message || '注意修改文号！'}</div>,
+  Alert: ({ message, description }: { message?: React.ReactNode; description?: React.ReactNode }) => (
+    <div>{message || '注意修改文号！'}{description}</div>
+  ),
   Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>,
   Divider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Input: ({ value, onChange, ...props }: { value?: string; onChange?: (event: { target: { value: string } }) => void }) => (
@@ -126,5 +128,46 @@ describe('RecordEditorForm', () => {
     const field = screen.getByDisplayValue('用户自定义摘要')
     fireEvent.change(field, { target: { value: '   ' } })
     expect(updateReport).toHaveBeenCalledWith('inspection.result.data_summary', '即时通讯、手机信息')
+  })
+
+  it('提醒人工核对案件简要，并在尾部存在空白时追加清理提示', () => {
+    const reportWithWhitespace = JSON.parse(JSON.stringify(report)) as InspectionReport
+    reportWithWhitespace.introduction.case_summary = '合成案件摘要  \n'
+    render(<RecordEditorForm report={reportWithWhitespace} updateReport={vi.fn()} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} />)
+
+    const reminder = screen.getByText(/案件简要情况由报告自动解析/)
+    expect(reminder.textContent).toContain('可能不准确，请人工核对。')
+    expect(reminder.textContent).toContain('当前内容末尾存在多余回车、空格或制表符，请检查并删除。')
+  })
+
+  it('单独编辑可为空的委托单位共享前缀，不改写报告识别单位', () => {
+    const updateReport = vi.fn()
+    const reportWithPrefix = JSON.parse(JSON.stringify(report)) as InspectionReport
+    reportWithPrefix.introduction.entrust_unit_prefix = 'SYNTHETIC-公安分局'
+    reportWithPrefix.introduction.entrust_unit = 'SYNTHETIC-派出所'
+
+    render(<RecordEditorForm report={reportWithPrefix} updateReport={updateReport} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} />)
+
+    expect(screen.getByDisplayValue('SYNTHETIC-派出所')).toBeTruthy()
+    const prefix = screen.getByDisplayValue('SYNTHETIC-公安分局')
+    fireEvent.change(prefix, { target: { value: '' } })
+    expect(updateReport).toHaveBeenCalledWith('introduction.entrust_unit_prefix', '')
+  })
+
+  it('审核结果中的 MD5 以大写显示并以大写提交', () => {
+    const updateReport = vi.fn()
+    const reportWithMd5 = JSON.parse(JSON.stringify(report)) as InspectionReport
+    reportWithMd5.inspection.result.md5_hash = 'a1b2c3d4'
+    render(<RecordEditorForm report={reportWithMd5} updateReport={updateReport} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} />)
+
+    const field = screen.getByDisplayValue('A1B2C3D4')
+    fireEvent.change(field, { target: { value: 'deadbeef' } })
+    expect(updateReport).toHaveBeenCalledWith('inspection.result.md5_hash', 'DEADBEEF')
   })
 })

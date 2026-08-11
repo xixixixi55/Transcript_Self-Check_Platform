@@ -11,6 +11,7 @@ from .workbench_repository_helpers import bool_int, json_text, row_json
 from .workbench_serialization import validate_opaque_id, validate_safe_string
 
 _DEFAULT_VALUES = {
+    "entrust_unit_prefix": "",
     "document_number": "",
     "inspection_place": "",
     "inspection_method": "",
@@ -143,7 +144,7 @@ def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
         not isinstance(item, str) for item in normalized["inspector_order"]
     ):
         raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
-    for key in ("document_number", "inspection_place", "inspection_method", "hardware_device", "disc_number_prefix"):
+    for key in ("entrust_unit_prefix", "document_number", "inspection_place", "inspection_method", "hardware_device", "disc_number_prefix"):
         validate_safe_string(normalized[key], "INVALID_SHARED_DEFAULTS")
     for item in normalized["inspector_order"]:
         validate_safe_string(item, "INVALID_SHARED_DEFAULTS")
@@ -161,7 +162,7 @@ def _normalize_patch(values: Mapping[str, Any]) -> dict[str, Any]:
     if unknown:
         raise WorkbenchPersistenceError("UNKNOWN_SHARED_DEFAULT_FIELD")
     normalized: dict[str, Any] = {}
-    scalar_keys = ("document_number", "inspection_place", "inspection_method", "hardware_device", "disc_number_prefix")
+    scalar_keys = ("entrust_unit_prefix", "document_number", "inspection_place", "inspection_method", "hardware_device", "disc_number_prefix")
     for key in scalar_keys:
         if key not in values:
             continue
@@ -169,7 +170,7 @@ def _normalize_patch(values: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(value, str):
             raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
         validate_safe_string(value, "INVALID_SHARED_DEFAULTS")
-        if value.strip():
+        if value.strip() or key == "entrust_unit_prefix":
             normalized[key] = value.strip()
     if "inspector_order" in values:
         items = values["inspector_order"]

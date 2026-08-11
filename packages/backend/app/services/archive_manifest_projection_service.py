@@ -44,7 +44,7 @@ def project_manifest_to_legacy_report_with_plan(
                 "electronic_data": row.filename,
                 "source": plan.attachment1_pages[0].source_text,
                 "extraction_method": plan.attachment1_pages[0].extraction_method,
-                "md5_hash": row.md5,
+                "md5_hash": row.md5.upper(),
             }
             for page in plan.attachment1_pages for row in page.serial_rows
         ],
@@ -87,7 +87,9 @@ def _project_manifest_rows_without_review_fields(
     result = project_ordered_legacy_report(report)
     parts = _ordered_manifest_parts(manifest)
     attachments = result.setdefault("attachments", {})
-    source = _existing_extract_value(report, "source") or _source_from_evidence(report)
+    source = _normalize_extract_source(
+        _existing_extract_value(report, "source") or _source_from_evidence(report)
+    )
     extraction_method = (
         _existing_extract_value(report, "extraction_method")
         or _hardware_extraction_method(report)
@@ -102,7 +104,7 @@ def _project_manifest_rows_without_review_fields(
                 "electronic_data": _text(part.get("filename")),
                 "source": source,
                 "extraction_method": extraction_method,
-                "md5_hash": _text(part.get("md5")),
+                "md5_hash": _text(part.get("md5")).upper(),
             }
             for part in parts
         ],
@@ -150,7 +152,7 @@ def _source_from_evidence(report: Mapping[str, Any]) -> str:
             value = _text(item.get("evidence_number")) if isinstance(item, Mapping) else ""
             if value and value not in values:
                 values.append(value)
-    return "、".join(values) + "内提取" if values else ""
+    return "、".join(values) + "检材内提取" if values else ""
 
 
 def _hardware_extraction_method(report: Mapping[str, Any]) -> str:
@@ -160,6 +162,13 @@ def _hardware_extraction_method(report: Mapping[str, Any]) -> str:
         if isinstance(inspection, Mapping) else ""
     ) or "取证设备"
     return f"使用{hardware}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值"
+
+
+def _normalize_extract_source(value: str) -> str:
+    source = _text(value)
+    if source.endswith("内提取") and not source.endswith("检材内提取"):
+        return source[:-3] + "检材内提取"
+    return source
 
 
 def _archive_extract_columns() -> list[dict[str, str]]:

@@ -102,7 +102,7 @@ def test_verified_attachment_projection_fills_extraction_method_before_review_is
     incomplete = report()
     incomplete["inspection"].pop("primary_software")
     incomplete["attachments"]["extract_list"] = {
-        "rows": [{"extraction_method": ""}],
+        "rows": [{"source": "JC-A内提取", "extraction_method": ""}],
     }
 
     projection = project_verified_manifest_to_legacy_attachments(incomplete, manifest())
@@ -111,6 +111,9 @@ def test_verified_attachment_projection_fills_extraction_method_before_review_is
         row["extraction_method"] for row in projection["extract_list"]["rows"]
     } == {
         "使用测试设备对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值",
+    }
+    assert {row["source"] for row in projection["extract_list"]["rows"]} == {
+        "JC-A检材内提取",
     }
 
 

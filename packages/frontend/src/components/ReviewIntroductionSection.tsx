@@ -1,5 +1,6 @@
 import React from 'react'
 import type { FieldState, InspectorLibraryRecord, InspectionReport, InspectorSnapshot } from '@biji/shared/types'
+import { Alert } from 'antd'
 import EditableField from './EditableField'
 import EvidenceEditor from './EvidenceEditor'
 import InspectorEditor from './InspectorEditor'
@@ -32,8 +33,11 @@ export function ReviewIntroductionSection({
   inspectorError,
   fieldStates,
 }: ReviewIntroductionSectionProps) {
+  const hasTrailingWhitespace = /[ \t\r\n]+$/.test(introduction.case_summary || '')
   return (
     <>
+      <ReviewField label="委托单位前缀（共享默认值）" type="text" value={introduction.entrust_unit_prefix || ''}
+        onChange={value => updateReport('introduction.entrust_unit_prefix', value)} />
       <ReviewField label="（一）委托单位" type="text" value={introduction.entrust_unit}
         onChange={value => updateReport('introduction.entrust_unit', value)} />
       <ReviewField label="（二）委托人员" type="text" value={(introduction.entrust_persons || []).join('、')}
@@ -42,6 +46,14 @@ export function ReviewIntroductionSection({
         onChange={value => updateReport('introduction.entrust_time', value)} />
       <ReviewField label="（四）案件简要情况" type="textarea" value={introduction.case_summary}
         onChange={value => updateReport('introduction.case_summary', value)} />
+      <Alert
+        type={hasTrailingWhitespace ? 'warning' : 'info'}
+        showIcon
+        message="案件简要情况由报告自动解析，可能不准确，请人工核对。"
+        description={hasTrailingWhitespace
+          ? '当前内容末尾存在多余回车、空格或制表符，请检查并删除。'
+          : undefined}
+      />
       <div className="review-editor-block">
         <div className="review-field__label">（五）检材情况</div>
         <EvidenceEditor items={introduction.evidence_list || []}
