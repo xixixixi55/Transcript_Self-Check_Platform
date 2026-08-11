@@ -43,7 +43,14 @@ IDENTITY = {"identity_kind": "local_session", "client_instance_id": "SYNTHETIC-C
 
 
 @pytest.fixture()
-def app_services(tmp_path: Path):
+def app_services(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from app.services import archive_source_runtime_service
+
+    monkeypatch.setattr(
+        archive_source_runtime_service,
+        "ARCHIVE_SOURCE_RUNTIME_STORE",
+        archive_source_runtime_service.ArchiveSourceRuntimeStore(),
+    )
     database = WorkbenchDatabase(database_path_for_deployment(tmp_path, "SYNTHETIC-DEPLOYMENT"), "SYNTHETIC-DEPLOYMENT")
     parser = lambda path, output: {"report": copy.deepcopy(REPORT)}
     allowed_root = tmp_path / "SYNTHETIC-ALLOWED-ROOT"
