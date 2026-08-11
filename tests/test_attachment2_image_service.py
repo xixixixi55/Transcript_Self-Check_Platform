@@ -12,6 +12,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.attachment2_image_service import (  # noqa: E402
+    ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU,
+    ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS,
     ATTACHMENT2_SLOT_HEIGHT_EMU,
     ATTACHMENT2_SLOT_WIDTH_EMU,
     Attachment2ImageError,
@@ -90,18 +92,18 @@ def test_exif_orientation_is_used_when_calculating_render_geometry(tmp_path):
     assert (geometry.render_width_emu, geometry.render_height_emu) == (
         ATTACHMENT2_SLOT_WIDTH_EMU, 693102,
     )
-    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 819309)
+    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 1442561)
 
 
 @pytest.mark.parametrize(("dimensions", "expected"), [
-    ((4000, 1000), (2772410, 693102, 0, 819309)),
-    ((1000, 4000), (582930, 2331720, 1094740, 0)),
-    ((2000, 2000), (2331720, 2331720, 220345, 0)),
-    ((3000, 2000), (2772410, 1848273, 0, 241723)),
+    ((4000, 1000), (2772410, 693102, 0, 1442561)),
+    ((1000, 4000), (894556, 3578225, 938927, 0)),
+    ((2000, 2000), (2772410, 2772410, 0, 402907)),
+    ((3000, 2000), (2772410, 1848273, 0, 864976)),
 ])
 def test_contain_geometry_maximizes_each_aspect_ratio(dimensions, expected):
     assert (ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU) == (
-        2_772_410, 2_331_720,
+        2_772_410, 3_578_225,
     )
     width, height = dimensions
     geometry = calculate_fixed_geometry(width, height)
@@ -117,9 +119,14 @@ def test_contain_geometry_maximizes_each_aspect_ratio(dimensions, expected):
 def test_small_images_are_enlarged_without_distortion():
     geometry = calculate_fixed_geometry(96, 96)
     assert (geometry.render_width_emu, geometry.render_height_emu) == (
-        ATTACHMENT2_SLOT_HEIGHT_EMU, ATTACHMENT2_SLOT_HEIGHT_EMU,
+        ATTACHMENT2_SLOT_WIDTH_EMU, ATTACHMENT2_SLOT_WIDTH_EMU,
     )
-    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (220345, 0)
+    assert (geometry.offset_x_emu, geometry.offset_y_emu) == (0, 402907)
+
+
+def test_single_group_uses_accepted_group_height_and_balanced_page_spacing():
+    assert ATTACHMENT2_SLOT_HEIGHT_EMU == ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU
+    assert ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS == 3237
 
 
 @pytest.mark.parametrize("filename,content", [

@@ -437,8 +437,16 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
         paths.append(str(path))
     output = tmp_path / f"center-{photo_count}.docx"
     fill_template(current_report, str(TEMPLATE), str(output), paths, manifest(1))
-    table = attachment2_tables(document_root(output))[0]
+    root = document_root(output)
+    table = attachment2_tables(root)[0]
     profile = current_template_profile()
+    body = root.find("./{%s}body" % W_NS)
+    page_break = list(body)[list(body).index(table) - 1]
+    spacing = page_break.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS))
+    assert spacing.get("{%s}after" % W_NS) == (
+        str(profile.attachment2_page_break_after_twips)
+        if photo_count == 2 else "0"
+    )
     slot_twips = round(profile.attachment2_slot_width_emu / 635)
     table_width = table.find("./{%s}tblPr/{%s}tblW" % (W_NS, W_NS))
     assert table_width.get("{%s}w" % W_NS) == str(slot_twips * 2)
@@ -449,11 +457,9 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
     image_rows = [row for row in rows if row.findall(".//{%s}drawing" % W_NS)]
     for row in image_rows:
         height = row.find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS))
-        expected_height = (
-            ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS
-            if photo_count == 4 else profile.attachment2_slot_row_height_twips
+        assert height.get("{%s}val" % W_NS) == str(
+            ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS,
         )
-        assert height.get("{%s}val" % W_NS) == str(expected_height)
         assert height.get("{%s}hRule" % W_NS) == "exact"
         for cell in row.findall("./{%s}tc" % W_NS):
             tc_pr = cell.find("./{%s}tcPr" % W_NS)
@@ -489,10 +495,7 @@ def test_attachment2_grid_cells_are_centered_and_use_profile_slots(
         spacer_height = spacer_rows[0].find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS))
         assert spacer_height.get("{%s}val" % W_NS) == str(ATTACHMENT2_GROUP_GAP_TWIPS)
         assert spacer_height.get("{%s}hRule" % W_NS) == "exact"
-    slot_height_emu = (
-        ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU
-        if photo_count == 4 else ATTACHMENT2_SLOT_HEIGHT_EMU
-    )
+    slot_height_emu = ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU
     extents = [
         (int(extent.get("cx")), int(extent.get("cy")))
         for extent in table.findall(".//{%s}extent" % WP_NS)
