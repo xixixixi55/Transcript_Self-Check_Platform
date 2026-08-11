@@ -106,6 +106,7 @@ class RecordingWorker:
         self.attempts = attempts
         self.calls: list[str] = []
         self.fail_next = False
+        self.multi_part = False
 
     def run(self, claim, item, *, interruption_check=None):
         self.calls.append(claim.task_id)
@@ -117,34 +118,45 @@ class RecordingWorker:
             "integrity_verified", "md5", "manifest",
         ):
             self.progress.advance(claim.task_id, claim.owner_token, stage)
+            if stage == "winrar" and self.multi_part:
+                self.progress.activity(claim.task_id, claim.owner_token, {
+                    "observed_at": "2026-08-11T06:16:42+00:00",
+                    "output_bytes": len(b"SYNTHETIC/TEST/RUNTIME-ARCHIVE-PART-1"),
+                    "output_volume_count": 1,
+                })
         self._publish_synthetic_result(claim, item["context_id"])
         return self.progress.complete(claim.task_id, claim.owner_token)
 
     def _publish_synthetic_result(self, claim, context_id: str) -> None:
         manifest_id = "SYNTHETIC-MANIFEST-RUNTIME"
-        filename = "SYNTHETIC-RUNTIME.part1.rar"
-        payload = b"SYNTHETIC/TEST/RUNTIME-ARCHIVE"
+        payloads = [b"SYNTHETIC/TEST/RUNTIME-ARCHIVE-PART-1"]
+        if self.multi_part:
+            payloads.append(b"SYNTHETIC/TEST/RUNTIME-ARCHIVE-PART-2")
         final_dir = self.attempts.output_root / "compressed" / context_id / manifest_id
         final_dir.mkdir(parents=True)
-        (final_dir / filename).write_bytes(payload)
+        parts = []
+        for index, payload in enumerate(payloads, start=1):
+            filename = f"SYNTHETIC-RUNTIME.part{index}.rar"
+            (final_dir / filename).write_bytes(payload)
+            parts.append({
+                "part_id": f"SYNTHETIC-PART-RUNTIME-{index}",
+                "part_number": index,
+                "filename": filename,
+                "size_bytes": len(payload),
+                "md5": hashlib.md5(payload).hexdigest(),
+                "disc_number": f"SYNTHETIC-DISC-RUNTIME-{index}",
+                "disc_date": "2026-07-30",
+                "disc_capacity_bytes": 4_000_000_000,
+                "volume_size_bytes": 4_000_000_000,
+            })
         manifest = {
             "manifest_id": manifest_id,
             "archive_base_name": "SYNTHETIC-RUNTIME",
             "volume_size_bytes": 4_000_000_000,
-            "max_part_count": 1,
-            "actual_archive_bytes": len(payload),
+            "max_part_count": len(parts),
+            "actual_archive_bytes": sum(len(payload) for payload in payloads),
             "validation_status": "validated",
-            "parts": [{
-                "part_id": "SYNTHETIC-PART-RUNTIME",
-                "part_number": 1,
-                "filename": filename,
-                "size_bytes": len(payload),
-                "md5": hashlib.md5(payload).hexdigest(),
-                "disc_number": "SYNTHETIC-DISC-RUNTIME",
-                "disc_date": "2026-07-30",
-                "disc_capacity_bytes": 4_000_000_000,
-                "volume_size_bytes": 4_000_000_000,
-            }],
+            "parts": parts,
         }
         registry = ArchiveManifestRepository(self.attempts.output_root)
         record = ArchiveManifestRecord(
@@ -273,6 +285,7 @@ def _controller_patches(services: WorkbenchServices):
 
 def test_lifespan_claims_task_queued_before_startup_and_stops(tmp_path: Path) -> None:
     services, worker = _services(tmp_path)
+    worker.multi_part = True
     app_without_runtime = create_app(
         service_provider=lambda: services, enable_archive_runtime=False,
     )
@@ -290,6 +303,11 @@ def test_lifespan_claims_task_queued_before_startup_and_stops(tmp_path: Path) ->
         completed = _wait_task(client, queued["task_id"], {"succeeded"})
         assert completed["stage"] == "completed"
         assert completed["percent"] == 100
+        assert completed["output_volume_count"] == 2
+        assert completed["output_bytes"] == sum(map(len, (
+            b"SYNTHETIC/TEST/RUNTIME-ARCHIVE-PART-1",
+            b"SYNTHETIC/TEST/RUNTIME-ARCHIVE-PART-2",
+        )))
         assert services.archive_runtime.is_running
     assert not services.archive_runtime.is_running
     assert worker.calls == [queued["task_id"]]

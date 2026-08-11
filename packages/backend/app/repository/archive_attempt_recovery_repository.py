@@ -154,7 +154,7 @@ def complete_verified_attempt(
             ((not legacy_attempt) and (
                 task is None or task["deployment_instance_id"] != database.deployment_instance_id
                 or task["case_id"] != evidence["case_id"]
-                or task["status"] not in ({"running", "cancelling", "interrupted", "succeeded"}
+                or task["status"] not in ({"running", "cancelling", "interrupted"}
                                             if recovery else {"running", "cancelling"})
             ))
             or shell is None or source is None or draft is None or len(binding) != 1
@@ -235,15 +235,39 @@ def complete_verified_attempt(
         )
         if updated_intent.rowcount != 1:
             raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_STATE_INVALID")
-        if not legacy_attempt and task["status"] != "succeeded":
+        if not legacy_attempt:
+            output_bytes, output_volume_count = _verified_output_metrics(intent)
             updated_task = connection.execute(
                 "UPDATE task_records SET status='succeeded', stage='completed', percent=100, "
                 "error_code=NULL, error_summary=NULL, cancel_requested=0, updated_at=?, "
-                "finished_at=?, worker_state='released', allowed_actions_json=?, revision=revision+1 "
+                "finished_at=?, output_bytes=?, output_volume_count=?, last_output_change_at=?, "
+                "worker_state='released', allowed_actions_json=?, revision=revision+1 "
                 "WHERE task_id=? AND deployment_instance_id=? AND status IN ('running','cancelling','interrupted')",
-                (now, now, json_text(ARCHIVE_TASK_ACTIONS["succeeded"]),
+                (now, now, output_bytes, output_volume_count, now,
+                 json_text(ARCHIVE_TASK_ACTIONS["succeeded"]),
                  evidence["task_id"], database.deployment_instance_id),
             )
             if updated_task.rowcount != 1:
                 raise WorkbenchPersistenceError("ARCHIVE_TASK_STATE_INVALID")
     return _public(database, attempt_id)
+
+
+def _verified_output_metrics(intent: Any) -> tuple[int, int]:
+    try:
+        manifest = json.loads(intent["public_manifest_json"])
+        parts = manifest["parts"]
+    except (KeyError, TypeError, json.JSONDecodeError) as error:
+        raise WorkbenchPersistenceError(
+            "ARCHIVE_COMPLETION_EVIDENCE_INVALID",
+        ) from error
+    if not isinstance(parts, list) or not parts:
+        raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
+    sizes = []
+    for part in parts:
+        if not isinstance(part, dict):
+            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
+        size = part.get("size_bytes")
+        if type(size) is not int or size <= 0:
+            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
+        sizes.append(size)
+    return sum(sizes), len(parts)

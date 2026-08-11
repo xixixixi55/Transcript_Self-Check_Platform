@@ -219,3 +219,12 @@ workflow_level: 3
   - code_review: [PASS] 首轮因增删改排、失配和持久化载荷覆盖不足驳回；补齐测试后第 2 轮独立复审确认 MUST FIX CLOSED，无新 MUST FIX。
   - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、完整测试、生产构建与 scoped strict docs 全部通过。
   - manual_acceptance: N/A（图片映射、草稿持久化载荷和导出失配门控由合成数据自动化覆盖；未改变 Word 视觉版式或桌面交互。）
+
+- [x] T031 成功态以已验证 Manifest 覆盖最终分卷活动计数（浏览器实测反馈）。
+  - 现象：4.10 GB 合成机械盘回归成功生成 2 个已验证分卷，但任务活动快照仍停留在 WinRAR 退出前观察到的 1 卷。
+  - 根因：周期活动采样早于第二卷最终落盘；归档完成事务只写成功状态，没有用最终 Manifest 回填 `output_bytes`/`output_volume_count`。
+  - 修复：`complete_verified_attempt` 在同一成功事务中从已验证 publish intent Manifest parts 计算并覆盖最终输出字节数、分卷数和最后变化时间；非法或空 parts 作为完成证据无效拒绝。
+  - 验证：`tests/test_archive_runtime_lifecycle.py` 断言成功态最终计数来自 Manifest；定向后端测试、工程门控与浏览器回归通过。
+  - code_review: [PASS] 独立首轮审查发现恢复不一致态与测试区分度 2 项 MUST FIX；修复为拒绝 attempt 未完成但 task 已成功的不一致恢复状态，并补“旧快照 1 卷 → 两卷 Manifest → 成功态 2 卷”事务级集成测试及非法 parts 边界。复审确认全部 CLOSED，无剩余 MUST FIX。
+  - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、全仓测试、生产构建与 scoped strict docs 全部通过。
+  - manual_acceptance: [PASS] 浏览器以 4.10 GB 明确合成机械盘报告执行真实 WinRAR 压缩，约 6 分 40 秒生成 4,000,000,000 与 107,749,764 字节两个已验证分卷且未超时；验收后应用案件、合成源目录及归档产物均已删除。

@@ -120,6 +120,7 @@
 - `compute_timeout` 使用向上取整的体积时间并增加固定收尾余量，保留既有环境变量覆盖和最大上限；4.5 GB 与 8.5 GB 输入分别得到 1500 秒与 2300 秒硬上限。
 - `monitor_owned_process` 以 RAR 输出总大小作为活动信号，支持可注入 probe 以锁定增长、缩小与停滞边界；首个非零 RAR 输出出现前不启用 idle timeout，仍受硬上限约束。hard 与 idle 均使用绝对 deadline，最早到期者优先，相等时 hard 优先；操作员环境变量覆盖逐字作为 hard deadline 使用。
 - idle timeout 由 executor 映射为稳定的 `ARCHIVE_EXECUTION_TIMEOUT`，并先终止自有 WinRAR 进程、再清理 staging；若进程无法安全终止则返回 `ARCHIVE_EXECUTION_FAILED` 并保留 staging，禁止删除仍可能被进程使用的文件。分卷出现仅作为活动指标，不改变成功条件（正常退出、分卷校验、MD5、Manifest）。
+- 完成事务从已验证 publish intent 的 Manifest parts 原子写入最终 `output_bytes` 与 `output_volume_count`，覆盖 WinRAR 退出前的周期采样，避免成功态保留少一卷的活动快照。
 
 ## 依赖与风险
 

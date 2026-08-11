@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -30,6 +31,9 @@ from app.repository.winrar_executor_repository import (  # noqa: E402
     ArchiveExecutionError, WinRarExecutor,
 )
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.archive_attempt_recovery_repository import (  # noqa: E402
+    _verified_output_metrics,
+)
 from app.services.archive_progress_service import ArchiveProgressService  # noqa: E402
 from app.services.archive_manifest_access_service import ArchiveGateError  # noqa: E402
 from app.services.export_gate_service import ExportGateIssue  # noqa: E402
@@ -149,6 +153,30 @@ def test_worker_drives_exact_gates_and_activity(setup, monkeypatch) -> None:
     assert result["percent"] == 100
     assert result["output_volume_count"] == 1
     assert result["output_bytes"] == len(b"SYNTHETIC")
+
+
+def test_verified_output_metrics_use_all_manifest_parts() -> None:
+    intent = {
+        "public_manifest_json": json.dumps({
+            "parts": [
+                {"size_bytes": 4_000_000_000},
+                {"size_bytes": 107_749_764},
+            ],
+        }),
+    }
+
+    assert _verified_output_metrics(intent) == (4_107_749_764, 2)
+
+
+@pytest.mark.parametrize("parts", [[], [None], [{"size_bytes": 0}]])
+def test_verified_output_metrics_reject_invalid_parts(parts) -> None:
+    with pytest.raises(
+        WorkbenchPersistenceError,
+        match="ARCHIVE_COMPLETION_EVIDENCE_INVALID",
+    ):
+        _verified_output_metrics({
+            "public_manifest_json": json.dumps({"parts": parts}),
+        })
 
 
 def test_cancel_wins_before_completion_and_stale_worker_cannot_write(
