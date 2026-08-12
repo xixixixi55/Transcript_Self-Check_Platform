@@ -310,6 +310,41 @@ def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path
     assert document_xml.count('w:type="page"') == 4
 
 
+def test_long_result_does_not_leave_empty_paragraphs_before_attachment_summary(tmp_path):
+    report = _report()
+    report["introduction"]["evidence_list"] = [
+        {"evidence_number": "SYN-JC-001", "device_type": "测试手机"},
+        {"evidence_number": "SYN-JC-002", "device_type": "测试平板"},
+    ]
+    report["inspection"]["primary_software"] = {
+        "name": "SYNTHETIC 长名称取证软件",
+        "version": "2026.08.12-TEST",
+        "confirmation_status": "confirmed_by_user",
+    }
+    report["inspection"]["software_tools"] = [
+        {"name": "WinRAR压缩管理软件", "version": "6.24"},
+        {"name": "Python hashlib", "version": "3.12"},
+    ]
+    output = tmp_path / "long-result.docx"
+
+    fill_template(report, str(_TEMPLATE), str(output), [], _manifest(2))
+
+    with zipfile.ZipFile(output) as package:
+        root = ET.fromstring(package.read("word/document.xml"))
+    body = root.find("./{%s}body" % W_NS)
+    children = list(body)
+    summary_index = next(
+        index for index, element in enumerate(children)
+        if "1、电子数据提取固定清单" in "".join(element.itertext())
+    )
+    previous_text = "".join(children[summary_index - 1].itertext()).strip()
+
+    assert previous_text.startswith("经对编号为SYN-JC-001、SYN-JC-002号检材")
+    assert len(children[summary_index].findall(
+        './/{%s}br[@{%s}type="page"]' % (W_NS, W_NS)
+    )) == 1
+
+
 def test_generated_docx_removes_comments_and_nonessential_metadata(tmp_path):
     output = tmp_path / "sanitized.docx"
     fill_template(_report(), str(_TEMPLATE), str(output))

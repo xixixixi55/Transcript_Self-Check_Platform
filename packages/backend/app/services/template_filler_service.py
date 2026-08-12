@@ -787,7 +787,7 @@ def _fit_image_size(photo_path: str):
 
 
 def _cleanup_attachment_spacing(doc: Document):
-    """删除附件2/3之间及附件2标题前的无意义空段落。"""
+    """删除附件分页锚点附近可能被 Word 单独排成空白页的空段落。"""
     w_ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
     body = doc.element.body
 
@@ -810,6 +810,15 @@ def _cleanup_attachment_spacing(doc: Document):
             if element.tag == '{' + w_ns + '}p' and label in ''.join(element.itertext()).strip():
                 return index
         return None
+
+    attachment_summary_index = find_paragraph_index('1、电子数据提取固定清单')
+    if attachment_summary_index is not None:
+        children = list(body)
+        while (attachment_summary_index > 0
+               and is_empty_paragraph(children[attachment_summary_index - 1])):
+            body.remove(children[attachment_summary_index - 1])
+            attachment_summary_index -= 1
+            children = list(body)
 
     attachment2_index = find_paragraph_index('附件2：')
     attachment3_index = find_paragraph_index('附件3：')
