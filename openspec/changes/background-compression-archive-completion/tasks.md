@@ -237,3 +237,10 @@ workflow_level: 3
   - code_review: [PASS] 首轮独立审查发现外层预算未覆盖 HashMyFiles 环境上限、工作台事实源不准确、组件跨层依赖、设计参数漂移及非法大小边界 5 项 MUST FIX；二轮又发现同案件新 task 可能复用旧 parts。修复为按 `case_id + task_id` 绑定结果、导出前二次校验当前 task、组件经 Layer 10 派生状态并补 task 切换区分性测试；第三轮复审确认全部 CLOSED，无新 MUST FIX。
   - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、全仓测试、生产构建与 scoped strict docs 全部通过。首次运行仅有既有工作台删除测试在全仓并发下触发 5 秒超时（56/57 files、296/297 tests 已通过）；该文件隔离重跑 15/15（目标用例 2.42 秒），未修改实现或测试，原门控重跑通过。
   - manual_acceptance: N/A（超时预算及 task/parts 绑定由合成体积和可区分自动化测试覆盖，不改变视觉布局、Word/PDF 版式或桌面选择器交互；真实机械盘大数据可作为部署后观察。）
+
+- [x] T033 调整统一导出产物目录规则（用户需求）。
+  - 内容：用户选择导出文件夹后，Word 与 HashMyFiles 校验 PNG 导出到所选文件夹，RAR 分卷导出到其上级文件夹；所选文件夹为文件系统根时，RAR 回退到所选文件夹。跨两个目录发布仍保持整体回滚语义，并事务性清理旧规则遗留在所选文件夹中的同名 RAR。
+  - 文件：`packages/backend/app/services/unified_export_service.py`、`tests/test_unified_export_service.py`、本变更包 `design.md`、delta spec 与 living spec。
+  - 验证：统一导出定向 pytest 10 passed，覆盖常规父目录分流、根目录回退及跨目录发布失败回滚；`npm run verify:quick` PASS；当前变更 scoped strict docs 13 checks/0 drift；`git diff --check` PASS。
+  - code_review: [PASS] 首轮独立审查发现旧规则遗留在所选目录的同名 RAR 未纳入迁移清理，可能与父目录新 RAR 形成混合布局；已将旧 RAR 与历史 HTML 纳入同一可回滚事务并补成功清理、失败恢复测试。复审确认 MUST FIX CLOSED、无 remaining MUST FIX；遗留 SHOULD 为后续增强回滚动作自身再次发生 I/O 错误时的全量恢复与专门诊断。
+  - manual_acceptance: N/A（目录分流及根目录边界由合成路径自动化覆盖，不改变 Word/PNG 内容或目录选择器交互。）
