@@ -87,6 +87,7 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
             "imei1": _first_identifier(material, "imei1"),
             "imei2": _first_identifier(material, "imei2"),
             "serial_number": _first_identifier(material, "serial_number"),
+            "extractable": material.extractable if isinstance(material.extractable, bool) else bool(material.identifiers),
             "evidence_number": material.evidence_number,
             "material_type": material.type,
             "material_type_status": material.classification.status,

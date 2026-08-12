@@ -135,12 +135,16 @@ def material_from_legacy_item(item: Mapping[str, Any], index: int) -> Material:
                     provenance=[_legacy_provenance(path)],
                 )
             )
+    extractable = item.get("extractable")
+    if not isinstance(extractable, bool):
+        extractable = bool(identifiers)
     return Material(
         id=_safe_text(item.get("id")) or f"legacy-material-{index + 1}",
         evidence_number=_safe_text(item.get("evidence_number")),
         type=kind,
         name=_safe_text(item.get("device_type")),
         model=_safe_text(item.get("model")),
+        extractable=extractable,
         identifiers=identifiers,
         provenance=[_legacy_provenance(f"introduction.evidence_list[{index}].device_type")],
         classification=classification,

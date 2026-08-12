@@ -99,6 +99,7 @@
 | imei1 | string（可选） | IMEI1 |
 | imei2 | string（可选） | IMEI2 |
 | serial_number | string（可选） | 序列号 |
+| extractable | boolean（可选） | 是否可提取；解析时由 IMEI1、IMEI2、序列号任一非空自动生成，存量缺失时同规则推导 |
 | evidence_number | string | 检材编号 |
 
 ### 检查人员（Inspector）
@@ -223,7 +224,7 @@
 
 `MaterialKind` 取 `phone`、`tablet` 或 `unconfirmed`；`IdentifierType` 取
 `imei1`、`imei2` 或 `serial_number`。`MaterialIdentifier` 保存通用标识值及
-`FieldProvenance`；`Material` 保存检材、标识和来源；`InspectorSnapshot` 保存
+`FieldProvenance`；`Material` 保存检材、标识、可提取状态和来源；`InspectorSnapshot` 保存
 按报告选择顺序排列的检查人员快照；`SoftwareCategory` 表示
 `main_forensic`、`winrar`、`python_hashlib`、`hashmyfiles` 或迁移期的 `unclassified`；
 `ConfirmationStatus` 表示 `confirmed` 或 `unconfirmed`。

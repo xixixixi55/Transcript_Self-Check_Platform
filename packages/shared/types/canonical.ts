@@ -44,6 +44,7 @@ export interface Material {
   type: MaterialKind
   name: string
   model: string
+  extractable?: boolean
   identifiers: MaterialIdentifier[]
   provenance: FieldProvenance[]
   classification: MaterialClassification

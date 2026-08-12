@@ -84,6 +84,26 @@ def test_build_document_contains_evidence_fields():
     assert "SYN-JC00000001" in paragraph_text
 
 
+def test_build_document_marks_unextractable_evidence_without_identifiers():
+    report = _report()
+    item = report["introduction"]["evidence_list"][0]
+    item.update({"device_type": "SYNTHETIC vivo V2141A", "extractable": False})
+    report["inspection"]["process_steps"] = [{
+        "step_number": 1,
+        "content": "将SYNTHETIC vivo V2141A（无法提取）编号为SYN-JC00000001。",
+    }]
+
+    commands = build_record_document(report)
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in commands if command.get("type") == "paragraph"
+    )
+    assert "1、SYNTHETIC vivo V2141A一部（无法提取）。" in paragraph_text
+    assert "将SYNTHETIC vivo V2141A（无法提取）编号为SYN-JC00000001。" in paragraph_text
+    assert "123456789012345" not in paragraph_text
+    assert "SYN-SERIAL-00000001" not in paragraph_text
+
+
 def test_build_document_combines_entrust_unit_prefix_without_separator():
     report = _report()
     report["introduction"]["entrust_unit_prefix"] = "SYNTHETIC-公安分局"

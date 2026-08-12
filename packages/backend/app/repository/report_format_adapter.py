@@ -39,6 +39,8 @@ _BRACKETED_REPORT_USES_SOFTWARE_RE = re.compile(
 )
 _SOFTWARE_MARKERS = ("\u4e3b\u53d6\u8bc1\u8f6f\u4ef6", "\u62a5\u544a\u751f\u6210\u8f6f\u4ef6", "\u62a5\u544a\u91c7\u7528")
 _BRACKETS = "()\uff08\uff09[]\u3010\u3011"
+_HARDWARE_PARENTHESES_RE = re.compile(r"[\uff08(]([^\uff08\uff09()]*)[\uff09)]")
+_HARDWARE_NAME_MARKERS = ("取证塔", "取证设备", "取证工作站", "采集设备", "硬件设备")
 
 
 class ReportFormat(str, Enum):
@@ -167,7 +169,7 @@ def extract_main_software_version(contents: Any) -> str:
                 or len(_VERSION_RE.findall(fragment)) != 1
             ):
                 return ""
-            name = " ".join(match.group("name").split()).strip(" :：，,；;。")
+            name = normalize_main_software_name(match.group("name"))
             version = match.group("version").replace(" ", "")
             if not name or not version:
                 return ""
@@ -207,7 +209,7 @@ def extract_main_software_candidate(contents: Any) -> dict[str, Any]:
                     and len(_VERSION_RE.findall(fragment)) != 1):
                 invalid = True
                 continue
-            name = " ".join(match.group("name").split()).strip(" :：，,；;。")
+            name = normalize_main_software_name(match.group("name"))
             version = match.group("version").replace(" ", "")
             if name and version:
                 candidates.append((name, version))
@@ -233,3 +235,15 @@ def _main_software_matches(value: str) -> list[re.Match[str]]:
     matches = list(_EXPLICIT_SOFTWARE_RE.finditer(value))
     matches.extend(_REPORT_USES_SOFTWARE_RE.finditer(value))
     return matches
+
+
+def normalize_main_software_name(value: Any) -> str:
+    """Keep the software identity while removing embedded hardware descriptors."""
+    name = " ".join(str(value or "").split()).strip(" :：，,；;。")
+
+    def keep_or_remove(match: re.Match[str]) -> str:
+        content = match.group(1).strip()
+        return "" if any(marker in content for marker in _HARDWARE_NAME_MARKERS) else match.group(0)
+
+    name = _HARDWARE_PARENTHESES_RE.sub(keep_or_remove, name).strip()
+    return name

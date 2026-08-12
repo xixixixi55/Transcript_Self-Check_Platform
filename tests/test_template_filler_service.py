@@ -233,6 +233,26 @@ def test_evidence_renderer_projects_identifiers_by_confirmed_material_type(tmp_p
     assert "222222222222222" not in document_xml
 
 
+def test_evidence_renderer_marks_unextractable_without_identifiers(tmp_path):
+    report = _report()
+    report["introduction"]["evidence_list"] = [{
+        "evidence_number": "SYN-JC-NO-ID",
+        "device_type": "SYNTHETIC vivo V2141A",
+        "extractable": False,
+        "imei1": "111111111111111",
+        "serial_number": "SYNTHETIC-SERIAL-MUST-NOT-RENDER",
+    }]
+    output = tmp_path / "unextractable.docx"
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    with zipfile.ZipFile(output) as package:
+        document_xml = package.read("word/document.xml").decode("utf-8")
+
+    assert "SYNTHETIC vivo V2141A一部（无法提取）" in document_xml
+    assert "111111111111111" not in document_xml
+    assert "SYNTHETIC-SERIAL-MUST-NOT-RENDER" not in document_xml
+
+
 def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
     report = _report()
     report["introduction"]["evidence_list"] = [

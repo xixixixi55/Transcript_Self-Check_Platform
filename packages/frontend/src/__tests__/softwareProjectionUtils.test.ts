@@ -99,6 +99,17 @@ function evidenceReport(): InspectionReport {
 }
 
 describe('evidence list projection', () => {
+  it('marks an identifier-free material as unable to extract in process step 1', () => {
+    const unavailable = {
+      ...firstMaterial, imei1: '', extractable: false, device_name: 'SYNTHETIC PHONE OFF',
+    }
+    const updated = applyReportEdit(
+      evidenceReport(), 'introduction.evidence_list', [unavailable],
+    )
+    expect(updated.inspection.process_steps.find(step => step.step_number === 1)?.content)
+      .toContain('将SYNTHETIC PHONE OFF（无法提取）编号为SYNTHETIC-1。')
+  })
+
   it('updates process/result fields and rebuilds existing photo groups after adding a material', () => {
     const initial = evidenceReport()
 

@@ -69,14 +69,22 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     commands.append(_p("（五）检材情况："))
     evidence_list = intro.get("evidence_list", [])
     for i, ev in enumerate(evidence_list, 1):
-        parts = [f"{ev.get('device_type') or ev.get('model', '')}一部"]
-        if ev.get("imei1"):
-            parts.append(f"IMEI1：{ev['imei1']}")
-        if ev.get("imei2"):
-            parts.append(f"IMEI2：{ev['imei2']}")
-        if ev.get("serial_number"):
-            parts.append(f"序列号：{ev['serial_number']}")
-        commands.append(_p(f"{i}、{'（'.join(parts)}）。" if "IMEI" in " ".join(parts) else f"{i}、{' '.join(parts)}。"))
+        device_type = str(ev.get("device_type", "")).strip()
+        device = (
+            ev.get("device_name") or ev.get("model", "")
+            if device_type.casefold() in {"手机", "智能手机", "phone", "smartphone", "平板", "平板电脑", "tablet"}
+            else device_type or ev.get("device_name") or ev.get("model", "")
+        )
+        extractable = ev.get("extractable")
+        if not isinstance(extractable, bool):
+            extractable = any(str(ev.get(key, "")).strip() for key in ("imei1", "imei2", "serial_number"))
+        details = []
+        if extractable:
+            for key, label in (("imei1", "IMEI1"), ("imei2", "IMEI2"), ("serial_number", "序列号")):
+                if ev.get(key):
+                    details.append(f"{label}：{ev[key]}")
+        suffix = f"（{'；'.join(details)}）" if details else "" if extractable else "（无法提取）"
+        commands.append(_p(f"{i}、{device}一部{suffix}。"))
 
     commands.append(_p(f"（六）检查要求：{intro.get('inspection_requirement', '')}"))
     commands.append(_p(f"（七）检查起止时间：{intro.get('inspection_time_range', '')}。"))

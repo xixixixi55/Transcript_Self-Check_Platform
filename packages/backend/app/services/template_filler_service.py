@@ -443,9 +443,12 @@ def _fill_evidence_item(text_elements, item_template: str, item: dict):
     """填充单个检材条目"""
     # 构建设备描述
     device_type = item.get("device_name") or item.get("model") or item.get("device_type", "")
+    extractable = item.get("extractable")
+    if not isinstance(extractable, bool):
+        extractable = any(str(item.get(key, "")).strip() for key in ("imei1", "imei2", "serial_number"))
     display_identifiers = {
         identifier.type: identifier.value
-        for identifier in select_display_identifiers(material_from_legacy_item(item, 0))
+        for identifier in (select_display_identifiers(material_from_legacy_item(item, 0)) if extractable else ())
     }
     imei1 = display_identifiers.get("imei1", "")
     imei2 = display_identifiers.get("imei2", "")
@@ -460,7 +463,7 @@ def _fill_evidence_item(text_elements, item_template: str, item: dict):
         parts.append(f"IMEI2：{imei2}")
     if serial:
         parts.append(f"序列号：{serial}")
-    full_text = "（" + "；".join(parts[1:]) + "）。" if len(parts) > 1 else "。"
+    full_text = "（" + "；".join(parts[1:]) + "）。" if len(parts) > 1 else "。" if extractable else "（无法提取）。"
     full_text = parts[0] + full_text
 
     _set_text_elements(text_elements, full_text)

@@ -30,14 +30,28 @@ def test_bracketed_main_product_ignores_submodule_name_and_version():
         ),
     }])
     assert candidate == {
-        "name": "手机大师-并行版V5（FL-901 手机取证塔V5）",
+        "name": "手机大师-并行版V5",
         "version": "V3.2.12922",
         "status": "confirmed_by_report",
         "candidates": [{
-            "name": "手机大师-并行版V5（FL-901 手机取证塔V5）",
+            "name": "手机大师-并行版V5",
             "version": "V3.2.12922",
         }],
     }
+
+
+def test_main_software_name_preserves_identity_and_removes_generic_hardware_suffix():
+    candidate = extract_main_software_candidate([{
+        "value": "该报告采用【手机大师NEXT（FL-901 手机取证塔V5） V1.1.22111】生成。",
+    }])
+    assert candidate["name"] == "手机大师NEXT"
+    assert candidate["version"] == "V1.1.22111"
+
+    generic = extract_main_software_candidate([{
+        "value": "该报告采用【合成取证软件（SYNTHETIC-X 取证工作站） V2.3.4】生成。",
+    }])
+    assert generic["name"] == "合成取证软件"
+    assert generic["version"] == "V2.3.4"
 
 
 @pytest.mark.parametrize("marker", ["子模块", "插件", "组件"])

@@ -13,6 +13,10 @@ const MATERIAL_TYPE_OPTIONS = [
   { label: '平板', value: 'tablet' },
   { label: '待确认', value: 'unconfirmed' },
 ]
+const EXTRACTABLE_OPTIONS = [
+  { label: '可以提取', value: 'true' },
+  { label: '无法提取', value: 'false' },
+]
 
 interface Props {
   items: EvidenceItem[]
@@ -80,6 +84,10 @@ export default function EvidenceEditor({ items, fieldStates, onChange }: Props) 
     } : item))
   }
 
+  const isExtractable = (item: EvidenceItem) => typeof item.extractable === 'boolean'
+    ? item.extractable
+    : Boolean(item.imei1?.trim() || item.imei2?.trim() || item.serial_number?.trim())
+
   return (
     <div>
       <Text type="secondary">可拖拽卡片调整检材顺序。</Text>
@@ -116,13 +124,22 @@ export default function EvidenceEditor({ items, fieldStates, onChange }: Props) 
             {(!item.material_type || item.material_type === 'unconfirmed' || item.material_type_status === 'unconfirmed') && (
               <Alert type="warning" showIcon message="请确认检材类型；未确认时不能导出。" />
             )}
-            {item.material_type !== 'tablet' && <>
+            <div>
+              <Text strong>是否可提取：</Text>
+              <Select aria-label={`检材${idx + 1}是否可提取`}
+                value={String(isExtractable(item))} options={EXTRACTABLE_OPTIONS}
+                onChange={(value: string) => onChange(items.map((candidate, i) =>
+                  i === idx ? { ...candidate, extractable: value === 'true' } : candidate))}
+                style={{ minWidth: 140 }} />
+              <Text type="secondary">（根据 IMEI 或序列号自动判断）</Text>
+            </div>
+            {isExtractable(item) && item.material_type !== 'tablet' && <>
               <div><Text strong>IMEI1：</Text><EditableField type="text" value={item.imei1 || ''}
                 onChange={value => updateItem(idx, 'imei1', value)} /></div>
               <div><Text strong>IMEI2：</Text><EditableField type="text" value={item.imei2 || ''}
                 onChange={value => updateItem(idx, 'imei2', value)} /></div>
             </>}
-            {item.material_type !== 'phone' && (
+            {isExtractable(item) && item.material_type !== 'phone' && (
               <div><Text strong>序列号：</Text><EditableField type="text" value={item.serial_number || ''}
                 onChange={value => updateItem(idx, 'serial_number', value)} /></div>
             )}

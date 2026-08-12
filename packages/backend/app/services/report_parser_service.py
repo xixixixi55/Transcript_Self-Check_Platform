@@ -42,7 +42,7 @@ from .material_policy_service import material_from_legacy_item, select_display_i
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 16  # v16: normalize visible MD5 and remove duplicated step-4 version
+_CACHE_VERSION = 17  # v17: normalize software names and derive material extractability
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
@@ -275,6 +275,9 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         display_name = _device_display_name(brand, raw_model, "")
         explicit_device_type = base_info.get("device_type") or dev.get("device_type", "")
         device_type = explicit_device_type or base_info.get("device_name") or base_info.get("model") or dev.get("device_name", "")
+        imei1 = dev.get("imei1", "") or base_info.get("imei1", "")
+        imei2 = dev.get("imei2", "") or base_info.get("imei2", "")
+        serial_number = base_info.get("serial_number", "")
         evidence_items.append({
             "id": en,
             "device_type": device_type,
@@ -282,9 +285,10 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "device_name": display_name,
             "brand": brand,
             "model": raw_model,
-            "imei1": dev.get("imei1", "") or base_info.get("imei1", ""),
-            "imei2": dev.get("imei2", "") or base_info.get("imei2", ""),
-            "serial_number": base_info.get("serial_number", ""),
+            "imei1": imei1,
+            "imei2": imei2,
+            "serial_number": serial_number,
+            "extractable": bool(str(imei1).strip() or str(imei2).strip() or str(serial_number).strip()),
             "evidence_number": en,
         })
 
@@ -302,10 +306,13 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         evidence_number = str(device.get("evidence_number", "")).strip()
         if evidence_number and evidence_number not in evidence_numbers:
             evidence_numbers.append(evidence_number)
-        identifiers = select_display_identifiers(material_from_legacy_item(device, index))
+        extractable = bool(device.get("extractable", any(
+            str(device.get(key, "")).strip() for key in ("imei1", "imei2", "serial_number")
+        )))
+        identifiers = select_display_identifiers(material_from_legacy_item(device, index)) if extractable else ()
         identifier_text = "；".join(
             f"{identifier_labels[item.type]}：{item.value}" for item in identifiers
-        ) or "设备标识待确认"
+        ) or ("设备标识待确认" if extractable else "无法提取")
         device_name = (
             device.get("device_name")
             or device.get("model")

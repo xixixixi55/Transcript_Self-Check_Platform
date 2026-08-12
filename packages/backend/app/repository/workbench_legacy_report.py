@@ -89,6 +89,8 @@ def _evidence_list(introduction: Mapping[str, Any]) -> None:
         for key in ("device_name", "brand", "model", "imei1", "imei2", "serial_number", "device_type_source", "material_type", "material_type_status", "material_type_source", "material_type_diagnostic"):
             if key in item and item[key] is not None:
                 _string(item[key])
+        if "extractable" in item and not isinstance(item["extractable"], bool):
+            raise WorkbenchPersistenceError("INVALID_LEGACY_REPORT")
 
 
 def _inspectors(parent: Mapping[str, Any], key: str, required: tuple[str, ...]) -> None:

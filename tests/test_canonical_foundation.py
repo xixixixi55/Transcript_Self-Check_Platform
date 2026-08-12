@@ -74,6 +74,7 @@ def test_canonical_to_inspection_report_preserves_identifiers_and_order():
 
     assert report["case_number"] == "CASE-001"
     assert report["introduction"]["evidence_list"][0]["imei1"] == "imei-synthetic-1"
+    assert report["introduction"]["evidence_list"][0]["extractable"] is True
     assert report["introduction"]["evidence_list"][0]["serial_number"] == "serial-synthetic-1"
     assert report["introduction"]["inspectors"][0]["badge_number"] == "P-001"
     assert report["inspection"]["result"]["software_name"] == "Synthetic forensic tool"

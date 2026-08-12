@@ -255,3 +255,12 @@ workflow_level: 3
 | **合计** | **Layer 0、2、10~12、20~21** | **22** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。
+
+## 🟢 Phase 11: 软件名称净化与检材可提取状态
+
+- [x] T023 **规范软件工具名称并自动判断检材是否可提取**
+  - 文件：`packages/backend/app/repository/report_format_adapter.py`、`report_parser_service.py`、`material_policy_service.py`、`document_builder_service.py`、`template_filler_service.py`；`packages/shared/types/`、`packages/shared/utils/softwareProjectionUtils.ts`；`packages/frontend/src/components/EvidenceEditor.tsx` 及相关测试。
+  - 内容：主软件名称保留报告识别到的软件身份，通用移除取证塔、取证设备、取证工作站等硬件括号描述并保留版本；按 IMEI1、IMEI2、序列号任一非空自动生成 `extractable`，审核页展示且允许修正；无法提取时隐藏标识，并在检材情况和检查过程追加“（无法提取）”。
+  - 覆盖 Spec：REQ-034。
+  - 验证：软件适配、解析、Canonical/Legacy 投影、前端组件/共享投影、模板与 batch Word 两条路径定向测试；架构检查、类型检查、`verify:quick` 和 scoped strict docs。
+  - manual_acceptance: N/A（确定性字段投影和文案由合成数据自动化覆盖；不改变 Word 版式。）

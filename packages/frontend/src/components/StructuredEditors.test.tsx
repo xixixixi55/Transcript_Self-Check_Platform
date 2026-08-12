@@ -160,6 +160,18 @@ describe('结构化编辑器', () => {
     }))
   })
 
+  it('展示自动判断的是否可提取字段，无法提取时隐藏设备标识', () => {
+    render(<EvidenceEditor items={[{
+      id: 'unextractable', device_type: '手机', material_type: 'phone', model: '',
+      imei1: '', imei2: '', serial_number: '', evidence_number: 'SYN-JC-NO-ID', extractable: false,
+    }]} onChange={vi.fn()} />)
+
+    expect(screen.getByText('是否可提取：')).toBeTruthy()
+    expect((screen.getByLabelText('检材1是否可提取') as HTMLSelectElement).value).toBe('false')
+    expect(screen.queryByText('IMEI1：')).toBeNull()
+    expect(screen.queryByText('序列号：')).toBeNull()
+  })
+
   it('提取清单中的 MD5 以大写显示并以大写写回', () => {
     const onChange = vi.fn()
     render(<ExtractListEditor

@@ -17,6 +17,7 @@ function evidenceDeviceName(item: EvidenceItem): string {
 }
 
 function evidenceIdentifiers(item: EvidenceItem): string {
+  if (!isEvidenceExtractable(item)) return '无法提取'
   const imeiValues = [text(item.imei1), text(item.imei2)].filter(Boolean)
   const serialNumber = text(item.serial_number)
   const identifiers = item.material_type === 'tablet'
@@ -28,6 +29,11 @@ function evidenceIdentifiers(item: EvidenceItem): string {
           ...(serialNumber ? [`序列号：${serialNumber}`] : []),
         ]
   return identifiers.join('；') || '设备标识待确认'
+}
+
+function isEvidenceExtractable(item: EvidenceItem): boolean {
+  if (typeof item.extractable === 'boolean') return item.extractable
+  return Boolean(text(item.imei1) || text(item.imei2) || text(item.serial_number))
 }
 
 function projectEvidenceProcessSteps(report: InspectionReport): ProcessStep[] {
