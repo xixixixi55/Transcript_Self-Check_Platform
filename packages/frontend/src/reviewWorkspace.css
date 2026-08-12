@@ -73,6 +73,90 @@
   border-radius: 6px;
 }
 
+.review-pending-dock {
+  position: fixed;
+  top: 50%;
+  right: 16px;
+  width: 40px;
+  height: 112px;
+  z-index: 30;
+  transform: translateY(-50%);
+}
+
+.review-pending-dock .review-pending-summary {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 8px);
+  width: min(320px, calc(100vw - 32px));
+  max-height: calc(100vh - 148px);
+  display: none;
+  margin: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  box-shadow: 0 8px 24px rgba(31, 52, 73, 0.16);
+}
+
+.review-pending-dock--expanded .review-pending-summary {
+  display: block;
+}
+
+.review-pending-dock__trigger,
+.review-pending-dock__close,
+.review-pending-dock__reset {
+  border: 1px solid #d8b66b;
+  color: var(--review-warning);
+  background: #fffaf0;
+  cursor: pointer;
+}
+
+.review-pending-dock__trigger {
+  width: 40px;
+  min-height: 112px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  float: right;
+  padding: 10px 6px;
+  border-radius: 20px 0 0 20px;
+  box-shadow: 0 4px 12px rgba(31, 52, 73, 0.14);
+  font-weight: 600;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.review-pending-dock__trigger:active {
+  cursor: grabbing;
+}
+
+.review-pending-dock__trigger span {
+  writing-mode: vertical-rl;
+  letter-spacing: 1px;
+}
+
+.review-pending-dock__close {
+  display: block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.review-pending-dock__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.review-pending-dock__reset {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
 .review-pending-summary--has-items {
   background: #fffaf0;
   border-color: #ead8ad;
@@ -142,6 +226,9 @@
 }
 
 .review-pending-summary__item:focus-visible,
+.review-pending-dock__trigger:focus-visible,
+.review-pending-dock__close:focus-visible,
+.review-pending-dock__reset:focus-visible,
 .review-section__header:focus-visible,
 .review-action-bar .ant-btn:focus-visible,
 .review-editable-display:focus-visible {
@@ -187,7 +274,7 @@
   border: 1px solid var(--review-border);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(31, 52, 73, 0.05);
-  scroll-margin-top: 16px;
+  scroll-margin-top: 24px;
 }
 
 .review-section__header {
@@ -240,6 +327,89 @@
   color: var(--review-text);
   font-size: 14px;
   font-weight: 600;
+}
+
+.review-navigation-target {
+  scroll-margin-block: 96px 112px;
+  transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.review-navigation-target--active {
+  background: #fff4cc;
+  box-shadow: 0 0 0 4px #fff4cc;
+  border-radius: 4px;
+}
+
+.review-field__label-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+
+.review-field__label-row .review-field__label {
+  margin-bottom: 0;
+}
+
+.review-field__label-note {
+  color: var(--review-error);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.review-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.review-case-summary-whitespace {
+  margin-top: 8px;
+}
+
+@media (min-width: 1920px) {
+  .review-pending-dock {
+    top: 84px;
+    right: max(24px, calc(50vw - 936px));
+    width: 240px;
+    height: auto;
+    max-height: calc(100vh - 108px);
+    transform: none;
+  }
+
+  .platform-shell--collapsed .review-pending-dock {
+    right: max(24px, calc(50vw - 848px));
+  }
+
+  .review-pending-dock__trigger,
+  .review-pending-dock__close {
+    display: none;
+  }
+
+  .review-pending-dock__controls {
+    justify-content: flex-start;
+  }
+
+  .review-pending-dock .review-pending-summary {
+    position: static;
+    width: 240px;
+    max-height: calc(100vh - 108px);
+    display: block;
+    margin: 0;
+    padding: 14px;
+    box-shadow: 0 4px 16px rgba(31, 52, 73, 0.1);
+  }
+
+  .review-pending-dock .review-pending-summary__groups {
+    display: grid;
+    gap: 12px;
+    margin: 12px 0 0 24px;
+  }
+
+  .review-pending-dock .review-pending-summary__group {
+    min-width: 0;
+  }
 }
 
 .review-field__error {
@@ -580,6 +750,11 @@
 }
 
 @media (max-width: 640px) {
+  .review-field-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
   .review-result-field {
     grid-template-columns: 1fr;
     gap: 4px;

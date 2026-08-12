@@ -8,6 +8,7 @@ import { ReviewPreviewDrawer } from './ReviewPreviewDrawer'
 import { ReviewSection } from './ReviewSection'
 import { ReviewSaveStatus } from './ReviewSaveStatus'
 import type { InspectionReport } from '@biji/shared/types'
+import { REVIEW_REVEAL_TARGET_EVENT } from '../hooks/useReviewChecklist'
 
 vi.mock('react-router-dom', () => ({ Link: ({ children }: { children: React.ReactNode }) => <a href="/">{children}</a> }))
 vi.mock('@ant-design/icons', () => {
@@ -97,16 +98,80 @@ describe('review workspace components', () => {
     expect(screen.queryByText('章节内容')).toBeNull()
   })
 
+  it('定位事件会先展开已折叠章节', () => {
+    render(<ReviewSection id="test-section" title="一、绪论" defaultOpen={false}><div>章节内容</div></ReviewSection>)
+    expect(screen.queryByText('章节内容')).toBeNull()
+    fireEvent(window, new CustomEvent(REVIEW_REVEAL_TARGET_EVENT, { detail: { sectionId: 'test-section' } }))
+    expect(screen.getByText('章节内容')).toBeTruthy()
+  })
+
   it('显示真实清单数量并支持定位章节', () => {
     const onNavigate = vi.fn()
     const items = [
-      { id: 'one', sectionId: 'intro', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const },
-      { id: 'two', sectionId: 'inspection', sectionLabel: '二、检查', fieldLabel: '检查方法', reason: '格式错误', severity: 'error' as const },
+      { id: 'one', sectionId: 'intro', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const },
+      { id: 'two', sectionId: 'inspection', targetId: 'method', sectionLabel: '二、检查', fieldLabel: '检查方法', reason: '格式错误', severity: 'error' as const },
     ]
     render(<ReviewPendingSummary items={items} onNavigate={onNavigate} />)
     expect(screen.getByText('基础待核对 2 项')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /检查地点/ }))
-    expect(onNavigate).toHaveBeenCalledWith('intro')
+    expect(onNavigate).toHaveBeenCalledWith(items[0])
+  })
+
+  it('有待核对项时提供右侧导航和窄屏展开入口', () => {
+    const onNavigate = vi.fn()
+    const items = [
+      { id: 'one', sectionId: 'intro', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const },
+    ]
+    render(<ReviewPendingSummary variant="side" items={items} onNavigate={onNavigate} />)
+
+    expect(screen.getByRole('complementary', { name: '待核对导航' })).toBeTruthy()
+    const trigger = screen.getByRole('button', { name: '待核对 1' })
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: /检查地点/ }))
+    expect(onNavigate).toHaveBeenCalledWith(items[0])
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('可直接拖动收起状态的待核对入口，且拖动不会误展开', () => {
+    Object.defineProperty(window, 'PointerEvent', { configurable: true, value: MouseEvent })
+    const items = [
+      { id: 'one', sectionId: 'intro', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const },
+    ]
+    render(<ReviewPendingSummary variant="side" items={items} onNavigate={vi.fn()} />)
+    const dock = screen.getByRole('complementary', { name: '待核对导航' })
+    vi.spyOn(dock, 'getBoundingClientRect').mockReturnValue({
+      left: 900, top: 300, right: 940, bottom: 412, width: 40, height: 112, x: 900, y: 300, toJSON: () => ({}),
+    })
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 })
+    const trigger = screen.getByRole('button', { name: '待核对 1' })
+    fireEvent.pointerDown(trigger, { button: 0, pointerId: 1, clientX: 910, clientY: 310 })
+    fireEvent.pointerMove(trigger, { pointerId: 1, clientX: 2000, clientY: 2000 })
+    fireEvent.pointerUp(trigger, { pointerId: 1 })
+    fireEvent.click(trigger)
+    expect(dock.style.left).toBe('952px')
+    expect(dock.style.top).toBe('500px')
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    expect(dock.style.left).toBe('952px')
+    expect(dock.style.top).toBe('500px')
+    fireEvent.click(screen.getByRole('button', { name: '收起待核对项' }))
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(dock.style.left).toBe('952px')
+    expect(dock.style.top).toBe('500px')
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: '重置位置' }))
+    expect(dock.style.left).toBe('')
+    expect(dock.style.top).toBe('')
+  })
+
+  it('没有待核对项时不显示右侧导航或悬浮入口', () => {
+    render(<ReviewPendingSummary variant="side" items={[]} onNavigate={vi.fn()} />)
+    expect(screen.queryByRole('complementary', { name: '待核对导航' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /待核对/ })).toBeNull()
   })
 
   it('预览 Drawer 默认关闭，打开后可关闭', () => {

@@ -11,13 +11,14 @@ import {
 export type DateTimeFieldPrecision = 'date' | 'minute-range'
 
 interface DateTimeFieldProps {
+  targetId?: string
   label?: string
   precision: DateTimeFieldPrecision
   value: string
   onChange: (value: string) => void
 }
 
-function DateTimeField({ label, precision, value, onChange }: DateTimeFieldProps) {
+function DateTimeField({ targetId, label, precision, value, onChange }: DateTimeFieldProps) {
   const [rangeValues, setRangeValues] = useState(() => toDateTimeRangeInputValues(value))
 
   useEffect(() => {
@@ -41,7 +42,7 @@ function DateTimeField({ label, precision, value, onChange }: DateTimeFieldProps
   }
 
   return (
-    <div style={{ marginTop: 4 }}>
+    <div id={targetId} className="review-navigation-target" tabIndex={targetId ? -1 : undefined} style={{ marginTop: 4 }}>
       {label && <div style={{ fontWeight: 600, marginBottom: 4, marginTop: 12 }}>{label}</div>}
       {precision === 'date' ? (
         <Input

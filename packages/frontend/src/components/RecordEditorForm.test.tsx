@@ -130,16 +130,37 @@ describe('RecordEditorForm', () => {
     expect(updateReport).toHaveBeenCalledWith('inspection.result.data_summary', '即时通讯、手机信息')
   })
 
-  it('提醒人工核对案件简要，并在尾部存在空白时追加清理提示', () => {
+  it('在案件简要标题旁提醒人工核对，并在尾部存在空白时保留清理提示', () => {
     const reportWithWhitespace = JSON.parse(JSON.stringify(report)) as InspectionReport
     reportWithWhitespace.introduction.case_summary = '合成案件摘要  \n'
     render(<RecordEditorForm report={reportWithWhitespace} updateReport={vi.fn()} onExport={vi.fn()}
       exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
       onPhotoFilesChange={vi.fn()} />)
 
-    const reminder = screen.getByText(/案件简要情况由报告自动解析/)
-    expect(reminder.textContent).toContain('可能不准确，请人工核对。')
-    expect(reminder.textContent).toContain('当前内容末尾存在多余回车、空格或制表符，请检查并删除。')
+    expect(screen.getByText('（请注意人工核对）')).toBeTruthy()
+    expect(screen.queryByText(/案件简要情况由报告自动解析/)).toBeNull()
+    expect(screen.getByText('当前内容末尾存在多余回车、空格或制表符，请检查并删除。')).toBeTruthy()
+  })
+
+  it('案件简要没有尾部空白时仅显示标题旁人工核对提示', () => {
+    render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} />)
+
+    expect(screen.getByText('（请注意人工核对）')).toBeTruthy()
+    expect(screen.queryByText('当前内容末尾存在多余回车、空格或制表符，请检查并删除。')).toBeNull()
+  })
+
+  it('委托单位前缀与委托单位使用响应式双列容器且标题精简', () => {
+    const view = render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} />)
+
+    const row = view.container.querySelector('.review-field-row--entrust-unit')
+    expect(row).toBeTruthy()
+    expect(row?.textContent).toContain('委托单位前缀')
+    expect(row?.textContent).toContain('（一）委托单位')
+    expect(screen.queryByText('委托单位前缀（共享默认值）')).toBeNull()
   })
 
   it('单独编辑可为空的委托单位共享前缀，不改写报告识别单位', () => {

@@ -7,6 +7,7 @@ import {
   useArchiveCompletion,
 } from '../hooks/useArchiveCompletion'
 import { WordDownloadNameDialog } from './WordDownloadNameDialog'
+import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 
 interface Props {
   lifecycle: CaseLifecycle
@@ -88,7 +89,7 @@ export function ArchiveCompletionPanel({
         message="待补盘号"
         description="压缩已完成，输入首个光盘编号后系统将按 part 顺序自动生成全序列映射。"
         action={<Space>
-          <Input aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={mappingDiscNumber}
+          <Input id={REVIEW_TARGET_IDS.discNumber} aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={mappingDiscNumber}
             disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
           <Button type="primary" loading={archive.busy} disabled={readOnly}
             onClick={() => { void submitMapping() }}>提交盘号映射</Button>
@@ -109,7 +110,7 @@ export function ArchiveCompletionPanel({
             ? '统一导出已完成，可再次导出获取最新 Word、RAR 与校验截图。'
             : '全部 RAR、MD5 与盘号已对应完成，可开始导出。'}
           action={<Space>
-            <Input aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={mappingDiscNumber}
+            <Input id={REVIEW_TARGET_IDS.discNumber} aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={mappingDiscNumber}
               disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
             <Button loading={archive.busy} disabled={readOnly}
               onClick={() => { void submitMapping() }}>更新盘号映射</Button>
@@ -136,7 +137,7 @@ export function ArchiveCompletionPanel({
       description={status === 'compressing'
         ? '压缩正在后台进行；现在仍可填写首个光盘编号，压缩完成后将沿用该编号。'
         : '可在开始压缩前填写首个光盘编号；修改会随案件草稿自动保存。'}
-      action={<Input aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={firstDiscNumber}
+      action={<Input id={REVIEW_TARGET_IDS.discNumber} aria-label="首个光盘编号" placeholder="如 GP20260731-01" value={firstDiscNumber}
         disabled={readOnly} onChange={event => onFirstDiscNumberChange(event.target.value)} />}
     />
   )

@@ -17,7 +17,7 @@ import { ReviewInspectionSection } from './ReviewInspectionSection'
 import { ReviewIntroductionSection } from './ReviewIntroductionSection'
 import { ReviewSection } from './ReviewSection'
 import type { ReviewPageStatus } from './reviewWorkspaceTypes'
-import { REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
+import { REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import type { ReviewPendingItem } from '../hooks/useReviewChecklist'
 import EditableField from './EditableField'
 import { ArchiveStatusCard } from './ArchiveStatusCard'
@@ -100,7 +100,7 @@ export default function RecordEditorForm({
 
       <fieldset disabled={readOnly} className="review-editor-form__fieldset">
         <ReviewSection id={REVIEW_SECTION_IDS.document} title="文书信息与导出设置" pendingCount={countFor(REVIEW_SECTION_IDS.document)}>
-          <ReviewField label="文号" type="text" value={report.document_number}
+          <ReviewField targetId={REVIEW_TARGET_IDS.documentNumber} label="文号" type="text" value={report.document_number}
             onChange={value => updateReport('document_number', value)} />
         </ReviewSection>
 

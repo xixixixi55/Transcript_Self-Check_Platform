@@ -4,6 +4,7 @@ import React from 'react'
 import { Typography, Space } from 'antd'
 import EditableField from './EditableField'
 import type { ProcessStep } from '@biji/shared/types'
+import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 
 const { Text } = Typography
 
@@ -20,7 +21,8 @@ export default function ProcessStepsEditor({ steps, onChange }: Props) {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={8}>
       {steps.map((step, idx) => (
-        <div key={step.step_number || idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div id={REVIEW_TARGET_IDS.processStep(idx)} className="review-navigation-target" tabIndex={-1}
+          key={step.step_number || idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <Text strong style={{ minWidth: 28, lineHeight: '32px' }}>
             {step.step_number}、
           </Text>

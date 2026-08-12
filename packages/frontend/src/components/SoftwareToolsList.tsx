@@ -5,6 +5,7 @@ import { Button, Space } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import EditableField from './EditableField'
 import type { SoftwareItem } from '@biji/shared/types'
+import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 
 interface Props {
   tools: SoftwareItem[]
@@ -23,7 +24,8 @@ export default function SoftwareToolsList({ tools, onChange, readOnly = false }:
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={4}>
       {tools.map((tool, idx) => (
-        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div id={REVIEW_TARGET_IDS.softwareTool(idx)} className="review-navigation-target" tabIndex={-1}
+          key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <EditableField type="text" value={tool.name}
             onChange={v => update(idx, 'name', v)}
             placeholder="软件名称" />

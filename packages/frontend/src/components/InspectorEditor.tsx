@@ -4,6 +4,7 @@ import { Alert, Button, Card, Modal, Space, Typography } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import type { FieldState, InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
 import { FieldProvenanceBadge } from './FieldProvenanceBadge'
+import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 
 const { Text } = Typography
 
@@ -107,7 +108,8 @@ export default function InspectorEditor({
       <div className="inspector-selector__selected" role="list" aria-label="已选择检查人员，可拖拽卡片调整顺序">
         {snapshots.length > 0 && <Text className="inspector-selector__hint" type="secondary">可拖拽卡片调整检查人员顺序。</Text>}
         {snapshots.map((snapshot, index) => (
-          <div className="inspector-selector__item" key={`${snapshot.snapshot_id || snapshot.inspector_id || 'legacy'}-${index}`}
+          <div id={REVIEW_TARGET_IDS.inspector(index)} className="inspector-selector__item review-navigation-target" tabIndex={-1}
+            key={`${snapshot.snapshot_id || snapshot.inspector_id || 'legacy'}-${index}`}
             role="listitem" aria-label={`检查人员 ${index + 1}，可拖拽调整顺序`}
             aria-grabbed={draggedIndex === index ? 'true' : 'false'}
             data-testid={`inspector-card-${index}`} draggable

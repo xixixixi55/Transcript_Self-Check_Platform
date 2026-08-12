@@ -287,6 +287,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
 
+  it('renders pending checks in the right-side navigation instead of the inline page flow', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
+    expect(await screen.findByRole('complementary', { name: '待核对导航' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^待核对 \d+$/ })).toBeTruthy()
+    expect(screen.getAllByLabelText('待核对摘要')).toHaveLength(1)
+  }, 15000)
+
   it('saves an explicitly cleared entrust-unit prefix to the draft and shared defaults', async () => {
     renderPage()
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })

@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-029, including unified page scrolling, default workbench entry, and compact source authorization control
+spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/spec.md REQ-029, including unified page scrolling, default workbench entry, compact source authorization control, right-side pending navigation, compact case-summary warning, and responsive entrust-unit fields; current OpenSpec CLI exposes no standalone sync command
 
 ## 目标
 
@@ -115,3 +115,72 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 - 前端定向测试：`platformShell.test.tsx` 与 `CaseWorkbenchPage.test.tsx` 共 2 个测试文件、29 个用例通过。
 - 浏览器布局验收：1280×720 下来源目录校验按钮位于标题区右侧操作组，尺寸约 128×24；720×900 下操作组右对齐换行且无横向溢出；按钮开关状态可切换并恢复。
 - living spec 已同步 `REQ-029` 的默认案件工作台入口及紧凑来源目录校验控制项场景。
+
+## 第四阶段：右侧待核对栏与案件简要提示紧凑化
+
+### 目标与验收标准
+
+- [x] 审核编辑页存在待核对项且右侧空间充足时，利用主表单右侧空白显示窄版随屏待核对栏，不在页面顶部横向吸顶；主表单现有宽度和字段布局保持不变。
+- [x] 右侧待核对栏保持当前真实数量、分组和点击定位能力；点击字段后目标章节不得被侧栏或底部操作栏遮挡。
+- [x] 窄屏或浏览器 125%/150% 缩放导致右侧空间不足时，待核对栏收敛为不长期遮挡编辑区的窄版右侧悬浮入口，点击后临时展开并可立即收起；没有待核对项时不显示随屏侧栏或悬浮入口。
+- [x] “（四）案件简要情况”标题右侧显示红色“（请注意人工核对）”，不再单独显示“案件简要情况由报告自动解析，可能不准确，请人工核对。”提示行。
+- [x] 案件简要内容末尾存在回车、空格或制表符时，继续显示“当前内容末尾存在多余回车、空格或制表符，请检查并删除。”警告；没有尾部空白时不显示该警告。
+- [x] 审核界面的字段标题简化为“委托单位前缀”，不再显示“（共享默认值）”；桌面端该字段与“（一）委托单位”在同一行左右分栏展示，空间不足时自动回落为上下布局，不产生横向溢出。
+- [x] 不改变待核对清单派生规则、字段编辑、草稿保存、Word 导出或后端接口。
+
+### Layer 11–12：前端组件、页面样式与测试
+
+- [x] 调整 `packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、`packages/frontend/src/components/ReviewPendingSummary.tsx` 与 `packages/frontend/src/reviewWorkspace.css`，将有待核对项的摘要移入审核表单右侧随屏栏；空间不足时提供可展开的右侧悬浮入口，并为章节定位预留不被遮挡的滚动偏移。
+- [x] 调整 `packages/frontend/src/components/ReviewField.tsx`、`ReviewIntroductionSection.tsx` 与 `reviewWorkspace.css`，支持字段标题旁的紧凑红色提醒、尾部空白条件警告、精简的“委托单位前缀”标题，以及委托单位前缀/委托单位的响应式双列容器。
+- [x] 更新 `packages/frontend/src/components/reviewWorkspaceComponents.test.tsx`、`RecordEditorForm.test.tsx` 及必要的页面测试，覆盖有/无待核对项的右侧栏/悬浮入口、定位回调、标题内红色提醒、尾部空白警告显示条件及委托单位双列结构。
+- [x] 运行前端定向 Vitest、前端全量测试、生产构建、`npm run verify:quick` 与 `git diff --check`。
+- [x] 人工检查桌面、窄屏和 125%/150% 缩放下的右侧栏、悬浮入口、双列回落与换行布局。
+
+### 第四阶段验证记录
+
+- 架构检查与 TypeScript 类型检查通过；受影响组件和页面集成测试共 3 个文件、36 个用例通过。
+- 前端全量测试、生产构建、`verify:quick` 和仓库资产检查通过；构建仅保留既有的大体积 chunk 警告，测试仅输出既有 Ant Design deprecated/jsdom 能力提示。
+- OpenSpec CLI 当前没有独立 `sync` 命令，delta 场景已按 reconciliation 路径同步到 living spec；scoped strict docs 与 OpenSpec strict validation 作为最终文档门控。
+- 应用内浏览器初始化因本地浏览器工具路径缺失失败；后续已由用户在真实界面完成人工响应式视觉检查并确认通过。
+
+### 影响范围
+
+- 影响层级：Layer 11 FE_Components、Layer 12 FE_Pages/样式；修改既有文件，不新增目录、共享类型、后端接口、数据模型或持久化格式。
+- 规格归属：待核对持续可见属于本变更 `REQ-029`；案件简要仍遵守 `audit-edit-enhancement` 的 `REQ-032` 人工核对与尾部空白提示语义，本阶段只调整展示位置和密度。
+
+## 第五阶段：待核对浮层拖拽与字段级精确定位
+
+### 目标与验收标准
+
+- [x] 有待核对项时，用户可直接拖动收起状态的右侧“待核对”入口，无需先展开清单；拖动不误触发展开，位置限制在当前可视区域内且不得覆盖到底部操作栏之外。
+- [x] 展开面板使用绝对定位并以竖向入口为固定锚点；展开、点击“收起待核对项”和再次展开时，入口屏幕位置不发生横向跳动。
+- [x] 拖拽位置在当前审核页面会话内保持；重新进入页面使用默认位置，不新增浏览器、草稿或服务端持久化字段。
+- [x] 点击每个待核对项时定位到对应字段或编辑块，而不是仅跳到所在章节顶部；目标短暂高亮，便于用户确认落点。
+- [x] 目标章节已折叠时，系统先展开章节，再执行滚动定位；目标不存在时安全回退到对应章节，不抛出页面错误。
+- [x] “光盘编号”待核对项定位到页面上方归档/盘号区域的“首个光盘编号”输入，不再定位到底部附件章节。
+- [x] 拖拽与定位支持鼠标和 Pointer 事件；位置重置按钮支持键盘操作，点击待核对项后焦点进入可编辑目标或其最近编辑块。
+- [x] 不改变待核对项的派生条件、数量、严重程度、字段保存、归档、Word 导出或后端接口。
+
+### Layer 10：待核对目标模型与派生测试
+
+- [x] 调整 `packages/frontend/src/hooks/useReviewChecklist.ts`，为 `ReviewPendingItem` 增加字段级 `targetId`，给文号、绪论字段、检材/人员、检查字段、结果字段、附件字段和光盘编号建立稳定目标映射；光盘编号映射到顶部盘号输入。
+- [x] 更新 `packages/frontend/src/hooks/useReviewChecklist.test.ts`，断言各类清单项使用可区分的字段级目标，特别覆盖光盘编号空值与格式错误均指向顶部盘号锚点。
+
+### Layer 11–12：锚点、折叠展开、拖拽与页面接线
+
+- [x] 调整 `ReviewField.tsx`、`ReviewSection.tsx`、结构化编辑组件及 `ArchiveCompletionPanel.tsx`，为实际字段/编辑块提供稳定 DOM 锚点，并支持定位事件触发展开章节、聚焦和短暂高亮。
+- [x] 调整 `ReviewPendingSummary.tsx`、`CaseRecordGeneratePage.tsx` 与 `reviewWorkspace.css`，实现受视口约束的浮层拖拽、会话内位置保持、默认位置重置，以及 `targetId → 精确目标 → 章节回退` 的导航流程。
+- [x] 更新 `reviewWorkspaceComponents.test.tsx`、`RecordEditorForm.test.tsx`、`CaseRecordGeneratePage.test.tsx` 及必要的结构化编辑测试，覆盖拖拽边界、重置、折叠章节展开、精确目标、焦点/高亮、缺失目标回退和顶部光盘编号跳转。
+- [x] 运行前端定向 Vitest、前端全量测试、生产构建、`npm run verify:quick`、OpenSpec strict、`npm run verify:docs:strict -- --change review-page-modern-government-ui` 与 `git diff --check`；自动化门控通过，人工桌面和缩放复核通过。
+
+### 影响范围
+
+- 影响层级：Layer 10 FE_Hooks、Layer 11 FE_Components、Layer 12 FE_Pages/样式；修改既有前端文件，不新增依赖、共享类型、后端接口、数据模型或持久化格式。
+- 交互边界：拖拽只改变待核对浮层在当前页面会话中的显示位置；字段级锚点只服务审核导航，不进入报告、草稿或 Word 数据。
+
+### 第五阶段验证记录
+
+- 架构检查和 TypeScript 类型检查通过；受影响的 6 个测试文件共 53 个用例通过，覆盖字段级目标、顶部盘号锚点、拖拽边界、键盘重置、折叠展开、聚焦高亮与章节回退。
+- 前端全量测试、生产构建、`verify:quick` 和仓库资产检查通过；仅保留既有 Ant Design/jsdom 提示和大体积 chunk 警告。
+- delta 场景已同步到 living spec；OpenSpec change 严格校验、scoped strict docs 与 `git diff --check` 通过。living spec 全量校验仍报告本阶段之外既有的 REQ-016/REQ-030/REQ-031 结构问题，本阶段未扩大范围修改。
+- 用户已在真实界面完成人工验收，确认右侧入口直接拖动、展开/收起位置保持、字段跳转和响应式布局通过。

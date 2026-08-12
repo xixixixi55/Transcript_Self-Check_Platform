@@ -1,4 +1,5 @@
-import React, { useId, useState } from 'react'
+import React, { useEffect, useId, useState } from 'react'
+import { REVIEW_REVEAL_TARGET_EVENT } from '../hooks/useReviewChecklist'
 
 interface ReviewSectionProps {
   id: string
@@ -11,6 +12,15 @@ interface ReviewSectionProps {
 export function ReviewSection({ id, title, pendingCount = 0, defaultOpen = true, children }: ReviewSectionProps) {
   const [open, setOpen] = useState(defaultOpen)
   const contentId = useId()
+
+  useEffect(() => {
+    const reveal = (event: Event) => {
+      const detail = (event as CustomEvent<{ sectionId?: string }>).detail
+      if (detail?.sectionId === id) setOpen(true)
+    }
+    window.addEventListener(REVIEW_REVEAL_TARGET_EVENT, reveal)
+    return () => window.removeEventListener(REVIEW_REVEAL_TARGET_EVENT, reveal)
+  }, [id])
 
   return (
     <section id={id} className="review-section" data-open={open}>

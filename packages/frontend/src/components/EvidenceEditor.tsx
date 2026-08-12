@@ -5,6 +5,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { EvidenceItem, FieldState } from '@biji/shared/types'
 import EditableField from './EditableField'
 import { FieldProvenanceBadge } from './FieldProvenanceBadge'
+import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 
 const { Text } = Typography
 
@@ -92,7 +93,8 @@ export default function EvidenceEditor({ items, fieldStates, onChange }: Props) 
     <div>
       <Text type="secondary">可拖拽卡片调整检材顺序。</Text>
       {items.map((item, idx) => (
-        <div key={item.evidence_id || item.id || idx} data-testid={`evidence-card-${idx}`} draggable
+        <div id={REVIEW_TARGET_IDS.evidence(idx)} className="review-navigation-target" tabIndex={-1}
+          key={item.evidence_id || item.id || idx} data-testid={`evidence-card-${idx}`} draggable
           onDragStart={() => setDraggedIndex(idx)}
           onDragOver={event => event.preventDefault()}
           onDrop={() => { if (draggedIndex !== null) moveItem(draggedIndex, idx); setDraggedIndex(null) }}

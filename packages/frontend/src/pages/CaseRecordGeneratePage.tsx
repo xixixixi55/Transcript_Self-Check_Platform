@@ -5,7 +5,8 @@ import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import type { InspectorLibraryRecord } from '@biji/shared/types'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
 import { useRecordExport } from '../hooks/useRecordExport'
-import { getReviewPendingItems } from '../hooks/useReviewChecklist'
+import { getReviewPendingItems, REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
+import { useReviewPendingNavigation } from '../hooks/useReviewPendingNavigation'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
 import { isValidDateFieldValue, isValidMinuteTimeRangeValue } from '@biji/shared/utils'
 import { API_ENDPOINTS } from '@biji/shared/constants'
@@ -47,6 +48,7 @@ export default function CaseRecordGeneratePage() {
       .catch(() => setInspectorError('获取启用检查人员失败，请稍后重试。'))
   }, [])
   const pendingItems = useMemo(() => session.report ? getReviewPendingItems(session.report) : [], [session.report])
+  const navigateToPendingItem = useReviewPendingNavigation()
   const updateReport = useCallback((path: string, value: unknown) => {
     session.updateReport(path, value)
     if (session.editingEnabled) setReviewStatus('存在未导出修改')
@@ -189,6 +191,7 @@ export default function CaseRecordGeneratePage() {
         {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待快速复核" description="可直接选择压缩时机；开始压缩前会快速核对授权路径、报告结构和核心报告文件。" />}
         {!sourceInvalid && <>
           <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
+          <div id={REVIEW_SECTION_IDS.archive} className="review-navigation-target" tabIndex={-1}>
           <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
             expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
             planRowRevision={session.completedArchive.result?.plan_row_revision ?? null}
@@ -199,13 +202,15 @@ export default function CaseRecordGeneratePage() {
               session.completedArchive.reload()
               void session.reloadDetail(caseId)
             }} />
+          </div>
         </>}
         {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
         {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
         {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
         <div className="case-workbench-page__toolbar">文号来源：<FieldProvenanceBadge state={session.draft?.field_states.document_number} /></div>
         <ReviewSourceLegend />
-        <ReviewPendingSummary items={pendingItems} onNavigate={sectionId => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })} />
+        <ReviewPendingSummary variant="side" items={pendingItems}
+          onNavigate={navigateToPendingItem} />
         <RecordEditorForm
           report={session.report}
           updateReport={updateReport}

@@ -1,6 +1,6 @@
 import type { InspectionReport } from '@biji/shared/types'
 import { describe, expect, it } from 'vitest'
-import { getReviewPendingItems } from './useReviewChecklist'
+import { getReviewPendingItems, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from './useReviewChecklist'
 
 const report: InspectionReport = {
   title: '电子数据检查笔录', document_number: '', case_number: '2026-001',
@@ -54,5 +54,24 @@ describe('getReviewPendingItems', () => {
       },
     })
     expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
+  })
+
+  it('为不同字段生成稳定且可区分的精确目标', () => {
+    const items = getReviewPendingItems(report)
+    expect(items.find(item => item.fieldLabel === '文号')?.targetId).toBe(REVIEW_TARGET_IDS.documentNumber)
+    expect(items.find(item => item.fieldLabel === '案件简要情况')?.targetId).toBe(REVIEW_TARGET_IDS.caseSummary)
+    expect(items.find(item => item.fieldLabel === 'RAR 文件名')?.targetId).toBe(REVIEW_TARGET_IDS.result('rar_filename'))
+    expect(items.find(item => item.fieldLabel === 'MD5 哈希')?.targetId).toBe(REVIEW_TARGET_IDS.result('md5_hash'))
+  })
+
+  it.each(['', 'INVALID-DISC'])('光盘编号“%s”始终指向顶部首个盘号输入', discNumber => {
+    const items = getReviewPendingItems({
+      ...report,
+      attachments: { ...report.attachments, disc_number: discNumber },
+    })
+    const discItems = items.filter(item => item.fieldLabel === '光盘编号')
+    expect(discItems.length).toBeGreaterThan(0)
+    expect(discItems.every(item => item.targetId === REVIEW_TARGET_IDS.discNumber)).toBe(true)
+    expect(discItems.every(item => item.sectionId === REVIEW_SECTION_IDS.archive)).toBe(true)
   })
 })

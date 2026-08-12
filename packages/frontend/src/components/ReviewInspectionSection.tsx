@@ -7,6 +7,7 @@ import EditableField from './EditableField'
 import ProcessStepsEditor from './ProcessStepsEditor'
 import SoftwareToolsList from './SoftwareToolsList'
 import { ReviewField } from './ReviewField'
+import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 
 const { Text } = Typography
 
@@ -32,11 +33,11 @@ export function ReviewInspectionSection({ inspection, updateReport, deviceOption
 
   return (
     <>
-      <ReviewField label="（一）检查方法" type="textarea" value={inspection.method}
+      <ReviewField targetId={REVIEW_TARGET_IDS.inspectionMethod} label="（一）检查方法" type="textarea" value={inspection.method}
         onChange={value => updateReport('inspection.method', value)} />
       <div className="review-editor-block">
         <div className="review-field__label">（二）检查设备</div>
-        <div className="review-subfield">
+        <div id={REVIEW_TARGET_IDS.hardwareDevice} className="review-subfield review-navigation-target" tabIndex={-1}>
           <Text strong>1、硬件设备</Text>
           <EditableField type="select" value={inspection.hardware_device}
             onChange={value => updateReport('inspection.hardware_device', value)} options={deviceOptions} />
@@ -46,15 +47,15 @@ export function ReviewInspectionSection({ inspection, updateReport, deviceOption
           <SoftwareToolsList tools={inspection.software_tools || []}
             onChange={() => undefined} readOnly />
         </div>
-        <div className="review-subfield review-primary-software" aria-label="主取证软件">
+        <div id={REVIEW_TARGET_IDS.primarySoftwareStatus} className="review-subfield review-primary-software review-navigation-target" tabIndex={-1} aria-label="主取证软件">
           <Text strong>主取证软件</Text>
           <span className={`review-primary-software__status ${primarySoftware.confirmation_status === 'unconfirmed' ? 'review-primary-software__status--pending' : ''}`}>
             {primarySoftware.confirmation_status === 'confirmed_by_user' ? '人工确认' :
               primarySoftware.confirmation_status === 'confirmed_by_report' ? '报告自动识别' : '待确认'}
           </span>
-          <ReviewField label="主取证软件名称" type="text" value={primarySoftware.name}
+          <ReviewField targetId={REVIEW_TARGET_IDS.primarySoftwareName} label="主取证软件名称" type="text" value={primarySoftware.name}
             onChange={value => updateReport('inspection.primary_software.name', value)} placeholder="请输入主取证软件名称" />
-          <ReviewField label="主取证软件版本" type="text" value={primarySoftware.version}
+          <ReviewField targetId={REVIEW_TARGET_IDS.primarySoftwareVersion} label="主取证软件版本" type="text" value={primarySoftware.version}
             onChange={value => updateReport('inspection.primary_software.version', value)} placeholder="请输入主取证软件版本" />
           {primarySoftware.candidates && primarySoftware.candidates.length > 1 ? (
             <Text type="secondary">报告候选存在冲突，请分别确认名称和版本后再导出。</Text>
@@ -69,7 +70,7 @@ export function ReviewInspectionSection({ inspection, updateReport, deviceOption
       <div className="review-editor-block review-result-block">
         <div className="review-field__label">（四）检查结果</div>
         {resultFields.map(([label, key]) => (
-          <div className="review-result-field" key={key}>
+          <div id={REVIEW_TARGET_IDS.result(key)} className="review-result-field review-navigation-target" tabIndex={-1} key={key}>
             <Text type="secondary">{label}</Text>
             <EditableField type="text" value={key === 'data_summary'
               ? normalizeDataSummary((inspection.result as any)?.[key])
