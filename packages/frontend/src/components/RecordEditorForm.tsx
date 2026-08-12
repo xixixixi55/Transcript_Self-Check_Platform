@@ -93,7 +93,7 @@ export default function RecordEditorForm({
       <div className="review-editor-form__title-row">
         <div>
           <Title level={2}>审核编辑</Title>
-          <p>{workbenchMode ? '请核对解析内容；修改会按 revision 自动保存到案件草稿。' : '请核对解析内容，点击字段值即可编辑；当前页面不会自动写入服务器。'}</p>
+          {!workbenchMode && <p>请核对解析内容，点击字段值即可编辑；当前页面不会自动写入服务器。</p>}
         </div>
         <span className="review-editor-form__document-number">文号：{report.document_number || '未填写'}</span>
       </div>
@@ -130,7 +130,8 @@ export default function RecordEditorForm({
             taskId={archiveResult.result?.task_id}
             error={archiveError || archiveResult.error}
           />}
-        <ReviewAttachmentsSection attachments={attachments} hardwareDevice={report.inspection?.hardware_device || ''} photoFiles={photoFiles}
+        <ReviewAttachmentsSection attachments={attachments} materials={introduction.evidence_list || []}
+          hardwareDevice={report.inspection?.hardware_device || ''} photoFiles={photoFiles}
           onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport} />
         </ReviewSection>
       </fieldset>

@@ -73,6 +73,7 @@ describe('RecordEditorForm', () => {
       workbenchMode />)
 
     expect(screen.getByText('审核编辑')).toBeTruthy()
+    expect(screen.queryByText('请核对解析内容；修改会按 revision 自动保存到案件草稿。')).toBeNull()
     expect(screen.getByTestId('evidence-editor')).toBeTruthy()
     expect(screen.getByTestId('image-uploader')).toBeTruthy()
     expect(screen.queryByText('附件3：光盘编号')).toBeNull()

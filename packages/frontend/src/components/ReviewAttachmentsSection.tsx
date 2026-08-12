@@ -1,7 +1,7 @@
 import React from 'react'
 import { Alert, Typography } from 'antd'
 import type { UploadFile } from 'antd'
-import type { InspectionReport } from '@biji/shared/types'
+import type { EvidenceItem, InspectionReport } from '@biji/shared/types'
 import { formatDiscDate, parseDiscSequence } from '@biji/shared/utils'
 import ExtractListEditor from './ExtractListEditor'
 import ImageUploader from './ImageUploader'
@@ -11,13 +11,14 @@ const { Text } = Typography
 
 interface ReviewAttachmentsSectionProps {
   attachments: InspectionReport['attachments']
+  materials: EvidenceItem[]
   hardwareDevice: string
   photoFiles: UploadFile[]
   onPhotoFilesChange: (files: UploadFile[]) => void
   updateReport: (path: string, value: any) => void
 }
 
-export function ReviewAttachmentsSection({ attachments, hardwareDevice, photoFiles, onPhotoFilesChange, updateReport }: ReviewAttachmentsSectionProps) {
+export function ReviewAttachmentsSection({ attachments, materials, hardwareDevice, photoFiles, onPhotoFilesChange, updateReport }: ReviewAttachmentsSectionProps) {
   const discResult = parseDiscSequence(attachments.disc_number || '')
   const extractionMethod = `使用${hardwareDevice.trim() || '取证设备'}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值`
 
@@ -31,7 +32,7 @@ export function ReviewAttachmentsSection({ attachments, hardwareDevice, photoFil
       </div>
       <div className="review-editor-block">
         <div className="review-field__label">附件2：检材照片</div>
-        <ImageUploader photos={photoFiles} onChange={onPhotoFilesChange} />
+        <ImageUploader materials={materials} photos={photoFiles} onChange={onPhotoFilesChange} />
       </div>
       {discResult.valid && discResult.sequence ? (
         <div id={REVIEW_TARGET_IDS.burningDate} className="review-field review-navigation-target" tabIndex={-1}>

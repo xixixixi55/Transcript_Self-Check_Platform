@@ -44,6 +44,8 @@ describe('CaseWorkbenchPage', () => {
     expect(screen.queryByRole('textbox', { name: '案件编号' })).toBeNull()
     expect(screen.queryByRole('button', { name: '上传报告目录' })).toBeNull()
     expect(screen.getAllByLabelText(/案件序号/)).toHaveLength(6)
+    expect(screen.getByRole('heading', { level: 1, name: '案件工作台' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { level: 1, name: '电子数据检查案件' })).toBeNull()
     expect(screen.getByLabelText('案件序号 1')).toBeTruthy()
     expect(screen.getByLabelText('案件序号 6')).toBeTruthy()
     expect(screen.getByTitle('2')).toBeTruthy()

@@ -166,8 +166,8 @@ export default function CaseWorkbenchPage() {
     <div className="case-workbench-page">
       <div className="case-workbench-page__header">
         <div className="case-workbench-page__heading">
-          <div className="platform-page__eyebrow">案件工作台</div>
-          <Title level={1}>电子数据检查案件</Title>
+          <div className="platform-page__eyebrow">电子数据检查笔录</div>
+          <Title level={1}>案件工作台</Title>
           <Paragraph className="platform-page__description">案件提交、解析、审核和后台任务状态均以服务端持久状态为准；每页最多显示6个案件，上传报告目录入口位于案件卡片末尾、页面未满时显示。</Paragraph>
         </div>
         <div className="case-workbench-page__submission">

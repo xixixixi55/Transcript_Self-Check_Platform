@@ -184,3 +184,51 @@ spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/sp
 - 前端全量测试、生产构建、`verify:quick` 和仓库资产检查通过；仅保留既有 Ant Design/jsdom 提示和大体积 chunk 警告。
 - delta 场景已同步到 living spec；OpenSpec change 严格校验、scoped strict docs 与 `git diff --check` 通过。living spec 全量校验仍报告本阶段之外既有的 REQ-016/REQ-030/REQ-031 结构问题，本阶段未扩大范围修改。
 - 用户已在真实界面完成人工验收，确认右侧入口直接拖动、展开/收起位置保持、字段跳转和响应式布局通过。
+
+## 第六阶段：工作台与审核编辑文案层级精简
+
+### 目标与验收标准
+
+- [x] 案件工作台以“案件工作台”作为一级大标题，“电子数据检查笔录”仅作为上方小型模块标识，不再以“电子数据检查案件”作为页面主标题。
+- [x] 持久化案件审核编辑页移除标题下方“请核对解析内容；修改会按 revision 自动保存到案件草稿。”说明；非工作台兼容编辑模式的既有保存边界说明保持不变。
+- [x] 附件2只显示“一个检材对应两个图片，按照检材顺序对应。”，移除格式、大小、拖拽、正反面和偶数数量的两段旧提示。
+- [x] 核实现有图片映射行为：图片引用保存时按审核后的检材顺序每两张生成一个 `photo_groups` 分组，检材变化时会确定性重建映射，导出前继续校验每个检材恰好两张及完整有序归属。
+- [x] 定向 Vitest、架构检查、TypeScript 类型检查、`verify:quick`、scoped strict docs 与 `git diff --check` 通过。
+
+### 影响范围与验证
+
+- 展示修改：`packages/frontend/src/components/RecordEditorForm.tsx`、`ImageUploader.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`。
+- 回归断言：`RecordEditorForm.test.tsx`、`RecordPreview.test.tsx`、`CaseWorkbenchPage.test.tsx`；不修改图片映射、草稿持久化、附件校验、上传格式/大小限制或 Word 导出行为。
+- 自动化验证：上述三个前端测试文件、`npm run lint:arch`、`npm run typecheck`、`npm run verify:quick`、`npm run verify:docs:strict -- --change review-page-modern-government-ui` 与 `git diff --check`。
+- 人工验收：需在真实界面确认标题视觉层级与精简提示的留白效果；自动化不替代视觉确认。
+
+### 第六阶段验证记录
+
+- 定向 Vitest：3 个测试文件、31 个用例通过；仅输出既有 Ant Design 弃用提示与 jsdom 样式能力提示。
+- `verify:quick`：架构、共享/前端类型、治理测试、快速文档检查和仓库资产检查全部通过。
+- 当前变更包 scoped strict docs 与 `git diff --check` 通过；人工视觉验收待用户在真实界面确认。
+
+## 第七阶段：附件2按检材分组的双图片卡片
+
+### 目标与验收标准
+
+- [x] 审核编辑页附件2按照审核后的检材顺序渲染检材卡片，每个检材明确展示“图片 1”和“图片 2”两个槽位及检材编号。
+- [x] 图片仍以既有扁平有序列表保存，并按每两张对应一个检材；只开放当前下一个空槽，避免中间空槽导致图片归属与实际导出错位。
+- [x] 删除图片后，后续图片按既有列表语义前移；超出当前检材容量的图片显示为可删除的待处理图片，没有检材时提示先添加检材且不开放上传。
+- [x] 提示语调整为“每个检材对应两张图片，按检材顺序依次对应。”，不新增正反面业务含义。
+- [x] 新增组件测试覆盖双槽分组、顺序追加、删除前移、空检材和多余图片；运行定向 Vitest、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 影响范围与验证
+
+- 展示与交互：`packages/frontend/src/components/ImageUploader.tsx`、`ReviewAttachmentsSection.tsx`、`RecordEditorForm.tsx`、`packages/frontend/src/reviewWorkspace.css`。
+- 测试：`packages/frontend/src/components/ImageUploader.test.tsx` 及受影响的审核编辑组件测试。
+- 不修改共享类型、后端接口、草稿持久化格式、`photo_groups` 生成逻辑、图片格式/大小校验或 Word 导出规则。
+- 人工验收：确认桌面与窄屏下检材卡片、双槽图片和待处理图片区域清晰可用。
+
+### 第七阶段验证记录
+
+- 定向 Vitest：3 个测试文件、23 个用例通过；附件组件 7 个用例覆盖双槽、等待槽、顺序追加、删除前移、无检材和待处理图片。
+- 前端全量测试通过；附件上传、草稿自动保存、审核编辑和导出相关套件未回归，仅保留既有 Ant Design/jsdom 提示。
+- `verify:quick` 通过；delta 场景已按现有 reconciliation 路径同步到 living spec。
+- scoped strict docs 与 `git diff --check` 通过。
+- 人工视觉验收通过：使用真实 React、Ant Design 与正式 CSS 的合成附件2验收页检查 1280×720、620×900 和 375×812；桌面双检材卡片并排，窄屏卡片上下排列，卡片内双图片槽始终左右对应，均无横向溢出、文字重叠或截断。验收临时页已删除，不进入仓库资产。

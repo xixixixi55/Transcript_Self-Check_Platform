@@ -1,4 +1,5 @@
 // T030: Component test — verify component exports (REQ-007)
+import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 
 // Mock antd to avoid slow imports in test
@@ -62,5 +63,15 @@ describe('ImageUploader', () => {
   it('should export a default function', async () => {
     const mod = await import('./ImageUploader')
     expect(typeof mod.default).toBe('function')
+  }, 1000)
+
+  it('说明图片按照检材顺序每两张对应一个检材', async () => {
+    const { default: ImageUploader } = await import('./ImageUploader')
+    render(<ImageUploader materials={[{
+      id: 'material-synthetic', evidence_number: 'SYN-JC00000001', device_type: '', device_name: '', model: '',
+    }]} photos={[]} onChange={vi.fn()} />)
+
+    expect(screen.getByText('每个检材对应两张图片，按检材顺序依次对应。')).toBeTruthy()
+    expect(screen.queryByText(/照片数量必须为偶数/)).toBeNull()
   }, 1000)
 })
