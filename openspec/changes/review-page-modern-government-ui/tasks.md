@@ -232,3 +232,11 @@ spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/sp
 - `verify:quick` 通过；delta 场景已按现有 reconciliation 路径同步到 living spec。
 - scoped strict docs 与 `git diff --check` 通过。
 - 人工视觉验收通过：使用真实 React、Ant Design 与正式 CSS 的合成附件2验收页检查 1280×720、620×900 和 375×812；桌面双检材卡片并排，窄屏卡片上下排列，卡片内双图片槽始终左右对应，均无横向溢出、文字重叠或截断。验收临时页已删除，不进入仓库资产。
+
+## 第八阶段：人工检材确认后的待核对项收敛
+
+- [x] 记录人工验收问题：人工添加检材并确认“手机/平板”后，待核对清单仍按旧空 `device_type` 生成“检材设备类型”提示。
+- [x] 根因分类：清单同时检查旧展示字段 `device_type` 和当前用户确认字段 `material_type`，而人工检材只写入后者及其确认来源，形成重复且无法通过当前 UI 消除的提示。
+- [x] 修复方式：派生设备类型待核对项时，优先使用已有设备类型/名称/型号；人工确认手机或平板时以该确认值作为有效显示语义，不再保留旧空字段提示；未确认检材和非法来源仍保持导出阻断。
+- [x] 脱敏回归 fixture：`useReviewChecklist.test.ts` 使用 SYNTHETIC 人工检材，断言用户确认类型后“设备类型”和“类型”待核对项均消失。
+- [x] 最终验证：图片/自动保存协同与待核对相关回归共 7 个测试文件、56 项用例通过；`verify:quick`、当前变更包 scoped strict docs 和 diff 检查通过。独立 Code Review 复审 PASS、无 MUST FIX。2026-08-12 用户人工真实界面复测通过。

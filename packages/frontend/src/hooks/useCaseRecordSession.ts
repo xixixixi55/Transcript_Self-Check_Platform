@@ -150,6 +150,7 @@ export function useCaseRecordSession(caseId: string) {
     localReportEdits.current = localReportEdits.current.filter(
       edit => edit.token > meta.savedThroughChangeToken,
     )
+    lastHydratedDraftKey.current = `${caseId}:${savedDraft.revision}`
     setDraft(savedDraft)
     if (!meta.hasNewerChanges) changeTokenRef.current = 0
     setChangeToken(current => meta.hasNewerChanges ? current : 0)
@@ -184,7 +185,7 @@ export function useCaseRecordSession(caseId: string) {
         revision: sharedStatus.revision, errorCode: sharedStatus.error_code,
       })
     }
-  }, [])
+  }, [caseId])
   const autosave = useCaseDraftAutosave({
     caseId, draft: draftForSave, identity, sharedDefaultsPatch,
     sharedDefaultsRevision: defaults?.revision ?? null, includeSharedDefaults: needsSharedDefaults,
@@ -217,7 +218,6 @@ export function useCaseRecordSession(caseId: string) {
     refs: OpaqueAssetRef[], expectedRefs: OpaqueAssetRef[],
   ): Promise<boolean> => {
     if (!editingEnabled || !lease.lease) return false
-    await autosave.saveNow()
     const response = await axios.patch<{ data: CasePhotoBindingResult }>(
       API_ENDPOINTS.WORKBENCH_CASE_PHOTO_BINDING(caseId), {
         asset_refs: refs,

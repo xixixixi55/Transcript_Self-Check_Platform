@@ -19,6 +19,14 @@ describe('shouldHydrateServerDraft', () => {
     expect(shouldHydrateServerDraft('case-synthetic-2', draft('case-synthetic-2', 4), 'case-synthetic-1:4', 0)).toBe(true)
   })
 
+  it('does not hydrate an older server snapshot after a local save advances the revision', () => {
+    expect(shouldHydrateServerDraft('case-synthetic-1', draft('case-synthetic-1', 4), 'case-synthetic-1:6', 0)).toBe(false)
+  })
+
+  it('hydrates a newer server revision after local changes settle', () => {
+    expect(shouldHydrateServerDraft('case-synthetic-1', draft('case-synthetic-1', 7), 'case-synthetic-1:6', 0)).toBe(true)
+  })
+
   it('keeps inspector order and extracts only the disc-number prefix', () => {
     const report = {
       introduction: {

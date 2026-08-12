@@ -52,6 +52,14 @@ workflow_level: 3
 - [x] 浏览器验收：使用现有案件卡片真实上传两张合成 PNG，确认图片 POST 成功、草稿保存状态变为已保存，并完成 Word 导出；确认无重复 PATCH 循环，测试资产在验收结束前通过页面移除并保存。
 - [x] 人工验收 remediation 状态：实现、定向验证和浏览器复测完成；保留 3.3 及其他后续 retention 任务未完成状态，不自动恢复或归档本 change。
 
+## Phase 5 Human Acceptance Remediation — Manual material edit followed by another photo
+
+- [x] 记录人工验收问题：已绑定图片后人工添加检材，再上传下一张图片时，前端先用旧 revision 保存草稿并收到 409，随后图片绑定也因旧图片基线收到 409，误提示“图片列表已被另一会话修改”。
+- [x] 根因分类：图片绑定前的 `saveNow()` 把可由绑定响应重放的本地字段编辑强制串行化；保存失败后仍继续绑定，造成同一会话内连续两个冲突。后端图片域 CAS 本身已能读取最新草稿并保护真实图片并发。
+- [x] 修复方式：图片操作直接调用图片域绑定；绑定返回最新草稿 revision 后，沿用既有本地编辑重放与 autosave `rebase` 队列保存人工检材，不再以旧 revision 预保存草稿。
+- [x] 脱敏回归 fixture：`useCaseRecordSession.photoBinding.test.tsx` 使用 SYNTHETIC 已绑定图片、人工检材和下一张图片，断言不调用旧草稿 `saveNow()`、绑定使用最后成功图片基线，并把人工检材重放到新 revision。
+- [x] 最终验证：图片绑定、真实 autosave 竞态、hydration 水位、图片 Hook、草稿保存、检材编辑与待核对清单共 7 个测试文件、56 项用例通过；`verify:quick`、diff 检查通过。独立 Code Review 首轮因协同测试 mock 状态机驳回；补齐两种响应顺序并修复旧服务端快照回灌后，复审 PASS、无 MUST FIX。2026-08-12 用户人工真实界面复测通过。
+
 ## Spec Freeze Remediation（规划修订，不属于原 T020–T025 编号）
 
 - [x] 固定 publication/Word/tombstone 的清理后稳定访问模型；

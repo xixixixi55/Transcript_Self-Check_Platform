@@ -56,6 +56,84 @@ describe('getReviewPendingItems', () => {
     expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
   })
 
+  it('人工检材确认类型后不再保留旧设备类型待核对项', () => {
+    const items = getReviewPendingItems({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{
+          id: 'material-synthetic-manual', device_type: '', device_name: '', model: '',
+          evidence_number: 'SYN-MANUAL-3', material_type: 'phone',
+          material_type_status: 'confirmed_by_user', material_type_source: 'user',
+        }],
+      },
+    })
+
+    expect(items.some(item => item.fieldLabel === '检材1设备类型')).toBe(false)
+    expect(items.some(item => item.fieldLabel === '检材1类型')).toBe(false)
+  })
+
+  it.each([
+    ['phone', '手机'],
+    ['tablet', '平板'],
+  ] as const)('人工确认 %s 时将确认值作为有效设备语义', (materialType, _label) => {
+    const items = getReviewPendingItems({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{
+          id: 'material-synthetic-confirmed', device_type: '', evidence_number: 'SYN-CONFIRMED',
+          material_type: materialType, material_type_status: 'confirmed_by_user', material_type_source: 'user',
+        }],
+      },
+    })
+    expect(items.some(item => item.fieldLabel.startsWith('检材1'))).toBe(false)
+  })
+
+  it('人工确认状态的来源非法时仍保留类型阻断', () => {
+    const items = getReviewPendingItems({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{
+          id: 'material-synthetic-invalid-source', device_type: '', evidence_number: 'SYN-INVALID',
+          material_type: 'phone', material_type_status: 'confirmed_by_user', material_type_source: 'none',
+        }],
+      },
+    })
+    expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
+  })
+
+  it('报告确认类型但没有设备语义时仍保留设备类型提示', () => {
+    const items = getReviewPendingItems({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{
+          id: 'material-synthetic-report', device_type: '', evidence_number: 'SYN-REPORT',
+          material_type: 'phone', material_type_status: 'confirmed_by_report', material_type_source: 'report',
+        }],
+      },
+    })
+    expect(items.some(item => item.fieldLabel === '检材1设备类型')).toBe(true)
+    expect(items.some(item => item.fieldLabel === '检材1类型')).toBe(false)
+  })
+
+  it('未确认类型但已有设备名称时只保留类型阻断', () => {
+    const items = getReviewPendingItems({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{
+          id: 'material-synthetic-named', device_type: '', device_name: 'SYNTHETIC PHONE',
+          evidence_number: 'SYN-NAMED', material_type: 'unconfirmed', material_type_status: 'unconfirmed',
+        }],
+      },
+    })
+    expect(items.some(item => item.fieldLabel === '检材1设备类型')).toBe(false)
+    expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
+  })
+
   it('为不同字段生成稳定且可区分的精确目标', () => {
     const items = getReviewPendingItems(report)
     expect(items.find(item => item.fieldLabel === '文号')?.targetId).toBe(REVIEW_TARGET_IDS.documentNumber)

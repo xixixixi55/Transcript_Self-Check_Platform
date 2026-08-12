@@ -51,6 +51,14 @@ function isBlank(value: unknown): boolean {
   return typeof value !== 'string' || value.trim() === ''
 }
 
+function effectiveEvidenceDeviceType(item: InspectionReport['introduction']['evidence_list'][number]): string {
+  const explicit = item.device_type?.trim() || item.device_name?.trim() || item.model?.trim()
+  if (explicit) return explicit
+  if (item.material_type === 'phone' && item.material_type_status === 'confirmed_by_user') return '手机'
+  if (item.material_type === 'tablet' && item.material_type_status === 'confirmed_by_user') return '平板'
+  return ''
+}
+
 function addBlankItem(
   items: ReviewPendingItem[],
   sectionId: string,
@@ -111,7 +119,7 @@ export function getReviewPendingItems(
   addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.inspectionPlace, '一、绪论', '检查地点', introduction?.inspection_place)
 
   introduction?.evidence_list?.forEach((item, index) => {
-    addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.evidence(index), '一、绪论', `检材${index + 1}设备类型`, item.device_type)
+    addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.evidence(index), '一、绪论', `检材${index + 1}设备类型`, effectiveEvidenceDeviceType(item))
     addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.evidence(index), '一、绪论', `检材${index + 1}编号`, item.evidence_number)
     if (item.material_type !== 'phone' && item.material_type !== 'tablet'
       || item.material_type_status !== 'confirmed_by_report' && item.material_type_status !== 'confirmed_by_user'
