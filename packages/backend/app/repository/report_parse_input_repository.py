@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -102,12 +103,21 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
             report_format, payloads,
         )
     if len(vendor_device_names) == len(device_rows):
+        vendor_names_by_key = {_vendor_name_key(name): name for name in vendor_device_names}
+        explicit_names = [
+            vendor_names_by_key.get(_vendor_name_key(row.get("vendor_device_name", "")))
+            for row in device_rows
+        ]
+        used_explicit_names = {name for name in explicit_names if name}
+        remaining_names = iter(
+            name for name in vendor_device_names if name not in used_explicit_names
+        )
         for index, row in enumerate(device_rows):
             evidence_number = row.get("evidence_number", "")
             info = device_base_info[evidence_number]
             if info.get("model") and not is_generic_device_label(info.get("model")):
                 continue
-            display_name = vendor_device_names[index]
+            display_name = explicit_names[index] or next(remaining_names)
             brand, model = split_vendor_device_name(display_name)
             info.update({
                 "device_name": display_name,
@@ -180,6 +190,10 @@ def _has_core_device_identity(row: dict[str, str]) -> bool:
     return any(str(row.get(key) or "").strip() for key in (
         "device_type", "imei1", "imei2",
     ))
+
+
+def _vendor_name_key(value: str) -> str:
+    return unicodedata.normalize("NFKC", str(value)).strip().casefold()
 
 
 def _is_device_metadata_name(name: str) -> bool:

@@ -128,7 +128,7 @@ def test_snapshot_does_not_probe_data_files_when_named_device_table_exists(tmp_p
     assert calls["JC-SYN-01/Base/data_SYNTHETIC-NOISE.json"] == 0
 
 
-def test_snapshot_preserves_parser_evidence_order_for_case_initialization(tmp_path):
+def test_report_naturally_orders_complete_evidence_records_for_case_initialization(tmp_path):
     data_root = _write_snapshot_fixture(tmp_path)
     rename_map = {
         "JC-SYN-01": "JC-SYN-10",
@@ -154,11 +154,16 @@ def test_snapshot_preserves_parser_evidence_order_for_case_initialization(tmp_pa
         str(data_root), str(tmp_path), str(tmp_path / "output"),
         compress=False, input_snapshot=snapshot,
     )
-    assert [item["evidence_number"] for item in report["introduction"]["evidence_list"]] == [
-        "JC-SYN-10", "JC-SYN-2", "JC-SYN-1",
+    assert [
+        (item["evidence_number"], item["model"])
+        for item in report["introduction"]["evidence_list"]
+    ] == [
+        ("JC-SYN-1", "SYNTHETIC-MODEL-3"),
+        ("JC-SYN-2", "SYNTHETIC-MODEL-2"),
+        ("JC-SYN-10", "SYNTHETIC-MODEL-1"),
     ]
     assert report["inspection"]["result"]["evidence_number"] == (
-        "JC-SYN-10、JC-SYN-2、JC-SYN-1"
+        "JC-SYN-1、JC-SYN-2、JC-SYN-10"
     )
 
 
@@ -200,6 +205,43 @@ def test_snapshot_uses_vendor_display_directories_when_jc_base_is_empty(tmp_path
     ] == sorted(vendor_names, key=str.casefold)
     assert snapshot.device_base_info["JC-SYN-01"]["brand"] == "SYNTHETIC-BRAND-ONE"
     assert snapshot.device_base_info["JC-SYN-01"]["model"] == "MODEL-ONE"
+
+
+def test_snapshot_binds_vendor_directory_from_each_device_row_before_sorting(tmp_path):
+    data_root = _write_snapshot_fixture(tmp_path)
+    for index in range(1, 4):
+        (data_root / f"JC-SYN-{index:02d}" / "Base" / "device_table.json").unlink()
+    vendor_names = (
+        "SYNTHETIC-ZETA PHONE",
+        "SYNTHETIC-ALPHA PHONE",
+        "SYNTHETIC-MIDDLE PHONE",
+    )
+    for name in vendor_names:
+        (data_root / name / "Base").mkdir(parents=True)
+    device_list_path = data_root / "data_device_lists.json"
+    device_lists = json.loads(device_list_path.read_text(encoding="utf-8"))
+    for row, vendor_name in zip(device_lists["contents"], vendor_names, strict=True):
+        row["tb2"].append({
+            "tt": "持有人证件头像",
+            "rd": "Image",
+            "url": f"data\\{vendor_name}\\Base\\",
+        })
+    _write_json(device_list_path, device_lists)
+
+    snapshot = build_report_parse_input_snapshot(str(tmp_path))
+    report = _build_report(
+        str(data_root), str(tmp_path), str(tmp_path / "output"),
+        compress=False, input_snapshot=snapshot,
+    )
+
+    assert [
+        (item["evidence_number"], item["device_name"])
+        for item in report["introduction"]["evidence_list"]
+    ] == [
+        ("JC-SYN-01", "SYNTHETIC-ZETA PHONE"),
+        ("JC-SYN-02", "SYNTHETIC-ALPHA PHONE"),
+        ("JC-SYN-03", "SYNTHETIC-MIDDLE PHONE"),
+    ]
 
 
 def test_legacy_snapshot_merges_split_vendor_metadata_files(tmp_path):

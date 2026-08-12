@@ -68,6 +68,13 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 - [x] 新旧格式 Word 导出对比。
 - [x] 真实样例字段人工核对。
 
+### 新格式检材与设备目录绑定修复
+
+- [x] 在 `packages/backend/app/repository/html_parser.py` 与 `packages/backend/app/repository/report_parse_input_repository.py` 使用每个 `tb2` 行内明确的 `data/<设备目录>/Base/` 路径绑定检材编号和设备型号，避免分别排序后按下标错配；无明确路径的兼容变体继续使用一对一保守回退。
+- [x] 在 `tests/test_report_parse_input_repository.py` 使用显式合成数据覆盖检材行顺序、设备目录字母序不一致时仍保持编号—型号对应关系，并运行解析仓库与报告解析定向测试（73 passed）及完整后端回归（1048 passed、3 skipped）。
+- [x] 将解析缓存版本递增，使用用户提供的实际报告只核对检材编号—设备型号映射，并通过 `verify:quick`、受影响后端测试与 scoped strict docs（13 checks、0 drift）。
+- [x] 在 `packages/backend/app/services/report_parser_service.py` 对完整检材记录执行自然升序，再由该数组生成检查过程、检查结果和审核/Word 共用数据；实际报告验证为 `SYN-JC0001 → HUAWEI SGU-AL10`、`SYN-JC0002 → iPhone 14 Pro`，定向测试 45 passed，`verify:quick` 通过。
+
 ## 验收
 
 - [x] 旧格式解析结果和标准模型归一化自动化测试通过。

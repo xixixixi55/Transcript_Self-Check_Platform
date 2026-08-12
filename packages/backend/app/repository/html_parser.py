@@ -21,6 +21,7 @@ from typing import Any
 from .device_candidate_parser import select_best_device_candidate
 from .device_field_parser import (
     extract_device_fields, is_generic_device_label, try_parse_json,
+    vendor_device_name_from_row,
 )
 from .navigation_parser import parse_navigation
 from .json_loader import load_js_json
@@ -97,6 +98,10 @@ def parse_device_lists_payload(
                 item["tb2"], "", allow_tt_ct=True,
                 allow_text_fallback=False, fill_missing_aliases=False,
             )
+        vendor_device_name = (
+            vendor_device_name_from_row(item.get("tb2"))
+            if report_format == ReportFormat.NEW else ""
+        )
         time_range = item.get("c3", "") or item.get("time_range", "")
         parts = time_range.split(" ~ ") if " ~ " in time_range else (time_range, time_range)
         evidence_number = str(
@@ -118,6 +123,7 @@ def parse_device_lists_payload(
             "start_time": parts[0].strip(),
             "end_time": parts[1].strip() if len(parts) > 1 else parts[0].strip(),
             "time_range": time_range,
+            "vendor_device_name": vendor_device_name,
         })
     return devices
 def _evidence_directories(data_dir: str) -> list[str]:

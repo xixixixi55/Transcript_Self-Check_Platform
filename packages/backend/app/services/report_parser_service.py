@@ -7,6 +7,7 @@ REQ-011 缓存 / REQ-013 兼容压缩开关 / REQ-014 压缩包上传 / REQ-016 
   附件自动填充等多个紧密耦合的子流程。拆分会导致参数传递链过长，降低可维护性。
 """
 import os
+import re
 import shutil
 import tempfile
 from typing import Optional
@@ -42,7 +43,7 @@ from .material_policy_service import material_from_legacy_item, select_display_i
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 17  # v17: normalize software names and derive material extractability
+_CACHE_VERSION = 19  # v19: bind rows, then naturally order complete evidence records
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
@@ -292,6 +293,8 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "evidence_number": en,
         })
 
+    evidence_items = _natural_evidence_order(evidence_items)
+
     # 6. 检查过程步骤
     # Keep the legacy scalar DTO fields, but project all evidence items into
     # their display text.  The evidence list remains the structured source of
@@ -429,6 +432,23 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "burning_date": "",
         },
     }
+
+
+def _natural_evidence_order(items: list[dict]) -> list[dict]:
+    """Sort whole material records when all numeric keys are safe and unique."""
+    keyed = [(_evidence_order_key(item.get("evidence_number")), item) for item in items]
+    keys = [key for key, _ in keyed]
+    if any(key is None for key in keys) or len(set(keys)) != len(keys):
+        return items
+    return [item for _, item in sorted(keyed, key=lambda pair: pair[0])]
+
+
+def _evidence_order_key(value: object) -> tuple[int, ...] | None:
+    groups = re.findall(r"\d+", str(value or ""))
+    if not groups:
+        return None
+    numbers = tuple(int(group) for group in groups)
+    return numbers if all(number <= 9_007_199_254_740_991 for number in numbers) else None
 
 
 def _device_display_name(brand: str, model: str, fallback_name: str = "") -> str:

@@ -336,7 +336,7 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 17
+    assert result["cache_version"] == 19
     assert result["_case_metadata"] == {
         "case_name": "合成案件", "case_number": "CASE-SYNTH-001", "case_summary": "合成案件案",
     }
@@ -421,8 +421,8 @@ def test_cache_version_twelve_does_not_reuse_old_payload(tmp_path):
          patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
          patch("app.services.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 17
-    assert result["cache_version"] == 17
+    assert _CACHE_VERSION == 19
+    assert result["cache_version"] == 19
     mock_build.assert_called_once()
 
 

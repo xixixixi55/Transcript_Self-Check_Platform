@@ -178,6 +178,21 @@ def normalise_imei(value: Any) -> str:
     return compact if re.fullmatch(r"\d{15}", compact) else ""
 
 
+def vendor_device_name_from_row(fields: Any) -> str:
+    """Read a device row's explicit ``data/<device>/Base`` relationship."""
+    if not isinstance(fields, list):
+        return ""
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        raw_path = str(field.get("url") or "").strip()
+        parts = [part.strip() for part in re.split(r"[\\\\/]", raw_path) if part.strip()]
+        for index, part in enumerate(parts):
+            if part.casefold() == "base" and index > 0:
+                return parts[index - 1]
+    return ""
+
+
 def _normalise_key(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", str(value))
     return re.sub(r"[\s_\-:：/／]", "", normalized).lower()
