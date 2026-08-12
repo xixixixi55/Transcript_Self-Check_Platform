@@ -341,6 +341,13 @@ never part of the public DTO. A source may carry a stable
 this diagnostic does not expose a locator. `OpaqueAssetRef` identifies controlled
 large objects without embedding their content in SQLite.
 
+`CasePhotoBindingRequest` is the field-level image binding command. It carries
+the desired opaque image references, the ordered image ID list last observed by
+the caller as a photo-domain compare-and-set baseline, and the active edit lease
+credentials. `CasePhotoBindingResult` returns the complete latest `CaseDraft`
+after that merge so the client can rebase pending non-photo edits onto its new
+revision. Neither contract contains binary image content or filesystem locators.
+
 `WordDownloadName` is the Phase 2 T007 shared DTO for a browser-facing download
 name only. It never contains a server physical artifact name. Its introduction
 is used by the current Phase 2 download-name dialog and Legacy export flow:
@@ -889,7 +896,8 @@ type ArchiveWorkerState, type ArchiveTaskAction, type ArchiveWorkflowStage,
 type ArchiveWorkflowMilestonePercent, type VolumeSlotStatus, type DiscMappingSource,
 type DiscMappingConfirmation, type FieldSource, type FieldConfirmation,
 type LeaseStatus, type SourceAccessStatus, type CaseAssetContentStatus, interface OpaqueAssetRef, interface CaseAssetRecord,
-interface CaseAssetList, interface FieldState,
+interface CaseAssetList, interface CasePhotoBindingRequest, interface CasePhotoBindingResult,
+interface FieldState,
 interface WordDownloadName,
 interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,

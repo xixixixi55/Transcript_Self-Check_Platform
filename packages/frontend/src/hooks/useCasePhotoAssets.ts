@@ -11,7 +11,7 @@ interface Options {
   draftRevision?: number
   editingEnabled: boolean
   lease: EditLease | null
-  onAssetRefsChange: (refs: OpaqueAssetRef[]) => Promise<boolean>
+  onAssetRefsChange: (refs: OpaqueAssetRef[], expectedRefs: OpaqueAssetRef[]) => Promise<boolean>
 }
 
 function errorMessage(error: any): string {
@@ -22,6 +22,8 @@ function errorMessage(error: any): string {
       ? '图片资产已损坏，请重新上传。'
       : code === 'LEASE_NOT_ACTIVE' || code === 'LEASE_EXPIRED'
         ? '编辑租约已失效，图片修改未保存。'
+        : code === 'PHOTO_BINDING_CONFLICT'
+          ? '图片列表已被另一会话修改，请重新读取案件后再保存。'
         : '图片保存失败，当前输入仍保留，请重试。'
 }
 
@@ -127,6 +129,7 @@ export function useCasePhotoAssets(options: Options) {
           ? items.filter(item => item.content_status === 'available' && !referencedIds.has(item.asset_id)).map(refForRecord)
           : []
         const effectiveRefs = [...assetRefs, ...recoveredRefs]
+        for (const ref of recoveredRefs) completedUploadsRef.current.set(ref.asset_id, ref)
         const restored = effectiveRefs.map(ref => {
           const record = records.get(ref.asset_id)
           const available = record?.content_status === 'available'
@@ -140,9 +143,15 @@ export function useCasePhotoAssets(options: Options) {
         setFiles(restored)
         if (recoveredRefs.length) {
           void beginOperation(async () => {
-            const saved = await onAssetRefsChangeRef.current(effectiveRefs)
-            if (!saved && active) setAssetError('已恢复未绑定图片，但草稿保存未完成，请重试保存。')
-            return saved
+            try {
+              const saved = await onAssetRefsChangeRef.current(effectiveRefs, assetRefs)
+              if (!saved) refsRef.current = assetRefs
+              if (!saved && active) setAssetError('已恢复未绑定图片，但草稿保存未完成，请重试保存。')
+              return saved
+            } catch (error) {
+              refsRef.current = assetRefs
+              throw error
+            }
           })
         }
       })
@@ -186,8 +195,10 @@ export function useCasePhotoAssets(options: Options) {
       filesRef.current = restored
       setFiles(restored)
       if (JSON.stringify(nextRefs) !== JSON.stringify(refsRef.current)) {
+        const previousRefs = refsRef.current
         refsRef.current = nextRefs
-        if (!await onAssetRefsChangeRef.current(nextRefs)) {
+        if (!await onAssetRefsChangeRef.current(nextRefs, previousRefs)) {
+          refsRef.current = previousRefs
           setAssetError('图片引用尚未保存到草稿，请重试保存。')
           return false
         }
@@ -196,10 +207,14 @@ export function useCasePhotoAssets(options: Options) {
     }
     setAssetError(null)
     setFiles(nextFiles.map(file => newFiles.some(item => item.uid === file.uid) ? { ...file, status: 'uploading' } : file))
+    const previousRefs = refsRef.current
     try {
       const uploaded = await Promise.all(newFiles.map(async file => [file.uid, refForRecord(await upload(file))] as const))
       const uploadedByUid = new Map(uploaded)
-      for (const [uid, ref] of uploaded) completedUploads.set(uid, ref)
+      for (const [uid, ref] of uploaded) {
+        completedUploads.set(uid, ref)
+        completedUploads.set(ref.asset_id, ref)
+      }
       const nextRefs = nextFiles.flatMap(file => {
         const created = uploadedByUid.get(file.uid) || completedUploads.get(file.uid)
         if (created) return [created]
@@ -212,9 +227,12 @@ export function useCasePhotoAssets(options: Options) {
       refsRef.current = nextRefs
       filesRef.current = restored
       setFiles(restored)
-      if (!await onAssetRefsChangeRef.current(nextRefs)) throw new Error('DRAFT_SAVE_FAILED')
+      if (!await onAssetRefsChangeRef.current(nextRefs, previousRefs)) throw new Error('DRAFT_SAVE_FAILED')
       return true
     } catch (error) {
+      // The uploaded files remain available for retry, but the compare-and-set
+      // baseline must stay at the last successfully bound photo list.
+      refsRef.current = previousRefs
       setFiles(filesRef.current)
       setAssetError(errorMessage(error))
       return false

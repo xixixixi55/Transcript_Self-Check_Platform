@@ -44,6 +44,10 @@ function report(discNumber = 'GP20260731-001'): InspectionReport {
   }
 }
 
+function reportWithPhotos(value: InspectionReport, photoIds: string[]): InspectionReport {
+  return { ...value, attachments: { ...value.attachments, photo_ids: photoIds, photo_groups: [] } }
+}
+
 function detail(shellRevision: number, draftRevision: number, lifecycle: CaseShell['lifecycle'] = 'review_ready', discNumber = 'GP20260731-001', archiveSummary: ArchiveTaskCardSummary | null = null): CaseDetail {
   const draft: CaseDraft = { schema_version: 1, case_id: caseId, case_name: 'SYNTHETIC-CASE', case_summary: 'SYNTHETIC/TEST', case_number: 'SYN-CASE-001', report: report(discNumber), report_version: 'legacy-v1', field_states: {}, asset_refs: [], template_ref: null, archive_plan_id: null, lifecycle: lifecycle === 'archive_queued' ? 'review_ready' : lifecycle, revision: draftRevision, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
   const shell: CaseShell = { schema_version: 1, case_id: caseId, case_name: 'SYNTHETIC-CASE', case_summary: 'SYNTHETIC/TEST', case_number: 'SYN-CASE-001', source_id: 'source-synthetic', parse_task_id: task.task_id, lifecycle, report_available: true, revision: shellRevision, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', archive_task_summary: archiveSummary }
@@ -117,7 +121,18 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       }
       return { data: { data: {} } }
     })
-    patchMock.mockImplementation(async (_url: string, body: unknown) => {
+    patchMock.mockImplementation(async (url: string, body: unknown) => {
+      if (url === API_ENDPOINTS.WORKBENCH_CASE_PHOTO_BINDING(caseId)) {
+        const request = body as { asset_refs: CaseDraft['asset_refs'] }
+        const latest = detail(7, 7, initialLifecycle).draft!
+        const bindingResponse = { data: { data: { draft: {
+          ...latest, asset_refs: request.asset_refs,
+          report: reportWithPhotos(latest.report, request.asset_refs.map(item => item.asset_id)),
+          revision: 8,
+        } } } }
+        if (holdSave) return new Promise(resolve => { resolveSave = () => resolve(bindingResponse) })
+        return bindingResponse
+      }
       events.push('draft-save')
       if (rejectSave) throw new Error('SYNTHETIC_SAVE_FAILED')
       const request = body as { draft: CaseDraft; shared_defaults_patch?: Record<string, unknown> | null }

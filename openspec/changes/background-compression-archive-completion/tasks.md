@@ -244,3 +244,13 @@ workflow_level: 3
   - 验证：统一导出定向 pytest 10 passed，覆盖常规父目录分流、根目录回退及跨目录发布失败回滚；`npm run verify:quick` PASS；当前变更 scoped strict docs 13 checks/0 drift；`git diff --check` PASS。
   - code_review: [PASS] 首轮独立审查发现旧规则遗留在所选目录的同名 RAR 未纳入迁移清理，可能与父目录新 RAR 形成混合布局；已将旧 RAR 与历史 HTML 纳入同一可回滚事务并补成功清理、失败恢复测试。复审确认 MUST FIX CLOSED、无 remaining MUST FIX；遗留 SHOULD 为后续增强回滚动作自身再次发生 I/O 错误时的全量恢复与专门诊断。
   - manual_acceptance: N/A（目录分流及根目录边界由合成路径自动化覆盖，不改变 Word/PNG 内容或目录选择器交互。）
+
+- [x] T034 修复草稿 revision 冲突后图片绑定永久 409（用户实测回归）。
+  - 现象：立即压缩后连续草稿保存先出现多次 200，随后首次 409；案件轮询 GET 与编辑租约 heartbeat 均保持 200，但草稿 PATCH 持续 409。图片二进制 `POST /assets` 成功后，图片引用仍因复用整草稿 PATCH 而 409，页面持续阻止离开。
+  - 根因：图片二进制与草稿引用是两阶段写入，第二阶段复用整草稿 revision；首次冲突后本地存在未保存修改，后台 GET 不覆盖本地草稿，autosave 又持续携带旧 revision，形成永久冲突循环。T027 只覆盖归档完成恰好推进一次 revision，不能覆盖多次 revision 推进或冲突后继续编辑。
+  - 内容：新增案件图片引用字段级绑定接口，以调用方最后观察到的图片 ID 列表作为图片域 CAS 基线；后端在最新草稿上原子合并 `asset_refs`、`photo_ids` 与确定性 `photo_groups`，非图片字段并发推进只触发有界重试，同一图片域被另一会话修改仍返回 409。前端图片上传/恢复改用该接口，并用返回的最新草稿 revision 重基已有本地未保存修改，终止旧 revision 重试循环。
+  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/constants/index.ts`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/controllers/case_asset_controller.py`、`packages/frontend/src/hooks/useCaseDraftAutosave.ts`、`useCaseRecordSession.ts`、相关前后端回归测试及本变更包文档。
+  - 验证：后端图片资产定向 pytest 11 passed，覆盖非图片多次 revision 推进后绑定、真实图片域冲突及 HTTP 409 契约；前端 3 files / 37 tests passed，覆盖 autosave 重基、上传绑定失败后不重复上传的原地重试，以及页面离开保护；`npm run verify:quick` PASS，架构、类型、治理、quick docs 与仓库资产门控通过；`git diff --check` PASS。将图片域比较临时失效后，真实冲突用例按预期失败，恢复实现后通过。
+  - code_review: [PASS] 对字段级 CAS、租约校验、最新草稿合并、并发重试、前端未保存编辑重放与失败重试基线完成实现自审；修正了首次绑定失败后错误采用未持久化图片列表作为下一次 CAS 基线的问题，复核无 remaining MUST FIX。
+  - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过。
+  - manual_acceptance: [PASS] 首轮真实桌面验收观察到 `PATCH /assets/binding` 返回 405；实时 `openapi.json` 同样缺少该路径，而从当前工作区导入的 FastAPI 应用包含该 PATCH，证明请求命中的是新增路由前启动且未重载的旧应用，不是字段级 CAS 再次失败。进一步发现 30010 同时存在旧 reload 与当前应用两个监听者；清理后改为单一无 reload 当前工作区后端，连续 10 次 OpenAPI 检查均包含 PATCH，空体路由探针返回契约校验 422 而非 405。重启后同一案件 GET 200、draft revision=5，且 405 前上传的 4 个同指纹可用孤儿资产仍在登记表中。刷新审核页重新获取租约后，用户于 2026-08-12 按“报告解析完成 → 立即压缩 → 填盘号 → 上传两张图片 → 返回案件工作台”完成真实桌面复验并确认通过。

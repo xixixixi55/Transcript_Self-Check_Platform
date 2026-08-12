@@ -6,10 +6,18 @@ from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
 from ..services.workbench_factory_service import get_workbench_services
 
 router = APIRouter()
+
+
+class PhotoBindingRequest(BaseModel):
+    asset_refs: list[dict[str, Any]]
+    expected_asset_ids: list[str] = Field(default_factory=list)
+    lease_id: str
+    lease_token: str
 
 
 @router.post("/workbench/cases/{case_id}/assets")
@@ -42,6 +50,17 @@ async def list_case_assets_endpoint(case_id: str):
         _handle(error)
 
 
+@router.patch("/workbench/cases/{case_id}/assets/binding")
+async def bind_case_photo_assets_endpoint(case_id: str, body: PhotoBindingRequest):
+    try:
+        return _envelope(get_workbench_services().lifecycle.bind_photo_assets(
+            case_id, body.asset_refs, body.expected_asset_ids,
+            body.lease_id, body.lease_token,
+        ))
+    except Exception as error:
+        _handle(error)
+
+
 @router.get("/workbench/cases/{case_id}/assets/{asset_id}")
 async def read_case_asset_endpoint(case_id: str, asset_id: str):
     try:
@@ -67,7 +86,7 @@ def _handle(error: Exception) -> None:
     if isinstance(error, HTTPException):
         raise error
     code = getattr(error, "code", "WORKBENCH_REQUEST_FAILED")
-    status = 404 if code in {"CASE_NOT_FOUND", "ASSET_NOT_FOUND", "ASSET_REFERENCE_NOT_FOUND"} else 409 if code in {"LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "REVISION_CONFLICT"} else 422
+    status = 404 if code in {"CASE_NOT_FOUND", "ASSET_NOT_FOUND", "ASSET_REFERENCE_NOT_FOUND"} else 409 if code in {"LEASE_NOT_ACTIVE", "LEASE_EXPIRED", "REVISION_CONFLICT", "PHOTO_BINDING_CONFLICT"} else 422
     raise HTTPException(status_code=status, detail={"code": code, "message": _message(code)}) from error
 
 
@@ -82,4 +101,5 @@ def _message(code: str) -> str:
         "ASSET_CONTENT_CORRUPT": "鍥剧墖璧勪骇宸茬牬鎹燂紝璇烽噸鏂颁笂浼犮€?",
         "LEASE_NOT_ACTIVE": "当前页面没有有效编辑租约，不能修改图片。",
         "LEASE_EXPIRED": "编辑租约已失效，请重新获取后再修改图片。",
+        "PHOTO_BINDING_CONFLICT": "图片列表已被另一会话修改，请重新读取后再保存。",
     }.get(code, "图片请求未完成，请稍后重试。")

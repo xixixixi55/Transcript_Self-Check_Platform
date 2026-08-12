@@ -146,6 +146,75 @@ def test_asset_refs_require_lease_revision_and_release_content(asset_context):
     assert stale["asset_refs"][0]["asset_id"] == first["asset_id"]
 
 
+def test_photo_binding_rebases_over_unrelated_draft_revisions(asset_context):
+    _, services, lease = asset_context
+    baseline = CaseDraftRepository(services.database).get(CASE_ID)
+    for title in ("SYNTHETIC-REVISION-ONE", "SYNTHETIC-REVISION-TWO"):
+        current = CaseDraftRepository(services.database).get(CASE_ID)
+        current["report"]["title"] = title
+        saved = services.lifecycle.save_draft(
+            current, current["revision"], None, None, IDENTITY,
+            lease["lease_id"], lease["lease_token"],
+        )
+        assert saved["draft_save_status"]["status"] == "saved"
+    asset = services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-rebased.png", png_bytes(),
+        lease["lease_id"], lease["lease_token"],
+    )
+    reference = {
+        key: asset[key] for key in ("asset_id", "asset_kind", "fingerprint", "metadata")
+    }
+
+    result = services.lifecycle.bind_photo_assets(
+        CASE_ID, [reference],
+        [item["asset_id"] for item in baseline["asset_refs"]],
+        lease["lease_id"], lease["lease_token"],
+    )
+
+    assert result["draft"]["report"]["title"] == "SYNTHETIC-REVISION-TWO"
+    assert result["draft"]["asset_refs"] == [reference]
+    assert result["draft"]["report"]["attachments"]["photo_ids"] == [asset["asset_id"]]
+
+
+def test_photo_binding_rejects_a_stale_photo_domain_and_exposes_http_409(asset_context):
+    _, services, lease = asset_context
+    first = services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-first-binding.png", png_bytes(),
+        lease["lease_id"], lease["lease_token"],
+    )
+    second = services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-second-binding.png", png_bytes((80, 90, 100)),
+        lease["lease_id"], lease["lease_token"],
+    )
+    def public(item):
+        return {
+            key: item[key]
+            for key in ("asset_id", "asset_kind", "fingerprint", "metadata")
+        }
+    services.lifecycle.bind_photo_assets(
+        CASE_ID, [public(first)], [], lease["lease_id"], lease["lease_token"],
+    )
+
+    with pytest.raises(WorkbenchPersistenceError) as conflict:
+        services.lifecycle.bind_photo_assets(
+            CASE_ID, [public(second)], [], lease["lease_id"], lease["lease_token"],
+        )
+    assert conflict.value.code == "PHOTO_BINDING_CONFLICT"
+
+    from app.main import app
+    from app.controllers import case_asset_controller
+    with patch.object(case_asset_controller, "get_workbench_services", return_value=services):
+        response = TestClient(app).patch(
+            f"/api/v1/workbench/cases/{CASE_ID}/assets/binding",
+            json={
+                "asset_refs": [public(second)], "expected_asset_ids": [],
+                "lease_id": lease["lease_id"], "lease_token": lease["lease_token"],
+            },
+        )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "PHOTO_BINDING_CONFLICT"
+
+
 def test_archived_case_asset_save_without_lifecycle_preserves_archive_state(asset_context):
     database, services, lease = asset_context
     with database.transaction() as connection:

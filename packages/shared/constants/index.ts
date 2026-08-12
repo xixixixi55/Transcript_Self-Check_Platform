@@ -56,6 +56,7 @@ export const API_ENDPOINTS = {
   WORKBENCH_LEASE_RELEASE: (leaseId: string) => `${API_PREFIX}/workbench/leases/${encodeURIComponent(leaseId)}/release`,
   WORKBENCH_SOURCE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/source`,
   WORKBENCH_CASE_ASSETS: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/assets`,
+  WORKBENCH_CASE_PHOTO_BINDING: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/assets/binding`,
   WORKBENCH_CASE_ASSET: (caseId: string, assetId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/assets/${encodeURIComponent(assetId)}`,
   WORKBENCH_TEMPLATES: `${API_PREFIX}/workbench/templates`,
   WORKBENCH_TEMPLATE_MANAGEMENT: `${API_PREFIX}/workbench/templates/management`,

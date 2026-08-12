@@ -48,6 +48,17 @@ export interface CaseAssetList {
   items: CaseAssetRecord[]
 }
 
+export interface CasePhotoBindingRequest {
+  asset_refs: OpaqueAssetRef[]
+  expected_asset_ids: string[]
+  lease_id: string
+  lease_token: string
+}
+
+export interface CasePhotoBindingResult {
+  draft: CaseDraft
+}
+
 export interface FieldState {
   field_path: string
   subject_id?: string

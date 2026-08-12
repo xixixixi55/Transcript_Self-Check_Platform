@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import secrets
 from collections.abc import Mapping
 from typing import Any
@@ -23,6 +24,8 @@ from .software_policy_service import normalize_runtime_software_tool_projection
 
 
 class CaseLifecycleService:
+    _PHOTO_BINDING_RETRIES = 3
+
     def __init__(
         self, database: WorkbenchDatabase, asset_service: Any = None,
         artifact_deletion_service: Any = None,
@@ -155,6 +158,46 @@ class CaseLifecycleService:
             "draft": saved,
         }
 
+    def bind_photo_assets(
+        self, case_id: str, asset_refs: list[Mapping[str, Any]],
+        expected_asset_ids: list[str], lease_id: str, lease_token: str,
+    ) -> dict[str, Any]:
+        if self.assets is None:
+            raise WorkbenchPersistenceError("ASSET_SERVICE_UNAVAILABLE")
+        self.assets.leases.assert_active_for_case(case_id, lease_id, lease_token)
+        expected_ids = [str(value) for value in expected_asset_ids]
+        next_refs = [dict(value) for value in asset_refs]
+        if any(value.get("asset_kind") != "image" for value in next_refs):
+            raise WorkbenchPersistenceError("INVALID_ASSET_REFERENCE")
+        next_ids = [str(value.get("asset_id", "")) for value in next_refs]
+        for _ in range(self._PHOTO_BINDING_RETRIES):
+            self.assets.leases.assert_active_for_case(case_id, lease_id, lease_token)
+            current = self.drafts.get(case_id)
+            current_ids = [str(value.get("asset_id", "")) for value in current.get("asset_refs", [])]
+            if current_ids != expected_ids:
+                raise WorkbenchPersistenceError("PHOTO_BINDING_CONFLICT")
+            candidate = dict(current)
+            candidate.pop("lifecycle", None)
+            candidate["asset_refs"] = next_refs
+            report = copy.deepcopy(current["report"])
+            attachments = report.setdefault("attachments", {})
+            attachments["photo_ids"] = next_ids
+            attachments["photo_groups"] = _photo_groups(report, next_ids)
+            candidate["report"] = CaseOrderService().prepare_save(current["report"], report)
+            candidate["field_states"] = FieldProvenanceService().reconcile(
+                current["report"], current.get("field_states", {}),
+                candidate["report"], current.get("field_states"),
+            )
+            try:
+                saved = self.drafts.save(candidate, expected_revision=int(current["revision"]))
+            except RevisionConflictError:
+                continue
+            self.assets.release_unreferenced(
+                case_id, [value for value in current_ids if value not in set(next_ids)],
+            )
+            return {"draft": saved}
+        raise WorkbenchPersistenceError("REVISION_CONFLICT")
+
     def _retry_archive_completion_save(
         self, submitted: Mapping[str, Any], normalized: Mapping[str, Any],
         expected_revision: int,
@@ -244,3 +287,21 @@ class CaseLifecycleService:
             "event_id": f"audit-{secrets.token_hex(16)}", "event_type": "case_draft_saved",
             **identity, "case_id": case_id, "payload": {}, "created_at": utc_now(),
         })
+
+
+def _photo_groups(report: Mapping[str, Any], image_ids: list[str]) -> list[dict[str, Any]]:
+    introduction = report.get("introduction")
+    evidence = introduction.get("evidence_list", []) if isinstance(introduction, Mapping) else []
+    groups: list[dict[str, Any]] = []
+    for index, item in enumerate(evidence[:len(image_ids) // 2]):
+        if not isinstance(item, Mapping):
+            continue
+        material_number = str(item.get("evidence_number", ""))
+        groups.append({
+            "material_id": str(item.get("id", "")),
+            "material_number": material_number,
+            "display_text": f"检材{material_number}照片",
+            "ordered_image_ids": image_ids[index * 2:index * 2 + 2],
+            "source_order": index + 1,
+        })
+    return groups

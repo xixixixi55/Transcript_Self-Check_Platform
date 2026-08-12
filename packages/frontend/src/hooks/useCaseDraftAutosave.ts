@@ -27,6 +27,7 @@ interface Options {
 }
 export interface AutosaveSaveMeta {
   hasNewerChanges: boolean
+  savedThroughChangeToken: number
   sharedDefaultsPatch: Record<string, unknown> | null
 }
 interface SaveResponse {
@@ -112,7 +113,7 @@ export function useCaseDraftAutosave(options: Options) {
         },
         { signal: controller.signal },
       )
-      if (requestId !== sequence.current) return false
+      if (requestId !== sequence.current) return true
       const result = response.data.data
       const sharedStatus = result.shared_defaults_save_status
       const draftStatus = result.draft_save_status
@@ -136,10 +137,13 @@ export function useCaseDraftAutosave(options: Options) {
         rerunAfterFlight.current = true
       } else pending.current = null
       setHasPending(hasNewerChanges)
-      onSavedRef.current(result.draft, sharedStatus, { hasNewerChanges, sharedDefaultsPatch: requestSharedPatch })
+      onSavedRef.current(result.draft, sharedStatus, {
+        hasNewerChanges, savedThroughChangeToken: requestChangeToken,
+        sharedDefaultsPatch: requestSharedPatch,
+      })
       return true
     } catch (error) {
-      if (requestId !== sequence.current) return false
+      if (requestId !== sequence.current) return true
       const conflict = conflictResult(error)
       if (conflict?.draft_save_status?.status === 'conflict') {
         setDraftState({ status: 'conflict', errorCode: conflict.draft_save_status.error_code })
@@ -221,6 +225,25 @@ export function useCaseDraftAutosave(options: Options) {
 
   const retry = useCallback(() => send(), [send])
 
+  const rebase = useCallback((rebasedDraft: CaseDraft, keepPending: boolean) => {
+    clearTimer()
+    sequence.current += 1
+    flushRequested.current = false
+    lastSavedSignature.current = null
+    if (!keepPending) {
+      pending.current = null
+      rerunAfterFlight.current = false
+      setHasPending(false)
+      setDraftState({ status: 'saved', revision: rebasedDraft.revision })
+      return
+    }
+    pending.current = cloneDraft(rebasedDraft)
+    rerunAfterFlight.current = inFlight.current !== null
+    setHasPending(true)
+    setDraftState({ status: 'saving', revision: rebasedDraft.revision })
+    if (!inFlight.current) window.setTimeout(() => { void sendRef.current?.() }, 0)
+  }, [clearTimer])
+
   const reset = useCallback(() => {
     clearTimer()
     sequence.current += 1
@@ -232,7 +255,7 @@ export function useCaseDraftAutosave(options: Options) {
     setSharedState({ status: 'not_changed' })
   }, [clearTimer])
 
-  return { draftState, sharedState, hasPending, saveNow, retry, reset }
+  return { draftState, sharedState, hasPending, saveNow, retry, rebase, reset }
 }
 
 function toAutosaveStatus(status: SharedDefaultsSaveStatus['status'] | 'saved' | 'conflict' | 'not_changed' | undefined): AutosaveStatus {

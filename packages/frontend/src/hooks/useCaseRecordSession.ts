@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import { applyReportEdit, buildMaterialPhotoGroups, parseDiscSequence } from '@biji/shared/utils'
-import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, ClientIdentity, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
+import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, CasePhotoBindingResult, ClientIdentity, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
 import { useCaseDraftAutosave } from './useCaseDraftAutosave'
 import type { AutosaveSaveMeta, AutosaveViewState } from './useCaseDraftAutosave'
 import { useCasePhotoAssets } from './useCasePhotoAssets'
@@ -69,8 +69,8 @@ export function useCaseRecordSession(caseId: string) {
   const [leaseLost, setLeaseLost] = useState(false)
   const terminalStatus = useRef<string | null>(null)
   const lastHydratedDraftKey = useRef<string | null>(null)
-  const photoSaveResolvers = useRef<Array<(saved: boolean) => void>>([])
-  const [photoSaveRequest, setPhotoSaveRequest] = useState(0)
+  const changeTokenRef = useRef(0)
+  const localReportEdits = useRef<Array<{ path: string; value: unknown; token: number }>>([])
   const handleLeaseLost = useCallback(() => setLeaseLost(true), [])
 
   useEffect(() => {
@@ -89,11 +89,11 @@ export function useCaseRecordSession(caseId: string) {
     setDraft(null)
     setReport(null)
     setChangeToken(0)
+    changeTokenRef.current = 0
     setNeedsSharedDefaults(false)
     setSharedDefaultsPatch({})
     setLeaseLost(false)
-    for (const resolve of photoSaveResolvers.current.splice(0)) resolve(false)
-    setPhotoSaveRequest(0)
+    localReportEdits.current = []
   }, [caseId])
 
   const serverDraft = workbench.detail?.draft
@@ -103,6 +103,7 @@ export function useCaseRecordSession(caseId: string) {
     setDraft(serverDraft)
     setReport(JSON.parse(JSON.stringify(serverDraft.report)) as InspectionReport)
     setChangeToken(0)
+    changeTokenRef.current = 0
     setNeedsSharedDefaults(false)
     setSharedDefaultsPatch({})
     setLeaseLost(false)
@@ -146,7 +147,11 @@ export function useCaseRecordSession(caseId: string) {
   const editingEnabled = lease.phase === 'active' && !leaseLost
   const draftForSave = useMemo(() => draft && report ? { ...draft, report } : draft, [draft, report])
   const onSaved = useCallback((savedDraft: CaseDraft, sharedStatus: SharedDefaultsSaveStatus, meta: AutosaveSaveMeta) => {
+    localReportEdits.current = localReportEdits.current.filter(
+      edit => edit.token > meta.savedThroughChangeToken,
+    )
     setDraft(savedDraft)
+    if (!meta.hasNewerChanges) changeTokenRef.current = 0
     setChangeToken(current => meta.hasNewerChanges ? current : 0)
     if (!meta.hasNewerChanges) setReport(JSON.parse(JSON.stringify(savedDraft.report)) as InspectionReport)
     if (sharedStatus.status === 'updated' || sharedStatus.status === 'unchanged' || (sharedStatus.status as string) === 'saved') {
@@ -187,14 +192,6 @@ export function useCaseRecordSession(caseId: string) {
     leaseToken: lease.lease?.lease_token, onSaved,
   })
 
-  useEffect(() => {
-    if (photoSaveRequest <= 0 || !photoSaveResolvers.current.length) return
-    const resolvers = photoSaveResolvers.current.splice(0)
-    void autosave.saveNow().then(saved => {
-      for (const resolve of resolvers) resolve(saved)
-    })
-  }, [photoSaveRequest])
-
   const updateReport = useCallback((path: string, value: unknown) => {
     if (!editingEnabled) return
     setReport(current => {
@@ -210,18 +207,38 @@ export function useCaseRecordSession(caseId: string) {
       }
       return next
     })
-    setChangeToken(value => value + 1)
+    const token = changeTokenRef.current + 1
+    changeTokenRef.current = token
+    localReportEdits.current.push({ path, value, token })
+    setChangeToken(token)
   }, [editingEnabled])
 
-  const updatePhotoAssetRefs = useCallback((refs: OpaqueAssetRef[]): Promise<boolean> => {
-    if (!editingEnabled) return Promise.resolve(false)
-    setDraft(current => current ? { ...current, asset_refs: refs } : current)
-    setReport(current => current ? reportWithPhotoAssetRefs(current, refs) : current)
-    setChangeToken(value => value + 1)
-    const saved = new Promise<boolean>(resolve => photoSaveResolvers.current.push(resolve))
-    setPhotoSaveRequest(value => value + 1)
-    return saved
-  }, [editingEnabled])
+  const updatePhotoAssetRefs = useCallback(async (
+    refs: OpaqueAssetRef[], expectedRefs: OpaqueAssetRef[],
+  ): Promise<boolean> => {
+    if (!editingEnabled || !lease.lease) return false
+    await autosave.saveNow()
+    const response = await axios.patch<{ data: CasePhotoBindingResult }>(
+      API_ENDPOINTS.WORKBENCH_CASE_PHOTO_BINDING(caseId), {
+        asset_refs: refs,
+        expected_asset_ids: expectedRefs.map(ref => ref.asset_id),
+        lease_id: lease.lease.lease_id,
+        lease_token: lease.lease.lease_token,
+      },
+    )
+    const savedDraft = response.data.data.draft
+    let rebasedReport = savedDraft.report
+    for (const edit of localReportEdits.current) {
+      rebasedReport = applyReportEdit(rebasedReport, edit.path, edit.value)
+    }
+    rebasedReport = reportWithPhotoAssetRefs(rebasedReport, refs)
+    const rebasedDraft = { ...savedDraft, report: rebasedReport, asset_refs: refs }
+    setDraft(rebasedDraft)
+    setReport(rebasedReport)
+    lastHydratedDraftKey.current = `${caseId}:${savedDraft.revision}`
+    autosave.rebase(rebasedDraft, localReportEdits.current.length > 0)
+    return true
+  }, [autosave, caseId, editingEnabled, lease.lease])
 
   const photoAssets = useCasePhotoAssets({
     caseId, assetRefs: draft?.asset_refs || [], draftRevision: draft?.revision,

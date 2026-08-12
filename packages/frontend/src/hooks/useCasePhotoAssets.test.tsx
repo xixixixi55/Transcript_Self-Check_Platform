@@ -51,7 +51,9 @@ describe('useCasePhotoAssets', () => {
     }))
     await act(async () => { await view.result.current.handleChange([{ uid: 'local-new', name: file.name, originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']> }]) })
     expect(postMock).toHaveBeenCalledTimes(1)
-    expect(onAssetRefsChange).toHaveBeenCalledWith([expect.objectContaining({ asset_id: created.asset_id })])
+    expect(onAssetRefsChange).toHaveBeenCalledWith(
+      [expect.objectContaining({ asset_id: created.asset_id })], [],
+    )
     expect(view.result.current.files[0].uid).toBe(created.asset_id)
 
     postMock.mockRejectedValueOnce({ response: { data: { detail: { code: 'ASSET_IMAGE_INVALID' } } } })
@@ -126,7 +128,7 @@ describe('useCasePhotoAssets', () => {
     }))
     await waitFor(() => expect(view.result.current.files).toHaveLength(1))
     await act(async () => { await view.result.current.handleChange([]) })
-    expect(onAssetRefsChange).toHaveBeenLastCalledWith([])
+    expect(onAssetRefsChange).toHaveBeenLastCalledWith([], [stored])
     expect(view.result.current.files).toEqual([])
   })
 
@@ -173,9 +175,12 @@ describe('useCasePhotoAssets', () => {
     const file = new File(['SYNTHETIC-FAILED-BINDING'], 'failed-binding.png', { type: 'image/png' })
     const created = { ...ref('asset-synthetic-failed-binding'), content_status: 'available' as const }
     postMock.mockResolvedValueOnce({ data: { data: created } } as any)
+    const onAssetRefsChange = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
     const view = renderHook(() => useCasePhotoAssets({
       caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease,
-      onAssetRefsChange: vi.fn(async () => false),
+      onAssetRefsChange,
     }))
 
     await act(async () => {
@@ -189,6 +194,38 @@ describe('useCasePhotoAssets', () => {
     expect(view.result.current.navigationUnsafe).toBe(true)
     expect(view.result.current.files[0].uid).toBe(created.asset_id)
     expect(view.result.current.assetError).toContain('图片保存失败')
+
+    await act(async () => { await view.result.current.handleChange(view.result.current.files) })
+
+    expect(postMock).toHaveBeenCalledTimes(1)
+    expect(onAssetRefsChange).toHaveBeenNthCalledWith(
+      2, [expect.objectContaining({ asset_id: created.asset_id })], [],
+    )
+    await expect(view.result.current.waitForIdle()).resolves.toBe(true)
+    expect(view.result.current.navigationUnsafe).toBe(false)
+  })
+
+  it('distinguishes a real concurrent photo-list conflict', async () => {
+    const file = new File(['SYNTHETIC-CONFLICT'], 'conflict.png', { type: 'image/png' })
+    postMock.mockResolvedValueOnce({ data: { data: {
+      ...ref('asset-synthetic-conflict'), content_status: 'available',
+    } } } as any)
+    const conflict: any = new Error('PHOTO_BINDING_CONFLICT')
+    conflict.response = { data: { detail: { code: 'PHOTO_BINDING_CONFLICT' } } }
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease,
+      onAssetRefsChange: vi.fn(async () => { throw conflict }),
+    }))
+
+    await act(async () => {
+      await view.result.current.handleChange([{
+        uid: 'local-conflict', name: file.name,
+        originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']>,
+      }])
+    })
+
+    expect(view.result.current.assetError).toContain('图片列表已被另一会话修改')
+    expect(view.result.current.navigationUnsafe).toBe(true)
   })
 
   it('recovers available registry images that are not yet bound to the draft', async () => {

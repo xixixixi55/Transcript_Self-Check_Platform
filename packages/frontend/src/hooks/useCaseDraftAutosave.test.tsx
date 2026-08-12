@@ -36,6 +36,42 @@ describe('useCaseDraftAutosave', () => {
     expect(opts.onSaved).not.toHaveBeenCalled()
   })
 
+  it('rebases a conflicted pending edit onto a newer draft revision', async () => {
+    const localReport = { title: 'SYNTHETIC-LOCAL' } as CaseDraft['report']
+    patchMock.mockRejectedValueOnce({ response: { status: 409, data: { detail: {
+      code: 'REVISION_CONFLICT', data: {
+        draft_save_status: { status: 'conflict', error_code: 'REVISION_CONFLICT' },
+        shared_defaults_save_status: { status: 'failed', error_code: 'DRAFT_SAVE_NOT_APPLIED' },
+      },
+    } } } })
+      .mockImplementationOnce(async (_url, body) => {
+        const request = body as { draft: CaseDraft; expected_revision: number }
+        return { data: { data: {
+          draft_save_status: { status: 'saved', revision: 8 },
+          shared_defaults_save_status: { status: 'unchanged', revision: 0 },
+          draft: { ...request.draft, revision: 8 },
+        } } }
+      })
+    const view = renderHook(() => {
+      const [value, setValue] = useState(draft(3, localReport))
+      const autosave = useCaseDraftAutosave({
+        ...options(), draft: value, changeToken: 1,
+        onSaved: saved => setValue(saved),
+      })
+      return { autosave, rebase: () => {
+        const rebased = draft(7, localReport)
+        setValue(rebased)
+        autosave.rebase(rebased, true)
+      } }
+    })
+
+    await waitFor(() => expect(view.result.current.autosave.draftState.status).toBe('conflict'))
+    act(() => view.result.current.rebase())
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(2))
+    expect((patchMock.mock.calls[1][1] as { expected_revision: number }).expected_revision).toBe(7)
+    expect((patchMock.mock.calls[1][1] as { draft: CaseDraft }).draft.report.title).toBe('SYNTHETIC-LOCAL')
+  })
+
   it('sends structured attachment edits with the persistent case draft', async () => {
     const firstMaterial = {
       id: 'SYNTHETIC-MATERIAL-1', device_type: 'phone', evidence_number: 'SYNTHETIC-1',
