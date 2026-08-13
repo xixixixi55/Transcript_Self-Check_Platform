@@ -40,8 +40,13 @@ from .shared_defaults_service import SharedDefaultsService
 from .source_record_service import SourceRecordService
 from .task_record_service import TaskRecordService
 from .template_profile_service import (
+    BUILTIN_TEMPLATE_ID,
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+    CURRENT_TEMPLATE_VERSION,
     CURRENT_TEMPLATE_VALIDATION_RULE,
+    LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    LEGACY_TEMPLATE_VERSION,
+    validate_template_package_fingerprint,
 )
 from .template_registry_service import TemplateRegistryService
 
@@ -88,10 +93,12 @@ def build_workbench_services(
         database, (template_root, database.database_path.parent / "template-assets"),
     )
     template_approvals = TemplateApprovalRepository(database, template_registry)
-    current_template_ref = _register_current_template(
+    current_template_ref, legacy_template_ref = _register_builtin_templates(
         template_registry, template_approvals, template_root,
     )
-    SharedDefaultsRepository(database).ensure_default_template(current_template_ref)
+    SharedDefaultsRepository(database).ensure_default_template(
+        current_template_ref, replace_refs=(legacy_template_ref,),
+    )
     admission_config = archive_admission_config or build_archive_admission_config()
     archive_scheduler = ArchiveSchedulerService(
         archive_tasks,
@@ -168,28 +175,78 @@ def _archive_work_item(
     )
 
 
-def _register_current_template(
+def _register_builtin_templates(
     registry: TemplateRegistryRepository,
     approvals: TemplateApprovalRepository,
     template_root: Path,
-) -> dict[str, str]:
-    reference = {"template_id": "electronic-inspection-record", "version": "1.0.0"}
+) -> tuple[dict[str, str], dict[str, str]]:
+    legacy_reference = {
+        "template_id": BUILTIN_TEMPLATE_ID, "version": LEGACY_TEMPLATE_VERSION,
+    }
+    legacy_asset = template_root / "template-v1.0.0.docx"
+    current_asset = template_root / "template.docx"
+    validate_template_package_fingerprint(
+        str(legacy_asset), LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    )
+    validate_template_package_fingerprint(
+        str(current_asset), CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+    )
+    registry.relocate_builtin_asset(
+        legacy_reference,
+        LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+        "template-asset-current-v1",
+        legacy_asset,
+    )
+    reference = {
+        "template_id": BUILTIN_TEMPLATE_ID, "version": CURRENT_TEMPLATE_VERSION,
+    }
+    _register_builtin_template(
+        registry, approvals, legacy_reference,
+        "电子数据检查笔录（current-template-v1）",
+        LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+        "template-asset-current-v1",
+        "template-approval-current-v1",
+        legacy_asset,
+        "current-template-v1 已通过既有 Word、VML、分页、表格和附件验收。",
+    )
+    _register_builtin_template(
+        registry, approvals, reference,
+        "电子数据检查笔录（current-template-v1）",
+        CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+        "template-asset-current-v1-clean",
+        "template-approval-current-v1-clean",
+        current_asset,
+        "current-template-v1 已清理批注和示例图片并通过结构验收。",
+    )
+    return reference, legacy_reference
+
+
+def _register_builtin_template(
+    registry: TemplateRegistryRepository,
+    approvals: TemplateApprovalRepository,
+    reference: dict[str, str],
+    display_name: str,
+    fingerprint: str,
+    asset_id: str,
+    approval_id: str,
+    asset_path: Path,
+    acceptance_summary: str,
+) -> None:
     registry.register({
         "schema_version": 1,
         "template_ref": reference,
-        "display_name": "电子数据检查笔录（current-template-v1）",
-        "fingerprint": CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+        "display_name": display_name,
+        "fingerprint": fingerprint,
         "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
-        "asset_id": "template-asset-current-v1",
+        "asset_id": asset_id,
         "registered_at": "2026-07-30T00:00:00+00:00",
-    }, template_root / "template.docx")
+    }, asset_path)
     approvals.record(reference, {
-        "approval_record_id": "template-approval-current-v1",
+        "approval_record_id": approval_id,
         "status": "approved",
-        "acceptance_summary": "current-template-v1 已通过既有 Word、VML、分页、表格和附件验收。",
+        "acceptance_summary": acceptance_summary,
         "recorded_at": "2026-07-30T00:00:00+00:00",
     })
-    return reference
 
 
 _SERVICES: WorkbenchServices | None = None

@@ -122,12 +122,25 @@ class SharedDefaultsRepository:
     def get(self) -> dict[str, Any]:
         return self.get_or_create()
 
-    def ensure_default_template(self, template_ref: Mapping[str, Any]) -> dict[str, Any]:
+    def ensure_default_template(
+        self,
+        template_ref: Mapping[str, Any],
+        replace_refs: tuple[Mapping[str, Any], ...] = (),
+    ) -> dict[str, Any]:
         normalized = _normalize_template_ref(template_ref)
         if normalized is None:
             raise WorkbenchPersistenceError("INVALID_TEMPLATE_REFERENCE")
         current = self.get_or_create()
-        if current.get("default_template_ref") is not None:
+        replace = {
+            (value["template_id"], value["version"])
+            for item in replace_refs
+            if (value := _normalize_template_ref(item)) is not None
+        }
+        existing = current.get("default_template_ref")
+        existing_key = None if existing is None else (
+            existing["template_id"], existing["version"],
+        )
+        if existing is not None and existing_key not in replace:
             return current
         result = self.patch({"default_template_ref": normalized}, current["revision"])
         return result["defaults"]

@@ -33,6 +33,11 @@ def compute_ooxml_package_fingerprint(path: str | Path) -> str:
     return digest.hexdigest().upper()
 
 
+def read_validated_docx_entries(path: str | Path) -> list[tuple[str, bytes]]:
+    """Read a DOCX after enforcing the same ZIP entry safety contract as hashing."""
+    return _read_validated_entries(path)
+
+
 def raw_docx_sha256(path: str | Path) -> str:
     """Return the raw DOCX hash for diagnostics only."""
     digest = hashlib.sha256()

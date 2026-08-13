@@ -92,15 +92,19 @@ def test_entry_set_changes_fingerprint(tmp_path, entries):
     assert compute_ooxml_package_fingerprint(original) != compute_ooxml_package_fingerprint(changed)
 
 
-def test_head_and_workspace_templates_have_same_fingerprint(tmp_path):
+def test_head_template_is_preserved_as_legacy_and_current_profile_validates(tmp_path):
     head = tmp_path / "head-template.docx"
     head.write_bytes(subprocess.check_output(
         ["git", "show", "HEAD:word_templates/template.docx"], cwd=ROOT
     ))
-    assert compute_ooxml_package_fingerprint(head) == compute_ooxml_package_fingerprint(TEMPLATE)
+    legacy = ROOT / "word_templates" / "template-v1.0.0.docx"
+    assert compute_ooxml_package_fingerprint(head) == compute_ooxml_package_fingerprint(legacy)
+    assert compute_ooxml_package_fingerprint(head) != compute_ooxml_package_fingerprint(TEMPLATE)
     profile = current_template_profile()
     assert profile.fingerprint_algorithm == OOXML_PACKAGE_FINGERPRINT_ALGORITHM
-    assert validate_current_template_profile(str(head), Document(str(head))).package_fingerprint == profile.package_fingerprint
+    assert validate_current_template_profile(
+        str(TEMPLATE), Document(str(TEMPLATE)),
+    ).package_fingerprint == profile.package_fingerprint
 
 
 def test_accepted_reference_does_not_match_current_profile():

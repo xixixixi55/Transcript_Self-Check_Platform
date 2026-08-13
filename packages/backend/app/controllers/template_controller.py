@@ -172,6 +172,7 @@ def _handle(error: Exception) -> None:
             "REVISION_CONFLICT", "LEASE_CONFLICT", "LEASE_NOT_ACTIVE",
             "LEASE_EXPIRED", "LEASE_TAKEOVER_REQUIRED", "DEFAULT_TEMPLATE_CANNOT_DELETE",
             "TEMPLATE_IN_USE", "TEMPLATE_VERSION_IMMUTABLE",
+            "HISTORICAL_TEMPLATE_READ_ONLY",
         }
         else 422 if code in {
             "TEMPLATE_NOT_APPROVED", "TEMPLATE_ASSET_MISSING",
@@ -205,6 +206,7 @@ def _safe_message(code: str) -> str:
         "DEFAULT_TEMPLATE_CANNOT_DELETE": "默认模板不能直接删除，请先选择其他默认模板。",
         "TEMPLATE_IN_USE": "已有案件引用该模板版本，不能删除。",
         "TEMPLATE_VERSION_IMMUTABLE": "相同模板 ID 和版本已经存在，不能覆盖。",
+        "HISTORICAL_TEMPLATE_READ_ONLY": "历史内置模板仅供既有案件重导出，不能用于新选择、默认设置或删除。",
         "TEMPLATE_UPLOAD_INVALID": "请上传有效的 DOCX 模板文件。",
         "TEMPLATE_UPLOAD_TOO_LARGE": "模板文件不能超过 50MB。",
     }.get(code, "模板请求未完成，请稍后重试。")

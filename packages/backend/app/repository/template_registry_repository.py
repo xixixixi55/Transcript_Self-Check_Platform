@@ -64,6 +64,34 @@ class TemplateRegistryRepository:
             raise WorkbenchPersistenceError("TEMPLATE_UNKNOWN")
         return value
 
+    def relocate_builtin_asset(
+        self,
+        template_ref: Mapping[str, Any],
+        expected_fingerprint: str,
+        expected_asset_id: str,
+        asset_path: str | Path,
+    ) -> None:
+        """Relocate a known built-in version after the service validates its asset."""
+        reference = _reference(template_ref)
+        existing = self.find_internal(reference)
+        if existing is None:
+            return
+        locator = self._controlled_locator(asset_path)
+        if (
+            existing["fingerprint"] != expected_fingerprint
+            or existing["asset_id"] != expected_asset_id
+        ):
+            return
+        with self.database.transaction() as connection:
+            connection.execute(
+                "UPDATE template_versions SET internal_locator=? "
+                "WHERE template_id=? AND version=? AND fingerprint=? AND asset_id=?",
+                (
+                    str(locator), reference["template_id"], reference["version"],
+                    expected_fingerprint, expected_asset_id,
+                ),
+            )
+
     def public_with_approval(
         self, template_ref: Mapping[str, Any], approval: Mapping[str, Any],
     ) -> dict[str, Any]:

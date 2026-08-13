@@ -97,8 +97,8 @@ WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核�
 
 8.3/8.3T 的完成边界：本轮完成固定根目录生产能力、精确目录授权安全模型/令牌验证/拒绝边界及其自动化测试；本机目录选择器和可信桌面桥接由 8.5 单独承接，不改变 8.3 的路径安全合同。
 
-- [x] 8.4 在 `packages/frontend/src/hooks/useSourceAuthorizationPreference.ts`、`packages/frontend/src/pages/ElectronicInspectionModulePage.tsx`、`packages/frontend/src/hooks/useCaseWorkbench.ts`、`packages/frontend/src/hooks/useCaseRecordSession.ts`、`packages/backend/app/controllers/record_controller.py`、`packages/backend/app/controllers/workbench_controller.py`、`packages/backend/app/controllers/source_controller.py`、`packages/backend/app/services/source_record_service.py`、`packages/backend/app/services/archive_authorization_service.py` 和 `packages/backend/app/repository/archive_authorization_repository.py` 增加可持久化的 `source_authorization_enabled` 模式开关。首页默认关闭授权根校验，用户选择保存在浏览器本地；工作台不展示开关，登记/重新登记请求读取该偏好；关闭时仅跳过根目录/精确令牌边界，路径安全、输出隔离和报告结构校验继续执行，开启时恢复既有授权规则。验证：前后端请求契约、首页刷新持久化、工作台不展示开关、任意本机目录登记和重新开启后的根目录拒绝。
-- [x] 8.4T 在 `tests/test_archive_authorization.py`、`tests/test_workbench_services.py`、`tests/test_record_controller.py`、`tests/test_workbench_controller.py`、`packages/frontend/src/hooks/useSourceAuthorizationPreference.test.tsx` 和 `packages/frontend/src/pages/ElectronicInspectionModulePage.test.tsx` 增加关闭/开启两种模式、持久化和安全边界断言；同时移除来源授权就绪状态和工作台授权说明测试。验证：关闭模式允许合成的根目录外报告目录，开启模式仍返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`，非法/链接/输出重叠路径在两种模式均被拒绝。
+- [x] 8.4 在 `packages/frontend/src/hooks/useSourceAuthorizationPreference.ts`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/hooks/useCaseWorkbench.ts`、`packages/frontend/src/hooks/useCaseRecordSession.ts`、`packages/backend/app/controllers/record_controller.py`、`packages/backend/app/controllers/workbench_controller.py`、`packages/backend/app/controllers/source_controller.py`、`packages/backend/app/services/source_record_service.py`、`packages/backend/app/services/archive_authorization_service.py` 和 `packages/backend/app/repository/archive_authorization_repository.py` 增加可持久化的 `source_authorization_enabled` 模式开关。首页默认关闭授权根校验，用户选择保存在浏览器本地；登记/重新登记请求读取该偏好；关闭时仅跳过根目录/精确令牌边界，路径安全、输出隔离和报告结构校验继续执行，开启时恢复既有授权规则。验证：前后端请求契约、页面刷新持久化、任意本机目录登记和重新开启后的根目录拒绝。
+- [x] 8.4T 在 `tests/test_archive_authorization.py`、`tests/test_workbench_services.py`、`tests/test_record_controller.py`、`tests/test_workbench_controller.py`、`packages/frontend/src/hooks/useSourceAuthorizationPreference.test.tsx` 和 `packages/frontend/src/pages/CaseWorkbenchPage.test.tsx` 增加关闭/开启两种模式、持久化和安全边界断言；同时移除来源授权就绪状态说明测试。验证：关闭模式允许合成的根目录外报告目录，开启模式仍返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`，非法/链接/输出重叠路径在两种模式均被拒绝。
 
 8.4 验证证据：后端受影响测试 98 passed、前端受影响测试 22 passed；`lint:arch`、`typecheck` 和核心授权分支突变有效性验证通过。共享请求 DTO 位于 `packages/shared/types/sourceAuthorization.ts`，legacy 目录解析请求构造器位于 `packages/frontend/src/hooks/useSourceAuthorizationRequests.ts`；当前前端生产路由没有直接调用 deprecated `/reports/parse` 的页面，直接 API 缺省仍保持开启。
 
@@ -109,7 +109,7 @@ WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核�
 - [x] 8.5.3 **FE Component / Page**：新增类似审核编辑检查人员加号卡片的“上传报告目录/添加案件”入口，移除工作台报告路径输入框和独立登记按钮；点击卡片调用后端原生选择桥接，保留可选案件字段和刷新入口，卡片显示加载/错误可恢复状态。验证：组件/页面测试覆盖点击、取消、成功和失败状态，确认不使用 `webkitdirectory` 上传文件。
 - [x] 8.5.4 **BE Service**：新增 Windows 本机目录选择服务，通过本机原生文件夹选择窗口取得真实绝对路径；取消返回空选择，窗口不可用/超时返回稳定错误；不硬编码桌面目录、不上传或复制报告内容，路径只传给既有来源登记服务。验证：Service 单测覆盖成功、取消、不可用、非法选择和超时。
 - [x] 8.5.5 **BE Controller / Composition**：新增选择目录并登记案件端点，后端在同一请求内选择目录、登记 `SourceRecord`、创建 `CaseShell`/解析任务并 dispatch；公共响应和错误不得包含完整路径，继续使用既有来源授权、路径安全和报告结构校验。验证：Controller 集成测试覆盖根目录外有效目录（授权关闭）、取消无副作用、路径安全错误和解析任务创建。
-- [ ] 8.5.6 **真实验收与门控**：使用本地 Windows 应用流程验证卡片点击后弹出原生文件夹窗口，选择任意有效本机报告目录后直接进入排队/解析，取消不创建案件；运行受影响前后端测试、`lint:arch`、typecheck、`verify:quick`、资产检查和 `git diff --check`。
+- [ ] 8.5.6 **真实验收与门控**：使用本地 Windows 应用流程验证卡片点击后弹出原生文件夹窗口，选择任意有效本机报告目录后直接进入排队/解析，取消不创建案件；运行受影响前后端测试、`lint:arch`、typecheck、`verify:quick`、资产检查和 `git diff --check`。 [DEFERRED]
 
 ## 9. 附件一页面计划（Layer 21）
 
@@ -143,6 +143,8 @@ Renderer 当前正式渲染输入为 `InspectionReport` 兼容数据 + `ArchiveM
 
 已完成：AttachmentPlan 和 TemplateProfile 基础设施。未完成：统一 `DocumentRenderPlan` 类型、生产构造、Renderer 只消费 RenderPlan。
 - [x] 12.1T 增加模板 ZIP/XML、资产漂移、VML 宿主段落、关系、PAGE/NUMPAGES、`updateFields=true`、章节分页、固定手写行、摘要 manifest 计数和页面计划渲染测试；验收：固定 Profile 之外的模板被阻止，manifest/renderer 错误不回退 legacy。
+- [x] 12.2 清理当前正式模板中的全部批注和附件二示例图片，同时保留附件二空白定位段落、VML 文本框、分页、表格和动态图片渲染能力；将清理后的资产登记为 `electronic-inspection-record@1.0.1`，保留 `1.0.0` 历史资产和既有案件引用，将历史版限定为只读重导出资产，并把仍使用内置 `1.0.0` 默认值的部署幂等迁移到新版。文件：`scripts/clean_template_docx.py`、`word_templates/template.docx`、`word_templates/template-v1.0.0.docx`、`packages/backend/app/services/template_profile_service.py`、`packages/backend/app/services/workbench_factory_service.py`、`packages/backend/app/repository/shared_defaults_repository.py`、`packages/backend/app/repository/template_registry_repository.py`、`harness/repository-assets.md`、`scripts/check-repository-assets.ts`；验证：新版 `officecli validate` 0 errors；历史资产指纹保持 `616E...14A7`，新版指纹为 `206A...8232`；架构与类型检查通过。
+- [x] 12.2T 增加确定性模板清理、无批注部件/标记/关系、无模板媒体、附件二锚点保留、历史模板指纹可复现、新默认模板注册、已有案件继续引用 `1.0.0`、自定义默认模板不被覆盖、0/2/4 张动态图片回归测试；受影响后端组合 127 passed / 1 skipped，核心清理逻辑突变验证按预期失败且恢复后通过。人工 Word 视觉验收因当前环境缺少 LibreOffice/Word 渲染器保持待验收，不伪报通过。
 
 ## 13. 全黑字体策略（Layer 21）
 
@@ -163,19 +165,19 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 14A.3 以报告目录父目录为 WinRAR 工作目录、报告根目录名为输入，删除 `-ep1` 和逐文件列表；快照纳入目录以保留多级结构、不同目录同名文件及业务空目录。
 - [x] 14A.4 单卷使用案件名 `.rar`、多卷使用 `.partN.rar`；前端按已验证归档结果的 Manifest parts 展示实际文件名、字节数、MD5、分卷、对应光盘编号与光盘容量，审核编辑页的附件区域同步展示每个分卷与光盘编号的一一对应关系，并以 context/manifest/part 不透明标识逐卷下载。
 - [x] 14A.5 下载前和 Word 导出前重新验证同一物理 part；新增软件、设备名、目录结构、Manifest一致性、下载接口及附件2同排双图结构测试。
-- [ ] 14A.6 使用指定真实报告完成预览归档、下载后哈希/字节数、WinRAR列表、独立解压目录树与逐文件内容、唯一正式Word和附件2视觉验收；不得以手工RAR的二进制、MD5或压缩后大小作为相等条件。
+- [ ] 14A.6 使用指定真实报告完成预览归档、下载后哈希/字节数、WinRAR列表、独立解压目录树与逐文件内容、唯一正式Word和附件2视觉验收；不得以手工RAR的二进制、MD5或压缩后大小作为相等条件。 [DEFERRED]
 - [x] 14A.7 将既有 MaterialDisplayPolicy 接入当前审核编辑器、检查过程和正式 legacy Renderer：手机只投影合法 IMEI1/IMEI2，平板只投影序列号且保留原始字段；增加明确列名的浏览器本地六项用户默认设置（文号、检查地点、检查方法、检查硬件设备、有序检查人员、光盘编号前缀）及下次解析套用/清除入口；归档完成后以与Word相同的后端 Manifest 投影刷新前端附件1预览，并在同一工作台完成事务中写入 `case_drafts.report_json.attachments.extract_list`（不新增文件大小列），覆盖单卷、多卷、审核字段未完成和恢复路径，补充前后端回归测试。
 
 ### 14A.8 笔录模版管理人工验收补充（Level 2）
 
-- [ ] 14A.8.1 在检查人员管理同级增加“笔录模版管理”导航和页面，支持查看已校验版本、选择默认模版、上传新增模版和安全删除非默认且未被案件引用的版本；案件仍只保存模板 ID/版本，既有案件引用不因默认值变化而改写。
-- [ ] 14A.8.2 复用 current-template-v1 资产指纹与结构校验，上传文件只进入受控模板资产目录；删除记录为审批撤销，不物理删除被案件引用的文件；默认模板在新案件解析完成首次创建草稿时写入。
-- [ ] 14A.8.3 增加前端导航/管理 Hook/管理组件和后端管理 API 回归：默认选择、上传校验、删除保护、案件引用保护、既有单案模板选择与默认值无回归。
+- [ ] 14A.8.1 在检查人员管理同级增加“笔录模版管理”导航和页面，支持查看已校验版本、选择默认模版、上传新增模版和安全删除非默认且未被案件引用的版本；案件仍只保存模板 ID/版本，既有案件引用不因默认值变化而改写。 [DEFERRED]
+- [ ] 14A.8.2 复用 current-template-v1 资产指纹与结构校验，上传文件只进入受控模板资产目录；删除记录为审批撤销，不物理删除被案件引用的文件；默认模板在新案件解析完成首次创建草稿时写入。 [DEFERRED]
+- [ ] 14A.8.3 增加前端导航/管理 Hook/管理组件和后端管理 API 回归：默认选择、上传校验、删除保护、案件引用保护、既有单案模板选择与默认值无回归。 [DEFERRED]
 
 ## 15. 人工 Word 验收（跨层）
 
-- [ ] 15.1 准备阶段一脱敏人工验收矩阵：手机/平板标识、人员顺序、主软件、正文/光盘日期、4/22/45GB档位、重规划、附件一/二/三、VML、黑字、图片比例、分页和模板 hash。输入：通过自动化门禁的唯一正式 DOCX；输出：甲方可审阅验收记录；验收：人工打开 Word 确认版式和可读性。
-- [ ] 15.1T 固化人工验收证据清单和失败复现入口；验收：未通过项不会标记阶段一完成或切换 canonical。
+- [ ] 15.1 准备阶段一脱敏人工验收矩阵：手机/平板标识、人员顺序、主软件、正文/光盘日期、4/22/45GB档位、重规划、附件一/二/三、VML、黑字、图片比例、分页和模板 hash。输入：通过自动化门禁的唯一正式 DOCX；输出：甲方可审阅验收记录；验收：人工打开 Word 确认版式和可读性。 [DEFERRED]
+- [ ] 15.1T 固化人工验收证据清单和失败复现入口；验收：未通过项不会标记阶段一完成或切换 canonical。 [DEFERRED]
 
 人工验收记录（2026-07-19）：甲方已在 Microsoft Word GUI 检查一组脱敏Word样例并确认通过。记录结果为：无Word修复提示；附件章节独立起页、附件1标题和固定清单、固定手写行、正文动态检查人员、附件3元数据和底部光盘说明、摘要数量、PAGE/NUMPAGES、VML、无空白页和无末尾空白页均通过。稳定材料和清单保存在被Git忽略的验收目录。
 
@@ -215,12 +217,12 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 
 预切换的只读预览、编辑门控、候选输出隔离和回滚演练不以延期大容量验收为前置条件；但演练必须覆盖“允许编辑但禁止最终导出”的统一门控，并确认 canonical 正确性失败只返回明确错误，不自动回退 legacy。只有正式发布门槛解除后，才可将 Canonical 设为默认唯一正式输出；回滚仅通过集中 `pipeline_mode` 完成。
 
-- [ ] 16.1 通过集中 `pipeline_mode` 将默认从 `legacy` 经 `shadow` 切换到 `canonical`；设计 canonical 数据错误、模板漂移、manifest 校验失败和缓存污染的人工运维回滚。输入：Shadow 比较通过且阶段一人工验收通过；输出：canonical 唯一正式输出或明确失败；验收：canonical 失败不自动回退，人工改回 legacy 后可重新处理。
-- [ ] 16.1T 执行回滚演练和缓存隔离测试；验收：已有输出不被覆盖、Shadow 结果不被当正式缓存、legacy/canonical 模式均可恢复。
+- [ ] 16.1 通过集中 `pipeline_mode` 将默认从 `legacy` 经 `shadow` 切换到 `canonical`；设计 canonical 数据错误、模板漂移、manifest 校验失败和缓存污染的人工运维回滚。输入：Shadow 比较通过且阶段一人工验收通过；输出：canonical 唯一正式输出或明确失败；验收：canonical 失败不自动回退，人工改回 legacy 后可重新处理。 [DEFERRED]
+- [ ] 16.1T 执行回滚演练和缓存隔离测试；验收：已有输出不被覆盖、Shadow 结果不被当正式缓存、legacy/canonical 模式均可恢复。 [DEFERRED]
 
 ## 17. 阶段二/三接口预留（不属于阶段一实现门槛）
 
-- [ ] 17.1 只定义 `ReportProfile`、`FieldProvenance`、结构发现/候选确认接口和版本化存储契约，不在阶段一实现任意报告自动解析。输入：未知结构候选；输出：可序列化的 draft/confirmed Profile 契约；验收：未确认 Profile 不得静默导出。
-- [ ] 17.1T 为 Profile 来源文件、JSON 路径、规则、置信度、确认和版本失效增加契约测试；验收：同类复用和低置信人工确认边界明确。
-- [ ] 17.2 只定义 `TemplateProfile` 的段落/表格/单元格/内容控件/VML anchor、重复区、图片区、显示条件、分页和推荐草稿扩展点，不在阶段一实现通用模板设计器、无标记识别或自动推荐。输入：固定 current-template-v1 Profile；输出：阶段三可扩展接口；验收：阶段一只接受固定 Profile。
-- [ ] 17.2T 为 TemplateProfile round-trip、版本、anchor 和“未确认不可导出”增加契约测试；验收：接口可扩展但阶段一能力边界不扩大。
+- [ ] 17.1 只定义 `ReportProfile`、`FieldProvenance`、结构发现/候选确认接口和版本化存储契约，不在阶段一实现任意报告自动解析。输入：未知结构候选；输出：可序列化的 draft/confirmed Profile 契约；验收：未确认 Profile 不得静默导出。 [DEFERRED]
+- [ ] 17.1T 为 Profile 来源文件、JSON 路径、规则、置信度、确认和版本失效增加契约测试；验收：同类复用和低置信人工确认边界明确。 [DEFERRED]
+- [ ] 17.2 只定义 `TemplateProfile` 的段落/表格/单元格/内容控件/VML anchor、重复区、图片区、显示条件、分页和推荐草稿扩展点，不在阶段一实现通用模板设计器、无标记识别或自动推荐。输入：固定 current-template-v1 Profile；输出：阶段三可扩展接口；验收：阶段一只接受固定 Profile。 [DEFERRED]
+- [ ] 17.2T 为 TemplateProfile round-trip、版本、anchor 和“未确认不可导出”增加契约测试；验收：接口可扩展但阶段一能力边界不扩大。 [DEFERRED]

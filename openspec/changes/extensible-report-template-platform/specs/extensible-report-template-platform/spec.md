@@ -29,6 +29,17 @@
 - **WHEN** 报告结构或模板没有已确认的 Profile
 - **THEN** 系统展示候选/推荐及来源和置信信息，要求用户确认或修正；在确认前不得静默解析、套用或导出
 
+### Requirement: Built-in template cleanup preserves versioned exports
+
+内置模板清理 MUST 通过新模板版本交付。清理后的版本 MUST 删除全部批注结构和附件二示例媒体，同时保留动态图片区域锚点、VML、分页、表格与上传图片渲染能力；旧版本资产 MUST 保留供既有案件按原模板引用重导出，并作为历史只读资产禁止新案件选择、设为默认或删除。
+
+#### Scenario: Upgrade from the previous built-in template
+
+- **WHEN** 部署升级且当前默认值仍指向旧内置模板
+- **THEN** 系统将后续新案件的默认模板迁移到清理后的新版本
+- **AND** 既有案件模板引用不变，用户选择的其他默认模板不被覆盖
+- **AND** 旧内置版本不出现在新案件可选列表中，管理接口拒绝将其重新设为默认或删除
+
 ### Requirement: Local Windows directory picker preserves the path-based source contract
 
 本地 Windows 案件工作台 MUST 提供点击式“上传报告目录/添加案件”入口。入口 MUST 由后端在本机交互桌面会话中弹出原生文件夹选择窗口；选择成功后 MUST 在同一请求内使用真实绝对路径登记既有 `SourceRecord`、创建案件壳和解析任务。浏览器 MUST NOT 上传或复制报告目录，公共响应、日志和浏览器状态 MUST NOT 暴露绝对路径；选择范围 MUST NOT 被硬编码为桌面目录。取消选择 MUST 是无副作用操作。

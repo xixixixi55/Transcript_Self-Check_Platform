@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,13 +25,25 @@ from .attachment2_image_service import (
 )
 
 CURRENT_TEMPLATE_PROFILE_ID = "current-template-v1"
-CURRENT_TEMPLATE_PACKAGE_FINGERPRINT = "616E3D1200C98DFD55C6DA7D5FB7DBB1C395BEF9FD78B1B6F59DC79BC4E814A7"
+BUILTIN_TEMPLATE_ID = "electronic-inspection-record"
+CURRENT_TEMPLATE_VERSION = "1.0.1"
+CURRENT_TEMPLATE_PACKAGE_FINGERPRINT = "206AC62CC093D587E1BB59E9286427570C637BF3B9041814BF2DCFD652DB8232"
+LEGACY_TEMPLATE_VERSION = "1.0.0"
+LEGACY_TEMPLATE_PACKAGE_FINGERPRINT = "616E3D1200C98DFD55C6DA7D5FB7DBB1C395BEF9FD78B1B6F59DC79BC4E814A7"
 CURRENT_TEMPLATE_VALIDATION_RULE = {
     "rule_id": "current-template-profile",
     "version": "1.0.0",
 }
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _V_NS = "urn:schemas-microsoft-com:vml"
+
+
+def is_historical_builtin_template_ref(template_ref: Any) -> bool:
+    """Return whether a reference is the read-only built-in export asset."""
+    return isinstance(template_ref, Mapping) and (
+        template_ref.get("template_id") == BUILTIN_TEMPLATE_ID
+        and template_ref.get("version") == LEGACY_TEMPLATE_VERSION
+    )
 
 class TemplateProfileError(ValueError):
     """Raised when the fixed template is missing or has drifted."""

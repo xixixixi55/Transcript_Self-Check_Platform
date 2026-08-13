@@ -17,6 +17,7 @@ from ..repository.workbench_errors import WorkbenchPersistenceError
 from .docx_package_service import compute_ooxml_package_fingerprint
 from .template_profile_service import (
     CURRENT_TEMPLATE_VALIDATION_RULE,
+    is_historical_builtin_template_ref,
     validate_current_template_profile,
     require_registered_template,
     validate_registered_template,
@@ -39,6 +40,8 @@ class TemplateRegistryService:
     def list_available(self) -> list[dict[str, Any]]:
         available = []
         for candidate in self.approvals.list_approved():
+            if is_historical_builtin_template_ref(candidate["template_ref"]):
+                continue
             result = self.validate(candidate["template_ref"])
             if result["valid"]:
                 available.append(result["template"])
@@ -50,6 +53,7 @@ class TemplateRegistryService:
     def select_for_case(
         self, case_id: str, template_ref: Mapping[str, Any], expected_revision: int,
     ) -> dict[str, Any]:
+        _reject_historical_builtin_mutation(template_ref)
         template = require_registered_template(
             self.registry, self.approvals, template_ref,
         )
@@ -77,10 +81,12 @@ class TemplateRegistryService:
                 continue
             reference = candidate["template_ref"]
             is_default = _same_ref(reference, default_ref)
+            is_historical = is_historical_builtin_template_ref(reference)
             records.append({
                 **result["template"],
                 "is_default": is_default,
-                "can_delete": not is_default and not self.references.is_referenced(reference),
+                "can_delete": not is_historical and not is_default
+                and not self.references.is_referenced(reference),
             })
         return {
             "templates": records,
@@ -91,6 +97,7 @@ class TemplateRegistryService:
     def set_default(
         self, template_ref: Mapping[str, Any], expected_revision: int | None = None,
     ) -> dict[str, Any]:
+        _reject_historical_builtin_mutation(template_ref)
         template = require_registered_template(self.registry, self.approvals, template_ref)
         defaults = self.defaults.get()
         revision = defaults["revision"] if expected_revision is None else expected_revision
@@ -134,6 +141,7 @@ class TemplateRegistryService:
         return result["template"]
 
     def remove(self, template_ref: Mapping[str, Any]) -> dict[str, Any]:
+        _reject_historical_builtin_mutation(template_ref)
         template = self.registry.get_internal(template_ref)
         self.approvals.require_approved(template["template_ref"])
         defaults = self.defaults.get()
@@ -155,3 +163,8 @@ def _same_ref(left: Any, right: Any) -> bool:
         left.get("template_id") == right.get("template_id")
         and left.get("version") == right.get("version")
     )
+
+
+def _reject_historical_builtin_mutation(template_ref: Mapping[str, Any]) -> None:
+    if is_historical_builtin_template_ref(template_ref):
+        raise WorkbenchPersistenceError("HISTORICAL_TEMPLATE_READ_ONLY")

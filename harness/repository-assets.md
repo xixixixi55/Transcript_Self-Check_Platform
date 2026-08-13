@@ -7,8 +7,9 @@
 | Asset | Status |
 |-------|--------|
 | `word_templates/template.docx` | **Tracked — do not modify casually** |
+| `word_templates/template-v1.0.0.docx` | **Tracked — immutable historical template** |
 
-- This is the single authoritative Word report template.
+- `template.docx` is the current authoritative Word report template; the versioned historical asset exists only for reproducible legacy-case exports.
 - Identity verified by OOXML package fingerprint (SHA-256 of canonical blob).
 - Must never be rewritten by a generation run.
 - Any modification requires independent acceptance testing.

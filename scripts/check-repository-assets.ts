@@ -49,6 +49,7 @@ const FORBIDDEN_SUFFIXES = [
 /** 明确允许的资产（不应被上述规则误报） */
 const ALLOWED_ASSETS = new Set([
   'word_templates/template.docx',
+  'word_templates/template-v1.0.0.docx',
 ]);
 
 // 使用 NUL 分隔符读取跟踪文件（安全处理所有字符）

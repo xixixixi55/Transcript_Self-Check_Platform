@@ -427,6 +427,7 @@ def _write_png(path: Path, width: int, height: int, color=(50, 120, 200)):
     [(4000, 4000)],      # 1张超出页面可用区域的图
     [(1600, 900), (900, 1600)],  # 2张横/竖图
     [(4000, 4000), (4000, 4000)],  # 2张超尺寸图
+    [(1600, 900), (900, 1600), (1200, 1200), (2000, 1000)],  # 4张图片
 ])
 def test_photo_regression_scenarios_keep_images_and_page_xml(tmp_path, sizes):
     photos = []

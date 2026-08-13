@@ -398,7 +398,7 @@ def test_attachment2_uses_fixed_pair_grids_and_preserves_order(tmp_path, photo_c
             for info in package.infolist()
             if info.filename.startswith("word/media/")
         }
-    assert len(media) == photo_count + 2
+    assert len(media) == photo_count
     embeds = [
         drawing.find(".//{%s}blip" % A_NS).get("{%s}embed" % DOC_REL_NS)
         for table in tables
