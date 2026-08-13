@@ -628,10 +628,17 @@ boundary: a template change invalidates Word while leaving archive planning,
 archive-task creation, the verified Manifest and disc mapping unchanged.
 
 `TemplateManagementRecord` is the path-free management-page projection of a
-`TemplateVersion`, adding `is_default` and `can_delete`. The corresponding
+`TemplateVersion`, adding `is_default`, `can_delete`, `can_customize` and the
+allow-listed `TemplateCustomization` currently read from the DOCX. The corresponding
 `TemplateManagementResponse` returns the available records, the nullable
 `default_template_ref`, and the monotonic `defaults_revision` used by default
 template updates.
+
+The controlled frontend customization contract uses `TemplateBodyFont` and
+`TemplateBodyFontSize` allow-lists. `TemplateCustomization` contains only the
+fixed document title, body font and body font size. `DeriveTemplateRequest`
+identifies an approved source version and a new immutable target version; it
+never carries a filesystem path, DOCX bytes, arbitrary OOXML or layout rules.
 
 T017 adds the frontend registry client and review-page selector. The client
 filters for complete approved versions, displays only the template ID, version
@@ -936,6 +943,8 @@ interface TemplateVersion, interface TemplateManagementRecord,
 interface TemplateManagementResponse, interface TemplateValidationSuccess,
 interface TemplateValidationFailure, type TemplateValidationResult,
 interface TemplateSelectionImpact,
+type TemplateBodyFont, type TemplateBodyFontSize,
+interface TemplateCustomization, interface DeriveTemplateRequest,
 type RetentionPolicyMode, type RetentionEligibility, type RetentionStatus,
 type CleanupRunPhase, type CleanupRunStatus, type RetentionBlockerCode,
 type CleanupErrorCode, interface RetentionPolicyDto,

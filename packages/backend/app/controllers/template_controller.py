@@ -36,6 +36,21 @@ class TemplateDefaultRequest(BaseModel):
     expected_defaults_revision: int | None = Field(default=None, ge=0)
 
 
+class TemplateCustomizationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    document_title: str = Field(min_length=1, max_length=40)
+    body_font: str = Field(min_length=1, max_length=40)
+    body_font_size: int = Field(ge=1, le=100)
+
+
+class TemplateDeriveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_template_ref: TemplateReferenceRequest
+    template_ref: TemplateReferenceRequest
+    display_name: str = Field(min_length=1, max_length=120)
+    customization: TemplateCustomizationRequest
+
+
 @router.get("/workbench/templates")
 def list_templates_endpoint() -> dict[str, Any]:
     """Return only currently approved, revalidated, path-free versions."""
@@ -87,6 +102,20 @@ def add_template_endpoint(
     finally:
         if staged_path is not None and not registered:
             staged_path.unlink(missing_ok=True)
+
+
+@router.post("/workbench/templates/derive")
+def derive_template_endpoint(body: TemplateDeriveRequest) -> dict[str, Any]:
+    try:
+        result = _template_service().derive_customized(
+            body.source_template_ref.model_dump(),
+            body.template_ref.model_dump(),
+            body.display_name,
+            body.customization.model_dump(),
+        )
+        return _envelope(result)
+    except Exception as error:
+        _handle(error)
 
 
 @router.delete("/workbench/templates/{template_id}/{version}")
@@ -179,6 +208,7 @@ def _handle(error: Exception) -> None:
             "TEMPLATE_FINGERPRINT_MISMATCH", "TEMPLATE_RULE_VALIDATION_FAILED",
             "INVALID_TEMPLATE_REFERENCE", "FORBIDDEN_OPAQUE_ID", "INVALID_OPAQUE_ID",
             "INVALID_TEMPLATE_VERSION", "TEMPLATE_UPLOAD_INVALID",
+            "TEMPLATE_CUSTOMIZATION_INVALID",
         }
         else 413 if code == "TEMPLATE_UPLOAD_TOO_LARGE"
         else 500
@@ -209,4 +239,5 @@ def _safe_message(code: str) -> str:
         "HISTORICAL_TEMPLATE_READ_ONLY": "历史内置模板仅供既有案件重导出，不能用于新选择、默认设置或删除。",
         "TEMPLATE_UPLOAD_INVALID": "请上传有效的 DOCX 模板文件。",
         "TEMPLATE_UPLOAD_TOO_LARGE": "模板文件不能超过 50MB。",
+        "TEMPLATE_CUSTOMIZATION_INVALID": "模板编辑参数不在允许范围内。",
     }.get(code, "模板请求未完成，请稍后重试。")

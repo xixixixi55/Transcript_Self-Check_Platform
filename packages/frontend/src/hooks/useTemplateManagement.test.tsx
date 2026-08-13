@@ -24,6 +24,10 @@ const current: TemplateManagementRecord = {
   },
   asset_id: 'asset-SYNTHETIC-current', registered_at: '2026-08-01T00:00:00Z',
   is_default: true, can_delete: false,
+  can_customize: true,
+  customization: {
+    document_title: '电子数据检查笔录', body_font: '仿宋_GB2312', body_font_size: 16,
+  },
 }
 
 const uploaded: TemplateManagementRecord = {
@@ -98,5 +102,26 @@ describe('useTemplateManagement', () => {
     expect(deleteMock).toHaveBeenCalledWith(
       API_ENDPOINTS.WORKBENCH_TEMPLATE(uploaded.template_ref.template_id, uploaded.template_ref.version),
     )
+  })
+
+  it('posts a controlled customization and reloads management state', async () => {
+    postMock.mockResolvedValue({ data: { data: uploaded } })
+    const view = renderHook(() => useTemplateManagement())
+    await waitFor(() => expect(view.result.current.templates).toHaveLength(1))
+    const input = {
+      source_template_ref: current.template_ref,
+      template_ref: uploaded.template_ref,
+      display_name: uploaded.display_name,
+      customization: {
+        document_title: 'SYNTHETIC 定制检查笔录',
+        body_font: '宋体' as const,
+        body_font_size: 16 as const,
+      },
+    }
+
+    await act(async () => { await view.result.current.deriveTemplate(input) })
+
+    expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_TEMPLATE_DERIVE, input)
+    expect(getMock).toHaveBeenCalledTimes(2)
   })
 })

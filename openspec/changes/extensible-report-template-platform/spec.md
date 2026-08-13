@@ -451,7 +451,7 @@
 
 ### Requirement: Current template is a versioned profile
 
-系统 MUST 将正式模板登记为固定的 `current-template-v1`，由固定 `TemplateProfile` 描述其资产哈希、占位符、表格、VML 文本框、当前受控重复区、图片区、分页和保持完整约束。阶段一 MUST 只支持该 Profile 和当前 DOCX Renderer 的受控扩展；通用模板设计器、通用重复块 DSL、任意 DOCX 自动绑定、可视化模板编辑和无标记模板识别均属于阶段三，阶段一不得实现或静默启用这些能力。
+系统 MUST 将正式模板登记为固定的 `current-template-v1`，由固定 `TemplateProfile` 描述其资产哈希、占位符、表格、VML 文本框、当前受控重复区、图片区、分页和保持完整约束。阶段一 MUST 只支持该 Profile 和当前 DOCX Renderer 的受控扩展，并 MAY 允许用户在前端以已校验版本为源修改白名单内的文书固定标题、正文默认字体和字号。保存修改 MUST 发布新的不可变模板版本，重新计算包指纹并通过完整固定 Profile 结构校验；不得改写源版本或案件引用。通用模板设计器、通用重复块 DSL、任意 DOCX 自动绑定、自由拖拽排版和无标记模板识别均属于阶段三，阶段一不得实现或静默启用这些能力。
 
 当前生产边界：`current-template-v1` TemplateProfile、`ArchiveManifest` 和 `AttachmentPlan` 已由 legacy DTO 渲染链消费；统一 `DocumentRenderPlan` 仍是未来合同目标，当前没有生产构造和消费。正式模板没有用于展示 `disc_capacity_bytes` 的独立位置，本变更不通过修改 Word 布局补充该位置。
 
@@ -469,6 +469,17 @@
 
 - **WHEN** 模板路径存在但内容哈希与 Profile 不一致
 - **THEN** 导出被阻止并提示模板版本不匹配，不自动使用未知模板
+
+#### Scenario: 前端受控编辑发布新版本
+
+- **WHEN** 用户在模板管理页以已校验的可用版本为源，修改文书固定标题、白名单字体或字号并保存
+- **THEN** 系统从源资产副本生成新 ID/版本资产，并在重新通过包指纹、占位符、VML、表格与分页结构校验后将新版本记为已校验
+- **AND** 源资产字节、源版本登记和已有案件引用保持不变
+
+#### Scenario: 受控编辑拒绝越界修改
+
+- **WHEN** 请求使用未审核或历史只读源模板、非白名单字体/字号、重复版本或未声明编辑字段
+- **THEN** 系统返回稳定安全错误且不登记新模板资产
 
 #### Scenario: 清理内置模板而保持既有案件可复现
 

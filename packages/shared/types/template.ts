@@ -48,12 +48,30 @@ export interface TemplateVersion {
 export interface TemplateManagementRecord extends TemplateVersion {
   is_default: boolean
   can_delete: boolean
+  can_customize: boolean
+  customization: TemplateCustomization
 }
 
 export interface TemplateManagementResponse {
   templates: TemplateManagementRecord[]
   default_template_ref: TemplateVersionRef | null
   defaults_revision: number
+}
+
+export type TemplateBodyFont = '仿宋_GB2312' | '仿宋' | '宋体'
+export type TemplateBodyFontSize = 14 | 15 | 16 | 17 | 18
+
+export interface TemplateCustomization {
+  document_title: string
+  body_font: TemplateBodyFont
+  body_font_size: TemplateBodyFontSize
+}
+
+export interface DeriveTemplateRequest {
+  source_template_ref: TemplateVersionRef
+  template_ref: TemplateVersionRef
+  display_name: string
+  customization: TemplateCustomization
 }
 
 export interface TemplateValidationSuccess {

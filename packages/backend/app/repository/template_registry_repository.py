@@ -21,7 +21,10 @@ class TemplateRegistryRepository:
         if not self.asset_roots:
             raise ValueError("template asset roots are required")
 
-    def register(self, template: Mapping[str, Any], asset_path: str | Path) -> dict[str, Any]:
+    def register(
+        self, template: Mapping[str, Any], asset_path: str | Path,
+        *, connection: Any | None = None,
+    ) -> dict[str, Any]:
         value = _template(template)
         locator = self._controlled_locator(asset_path)
         existing = self.find_internal(value["template_ref"])
@@ -31,23 +34,31 @@ class TemplateRegistryRepository:
             if immutable != requested:
                 raise WorkbenchPersistenceError("TEMPLATE_VERSION_IMMUTABLE")
             return existing
-        with self.database.transaction() as connection:
-            try:
-                connection.execute(
-                    "INSERT INTO template_versions(template_id,version,schema_version,"
-                    "display_name,fingerprint,validation_rules_json,asset_id,"
-                    "internal_locator,registered_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                    (
-                        value["template_ref"]["template_id"],
-                        value["template_ref"]["version"], value["schema_version"],
-                        value["display_name"], value["fingerprint"],
-                        json_text(value["validation_rules"]), value["asset_id"],
-                        str(locator), value["registered_at"],
-                    ),
-                )
-            except Exception as error:
-                raise WorkbenchPersistenceError("TEMPLATE_VERSION_CREATE_FAILED") from error
+        if connection is not None:
+            self._insert(connection, value, locator)
+            return value | {"internal_locator": str(locator)}
+        with self.database.transaction() as transaction:
+            self._insert(transaction, value, locator)
         return self.get_internal(value["template_ref"])
+
+    def _insert(self, connection: Any, value: Mapping[str, Any], locator: Path) -> None:
+        try:
+            connection.execute(
+                "INSERT INTO template_versions(template_id,version,schema_version,"
+                "display_name,fingerprint,validation_rules_json,asset_id,"
+                "internal_locator,registered_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    value["template_ref"]["template_id"],
+                    value["template_ref"]["version"], value["schema_version"],
+                    value["display_name"], value["fingerprint"],
+                    json_text(value["validation_rules"]), value["asset_id"],
+                    str(locator), value["registered_at"],
+                ),
+            )
+        except Exception as error:
+            if "UNIQUE constraint failed" in str(error):
+                raise WorkbenchPersistenceError("TEMPLATE_VERSION_IMMUTABLE") from error
+            raise WorkbenchPersistenceError("TEMPLATE_VERSION_CREATE_FAILED") from error
 
     def find_internal(self, template_ref: Mapping[str, Any]) -> dict[str, Any] | None:
         reference = _reference(template_ref)

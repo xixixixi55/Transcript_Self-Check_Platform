@@ -135,6 +135,11 @@ def validate_current_template_profile(
 ) -> CurrentTemplateProfile:
     profile = validate_template_package_fingerprint(template_path, expected_fingerprint)
     body = doc.element.body
+    direct_paragraphs = body.findall("./{%s}p" % _W_NS)
+    if len(direct_paragraphs) < 2 or not paragraph_text(direct_paragraphs[0]).strip():
+        raise TemplateProfileError("当前模板缺少固定标题槽。")
+    if "{{document_number}}" not in paragraph_text(direct_paragraphs[1]):
+        raise TemplateProfileError("当前模板文号槽位置不匹配。")
     if _find_paragraph(body, profile.attachment1_label, exact=True) is None:
         raise TemplateProfileError("当前模板缺少附件一定位锚点。")
     if _find_paragraph(body, profile.attachment1_heading, exact=True) is None:

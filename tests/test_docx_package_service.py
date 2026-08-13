@@ -138,6 +138,27 @@ def test_profile_requires_balanced_horizontal_body_indents_to_be_present():
         validate_current_template_profile(str(TEMPLATE), doc)
 
 
+def test_profile_requires_fixed_title_and_document_number_slots():
+    without_title = Document(str(TEMPLATE))
+    for node in without_title.element.body[0].xpath(".//w:t"):
+        node.text = ""
+    with pytest.raises(TemplateProfileError, match="固定标题槽"):
+        validate_current_template_profile(str(TEMPLATE), without_title)
+
+    moved_title = Document(str(TEMPLATE))
+    first, second = moved_title.element.body[0], moved_title.element.body[1]
+    title_text = "".join(first.xpath(".//w:t/text()"))
+    for node in first.xpath(".//w:t"):
+        node.text = ""
+    second_text_nodes = second.xpath(".//w:t")
+    assert second_text_nodes
+    second_text_nodes[0].text = title_text
+    for node in second_text_nodes[1:]:
+        node.text = ""
+    with pytest.raises(TemplateProfileError, match="固定标题槽"):
+        validate_current_template_profile(str(TEMPLATE), moved_title)
+
+
 def test_previous_layout_requires_exact_historical_builtin_reference():
     document = Document(str(PREVIOUS_TEMPLATE))
     with pytest.raises(TemplateProfileError, match="未居中"):

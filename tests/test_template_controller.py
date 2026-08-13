@@ -6,11 +6,14 @@ import json
 import os
 import shutil
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from docx import Document
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
@@ -30,6 +33,8 @@ from app.services.template_profile_service import (  # noqa: E402
     TemplateProfileError,
 )
 from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
+from app.services import template_registry_service  # noqa: E402
+from app.services.docx_package_service import compute_ooxml_package_fingerprint  # noqa: E402
 from test_legacy_report_projection_service import _report  # noqa: E402
 
 CASE_ID = "case-SYNTHETIC-template-api"
@@ -97,6 +102,19 @@ def _selection_body(lease: dict, revision: int = 4) -> dict:
         "expected_revision": revision,
         "lease_id": lease["lease_id"],
         "lease_token": lease["lease_token"],
+    }
+
+
+def _derive_body(template_ref: dict, source_ref: dict | None = None) -> dict:
+    return {
+        "source_template_ref": source_ref or REFERENCE,
+        "template_ref": template_ref,
+        "display_name": "SYNTHETIC 前端微调模板",
+        "customization": {
+            "document_title": "SYNTHETIC 定制检查笔录",
+            "body_font": "宋体",
+            "body_font_size": 15,
+        },
     }
 
 
@@ -254,6 +272,7 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     )
     assert historical_template["is_default"] is False
     assert historical_template["can_delete"] is False
+    assert historical_template["can_customize"] is False
     historical_delete = client.delete(
         f"/api/v1/workbench/templates/electronic-inspection-record/{LEGACY_TEMPLATE_VERSION}",
     )
@@ -264,6 +283,8 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     )
     assert previous_template["is_default"] is False
     assert previous_template["can_delete"] is False
+    assert previous_template["can_customize"] is False
+    assert default_template["can_customize"] is True
 
     source_template = Path(__file__).parents[1] / "word_templates" / "template.docx"
     upload_response = client.post(
@@ -343,6 +364,239 @@ def test_upload_cannot_reclassify_historical_bytes_as_custom_template(template_a
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "TEMPLATE_RULE_VALIDATION_FAILED"
+
+
+def test_frontend_customization_derives_valid_immutable_template(template_api):
+    client, services, _lease = template_api
+    source = services.template_registry.get_internal(REFERENCE)
+    source_bytes = Path(source["internal_locator"]).read_bytes()
+    derived_ref = {
+        "template_id": "template-SYNTHETIC-derived", "version": "1.1.0",
+    }
+    body = _derive_body(derived_ref)
+    with services.database.transaction() as connection:
+        connection.execute(
+            "UPDATE case_drafts SET template_ref_json = ? WHERE case_id = ?",
+            (json.dumps(REFERENCE), CASE_ID),
+        )
+
+    response = client.post("/api/v1/workbench/templates/derive", json=body)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["template_ref"] == derived_ref
+    assert services.templates.validate(derived_ref)["valid"] is True
+    derived = services.template_registry.get_internal(derived_ref)
+    assert Path(source["internal_locator"]).read_bytes() == source_bytes
+    assert Path(derived["internal_locator"]).read_bytes() != source_bytes
+    assert "SYNTHETIC 定制检查笔录" in Document(derived["internal_locator"]).paragraphs[0].text
+    with services.database.connect() as connection:
+        case_reference = json.loads(connection.execute(
+            "SELECT template_ref_json FROM case_drafts WHERE case_id = ?", (CASE_ID,),
+        ).fetchone()["template_ref_json"])
+    assert case_reference == REFERENCE
+
+    duplicate = client.post("/api/v1/workbench/templates/derive", json=body)
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["code"] == "TEMPLATE_VERSION_IMMUTABLE"
+
+
+def test_frontend_customization_rolls_back_registration_when_approval_fails(template_api):
+    client, services, _lease = template_api
+    derived_ref = {
+        "template_id": "template-SYNTHETIC-approval-failure", "version": "1.0.0",
+    }
+    asset_root = services.database.database_path.parent / "template-assets"
+    before = set(asset_root.glob("derived-template-*.docx"))
+
+    with patch.object(
+        services.template_approvals,
+        "record",
+        side_effect=WorkbenchPersistenceError("TEMPLATE_APPROVAL_CREATE_FAILED"),
+    ):
+        response = client.post(
+            "/api/v1/workbench/templates/derive", json=_derive_body(derived_ref),
+        )
+
+    assert response.status_code == 500
+    assert services.template_registry.find_internal(derived_ref) is None
+    assert set(asset_root.glob("derived-template-*.docx")) == before
+
+
+def test_frontend_customization_validation_failure_leaves_no_asset_or_record(template_api):
+    client, services, _lease = template_api
+    derived_ref = {
+        "template_id": "template-SYNTHETIC-validation-failure", "version": "1.0.0",
+    }
+    asset_root = services.database.database_path.parent / "template-assets"
+    before = set(asset_root.glob("derived-template-*.docx"))
+
+    with patch.object(
+        template_registry_service,
+        "validate_current_template_profile",
+        side_effect=WorkbenchPersistenceError("TEMPLATE_RULE_VALIDATION_FAILED"),
+    ):
+        response = client.post(
+            "/api/v1/workbench/templates/derive", json=_derive_body(derived_ref),
+        )
+
+    assert response.status_code == 422
+    assert services.template_registry.find_internal(derived_ref) is None
+    assert set(asset_root.glob("derived-template-*.docx")) == before
+
+
+def test_frontend_customization_rejects_unapproved_source(template_api):
+    client, services, _lease = template_api
+    asset_root = services.database.database_path.parent / "template-assets"
+    asset_root.mkdir(exist_ok=True)
+    pending_asset = asset_root / "SYNTHETIC-pending-derive.docx"
+    shutil.copy2(Path(__file__).parents[1] / "word_templates" / "template.docx", pending_asset)
+    pending_ref = {"template_id": "template-SYNTHETIC-pending-derive", "version": "1.0.0"}
+    services.template_registry.register({
+        "schema_version": 1,
+        "template_ref": pending_ref,
+        "display_name": "SYNTHETIC pending derive source",
+        "fingerprint": CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+        "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
+        "asset_id": "asset-SYNTHETIC-pending-derive",
+        "registered_at": "2026-07-30T00:00:00+00:00",
+    }, pending_asset)
+    services.template_approvals.record(pending_ref, {
+        "approval_record_id": "approval-SYNTHETIC-pending-derive",
+        "status": "pending",
+        "acceptance_summary": "SYNTHETIC pending derive source",
+        "recorded_at": "2026-07-30T01:00:00+00:00",
+    })
+    derived_ref = {
+        "template_id": "template-SYNTHETIC-from-pending", "version": "1.0.0",
+    }
+
+    response = client.post(
+        "/api/v1/workbench/templates/derive",
+        json=_derive_body(derived_ref, pending_ref),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "TEMPLATE_NOT_APPROVED"
+    assert services.template_registry.find_internal(derived_ref) is None
+
+
+def test_broken_title_slot_is_rejected_without_upload_or_derive_residue(template_api, tmp_path):
+    client, services, _lease = template_api
+    asset_root = services.database.database_path.parent / "template-assets"
+    malformed = tmp_path / "SYNTHETIC-missing-title.docx"
+    document = Document(Path(__file__).parents[1] / "word_templates" / "template.docx")
+    for node in document.element.body[0].xpath(".//w:t"):
+        node.text = ""
+    document.save(malformed)
+    before = set(asset_root.glob("*.docx"))
+
+    upload_ref = {"template_id": "template-SYNTHETIC-broken-upload", "version": "1.0.0"}
+    upload = client.post(
+        "/api/v1/workbench/templates",
+        data={
+            "template_id": upload_ref["template_id"], "version": upload_ref["version"],
+            "display_name": "SYNTHETIC broken title upload",
+        },
+        files={"file": (
+            malformed.name, malformed.read_bytes(),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )},
+    )
+    assert upload.status_code == 422
+    assert services.template_registry.find_internal(upload_ref) is None
+    assert set(asset_root.glob("*.docx")) == before
+
+    source_asset = asset_root / "SYNTHETIC-broken-title-source.docx"
+    shutil.copy2(malformed, source_asset)
+    source_ref = {"template_id": "template-SYNTHETIC-broken-source", "version": "1.0.0"}
+    services.template_registry.register({
+        "schema_version": 1, "template_ref": source_ref,
+        "display_name": "SYNTHETIC broken source",
+        "fingerprint": compute_ooxml_package_fingerprint(source_asset),
+        "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
+        "asset_id": "asset-SYNTHETIC-broken-source",
+        "registered_at": "2026-07-30T00:00:00+00:00",
+    }, source_asset)
+    services.template_approvals.record(source_ref, {
+        "approval_record_id": "approval-SYNTHETIC-broken-source",
+        "status": "approved", "acceptance_summary": "SYNTHETIC legacy accepted source",
+        "recorded_at": "2026-07-30T01:00:00+00:00",
+    })
+    derived_ref = {"template_id": "template-SYNTHETIC-broken-derived", "version": "1.0.0"}
+    before_derive = set(asset_root.glob("*.docx"))
+    derive = client.post(
+        "/api/v1/workbench/templates/derive",
+        json=_derive_body(derived_ref, source_ref),
+    )
+    assert derive.status_code == 422
+    assert derive.json()["detail"]["code"] == "TEMPLATE_RULE_VALIDATION_FAILED"
+    assert services.template_registry.find_internal(derived_ref) is None
+    assert set(asset_root.glob("*.docx")) == before_derive
+
+
+def test_concurrent_derive_same_reference_keeps_only_winning_asset(template_api):
+    _client, services, _lease = template_api
+    derived_ref = {
+        "template_id": "template-SYNTHETIC-concurrent", "version": "1.0.0",
+    }
+    asset_root = services.database.database_path.parent / "template-assets"
+    before = set(asset_root.glob("derived-template-*.docx"))
+    barrier = threading.Barrier(2)
+    original_customize = template_registry_service.customize_template
+
+    def synchronized_customize(source, destination, customization):
+        original_customize(source, destination, customization)
+        barrier.wait(timeout=5)
+
+    def derive_once():
+        try:
+            return services.templates.derive_customized(
+                REFERENCE, derived_ref, "SYNTHETIC concurrent", _derive_body(derived_ref)["customization"],
+            )
+        except WorkbenchPersistenceError as error:
+            return error.code
+
+    with patch.object(
+        template_registry_service, "customize_template", side_effect=synchronized_customize,
+    ), ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _index: derive_once(), range(2)))
+
+    assert sum(isinstance(result, dict) for result in results) == 1
+    assert results.count("TEMPLATE_VERSION_IMMUTABLE") == 1
+    assert services.template_registry.find_internal(derived_ref) is not None
+    assert len(set(asset_root.glob("derived-template-*.docx")) - before) == 1
+
+
+def test_frontend_customization_rejects_readonly_invalid_and_extra_fields(template_api):
+    client, services, _lease = template_api
+    before = len(services.template_approvals.list_approved())
+    base = {
+        "source_template_ref": LEGACY_REFERENCE,
+        "template_ref": {
+            "template_id": "template-SYNTHETIC-invalid-derived", "version": "1.0.0",
+        },
+        "display_name": "SYNTHETIC invalid derived",
+        "customization": {
+            "document_title": "SYNTHETIC",
+            "body_font": "宋体",
+            "body_font_size": 16,
+        },
+    }
+    readonly = client.post("/api/v1/workbench/templates/derive", json=base)
+    assert readonly.status_code == 409
+    assert readonly.json()["detail"]["code"] == "HISTORICAL_TEMPLATE_READ_ONLY"
+
+    base["source_template_ref"] = REFERENCE
+    base["customization"]["body_font"] = "Arial"
+    invalid = client.post("/api/v1/workbench/templates/derive", json=base)
+    assert invalid.status_code == 422
+    assert invalid.json()["detail"]["code"] == "TEMPLATE_CUSTOMIZATION_INVALID"
+
+    base["customization"]["body_font"] = "宋体"
+    base["customization"]["unexpected"] = "SYNTHETIC"
+    extra = client.post("/api/v1/workbench/templates/derive", json=base)
+    assert extra.status_code == 422
+    assert len(services.template_approvals.list_approved()) == before
 
 
 def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_path: Path):

@@ -15,6 +15,7 @@ from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_database import utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .docx_package_service import compute_ooxml_package_fingerprint
+from .template_customization_service import customize_template, read_template_customization
 from .template_profile_service import (
     CURRENT_TEMPLATE_VALIDATION_RULE,
     is_historical_builtin_template_ref,
@@ -32,6 +33,7 @@ class TemplateRegistryService:
         approvals: TemplateApprovalRepository,
         defaults: SharedDefaultsRepository | None = None,
     ) -> None:
+        self.database = database
         self.registry = registry
         self.approvals = approvals
         self.references = CaseTemplateReferenceRepository(database)
@@ -87,6 +89,10 @@ class TemplateRegistryService:
                 "is_default": is_default,
                 "can_delete": not is_historical and not is_default
                 and not self.references.is_referenced(reference),
+                "can_customize": not is_historical,
+                "customization": read_template_customization(
+                    self.registry.get_internal(reference)["internal_locator"],
+                ),
             })
         return {
             "templates": records,
@@ -139,6 +145,69 @@ class TemplateRegistryService:
         if not result["valid"]:
             raise WorkbenchPersistenceError(str(result.get("error_code", "TEMPLATE_RULE_VALIDATION_FAILED")))
         return result["template"]
+
+    def derive_customized(
+        self,
+        source_template_ref: Mapping[str, Any],
+        template_ref: Mapping[str, Any],
+        display_name: str,
+        customization: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        _reject_historical_builtin_mutation(source_template_ref)
+        source = require_registered_template(
+            self.registry, self.approvals, source_template_ref,
+        )
+        reference = {
+            "template_id": template_ref.get("template_id"),
+            "version": template_ref.get("version"),
+        }
+        if self.registry.find_internal(reference) is not None:
+            raise WorkbenchPersistenceError("TEMPLATE_VERSION_IMMUTABLE")
+        asset_root = self.registry.asset_roots[-1]
+        asset_root.mkdir(parents=True, exist_ok=True)
+        destination = asset_root / f"derived-template-{secrets.token_hex(16)}.docx"
+        try:
+            customize_template(source["internal_locator"], destination, customization)
+            fingerprint = compute_ooxml_package_fingerprint(destination)
+            from docx import Document
+            validate_current_template_profile(
+                str(destination), Document(str(destination)), fingerprint,
+            )
+            template_record = {
+                "schema_version": 1,
+                "template_ref": reference,
+                "display_name": display_name,
+                "fingerprint": fingerprint,
+                "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
+                "asset_id": f"template-asset-derived-{secrets.token_hex(16)}",
+                "registered_at": utc_now(),
+            }
+            approval_record = {
+                "approval_record_id": f"template-approval-derived-{secrets.token_hex(16)}",
+                "status": "approved",
+                "acceptance_summary": "前端受控编辑版本已通过 current-template-v1 结构校验。",
+                "recorded_at": utc_now(),
+            }
+            with self.database.transaction() as connection:
+                registered = self.registry.register(
+                    template_record, destination, connection=connection,
+                )
+                approval = self.approvals.record(
+                    reference, approval_record, connection=connection,
+                )
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
+        return {
+            key: registered[key] for key in (
+                "schema_version", "template_ref", "display_name", "fingerprint",
+                "validation_rules", "asset_id", "registered_at",
+            )
+        } | {"approval_record": {
+            key: approval[key] for key in (
+                "approval_record_id", "status", "acceptance_summary", "recorded_at",
+            )
+        }}
 
     def remove(self, template_ref: Mapping[str, Any]) -> dict[str, Any]:
         _reject_historical_builtin_mutation(template_ref)

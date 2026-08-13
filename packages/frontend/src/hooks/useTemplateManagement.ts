@@ -5,6 +5,7 @@ import { API_ENDPOINTS } from '@biji/shared/constants'
 import type {
   TemplateManagementRecord,
   TemplateManagementResponse,
+  DeriveTemplateRequest,
   TemplateVersionRef,
 } from '@biji/shared/types'
 
@@ -13,6 +14,7 @@ export type TemplateManagementErrorCode =
   | 'TEMPLATE_DEFAULT_SET_FAILED'
   | 'TEMPLATE_ADD_FAILED'
   | 'TEMPLATE_DELETE_FAILED'
+  | 'TEMPLATE_DERIVE_FAILED'
   | 'TEMPLATE_RULE_VALIDATION_FAILED'
   | 'TEMPLATE_UPLOAD_INVALID'
   | 'TEMPLATE_UPLOAD_TOO_LARGE'
@@ -20,6 +22,7 @@ export type TemplateManagementErrorCode =
   | 'TEMPLATE_IN_USE'
   | 'TEMPLATE_VERSION_IMMUTABLE'
   | 'REVISION_CONFLICT'
+  | 'TEMPLATE_CUSTOMIZATION_INVALID'
 
 function requestErrorCode(error: unknown, fallback: TemplateManagementErrorCode): TemplateManagementErrorCode {
   const code = (error as any)?.response?.data?.detail?.code
@@ -27,6 +30,7 @@ function requestErrorCode(error: unknown, fallback: TemplateManagementErrorCode)
     'TEMPLATE_RULE_VALIDATION_FAILED', 'TEMPLATE_UPLOAD_INVALID', 'TEMPLATE_UPLOAD_TOO_LARGE',
     'DEFAULT_TEMPLATE_CANNOT_DELETE', 'TEMPLATE_IN_USE', 'TEMPLATE_VERSION_IMMUTABLE',
     'REVISION_CONFLICT',
+    'TEMPLATE_CUSTOMIZATION_INVALID',
   ]
   return typeof code === 'string' && known.includes(code as TemplateManagementErrorCode)
     ? code as TemplateManagementErrorCode : fallback
@@ -43,10 +47,16 @@ function isManagementResponse(value: unknown): value is TemplateManagementRespon
 export function isTemplateManagementRecord(value: unknown): value is TemplateManagementRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Partial<TemplateManagementRecord>
+  const customization = record.customization as Partial<TemplateManagementRecord['customization']> | undefined
   return record.schema_version === 1
     && typeof record.display_name === 'string'
     && typeof record.is_default === 'boolean'
     && typeof record.can_delete === 'boolean'
+    && typeof record.can_customize === 'boolean'
+    && customization !== undefined
+    && typeof customization.document_title === 'string'
+    && ['仿宋_GB2312', '仿宋', '宋体'].includes(customization.body_font || '')
+    && [14, 15, 16, 17, 18].includes(customization.body_font_size || 0)
 }
 
 export function useTemplateManagement() {
@@ -142,6 +152,21 @@ export function useTemplateManagement() {
     }
   }, [applyResponse])
 
+  const deriveTemplate = useCallback(async (input: DeriveTemplateRequest) => {
+    setSaving(true)
+    setErrorCode(null)
+    try {
+      await axios.post(API_ENDPOINTS.WORKBENCH_TEMPLATE_DERIVE, input)
+      await reload()
+      return true
+    } catch (error) {
+      setErrorCode(requestErrorCode(error, 'TEMPLATE_DERIVE_FAILED'))
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }, [reload])
+
   return {
     templates,
     defaultTemplateRef,
@@ -153,5 +178,6 @@ export function useTemplateManagement() {
     setDefault,
     addTemplate,
     deleteTemplate,
+    deriveTemplate,
   }
 }

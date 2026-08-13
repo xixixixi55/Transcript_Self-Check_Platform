@@ -876,9 +876,9 @@ def _clear_para(para):
 
 def _apply_required_heading_styles(doc: Document) -> None:
     """Apply stable title formatting after template regions have been rendered."""
-    for paragraph in doc.paragraphs:
+    for index, paragraph in enumerate(doc.paragraphs):
         normalized = "".join(paragraph.text.split())
-        if normalized == "电子数据检查笔录":
+        if index == 0 and normalized:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
             for run in paragraph.runs:
                 run.bold = True

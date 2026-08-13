@@ -22,29 +22,41 @@ class TemplateApprovalRepository:
 
     def record(
         self, template_ref: Mapping[str, Any], approval: Mapping[str, Any],
+        *, connection: Any | None = None,
     ) -> dict[str, Any]:
-        template = self.registry.get_internal(template_ref)
+        template = (
+            self.registry.get_internal(template_ref) if connection is None
+            else {"template_ref": dict(template_ref)}
+        )
         value = _approval(approval)
-        existing = self.find(value["approval_record_id"])
+        existing = None if connection is not None else self.find(value["approval_record_id"])
         if existing is not None:
             if existing != value | {"template_ref": template["template_ref"]}:
                 raise WorkbenchPersistenceError("TEMPLATE_APPROVAL_IMMUTABLE")
             return existing
-        with self.database.transaction() as connection:
-            try:
-                connection.execute(
-                    "INSERT INTO template_approvals(approval_record_id,template_id,"
-                    "version,status,acceptance_summary,recorded_at) VALUES (?,?,?,?,?,?)",
-                    (
-                        value["approval_record_id"],
-                        template["template_ref"]["template_id"],
-                        template["template_ref"]["version"], value["status"],
-                        value["acceptance_summary"], value["recorded_at"],
-                    ),
-                )
-            except Exception as error:
-                raise WorkbenchPersistenceError("TEMPLATE_APPROVAL_CREATE_FAILED") from error
+        if connection is not None:
+            self._insert(connection, template, value)
+            return value | {"template_ref": template["template_ref"]}
+        with self.database.transaction() as transaction:
+            self._insert(transaction, template, value)
         return value | {"template_ref": template["template_ref"]}
+
+    def _insert(
+        self, connection: Any, template: Mapping[str, Any], value: Mapping[str, Any],
+    ) -> None:
+        try:
+            connection.execute(
+                "INSERT INTO template_approvals(approval_record_id,template_id,"
+                "version,status,acceptance_summary,recorded_at) VALUES (?,?,?,?,?,?)",
+                (
+                    value["approval_record_id"],
+                    template["template_ref"]["template_id"],
+                    template["template_ref"]["version"], value["status"],
+                    value["acceptance_summary"], value["recorded_at"],
+                ),
+            )
+        except Exception as error:
+            raise WorkbenchPersistenceError("TEMPLATE_APPROVAL_CREATE_FAILED") from error
 
     def find(self, approval_record_id: str) -> dict[str, Any] | None:
         with self.database.connect() as connection:

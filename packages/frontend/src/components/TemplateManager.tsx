@@ -7,12 +7,15 @@ import { DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import type { TemplateManagementRecord, TemplateVersionRef } from '@biji/shared/types'
 import { useTemplateManagement } from '../hooks/useTemplateManagement'
+import { TemplateCustomizationEditor } from './TemplateCustomizationEditor'
 
 const errorMessages: Record<string, string> = {
   TEMPLATE_MANAGEMENT_LOAD_FAILED: '笔录模版列表加载失败，请稍后重试。',
   TEMPLATE_DEFAULT_SET_FAILED: '默认模版设置失败，请稍后重试。',
   TEMPLATE_ADD_FAILED: '模版添加失败，请检查文件后重试。',
   TEMPLATE_DELETE_FAILED: '模版删除失败，请稍后重试。',
+  TEMPLATE_DERIVE_FAILED: '模版微调版本发布失败，请检查后重试。',
+  TEMPLATE_CUSTOMIZATION_INVALID: '标题、字体或字号不在允许范围内。',
   TEMPLATE_RULE_VALIDATION_FAILED: '该 DOCX 未通过当前笔录模版结构校验。',
   TEMPLATE_UPLOAD_INVALID: '请上传有效的 DOCX 模版文件。',
   TEMPLATE_UPLOAD_TOO_LARGE: '模版文件不能超过 50MB。',
@@ -34,12 +37,13 @@ function templateKey(template: TemplateManagementRecord): string {
 
 export default function TemplateManager() {
   const {
-    templates, loading, saving, errorCode, reload, setDefault, addTemplate, deleteTemplate,
+    templates, loading, saving, errorCode, reload, setDefault, addTemplate, deleteTemplate, deriveTemplate,
   } = useTemplateManagement()
   const [modalOpen, setModalOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState(false)
   const [form] = Form.useForm<TemplateFormValues>()
+  const [customizationSource, setCustomizationSource] = useState<TemplateManagementRecord | null>(null)
 
   const openModal = () => {
     form.resetFields()
@@ -86,7 +90,7 @@ export default function TemplateManager() {
       title: '模版名称', key: 'display_name',
       render: (_value: unknown, _record: TemplateManagementRecord) => (
         <Space direction="vertical" size={0}>
-          <Typography.Text strong>测试地区模版</Typography.Text>
+          <Typography.Text strong>{_record.display_name}</Typography.Text>
           <Typography.Text type="secondary" className="template-manager__secondary-text">
             已通过 current-template-v1 结构校验
           </Typography.Text>
@@ -112,6 +116,13 @@ export default function TemplateManager() {
             onClick={() => void handleSetDefault(record.template_ref)}
           >
             设为默认
+          </Button>
+          <Button
+            type="link"
+            disabled={saving || !record.can_customize}
+            onClick={() => setCustomizationSource(record)}
+          >
+            前端微调
           </Button>
           <Popconfirm
             title="确认撤销该模版？"
@@ -228,6 +239,12 @@ export default function TemplateManager() {
           </Form.Item>
         </Form>
       </Modal>
+      <TemplateCustomizationEditor
+        source={customizationSource}
+        saving={saving}
+        onCancel={() => setCustomizationSource(null)}
+        onSave={deriveTemplate}
+      />
     </section>
   )
 }
