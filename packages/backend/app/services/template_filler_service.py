@@ -51,7 +51,8 @@ from .legacy_report_projection_service import project_ordered_legacy_report
 def fill_template(report: dict, template_path: str, output_path: str,
                   photo_paths: list[str] = None,
                   archive_manifest: Mapping | None = None,
-                  expected_template_fingerprint: str | None = None) -> str:
+                  expected_template_fingerprint: str | None = None,
+                  template_ref: Mapping | None = None) -> str:
     """
     用 InspectionReport 数据填充模板，生成输出文档。
     返回 output_path。
@@ -86,7 +87,7 @@ def fill_template(report: dict, template_path: str, output_path: str,
     doc = Document(template_path)
     if archive_manifest is not None:
         profile = validate_current_template_profile(
-            template_path, doc, expected_fingerprint,
+            template_path, doc, expected_fingerprint, template_ref,
         )
     flat = _flatten_report(report)
     flat["photo_count"] = str(plan.attachment2_state.photo_count if plan else len(photo_paths))

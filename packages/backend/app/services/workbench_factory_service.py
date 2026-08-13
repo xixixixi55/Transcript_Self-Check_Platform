@@ -46,6 +46,8 @@ from .template_profile_service import (
     CURRENT_TEMPLATE_VALIDATION_RULE,
     LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
     LEGACY_TEMPLATE_VERSION,
+    PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+    PREVIOUS_TEMPLATE_VERSION,
     validate_template_package_fingerprint,
 )
 from .template_registry_service import TemplateRegistryService
@@ -93,11 +95,11 @@ def build_workbench_services(
         database, (template_root, database.database_path.parent / "template-assets"),
     )
     template_approvals = TemplateApprovalRepository(database, template_registry)
-    current_template_ref, legacy_template_ref = _register_builtin_templates(
+    current_template_ref, historical_template_refs = _register_builtin_templates(
         template_registry, template_approvals, template_root,
     )
     SharedDefaultsRepository(database).ensure_default_template(
-        current_template_ref, replace_refs=(legacy_template_ref,),
+        current_template_ref, replace_refs=historical_template_refs,
     )
     admission_config = archive_admission_config or build_archive_admission_config()
     archive_scheduler = ArchiveSchedulerService(
@@ -179,14 +181,21 @@ def _register_builtin_templates(
     registry: TemplateRegistryRepository,
     approvals: TemplateApprovalRepository,
     template_root: Path,
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], tuple[dict[str, str], ...]]:
     legacy_reference = {
         "template_id": BUILTIN_TEMPLATE_ID, "version": LEGACY_TEMPLATE_VERSION,
     }
     legacy_asset = template_root / "template-v1.0.0.docx"
+    previous_reference = {
+        "template_id": BUILTIN_TEMPLATE_ID, "version": PREVIOUS_TEMPLATE_VERSION,
+    }
+    previous_asset = template_root / "template-v1.0.1.docx"
     current_asset = template_root / "template.docx"
     validate_template_package_fingerprint(
         str(legacy_asset), LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    )
+    validate_template_package_fingerprint(
+        str(previous_asset), PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
     )
     validate_template_package_fingerprint(
         str(current_asset), CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
@@ -196,6 +205,12 @@ def _register_builtin_templates(
         LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
         "template-asset-current-v1",
         legacy_asset,
+    )
+    registry.relocate_builtin_asset(
+        previous_reference,
+        PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+        "template-asset-current-v1-clean",
+        previous_asset,
     )
     reference = {
         "template_id": BUILTIN_TEMPLATE_ID, "version": CURRENT_TEMPLATE_VERSION,
@@ -210,15 +225,24 @@ def _register_builtin_templates(
         "current-template-v1 已通过既有 Word、VML、分页、表格和附件验收。",
     )
     _register_builtin_template(
+        registry, approvals, previous_reference,
+        "电子数据检查笔录（current-template-v1）",
+        PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+        "template-asset-current-v1-clean",
+        "template-approval-current-v1-clean",
+        previous_asset,
+        "current-template-v1 已清理批注和示例图片并通过结构验收。",
+    )
+    _register_builtin_template(
         registry, approvals, reference,
         "电子数据检查笔录（current-template-v1）",
         CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-clean",
-        "template-approval-current-v1-clean",
+        "template-asset-current-v1-balanced",
+        "template-approval-current-v1-balanced",
         current_asset,
-        "current-template-v1 已清理批注和示例图片并通过结构验收。",
+        "current-template-v1 已修正正文与附件一整体偏右并通过 Word 版式验收。",
     )
-    return reference, legacy_reference
+    return reference, (legacy_reference, previous_reference)
 
 
 def _register_builtin_template(

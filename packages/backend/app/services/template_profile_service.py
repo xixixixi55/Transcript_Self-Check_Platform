@@ -26,10 +26,16 @@ from .attachment2_image_service import (
 
 CURRENT_TEMPLATE_PROFILE_ID = "current-template-v1"
 BUILTIN_TEMPLATE_ID = "electronic-inspection-record"
-CURRENT_TEMPLATE_VERSION = "1.0.1"
-CURRENT_TEMPLATE_PACKAGE_FINGERPRINT = "206AC62CC093D587E1BB59E9286427570C637BF3B9041814BF2DCFD652DB8232"
+CURRENT_TEMPLATE_VERSION = "1.0.2"
+CURRENT_TEMPLATE_PACKAGE_FINGERPRINT = "B61C12CC2A1144E9FA33B2A221E4EF778D9625C2AFAF04AF3B38024B13794B32"
+PREVIOUS_TEMPLATE_VERSION = "1.0.1"
+PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT = "206AC62CC093D587E1BB59E9286427570C637BF3B9041814BF2DCFD652DB8232"
 LEGACY_TEMPLATE_VERSION = "1.0.0"
 LEGACY_TEMPLATE_PACKAGE_FINGERPRINT = "616E3D1200C98DFD55C6DA7D5FB7DBB1C395BEF9FD78B1B6F59DC79BC4E814A7"
+HISTORICAL_BUILTIN_TEMPLATE_FINGERPRINTS = {
+    LEGACY_TEMPLATE_VERSION: LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    PREVIOUS_TEMPLATE_VERSION: PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+}
 CURRENT_TEMPLATE_VALIDATION_RULE = {
     "rule_id": "current-template-profile",
     "version": "1.0.0",
@@ -42,8 +48,19 @@ def is_historical_builtin_template_ref(template_ref: Any) -> bool:
     """Return whether a reference is the read-only built-in export asset."""
     return isinstance(template_ref, Mapping) and (
         template_ref.get("template_id") == BUILTIN_TEMPLATE_ID
-        and template_ref.get("version") == LEGACY_TEMPLATE_VERSION
+        and template_ref.get("version") in HISTORICAL_BUILTIN_TEMPLATE_FINGERPRINTS
     )
+
+
+def _is_historical_layout_exempt(
+    template_ref: Any, expected_fingerprint: str,
+) -> bool:
+    """Allow legacy layout only for an exact immutable built-in version."""
+    if not is_historical_builtin_template_ref(template_ref):
+        return False
+    return HISTORICAL_BUILTIN_TEMPLATE_FINGERPRINTS.get(
+        str(template_ref["version"]),
+    ) == expected_fingerprint
 
 class TemplateProfileError(ValueError):
     """Raised when the fixed template is missing or has drifted."""
@@ -82,8 +99,10 @@ class CurrentTemplateProfile:
     )
     expected_attachment1_row_heights: tuple[int, ...] = (1392, 2024, 954, 954, 954, 2922)
     expected_page_height_twips: int = 16838
+    expected_page_width_twips: int = 11906
     expected_top_margin_twips: int = 1701
     expected_bottom_margin_twips: int = 1587
+    expected_horizontal_margin_twips: int = 1587
     expected_vml_textboxes: int = 2
 
 
@@ -112,6 +131,7 @@ def validate_template_package_fingerprint(template_path: str, expected_fingerpri
 def validate_current_template_profile(
     template_path: str, doc: Any,
     expected_fingerprint: str = CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+    template_ref: Any = None,
 ) -> CurrentTemplateProfile:
     profile = validate_template_package_fingerprint(template_path, expected_fingerprint)
     body = doc.element.body
@@ -154,15 +174,57 @@ def validate_current_template_profile(
     page_size = None if section is None else section.find("./{%s}pgSz" % _W_NS)
     margins = None if section is None else section.find("./{%s}pgMar" % _W_NS)
     if (page_size is None or margins is None
+            or page_size.get("{%s}w" % _W_NS) != str(profile.expected_page_width_twips)
             or page_size.get("{%s}h" % _W_NS) != str(profile.expected_page_height_twips)
             or margins.get("{%s}top" % _W_NS) != str(profile.expected_top_margin_twips)
-            or margins.get("{%s}bottom" % _W_NS) != str(profile.expected_bottom_margin_twips)):
+            or margins.get("{%s}bottom" % _W_NS) != str(profile.expected_bottom_margin_twips)
+            or margins.get("{%s}left" % _W_NS) != str(profile.expected_horizontal_margin_twips)
+            or margins.get("{%s}right" % _W_NS) != str(profile.expected_horizontal_margin_twips)):
         raise TemplateProfileError("当前模板页面尺寸或边距不匹配。")
+    if (
+        not _is_historical_layout_exempt(template_ref, expected_fingerprint)
+        and not _has_balanced_horizontal_layout(body, table)
+    ):
+        raise TemplateProfileError("当前模板正文或附件一未居中。")
     if len(body.findall(".//{%s}textbox" % _V_NS)) < profile.expected_vml_textboxes:
         raise TemplateProfileError("当前模板 VML 文本框数量不足。")
     if _find_paragraph(body, profile.attachment3_end_anchor) is None:
         raise TemplateProfileError("当前模板缺少附件三结束锚点。")
     return profile
+
+
+def _has_balanced_horizontal_layout(body: Any, table: Any) -> bool:
+    balanced_paragraph_count = 0
+    for paragraph in body.findall("./{%s}p" % _W_NS):
+        indent = paragraph.find("./{%s}pPr/{%s}ind" % (_W_NS, _W_NS))
+        if indent is None:
+            continue
+        horizontal_attributes = (
+            indent.get("{%s}left" % _W_NS),
+            indent.get("{%s}right" % _W_NS),
+            indent.get("{%s}leftChars" % _W_NS),
+            indent.get("{%s}rightChars" % _W_NS),
+        )
+        if all(value is None for value in horizontal_attributes):
+            continue
+        balanced_paragraph_count += 1
+        left = int(indent.get("{%s}left" % _W_NS, "0"))
+        right = int(indent.get("{%s}right" % _W_NS, "0"))
+        if abs(left - right) > 1:
+            return False
+        if indent.get("{%s}leftChars" % _W_NS) is not None:
+            return False
+        if indent.get("{%s}rightChars" % _W_NS) is not None:
+            return False
+    properties = table.find("./{%s}tblPr" % _W_NS)
+    alignment = None if properties is None else properties.find("./{%s}jc" % _W_NS)
+    table_indent = None if properties is None else properties.find("./{%s}tblInd" % _W_NS)
+    return (
+        balanced_paragraph_count > 0
+        and alignment is not None
+        and alignment.get("{%s}val" % _W_NS) == "center"
+        and table_indent is None
+    )
 
 
 def require_registered_template(
@@ -196,6 +258,7 @@ def require_registered_template(
         from docx import Document
         validate_current_template_profile(
             str(path), Document(str(path)), template["fingerprint"],
+            template["template_ref"],
         )
     except (OSError, ValueError, TemplateProfileError) as error:
         code = "TEMPLATE_RULE_VALIDATION_FAILED"

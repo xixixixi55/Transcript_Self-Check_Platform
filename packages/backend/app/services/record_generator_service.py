@@ -116,7 +116,10 @@ def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str =
     if os.path.isfile(template_path):
         template_options = (
             {} if template_fingerprint is None
-            else {"expected_template_fingerprint": template_fingerprint}
+            else {
+                "expected_template_fingerprint": template_fingerprint,
+                "template_ref": template_ref,
+            }
         )
         try:
             if archive_manifest is None:

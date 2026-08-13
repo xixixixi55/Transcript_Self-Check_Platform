@@ -25,6 +25,8 @@ from app.services.template_profile_service import (  # noqa: E402
     CURRENT_TEMPLATE_VALIDATION_RULE,
     LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
     LEGACY_TEMPLATE_VERSION,
+    PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+    PREVIOUS_TEMPLATE_VERSION,
     TemplateProfileError,
 )
 from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
@@ -36,6 +38,9 @@ REFERENCE = {
 }
 LEGACY_REFERENCE = {
     "template_id": "electronic-inspection-record", "version": LEGACY_TEMPLATE_VERSION,
+}
+PREVIOUS_REFERENCE = {
+    "template_id": "electronic-inspection-record", "version": PREVIOUS_TEMPLATE_VERSION,
 }
 IDENTITY = {
     "identity_kind": "local_session",
@@ -177,6 +182,13 @@ def test_selection_rejects_client_governance_fields_lease_and_stale_revision(tem
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "HISTORICAL_TEMPLATE_READ_ONLY"
 
+    historical["template_ref"] = PREVIOUS_REFERENCE
+    response = client.put(
+        f"/api/v1/workbench/cases/{CASE_ID}/template", json=historical,
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "HISTORICAL_TEMPLATE_READ_ONLY"
+
     assets = services.database.database_path.parent / "template-assets"
     assets.mkdir(exist_ok=True)
     pending_asset = assets / "SYNTHETIC-pending.docx"
@@ -247,6 +259,11 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     )
     assert historical_delete.status_code == 409
     assert historical_delete.json()["detail"]["code"] == "HISTORICAL_TEMPLATE_READ_ONLY"
+    previous_template = next(
+        item for item in management["templates"] if item["template_ref"] == PREVIOUS_REFERENCE
+    )
+    assert previous_template["is_default"] is False
+    assert previous_template["can_delete"] is False
 
     source_template = Path(__file__).parents[1] / "word_templates" / "template.docx"
     upload_response = client.post(
@@ -305,6 +322,29 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     assert services.defaults.get()["default_template_ref"] == uploaded_ref
 
 
+def test_upload_cannot_reclassify_historical_bytes_as_custom_template(template_api):
+    client, _services, _lease = template_api
+    source = Path(__file__).parents[1] / "word_templates" / "template-v1.0.1.docx"
+
+    response = client.post(
+        "/api/v1/workbench/templates",
+        data={
+            "template_id": "template-SYNTHETIC-old-layout",
+            "version": "1.0.0",
+            "display_name": "SYNTHETIC 旧版式上传模板",
+        },
+        files={
+            "file": (
+                "SYNTHETIC-old-layout.docx", source.read_bytes(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "TEMPLATE_RULE_VALIDATION_FAILED"
+
+
 def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_path: Path):
     database = WorkbenchDatabase(tmp_path / "workbench.sqlite3", "SYNTHETIC-UPGRADE")
     template_root = Path(__file__).parents[1] / "word_templates"
@@ -325,14 +365,14 @@ def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_
     })
     SharedDefaultsRepository(database).ensure_default_template(LEGACY_REFERENCE)
     registry.register({
-        "schema_version": 1, "template_ref": REFERENCE,
+        "schema_version": 1, "template_ref": PREVIOUS_REFERENCE,
         "display_name": "电子数据检查笔录（current-template-v1）",
-        "fingerprint": CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+        "fingerprint": PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
         "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
         "asset_id": "template-asset-current-v1-clean",
         "registered_at": "2026-07-30T00:00:00+00:00",
-    }, template_root / "template.docx")
-    approvals.record(REFERENCE, {
+    }, template_root / "template-v1.0.1.docx")
+    approvals.record(PREVIOUS_REFERENCE, {
         "approval_record_id": "template-approval-current-v1-clean", "status": "approved",
         "acceptance_summary": "current-template-v1 已清理批注和示例图片并通过结构验收。",
         "recorded_at": "2026-07-30T00:00:00+00:00",
@@ -414,6 +454,65 @@ def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_
         WorkbenchDatabase(database.database_path, database.deployment_instance_id),
     )
     assert restarted.defaults.get()["default_template_ref"] == custom_ref
+
+
+def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_case(tmp_path: Path):
+    database = WorkbenchDatabase(tmp_path / "workbench.sqlite3", "SYNTHETIC-UPGRADE-PREVIOUS")
+    template_root = Path(__file__).parents[1] / "word_templates"
+    registry = TemplateRegistryRepository(database, (template_root,))
+    approvals = TemplateApprovalRepository(database, registry)
+    registry.register({
+        "schema_version": 1, "template_ref": PREVIOUS_REFERENCE,
+        "display_name": "电子数据检查笔录（current-template-v1）",
+        "fingerprint": PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+        "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
+        "asset_id": "template-asset-current-v1-clean",
+        "registered_at": "2026-07-30T00:00:00+00:00",
+    }, template_root / "template-v1.0.1.docx")
+    approvals.record(PREVIOUS_REFERENCE, {
+        "approval_record_id": "template-approval-current-v1-clean",
+        "status": "approved",
+        "acceptance_summary": "current-template-v1 已清理批注和示例图片并通过结构验收。",
+        "recorded_at": "2026-07-30T00:00:00+00:00",
+    })
+    SharedDefaultsRepository(database).ensure_default_template(PREVIOUS_REFERENCE)
+    case_id = "case-SYNTHETIC-previous-template-upgrade"
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO case_shells(case_id,schema_version,case_number,case_name,case_summary,"
+            "source_id,parse_task_id,lifecycle,report_available,revision,created_at,updated_at,"
+            "deployment_instance_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                case_id, 1, "SYNTHETIC-UPGRADE-PREVIOUS-001",
+                "SYNTHETIC previous template upgrade", "SYNTHETIC summary",
+                "source-SYNTHETIC-previous-template-upgrade", None,
+                "review_ready", 1, 1, "2026-08-13T00:00:00+00:00",
+                "2026-08-13T00:00:00+00:00", database.deployment_instance_id,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO case_drafts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                case_id, 1, json.dumps(_report()), "legacy-v1", "{}", "[]",
+                json.dumps(PREVIOUS_REFERENCE), None, "review_ready", 1,
+                "2026-08-13T00:00:00+00:00", "2026-08-13T00:00:00+00:00",
+            ),
+        )
+    upgraded = build_workbench_services(
+        WorkbenchDatabase(database.database_path, database.deployment_instance_id),
+    )
+    assert upgraded.defaults.get()["default_template_ref"] == REFERENCE
+    previous = upgraded.template_registry.get_internal(PREVIOUS_REFERENCE)
+    assert Path(previous["internal_locator"]).name == "template-v1.0.1.docx"
+    assert upgraded.templates.validate(PREVIOUS_REFERENCE)["valid"] is True
+    with upgraded.database.connect() as connection:
+        saved_reference = json.loads(connection.execute(
+            "SELECT template_ref_json FROM case_drafts WHERE case_id=?", (case_id,),
+        ).fetchone()["template_ref_json"])
+    assert saved_reference == PREVIOUS_REFERENCE
+    with pytest.raises(WorkbenchPersistenceError) as blocked_default:
+        upgraded.templates.set_default(PREVIOUS_REFERENCE)
+    assert blocked_default.value.code == "HISTORICAL_TEMPLATE_READ_ONLY"
 
 
 def test_formal_export_resolves_server_reference_and_safely_revalidates(

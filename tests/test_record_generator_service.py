@@ -107,10 +107,11 @@ def test_generator_uses_revalidated_case_template_without_archive_side_effect(tm
 
     def fake_fill(
         _report, selected_path, generated_path, _photos,
-        *, expected_template_fingerprint,
+        *, expected_template_fingerprint, template_ref,
     ):
         assert Path(selected_path) == _TEMPLATE.resolve()
         assert expected_template_fingerprint == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
+        assert template_ref == reference
         Path(generated_path).write_bytes(b"SYNTHETIC-DOCX")
 
     with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):

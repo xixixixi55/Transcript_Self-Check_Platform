@@ -50,6 +50,7 @@ const FORBIDDEN_SUFFIXES = [
 const ALLOWED_ASSETS = new Set([
   'word_templates/template.docx',
   'word_templates/template-v1.0.0.docx',
+  'word_templates/template-v1.0.1.docx',
 ]);
 
 // 使用 NUL 分隔符读取跟踪文件（安全处理所有字符）

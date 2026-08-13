@@ -23,12 +23,15 @@ from app.services.docx_package_service import (  # noqa: E402
 from app.services.template_profile_service import (  # noqa: E402
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
     validate_current_template_profile,
 )
 
 CURRENT = ROOT / "word_templates" / "template.docx"
 LEGACY = ROOT / "word_templates" / "template-v1.0.0.docx"
+PREVIOUS = ROOT / "word_templates" / "template-v1.0.1.docx"
 SCRIPT = ROOT / "scripts" / "clean_template_docx.py"
+BALANCE_SCRIPT = ROOT / "scripts" / "balance_template_layout.py"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 V_NS = "urn:schemas-microsoft-com:vml"
 
@@ -62,11 +65,16 @@ def test_clean_template_has_no_comments_or_sample_media_and_keeps_anchors():
 
 def test_template_versions_have_stable_distinct_fingerprints():
     assert compute_ooxml_package_fingerprint(CURRENT) == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
+    assert compute_ooxml_package_fingerprint(PREVIOUS) == PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT
     assert compute_ooxml_package_fingerprint(LEGACY) == LEGACY_TEMPLATE_PACKAGE_FINGERPRINT
-    assert CURRENT_TEMPLATE_PACKAGE_FINGERPRINT != LEGACY_TEMPLATE_PACKAGE_FINGERPRINT
+    assert len({
+        CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+        PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+        LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    }) == 3
 
 
-def test_cleanup_script_is_deterministic(tmp_path: Path):
+def test_cleanup_script_reproduces_previous_version(tmp_path: Path):
     first = tmp_path / "SYNTHETIC-clean-1.docx"
     second = tmp_path / "SYNTHETIC-clean-2.docx"
     for output in (first, second):
@@ -74,7 +82,76 @@ def test_cleanup_script_is_deterministic(tmp_path: Path):
             [sys.executable, str(SCRIPT), str(LEGACY), str(output)],
             check=True, capture_output=True, text=True,
         )
+    assert first.read_bytes() == second.read_bytes() == PREVIOUS.read_bytes()
+
+
+def test_balance_script_is_deterministic_and_reproduces_current(tmp_path: Path):
+    first = tmp_path / "SYNTHETIC-balanced-1.docx"
+    second = tmp_path / "SYNTHETIC-balanced-2.docx"
+    for output in (first, second):
+        subprocess.run(
+            [sys.executable, str(BALANCE_SCRIPT), str(PREVIOUS), str(output)],
+            check=True, capture_output=True, text=True,
+        )
     assert first.read_bytes() == second.read_bytes() == CURRENT.read_bytes()
+    with zipfile.ZipFile(PREVIOUS) as source, zipfile.ZipFile(CURRENT) as balanced:
+        assert set(source.namelist()) == set(balanced.namelist())
+        assert all(
+            source.read(name) == balanced.read(name)
+            for name in source.namelist()
+            if name != "word/document.xml"
+        )
+
+
+def test_current_template_has_balanced_body_and_centered_attachment_table():
+    with zipfile.ZipFile(CURRENT) as package:
+        root = etree.fromstring(package.read("word/document.xml"))
+    with zipfile.ZipFile(PREVIOUS) as package:
+        previous_root = etree.fromstring(package.read("word/document.xml"))
+    body = root.find(f"{{{W_NS}}}body")
+    section = body.find(f"{{{W_NS}}}sectPr")
+    margins = section.find(f"{{{W_NS}}}pgMar")
+    assert margins.get(f"{{{W_NS}}}left") == margins.get(f"{{{W_NS}}}right") == "1587"
+
+    horizontal_indents = []
+    for paragraph in body.findall(f"./{{{W_NS}}}p"):
+        indent = paragraph.find(f"./{{{W_NS}}}pPr/{{{W_NS}}}ind")
+        if indent is None or not any(
+            indent.get(f"{{{W_NS}}}{name}") is not None
+            for name in ("left", "right", "leftChars", "rightChars")
+        ):
+            continue
+        horizontal_indents.append(indent)
+    assert len(horizontal_indents) == 62
+    assert all(
+        abs(
+            int(indent.get(f"{{{W_NS}}}left", "0"))
+            - int(indent.get(f"{{{W_NS}}}right", "0"))
+        ) <= 1
+        for indent in horizontal_indents
+    )
+    assert all(
+        indent.get(f"{{{W_NS}}}leftChars") is None
+        and indent.get(f"{{{W_NS}}}rightChars") is None
+        for indent in horizontal_indents
+    )
+
+    table_properties = body.find(f"./{{{W_NS}}}tbl/{{{W_NS}}}tblPr")
+    assert table_properties.find(f"{{{W_NS}}}tblInd") is None
+    assert table_properties.find(f"{{{W_NS}}}jc").get(f"{{{W_NS}}}val") == "center"
+
+    previous_body = previous_root.find(f"{{{W_NS}}}body")
+    current_grid = body.find(f"./{{{W_NS}}}tbl/{{{W_NS}}}tblGrid")
+    previous_grid = previous_body.find(f"./{{{W_NS}}}tbl/{{{W_NS}}}tblGrid")
+    assert etree.tostring(current_grid) == etree.tostring(previous_grid)
+    assert len(body.findall(f".//{{{W_NS}}}br[@{{{W_NS}}}type='page']")) == len(
+        previous_body.findall(f".//{{{W_NS}}}br[@{{{W_NS}}}type='page']"),
+    )
+    assert [
+        etree.tostring(node) for node in body.findall(f".//{{{V_NS}}}textbox")
+    ] == [
+        etree.tostring(node) for node in previous_body.findall(f".//{{{V_NS}}}textbox")
+    ]
 
 
 def test_cleanup_script_rejects_unsafe_or_duplicate_entries(tmp_path: Path):

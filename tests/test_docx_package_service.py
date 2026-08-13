@@ -18,6 +18,8 @@ from app.services.docx_package_service import (  # noqa: E402
 from app.services.template_profile_service import (  # noqa: E402
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+    PREVIOUS_TEMPLATE_VERSION,
     TemplateProfileError,
     current_template_profile,
     validate_current_template_profile,
@@ -29,6 +31,7 @@ from docx import Document  # noqa: E402
 ROOT = Path(__file__).parents[1]
 TEMPLATE = ROOT / "word_templates" / "template.docx"
 LEGACY_TEMPLATE = ROOT / "word_templates" / "template-v1.0.0.docx"
+PREVIOUS_TEMPLATE = ROOT / "word_templates" / "template-v1.0.1.docx"
 REFERENCE = ROOT / "2026报告模板（one压缩包）最终提交.docx"
 
 
@@ -97,15 +100,61 @@ def test_entry_set_changes_fingerprint(tmp_path, entries):
 def test_versioned_templates_match_registered_fingerprints_and_current_profile():
     current_fingerprint = compute_ooxml_package_fingerprint(TEMPLATE)
     legacy_fingerprint = compute_ooxml_package_fingerprint(LEGACY_TEMPLATE)
+    previous_fingerprint = compute_ooxml_package_fingerprint(PREVIOUS_TEMPLATE)
 
     assert current_fingerprint == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
     assert legacy_fingerprint == LEGACY_TEMPLATE_PACKAGE_FINGERPRINT
-    assert current_fingerprint != legacy_fingerprint
+    assert previous_fingerprint == PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT
+    assert len({current_fingerprint, previous_fingerprint, legacy_fingerprint}) == 3
     profile = current_template_profile()
     assert profile.fingerprint_algorithm == OOXML_PACKAGE_FINGERPRINT_ALGORITHM
     assert validate_current_template_profile(
         str(TEMPLATE), Document(str(TEMPLATE)),
     ).package_fingerprint == profile.package_fingerprint
+
+
+def test_profile_rejects_any_unbalanced_horizontal_body_indent():
+    doc = Document(str(TEMPLATE))
+    namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    indent = doc.element.body.find(f"./{namespace}p/{namespace}pPr/{namespace}ind")
+    assert indent is not None
+    indent.set(f"{namespace}left", "500")
+    indent.set(f"{namespace}right", "0")
+
+    with pytest.raises(TemplateProfileError, match="未居中"):
+        validate_current_template_profile(str(TEMPLATE), doc)
+
+
+def test_profile_requires_balanced_horizontal_body_indents_to_be_present():
+    doc = Document(str(TEMPLATE))
+    namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    for indent in doc.element.body.findall(
+        f"./{namespace}p/{namespace}pPr/{namespace}ind",
+    ):
+        for name in ("left", "right", "leftChars", "rightChars"):
+            indent.attrib.pop(f"{namespace}{name}", None)
+
+    with pytest.raises(TemplateProfileError, match="未居中"):
+        validate_current_template_profile(str(TEMPLATE), doc)
+
+
+def test_previous_layout_requires_exact_historical_builtin_reference():
+    document = Document(str(PREVIOUS_TEMPLATE))
+    with pytest.raises(TemplateProfileError, match="未居中"):
+        validate_current_template_profile(
+            str(PREVIOUS_TEMPLATE), document,
+            PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+        )
+
+    profile = validate_current_template_profile(
+        str(PREVIOUS_TEMPLATE), Document(str(PREVIOUS_TEMPLATE)),
+        PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+        {
+            "template_id": "electronic-inspection-record",
+            "version": PREVIOUS_TEMPLATE_VERSION,
+        },
+    )
+    assert profile.package_fingerprint == PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT
 
 
 def test_accepted_reference_does_not_match_current_profile():
