@@ -42,8 +42,9 @@ from .report_defaults_service import (
 from .material_policy_service import material_from_legacy_item, select_display_identifiers
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
+from .entrust_person_service import normalize_entrust_persons
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 19  # v19: bind rows, then naturally order complete evidence records
+_CACHE_VERSION = 20  # v20: normalize common multi-entrust-person separators
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
@@ -228,10 +229,8 @@ def parse_from_archive(
 
 
 def _split_persons(collector: str) -> list[str]:
-    """将采集人字符串按顿号拆分为数组，过滤空串"""
-    if not collector:
-        return []
-    return [name.strip() for name in collector.replace("，", "、").split("、") if name.strip()]
+    """兼容旧调用名，将委托人文本规范化为数组。"""
+    return normalize_entrust_persons(collector)
 
 
 def _format_case_summary(case_name: str) -> str:

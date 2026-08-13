@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'ba
 
 from app.services.report_parser_service import (
     _CACHE_VERSION, _build_report, _build_software_tools, _device_display_name,
-    parse_from_archive, parse_report,
+    _split_persons, parse_from_archive, parse_report,
 )
 from app.services.report_defaults_service import DEFAULT_DATA_SUMMARY, normalize_data_summary
 from app.repository.report_format_adapter import ReportFormat
@@ -36,6 +36,19 @@ def test_device_display_name_uses_brand_and_model_without_duplication(
 
 def test_backend_data_summary_preserves_non_empty_value():
     assert normalize_data_summary("  通讯录、文件  ") == "通讯录、文件"
+
+
+@pytest.mark.parametrize("separator", ["、", ",", "，", ";", "；", "/", "／", "|", "｜", "\n"])
+def test_split_persons_recognizes_common_separators(separator):
+    assert _split_persons(f"SYNTHETIC-A {separator} SYNTHETIC-B") == [
+        "SYNTHETIC-A", "SYNTHETIC-B",
+    ]
+
+
+def test_split_persons_filters_repeated_separators_and_blank_items():
+    assert _split_persons(" ; SYNTHETIC-A；； SYNTHETIC-B, ") == [
+        "SYNTHETIC-A", "SYNTHETIC-B",
+    ]
 
 
 def test_parser_default_is_not_built_from_navigation_categories():
@@ -336,7 +349,7 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 19
+    assert result["cache_version"] == 20
     assert result["_case_metadata"] == {
         "case_name": "合成案件", "case_number": "CASE-SYNTH-001", "case_summary": "合成案件案",
     }
@@ -421,8 +434,8 @@ def test_cache_version_twelve_does_not_reuse_old_payload(tmp_path):
          patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
          patch("app.services.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 19
-    assert result["cache_version"] == 19
+    assert _CACHE_VERSION == 20
+    assert result["cache_version"] == 20
     mock_build.assert_called_once()
 
 

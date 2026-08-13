@@ -84,6 +84,19 @@ def test_build_document_contains_evidence_fields():
     assert "SYN-JC00000001" in paragraph_text
 
 
+def test_batch_builder_normalizes_entrust_person_separators():
+    report = _report()
+    report["introduction"]["entrust_persons"] = ["SYNTHETIC-A; SYNTHETIC-B", "SYNTHETIC-C"]
+
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(report)
+        if command.get("type") == "paragraph"
+    )
+
+    assert "（二）委 托 人：SYNTHETIC-A、SYNTHETIC-B、SYNTHETIC-C" in paragraph_text
+
+
 def test_batch_builder_appends_reviewed_material_type_to_device_name():
     report = _report()
     report["introduction"]["evidence_list"][0].update({

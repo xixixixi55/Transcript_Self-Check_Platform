@@ -117,6 +117,15 @@ def test_flatten_report_names_all_evidence_items_in_result():
     assert _flatten_report(report)["evidence_number"] == "JC01、JC02"
 
 
+def test_flatten_report_normalizes_entrust_person_separators():
+    report = _report()
+    report["introduction"]["entrust_persons"] = ["SYNTHETIC-A；SYNTHETIC-B", "SYNTHETIC-C"]
+
+    assert _flatten_report(report)["entrust_persons_text"] == (
+        "SYNTHETIC-A、SYNTHETIC-B、SYNTHETIC-C"
+    )
+
+
 def test_flatten_report_uses_burning_date_for_attachment_summary_signature():
     flat = _flatten_report(_report())
 

@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-009
+spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-007 and REQ-009, including multi-entrust-person separator normalization across parsing, review editing, and Word export
 
 ## 目标
 
@@ -39,6 +39,27 @@ spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/
 | 2 | Phase 2: 基于参考文档创建 `template.docx` | ✅ |
 | 3 | Phase 3: 创建 `template_filler_service.py` + 更新生成器集成 | ✅ |
 | 4 | Phase 4: 验证（lint:arch + typecheck + 测试） | ✅ |
+| 5 | Phase 5: 委托人常见分隔符规范化，并统一审核编辑与 Word 展示 | ✅ |
+
+## Phase 5：委托人分隔符规范化（2026-08-13）
+
+- [x] T005 **解析与 Word 导出统一委托人分隔符**
+  - 文件：`packages/backend/app/services/entrust_person_service.py`、`report_parser_service.py`、`document_builder_service.py`、`template_filler_service.py`
+  - 内容：将顿号、中英文逗号/分号、斜杠、竖线和换行识别为多委托人分隔符，过滤空项；正式模板与兼容 Word 路径统一以顿号连接。
+  - 覆盖 Spec：REQ-007、REQ-009
+  - 验证：`python -m pytest tests/test_report_parser_service.py tests/test_document_builder_service.py tests/test_template_filler_service.py -q --tb=short`
+
+- [x] T006 **审核编辑界面显示并保存规范化后的委托人**
+  - 文件：`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`RecordEditorForm.test.tsx`
+  - 内容：历史数组项或人工输入含常见非顿号分隔符时，审核字段直接显示为顿号，并以拆分后的 `string[]` 提交。
+  - 依赖：T005
+  - 覆盖 Spec：REQ-007、REQ-009
+  - 验证：`pnpm --filter @biji/frontend exec vitest run src/components/RecordEditorForm.test.tsx`
+
+- [x] T007 **完成 Level 2 收尾验证与规格同步**
+  - 依赖：T005、T006
+  - 内容：核对 delta 与实现，运行轻量门控和受影响模块测试，将最终行为同步到 living spec。
+  - 验证：`npm run verify:quick`、`npm run verify:docs:strict -- --change template-2026`
 
 ## 关键文件
 

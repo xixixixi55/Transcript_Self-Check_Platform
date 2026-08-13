@@ -16,6 +16,19 @@ interface ReviewIntroductionSectionProps {
   fieldStates?: Record<string, FieldState>
 }
 
+const ENTRUST_PERSON_SEPARATOR = /[、,，;；/／|｜\r\n]+/
+
+export function normalizeEntrustPersons(value: string | string[]): string[] {
+  const values = Array.isArray(value) ? value : [value]
+  return values.flatMap(item => item.split(ENTRUST_PERSON_SEPARATOR))
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function formatEntrustPersons(value: string[]): string {
+  return normalizeEntrustPersons(value).join('、')
+}
+
 function toSnapshots(introduction: InspectionReport['introduction']): InspectorSnapshot[] {
   if (Array.isArray(introduction.inspector_snapshots)) return introduction.inspector_snapshots
   return (introduction.inspectors || []).map(inspector => ({
@@ -42,8 +55,8 @@ export function ReviewIntroductionSection({
         <ReviewField targetId={REVIEW_TARGET_IDS.entrustUnit} label="（一）委托单位" type="text" value={introduction.entrust_unit}
           onChange={value => updateReport('introduction.entrust_unit', value)} />
       </div>
-      <ReviewField targetId={REVIEW_TARGET_IDS.entrustPersons} label="（二）委托人员" type="text" value={(introduction.entrust_persons || []).join('、')}
-        onChange={value => updateReport('introduction.entrust_persons', value.split(/[,，、/]/).map(item => item.trim()).filter(Boolean))} />
+      <ReviewField targetId={REVIEW_TARGET_IDS.entrustPersons} label="（二）委托人员" type="text" value={formatEntrustPersons(introduction.entrust_persons || [])}
+        onChange={value => updateReport('introduction.entrust_persons', normalizeEntrustPersons(value))} />
       <DateTimeField targetId={REVIEW_TARGET_IDS.entrustTime} label="（三）委托时间" precision="date" value={introduction.entrust_time}
         onChange={value => updateReport('introduction.entrust_time', value)} />
       <ReviewField targetId={REVIEW_TARGET_IDS.caseSummary} label="（四）案件简要情况" labelNote="（请注意人工核对）" type="textarea" value={introduction.case_summary}

@@ -18,6 +18,7 @@ Layer 21: BE_Services — docx 文档构建器
 
 from .report_defaults_service import normalize_data_summary
 from .legacy_report_projection_service import project_ordered_legacy_report
+from .entrust_person_service import format_entrust_persons
 from .material_policy_service import reviewed_material_display_name
 
 
@@ -62,7 +63,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
         + str(intro.get("entrust_unit", "")).strip()
     )
     commands.append(_p(f"（一）委托单位：{entrust_unit}"))
-    commands.append(_p(f"（二）委 托 人：{'、'.join(intro.get('entrust_persons', []))}"))
+    commands.append(_p(f"（二）委 托 人：{format_entrust_persons(intro.get('entrust_persons'))}"))
     commands.append(_p(f"（三）委托时间：{intro.get('entrust_time', '')}"))
     commands.append(_p(f"（四）案件简要情况：{intro.get('case_summary', '')}"))
 

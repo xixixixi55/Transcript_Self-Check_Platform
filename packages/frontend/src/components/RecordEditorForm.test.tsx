@@ -187,6 +187,22 @@ describe('RecordEditorForm', () => {
     expect(updateReport).toHaveBeenCalledWith('introduction.entrust_unit_prefix', '')
   })
 
+  it('将委托人的常见分隔符统一显示为顿号并按数组保存', () => {
+    const updateReport = vi.fn()
+    const reportWithPersons = JSON.parse(JSON.stringify(report)) as InspectionReport
+    reportWithPersons.introduction.entrust_persons = ['SYNTHETIC-A; SYNTHETIC-B', 'SYNTHETIC-C']
+
+    render(<RecordEditorForm report={reportWithPersons} updateReport={updateReport} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} />)
+
+    const field = screen.getByDisplayValue('SYNTHETIC-A、SYNTHETIC-B、SYNTHETIC-C')
+    fireEvent.change(field, { target: { value: 'SYNTHETIC-D； SYNTHETIC-E/SYNTHETIC-F' } })
+    expect(updateReport).toHaveBeenCalledWith('introduction.entrust_persons', [
+      'SYNTHETIC-D', 'SYNTHETIC-E', 'SYNTHETIC-F',
+    ])
+  })
+
   it('审核结果中的 MD5 以大写显示并以大写提交', () => {
     const updateReport = vi.fn()
     const reportWithMd5 = JSON.parse(JSON.stringify(report)) as InspectionReport

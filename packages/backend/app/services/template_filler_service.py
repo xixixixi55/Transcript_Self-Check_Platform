@@ -19,6 +19,7 @@ from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from .report_defaults_service import normalize_data_summary
+from .entrust_person_service import format_entrust_persons
 from .material_policy_service import (
     reviewed_material_display_name,
     material_from_legacy_item,
@@ -326,7 +327,7 @@ def _flatten_report(report: dict) -> dict:
             str(intro.get("entrust_unit_prefix", "")).strip()
             + str(intro.get("entrust_unit", "")).strip()
         ),
-        "entrust_persons_text": "、".join(intro.get("entrust_persons", [])),
+        "entrust_persons_text": format_entrust_persons(intro.get("entrust_persons")),
         "entrust_time": intro.get("entrust_time", ""),
         "case_summary": intro.get("case_summary", ""),
         "inspection_requirement": intro.get("inspection_requirement", ""),
