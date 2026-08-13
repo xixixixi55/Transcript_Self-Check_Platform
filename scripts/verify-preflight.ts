@@ -1,5 +1,6 @@
 import {
   accessSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -20,9 +21,25 @@ export interface VerificationPreflightResult {
   failureTailLines: number
 }
 
+export function resolveVerificationTempRoot(
+  root: string,
+  environment: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const configured = environment.HARNESS_TEMP_ROOT?.trim()
+  if (configured) {
+    return platform === 'win32' ? path.win32.resolve(configured) : path.resolve(configured)
+  }
+  if (platform !== 'win32') return path.resolve(os.tmpdir())
+
+  const projectRoot = path.win32.resolve(root)
+  return path.win32.join(path.win32.parse(projectRoot).root, 'harness-temp-root')
+}
+
 function canWrite(tempRoot: string): boolean {
   let probePath: string | undefined
   try {
+    mkdirSync(tempRoot, { recursive: true })
     accessSync(tempRoot, constants.W_OK)
     probePath = mkdtempSync(path.join(tempRoot, 'harness-preflight-'))
     return true
@@ -46,7 +63,7 @@ export function runVerificationPreflight(root: string): VerificationPreflightRes
   const config = parseVerificationPreflightConfig(
     readFileSync(path.join(root, 'harness.config.yaml'), 'utf8'),
   )
-  const tempRoot = path.resolve(process.env.HARNESS_TEMP_ROOT?.trim() || os.tmpdir())
+  const tempRoot = resolveVerificationTempRoot(root)
   const checks = evaluateVerificationPreflight({
     tempRoot,
     writable: canWrite(tempRoot),

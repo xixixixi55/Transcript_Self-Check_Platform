@@ -26,3 +26,5 @@ spec_sync_evidence: T011-T014 implemented; delta synchronized to openspec/specs/
 - [x] T013 将 `verify:full` 改为阶段摘要输出，失败时保留完整日志并只展示有限诊断尾部；验证：治理单元测试与 scoped dry-run 通过。
 - [x] T014 保持 `AGENTS.md` 为精简规则入口，把候选冻结、预检和日志细则集中到 Harness 专用文档；验证：`AGENTS.md` 仅修改原有一行并增加文档引用。
 - [x] T015 对照 delta 完成实现核对，运行 `test:governance`、scoped strict docs、typecheck 与 `git diff --check`，同步 living spec 后记录证据；验证：上述检查通过，scoped full gate 已验证预检、摘要输出及全量测试阶段，失败 build 按隔离复跑策略验证。
+- [x] T016 Windows 未显式配置 `HARNESS_TEMP_ROOT` 时，默认使用项目所在卷根目录的短路径 `harness-temp-root`，按需创建目录，并保留显式覆盖优先级；同步验证策略和 living spec；验证：治理单元测试、预检实测、`verify:quick`、scoped strict docs 与 `git diff --check`。
+  - 证据：未设置 `HARNESS_TEMP_ROOT` 时 `npm run verify:preflight` 输出 `temp="D:\\harness-temp-root"` 并通过；治理测试覆盖 Windows 项目盘默认值与显式覆盖优先级；typecheck、`verify:quick`、scoped strict docs 与 `git diff --check` 通过。

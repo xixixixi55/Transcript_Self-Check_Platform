@@ -76,6 +76,13 @@ Harness 和 OpenSpec 工具入口 MUST 在 `.agents` 与 `.claude` 中保持对�
 - **THEN** `verify:full` 在运行工程检查前失败
 - **AND** 输出失败检查项与可执行的环境修复提示
 
+#### Scenario: Windows 默认使用项目所在卷的短临时路径
+
+- **WHEN** Windows 上运行完整门控且未显式设置 `HARNESS_TEMP_ROOT`
+- **THEN** 系统在项目所在卷根目录选择 `harness-temp-root`
+- **AND** 预检按需创建该目录，并将子进程的 `TEMP`、`TMP` 与 npm cache 指向该目录
+- **AND** 显式设置 `HARNESS_TEMP_ROOT` 时仍优先使用配置值
+
 ### Requirement: Compact full verification output
 
 完整门控 MUST 默认提供阶段级结果，并将详细输出留在可下钻日志中。

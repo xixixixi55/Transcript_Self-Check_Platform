@@ -18,6 +18,7 @@ import {
   formatDiagnosticTail,
   parseVerificationPreflightConfig,
 } from './verification-preflight-utils'
+import { resolveVerificationTempRoot } from './verify-preflight'
 
 const content = [
   '- [ ] T1 ordinary task',
@@ -98,6 +99,18 @@ assert.deepEqual(buildVerificationEnvironment({ KEEP: 'yes' }, 'D:\\short-temp')
   TMP: 'D:\\short-temp',
   npm_config_cache: 'D:\\short-temp\\npm-cache',
 })
+assert.equal(
+  resolveVerificationTempRoot(
+    'D:\\workspace\\project', {}, 'win32',
+  ),
+  'D:\\harness-temp-root',
+)
+assert.equal(
+  resolveVerificationTempRoot(
+    'D:\\workspace\\project', { HARNESS_TEMP_ROOT: 'E:\\explicit-temp' }, 'win32',
+  ),
+  'E:\\explicit-temp',
+)
 assert.equal(normalizeExitStatus(0), 0)
 assert.equal(normalizeExitStatus(17), 17)
 assert.equal(normalizeExitStatus(-4055), 1)
