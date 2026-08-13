@@ -34,6 +34,7 @@
 **实现要点**：
 - `archive_planner_service.plan_archive`：当 `first_disc_number is None` 时仅按体积计算 part（现有逻辑已按 volume 计算 `expected_part_count`），跳过 `parse_disc_sequence`/`generate_disc_numbers`。
 - 新增 `disc_mapping_service`：输入首个盘号 + 实际 part 数 → `parse_disc_sequence` + `generate_disc_numbers` 生成全序列 → 按 part 顺序映射并持久化。
+- Manifest 组装复用一次 `parse_disc_sequence` 的结构化结果：`sequence.date` 写入每个 part 的 `disc_date`，同一个 `sequence` 交给 `generate_disc_numbers` 生成连续编号；禁止根据前缀固定长度截取日期。
 - 归档完成与已导出状态继续显示首盘号输入；输入初值优先取持久化 plan 的首个 active slot 映射。归档结果同时返回 plan 行 revision，提交时作为 CAS 令牌；再次提交复用同一映射服务，按当前实际 part 顺序整体替换映射，不修改或重跑 RAR，过期页面必须返回 revision conflict 而不是静默覆盖。
 - 案件内单独 Word 导出携带 `case_id` 时，在盘号校验前读取当前案件最新 plan；全部 active slot 均具有 `confirmation=confirmed` 的非空映射时，以首个 slot 的盘号覆盖客户端草稿兼容字段。plan 映射是此场景的事实源：无 plan 时保留旧兼容行为；plan 存在但 pending、部分映射或空值时显式清空客户端盘号并由门控拒绝，不能用客户端兼容字段旁路。
 - **复用指纹解耦**：REQ-012 的归档复用指纹含 `first_disc_number`（`archive_report_fingerprint`）。盘号后填/修改会导致指纹变化。需把盘号从复用指纹输入中剔除（或复用校验排除盘号），使后填不触发重复压缩。此为关键实现点，需在 apply 阶段用回归测试锁定「后填盘号复用已验证 RAR」。

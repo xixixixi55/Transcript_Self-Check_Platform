@@ -10,7 +10,11 @@ from uuid import uuid4
 from ..repository.archive_hash_repository import compute_md5_streaming
 from ..repository.archive_validator_repository import ArchiveValidationResult
 from ..repository.winrar_discovery_repository import WinRarCapability
-from .disc_sequence_service import generate_disc_numbers, validate_disc_mapping
+from .disc_sequence_service import (
+    generate_disc_numbers,
+    parse_disc_sequence,
+    validate_disc_mapping,
+)
 from .archive_staging_security_service import OWNERSHIP_MARKER_NAME
 from .archive_manifest_output_security_service import (
     assert_safe_output_file as _assert_safe_output_file,
@@ -49,10 +53,6 @@ def archive_file_identities_match(
         return False
 
 
-def _disc_date(first_disc_number: str) -> str:
-    return f"{first_disc_number[2:6]}-{first_disc_number[6:8]}-{first_disc_number[8:10]}"
-
-
 def assemble_archive_manifest(
     plan,
     validation: ArchiveValidationResult,
@@ -66,8 +66,12 @@ def assemble_archive_manifest(
     manifest_id = str(uuid4())
     first_disc_number = plan.first_disc_number
     if first_disc_number:
-        disc_date = _disc_date(first_disc_number)
-        actual_disc_numbers = generate_disc_numbers(first_disc_number, len(validation.parts))
+        parsed_disc = parse_disc_sequence(first_disc_number)
+        if not parsed_disc.valid or parsed_disc.sequence is None:
+            raise ValueError(parsed_disc.error_code or "FIRST_DISC_NUMBER_INVALID")
+        sequence = parsed_disc.sequence
+        disc_date = sequence.date
+        actual_disc_numbers = generate_disc_numbers(sequence, len(validation.parts))
     else:  # REQ-030: empty first disc keeps part disc metadata empty until mapped
         disc_date = ""
         actual_disc_numbers = [""] * len(validation.parts)

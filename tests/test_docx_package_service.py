@@ -1,7 +1,6 @@
 """Properties of the versioned DOCX package fingerprint and ZIP safety gate."""
 
 import os
-import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -17,6 +16,8 @@ from app.services.docx_package_service import (  # noqa: E402
     compute_ooxml_package_fingerprint,
 )
 from app.services.template_profile_service import (  # noqa: E402
+    CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+    LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
     TemplateProfileError,
     current_template_profile,
     validate_current_template_profile,
@@ -27,6 +28,7 @@ from docx import Document  # noqa: E402
 
 ROOT = Path(__file__).parents[1]
 TEMPLATE = ROOT / "word_templates" / "template.docx"
+LEGACY_TEMPLATE = ROOT / "word_templates" / "template-v1.0.0.docx"
 REFERENCE = ROOT / "2026报告模板（one压缩包）最终提交.docx"
 
 
@@ -92,14 +94,13 @@ def test_entry_set_changes_fingerprint(tmp_path, entries):
     assert compute_ooxml_package_fingerprint(original) != compute_ooxml_package_fingerprint(changed)
 
 
-def test_head_template_is_preserved_as_legacy_and_current_profile_validates(tmp_path):
-    head = tmp_path / "head-template.docx"
-    head.write_bytes(subprocess.check_output(
-        ["git", "show", "HEAD:word_templates/template.docx"], cwd=ROOT
-    ))
-    legacy = ROOT / "word_templates" / "template-v1.0.0.docx"
-    assert compute_ooxml_package_fingerprint(head) == compute_ooxml_package_fingerprint(legacy)
-    assert compute_ooxml_package_fingerprint(head) != compute_ooxml_package_fingerprint(TEMPLATE)
+def test_versioned_templates_match_registered_fingerprints_and_current_profile():
+    current_fingerprint = compute_ooxml_package_fingerprint(TEMPLATE)
+    legacy_fingerprint = compute_ooxml_package_fingerprint(LEGACY_TEMPLATE)
+
+    assert current_fingerprint == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
+    assert legacy_fingerprint == LEGACY_TEMPLATE_PACKAGE_FINGERPRINT
+    assert current_fingerprint != legacy_fingerprint
     profile = current_template_profile()
     assert profile.fingerprint_algorithm == OOXML_PACKAGE_FINGERPRINT_ALGORITHM
     assert validate_current_template_profile(

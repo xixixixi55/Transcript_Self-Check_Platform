@@ -46,3 +46,6 @@ def test_disc_sequence_rejects_negative_or_boolean_count():
 def test_disc_sequence_rejects_non_string_and_unsafe_numbers():
     assert parse_disc_sequence(123).error_code == "FIRST_DISC_NUMBER_INVALID"
     assert parse_disc_sequence("GP20260718-9007199254740992").error_code == "FIRST_DISC_SEQUENCE_INVALID"
+    assert parse_disc_sequence(
+        "ABCDEFGHIJKLMNOPQRSTU20260718-01",
+    ).error_code == "FIRST_DISC_NUMBER_INVALID"

@@ -128,6 +128,69 @@ def test_archive_executes_without_first_disc_number(tmp_path):
     assert all(part["disc_date"] == "" for part in parts)
 
 
+def test_archive_publishes_two_parts_with_three_character_disc_prefix(
+    tmp_path, monkeypatch,
+):
+    _, output, context_id = make_context(tmp_path)
+    report = valid_report()
+    report["attachments"]["disc_number"] = "检验盘20260809-01"
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda _tier: 2)
+    projected_parts: list[dict] = []
+    monkeypatch.setattr(
+        "app.services.archive_execution_service.persist_archive_plan_for_attempt",
+        lambda _service, _attempt_id, _plan, manifest: projected_parts.extend(
+            manifest["parts"],
+        ),
+    )
+
+    outcome = execute_archive(
+        context_id, report, output_root=str(output), policy=policy(4),
+        capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+        executor=fake, integrity_runner=integrity_ok,
+    )
+
+    assert outcome.status == "completed"
+    assert outcome.manifest_id
+    manifest = get_valid_manifest(context_id, outcome.manifest_id, report)
+    assert [part["disc_number"] for part in manifest["parts"]] == [
+        "检验盘20260809-01", "检验盘20260809-02",
+    ]
+    assert [part["disc_date"] for part in manifest["parts"]] == [
+        "2026-08-09", "2026-08-09",
+    ]
+    assert [part["disc_number"] for part in projected_parts] == [
+        "检验盘20260809-01", "检验盘20260809-02",
+    ]
+    assert len(list((output / "compressed" / context_id).glob("**/*.rar"))) == 2
+
+
+@pytest.mark.parametrize(
+    ("disc_number", "error_code"),
+    [
+        ("GP20260230-01", "FIRST_DISC_DATE_INVALID"),
+        ("GP20260809-0", "FIRST_DISC_SEQUENCE_INVALID"),
+        ("ABCDEFGHIJKLMNOPQRSTU20260809-01", "FIRST_DISC_NUMBER_INVALID"),
+    ],
+)
+def test_archive_rejects_invalid_disc_sequence_with_stable_error(
+    tmp_path, disc_number, error_code,
+):
+    _, output, context_id = make_context(tmp_path)
+    report = valid_report()
+    report["attachments"]["disc_number"] = disc_number
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda _tier: 2)
+
+    with pytest.raises(ArchiveGateError) as error:
+        execute_archive(
+            context_id, report, output_root=str(output), policy=policy(4),
+            capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+            executor=fake, integrity_runner=integrity_ok,
+        )
+
+    assert {str(item.code) for item in error.value.blockers} == {error_code}
+    assert fake.calls == []
+
+
 def test_new_archive_hashes_each_generated_part_once(tmp_path, monkeypatch):
     _, output, context_id = make_context(tmp_path)
     fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 2)
@@ -319,6 +382,53 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
         context_id, outcome.manifest_id, AttemptService.latest_report,
     )
     assert manifest["parts"][0]["disc_number"] == "GP20260808-09"
+
+
+@pytest.mark.parametrize(
+    ("disc_number", "error_code"),
+    [
+        ("GP20260230-01", "FIRST_DISC_DATE_INVALID"),
+        ("GP20260809-0", "FIRST_DISC_SEQUENCE_INVALID"),
+        ("ABCDEFGHIJKLMNOPQRSTU20260809-01", "FIRST_DISC_NUMBER_INVALID"),
+    ],
+)
+def test_publish_revalidation_rejects_latest_invalid_disc_sequence(
+    tmp_path, monkeypatch, disc_number, error_code,
+):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda _tier: 2)
+
+    class AttemptService:
+        @staticmethod
+        def staging_initializer(_attempt_id):
+            return lambda _staging: None
+
+        @staticmethod
+        def process_started_callback(_attempt_id):
+            return lambda _pid: None
+
+        @staticmethod
+        def revalidate_before_publish(_attempt_id, _report):
+            latest = valid_report()
+            latest["attachments"]["disc_number"] = disc_number
+            return ArchivePublicationSnapshot(latest, 8, "a" * 64)
+
+    monkeypatch.setattr(
+        "app.services.archive_execution_service.WinRarExecutor",
+        lambda *_args, **_kwargs: fake,
+    )
+
+    with pytest.raises(ArchiveGateError) as error:
+        execute_archive(
+            context_id, valid_report(), output_root=str(output), policy=policy(4),
+            capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
+            integrity_runner=integrity_ok, attempt_id="SYNTHETIC-ATTEMPT-INVALID-DISC",
+            attempt_service=AttemptService(),
+            workbench_context_id="SYNTHETIC-WORKBENCH-INVALID-DISC",
+        )
+
+    assert {str(item.code) for item in error.value.blockers} == {error_code}
+    assert not list((output / "compressed").glob("**/*.rar"))
 
 
 def test_publish_binding_error_is_not_misreported_as_invalid_rar(tmp_path, monkeypatch):

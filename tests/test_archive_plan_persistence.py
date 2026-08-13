@@ -164,3 +164,42 @@ def test_persist_archive_plan_projects_manifest_parts_to_slots(database: Workben
         ],
     )
     assert again["plan_id"] == "SYNTHETIC-PERSIST-PLAN-1"
+
+
+def test_persist_archive_plan_for_attempt_projects_two_manifest_parts(
+    database: WorkbenchDatabase,
+) -> None:
+    from app.services.archive_mapping_service import persist_archive_plan_for_attempt
+
+    class Attempts:
+        def __init__(self) -> None:
+            self.database = database
+            self.repository = self
+
+        @staticmethod
+        def get_internal(_attempt_id: str) -> dict:
+            return {"case_id": CASE_ID}
+
+    persist_archive_plan_for_attempt(
+        Attempts(), "SYNTHETIC-ATTEMPT-TWO-PARTS",
+        type("Plan", (), {"plan_id": "SYNTHETIC-PERSIST-ATTEMPT-PLAN"})(),
+        {
+            "parts": [
+                {
+                    "filename": "case.part1.rar", "size_bytes": 4_000_000_000,
+                    "disc_number": "检验盘20260809-01", "disc_date": "2026-08-09",
+                },
+                {
+                    "filename": "case.part2.rar", "size_bytes": 903_492_130,
+                    "disc_number": "检验盘20260809-02", "disc_date": "2026-08-09",
+                },
+            ],
+        },
+    )
+
+    plan = ArchivePlanRepository(database).get_latest_for_case(CASE_ID)
+    assert plan is not None
+    assert len(plan["volume_slots"]) == 2
+    assert [slot["disc_mapping"]["disc_number"] for slot in plan["volume_slots"]] == [
+        "检验盘20260809-01", "检验盘20260809-02",
+    ]

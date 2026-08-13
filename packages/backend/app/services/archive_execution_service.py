@@ -180,6 +180,7 @@ def execute_archive(
                     latest_disc = str(
                         (publication_report.get("attachments") or {}).get("disc_number") or ""
                     ).strip()
+                    raise_gate(pre_archive_gate(publication_report))
                     parsed_disc = parse_disc_sequence(latest_disc)
                     first_disc_number = (
                         parsed_disc.sequence.first_disc_number

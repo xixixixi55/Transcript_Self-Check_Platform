@@ -371,6 +371,7 @@ def test_http_task_is_claimed_and_one_failure_does_not_stop_runtime(
 
 def test_retry_returns_safe_task_and_runtime_claims_new_attempt(tmp_path: Path) -> None:
     services, worker = _services(tmp_path)
+    worker.multi_part = True
     app = create_app(service_provider=lambda: services)
     with _controller_patches(services), TestClient(app) as client:
         ready = _create_ready_case(client, services)
@@ -416,6 +417,11 @@ def test_retry_returns_safe_task_and_runtime_claims_new_attempt(tmp_path: Path) 
         completed = _wait_task(client, retry_task["task_id"], {"succeeded"})
         assert completed["status"] == "succeeded"
         assert completed["worker_state"] == "released"
+        assert completed["output_volume_count"] == 2
+        result = client.get(
+            f"/api/v1/workbench/tasks/{retry_task['task_id']}/result",
+        ).json()["data"]
+        assert len(result["parts"]) == 2
 
     assert worker.calls == [first["task_id"], retry_task["task_id"]]
 

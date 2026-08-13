@@ -144,6 +144,7 @@ Renderer 当前正式渲染输入为 `InspectionReport` 兼容数据 + `ArchiveM
 已完成：AttachmentPlan 和 TemplateProfile 基础设施。未完成：统一 `DocumentRenderPlan` 类型、生产构造、Renderer 只消费 RenderPlan。
 - [x] 12.1T 增加模板 ZIP/XML、资产漂移、VML 宿主段落、关系、PAGE/NUMPAGES、`updateFields=true`、章节分页、固定手写行、摘要 manifest 计数和页面计划渲染测试；验收：固定 Profile 之外的模板被阻止，manifest/renderer 错误不回退 legacy。
 - [x] 12.2 清理当前正式模板中的全部批注和附件二示例图片，同时保留附件二空白定位段落、VML 文本框、分页、表格和动态图片渲染能力；将清理后的资产登记为 `electronic-inspection-record@1.0.1`，保留 `1.0.0` 历史资产和既有案件引用，将历史版限定为只读重导出资产，并把仍使用内置 `1.0.0` 默认值的部署幂等迁移到新版。文件：`scripts/clean_template_docx.py`、`word_templates/template.docx`、`word_templates/template-v1.0.0.docx`、`packages/backend/app/services/template_profile_service.py`、`packages/backend/app/services/workbench_factory_service.py`、`packages/backend/app/repository/shared_defaults_repository.py`、`packages/backend/app/repository/template_registry_repository.py`、`harness/repository-assets.md`、`scripts/check-repository-assets.ts`；验证：新版 `officecli validate` 0 errors；历史资产指纹保持 `616E...14A7`，新版指纹为 `206A...8232`；架构与类型检查通过。
+  - 回归修复（2026-08-13）：版本稳定性测试不再把 `HEAD:word_templates/template.docx`（当前 1.0.1 资产）误当作 1.0.0 历史资产；改为分别校验 `template.docx` 与 `template-v1.0.0.docx` 对应已登记的不可变包指纹，并断言两版本不同。模板/注册定向 pytest 41 passed、1 skipped，架构、类型、资产和 diff 检查通过；独立复审 PASS，无 MUST FIX。未修改任一 DOCX 资产。
 - [x] 12.2T 增加确定性模板清理、无批注部件/标记/关系、无模板媒体、附件二锚点保留、历史模板指纹可复现、新默认模板注册、已有案件继续引用 `1.0.0`、自定义默认模板不被覆盖、0/2/4 张动态图片回归测试；受影响后端组合 127 passed / 1 skipped，核心清理逻辑突变验证按预期失败且恢复后通过。人工 Word 视觉验收因当前环境缺少 LibreOffice/Word 渲染器保持待验收，不伪报通过。
 
 ## 13. 全黑字体策略（Layer 21）

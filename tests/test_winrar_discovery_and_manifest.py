@@ -130,6 +130,56 @@ def test_manifest_uses_actual_numeric_order_streaming_md5_and_disc_date(tmp_path
     assert all(Path(name).name == name for name in paths)
 
 
+@pytest.mark.parametrize(
+    ("prefix", "expected_prefix"),
+    [
+        ("G", "G"),
+        ("GP", "GP"),
+        ("检验盘", "检验盘"),
+        ("ABCDEFGHIJKLMNOPQRST", "ABCDEFGHIJKLMNOPQRST"),
+        ("检验检验检验检验检验检验检验检验检验检验", "检验检验检验检验检验检验检验检验检验检验"),
+    ],
+)
+def test_manifest_disc_date_uses_parsed_sequence_for_variable_prefixes(
+    tmp_path, prefix, expected_prefix,
+):
+    first = tmp_path / "SYNTHETIC.part1.rar"
+    second = tmp_path / "SYNTHETIC.part2.rar"
+    first.write_bytes(b"SYNTHETIC-FIRST")
+    second.write_bytes(b"SYNTHETIC-SECOND")
+    first_disc_number = f"{prefix}20260809-01"
+    plan = SimpleNamespace(
+        plan_id="SYNTHETIC-PLAN", archive_base_name="SYNTHETIC",
+        volume_size_bytes=4_000_000_000, volume_tier_gb=4,
+        max_part_count=2, total_input_bytes=4_000_000_001,
+        first_disc_number=first_disc_number,
+        expected_disc_numbers=(first_disc_number, f"{prefix}20260809-02"),
+    )
+    capability = SimpleNamespace(
+        available=True, executable_path="SYNTHETIC", executable_name="WinRAR.exe",
+        version="6.24", supports_rar_volumes=True,
+        public_dict=lambda: {
+            "available": True, "executable_name": "WinRAR.exe",
+            "version": "6.24", "supports_rar_volumes": True,
+        },
+    )
+    validation = validate_archive_parts(
+        tmp_path, plan, capability, integrity_runner=probe_ok,
+    )
+
+    manifest, _ = assemble_archive_manifest(
+        plan, validation, capability, retry_count=0,
+    )
+
+    assert [part["disc_number"] for part in manifest["parts"]] == [
+        f"{expected_prefix}20260809-01",
+        f"{expected_prefix}20260809-02",
+    ]
+    assert [part["disc_date"] for part in manifest["parts"]] == [
+        "2026-08-09", "2026-08-09",
+    ]
+
+
 def test_published_manifest_rejects_disc_mapping_not_contiguous(tmp_path):
     first = tmp_path / "case.part1.rar"
     second = tmp_path / "case.part2.rar"

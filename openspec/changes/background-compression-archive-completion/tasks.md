@@ -273,3 +273,12 @@ workflow_level: 3
   - 验证：前端组件定向测试 2 files / 16 tests passed，覆盖审核编辑器传入隐藏配置、归档信息保留且下载链接缺失，以及其他入口默认下载行为不变；`npm run verify:quick` PASS，架构、类型、治理、quick docs 与仓库资产门控通过；scoped strict docs 13 checks/0 drift；`git diff --check` PASS。
   - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过；用户明确要求本轮不执行独立 code review。
   - manual_acceptance: N/A（仅隐藏指定页面按钮，组件自动化测试覆盖展示信息保留且下载链接缺失；不改变桌面选择器或真实文件内容。）
+
+- [x] T037 修复可变长度光盘编号前缀导致归档发布失败（用户实测回归）。
+  - 现象：首盘号前缀不是恰好 2 个字符时，两个 RAR 分卷及 MD5 已生成，但 Manifest `disc_date` 被固定下标截错；发布前复核返回 `ARCHIVE_PARTS_INVALID`，任务进入 `failed_retryable` 且 staging 被清理。
+  - 内容：Manifest 组装统一使用 `parse_disc_sequence` 的结构化结果，并以同一个 sequence 提供日期及连续盘号；覆盖 1、2、3、20 字符中英文前缀、两分卷发布与非法盘号既有拒绝语义。
+  - 文件：`packages/backend/app/services/archive_manifest_service.py`、相关归档测试及本变更包文档。
+  - 验证：盘号解析、Manifest、归档执行、计划投影、任务重试/生命周期、Worker 与发布 fence 定向 pytest 125 passed；架构检查、TypeScript 类型检查、仓库资产检查与 `git diff --check` 通过。临时恢复固定下标日期截取后，可变前缀单元/发布回归 4 failed，恢复实现后 5 passed，证明断言可区分旧缺陷。
+  - code_review: [PASS] 首轮独立审查发现发布前最新非法盘号被静默降级、通用假 Worker 手工制造计划导致假阳性、缺少 21 字符拒绝边界 3 项 MUST FIX；修复为发布前对最新草稿重跑盘号门控，撤销假 Worker 计划注入，并分层覆盖生产投影接线、两槽位持久化、20 字符中英文合法上界及 21 字符/非法日期/非法序号稳定错误。独立复审确认全部 CLOSED，无新 MUST FIX。
+  - final_gate: [PASS] 首次 scoped full gate 唯一失败为 `b4734ab` 中模板版本测试把 HEAD 当前 1.0.1 资产误作历史 1.0.0；该回归已在 `extensible-report-template-platform` 原任务内修复，模板定向 41 passed/1 skipped、独立复审 PASS，且两个 DOCX 资产无变化。随后在 `HARNESS_TEMP_ROOT=D:\harness-temp` 下重跑 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过。
+  - manual_acceptance: 自动化已覆盖三字符中文前缀两分卷的 Manifest 生成、发布复核、正式目录落地、重试新 attempt 和成功结果；原始本地报告的真实 WinRAR 验收需使用用户本机案件资料执行，不把真实案件数据写入仓库。
