@@ -19,7 +19,11 @@ from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from .report_defaults_service import normalize_data_summary
-from .material_policy_service import material_from_legacy_item, select_display_identifiers
+from .material_policy_service import (
+    reviewed_material_display_name,
+    material_from_legacy_item,
+    select_display_identifiers,
+)
 from .attachment2_image_service import (
     EMU_PER_INCH,
     calculate_fixed_geometry,
@@ -442,7 +446,12 @@ def _replace_in_element(element, list_name: str, item_template: str, item: dict)
 def _fill_evidence_item(text_elements, item_template: str, item: dict):
     """填充单个检材条目"""
     # 构建设备描述
-    device_type = item.get("device_name") or item.get("model") or item.get("device_type", "")
+    device_type = (
+        reviewed_material_display_name(item)
+        or item.get("device_name")
+        or item.get("model")
+        or item.get("device_type", "")
+    )
     extractable = item.get("extractable")
     if not isinstance(extractable, bool):
         extractable = any(str(item.get(key, "")).strip() for key in ("imei1", "imei2", "serial_number"))

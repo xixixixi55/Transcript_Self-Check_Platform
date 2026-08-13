@@ -179,6 +179,39 @@ def select_display_identifiers(material: Material) -> tuple[MaterialIdentifier, 
     return tuple(selected)
 
 
+def reviewed_material_display_name(item: Mapping[str, Any], index: int = 0) -> str | None:
+    """Return a reviewed device name with its confirmed material type appended."""
+
+    material = material_from_legacy_item(item, index)
+    type_label = "手机" if material.type == "phone" else "平板" if material.type == "tablet" else ""
+    if not type_label:
+        return None
+    base_name = next(
+        (
+            _safe_text(item.get(key))
+            for key in ("device_name", "model", "device_type")
+            if _safe_text(item.get(key))
+        ),
+        "",
+    )
+    if _contains_material_type(base_name, material.type):
+        return base_name
+    return f"{base_name}{type_label}"
+
+
+def _contains_material_type(value: str, material_type: str) -> bool:
+    normalized = _normalise_device_type(value)
+    words = _PHONE_WORDS if material_type == "phone" else _TABLET_WORDS
+    for word in sorted(words, key=len, reverse=True):
+        normalized_word = _normalise_device_type(word)
+        if any("\u4e00" <= char <= "\u9fff" for char in normalized_word):
+            if re.search(rf"{re.escape(normalized_word)}(?![\u4e00-\u9fff])", normalized):
+                return True
+        elif _contains_word(normalized, normalized_word):
+            return True
+    return False
+
+
 def enrich_report_material_types(report: Mapping[str, Any]) -> dict[str, Any]:
     """Add optional classification fields without changing legacy parser logic."""
 

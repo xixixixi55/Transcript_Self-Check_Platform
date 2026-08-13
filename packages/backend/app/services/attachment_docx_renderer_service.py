@@ -166,7 +166,6 @@ def _render_attachment3(body: Any, label: Any, plan: AttachmentPlan,
                 "md5_hash": page.md5,
                 "burning_date": _format_date(page.burning_date),
             },
-            filename=page.filename,
         )
         if end_anchor_element is not None:
             page_end_anchor = copy.deepcopy(end_anchor_element)

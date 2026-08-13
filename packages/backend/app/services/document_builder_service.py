@@ -18,6 +18,7 @@ Layer 21: BE_Services — docx 文档构建器
 
 from .report_defaults_service import normalize_data_summary
 from .legacy_report_projection_service import project_ordered_legacy_report
+from .material_policy_service import reviewed_material_display_name
 
 
 DEFAULT_EXTRACT_COLUMNS = [
@@ -69,8 +70,9 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     commands.append(_p("（五）检材情况："))
     evidence_list = intro.get("evidence_list", [])
     for i, ev in enumerate(evidence_list, 1):
+        reviewed_device = reviewed_material_display_name(ev, i - 1)
         device_type = str(ev.get("device_type", "")).strip()
-        device = (
+        device = reviewed_device or (
             ev.get("device_name") or ev.get("model", "")
             if device_type.casefold() in {"手机", "智能手机", "phone", "smartphone", "平板", "平板电脑", "tablet"}
             else device_type or ev.get("device_name") or ev.get("model", "")

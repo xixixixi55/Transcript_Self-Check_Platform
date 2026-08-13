@@ -655,31 +655,28 @@ def test_attachment3_has_vertical_metadata_and_part_specific_bottom_anchor(tmp_p
     root = document_root(output)
     text = visible_text(output)
     assert text.count("附件3") == 1
-    assert "文件名：server.part1.rar" in text
-    assert "文件名：server.part2.rar" in text
-    assert "文件名：server.part3.rar" in text
+    assert "文件名：" not in text
     assert text.count("本鉴定中心刻制的GP20260706-01号光盘") == 1
     assert text.count("本鉴定中心刻制的GP20260706-02号光盘") == 1
     assert text.count("本鉴定中心刻制的GP20260706-03号光盘") == 1
-    assert "文件名：server.part1.rar；检验单位" not in text
     textboxes = root.findall(".//{%s}textbox" % V_NS)
     for textbox in textboxes:
         paragraphs = textbox.findall(".//{%s}txbxContent/{%s}p" % (W_NS, W_NS))
         lines = [paragraph_text(p) for p in paragraphs]
-        if lines and lines[0].startswith("\u6587\u4ef6\u540d\uff1a"):
-            size = paragraphs[4].find(
+        if lines and lines[0].startswith("检验单位："):
+            size = paragraphs[3].find(
                 "./{%s}pPr/{%s}rPr/{%s}sz" % (W_NS, W_NS, W_NS)
             )
             assert size is not None and size.get("{%s}val" % W_NS) == "32"
     metadata_lines = []
     for textbox in textboxes:
         lines = [paragraph_text(p) for p in textbox.findall(".//{%s}txbxContent/{%s}p" % (W_NS, W_NS))]
-        if any(line.startswith("文件名：") for line in lines):
-            metadata_lines.append(lines[:5])
+        if any(line.startswith("检验单位：") for line in lines):
+            metadata_lines.append([line for line in lines if line])
     assert metadata_lines == [
-        ["文件名：server.part1.rar", "检验单位：测试鉴定中心", "光盘编号：GP20260706-01", "文件哈希：00000000000000000000000000000001", "刻录时间：2026年7月6日"],
-        ["文件名：server.part2.rar", "检验单位：测试鉴定中心", "光盘编号：GP20260706-02", "文件哈希：00000000000000000000000000000002", "刻录时间：2026年7月6日"],
-        ["文件名：server.part3.rar", "检验单位：测试鉴定中心", "光盘编号：GP20260706-03", "文件哈希：00000000000000000000000000000003", "刻录时间：2026年7月6日"],
+        ["检验单位：测试鉴定中心", "光盘编号：GP20260706-01", "文件哈希：00000000000000000000000000000001", "刻录时间：2026年7月6日"],
+        ["检验单位：测试鉴定中心", "光盘编号：GP20260706-02", "文件哈希：00000000000000000000000000000002", "刻录时间：2026年7月6日"],
+        ["检验单位：测试鉴定中心", "光盘编号：GP20260706-03", "文件哈希：00000000000000000000000000000003", "刻录时间：2026年7月6日"],
     ]
 
 

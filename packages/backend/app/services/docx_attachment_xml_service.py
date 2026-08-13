@@ -158,24 +158,13 @@ def _replace_vml_point_y(value: str, y_value: float) -> str:
     return "%s,%g%s" % (x_value, y_value, unit)
 
 
-def replace_vml_text(region: Any, values: Mapping[str, str], filename: str | None = None) -> None:
+def replace_vml_text(region: Any, values: Mapping[str, str]) -> None:
     for textbox in region.findall(".//%s" % qn(V_NS, "textbox")):
         paragraphs = textbox.findall(".//%s" % qn(W_NS, "p"))
         if not paragraphs:
             continue
         template_lines = [text_of(paragraph) for paragraph in paragraphs]
         lines = []
-        is_metadata_textbox = len(paragraphs) >= 4 or any(
-            "{{inspection_place}}" in line
-            or "{{disc_number}}" in line
-            or "{{md5_hash}}" in line
-            or "{{burning_date}}" in line
-            for line in template_lines
-        )
-        if filename and is_metadata_textbox and len(paragraphs) >= 5:
-            _copy_paragraph_style(paragraphs[-2], paragraphs[-1])
-        if filename and is_metadata_textbox:
-            lines.append(f"文件名：{filename}")
         for template_line in template_lines:
             value = template_line
             for key, replacement in values.items():
@@ -211,28 +200,6 @@ def existing_vml_ids(root: Any) -> set[str]:
 
 def _new_run(paragraph: Any) -> Any:
     return _new_child(paragraph, W_NS, "r")
-
-
-def _copy_paragraph_style(source: Any, target: Any) -> None:
-    """Give an added textbox line the same paragraph/run style as its neighbor."""
-    source_ppr = source.find("./%s" % qn(W_NS, "pPr"))
-    target_ppr = target.find("./%s" % qn(W_NS, "pPr"))
-    if source_ppr is not None:
-        if target_ppr is not None:
-            target.remove(target_ppr)
-        target.insert(0, copy.deepcopy(source_ppr))
-    source_run = source.find("./%s" % qn(W_NS, "r"))
-    if source_run is None:
-        return
-    source_rpr = source_run.find("./%s" % qn(W_NS, "rPr"))
-    target_run = target.find("./%s" % qn(W_NS, "r"))
-    if target_run is None:
-        target_run = _new_run(target)
-    target_rpr = target_run.find("./%s" % qn(W_NS, "rPr"))
-    if target_rpr is not None:
-        target_run.remove(target_rpr)
-    if source_rpr is not None:
-        target_run.insert(0, copy.deepcopy(source_rpr))
 
 
 def _new_text(run: Any) -> Any:

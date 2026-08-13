@@ -168,6 +168,7 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 14A.5 下载前和 Word 导出前重新验证同一物理 part；新增软件、设备名、目录结构、Manifest一致性、下载接口及附件2同排双图结构测试。
 - [ ] 14A.6 使用指定真实报告完成预览归档、下载后哈希/字节数、WinRAR列表、独立解压目录树与逐文件内容、唯一正式Word和附件2视觉验收；不得以手工RAR的二进制、MD5或压缩后大小作为相等条件。 [DEFERRED]
 - [x] 14A.7 将既有 MaterialDisplayPolicy 接入当前审核编辑器、检查过程和正式 legacy Renderer：手机只投影合法 IMEI1/IMEI2，平板只投影序列号且保留原始字段；增加明确列名的浏览器本地六项用户默认设置（文号、检查地点、检查方法、检查硬件设备、有序检查人员、光盘编号前缀）及下次解析套用/清除入口；归档完成后以与Word相同的后端 Manifest 投影刷新前端附件1预览，并在同一工作台完成事务中写入 `case_drafts.report_json.attachments.extract_list`（不新增文件大小列），覆盖单卷、多卷、审核字段未完成和恢复路径，补充前后端回归测试。
+- [x] 14A.9 删除附件三元数据框多余的“文件名”行；保留并依次显示检验单位、光盘编号、文件哈希和刻录时间，多卷页面使用各自 Manifest 的 MD5、盘号和日期。文件：`packages/backend/app/services/docx_attachment_xml_service.py`、`attachment_docx_renderer_service.py`、`tests/test_attachment_docx_renderer.py`；验证：受影响后端组合 88 passed，三卷 DOCX XML 断言每页完整非空行恰为四行且无“文件名”，officecli validate 无错误；独立复审 PASS，无剩余 MUST/SHOULD FIX；`npm run verify:full -- --change extensible-report-template-platform` 的预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
 
 ### 14A.8 笔录模版管理人工验收补充（Level 2）
 

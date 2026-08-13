@@ -264,3 +264,15 @@ workflow_level: 3
   - 覆盖 Spec：REQ-034。
   - 验证：软件适配、解析、Canonical/Legacy 投影、前端组件/共享投影、模板与 batch Word 两条路径定向测试；架构检查、类型检查、`verify:quick` 和 scoped strict docs。
   - manual_acceptance: N/A（确定性字段投影和文案由合成数据自动化覆盖；不改变 Word 版式。）
+
+## 🟢 Phase 11: 审核检材类型 Word 投影
+
+- [x] T024 **将审核确认的检材类型追加到 Word 检材名称**
+  - 文件：`packages/backend/app/services/material_policy_service.py`、`document_builder_service.py`、`template_filler_service.py` 及相关测试。
+  - 内容：集中生成“设备品牌型号 + 手机/平板”的检材显示名称，供模板正式导出与 officecli batch 兼容导出共同使用；同一类型名称不重复追加。
+  - 覆盖 Spec：REQ-035。
+  - 验证：材料显示策略、模板填充和 batch 文书构建定向 pytest；架构、类型、`verify:quick` 和 scoped strict docs。
+  - manual_acceptance: N/A（确定性文案投影由合成 DOCX 内容断言覆盖，不改变版式。）
+  - 证据：受影响后端组合 88 passed；模板正式导出与 batch 兼容导出均断言“品牌型号+手机/平板+一部”，并覆盖未确认旧数据优先级、英文类型词、非类型中文子串、空设备名和仅 model/仅类型回退。
+  - code_review: [PASS] 独立审查首轮发现未确认旧数据优先级、类型词边界和附件三断言截断问题；整改并补充区分性测试后复审 PASS，无剩余 MUST/SHOULD FIX。
+  - final_gate: [PASS] 冻结候选执行 `npm run verify:full -- --change audit-edit-enhancement`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。

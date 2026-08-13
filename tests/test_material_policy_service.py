@@ -10,9 +10,65 @@ from app.services.material_policy_service import (
     classify_material_type,
     enrich_report_material_types,
     material_from_legacy_item,
+    reviewed_material_display_name,
     select_display_identifiers,
     unconfirmed_material_fields,
 )
+
+
+def test_reviewed_material_display_name_appends_type_without_duplication():
+    reviewed_phone = {
+        "device_name": "SYNTHETIC HUAWEI SGU-AL10",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }
+    reviewed_tablet = {
+        "device_name": "SYNTHETIC TABLET TEST",
+        "material_type": "tablet",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }
+
+    assert reviewed_material_display_name(reviewed_phone) == "SYNTHETIC HUAWEI SGU-AL10手机"
+    assert reviewed_material_display_name(reviewed_tablet) == "SYNTHETIC TABLET TEST"
+
+
+def test_reviewed_material_display_name_distinguishes_type_from_product_text():
+    reviewed_phone = {
+        "device_name": "SYNTHETIC 手机壳 X",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }
+    reviewed_tablet = {
+        "device_name": "SYNTHETIC 平板电脑 X",
+        "material_type": "tablet",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }
+
+    assert reviewed_material_display_name(reviewed_phone) == "SYNTHETIC 手机壳 X手机"
+    assert reviewed_material_display_name(reviewed_tablet) == "SYNTHETIC 平板电脑 X"
+
+
+def test_reviewed_material_display_name_handles_empty_and_unconfirmed_items():
+    assert reviewed_material_display_name({
+        "model": "SYNTHETIC MODEL",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }) == "SYNTHETIC MODEL手机"
+    assert reviewed_material_display_name({
+        "device_type": "手机",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_report",
+        "material_type_source": "report",
+    }) == "手机"
+    assert reviewed_material_display_name({
+        "device_name": "SYNTHETIC HUAWEI",
+        "device_type": "Android设备",
+    }) is None
 
 
 def test_controlled_device_type_words_classify_phone_and_tablet():

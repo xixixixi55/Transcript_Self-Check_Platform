@@ -233,6 +233,48 @@ def test_evidence_renderer_projects_identifiers_by_confirmed_material_type(tmp_p
     assert "222222222222222" not in document_xml
 
 
+def test_evidence_renderer_appends_reviewed_material_type_to_device_name(tmp_path):
+    report = _report()
+    report["introduction"]["evidence_list"] = [{
+        "id": "synthetic-phone",
+        "evidence_number": "SYN-JC-PHONE",
+        "device_name": "SYNTHETIC HUAWEI SGU-AL10",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+        "extractable": False,
+    }]
+    output = tmp_path / "reviewed-material-type.docx"
+
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    with zipfile.ZipFile(output) as package:
+        document_xml = package.read("word/document.xml").decode("utf-8")
+    assert "SYNTHETIC HUAWEI SGU-AL10手机一部（无法提取）" in document_xml
+    assert "SYNTHETIC HUAWEI SGU-AL10一部" not in document_xml
+
+
+def test_evidence_renderer_preserves_unconfirmed_template_name_priority(tmp_path):
+    report = _report()
+    report["introduction"]["evidence_list"] = [{
+        "evidence_number": "SYN-JC-UNCONFIRMED",
+        "device_type": "SYNTHETIC Android设备",
+        "device_name": "SYNTHETIC HUAWEI",
+        "model": "SYNTHETIC MODEL",
+        "material_type": "unconfirmed",
+        "material_type_status": "unconfirmed",
+        "extractable": False,
+    }]
+    output = tmp_path / "unconfirmed-name-priority.docx"
+
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    with zipfile.ZipFile(output) as package:
+        document_xml = package.read("word/document.xml").decode("utf-8")
+    assert "SYNTHETIC HUAWEI一部（无法提取）" in document_xml
+    assert "SYNTHETIC Android设备一部" not in document_xml
+
+
 def test_evidence_renderer_marks_unextractable_without_identifiers(tmp_path):
     report = _report()
     report["introduction"]["evidence_list"] = [{

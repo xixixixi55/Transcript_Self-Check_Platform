@@ -84,6 +84,45 @@ def test_build_document_contains_evidence_fields():
     assert "SYN-JC00000001" in paragraph_text
 
 
+def test_batch_builder_appends_reviewed_material_type_to_device_name():
+    report = _report()
+    report["introduction"]["evidence_list"][0].update({
+        "device_name": "SYNTHETIC HUAWEI SGU-AL10",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    })
+
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(report)
+        if command.get("type") == "paragraph"
+    )
+
+    assert "SYNTHETIC HUAWEI SGU-AL10手机一部" in paragraph_text
+    assert "SYNTHETIC HUAWEI SGU-AL10一部" not in paragraph_text
+
+
+def test_batch_builder_preserves_unconfirmed_legacy_device_type_priority():
+    report = _report()
+    report["introduction"]["evidence_list"][0].update({
+        "device_type": "SYNTHETIC Android设备",
+        "device_name": "SYNTHETIC HUAWEI",
+        "model": "SYNTHETIC MODEL",
+        "material_type": "unconfirmed",
+        "material_type_status": "unconfirmed",
+    })
+
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(report)
+        if command.get("type") == "paragraph"
+    )
+
+    assert "SYNTHETIC Android设备一部" in paragraph_text
+    assert "SYNTHETIC HUAWEI一部" not in paragraph_text
+
+
 def test_build_document_marks_unextractable_evidence_without_identifiers():
     report = _report()
     item = report["introduction"]["evidence_list"][0]
