@@ -2,11 +2,11 @@
 import { useState, useCallback } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { InspectionReport } from '@biji/shared/types'
+import type { InspectionReport, WordDirectoryExportResult, WordDirectoryExportTarget } from '@biji/shared/types'
 import { buildMaterialPhotoGroups, getDefaultExportFileName, normalizeDataSummary, normalizeExportFileName } from '@biji/shared/utils'
 
 interface UseRecordExportReturn {
-  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string, archiveContextId?: string | null, manifestId?: string | null, caseId?: string | null, caseRevision?: number | null) => Promise<boolean>
+  exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string, archiveContextId?: string | null, manifestId?: string | null, caseId?: string | null, caseRevision?: number | null, exportDirectory?: WordDirectoryExportTarget) => Promise<boolean>
   exporting: boolean
 }
 
@@ -52,6 +52,8 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
   CASE_REVISION_REQUIRED: '案件版本缺失，请重新加载后再导出。',
   CASE_TEMPLATE_CONTEXT_INVALID: '案件模板上下文不可用，请重新加载后再导出。',
   DOCX_RENDER_FAILED: 'Word 页面渲染失败，请检查模板后重试。',
+  EXPORT_PATH_NOT_AUTHORIZED: '导出目录授权已失效，请重新选择导出目录。',
+  WORD_EXPORT_RESPONSE_INVALID: 'Word 已生成，但导出结果响应无效，请检查所选目录后重试。',
 }
 
 const ARCHIVE_INPUT_MESSAGES: Record<string, string> = {
@@ -114,6 +116,7 @@ export function useRecordExport(): UseRecordExportReturn {
     manifestId?: string | null,
     caseId?: string | null,
     caseRevision?: number | null,
+    exportDirectory?: WordDirectoryExportTarget,
   ) => {
     setExporting(true)
     try {
@@ -142,13 +145,23 @@ export function useRecordExport(): UseRecordExportReturn {
           formData.append('case_revision', String(caseRevision))
         }
       }
+      if (exportDirectory) {
+        formData.append('export_path', exportDirectory.path)
+        formData.append('directory_token', exportDirectory.token)
+        formData.append('word_filename', resolveExportFileName(report.document_number, fileName))
+      }
       // 附加图片文件
       if (photoFiles) {
         photoFiles.forEach(f => formData.append('photos', f))
       }
       const response = await axios.post(API_ENDPOINTS.EXPORT_RECORD, formData, {
-        responseType: 'blob',
+        responseType: exportDirectory ? 'json' : 'blob',
       })
+      if (exportDirectory) {
+        const result = response.data?.data as WordDirectoryExportResult | undefined
+        if (!result?.export_path || !result.word_filename) throw new Error('WORD_EXPORT_RESPONSE_INVALID')
+        return true
+      }
       // 触发浏览器下载
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const a = document.createElement('a')

@@ -357,6 +357,13 @@ independent. The current order, provenance and export interaction contract is
 recorded in the living electronic-inspection-record spec; this DTO still never
 contains a server locator or physical artifact name.
 
+`WordDirectoryExportTarget` carries the Windows picker-selected directory and
+its one-use exact-directory authorization token from the frontend to the
+standalone Word export request. `WordDirectoryExportResult` returns only the
+final export directory and sanitized Word filename after the document has been
+atomically published there. Neither DTO grants reusable filesystem access;
+Legacy requests without a target retain the browser-download response.
+
 ### Source authorization request types
 
 `SourceAuthorizationRequest` is the shared request fragment for the ordinary
@@ -898,7 +905,8 @@ type DiscMappingConfirmation, type FieldSource, type FieldConfirmation,
 type LeaseStatus, type SourceAccessStatus, type CaseAssetContentStatus, interface OpaqueAssetRef, interface CaseAssetRecord,
 interface CaseAssetList, interface CasePhotoBindingRequest, interface CasePhotoBindingResult,
 interface FieldState,
-interface WordDownloadName,
+interface WordDownloadName, interface WordDirectoryExportResult,
+interface WordDirectoryExportTarget,
 interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,
 interface DiscMapping, interface VolumeSlot, interface PlannedVolumeSlot,

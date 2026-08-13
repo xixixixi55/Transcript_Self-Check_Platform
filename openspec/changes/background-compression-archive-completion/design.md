@@ -75,6 +75,8 @@
 
 **决策**：新增统一导出流程：前端 native picker 选择导出文件夹 → 后端把「最新编辑 Word + HashMyFiles 校验截图」写入所选文件夹、把全部 RAR 写入其上级文件夹（所选文件夹为文件系统根时回退到所选文件夹）→ 记录导出日志并标记已导出。可重复导出：每次重新生成 Word 与 HashMyFiles PNG，RAR 复用已验证分卷。
 
+审核编辑界面的单独 Word 导出复用同一 native picker、`export` 目录历史和一次性 `directory_token`：用户确认 Word 文件名后打开 Windows 目录选择器，后端在消费并校验授权后把最新 `.docx` 直接写入所选文件夹。取消目录选择不调用文档生成、不覆盖目录历史，也不触发浏览器下载；导出成功后页面保持在审核编辑界面。单独 Word 导出不复制 RAR、不生成 HashMyFiles PNG，也不把案件标记为统一导出完成。
+
 **发布一致性**：Word、待导出 RAR 副本和真实 HashMyFiles 截图先在所选目录同卷临时区完整生成，HashMyFiles 校验该待发布副本；全部成功后才分别向所选目录和其上级目录执行可回滚替换发布。任一步失败同时恢复两个目录的上一版完整产物，不留下新旧文件混合包。
 
 **旧布局迁移**：再次导出时，同名 RAR 若仍存在于旧规则的所选文件夹中，必须和历史 HashMyFiles HTML 一并纳入发布事务清理；后续发布失败时恢复这些旧产物，成功时不得在新旧目录同时留下同名 RAR。
@@ -84,10 +86,12 @@
 **备选与拒绝**：
 - 保持单 Word 下载 → 不含 RAR 与校验截图，不满足需求，拒绝。
 - 一次性导出并锁死 → 与「可重复导出」决策相悖，拒绝。
+- 继续依赖浏览器下载设置或 `showSaveFilePicker` → 无法稳定复用当前本机服务的一次性路径授权与目录记忆，并且与案件工作台现有 Windows 文件夹选择交互不一致，拒绝。
 
 **实现要点**：
 - 新增/改造导出端点：`POST /workbench/cases/{id}/export-bundle`，请求含导出路径 + 一次性 `directory_token`（由 native picker 后端返回，不接收任意服务器路径）。
 - 路径安全：`select-export-directory` 经 `issue_exact_directory_grant` 签发一次性 grant token，`export_bundle` 消费校验，未授权拒绝 `EXPORT_PATH_NOT_AUTHORIZED`，防止任意路径写入。
+- 单独 Word 路径导出继续复用 `/records/export` 的报告规范化、模板解析、盘号与附件门控及图片处理，只增加受控路径发布分支；请求必须携带 picker 返回的 `export_path`、一次性 `directory_token` 与清洗后的 `word_filename`，成功响应返回最终文件名/目录而非 Blob。既有不带路径参数的 Legacy 兼容请求保留浏览器下载行为。
 - 导出前重跑导出门控（REQ-009 全门控）；任一门控失败不标记已导出。
 - 正式 Word 的图片事实源是最新草稿的 `asset_refs`，按该顺序解析并校验物理图片；禁止扫描案件资产目录兜底。历史草稿若仅缺 `photo_groups`，按检材顺序和每组两张图片生成确定性兼容映射；存在未绑定上传记录时明确返回图片尚未保存错误。
 - 导出记录落库（路径、时间、part 集合、校验截图文件名），供「已导出」标记与审计；历史 HTML 字段作为旧记录兼容字段保留。

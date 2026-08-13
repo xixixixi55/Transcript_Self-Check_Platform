@@ -5,6 +5,7 @@ import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import type { InspectorLibraryRecord } from '@biji/shared/types'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
 import { useRecordExport } from '../hooks/useRecordExport'
+import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
 import { getReviewPendingItems, REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
 import { useReviewPendingNavigation } from '../hooks/useReviewPendingNavigation'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
@@ -30,10 +31,12 @@ export default function CaseRecordGeneratePage() {
   const session = useCaseRecordSession(caseId)
   const photoNavigationBlocker = useBlocker(session.photoAssets.navigationUnsafe)
   const { exportDocx, exporting } = useRecordExport()
+  const exportDirectory = useArchiveCompletion()
   const [devices, setDevices] = useState<{ id: string; name: string; model: string }[]>([])
   const [inspectors, setInspectors] = useState<InspectorLibraryRecord[]>([])
   const [reviewStatus, setReviewStatus] = useState<ReviewPageStatus>('尚未修改')
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [exportPreparing, setExportPreparing] = useState(false)
   const [inspectorError, setInspectorError] = useState<string | null>(null)
   const [inspectorLoading, setInspectorLoading] = useState(false)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
@@ -54,34 +57,53 @@ export default function CaseRecordGeneratePage() {
     if (session.editingEnabled) setReviewStatus('存在未导出修改')
   }, [session.editingEnabled, session.updateReport])
   const handleExport = async (requestedFileName: string) => {
-    const report = session.report, detail = session.detail
-    if (!report || !detail || exporting) return false
-    if (session.photoAssets.uploading) {
-      message.warning('图片仍在保存，请完成图片保存后再生成 Word。')
-      return false
+    const detail = session.detail
+    if (!session.report || !detail || exporting || exportPreparing || exportDirectory.busy) return false
+    setExportPreparing(true)
+    try {
+      if (session.photoAssets.uploading) {
+        message.warning('图片仍在保存，请完成图片保存后再生成 Word。')
+        return false
+      }
+      if (!await session.autosave.saveNow()) {
+        message.warning('案件仍有未完成保存，完成保存后才能生成 Word。')
+        return false
+      }
+      const savedDraft = session.autosave.getLastSavedDraft()
+      if (!savedDraft) {
+        message.warning('无法确认最新案件版本，请重新加载后再导出。')
+        return false
+      }
+      const report = savedDraft.report
+      const dateErrors = [
+        !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
+        !isValidMinuteTimeRangeValue(report.introduction.inspection_time_range) && '检查起止时间',
+        report.attachments?.burning_date && !isValidDateFieldValue(report.attachments.burning_date) && '附件3刻录时间',
+      ].filter(Boolean)
+      if (dateErrors.length) { message.error(`请修正以下日期时间字段：${dateErrors.join('、')}`); return false }
+      return await runWithSourceExportRiskConfirmation(detail.source.access_status, async () => {
+        let files: File[]
+        try { files = await session.photoAssets.readFiles() }
+        catch { return false }
+        let chosen
+        try { chosen = await exportDirectory.chooseDirectory() }
+        catch {
+          message.error('本机导出目录选择器暂不可用，请稍后重试。')
+          return false
+        }
+        if ('cancelled' in chosen) return false
+        setReviewStatus('导出中')
+        const success = await exportDocx(
+          report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
+          null, null, caseId, savedDraft.revision, chosen,
+        )
+        setReviewStatus(success ? '导出成功' : '导出失败')
+        if (success) message.success(`Word 已导出至：${chosen.path}`)
+        return success
+      })
+    } finally {
+      setExportPreparing(false)
     }
-    if (!await session.autosave.saveNow()) {
-      message.warning('案件仍有未完成保存，完成保存后才能生成 Word。')
-      return false
-    }
-    const dateErrors = [
-      !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
-      !isValidMinuteTimeRangeValue(report.introduction.inspection_time_range) && '检查起止时间',
-      report.attachments?.burning_date && !isValidDateFieldValue(report.attachments.burning_date) && '附件3刻录时间',
-    ].filter(Boolean)
-    if (dateErrors.length) { message.error(`请修正以下日期时间字段：${dateErrors.join('、')}`); return false }
-    return runWithSourceExportRiskConfirmation(detail.source.access_status, async () => {
-      setReviewStatus('导出中')
-      let files: File[]
-      try { files = await session.photoAssets.readFiles() }
-      catch { return false }
-      const success = await exportDocx(
-        report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
-        null, null, caseId, session.draft?.revision ?? null,
-      )
-      setReviewStatus(success ? '导出成功' : '导出失败')
-      return success
-    })
   }
   const saveNow = () => {
     if (!session.editingEnabled) { message.warning('当前页面没有有效编辑租约，未写入案件。'); return }
@@ -215,7 +237,7 @@ export default function CaseRecordGeneratePage() {
           report={session.report}
           updateReport={updateReport}
           onExport={() => setDownloadNameDialogOpen(true)}
-          exporting={exporting}
+          exporting={exporting || exportPreparing || exportDirectory.busy}
           onBackToUpload={() => { void handleBackToWorkbench() }}
           deviceOptions={devices.map(device => ({ label: `${device.name} (${device.model})`, value: device.name }))}
           availableInspectors={inspectors}
@@ -229,7 +251,7 @@ export default function CaseRecordGeneratePage() {
           onSave={saveNow}
           pendingItems={pendingItems}
           workbenchMode
-          readOnly={!session.editingEnabled}
+          readOnly={!session.editingEnabled || exportPreparing || exportDirectory.busy || exporting}
           archiveContextId={null}
           archiveResult={session.completedArchive}
         />
@@ -237,7 +259,7 @@ export default function CaseRecordGeneratePage() {
       <WordDownloadNameDialog
         open={downloadNameDialogOpen}
         documentNumber={session.report.document_number}
-        exporting={exporting}
+        exporting={exporting || exportPreparing || exportDirectory.busy}
         onCancel={() => setDownloadNameDialogOpen(false)}
         onConfirm={downloadName => { setDownloadNameDialogOpen(false); void handleExport(downloadName) }}
       />

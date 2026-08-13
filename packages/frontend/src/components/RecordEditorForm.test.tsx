@@ -1,7 +1,7 @@
 import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { InspectionReport } from '@biji/shared/types'
+import type { ArchiveTaskResult, InspectionReport } from '@biji/shared/types'
 import RecordEditorForm from './RecordEditorForm'
 
 vi.mock('antd', () => ({
@@ -40,7 +40,9 @@ vi.mock('./ProcessStepsEditor', () => ({ default: () => <div data-testid="proces
 vi.mock('./SoftwareToolsList', () => ({ default: () => <div data-testid="software-tools-list" /> }))
 vi.mock('./ExtractListEditor', () => ({ default: () => <div data-testid="extract-list-editor" /> }))
 vi.mock('./ImageUploader', () => ({ default: () => <div data-testid="image-uploader" /> }))
-vi.mock('./ArchiveStatusCard', () => ({ ArchiveStatusCard: () => null }))
+vi.mock('./ArchiveStatusCard', () => ({ ArchiveStatusCard: ({ showPartDownload }: { showPartDownload?: boolean }) => (
+  <div data-testid="archive-status-card">{String(showPartDownload)}</div>
+) }))
 
 const report: InspectionReport = {
   title: '电子数据检查笔录', document_number: 'SYN-TEST〔2026〕000001号',
@@ -70,6 +72,10 @@ describe('RecordEditorForm', () => {
   it('keeps the full editor controls when rendered by the case workbench', () => {
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
+      archiveResult={{ result: {
+        task_id: 'archive-task-1', case_id: 'case-synthetic', manifest_id: 'manifest-synthetic',
+        plan_row_revision: 1, verified_slots: [], assets: [], parts: [], finished_at: '2026-08-13T00:00:00Z',
+      } satisfies ArchiveTaskResult, loading: false, error: null }}
       workbenchMode />)
 
     expect(screen.getByText('审核编辑')).toBeTruthy()
@@ -78,6 +84,7 @@ describe('RecordEditorForm', () => {
     expect(screen.getByTestId('image-uploader')).toBeTruthy()
     expect(screen.queryByText('附件3：光盘编号')).toBeNull()
     expect(screen.queryByLabelText('导出文件名')).toBeNull()
+    expect(screen.getByTestId('archive-status-card').textContent).toBe('false')
   })
 
   it('keeps the read-only attachment date summary for a saved valid disc number', () => {

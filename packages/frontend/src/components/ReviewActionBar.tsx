@@ -23,7 +23,7 @@ export function ReviewActionBar({ status, saveBusy, exporting, backLabel = '返�
         <Button icon={<SaveOutlined />} onClick={onSave} loading={saveBusy} disabled={exporting}>
           保存当前修改
         </Button>
-        <Button type="primary" icon={<DownloadOutlined />} onClick={onExport} loading={exporting} disabled={saveBusy}>
+        <Button type="primary" icon={<DownloadOutlined />} onClick={onExport} loading={exporting}>
           导出 Word
         </Button>
       </Space>

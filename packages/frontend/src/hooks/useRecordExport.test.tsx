@@ -2,6 +2,7 @@ import React from 'react'
 import { fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { InspectionReport } from '@biji/shared/types'
+import { API_ENDPOINTS } from '@biji/shared/constants'
 import { useRecordExport } from './useRecordExport'
 
 const post = vi.hoisted(() => vi.fn())
@@ -50,6 +51,15 @@ function CaseExportHarness({ onResult }: { onResult: (value: boolean) => void })
   return <button onClick={async () => onResult(await exportDocx(
     report, [], undefined, undefined, null, null, 'case-SYNTHETIC-export', 9,
   ))}>导出</button>
+}
+
+function DirectoryExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
+  const { exportDocx } = useRecordExport()
+  return <button onClick={async () => onResult(await exportDocx(
+    report, [], undefined, 'SYNTHETIC-result.docx', null, null,
+    'case-SYNTHETIC-export', 9,
+    { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' },
+  ))}>导出到目录</button>
 }
 
 describe('useRecordExport', () => {
@@ -188,6 +198,38 @@ describe('useRecordExport', () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(false))
     expect(alert).toHaveBeenCalledWith(expect.stringContaining('模板指纹校验失败'))
     expect(alert).not.toHaveBeenCalledWith(expect.stringContaining('unsafe'))
+    vi.restoreAllMocks()
+  })
+
+  it('sends the picker-authorized directory and does not trigger a browser download', async () => {
+    post.mockResolvedValueOnce({ data: { data: {
+      export_path: 'D:\\SYNTHETIC\\EXPORT', word_filename: 'SYNTHETIC-result.docx',
+    } } })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    const onResult = vi.fn()
+    render(<DirectoryExportHarness onResult={onResult} />)
+    fireEvent.click(screenButton())
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true))
+    const [url, form, config] = post.mock.calls[0]
+    expect(url).toBe(API_ENDPOINTS.EXPORT_RECORD)
+    expect((form as FormData).get('export_path')).toBe('D:\\SYNTHETIC\\EXPORT')
+    expect((form as FormData).get('directory_token')).toBe('token-synthetic')
+    expect((form as FormData).get('word_filename')).toBe('SYNTHETIC-result.docx')
+    expect(config).toEqual({ responseType: 'json' })
+    expect(click).not.toHaveBeenCalled()
+    click.mockRestore()
+  })
+
+  it('rejects an invalid directory-export response without downloading a blob', async () => {
+    post.mockResolvedValueOnce({ data: { data: {} } })
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    const onResult = vi.fn()
+    render(<DirectoryExportHarness onResult={onResult} />)
+    fireEvent.click(screenButton())
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(false))
+    expect(alert).toHaveBeenCalledWith(expect.stringContaining('导出结果响应无效'))
+    expect(click).not.toHaveBeenCalled()
     vi.restoreAllMocks()
   })
 })

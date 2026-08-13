@@ -104,6 +104,132 @@ def test_export_allows_report_only_word_without_archive_manifest(client, tmp_pat
     observe.assert_not_called()
 
 
+def _directory_export_report():
+    return {
+        "title": "SYNTHETIC 电子数据检查笔录",
+        "document_number": "SYN-TEST-DIRECTORY",
+        "introduction": {"evidence_list": []},
+        "inspection": {"primary_software": {
+            "name": "SYNTHETIC 取证软件",
+            "version": "V1.0",
+            "confirmation_status": "confirmed_by_user",
+        }, "result": {}},
+        "attachments": {"disc_number": "GP20260812-01"},
+    }
+
+
+def test_standalone_word_export_writes_to_picker_authorized_directory(client, tmp_path):
+    from app.controllers import record_controller
+    from app.services.archive_authorization_service import ArchiveAuthorizationService
+
+    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    token = authorization.issue_exact_directory_grant(str(tmp_path))
+    services = MagicMock()
+    services.sources.authorization = authorization
+
+    def generate_to_staging(*_args, **kwargs):
+        output = Path(kwargs["output_dir"]) / "SYNTHETIC-result.docx"
+        output.write_bytes(b"SYNTHETIC-DIRECTORY-DOCX")
+        return str(output)
+
+    with patch.object(record_controller, "get_workbench_services", return_value=services), \
+         patch.object(record_controller, "generate_docx", side_effect=generate_to_staging) as generate:
+        response = client.post(
+            "/api/v1/records/export",
+            data={
+                "report_json": json.dumps(_directory_export_report(), ensure_ascii=False),
+                "export_path": str(tmp_path),
+                "directory_token": token,
+                "word_filename": "SYNTHETIC-result.docx",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "export_path": str(tmp_path),
+        "word_filename": "SYNTHETIC-result.docx",
+    }
+    assert (tmp_path / "SYNTHETIC-result.docx").read_bytes() == b"SYNTHETIC-DIRECTORY-DOCX"
+    assert generate.call_args.kwargs["output_filename"] == "SYNTHETIC-result.docx"
+    assert Path(generate.call_args.kwargs["output_dir"]).parent == tmp_path
+
+
+def test_standalone_word_export_rejects_reused_or_mismatched_directory_grant(client, tmp_path):
+    from app.controllers import record_controller
+    from app.services.archive_authorization_service import ArchiveAuthorizationService
+
+    selected = tmp_path / "selected"
+    mismatch = tmp_path / "mismatch"
+    selected.mkdir()
+    mismatch.mkdir()
+    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    services = MagicMock()
+    services.sources.authorization = authorization
+
+    def request(token, export_path):
+        return client.post(
+            "/api/v1/records/export",
+            data={
+                "report_json": json.dumps(_directory_export_report(), ensure_ascii=False),
+                "export_path": str(export_path),
+                "directory_token": token,
+                "word_filename": "SYNTHETIC-result.docx",
+            },
+        )
+
+    with patch.object(record_controller, "get_workbench_services", return_value=services), \
+         patch.object(record_controller, "generate_docx") as generate:
+        mismatched = request(
+            authorization.issue_exact_directory_grant(str(selected)), mismatch,
+        )
+        reusable_token = authorization.issue_exact_directory_grant(str(selected))
+        def generate_to_staging(*_args, **kwargs):
+            generated_path = Path(kwargs["output_dir"]) / "SYNTHETIC-result.docx"
+            generated_path.write_bytes(b"NEW")
+            return str(generated_path)
+        generate.side_effect = generate_to_staging
+        first = request(reusable_token, selected)
+        reused = request(reusable_token, selected)
+
+    assert mismatched.status_code == 422
+    assert mismatched.json()["detail"]["code"] == "EXPORT_PATH_NOT_AUTHORIZED"
+    assert first.status_code == 200
+    assert (selected / "SYNTHETIC-result.docx").read_bytes() == b"NEW"
+    assert reused.status_code == 422
+    assert reused.json()["detail"]["code"] == "EXPORT_PATH_NOT_AUTHORIZED"
+    assert generate.call_count == 1
+
+
+def test_standalone_word_export_failure_preserves_existing_file(client, tmp_path):
+    from app.controllers import record_controller
+    from app.services.archive_authorization_service import ArchiveAuthorizationService
+
+    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    token = authorization.issue_exact_directory_grant(str(tmp_path))
+    services = MagicMock()
+    services.sources.authorization = authorization
+    existing = tmp_path / "SYNTHETIC-result.docx"
+    existing.write_bytes(b"PREVIOUS")
+
+    with patch.object(record_controller, "get_workbench_services", return_value=services), \
+         patch.object(record_controller, "generate_docx", side_effect=RuntimeError("private path detail")):
+        response = client.post(
+            "/api/v1/records/export",
+            data={
+                "report_json": json.dumps(_directory_export_report(), ensure_ascii=False),
+                "export_path": str(tmp_path),
+                "directory_token": token,
+                "word_filename": "SYNTHETIC-result.docx",
+            },
+        )
+
+    assert response.status_code == 500
+    assert response.json()["detail"]["code"] == "DOCX_RENDER_FAILED"
+    assert "private path detail" not in response.text
+    assert existing.read_bytes() == b"PREVIOUS"
+    assert not list(tmp_path.glob(".biji-word-export-*"))
+
+
 def test_case_word_export_uses_persisted_first_disc_mapping(client, tmp_path):
     from app.controllers import record_controller, record_template_context_controller
     from app.repository import (

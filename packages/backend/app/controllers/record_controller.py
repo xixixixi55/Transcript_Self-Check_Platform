@@ -42,6 +42,7 @@ from .record_template_context_controller import (
     resolve_case_disc_mapping,
     resolve_case_template_context,
 )
+from ..services.workbench_factory_service import get_workbench_services
 from ..config import OUTPUT_BASE, UPLOAD_BASE, ARCHIVE_MAX_SIZE
 router = APIRouter()
 ARCHIVE_AUTHORIZATION_SERVICE = ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
@@ -126,6 +127,8 @@ async def export_record_endpoint(
     archive_context_id: str = Form(""),
     manifest_id: str = Form(""),
     case_id: str = Form(""), case_revision: int | None = Form(None),
+    export_path: str = Form(""), directory_token: str = Form(""),
+    word_filename: str = Form(""),
     photos: list[UploadFile] = File(default=[]),
 ):
     """接收 InspectionReport JSON 和图片，生成唯一正式 DOCX。"""
@@ -205,6 +208,20 @@ async def export_record_endpoint(
         )
     if formal_archive_requested and validated_manifest is None:
         raise HTTPException(status_code=422, detail={"code": "ARCHIVE_MANIFEST_MISSING"})
+    directory_export_requested = bool(export_path or directory_token or word_filename)
+    if directory_export_requested:
+        if not export_path or not directory_token or not word_filename:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "EXPORT_PATH_NOT_AUTHORIZED", "message": "导出目录授权已失效，请重新选择导出目录。"},
+            )
+        if not get_workbench_services().sources.authorization.consume_exact_directory_grant(
+            directory_token, export_path,
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "EXPORT_PATH_NOT_AUTHORIZED", "message": "导出目录授权已失效，请重新选择导出目录。"},
+            )
     canonical_source = report
     legacy_plan = None
     if validated_manifest is not None:
@@ -215,7 +232,10 @@ async def export_record_endpoint(
     try:
         output_dir = os.path.join(OUTPUT_BASE, "exports")
         os.makedirs(output_dir, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="attachment2-images-") as photo_dir:
+        selected_output = export_path if directory_export_requested else output_dir
+        staging_parent = export_path if directory_export_requested else None
+        with tempfile.TemporaryDirectory(prefix=".biji-word-export-", dir=staging_parent) as staging_dir, \
+             tempfile.TemporaryDirectory(prefix="attachment2-images-") as photo_dir:
             photo_paths = []
             for index, photo in enumerate(uploaded_photos, 1):
                 suffix = os.path.splitext(photo.filename or "")[1].lower()
@@ -224,15 +244,24 @@ async def export_record_endpoint(
                     handle.write(await photo.read())
                 photo_paths.append(photo_path)
             docx_path = generate_docx(
-                report, photo_paths=photo_paths, output_dir=output_dir,
-                archive_manifest=validated_manifest, **template_context,
+                report, photo_paths=photo_paths,
+                output_dir=staging_dir if directory_export_requested else selected_output,
+                archive_manifest=validated_manifest,
+                output_filename=word_filename or None, **template_context,
             )
+            filename = os.path.basename(docx_path)
+            if directory_export_requested:
+                os.replace(docx_path, os.path.join(selected_output, filename))
         if validated_manifest is not None:
             observe_shadow_export(
                 formal_context_id, report, validated_manifest, settings, background_tasks,
                 legacy_plan=legacy_plan, canonical_source=canonical_source,
             )
-        filename = os.path.basename(docx_path)
+        if directory_export_requested:
+            return {
+                "api_version": "v1", "schema_version": 1,
+                "data": {"export_path": selected_output, "word_filename": filename},
+            }
         return FileResponse(
             path=docx_path,
             filename=filename,

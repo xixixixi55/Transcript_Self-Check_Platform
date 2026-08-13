@@ -254,3 +254,22 @@ workflow_level: 3
   - code_review: [PASS] 对字段级 CAS、租约校验、最新草稿合并、并发重试、前端未保存编辑重放与失败重试基线完成实现自审；修正了首次绑定失败后错误采用未持久化图片列表作为下一次 CAS 基线的问题，复核无 remaining MUST FIX。
   - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过。
   - manual_acceptance: [PASS] 首轮真实桌面验收观察到 `PATCH /assets/binding` 返回 405；实时 `openapi.json` 同样缺少该路径，而从当前工作区导入的 FastAPI 应用包含该 PATCH，证明请求命中的是新增路由前启动且未重载的旧应用，不是字段级 CAS 再次失败。进一步发现 30010 同时存在旧 reload 与当前应用两个监听者；清理后改为单一无 reload 当前工作区后端，连续 10 次 OpenAPI 检查均包含 PATCH，空体路由探针返回契约校验 422 而非 405。重启后同一案件 GET 200、draft revision=5，且 405 前上传的 4 个同指纹可用孤儿资产仍在登记表中。刷新审核页重新获取租约后，用户于 2026-08-12 按“报告解析完成 → 立即压缩 → 填盘号 → 上传两张图片 → 返回案件工作台”完成真实桌面复验并确认通过。
+
+- [x] T035 审核编辑界面单独 Word 导出复用 Windows 原生目录选择器（用户需求）。
+  - 目标：审核编辑界面「导出 Word」按“确认 Word 文件名 → Windows 原生目录选择器 → 写入所选目录”的顺序执行，与案件工作台统一导出的路径选择、目录记忆和一次性授权行为一致；取消选择不生成文件。
+  - Layer 0–1：在 `packages/shared/types/wordDownload.ts` 补充单独 Word 路径导出的请求/响应契约，复用现有导出与目录选择端点常量而不新增重复入口；验证：shared typecheck。
+  - Layer 10：修改 `packages/frontend/src/hooks/useRecordExport.ts`，复用 `useArchiveCompletion` 已使用的 native picker 契约，把所选路径、一次性 token 和文件名随导出请求提交；保留导出门控错误映射；验证：`packages/frontend/src/hooks/useRecordExport.test.tsx` 覆盖成功、取消、picker 失败和导出失败。
+  - Layer 12：修改 `packages/frontend/src/pages/CaseRecordGeneratePage.tsx`，保留现有文件名对话框，并在确认后先选择目录再生成 Word；成功后提示最终目录且页面不跳转；验证：`packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx` 覆盖调用顺序、取消不请求导出、重复导出每次获取新 token。
+  - Layer 22：修改 `packages/backend/app/controllers/record_controller.py` 及必要的同层辅助模块，复用现有报告规范化、模板、盘号、图片和导出门控，在一次性目录授权校验通过后将 `.docx` 原子写入 picker 所选目录；既有无路径 Legacy 请求继续返回浏览器下载；验证：`tests/test_record_controller.py` 覆盖授权成功、token 缺失/复用/路径不匹配、文件名清洗和生成失败不留下伪成功文件。
+  - 文档与门控：实现完成后核对本变更 delta 与最终行为，更新 living spec，运行前后端定向测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change background-compression-archive-completion`；Windows 真实目录选择器及实际 `.docx` 落盘需人工验收。
+  - 验证：前端 4 files / 48 tests passed，覆盖保存响应快照、准备阶段编辑锁、目录授权参数和不触发浏览器下载；后端定向 pytest 6 passed，覆盖一次性授权成功、路径不匹配、token 复用、生成失败保留旧文件及 Legacy 下载兼容；`npm run typecheck` 与 `npm run lint:arch` PASS；`git diff --check` PASS。
+  - code_review: [PASS] 独立审查先后识别旧 revision 快照与保存后至 picker 前编辑竞态；修复为在首个异步等待前锁定编辑、flush 后只消费保存响应快照，最终复审无 MUST FIX。
+  - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过。
+  - manual_acceptance: [PASS] 用户于 2026-08-13 完成真实 Windows 桌面人工验收并确认通过；审核编辑界面的 Word 文件名确认、原生目录选择、所选目录落盘及相关交互符合预期。
+
+- [x] T036 隐藏审核编辑界面的单卷 RAR 下载按钮（用户需求）。
+  - 内容：审核编辑界面的附件区域继续展示已验证 RAR 的文件名、大小、MD5、卷序和盘号，但不再显示「下载该 RAR」；统一导出、后端受控下载能力及非工作台兼容入口不变。
+  - 文件：`packages/frontend/src/components/ArchiveStatusCard.tsx`、`RecordEditorForm.tsx`、`ArchiveStatusCard.test.tsx`、本变更包 delta spec 与 living spec。
+  - 验证：前端组件定向测试 2 files / 16 tests passed，覆盖审核编辑器传入隐藏配置、归档信息保留且下载链接缺失，以及其他入口默认下载行为不变；`npm run verify:quick` PASS，架构、类型、治理、quick docs 与仓库资产门控通过；scoped strict docs 13 checks/0 drift；`git diff --check` PASS。
+  - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过；用户明确要求本轮不执行独立 code review。
+  - manual_acceptance: N/A（仅隐藏指定页面按钮，组件自动化测试覆盖展示信息保留且下载链接缺失；不改变桌面选择器或真实文件内容。）

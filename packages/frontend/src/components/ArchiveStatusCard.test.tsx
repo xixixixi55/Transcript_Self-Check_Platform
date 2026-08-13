@@ -115,4 +115,23 @@ describe('ArchiveStatusCard', () => {
       '/workbench/tasks/archive-task-1/result/parts/part-1',
     )
   })
+
+  it('hides the part download action when requested by the review workspace', () => {
+    render(
+      <ArchiveStatusCard
+        contextId={null}
+        taskId="archive-task-1"
+        status="completed"
+        manifest={null}
+        resultParts={[{
+          part_id: 'part-1', filename: '合成案件.part1.rar', size_bytes: 123,
+          md5: 'a'.repeat(32), disc_number: 'GP20260718-01', disc_date: '2026-07-18',
+        }]}
+        error={null}
+        showPartDownload={false}
+      />,
+    )
+    expect(screen.getByText('合成案件.part1.rar')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: /下载该 RAR/ })).toBeNull()
+  })
 })

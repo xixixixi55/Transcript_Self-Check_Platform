@@ -104,7 +104,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         if (body && (body as Record<string, unknown>).expected_revision !== 6) throw { response: { status: 409, data: { detail: { code: 'REVISION_CONFLICT', message: '案件已被其他会话修改。' } } } }
         return { data: { data: { case: detail(7, 6, 'archive_queued', 'GP20260731-002'), decision: 'immediate', archive_status: 'archive_task_queued', archive_task: { task_id: 'archive-synthetic-1' } } } }
       }
-      if (url === API_ENDPOINTS.EXPORT_RECORD) return { data: new Blob(['SYNTHETIC-DOCX']) }
+      if (url === API_ENDPOINTS.EXPORT_RECORD) {
+        const form = body as FormData
+        return form.get('export_path')
+          ? { data: { data: { export_path: form.get('export_path'), word_filename: form.get('word_filename') } } }
+          : { data: new Blob(['SYNTHETIC-DOCX']) }
+      }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId)) {
         const request = body as { expected_revision: number; expected_plan_row_revision: number; first_disc_number: string }
         archiveResultParts = completedArchiveResult.parts.map((part, index) => ({
@@ -247,29 +252,25 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DECISION(caseId))).toHaveLength(1)
   }, 15000)
 
-  it('allows Word export after the draft saves even when shared defaults fail', async () => {
-    failSharedDefaults = true
-    const previousCreateObjectUrl = window.URL.createObjectURL
-    const previousRevokeObjectUrl = window.URL.revokeObjectURL
+  it('locks editing before flushing an immediate edit for Word export', async () => {
+    failSharedDefaults = true; holdSave = true
     const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-    Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:synthetic') })
-    Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
     try {
       renderPage()
       await editDiscNumber()
-      await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
-
       fireEvent.click(screen.getByRole('button', { name: /导出 Word/ }))
       fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
+      await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1)); expect((document.querySelector('.review-editor-form__fieldset') as HTMLFieldSetElement).disabled).toBe(true)
+      expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY)).toBe(false)
+      holdSave = false; resolveSave?.(); resolveSave = null
+      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY, undefined, expect.anything()))
       await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)).toBe(true))
-      const exportCall = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)
-      const formData = exportCall?.[1] as FormData
-      expect(formData.get('case_id')).toBe(caseId)
-      expect(formData.get('case_revision')).toBe('6')
+      const formData = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)?.[1] as FormData
+      expect(formData.get('case_id')).toBe(caseId); expect(formData.get('case_revision')).toBe('6')
+      expect(formData.get('export_path')).toBe('D:\\SYNTHETIC\\EXPORT'); expect(formData.get('directory_token')).toBe('token-synthetic')
+      expect(events.indexOf('draft-save')).toBeLessThan(postMock.mock.calls.findIndex(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY))
     } finally {
       anchorClick.mockRestore()
-      Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: previousCreateObjectUrl })
-      Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: previousRevokeObjectUrl })
     }
   }, 15000)
 

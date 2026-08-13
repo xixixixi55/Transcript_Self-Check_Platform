@@ -184,12 +184,12 @@ describe('review workspace components', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('保存和导出处理中会防止重复触发', () => {
+  it('保存中仍允许导出动作主动冲刷草稿', () => {
     const onSave = vi.fn()
     const onExport = vi.fn()
-    render(<ReviewActionBar status="存在未导出修改" saveBusy onSave={onSave} onBack={vi.fn()} exporting onExport={onExport} />)
+    render(<ReviewActionBar status="存在未导出修改" saveBusy onSave={onSave} onBack={vi.fn()} exporting={false} onExport={onExport} />)
     expect((screen.getByRole('button', { name: /保存当前修改/ }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: /导出 Word/ }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: /导出 Word/ }) as HTMLButtonElement).disabled).toBe(false)
     expect(screen.getByText('存在未导出修改')).toBeTruthy()
   })
 

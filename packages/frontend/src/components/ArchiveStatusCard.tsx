@@ -30,6 +30,7 @@ interface Props {
   resultParts?: ArchiveTaskResult['parts'] | null
   taskId?: string | null
   error: string | null
+  showPartDownload?: boolean
 }
 
 interface DisplayPart {
@@ -49,7 +50,7 @@ function readableSize(bytes: number): string {
 }
 
 export function ArchiveStatusCard({ contextId, status, loading = false, onPrepare = () => undefined,
-  manifest, resultParts = null, taskId = null, error }: Props) {
+  manifest, resultParts = null, taskId = null, error, showPartDownload = true }: Props) {
   const parts: DisplayPart[] = manifest?.parts || resultParts?.map((part, index) => ({
     ...part, part_number: index + 1,
   })) || []
@@ -76,7 +77,7 @@ export function ArchiveStatusCard({ contextId, status, loading = false, onPrepar
               {part.disc_capacity_bytes !== undefined && <Descriptions.Item label="光盘容量">{readableSize(part.disc_capacity_bytes)}</Descriptions.Item>}
               <Descriptions.Item label="归档状态">已验证</Descriptions.Item>
             </Descriptions>
-            {(contextId || taskId) && (
+            {showPartDownload && (contextId || taskId) && (
               <Button
                 icon={<DownloadOutlined />}
                 href={contextId && manifest

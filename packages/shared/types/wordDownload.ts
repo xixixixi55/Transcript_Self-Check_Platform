@@ -6,3 +6,15 @@
 export interface WordDownloadName {
   download_name: string
 }
+
+/** Picker-authorized output returned after a standalone Word export. */
+export interface WordDirectoryExportResult {
+  export_path: string
+  word_filename: string
+}
+
+/** Directory authorization fields appended to a standalone Word export request. */
+export interface WordDirectoryExportTarget {
+  path: string
+  token: string
+}

@@ -70,11 +70,13 @@ export function useCaseDraftAutosave(options: Options) {
   const rerunAfterFlight = useRef(false)
   const flushRequested = useRef(false)
   const lastSavedSignature = useRef<string | null>(null)
+  const lastSavedDraft = useRef<CaseDraft | null>(changeToken === 0 ? draft : null)
   const sendRef = useRef<((snapshot?: CaseDraft) => Promise<boolean>) | null>(null)
   const [draftState, setDraftState] = useState<AutosaveViewState>({ status: 'idle' })
   const [sharedState, setSharedState] = useState<AutosaveViewState>({ status: 'not_changed' })
   const [hasPending, setHasPending] = useState(false)
   latest.current = { draft, identity, sharedDefaultsPatch: sharedDefaultsPatch ?? sharedValues, sharedDefaultsRevision, includeSharedDefaults, changeToken, leaseId, leaseToken }
+  if (changeToken === 0 && !pending.current && !inFlight.current) lastSavedDraft.current = draft
   onSavedRef.current = onSaved
   const clearTimer = useCallback(() => {
     if (timer.current !== null) window.clearTimeout(timer.current)
@@ -94,6 +96,7 @@ export function useCaseDraftAutosave(options: Options) {
       pending.current = null
       setHasPending(false)
       setDraftState({ status: 'saved', revision: value.revision })
+      lastSavedDraft.current = cloneDraft(value)
       return true
     }
     setDraftState({ status: 'saving' })
@@ -125,6 +128,7 @@ export function useCaseDraftAutosave(options: Options) {
         return false
       }
       setDraftState({ status: 'saved', revision: result.draft_save_status.revision })
+      lastSavedDraft.current = cloneDraft(result.draft)
       setSharedState(includeDefaults ? { status: toAutosaveStatus(sharedStatus.status), revision: sharedStatus.revision, errorCode: sharedStatus.error_code } : { status: 'not_changed' })
       lastSavedSignature.current = requestSignature
       const hasNewerChanges = latest.current.changeToken > requestChangeToken
@@ -233,6 +237,7 @@ export function useCaseDraftAutosave(options: Options) {
     if (!keepPending) {
       pending.current = null
       rerunAfterFlight.current = false
+      lastSavedDraft.current = cloneDraft(rebasedDraft)
       setHasPending(false)
       setDraftState({ status: 'saved', revision: rebasedDraft.revision })
       return
@@ -250,12 +255,17 @@ export function useCaseDraftAutosave(options: Options) {
     rerunAfterFlight.current = false
     pending.current = null
     lastSavedSignature.current = null
+    lastSavedDraft.current = null
     setHasPending(false)
     setDraftState({ status: 'idle' })
     setSharedState({ status: 'not_changed' })
   }, [clearTimer])
 
-  return { draftState, sharedState, hasPending, saveNow, retry, rebase, reset }
+  const getLastSavedDraft = useCallback(() => (
+    lastSavedDraft.current ? cloneDraft(lastSavedDraft.current) : null
+  ), [])
+
+  return { draftState, sharedState, hasPending, saveNow, retry, rebase, reset, getLastSavedDraft }
 }
 
 function toAutosaveStatus(status: SharedDefaultsSaveStatus['status'] | 'saved' | 'conflict' | 'not_changed' | undefined): AutosaveStatus {

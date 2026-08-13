@@ -129,6 +129,7 @@ export default function RecordEditorForm({
             resultParts={archiveResult.result?.parts}
             taskId={archiveResult.result?.task_id}
             error={archiveError || archiveResult.error}
+            showPartDownload={!workbenchMode}
           />}
         <ReviewAttachmentsSection attachments={attachments} materials={introduction.evidence_list || []}
           hardwareDevice={report.inspection?.hardware_device || ''} photoFiles={photoFiles}

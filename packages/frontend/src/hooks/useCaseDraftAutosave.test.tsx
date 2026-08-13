@@ -242,6 +242,7 @@ describe('useCaseDraftAutosave', () => {
       expect(await manualSave).toBe(true)
     })
     expect(view.result.current.draftState.status).toBe('saved')
+    expect(view.result.current.getLastSavedDraft()?.revision).toBe(4)
     expect(patchMock).toHaveBeenCalledTimes(1)
   })
 
