@@ -10,10 +10,13 @@ import xml.etree.ElementTree as ET
 
 import pytest
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.template_filler_service import _flatten_report, fill_template
+from app.services.docx_package_service import compute_ooxml_package_fingerprint
 from app.services.attachment2_image_service import (
     ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU,
     ATTACHMENT2_SLOT_HEIGHT_EMU,
@@ -153,12 +156,66 @@ def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
     assert title.alignment == 1
     assert title.runs and all(run.bold for run in title.runs if run.text)
     assert extract_heading.runs and all(run.bold for run in extract_heading.runs if run.text)
+    header_cells = document.tables[0].rows[0].cells
+    for cell_index, expected_text in ((1, "电子数据"), (2, "来源")):
+        paragraph = header_cells[cell_index].paragraphs[0]
+        assert paragraph.text == expected_text
+        assert paragraph.alignment == 1
+        assert paragraph._p.pPr.find(qn("w:ind")) is None
+        assert not paragraph._p.findall(".//" + qn("w:rPr") + "/" + qn("w:spacing"))
     assert any(
         "委托单位：SYNTHETIC-公安分局SYNTHETIC-派出所" in paragraph.text
         for paragraph in document.paragraphs
     )
     assert document.tables[0].rows[1].cells[2].text.strip() == "JC01检材内提取"
     assert document.tables[0].rows[1].cells[4].text.strip() == "ABCDEF0123456789ABCDEF0123456789"
+
+
+def test_manifest_render_removes_spread_formatting_from_short_extract_headers(tmp_path):
+    report = _report()
+    report["inspection"]["primary_software"] = {
+        "name": "SYNTHETIC 测试取证软件",
+        "version": "1.0",
+        "confirmation_status": "confirmed_by_report",
+    }
+    report["inspection"]["software_tools"] = [
+        {"name": "WinRAR压缩管理软件", "version": "6.24"},
+        {"name": "Python hashlib", "version": "3.12"},
+    ]
+    template = Document(_TEMPLATE)
+    for cell_index in (1, 2):
+        paragraph = template.tables[0].rows[0].cells[cell_index].paragraphs[0]
+        paragraph_pr = paragraph._p.get_or_add_pPr()
+        indent = paragraph_pr.find(qn("w:ind"))
+        if indent is None:
+            indent = OxmlElement("w:ind")
+            paragraph_pr.append(indent)
+        indent.set(qn("w:right"), "720")
+        for run in paragraph.runs:
+            run_properties = run._r.get_or_add_rPr()
+            for local_name, value in (("spacing", "120"), ("w", "150"), ("fitText", "600")):
+                node = OxmlElement(f"w:{local_name}")
+                node.set(qn("w:val"), value)
+                run_properties.append(node)
+    modified_template = tmp_path / "spread-header-template.docx"
+    template.save(modified_template)
+    output = tmp_path / "normalized-manifest-format.docx"
+
+    fill_template(
+        report, str(modified_template), str(output), [], _manifest(1),
+        compute_ooxml_package_fingerprint(modified_template),
+    )
+
+    document = Document(output)
+    for cell_index, expected_text in ((1, "电子数据"), (2, "来源")):
+        paragraph = document.tables[0].rows[0].cells[cell_index].paragraphs[0]
+        assert paragraph.text == expected_text
+        assert paragraph.alignment == 1
+        assert paragraph._p.pPr.find(qn("w:ind")) is None
+        for local_name in ("spacing", "w", "fitText"):
+            assert not paragraph._p.findall(
+                ".//" + qn("w:rPr") + "/" + qn(f"w:{local_name}")
+            )
 
 
 def test_manifest_disc_date_overrides_attachment_summary_signature_date(tmp_path):

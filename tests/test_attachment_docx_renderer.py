@@ -202,7 +202,7 @@ def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
     assert any(br.get("{%s}type" % W_NS) == "page" for br in page_breaks)
     tables = attachment_tables(root)
     assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 2]
-    assert "1、电子数据提取固定清单，共2页；" in text
+    assert "附件：1、电子数据提取固定清单，共2页；" in text
     assert "人员0" not in "".join("".join(node.itertext()) for node in tables[-1].iter())
     signature = "".join("".join(node.itertext()) for node in tables[-1].findall("./{%s}tr" % W_NS)[-1].iter())
     assert "检查人员" in signature and "盖章" in signature

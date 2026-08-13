@@ -125,6 +125,7 @@ def fill_template(report: dict, template_path: str, output_path: str,
 
     # 4.4 法定标题格式在所有动态渲染完成后统一施加。
     _apply_required_heading_styles(doc)
+    _apply_required_attachment_table_styles(doc)
 
     # 4.5 清除批注引用
     _remove_comments(doc)
@@ -155,7 +156,7 @@ def _format_plan_date(value: str) -> str:
 def _update_attachment_summary(doc: Document, plan) -> None:
     """Write the disc summary from the validated manifest-derived plan."""
     attachment1_summary = (
-        f"1、电子数据提取固定清单，共{len(plan.attachment1_pages)}页；"
+        f"附件：1、电子数据提取固定清单，共{len(plan.attachment1_pages)}页；"
     )
     for paragraph in doc.paragraphs:
         if "1、电子数据提取固定清单" in paragraph.text:
@@ -882,6 +883,26 @@ def _apply_required_heading_styles(doc: Document) -> None:
         elif normalized == "电子数据提取固定清单":
             for run in paragraph.runs:
                 run.bold = True
+
+
+def _apply_required_attachment_table_styles(doc: Document) -> None:
+    """Keep the short Attachment 1 headers centered without character spreading."""
+    if not doc.tables:
+        return
+    for cell in doc.tables[0].rows[0].cells:
+        if "".join(cell.text.split()) not in {"电子数据", "来源"}:
+            continue
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph_pr = paragraph._p.get_or_add_pPr()
+            indent = paragraph_pr.find(qn("w:ind"))
+            if indent is not None:
+                paragraph_pr.remove(indent)
+            for run_properties in paragraph._p.findall(".//" + qn("w:rPr")):
+                for local_name in ("spacing", "w", "fitText"):
+                    node = run_properties.find(qn(f"w:{local_name}"))
+                    if node is not None:
+                        run_properties.remove(node)
 
 
 def _remove_comments(doc: Document):

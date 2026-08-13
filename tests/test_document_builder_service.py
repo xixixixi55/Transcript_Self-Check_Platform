@@ -201,9 +201,12 @@ def test_batch_fallback_normalizes_titles_md5_and_extract_source():
                  if command["props"].get("text") == "电子数据检查笔录")
     extract_heading = next(command for command in paragraphs
                            if command["props"].get("text") == "电子数据提取固定清单")
+    attachment_summary = next(command for command in paragraphs
+                              if "电子数据提取固定清单，共" in command["props"].get("text", ""))
     assert title["props"]["align"] == "center"
     assert title["props"]["bold"] == "true"
     assert extract_heading["props"]["bold"] == "true"
+    assert attachment_summary["props"]["text"].startswith("附件：1、")
     assert any(
         "ABCDEF0123456789ABCDEF0123456789" in command["props"].get("text", "")
         for command in paragraphs
@@ -214,6 +217,15 @@ def test_batch_fallback_normalizes_titles_md5_and_extract_source():
     ]
     assert "SYN-JC00000001检材内提取" in cell_texts
     assert "ABCDEF0123456789ABCDEF0123456789" in cell_texts
+    header_cells = [
+        command for command in commands
+        if command.get("command") == "set"
+        and command.get("path") in {
+            "/body/tbl[1]/tr[1]/tc[2]", "/body/tbl[1]/tr[1]/tc[3]",
+        }
+    ]
+    assert [command["props"]["text"] for command in header_cells] == ["电子数据", "来源"]
+    assert all(command["props"]["align"] == "center" for command in header_cells)
 
 
 def test_generate_docx_rejects_empty_output(tmp_path: Path):

@@ -234,7 +234,18 @@ workflow_level: 3
   - 证据：后端共享默认值、Canonical 与两条 Word 路径定向测试 50 passed；前端组件/Hook 2 files / 16 passed，页面集成 16 passed；核心逻辑变异校验分别得到预期 1 failed 与 2 failed，恢复后 3 passed；架构、类型和仓库资产检查通过。
   - code_review: [PASS] 首轮发现 Canonical 跨语言契约未同步及测试 fixture 合规问题；同步共享类型/契约清单、补充三类双向投影测试并替换为显式合成数据后，独立复审确认全部 MUST/SHOULD FIX CLOSED。
   - final_gate: [PASS] 冻结候选执行 `npm run verify:full -- --change audit-edit-enhancement`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
-  - manual_acceptance: N/A（仅新增独立文本字段与确定性字符串拼接；模板和 batch 两条 DOCX 路径均由合成数据自动化读取实际输出验证，不改变版式。）
+
+## 🟢 Phase 12: 附件摘要与附件一表头排版修复
+
+- [x] T025 **补齐附件摘要标识并收紧附件一短表头排版**
+  - 文件：`packages/backend/app/services/template_filler_service.py`、`document_builder_service.py`、`tests/test_template_filler_service.py`、`tests/test_attachment_docx_renderer.py`、`tests/test_document_builder_service.py`、本变更包 delta spec。
+  - 内容：正式模板路径更新附件摘要时保留“附件：”前缀；“电子数据”“来源”表头统一为无异常缩进、字符间距或文字缩放的居中紧凑文本；officecli batch 兼容路径同步保持摘要前缀和表头居中。
+  - 覆盖 Spec：REQ-032“Word 附件摘要保留附件标识”“附件一短表头使用紧凑格式”。
+  - 验证：模板与 batch 两条 Word 路径定向 pytest、合成 DOCX XML 断言、officecli validate、人工视觉检查、架构/类型、`verify:quick` 和 scoped strict docs。
+  - 证据：正式模板与 batch 兼容路径定向 pytest 74 passed；新增可区分测试向两个短表头注入 `w:ind`、`w:spacing`、`w:w`、`w:fitText` 后，经 Manifest 正式渲染逐项确认清除；`lint:arch`、typecheck、`verify:quick` 与 `git diff --check` 通过；合成 DOCX 经 officecli validate 无错误。
+  - code_review: [PASS] 首轮要求补充异常字符间距/缩放的 Manifest 正式路径区分性测试，并纠正人工验收记录；整改后第二轮独立复审确认全部 MUST/SHOULD FIX CLOSED。
+  - final_gate: [PASS] 使用短仓库外临时目录执行 `npm run verify:full -- --change audit-edit-enhancement`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
+  - manual_acceptance: [PASS] 使用完全合成数据生成 11 页 DOCX，经 Microsoft Word 后台导出 PDF 并逐页渲染 PNG 检查；附件摘要显示“附件：1、电子数据提取固定清单”，后续编号对齐；附件一“电子数据”“来源”连续居中且无拉宽空隙；全篇未见新增裁切、重叠、分页或页脚异常。
 
 ---
 
