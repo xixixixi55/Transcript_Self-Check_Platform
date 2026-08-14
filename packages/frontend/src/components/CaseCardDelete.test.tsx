@@ -19,13 +19,12 @@ const shell: CaseShell = {
 }
 
 describe('CaseCard deletion action', () => {
-  it('exposes deletion as an independent card action', () => {
+  it('keeps deletion in the overflow menu before export', () => {
     const onDelete = vi.fn()
-    render(<MemoryRouter><CaseCard position={1} shell={shell} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={onDelete} /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: /^删\s*除$/ }))
-    expect(onDelete).toHaveBeenCalledTimes(1)
-
+    render(<MemoryRouter><CaseCard shell={shell} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={onDelete} /></MemoryRouter>)
+    expect(screen.queryByRole('button', { name: '删除案件' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
-    expect(screen.queryByRole('menuitem', { name: '删除' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: '删除案件' }))
+    expect(onDelete).toHaveBeenCalledTimes(1)
   })
 })

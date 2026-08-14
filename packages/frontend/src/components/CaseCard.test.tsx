@@ -50,7 +50,6 @@ function renderCard(archiveSummary?: ArchiveTaskCardSummary) {
   render(
     <MemoryRouter>
       <CaseCard
-        position={3}
         shell={shell}
         archiveSummary={archiveSummary}
         onRetry={vi.fn()}
@@ -87,17 +86,21 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
 
   it('shows an unarchived card without empty progress or activity metrics', () => {
     renderCard()
-    expect(screen.getByLabelText('案件序号 3')).toBeTruthy()
-    expect(screen.getByText('未归档')).toBeTruthy()
-    expect(screen.getByRole('button', { name: '归档前检查' })).toBeTruthy()
+    expect(screen.queryByLabelText(/案件序号/)).toBeNull()
+    expect(screen.getByText('待处理')).toBeTruthy()
+    expect(screen.getByText('报告解析完成')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '打开案件' })).toBeTruthy()
     expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.queryByText(/总体里程碑/)).toBeNull()
   })
 
-  it('renders the persisted case name and summary on the card', () => {
+  it('renders the case name once and keeps the case number clearly visible', () => {
     renderCard()
-    expect(screen.getByText(shell.case_name)).toBeTruthy()
-    expect(screen.getByText(shell.case_summary)).toBeTruthy()
+    expect(screen.getAllByText(shell.case_name)).toHaveLength(1)
+    expect(screen.getByText(shell.case_number!)).toBeTruthy()
+    expect(screen.queryByText('案件名称')).toBeNull()
+    expect(screen.queryByText(shell.case_summary)).toBeNull()
+    expect(screen.getByText(/更新于 2026-07-30/)).toBeTruthy()
   })
 
   it('shows queued and recovery states without claiming the task is running', () => {
@@ -192,8 +195,10 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
           completionStatus="archive_complete" onExport={vi.fn()} />
       </MemoryRouter>,
     )
-    expect(screen.getAllByText('归档完成').length).toBeGreaterThan(0)
-    expect(screen.getByText('总体里程碑 100% · 3 个分卷')).toBeTruthy()
+    expect(screen.getByText('待导出')).toBeTruthy()
+    expect(screen.getByText('压缩完成')).toBeTruthy()
+    expect(screen.queryByText('总体里程碑 100% · 3 个分卷')).toBeNull()
+    expect(screen.queryByText(/阶段 9/)).toBeNull()
     expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.getByRole('button', { name: '统一导出' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '查看结果' })).toBeNull()

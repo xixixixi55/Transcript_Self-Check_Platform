@@ -2,7 +2,7 @@
 
 > 变更包：`background-compression-archive-completion`
 > 级别：Level 3
-> 范围：报告解析完成后，案件打开时可选「立即/稍后」启动后台压缩（替换预览手动归档触发）；压缩不阻塞审核编辑；每个 RAR 完成时实时覆盖填写检查结果与附件1；首个光盘编号可在压缩前或压缩后输入并按 part 顺序自动映射；全部 RAR/MD5/盘号对应完成后案件进入归档完成态并提示输入导出路径；统一导出最新 Word + RAR + HashMyFiles 三列校验截图（可重复）；导出成功后案件卡片标记已导出并提供彻底删除按钮。
+> 范围：报告解析完成后，案件打开时可选「立即/稍后」启动后台压缩（替换预览手动归档触发）；压缩不阻塞审核编辑；每个 RAR 完成时实时覆盖填写检查结果与附件1；首个光盘编号可在压缩前或压缩后输入并按 part 顺序自动映射；全部 RAR/MD5/盘号对应完成后案件进入归档完成态，工作台以「待导出」展示并提供统一导出；统一导出最新 Word + RAR + HashMyFiles 三列校验截图（可重复）；导出成功后案件卡片标记已导出并以删除案件作为推荐下一步，打开案件与再次导出保留为次要操作。
 > 基线：现有 workbench 后台归档任务（REQ-012/REQ-025）、Legacy 分卷归档合同（REQ-018）、单 Word 导出（REQ-009）、从最终 Manifest 生成附件1（REQ-017）、案件删除能力（`case-workbench-delete`，已完成）。
 
 ## Why
@@ -22,9 +22,9 @@
 - **不改变 WinRAR 分卷规则**：沿用固定体积自动分卷（REQ-018 的 4GB/22GB/45GB 档位）与 part 顺序。
 - **不实现 Canonical 双轨**：继续 Legacy 唯一正式输出；Shadow 只做旁路比较，不参与状态、进度、门控或正式产物。
 - **不改变归档快照密封/元数据校验/崩溃重试契约**：`REQ-ARCHIVE-IMMUTABLE-INPUT`、`REQ-ARCHIVE-PUBLICATION-GENERATION` 等保持不变。
-- **不重写案件删除**：彻底删除复用 `case-workbench-delete`（已实现：确认后删除任意状态案件与平台受控产物，外部原始资料目录不删）。
+- **不重写案件删除**：删除案件复用 `case-workbench-delete`（已实现：确认后删除任意状态案件与平台受控产物，已导出到目标目录的文件与外部原始资料目录不删）。
 - **不迁移 openspec delta 格式**：沿用仓库自定义轻量格式，权威门控为 `check-docs.ts`。
-- **不处理导出路径下的副本生命周期**：导出路径由用户管理，彻底删除不触碰已导出副本。
+- **不处理导出路径下的副本生命周期**：导出路径由用户管理，删除案件不触碰已导出副本。
 
 ## Capabilities
 
@@ -35,7 +35,7 @@
   - **ADDED REQ-030**：首个光盘编号可在压缩前或压缩后输入；压缩后可输入首个盘号，系统按 part 顺序自动生成全序列并一一映射；未填时卡片显示「待补盘号」中间态并保留补填入口。
     - 归档完成或已导出后仍保留首盘号编辑入口；再次提交按当前实际 part 顺序整体重建映射。
     - 案件内单独 Word 导出优先使用已持久化的首个分卷映射，不因草稿兼容字段为空误报缺少盘号。
-  - **ADDED REQ-031**：全部 RAR+MD5+盘号对应完成后案件进入「归档完成」态并提示输入导出路径；导出成功后卡片标记「已导出」，提供「彻底删除」按钮（仅删平台内产物，复用 `case-workbench-delete`）。
+  - **ADDED REQ-031**：全部 RAR+MD5+盘号对应完成后底层进入 `archive_complete`，工作台展示为「待导出」并以「统一导出」为推荐操作；导出成功后卡片标记「已导出」，以「删除案件」为推荐操作并在更多菜单保留「打开案件」「再次导出」（删除仅清理平台内产物，复用 `case-workbench-delete`）。
 
 ## Impact
 
@@ -48,14 +48,14 @@
 | BE Services (21) | `archive_execution_service.py`、`archive_planner_service.py`、`archive_manifest_service.py`、新增盘号映射/HashMyFiles/统一导出服务 | 盘号后填（plan 不要求盘号）、每 RAR 回填回调、HashMyFiles.exe 调用、统一导出编排 |
 | BE Controllers/Routes (22–23) | `archive_controller.py`、`record_controller.py`、导出相关路由 | 后台压缩触发与状态、盘号映射、统一/单独 Word 路径导出、导出记录 |
 | FE Hooks (10) | `useArchivePreparation.ts`、`usePreviewArchive.ts`、案件完成/统一导出 hooks、`useRecordExport.ts` | 案件打开立即/稍后选择、盘号后填与映射、复用原生导出目录选择、已导出状态 |
-| FE Components/Pages (11–12) | `CaseCard.tsx`、`ArchiveStatusCard.tsx`、`CaseWorkbenchPage.tsx`、`CaseRecordGeneratePage.tsx` | 卡片立即/稍后入口、待补盘号中间态、归档完成提示导出路径、已导出标记与彻底删除按钮 |
+| FE Components/Pages (11–12) | `CaseCard.tsx`、`ArchiveStatusCard.tsx`、`CaseWorkbenchPage.tsx`、`CaseRecordGeneratePage.tsx` | 卡片立即/稍后入口、待补盘号中间态、阶段主状态与推荐操作、已导出后的删除主操作 |
 
 ### 风险与依赖
 
 - **HashMyFiles.exe 部署**：选择「系统自动调用 exe」意味着需把工具纳入部署并配置路径（`BIJI_HASHMYFILES_PATH` 或随包放置）；其命令行参数与 HTML 输出格式需实测确认。
 - **Manifest 复用指纹含盘号**：REQ-012 复用指纹包含首盘号；盘号后填会使指纹变化，需把盘号从复用指纹中解耦或复用校验排除盘号，避免后填导致重复压缩。
-- **状态机一致性**：需把新状态（待补盘号/归档完成）映射进 REQ-025 的固定里程碑与案件状态，避免与现有 `archive_deferred/archiving/archive_verified/exporting_word/exported` 冲突。
-- **删除能力引用**：彻底删除依赖 `case-workbench-delete` 已完成；仅新增「已导出」状态的删除入口，不重写删除逻辑。
+- **状态机一致性**：待补盘号与待导出均由现有事实派生；工作台不新增持久化 lifecycle，统一导出期间只使用当前页面请求 loading，刷新后继续以服务端 lifecycle 为准。
+- **删除能力引用**：删除案件依赖 `case-workbench-delete` 已完成；本次只调整不同阶段的入口权重，不重写删除逻辑。
 
 ## 关键决策摘要
 

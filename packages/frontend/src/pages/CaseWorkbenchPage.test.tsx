@@ -43,11 +43,10 @@ describe('CaseWorkbenchPage', () => {
     expect(screen.queryByRole('textbox', { name: '案件名称' })).toBeNull()
     expect(screen.queryByRole('textbox', { name: '案件编号' })).toBeNull()
     expect(screen.queryByRole('button', { name: '上传报告目录' })).toBeNull()
-    expect(screen.getAllByLabelText(/案件序号/)).toHaveLength(6)
+    expect(screen.queryByLabelText(/案件序号/)).toBeNull()
     expect(screen.getByRole('heading', { level: 1, name: '案件工作台' })).toBeTruthy()
     expect(screen.queryByRole('heading', { level: 1, name: '电子数据检查案件' })).toBeNull()
-    expect(screen.getByLabelText('案件序号 1')).toBeTruthy()
-    expect(screen.getByLabelText('案件序号 6')).toBeTruthy()
+    expect(screen.queryByText(/案件提交、解析、审核和后台任务状态/)).toBeNull()
     expect(screen.getByTitle('2')).toBeTruthy()
     expect(screen.getByRole('button', { name: '来源目录校验' }).getAttribute('aria-pressed')).toBe('false')
     expect(screen.getAllByRole('button', { name: '更多操作' })).toHaveLength(6)
@@ -171,7 +170,9 @@ describe('CaseWorkbenchPage', () => {
     await waitFor(() => expect(screen.getByRole('progressbar', {
       name: '任务正在运行：正在创建 RAR 分卷',
     })).toBeTruthy())
-    expect(screen.getByRole('button', { name: '取消归档' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '打开案件' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
+    expect(screen.getByRole('menuitem', { name: '取消归档' })).toBeTruthy()
   })
 
   it('uses backend details and revision for archive cancel without duplicate submission', async () => {
@@ -184,9 +185,10 @@ describe('CaseWorkbenchPage', () => {
     })
     postMock.mockResolvedValue({ data: { data: { ...archiveSummary, status: 'cancelling' } } })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-    const button = await screen.findByRole('button', { name: '取消归档' })
-    fireEvent.click(button)
-    fireEvent.click(button)
+    const moreButton = await screen.findByRole('button', { name: '更多操作' })
+    fireEvent.click(moreButton)
+    const cancelItem = await screen.findByRole('menuitem', { name: '取消归档' })
+    fireEvent.click(cancelItem)
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/archive-SYNTHETIC-1/cancel'), { expected_revision: 7 }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
     expect(postMock).toHaveBeenCalledTimes(1)
   })
@@ -194,8 +196,9 @@ describe('CaseWorkbenchPage', () => {
   it('cancels the deletion confirmation without calling the delete API', async () => {
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-    fireEvent.click(screen.getAllByRole('button', { name: /^删\s*除$/ })[0])
-    expect(screen.getByText('确认删除吗？')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: '删除案件' }))
+    expect(screen.getByText('确认删除该案件？')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /^取\s*消$/ }))
     expect(deleteMock).not.toHaveBeenCalled()
     expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6)
@@ -208,8 +211,9 @@ describe('CaseWorkbenchPage', () => {
     })
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-    fireEvent.click(screen.getAllByRole('button', { name: /^删\s*除$/ })[0])
-    fireEvent.click(screen.getByRole('button', { name: /确\s*认/ }))
+    fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: '删除案件' }))
+    fireEvent.click(screen.getByRole('button', { name: /确认删除/ }))
 
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(
       expect.stringContaining('/workbench/cases/case-synthetic-1'),
@@ -230,11 +234,11 @@ describe('CaseWorkbenchPage', () => {
     listItems = [shell(1)]
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(1))
-    expect(screen.getByLabelText('案件序号 1')).toBeTruthy()
+    expect(screen.queryByLabelText(/案件序号/)).toBeNull()
     expect(document.querySelector('.case-workbench-grid')?.contains(screen.getByRole('button', { name: '上传报告目录' }))).toBe(true)
   })
 it('exports a completed archive bundle directly from the card', async () => {
-  listItems = [{ ...shell(1), lifecycle: 'exported', report_available: true, revision: 3, archive_task_summary: { ...archiveSummary, status: 'succeeded', stage: 'completed', stage_label: '归档完成', stage_index: 9, stage_count: 9, percent: 100, output_bytes: null, finished_at: '2026-07-30T12:00:00Z', allowed_actions: ['view_result'] } }]
+  listItems = [{ ...shell(1), lifecycle: 'archive_verified', report_available: true, revision: 3, archive_task_summary: { ...archiveSummary, status: 'succeeded', stage: 'completed', stage_label: '归档完成', stage_index: 9, stage_count: 9, percent: 100, output_bytes: null, finished_at: '2026-07-30T12:00:00Z', allowed_actions: ['view_result'] } }]
   const archiveResult = { task_id: 'archive-SYNTHETIC-1', case_id: 'case-synthetic-1', manifest_id: 'manifest-synthetic', verified_slots: [], assets: [], parts: [{ part_id: 'part-1', filename: 'SYNTHETIC.part1.rar', size_bytes: 45_000_000_000, md5: 'a'.repeat(32), disc_number: 'GP20260730-01', disc_date: '2026-07-30' }], finished_at: '2026-07-30T12:00:00Z' }
   getMock.mockImplementation(async (url: string) => {
     if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
@@ -256,5 +260,51 @@ it('exports a completed archive bundle directly from the card', async () => {
   fireEvent.change(nameInput, { target: { value: '自定义案件.docx' } }); fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
   await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic', word_filename: '自定义案件.docx' }, { timeout: unifiedExportRequestTimeoutMs(45_000_000_000) }))
   expect(await screen.findByText(/已导出至：D:\SYNTHETIC\EXPORT/)).toBeTruthy()
+})
+
+it('shows re-export loading and prevents duplicate submission while the request is pending', async () => {
+  listItems = [{ ...shell(1), lifecycle: 'exported', report_available: true, revision: 4 }]
+  let resolveExport!: (value: { data: { data: unknown } }) => void
+  postMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/select-export-directory')) {
+      return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } }
+    }
+    if (url.endsWith('/export-bundle')) {
+      return await new Promise<{ data: { data: unknown } }>(resolve => { resolveExport = resolve })
+    }
+    return { data: { data: {} } }
+  })
+
+  render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('button', { name: '更多操作' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: '再次导出' }))
+  fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
+
+  const loadingButton = await screen.findByRole('button', { name: /loading.*再次导出/ })
+  fireEvent.click(loadingButton)
+  fireEvent.click(loadingButton)
+  expect(postMock.mock.calls.filter(([url]) => String(url).endsWith('/export-bundle'))).toHaveLength(1)
+
+  await act(async () => {
+    resolveExport({ data: { data: {
+      case_id: 'case-synthetic-1', task_id: 'archive-SYNTHETIC-1', expected_revision: 4,
+      lifecycle: 'exported', output: {
+        export_path: 'D:\\SYNTHETIC\\EXPORT', word_filename: 'out.docx', rar_filenames: [],
+        hash_verification_image: 'hash.png', exported_at: '2026-07-30T12:01:00Z',
+      },
+    } } })
+    await Promise.resolve()
+  })
+  await waitFor(() => expect(screen.getByRole('button', { name: '删除案件' })).toBeTruthy())
+})
+
+it('explains that exported target-directory files survive case deletion', async () => {
+  listItems = [{ ...shell(1), lifecycle: 'exported', report_available: true }]
+  render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+  const deleteButton = await screen.findByRole('button', { name: '删除案件' })
+  fireEvent.click(deleteButton)
+  expect(screen.getByText('确认删除该案件？')).toBeTruthy()
+  expect(screen.getByText(/已导出到目标目录的文件不会被删除/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: '确认删除' })).toBeTruthy()
 })
 })

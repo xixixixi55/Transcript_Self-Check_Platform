@@ -25,6 +25,7 @@ workflow_level: 2
   - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/platformShell.css`、对应前端测试文件
   - 内容：案件卡片按当前页渲染 1–6 的可见序号；上传报告目录卡片不参与编号。
   - 验证：页面测试覆盖满页 1–6 序号和非满页连续编号，组件定向测试覆盖序号展示。
+  - 后续修订：T005 已确认分页位置序号无业务意义并移除；本任务保留为历史实现证据。
 
 ## 综合验证
 
@@ -32,3 +33,9 @@ workflow_level: 2
   - 文件：`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx`、`packages/frontend/src/components/CaseWorkbenchDirectoryPickerCard.test.tsx`
   - 内容：核对 delta 与最终行为，运行架构、类型、前端测试和文档检查。
   - 验证：`npm run verify:quick`、受影响前端测试、`npx tsx scripts/check-docs.ts --strict --change case-workbench-upload-box-grid`、`git diff --check`。
+
+- [x] T005 移除无业务意义的案件列表序号并保持上传入口不变。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/platformShell.css`、对应前端测试、本变更包 delta spec 与 living spec。
+  - 内容：删除当前页序号圆圈与 position 传递；上传报告目录的 DOM、尺寸、虚线框、图标、文案、间距、悬停、点击行为和 `.case-workbench-directory-picker` 样式保持不变。
+  - 验证：页面和组件测试断言无序号且上传入口布局/行为回归通过，运行 scoped strict docs 与 `git diff --check`。
+  - 证据：工作台与上传目录组件回归测试通过；生产 diff 未修改 `CaseWorkbenchDirectoryPickerCard.tsx` 或 `.case-workbench-directory-picker` 选择器，浏览器实际渲染核对虚线框、图标、文案和入口行为保持原状；独立复审 PASS。

@@ -4,7 +4,7 @@ workflow_level: 3
 
 > Spec: `openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`
 > Design: `openspec/changes/background-compression-archive-completion/design.md`
-> 范围：案件打开「立即/稍后」后台压缩触发（替换预览手动归档主路径）；压缩不阻塞审核；每 RAR 实时覆盖回填附件1/检查结果；盘号后填与顺序映射；归档完成态与导出路径提示；统一导出最新 Word + RAR + HashMyFiles 校验截图；已导出标记与彻底删除（复用 `case-workbench-delete`）。
+> 范围：案件打开「立即/稍后」后台压缩触发（替换预览手动归档主路径）；压缩不阻塞审核；每 RAR 实时覆盖回填附件1/检查结果；盘号后填与顺序映射；归档完成态与导出路径提示；统一导出最新 Word + RAR + HashMyFiles 校验截图；已导出标记与删除案件（复用 `case-workbench-delete`）。
 
 ## SharedTypes / SharedConstants（Layer 0–1）
 
@@ -84,6 +84,7 @@ workflow_level: 3
   - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、新增 `packages/frontend/src/hooks/useArchiveCompletionStatuses.ts`
   - 内容：卡片显示「待补盘号/归档完成/已导出」徽标；「归档完成/已导出」时主按钮为「统一导出」（native picker 选目录 → export-bundle，**替换原「查看结果」**，用户确认完全替换）；「已导出」时菜单出现「彻底删除」（复用 `case-workbench-delete` 删除确认）；工作台经 `useArchiveCompletionStatuses` 自动加载归档结果派生完成状态（无需先点查看结果）。
   - 验证：`CaseCard.test.tsx` 15 passed（统一导出断言，查看结果移除）+ `CaseWorkbenchPage.test.tsx` 14 passed（含卡片直达统一导出流程）+ 全量前端 269 passed。
+  - 后续修订：T038 已将 `archive_complete` 的 UI 文案收敛为「待导出」，并将已导出阶段的推荐操作调整为「删除案件」；本任务保留为历史实现证据，不再代表当前入口权重。
 
 - [x] T014 案件打开页「立即/稍后」选择与补盘号入口。
   - 文件：`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、新增 `packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/backend/app/controllers/workbench_controller.py`（新增 `POST /workbench/select-export-directory`）、`packages/backend/app/services/local_directory_picker_service.py`（select 支持描述）、`packages/frontend/src/hooks/useArchiveCompletion.ts`（chooseDirectory）、`packages/shared/types/archiveCompletion.ts`（ExportDirectoryResult）、`packages/shared/constants/index.ts`
@@ -282,3 +283,21 @@ workflow_level: 3
   - code_review: [PASS] 首轮独立审查发现发布前最新非法盘号被静默降级、通用假 Worker 手工制造计划导致假阳性、缺少 21 字符拒绝边界 3 项 MUST FIX；修复为发布前对最新草稿重跑盘号门控，撤销假 Worker 计划注入，并分层覆盖生产投影接线、两槽位持久化、20 字符中英文合法上界及 21 字符/非法日期/非法序号稳定错误。独立复审确认全部 CLOSED，无新 MUST FIX。
   - final_gate: [PASS] 首次 scoped full gate 唯一失败为 `b4734ab` 中模板版本测试把 HEAD 当前 1.0.1 资产误作历史 1.0.0；该回归已在 `extensible-report-template-platform` 原任务内修复，模板定向 41 passed/1 skipped、独立复审 PASS，且两个 DOCX 资产无变化。随后在 `HARNESS_TEMP_ROOT=D:\harness-temp` 下重跑 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过。
   - manual_acceptance: 自动化已覆盖三字符中文前缀两分卷的 Manifest 生成、发布复核、正式目录落地、重试新 attempt 和成功结果；原始本地报告的真实 WinRAR 验收需使用用户本机案件资料执行，不把真实案件数据写入仓库。
+
+- [x] T038 收敛案件工作台卡片信息层级与阶段主操作。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/platformShell.css`、对应前端测试、本变更包 delta spec 与 living spec。
+  - 内容：不新增 lifecycle，以明确正向分支仲裁最终状态和兼容活动任务；移除序号、重复案件名称与最终状态下的历史阶段，按解析中/解析失败/待处理/归档中/待补盘号/待导出/已导出显示唯一推荐操作；已导出删除确认说明目标目录文件不受影响，打开与再次导出保留为次要操作。
+  - 边界：`CaseStatusBadge.tsx`、`ArchiveStatusPanel.tsx` 保持共享行为不变；上传报告目录组件和 `.case-workbench-directory-picker` 样式零视觉、零交互修改。
+  - 验证：按实际可见推荐 CTA 名称覆盖状态矩阵、最终 lifecycle 优先、导出 loading 防重复与删除确认文案；运行定向前端测试、`npm run verify:quick`、三个关联变更的 scoped strict docs、独立代码审查、当前 Level 3 scoped full gate 与 `git diff --check`。
+  - 自动化证据：候选版 5 files / 37 tests passed；审查修复后状态优先与再次导出页面级 deferred-promise 回归 2 files / 26 tests passed；TypeScript、架构与 `verify:quick` PASS；本地工作台浏览器核对标题、已导出卡片、更多菜单、删除确认和上传目录外观通过。
+  - code_review: [PASS] 首轮独立审查发现 `archive_verified`/`exported` 仍可能泄漏历史任务详情/操作，以及再次导出缺少可见 loading 两项 MUST FIX；修复为最终阶段正向分支隔离任务动作，并以独立 `exportingCaseId` 覆盖完整异步周期。复审确认全部 CLOSED，无新 MUST FIX。
+  - final_gate: [PASS] `npm run verify:full -- --change background-compression-archive-completion` 通过：预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部 PASS。
+  - manual_acceptance: [PASS] 本地浏览器实际渲染确认上传报告目录虚线框、图标、文案和点击入口保持原状；仅打开并取消删除确认，未执行删除或导出。
+
+- [x] T039 将已导出状态 Tag 调整为成功语义绿色。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/components/CaseCardCompletion.test.tsx`、本变更包 delta spec 与 living spec。
+  - 内容：仅为 `exported` 阶段使用 Ant Design 现有 `success` Tag 语义 token；其他阶段保持当前默认 Tag，不增加 hex/RGB 或第二套状态颜色映射。
+  - 验证：组件测试断言已导出 Tag 使用设计系统成功语义类；运行定向测试、类型/架构检查、scoped strict docs 与当前 Level 3 full gate。用户明确要求本次不执行独立复审。
+  - 自动化证据：修改前定向测试 1 failed / 8 passed，证明断言可区分默认 Tag；实现后 1 file / 9 tests passed，TypeScript 与架构检查 PASS。
+  - final_gate: [PASS] `npm run verify:full -- --change background-compression-archive-completion` 通过：预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部 PASS。
+  - manual_acceptance: [PASS] 本地浏览器确认 `ant-tag-success` 生效，实际文字色、边框色和浅色背景均来自 Ant Design 成功语义 token，未新增硬编码颜色。

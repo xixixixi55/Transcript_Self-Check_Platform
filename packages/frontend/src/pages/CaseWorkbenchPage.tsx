@@ -15,7 +15,7 @@ import { CaseCard } from '../components/CaseCard'
 import { CaseWorkbenchDirectoryPickerCard } from '../components/CaseWorkbenchDirectoryPickerCard'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
 
-const { Paragraph, Title } = Typography
+const { Title } = Typography
 
 function completionStatusFor(
   shell: CaseShell, result: ArchiveTaskResult | null,
@@ -47,6 +47,7 @@ export default function CaseWorkbenchPage() {
   const archiveCompletion = useArchiveCompletion()
   const [submitBusy, setSubmitBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
+  const [exportingCaseId, setExportingCaseId] = useState<string | null>(null)
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
   const [archiveDetail, setArchiveDetail] = useState<ArchiveTaskPublicDetail | null>(null)
   const [archiveHistory, setArchiveHistory] = useState<ArchiveTaskHistory | null>(null)
@@ -109,6 +110,7 @@ export default function CaseWorkbenchPage() {
     setExportNameCaseId(null)
     if (!shell || actionCaseId) return
     setActionCaseId(shell.case_id)
+    setExportingCaseId(shell.case_id)
     try {
       const chosen = await archiveCompletion.chooseDirectory()
       if ('cancelled' in chosen) return
@@ -127,6 +129,7 @@ export default function CaseWorkbenchPage() {
       message.error(resolveWorkbenchError(error).message)
     } finally {
       setActionCaseId(null)
+      setExportingCaseId(null)
     }
   }
 
@@ -161,6 +164,7 @@ export default function CaseWorkbenchPage() {
   const total = workbench.page.has_more
     ? workbench.page.offset + workbench.page.items.length + 1
     : workbench.page.offset + workbench.page.items.length
+  const deleteShell = workbench.page.items.find(item => item.case_id === deleteCaseId)
 
   return (
     <div className="case-workbench-page">
@@ -168,7 +172,6 @@ export default function CaseWorkbenchPage() {
         <div className="case-workbench-page__heading">
           <div className="platform-page__eyebrow">电子数据检查笔录</div>
           <Title level={1}>案件工作台</Title>
-          <Paragraph className="platform-page__description">案件提交、解析、审核和后台任务状态均以服务端持久状态为准；每页最多显示6个案件，上传报告目录入口位于案件卡片末尾、页面未满时显示。</Paragraph>
         </div>
         <div className="case-workbench-page__submission">
           <Tooltip title={sourceAuthorization.enabled
@@ -192,10 +195,9 @@ export default function CaseWorkbenchPage() {
       {taskError && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={taskError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
       {workbench.pageLoading && !workbench.page.items.length ? <Spin size="large" style={{ display: 'block', margin: '80px auto' }} /> : (
         <Row gutter={[16, 16]} className="case-workbench-grid">
-          {workbench.page.items.map((shell, index) => <Col key={shell.case_id} xs={24} md={12} lg={8}>
+          {workbench.page.items.map(shell => <Col key={shell.case_id} xs={24} md={12} lg={8}>
             <CaseCard
               shell={shell}
-              position={index + 1}
               task={tasks[shell.parse_task_id]}
               archiveSummary={archiveSummariesByCase[shell.case_id]}
               onRetry={() => { void retry(shell.case_id) }}
@@ -205,11 +207,10 @@ export default function CaseWorkbenchPage() {
                 const summary = archiveSummariesByCase[shell.case_id]
                 if (summary) void handleArchiveAction(shell, summary.task_id, action)
               }}
-              onArchivePrecheck={() => message.info('请打开案件完成审核，并明确选择立即归档或稍后归档。')}
               actionBusy={actionCaseId === shell.case_id}
               completionStatus={completionStatusFor(shell, completionResults[shell.case_id])}
               onExport={() => { void exportCase(shell) }}
-              exporting={actionCaseId === shell.case_id}
+              exporting={exportingCaseId === shell.case_id}
             />
           </Col>)}
           {workbench.page.items.length < CASE_PAGE_SIZE && (
@@ -223,14 +224,16 @@ export default function CaseWorkbenchPage() {
       {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={pageNumber => { void workbench.loadPage((pageNumber - 1) * CASE_PAGE_SIZE) }} /></div>}
       <Modal
         open={Boolean(deleteCaseId)}
-        title="确认删除吗？"
-        okText="确认"
+        title="确认删除该案件？"
+        okText="确认删除"
         cancelText="取消"
         confirmLoading={Boolean(deleteCaseId && actionCaseId === deleteCaseId)}
         onOk={() => { void confirmDelete() }}
         onCancel={() => { if (!actionCaseId) setDeleteCaseId(null) }}
       >
-        删除后不可恢复，请确认是否删除当前案件。
+        {deleteShell?.lifecycle === 'exported'
+          ? '案件已成功导出。删除后，该案件将从案件工作台移除。已导出到目标目录的文件不会被删除。'
+          : '删除后，该案件将从案件工作台移除，平台内受控数据和文件不可恢复。'}
       </Modal>
       <Modal
         open={Boolean(archiveDetail)}
@@ -251,7 +254,7 @@ export default function CaseWorkbenchPage() {
       <WordDownloadNameDialog
         open={Boolean(exportNameCaseId)}
         documentNumber={workbench.page.items.find(item => item.case_id === exportNameCaseId)?.case_name}
-        exporting={Boolean(actionCaseId)}
+        exporting={Boolean(exportingCaseId)}
         onCancel={() => setExportNameCaseId(null)}
         onConfirm={downloadName => { void confirmExportName(downloadName) }}
       />
