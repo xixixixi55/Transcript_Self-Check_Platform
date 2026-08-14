@@ -21,6 +21,7 @@ from app.services.docx_package_service import (  # noqa: E402
     read_validated_docx_entries,
 )
 from app.services.template_profile_service import (  # noqa: E402
+    CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
     PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
@@ -29,7 +30,8 @@ from app.services.template_profile_service import (  # noqa: E402
 
 CURRENT = ROOT / "word_templates" / "template.docx"
 LEGACY = ROOT / "word_templates" / "template-v1.0.0.docx"
-PREVIOUS = ROOT / "word_templates" / "template-v1.0.1.docx"
+CLEAN = ROOT / "word_templates" / "template-v1.0.1.docx"
+PREVIOUS = ROOT / "word_templates" / "template-v1.0.2.docx"
 SCRIPT = ROOT / "scripts" / "clean_template_docx.py"
 BALANCE_SCRIPT = ROOT / "scripts" / "balance_template_layout.py"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -66,12 +68,14 @@ def test_clean_template_has_no_comments_or_sample_media_and_keeps_anchors():
 def test_template_versions_have_stable_distinct_fingerprints():
     assert compute_ooxml_package_fingerprint(CURRENT) == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
     assert compute_ooxml_package_fingerprint(PREVIOUS) == PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT
+    assert compute_ooxml_package_fingerprint(CLEAN) == CLEAN_TEMPLATE_PACKAGE_FINGERPRINT
     assert compute_ooxml_package_fingerprint(LEGACY) == LEGACY_TEMPLATE_PACKAGE_FINGERPRINT
     assert len({
         CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
         PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
+        CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
         LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
-    }) == 3
+    }) == 4
 
 
 def test_cleanup_script_reproduces_previous_version(tmp_path: Path):
@@ -82,7 +86,7 @@ def test_cleanup_script_reproduces_previous_version(tmp_path: Path):
             [sys.executable, str(SCRIPT), str(LEGACY), str(output)],
             check=True, capture_output=True, text=True,
         )
-    assert first.read_bytes() == second.read_bytes() == PREVIOUS.read_bytes()
+    assert first.read_bytes() == second.read_bytes() == CLEAN.read_bytes()
 
 
 def test_balance_script_is_deterministic_and_reproduces_current(tmp_path: Path):
@@ -99,7 +103,9 @@ def test_balance_script_is_deterministic_and_reproduces_current(tmp_path: Path):
         assert all(
             source.read(name) == balanced.read(name)
             for name in source.namelist()
-            if name != "word/document.xml"
+            if name not in {
+                "word/document.xml", "word/footer1.xml", "word/footer2.xml",
+            }
         )
 
 
@@ -152,6 +158,62 @@ def test_current_template_has_balanced_body_and_centered_attachment_table():
     ] == [
         etree.tostring(node) for node in previous_body.findall(f".//{{{V_NS}}}textbox")
     ]
+
+
+def test_current_template_centers_title_headings_and_horizontal_rules():
+    with zipfile.ZipFile(CURRENT) as package:
+        parts = {name: package.read(name) for name in package.namelist()}
+    root = etree.fromstring(parts["word/document.xml"])
+    body = root.find(f"{{{W_NS}}}body")
+    paragraphs = {
+        "".join(paragraph.itertext()).strip(): paragraph
+        for paragraph in body.findall(f"./{{{W_NS}}}p")
+    }
+    title = body.find(f"./{{{W_NS}}}p")
+    title_properties = title.find(f"{{{W_NS}}}pPr")
+    assert title_properties.find(f"{{{W_NS}}}jc").get(f"{{{W_NS}}}val") == "center"
+    assert title_properties.find(f"{{{W_NS}}}tabs") is None
+    assert not title.findall(f".//{{{W_NS}}}tab")
+
+    reference = paragraphs["（一）检查方法"].find(
+        f"./{{{W_NS}}}pPr/{{{W_NS}}}ind",
+    )
+    reference_left = int(reference.get(f"{{{W_NS}}}left"))
+    for text in ("一、绪论", "二、检查"):
+        indent = paragraphs[text].find(f"./{{{W_NS}}}pPr/{{{W_NS}}}ind")
+        assert int(indent.get(f"{{{W_NS}}}left")) < reference_left
+        assert all(
+            indent.get(f"{{{W_NS}}}{name}") is None
+            for name in ("firstLine", "firstLineChars", "hanging", "hangingChars")
+        )
+    for text in ("（三）检查过程", "（四）检查结果"):
+        indent = paragraphs[text].find(f"./{{{W_NS}}}pPr/{{{W_NS}}}ind")
+        assert indent.get(f"{{{W_NS}}}left") == reference.get(f"{{{W_NS}}}left")
+        assert indent.get(f"{{{W_NS}}}right") == reference.get(f"{{{W_NS}}}right")
+        assert all(
+            indent.get(f"{{{W_NS}}}{name}") is None
+            for name in ("firstLine", "firstLineChars", "hanging", "hangingChars")
+        )
+
+    page_width_points = 11906 / 20
+    margin_points = 1587 / 20
+    for part_name in ("word/document.xml", "word/footer1.xml", "word/footer2.xml"):
+        part = etree.fromstring(parts[part_name])
+        rules = [
+            line for line in part.findall(f".//{{{V_NS}}}line")
+            if line.get("strokeweight") == "4.5pt"
+            and _coordinate(line.get("from"), 1) == _coordinate(line.get("to"), 1)
+        ]
+        assert len(rules) == 1
+        start = _coordinate(rules[0].get("from"), 0)
+        end = _coordinate(rules[0].get("to"), 0)
+        assert margin_points + (start + end) / 2 == pytest.approx(
+            page_width_points / 2, abs=0.01,
+        )
+
+
+def _coordinate(value: str, index: int) -> float:
+    return float(value.split(",")[index].removesuffix("pt"))
 
 
 def test_cleanup_script_rejects_unsafe_or_duplicate_entries(tmp_path: Path):

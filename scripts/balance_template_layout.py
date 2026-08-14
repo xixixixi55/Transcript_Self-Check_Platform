@@ -1,4 +1,4 @@
-"""Center the current Word template without changing paragraph or table widths."""
+"""Center the current Word template without changing content widths or pagination."""
 
 from __future__ import annotations
 
@@ -18,7 +18,17 @@ from app.services.docx_package_service import read_validated_docx_entries  # noq
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 W = f"{{{W_NS}}}"
+V_NS = "urn:schemas-microsoft-com:vml"
+V = f"{{{V_NS}}}"
 FIXED_ZIP_TIMESTAMP = (2020, 1, 1, 0, 0, 0)
+TOP_LEVEL_HEADINGS = {"一、绪论", "二、检查"}
+SECOND_LEVEL_HEADINGS = {"（三）检查过程", "（四）检查结果"}
+SECOND_LEVEL_REFERENCE = "（一）检查方法"
+HORIZONTAL_RULE_PARTS = (
+    "word/document.xml",
+    "word/footer1.xml",
+    "word/footer2.xml",
+)
 
 
 def balance_template_layout(source_path: str | Path, output_path: str | Path) -> None:
@@ -81,12 +91,146 @@ def balance_template_layout(source_path: str | Path, output_path: str | Path) ->
             else table_properties.index(table_width) + 1
         )
         table_properties.insert(insertion_index, alignment)
-    alignment.set(f"{W}val", "center")
+        alignment.set(f"{W}val", "center")
+
+    _center_visible_title(body)
+    _align_structural_headings(body)
+    _center_horizontal_rules(
+        parts,
+        root,
+        int(page_size.get(f"{W}w")),
+        int(margins.get(f"{W}left")),
+    )
 
     parts["word/document.xml"] = etree.tostring(
         root, encoding="UTF-8", xml_declaration=True,
     )
     _write_atomic(Path(output_path), parts)
+
+
+def _center_visible_title(body: etree._Element) -> None:
+    paragraphs = body.findall(f"./{W}p")
+    if not paragraphs:
+        raise ValueError("template title paragraph is missing")
+    title = paragraphs[0]
+    properties = title.find(f"{W}pPr")
+    if properties is None:
+        raise ValueError("template title properties are missing")
+    tabs = properties.find(f"{W}tabs")
+    if tabs is not None:
+        properties.remove(tabs)
+    alignment = properties.find(f"{W}jc")
+    if alignment is None:
+        alignment = etree.SubElement(properties, f"{W}jc")
+    alignment.set(f"{W}val", "center")
+    visible_tabs = title.findall(f".//{W}tab")
+    if len(visible_tabs) != 2:
+        raise ValueError("template title tab anchors do not match the fixed profile")
+    for tab in visible_tabs:
+        tab.getparent().remove(tab)
+
+
+def _align_structural_headings(body: etree._Element) -> None:
+    by_text = {
+        _paragraph_text(paragraph): paragraph
+        for paragraph in body.findall(f"./{W}p")
+    }
+    missing = (TOP_LEVEL_HEADINGS | SECOND_LEVEL_HEADINGS | {SECOND_LEVEL_REFERENCE}) - set(by_text)
+    if missing:
+        raise ValueError(f"template structural headings are missing: {sorted(missing)}")
+
+    reference_indent = _required_indent(by_text[SECOND_LEVEL_REFERENCE])
+    reference_left = reference_indent.get(f"{W}left")
+    reference_right = reference_indent.get(f"{W}right")
+    if reference_left is None or reference_right is None:
+        raise ValueError("second-level heading reference is missing fixed boundaries")
+
+    for text in TOP_LEVEL_HEADINGS:
+        indent = _required_indent(by_text[text])
+        _clear_first_line_indent(indent)
+        if int(indent.get(f"{W}left", "0")) >= int(reference_left):
+            raise ValueError("top-level headings must protrude beyond second-level headings")
+
+    for text in SECOND_LEVEL_HEADINGS:
+        indent = _required_indent(by_text[text])
+        indent.set(f"{W}left", reference_left)
+        indent.set(f"{W}right", reference_right)
+        _clear_first_line_indent(indent)
+
+
+def _required_indent(paragraph: etree._Element) -> etree._Element:
+    indent = paragraph.find(f"./{W}pPr/{W}ind")
+    if indent is None:
+        raise ValueError(f"template heading indent is missing: {_paragraph_text(paragraph)}")
+    return indent
+
+
+def _clear_first_line_indent(indent: etree._Element) -> None:
+    for name in ("firstLine", "firstLineChars", "hanging", "hangingChars"):
+        indent.attrib.pop(f"{W}{name}", None)
+
+
+def _paragraph_text(paragraph: etree._Element) -> str:
+    return "".join(paragraph.itertext()).strip()
+
+
+def _center_horizontal_rules(
+    parts: dict[str, bytes],
+    document_root: etree._Element,
+    page_width_twips: int,
+    left_margin_twips: int,
+) -> None:
+    page_width_points = page_width_twips / 20
+    left_margin_points = left_margin_twips / 20
+    for part_name in HORIZONTAL_RULE_PARTS:
+        if part_name not in parts:
+            raise ValueError(f"template horizontal-rule part is missing: {part_name}")
+        root = (
+            document_root
+            if part_name == "word/document.xml"
+            else etree.fromstring(parts[part_name])
+        )
+        rules = []
+        for line in root.findall(f".//{V}line"):
+            start_x, start_y = _point_pair(line.get("from"))
+            end_x, end_y = _point_pair(line.get("to"))
+            if abs(start_y - end_y) <= 0.01 and line.get("strokeweight") == "4.5pt":
+                rules.append((line, start_x, start_y, end_x, end_y))
+        if len(rules) != 1:
+            raise ValueError(
+                f"template horizontal-rule count does not match in {part_name}",
+            )
+        line, start_x, start_y, end_x, end_y = rules[0]
+        length = end_x - start_x
+        centered_start = (page_width_points - length) / 2 - left_margin_points
+        centered_end = centered_start + length
+        line.set("from", f"{_point(centered_start)}pt,{_point(start_y)}pt")
+        line.set("to", f"{_point(centered_end)}pt,{_point(end_y)}pt")
+        if part_name != "word/document.xml":
+            parts[part_name] = etree.tostring(
+                root, encoding="UTF-8", xml_declaration=True,
+            )
+
+
+def _point_pair(value: str | None) -> tuple[float, float]:
+    if not value or "," not in value:
+        raise ValueError("template VML line coordinates are invalid")
+    x, y = value.split(",", 1)
+    return _point_value(x), _point_value(y)
+
+
+def _point_value(value: str) -> float:
+    normalized = value.strip()
+    if normalized.endswith("pt"):
+        normalized = normalized[:-2]
+    try:
+        return float(normalized)
+    except ValueError as error:
+        raise ValueError("template VML line coordinate is invalid") from error
+
+
+def _point(value: float) -> str:
+    return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
 def _write_atomic(output: Path, parts: dict[str, bytes]) -> None:

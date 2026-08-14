@@ -9,6 +9,7 @@
 | `word_templates/template.docx` | **Tracked — do not modify casually** |
 | `word_templates/template-v1.0.0.docx` | **Tracked — immutable historical template** |
 | `word_templates/template-v1.0.1.docx` | **Tracked — immutable historical template** |
+| `word_templates/template-v1.0.2.docx` | **Tracked — immutable historical template** |
 
 - `template.docx` is the current authoritative Word report template; the versioned historical asset exists only for reproducible legacy-case exports.
 - Identity verified by OOXML package fingerprint (SHA-256 of canonical blob).

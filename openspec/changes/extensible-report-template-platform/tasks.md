@@ -150,6 +150,8 @@ Renderer 当前正式渲染输入为 `InspectionReport` 兼容数据 + `ArchiveM
 - [x] 12.4T 增加可区分测试：验证新版本保留源版本字节与案件引用，只改写允许的标题/字体/字号，拒绝未审核或历史只读源模板、非白名单字体/字号、重复版本和额外字段；前端验证打开编辑器、预览更新和正确提交派生请求。
   - 测试有效性：临时禁用字体/字号白名单后 2 个越界用例如预期失败；恢复源码后通过。审批写入失败、结构校验失败和同版本并发竞争均验证数据库与资产目录无失败残留；未审批源、历史只读源、首段标题槽清空/移动、额外字段和越界值均被拒绝。
 - [x] 12.3 修复当前内置模板整体偏右：保留 `1.0.1` 为 `word_templates/template-v1.0.1.docx` 历史只读资产，发布正文左右排版边界平衡、附件一固定表格相对页面居中的 `1.0.2`；不改变段落可用宽度、表格列宽、分页锚点、VML 或页眉页脚。文件：`scripts/balance_template_layout.py`、`word_templates/template.docx`、`word_templates/template-v1.0.1.docx`、`packages/backend/app/services/template_profile_service.py`、`packages/backend/app/services/workbench_factory_service.py`、模板注册/几何回归测试及仓库资产清单；验证：三版本包指纹稳定且不同，`officecli validate` 0 errors，Microsoft Word 原生渲染保持 6 页并确认正文与附件一居中，定向 pytest、架构、类型、资产和 diff 检查通过；独立复审 `ACCEPT`，`npm run verify:full -- --change extensible-report-template-platform` 全部门控通过。
+- [x] 12.5 修正 Word 原生渲染仍暴露的版式锚点：保留 `1.0.2` 为 `word_templates/template-v1.0.2.docx` 历史只读资产，发布主标题真正居中、一级结构标题略突出、同级“检查过程/检查结果”对齐以及首页/页脚粗横线相对页面居中的 `1.0.3`；保持 6 页、分页、段落可用宽度、表格列宽、VML 文本框、页眉页脚内容和线型不变。文件：`scripts/balance_template_layout.py`、版本化模板资产、TemplateProfile/注册、资产清单和 OOXML 回归测试；验证：确定性重建、版本指纹、定向 pytest、架构/类型/资产检查、`officecli validate` 及 Microsoft Word 原生 PDF 视觉复核。
+  - 证据：模板/Profile/注册/填充定向回归合计 98 passed、1 skipped；架构、类型、仓库资产、diff 和当前/历史模板 `officecli validate` 检查通过。临时破坏标题居中后确定性重建测试如预期失败，还原后通过。Microsoft Word 原生导出仍为 6 页 A4，逐页确认主标题、一级/同级标题及首页/页脚粗横线相对页面居中或按层级对齐。
 - [x] 12.2T 增加确定性模板清理、无批注部件/标记/关系、无模板媒体、附件二锚点保留、历史模板指纹可复现、新默认模板注册、已有案件继续引用 `1.0.0`、自定义默认模板不被覆盖、0/2/4 张动态图片回归测试；受影响后端组合 127 passed / 1 skipped，核心清理逻辑突变验证按预期失败且恢复后通过。人工 Word 视觉验收因当前环境缺少 LibreOffice/Word 渲染器保持待验收，不伪报通过。
 
 ## 13. 全黑字体策略（Layer 21）

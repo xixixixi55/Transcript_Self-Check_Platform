@@ -3,6 +3,7 @@
 import os
 import sys
 import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from app.services.docx_package_service import (  # noqa: E402
     compute_ooxml_package_fingerprint,
 )
 from app.services.template_profile_service import (  # noqa: E402
+    CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
     PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
@@ -31,7 +33,8 @@ from docx import Document  # noqa: E402
 ROOT = Path(__file__).parents[1]
 TEMPLATE = ROOT / "word_templates" / "template.docx"
 LEGACY_TEMPLATE = ROOT / "word_templates" / "template-v1.0.0.docx"
-PREVIOUS_TEMPLATE = ROOT / "word_templates" / "template-v1.0.1.docx"
+CLEAN_TEMPLATE = ROOT / "word_templates" / "template-v1.0.1.docx"
+PREVIOUS_TEMPLATE = ROOT / "word_templates" / "template-v1.0.2.docx"
 REFERENCE = ROOT / "2026报告模板（one压缩包）最终提交.docx"
 
 
@@ -100,12 +103,17 @@ def test_entry_set_changes_fingerprint(tmp_path, entries):
 def test_versioned_templates_match_registered_fingerprints_and_current_profile():
     current_fingerprint = compute_ooxml_package_fingerprint(TEMPLATE)
     legacy_fingerprint = compute_ooxml_package_fingerprint(LEGACY_TEMPLATE)
+    clean_fingerprint = compute_ooxml_package_fingerprint(CLEAN_TEMPLATE)
     previous_fingerprint = compute_ooxml_package_fingerprint(PREVIOUS_TEMPLATE)
 
     assert current_fingerprint == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
     assert legacy_fingerprint == LEGACY_TEMPLATE_PACKAGE_FINGERPRINT
+    assert clean_fingerprint == CLEAN_TEMPLATE_PACKAGE_FINGERPRINT
     assert previous_fingerprint == PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT
-    assert len({current_fingerprint, previous_fingerprint, legacy_fingerprint}) == 3
+    assert len({
+        current_fingerprint, previous_fingerprint, clean_fingerprint,
+        legacy_fingerprint,
+    }) == 4
     profile = current_template_profile()
     assert profile.fingerprint_algorithm == OOXML_PACKAGE_FINGERPRINT_ALGORITHM
     assert validate_current_template_profile(
@@ -136,6 +144,53 @@ def test_profile_requires_balanced_horizontal_body_indents_to_be_present():
 
     with pytest.raises(TemplateProfileError, match="未居中"):
         validate_current_template_profile(str(TEMPLATE), doc)
+
+
+def test_profile_rejects_visible_title_tabs_and_inset_structural_headings():
+    namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with_title_tab = Document(str(TEMPLATE))
+    title_run = with_title_tab.element.body.find(f"./{namespace}p/{namespace}r")
+    assert title_run is not None
+    title_run.append(with_title_tab.element.body.makeelement(f"{namespace}tab"))
+    with pytest.raises(TemplateProfileError, match="标题、层级或横线未居中"):
+        validate_current_template_profile(str(TEMPLATE), with_title_tab)
+
+    inset_heading = Document(str(TEMPLATE))
+    heading = next(
+        paragraph for paragraph in inset_heading.paragraphs
+        if paragraph.text.strip() == "一、绪论"
+    )
+    indent = heading._p.find(f"./{namespace}pPr/{namespace}ind")
+    assert indent is not None
+    indent.set(f"{namespace}firstLine", "614")
+    with pytest.raises(TemplateProfileError, match="标题、层级或横线未居中"):
+        validate_current_template_profile(str(TEMPLATE), inset_heading)
+
+
+def test_profile_rejects_off_center_fixed_horizontal_rule(tmp_path):
+    with zipfile.ZipFile(TEMPLATE) as package:
+        entries = [(name, package.read(name)) for name in package.namelist()]
+    footer_name = "word/footer1.xml"
+    footer = ET.fromstring(dict(entries)[footer_name])
+    line = footer.find(".//{urn:schemas-microsoft-com:vml}line")
+    assert line is not None
+    line.set("from", "0pt,4pt")
+    changed_entries = [
+        (
+            name,
+            ET.tostring(footer, encoding="utf-8", xml_declaration=True)
+            if name == footer_name else content,
+        )
+        for name, content in entries
+    ]
+    invalid = tmp_path / "SYNTHETIC-off-center-rule.docx"
+    _write_package(invalid, changed_entries)
+    fingerprint = compute_ooxml_package_fingerprint(invalid)
+
+    with pytest.raises(TemplateProfileError, match="标题、层级或横线未居中"):
+        validate_current_template_profile(
+            str(invalid), Document(str(invalid)), fingerprint,
+        )
 
 
 def test_profile_requires_fixed_title_and_document_number_slots():

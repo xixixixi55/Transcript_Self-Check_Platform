@@ -33,12 +33,21 @@
 
 内置模板清理 MUST 通过新模板版本交付。清理后的版本 MUST 删除全部批注结构和附件二示例媒体，同时保留动态图片区域锚点、VML、分页、表格与上传图片渲染能力；旧版本资产 MUST 保留供既有案件按原模板引用重导出，并作为历史只读资产禁止新案件选择、设为默认或删除。
 
+当前内置版本 MUST 以 A4 页面中心为基准居中可见主标题和首页/页脚粗横线，并保持结构标题的层级缩进：“一、绪论”“二、检查”略突出于二级标题，“（三）检查过程”“（四）检查结果”与其他二级标题对齐。该修正 MUST 发布为新的不可变版本，不得覆盖旧模板字节或既有案件引用。
+
 #### Scenario: Upgrade from the previous built-in template
 
 - **WHEN** 部署升级且当前默认值仍指向旧内置模板
 - **THEN** 系统将后续新案件的默认模板迁移到清理后的新版本
 - **AND** 既有案件模板引用不变，用户选择的其他默认模板不被覆盖
 - **AND** 旧内置版本不出现在新案件可选列表中，管理接口拒绝将其重新设为默认或删除
+
+#### Scenario: Word-native layout anchors remain visibly centered
+
+- **WHEN** 当前内置模板由 Microsoft Word 原生渲染
+- **THEN** 主标题可见字形中心、首页文号下方粗横线和各页页脚上方粗横线均与页面中心一致
+- **AND** 结构标题保持一级略突出、同级对齐的缩进层次
+- **AND** 页数、分页、表格列宽、VML 文本框、页眉和页脚内容保持不变
 
 ### Requirement: Local Windows directory picker preserves the path-based source contract
 

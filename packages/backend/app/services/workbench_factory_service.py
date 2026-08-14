@@ -44,6 +44,8 @@ from .template_profile_service import (
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     CURRENT_TEMPLATE_VERSION,
     CURRENT_TEMPLATE_VALIDATION_RULE,
+    CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
+    CLEAN_TEMPLATE_VERSION,
     LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
     LEGACY_TEMPLATE_VERSION,
     PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
@@ -186,13 +188,20 @@ def _register_builtin_templates(
         "template_id": BUILTIN_TEMPLATE_ID, "version": LEGACY_TEMPLATE_VERSION,
     }
     legacy_asset = template_root / "template-v1.0.0.docx"
+    clean_reference = {
+        "template_id": BUILTIN_TEMPLATE_ID, "version": CLEAN_TEMPLATE_VERSION,
+    }
+    clean_asset = template_root / "template-v1.0.1.docx"
     previous_reference = {
         "template_id": BUILTIN_TEMPLATE_ID, "version": PREVIOUS_TEMPLATE_VERSION,
     }
-    previous_asset = template_root / "template-v1.0.1.docx"
+    previous_asset = template_root / "template-v1.0.2.docx"
     current_asset = template_root / "template.docx"
     validate_template_package_fingerprint(
         str(legacy_asset), LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    )
+    validate_template_package_fingerprint(
+        str(clean_asset), CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
     )
     validate_template_package_fingerprint(
         str(previous_asset), PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
@@ -207,9 +216,15 @@ def _register_builtin_templates(
         legacy_asset,
     )
     registry.relocate_builtin_asset(
+        clean_reference,
+        CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
+        "template-asset-current-v1-clean",
+        clean_asset,
+    )
+    registry.relocate_builtin_asset(
         previous_reference,
         PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-clean",
+        "template-asset-current-v1-balanced",
         previous_asset,
     )
     reference = {
@@ -225,24 +240,33 @@ def _register_builtin_templates(
         "current-template-v1 已通过既有 Word、VML、分页、表格和附件验收。",
     )
     _register_builtin_template(
+        registry, approvals, clean_reference,
+        "电子数据检查笔录（current-template-v1）",
+        CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
+        "template-asset-current-v1-clean",
+        "template-approval-current-v1-clean",
+        clean_asset,
+        "current-template-v1 已清理批注和示例图片并通过结构验收。",
+    )
+    _register_builtin_template(
         registry, approvals, previous_reference,
         "电子数据检查笔录（current-template-v1）",
         PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-clean",
-        "template-approval-current-v1-clean",
+        "template-asset-current-v1-balanced",
+        "template-approval-current-v1-balanced",
         previous_asset,
-        "current-template-v1 已清理批注和示例图片并通过结构验收。",
+        "current-template-v1 已修正正文与附件一整体偏右并通过 Word 版式验收。",
     )
     _register_builtin_template(
         registry, approvals, reference,
         "电子数据检查笔录（current-template-v1）",
         CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-balanced",
-        "template-approval-current-v1-balanced",
+        "template-asset-current-v1-refined",
+        "template-approval-current-v1-refined",
         current_asset,
-        "current-template-v1 已修正正文与附件一整体偏右并通过 Word 版式验收。",
+        "current-template-v1 已修正主标题、结构标题和粗横线版式。",
     )
-    return reference, (legacy_reference, previous_reference)
+    return reference, (legacy_reference, clean_reference, previous_reference)
 
 
 def _register_builtin_template(

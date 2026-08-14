@@ -16,6 +16,7 @@ from .docx_package_service import (
     DocxPackageError,
     compute_ooxml_package_fingerprint,
 )
+from .template_layout_validation_service import has_refined_visible_layout
 from .attachment2_image_service import (
     ATTACHMENT2_GROUP_GAP_TWIPS,
     ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS,
@@ -26,14 +27,17 @@ from .attachment2_image_service import (
 
 CURRENT_TEMPLATE_PROFILE_ID = "current-template-v1"
 BUILTIN_TEMPLATE_ID = "electronic-inspection-record"
-CURRENT_TEMPLATE_VERSION = "1.0.2"
-CURRENT_TEMPLATE_PACKAGE_FINGERPRINT = "B61C12CC2A1144E9FA33B2A221E4EF778D9625C2AFAF04AF3B38024B13794B32"
-PREVIOUS_TEMPLATE_VERSION = "1.0.1"
-PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT = "206AC62CC093D587E1BB59E9286427570C637BF3B9041814BF2DCFD652DB8232"
+CURRENT_TEMPLATE_VERSION = "1.0.3"
+CURRENT_TEMPLATE_PACKAGE_FINGERPRINT = "007AD44F95DF72530A2556E4FFB4F434DB00AFF2A3BE8C5B984A5DD6647DF8FE"
+PREVIOUS_TEMPLATE_VERSION = "1.0.2"
+PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT = "B61C12CC2A1144E9FA33B2A221E4EF778D9625C2AFAF04AF3B38024B13794B32"
+CLEAN_TEMPLATE_VERSION = "1.0.1"
+CLEAN_TEMPLATE_PACKAGE_FINGERPRINT = "206AC62CC093D587E1BB59E9286427570C637BF3B9041814BF2DCFD652DB8232"
 LEGACY_TEMPLATE_VERSION = "1.0.0"
 LEGACY_TEMPLATE_PACKAGE_FINGERPRINT = "616E3D1200C98DFD55C6DA7D5FB7DBB1C395BEF9FD78B1B6F59DC79BC4E814A7"
 HISTORICAL_BUILTIN_TEMPLATE_FINGERPRINTS = {
     LEGACY_TEMPLATE_VERSION: LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
+    CLEAN_TEMPLATE_VERSION: CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
     PREVIOUS_TEMPLATE_VERSION: PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
 }
 CURRENT_TEMPLATE_VALIDATION_RULE = {
@@ -186,11 +190,16 @@ def validate_current_template_profile(
             or margins.get("{%s}left" % _W_NS) != str(profile.expected_horizontal_margin_twips)
             or margins.get("{%s}right" % _W_NS) != str(profile.expected_horizontal_margin_twips)):
         raise TemplateProfileError("当前模板页面尺寸或边距不匹配。")
-    if (
-        not _is_historical_layout_exempt(template_ref, expected_fingerprint)
-        and not _has_balanced_horizontal_layout(body, table)
-    ):
-        raise TemplateProfileError("当前模板正文或附件一未居中。")
+    if not _is_historical_layout_exempt(template_ref, expected_fingerprint):
+        if not _has_balanced_horizontal_layout(body, table):
+            raise TemplateProfileError("当前模板正文或附件一未居中。")
+        if not has_refined_visible_layout(
+            template_path,
+            body,
+            profile.expected_page_width_twips,
+            profile.expected_horizontal_margin_twips,
+        ):
+            raise TemplateProfileError("当前模板标题、层级或横线未居中。")
     if len(body.findall(".//{%s}textbox" % _V_NS)) < profile.expected_vml_textboxes:
         raise TemplateProfileError("当前模板 VML 文本框数量不足。")
     if _find_paragraph(body, profile.attachment3_end_anchor) is None:

@@ -345,7 +345,7 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
 
 def test_upload_cannot_reclassify_historical_bytes_as_custom_template(template_api):
     client, _services, _lease = template_api
-    source = Path(__file__).parents[1] / "word_templates" / "template-v1.0.1.docx"
+    source = Path(__file__).parents[1] / "word_templates" / "template-v1.0.2.docx"
 
     response = client.post(
         "/api/v1/workbench/templates",
@@ -623,12 +623,12 @@ def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_
         "display_name": "电子数据检查笔录（current-template-v1）",
         "fingerprint": PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
         "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
-        "asset_id": "template-asset-current-v1-clean",
+        "asset_id": "template-asset-current-v1-balanced",
         "registered_at": "2026-07-30T00:00:00+00:00",
-    }, template_root / "template-v1.0.1.docx")
+    }, template_root / "template-v1.0.2.docx")
     approvals.record(PREVIOUS_REFERENCE, {
-        "approval_record_id": "template-approval-current-v1-clean", "status": "approved",
-        "acceptance_summary": "current-template-v1 已清理批注和示例图片并通过结构验收。",
+        "approval_record_id": "template-approval-current-v1-balanced", "status": "approved",
+        "acceptance_summary": "current-template-v1 已修正正文与附件一整体偏右并通过 Word 版式验收。",
         "recorded_at": "2026-07-30T00:00:00+00:00",
     })
     with database.transaction() as connection:
@@ -720,13 +720,13 @@ def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_ca
         "display_name": "电子数据检查笔录（current-template-v1）",
         "fingerprint": PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
         "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
-        "asset_id": "template-asset-current-v1-clean",
+        "asset_id": "template-asset-current-v1-balanced",
         "registered_at": "2026-07-30T00:00:00+00:00",
-    }, template_root / "template-v1.0.1.docx")
+    }, template_root / "template-v1.0.2.docx")
     approvals.record(PREVIOUS_REFERENCE, {
-        "approval_record_id": "template-approval-current-v1-clean",
+        "approval_record_id": "template-approval-current-v1-balanced",
         "status": "approved",
-        "acceptance_summary": "current-template-v1 已清理批注和示例图片并通过结构验收。",
+        "acceptance_summary": "current-template-v1 已修正正文与附件一整体偏右并通过 Word 版式验收。",
         "recorded_at": "2026-07-30T00:00:00+00:00",
     })
     SharedDefaultsRepository(database).ensure_default_template(PREVIOUS_REFERENCE)
@@ -757,7 +757,7 @@ def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_ca
     )
     assert upgraded.defaults.get()["default_template_ref"] == REFERENCE
     previous = upgraded.template_registry.get_internal(PREVIOUS_REFERENCE)
-    assert Path(previous["internal_locator"]).name == "template-v1.0.1.docx"
+    assert Path(previous["internal_locator"]).name == "template-v1.0.2.docx"
     assert upgraded.templates.validate(PREVIOUS_REFERENCE)["valid"] is True
     with upgraded.database.connect() as connection:
         saved_reference = json.loads(connection.execute(
