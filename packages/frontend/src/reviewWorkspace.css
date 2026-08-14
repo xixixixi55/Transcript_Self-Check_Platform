@@ -742,6 +742,17 @@
 
 .review-action-bar__buttons {
   flex-shrink: 0;
+  justify-content: flex-end;
+}
+
+.review-action-bar__buttons .ant-btn-icon {
+  font-size: 18px;
+}
+
+.review-action-bar__back-icon {
+  display: block;
+  width: 21px;
+  height: 21px;
 }
 
 .review-save-status {

@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/spec.md REQ-020 and REQ-029, including unified page scrolling, default workbench entry, compact source authorization control, right-side pending navigation, compact case-summary warning, responsive entrust-unit fields, and removal of the redundant topbar, review steps, and page-level source explanation; current OpenSpec CLI exposes no standalone sync command
+spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/spec.md REQ-020 and REQ-029, including unified page scrolling, default workbench entry, compact source authorization control, right-side pending navigation, compact case-summary warning, responsive entrust-unit fields, icon-only review actions, and removal of the redundant topbar, review steps, and page-level source explanation; current OpenSpec CLI exposes no standalone sync command
 
 ## 目标
 
@@ -85,6 +85,30 @@ spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/sp
 - [x] “电子数据检查笔录”一级菜单整行支持鼠标及键盘展开/收起，二级菜单可正常进入模块首页、生成笔录和设备管理。
 - [x] 审核编辑页保留步骤、案件摘要、待核对提示、折叠章节、结构摘要 Drawer、底部操作栏和真实状态反馈。
 - [x] 人工视觉验收通过，确认本次 UI、全局外壳和导航改造可进入提交前核验阶段。
+
+## 第七阶段：底部操作栏图标化
+
+### 目标与验收标准
+
+- [x] 审核编辑页底部的返回、保存和导出操作只显示简洁、可辨识的图标，不在按钮表面显示原文字说明。
+- [x] 三个图标按钮继续提供原操作名称的悬浮提示与无障碍名称，保存中、导出中、禁用和点击行为保持不变。
+
+### Layer 11：前端组件、样式与测试
+
+- [x] 调整 `packages/frontend/src/components/ReviewActionBar.tsx` 与 `packages/frontend/src/reviewWorkspace.css`，使用返回、保存和 Word 文件图标构成紧凑的圆形操作按钮。
+- [x] 更新 `packages/frontend/src/components/reviewWorkspaceComponents.test.tsx`，覆盖纯图标呈现、无障碍名称及既有忙碌状态行为。
+- [x] 运行前端定向 Vitest、`npm run verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 影响范围
+
+- 影响层级：Layer 11 FE_Components；不修改操作回调、共享类型、后端接口、数据模型、持久化或 Word 导出合同。
+- 人工验收：确认三个图标在审核编辑页底部操作栏中含义直观，按钮表面无文字，悬浮提示正确。
+
+### 第七阶段验证记录
+
+- 前端定向 Vitest：`reviewWorkspaceComponents.test.tsx` 共 1 个测试文件、10 个用例通过。
+- `RecordEditorForm.test.tsx` 的 Tooltip 测试桩适配后 12 个用例通过，前端完整测试套件通过。
+- 架构检查、TypeScript 类型检查、`npm run verify:quick` 与 `git diff --check` 通过；living spec 已同步纯图标操作场景。
 
 ## 第三阶段：移除模块首页并默认进入案件工作台
 

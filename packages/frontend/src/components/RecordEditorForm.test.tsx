@@ -8,12 +8,15 @@ vi.mock('antd', () => ({
   Alert: ({ message, description }: { message?: React.ReactNode; description?: React.ReactNode }) => (
     <div>{message || '注意修改文号！'}{description}</div>
   ),
-  Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>,
+  Button: ({ children, icon, onClick, disabled, loading, shape: _shape, size: _size, ...props }: any) => (
+    <button {...props} onClick={onClick} disabled={disabled || loading}>{icon}{children}</button>
+  ),
   Divider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Input: ({ value, onChange, ...props }: { value?: string; onChange?: (event: { target: { value: string } }) => void }) => (
     <input {...props} value={value || ''} onChange={event => onChange?.({ target: { value: event.target.value } })} />
   ),
   Space: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Typography: {
     Title: ({ children }: { children: React.ReactNode }) => <h1>{children}</h1>,
     Text: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
@@ -25,6 +28,7 @@ vi.mock('@ant-design/icons', () => ({
   DownloadOutlined: () => null,
   EditOutlined: () => null,
   ExclamationCircleOutlined: () => null,
+  FileWordOutlined: () => null,
   InfoCircleOutlined: () => null,
   LoadingOutlined: () => null,
   SaveOutlined: () => null,

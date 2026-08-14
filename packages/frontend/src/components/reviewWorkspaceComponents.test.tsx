@@ -22,6 +22,7 @@ vi.mock('@ant-design/icons', () => {
     EyeOutlined: Icon,
     FileSearchOutlined: Icon,
     FileTextOutlined: Icon,
+    FileWordOutlined: Icon,
     HomeOutlined: Icon,
     InfoCircleOutlined: Icon,
     LoadingOutlined: Icon,
@@ -41,8 +42,8 @@ vi.mock('antd', () => {
   const Menu = ({ items = [] }: { items?: { key: string; label: React.ReactNode; disabled?: boolean }[] }) => (
     <nav>{items.map(item => <div key={item.key} aria-disabled={item.disabled}>{item.label}</div>)}</nav>
   )
-  const Button = ({ children, onClick, disabled, loading, ...props }: any) => (
-    <button {...props} onClick={onClick} disabled={disabled || loading}>{children}</button>
+  const Button = ({ children, icon, onClick, disabled, loading, shape: _shape, size: _size, ...props }: any) => (
+    <button {...props} onClick={onClick} disabled={disabled || loading}>{icon}{children}</button>
   )
   const Descriptions = ({ children }: { children: React.ReactNode }) => <div>{children}</div>
   Descriptions.Item = ({ children, label }: { children: React.ReactNode; label: string }) => <div>{label}:{children}</div>
@@ -190,6 +191,9 @@ describe('review workspace components', () => {
     render(<ReviewActionBar status="存在未导出修改" saveBusy onSave={onSave} onBack={vi.fn()} exporting={false} onExport={onExport} />)
     expect((screen.getByRole('button', { name: /保存当前修改/ }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: /导出 Word/ }) as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByRole('button', { name: '返回重新上传' }).textContent).toBe('')
+    expect(screen.getByRole('button', { name: '保存当前修改' }).textContent).toBe('')
+    expect(screen.getByRole('button', { name: '导出 Word' }).textContent).toBe('')
     expect(screen.getByText('存在未导出修改')).toBeTruthy()
   })
 
