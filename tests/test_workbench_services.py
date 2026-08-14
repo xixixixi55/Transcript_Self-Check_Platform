@@ -19,6 +19,7 @@ from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E
 from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
+from app.services.document_builder_service import build_record_document  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
 from app.services.task_record_service import TaskRecordService  # noqa: E402
@@ -140,6 +141,64 @@ def test_parse_task_enriches_report_device_type_for_review_editor(database, tmp_
     assert evidence["imei1"] == "123456789012345"
     assert evidence["material_type"] == "phone"
     assert evidence["material_type_status"] == "confirmed_by_report"
+
+
+def test_parse_task_prefixes_new_draft_software_once_without_rewriting_saved_case(
+    database, tmp_path, monkeypatch,
+):
+    parsed_report = copy.deepcopy(REPORT)
+    parsed_report["inspection"].update({
+        "hardware_device": "SYNTHETIC DEVICE",
+        "primary_software": {
+            "name": "SYNTHETIC手机大师NEXT", "version": "V1.2.3",
+            "display_name": "SYNTHETIC手机大师NEXT V1.2.3",
+            "confirmation_status": "confirmed_by_report",
+            "provenance": [{"source_type": "report", "adapter": "SYNTHETIC/TEST"}],
+            "candidates": [{"name": "SYNTHETIC手机大师NEXT", "version": "V1.2.3"}],
+        },
+        "software_tools": [
+            {"name": "SYNTHETIC手机大师NEXT", "version": "V1.2.3"},
+            {"name": "HashMyFiles", "version": "2.51"},
+        ],
+        "process_steps": [{
+            "step_number": 4,
+            "content": "启动SYNTHETIC手机大师NEXT（版本号为V1.2.3）对检材SYNTHETIC-1进行检查。",
+        }],
+    })
+    parsed_report["inspection"]["result"].update({
+        "software_name": "SYNTHETIC手机大师NEXT", "software_version": "V1.2.3",
+    })
+    monkeypatch.setattr(
+        "app.services.case_draft_service.company_for_device_name",
+        lambda device_name: "TEST美亚柏科" if device_name == "SYNTHETIC DEVICE" else "",
+    )
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(parsed_report)}, source_service,
+    )
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+
+    report = lifecycle.detail(identifiers["case_id"])["draft"]["report"]
+    assert report["inspection"]["primary_software"]["name"] == "TEST美亚柏科SYNTHETIC手机大师NEXT"
+    assert report["inspection"]["software_tools"][0]["name"] == "TEST美亚柏科SYNTHETIC手机大师NEXT"
+    assert report["inspection"]["software_tools"][1]["name"] == "HashMyFiles"
+    assert report["inspection"]["result"]["software_name"] == "TEST美亚柏科SYNTHETIC手机大师NEXT"
+    assert "启动TEST美亚柏科SYNTHETIC手机大师NEXT" in report["inspection"]["process_steps"][0]["content"]
+
+    word_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(report)
+        if command.get("type") == "paragraph"
+    )
+    assert "TEST美亚柏科SYNTHETIC手机大师NEXT" in word_text
+    assert "TEST美亚柏科HashMyFiles" not in word_text
+
+    monkeypatch.setattr(
+        "app.services.case_draft_service.company_for_device_name", lambda _device_name: "TEST另一公司",
+    )
+    persisted = lifecycle.detail(identifiers["case_id"])["draft"]["report"]
+    assert persisted == report
 
 
 def test_parse_task_backfills_case_shell_from_parser_metadata_without_overwriting_user_values(database, tmp_path):

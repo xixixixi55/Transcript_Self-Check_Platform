@@ -175,6 +175,7 @@ export interface HardwareDevice {
   id: string
   name: string
   model: string
+  company: string
   description?: string
   created_at?: string
 }

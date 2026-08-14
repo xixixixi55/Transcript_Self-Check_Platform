@@ -20,7 +20,9 @@ from .disc_sequence_service import apply_disc_sequence_to_attachments
 from .case_order_service import CaseOrderService
 from .field_provenance_service import FieldProvenanceService
 from .material_policy_service import enrich_report_material_types
+from .device_config_service import company_for_device_name
 from .shared_defaults_service import SharedDefaultsService
+from .software_policy_service import apply_device_company_prefix
 from .source_record_service import SourceRecordService
 
 Parser = Callable[[Path, Path], Mapping[str, Any]]
@@ -83,6 +85,7 @@ class CaseDraftService:
             initialized, field_states = _initialize_draft(
                 enrich_report_material_types(report), defaults,
             )
+            initialized = _prefix_report_software_for_selected_device(initialized)
             default_template_ref = defaults.get("default_template_ref")
             self.workflow.complete_parse(
                 case_id, task_id, initialized, field_states,
@@ -129,6 +132,13 @@ class CaseDraftService:
 def _parse_source(path: Path, output: Path) -> Mapping[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
     return parse_report(str(path), str(output), compress=False)
+
+
+def _prefix_report_software_for_selected_device(
+    report: Mapping[str, Any],
+) -> dict[str, Any]:
+    hardware_name = _read_path(report, ("inspection", "hardware_device"))
+    return apply_device_company_prefix(report, company_for_device_name(hardware_name))
 
 
 def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:

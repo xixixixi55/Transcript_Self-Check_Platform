@@ -27,7 +27,12 @@ export default function DeviceManager() {
   useEffect(() => { fetchDevices() }, [])
 
   const handleSave = async () => {
-    const values = await form.validateFields()
+    let values
+    try {
+      values = await form.validateFields()
+    } catch {
+      return
+    }
     try {
       if (editing) {
         await axios.put(API_ENDPOINTS.DEVICES + '/' + editing.id, values)
@@ -58,6 +63,10 @@ export default function DeviceManager() {
   const columns = [
     { title: '设备名称', dataIndex: 'name', key: 'name' },
     { title: '型号', dataIndex: 'model', key: 'model' },
+    {
+      title: '所属公司', dataIndex: 'company', key: 'company',
+      render: (company: string) => company?.trim() || '待补充',
+    },
     { title: '描述', dataIndex: 'description', key: 'description' },
     {
       title: '操作', key: 'action',
@@ -86,7 +95,7 @@ export default function DeviceManager() {
 
       <Table columns={columns} dataSource={devices} rowKey="id" loading={loading} size="small" />
 
-      <Modal title={editing ? '编辑设备' : '添加设备'} open={modalOpen}
+      <Modal title={editing ? '编辑设备' : '添加设备'} open={modalOpen} okText="保存" cancelText="取消"
         onOk={handleSave} onCancel={() => { setModalOpen(false); setEditing(null) }}>
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="设备名称" rules={[{ required: true, message: '请输入设备名称' }]}>
@@ -94,6 +103,10 @@ export default function DeviceManager() {
           </Form.Item>
           <Form.Item name="model" label="型号" rules={[{ required: true, message: '请输入型号' }]}>
             <Input placeholder="如 美亚FL-901" />
+          </Form.Item>
+          <Form.Item name="company" label="所属公司"
+            rules={[{ required: true, whitespace: true, message: '请输入所属公司' }]}>
+            <Input placeholder="如 美亚柏科" />
           </Form.Item>
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={2} placeholder="可选描述" />

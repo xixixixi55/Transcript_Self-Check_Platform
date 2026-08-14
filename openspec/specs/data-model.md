@@ -209,6 +209,7 @@
 | id | string | 唯一标识 |
 | name | string | 设备名称 |
 | model | string | 型号 |
+| company | string | 所属公司；旧持久化记录缺失时规范化为空字符串 |
 | description | string | 描述（可选） |
 
 ---

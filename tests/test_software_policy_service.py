@@ -7,10 +7,82 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository.report_format_adapter import extract_main_software_candidate
 from app.services.export_gate_service import ExportGateInput, evaluate_export_gate
 from app.services.software_policy_service import (
+    apply_device_company_prefix,
     is_primary_software_confirmed,
     normalize_primary_software_projection,
     normalize_runtime_software_tool_projection,
 )
+
+
+def _company_prefix_report(status: str = "confirmed_by_report") -> dict:
+    return {
+        "inspection": {
+            "primary_software": {
+                "name": "SYNTHETIC手机大师NEXT", "version": "V1.2.3",
+                "display_name": "SYNTHETIC手机大师NEXT V1.2.3",
+                "confirmation_status": status,
+                "provenance": [{"source_type": "report", "adapter": "SYNTHETIC/TEST"}],
+                "candidates": [{"name": "SYNTHETIC手机大师NEXT", "version": "V1.2.3"}],
+            },
+            "software_tools": [
+                {
+                    "category": "main_forensic", "name": "SYNTHETIC手机大师NEXT",
+                    "version": "V1.2.3", "display_name": "SYNTHETIC手机大师NEXT V1.2.3",
+                },
+                {"name": "WinRAR压缩管理软件", "version": "7.0"},
+                {"name": "HashMyFiles", "version": "2.51"},
+                {"name": "SYNTHETIC人工工具", "version": "V9"},
+            ],
+            "process_steps": [
+                {"step_number": 3, "content": "SYNTHETIC/TEST unchanged"},
+                {
+                    "step_number": 4,
+                    "content": "启动SYNTHETIC手机大师NEXT（版本号为V1.2.3）对检材SYNTHETIC-1进行检查。",
+                },
+            ],
+            "result": {
+                "software_name": "SYNTHETIC手机大师NEXT", "software_version": "V1.2.3",
+            },
+        },
+    }
+
+
+def test_device_company_prefix_projects_report_primary_software_only():
+    report = _company_prefix_report()
+    normalized = apply_device_company_prefix(report, "TEST美亚柏科")
+    inspection = normalized["inspection"]
+
+    assert inspection["primary_software"]["name"] == "TEST美亚柏科SYNTHETIC手机大师NEXT"
+    assert inspection["primary_software"]["display_name"] == "TEST美亚柏科SYNTHETIC手机大师NEXT V1.2.3"
+    assert inspection["result"]["software_name"] == "TEST美亚柏科SYNTHETIC手机大师NEXT"
+    assert inspection["software_tools"][0]["name"] == "TEST美亚柏科SYNTHETIC手机大师NEXT"
+    assert [item["name"] for item in inspection["software_tools"][1:]] == [
+        "WinRAR压缩管理软件", "HashMyFiles", "SYNTHETIC人工工具",
+    ]
+    assert "启动TEST美亚柏科SYNTHETIC手机大师NEXT" in inspection["process_steps"][1]["content"]
+    assert inspection["process_steps"][0]["content"] == "SYNTHETIC/TEST unchanged"
+    assert inspection["primary_software"]["candidates"] == report["inspection"]["primary_software"]["candidates"]
+    assert inspection["primary_software"]["provenance"] == report["inspection"]["primary_software"]["provenance"]
+    assert report == _company_prefix_report()
+
+
+def test_device_company_prefix_is_idempotent():
+    first = apply_device_company_prefix(_company_prefix_report(), "TEST美亚柏科")
+    second = apply_device_company_prefix(first, "TEST美亚柏科")
+
+    assert second == first
+    assert second["inspection"]["primary_software"]["name"].count("TEST美亚柏科") == 1
+
+
+@pytest.mark.parametrize(("company", "status"), [
+    ("", "confirmed_by_report"),
+    ("TEST美亚柏科", "unconfirmed"),
+    ("TEST美亚柏科", "confirmed_by_user"),
+])
+def test_device_company_prefix_does_not_guess_or_rewrite_manual_software(company, status):
+    report = _company_prefix_report(status)
+
+    assert apply_device_company_prefix(report, company) == report
 
 
 def test_report_candidate_requires_one_semantic_name_version_pair():

@@ -56,6 +56,82 @@ def is_primary_software_confirmed(report: Mapping[str, Any]) -> bool:
     )
 
 
+def apply_device_company_prefix(
+    report: Mapping[str, Any], company: object,
+) -> dict[str, Any]:
+    """Prefix one report-confirmed primary tool without rewriting report evidence."""
+    normalized = copy.deepcopy(dict(report))
+    company_value = _text(company)
+    facts = primary_software_facts(normalized)
+    if (
+        not company_value
+        or facts["status"] != "confirmed_by_report"
+        or not facts["name"]
+        or not facts["version"]
+    ):
+        return normalized
+
+    source_name = facts["name"]
+    prefixed_name = (
+        source_name
+        if source_name.casefold().startswith(company_value.casefold())
+        else f"{company_value}{source_name}"
+    )
+    inspection = normalized.setdefault("inspection", {})
+    primary = inspection.get("primary_software")
+    if not isinstance(primary, Mapping):
+        return normalized
+    projected_primary = dict(primary)
+    projected_primary["name"] = prefixed_name
+    projected_primary["display_name"] = " ".join(
+        filter(None, [prefixed_name, facts["version"]])
+    )
+    inspection["primary_software"] = projected_primary
+
+    result = inspection.setdefault("result", {})
+    result["software_name"] = prefixed_name
+    result["software_version"] = facts["version"]
+
+    tools = []
+    main_projected = False
+    for tool in inspection.get("software_tools") or []:
+        if not isinstance(tool, Mapping):
+            tools.append(copy.deepcopy(tool))
+            continue
+        projected_tool = dict(tool)
+        tool_name = _text(tool.get("name"))
+        tool_version = _text(tool.get("version"))
+        is_primary = not main_projected and (
+            _text(tool.get("category")) == "main_forensic"
+            or (tool_name == source_name and tool_version == facts["version"])
+        )
+        if is_primary:
+            projected_tool["name"] = prefixed_name
+            if "display_name" in projected_tool or tool.get("category") == "main_forensic":
+                projected_tool["display_name"] = " ".join(
+                    filter(None, [prefixed_name, facts["version"]])
+                )
+            main_projected = True
+        tools.append(projected_tool)
+    if not main_projected:
+        tools.insert(0, {"name": prefixed_name, "version": facts["version"]})
+    inspection["software_tools"] = tools
+
+    process_steps = []
+    for step in inspection.get("process_steps") or []:
+        if not isinstance(step, Mapping):
+            process_steps.append(copy.deepcopy(step))
+            continue
+        projected_step = dict(step)
+        if step.get("step_number") == 4:
+            projected_step["content"] = _text(step.get("content")).replace(
+                source_name, prefixed_name, 1,
+            )
+        process_steps.append(projected_step)
+    inspection["process_steps"] = process_steps
+    return normalized
+
+
 def normalize_runtime_software_tool_projection(report: Mapping[str, Any]) -> dict[str, Any]:
     """Show the active hash tool while continuing to accept legacy stored data."""
     normalized = copy.deepcopy(dict(report))

@@ -12,7 +12,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
 from app.repository.workbench_database import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.case_draft_service import _initialize_draft  # noqa: E402
+from app.services import case_draft_service  # noqa: E402
+from app.services.case_draft_service import (  # noqa: E402
+    _initialize_draft,
+    _prefix_report_software_for_selected_device,
+)
 from app.services.report_defaults_service import (  # noqa: E402
     DEFAULT_DOCUMENT_NUMBER,
     DEFAULT_HARDWARE_DEVICE,
@@ -310,6 +314,35 @@ def test_parser_system_default_value_yields_to_shared_default():
         "inspection.method",
         "inspection.hardware_device",
     ))
+
+
+def test_company_prefix_resolves_after_shared_hardware_default(monkeypatch):
+    report = {
+        "document_number": DEFAULT_DOCUMENT_NUMBER,
+        "introduction": {"inspection_place": "", "inspectors": []},
+        "inspection": {
+            "method": "", "hardware_device": DEFAULT_HARDWARE_DEVICE,
+            "primary_software": {
+                "name": "SYNTHETIC软件", "version": "V1",
+                "confirmation_status": "confirmed_by_report", "provenance": [], "candidates": [],
+            },
+            "software_tools": [{"name": "SYNTHETIC软件", "version": "V1"}],
+            "process_steps": [{"step_number": 4, "content": "启动SYNTHETIC软件（版本号为V1）。"}],
+            "result": {"software_name": "SYNTHETIC软件", "software_version": "V1"},
+        },
+        "attachments": {"disc_number": ""},
+    }
+    initialized, _ = _initialize_draft(report, {"hardware_device": "SYNTHETIC SHARED DEVICE"})
+    observed = []
+    monkeypatch.setattr(
+        case_draft_service, "company_for_device_name",
+        lambda device_name: observed.append(device_name) or "TEST公司",
+    )
+
+    prefixed = _prefix_report_software_for_selected_device(initialized)
+
+    assert observed == ["SYNTHETIC SHARED DEVICE"]
+    assert prefixed["inspection"]["primary_software"]["name"] == "TEST公司SYNTHETIC软件"
 
 
 def test_parser_system_default_value_kept_when_no_shared_default():
