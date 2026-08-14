@@ -1,6 +1,6 @@
 // Layer 12: FE_Pages — case-id based full editor using the Legacy production mappings.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Card, Spin, Steps, message } from 'antd'
+import { Alert, Button, Card, Spin, message } from 'antd'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import type { InspectorLibraryRecord } from '@biji/shared/types'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
@@ -17,11 +17,9 @@ import { ReviewPageHeader } from '../components/ReviewPageHeader'
 import { ReviewPendingSummary } from '../components/ReviewPendingSummary'
 import { ReviewPreviewDrawer } from '../components/ReviewPreviewDrawer'
 import { CaseStatusBadge } from '../components/CaseStatusBadge'
-import { FieldProvenanceBadge } from '../components/FieldProvenanceBadge'
 import { SourceReselectionPanel } from '../components/SourceReselectionPanel'
 import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
 import { ArchiveCompletionPanel } from '../components/ArchiveCompletionPanel'
-import { ReviewSourceLegend } from '../components/ReviewSourceLegend'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import { runWithSourceExportRiskConfirmation } from '../hooks/useSourceExportRisk'
@@ -208,7 +206,6 @@ export default function CaseRecordGeneratePage() {
     <>
       <div className="review-page">
         <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
-        <Steps current={1} className="review-steps"><Steps.Step title="案件工作台" /><Steps.Step title="审核编辑" /><Steps.Step title="导出 Word" /></Steps>
         <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
         {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待快速复核" description="可直接选择压缩时机；开始压缩前会快速核对授权路径、报告结构和核心报告文件。" />}
         {!sourceInvalid && <>
@@ -229,8 +226,6 @@ export default function CaseRecordGeneratePage() {
         {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
         {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
         {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
-        <div className="case-workbench-page__toolbar">文号来源：<FieldProvenanceBadge state={session.draft?.field_states.document_number} /></div>
-        <ReviewSourceLegend />
         <ReviewPendingSummary variant="side" items={pendingItems}
           onNavigate={navigateToPendingItem} />
         <RecordEditorForm

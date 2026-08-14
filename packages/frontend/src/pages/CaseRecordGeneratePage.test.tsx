@@ -282,20 +282,20 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '添加检查人员' }))
     fireEvent.click(await screen.findByRole('button', { name: '添加张三' }))
-
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     await new Promise(resolve => setTimeout(resolve, 1200))
     expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
-
   it('renders pending checks in the right-side navigation instead of the inline page flow', async () => {
     renderPage()
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     expect(await screen.findByRole('complementary', { name: '待核对导航' })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^待核对 \d+$/ })).toBeTruthy()
     expect(screen.getAllByLabelText('待核对摘要')).toHaveLength(1)
+    expect(document.querySelector('.review-steps')).toBeNull()
+    expect(screen.queryByText(/文号来源/)).toBeNull()
+    expect(screen.queryByLabelText('字段来源说明')).toBeNull()
   }, 15000)
-
   it('saves an explicitly cleared entrust-unit prefix to the draft and shared defaults', async () => {
     renderPage()
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })

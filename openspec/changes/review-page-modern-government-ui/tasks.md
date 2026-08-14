@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/spec.md REQ-029, including unified page scrolling, default workbench entry, compact source authorization control, right-side pending navigation, compact case-summary warning, and responsive entrust-unit fields; current OpenSpec CLI exposes no standalone sync command
+spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/spec.md REQ-020 and REQ-029, including unified page scrolling, default workbench entry, compact source authorization control, right-side pending navigation, compact case-summary warning, responsive entrust-unit fields, and removal of the redundant topbar, review steps, and page-level source explanation; current OpenSpec CLI exposes no standalone sync command
 
 ## 目标
 
@@ -240,3 +240,25 @@ spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/sp
 - [x] 修复方式：派生设备类型待核对项时，优先使用已有设备类型/名称/型号；人工确认手机或平板时以该确认值作为有效显示语义，不再保留旧空字段提示；未确认检材和非法来源仍保持导出阻断。
 - [x] 脱敏回归 fixture：`useReviewChecklist.test.ts` 使用 SYNTHETIC 人工检材，断言用户确认类型后“设备类型”和“类型”待核对项均消失。
 - [x] 最终验证：图片/自动保存协同与待核对相关回归共 7 个测试文件、56 项用例通过；`verify:quick`、当前变更包 scoped strict docs 和 diff 检查通过。独立 Code Review 复审 PASS、无 MUST FIX。2026-08-12 用户人工真实界面复测通过。
+
+## 第九阶段：移除重复顶栏、审核步骤与页面级来源说明
+
+### 目标与验收标准
+
+- [x] 全局 `PlatformShell` 不再显示“笔录自检平台（文枢） / 电子数据检查笔录”等重复顶部横栏；平台侧栏及其导航文案保持不变。
+- [x] 审核编辑页不再显示“案件工作台 / 审核编辑 / 导出 Word”三步进度条。
+- [x] 审核编辑页不再显示页面级“文号来源”行和“字段来源”说明块；`FieldState` 数据、待人工确认提示及导出门控保持不变。
+- [x] 删除失去调用方的来源说明组件及测试，清理对应导入和无效样式，不改变审核表单、自动保存、归档或 Word 导出行为。
+- [x] 更新前端回归断言，并运行定向 Vitest、架构检查、TypeScript 类型检查、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 影响范围与验证
+
+- 展示修改：`packages/frontend/src/components/PlatformShell.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、`packages/frontend/src/platformShell.css`、`packages/frontend/src/reviewWorkspace.css`。
+- 测试：`packages/frontend/src/pages/platformShell.test.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx`；移除不再有组件目标的 `ReviewSourceLegend.test.tsx`。
+- 不修改共享类型、后端接口、草稿持久化格式、字段来源模型、待确认规则、归档或 Word 导出合同。
+
+### 第九阶段验证记录
+
+- 架构检查与 TypeScript 类型检查通过；平台外壳 14 项测试通过，审核页套件首轮 17 项中 16 项通过，本次新增的移除断言通过。
+- 审核页套件唯一失败为既有并发冲突用例同时发现两条相同 Ant Design 消息；该失败用例独立重跑通过（1 项通过、16 项跳过），未修改业务实现或该既有断言。
+- `verify:quick`、scoped strict docs 与 `git diff --check` 通过；delta spec 已同步到 living spec 的 REQ-020、REQ-029。

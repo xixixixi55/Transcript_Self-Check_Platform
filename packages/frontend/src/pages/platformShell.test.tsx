@@ -89,6 +89,7 @@ describe('platform shell navigation', () => {
     )
     expect(screen.getByRole('complementary')).toBeTruthy()
     expect(screen.getByRole('main').contains(screen.getByText('页面内容'))).toBe(true)
+    expect(screen.queryByRole('banner')).toBeNull()
   })
 
   it('点击一级菜单文字直接进入案件工作台', () => {

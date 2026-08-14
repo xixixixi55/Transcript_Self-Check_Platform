@@ -59,11 +59,6 @@
   flex-shrink: 0;
 }
 
-.review-steps {
-  padding: 20px 24px 8px;
-  background: transparent;
-}
-
 .review-pending-summary {
   margin: 0 0 20px;
   padding: 16px 18px;

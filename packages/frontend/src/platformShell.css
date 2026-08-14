@@ -47,30 +47,6 @@ body {
   transition: margin-left 160ms ease;
 }
 
-.platform-shell__topbar {
-  min-height: 60px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 28px;
-  color: var(--review-text);
-  background: var(--review-surface);
-  border-bottom: 1px solid var(--review-border);
-  flex-shrink: 0;
-}
-
-.platform-shell__topbar-context {
-  color: var(--review-muted);
-  font-size: 13px;
-}
-
-.platform-shell__topbar-title {
-  padding-left: 16px;
-  border-left: 1px solid var(--review-border);
-  font-size: 15px;
-  font-weight: 600;
-}
-
 .platform-shell__content {
   min-height: 0;
   flex: 1;
@@ -619,19 +595,6 @@ body {
 }
 
 @media (max-width: 760px) {
-  .platform-shell__topbar {
-    padding-inline: 18px;
-  }
-
-  .platform-shell__topbar-context {
-    display: none;
-  }
-
-  .platform-shell__topbar-title {
-    padding-left: 0;
-    border-left: 0;
-  }
-
   .platform-page {
     padding: 20px 16px;
   }
