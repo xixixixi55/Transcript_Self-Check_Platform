@@ -4,12 +4,12 @@ import { REVIEW_REVEAL_TARGET_EVENT, type ReviewPendingItem } from './useReviewC
 export function useReviewPendingNavigation() {
   const highlightTimer = useRef<number | null>(null)
 
-  const navigateToPendingItem = useCallback((item: ReviewPendingItem) => {
+  const navigateToTarget = useCallback((sectionId: string, targetId: string) => {
     window.dispatchEvent(new CustomEvent(REVIEW_REVEAL_TARGET_EVENT, {
-      detail: { sectionId: item.sectionId, targetId: item.targetId },
+      detail: { sectionId, targetId },
     }))
     window.setTimeout(() => {
-      const target = document.getElementById(item.targetId) || document.getElementById(item.sectionId)
+      const target = document.getElementById(targetId) || document.getElementById(sectionId)
       if (!target) return
       target.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
       document.querySelector('.review-navigation-target--active')?.classList.remove('review-navigation-target--active')
@@ -26,9 +26,17 @@ export function useReviewPendingNavigation() {
     }, 0)
   }, [])
 
+  const navigateToPendingItem = useCallback((item: ReviewPendingItem) => {
+    navigateToTarget(item.sectionId, item.targetId)
+  }, [navigateToTarget])
+
+  const navigateToSection = useCallback((sectionId: string) => {
+    navigateToTarget(sectionId, sectionId)
+  }, [navigateToTarget])
+
   useEffect(() => () => {
     if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current)
   }, [])
 
-  return navigateToPendingItem
+  return { navigateToPendingItem, navigateToSection }
 }

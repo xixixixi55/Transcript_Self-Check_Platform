@@ -286,12 +286,13 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await new Promise(resolve => setTimeout(resolve, 1200))
     expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
-  it('renders pending checks in the right-side navigation instead of the inline page flow', async () => {
-    renderPage()
-    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
-    expect(await screen.findByRole('complementary', { name: '待核对导航' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^待核对 \d+$/ })).toBeTruthy()
-    expect(screen.getAllByLabelText('待核对摘要')).toHaveLength(1)
+  it('renders four-part required progress and pending checks in the right-side navigation', async () => {
+    renderPage(); await screen.findByRole('heading', { name: '审核编辑', level: 2 })
+    expect(await screen.findByRole('complementary', { name: '审核进度导航' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^必填进度 \d\/4，待核对 \d+ 项$/ })).toBeTruthy()
+    expect(screen.getAllByLabelText('审核进度与待核对项')).toHaveLength(1)
+    ;['文书信息与导出设置', '一、绪论', '二、检查', '附件']
+      .forEach(label => expect(screen.getByRole('button', { name: new RegExp(`${label}，`) })).toBeTruthy())
     expect(document.querySelector('.review-steps')).toBeNull()
     expect(screen.queryByText(/文号来源/)).toBeNull()
     expect(screen.queryByLabelText('字段来源说明')).toBeNull()
@@ -300,7 +301,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     renderPage()
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-
     fireEvent.click(screen.getByText('SYNTHETIC-PREFIX'))
     const input = screen.getByDisplayValue('SYNTHETIC-PREFIX')
     fireEvent.change(input, { target: { value: '' } })

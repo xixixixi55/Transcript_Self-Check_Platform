@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/spec.md REQ-020 and REQ-029, including unified page scrolling, default workbench entry, compact source authorization control, right-side pending navigation, compact case-summary warning, responsive entrust-unit fields, icon-only review actions, and removal of the redundant topbar, review steps, and page-level source explanation; current OpenSpec CLI exposes no standalone sync command
+spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/spec.md REQ-020 and REQ-029, including unified page scrolling, default workbench entry, compact source authorization control, four-part required progress with right-side pending navigation, compact case-summary warning, responsive entrust-unit fields, icon-only review actions, and removal of the redundant topbar, review steps, and page-level source explanation; current OpenSpec CLI exposes no standalone sync command
 
 ## 目标
 
@@ -286,3 +286,36 @@ spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/sp
 - 架构检查与 TypeScript 类型检查通过；平台外壳 14 项测试通过，审核页套件首轮 17 项中 16 项通过，本次新增的移除断言通过。
 - 审核页套件唯一失败为既有并发冲突用例同时发现两条相同 Ant Design 消息；该失败用例独立重跑通过（1 项通过、16 项跳过），未修改业务实现或该既有断言。
 - `verify:quick`、scoped strict docs 与 `git diff --check` 通过；delta spec 已同步到 living spec 的 REQ-020、REQ-029。
+
+## 第十阶段：四部分必填进度与待核对导航合并
+
+### 目标与验收标准
+
+- [x] 审核编辑页右侧导航始终展示“文书信息与导出设置 / 一、绪论 / 二、检查 / 附件”四部分，并显示根据当前报告实时派生的必填填写进度；不新增人工确认状态。
+- [x] 当前基础空缺字段作为本阶段的必填进度范围；字段为空时对应部分显示“缺少 N 项”，该范围内不存在空值时自动显示绿色“必填已齐”。格式错误和确认阻断继续作为待核对提醒展示，但不冒充空值或单独降低填写进度。
+- [x] 点击四部分标题时展开并定位到对应章节；点击具体缺失或格式提醒时继续精确定位、聚焦和短暂高亮字段。内部归档盘号目标在进度上归入“附件”，字段点击仍定位页面上方首个光盘编号。
+- [x] 完整侧栏继续只利用宽屏右侧空白且不压缩主表单；空间不足时收敛为可拖动的“进度 N/4”入口，展开后同时展示四部分状态与待核对详情。
+- [x] 进度完全由当前 `InspectionReport` 和待核对派生结果计算，不写入案件草稿、浏览器持久化或服务端，不增加 PATCH、revision 或导出门控。
+
+### Layer 10：派生模型与导航
+
+- [x] 为 `ReviewPendingItem` 区分“必填空缺”和“校验提醒”，建立四部分固定顺序及“附件包含归档盘号”的映射；补充空缺、格式提醒和四部分归并测试。
+- [x] 扩展审核定位 Hook，使章节级点击与现有字段级点击复用同一展开、滚动、聚焦和高亮流程，并补充章节定位测试。
+
+### Layer 11–12：统一侧栏与页面接线
+
+- [x] 将 `ReviewPendingSummary` 升级为四部分必填进度与待核对项统一导航，接入章节级定位；更新章节标题计数、右侧响应式样式及页面接线。
+- [x] 更新组件、Hook 和页面定向测试，覆盖 0～4 部分进度、必填与格式提醒分离、始终可见、章节跳转、字段精确跳转、附件盘号归并和窄屏拖拽回归。
+
+### 验证与边界
+
+- [x] 运行受影响前端定向 Vitest、架构检查、TypeScript 类型检查、`npm run verify:quick`、当前变更包 scoped strict docs 与 `git diff --check`；核对 delta 后同步 living spec。
+- 影响层级：Layer 10 FE_Hooks、Layer 11 FE_Components、Layer 12 FE_Pages/样式；不修改共享类型、后端接口、数据库、草稿持久化格式、自动保存或 Word 导出合同。
+- 人工验收：检查宽屏固定侧栏、缩放/窄屏悬浮入口、四部分绿色状态和待核对详情的视觉密度；自动化覆盖行为与响应式标记，不能替代真实布局确认。
+
+### 第十阶段验证记录
+
+- 定向 Vitest：4 个文件、44 项用例通过；覆盖 0/4 与 4/4 边界、必填/校验分类、四部分及附件盘号归并、章节/字段导航、拖拽和页面接线。前端全量 Vitest 通过，仅保留既有 Ant Design 弃用和 jsdom 样式能力提示。
+- 架构检查、共享/前端 TypeScript 类型检查、生产构建和 `verify:quick` 通过；仓库资产检查通过，未新增测试或生成资产。
+- delta 已与实现核对并同步到 living spec 的 REQ-029；scoped strict docs 与 `git diff --check` 通过。
+- 人工视觉验收通过：使用完全合成数据和正式 React/Ant Design/CSS 检查 1920×900、1280×800、620×900；宽屏侧栏位于主表单右侧且不压缩表单，普通/窄屏入口和展开面板无横向溢出，四部分状态、绿色完成态与校验提醒清晰。临时验收页已删除，不进入仓库资产。

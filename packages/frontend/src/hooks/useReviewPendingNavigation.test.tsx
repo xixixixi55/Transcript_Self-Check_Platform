@@ -5,7 +5,7 @@ import { useReviewPendingNavigation } from './useReviewPendingNavigation'
 
 const discItem: ReviewPendingItem = {
   id: 'disc', sectionId: 'attachments', targetId: REVIEW_TARGET_IDS.discNumber,
-  sectionLabel: '附件', fieldLabel: '光盘编号', reason: '为空', severity: 'warning',
+  sectionLabel: '附件', fieldLabel: '光盘编号', reason: '为空', severity: 'warning', kind: 'required_missing',
 }
 
 describe('useReviewPendingNavigation', () => {
@@ -18,7 +18,7 @@ describe('useReviewPendingNavigation', () => {
     input.scrollIntoView = vi.fn()
     document.body.append(input)
     const { result } = renderHook(() => useReviewPendingNavigation())
-    act(() => { result.current(discItem); vi.advanceTimersByTime(0) })
+    act(() => { result.current.navigateToPendingItem(discItem); vi.advanceTimersByTime(0) })
     expect(input.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
     expect(document.activeElement).toBe(input)
     expect(input.classList.contains('review-navigation-target--active')).toBe(true)
@@ -32,8 +32,26 @@ describe('useReviewPendingNavigation', () => {
     section.scrollIntoView = vi.fn()
     document.body.append(section)
     const { result } = renderHook(() => useReviewPendingNavigation())
-    act(() => { result.current({ ...discItem, targetId: 'missing' }); vi.advanceTimersByTime(0) })
+    act(() => { result.current.navigateToPendingItem({ ...discItem, targetId: 'missing' }); vi.advanceTimersByTime(0) })
     expect(section.scrollIntoView).toHaveBeenCalled()
     expect(document.activeElement).toBe(section)
+  })
+
+  it('章节导航复用展开和定位流程', () => {
+    vi.useFakeTimers()
+    const section = document.createElement('section')
+    section.id = 'review-section-introduction'
+    section.scrollIntoView = vi.fn()
+    const header = document.createElement('button')
+    section.append(header)
+    document.body.append(section)
+    const reveal = vi.fn()
+    window.addEventListener('review:reveal-target', reveal)
+    const { result } = renderHook(() => useReviewPendingNavigation())
+    act(() => { result.current.navigateToSection(section.id); vi.advanceTimersByTime(0) })
+    expect(reveal).toHaveBeenCalled()
+    expect(section.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+    expect(document.activeElement).toBe(header)
+    window.removeEventListener('review:reveal-target', reveal)
   })
 })

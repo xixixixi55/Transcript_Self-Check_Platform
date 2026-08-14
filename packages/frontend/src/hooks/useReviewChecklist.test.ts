@@ -1,6 +1,11 @@
 import type { InspectionReport } from '@biji/shared/types'
 import { describe, expect, it } from 'vitest'
-import { getReviewPendingItems, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from './useReviewChecklist'
+import {
+  getReviewPendingItems,
+  getReviewProgressSectionItems,
+  REVIEW_SECTION_IDS,
+  REVIEW_TARGET_IDS,
+} from './useReviewChecklist'
 
 const report: InspectionReport = {
   title: '电子数据检查笔录', document_number: '', case_number: '2026-001',
@@ -20,7 +25,10 @@ describe('getReviewPendingItems', () => {
     const items = getReviewPendingItems(report)
     expect(items.length).toBeGreaterThan(0)
     expect(items.some(item => item.fieldLabel === '委托时间' && item.severity === 'error')).toBe(true)
-    expect(items.some(item => item.fieldLabel === '案件简要情况' && item.severity === 'warning')).toBe(true)
+    expect(items.some(item => item.fieldLabel === '案件简要情况'
+      && item.severity === 'warning' && item.kind === 'required_missing')).toBe(true)
+    expect(items.some(item => item.fieldLabel === '委托时间'
+      && item.severity === 'error' && item.kind === 'validation')).toBe(true)
   })
 
   it('接收已有文件名校验错误而不编造数量', () => {
@@ -151,5 +159,8 @@ describe('getReviewPendingItems', () => {
     expect(discItems.length).toBeGreaterThan(0)
     expect(discItems.every(item => item.targetId === REVIEW_TARGET_IDS.discNumber)).toBe(true)
     expect(discItems.every(item => item.sectionId === REVIEW_SECTION_IDS.archive)).toBe(true)
+    expect(getReviewProgressSectionItems(items, REVIEW_SECTION_IDS.attachments)).toEqual(
+      expect.arrayContaining(discItems),
+    )
   })
 })

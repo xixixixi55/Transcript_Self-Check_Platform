@@ -106,27 +106,31 @@ describe('review workspace components', () => {
     expect(screen.getByText('章节内容')).toBeTruthy()
   })
 
-  it('显示真实清单数量并支持定位章节', () => {
+  it('使用必填空缺计算四部分进度，并将校验提醒单独展示', () => {
     const onNavigate = vi.fn()
+    const onNavigateSection = vi.fn()
     const items = [
-      { id: 'one', sectionId: 'intro', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const },
-      { id: 'two', sectionId: 'inspection', targetId: 'method', sectionLabel: '二、检查', fieldLabel: '检查方法', reason: '格式错误', severity: 'error' as const },
+      { id: 'one', sectionId: 'review-section-introduction', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const, kind: 'required_missing' as const },
+      { id: 'two', sectionId: 'review-section-inspection', targetId: 'method', sectionLabel: '二、检查', fieldLabel: '检查方法', reason: '格式错误', severity: 'error' as const, kind: 'validation' as const },
     ]
-    render(<ReviewPendingSummary items={items} onNavigate={onNavigate} />)
-    expect(screen.getByText('基础待核对 2 项')).toBeTruthy()
+    render(<ReviewPendingSummary items={items} onNavigate={onNavigate} onNavigateSection={onNavigateSection} />)
+    expect(screen.getByText('必填进度 3/4')).toBeTruthy()
+    expect(screen.getByText('尚缺 1 个必填字段，另有 1 项校验提醒')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '一、绪论，缺少 1 项' }))
+    expect(onNavigateSection).toHaveBeenCalledWith('review-section-introduction')
     fireEvent.click(screen.getByRole('button', { name: /检查地点/ }))
     expect(onNavigate).toHaveBeenCalledWith(items[0])
   })
 
-  it('有待核对项时提供右侧导航和窄屏展开入口', () => {
+  it('提供四部分右侧进度导航和窄屏展开入口', () => {
     const onNavigate = vi.fn()
     const items = [
-      { id: 'one', sectionId: 'intro', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const },
+      { id: 'one', sectionId: 'review-section-introduction', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const, kind: 'required_missing' as const },
     ]
     render(<ReviewPendingSummary variant="side" items={items} onNavigate={onNavigate} />)
 
-    expect(screen.getByRole('complementary', { name: '待核对导航' })).toBeTruthy()
-    const trigger = screen.getByRole('button', { name: '待核对 1' })
+    expect(screen.getByRole('complementary', { name: '审核进度导航' })).toBeTruthy()
+    const trigger = screen.getByRole('button', { name: '必填进度 3/4，待核对 1 项' })
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(trigger)
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
@@ -138,16 +142,16 @@ describe('review workspace components', () => {
   it('可直接拖动收起状态的待核对入口，且拖动不会误展开', () => {
     Object.defineProperty(window, 'PointerEvent', { configurable: true, value: MouseEvent })
     const items = [
-      { id: 'one', sectionId: 'intro', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const },
+      { id: 'one', sectionId: 'review-section-introduction', targetId: 'place', sectionLabel: '一、绪论', fieldLabel: '检查地点', reason: '为空', severity: 'warning' as const, kind: 'required_missing' as const },
     ]
     render(<ReviewPendingSummary variant="side" items={items} onNavigate={vi.fn()} />)
-    const dock = screen.getByRole('complementary', { name: '待核对导航' })
+    const dock = screen.getByRole('complementary', { name: '审核进度导航' })
     vi.spyOn(dock, 'getBoundingClientRect').mockReturnValue({
       left: 900, top: 300, right: 940, bottom: 412, width: 40, height: 112, x: 900, y: 300, toJSON: () => ({}),
     })
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 })
-    const trigger = screen.getByRole('button', { name: '待核对 1' })
+    const trigger = screen.getByRole('button', { name: '必填进度 3/4，待核对 1 项' })
     fireEvent.pointerDown(trigger, { button: 0, pointerId: 1, clientX: 910, clientY: 310 })
     fireEvent.pointerMove(trigger, { pointerId: 1, clientX: 2000, clientY: 2000 })
     fireEvent.pointerUp(trigger, { pointerId: 1 })
@@ -159,7 +163,7 @@ describe('review workspace components', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
     expect(dock.style.left).toBe('952px')
     expect(dock.style.top).toBe('500px')
-    fireEvent.click(screen.getByRole('button', { name: '收起待核对项' }))
+    fireEvent.click(screen.getByRole('button', { name: '收起进度导航' }))
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(dock.style.left).toBe('952px')
     expect(dock.style.top).toBe('500px')
@@ -169,10 +173,23 @@ describe('review workspace components', () => {
     expect(dock.style.top).toBe('')
   })
 
-  it('没有待核对项时不显示右侧导航或悬浮入口', () => {
+  it('没有待核对项时仍显示四部分绿色进度', () => {
     render(<ReviewPendingSummary variant="side" items={[]} onNavigate={vi.fn()} />)
-    expect(screen.queryByRole('complementary', { name: '待核对导航' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /待核对/ })).toBeNull()
+    expect(screen.getByRole('complementary', { name: '审核进度导航' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '必填进度 4/4，待核对 0 项' })).toBeTruthy()
+    expect(screen.getByText('必填进度 4/4')).toBeTruthy()
+    expect(screen.getAllByText('必填已齐')).toHaveLength(4)
+  })
+
+  it('四部分均有必填空缺时显示 0/4', () => {
+    const sectionIds = ['review-section-document', 'review-section-introduction', 'review-section-inspection', 'review-section-archive']
+    const items = sectionIds.map((sectionId, index) => ({
+      id: `SYNTHETIC-${index}`, sectionId, targetId: `target-${index}`, sectionLabel: '合成章节',
+      fieldLabel: `合成必填字段${index}`, reason: '为空', severity: 'warning' as const, kind: 'required_missing' as const,
+    }))
+    render(<ReviewPendingSummary items={items} onNavigate={vi.fn()} />)
+    expect(screen.getByText('必填进度 0/4')).toBeTruthy()
+    expect(screen.getByRole('progressbar', { name: '四部分必填进度' }).getAttribute('aria-valuenow')).toBe('0')
   })
 
   it('预览 Drawer 默认关闭，打开后可关闭', () => {

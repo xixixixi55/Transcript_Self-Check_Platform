@@ -169,6 +169,20 @@
   color: var(--review-warning);
 }
 
+.review-pending-summary--complete {
+  border-left-color: var(--review-success);
+}
+
+.review-pending-summary--complete .review-pending-summary__heading {
+  color: var(--review-success);
+}
+
+.review-pending-dock--complete .review-pending-dock__trigger {
+  color: var(--review-success);
+  background: #f2fbf5;
+  border-color: #a9d8b7;
+}
+
 .review-pending-summary__heading > div {
   display: flex;
   flex-direction: column;
@@ -178,6 +192,88 @@
 .review-pending-summary__heading span {
   color: var(--review-muted);
   font-size: 12px;
+}
+
+.review-progress__bar {
+  height: 6px;
+  margin: 12px 0 14px 24px;
+  overflow: hidden;
+  background: #e6ebef;
+  border-radius: 999px;
+}
+
+.review-progress__bar span {
+  height: 100%;
+  display: block;
+  background: var(--review-success);
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+
+.review-progress__sections {
+  display: grid;
+  gap: 8px;
+  margin-left: 18px;
+}
+
+.review-progress__section {
+  position: relative;
+  padding-left: 12px;
+  border-left: 2px solid #d8b66b;
+}
+
+.review-progress__section--complete {
+  border-left-color: #9fd0ae;
+}
+
+.review-progress__section-button {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 4px;
+  border: 0;
+  color: var(--review-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.review-progress__section-button:hover {
+  background: rgba(31, 99, 148, 0.06);
+}
+
+.review-progress__section-icon {
+  margin-top: 1px;
+  color: var(--review-warning);
+}
+
+.review-progress__section--complete .review-progress__section-icon,
+.review-progress__section--complete .review-progress__section-copy > span {
+  color: var(--review-success);
+}
+
+.review-progress__section-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.review-progress__section-copy strong {
+  font-size: 13px;
+}
+
+.review-progress__section-copy > span {
+  color: var(--review-warning);
+  font-size: 12px;
+}
+
+.review-progress__validation-count {
+  flex-shrink: 0;
+  color: var(--review-error);
+  font-size: 11px;
 }
 
 .review-pending-summary__groups {
@@ -220,7 +316,12 @@
   text-decoration: underline;
 }
 
+.review-pending-summary__item--validation {
+  color: var(--review-error);
+}
+
 .review-pending-summary__item:focus-visible,
+.review-progress__section-button:focus-visible,
 .review-pending-dock__trigger:focus-visible,
 .review-pending-dock__close:focus-visible,
 .review-pending-dock__reset:focus-visible,

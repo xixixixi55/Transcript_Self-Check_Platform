@@ -2,6 +2,7 @@ import type { InspectionReport } from '@biji/shared/types'
 import { isValidDateFieldValue, isValidMinuteTimeRangeValue, parseDiscSequence } from '@biji/shared/utils'
 
 export type ReviewPendingSeverity = 'warning' | 'error'
+export type ReviewPendingKind = 'required_missing' | 'validation'
 
 export interface ReviewPendingItem {
   id: string
@@ -11,6 +12,7 @@ export interface ReviewPendingItem {
   fieldLabel: string
   reason: string
   severity: ReviewPendingSeverity
+  kind: ReviewPendingKind
 }
 
 export const REVIEW_SECTION_IDS = {
@@ -20,6 +22,29 @@ export const REVIEW_SECTION_IDS = {
   inspection: 'review-section-inspection',
   attachments: 'review-section-attachments',
 } as const
+
+export interface ReviewProgressSection {
+  id: string
+  label: string
+  itemSectionIds: readonly string[]
+}
+
+export const REVIEW_PROGRESS_SECTIONS: readonly ReviewProgressSection[] = [
+  { id: REVIEW_SECTION_IDS.document, label: '文书信息与导出设置', itemSectionIds: [REVIEW_SECTION_IDS.document] },
+  { id: REVIEW_SECTION_IDS.introduction, label: '一、绪论', itemSectionIds: [REVIEW_SECTION_IDS.introduction] },
+  { id: REVIEW_SECTION_IDS.inspection, label: '二、检查', itemSectionIds: [REVIEW_SECTION_IDS.inspection] },
+  {
+    id: REVIEW_SECTION_IDS.attachments,
+    label: '附件',
+    itemSectionIds: [REVIEW_SECTION_IDS.attachments, REVIEW_SECTION_IDS.archive],
+  },
+] as const
+
+export function getReviewProgressSectionItems(items: ReviewPendingItem[], sectionId: string): ReviewPendingItem[] {
+  const section = REVIEW_PROGRESS_SECTIONS.find(candidate => candidate.id === sectionId)
+  const itemSectionIds = section?.itemSectionIds || [sectionId]
+  return items.filter(item => itemSectionIds.includes(item.sectionId))
+}
 
 export const REVIEW_TARGET_IDS = {
   documentNumber: 'review-target-document-number',
@@ -74,8 +99,9 @@ function addBlankItem(
       targetId,
       sectionLabel,
       fieldLabel,
-      reason: '当前字段为空，仅作为基础待核对提示，不等同于业务必填校验。',
+      reason: '当前必填字段为空。',
       severity: 'warning',
+      kind: 'required_missing',
     })
   }
 }
@@ -96,6 +122,7 @@ function addInvalidItem(
     fieldLabel,
     reason,
     severity: 'error',
+    kind: 'validation',
   })
 }
 
@@ -179,6 +206,7 @@ export function getReviewPendingItems(
       fieldLabel: '导出文件名',
       reason: exportFileNameError,
       severity: 'error',
+      kind: 'validation',
     })
   }
 

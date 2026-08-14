@@ -49,7 +49,7 @@ export default function CaseRecordGeneratePage() {
       .catch(() => setInspectorError('获取启用检查人员失败，请稍后重试。'))
   }, [])
   const pendingItems = useMemo(() => session.report ? getReviewPendingItems(session.report) : [], [session.report])
-  const navigateToPendingItem = useReviewPendingNavigation()
+  const { navigateToPendingItem, navigateToSection } = useReviewPendingNavigation()
   const updateReport = useCallback((path: string, value: unknown) => {
     session.updateReport(path, value)
     if (session.editingEnabled) setReviewStatus('存在未导出修改')
@@ -227,7 +227,7 @@ export default function CaseRecordGeneratePage() {
         {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
         {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
         <ReviewPendingSummary variant="side" items={pendingItems}
-          onNavigate={navigateToPendingItem} />
+          onNavigate={navigateToPendingItem} onNavigateSection={navigateToSection} />
         <RecordEditorForm
           report={session.report}
           updateReport={updateReport}

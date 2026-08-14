@@ -17,7 +17,7 @@ import { ReviewInspectionSection } from './ReviewInspectionSection'
 import { ReviewIntroductionSection } from './ReviewIntroductionSection'
 import { ReviewSection } from './ReviewSection'
 import type { ReviewPageStatus } from './reviewWorkspaceTypes'
-import { REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
+import { getReviewProgressSectionItems, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import type { ReviewPendingItem } from '../hooks/useReviewChecklist'
 import EditableField from './EditableField'
 import { ArchiveStatusCard } from './ArchiveStatusCard'
@@ -86,7 +86,7 @@ export default function RecordEditorForm({
 }: Props) {
   const introduction = report.introduction
   const attachments = report.attachments || { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' }
-  const countFor = (sectionId: string) => pendingItems.filter(item => item.sectionId === sectionId).length
+  const countFor = (sectionId: string) => getReviewProgressSectionItems(pendingItems, sectionId).length
 
   return (
     <div className="review-editor-form">

@@ -1,14 +1,28 @@
 import React, { useMemo } from 'react'
-import { ExclamationCircleOutlined, InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
-import type { ReviewPendingItem } from '../hooks/useReviewChecklist'
+import {
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
+import {
+  getReviewProgressSectionItems,
+  REVIEW_PROGRESS_SECTIONS,
+  type ReviewPendingItem,
+} from '../hooks/useReviewChecklist'
 
 interface ReviewPendingSummaryProps {
   items: ReviewPendingItem[]
   onNavigate: (item: ReviewPendingItem) => void
+  onNavigateSection?: (sectionId: string) => void
   variant?: 'inline' | 'side'
 }
 
-export function ReviewPendingSummary({ items, onNavigate, variant = 'inline' }: ReviewPendingSummaryProps) {
+export function ReviewPendingSummary({
+  items,
+  onNavigate,
+  onNavigateSection,
+  variant = 'inline',
+}: ReviewPendingSummaryProps) {
   const [expanded, setExpanded] = React.useState(false)
   const [position, setPosition] = React.useState<{ left: number; top: number } | null>(null)
   const dockRef = React.useRef<HTMLElement>(null)
@@ -21,15 +35,23 @@ export function ReviewPendingSummary({ items, onNavigate, variant = 'inline' }: 
     moved: boolean
   } | null>(null)
   const suppressTriggerClickRef = React.useRef(false)
-  const grouped = useMemo(() => {
-    return items.reduce<Record<string, ReviewPendingItem[]>>((result, item) => {
-      result[item.sectionLabel] = [...(result[item.sectionLabel] || []), item]
-      return result
-    }, {})
-  }, [items])
+  const sections = useMemo(() => REVIEW_PROGRESS_SECTIONS.map(section => {
+    const sectionItems = getReviewProgressSectionItems(items, section.id)
+    const requiredMissing = sectionItems.filter(item => item.kind === 'required_missing')
+    const validations = sectionItems.filter(item => item.kind === 'validation')
+    return { ...section, items: sectionItems, requiredMissing, validations }
+  }), [items])
+  const completedCount = sections.filter(section => section.requiredMissing.length === 0).length
+  const missingCount = sections.reduce((total, section) => total + section.requiredMissing.length, 0)
+  const validationCount = sections.reduce((total, section) => total + section.validations.length, 0)
 
   const navigate = (item: ReviewPendingItem) => {
     onNavigate(item)
+    if (variant === 'side') setExpanded(false)
+  }
+
+  const navigateSection = (sectionId: string) => {
+    onNavigateSection?.(sectionId)
     if (variant === 'side') setExpanded(false)
   }
 
@@ -90,65 +112,101 @@ export function ReviewPendingSummary({ items, onNavigate, variant = 'inline' }: 
     return () => window.removeEventListener('resize', reclamp)
   }, [clampPosition, expanded, items.length, position])
 
-  if (variant === 'side' && items.length === 0) return null
-
   const summary = (
     <section
       id={variant === 'side' ? 'review-pending-side-panel' : undefined}
-      className={`review-pending-summary ${items.length ? 'review-pending-summary--has-items' : ''}`}
-      aria-label="待核对摘要"
+      className={`review-pending-summary ${missingCount === 0 ? 'review-pending-summary--complete' : 'review-pending-summary--has-items'}`}
+      aria-label="审核进度与待核对项"
     >
       {variant === 'side' && (
         <div className="review-pending-dock__controls">
           <button type="button" className="review-pending-dock__reset" onClick={resetPosition}>重置位置</button>
           <button type="button" className="review-pending-dock__close" onClick={() => setExpanded(false)}>
-            收起待核对项
+            收起进度导航
           </button>
         </div>
       )}
       <div className="review-pending-summary__heading">
-        {items.length ? <WarningOutlined aria-hidden="true" /> : <InfoCircleOutlined aria-hidden="true" />}
+        {missingCount === 0
+          ? <CheckCircleOutlined aria-hidden="true" />
+          : <WarningOutlined aria-hidden="true" />}
         <div>
-          <strong>{items.length ? `基础待核对 ${items.length} 项` : '目前未发现可确定的待核对项'}</strong>
-          <span>仅根据当前页面可识别的空缺字段和既有格式校验结果提示，不等同于完整业务审查。</span>
+          <strong>必填进度 {completedCount}/4</strong>
+          <span>
+            {missingCount > 0 ? `尚缺 ${missingCount} 个必填字段` : '四部分必填字段均已填写'}
+            {validationCount > 0 ? `，另有 ${validationCount} 项校验提醒` : ''}
+          </span>
         </div>
       </div>
-      {items.length > 0 && (
-        <div className="review-pending-summary__groups">
-          {Object.entries(grouped).map(([sectionLabel, sectionItems]) => (
-            <div className="review-pending-summary__group" key={sectionLabel}>
-              <span className="review-pending-summary__group-label">{sectionLabel} {sectionItems.length} 项</span>
-              <div className="review-pending-summary__items">
-                {sectionItems.map(item => (
-                  <button
-                    type="button"
-                    className="review-pending-summary__item"
-                    key={item.id}
-                    onClick={() => navigate(item)}
-                  >
-                    {item.severity === 'error'
-                      ? <ExclamationCircleOutlined aria-hidden="true" />
-                      : <WarningOutlined aria-hidden="true" />}
-                    <span>{item.fieldLabel}</span>
-                  </button>
-                ))}
-              </div>
+      <div
+        className="review-progress__bar"
+        role="progressbar"
+        aria-label="四部分必填进度"
+        aria-valuemin={0}
+        aria-valuemax={4}
+        aria-valuenow={completedCount}
+      >
+        <span style={{ width: `${completedCount * 25}%` }} />
+      </div>
+      <div className="review-progress__sections">
+        {sections.map(section => {
+          const complete = section.requiredMissing.length === 0
+          return (
+            <div className={`review-progress__section ${complete ? 'review-progress__section--complete' : ''}`} key={section.id}>
+              <button
+                type="button"
+                className="review-progress__section-button"
+                aria-label={`${section.label}，${complete ? '必填已齐' : `缺少 ${section.requiredMissing.length} 项`}`}
+                onClick={() => navigateSection(section.id)}
+              >
+                <span className="review-progress__section-icon" aria-hidden="true">
+                  {complete ? <CheckCircleOutlined /> : <WarningOutlined />}
+                </span>
+                <span className="review-progress__section-copy">
+                  <strong>{section.label}</strong>
+                  <span>{complete ? '必填已齐' : `缺少 ${section.requiredMissing.length} 项`}</span>
+                </span>
+                {section.validations.length > 0 && (
+                  <span className="review-progress__validation-count">校验 {section.validations.length}</span>
+                )}
+              </button>
+              {section.items.length > 0 && (
+                <div className="review-pending-summary__items">
+                  {section.items.map(item => (
+                    <button
+                      type="button"
+                      className={`review-pending-summary__item ${item.kind === 'validation' ? 'review-pending-summary__item--validation' : ''}`}
+                      key={item.id}
+                      onClick={() => navigate(item)}
+                    >
+                      {item.kind === 'validation'
+                        ? <ExclamationCircleOutlined aria-hidden="true" />
+                        : <WarningOutlined aria-hidden="true" />}
+                      <span>{item.fieldLabel}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          )
+        })}
+      </div>
     </section>
   )
 
   if (variant === 'inline') return summary
 
   return (
-    <aside ref={dockRef} className={`review-pending-dock ${expanded ? 'review-pending-dock--expanded' : ''}`}
+    <aside
+      ref={dockRef}
+      className={`review-pending-dock ${expanded ? 'review-pending-dock--expanded' : ''} ${missingCount === 0 ? 'review-pending-dock--complete' : ''}`}
       style={position ? { left: position.left, top: position.top, right: 'auto', transform: 'none' } : undefined}
-      aria-label="待核对导航">
+      aria-label="审核进度导航"
+    >
       <button
         type="button"
         className="review-pending-dock__trigger"
+        aria-label={`必填进度 ${completedCount}/4，待核对 ${items.length} 项`}
         aria-expanded={expanded}
         aria-controls="review-pending-side-panel"
         title="单击展开，按住拖动可移动"
@@ -164,8 +222,10 @@ export function ReviewPendingSummary({ items, onNavigate, variant = 'inline' }: 
           setExpanded(value => !value)
         }}
       >
-        <WarningOutlined aria-hidden="true" />
-        <span>待核对 {items.length}</span>
+        {missingCount === 0
+          ? <CheckCircleOutlined aria-hidden="true" />
+          : <WarningOutlined aria-hidden="true" />}
+        <span>进度 {completedCount}/4</span>
       </button>
       {summary}
     </aside>
