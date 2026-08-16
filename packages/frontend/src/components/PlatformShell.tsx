@@ -5,7 +5,7 @@ import '../platformShell.css'
 import '../reviewWorkspace.css'
 
 export function PlatformShell({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
 
   return (
     <ConfigProvider theme={{

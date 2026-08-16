@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/spec.md REQ-020 and REQ-029, including unified page scrolling, default workbench entry, compact source authorization control, four-part required progress with right-side pending navigation, compact case-summary warning, responsive entrust-unit fields, icon-only review actions, and removal of the redundant topbar, review steps, and page-level source explanation; current OpenSpec CLI exposes no standalone sync command
+spec_sync_evidence: achievement-overview homepage scenarios synchronized into openspec/specs/electronic-inspection-record/spec.md REQ-029 on 2026-08-16
 
 ## 目标
 
@@ -319,3 +319,122 @@ spec_sync_evidence: reconciled to openspec/specs/electronic-inspection-record/sp
 - 架构检查、共享/前端 TypeScript 类型检查、生产构建和 `verify:quick` 通过；仓库资产检查通过，未新增测试或生成资产。
 - delta 已与实现核对并同步到 living spec 的 REQ-029；scoped strict docs 与 `git diff --check` 通过。
 - 人工视觉验收通过：使用完全合成数据和正式 React/Ant Design/CSS 检查 1920×900、1280×800、620×900；宽屏侧栏位于主表单右侧且不压缩表单，普通/窄屏入口和展开面板无横向溢出，四部分状态、绿色完成态与校验提醒清晰。临时验收页已删除，不进入仓库资产。
+
+## 第十一阶段：薄荷晴窗 Sidebar 与首页视觉样板
+
+### 目标与验收标准
+
+- [x] 以暖白和中性色为主体，为 `PlatformSidebar` 与平台首页建立“薄荷晴窗”候选视觉样板；深青绿仅用于 CTA、Active 与 Focus，杏橙仅用于少量首页图标点睛。
+- [x] 候选 Token 只维护在集中样式文件中，TSX 只负责样板 scope、组件主题模式与视觉 tone 消费；全局 Ant Design `colorPrimary` 保持现值。
+- [x] 侧栏改为浅色菜单，一级与二级导航不再出现深蓝或黑蓝实色背景；现有父子路由、高亮、折叠、鼠标与键盘展开行为保持不变。
+- [x] 首页继续展示原六类业务名称，且只有电子数据检查笔录可进入；五类未开放功能只显示一次“即将开放”，不新增未经确认的产品能力文案。
+- [x] 候选 Token 不影响案件工作台、上传报告目录、审核编辑页、设备管理、人员管理和模板管理正文；`CaseWorkbenchDirectoryPickerCard` 本阶段不修改，但不构成后续视觉冻结，其既有 Windows 目录选择与解析链路必须继续保留。
+
+### Layer 11–12：前端组件、页面样板与测试
+
+- [x] 调整 `packages/frontend/src/components/PlatformSidebar.tsx`、`packages/frontend/src/pages/HomePage.tsx` 与 `packages/frontend/src/platformShell.css`，实现浅色侧栏、暖白首页画布、柔和图标容器、紧凑功能卡和局部 CTA/Focus 样式。
+- [x] 更新 `packages/frontend/src/pages/platformShell.test.tsx`，覆盖浅色菜单、六类功能、单一可进入入口、五个“即将开放”状态及既有导航行为。
+- [x] 运行定向 Vitest、架构检查、TypeScript 类型检查与 `git diff --check`；检查全局 `colorPrimary` 未改变，并核对样板 Token 只被 Sidebar 与首页选择器消费。
+
+### 影响范围
+
+- 影响层级：Layer 11 FE_Components、Layer 12 FE_Pages/样式；不修改路由、共享类型、后端接口、数据模型、持久化、上传解析或 Word 导出合同。
+- 本阶段只冻结 Sidebar 与首页视觉候选供人工验收，不启动工作台、审核页或管理页的全站迁移。
+
+### 第十一阶段验证记录
+
+- 平台外壳定向 Vitest：1 个文件、14 项用例通过；覆盖浅色菜单、六类功能名称、单一工作台入口、五个“即将开放”状态、侧栏折叠及既有导航行为，仅保留既有 Ant Design/React Router 测试提示。
+- 架构检查与共享/前端 TypeScript 类型检查通过；`git diff --check` 通过。
+- 真实浏览器计算样式核验：Sidebar 与首页未发现 Ant Design 默认蓝、旧政务主蓝、旧深蓝侧栏或黑蓝子菜单颜色泄漏；展开子菜单保持透明背景。
+- 候选 Token 仅在 `platformShell.css` 的 `.platform-shell` 作用域维护并由 Sidebar/首页选择器消费；全局 `colorPrimary` 与既有 `--review-primary` 未修改。案件工作台正文未消费候选 Token，上传报告目录卡片及其选择、解析链路保持原实现。
+- 当前仅形成 Sidebar 与首页视觉候选，等待人工视觉验收；不继续进行工作台、审核页或管理页迁移。
+
+## 第十二阶段：首页自适应核心区与紧凑能力区
+
+### 目标与验收标准
+
+- [x] 首页模块以 `available | comingSoon` 状态作为单一分组依据，不按模块名称或固定位置决定视觉层级。
+- [x] `available` 模块进入“核心功能”区域：1 个时使用低高度横向工作入口，2 个时两列等宽，3 个时宽容器三列；空间不足时按实际内容容器自动降为两列或单列。
+- [x] `comingSoon` 模块进入独立“更多能力”区域，以中性、无操作的紧凑 Tile 展示，不再与核心功能强制等高或重复显示五个大面积状态卡。
+- [x] 模块只需改变状态并补齐入口信息即可从“更多能力”自然迁移到核心功能区域，不需要新增模块名称专属布局代码。
+- [x] 每个可用核心功能只保留一个整卡 Link，内部进入提示不再使用 Button；未开放能力不渲染 Link 或 Button。
+- [x] 保留现有六类业务名称、真实开放状态、候选颜色 Token 与首页文案，不修改 Sidebar、路由、案件工作台及任何业务逻辑。
+
+### Layer 12：首页布局与测试
+
+- [x] 调整 `packages/frontend/src/pages/HomePage.tsx` 与 `packages/frontend/src/platformShell.css`，实现状态分区、1/2/3 核心功能容器响应式布局、紧凑更多能力区及单一链接语义。
+- [x] 更新 `packages/frontend/src/pages/platformShell.test.tsx`，覆盖当前 1 个核心功能、合成 2/3 个核心功能、状态迁移、更多能力非交互及链接内不再嵌套按钮。
+- [ ] 运行 layout 机械扫描、定向 Vitest、架构检查、TypeScript 类型检查、`verify:quick`、scoped strict docs 与 `git diff --check`，并在真实浏览器中联合检查桌面与窄屏布局。 [DEFERRED]
+
+### 影响范围
+
+- 影响层级：Layer 12 FE_Pages/样式；不修改 Sidebar、共享类型、路由、后端接口、数据模型、持久化、上传解析或 Word 导出合同。
+- 当前候选色值保持不变；本阶段只调整信息层级、布局比例、内容密度和 `available / comingSoon` 视觉权重。
+- 人工验收：确认 1366×768 首屏层级、1/2/3 核心功能扩展逻辑、更多能力密度，以及单核心状态不产生 Hero 或难看空位。
+
+### 第十二阶段验证记录
+
+- 两份隔离布局评估完成：主观布局评估确认阅读路径、状态分组与容器响应式空间命题；layout 机械扫描实施前后均为 0 项发现。
+- 平台外壳定向 Vitest：1 个文件、18 项用例通过；覆盖当前 1 个核心功能、合成 2/3 个核心功能、状态迁移、未来能力非交互和整卡单一 Link。
+- 架构检查与共享/前端 TypeScript 类型检查通过；delta 已与实现核对并同步到 living spec 的 REQ-029。
+- 真实浏览器联合验收：1280×720 下单核心横向卡约 150px 高、更多能力按三列紧凑 Tile 展示；600×760 下核心区与更多能力区均按内容容器降为单列。两个视口均无横向溢出，可用卡内嵌按钮为 0，未来能力交互元素为 0。
+- `git diff --check` 与仓库资产卫生检查通过；`verify:quick` 和 scoped strict docs 仅被任务开始前已存在的 Agent 工具镜像漂移阻断：未跟踪的 `.agents/skills/impeccable`、`.claude/skills/impeccable` 与 `.claude/settings.local.json` 共报告 39 项 `agent-tooling-mirror-drift`。本布局任务不擅自运行 Impeccable doctor 或覆盖用户工具文件，因此门控任务保持 deferred。
+- 当前候选颜色 Token 未调整，本阶段未修改 Sidebar、路由、案件工作台或业务逻辑；视觉样板继续等待人工确认。
+
+## 第十三阶段：成果总览首页与鸢尾暖光视觉样板
+
+### 目标与验收标准
+
+- [x] 平台首页从六类功能入口目录调整为成果总览，只展示状态为 `available` 的已开放功能；功能导航继续由 Sidebar 承担，首页成果卡不提供“进入功能”入口。
+- [x] 每个已开放功能预留累计成果、近两周变化和更新时间三个统计区域；累计成果为第一视觉焦点，近两周变化为辅助信息。
+- [x] 未接入统计数据时显示 `—` 与“数据待接入”，不得显示虚构数字、虚构趋势或把待接入误写为真实 `0`；统计暂不可用时提供独立文字状态。
+- [x] 成果模块根据已开放功能数量自然适配 1、2、3 个功能；未开放功能不在首页占用统计卡或“更多能力”区域。
+- [x] Sidebar 与首页采用“鸢尾暖光”候选视觉样板：白色 Sidebar、浅灰紫工作底板、白色成果表面、中深鸢尾紫功能锚点与少量杏橙温度强调；不使用满屏渐变、金融图表或科技大屏效果。
+- [x] 全局 Ant Design `colorPrimary`、案件工作台、上传报告目录、审核编辑页、管理页和所有业务逻辑保持不变。
+
+### Layer 11–12：导航、首页、样式与测试
+
+- [x] 更新 `packages/frontend/src/components/PlatformSidebar.tsx`，将未开放模块收敛到“更多能力”导航分组，同时保持其禁用和不可进入语义。
+- [x] 更新 `packages/frontend/src/pages/HomePage.tsx` 与首页样式，建立可扩展成果数据状态模型、1/2/3 功能布局、诚实占位状态和鸢尾暖光表面层级。
+- [x] 更新 `packages/frontend/src/pages/platformShell.test.tsx`，覆盖首页不再重复功能导航、只展示已开放成果、待接入/已接入/暂不可用状态、准确数字格式及 1/2/3 功能适配。
+- [x] 运行定向 Vitest、架构检查、TypeScript 类型检查、`verify:quick`、scoped strict docs 与 `git diff --check`；同步 delta 到 living spec，并在 1366×768 与宽屏浏览器中检查视觉层级。
+
+### 影响范围
+
+- 影响层级：Layer 11 FE_Components、Layer 12 FE_Pages/样式；不修改共享类型、后端接口、数据库、持久化、上传解析、案件状态机或 Word 导出合同。
+- 本阶段只提供前端成果展示模型和无数据占位，不定义“成功处理”的后端权威口径，不从现有案件列表推测累计成果。
+- 人工验收：确认首页与 Sidebar 分工清晰、成果卡具有明确层次、占位不伪造数据，并且候选配色保持现代办公气质而非金融 Dashboard 或营销页面。
+
+### 第十三阶段验证记录
+
+- 平台外壳定向 Vitest：1 个文件、20 项用例通过；覆盖 Sidebar 分组、首页只读成果语义、待接入/已接入/暂不可用状态、数字格式和 1/2/3 功能适配。
+- 架构检查、共享/前端 TypeScript 类型检查、前端生产构建与 `git diff --check` 通过；delta 已与实现核对并同步到 living spec 的 REQ-029。生产构建仅保留既有的大 chunk 体积提示。
+- 真实浏览器验收：1366×768 下确认白色 Sidebar、浅灰紫画布、鸢尾紫成果摘要与白色统计明细层级；1600×900 下成果卡宽 1120px、高 280px，无页面或主内容横向溢出，首页可交互链接/按钮为 0。
+- 工作台隔离核验：进入案件工作台后 `.platform-home` 不存在，正文外壳继续使用既有 `#f5f7fa` 背景；全局 `colorPrimary` 仍为 `#2F6FA3`，上传、解析、案件状态和业务操作未修改。
+- `verify:quick` 已运行，架构、类型和治理测试通过，但文档快速检查仍被任务开始前已存在的 39 项 `agent-tooling-mirror-drift` 阻断；漂移来自未跟踪的 Impeccable/本地工具配置，本阶段未覆盖用户工具文件。scoped strict docs 同受该前置漂移影响。
+- 本阶段停留在候选视觉样板与前端数据占位，等待人工视觉验收；不继续工作台、审核页或管理页迁移。
+
+## 第十四阶段：折叠 Sidebar 轨道与图标按钮层级
+
+### 目标与验收标准
+
+- [x] 折叠态 Sidebar 使用鸢尾紫外层轨道与白色圆角内板形成明确边界，不再表现为无层级的纯白窄栏。
+- [x] 品牌标记、一级导航与展开控制形成独立方形按钮层级；当前导航使用鸢尾紫实色与白色图标，非当前导航使用白色表面、深色图标和轻量阴影。
+- [x] `PlatformShell` 首次进入时默认折叠；悬停品牌、一级导航与展开控制显示对应名称，折叠态子菜单点击打开，展开后恢复既有菜单交互。
+- [x] 保留首页、电子数据检查笔录与“更多能力”的既有导航、键盘 Focus、当前路由和禁用语义；展开态 Sidebar、首页成果区及业务正文保持不变。
+
+### Layer 11：折叠导航样式与验证
+
+- [x] 调整 `packages/frontend/src/components/PlatformShell.tsx` 的默认状态、`PlatformSidebar.tsx` 的折叠宽度与悬停名称，并在 `platformShell.css` 中仅为 `.ant-layout-sider-collapsed` 建立轨道、控制表面、Active、Hover 与 Focus 样式。
+- [x] 运行平台外壳定向 Vitest、架构检查、TypeScript 类型检查与 `git diff --check`，并在真实浏览器中检查折叠态对比度、图标对齐、弹出子菜单和展开恢复行为。
+
+### 影响范围
+
+- 本阶段是既有“鸢尾暖光”候选样板的局部层级修正，不新增业务能力、不改变路由或信息架构，也不修改首页成果数据模型、案件工作台或其他业务页面正文。
+
+### 第十四阶段验证记录
+
+- 平台外壳定向 Vitest：1 个文件、21 项用例通过；新增覆盖默认 80px 折叠宽度、中文图标名称、折叠态点击打开一级功能菜单和主动展开恢复。
+- 架构检查与共享/前端 TypeScript 类型检查通过；测试仅保留既有 Ant Design `Menu children`、`findDOMNode` 与 React `act` 提示。
+- 真实浏览器验收：1366×768 下 Sidebar 默认折叠，鸢尾紫外轨、白色圆角内板、独立图标表面与当前首页实色 Active 对比清晰；点击“电子数据检查笔录”图标可弹出二级菜单，展开后恢复完整导航文字。
+- 浏览器无障碍树中的三个折叠入口均使用中文名称；首页成果内容、案件工作台与其他业务正文未修改。

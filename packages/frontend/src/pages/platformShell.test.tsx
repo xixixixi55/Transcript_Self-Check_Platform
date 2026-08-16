@@ -2,9 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import axios from 'axios'
+import { FileTextOutlined } from '@ant-design/icons'
 import { PlatformShell } from '../components/PlatformShell'
 import { PlatformSidebar } from '../components/PlatformSidebar'
-import HomePage from './HomePage'
+import HomePage, { HomePageContent, type HomeAchievementItem } from './HomePage'
 import { LegacyRedirect } from '../App'
 
 vi.mock('axios', () => ({ default: { get: vi.fn() } }))
@@ -60,7 +61,10 @@ describe('platform shell navigation', () => {
     expect(screen.queryByText('生成笔录')).toBeNull()
     expect(screen.getByText('电子设备管理')).toBeTruthy()
     expect(screen.getByText('笔录模版管理')).toBeTruthy()
-    expect(screen.getAllByText('暂未开放')).toHaveLength(5)
+    expect(screen.getByText('更多能力')).toBeTruthy()
+    fireEvent.click(screen.getByText('更多能力').closest('.ant-menu-submenu-title') as HTMLElement)
+    expect(screen.getAllByText('即将开放')).toHaveLength(1)
+    expect(document.querySelector('.platform-sidebar .ant-menu-light')).toBeTruthy()
   })
 
   it('支持主动收起和展开侧栏', () => {
@@ -82,14 +86,44 @@ describe('platform shell navigation', () => {
   })
 
   it('所有主要页面共用同一个平台侧栏', () => {
-    render(
+    const view = render(
       <MemoryRouter>
         <PlatformShell><div>页面内容</div></PlatformShell>
       </MemoryRouter>,
     )
-    expect(screen.getByRole('complementary')).toBeTruthy()
+    const sidebar = screen.getByRole('complementary')
+    expect(sidebar.className).toContain('ant-layout-sider-collapsed')
+    expect(screen.getByRole('button', { name: '展开导航' })).toBeTruthy()
     expect(screen.getByRole('main').contains(screen.getByText('页面内容'))).toBe(true)
     expect(screen.queryByRole('banner')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: '展开导航' }))
+    expect(view.container.querySelector('.ant-layout-sider-collapsed')).toBeNull()
+    expect(screen.getByRole('button', { name: '收起导航' })).toBeTruthy()
+  })
+
+  it('折叠态提供图标名称，并以点击打开一级功能菜单', () => {
+    const view = render(
+      <MemoryRouter>
+        <PlatformSidebar collapsed onToggle={vi.fn()} />
+      </MemoryRouter>,
+    )
+    const sidebar = screen.getByRole('complementary')
+    expect(sidebar.className).toContain('ant-layout-sider-collapsed')
+    expect(sidebar.getAttribute('style')).toContain('flex: 0 0 80px')
+    expect(screen.getByRole('menuitem', { name: '首页' })).toBeTruthy()
+    expect(view.container.querySelectorAll('.platform-sidebar__nav-icon')).toHaveLength(3)
+
+    const homeIcon = view.container.querySelector('.platform-sidebar__nav-icon')
+    expect(homeIcon).toBeTruthy()
+    expect(homeIcon?.getAttribute('aria-label')).toBe('首页')
+    expect(homeIcon?.querySelector('.anticon')?.closest('[aria-hidden="true"]')).toBeTruthy()
+
+    const moduleTitle = view.container.querySelector('[aria-label="电子数据检查笔录"] .ant-menu-submenu-title')
+    expect(moduleTitle).toBeTruthy()
+    expect(moduleTitle?.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(moduleTitle as Element)
+    expect(moduleTitle?.getAttribute('aria-expanded')).toBe('true')
   })
 
   it('点击一级菜单文字直接进入案件工作台', () => {
@@ -178,12 +212,100 @@ describe('platform shell navigation', () => {
 })
 
 describe('platform home', () => {
-  it('只将已开放功能作为可进入入口', () => {
+  it('只展示已开放功能的成果占位，不重复 Sidebar 导航', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>)
-    expect(screen.getByText('电子数据检查文书辅助平台')).toBeTruthy()
-    expect(document.querySelectorAll('a[href="/electronic-inspection/workbench"]')).toHaveLength(1)
-    expect(screen.getAllByText('该功能暂未开放')).toHaveLength(5)
-    expect(screen.getAllByText('暂未开放')).toHaveLength(5)
+    expect(screen.getByRole('heading', { level: 1, name: '工作成果' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: '已开放功能' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3, name: '电子数据检查笔录' })).toBeTruthy()
+    expect(screen.getByText('累计成功处理案件')).toBeTruthy()
+    expect(screen.getByText('近两周新增')).toBeTruthy()
+    expect(screen.getByText('数据更新时间')).toBeTruthy()
+    expect(screen.getAllByText('—')).toHaveLength(3)
+    expect(screen.getByText('数据待接入')).toBeTruthy()
+    expect(screen.queryByText('专业化勘查报告')).toBeNull()
+    expect(document.querySelectorAll('.platform-home__achievement-card')).toHaveLength(1)
+    expect(document.querySelector('.platform-home a, .platform-home button')).toBeNull()
+  })
+
+  function buildSyntheticHomeItems(availableCount: number): HomeAchievementItem[] {
+    const items: HomeAchievementItem[] = []
+    for (let index = 0; index < 6; index += 1) {
+      const title = `SYNTHETIC 功能 ${index + 1}`
+      if (index < availableCount) {
+        items.push({
+          key: `synthetic-available-${index + 1}`,
+          icon: FileTextOutlined,
+          title,
+          status: 'available',
+          metricLabel: `SYNTHETIC 累计成果 ${index + 1}`,
+          unit: '件',
+          achievement: { state: 'pending' },
+        })
+      } else {
+        items.push({ key: `synthetic-coming-${index + 1}`, icon: FileTextOutlined, title, status: 'comingSoon' })
+      }
+    }
+    return items
+  }
+
+  it.each([1, 2, 3])('按状态自然适配 %i 个成果模块', availableCount => {
+    render(<MemoryRouter><HomePageContent items={buildSyntheticHomeItems(availableCount)} /></MemoryRouter>)
+    const achievementGrid = document.querySelector('.platform-home__achievement-grid')
+    expect(achievementGrid?.getAttribute('data-available-count')).toBe(String(availableCount))
+    expect(achievementGrid?.className).toContain(`platform-home__achievement-grid--count-${availableCount}`)
+    expect(document.querySelectorAll('.platform-home__achievement-card')).toHaveLength(availableCount)
+    expect(screen.queryByText(`SYNTHETIC 功能 ${availableCount + 1}`)).toBeNull()
+    expect(document.querySelector('.platform-home a, .platform-home button')).toBeNull()
+  })
+
+  it('模块状态改变后自然进入成果总览', () => {
+    const view = render(<MemoryRouter><HomePageContent items={buildSyntheticHomeItems(1)} /></MemoryRouter>)
+    expect(screen.queryByRole('heading', { level: 3, name: 'SYNTHETIC 功能 2' })).toBeNull()
+
+    view.rerender(<MemoryRouter><HomePageContent items={buildSyntheticHomeItems(2)} /></MemoryRouter>)
+    expect(screen.getByRole('heading', { level: 3, name: 'SYNTHETIC 功能 2' })
+      .closest('.platform-home__achievement-card')).toBeTruthy()
+  })
+
+  it('展示已接入的准确成果数据和更新时间', () => {
+    const items = buildSyntheticHomeItems(1)
+    items[0] = {
+      ...items[0],
+      status: 'available',
+      metricLabel: '累计成功处理案件',
+      unit: '件',
+      achievement: { state: 'ready', total: 12386, recent14d: 136, updatedAt: '2026-08-16 14:30' },
+    }
+    render(<MemoryRouter><HomePageContent items={items} /></MemoryRouter>)
+    expect(screen.getByText('12,386')).toBeTruthy()
+    expect(screen.getByText('+136')).toBeTruthy()
+    expect(screen.getByText('2026-08-16 14:30')).toBeTruthy()
+    expect(screen.getByText('数据已更新')).toBeTruthy()
+  })
+
+  it('只在统计明确返回零值时展示 0，并区分暂不可用状态', () => {
+    const readyItems = buildSyntheticHomeItems(1)
+    readyItems[0] = {
+      ...readyItems[0],
+      status: 'available',
+      metricLabel: '累计成功处理案件',
+      unit: '件',
+      achievement: { state: 'ready', total: 0, recent14d: 0, updatedAt: '2026-08-16 14:30' },
+    }
+    const view = render(<MemoryRouter><HomePageContent items={readyItems} /></MemoryRouter>)
+    expect(screen.getAllByText('0')).toHaveLength(2)
+
+    const unavailableItems = buildSyntheticHomeItems(1)
+    unavailableItems[0] = {
+      ...unavailableItems[0],
+      status: 'available',
+      metricLabel: '累计成功处理案件',
+      unit: '件',
+      achievement: { state: 'unavailable' },
+    }
+    view.rerender(<MemoryRouter><HomePageContent items={unavailableItems} /></MemoryRouter>)
+    expect(screen.getByText('统计暂时不可用')).toBeTruthy()
+    expect(screen.getAllByText('—')).toHaveLength(3)
   })
 })
 
