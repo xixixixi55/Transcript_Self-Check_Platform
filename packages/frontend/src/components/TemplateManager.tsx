@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import {
   Alert, Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography, Upload, message,
 } from 'antd'
-import { DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import type { TemplateManagementRecord, TemplateVersionRef } from '@biji/shared/types'
 import { useTemplateManagement } from '../hooks/useTemplateManagement'
@@ -15,6 +15,8 @@ const errorMessages: Record<string, string> = {
   TEMPLATE_ADD_FAILED: '模版添加失败，请检查文件后重试。',
   TEMPLATE_DELETE_FAILED: '模版删除失败，请稍后重试。',
   TEMPLATE_DERIVE_FAILED: '模版微调版本发布失败，请检查后重试。',
+  TEMPLATE_RENAME_FAILED: '模版名称修改失败，请稍后重试。',
+  TEMPLATE_NAME_INVALID: '模版名称不能为空且不能超过 120 个字符。',
   TEMPLATE_CUSTOMIZATION_INVALID: '标题、字体或字号不在允许范围内。',
   TEMPLATE_RULE_VALIDATION_FAILED: '该 DOCX 未通过当前笔录模版结构校验。',
   TEMPLATE_UPLOAD_INVALID: '请上传有效的 DOCX 模版文件。',
@@ -37,13 +39,16 @@ function templateKey(template: TemplateManagementRecord): string {
 
 export default function TemplateManager() {
   const {
-    templates, loading, saving, errorCode, reload, setDefault, addTemplate, deleteTemplate, deriveTemplate,
+    templates, loading, saving, errorCode, reload, setDefault, addTemplate, deleteTemplate,
+    renameTemplate, deriveTemplate,
   } = useTemplateManagement()
   const [modalOpen, setModalOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState(false)
   const [form] = Form.useForm<TemplateFormValues>()
   const [customizationSource, setCustomizationSource] = useState<TemplateManagementRecord | null>(null)
+  const [renamingKey, setRenamingKey] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
   const openModal = () => {
     form.resetFields()
@@ -85,12 +90,48 @@ export default function TemplateManager() {
     if (await deleteTemplate(templateRef)) message.success('笔录模版已撤销')
   }
 
+  const cancelRename = () => {
+    setRenamingKey(null)
+    setRenameValue('')
+  }
+
+  const handleRename = async (record: TemplateManagementRecord) => {
+    const displayName = renameValue.trim()
+    if (!displayName || displayName.length > 120) {
+      message.warning('模版名称不能为空且不能超过 120 个字符。')
+      return
+    }
+    if (displayName === record.display_name) {
+      cancelRename()
+      return
+    }
+    if (await renameTemplate(record.template_ref, displayName)) {
+      message.success('模版名称已更新')
+      cancelRename()
+    }
+  }
+
   const columns = [
     {
-      title: '模版名称', key: 'display_name',
-      render: (_value: unknown, _record: TemplateManagementRecord) => (
-        <Space direction="vertical" size={0}>
-          <Typography.Text strong>{_record.display_name}</Typography.Text>
+      title: '模版名称', key: 'display_name', width: 460,
+      render: (_value: unknown, record: TemplateManagementRecord) => (
+        <Space direction="vertical" size={4} className="template-manager__name-cell">
+          {renamingKey === templateKey(record) ? (
+            <Space.Compact className="template-manager__rename-control">
+              <Input
+                autoFocus
+                aria-label={`修改“${record.display_name}”的模版名称`}
+                value={renameValue}
+                maxLength={120}
+                onChange={event => setRenameValue(event.target.value)}
+                onPressEnter={() => void handleRename(record)}
+              />
+              <Button type="primary" loading={saving} onClick={() => void handleRename(record)}>
+                保存
+              </Button>
+              <Button disabled={saving} onClick={cancelRename}>取消</Button>
+            </Space.Compact>
+          ) : <Typography.Text strong>{record.display_name}</Typography.Text>}
           <Typography.Text type="secondary" className="template-manager__secondary-text">
             已通过 current-template-v1 结构校验
           </Typography.Text>
@@ -98,7 +139,7 @@ export default function TemplateManager() {
       ),
     },
     {
-      title: '状态', key: 'status',
+      title: '状态', key: 'status', width: 160,
       render: (_value: unknown, record: TemplateManagementRecord) => (
         <Space size={4} wrap>
           <Tag color="success">已校验</Tag>
@@ -107,19 +148,30 @@ export default function TemplateManager() {
       ),
     },
     {
-      title: '操作', key: 'actions',
+      title: '操作', key: 'actions', width: 380,
       render: (_value: unknown, record: TemplateManagementRecord) => (
         <Space size="small" wrap>
           <Button
             type="link"
-            disabled={saving || record.is_default}
+            icon={<EditOutlined />}
+            disabled={saving || renamingKey !== null}
+            onClick={() => {
+              setRenamingKey(templateKey(record))
+              setRenameValue(record.display_name)
+            }}
+          >
+            重命名
+          </Button>
+          <Button
+            type="link"
+            disabled={saving || renamingKey !== null || record.is_default}
             onClick={() => void handleSetDefault(record.template_ref)}
           >
             设为默认
           </Button>
           <Button
             type="link"
-            disabled={saving || !record.can_customize}
+            disabled={saving || renamingKey !== null || !record.can_customize}
             onClick={() => setCustomizationSource(record)}
           >
             前端微调
@@ -129,10 +181,10 @@ export default function TemplateManager() {
             description="撤销后不会物理删除模版文件，已被案件引用的版本仍会保留。"
             okText="确认撤销"
             cancelText="取消"
-            disabled={saving || !record.can_delete}
+            disabled={saving || renamingKey !== null || !record.can_delete}
             onConfirm={() => void handleDelete(record.template_ref)}
           >
-            <Button type="link" danger icon={<DeleteOutlined />} disabled={saving || !record.can_delete}>
+            <Button type="link" danger icon={<DeleteOutlined />} disabled={saving || renamingKey !== null || !record.can_delete}>
               删除
             </Button>
           </Popconfirm>
@@ -175,7 +227,7 @@ export default function TemplateManager() {
           loading={loading}
           size="middle"
           pagination={false}
-          scroll={{ x: 520 }}
+          scroll={{ x: 1000 }}
           locale={{ emptyText: loading ? '正在加载笔录模版…' : '当前没有可用笔录模版' }}
         />
       </Card>

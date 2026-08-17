@@ -49,6 +49,28 @@
 - **AND** 结构标题保持一级略突出、同级对齐的缩进层次
 - **AND** 页数、分页、表格列宽、VML 文本框、页眉和页脚内容保持不变
 
+### Requirement: Template display names are editable metadata
+
+已审核模板的显示名称 MUST 可由用户在模板管理页单独修改。重命名只更新展示元数据，MUST NOT 改写模板 ID、版本、DOCX 资产、指纹、校验规则、审批记录、默认模板状态或案件中的模板引用。名称去除首尾空白后 MUST 非空且不超过 120 个字符；非法名称 MUST 被拒绝且保留原名称。
+
+#### Scenario: Rename an approved template
+
+- **WHEN** 用户在模板管理页为一个已审核模板提交有效的新名称
+- **THEN** 列表显示新名称并保留该模板的 ID、版本、校验状态和默认状态
+- **AND** 既有案件引用、模板资产字节、指纹和审批记录保持不变
+
+#### Scenario: Reject an invalid template name
+
+- **WHEN** 用户提交空白名称、超过 120 个字符的名称或额外未声明字段
+- **THEN** 系统返回稳定安全错误，界面保留用户输入以便修正
+- **AND** 已保存的模板名称和其他模板元数据均不改变
+
+#### Scenario: Management page headings omit redundant descriptions
+
+- **WHEN** 用户进入笔录模版管理、检查人员管理或取证硬件设备管理页面
+- **THEN** 页面保留标题和主要管理内容
+- **AND** 不显示标题下方的说明性副文案
+
 ### Requirement: Local Windows directory picker preserves the path-based source contract
 
 本地 Windows 案件工作台 MUST 提供点击式“上传报告目录/添加案件”入口。入口 MUST 由后端在本机交互桌面会话中弹出原生文件夹选择窗口；选择成功后 MUST 在同一请求内使用真实绝对路径登记既有 `SourceRecord`、创建案件壳和解析任务。浏览器 MUST NOT 上传或复制报告目录，公共响应、日志和浏览器状态 MUST NOT 暴露绝对路径；选择范围 MUST NOT 被硬编码为桌面目录。取消选择 MUST 是无副作用操作。

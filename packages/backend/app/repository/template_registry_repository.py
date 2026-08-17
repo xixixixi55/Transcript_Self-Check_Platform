@@ -75,6 +75,23 @@ class TemplateRegistryRepository:
             raise WorkbenchPersistenceError("TEMPLATE_UNKNOWN")
         return value
 
+    def rename_display_name(
+        self, template_ref: Mapping[str, Any], display_name: str,
+    ) -> dict[str, Any]:
+        reference = _reference(template_ref)
+        name = validate_safe_string(display_name, "TEMPLATE_NAME_INVALID").strip()
+        if not name or len(name) > 120:
+            raise WorkbenchPersistenceError("TEMPLATE_NAME_INVALID")
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                "UPDATE template_versions SET display_name=? "
+                "WHERE template_id=? AND version=?",
+                (name, reference["template_id"], reference["version"]),
+            )
+            if cursor.rowcount != 1:
+                raise WorkbenchPersistenceError("TEMPLATE_UNKNOWN")
+        return self.get_internal(reference)
+
     def relocate_builtin_asset(
         self,
         template_ref: Mapping[str, Any],

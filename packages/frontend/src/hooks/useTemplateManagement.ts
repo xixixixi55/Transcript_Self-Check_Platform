@@ -6,6 +6,7 @@ import type {
   TemplateManagementRecord,
   TemplateManagementResponse,
   DeriveTemplateRequest,
+  RenameTemplateRequest,
   TemplateVersionRef,
 } from '@biji/shared/types'
 
@@ -15,6 +16,7 @@ export type TemplateManagementErrorCode =
   | 'TEMPLATE_ADD_FAILED'
   | 'TEMPLATE_DELETE_FAILED'
   | 'TEMPLATE_DERIVE_FAILED'
+  | 'TEMPLATE_RENAME_FAILED'
   | 'TEMPLATE_RULE_VALIDATION_FAILED'
   | 'TEMPLATE_UPLOAD_INVALID'
   | 'TEMPLATE_UPLOAD_TOO_LARGE'
@@ -23,6 +25,7 @@ export type TemplateManagementErrorCode =
   | 'TEMPLATE_VERSION_IMMUTABLE'
   | 'REVISION_CONFLICT'
   | 'TEMPLATE_CUSTOMIZATION_INVALID'
+  | 'TEMPLATE_NAME_INVALID'
 
 function requestErrorCode(error: unknown, fallback: TemplateManagementErrorCode): TemplateManagementErrorCode {
   const code = (error as any)?.response?.data?.detail?.code
@@ -31,6 +34,7 @@ function requestErrorCode(error: unknown, fallback: TemplateManagementErrorCode)
     'DEFAULT_TEMPLATE_CANNOT_DELETE', 'TEMPLATE_IN_USE', 'TEMPLATE_VERSION_IMMUTABLE',
     'REVISION_CONFLICT',
     'TEMPLATE_CUSTOMIZATION_INVALID',
+    'TEMPLATE_NAME_INVALID',
   ]
   return typeof code === 'string' && known.includes(code as TemplateManagementErrorCode)
     ? code as TemplateManagementErrorCode : fallback
@@ -152,6 +156,29 @@ export function useTemplateManagement() {
     }
   }, [applyResponse])
 
+  const renameTemplate = useCallback(async (
+    templateRef: TemplateVersionRef, displayName: string,
+  ) => {
+    setSaving(true)
+    setErrorCode(null)
+    try {
+      const input: RenameTemplateRequest = { display_name: displayName }
+      const response = await axios.put<{ data: TemplateManagementResponse }>(
+        API_ENDPOINTS.WORKBENCH_TEMPLATE_DISPLAY_NAME(
+          templateRef.template_id, templateRef.version,
+        ),
+        input,
+      )
+      applyResponse(response.data.data)
+      return true
+    } catch (error) {
+      setErrorCode(requestErrorCode(error, 'TEMPLATE_RENAME_FAILED'))
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }, [applyResponse])
+
   const deriveTemplate = useCallback(async (input: DeriveTemplateRequest) => {
     setSaving(true)
     setErrorCode(null)
@@ -178,6 +205,7 @@ export function useTemplateManagement() {
     setDefault,
     addTemplate,
     deleteTemplate,
+    renameTemplate,
     deriveTemplate,
   }
 }

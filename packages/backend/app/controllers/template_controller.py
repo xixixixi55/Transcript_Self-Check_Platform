@@ -51,6 +51,11 @@ class TemplateDeriveRequest(BaseModel):
     customization: TemplateCustomizationRequest
 
 
+class TemplateRenameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    display_name: str
+
+
 @router.get("/workbench/templates")
 def list_templates_endpoint() -> dict[str, Any]:
     """Return only currently approved, revalidated, path-free versions."""
@@ -112,6 +117,19 @@ def derive_template_endpoint(body: TemplateDeriveRequest) -> dict[str, Any]:
             body.template_ref.model_dump(),
             body.display_name,
             body.customization.model_dump(),
+        )
+        return _envelope(result)
+    except Exception as error:
+        _handle(error)
+
+
+@router.put("/workbench/templates/{template_id}/{version}/display-name")
+def rename_template_endpoint(
+    template_id: str, version: str, body: TemplateRenameRequest,
+) -> dict[str, Any]:
+    try:
+        result = _template_service().rename_display_name(
+            {"template_id": template_id, "version": version}, body.display_name,
         )
         return _envelope(result)
     except Exception as error:
@@ -208,7 +226,7 @@ def _handle(error: Exception) -> None:
             "TEMPLATE_FINGERPRINT_MISMATCH", "TEMPLATE_RULE_VALIDATION_FAILED",
             "INVALID_TEMPLATE_REFERENCE", "FORBIDDEN_OPAQUE_ID", "INVALID_OPAQUE_ID",
             "INVALID_TEMPLATE_VERSION", "TEMPLATE_UPLOAD_INVALID",
-            "TEMPLATE_CUSTOMIZATION_INVALID",
+            "TEMPLATE_CUSTOMIZATION_INVALID", "TEMPLATE_NAME_INVALID",
         }
         else 413 if code == "TEMPLATE_UPLOAD_TOO_LARGE"
         else 500
@@ -240,4 +258,5 @@ def _safe_message(code: str) -> str:
         "TEMPLATE_UPLOAD_INVALID": "请上传有效的 DOCX 模板文件。",
         "TEMPLATE_UPLOAD_TOO_LARGE": "模板文件不能超过 50MB。",
         "TEMPLATE_CUSTOMIZATION_INVALID": "模板编辑参数不在允许范围内。",
+        "TEMPLATE_NAME_INVALID": "模板名称不能为空且不能超过 120 个字符。",
     }.get(code, "模板请求未完成，请稍后重试。")

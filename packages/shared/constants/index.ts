@@ -64,6 +64,8 @@ export const API_ENDPOINTS = {
   WORKBENCH_TEMPLATE_DERIVE: `${API_PREFIX}/workbench/templates/derive`,
   WORKBENCH_TEMPLATE: (templateId: string, version: string) =>
     `${API_PREFIX}/workbench/templates/${encodeURIComponent(templateId)}/${encodeURIComponent(version)}`,
+  WORKBENCH_TEMPLATE_DISPLAY_NAME: (templateId: string, version: string) =>
+    `${API_PREFIX}/workbench/templates/${encodeURIComponent(templateId)}/${encodeURIComponent(version)}/display-name`,
   WORKBENCH_CASE_TEMPLATE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/template`,
   DEMO_READINESS: `${API_PREFIX}/demo/readiness`,
 }

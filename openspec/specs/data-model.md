@@ -651,6 +651,11 @@ allow-listed `TemplateCustomization` currently read from the DOCX. The correspon
 `default_template_ref`, and the monotonic `defaults_revision` used by default
 template updates.
 
+`RenameTemplateRequest` carries only a trimmed `display_name`. Renaming updates
+presentation metadata for an approved template while preserving its ID, version,
+asset, fingerprint, validation rules, approval history, default state and case
+references.
+
 The controlled frontend customization contract uses `TemplateBodyFont` and
 `TemplateBodyFontSize` allow-lists. `TemplateCustomization` contains only the
 fixed document title, body font and body font size. `DeriveTemplateRequest`
@@ -962,6 +967,7 @@ interface TemplateValidationFailure, type TemplateValidationResult,
 interface TemplateSelectionImpact,
 type TemplateBodyFont, type TemplateBodyFontSize,
 interface TemplateCustomization, interface DeriveTemplateRequest,
+interface RenameTemplateRequest,
 type RetentionPolicyMode, type RetentionEligibility, type RetentionStatus,
 type CleanupRunPhase, type CleanupRunStatus, type RetentionBlockerCode,
 type CleanupErrorCode, interface RetentionPolicyDto,

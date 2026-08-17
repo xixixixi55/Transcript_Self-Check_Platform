@@ -286,6 +286,44 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     assert previous_template["can_customize"] is False
     assert default_template["can_customize"] is True
 
+    before_rename = services.template_registry.get_internal(REFERENCE)
+    before_approval = services.template_approvals.require_approved(REFERENCE)
+    before_default = services.defaults.get()["default_template_ref"]
+    rename_response = client.put(
+        f"/api/v1/workbench/templates/{REFERENCE['template_id']}/{REFERENCE['version']}/display-name",
+        json={"display_name": "  SYNTHETIC 用户命名模版  "},
+    )
+    assert rename_response.status_code == 200, rename_response.text
+    renamed = next(
+        item for item in rename_response.json()["data"]["templates"]
+        if item["template_ref"] == REFERENCE
+    )
+    assert renamed["display_name"] == "SYNTHETIC 用户命名模版"
+    after_rename = services.template_registry.get_internal(REFERENCE)
+    assert {
+        key: after_rename[key] for key in after_rename if key != "display_name"
+    } == {
+        key: before_rename[key] for key in before_rename if key != "display_name"
+    }
+    assert services.template_approvals.require_approved(REFERENCE) == before_approval
+    assert services.defaults.get()["default_template_ref"] == before_default
+
+    for invalid_name in ("   ", "S" * 121):
+        invalid = client.put(
+            f"/api/v1/workbench/templates/{REFERENCE['template_id']}/{REFERENCE['version']}/display-name",
+            json={"display_name": invalid_name},
+        )
+        assert invalid.status_code == 422
+        assert invalid.json()["detail"]["code"] == "TEMPLATE_NAME_INVALID"
+    extra = client.put(
+        f"/api/v1/workbench/templates/{REFERENCE['template_id']}/{REFERENCE['version']}/display-name",
+        json={"display_name": "SYNTHETIC", "unexpected": True},
+    )
+    assert extra.status_code == 422
+    assert services.template_registry.get_internal(REFERENCE)["display_name"] == (
+        "SYNTHETIC 用户命名模版"
+    )
+
     source_template = Path(__file__).parents[1] / "word_templates" / "template.docx"
     upload_response = client.post(
         "/api/v1/workbench/templates",

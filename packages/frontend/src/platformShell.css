@@ -673,6 +673,19 @@ body {
   font-size: 12px;
 }
 
+.template-manager__name-cell {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.template-manager__rename-control {
+  width: min(100%, 520px);
+}
+
+.template-manager__rename-control .ant-input {
+  min-width: 180px;
+}
+
 .template-manager__alert {
   margin-bottom: 16px;
 }

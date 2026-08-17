@@ -110,6 +110,13 @@ class TemplateRegistryService:
         self.defaults.patch({"default_template_ref": template["template_ref"]}, revision)
         return self.list_management()
 
+    def rename_display_name(
+        self, template_ref: Mapping[str, Any], display_name: str,
+    ) -> dict[str, Any]:
+        approved = self.approvals.require_approved(template_ref)
+        self.registry.rename_display_name(approved["template_ref"], display_name)
+        return self.list_management()
+
     def register_uploaded(
         self, template_ref: Mapping[str, Any], display_name: str, asset_path: str | Path,
     ) -> dict[str, Any]:

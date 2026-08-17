@@ -34,6 +34,7 @@ const extraTemplate: TemplateManagementRecord = {
 const setDefault = vi.fn(async () => true)
 const addTemplate = vi.fn(async () => true)
 const deleteTemplate = vi.fn(async () => true)
+const renameTemplate = vi.fn(async () => true)
 const deriveTemplate = vi.fn(async () => true)
 
 beforeEach(() => {
@@ -54,7 +55,8 @@ beforeEach(() => {
   useTemplateManagementMock.mockReturnValue({
     templates: [defaultTemplate, extraTemplate], defaultTemplateRef: defaultTemplate.template_ref,
     defaultsRevision: 1, loading: false, saving: false, errorCode: null,
-    reload: vi.fn(async () => undefined), setDefault, addTemplate, deleteTemplate, deriveTemplate,
+    reload: vi.fn(async () => undefined), setDefault, addTemplate, deleteTemplate,
+    renameTemplate, deriveTemplate,
   })
 })
 
@@ -111,5 +113,24 @@ describe('TemplateManager', () => {
         body_font_size: 15,
       },
     }))
+  })
+
+  it('renames a template inline and keeps the editor open when saving fails', async () => {
+    renameTemplate.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    render(<TemplateManager />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /重命名/ })[0])
+    const input = screen.getByRole('textbox', { name: /修改“SYNTHETIC 默认模版”的模版名称/ })
+    fireEvent.change(input, { target: { value: 'SYNTHETIC 新显示名称' } })
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
+
+    await waitFor(() => expect(renameTemplate).toHaveBeenCalledWith(
+      defaultTemplate.template_ref, 'SYNTHETIC 新显示名称',
+    ))
+    expect(screen.getByDisplayValue('SYNTHETIC 新显示名称')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
+    await waitFor(() => expect(renameTemplate).toHaveBeenCalledTimes(2))
+    expect(screen.queryByDisplayValue('SYNTHETIC 新显示名称')).toBeNull()
   })
 })

@@ -74,6 +74,10 @@ export interface DeriveTemplateRequest {
   customization: TemplateCustomization
 }
 
+export interface RenameTemplateRequest {
+  display_name: string
+}
+
 export interface TemplateValidationSuccess {
   valid: true
   template: TemplateVersion

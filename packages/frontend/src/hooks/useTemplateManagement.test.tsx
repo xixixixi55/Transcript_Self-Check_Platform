@@ -124,4 +124,23 @@ describe('useTemplateManagement', () => {
     expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_TEMPLATE_DERIVE, input)
     expect(getMock).toHaveBeenCalledTimes(2)
   })
+
+  it('renames a template and applies the returned management state', async () => {
+    const renamed = { ...current, display_name: 'SYNTHETIC 已重命名模版' }
+    putMock.mockResolvedValue(response([renamed]))
+    const view = renderHook(() => useTemplateManagement())
+    await waitFor(() => expect(view.result.current.templates).toHaveLength(1))
+
+    await act(async () => {
+      await view.result.current.renameTemplate(current.template_ref, renamed.display_name)
+    })
+
+    expect(putMock).toHaveBeenCalledWith(
+      API_ENDPOINTS.WORKBENCH_TEMPLATE_DISPLAY_NAME(
+        current.template_ref.template_id, current.template_ref.version,
+      ),
+      { display_name: renamed.display_name },
+    )
+    expect(view.result.current.templates[0].display_name).toBe(renamed.display_name)
+  })
 })
