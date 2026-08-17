@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from typing import Any
 from docx import Document
 from docx.oxml.ns import qn
-from docx.shared import Inches
+from docx.shared import Inches, Twips
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from .report_defaults_service import normalize_data_summary
@@ -50,6 +50,8 @@ from .template_profile_service import (
     validate_template_package_fingerprint,
 )
 from .legacy_report_projection_service import project_ordered_legacy_report
+
+_ATTACHMENT_SUMMARY_GAP_TWIPS = 3 * 520
 
 
 def fill_template(report: dict, template_path: str, output_path: str,
@@ -835,8 +837,8 @@ def _cleanup_attachment_spacing(doc: Document):
         while cursor >= 0 and is_empty_paragraph(children[cursor]):
             empty_count += 1
             cursor -= 1
-        while empty_count > 3:
-            body.remove(children[cursor + 1])
+        while empty_count > 0:
+            body.remove(children[attachment_summary_index - 1])
             attachment_summary_index -= 1
             empty_count -= 1
             children = list(body)
@@ -856,6 +858,10 @@ def _cleanup_attachment_spacing(doc: Document):
                 and summary_start < attachment1_start):
             summary_block = paragraphs[summary_start:attachment1_start]
             first = summary_block[0]
+            # Replace the template's three 520-twip blank lines with paragraph
+            # spacing. Word keeps it mid-page and suppresses it at an automatic
+            # page top, so an independently paginated summary starts normally.
+            first.paragraph_format.space_before = Twips(_ATTACHMENT_SUMMARY_GAP_TWIPS)
             for br in list(first._p.findall('.//' + qn('w:br'))):
                 if br.get(qn('w:type')) == 'page':
                     br.getparent().remove(br)

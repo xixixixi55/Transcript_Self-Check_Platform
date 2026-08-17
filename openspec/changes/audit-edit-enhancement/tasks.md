@@ -268,6 +268,17 @@ workflow_level: 3
   - 验证：两条 Word 路径定向 pytest、合成 DOCX OOXML 断言、officecli validate、架构与类型检查、`git diff --check`。
   - 证据：模板正式路径、模板兼容路径与 officecli batch 回退相关测试 79 passed；合成 DOCX 的来源正文为 `w:jc=both` 且 officecli validate 0 errors；架构和类型检查通过。`pre-commit` 仅被任务开始前已有的 39 项 agent-tooling mirror drift 阻断。
 
+## 🟡 Phase 15: 附件摘要独立页顶部留白回归
+
+- [x] T028 **独立成页时移除三个空行，同页时保留等效间隔**
+  - 文件：`packages/backend/app/services/template_filler_service.py`、`tests/test_template_filler_service.py`、本变更包 design/delta spec。
+  - 内容：将摘要前的三个固定空段落转换为摘要首段的等效段前距；摘要与检查结果同页时保留三行视觉间隔，摘要块自动移到新页时使用 Word 页首段落语义抑制该间距，不在独立页顶部留下三个空行；摘要、签名、双横线、日期和附件一分页结构保持不变。
+  - 覆盖 Spec：REQ-032“Word 附件摘要按剩余空间条件分页”。
+  - 验证：旧实现区分性失败、模板填充定向 pytest、OOXML 精确间距与连续块断言、合成 DOCX 的 Microsoft Word/PDF 同页与独立页实际分页检查、架构/类型、人工审查与当前变更 scoped full gate。
+  - 证据：旧实现定向用例以 `blank_count == 3` 精确失败；修复及有效性变异恢复后模板填充、附件渲染和 batch 文书构建 79 passed，`lint:arch`、typecheck、`verify:quick` 和 `git diff --check` 通过；两份合成 DOCX 经 officecli validate 均无错误。Microsoft Word 实际分页中，同页样例的检查结果与摘要均位于第2页且保留三行等效间隔，独立页样例的检查结果位于第2页、摘要位于第3页且从正常页首开始，不含三个空行。
+  - human_review: [PASS] 2026-08-18 用户对同页与独立页两张 Word/PDF 渲染图进行人工审查，确认两种排版均符合要求；用户明确要求不启动独立 Review Agent，已停止该代理审查。
+  - final_gate: [PASS] 使用 `D:\harness-temp-root` 作为短临时目录执行 `npm run verify:full -- --change audit-edit-enhancement`；预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
+
 ---
 
 ## 任务摘要
@@ -288,7 +299,8 @@ workflow_level: 3
 | 🟢 P12 | Services | 1 | 附件摘要标识与附件一表头排版 |
 | 🟡 P13 | Services | 1 | 附件摘要三行留白与条件分页 |
 | 🟢 P14 | Services | 1 | 附件一来源正文两端对齐 |
-| **合计** | **Layer 0、2、10~12、20~21** | **27** | |
+| 🟡 P15 | Services | 1 | 附件摘要独立页顶部留白回归 |
+| **合计** | **Layer 0、2、10~12、20~21** | **28** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。
 

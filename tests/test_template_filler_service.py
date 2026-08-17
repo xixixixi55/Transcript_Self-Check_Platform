@@ -430,7 +430,7 @@ def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path
     assert document_xml.count('w:type="page"') == 3
 
 
-def test_attachment_summary_uses_three_blank_lines_and_conditional_pagination(tmp_path):
+def test_attachment_summary_uses_page_top_suppressed_spacing_and_conditional_pagination(tmp_path):
     report = _report()
     report["introduction"]["evidence_list"] = [
         {"evidence_number": "SYN-JC-001", "device_type": "测试手机"},
@@ -465,7 +465,10 @@ def test_attachment_summary_uses_three_blank_lines_and_conditional_pagination(tm
     previous_text = "".join(children[cursor].itertext()).strip()
 
     assert previous_text.startswith("经对编号为SYN-JC-001、SYN-JC-002号检材")
-    assert blank_count == 3
+    assert blank_count == 0
+    spacing = children[summary_index].find('./{%s}pPr/{%s}spacing' % (W_NS, W_NS))
+    assert spacing is not None
+    assert spacing.get('{%s}before' % W_NS) == '1560'
     assert len(children[summary_index].findall(
         './/{%s}br[@{%s}type="page"]' % (W_NS, W_NS)
     )) == 0
@@ -543,11 +546,20 @@ def test_attachment_summary_signature_and_date_layout_stay_unchanged(tmp_path):
         value = element.find('./{%s}pPr/{%s}%s' % (W_NS, W_NS, local_name))
         return ET.tostring(value) if value is not None else None
 
-    for expected, actual in zip(template_region, output_region):
-        for local_name in ("ind", "spacing", "jc", "tabs"):
+    for index, (expected, actual) in enumerate(zip(template_region, output_region)):
+        for local_name in ("ind", "jc", "tabs"):
             assert layout_property(actual, local_name) == layout_property(
                 expected, local_name
             )
+        expected_spacing = expected.find('./{%s}pPr/{%s}spacing' % (W_NS, W_NS))
+        actual_spacing = actual.find('./{%s}pPr/{%s}spacing' % (W_NS, W_NS))
+        assert expected_spacing is not None
+        assert actual_spacing is not None
+        expected_attributes = dict(expected_spacing.attrib)
+        actual_attributes = dict(actual_spacing.attrib)
+        if index == 0:
+            assert actual_attributes.pop('{%s}before' % W_NS) == '1560'
+        assert actual_attributes == expected_attributes
         assert [ET.tostring(node) for node in actual.findall('.//{%s}pict' % W_NS)] == [
             ET.tostring(node) for node in expected.findall('.//{%s}pict' % W_NS)
         ]
