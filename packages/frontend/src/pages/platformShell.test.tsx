@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import axios from 'axios'
@@ -102,7 +102,7 @@ describe('platform shell navigation', () => {
     expect(screen.getByRole('button', { name: '收起导航' })).toBeTruthy()
   })
 
-  it('折叠态提供图标名称，并以点击打开一级功能菜单', () => {
+  it('折叠态提供图标名称，打开子菜单后关闭遮挡选项的提示', async () => {
     const view = render(
       <MemoryRouter>
         <PlatformSidebar collapsed onToggle={vi.fn()} />
@@ -122,8 +122,17 @@ describe('platform shell navigation', () => {
     const moduleTitle = view.container.querySelector('[aria-label="电子数据检查笔录"] .ant-menu-submenu-title')
     expect(moduleTitle).toBeTruthy()
     expect(moduleTitle?.getAttribute('aria-expanded')).toBe('false')
+    const moduleIcon = moduleTitle?.querySelector('.platform-sidebar__nav-icon > span')
+    expect(moduleIcon).toBeTruthy()
+    fireEvent.mouseEnter(moduleIcon as Element)
+    await screen.findByRole('tooltip', { name: '电子数据检查笔录' })
     fireEvent.click(moduleTitle as Element)
     expect(moduleTitle?.getAttribute('aria-expanded')).toBe('true')
+    await waitFor(() => expect(screen.queryByRole('tooltip', { name: '电子数据检查笔录' })).toBeNull())
+    expect(screen.getByText('案件工作台')).toBeTruthy()
+    for (const label of ['案件工作台', '电子设备管理', '检查人员管理', '笔录模版管理']) {
+      expect(screen.getByText(label).closest('.ant-menu-item')?.getAttribute('title')).toBeNull()
+    }
   })
 
   it('点击一级菜单文字直接进入案件工作台', () => {
@@ -136,6 +145,19 @@ describe('platform shell navigation', () => {
     const label = screen.getByText('电子数据检查笔录')
     fireEvent.click(label)
     expect(screen.getByTestId('redirected-location').textContent).toBe('/electronic-inspection/workbench')
+  })
+
+  it('从案件工作台点击折叠态首页图标可返回平台首页', () => {
+    const view = render(
+      <MemoryRouter initialEntries={['/electronic-inspection/workbench']}>
+        <PlatformSidebar collapsed onToggle={vi.fn()} />
+        <RedirectLocationProbe />
+      </MemoryRouter>,
+    )
+    const homeIcon = view.container.querySelector('.platform-sidebar__nav-icon[aria-label="首页"]')
+    expect(homeIcon).toBeTruthy()
+    fireEvent.click(homeIcon as Element)
+    expect(screen.getByTestId('redirected-location').textContent).toBe('/')
   })
 
   it.each([

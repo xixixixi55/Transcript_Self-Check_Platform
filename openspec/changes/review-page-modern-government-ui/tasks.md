@@ -438,3 +438,53 @@ spec_sync_evidence: achievement-overview homepage scenarios synchronized into op
 - 架构检查与共享/前端 TypeScript 类型检查通过；测试仅保留既有 Ant Design `Menu children`、`findDOMNode` 与 React `act` 提示。
 - 真实浏览器验收：1366×768 下 Sidebar 默认折叠，鸢尾紫外轨、白色圆角内板、独立图标表面与当前首页实色 Active 对比清晰；点击“电子数据检查笔录”图标可弹出二级菜单，展开后恢复完整导航文字。
 - 浏览器无障碍树中的三个折叠入口均使用中文名称；首页成果内容、案件工作台与其他业务正文未修改。
+
+## 第十五阶段：折叠态首页导航回归修复
+
+### 目标与验收标准
+
+- [x] 用户从案件工作台点击折叠态 Sidebar 的“首页”图标后进入平台首页 `/`。
+- [x] 展开态“首页”继续保留真实链接语义，既有父子导航、当前路由高亮和业务页面行为不变。
+
+### Layer 11：导航实现与测试
+
+- [x] 调整 `packages/frontend/src/components/PlatformSidebar.tsx`，让整个首页菜单项在折叠态和展开态均可触发首页导航，并避免展开态文字链接重复冒泡导航。
+- [x] 更新 `packages/frontend/src/pages/platformShell.test.tsx`，覆盖从案件工作台点击折叠态首页图标返回 `/` 的回归场景。
+- [x] 运行平台外壳定向 Vitest、架构检查、TypeScript 类型检查、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 影响范围
+
+- 影响层级：Layer 11 FE_Components；不修改路由表、共享类型、后端接口、数据模型、持久化或任何案件业务逻辑。
+- 人工验收：在真实桌面界面从案件工作台点击折叠态首页图标，确认进入平台首页且侧栏高亮同步更新。
+
+### 第十五阶段验证记录
+
+- 平台外壳定向 Vitest：1 个文件、22 项用例通过；新增覆盖从案件工作台点击折叠态首页图标进入 `/`。
+- 架构检查、共享/前端 TypeScript 类型检查与 `git diff --check` 通过；delta 已与实现核对并同步到 living spec 的 REQ-029。
+- `verify:quick` 与 scoped strict docs 已运行，本次代码、类型、治理测试和任务状态检查均无新增失败；两项文档门控仍被任务开始前已存在的 39 项 `agent-tooling-mirror-drift` 阻断，来源为用户未跟踪的 Impeccable/本地工具文件，本修复未改动这些文件。
+- 人工验收：N/A；该导航行为由 MemoryRouter 交互回归测试可靠覆盖，不涉及只能由真实桌面环境确认的视觉或平台能力。
+
+## 第十六阶段：折叠子菜单提示遮挡修复
+
+### 目标与验收标准
+
+- [x] 折叠态悬停“电子数据检查笔录”仍显示名称提示；打开子菜单后提示立即关闭，不遮挡或拦截“案件工作台”，且二级选项不再重复弹出黑色名称提示。
+- [x] “更多能力”采用相同的互斥浮层规则；展开态导航、首页跳转、父子高亮和键盘语义保持不变。
+
+### Layer 11：浮层状态与测试
+
+- [x] 调整 `packages/frontend/src/components/PlatformSidebar.tsx`，统一管理折叠图标 Tooltip 状态，在子菜单打开时清除提示并禁止提示层接管鼠标事件，同时移除已完整显示名称的二级项冗余 `title`。
+- [x] 更新 `packages/frontend/src/pages/platformShell.test.tsx`，覆盖悬停名称可见、打开子菜单后提示消失且“案件工作台”可见。
+- [x] 运行平台外壳定向 Vitest、架构检查、TypeScript 类型检查、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 影响范围
+
+- 影响层级：Layer 11 FE_Components；不修改路由、业务页面、共享类型、后端接口或数据模型。
+- `impeccable harden` 约束：互斥浮层不得同时占据任务选项区域，名称提示不得阻断主操作。
+
+### 第十六阶段验证记录
+
+- 平台外壳定向 Vitest：1 个文件、22 项用例通过；覆盖折叠态名称提示出现、子菜单打开后提示关闭及案件工作台入口保持可见。
+- 架构检查、共享/前端 TypeScript 类型检查与 `git diff --check` 通过；delta 已与实现核对并同步到 living spec 的 REQ-029。
+- `verify:quick` 与 scoped strict docs 已运行，本次代码、类型、治理测试和任务状态检查无新增失败；两项文档门控仍被任务开始前已存在的 39 项 `agent-tooling-mirror-drift` 阻断，本修复未改动相关用户工具文件。
+- 人工验收：N/A；Tooltip 与子菜单互斥及入口可用性已由真实 Ant Design 组件交互测试覆盖。

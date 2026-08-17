@@ -11,7 +11,7 @@ import {
   MenuUnfoldOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 const { Sider } = Layout
 const moduleKey = 'electronic-inspection'
@@ -26,11 +26,13 @@ function moreCapabilitiesTitle() {
   return <span className="platform-sidebar__unavailable"><span>更多能力</span><small>即将开放</small></span>
 }
 
-function navigationIcon(collapsed: boolean, label: string, icon: React.ReactElement) {
+function navigationIcon(collapsed: boolean, label: string, icon: React.ReactElement,
+  tooltipOpen: boolean, onTooltipOpenChange: (open: boolean) => void) {
   if (!collapsed) return icon
   return (
     <span className="platform-sidebar__nav-icon" role="img" aria-label={label}>
-      <Tooltip title={label} placement="right" mouseEnterDelay={0.2}>
+      <Tooltip title={label} placement="right" mouseEnterDelay={0.2} open={tooltipOpen}
+        onOpenChange={onTooltipOpenChange} destroyOnHidden styles={{ root: { pointerEvents: 'none' } }}>
         <span aria-hidden="true">{icon}</span>
       </Tooltip>
     </span>
@@ -39,6 +41,8 @@ function navigationIcon(collapsed: boolean, label: string, icon: React.ReactElem
 
 export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const [openTooltipLabel, setOpenTooltipLabel] = useState<string | null>(null)
   const isModulePath = location.pathname.startsWith('/electronic-inspection')
     || location.pathname === '/generate' || location.pathname === '/devices'
     || location.pathname === '/inspectors' || location.pathname === '/templates'
@@ -48,8 +52,22 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
     if (isModulePath) setOpenKeys(keys => keys.includes(moduleKey) ? keys : [...keys, moduleKey])
   }, [isModulePath])
 
-  const toggleModuleMenu = () => setOpenKeys(keys => keys.includes(moduleKey)
-    ? keys.filter(key => key !== moduleKey) : [...keys, moduleKey])
+  const toggleModuleMenu = () => {
+    setOpenTooltipLabel(null)
+    setOpenKeys(keys => keys.includes(moduleKey)
+      ? keys.filter(key => key !== moduleKey) : [...keys, moduleKey])
+  }
+  const handleOpenChange = (keys: string[]) => {
+    setOpenKeys(keys)
+    if (keys.length > 0) setOpenTooltipLabel(null)
+  }
+  const iconWithTooltip = (label: string, icon: React.ReactElement) => navigationIcon(
+    collapsed,
+    label,
+    icon,
+    openTooltipLabel === label,
+    open => setOpenTooltipLabel(open ? label : null),
+  )
   const handleMenuKeyDown = (event: React.KeyboardEvent) => {
     const target = event.target instanceof Element ? event.target : null
     const submenuTitle = target?.closest('.ant-menu-submenu-title')
@@ -92,43 +110,43 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
       </div>
       <Menu theme="light" mode="inline" inlineCollapsed={collapsed} selectedKeys={[selectedKey]}
         triggerSubMenuAction={collapsed ? 'click' : 'hover'} openKeys={openKeys}
-        onOpenChange={keys => setOpenKeys(keys as string[])} onKeyDown={handleMenuKeyDown}>
-        <Menu.Item key="home" aria-label="首页" icon={navigationIcon(collapsed, '首页', <HomeOutlined />)}
-          title={collapsed ? false : '首页'}>
-          <Link to="/">首页</Link>
+        onOpenChange={keys => handleOpenChange(keys as string[])} onKeyDown={handleMenuKeyDown}>
+        <Menu.Item key="home" aria-label="首页" icon={iconWithTooltip('首页', <HomeOutlined />)}
+          title={collapsed ? false : '首页'} onClick={() => navigate('/')}>
+          <Link to="/" onClick={event => event.stopPropagation()}>首页</Link>
         </Menu.Item>
         <Menu.SubMenu key={moduleKey} aria-label="电子数据检查笔录"
-          icon={navigationIcon(collapsed, '电子数据检查笔录', <FileTextOutlined />)} title={
+          icon={iconWithTooltip('电子数据检查笔录', <FileTextOutlined />)} title={
           <Link to="/electronic-inspection/workbench" onClick={event => event.stopPropagation()}>电子数据检查笔录</Link>
         }>
-          <Menu.Item key="electronic-inspection-workbench" icon={<AppstoreOutlined />} title="案件工作台">
+          <Menu.Item key="electronic-inspection-workbench" icon={<AppstoreOutlined />}>
             <Link to="/electronic-inspection/workbench">案件工作台</Link>
           </Menu.Item>
-          <Menu.Item key="electronic-inspection-devices" title="电子设备管理">
+          <Menu.Item key="electronic-inspection-devices">
             <Link to="/electronic-inspection/devices">电子设备管理</Link>
           </Menu.Item>
-          <Menu.Item key="electronic-inspection-inspectors" title="检查人员管理">
+          <Menu.Item key="electronic-inspection-inspectors">
             <Link to="/electronic-inspection/inspectors">检查人员管理</Link>
           </Menu.Item>
-          <Menu.Item key="electronic-inspection-templates" title="笔录模版管理">
+          <Menu.Item key="electronic-inspection-templates">
             <Link to="/electronic-inspection/templates">笔录模版管理</Link>
           </Menu.Item>
         </Menu.SubMenu>
         <Menu.SubMenu key={moreCapabilitiesKey} aria-label="更多能力"
-          icon={navigationIcon(collapsed, '更多能力', <CompassOutlined />)} title={moreCapabilitiesTitle()}>
-          <Menu.Item key="professional-report" icon={<FileSearchOutlined />} disabled title="专业化勘查报告（即将开放）">
+          icon={iconWithTooltip('更多能力', <CompassOutlined />)} title={moreCapabilitiesTitle()}>
+          <Menu.Item key="professional-report" icon={<FileSearchOutlined />} disabled>
             专业化勘查报告
           </Menu.Item>
-          <Menu.Item key="digital-forensic" icon={<ApartmentOutlined />} disabled title="电子数据鉴定文书（即将开放）">
+          <Menu.Item key="digital-forensic" icon={<ApartmentOutlined />} disabled>
             电子数据鉴定文书
           </Menu.Item>
-          <Menu.Item key="scene-triple" icon={<FileTextOutlined />} disabled title="传统现场三录（即将开放）">
+          <Menu.Item key="scene-triple" icon={<FileTextOutlined />} disabled>
             传统现场三录
           </Menu.Item>
-          <Menu.Item key="scene-inspection" icon={<FileSearchOutlined />} disabled title="传统现场检查笔录（即将开放）">
+          <Menu.Item key="scene-inspection" icon={<FileSearchOutlined />} disabled>
             传统现场检查笔录
           </Menu.Item>
-          <Menu.Item key="forensic-medical" icon={<SafetyCertificateOutlined />} disabled title="法医鉴定文书自检（即将开放）">
+          <Menu.Item key="forensic-medical" icon={<SafetyCertificateOutlined />} disabled>
             法医鉴定文书自检
           </Menu.Item>
         </Menu.SubMenu>
