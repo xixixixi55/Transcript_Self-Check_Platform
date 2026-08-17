@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { ArchiveTaskCardSummary, CaseShell } from '@biji/shared/types'
 import { CaseCard } from './CaseCard'
 
@@ -16,6 +16,11 @@ const shell: CaseShell = {
   revision: 1,
   created_at: '2026-07-30T08:00:00Z',
   updated_at: '2026-07-30T11:00:00Z',
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{location.pathname}</output>
 }
 
 beforeAll(() => {
@@ -131,6 +136,32 @@ describe('CaseCard archive completion states', () => {
     for (const other of ['重试解析', '打开案件', '统一导出', '删除案件'].filter(name => name !== cta)) {
       expect(screen.queryByRole('button', { name: other })).toBeNull()
     }
+  })
+
+  it('keeps open case available as a secondary action while awaiting export', () => {
+    const onExport = vi.fn()
+    const onDelete = vi.fn()
+    render(
+      <MemoryRouter>
+        <CaseCard shell={shell} completionStatus="archive_complete"
+          onRetry={vi.fn()} onCancel={vi.fn()} onDelete={onDelete} onExport={onExport} />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('button', { name: '统一导出' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '打开案件' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['打开案件', '删除案件'])
+    const openCaseItem = screen.getByRole('menuitem', { name: '打开案件' })
+    fireEvent.click(openCaseItem.querySelector('a')!)
+
+    expect(screen.getByTestId('location').textContent)
+      .toBe('/electronic-inspection/cases/case-SYNTHETIC-COMPLETION')
+    expect(screen.getByRole('button', { name: '统一导出' })).toBeTruthy()
+    expect(onExport).not.toHaveBeenCalled()
+    expect(onDelete).not.toHaveBeenCalled()
   })
 
   it('keeps open case as the recommended CTA while background compression runs', () => {

@@ -146,6 +146,12 @@ export function CaseCard({
       menuItems.push({ key: 'export_again', label: '再次导出', onClick: onExport })
     }
   } else {
+    if (phase === 'archive_complete' && reviewable) {
+      menuItems.push({
+        key: 'open_case',
+        label: <Link to={casePath(shell.case_id)}>打开案件</Link>,
+      })
+    }
     menuItems.push({ key: 'delete', label: '删除案件', danger: true, onClick: onDelete })
   }
 

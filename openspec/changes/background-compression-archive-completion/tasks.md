@@ -301,3 +301,12 @@ workflow_level: 3
   - 自动化证据：修改前定向测试 1 failed / 8 passed，证明断言可区分默认 Tag；实现后 1 file / 9 tests passed，TypeScript 与架构检查 PASS。
   - final_gate: [PASS] `npm run verify:full -- --change background-compression-archive-completion` 通过：预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部 PASS。
   - manual_acceptance: [PASS] 本地浏览器确认 `ant-tag-success` 生效，实际文字色、边框色和浅色背景均来自 Ant Design 成功语义 token，未新增硬编码颜色。
+
+- [x] T040 为待导出阶段补充打开案件入口。
+  - 目标：案件卡片处于「待导出」时，继续以「统一导出」作为唯一推荐主操作，并在更多菜单同时提供「打开案件」与「删除案件」；打开案件复用既有审核编辑路由，不触发导出或状态变化。
+  - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/components/CaseCardCompletion.test.tsx`、本变更包 delta spec；实现完成后再按同步流程更新 living spec。
+  - 验证：组件定向测试断言待导出阶段主按钮仍为「统一导出」、更多菜单顺序包含「打开案件」「删除案件」，且「打开案件」链接指向当前案件审核编辑路由；运行 `npm run verify:quick`、`npm run verify:docs:strict -- --change background-compression-archive-completion` 与 `git diff --check`。
+  - 自动化证据：Layer 11 组件实现复用既有审核编辑路由；定向 Vitest 1 file / 10 tests PASS，真实点击「打开案件」后断言路由切换、统一导出主按钮保留且导出/删除回调均未触发；`lint:arch` 与 TypeScript 类型检查 PASS。`verify:quick` 的架构、类型、治理测试通过，但 quick docs 因工作区既有 `.agents/.claude` 工具镜像漂移 39 项而失败，与本任务代码及规格无关。
+  - code_review: [PASS] 独立首轮审查要求补充真实点击、路由切换与副作用隔离断言；修复测试后复审确认 MUST FIX 全部关闭，无剩余 MUST FIX。遗留 SHOULD：Ant Design Dropdown 测试可在后续引入异步用户交互工具以消除既有 `act(...)` warning，不阻塞本轮。
+  - final_gate: [N/A] 用户明确本次不需要完整门控；已停止正在运行的 `verify:full -- --change background-compression-archive-completion`。停止前环境预检、架构、类型、治理测试与仓库资产检查均通过。
+  - manual_acceptance: [BLOCKED] 内置浏览器当前无可接管标签页，新建 localhost 页面未能附着，未执行导出或删除；菜单结构、可点击路由与主操作保持由合成数据组件测试覆盖。
