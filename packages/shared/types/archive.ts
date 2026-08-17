@@ -1,4 +1,5 @@
 export type ArchiveVolumeTier = '4GB' | '22GB' | '45GB'
+export type ArchiveMode = 'standard_volume' | 'oversized_single'
 export type ArchivePlanStatus = 'planned' | 'blocked'
 export type ArchiveValidationStatus = 'validated' | 'invalid'
 export type ArchiveExecutionStatus =
@@ -51,8 +52,9 @@ export interface ArchivePlan {
   archive_base_name: string
   source_entries: ArchiveSourceEntry[]
   total_input_bytes: number
-  volume_size_bytes: number
-  volume_tier_gb: number
+  archive_mode: ArchiveMode
+  volume_size_bytes: number | null
+  volume_tier_gb: number | null
   expected_part_count: number
   max_part_count: number
   first_disc_number: string | null
@@ -66,17 +68,17 @@ export interface ArchivePart {
   part_id: string
   part_number: number
   filename: string
-  /** WinRAR actual output file size in bytes. MUST be > 0 and ≤ tier limit. */
+  /** WinRAR actual output file size in bytes. Always positive; the tier limit
+   * applies only to standard_volume manifests. */
   size_bytes: number
   md5: string
   disc_number: string
   disc_date: string
-  /** Disc capacity in bytes computed from size_bytes at manifest assembly:
-   *  ≤ 4_000_000_000 → 4_000_000_000; ≤ 22_000_000_000 → 22_000_000_000;
-   *  ≤ 45_000_000_000 → 45_000_000_000. A part exceeding 45 GB is invalid. */
-  disc_capacity_bytes: number
-  /** WinRAR tier volume limit inherited from ArchiveManifest (compatibility). */
-  volume_size_bytes: number
+  /** Smallest standard disc capacity for standard_volume; not applicable to
+   * oversized_single. */
+  disc_capacity_bytes: number | null
+  /** WinRAR tier volume limit; null for oversized_single. */
+  volume_size_bytes: number | null
   continuity_check: 'passed'
 }
 
@@ -84,9 +86,10 @@ export interface ArchiveManifest {
   manifest_id: string
   plan_id: string
   archive_base_name: string
-  /** WinRAR tier volume limit in bytes (same value for all parts). */
-  volume_size_bytes: number
-  volume_tier_gb: number
+  archive_mode: ArchiveMode
+  /** WinRAR tier volume limit in bytes; null for oversized_single. */
+  volume_size_bytes: number | null
+  volume_tier_gb: number | null
   max_part_count: number
   total_input_bytes: number
   actual_archive_bytes: number

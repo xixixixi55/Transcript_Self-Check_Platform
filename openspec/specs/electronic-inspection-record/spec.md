@@ -837,15 +837,52 @@ MD5 校验由 HashMyFiles.exe 执行，新解析案件和存量案件的运行�
 ### Requirement: REQ-018: 当前生产归档合同
 
 系统 MUST 满足以下现有合同：
-- WinRAR 分卷档位固定为十进制 4GB、22GB、45GB；4GB 和 22GB 档预计超过 2 卷时升级，45GB 档最多 3 卷，输入超过 135GB 在执行前阻止。
-- 初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 是档位每卷上限，`size_bytes` 是 WinRAR 实际 part 文件大小。
-- 每个 part 的 `disc_capacity_bytes` 必须只根据该 part 的 `size_bytes` 独立选择最小可容纳容量；不得继承 Manifest 档位值。
+- WinRAR 分卷档位固定为二进制 4GB、22GB、45GB（`1GB = 1024³` 字节）；4GB 和 22GB 档预计超过 2 卷时升级，45GB 档最多 5 卷，不新增 75GB 档。
+- 输入不超过 225GB 时使用 `standard_volume` 标准分卷模式；输入超过 225GB 时使用 `oversized_single` 超大单卷模式，生成且只生成一个 `<案件名>.rar`，不得把 225GB 作为系统禁止压缩的总上限。
+- `ArchivePlan` 和 `ArchiveManifest` 必须显式记录归档模式。`volume_size_bytes`、`volume_tier_gb` 和 part 的 `disc_capacity_bytes` 只适用于标准分卷，在超大单卷模式中必须表示为不适用，不能用 0、45GB 或伪造容量代替模式。
+- 初始执行后最多允许 2 次向上 replan。标准分卷的 `volume_size_bytes` 是档位每卷上限，`size_bytes` 是 WinRAR 实际 part 文件大小。
+- 标准分卷中每个 part 的 `disc_capacity_bytes` 必须只根据该 part 的 `size_bytes` 独立选择最小可容纳容量；不得继承 Manifest 档位值。
 - 每个 `VolumeSlot` MUST 有稳定身份、序号、计划版本和容量/输入范围；光盘编号默认由共享前缀连续生成，用户可修改完整编号但必须非空且在案件内唯一，允许不连续，刻录日期独立保存。
 - replan 必须保留仍有效的人工槽位映射；新增槽位进入 pending，删除槽位清除映射，匹配不得依赖预计 RAR 文件名；最终以通过验证的 Manifest 槽位、卷序和光盘编号为准。
 - 最终 `ArchiveManifest` 是 Word 正文、附件1和附件3归档字段的唯一事实源。
 - RAR 外部基础名来自报告案件名称并清理 Windows 非法字符、结尾空格和点；单卷为 `<案件名>.rar`，多卷为 `<案件名>.partN.rar`。
 - WinRAR 以原始报告目录的父目录为工作目录、以原始报告根文件夹名为输入；归档内部保留该根文件夹、全部相对目录、多级嵌套、同名文件和业务空目录，不包含绝对路径、盘符、staging、cache、UUID或项目输出路径。
 - 每个 part 只能通过有效 `archive_context_id`、`manifest_id` 和不透明 `part_id` 下载；客户端不得提交服务器路径，下载前必须重新验证 Manifest 对应物理文件。
+
+#### Scenario: 二进制标准档位边界
+- WHEN 输入总大小不超过8GB、超过8GB且不超过44GB、超过44GB且不超过225GB（均按 `1024³` 字节换算）
+- THEN 规划模式为 `standard_volume`
+- AND 分别选择4GB、22GB、45GB档
+- AND 三档最大卷数分别为2、2、5
+
+#### Scenario: 超过225GB切换超大单卷
+- WHEN 输入总大小超过 `225 × 1024³` 字节
+- THEN `ArchivePlan` 状态为 `planned` 且模式为 `oversized_single`
+- AND WinRAR命令不包含 `-v` 参数
+- AND 预期产物为单个 `<案件名>.rar`
+- AND 系统不返回 `ARCHIVE_TOO_LARGE` 或 `ARCHIVE_INPUT_LIMIT`
+
+#### Scenario: 标准分卷保持严格校验
+- WHEN `standard_volume` 模式的 WinRAR 执行完成
+- THEN 系统对单卷校验 `<案件名>.rar`，对多卷校验 `.partN.rar` 命名和卷号连续性，并校验每卷档位上限、最大卷数、文件安全、非空、完整性和 MD5
+- AND 任一条件不满足时不得发布 Manifest 或进入正式导出
+
+#### Scenario: 超大单卷按模式校验
+- WHEN `oversized_single` 模式的 WinRAR 执行完成
+- THEN 系统只接受一个安全、非空且文件名精确为 `<案件名>.rar` 的 RAR
+- AND 系统校验实际大小、完整性和 MD5
+- AND 即使实际 RAR 大于45GB，也不得因标准分卷或标准光盘容量上限而拒绝
+- BUT 出现 `.partN.rar`、多个 RAR、空文件或文件名不匹配时必须拒绝发布
+
+#### Scenario: 资源安全门控继续生效
+- WHEN 超过225GB的输入进入归档准入
+- THEN 系统不得仅因输入总大小超过135GB或225GB拒绝
+- AND 磁盘空间、CPU/IO、WinRAR并发、路径和输入安全门控仍按现有规则执行
+
+#### Scenario: 旧Manifest与标准分卷兼容
+- WHEN 系统读取本变更前生成的、没有显式归档模式的合法 Manifest
+- THEN 系统按 `standard_volume` 兼容解释并执行原有严格校验
+- AND 不得把旧 Manifest 误判为超大单卷或放宽其每卷容量规则
 
 #### Scenario: 真实验收边界
 - WHEN 判断当前归档生产验收状态

@@ -6,7 +6,10 @@ import os
 import stat
 from pathlib import Path
 
-_DISC_CAPACITY_TIERS = (4_000_000_000, 22_000_000_000, 45_000_000_000)
+_BINARY_GB_BYTES = 1024 ** 3
+_DISC_CAPACITY_TIERS = tuple(
+    value * _BINARY_GB_BYTES for value in (4, 22, 45)
+)
 
 
 def compute_disc_capacity(size_bytes: int) -> int:

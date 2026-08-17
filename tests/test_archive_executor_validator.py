@@ -86,6 +86,30 @@ def test_executor_keeps_single_volume_base_name(tmp_path):
     assert not (result.staging_dir / "synthetic.part1.rar").exists()
 
 
+def test_oversized_single_executor_omits_volume_argument(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "data.txt").write_text("synthetic", encoding="utf-8")
+    inventory = build_input_inventory(source)
+    calls = []
+
+    def runner(args, **kwargs):
+        calls.append(args)
+        archive_path = Path(next(item for item in args if item.endswith(".rar")))
+        archive_path.write_bytes(b"oversized-single")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    plan = SimpleNamespace(
+        plan_id="plan-oversized", archive_base_name="synthetic",
+        archive_mode="oversized_single", volume_size_bytes=None,
+    )
+    result = WinRarExecutor(
+        tmp_path / "staging", process_runner=runner,
+    ).execute(plan, inventory.files, inventory.source_root, capability())
+    assert not any(argument.startswith("-v") for argument in calls[0])
+    assert (result.staging_dir / "synthetic.rar").is_file()
+
+
 def test_executor_does_not_rename_when_staging_contains_extra_rar(tmp_path):
     source = tmp_path / "source"
     source.mkdir()
@@ -139,8 +163,11 @@ def test_executor_timeout_is_safe_and_cleans_staging(tmp_path):
     assert list((tmp_path / "staging").glob("archive-*")) == []
 
 
-def validator_plan(base="案件", capacity=4, max_parts=2):
-    return SimpleNamespace(archive_base_name=base, volume_size_bytes=capacity, max_part_count=max_parts)
+def validator_plan(base="案件", capacity=4, max_parts=2, mode="standard_volume"):
+    return SimpleNamespace(
+        archive_base_name=base, archive_mode=mode,
+        volume_size_bytes=capacity, max_part_count=max_parts,
+    )
 
 
 def integrity_ok(args, **kwargs):
@@ -162,6 +189,48 @@ def test_validator_accepts_single_base_name(tmp_path):
     )
     assert result.valid
     assert result.parts[0].filename == "案件.rar"
+
+
+def test_validator_accepts_oversized_single_without_standard_capacity_limit(
+    tmp_path, monkeypatch,
+):
+    path = tmp_path / "案件.rar"
+    path.write_bytes(b"synthetic")
+    original_stat = Path.stat
+
+    def reported_stat(target, *args, **kwargs):
+        observed = original_stat(target, *args, **kwargs)
+        if target == path:
+            return SimpleNamespace(
+                st_mode=observed.st_mode, st_size=46 * 1024 ** 3,
+            )
+        return observed
+
+    monkeypatch.setattr(Path, "stat", reported_stat)
+    result = validate_archive_parts(
+        tmp_path,
+        validator_plan(capacity=None, max_parts=1, mode="oversized_single"),
+        capability(), integrity_runner=integrity_ok,
+    )
+    assert result.valid
+    assert result.parts[0].size_bytes == 46 * 1024 ** 3
+
+
+@pytest.mark.parametrize("names", [
+    ["案件.part1.rar"],
+    ["案件.rar", "案件.part1.rar"],
+    ["案件.rar", "其他.rar"],
+])
+def test_validator_rejects_non_single_outputs_for_oversized_mode(tmp_path, names):
+    for name in names:
+        (tmp_path / name).write_bytes(b"x")
+    result = validate_archive_parts(
+        tmp_path,
+        validator_plan(capacity=None, max_parts=1, mode="oversized_single"),
+        capability(), integrity_runner=integrity_ok,
+    )
+    assert not result.valid
+    assert result.diagnostic_code == "ARCHIVE_PARTS_INVALID"
 
 
 @pytest.mark.parametrize("names", [

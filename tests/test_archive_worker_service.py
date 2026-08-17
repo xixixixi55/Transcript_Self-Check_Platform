@@ -83,7 +83,7 @@ def queue(tasks, number: int = 1):
 
 def claim(tasks):
     admission = ArchiveResourceAdmissionService(ArchiveAdmissionConfig(
-        "SYNTHETIC-V1", 0, 0, 100, 100, 1_000, 6,
+        "SYNTHETIC-V1", 0, 0, 100, 100, 6,
     ))
     scheduler = ArchiveSchedulerService(tasks, admission)
     return scheduler.claim_next(ArchiveResourceSnapshot(100, 100, 0, 0, 0))
@@ -326,7 +326,7 @@ def test_composition_root_keeps_archive_recovery_with_archive_worker(setup) -> N
         expected_revision=queued["revision"], max_running=6,
     )
     config = ArchiveAdmissionConfig(
-        "SYNTHETIC-DEPLOYMENT-V1", 0, 0, 100, 100, 1_000, 6,
+        "SYNTHETIC-DEPLOYMENT-V1", 0, 0, 100, 100, 6,
     )
     services = build_workbench_services(database, config)
     assert services.archive_scheduler is not None

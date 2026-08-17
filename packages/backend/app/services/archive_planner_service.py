@@ -1,4 +1,4 @@
-"""Pure decimal-capacity archive planning rules."""
+"""Pure binary-capacity archive planning rules."""
 
 from __future__ import annotations
 
@@ -10,6 +10,9 @@ from uuid import uuid4
 from ..repository.archive_input_repository import MAX_SAFE_INTEGER
 from .disc_sequence_service import generate_disc_numbers, parse_disc_sequence
 
+BINARY_GB_BYTES = 1024 ** 3
+STANDARD_VOLUME_MODE = "standard_volume"
+OVERSIZED_SINGLE_MODE = "oversized_single"
 
 @dataclass(frozen=True)
 class ArchiveTier:
@@ -27,9 +30,9 @@ class ArchivePolicy:
 
 PRODUCTION_ARCHIVE_POLICY = ArchivePolicy(
     tiers=(
-        ArchiveTier(4, 4_000_000_000, 2),
-        ArchiveTier(22, 22_000_000_000, 2),
-        ArchiveTier(45, 45_000_000_000, 3),
+        ArchiveTier(4, 4 * BINARY_GB_BYTES, 2),
+        ArchiveTier(22, 22 * BINARY_GB_BYTES, 2),
+        ArchiveTier(45, 45 * BINARY_GB_BYTES, 5),
     )
 )
 
@@ -54,8 +57,8 @@ class ArchivePlan:
     archive_base_name: str
     source_entries: tuple[ArchiveSourceEntry, ...]
     total_input_bytes: int
-    volume_size_bytes: int
-    volume_tier_gb: int
+    volume_size_bytes: int | None
+    volume_tier_gb: int | None
     expected_part_count: int
     max_part_count: int
     first_disc_number: str | None
@@ -63,6 +66,7 @@ class ArchivePlan:
     max_replan_attempts: int
     status: str
     diagnostics: tuple[ArchiveDiagnostic, ...]
+    archive_mode: str = STANDARD_VOLUME_MODE
 
     def public_dict(self) -> dict[str, object]:
         return {
@@ -71,6 +75,7 @@ class ArchivePlan:
             "archive_base_name": self.archive_base_name,
             "source_entries": [entry.__dict__ for entry in self.source_entries],
             "total_input_bytes": self.total_input_bytes,
+            "archive_mode": self.archive_mode,
             "volume_size_bytes": self.volume_size_bytes,
             "volume_tier_gb": self.volume_tier_gb,
             "expected_part_count": self.expected_part_count,
@@ -117,7 +122,7 @@ def _invalid_plan(
         volume_tier_gb=tier.gb, expected_part_count=0, max_part_count=tier.max_part_count,
         first_disc_number=None, expected_disc_numbers=(),
         max_replan_attempts=policy.max_replan_attempts, status="blocked",
-        diagnostics=tuple(diagnostics),
+        diagnostics=tuple(diagnostics), archive_mode=STANDARD_VOLUME_MODE,
     )
 
 
@@ -185,23 +190,51 @@ def plan_archive(
 
     tier = _select_tier(total, policy)
     if tier is None:
-        diagnostics.append(ArchiveDiagnostic("ARCHIVE_TOO_LARGE", "归档输入超过生产容量上限。"))
-        return _invalid_plan(case_name, base_name, normalized, policy, diagnostics, total=total)
+        if policy.forced_tier_gb is not None:
+            diagnostics.append(ArchiveDiagnostic(
+                "ARCHIVE_PLAN_INVALID", "指定的归档档位无效。",
+            ))
+            return _invalid_plan(
+                case_name, base_name, normalized, policy, diagnostics, total=total,
+            )
+        diagnostics.append(ArchiveDiagnostic(
+            "ARCHIVE_OVERSIZED_SINGLE_SELECTED",
+            "输入超过标准分卷阈值，切换为超大单卷模式。",
+        ))
+        expected_discs = (
+            tuple(generate_disc_numbers(first_disc_number, 1))
+            if first_disc_number else ()
+        )
+        return ArchivePlan(
+            plan_id=str(uuid4()), case_display_name=case_name,
+            archive_base_name=base_name, source_entries=normalized,
+            total_input_bytes=total, volume_size_bytes=None,
+            volume_tier_gb=None, expected_part_count=1, max_part_count=1,
+            first_disc_number=first_disc_number,
+            expected_disc_numbers=expected_discs,
+            max_replan_attempts=policy.max_replan_attempts, status="planned",
+            diagnostics=tuple(diagnostics), archive_mode=OVERSIZED_SINGLE_MODE,
+        )
     expected_count = math.ceil(total / tier.volume_size_bytes)
     if expected_count > tier.max_part_count:
         return _invalid_plan(case_name, base_name, normalized, policy, [ArchiveDiagnostic("ARCHIVE_TOO_LARGE", "归档输入超过当前档位允许卷数。")], total=total)
-    diagnostics.append(ArchiveDiagnostic("ARCHIVE_TIER_SELECTED", f"按十进制总大小选择 {tier.gb}GB 档位。"))
+    diagnostics.append(ArchiveDiagnostic(
+        "ARCHIVE_TIER_SELECTED", f"按二进制总大小选择 {tier.gb}GB 档位。",
+    ))
     expected_discs = tuple(generate_disc_numbers(first_disc_number, expected_count)) if first_disc_number else ()
     return ArchivePlan(
         plan_id=str(uuid4()), case_display_name=case_name, archive_base_name=base_name,
         source_entries=normalized, total_input_bytes=total, volume_size_bytes=tier.volume_size_bytes,
         volume_tier_gb=tier.gb, expected_part_count=expected_count, max_part_count=tier.max_part_count,
         first_disc_number=first_disc_number, expected_disc_numbers=expected_discs,
-        max_replan_attempts=policy.max_replan_attempts, status="planned", diagnostics=tuple(diagnostics),
+        max_replan_attempts=policy.max_replan_attempts, status="planned",
+        diagnostics=tuple(diagnostics), archive_mode=STANDARD_VOLUME_MODE,
     )
 
 
 def replan_to_next_tier(plan: ArchivePlan, policy: ArchivePolicy) -> ArchivePlan | None:
+    if plan.archive_mode != STANDARD_VOLUME_MODE or plan.volume_tier_gb is None:
+        return None
     tiers = [tier.gb for tier in policy.tiers]
     try:
         next_gb = tiers[tiers.index(plan.volume_tier_gb) + 1]

@@ -108,6 +108,27 @@ def test_replans_upward_and_manifest_uses_final_plan(tmp_path):
     assert manifest_dir.is_dir()
 
 
+def test_oversized_single_execution_publishes_mode_specific_manifest(tmp_path):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    tiny_policy = ArchivePolicy((ArchiveTier(4, 1, 1),))
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    outcome = execute_archive(
+        context_id, valid_report(), output_root=str(output), policy=tiny_policy,
+        capability=capability, executor=fake, integrity_runner=integrity_ok,
+    )
+    assert outcome.status == "completed"
+    assert fake.calls == [None]
+    manifest = get_valid_manifest(
+        context_id, outcome.manifest_id, valid_report(),
+    )
+    assert manifest["archive_mode"] == "oversized_single"
+    assert manifest["volume_size_bytes"] is None
+    assert manifest["volume_tier_gb"] is None
+    assert manifest["parts"][0]["filename"] == "合成案件.rar"
+    assert manifest["parts"][0]["disc_capacity_bytes"] is None
+
+
 def test_archive_executes_without_first_disc_number(tmp_path):
     """REQ-030: compression must not fail when the first disc number is empty."""
     _, output, context_id = make_context(tmp_path)

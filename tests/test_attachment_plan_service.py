@@ -72,6 +72,29 @@ def manifest(count, *, start=1):
     }
 
 
+def test_oversized_single_manifest_keeps_non_applicable_capacities_empty():
+    oversized = {
+        "manifest_id": "manifest-oversized",
+        "validation_status": "validated",
+        "archive_mode": "oversized_single",
+        "volume_size_bytes": None,
+        "parts": [{
+            "part_id": "part-oversized", "part_number": 1,
+            "filename": "case.rar", "size_bytes": 46 * 1024 ** 3,
+            "md5": "a" * 32, "disc_number": "GP20260706-01",
+            "disc_date": "2026-07-06", "disc_capacity_bytes": None,
+            "volume_size_bytes": None,
+        }],
+    }
+    plan = build_attachment_plan(oversized, report(0))
+    row = plan.attachment1_pages[0].serial_rows[0]
+    page = plan.attachment3_pages[0]
+    assert row.disc_capacity_bytes is None
+    assert row.volume_size_bytes is None
+    assert page.disc_capacity_bytes is None
+    assert page.volume_size_bytes is None
+
+
 def test_missing_legacy_photo_groups_are_rebuilt_from_material_and_image_order():
     photo_ids = ["asset-synthetic-front", "asset-synthetic-back"]
     value = report(evidence_numbers=["SYNTHETIC-1"], photo_ids=photo_ids)

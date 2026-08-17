@@ -16,8 +16,8 @@ class AttachmentPartRow:
     filename: str
     size_bytes: int
     md5: str
-    disc_capacity_bytes: int
-    volume_size_bytes: int
+    disc_capacity_bytes: int | None
+    volume_size_bytes: int | None
 
 
 @dataclass(frozen=True)
@@ -96,10 +96,10 @@ class Attachment3PagePlan:
     filename: str
     size_bytes: int
     md5: str
-    disc_capacity_bytes: int
+    disc_capacity_bytes: int | None
     disc_number: str
     burning_date: str
-    volume_size_bytes: int
+    volume_size_bytes: int | None
 
 
 @dataclass(frozen=True)

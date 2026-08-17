@@ -297,8 +297,8 @@
 
 解析阶段只建立 `archive_context_id` 和后端输入快照，不执行压缩。报告解析缓存保存在
 `output/parsed/`，按规范化目录不透明键区分，记录源内容指纹和 `last_accessed_at`，有效记录最多 5 条并按 LRU 淘汰；其清理不触碰 `output/compressed/`。审核完成并通过执行前门禁后，`ArchivePlan` 记录案件展示名、安全归档基础名、相对输入文件清单、
-十进制字节总量、固定分卷档位、预计与最大卷数、首个光盘编号、重规划上限和诊断。
-生产档位为 4GB、22GB、45GB，容量单位为十进制 GB；计划模型不保存输入绝对路径。
+二进制字节总量、归档模式、可适用的固定分卷档位、预计与最大卷数、首个光盘编号、重规划上限和诊断。
+生产档位为 4GB、22GB、45GB，容量单位为二进制 GB（`1GB = 1024³` 字节）；计划模型不保存输入绝对路径。
 
 预览来源与正式归档上下文使用明确的生命周期合同。`ArchivePreparationStatus` 取
 `not_prepared`、`preparing`、`ready` 或 `failed`；其中 `not_prepared` 表示报告解析已完成但完整
@@ -307,17 +307,17 @@ inventory、Manifest 和 RAR 尚未准备，不能被当作正式归档证据。
 `ArchiveLifecycleStatus` 是 `ArchiveExecutionStatus | ArchivePreparationStatus`，因此
 `ArchiveContextSummary.status` 同时能够表达预览准备状态和正式归档执行状态；`idle` 不表示尚未建立预览来源记录。
 
-档位合同为：4GB 与 22GB 档预计超过 2 卷时升级，45GB 档最多 3 卷，超过 135GB 在执行前阻止；初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 表达档位每卷上限，`ArchivePart.size_bytes` 表达实际 part 文件大小，两者不得混用。
+`ArchiveMode` 取 `standard_volume` 或 `oversized_single`。档位合同为：4GB 与 22GB 档预计超过 2 卷时升级，45GB 档最多 5 卷；不超过225GB使用标准分卷，超过225GB使用超大单卷并生成一个 `<案件名>.rar`，不能仅因输入超过135GB或225GB阻止执行。初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 表达标准档位每卷上限，`ArchivePart.size_bytes` 表达实际 part 文件大小，两者不得混用；`volume_size_bytes`、`volume_tier_gb` 和 `disc_capacity_bytes` 在超大单卷模式中为不适用。
 
 `ArchiveExecutionStatus` 表示 idle、planning、blocked、compressing、validating、
 hashing、completed 或 failed。WinRAR 成功退出不直接产生清单；只有当前执行目录中的
-分卷按数字连续、非零且满足 `0 < actual_size <= volume_size_bytes`，并且首卷通过
+标准分卷按数字连续、非零且满足 `0 < actual_size <= volume_size_bytes`；超大单卷只接受一个安全、非空且名称精确为 `<案件名>.rar` 的文件，不应用45GB上限。两种模式都必须通过
 WinRAR 完整性测试后，才能使用 Python `hashlib` 流式计算 MD5 并构建 `ArchiveManifest`。
-Manifest 的 parts 按实际文件系统结果排序，保存文件名、`size_bytes`、MD5、光盘编号、刻录日期、`volume_size_bytes` 和 `disc_capacity_bytes`，不保存绝对路径。每个 part 的 `disc_capacity_bytes` 只按其 `size_bytes` 独立选择最小可容纳的十进制 4GB/22GB/45GB 容量；不得直接继承 Manifest 档位。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 MD5 校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
+Manifest 显式保存 `archive_mode`，parts 按实际文件系统结果排序，并保存文件名、`size_bytes`、MD5、光盘编号、刻录日期、完整性和文件安全证据，不保存绝对路径。标准分卷的 part 保存 `volume_size_bytes` 和按其 `size_bytes` 独立选择的最小可容纳二进制 4GB/22GB/45GB `disc_capacity_bytes`；超大单卷中这些容量字段为不适用。没有显式模式的旧 Manifest 按标准分卷兼容解释并继续执行原有严格容量校验。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 MD5 校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
 
 当前生产 renderer 消费 `InspectionReport` 兼容数据、最终 `ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1` TemplateProfile。`DocumentRenderPlan` 是未来统一渲染合同，不属于当前生产模型。
 
-类型索引追加：`interface ArchiveContextSummary`、`type ArchiveVolumeTier`、`type ArchivePlanStatus`、
+类型索引追加：`interface ArchiveContextSummary`、`type ArchiveMode`、`type ArchiveVolumeTier`、`type ArchivePlanStatus`、
 `type ArchiveValidationStatus`、`type ArchiveExecutionStatus`、`type ArchivePreparationStatus`、
 `type ArchiveContextKind`、`type ArchiveLifecycleStatus`、
 `interface ArchiveSourceEntry`、`interface ArchiveDiagnostic`、

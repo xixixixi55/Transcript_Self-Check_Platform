@@ -159,18 +159,20 @@ class TestIntegrityTimeoutViaValidator:
 
 
 # ============================================================================
-# 3. Planner blocks >135 GB
+# 3. Planner switches inputs above 225 GB to oversized single mode
 # ============================================================================
 
 
-class TestPlannerBlocksOver135GB:
-    def test_135gb_plus_1_blocked(self):
+class TestPlannerUsesOversizedSingleAbove225GB:
+    def test_225gb_plus_1_is_planned_without_volume_tier(self):
         from app.services.archive_planner_service import (ArchiveSourceEntry, PRODUCTION_ARCHIVE_POLICY, plan_archive)
-        over = 135 * GB + 1
+        over = 225 * 1024 ** 3 + 1
         entries = (ArchiveSourceEntry("big.bin", over, 0),)
         plan = plan_archive("huge", entries, policy=PRODUCTION_ARCHIVE_POLICY)
-        assert plan.status != "planned"
-        assert any(d.code == "ARCHIVE_TOO_LARGE" for d in plan.diagnostics)
+        assert plan.status == "planned"
+        assert plan.archive_mode == "oversized_single"
+        assert plan.volume_size_bytes is None
+        assert plan.expected_part_count == 1
 
 
 # ============================================================================

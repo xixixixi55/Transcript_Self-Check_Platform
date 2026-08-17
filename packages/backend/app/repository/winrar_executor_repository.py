@@ -99,8 +99,14 @@ class WinRarExecutor:
             archive_path = staging_dir / f"{plan.archive_base_name}.rar"
             total_bytes = sum(item.size_bytes for item in inventory_files)
             timeout = self._timeout_for(total_bytes)
-            args = [capability.executable_path, "a", "-r", "-y", "-inul",
-                    f"-v{plan.volume_size_bytes}b", str(archive_path), source_root.name]
+            args = [capability.executable_path, "a", "-r", "-y", "-inul"]
+            if getattr(plan, "archive_mode", "standard_volume") == "standard_volume":
+                if not isinstance(plan.volume_size_bytes, int) or plan.volume_size_bytes <= 0:
+                    raise ArchiveExecutionError(
+                        "ARCHIVE_PLAN_INVALID", "标准分卷计划缺少有效档位容量。",
+                    )
+                args.append(f"-v{plan.volume_size_bytes}b")
+            args.extend((str(archive_path), source_root.name))
 
             if self._process_runner is not None:
                 try:
@@ -220,7 +226,11 @@ class WinRarExecutor:
             path for path in staging_dir.iterdir()
             if path.is_file() and path.suffix.casefold() == ".rar"
         ]
-        if rar_outputs == [first_part] and not single_volume.exists():
+        if (
+            getattr(plan, "archive_mode", "standard_volume") == "standard_volume"
+            and rar_outputs == [first_part]
+            and not single_volume.exists()
+        ):
             first_part.rename(single_volume)
         return WinRarExecutionResult(plan.plan_id, staging_dir, 0, False)
 

@@ -362,29 +362,29 @@ class TestComputeDiscCapacity:
     """Pure-function boundary tests for disc capacity tier selection."""
 
     def test_minimal_size_returns_smallest_tier(self):
-        assert compute_disc_capacity(1) == 4_000_000_000
+        assert compute_disc_capacity(1) == 4 * 1024 ** 3
 
     def test_exact_tier_boundary(self):
-        assert compute_disc_capacity(4_000_000_000) == 4_000_000_000
-        assert compute_disc_capacity(22_000_000_000) == 22_000_000_000
-        assert compute_disc_capacity(45_000_000_000) == 45_000_000_000
+        assert compute_disc_capacity(4 * 1024 ** 3) == 4 * 1024 ** 3
+        assert compute_disc_capacity(22 * 1024 ** 3) == 22 * 1024 ** 3
+        assert compute_disc_capacity(45 * 1024 ** 3) == 45 * 1024 ** 3
 
     def test_just_above_tier_boundary(self):
-        assert compute_disc_capacity(4_000_000_001) == 22_000_000_000
-        assert compute_disc_capacity(22_000_000_001) == 45_000_000_000
+        assert compute_disc_capacity(4 * 1024 ** 3 + 1) == 22 * 1024 ** 3
+        assert compute_disc_capacity(22 * 1024 ** 3 + 1) == 45 * 1024 ** 3
 
     def test_typical_sizes(self):
         # 9 GB → 22GB disc
-        assert compute_disc_capacity(9_000_000_000) == 22_000_000_000
+        assert compute_disc_capacity(9 * 1024 ** 3) == 22 * 1024 ** 3
         # 2 GB → 4GB disc (tail part of 47GB scenario)
-        assert compute_disc_capacity(2_000_000_000) == 4_000_000_000
+        assert compute_disc_capacity(2 * 1024 ** 3) == 4 * 1024 ** 3
 
     def test_max_capacity(self):
-        assert compute_disc_capacity(45_000_000_000) == 45_000_000_000
+        assert compute_disc_capacity(45 * 1024 ** 3) == 45 * 1024 ** 3
 
     def test_exceeds_max_capacity(self):
         with pytest.raises(ValueError, match="exceeds maximum"):
-            compute_disc_capacity(45_000_000_001)
+            compute_disc_capacity(45 * 1024 ** 3 + 1)
 
     def test_zero_raises(self):
         with pytest.raises(ValueError, match="must be positive"):
@@ -434,7 +434,7 @@ class TestDiscCapacityInManifest:
             archive_base_name="case",
             source_entries=(ArchiveSourceEntry("a.dat", 100, 0),),
             total_input_bytes=150,
-            volume_size_bytes=4_000_000_000,
+            volume_size_bytes=4 * 1024 ** 3,
             volume_tier_gb=4,
             expected_part_count=2,
             max_part_count=2,
@@ -464,11 +464,11 @@ class TestDiscCapacityInManifest:
         parts = manifest["parts"]
         assert len(parts) == 2
         # Both parts fit in 4GB disc
-        assert parts[0]["disc_capacity_bytes"] == 4_000_000_000
-        assert parts[1]["disc_capacity_bytes"] == 4_000_000_000
+        assert parts[0]["disc_capacity_bytes"] == 4 * 1024 ** 3
+        assert parts[1]["disc_capacity_bytes"] == 4 * 1024 ** 3
         # volume_size_bytes is tier limit (inherited)
-        assert parts[0]["volume_size_bytes"] == 4_000_000_000
-        assert parts[1]["volume_size_bytes"] == 4_000_000_000
+        assert parts[0]["volume_size_bytes"] == 4 * 1024 ** 3
+        assert parts[1]["volume_size_bytes"] == 4 * 1024 ** 3
 
     def test_tampered_capacity_rejected(self, tmp_path):
         """A disc_capacity_bytes mismatch with actual size MUST fail validation."""
@@ -582,9 +582,9 @@ class TestDiscCapacityInManifest:
             plan_id="plan-mix",
             case_display_name="测试",
             archive_base_name="case",
-            source_entries=(ArchiveSourceEntry("a.dat", 22_000_000_000 + 1_000_000_000, 0),),
-            total_input_bytes=23_000_000_000,
-            volume_size_bytes=22_000_000_000,
+            source_entries=(ArchiveSourceEntry("a.dat", 23 * 1024 ** 3, 0),),
+            total_input_bytes=23 * 1024 ** 3,
+            volume_size_bytes=22 * 1024 ** 3,
             volume_tier_gb=22,
             expected_part_count=2,
             max_part_count=2,
@@ -597,8 +597,8 @@ class TestDiscCapacityInManifest:
         validation = ArchiveValidationResult(
             valid=True,
             parts=(
-                ValidatedArchivePart(1, "case.part1.rar", part1, 22_000_000_000),
-                ValidatedArchivePart(2, "case.part2.rar", part2, 1_000_000_000),
+                ValidatedArchivePart(1, "case.part1.rar", part1, 22 * 1024 ** 3),
+                ValidatedArchivePart(2, "case.part2.rar", part2, 1 * 1024 ** 3),
             ),
         )
         capability = WinRarCapability(
@@ -610,11 +610,11 @@ class TestDiscCapacityInManifest:
         )
         manifest, _paths = assemble_archive_manifest(plan, validation, capability, retry_count=0)
         parts = manifest["parts"]
-        assert parts[0]["disc_capacity_bytes"] == 22_000_000_000
-        assert parts[1]["disc_capacity_bytes"] == 4_000_000_000
+        assert parts[0]["disc_capacity_bytes"] == 22 * 1024 ** 3
+        assert parts[1]["disc_capacity_bytes"] == 4 * 1024 ** 3
         # volume_size_bytes is the tier limit, same for all
-        assert parts[0]["volume_size_bytes"] == 22_000_000_000
-        assert parts[1]["volume_size_bytes"] == 22_000_000_000
+        assert parts[0]["volume_size_bytes"] == 22 * 1024 ** 3
+        assert parts[1]["volume_size_bytes"] == 22 * 1024 ** 3
 
     def test_45gb_tier_mixed_capacity_parts(self, tmp_path):
         """Parts [45GB, 2GB] from 45GB tier should get disc capacities [45GB, 4GB]."""
@@ -633,12 +633,12 @@ class TestDiscCapacityInManifest:
             plan_id="plan-45",
             case_display_name="测试45",
             archive_base_name="case",
-            source_entries=(ArchiveSourceEntry("a.dat", 47_000_000_000, 0),),
-            total_input_bytes=47_000_000_000,
-            volume_size_bytes=45_000_000_000,
+            source_entries=(ArchiveSourceEntry("a.dat", 47 * 1024 ** 3, 0),),
+            total_input_bytes=47 * 1024 ** 3,
+            volume_size_bytes=45 * 1024 ** 3,
             volume_tier_gb=45,
             expected_part_count=2,
-            max_part_count=3,
+            max_part_count=5,
             first_disc_number="GP20260718-001",
             expected_disc_numbers=("GP20260718-001", "GP20260718-002"),
             max_replan_attempts=2,
@@ -648,8 +648,8 @@ class TestDiscCapacityInManifest:
         validation = ArchiveValidationResult(
             valid=True,
             parts=(
-                ValidatedArchivePart(1, "case.part1.rar", part1, 45_000_000_000),
-                ValidatedArchivePart(2, "case.part2.rar", part2, 2_000_000_000),
+                ValidatedArchivePart(1, "case.part1.rar", part1, 45 * 1024 ** 3),
+                ValidatedArchivePart(2, "case.part2.rar", part2, 2 * 1024 ** 3),
             ),
         )
         capability = WinRarCapability(
@@ -661,7 +661,63 @@ class TestDiscCapacityInManifest:
         )
         manifest, _paths = assemble_archive_manifest(plan, validation, capability, retry_count=0)
         parts = manifest["parts"]
-        assert parts[0]["disc_capacity_bytes"] == 45_000_000_000
-        assert parts[1]["disc_capacity_bytes"] == 4_000_000_000
-        assert parts[0]["volume_size_bytes"] == 45_000_000_000
-        assert parts[1]["volume_size_bytes"] == 45_000_000_000
+        assert parts[0]["disc_capacity_bytes"] == 45 * 1024 ** 3
+        assert parts[1]["disc_capacity_bytes"] == 4 * 1024 ** 3
+        assert parts[0]["volume_size_bytes"] == 45 * 1024 ** 3
+        assert parts[1]["volume_size_bytes"] == 45 * 1024 ** 3
+
+
+def test_oversized_single_manifest_uses_mode_instead_of_fake_capacities(
+    tmp_path, monkeypatch,
+):
+    from app.repository.archive_validator_repository import (
+        ArchiveValidationResult, ValidatedArchivePart,
+    )
+    from app.repository.winrar_discovery_repository import WinRarCapability
+    from app.services.archive_planner_service import ArchivePlan, ArchiveSourceEntry
+
+    part_path = tmp_path / "case.rar"
+    part_path.write_bytes(b"SYNTHETIC-OVERSIZED")
+    reported_size = 46 * 1024 ** 3
+    digest = hashlib.md5(b"SYNTHETIC-OVERSIZED").hexdigest()
+    plan = ArchivePlan(
+        plan_id="plan-oversized", case_display_name="合成超大案件",
+        archive_base_name="case",
+        source_entries=(ArchiveSourceEntry("big.bin", 226 * 1024 ** 3, 0),),
+        total_input_bytes=226 * 1024 ** 3,
+        volume_size_bytes=None, volume_tier_gb=None,
+        expected_part_count=1, max_part_count=1,
+        first_disc_number="GP20260718-001",
+        expected_disc_numbers=("GP20260718-001",),
+        max_replan_attempts=2, status="planned", diagnostics=(),
+        archive_mode="oversized_single",
+    )
+    validation = ArchiveValidationResult(
+        True, (ValidatedArchivePart(1, "case.rar", part_path, reported_size),),
+    )
+    capability = WinRarCapability(
+        True, str(tmp_path / "winrar.exe"), "WinRAR.exe", "6.24", True,
+    )
+    manifest, _ = assemble_archive_manifest(
+        plan, validation, capability, retry_count=0,
+        verified_md5s={"case.rar": digest},
+    )
+    assert manifest["archive_mode"] == "oversized_single"
+    assert manifest["volume_size_bytes"] is None
+    assert manifest["volume_tier_gb"] is None
+    assert manifest["parts"][0]["disc_capacity_bytes"] is None
+    assert manifest["parts"][0]["volume_size_bytes"] is None
+
+    original_stat = Path.stat
+
+    def reported_stat(target, *args, **kwargs):
+        observed = original_stat(target, *args, **kwargs)
+        if target == part_path:
+            return SimpleNamespace(st_mode=observed.st_mode, st_size=reported_size)
+        return observed
+
+    monkeypatch.setattr(Path, "stat", reported_stat)
+    record = SimpleNamespace(final_dir=tmp_path, public_manifest=manifest)
+    assert validate_published_manifest(
+        record, verified_md5s={"case.rar": digest},
+    )

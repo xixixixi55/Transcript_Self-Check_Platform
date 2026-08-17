@@ -207,7 +207,7 @@ def _archive_message(code: str) -> str:
     messages = {
         "ARCHIVE_INPUT_EMPTY": "归档输入不能为空。",
         "ARCHIVE_INPUT_CHANGED": "归档输入在执行前已变化，请重新解析。",
-        "ARCHIVE_TOO_LARGE": "归档输入超过 135GB 容量上限。",
+        "ARCHIVE_TOO_LARGE": "归档计划无法按指定分卷档位执行。",
         "ARCHIVE_PLAN_INVALID": "归档计划无效，请重新解析并检查案件名称。",
         "ARCHIVE_EXECUTION_FAILED": "WinRAR 归档执行失败，请检查后重试。",
         "ARCHIVE_EXECUTION_TIMEOUT": "归档执行超时，请确认系统资源充足后重试。",

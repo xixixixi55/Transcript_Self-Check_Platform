@@ -62,14 +62,13 @@ def create_task(
     })
 
 
-def admission(maximum_input: int = 1_000) -> ArchiveResourceAdmissionService:
+def admission() -> ArchiveResourceAdmissionService:
     return ArchiveResourceAdmissionService(ArchiveAdmissionConfig(
         version="SYNTHETIC-CONFIG-V1",
         minimum_output_free_bytes=100,
         minimum_temporary_free_bytes=100,
         maximum_cpu_percent=80,
         maximum_io_busy_percent=80,
-        maximum_input_bytes=maximum_input,
         maximum_winrar_processes=6,
     ))
 

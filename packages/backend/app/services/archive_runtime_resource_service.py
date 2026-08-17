@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def build_archive_admission_config() -> ArchiveAdmissionConfig:
     return ArchiveAdmissionConfig(
-        version="archive-admission-v1",
+        version="archive-admission-v2",
         minimum_output_free_bytes=_nonnegative_int_env(
             "BIJI_ARCHIVE_MIN_OUTPUT_FREE_BYTES", 0,
         ),
@@ -33,9 +33,6 @@ def build_archive_admission_config() -> ArchiveAdmissionConfig:
         ),
         maximum_io_busy_percent=_bounded_float_env(
             "BIJI_ARCHIVE_MAX_IO_BUSY_PERCENT", 95.0,
-        ),
-        maximum_input_bytes=_positive_int_env(
-            "BIJI_ARCHIVE_MAX_INPUT_BYTES", 135 * 1000**3,
         ),
         maximum_winrar_processes=_positive_int_env(
             "BIJI_ARCHIVE_MAX_WINRAR_PROCESSES", 6,

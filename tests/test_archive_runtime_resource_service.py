@@ -105,7 +105,7 @@ def test_busy_time_sampling_preserves_initial_zero_delta_and_reset_behavior(
 
 def test_unavailable_io_gate_is_skipped_but_other_admission_gates_remain() -> None:
     admission = ArchiveResourceAdmissionService(ArchiveAdmissionConfig(
-        "SYNTHETIC-RESOURCE-V1", 100, 100, 80, 20, 1_000, 2,
+        "SYNTHETIC-RESOURCE-V1", 100, 100, 80, 20, 2,
     ))
     snapshot = ArchiveResourceSnapshot(1_000, 1_000, 10, None, 0)
     decision = admission.evaluate(snapshot, input_bytes=100)
@@ -139,9 +139,21 @@ def test_scheduler_can_claim_with_unavailable_optional_io_metric(database) -> No
     scheduler = ArchiveSchedulerService(
         tasks,
         ArchiveResourceAdmissionService(ArchiveAdmissionConfig(
-            "SYNTHETIC-WINDOWS-V1", 0, 0, 100, 0, 1_000, 1,
+            "SYNTHETIC-WINDOWS-V1", 0, 0, 100, 0, 1,
         )),
     )
     claim = scheduler.claim_next(ArchiveResourceSnapshot(1_000, 1_000, 0, None, 0))
     assert claim is not None
     assert claim.task_id == task["task_id"]
+
+
+def test_input_size_is_not_a_total_archive_limit() -> None:
+    admission = ArchiveResourceAdmissionService(ArchiveAdmissionConfig(
+        "SYNTHETIC-OVERSIZED-V2", 0, 0, 100, 100, 1,
+    ))
+    decision = admission.evaluate(
+        ArchiveResourceSnapshot(10_000, 10_000, 0, 0, 0),
+        input_bytes=226 * 1024 ** 3,
+    )
+    assert decision.admitted
+    assert decision.reason is None

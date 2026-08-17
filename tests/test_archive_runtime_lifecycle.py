@@ -214,7 +214,7 @@ def _services(tmp_path: Path) -> tuple[WorkbenchServices, RecordingWorker]:
     scheduler = ArchiveSchedulerService(
         tasks,
         ArchiveResourceAdmissionService(ArchiveAdmissionConfig(
-            "SYNTHETIC-RUNTIME-V1", 0, 0, 100, 100, 135_000_000_000, 6,
+            "SYNTHETIC-RUNTIME-V1", 0, 0, 100, 100, 6,
         )),
     )
     worker = RecordingWorker(progress, attempts)

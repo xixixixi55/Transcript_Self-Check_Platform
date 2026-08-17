@@ -41,7 +41,7 @@ interface DisplayPart {
   md5: string
   disc_number: string
   disc_date: string
-  disc_capacity_bytes?: number
+  disc_capacity_bytes?: number | null
 }
 
 function readableSize(bytes: number): string {
@@ -74,7 +74,7 @@ export function ArchiveStatusCard({ contextId, status, loading = false, onPrepar
               <Descriptions.Item label="MD5"><Text code>{part.md5.toUpperCase()}</Text></Descriptions.Item>
               <Descriptions.Item label="分卷序号">{part.part_number}</Descriptions.Item>
               <Descriptions.Item label="光盘编号">{part.disc_number}</Descriptions.Item>
-              {part.disc_capacity_bytes !== undefined && <Descriptions.Item label="光盘容量">{readableSize(part.disc_capacity_bytes)}</Descriptions.Item>}
+              {part.disc_capacity_bytes != null && <Descriptions.Item label="光盘容量">{readableSize(part.disc_capacity_bytes)}</Descriptions.Item>}
               <Descriptions.Item label="归档状态">已验证</Descriptions.Item>
             </Descriptions>
             {showPartDownload && (contextId || taskId) && (

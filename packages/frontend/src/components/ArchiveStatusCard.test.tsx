@@ -45,6 +45,23 @@ const multiVolumeManifest = {
   ],
 } as ArchiveManifest
 
+const oversizedSingleManifest = {
+  manifest_id: 'manifest-oversized',
+  archive_mode: 'oversized_single',
+  volume_size_bytes: null,
+  volume_tier_gb: null,
+  parts: [{
+    part_id: 'part-oversized',
+    part_number: 1,
+    filename: '超大合成案件.rar',
+    size_bytes: 46 * 1024 ** 3,
+    md5: 'c'.repeat(32),
+    disc_number: 'GP20260718-03',
+    disc_capacity_bytes: null,
+    volume_size_bytes: null,
+  }],
+} as ArchiveManifest
+
 describe('ArchiveStatusCard', () => {
   it('requires an explicit archive preparation action after preview', () => {
     const onPrepare = vi.fn()
@@ -114,6 +131,21 @@ describe('ArchiveStatusCard', () => {
     expect(screen.getByRole('link', { name: /下载该 RAR/ }).getAttribute('href')).toContain(
       '/workbench/tasks/archive-task-1/result/parts/part-1',
     )
+  })
+
+  it('shows oversized single-volume facts without a fake disc capacity', () => {
+    render(
+      <ArchiveStatusCard
+        contextId="context-oversized"
+        status="completed"
+        manifest={oversizedSingleManifest}
+        error={null}
+      />,
+    )
+    expect(screen.getByText('超大合成案件.rar')).toBeTruthy()
+    expect(screen.getByText(`${46 * 1024 ** 3} 字节`, { exact: false })).toBeTruthy()
+    expect(screen.getByText('C'.repeat(32))).toBeTruthy()
+    expect(screen.queryByText('光盘容量')).toBeNull()
   })
 
   it('hides the part download action when requested by the review workspace', () => {

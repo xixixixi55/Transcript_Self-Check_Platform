@@ -15,7 +15,7 @@ from app.services.archive_planner_service import (  # noqa: E402
 )
 
 
-GB = 1_000_000_000
+GB = 1024 ** 3
 
 
 def entry(size: int) -> list[ArchiveSourceEntry]:
@@ -34,17 +34,22 @@ def entry(size: int) -> list[ArchiveSourceEntry]:
         (44 * GB, 22, 2, "planned"),
         (44 * GB + 1, 45, 1, "planned"),
         (45 * GB, 45, 1, "planned"),
-        (135 * GB, 45, 3, "planned"),
-        (135 * GB + 1, 4, 0, "blocked"),
+        (225 * GB, 45, 5, "planned"),
+        (225 * GB + 1, None, 1, "planned"),
     ],
 )
-def test_production_decimal_tier_boundaries(size, tier, expected, status):
+def test_production_binary_tier_boundaries(size, tier, expected, status):
     plan = plan_archive("合成案件", entry(size), first_disc_number="GP20260718-01")
     assert plan.volume_tier_gb == tier
     assert plan.expected_part_count == expected
     assert plan.status == status
-    if status == "blocked":
-        assert plan.diagnostics[0].code == "ARCHIVE_TOO_LARGE"
+    assert plan.archive_mode == (
+        "oversized_single" if size > 225 * GB else "standard_volume"
+    )
+    if plan.archive_mode == "oversized_single":
+        assert plan.volume_size_bytes is None
+        assert plan.max_part_count == 1
+        assert plan.diagnostics[0].code == "ARCHIVE_OVERSIZED_SINGLE_SELECTED"
 
 
 @pytest.mark.parametrize(
@@ -55,6 +60,7 @@ def test_production_decimal_tier_boundaries(size, tier, expected, status):
         (43 * GB, 22, 2),
         (47 * GB, 45, 2),
         (91 * GB, 45, 3),
+        (181 * GB, 45, 5),
     ],
 )
 def test_named_capacity_planning(size, tier, expected):
@@ -76,6 +82,7 @@ def test_public_plan_projection_has_no_filesystem_paths():
     plan = plan_archive("合成案件", entry(1), first_disc_number="GP20260718-01")
     public_plan = plan.public_dict()
     assert "output_directory" not in public_plan
+    assert public_plan["archive_mode"] == "standard_volume"
     assert all("absolute_path" not in entry for entry in public_plan["source_entries"])
     assert not any(":" in str(value) for value in public_plan.values() if isinstance(value, str))
 

@@ -12,7 +12,6 @@ class ArchiveAdmissionConfig:
     minimum_temporary_free_bytes: int
     maximum_cpu_percent: float
     maximum_io_busy_percent: float
-    maximum_input_bytes: int
     maximum_winrar_processes: int
 
     def __post_init__(self) -> None:
@@ -23,7 +22,6 @@ class ArchiveAdmissionConfig:
         if (
             not self.version
             or any(value < 0 for value in values)
-            or self.maximum_input_bytes <= 0
             or self.maximum_winrar_processes <= 0
         ):
             raise ValueError("ARCHIVE_ADMISSION_CONFIG_INVALID")
@@ -75,8 +73,6 @@ class ArchiveResourceAdmissionService:
     ) -> ArchiveAdmissionDecision:
         if isinstance(input_bytes, bool) or not isinstance(input_bytes, int) or input_bytes < 0:
             return self._deny("ARCHIVE_INPUT_INVALID")
-        if input_bytes > self.config.maximum_input_bytes:
-            return self._deny("ARCHIVE_INPUT_LIMIT")
         checks = (
             (
                 snapshot.output_free_bytes

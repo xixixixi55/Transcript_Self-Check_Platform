@@ -24,7 +24,8 @@ class PlanEntry(Protocol):
 class PlanLike(Protocol):
     plan_id: str
     archive_base_name: str
-    volume_size_bytes: int
+    archive_mode: str
+    volume_size_bytes: int | None
 
 
 @dataclass(frozen=True)
