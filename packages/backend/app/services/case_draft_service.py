@@ -19,6 +19,7 @@ from .report_defaults_service import DEFAULT_DOCUMENT_NUMBER, DEFAULT_HARDWARE_D
 from .disc_sequence_service import apply_disc_sequence_to_attachments
 from .case_order_service import CaseOrderService
 from .field_provenance_service import FieldProvenanceService
+from .inspection_environment_service import InspectionEnvironmentService
 from .material_policy_service import enrich_report_material_types
 from .device_config_service import company_for_device_name
 from .shared_defaults_service import SharedDefaultsService
@@ -33,6 +34,7 @@ class CaseDraftService:
     def __init__(
         self, database: WorkbenchDatabase, parser: Parser | None = None,
         source_service: SourceRecordService | None = None,
+        environment_service: InspectionEnvironmentService | None = None,
     ) -> None:
         self.database = database
         self.workflow = CaseWorkflowRepository(database)
@@ -42,6 +44,7 @@ class CaseDraftService:
         self.sources = source_service or SourceRecordService(database)
         self.defaults = SharedDefaultsService(database)
         self.parser = parser or _parse_source
+        self.environment = environment_service or InspectionEnvironmentService()
 
     def submit(
         self, source: Mapping[str, Any], *, case_name: str = "", case_summary: str = "", case_number: str | None = None,
@@ -86,6 +89,7 @@ class CaseDraftService:
                 enrich_report_material_types(report), defaults,
             )
             initialized = _prefix_report_software_for_selected_device(initialized)
+            initialized = self.environment.apply_to_report(initialized)
             default_template_ref = defaults.get("default_template_ref")
             self.workflow.complete_parse(
                 case_id, task_id, initialized, field_states,

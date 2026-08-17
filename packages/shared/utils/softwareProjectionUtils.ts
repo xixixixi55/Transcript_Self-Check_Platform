@@ -1,6 +1,7 @@
 import type { EvidenceItem, InspectionReport, InspectorSnapshot, ProcessStep } from '../types'
 import { formatDiscDate, parseDiscSequence } from './discSequenceUtils'
 import { buildMaterialPhotoGroups } from './materialPhotoGroups'
+import { projectInspectionEnvironmentStep } from './inspectionEnvironmentUtils'
 
 function text(value: unknown): string {
   return value == null ? '' : String(value).trim()
@@ -118,6 +119,13 @@ export function applyReportEdit(report: InspectionReport, path: string, value: a
     next.introduction.inspectors = (value as InspectorSnapshot[]).map(snapshot => ({
       name: snapshot.name, unit: snapshot.unit, badge_number: snapshot.police_number,
     }))
+  }
+  if (path === 'inspection.hardware_device' && next.inspection.environment_snapshot) {
+    next.inspection.process_steps = projectInspectionEnvironmentStep(
+      next.inspection.process_steps || [],
+      next.inspection.hardware_device,
+      next.inspection.environment_snapshot,
+    )
   }
   return path === 'introduction.evidence_list' ? applyEvidenceListProjection(next) : next
 }

@@ -111,10 +111,6 @@ export const PROCESS_STEP_1 = (model: string, imei1: string, imei2: string, evid
 export const PROCESS_STEP_2 = (evidenceNumber: string) =>
   `对检材${evidenceNumber}进行拍照。`
 
-/** 检查过程第3步（固定） */
-export const PROCESS_STEP_3 =
-  '启动美亚FL-901手机取证塔，Windows 10 64位企业版操作系统启动正常，使用火绒安全软件（版本号为6.0.6.1）对取证塔进行杀毒，未发现病毒，完毕后退出火绒安全软件。'
-
 /** 检查过程第4步模板 */
 export const PROCESS_STEP_4 = (softwareVersion: string, evidenceNumber: string) =>
   `启动美亚手机大师-并行版V5软件（版本号为${softwareVersion}）使用美亚手机大师-并行版V5软件对检材${evidenceNumber}进行检查。`

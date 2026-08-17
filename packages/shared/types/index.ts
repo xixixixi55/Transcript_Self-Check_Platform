@@ -75,6 +75,25 @@ export interface ProcessStep {
   content: string
 }
 
+export type InspectionEnvironmentDetectionStatus =
+  | 'detected'
+  | 'version_unknown'
+  | 'not_found'
+  | 'unavailable'
+
+/** 新案件初始化时冻结的本机检查环境；旧草稿可不包含。 */
+export interface InspectionEnvironmentSnapshot {
+  operating_system: {
+    display_name: string
+    status: 'detected' | 'unavailable'
+  }
+  security_software: {
+    name: string
+    version: string
+    status: InspectionEnvironmentDetectionStatus
+  }
+}
+
 /** 检查结果 */
 export interface InspectionResult {
   evidence_number: string
@@ -113,6 +132,7 @@ export interface InspectionReport {
   inspection: {
     method: string                       // (一) 检查方法
     hardware_device: string              // 硬件设备名称
+    environment_snapshot?: InspectionEnvironmentSnapshot
     primary_software?: PrimarySoftware   // 主取证软件唯一权威编辑结构
     software_tools: SoftwareItem[]       // (二) 检查设备 — 软件
     process_steps: ProcessStep[]         // (三) 检查过程

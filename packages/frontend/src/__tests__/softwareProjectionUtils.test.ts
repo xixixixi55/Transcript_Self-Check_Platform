@@ -181,3 +181,51 @@ describe('evidence list projection', () => {
     expect(removed.attachments.photo_groups?.length).not.toBe(removed.attachments.photo_ids.length / 2)
   })
 })
+
+describe('inspection environment projection', () => {
+  const environmentReport = (): InspectionReport => ({
+    ...evidenceReport(),
+    inspection: {
+      ...evidenceReport().inspection,
+      hardware_device: 'SYNTHETIC DEVICE A',
+      environment_snapshot: {
+        operating_system: { display_name: 'Windows 11 TEST专业版 64位', status: 'detected' },
+        security_software: { name: '火绒安全软件', version: 'TEST-6.0.7.0', status: 'detected' },
+      },
+    },
+  })
+
+  it('reprojects only step 3 from the saved snapshot when hardware changes', () => {
+    const initial = environmentReport()
+    const updated = applyReportEdit(initial, 'inspection.hardware_device', 'SYNTHETIC DEVICE B')
+    const steps = updated.inspection.process_steps
+
+    expect(steps.find(step => step.step_number === 3)?.content)
+      .toBe('启动SYNTHETIC DEVICE B，Windows 11 TEST专业版 64位启动正常，使用火绒安全软件（版本号为TEST-6.0.7.0）对SYNTHETIC DEVICE B进行杀毒，未发现病毒，完毕后退出火绒安全软件。')
+    expect(steps.filter(step => step.step_number !== 3))
+      .toEqual(initial.inspection.process_steps.filter(step => step.step_number !== 3))
+  })
+
+  it('uses pending language without a false clean result when Huorong is not found', () => {
+    const initial = environmentReport()
+    initial.inspection.environment_snapshot = {
+      operating_system: { display_name: '', status: 'unavailable' },
+      security_software: { name: '', version: '', status: 'not_found' },
+    }
+    const updated = applyReportEdit(initial, 'inspection.hardware_device', '')
+    const content = updated.inspection.process_steps.find(step => step.step_number === 3)?.content
+
+    expect(content).toContain('检查硬件设备待确认')
+    expect(content).toContain('操作系统信息待确认')
+    expect(content).toContain('安全软件待确认（版本号待确认）')
+    expect(content).toContain('杀毒的结果待确认')
+    expect(content).not.toContain('未发现病毒')
+  })
+
+  it('keeps a legacy step unchanged when the saved snapshot is absent', () => {
+    const initial = evidenceReport()
+    const updated = applyReportEdit(initial, 'inspection.hardware_device', 'SYNTHETIC DEVICE B')
+    expect(updated.inspection.process_steps.find(step => step.step_number === 3)?.content)
+      .toBe('SYNTHETIC unchanged environment step')
+  })
+})

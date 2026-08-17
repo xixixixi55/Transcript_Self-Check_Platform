@@ -23,6 +23,7 @@ from app.services.report_defaults_service import (  # noqa: E402
     DEFAULT_INSPECTION_METHOD,
     DEFAULT_INSPECTION_PLACE,
 )
+from app.services.inspection_environment_service import InspectionEnvironmentService  # noqa: E402
 from app.services.shared_defaults_service import SharedDefaultsService  # noqa: E402
 
 
@@ -314,6 +315,32 @@ def test_parser_system_default_value_yields_to_shared_default():
         "inspection.method",
         "inspection.hardware_device",
     ))
+
+
+def test_environment_projection_uses_hardware_after_shared_default_selection():
+    report = {
+        "introduction": {"inspection_place": "", "inspectors": []},
+        "inspection": {
+            "method": "", "hardware_device": "",
+            "process_steps": [{"step_number": 3, "content": "SYNTHETIC placeholder"}],
+        },
+        "attachments": {"disc_number": ""},
+    }
+    initialized, _ = _initialize_draft(report, {
+        "hardware_device": "SYNTHETIC-SHARED-HARDWARE",
+    })
+
+    class SyntheticRepository:
+        def read(self):
+            return {
+                "operating_system": {},
+                "huorong": {"detected": False, "version": ""},
+            }
+
+    projected = InspectionEnvironmentService(SyntheticRepository()).apply_to_report(initialized)
+    step_three = projected["inspection"]["process_steps"][0]["content"]
+    assert "SYNTHETIC-SHARED-HARDWARE" in step_three
+    assert "操作系统信息待确认" in step_three
 
 
 def test_company_prefix_resolves_after_shared_hardware_default(monkeypatch):

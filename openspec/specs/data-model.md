@@ -124,6 +124,22 @@
 | step_number | number | 步骤编号 |
 | content | string | 步骤内容 |
 
+### 检查环境快照（InspectionEnvironmentSnapshot）
+
+新案件在应用最终检查硬件默认值后采集一次本机环境快照，并持久化到可选字段 `inspection.environment_snapshot`。旧案件可缺少该字段；读取、轮询和普通保存不得因此自动重写其检查步骤。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| operating_system.display_name | string | 本机 Windows 的稳定显示名称；无法识别时为空并由文本投影显示“待确认” |
+| operating_system.status | `detected \| unavailable` | 操作系统信息识别状态 |
+| security_software.name | string | 识别到的火绒安全软件名称；未识别时为空 |
+| security_software.version | string | 识别到的版本；不可用时为空 |
+| security_software.status | `detected \| version_unknown \| not_found \| unavailable` | 火绒安装与版本识别状态 |
+
+### 检查环境识别状态（InspectionEnvironmentDetectionStatus）
+
+取值为 `detected | version_unknown | not_found | unavailable`。
+
 ### 检查结果（InspectionResult）
 
 | 字段 | 类型 | 说明 |

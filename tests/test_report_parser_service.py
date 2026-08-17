@@ -373,6 +373,11 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
         step["content"] for step in report["inspection"]["process_steps"]
         if step["step_number"] == 4
     )
+    step_three = next(
+        step["content"] for step in report["inspection"]["process_steps"]
+        if step["step_number"] == 3
+    )
+    assert step_three == "检查环境将在案件初始化时自动识别。"
     software_version = report["inspection"]["primary_software"]["version"]
     assert f" {software_version}（版本号为{software_version}）" not in step_four
     assert f"（版本号为{software_version}）" in step_four

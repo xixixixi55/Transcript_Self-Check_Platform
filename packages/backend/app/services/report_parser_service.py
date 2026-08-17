@@ -334,7 +334,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     process_steps = [
         {"step_number": 1, "content": f"将{'；'.join(material_descriptions)}。"},
         {"step_number": 2, "content": f"对检材{evidence_label}进行拍照。"},
-        {"step_number": 3, "content": "启动美亚FL-901手机取证塔，Windows 10 64位企业版操作系统启动正常，使用火绒安全软件（版本号为6.0.6.1）对取证塔进行杀毒，未发现病毒，完毕后退出火绒安全软件。"},
+        {"step_number": 3, "content": "检查环境将在案件初始化时自动识别。"},
         {"step_number": 4, "content": f"启动{main_display or '待确认主取证软件'}（版本号为{main_version or '待确认'}）对检材{evidence_label}进行检查。"},
     ]
 

@@ -11,6 +11,7 @@ from ..config import OUTPUT_BASE, UPLOAD_BASE
 from ..repository.workbench_database import WorkbenchDatabase, database_path_for_deployment
 from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.local_directory_history_repository import LocalDirectoryHistoryRepository
+from ..repository.local_inspection_environment_repository import LocalInspectionEnvironmentRepository
 from ..repository.resource_snapshot_repository import ResourceSnapshotRepository
 from ..repository.template_approval_repository import TemplateApprovalRepository
 from ..repository.template_registry_repository import TemplateRegistryRepository
@@ -36,6 +37,7 @@ from .case_parse_dispatcher_service import CaseParseDispatcher
 from .case_lifecycle_service import CaseLifecycleService
 from .edit_lease_service import EditLeaseService
 from .local_directory_picker_service import LocalDirectoryPickerService
+from .inspection_environment_service import InspectionEnvironmentService
 from .shared_defaults_service import SharedDefaultsService
 from .source_record_service import SourceRecordService
 from .task_record_service import TaskRecordService
@@ -110,9 +112,16 @@ def build_workbench_services(
     )
     archive_worker = ArchiveWorkerService(archive_tasks, archive_progress)
     resource_provider = ArchiveRuntimeResourceProvider(OUTPUT_BASE)
+    inspection_environment = InspectionEnvironmentService(
+        LocalInspectionEnvironmentRepository(),
+    )
     services = WorkbenchServices(
         database=database,
-        cases=CaseDraftService(database, source_service=sources),
+        cases=CaseDraftService(
+            database,
+            source_service=sources,
+            environment_service=inspection_environment,
+        ),
         lifecycle=CaseLifecycleService(
             database, asset_service=assets,
             artifact_deletion_service=CaseArtifactDeletionService(database, OUTPUT_BASE),

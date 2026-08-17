@@ -21,6 +21,7 @@ from app.services.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.document_builder_service import build_record_document  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
+from app.services.inspection_environment_service import InspectionEnvironmentService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
 from app.services.task_record_service import TaskRecordService  # noqa: E402
 from app.repository.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
@@ -39,6 +40,23 @@ REPORT = {
     "attachments": {"extract_list": {"columns": [], "rows": []}, "photo_ids": [], "disc_number": ""},
 }
 IDENTITY = {"identity_kind": "local_session", "client_instance_id": "SYNTHETIC-CLIENT", "session_id": "SYNTHETIC-SESSION", "deployment_instance_id": "SYNTHETIC-DEPLOYMENT"}
+
+
+class SyntheticPassthroughEnvironment:
+    def apply_to_report(self, report):
+        return copy.deepcopy(report)
+
+
+class SyntheticEnvironmentRepository:
+    def read(self):
+        return {
+            "operating_system": {
+                "product_name": "Windows 10 Pro", "edition_id": "Professional",
+                "display_version": "TEST-24H2", "build_number": "22631",
+                "architecture": "AMD64",
+            },
+            "huorong": {"detected": True, "version": "TEST-6.0.7.0"},
+        }
 
 
 @pytest.fixture()
@@ -73,8 +91,16 @@ def make_source_service(database: WorkbenchDatabase, tmp_path: Path) -> SourceRe
     )
 
 
-def make_services(database: WorkbenchDatabase, parser, source_service: SourceRecordService):
-    cases = CaseDraftService(database, parser=parser, source_service=source_service)
+def make_services(
+    database: WorkbenchDatabase, parser, source_service: SourceRecordService,
+    environment_service=None,
+):
+    cases = CaseDraftService(
+        database,
+        parser=parser,
+        source_service=source_service,
+        environment_service=environment_service or SyntheticPassthroughEnvironment(),
+    )
     return cases, CaseLifecycleService(database)
 
 
@@ -119,6 +145,52 @@ def test_parse_applies_deployment_default_template_to_new_draft(database, tmp_pa
     cases.run_parse_task(**identifiers)
 
     assert lifecycle.detail(identifiers["case_id"])["draft"]["template_ref"] == default_ref
+
+
+def test_parse_projects_step_three_from_final_hardware_and_local_environment(database, tmp_path):
+    defaults = SharedDefaultsRepository(database)
+    defaults.patch(
+        {"hardware_device": "SYNTHETIC-SELECTED 手机取证工作站"},
+        defaults.get()["revision"],
+    )
+    parsed_report = copy.deepcopy(REPORT)
+    parsed_report["inspection"]["process_steps"] = [
+        {"step_number": 2, "content": "SYNTHETIC step 2"},
+        {"step_number": 3, "content": "SYNTHETIC parser placeholder"},
+        {"step_number": 4, "content": "SYNTHETIC step 4"},
+    ]
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database,
+        lambda path, output: {"report": copy.deepcopy(parsed_report)},
+        source_service,
+        InspectionEnvironmentService(SyntheticEnvironmentRepository()),
+    )
+
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+    cases.run_parse_task(**identifiers)
+
+    inspection = lifecycle.detail(identifiers["case_id"])["draft"]["report"]["inspection"]
+    step_three = next(
+        step["content"] for step in inspection["process_steps"]
+        if step["step_number"] == 3
+    )
+    assert inspection["hardware_device"] == "SYNTHETIC-SELECTED 手机取证工作站"
+    assert inspection["environment_snapshot"]["operating_system"]["display_name"] == (
+        "Windows 11 TEST-24H2 专业版 64位"
+    )
+    assert "SYNTHETIC-SELECTED 手机取证工作站" in step_three
+    assert "火绒安全软件（版本号为TEST-6.0.7.0）" in step_three
+    assert inspection["process_steps"][0]["content"] == "SYNTHETIC step 2"
+    assert inspection["process_steps"][2]["content"] == "SYNTHETIC step 4"
+    word_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(
+            lifecycle.detail(identifiers["case_id"])["draft"]["report"],
+        )
+        if command.get("type") == "paragraph"
+    )
+    assert step_three in word_text
 
 
 def test_parse_task_enriches_report_device_type_for_review_editor(database, tmp_path):
