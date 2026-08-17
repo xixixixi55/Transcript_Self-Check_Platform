@@ -26,6 +26,10 @@
 
 候选冻结后若源码、接口、数据模型、测试预期或正式行为发生变化，候选自动解冻。Review 是否失效按 `harness/code-review-agent.md` 判断；完整门控必须基于重新冻结后的候选执行。
 
+### Word/DOCX 版式断言范围
+
+DOCX 自动化回归应只比较需求实际约束的 OOXML 属性和结构，例如分页、缩进、行距、对齐、VML 图形或锚点关系；除非需求明确要求节点完全同构，不得对整段 `w:pPr` 或整块 XML 做字节级相等断言。运行时占位符替换和合法规范化可能改写与目标版式无关的默认运行属性。真实分页与视觉位置仍须使用 Microsoft Word/PDF 人工验收覆盖，XML 断言不能替代排版引擎验证。
+
 ## 3. 完整门控预检
 
 `verify:full` 在工程检查前执行环境预检，默认读取 `harness.config.yaml` 的 `verification.preflight`：

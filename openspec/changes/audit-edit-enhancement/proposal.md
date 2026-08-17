@@ -64,7 +64,7 @@
 | CAP-010 | 所有字段可见 | ADDED | 补齐预览页缺失的字段区域 |
 | CAP-011 | 点击编辑交互 | ADDED | 文本→点击→编辑→失焦保存 |
 | CAP-012 | 手动测试反馈修复 | ADDED | 文号、编辑器、数据映射、附件与导出兼容修复（REQ-020~026） |
-| CAP-014 | 审核提示与正式文书规范化 | ADDED | 案件简要核对提示、MD5/来源/版本文案与 Word 标题格式（REQ-032） |
+| CAP-014 | 审核提示与正式文书规范化 | ADDED | 案件简要核对提示、MD5/来源/版本文案、Word 标题格式及附件摘要条件分页（REQ-032） |
 | CAP-ENTRUST-UNIT-PREFIX | 委托单位共享前缀 | ADDED | 可清空的共享前缀与报告识别单位在 Word 中直接拼接 |
 | CAP-003 | 全文在线编辑 | MODIFIED | REQ-007 交互模式从"始终可编辑"修正为"点击编辑" |
 
@@ -88,7 +88,7 @@
 | Layer 10: FE_Hooks | `packages/frontend/src/hooks/` | 修改 | `useEditableState` 新增；`useRecordExport` 支持图片文件 |
 | Layer 11: FE_Components | `packages/frontend/src/components/` | 新增+修改 | `EditableField` 新增；`EvidenceEditor`/`InspectorEditor`/`SoftwareToolsList`/`ExtractListEditor`/`ImageUploader` 修改；`RecordEditorForm` 新增 |
 | Layer 12: FE_Pages | `packages/frontend/src/pages/` | 修改 | `RecordGeneratePage` 重构为轻薄编排层 |
-| Layer 21: BE_Services | `packages/backend/app/services/` | 修改 | `report_parser_service.py` 数据映射修正 |
+| Layer 21: BE_Services | `packages/backend/app/services/` | 修改 | 数据映射修正；Word 模板填充边界增加附件摘要三行留白与不可拆分条件分页 |
 | Layer 20~23 | `packages/backend/` | 修改 | 数据映射修正（委托单位/人 → 采集单位/人） |
 | Layer 20: BE_Repository | `file_storage.py` | — | 无新增变更 |
 | Layer 21: BE_Services | `report_parser_service.py` | 修改 | 数据字段映射、默认值修正 |

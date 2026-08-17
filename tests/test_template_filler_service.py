@@ -422,10 +422,10 @@ def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path
     assert "检验单位：测试鉴定中心" in document_xml
     assert _DEFAULT_SUMMARY in document_xml
     assert "<w:pageBreakBefore" not in document_xml
-    assert document_xml.count('w:type="page"') == 4
+    assert document_xml.count('w:type="page"') == 3
 
 
-def test_long_result_does_not_leave_empty_paragraphs_before_attachment_summary(tmp_path):
+def test_attachment_summary_uses_three_blank_lines_and_conditional_pagination(tmp_path):
     report = _report()
     report["introduction"]["evidence_list"] = [
         {"evidence_number": "SYN-JC-001", "device_type": "测试手机"},
@@ -452,12 +452,100 @@ def test_long_result_does_not_leave_empty_paragraphs_before_attachment_summary(t
         index for index, element in enumerate(children)
         if "1、电子数据提取固定清单" in "".join(element.itertext())
     )
-    previous_text = "".join(children[summary_index - 1].itertext()).strip()
+    blank_count = 0
+    cursor = summary_index - 1
+    while cursor >= 0 and not "".join(children[cursor].itertext()).strip():
+        blank_count += 1
+        cursor -= 1
+    previous_text = "".join(children[cursor].itertext()).strip()
 
     assert previous_text.startswith("经对编号为SYN-JC-001、SYN-JC-002号检材")
+    assert blank_count == 3
     assert len(children[summary_index].findall(
         './/{%s}br[@{%s}type="page"]' % (W_NS, W_NS)
+    )) == 0
+
+    summary_paragraphs = [
+        element for element in children
+        if any(marker in "".join(element.itertext()) for marker in (
+            "1、电子数据提取固定清单",
+            "2、检材图",
+            "3、本鉴定中心刻制的",
+        ))
+    ]
+    assert len(summary_paragraphs) == 3
+    for paragraph in summary_paragraphs:
+        assert paragraph.find('./{%s}pPr/{%s}keepLines' % (W_NS, W_NS)) is not None
+    for paragraph in summary_paragraphs:
+        assert paragraph.find('./{%s}pPr/{%s}keepNext' % (W_NS, W_NS)) is not None
+
+    attachment1 = next(
+        element for element in children
+        if "".join(element.itertext()).strip() == "附件1："
+    )
+    attachment1_index = children.index(attachment1)
+    summary_block = children[summary_index:attachment1_index]
+    for paragraph in summary_block:
+        assert paragraph.find('./{%s}pPr/{%s}keepLines' % (W_NS, W_NS)) is not None
+    for paragraph in summary_block[:-1]:
+        assert paragraph.find('./{%s}pPr/{%s}keepNext' % (W_NS, W_NS)) is not None
+    assert summary_block[-1].find(
+        './{%s}pPr/{%s}keepNext' % (W_NS, W_NS)
+    ) is None
+    assert len(attachment1.findall(
+        './/{%s}br[@{%s}type="page"]' % (W_NS, W_NS)
     )) == 1
+
+
+def test_attachment_summary_signature_and_date_layout_stay_unchanged(tmp_path):
+    output = tmp_path / "summary-layout.docx"
+    report = _report()
+    report["inspection"]["primary_software"] = {
+        "name": "SYNTHETIC 测试取证软件",
+        "version": "1.0-TEST",
+        "confirmation_status": "confirmed_by_report",
+    }
+    report["inspection"]["software_tools"] = [
+        {"name": "WinRAR压缩管理软件", "version": "6.24"},
+        {"name": "Python hashlib", "version": "3.12"},
+    ]
+    fill_template(report, str(_TEMPLATE), str(output), [], _manifest())
+
+    def body_children(path):
+        with zipfile.ZipFile(path) as package:
+            root = ET.fromstring(package.read("word/document.xml"))
+        return list(root.find("./{%s}body" % W_NS))
+
+    template_children = body_children(_TEMPLATE)
+    output_children = body_children(output)
+
+    def layout_region(children):
+        start = next(
+            index for index, element in enumerate(children)
+            if "1、电子数据提取固定清单" in "".join(element.itertext())
+        )
+        end = next(
+            index for index, element in enumerate(children[start:], start)
+            if "附件1：" in "".join(element.itertext())
+        )
+        return children[start:end]
+
+    template_region = layout_region(template_children)
+    output_region = layout_region(output_children)
+    assert len(output_region) == len(template_region)
+
+    def layout_property(element, local_name):
+        value = element.find('./{%s}pPr/{%s}%s' % (W_NS, W_NS, local_name))
+        return ET.tostring(value) if value is not None else None
+
+    for expected, actual in zip(template_region, output_region):
+        for local_name in ("ind", "spacing", "jc", "tabs"):
+            assert layout_property(actual, local_name) == layout_property(
+                expected, local_name
+            )
+        assert [ET.tostring(node) for node in actual.findall('.//{%s}pict' % W_NS)] == [
+            ET.tostring(node) for node in expected.findall('.//{%s}pict' % W_NS)
+        ]
 
 
 def test_generated_docx_removes_comments_and_nonessential_metadata(tmp_path):
@@ -575,12 +663,12 @@ def test_photo_regression_scenarios_keep_images_and_page_xml(tmp_path, sizes):
         )
         for width, height in sizes
     ]
-    assert document_xml.count('w:type="page"') == 4
+    assert document_xml.count('w:type="page"') == 3
     assert 'w:type="oddPage"' not in document_xml
     assert 'w:type="evenPage"' not in document_xml
     assert "w:pageBreakBefore" not in document_xml
-    assert "w:keepNext" not in document_xml
-    assert "w:keepLines" not in document_xml
+    assert "<w:keepNext" in document_xml
+    assert "<w:keepLines" in document_xml
 
 
 def test_report_only_export_keeps_three_material_photo_groups(tmp_path):

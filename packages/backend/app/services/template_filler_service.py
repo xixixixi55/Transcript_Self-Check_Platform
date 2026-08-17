@@ -803,7 +803,7 @@ def _fit_image_size(photo_path: str):
 
 
 def _cleanup_attachment_spacing(doc: Document):
-    """删除附件分页锚点附近可能被 Word 单独排成空白页的空段落。"""
+    """规范附件间距，并把摘要、签名和日期保持为连续分页块。"""
     w_ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
     body = doc.element.body
 
@@ -830,11 +830,43 @@ def _cleanup_attachment_spacing(doc: Document):
     attachment_summary_index = find_paragraph_index('1、电子数据提取固定清单')
     if attachment_summary_index is not None:
         children = list(body)
-        while (attachment_summary_index > 0
-               and is_empty_paragraph(children[attachment_summary_index - 1])):
-            body.remove(children[attachment_summary_index - 1])
+        empty_count = 0
+        cursor = attachment_summary_index - 1
+        while cursor >= 0 and is_empty_paragraph(children[cursor]):
+            empty_count += 1
+            cursor -= 1
+        while empty_count > 3:
+            body.remove(children[cursor + 1])
             attachment_summary_index -= 1
+            empty_count -= 1
             children = list(body)
+
+        paragraphs = doc.paragraphs
+        summary_start = next(
+            (index for index, paragraph in enumerate(paragraphs)
+             if '1、电子数据提取固定清单' in paragraph.text),
+            None,
+        )
+        attachment1_start = next(
+            (index for index, paragraph in enumerate(paragraphs)
+             if paragraph.text.strip() == '附件1：'),
+            None,
+        )
+        if (summary_start is not None and attachment1_start is not None
+                and summary_start < attachment1_start):
+            summary_block = paragraphs[summary_start:attachment1_start]
+            first = summary_block[0]
+            for br in list(first._p.findall('.//' + qn('w:br'))):
+                if br.get(qn('w:type')) == 'page':
+                    br.getparent().remove(br)
+            p_pr = first._p.get_or_add_pPr()
+            page_break_before = p_pr.find(qn('w:pageBreakBefore'))
+            if page_break_before is not None:
+                p_pr.remove(page_break_before)
+            for index, paragraph in enumerate(summary_block):
+                paragraph.paragraph_format.keep_together = True
+                if index < len(summary_block) - 1:
+                    paragraph.paragraph_format.keep_with_next = True
 
     attachment2_index = find_paragraph_index('附件2：')
     attachment3_index = find_paragraph_index('附件3：')

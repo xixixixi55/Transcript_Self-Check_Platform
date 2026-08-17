@@ -247,6 +247,18 @@ workflow_level: 3
   - final_gate: [PASS] 使用短仓库外临时目录执行 `npm run verify:full -- --change audit-edit-enhancement`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
   - manual_acceptance: [PASS] 使用完全合成数据生成 11 页 DOCX，经 Microsoft Word 后台导出 PDF 并逐页渲染 PNG 检查；附件摘要显示“附件：1、电子数据提取固定清单”，后续编号对齐；附件一“电子数据”“来源”连续居中且无拉宽空隙；全篇未见新增裁切、重叠、分页或页脚异常。
 
+## 🟡 Phase 13: 附件摘要条件分页
+
+- [x] T026 **按当前页剩余空间决定附件摘要是否独立分页**
+  - 文件：`packages/backend/app/services/template_filler_service.py`、`tests/test_template_filler_service.py`、本变更包 proposal/design/delta spec。
+  - 内容：移除附件摘要首段的无条件分页；在检查结果后保留三个空白行；将三条摘要、摘要后留白、检查人签名、双横线及日期约束为不可跨页拆分的连续块，使完整区域在剩余空间足够时留在当前页、空间不足时整体移到下一页；独立分页时保持变更前原始版式和纵向位置；附件一及后续附件保持既有分页规则。
+  - 覆盖 Spec：REQ-032“Word 附件摘要按剩余空间条件分页”。
+  - 验证：使用明确合成数据新增 OOXML 区分性断言，覆盖三行留白、无固定分页符、摘要连续不可拆分、签名/横线/日期结构不变及附件一分页不变；运行模板填充定向 pytest、`verify:quick`、当前变更 scoped strict docs；分别生成“同页可容纳”和“同页不可容纳”DOCX，经 Microsoft Word 导出 PDF 后人工检查实际分页。
+  - 证据：模板填充、附件渲染和 batch 文书构建定向 pytest 79 passed；架构检查、类型检查、仓库资产卫生和 `git diff --check` 通过；两份合成 DOCX 经 officecli validate 均无错误。Microsoft Word 实际分页中，共页样例的检查结果、三条摘要、签名和日期均位于第 2 页；独立页样例的检查结果位于第 2 页，三条摘要、签名和日期整体位于第 3 页。两份 Word 导出 PDF 渲染检查未见拆页、重叠或裁切。
+  - code_review: [PASS] 首轮独立审查确认架构、静态分页结构和代码质量通过，但要求回填已完成的 Word/PDF 人工验收证据、补充三条摘要自身的版式属性回归，并更新过时函数说明；整改后复审确认 MUST/SHOULD FIX 全部关闭，五维审查通过。
+  - final_gate: [BLOCKED] `verify:full -- --change audit-edit-enhancement` 的预检、架构、类型、治理、资产和前端 368 项测试通过；后端 1145 passed / 3 skipped，仅 `test_long_snapshot_paths_use_short_private_root_without_changing_source_tree` 因当前 pytest 临时根过长使可构造中间段为 14（测试要求至少 16）而失败。本任务定向 79 项和失败用例外的数据库权限问题均已验证与分页改动无关；另有任务开始前已存在的 39 项 agent-tooling mirror drift。达到 Harness 单任务验证循环上限后停止继续重跑。
+  - manual_acceptance: [PASS] Microsoft Word/PDF 覆盖“同页可容纳”和“同页不可容纳”两个场景；独立页逐项对照变更前参考图，三条摘要、检查人签名、双横线和日期的位置及样式一致。
+
 ---
 
 ## 任务摘要
@@ -263,7 +275,10 @@ workflow_level: 3
 | 🟢 P8 | SharedUtils (2) | 1 | 人工检材派生内容同步 |
 | 🟢 P9 | Components / Services | 1 | 审核提示与正式文书规范化 |
 | 🟢 P10 | SharedTypes / Components / Repository / Services | 1 | 委托单位共享前缀与 Word 组合 |
-| **合计** | **Layer 0、2、10~12、20~21** | **22** | |
+| 🟢 P11 | SharedTypes / Components / Repository / Services | 2 | 软件名称、可提取状态与检材类型 Word 投影 |
+| 🟢 P12 | Services | 1 | 附件摘要标识与附件一表头排版 |
+| 🟡 P13 | Services | 1 | 附件摘要三行留白与条件分页 |
+| **合计** | **Layer 0、2、10~12、20~21** | **26** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。
 

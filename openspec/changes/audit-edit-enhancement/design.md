@@ -151,6 +151,12 @@ MD5 的密码学事实值保持不变，不改写既有 Manifest 或持久化摘
 
 模板填充和 officecli batch 回退两条 DOCX 路径均在渲染边界使用 `trim(prefix) + trim(parsedUnit)`，不添加空格或分隔符。这样不会把前缀写回报告识别单位，也能保证前缀为空时保持原有 Word 内容。
 
+## AD-009：使用 Word 段落约束实现附件摘要条件分页
+
+附件摘要不再携带无条件分页符。模板填充边界在检查结果与附件摘要之间保留三个空白行，并将三条摘要、摘要后的留白、检查人签名区、双横线和日期共同设置为连续的不可拆分页块：同页剩余空间能够同时容纳三行前置留白和完整摘要区域时，该区域紧随检查结果留白后排版；空间不足时，三个前置空白行保留在检查结果之后，Word 将完整摘要区域移动到下一页页首。独立分页时复用当前模板版式，不重建或压缩这些元素，确保其缩进、行距、对齐及纵向位置与变更前一致。附件摘要后的附件一继续使用既有分页规则，不与摘要区域绑定为同一不可拆块。
+
+该方案只表达标准 DOCX 分页语义，不引入页面高度估算或依赖特定文本长度的硬编码。OOXML 自动化测试负责验证三行留白、摘要段落约束、无固定分页符以及签名区和日期结构未被改写；Microsoft Word 导出 PDF 的人工验收分别覆盖“同页可容纳”和“同页不可容纳”两个分页场景，其中独立页必须与变更前参考版式逐项对照。
+
 ---
 
 ## 文件变更清单
@@ -171,5 +177,7 @@ MD5 的密码学事实值保持不变，不改写既有 Manifest 或持久化摘
 | `packages/shared/constants/` | L1 | — | 无变更 |
 | `packages/backend/app/services/report_parser_service.py` | L21 | 修改 | 数据字段映射与默认检查地点修正 |
 | `packages/backend/app/services/record_generator_service.py` | L21 | 修改 | officecli 跨环境调用兼容 |
+| `packages/backend/app/services/template_filler_service.py` | L21 | 修改 | 附件摘要三行留白、不可拆分段落约束及条件分页 |
+| `tests/test_template_filler_service.py` | 测试 | 修改 | 条件分页 OOXML 回归及可容纳/不可容纳场景 |
 | `packages/backend/package.json` | 工程配置 | 修改 | 后端 pytest 测试目录指向项目根目录 `tests/` |
 | `scripts/check-docs.ts` | 工程验证 | 修改 | 目录漂移扫描忽略 pytest 运行时缓存 |
