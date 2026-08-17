@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import {
+  getManagedAgentToolingFiles,
   getRequiredIncompleteTasks,
   getTaskEntries,
   parseWorkflowLevel,
@@ -51,6 +52,18 @@ const lowercaseMarker = '- [ ] T6 optional is not an explicit uppercase exemptio
 assert.deepEqual(getRequiredIncompleteTasks(lowercaseMarker).map((task) => task.text), [
   'T6 optional is not an explicit uppercase exemption',
 ])
+
+assert.deepEqual(getManagedAgentToolingFiles([
+  '.agents/commands/harness/apply.md',
+  '.claude/commands/harness/apply.md',
+  '.agents/skills/harness-apply/SKILL.md',
+  '.claude/skills/harness-apply/SKILL.md',
+  '.claude/settings.local.json',
+  'packages/frontend/src/App.tsx',
+]), {
+  agentsFiles: ['commands/harness/apply.md', 'skills/harness-apply/SKILL.md'],
+  claudeFiles: ['commands/harness/apply.md', 'skills/harness-apply/SKILL.md'],
+})
 
 assert.deepEqual(parseVerifyScope(['--change', 'current-change']), {
   all: false,

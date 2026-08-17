@@ -748,6 +748,23 @@ def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_
     assert restarted.defaults.get()["default_template_ref"] == custom_ref
 
 
+def test_builtin_template_rename_survives_service_restart(tmp_path: Path):
+    database = WorkbenchDatabase(tmp_path / "workbench.sqlite3", "SYNTHETIC-RENAME-RESTART")
+    services = build_workbench_services(database)
+    renamed = "SYNTHETIC renamed built-in template"
+
+    services.templates.rename_display_name(REFERENCE, renamed)
+    restarted = build_workbench_services(
+        WorkbenchDatabase(database.database_path, database.deployment_instance_id),
+    )
+
+    template = restarted.template_registry.get_internal(REFERENCE)
+    assert template["display_name"] == renamed
+    assert template["fingerprint"] == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
+    assert restarted.template_approvals.require_approved(REFERENCE)["status"] == "approved"
+    assert restarted.defaults.get()["default_template_ref"] == REFERENCE
+
+
 def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_case(tmp_path: Path):
     database = WorkbenchDatabase(tmp_path / "workbench.sqlite3", "SYNTHETIC-UPGRADE-PREVIOUS")
     template_root = Path(__file__).parents[1] / "word_templates"

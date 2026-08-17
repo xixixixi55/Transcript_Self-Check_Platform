@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
@@ -179,6 +180,10 @@ def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
     assert document.tables[0].rows[1].cells[2].text.strip().splitlines() == [
         "JC01", "检材内提取",
     ]
+    assert all(
+        paragraph.alignment == WD_ALIGN_PARAGRAPH.JUSTIFY
+        for paragraph in document.tables[0].rows[1].cells[2].paragraphs
+    )
     assert document.tables[0].rows[1].cells[4].text.strip() == "ABCDEF0123456789ABCDEF0123456789"
     for cell_index in (1, 4):
         for paragraph in document.tables[0].rows[1].cells[cell_index].paragraphs:

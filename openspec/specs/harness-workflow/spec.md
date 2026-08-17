@@ -41,13 +41,19 @@ Level 2 变更 MUST 同时维护实现任务和最终行为 delta，不因轻量
 
 ### Requirement: Mirrored agent workflow files
 
-Harness 和 OpenSpec 工具入口 MUST 在 `.agents` 与 `.claude` 中保持对应内容一致。
+Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.claude` 中保持对应内容一致；未纳入 Git 管理且已明确忽略的本机配置和 provider 专用安装产物不属于仓库镜像合同。
 
 #### Scenario: `.agents` 与 `.claude` 保持一致
 
 - **WHEN** Harness 或 OpenSpec 命令、Skill 被更新
-- **THEN** `.agents` 与 `.claude` 中对应文件同时更新
+- **THEN** Git 管理且未被忽略的 `.agents` 与 `.claude` 对应命令或 Skill 文件同时更新
 - **AND** 缺失文件或内容差异被文档门控报告
+
+#### Scenario: 本机 provider 工具不参与仓库镜像
+
+- **WHEN** 本机安装的 provider 专用 Skill 或 settings 文件未被 Git 管理且已明确忽略
+- **THEN** 文档门控不把不同 provider 的路径、命令前缀或本机 Hook 配置报告为仓库镜像漂移
+- **AND** 已纳入仓库管理的 Harness、OpenSpec 及项目 Skill 镜像检查保持不变
 
 ### Requirement: Candidate freeze follows applicable manual acceptance
 

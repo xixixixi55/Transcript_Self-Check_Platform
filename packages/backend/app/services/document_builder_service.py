@@ -283,7 +283,11 @@ def _build_table(table_data: dict) -> list[dict]:
                     "bold": "true" if row_index == 1 else "false",
                     "size": "16pt",
                     "font.ea": "仿宋_GB2312",
-                    "align": "center" if row_index == 1 else "left",
+                    "align": (
+                        "center" if row_index == 1
+                        else "both" if cols[column_index - 1].get("key") == "source"
+                        else "left"
+                    ),
                 },
             })
     return commands

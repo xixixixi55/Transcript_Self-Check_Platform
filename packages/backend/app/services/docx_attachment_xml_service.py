@@ -21,6 +21,14 @@ _WORD_WRAP_FOLLOWING_PROPERTIES = tuple(
     )
 )
 
+_JUSTIFICATION_FOLLOWING_PROPERTIES = tuple(
+    "{%s}%s" % (W_NS, local)
+    for local in (
+        "textDirection", "textAlignment", "textboxTightWrap", "outlineLvl",
+        "divId", "cnfStyle", "rPr", "sectPr", "pPrChange",
+    )
+)
+
 def qn(namespace: str, local: str) -> str:
     return "{%s}%s" % (namespace, local)
 
@@ -155,6 +163,27 @@ def set_cell_lines(cell: Any, lines: list[str]) -> None:
         node.text = line
     for paragraph in paragraphs[1:]:
         clear_text(paragraph)
+
+
+def set_paragraph_alignment(element: Any, alignment: str) -> None:
+    """Set direct paragraph alignment on every paragraph in an OOXML region."""
+    for paragraph in element.findall(".//%s" % qn(W_NS, "p")):
+        paragraph_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
+        if paragraph_pr is None:
+            paragraph_pr = etree.Element(qn(W_NS, "pPr"))
+            paragraph.insert(0, paragraph_pr)
+        justification = paragraph_pr.find("./%s" % qn(W_NS, "jc"))
+        if justification is None:
+            justification = etree.Element(qn(W_NS, "jc"))
+            insertion_index = next(
+                (
+                    index for index, child in enumerate(paragraph_pr)
+                    if child.tag in _JUSTIFICATION_FOLLOWING_PROPERTIES
+                ),
+                len(paragraph_pr),
+            )
+            paragraph_pr.insert(insertion_index, justification)
+        justification.set(qn(W_NS, "val"), alignment)
 
 
 def set_vertical_merge(cell: Any, restart: bool) -> None:

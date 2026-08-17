@@ -28,6 +28,7 @@ from .docx_attachment_xml_service import (
     set_cell_text,
     set_cell_lines,
     set_element_font,
+    set_paragraph_alignment,
     set_vertical_merge,
     text_of,
     trim_vml_line_vertical_span,
@@ -127,6 +128,7 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
 def _set_attachment1_cell_text(cell: Any, value: str, cell_index: int) -> None:
     if cell_index == 2:
         set_cell_lines(cell, attachment1_source_lines(value))
+        set_paragraph_alignment(cell, "both")
     else:
         set_cell_text(cell, value)
     if cell_index in (1, 4):

@@ -1052,6 +1052,9 @@ def _fill_table_row(row, item: dict):
                     source = source[:-3] + "检材内提取"
                 value = "\n".join(attachment1_source_lines(source))
             cell = row.cells[ci]
+            if key == "source":
+                for paragraph in cell.paragraphs:
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             for para in cell.paragraphs:
                 for run in para.runs:
                     # 替换占位符

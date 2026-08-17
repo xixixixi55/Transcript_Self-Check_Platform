@@ -259,6 +259,15 @@ workflow_level: 3
   - final_gate: [BLOCKED] `verify:full -- --change audit-edit-enhancement` 的预检、架构、类型、治理、资产和前端 368 项测试通过；后端 1145 passed / 3 skipped，仅 `test_long_snapshot_paths_use_short_private_root_without_changing_source_tree` 因当前 pytest 临时根过长使可构造中间段为 14（测试要求至少 16）而失败。本任务定向 79 项和失败用例外的数据库权限问题均已验证与分页改动无关；另有任务开始前已存在的 39 项 agent-tooling mirror drift。达到 Harness 单任务验证循环上限后停止继续重跑。
   - manual_acceptance: [PASS] Microsoft Word/PDF 覆盖“同页可容纳”和“同页不可容纳”两个场景；独立页逐项对照变更前参考图，三条摘要、检查人签名、双横线和日期的位置及样式一致。
 
+## 🟢 Phase 14: 附件一来源对齐修复
+
+- [x] T027 **将附件一来源正文改为两端对齐**
+  - 文件：`packages/backend/app/services/docx_attachment_xml_service.py`、`attachment_docx_renderer_service.py`、`template_filler_service.py`、`document_builder_service.py` 及相关测试、本变更包 delta spec。
+  - 内容：正式模板、无 Manifest 模板兼容路径和 officecli batch 回退统一将附件一数据行“来源”列设为两端对齐；表头保持居中，逐检材换行、垂直合并及其他列版式不变。
+  - 覆盖 Spec：REQ-032“附件一来源正文使用两端对齐”。
+  - 验证：两条 Word 路径定向 pytest、合成 DOCX OOXML 断言、officecli validate、架构与类型检查、`git diff --check`。
+  - 证据：模板正式路径、模板兼容路径与 officecli batch 回退相关测试 79 passed；合成 DOCX 的来源正文为 `w:jc=both` 且 officecli validate 0 errors；架构和类型检查通过。`pre-commit` 仅被任务开始前已有的 39 项 agent-tooling mirror drift 阻断。
+
 ---
 
 ## 任务摘要
@@ -278,7 +287,8 @@ workflow_level: 3
 | 🟢 P11 | SharedTypes / Components / Repository / Services | 2 | 软件名称、可提取状态与检材类型 Word 投影 |
 | 🟢 P12 | Services | 1 | 附件摘要标识与附件一表头排版 |
 | 🟡 P13 | Services | 1 | 附件摘要三行留白与条件分页 |
-| **合计** | **Layer 0、2、10~12、20~21** | **26** | |
+| 🟢 P14 | Services | 1 | 附件一来源正文两端对齐 |
+| **合计** | **Layer 0、2、10~12、20~21** | **27** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。
 

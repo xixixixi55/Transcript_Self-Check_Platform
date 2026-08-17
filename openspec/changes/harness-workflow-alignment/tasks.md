@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: T011-T014 implemented; delta synchronized to openspec/specs/harness-workflow/spec.md
+spec_sync_evidence: T011-T017 implemented; delta synchronized to openspec/specs/harness-workflow/spec.md
 
 ## 目标
 
@@ -28,3 +28,5 @@ spec_sync_evidence: T011-T014 implemented; delta synchronized to openspec/specs/
 - [x] T015 对照 delta 完成实现核对，运行 `test:governance`、scoped strict docs、typecheck 与 `git diff --check`，同步 living spec 后记录证据；验证：上述检查通过，scoped full gate 已验证预检、摘要输出及全量测试阶段，失败 build 按隔离复跑策略验证。
 - [x] T016 Windows 未显式配置 `HARNESS_TEMP_ROOT` 时，默认使用项目所在卷根目录的短路径 `harness-temp-root`，按需创建目录，并保留显式覆盖优先级；同步验证策略和 living spec；验证：治理单元测试、预检实测、`verify:quick`、scoped strict docs 与 `git diff --check`。
   - 证据：未设置 `HARNESS_TEMP_ROOT` 时 `npm run verify:preflight` 输出 `temp="D:\\harness-temp-root"` 并通过；治理测试覆盖 Windows 项目盘默认值与显式覆盖优先级；typecheck、`verify:quick`、scoped strict docs 与 `git diff --check` 通过。
+- [x] T017 将 Agent 工具镜像门控限定为 Git 管理且未忽略的命令/Skill 源，忽略本机 settings 与 provider 专用安装目录；保留对仓库单侧缺失或内容不一致的检测。文件：`.gitignore`、`scripts/check-docs.ts`、`scripts/check-docs-utils.ts`、治理测试及本变更 delta/living spec；验证：治理测试、`verify:quick`、scoped strict docs 与 `git diff --check`。
+  - 证据：39 项本机/provider 漂移清零，`verify:quick` 全部通过；临时添加未忽略的单侧合成 Skill 时门控准确报告 1 项 `agent-tooling-mirror-drift`，移除后恢复 0 drift；delta 已同步到 living spec。

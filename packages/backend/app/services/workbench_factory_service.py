@@ -289,10 +289,14 @@ def _register_builtin_template(
     asset_path: Path,
     acceptance_summary: str,
 ) -> None:
+    existing = registry.find_internal(reference)
+    effective_display_name = (
+        existing["display_name"] if existing is not None else display_name
+    )
     registry.register({
         "schema_version": 1,
         "template_ref": reference,
-        "display_name": display_name,
+        "display_name": effective_display_name,
         "fingerprint": fingerprint,
         "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
         "asset_id": asset_id,

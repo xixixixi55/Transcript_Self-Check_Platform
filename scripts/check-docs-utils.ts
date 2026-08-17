@@ -82,3 +82,33 @@ export function validateDeltaSpec(content: string): string[] {
 
   return errors
 }
+
+export interface ManagedAgentToolingFiles {
+  agentsFiles: string[]
+  claudeFiles: string[]
+}
+
+/** Group Git-managed command/skill files by provider mirror root. */
+export function getManagedAgentToolingFiles(files: string[]): ManagedAgentToolingFiles {
+  const agentsFiles = new Set<string>()
+  const claudeFiles = new Set<string>()
+
+  for (const file of files) {
+    const normalized = file.replaceAll('\\', '/')
+    for (const [prefix, target] of [
+      ['.agents/', agentsFiles],
+      ['.claude/', claudeFiles],
+    ] as const) {
+      if (!normalized.startsWith(prefix)) continue
+      const relativeFile = normalized.slice(prefix.length)
+      if (relativeFile.startsWith('commands/') || relativeFile.startsWith('skills/')) {
+        target.add(relativeFile)
+      }
+    }
+  }
+
+  return {
+    agentsFiles: [...agentsFiles].sort(),
+    claudeFiles: [...claudeFiles].sort(),
+  }
+}

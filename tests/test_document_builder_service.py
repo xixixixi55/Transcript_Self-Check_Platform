@@ -239,6 +239,12 @@ def test_batch_fallback_normalizes_titles_md5_and_extract_source():
     ]
     assert [command["props"]["text"] for command in header_cells] == ["电子数据", "来源"]
     assert all(command["props"]["align"] == "center" for command in header_cells)
+    source_cell = next(
+        command for command in commands
+        if command.get("command") == "set"
+        and command.get("path") == "/body/tbl[1]/tr[2]/tc[3]"
+    )
+    assert source_cell["props"]["align"] == "both"
 
 
 def test_generate_docx_rejects_empty_output(tmp_path: Path):

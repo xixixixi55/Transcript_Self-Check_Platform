@@ -155,6 +155,7 @@ Renderer 当前正式渲染输入为 `InspectionReport` 兼容数据 + `ArchiveM
 - [x] 12.6 增加已审核模板显示名称的独立重命名能力，并移除三个管理页标题下方的冗余说明：SharedTypes/Constants 定义请求与端点；FE Hook/Component 提供带长度校验、提交中状态和失败保留输入的重命名交互；Pages 删除指定副文案；Repository/Service/Controller 只更新显示名称元数据，保持模板资产、指纹、审批、默认状态与案件引用不变。文件：`packages/shared/types/template.ts`、`packages/shared/constants/index.ts`、`packages/frontend/src/hooks/useTemplateManagement.ts`、`packages/frontend/src/components/TemplateManager.tsx`、三个管理页、`packages/backend/app/repository/template_registry_repository.py`、`packages/backend/app/services/template_registry_service.py`、`packages/backend/app/controllers/template_controller.py`。
 - [ ] 12.6T 增加可区分的前后端回归测试：有效重命名即时刷新列表；空白、超长及额外字段被拒绝并保持原名；模板 ID/版本、资产指纹、审批、默认状态和案件引用不变；三个说明文案不再渲染。验证：定向 Vitest、pytest、架构检查、类型检查、`npm run verify:quick`、scoped strict docs 和 `git diff --check`。
   - 当前证据：前端 2 files / 7 passed；后端 18 passed；架构、类型、OpenSpec strict validate 和 `git diff --check` 通过。`verify:quick` 的本次 type drift 已清零，但仍被任务开始前已存在的 39 项 `.agents`/`.claude` 未跟踪工具镜像漂移阻断；按工作区保护规则未改写这些本地工具文件，因此本任务暂不勾选。视觉验收按用户要求由用户执行，独立审查按用户要求取消。
+  - 启动回归修复：内置模板启动注册沿用已持久化的用户显示名称，同时继续校验版本、资产、指纹、规则和审批元数据的不可变性；新增服务重启测试覆盖名称、指纹、审批及默认模板状态保持。模板控制器与注册仓库定向测试 19 passed；架构和类型检查通过。`verify:quick` 仍仅被上述 39 项既有工具镜像漂移阻断；scoped strict docs 同时报告该漂移和本任务未勾选状态。
 - [x] 12.2T 增加确定性模板清理、无批注部件/标记/关系、无模板媒体、附件二锚点保留、历史模板指纹可复现、新默认模板注册、已有案件继续引用 `1.0.0`、自定义默认模板不被覆盖、0/2/4 张动态图片回归测试；受影响后端组合 127 passed / 1 skipped，核心清理逻辑突变验证按预期失败且恢复后通过。人工 Word 视觉验收因当前环境缺少 LibreOffice/Word 渲染器保持待验收，不伪报通过。
 
 ## 13. 全黑字体策略（Layer 21）

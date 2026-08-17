@@ -23,9 +23,11 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import {
   getCompletedTaskFileReferences,
+  getManagedAgentToolingFiles,
   getRequiredIncompleteTasks,
   getWorkflowMetadata,
   parseWorkflowLevel,
@@ -385,8 +387,12 @@ function checkAgentToolingMirror(): Drift[] {
   const drifts: Drift[] = []
   const agentsDir = path.join(ROOT, '.agents')
   const claudeDir = path.join(ROOT, '.claude')
-  const agentsFiles = getAllRelativeFiles(agentsDir)
-  const claudeFiles = getAllRelativeFiles(claudeDir)
+  const managedFiles = execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', '--', '.agents', '.claude'],
+    { cwd: ROOT, encoding: 'utf8' },
+  ).split(/\r?\n/).filter(Boolean)
+  const { agentsFiles, claudeFiles } = getManagedAgentToolingFiles(managedFiles)
   const relativeFiles = [...new Set([...agentsFiles, ...claudeFiles])].sort()
 
   for (const relativeFile of relativeFiles) {

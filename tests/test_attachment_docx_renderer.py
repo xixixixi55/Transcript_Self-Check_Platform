@@ -311,6 +311,9 @@ def test_attachment1_source_puts_each_material_number_on_its_own_line(tmp_path):
         paragraph = source_cell.find(".//{%s}p" % W_NS)
         assert [node.text for node in paragraph.findall(".//{%s}t" % W_NS)] == expected_lines
         assert len(paragraph.findall(".//{%s}br" % W_NS)) == len(material_numbers)
+        justification = paragraph.find("./{%s}pPr/{%s}jc" % (W_NS, W_NS))
+        assert justification is not None
+        assert justification.get("{%s}val" % W_NS) == "both"
         merge = source_cell.find("./{%s}tcPr/{%s}vMerge" % (W_NS, W_NS))
         assert merge.get("{%s}val" % W_NS) == "restart"
         for continuation in rows[first_data_index + 1:]:
