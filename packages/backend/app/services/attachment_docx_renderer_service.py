@@ -16,6 +16,8 @@ from .attachment_plan_models_service import (
 )
 from .docx_attachment_xml_service import (
     W_NS,
+    allow_latin_character_wrap,
+    attachment1_source_lines,
     clear_table_rows,
     clone_page_break,
     existing_vml_ids,
@@ -24,6 +26,7 @@ from .docx_attachment_xml_service import (
     replace_vml_text,
     set_paragraph_text,
     set_cell_text,
+    set_cell_lines,
     set_element_font,
     set_vertical_merge,
     text_of,
@@ -122,7 +125,12 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
         table.append(signature_row)
     return table
 def _set_attachment1_cell_text(cell: Any, value: str, cell_index: int) -> None:
-    set_cell_text(cell, value)
+    if cell_index == 2:
+        set_cell_lines(cell, attachment1_source_lines(value))
+    else:
+        set_cell_text(cell, value)
+    if cell_index in (1, 4):
+        allow_latin_character_wrap(cell)
     east_asia = "楷体" if cell_index == 0 else "仿宋_GB2312"
     size_half_points = 22 if cell_index == 3 else 32
     set_element_font(cell, east_asia, size_half_points)

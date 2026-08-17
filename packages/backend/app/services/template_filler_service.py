@@ -38,6 +38,10 @@ from .attachment2_plan_service import (
 from .attachment2_docx_renderer_service import render_attachment2_pages
 from .attachment_plan_service import build_attachment_plan
 from .attachment_docx_renderer_service import render_attachment_plan
+from .docx_attachment_xml_service import (
+    allow_latin_character_wrap,
+    attachment1_source_lines,
+)
 from .docx_output_sanitizer_service import sanitize_generated_docx
 from .template_profile_service import (
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
@@ -888,10 +892,11 @@ def _apply_required_heading_styles(doc: Document) -> None:
 
 
 def _apply_required_attachment_table_styles(doc: Document) -> None:
-    """Keep the short Attachment 1 headers centered without character spreading."""
+    """Apply stable Attachment 1 header and Latin wrapping rules."""
     if not doc.tables:
         return
-    for cell in doc.tables[0].rows[0].cells:
+    attachment_table = doc.tables[0]
+    for cell in attachment_table.rows[0].cells:
         if "".join(cell.text.split()) not in {"电子数据", "来源"}:
             continue
         for paragraph in cell.paragraphs:
@@ -905,6 +910,10 @@ def _apply_required_attachment_table_styles(doc: Document) -> None:
                     node = run_properties.find(qn(f"w:{local_name}"))
                     if node is not None:
                         run_properties.remove(node)
+    for row in attachment_table.rows:
+        for cell_index in (1, 4):
+            if cell_index < len(row.cells):
+                allow_latin_character_wrap(row.cells[cell_index]._tc)
 
 
 def _remove_comments(doc: Document):
@@ -1008,7 +1017,8 @@ def _fill_table_row(row, item: dict):
             elif key == "source":
                 source = str(value).strip()
                 if source.endswith("内提取") and not source.endswith("检材内提取"):
-                    value = source[:-3] + "检材内提取"
+                    source = source[:-3] + "检材内提取"
+                value = "\n".join(attachment1_source_lines(source))
             cell = row.cells[ci]
             for para in cell.paragraphs:
                 for run in para.runs:

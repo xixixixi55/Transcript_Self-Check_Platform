@@ -176,8 +176,15 @@ def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
         "委托单位：SYNTHETIC-公安分局SYNTHETIC-派出所" in paragraph.text
         for paragraph in document.paragraphs
     )
-    assert document.tables[0].rows[1].cells[2].text.strip() == "JC01检材内提取"
+    assert document.tables[0].rows[1].cells[2].text.strip().splitlines() == [
+        "JC01", "检材内提取",
+    ]
     assert document.tables[0].rows[1].cells[4].text.strip() == "ABCDEF0123456789ABCDEF0123456789"
+    for cell_index in (1, 4):
+        for paragraph in document.tables[0].rows[1].cells[cell_index].paragraphs:
+            word_wrap = paragraph._p.pPr.find(qn("w:wordWrap"))
+            assert word_wrap is not None
+            assert word_wrap.get(qn("w:val")) == "off"
 
 
 def test_manifest_render_removes_spread_formatting_from_short_extract_headers(tmp_path):

@@ -10,6 +10,17 @@ from lxml import etree
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 V_NS = "urn:schemas-microsoft-com:vml"
 
+_WORD_WRAP_FOLLOWING_PROPERTIES = tuple(
+    "{%s}%s" % (W_NS, local)
+    for local in (
+        "overflowPunct", "topLinePunct", "autoSpaceDE", "autoSpaceDN",
+        "bidi", "adjustRightInd", "snapToGrid", "spacing", "ind",
+        "contextualSpacing", "mirrorIndents", "suppressOverlap", "jc",
+        "textDirection", "textAlignment", "textboxTightWrap", "outlineLvl",
+        "divId", "cnfStyle", "rPr", "sectPr", "pPrChange",
+    )
+)
+
 def qn(namespace: str, local: str) -> str:
     return "{%s}%s" % (namespace, local)
 
@@ -45,6 +56,44 @@ def set_cell_text(cell: Any, value: str) -> None:
         node.text = ""
     for paragraph in paragraphs[1:]:
         clear_text(paragraph)
+
+
+def allow_latin_character_wrap(element: Any) -> None:
+    """Allow Latin text to wrap between characters in every paragraph."""
+    for paragraph in element.findall(".//%s" % qn(W_NS, "p")):
+        paragraph_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
+        if paragraph_pr is None:
+            paragraph_pr = etree.Element(qn(W_NS, "pPr"))
+            paragraph.insert(0, paragraph_pr)
+        word_wrap = paragraph_pr.find("./%s" % qn(W_NS, "wordWrap"))
+        if word_wrap is None:
+            word_wrap = etree.Element(qn(W_NS, "wordWrap"))
+            insertion_index = next(
+                (
+                    index for index, child in enumerate(paragraph_pr)
+                    if child.tag in _WORD_WRAP_FOLLOWING_PROPERTIES
+                ),
+                len(paragraph_pr),
+            )
+            paragraph_pr.insert(insertion_index, word_wrap)
+        word_wrap.set(qn(W_NS, "val"), "off")
+
+
+def attachment1_source_lines(value: str) -> list[str]:
+    """Format material numbers as one explicit line each before the source suffix."""
+    suffix = "检材内提取"
+    normalized = value.strip()
+    if not normalized.endswith(suffix):
+        return [normalized]
+    material_text = normalized[:-len(suffix)].strip()
+    material_numbers = [item.strip() for item in material_text.split("、") if item.strip()]
+    if not material_numbers:
+        return [normalized]
+    lines = [
+        number + ("、" if index < len(material_numbers) - 1 else "")
+        for index, number in enumerate(material_numbers)
+    ]
+    return [*lines, suffix]
 
 
 def set_element_font(element: Any, east_asia: str, size_half_points: int) -> None:

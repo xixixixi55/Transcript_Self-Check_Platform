@@ -16,7 +16,39 @@ from ..repository.workbench_errors import WorkbenchPersistenceError
 from .attachment2_plan_service import with_compatible_material_photo_groups
 from .case_asset_service import within_asset_orphan_retention
 from .software_policy_service import normalize_runtime_software_tool_projection
-from .unified_export_service import UnifiedExportError, unified_export
+from .unified_export_service import UnifiedExportError, unified_export, with_disc_mapping
+
+
+def resolve_case_word_manifest(api: Any, case_id: str) -> dict[str, Any] | None:
+    """Resolve the same verified, mapped manifest used by unified export.
+
+    A case without a successful archive keeps the report-only compatibility
+    path. Once a successful archive exists, standalone Word export must use its
+    manifest and attachment plan instead of rendering a different attachment
+    layout from the legacy extract-list table.
+    """
+    task = next(
+        (item for item in api.tasks.get_history(case_id) if item["status"] == "succeeded"),
+        None,
+    )
+    if task is None:
+        return None
+    bundle = api.results.manifest_bundle(task["task_id"])
+    plan = _bound_manifest_plan(api, case_id, bundle["public_manifest"])
+    return with_disc_mapping(bundle["public_manifest"], plan)
+
+
+def _bound_manifest_plan(
+    api: Any, case_id: str, manifest: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Resolve only the plan identity persisted into this exact Manifest."""
+    plan_id = str(manifest.get("plan_id") or "")
+    if not plan_id:
+        return None
+    plan = api.plans.get(plan_id)
+    if plan.get("case_id") != case_id:
+        raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
+    return plan
 
 
 def export_bundle(
@@ -43,6 +75,7 @@ def export_bundle(
     if task is None or task["status"] != "succeeded":
         raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
     bundle = api.results.manifest_bundle(task["task_id"])
+    bound_plan = _bound_manifest_plan(api, case_id, bundle["public_manifest"])
     draft = api.drafts.get(case_id)
     report = normalize_runtime_software_tool_projection(draft["report"])
     bound_photo_ids = [
@@ -64,7 +97,7 @@ def export_bundle(
             template_context=template_context,
             word_filename=word_filename,
             database=api.database, case_id=case_id, task_id=task["task_id"],
-            plan=api.plans.get_latest_for_case(case_id),
+            plan=bound_plan,
         )
     except UnifiedExportError as error:
         raise WorkbenchPersistenceError(error.code, error.args[0]) from error

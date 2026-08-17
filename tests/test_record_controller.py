@@ -154,6 +154,76 @@ def test_standalone_word_export_writes_to_picker_authorized_directory(client, tm
     assert Path(generate.call_args.kwargs["output_dir"]).parent == tmp_path
 
 
+def test_case_standalone_word_export_reuses_unified_export_manifest(client, tmp_path):
+    from app.controllers import record_controller
+    from app.services.archive_authorization_service import ArchiveAuthorizationService
+
+    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    token = authorization.issue_exact_directory_grant(str(tmp_path))
+    manifest = {
+        "manifest_id": "SYNTHETIC-MANIFEST",
+        "validation_status": "validated",
+        "volume_size_bytes": 1024,
+        "parts": [{
+            "part_id": "SYNTHETIC-PART-1",
+            "part_number": 1,
+            "filename": "SYNTHETIC-CASE.rar",
+            "size_bytes": 1024,
+            "md5": "a" * 32,
+            "disc_number": "GP20260812-01",
+            "disc_date": "2026-08-12",
+            "disc_capacity_bytes": 4_700_000_000,
+        }],
+    }
+    services = MagicMock()
+    services.sources.authorization = authorization
+    services.archive_api = MagicMock()
+    report = _directory_export_report()
+    report["introduction"]["evidence_list"] = [{
+        "id": "SYNTHETIC-MATERIAL-1", "evidence_number": "SYNTHETIC-JC-1",
+        "material_type": "phone", "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }]
+    report["inspection"]["software_tools"] = [
+        {"name": "WinRAR压缩管理软件", "version": "7.0"},
+        {"name": "HashMyFiles", "version": "2.51"},
+    ]
+
+    def generate_to_staging(*_args, **kwargs):
+        output = Path(kwargs["output_dir"]) / "SYNTHETIC-result.docx"
+        output.write_bytes(b"SYNTHETIC-MANIFEST-DOCX")
+        return str(output)
+
+    with patch.object(record_controller, "get_workbench_services", return_value=services), \
+         patch.object(record_controller, "resolve_case_template_context", return_value={}), \
+         patch.object(record_controller, "resolve_case_disc_mapping") as disc_mapping, \
+         patch.object(record_controller, "resolve_case_archive_manifest", return_value=manifest) as resolve_manifest, \
+         patch.object(record_controller, "generate_docx", side_effect=generate_to_staging) as generate:
+        disc_mapping.return_value.plan_exists = False
+        response = client.post(
+            "/api/v1/records/export",
+            data={
+                "report_json": json.dumps(report, ensure_ascii=False),
+                "case_id": "case-SYNTHETIC-export",
+                "case_revision": "9",
+                "export_path": str(tmp_path),
+                "directory_token": token,
+                "word_filename": "SYNTHETIC-result.docx",
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    resolve_manifest.assert_called_once_with("case-SYNTHETIC-export")
+    assert generate.call_args.kwargs["archive_manifest"] == manifest
+    assert generate.call_args.args[0]["attachments"]["extract_list"]["rows"] == [{
+        "no": "1",
+        "electronic_data": "SYNTHETIC-CASE.rar",
+        "source": "SYNTHETIC-JC-1检材内提取",
+        "extraction_method": "使用取证设备对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值",
+        "md5_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    }]
+
+
 def test_standalone_word_export_rejects_reused_or_mismatched_directory_grant(client, tmp_path):
     from app.controllers import record_controller
     from app.services.archive_authorization_service import ArchiveAuthorizationService

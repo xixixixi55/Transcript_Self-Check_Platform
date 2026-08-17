@@ -39,6 +39,7 @@ from .pipeline_controller import (
     pipeline_settings_for_request,
 )
 from .record_template_context_controller import (
+    resolve_case_archive_manifest,
     resolve_case_disc_mapping,
     resolve_case_template_context,
 )
@@ -141,6 +142,7 @@ async def export_record_endpoint(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
     template_context = resolve_case_template_context(case_id, case_revision)
+    directory_export_requested = bool(export_path or directory_token or word_filename)
     report = normalize_primary_software_projection(report)
     attachments = report.setdefault("attachments", {})
     disc_mapping = resolve_case_disc_mapping(case_id)
@@ -163,6 +165,7 @@ async def export_record_endpoint(
     manifest_valid = False
     manifest_blocker_code = None
     validated_manifest = None
+    formal_context_id = None
     formal_archive_requested = bool(archive_context_id or manifest_id)
     if archive_context_id and manifest_id:
         try:
@@ -175,6 +178,8 @@ async def export_record_endpoint(
             manifest_valid = False
         except ArchiveRuntimeError as error:
             manifest_blocker_code = error.code
+    if validated_manifest is None and case_id and directory_export_requested:
+        validated_manifest = resolve_case_archive_manifest(case_id)
     gate = evaluate_export_gate(
         ExportGateInput(
             material_types_confirmed=not material_fields,
@@ -208,7 +213,6 @@ async def export_record_endpoint(
         )
     if formal_archive_requested and validated_manifest is None:
         raise HTTPException(status_code=422, detail={"code": "ARCHIVE_MANIFEST_MISSING"})
-    directory_export_requested = bool(export_path or directory_token or word_filename)
     if directory_export_requested:
         if not export_path or not directory_token or not word_filename:
             raise HTTPException(
@@ -252,7 +256,7 @@ async def export_record_endpoint(
             filename = os.path.basename(docx_path)
             if directory_export_requested:
                 os.replace(docx_path, os.path.join(selected_output, filename))
-        if validated_manifest is not None:
+        if validated_manifest is not None and formal_context_id is not None:
             observe_shadow_export(
                 formal_context_id, report, validated_manifest, settings, background_tasks,
                 legacy_plan=legacy_plan, canonical_source=canonical_source,
@@ -268,14 +272,14 @@ async def export_record_endpoint(
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
     except (Attachment2ImageError, AttachmentPlanError, TemplateProfileError) as error:
-        if validated_manifest is not None:
+        if validated_manifest is not None and formal_context_id is not None:
             record_shadow_export_failure_at_controller(settings, archive_context_id)
         raise HTTPException(
             status_code=422,
             detail={"code": error.code, "message": error.safe_message},
         ) from error
     except Exception:
-        if validated_manifest is not None:
+        if validated_manifest is not None and formal_context_id is not None:
             record_shadow_export_failure_at_controller(settings, archive_context_id)
         raise HTTPException(
             status_code=500,

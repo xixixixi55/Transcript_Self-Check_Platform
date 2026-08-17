@@ -11,8 +11,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.archive_export_service import export_bundle  # noqa: E402
+from app.services.archive_export_service import (  # noqa: E402
+    export_bundle,
+    resolve_case_word_manifest,
+)
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.services.archive_manifest_projection_service import (  # noqa: E402
+    project_manifest_to_legacy_report_with_plan,
+)
+from app.services.unified_export_service import with_disc_mapping  # noqa: E402
 
 
 def _api(consume_ok: bool) -> MagicMock:
@@ -22,8 +29,20 @@ def _api(consume_ok: bool) -> MagicMock:
     api.tasks.get_current_or_recent.return_value = {
         "task_id": "task-synthetic", "status": "succeeded",
     }
+    api.tasks.get_history.return_value = [{
+        "task_id": "task-synthetic", "status": "succeeded",
+    }]
     api.results.manifest_bundle.return_value = {
-        "public_manifest": {"parts": [{"filename": "case.part1.rar", "disc_number": "GP20260730-01"}]},
+        "public_manifest": {
+            "manifest_id": "manifest-synthetic", "plan_id": "plan-synthetic",
+            "validation_status": "validated", "volume_size_bytes": 1024,
+            "parts": [{
+                "part_id": "part-synthetic", "part_number": 1,
+                "filename": "case.part1.rar", "size_bytes": 1024,
+                "md5": "a" * 32, "disc_number": "GP20260730-01",
+                "disc_date": "2026-07-30", "disc_capacity_bytes": 4_700_000_000,
+            }],
+        },
         "final_dir": "D:\\synthetic\\final",
     }
     api.drafts.get.return_value = {"report": {
@@ -32,9 +51,18 @@ def _api(consume_ok: bool) -> MagicMock:
         ]},
         "attachments": {"disc_number": "GP20260730-01"},
     }}
-    api.plans.get_latest_for_case.return_value = {
-        "volume_slots": [{"status": "active", "disc_mapping": {"disc_number": "GP20260730-01"}}],
+    plan = {
+        "plan_id": "plan-synthetic", "case_id": "case-synthetic",
+        "volume_slots": [{
+            "status": "active", "ordinal": 1,
+            "disc_mapping": {
+                "confirmation": "confirmed", "disc_number": "GP20260730-01",
+                "disc_date": "2026-07-30",
+            },
+        }],
     }
+    api.plans.get.return_value = plan
+    api.plans.get_latest_for_case.return_value = plan
     return api
 
 
@@ -52,6 +80,113 @@ def test_export_bundle_rejects_unauthorized_path(tmp_path: Path) -> None:
             directory_token="token-synthetic", template_context={},
         )
     assert error.value.code == "EXPORT_PATH_NOT_AUTHORIZED"
+
+
+def test_standalone_word_manifest_matches_unified_export_projection() -> None:
+    api = _api(consume_ok=True)
+    api.results.manifest_bundle.return_value["public_manifest"]["parts"][0].update({
+        "disc_number": "",
+        "disc_date": "",
+    })
+    api.plans.get.return_value = {
+        "plan_id": "plan-synthetic", "case_id": "case-synthetic",
+        "volume_slots": [{
+            "status": "active",
+            "ordinal": 1,
+            "disc_mapping": {
+                "confirmation": "confirmed",
+                "disc_number": "GP20260730-01",
+                "disc_date": "2026-07-30",
+            },
+        }],
+    }
+
+    resolved = resolve_case_word_manifest(api, "case-synthetic")
+
+    assert resolved is not None
+    assert resolved["parts"][0]["disc_number"] == "GP20260730-01"
+    assert resolved["parts"][0]["disc_date"] == "2026-07-30"
+    assert api.results.manifest_bundle.return_value["public_manifest"]["parts"][0]["disc_number"] == ""
+
+
+def test_newer_active_task_does_not_hide_last_successful_archive() -> None:
+    api = _api(consume_ok=True)
+    api.tasks.get_current_or_recent.return_value = {
+        "task_id": "task-running", "status": "running",
+    }
+    api.tasks.get_history.return_value = [
+        {"task_id": "task-running", "status": "running"},
+        {"task_id": "task-synthetic", "status": "succeeded"},
+    ]
+
+    resolved = resolve_case_word_manifest(api, "case-synthetic")
+
+    assert resolved is not None
+    api.results.manifest_bundle.assert_called_once_with("task-synthetic")
+
+
+def test_standalone_word_rejects_plan_from_another_publication() -> None:
+    api = _api(consume_ok=True)
+    api.plans.get.return_value = {
+        "plan_id": "plan-synthetic", "case_id": "case-other", "volume_slots": [],
+    }
+
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        resolve_case_word_manifest(api, "case-synthetic")
+
+    assert error.value.code == "ARCHIVE_RESULT_NOT_AVAILABLE"
+
+
+def test_standalone_word_does_not_fallback_when_verified_manifest_is_invalid() -> None:
+    api = _api(consume_ok=True)
+    api.results.manifest_bundle.side_effect = WorkbenchPersistenceError(
+        "ARCHIVE_RESULT_NOT_AVAILABLE",
+    )
+
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        resolve_case_word_manifest(api, "case-synthetic")
+
+    assert error.value.code == "ARCHIVE_RESULT_NOT_AVAILABLE"
+
+
+def test_standalone_and_unified_inputs_build_the_same_real_attachment_plan() -> None:
+    api = _api(consume_ok=True)
+    report = {
+        "introduction": {"evidence_list": [{"evidence_number": "SYNTHETIC-JC-1"}]},
+        "inspection": {
+            "hardware_device": "SYNTHETIC-DEVICE",
+            "primary_software": {
+                "name": "SYNTHETIC-FORENSIC", "version": "1.0",
+                "confirmation_status": "confirmed_by_user",
+            },
+            "software_tools": [
+                {"name": "WinRAR", "version": "7.0"},
+                {"name": "HashMyFiles", "version": "2.51"},
+            ],
+        },
+        "attachments": {"photo_ids": [], "photo_groups": []},
+    }
+    standalone_manifest = resolve_case_word_manifest(api, "case-synthetic")
+    raw_manifest = api.results.manifest_bundle.return_value["public_manifest"]
+    unified_manifest = with_disc_mapping(raw_manifest, api.plans.get("plan-synthetic"))
+
+    _, standalone_plan = project_manifest_to_legacy_report_with_plan(
+        report, standalone_manifest,
+    )
+    _, unified_plan = project_manifest_to_legacy_report_with_plan(report, unified_manifest)
+
+    assert standalone_plan == unified_plan
+    assert standalone_plan.attachment1_pages[0].serial_rows[0].filename == "case.part1.rar"
+
+
+def test_standalone_word_without_successful_archive_keeps_report_only_path() -> None:
+    api = _api(consume_ok=True)
+    api.tasks.get_history.return_value = [{
+        "task_id": "task-synthetic", "status": "failed",
+    }]
+
+    assert resolve_case_word_manifest(api, "case-synthetic") is None
+    api.results.manifest_bundle.assert_not_called()
 
 
 def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> None:

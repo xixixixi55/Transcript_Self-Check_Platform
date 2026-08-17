@@ -97,7 +97,7 @@ def unified_export(
     with tempfile.TemporaryDirectory(prefix=".biji-export-", dir=export_path) as temp_dir:
         staging_path = Path(temp_dir)
         word_filename = _export_word(
-            report, _with_disc_mapping(manifest, plan), staging_path, photo_paths,
+            report, with_disc_mapping(manifest, plan), staging_path, photo_paths,
             template_context, word_filename,
         )
         for rar in rar_paths:
@@ -180,23 +180,23 @@ def _archive_export_path(export_path: Path) -> Path:
     return export_path if parent == export_path else parent
 
 
-def _with_disc_mapping(
+def with_disc_mapping(
     manifest: dict[str, Any], plan: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Return a manifest copy with deferred disc numbers layered from the plan.
 
     The stored manifest stays immutable (empty disc metadata for a deferred
-    mapping); the Word renderer needs each part's disc date/number, so the
-    mapped values are applied to a working copy before DOCX generation.
+    mapping). Both standalone Word export and unified export call this helper,
+    so their attachment plans receive identical disc metadata.
     """
+    working = copy.deepcopy(manifest)
     if plan is None:
-        return manifest
+        return working
     disc_by_ordinal = {
         slot["ordinal"]: slot.get("disc_mapping") or {}
         for slot in plan.get("volume_slots", [])
         if slot["status"] != "removed"
     }
-    working = copy.deepcopy(manifest)
     for index, part in enumerate(working.get("parts", [])):
         ordinal = part.get("part_number") or (index + 1)
         mapping = disc_by_ordinal.get(ordinal, {}) or {}

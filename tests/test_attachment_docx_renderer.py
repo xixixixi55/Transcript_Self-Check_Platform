@@ -254,6 +254,77 @@ def test_attachment1_three_rows_match_customer_font_baseline(tmp_path):
     assert "\u68c0\u67e5\u4eba\u5458" in "".join(rows[-1].itertext())
 
 
+def test_attachment1_latin_fields_allow_character_wrap_on_every_page(tmp_path):
+    output = tmp_path / "attachment-1-latin-wrap.docx"
+    fill_template(report(), str(TEMPLATE), str(output), [], manifest(5))
+
+    for table in attachment_tables(document_root(output)):
+        for row in table.findall("./{%s}tr" % W_NS):
+            cells = row.findall("./{%s}tc" % W_NS)
+            if len(cells) < 5 or "检查人员" in "".join(row.itertext()):
+                continue
+            for cell_index in (1, 4):
+                paragraphs = cells[cell_index].findall(".//{%s}p" % W_NS)
+                assert paragraphs
+                for paragraph in paragraphs:
+                    paragraph_pr = paragraph.find("./{%s}pPr" % W_NS)
+                    word_wrap = paragraph_pr.find("./{%s}wordWrap" % W_NS)
+                    assert word_wrap is not None
+                    assert word_wrap.get("{%s}val" % W_NS) == "off"
+                    properties = list(paragraph_pr)
+                    later_properties = [
+                        node for node in properties
+                        if node.tag in {
+                            "{%s}spacing" % W_NS,
+                            "{%s}ind" % W_NS,
+                            "{%s}jc" % W_NS,
+                            "{%s}rPr" % W_NS,
+                        }
+                    ]
+                    assert all(
+                        properties.index(word_wrap) < properties.index(node)
+                        for node in later_properties
+                    )
+
+
+def test_attachment1_source_puts_each_material_number_on_its_own_line(tmp_path):
+    current_report = report()
+    material_numbers = [f"JC202605790{index}" for index in range(1, 7)]
+    current_report["introduction"]["evidence_list"] = [
+        {"evidence_number": number, "device_type": "手机"}
+        for number in material_numbers
+    ]
+    output = tmp_path / "attachment-1-source-lines.docx"
+    fill_template(current_report, str(TEMPLATE), str(output), [], manifest(5))
+
+    expected_lines = [
+        *[f"{number}、" for number in material_numbers[:-1]],
+        material_numbers[-1],
+        "检材内提取",
+    ]
+    tables = attachment_tables(document_root(output))
+    assert len(tables) == 2
+    for table_index, table in enumerate(tables):
+        rows = table.findall("./{%s}tr" % W_NS)
+        first_data_index = 1 if table_index == 0 else 0
+        source_cell = rows[first_data_index].findall("./{%s}tc" % W_NS)[2]
+        paragraph = source_cell.find(".//{%s}p" % W_NS)
+        assert [node.text for node in paragraph.findall(".//{%s}t" % W_NS)] == expected_lines
+        assert len(paragraph.findall(".//{%s}br" % W_NS)) == len(material_numbers)
+        merge = source_cell.find("./{%s}tcPr/{%s}vMerge" % (W_NS, W_NS))
+        assert merge.get("{%s}val" % W_NS) == "restart"
+        for continuation in rows[first_data_index + 1:]:
+            if ".rar" not in "".join(continuation.itertext()):
+                continue
+            continuation_source = continuation.findall("./{%s}tc" % W_NS)[2]
+            assert "".join(continuation_source.itertext()) == ""
+            continuation_merge = continuation_source.find(
+                "./{%s}tcPr/{%s}vMerge" % (W_NS, W_NS)
+            )
+            assert continuation_merge is not None
+            assert continuation_merge.get("{%s}val" % W_NS) is None
+
+
 def test_attachment1_four_rows_put_signature_on_new_page(tmp_path):
     output = tmp_path / "attachment-1-four.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(4))

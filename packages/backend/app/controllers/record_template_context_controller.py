@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from ..services.archive_export_service import resolve_case_word_manifest
 from ..services.disc_mapping_service import DiscMappingState, resolve_disc_mapping_state
 from ..services.workbench_factory_service import get_workbench_services
 
@@ -55,6 +56,22 @@ def resolve_case_disc_mapping(case_id: str) -> DiscMappingState:
         return DiscMappingState(plan_exists=False, first_disc_number=None)
     services = get_workbench_services()
     return resolve_disc_mapping_state(services.database, case_id)
+
+
+def resolve_case_archive_manifest(case_id: str) -> dict[str, object] | None:
+    """Return the unified-export manifest projection for a persisted case."""
+    if not case_id:
+        return None
+    services = get_workbench_services()
+    if services.archive_api is None:
+        _reject(503, "ARCHIVE_SERVICE_UNAVAILABLE", "归档服务暂不可用，请稍后重试。")
+    try:
+        return resolve_case_word_manifest(services.archive_api, case_id)
+    except Exception as error:
+        _reject(
+            422, "ARCHIVE_RESULT_NOT_AVAILABLE",
+            "已归档结果不可用，请重新完成归档后再导出。", error,
+        )
 
 
 def _reject(

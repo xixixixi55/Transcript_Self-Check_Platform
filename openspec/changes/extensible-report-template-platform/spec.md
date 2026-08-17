@@ -517,6 +517,17 @@
 - **WHEN** 生成包含任意偶数图片和多卷附件三的文档
 - **THEN** 当前生产分页只按 final Manifest 派生的 `AttachmentPlan` 和固定 TemplateProfile 中的确定性分页规则生效，不产生空白页、奇数页/偶数页分节符或被拆开的检查人员框
 
+#### Scenario: Attachment 1 Latin fields wrap within words
+
+- **WHEN** 附件1的“电子数据”或“文件MD5哈希值”包含超出单元格当前行宽的连续西文字符
+- **THEN** 首页和续页的对应数据单元格都允许西文在单词中间换行，不将整个文件名或 MD5 整体挪到下一行
+
+#### Scenario: Attachment 1 source uses one material number per line
+
+- **WHEN** 附件1的“来源”包含一个或多个检材编号
+- **THEN** 每个检材编号使用显式换行单独占一行，除最后一个编号外均保留顿号
+- **AND** “检材内提取”在所有检材编号之后单独占一行
+
 ### Requirement: InspectionReport compatibility boundary
 
 系统 MUST 保持现有 `InspectionReport` 作为兼容 DTO；主适配方向是 `ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出`。现有前端解析、编辑和导出请求在迁移期间 MUST 继续可用。`InspectionReport → CanonicalInspectionCase` 只作为旧 DTO 输入和历史迁移的 best-effort 入口，不承担 canonical 的完整回填。兼容适配器 MUST 明确无法从旧 DTO 恢复的字段来源、通用 identifiers、`InspectorSnapshot[]`、`ArchiveManifest`、`TemplateProfile` 信息、规划状态和其他新模型字段；不能把 `InspectionReport` 继续作为新领域层的唯一事实来源。
@@ -572,6 +583,19 @@
 
 - **WHEN** 用户上传当前旧/新报告、选择人员、输入首光盘号并提供零或任意偶数张图片
 - **THEN** 系统完成解析、分卷、三类附件规划和 `current-template-v1` 渲染，输出的正文、附件和卷信息彼此一致
+
+#### Scenario: 审核页单独导出与统一导出使用相同附件计划
+
+- **WHEN** 案件已有成功归档，用户从审核编辑界面单独导出 Word
+- **THEN** 系统使用统一导出所用的已验证最终 `ArchiveManifest`、持久化光盘映射和 `AttachmentPlan` 生成 Word
+- **AND** 附件一及其他附件的结构和版式与同一案件的统一导出 Word 保持一致
+- **AND** 单独导出仍不复制 RAR、不生成 HashMyFiles PNG、不改变统一导出完成状态
+
+#### Scenario: 尚无成功归档时单独导出兼容 Word
+
+- **WHEN** 案件尚无成功归档，用户从审核编辑界面单独导出 Word
+- **THEN** 系统继续使用 report-only 兼容分支生成 Word
+- **AND** 不伪造 `ArchiveManifest` 或归档完成状态
 
 #### Scenario: 任一规划门控失败
 
