@@ -426,6 +426,13 @@
 - WHEN 系统生成正式 Word
 - THEN 检材情况显示“HUAWEI SGU-AL10手机一部”
 
+**Scenario: iPhone 产品名不替代中文检材类型**
+- GIVEN 审核编辑界面的设备名称为“iPhone 14”
+- AND 检材类型为手机
+- WHEN 系统生成正式 Word
+- THEN 检材情况显示“iPhone 14手机一部”
+- AND 不得因设备名称包含“iPhone”而省略“手机”
+
 **Scenario: 平板类型追加且不重复**
 - WHEN 审核编辑界面的检材类型为平板
 - THEN 正式 Word 在设备品牌型号后追加“平板”再显示数量

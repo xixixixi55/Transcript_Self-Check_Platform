@@ -19,6 +19,8 @@ from .canonical_models_service import (
 MATERIAL_TYPE_RULE_ID = "device_type_controlled_v1"
 _PHONE_WORDS = ("手机", "智能手机", "phone", "smartphone", "iphone")
 _TABLET_WORDS = ("平板", "平板电脑", "tablet", "ipad")
+_PHONE_DISPLAY_TYPE_WORDS = ("手机", "智能手机", "phone", "smartphone")
+_TABLET_DISPLAY_TYPE_WORDS = ("平板", "平板电脑", "tablet")
 _CONFIRMED_STATUSES = {"confirmed_by_report", "confirmed_by_user"}
 
 
@@ -201,7 +203,11 @@ def reviewed_material_display_name(item: Mapping[str, Any], index: int = 0) -> s
 
 def _contains_material_type(value: str, material_type: str) -> bool:
     normalized = _normalise_device_type(value)
-    words = _PHONE_WORDS if material_type == "phone" else _TABLET_WORDS
+    words = (
+        _PHONE_DISPLAY_TYPE_WORDS
+        if material_type == "phone"
+        else _TABLET_DISPLAY_TYPE_WORDS
+    )
     for word in sorted(words, key=len, reverse=True):
         normalized_word = _normalise_device_type(word)
         if any("\u4e00" <= char <= "\u9fff" for char in normalized_word):

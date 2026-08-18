@@ -332,6 +332,27 @@ def test_evidence_renderer_appends_reviewed_material_type_to_device_name(tmp_pat
     assert "SYNTHETIC HUAWEI SGU-AL10一部" not in document_xml
 
 
+def test_evidence_renderer_appends_phone_after_iphone_product_name(tmp_path):
+    report = _report()
+    report["introduction"]["evidence_list"] = [{
+        "id": "synthetic-iphone",
+        "evidence_number": "SYN-JC-IPHONE",
+        "device_name": "SYNTHETIC iPhone 14",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+        "extractable": False,
+    }]
+    output = tmp_path / "reviewed-iphone-material-type.docx"
+
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    with zipfile.ZipFile(output) as package:
+        document_xml = package.read("word/document.xml").decode("utf-8")
+    assert "SYNTHETIC iPhone 14手机一部（无法提取）" in document_xml
+    assert "SYNTHETIC iPhone 14一部" not in document_xml
+
+
 def test_evidence_renderer_preserves_unconfirmed_template_name_priority(tmp_path):
     report = _report()
     report["introduction"]["evidence_list"] = [{

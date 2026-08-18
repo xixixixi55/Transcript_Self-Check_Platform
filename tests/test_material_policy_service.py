@@ -52,6 +52,24 @@ def test_reviewed_material_display_name_distinguishes_type_from_product_text():
     assert reviewed_material_display_name(reviewed_tablet) == "SYNTHETIC 平板电脑 X"
 
 
+def test_reviewed_material_display_name_appends_type_after_product_family_name():
+    reviewed_phone = {
+        "device_name": "SYNTHETIC iPhone 14",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }
+    reviewed_tablet = {
+        "device_name": "SYNTHETIC iPad Air",
+        "material_type": "tablet",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }
+
+    assert reviewed_material_display_name(reviewed_phone) == "SYNTHETIC iPhone 14手机"
+    assert reviewed_material_display_name(reviewed_tablet) == "SYNTHETIC iPad Air平板"
+
+
 def test_reviewed_material_display_name_handles_empty_and_unconfirmed_items():
     assert reviewed_material_display_name({
         "model": "SYNTHETIC MODEL",
@@ -74,6 +92,8 @@ def test_reviewed_material_display_name_handles_empty_and_unconfirmed_items():
 def test_controlled_device_type_words_classify_phone_and_tablet():
     assert classify_material_type("  iＰhone 14 ").status == "confirmed_by_report"
     assert classify_material_type("iＰhone 14").source == "report"
+    assert classify_material_type("  iＰad Air ").status == "confirmed_by_report"
+    assert classify_material_type("IＰAD Air").source == "report"
     assert classify_material_type("平板电脑").status == "confirmed_by_report"
 
 

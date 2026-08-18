@@ -116,6 +116,44 @@ def test_batch_builder_appends_reviewed_material_type_to_device_name():
     assert "SYNTHETIC HUAWEI SGU-AL10一部" not in paragraph_text
 
 
+def test_batch_builder_appends_phone_after_iphone_product_name():
+    report = _report()
+    report["introduction"]["evidence_list"][0].update({
+        "device_name": "SYNTHETIC iPhone 14",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    })
+
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(report)
+        if command.get("type") == "paragraph"
+    )
+
+    assert "SYNTHETIC iPhone 14手机一部" in paragraph_text
+    assert "SYNTHETIC iPhone 14一部" not in paragraph_text
+
+
+def test_batch_builder_appends_tablet_after_ipad_product_name():
+    report = _report()
+    report["introduction"]["evidence_list"][0].update({
+        "device_name": "SYNTHETIC iPad Air",
+        "material_type": "tablet",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    })
+
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(report)
+        if command.get("type") == "paragraph"
+    )
+
+    assert "SYNTHETIC iPad Air平板一部" in paragraph_text
+    assert "SYNTHETIC iPad Air一部" not in paragraph_text
+
+
 def test_batch_builder_preserves_unconfirmed_legacy_device_type_priority():
     report = _report()
     report["introduction"]["evidence_list"][0].update({

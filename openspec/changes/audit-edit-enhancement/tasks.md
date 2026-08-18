@@ -324,3 +324,13 @@ workflow_level: 3
   - 证据：受影响后端组合 88 passed；模板正式导出与 batch 兼容导出均断言“品牌型号+手机/平板+一部”，并覆盖未确认旧数据优先级、英文类型词、非类型中文子串、空设备名和仅 model/仅类型回退。
   - code_review: [PASS] 独立审查首轮发现未确认旧数据优先级、类型词边界和附件三断言截断问题；整改并补充区分性测试后复审 PASS，无剩余 MUST/SHOULD FIX。
   - final_gate: [PASS] 冻结候选执行 `npm run verify:full -- --change audit-edit-enhancement`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
+
+- [x] T029 **修复 iPhone/iPad 产品名误抑制中文检材类型**
+  - 文件：`packages/backend/app/services/material_policy_service.py`、`tests/test_material_policy_service.py`、`tests/test_document_builder_service.py`、`tests/test_template_filler_service.py`。
+  - 内容：产品系列名 `iPhone`/`iPad` 仍可用于检材分类，但不再视为显示名称中已有的“手机”/“平板”类型词；正式模板与 batch 兼容导出均稳定输出“产品名 + 中文检材类型 + 一部”。
+  - 覆盖 Spec：REQ-035。
+  - 验证：材料显示策略、模板填充和 batch 文书构建定向 pytest；架构检查、类型检查、`verify:quick` 和 scoped full gate。
+  - manual_acceptance: N/A（确定性文案投影由合成 DOCX 内容断言覆盖，不改变版式。）
+  - 证据：受影响材料策略、模板填充和 batch 文书构建组合 61 passed；临时恢复旧判断后 4 条关键回归用例全部失败，证明断言具有区分度；`verify:quick`、生产构建和 scoped strict docs 通过。
+  - code_review: [PASS] 独立审查首轮发现重复任务号和 iPad 分类断言缺口；整改后复审 PASS，无剩余 MUST/SHOULD FIX。
+  - final_gate: [BLOCKED] 两次 scoped full gate 均在无关的工作台/Shadow 全仓测试中失败（1195 passed、3 failed、7 errors）；失败 10 项在隔离可写数据库中定向复跑 10 passed，分别暴露默认数据库只读与全仓共享数据库后的 `TEMPLATE_VERSION_IMMUTABLE` 测试隔离问题。本任务源码与定向验证未失败。
