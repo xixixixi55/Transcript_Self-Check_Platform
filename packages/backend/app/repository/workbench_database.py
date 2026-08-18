@@ -16,11 +16,15 @@ from .workbench_constants import WORKBENCH_DATABASE_SCHEMA_VERSION
 from .workbench_errors import SchemaIncompatibleError, WorkbenchPersistenceError
 from .workbench_schema import MIGRATIONS, validate_schema
 from .workbench_time import normalize_optional_utc, normalize_utc, normalize_utc_z, utc_now, utc_now_z
+from .runtime_paths import get_runtime_paths
 
 _DEPLOYMENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _LOGGER = logging.getLogger(__name__)
 
 def default_workbench_data_root() -> Path:
+    runtime_paths = get_runtime_paths()
+    if runtime_paths.portable:
+        return runtime_paths.data_root
     if os.name == "nt":
         base = os.environ.get("LOCALAPPDATA")
         if base:

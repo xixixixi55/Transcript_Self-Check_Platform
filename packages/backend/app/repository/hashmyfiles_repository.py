@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .runtime_paths import get_runtime_paths
+
 _HASH_IMAGE_FILENAME = "hash-verification.png"
 _LEGACY_HASH_HTML_FILENAME = "hash-verification.html"
 # Probed against HashMyFiles v2.51 on Windows (2026-08-06); shown in the
@@ -17,8 +19,8 @@ _HASH_TYPES_ARGS = [
     "/MD5", "1", "/SHA1", "0", "/CRC32", "0",
     "/SHA256", "0", "/SHA512", "0", "/SHA384", "0",
 ]
-# Bundled default shipped with the repository: packages/backend -> root/hashmyfiles.
-_DEFAULT_TOOL_PATH = Path(__file__).resolve().parents[4] / "hashmyfiles" / "HashMyFiles.exe"
+# Resolved once after the launcher has established the portable environment.
+_DEFAULT_TOOL_PATH = get_runtime_paths().hashmyfiles_executable
 
 
 class HashMyFilesError(RuntimeError):

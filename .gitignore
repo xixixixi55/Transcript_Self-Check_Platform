@@ -5,6 +5,8 @@ node_modules/
 # Build outputs
 dist/
 build/
+dist/portable/
+dist/portable-build/
 *.tsbuildinfo
 
 # Python
@@ -58,6 +60,7 @@ hashmyfiles/
 # Logs
 *.log
 logs/
+PORTABLE-FILES.json
 
 # Test coverage
 coverage/
@@ -67,6 +70,7 @@ coverage/
 .claude/plan_mode.md
 
 # Local agent provider installations and settings
+.codex-tmp/
 .agents/settings.local.json
 .claude/settings.local.json
 .agents/skills/impeccable/

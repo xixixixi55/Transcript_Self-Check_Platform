@@ -55,6 +55,7 @@ from .template_profile_service import (
     validate_template_package_fingerprint,
 )
 from .template_registry_service import TemplateRegistryService
+from ..repository.runtime_paths import get_runtime_paths
 
 
 @dataclass
@@ -94,7 +95,7 @@ def build_workbench_services(
         archive_tasks, ResourceSnapshotRepository(database),
     )
     attempts = ArchiveAttemptService(database, OUTPUT_BASE)
-    template_root = Path(__file__).parents[4] / "word_templates"
+    template_root = get_runtime_paths().templates_root
     template_registry = TemplateRegistryRepository(
         database, (template_root, database.database_path.parent / "template-assets"),
     )

@@ -55,6 +55,19 @@ def test_snapshot_uses_stable_safe_fallbacks_for_each_failure():
     assert by_key["archive_output"]["code"] == "DEMO_ARCHIVE_OUTPUT_UNAVAILABLE"
 
 
+def test_portable_snapshot_reports_bundled_runtime_separately_from_winrar():
+    result = build_demo_readiness(
+        r"C:\SYNTHETIC\SECRET\output",
+        winrar_probe=lambda: _capability(False),
+        output_probe=lambda _root: "ready",
+        portable_probe=lambda: "ready",
+    )
+    by_key = {item["key"]: item for item in result["items"]}
+    assert by_key["portable_runtime"]["status"] == "ready"
+    assert by_key["winrar"]["status"] == "unavailable"
+    assert by_key["winrar"]["code"] == "WINRAR_UNAVAILABLE"
+
+
 def test_snapshot_converts_probe_exceptions_to_unknown_without_exception_text():
     def fail():
         raise RuntimeError(r"SYNTHETIC\SECRET\stack")

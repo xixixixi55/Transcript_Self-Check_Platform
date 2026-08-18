@@ -1,0 +1,10 @@
+文枢 Windows 便携版第三方组件声明
+
+本发布物包含下列运行组件；精确版本以 portable-manifest.json 为准：
+
+- Python 及其冻结运行依赖，各自按上游许可证分发；版本见 portable-manifest.json。
+- Node.js，按 Node.js 项目的许可证分发；许可证正文见 runtime/node/LICENSE。
+- @officecli/officecli，Apache-2.0；许可证正文见 licenses/officecli-Apache-2.0.txt。
+- HashMyFiles，freeware；发布物保留其官方分发文件且不修改。
+
+WinRAR/RAR 不包含在文枢发布物中。用户必须从官方渠道独立安装并按其许可使用。

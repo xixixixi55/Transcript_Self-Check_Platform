@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from .winrar_discovery_repository import WinRarCapability, discover_winrar
+from .runtime_paths import get_runtime_paths
 
 
 def probe_archive_output(output_root: str) -> str:
@@ -21,3 +22,20 @@ def probe_archive_output(output_root: str) -> str:
 
 def probe_winrar() -> WinRarCapability:
     return discover_winrar()
+
+
+def probe_portable_runtime() -> str | None:
+    paths = get_runtime_paths()
+    if not paths.portable:
+        return None
+    required = (
+        paths.web_root / "index.html",
+        paths.templates_root / "template.docx",
+        paths.node_executable,
+        paths.officecli_entry,
+        paths.hashmyfiles_executable,
+    )
+    try:
+        return "ready" if all(path.is_file() for path in required) else "unavailable"
+    except OSError:
+        return "unknown"

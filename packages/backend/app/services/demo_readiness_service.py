@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 from ..repository.demo_readiness_repository import (
     probe_archive_output,
+    probe_portable_runtime,
     probe_winrar,
 )
 from ..repository.winrar_discovery_repository import WinRarCapability
@@ -63,16 +64,39 @@ def _output_item(
     )
 
 
+def _portable_item(status: str) -> dict[str, str | None]:
+    if status == "ready":
+        return _item(
+            "portable_runtime", "内置运行组件", "ready", None,
+            "Python、Node、officecli、模板和校验工具可用。",
+        )
+    if status == "unavailable":
+        return _item(
+            "portable_runtime", "内置运行组件", "unavailable",
+            "PORTABLE_RUNTIME_UNAVAILABLE", "程序文件不完整，请重新解压完整发布包。",
+        )
+    return _item(
+        "portable_runtime", "内置运行组件", "unknown",
+        "PORTABLE_RUNTIME_UNKNOWN", "当前无法确认程序文件完整性，请重新启动。",
+    )
+
+
 def build_demo_readiness(
     output_root: str,
     *,
     winrar_probe: Callable[[], WinRarCapability] = probe_winrar,
     output_probe: Callable[[str], str] = probe_archive_output,
+    portable_probe: Callable[[], str | None] = probe_portable_runtime,
 ) -> dict[str, list[dict[str, str | None]]]:
-    return {
-        "items": [
-            _item("backend", "后端服务", "ready", None, "后端服务可用。"),
-            _winrar_item(winrar_probe),
-            _output_item(output_root, output_probe),
-        ],
-    }
+    items = [
+        _item("backend", "后端服务", "ready", None, "后端服务可用。"),
+        _winrar_item(winrar_probe),
+        _output_item(output_root, output_probe),
+    ]
+    try:
+        portable_status = portable_probe()
+    except Exception:
+        portable_status = "unknown"
+    if portable_status is not None:
+        items.append(_portable_item(portable_status))
+    return {"items": items}

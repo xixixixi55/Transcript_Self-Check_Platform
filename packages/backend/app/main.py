@@ -7,14 +7,17 @@ Layer 23: BE_Routes — FastAPI 应用入口与路由注册
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routes import router as api_router
+from .routes.portable_web import configure_portable_web
 from .services.pipeline_runtime_service import load_pipeline_settings
 from .services.workbench_factory_service import (
     WorkbenchServices,
@@ -28,6 +31,8 @@ def create_app(
     *,
     service_provider: Callable[[], WorkbenchServices] | None = None,
     enable_archive_runtime: bool = True,
+    portable_web_root: str | Path | None = None,
+    desktop_secret: str | None = None,
 ) -> FastAPI:
     """Build the API without starting workers until FastAPI lifespan startup."""
     provider = service_provider or get_workbench_services
@@ -61,13 +66,15 @@ def create_app(
     # the same immutable settings object; parsers and renderers do not read env.
     app.state.pipeline_settings = load_pipeline_settings()
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["http://localhost:30000"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    portable_mode = os.environ.get("BIJI_PORTABLE_MODE", "").strip() == "1"
+    if not portable_mode and portable_web_root is None:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["http://localhost:30000"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
     app.include_router(api_router, prefix="/api/v1")
 
     @app.get("/health")
@@ -75,7 +82,14 @@ def create_app(
         """健康检查端点"""
         return {"status": "ok", "service": "biji-zijian-platform"}
 
+    if portable_mode or portable_web_root is not None:
+        if portable_web_root is None:
+            raise RuntimeError("PORTABLE_WEB_ROOT_REQUIRED")
+        root = Path(portable_web_root)
+        secret = desktop_secret or os.environ.get("BIJI_DESKTOP_SECRET", "")
+        configure_portable_web(app, root, secret)
+
     return app
 
 
-app = create_app()
+app = create_app() if os.environ.get("BIJI_PORTABLE_MODE", "").strip() != "1" else None

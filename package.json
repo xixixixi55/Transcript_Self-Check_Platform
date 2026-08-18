@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "concurrently \"pnpm --filter @biji/frontend dev\" \"pnpm --filter @biji/backend dev\"",
     "build": "pnpm --filter @biji/frontend build",
+    "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1",
+    "verify:portable": "python scripts/verify-portable-package.py",
     "typecheck": "pnpm --filter @biji/shared build && pnpm --filter @biji/shared typecheck && pnpm --filter @biji/frontend typecheck",
     "lint:arch": "npx tsx scripts/lint-arch.ts",
     "test:frontend": "pnpm --filter @biji/frontend test",

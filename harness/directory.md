@@ -41,6 +41,8 @@
 │   ├── verify.sh                          #    综合验证
 │   └── pre-commit.sh                      #    提交前门控
 │
+├── packaging/                             # 📦 Windows 便携发布清单、PyInstaller 规格和许可声明
+│
 ├── packages/                              # 📦 Monorepo 包
 │   ├── shared/                            # 🔗 共享包（Layer 0-2）
 │   │   ├── types/                         # Layer 0: 实体、DTO、API 契约
@@ -56,12 +58,13 @@
 │   │       ├── components/                # Layer 11: UI 组件
 │   │       └── pages/                     # Layer 12: 页面路由
 │   │
-│   └── backend/                           # ⚙️ 后端 (FastAPI) — Layer 20-23
+│   ├── backend/                           # ⚙️ 后端 (FastAPI) — Layer 20-23
 │       └── app/
 │           ├── repository/                # Layer 20: 数据访问
 │           ├── services/                  # Layer 21: 业务逻辑
 │           ├── controllers/               # Layer 22: 请求处理
 │           └── routes/                    # Layer 23: 路由定义
+│   └── launcher/                          # 🪟 Windows 便携版启动器
 │
 ├── word_templates/                        # 📄 正式运行 Word 模板（template.docx）
 ├── reports/                               # 📥 HTML 取证报告（输入）

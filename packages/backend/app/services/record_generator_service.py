@@ -11,7 +11,6 @@ import json
 import ntpath
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 from datetime import datetime
@@ -23,19 +22,11 @@ from .document_builder_service import build_record_document
 from .template_filler_service import fill_template
 from .legacy_report_projection_service import project_ordered_legacy_report
 from .template_profile_service import require_registered_template
+from ..repository.officecli_runtime_repository import run_officecli
+from ..repository.runtime_paths import get_runtime_paths
 
 # 模板文件路径
-_TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.dirname(__file__))))), "word_templates", "template.docx")
-
-# 查找 officecli 完整路径（Windows: .cmd, Unix: 无扩展名）
-_OFFICECLI = shutil.which("officecli") or shutil.which("officecli.cmd")
-if not _OFFICECLI:
-    raise RuntimeError("officecli 未安装或不在 PATH 中。请运行: npm install -g officecli")
-
-# subprocess 公共参数
-# encoding='utf-8': 中文 Windows 默认 GBK，officecli 输出 UTF-8
-_SUBPROCESS_KWARGS = dict(capture_output=True, encoding="utf-8")
+_TEMPLATE_PATH = str(get_runtime_paths().templates_root / "template.docx")
 
 def _run_officecli(*args: str) -> subprocess.CompletedProcess:
     """调用 officecli。uvicorn 子进程的 PATH 可能不完整（缺少 npm 全局目录
@@ -45,16 +36,7 @@ def _run_officecli(*args: str) -> subprocess.CompletedProcess:
        执行 .CMD 批处理文件
     3. encoding='utf-8' 处理 officecli 的 UTF-8 输出
     """
-    env = os.environ.copy()
-    # 确保 cmd.exe 所在目录在 PATH 中（.CMD 文件依赖 cmd.exe 执行）
-    system32 = r"C:\Windows\System32"
-    if system32 not in env.get("PATH", ""):
-        env["PATH"] = system32 + ";" + env.get("PATH", "")
-    return subprocess.run(
-        [_OFFICECLI, *args],
-        env=env,
-        **_SUBPROCESS_KWARGS,
-    )
+    return run_officecli(*args)
 
 
 _WINDOWS_INVALID_FILE_NAME = re.compile(r'[<>:"/\\|?*]')

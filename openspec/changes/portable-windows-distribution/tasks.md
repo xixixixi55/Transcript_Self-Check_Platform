@@ -1,0 +1,36 @@
+workflow_level: 3
+
+## 1. 发布基础设施与依赖锁定
+
+- [x] 1.1 在 `packages/backend/requirements-runtime.txt`、`packaging/requirements-build.txt` 和根 `package.json` 定义发布期Python/PyInstaller及Node/officecli构建入口，固定实际发布版本且不改变开发命令。验证：解析依赖文件，运行现有`typecheck`和一个后端最小测试。
+- [x] 1.2 新增 `packaging/portable-manifest.json`、`packaging/THIRD-PARTY-NOTICES.txt` 与发布资产白名单，明确Windows x64目录、必需资源、禁止资产和WinRAR非捆绑边界。验证：清单schema测试覆盖缺失、额外文件、数据库/RAR/日志拒绝场景（发布内容 Requirement）。
+
+## 2. Layer 20 — 运行时路径与工具解析
+
+- [x] 2.1 新增 `packages/backend/app/repository/runtime_paths.py`，统一解析开发/冻结资源根和 `%LOCALAPPDATA%\文枢` 下的数据、工作、日志、备份目录；修改 `packages/backend/app/config.py` 只投影该结果。验证：新增 `tests/test_runtime_paths.py` 覆盖源码态、发布态、环境覆盖、缺失LOCALAPPDATA和程序目录只读边界（数据分离 Requirement）。
+- [x] 2.2 修改 `packages/backend/app/repository/hashmyfiles_repository.py`、`workbench_database.py` 及相关文件资源Repository，改用注入或统一运行时路径，不再通过固定仓库层级定位发布资源。验证：定向pytest覆盖环境覆盖优先、包内默认和用户数据不落发布目录。
+- [x] 2.3 新增 `packages/backend/app/repository/officecli_runtime_repository.py`，以显式参数数组解析并调用包内`node.exe + officecli入口`，开发态兼容显式/全局入口，发布态禁止全局回退和联网。验证：Repository单元测试覆盖包内成功、缺失、非零退出、含空格中文路径及发布态不调用PATH（私有officecli Requirement）。
+
+## 3. Layer 21 — 组合根和文档生成接线
+
+- [x] 3.1 修改 `packages/backend/app/services/workbench_factory_service.py`、`record_generator_service.py` 及相关Service，把模板、上传、输出、HashMyFiles和officecli路径从统一RuntimePaths注入，保持正式模板与officecli回退语义。验证：现有模板/导出pytest加发布布局回归，临时破坏包内officecli解析时测试必须失败（私有officecli、数据分离 Requirements）。
+- [x] 3.2 扩展运行就绪服务以分别报告包内资源和外部WinRAR状态；WinRAR缺失不得阻止应用启动，但继续门控RAR相关能力。文件：`packages/backend/app/services/demo_readiness_service.py`及现有相关测试。验证：pytest覆盖WinRAR存在/缺失与非RAR能力不受影响（WinRAR Requirement）。
+
+## 4. Layer 23 — 生产同源服务和会话边界
+
+- [x] 4.1 修改 `packages/backend/app/main.py`并新增不含业务逻辑的发布bootstrap模块，生产态从RuntimePaths提供Vite静态文件和SPA fallback，开发态保留当前CORS/Vite代理。验证：FastAPI TestClient覆盖首页、静态资产、未知SPA路由、API不被fallback吞掉（便携包与本地服务 Requirements）。
+- [x] 4.2 增加loopback桌面会话鉴权和一次性浏览器引导，API/下载拒绝无会话请求，开发态不启用；秘密不得写日志或最终地址。文件：`packages/backend/app/main.py`及同层辅助模块。验证：集成测试覆盖合法引导、重放、未授权API、健康检查和开发兼容；对鉴权判断做可区分有效性验证（本地服务 Requirement）。
+- [x] 4.3 新增 `packages/backend/app/portable_entry.py`，仅接受loopback端口、发布资源根、数据根和启动秘密，输出机器可读就绪握手并支持有界关闭。验证：子进程烟雾测试覆盖正常就绪、端口冲突、资源缺失和无秘密拒绝。
+
+## 5. Windows启动器与发布构建
+
+- [x] 5.1 新增 `packages/launcher/` 的Python启动器，实施同一数据根单实例、随机端口、秘密生成、隐藏后端、健康检查、浏览器打开、日志和进程树清理。验证：启动器单元测试覆盖正常、重复启动、超时、后端早退和退出清理（启动生命周期 Requirement）。
+- [x] 5.2 新增 `packaging/backend.spec`、`packaging/launcher.spec` 和 `scripts/build-portable.ps1`，构建PyInstaller onedir后端/windowed启动器、Vite前端、私有Node/officecli、模板和完整HashMyFiles分发文件。验证：构建脚本在staging验证所有必需入口，目标机PATH清空时officecli烟雾成功（便携包、私有officecli Requirements）。
+- [x] 5.3 新增 `scripts/verify-portable-package.py`，按白名单验证staging、生成文件SHA-256/版本/第三方清单并拒绝数据库、RAR、生成DOCX、日志、环境文件、测试缓存和WinRAR，最后生成版本化ZIP。验证：合成staging正反例测试及仓库资产门控（发布内容 Requirement）。
+- [x] 5.4 更新 `harness/directory.md`、`.gitignore` 和 `README.md`，只引用发布脚本与数据目录真相源，发布产物保持git忽略。验证：默认和scoped strict docs、`git diff --check`。
+
+## 6. 候选验证与发布证据
+
+- [x] 6.1 运行后端/启动器/发布脚本定向测试、`lint:arch`、`typecheck`、`verify:quick`，并构建本机候选ZIP；记录通过/失败统计，不提交候选二进制。验证：命令退出码和ZIP清单哈希。
+- [ ] 6.2 在无全局Python、Node、pnpm、officecli和旧版文枢的Windows 10/11 x64环境执行解压启动、中文路径、重启、Word、officecli回退、WinRAR和统一导出验收，证据写入本变更包；仅开发机验证不得勾选。 [DEFERRED]
+- [x] 6.3 冻结候选后执行一次独立Code Review，修复源码/行为后复审；通过后运行`npm run verify:full -- --change portable-windows-distribution`并记录人工验收适用性。验证：Review结论、scoped full gate和`git diff`仅含预期变更。
