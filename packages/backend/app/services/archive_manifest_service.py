@@ -19,11 +19,17 @@ from .archive_staging_security_service import OWNERSHIP_MARKER_NAME
 from .archive_manifest_output_security_service import (
     assert_safe_output_file as _assert_safe_output_file,
     compute_disc_capacity,
+    compute_manifest_disc_capacity as _expected_disc_capacity,
     is_safe_output_file as _is_safe_output_file,
 )
 
 ArchiveFileIdentity = tuple[int, int, int, int, int]
+_STANDARD_SPLIT_MODE = "standard_split"
+_OVERSIZED_SINGLE_VOLUME_MODE = "oversized_single_volume"
 
+def _manifest_mode(manifest: dict) -> str:
+    mode = manifest.get("archive_mode")
+    return "legacy_standard_split" if mode is None else str(mode)
 
 def capture_archive_file_identities(
     root: Path, filenames: set[str],
@@ -75,6 +81,9 @@ def assemble_archive_manifest(
     else:  # REQ-030: empty first disc keeps part disc metadata empty until mapped
         disc_date = ""
         actual_disc_numbers = [""] * len(validation.parts)
+    archive_mode = getattr(plan, "archive_mode", _STANDARD_SPLIT_MODE)
+    if archive_mode not in {_STANDARD_SPLIT_MODE, _OVERSIZED_SINGLE_VOLUME_MODE}:
+        raise ValueError("ARCHIVE_PLAN_INVALID")
     public_parts: list[dict[str, object]] = []
     internal_paths: dict[str, Path] = {}
     total_archive_bytes = 0
@@ -86,8 +95,8 @@ def assemble_archive_manifest(
         )
         if not isinstance(md5, str) or not re.fullmatch(r"[0-9a-fA-F]{32}", md5):
             raise ValueError("ARCHIVE_PARTS_INVALID")
-        disc_capacity = compute_disc_capacity(part.size_bytes)
-        public_parts.append({
+        disc_capacity = _expected_disc_capacity(part.size_bytes, archive_mode)
+        public_part = {
             "part_id": str(uuid4()),
             "part_number": part.part_number,
             "filename": part.filename,
@@ -95,16 +104,19 @@ def assemble_archive_manifest(
             "md5": md5,
             "disc_number": disc_number,
             "disc_date": disc_date,
-            "disc_capacity_bytes": disc_capacity,
             "volume_size_bytes": plan.volume_size_bytes,
             "continuity_check": "passed",
-        })
+        }
+        if disc_capacity is not None:
+            public_part["disc_capacity_bytes"] = disc_capacity
+        public_parts.append(public_part)
         internal_paths[part.filename] = part.path
         total_archive_bytes += part.size_bytes
     manifest = {
         "manifest_id": manifest_id,
         "plan_id": plan.plan_id,
         "archive_base_name": plan.archive_base_name,
+        "archive_mode": archive_mode,
         "volume_size_bytes": plan.volume_size_bytes,
         "volume_tier_gb": plan.volume_tier_gb,
         "max_part_count": plan.max_part_count,
@@ -127,6 +139,12 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
     if not root.is_dir():
         return False
     manifest = record.public_manifest
+    mode = _manifest_mode(manifest)
+    if mode not in {
+        "legacy_standard_split", _STANDARD_SPLIT_MODE,
+        _OVERSIZED_SINGLE_VOLUME_MODE,
+    }:
+        return False
     parts = manifest.get("parts")
     if not isinstance(parts, list) or not parts:
         return False
@@ -175,14 +193,26 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
             return False
         if size != item.get("size_bytes") or size <= 0:
             return False
-        if isinstance(volume_size, int) and (size > volume_size or volume_size <= 0):
+        if mode == _OVERSIZED_SINGLE_VOLUME_MODE:
+            if volume_size is not None:
+                return False
+        elif mode == _STANDARD_SPLIT_MODE and (
+            not isinstance(volume_size, int) or size > volume_size or volume_size <= 0
+        ):
+            return False
+        elif (mode == "legacy_standard_split" and isinstance(volume_size, int)
+              and (size > volume_size or volume_size <= 0)):
             return False
         # Disc capacity must be the smallest tier ≥ actual size
         try:
-            expected_cap = compute_disc_capacity(size)
+            expected_cap = _expected_disc_capacity(size, mode)
         except ValueError:
             return False
-        if "disc_capacity_bytes" not in item:
+        if mode == _OVERSIZED_SINGLE_VOLUME_MODE:
+            if item.get("disc_capacity_bytes") is not None:
+                return False
+            actual_cap = None
+        elif "disc_capacity_bytes" not in item:
             # Old manifest — key absent, derive from trusted size_bytes
             actual_cap = expected_cap
         else:
@@ -194,6 +224,8 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
             return False
         # volume_size_bytes invariant: if present on both part and manifest, must match
         part_vol = item.get("volume_size_bytes")
+        if mode == _OVERSIZED_SINGLE_VOLUME_MODE and part_vol is not None:
+            return False
         if isinstance(part_vol, int) and not isinstance(part_vol, bool) and isinstance(volume_size, int) and not isinstance(volume_size, bool):
             if part_vol != volume_size:
                 return False
@@ -202,6 +234,13 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
             return False
         actual_total += size
     if sorted(numbers) != list(range(1, len(numbers) + 1)):
+        return False
+    if mode == _OVERSIZED_SINGLE_VOLUME_MODE and (
+        len(parts) != 1
+        or not isinstance(base_name, str)
+        or parts[0].get("filename") != f"{base_name}.rar"
+        or max_part_count != 1
+    ):
         return False
     if not validate_disc_mapping(numbers, disc_metadata):
         return False
@@ -223,6 +262,12 @@ def validate_manifest_files(
 ) -> str | None:
     """Return a stable integrity error code for the published manifest files."""
     manifest = record.public_manifest
+    mode = _manifest_mode(manifest)
+    if mode not in {
+        "legacy_standard_split", _STANDARD_SPLIT_MODE,
+        _OVERSIZED_SINGLE_VOLUME_MODE,
+    }:
+        return "ARCHIVE_MANIFEST_INVALID"
     if manifest.get("manifest_id") != record.manifest_id or manifest.get("validation_status") != "validated":
         return "ARCHIVE_MANIFEST_INVALID"
     parts = manifest.get("parts")
@@ -249,10 +294,14 @@ def validate_manifest_files(
             or (bool(item.get("disc_number")) != bool(item.get("disc_date")))
         ):
             return "ARCHIVE_MANIFEST_INVALID"
-        if "disc_capacity_bytes" not in item:
+        if mode == _OVERSIZED_SINGLE_VOLUME_MODE:
+            if item.get("disc_capacity_bytes") is not None:
+                return "ARCHIVE_MANIFEST_INVALID"
+            disc_cap = None
+        elif "disc_capacity_bytes" not in item:
             # Old manifest — key absent, derive from trusted size_bytes
             try:
-                disc_cap = compute_disc_capacity(size_bytes)
+                disc_cap = _expected_disc_capacity(size_bytes, mode)
             except ValueError:
                 return "ARCHIVE_MANIFEST_INVALID"
         else:
@@ -261,13 +310,15 @@ def validate_manifest_files(
                     or disc_cap <= 0):
                 return "ARCHIVE_MANIFEST_INVALID"
         try:
-            expected_cap = compute_disc_capacity(size_bytes)
+            expected_cap = _expected_disc_capacity(size_bytes, mode)
         except ValueError:
             return "ARCHIVE_MANIFEST_INVALID"
         if disc_cap != expected_cap:
             return "ARCHIVE_MANIFEST_INVALID"
         # volume_size_bytes invariant: if present on part, must match manifest level
         part_volume = item.get("volume_size_bytes")
+        if mode == _OVERSIZED_SINGLE_VOLUME_MODE and part_volume is not None:
+            return "ARCHIVE_MANIFEST_INVALID"
         if isinstance(part_volume, int) and not isinstance(part_volume, bool):
             manifest_vol = manifest.get("volume_size_bytes")
             if isinstance(manifest_vol, int) and not isinstance(manifest_vol, bool):

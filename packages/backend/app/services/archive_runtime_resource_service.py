@@ -11,6 +11,7 @@ from pathlib import Path
 
 import psutil
 
+from ..repository.archive_input_repository import MAX_SAFE_INTEGER
 from .archive_resource_admission_service import (
     ArchiveAdmissionConfig,
     ArchiveResourceSnapshot,
@@ -35,7 +36,7 @@ def build_archive_admission_config() -> ArchiveAdmissionConfig:
             "BIJI_ARCHIVE_MAX_IO_BUSY_PERCENT", 95.0,
         ),
         maximum_input_bytes=_positive_int_env(
-            "BIJI_ARCHIVE_MAX_INPUT_BYTES", 135 * 1000**3,
+            "BIJI_ARCHIVE_MAX_INPUT_BYTES", MAX_SAFE_INTEGER,
         ),
         maximum_winrar_processes=_positive_int_env(
             "BIJI_ARCHIVE_MAX_WINRAR_PROCESSES", 6,

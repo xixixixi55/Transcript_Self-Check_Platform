@@ -72,6 +72,21 @@ def manifest(count, *, start=1):
     }
 
 
+def oversized_manifest():
+    return {
+        "manifest_id": "manifest-oversized-synthetic",
+        "validation_status": "validated",
+        "archive_mode": "oversized_single_volume",
+        "volume_size_bytes": None,
+        "parts": [{
+            "part_id": "part-oversized", "part_number": 1,
+            "filename": "case.rar", "size_bytes": 226 * 1024**3,
+            "md5": "f" * 32, "disc_number": "GP20260706-01",
+            "disc_date": "2026-07-06", "volume_size_bytes": None,
+        }],
+    }
+
+
 def test_missing_legacy_photo_groups_are_rebuilt_from_material_and_image_order():
     photo_ids = ["asset-synthetic-front", "asset-synthetic-back"]
     value = report(evidence_numbers=["SYNTHETIC-1"], photo_ids=photo_ids)
@@ -154,6 +169,27 @@ def test_attachment3_is_one_page_per_manifest_part_and_uses_manifest_values():
         "2026-07-06", "2026-07-07", "2026-07-06",
     ]
     assert [page.show_attachment_title for page in plan.attachment3_pages] == [True, False, False]
+
+
+def test_oversized_single_volume_keeps_nullable_capacity_fields() -> None:
+    plan = build_attachment_plan(oversized_manifest(), report())
+
+    row = plan.attachment1_pages[0].serial_rows[0]
+    page = plan.attachment3_pages[0]
+    assert row.filename == "case.rar"
+    assert row.disc_capacity_bytes is None
+    assert row.volume_size_bytes is None
+    assert page.disc_capacity_bytes is None
+    assert page.volume_size_bytes is None
+
+
+def test_standard_split_still_requires_capacity_fields() -> None:
+    value = manifest(1)
+    value["volume_size_bytes"] = None
+
+    with pytest.raises(AttachmentPlanError) as error:
+        build_attachment_plan(value, report())
+    assert error.value.code == "ATTACHMENT_PLAN_INVALID"
 
 
 @pytest.mark.parametrize("bad_manifest", [

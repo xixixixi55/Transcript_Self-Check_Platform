@@ -26,9 +26,9 @@ _logger = logging.getLogger(__name__)
 #   8.5 GB input → ~12 min wall time → ~11.8 MB/s effective
 # The 5 MB/s floor leaves ≥40 % headroom below the slowest observation.
 #
-#   worst-case input  135 GB  (ARCHIVE_TOO_LARGE blocks > 135 GB)
-#   time @ 5 MB/s    = 27 000 s = 7.5 h
-#   cap at 10 h        → 36 000 s (covers 135 GB with 33 % margin)
+# The default production policy can switch inputs above 225 GiB to an
+# unsplit RAR, so this timeout is an execution safety bound rather than an
+# archive-size admission limit. Operators can extend it up to 24 hours.
 # ---------------------------------------------------------------------------
 
 _DEFAULT_TIMEOUT_SECONDS = 300

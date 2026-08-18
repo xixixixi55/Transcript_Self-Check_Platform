@@ -284,3 +284,26 @@
 - WHEN 图片二进制上传成功但字段级绑定因租约失效、图片资产无效或真实图片域冲突而失败
 - THEN 前端必须保留当前图片输入并阻止离开案件，显示可区分的失败原因
 - AND 不得因后台归档或无关字段单独推进 revision 而将图片绑定永久留在失败状态
+
+## MODIFIED: REQ-018 — 当前生产归档合同
+
+### REQ-018: 标准分卷与超大单卷使用不同容量合同
+
+#### Scenario: 标准分卷使用二进制容量
+- WHEN 归档输入总量不超过 `225 × 1024³` 字节
+- THEN 系统仅使用 4GB、22GB、45GB 三档，且 `1GB = 1024³` 字节
+- AND 4GB、22GB 档最多各 2 卷，45GB 档最多 5 卷，不新增 75GB 档
+- AND Manifest 写入 `archive_mode=standard_split`，每个 part 必须满足当前档位的 `volume_size_bytes` 上限
+
+#### Scenario: 超过标准分卷阈值切换为单卷
+- WHEN 归档输入总量超过 `225 × 1024³` 字节且仍在安全整数范围内
+- THEN 系统不得返回 `ARCHIVE_TOO_LARGE`，必须生成不分卷的 `<案件名>.rar`
+- AND WinRAR 调用不得携带分卷参数，Manifest 写入 `archive_mode=oversized_single_volume`
+- AND 超大单卷的 `volume_size_bytes`、`volume_tier_gb` 与 `disc_capacity_bytes` 为空，校验只接受一个非空的 `<案件名>.rar`，不得套用每卷不超过 45GB 的规则
+- AND 默认资源准入不得继续以 135GB 阻断输入，但部署人员仍可显式配置本机输入安全上限
+- AND 附件与 Word 计划必须接受这些空容量字段，不得为超大单卷伪造光盘容量档位
+
+#### Scenario: 历史 Manifest 继续可复核
+- WHEN 系统复核一个未包含 `archive_mode` 的既有 Manifest
+- THEN 系统继续按该 Manifest 创建时的十进制档位规则验证容量
+- AND 新生成的 Manifest 必须显式写入模式，不得继续产生无模式清单

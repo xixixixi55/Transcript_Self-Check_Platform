@@ -99,8 +99,13 @@ class WinRarExecutor:
             archive_path = staging_dir / f"{plan.archive_base_name}.rar"
             total_bytes = sum(item.size_bytes for item in inventory_files)
             timeout = self._timeout_for(total_bytes)
-            args = [capability.executable_path, "a", "-r", "-y", "-inul",
-                    f"-v{plan.volume_size_bytes}b", str(archive_path), source_root.name]
+            args = [capability.executable_path, "a", "-r", "-y", "-inul"]
+            if getattr(plan, "archive_mode", "standard_split") == "standard_split":
+                if not isinstance(plan.volume_size_bytes, int) or plan.volume_size_bytes <= 0:
+                    raise ArchiveExecutionError(
+                        "ARCHIVE_EXECUTION_FAILED", "归档分卷容量配置无效。")
+                args.append(f"-v{plan.volume_size_bytes}b")
+            args.extend((str(archive_path), source_root.name))
 
             if self._process_runner is not None:
                 try:

@@ -159,18 +159,20 @@ class TestIntegrityTimeoutViaValidator:
 
 
 # ============================================================================
-# 3. Planner blocks >135 GB
+# 3. Planner switches beyond the 225 GiB standard split threshold
 # ============================================================================
 
 
-class TestPlannerBlocksOver135GB:
-    def test_135gb_plus_1_blocked(self):
+class TestPlannerUsesOversizedSingleVolume:
+    def test_225gib_plus_1_uses_unsplit_rar(self):
         from app.services.archive_planner_service import (ArchiveSourceEntry, PRODUCTION_ARCHIVE_POLICY, plan_archive)
-        over = 135 * GB + 1
+        over = 225 * 1024**3 + 1
         entries = (ArchiveSourceEntry("big.bin", over, 0),)
         plan = plan_archive("huge", entries, policy=PRODUCTION_ARCHIVE_POLICY)
-        assert plan.status != "planned"
-        assert any(d.code == "ARCHIVE_TOO_LARGE" for d in plan.diagnostics)
+        assert plan.status == "planned"
+        assert plan.archive_mode == "oversized_single_volume"
+        assert plan.volume_size_bytes is None
+        assert plan.expected_part_count == 1
 
 
 # ============================================================================
@@ -525,18 +527,14 @@ class TestManifestImmutability:
 
 
 class TestGetValidManifestNormalizes:
-    def test_normalized_copy_has_disc_capacity(self):
-        from app.services.archive_manifest_access_service import get_valid_manifest
-        from app.services.archive_manifest_service import compute_disc_capacity
-        from app.services.archive_runtime_service import ARCHIVE_RUNTIME_STORE
+    def test_legacy_normalized_copy_uses_decimal_disc_capacity(self):
+        from app.services.archive_manifest_access_service import _normalized_manifest
 
-        # We can't easily call get_valid_manifest() without full runtime setup,
-        # so we verify the normalization logic directly.
         manifest = {
             "manifest_id": "norm-test",
             "archive_base_name": "case",
-            "total_input_bytes": 5_000_000_000,
-            "actual_archive_bytes": 5_000_000_000,
+            "total_input_bytes": 4_100_000_000,
+            "actual_archive_bytes": 4_100_000_000,
             "volume_size_bytes": 22_000_000_000,
             "max_part_count": 2,
             "validation_status": "validated",
@@ -544,7 +542,7 @@ class TestGetValidManifestNormalizes:
             "parts": [{
                 "filename": "case.part1.rar",
                 "part_number": 1,
-                "size_bytes": 5_000_000_000,
+                "size_bytes": 4_100_000_000,
                 "md5": "d41d8cd98f00b204e9800998ecf8427e",
                 "disc_number": "GP20260718-001",
                 "disc_date": "2026-07-18",
@@ -553,16 +551,12 @@ class TestGetValidManifestNormalizes:
         }
         original = copy.deepcopy(manifest)
 
-        # Simulate what get_valid_manifest does
-        normalized = copy.deepcopy(manifest)
-        for part in normalized.get("parts", []):
-            if not isinstance(part.get("disc_capacity_bytes"), int) or isinstance(part.get("disc_capacity_bytes"), bool):
-                part["disc_capacity_bytes"] = compute_disc_capacity(part["size_bytes"])
+        normalized = _normalized_manifest(manifest)
 
         # Original unchanged
         assert "disc_capacity_bytes" not in original["parts"][0]
         # Normalized has it
-        assert normalized["parts"][0]["disc_capacity_bytes"] == compute_disc_capacity(5_000_000_000)
+        assert normalized["parts"][0]["disc_capacity_bytes"] == 22_000_000_000
         # Original still has no disc_capacity_bytes
         assert original["parts"][0].get("disc_capacity_bytes") is None
 

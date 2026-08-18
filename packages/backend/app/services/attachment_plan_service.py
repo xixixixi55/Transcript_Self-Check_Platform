@@ -60,7 +60,10 @@ def build_attachment_plan(
             "附件图片数量必须为偶数，请补充或删除一张图片后重新导出。",
         )
     attachment2_pages = build_attachment2_pages(material_photo_groups(report))
-    manifest_volume_size = _positive_int(manifest.get("volume_size_bytes"))
+    oversized_single = manifest.get("archive_mode") == "oversized_single_volume"
+    manifest_volume_size = _capacity_value(
+        manifest.get("volume_size_bytes"), optional=oversized_single,
+    )
     attachment3 = tuple(
         Attachment3PagePlan(
             page_number=index,
@@ -70,7 +73,9 @@ def build_attachment_plan(
             filename=str(item["filename"]),
             size_bytes=int(item["size_bytes"]),
             md5=str(item["md5"]).upper(),
-            disc_capacity_bytes=_positive_int(item.get("disc_capacity_bytes")),
+            disc_capacity_bytes=_capacity_value(
+                item.get("disc_capacity_bytes"), optional=oversized_single,
+            ),
             disc_number=str(item["disc_number"]),
             burning_date=str(item["disc_date"]),
             volume_size_bytes=manifest_volume_size,
@@ -202,12 +207,17 @@ def _extraction_method(report: Mapping[str, Any]) -> str:
 
 
 def _part_row(item: Mapping[str, Any], manifest: Mapping[str, Any]) -> AttachmentPartRow:
+    oversized_single = manifest.get("archive_mode") == "oversized_single_volume"
     return AttachmentPartRow(
         part_id=str(item["part_id"]), part_number=int(item["part_number"]),
         filename=str(item["filename"]), size_bytes=int(item["size_bytes"]),
         md5=str(item["md5"]).upper(),
-        disc_capacity_bytes=_positive_int(item.get("disc_capacity_bytes")),
-        volume_size_bytes=_positive_int(manifest.get("volume_size_bytes", 0)),
+        disc_capacity_bytes=_capacity_value(
+            item.get("disc_capacity_bytes"), optional=oversized_single,
+        ),
+        volume_size_bytes=_capacity_value(
+            manifest.get("volume_size_bytes"), optional=oversized_single,
+        ),
     )
 
 
@@ -221,6 +231,12 @@ def _positive_int(value: object) -> int:
     if value <= 0:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件计划容量字段必须为正整数。")
     return value
+
+
+def _capacity_value(value: object, *, optional: bool) -> int | None:
+    if optional and value is None:
+        return None
+    return _positive_int(value)
 
 def _unsafe_filename(value: str) -> bool:
     return (PurePath(value).name != value or PureWindowsPath(value).name != value

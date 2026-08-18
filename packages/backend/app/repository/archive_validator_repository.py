@@ -15,8 +15,9 @@ from .winrar_timeout_policy import compute_integrity_timeout
 
 class ValidatorPlan(Protocol):
     archive_base_name: str
-    volume_size_bytes: int
+    volume_size_bytes: int | None
     max_part_count: int
+    archive_mode: str
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,9 @@ def validate_archive_parts(
     root = Path(staging_dir)
     if not root.is_dir():
         return _invalid("ARCHIVE_PARTS_INVALID", "归档临时产物目录无效。")
+    archive_mode = getattr(plan, "archive_mode", "standard_split")
+    if archive_mode not in {"standard_split", "oversized_single_volume"}:
+        return _invalid("ARCHIVE_PARTS_INVALID", "归档模式无效。")
     pattern = re.compile(
         rf"^{re.escape(plan.archive_base_name)}\.part([1-9][0-9]*)\.rar$"
     )
@@ -98,18 +102,29 @@ def validate_archive_parts(
         if number in parts:
             return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷编号重复。")
         size = entry.stat().st_size
-        if size <= 0 or size > plan.volume_size_bytes:
+        if archive_mode == "oversized_single_volume":
+            return _invalid("ARCHIVE_PARTS_INVALID", "超大单卷模式不接受分卷文件。")
+        if (not isinstance(plan.volume_size_bytes, int)
+                or size <= 0 or size > plan.volume_size_bytes):
             return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷大小超出容量规则。")
         parts[number] = ValidatedArchivePart(number, entry.name, entry, size)
 
     if single is not None:
         if parts:
             return _invalid("ARCHIVE_PARTS_INVALID", "单卷和分卷归档不能同时存在。")
-        if single.size_bytes <= 0 or single.size_bytes > plan.volume_size_bytes:
+        if single.size_bytes <= 0:
+            return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷大小超出容量规则。")
+        if (archive_mode == "standard_split"
+                and (not isinstance(plan.volume_size_bytes, int)
+                     or single.size_bytes > plan.volume_size_bytes)):
             return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷大小超出容量规则。")
         parts[1] = single
     if 1 not in parts:
         return _invalid("ARCHIVE_PARTS_INVALID", "归档分卷缺少 part1。")
+    if archive_mode == "oversized_single_volume" and (
+        len(parts) != 1 or parts[1].filename != f"{plan.archive_base_name}.rar"
+    ):
+        return _invalid("ARCHIVE_PARTS_INVALID", "超大单卷归档产物无效。")
     if len(parts) > plan.max_part_count:
         return _invalid(
             "ARCHIVE_PARTS_INVALID", "归档实际分卷数超过当前档位限制。",

@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..repository.filesystem_identity_repository import directory_content_fingerprint
-from .archive_manifest_service import compute_disc_capacity, validate_manifest_files
+from .archive_manifest_output_security_service import compute_manifest_disc_capacity
+from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord, ArchiveRuntimeError
 from .export_gate_service import ExportGateCode, ExportGateIssue
 
@@ -63,13 +64,22 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
             ),))
     finally:
         ARCHIVE_RUNTIME_STORE.release_context(context_id)
-    normalized = copy.deepcopy(record.public_manifest)
+    return _normalized_manifest(record.public_manifest)
+
+
+def _normalized_manifest(manifest: dict[str, object]) -> dict[str, object]:
+    normalized = copy.deepcopy(manifest)
+    archive_mode = normalized.get("archive_mode")
     for part in normalized.get("parts", []):
         if "disc_capacity_bytes" not in part:
             try:
-                part["disc_capacity_bytes"] = compute_disc_capacity(part["size_bytes"])
-            except ValueError:
-                pass  # size_bytes already validated, should not happen
+                capacity = compute_manifest_disc_capacity(
+                    part["size_bytes"], archive_mode,
+                )
+                if capacity is not None:
+                    part["disc_capacity_bytes"] = capacity
+            except (KeyError, TypeError, ValueError):
+                pass  # Manifest validation reports malformed part fields first.
     return normalized
 
 

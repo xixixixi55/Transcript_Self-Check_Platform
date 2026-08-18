@@ -25,7 +25,7 @@ from app.services.archive_resource_admission_service import (  # noqa: E402
     ArchiveResourceSnapshot,
 )
 from app.services.archive_runtime_resource_service import (  # noqa: E402
-    ArchiveRuntimeResourceProvider,
+    ArchiveRuntimeResourceProvider, build_archive_admission_config,
 )
 
 
@@ -33,6 +33,21 @@ WindowsSdiskio = namedtuple(
     "sdiskio",
     "read_count write_count read_bytes write_bytes read_time write_time",
 )
+
+
+def test_default_admission_does_not_cap_archives_at_135gb(monkeypatch) -> None:
+    monkeypatch.delenv("BIJI_ARCHIVE_MAX_INPUT_BYTES", raising=False)
+
+    config = build_archive_admission_config()
+
+    assert config.maximum_input_bytes == (2**53 - 1)
+    assert config.maximum_input_bytes > 225 * 1024**3
+
+
+def test_operator_can_still_apply_an_explicit_input_safety_limit(monkeypatch) -> None:
+    monkeypatch.setenv("BIJI_ARCHIVE_MAX_INPUT_BYTES", "123456789")
+
+    assert build_archive_admission_config().maximum_input_bytes == 123456789
 
 
 @pytest.fixture()

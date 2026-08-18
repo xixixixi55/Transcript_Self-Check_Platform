@@ -16,7 +16,7 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
   WINRAR_UNAVAILABLE: 'WinRAR 不可用，请安装并确保可以调用。',
   ARCHIVE_INPUT_EMPTY: '归档输入为空，无法生成归档。',
   ARCHIVE_INPUT_CHANGED: '归档输入已变化，请重新解析报告后重试。',
-  ARCHIVE_TOO_LARGE: '归档输入超过 135GB 上限。',
+  ARCHIVE_TOO_LARGE: '归档输入超过当前归档策略允许的容量。',
   ARCHIVE_PLAN_INVALID: '归档计划无效，请检查案件名称和输入文件。',
   ARCHIVE_EXECUTION_FAILED: '归档执行失败，请检查后重试。',
   ARCHIVE_EXECUTION_TIMEOUT: '归档执行超时，请确认系统资源充足后重试。',

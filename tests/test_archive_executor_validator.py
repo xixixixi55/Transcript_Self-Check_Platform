@@ -53,6 +53,24 @@ def test_executor_uses_argument_array_and_dedicated_staging(tmp_path):
     assert not (result.staging_dir / "source-list.txt").exists()
 
 
+def test_executor_omits_volume_switch_for_oversized_single_volume(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "data.txt").write_text("SYNTHETIC", encoding="utf-8")
+    inventory = build_input_inventory(source)
+    runner, calls = make_process_runner()
+    executor = WinRarExecutor(tmp_path / "staging", process_runner=runner)
+    plan = SimpleNamespace(
+        plan_id="plan-oversized", archive_base_name="synthetic",
+        volume_size_bytes=None, archive_mode="oversized_single_volume",
+    )
+
+    executor.execute(plan, inventory.files, inventory.source_root, capability())
+
+    args, _kwargs = calls[0]
+    assert not any(item.startswith("-v") for item in args)
+
+
 def test_executor_never_uses_an_absolute_input_path(tmp_path):
     source = tmp_path / "SYNTHETIC-ORIGINAL-SOURCE"
     source.mkdir()
@@ -162,6 +180,31 @@ def test_validator_accepts_single_base_name(tmp_path):
     )
     assert result.valid
     assert result.parts[0].filename == "案件.rar"
+
+
+def test_validator_oversized_single_mode_bypasses_split_capacity(tmp_path):
+    (tmp_path / "案件.rar").write_bytes(b"oversized-single")
+    plan = SimpleNamespace(
+        archive_base_name="案件", volume_size_bytes=None, max_part_count=1,
+        archive_mode="oversized_single_volume",
+    )
+    result = validate_archive_parts(
+        tmp_path, plan, capability(), integrity_runner=integrity_ok,
+    )
+    assert result.valid
+
+
+def test_validator_oversized_single_mode_rejects_part_files(tmp_path):
+    (tmp_path / "案件.part1.rar").write_bytes(b"not-single")
+    plan = SimpleNamespace(
+        archive_base_name="案件", volume_size_bytes=None, max_part_count=1,
+        archive_mode="oversized_single_volume",
+    )
+    result = validate_archive_parts(
+        tmp_path, plan, capability(), integrity_runner=integrity_ok,
+    )
+    assert not result.valid
+    assert result.diagnostic_code == "ARCHIVE_PARTS_INVALID"
 
 
 @pytest.mark.parametrize("names", [

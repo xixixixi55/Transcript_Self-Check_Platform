@@ -837,8 +837,10 @@ MD5 校验由 HashMyFiles.exe 执行，新解析案件和存量案件的运行�
 ### Requirement: REQ-018: 当前生产归档合同
 
 系统 MUST 满足以下现有合同：
-- WinRAR 分卷档位固定为十进制 4GB、22GB、45GB；4GB 和 22GB 档预计超过 2 卷时升级，45GB 档最多 3 卷，输入超过 135GB 在执行前阻止。
-- 初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 是档位每卷上限，`size_bytes` 是 WinRAR 实际 part 文件大小。
+- WinRAR 标准分卷档位固定为二进制 4GB、22GB、45GB（`1GB = 1024³` 字节）；4GB 和 22GB 档预计超过 2 卷时升级，45GB 档最多 5 卷，标准分卷最多覆盖 225GB，不新增 75GB 档。
+- 输入不超过 225GB 时使用 `archive_mode=standard_split`；超过 225GB 且仍在安全整数范围内时，不报总量超限，改用 `archive_mode=oversized_single_volume` 生成不分卷的 `<案件名>.rar`。
+- 标准分卷初始执行后最多允许 2 次向上 replan。其 `volume_size_bytes` 是档位每卷上限，`size_bytes` 是 WinRAR 实际 part 文件大小；超大单卷的 `volume_size_bytes`、`volume_tier_gb` 与 `disc_capacity_bytes` 为空，不套用每卷不超过 45GB 的校验。
+- 默认资源准入不得以旧 135GB 上限阻断超大单卷；部署人员仍可显式配置本机输入安全上限。附件与 Word 计划必须保留超大单卷的空容量字段，不得伪造光盘容量档位。
 - 每个 part 的 `disc_capacity_bytes` 必须只根据该 part 的 `size_bytes` 独立选择最小可容纳容量；不得继承 Manifest 档位值。
 - 每个 `VolumeSlot` MUST 有稳定身份、序号、计划版本和容量/输入范围；光盘编号默认由共享前缀连续生成，用户可修改完整编号但必须非空且在案件内唯一，允许不连续，刻录日期独立保存。
 - replan 必须保留仍有效的人工槽位映射；新增槽位进入 pending，删除槽位清除映射，匹配不得依赖预计 RAR 文件名；最终以通过验证的 Manifest 槽位、卷序和光盘编号为准。
@@ -846,6 +848,7 @@ MD5 校验由 HashMyFiles.exe 执行，新解析案件和存量案件的运行�
 - RAR 外部基础名来自报告案件名称并清理 Windows 非法字符、结尾空格和点；单卷为 `<案件名>.rar`，多卷为 `<案件名>.partN.rar`。
 - WinRAR 以原始报告目录的父目录为工作目录、以原始报告根文件夹名为输入；归档内部保留该根文件夹、全部相对目录、多级嵌套、同名文件和业务空目录，不包含绝对路径、盘符、staging、cache、UUID或项目输出路径。
 - 每个 part 只能通过有效 `archive_context_id`、`manifest_id` 和不透明 `part_id` 下载；客户端不得提交服务器路径，下载前必须重新验证 Manifest 对应物理文件。
+- 未包含 `archive_mode` 的历史 Manifest 继续按旧十进制档位复核；所有新 Manifest 必须显式记录标准分卷或超大单卷模式。
 
 #### Scenario: 真实验收边界
 - WHEN 判断当前归档生产验收状态

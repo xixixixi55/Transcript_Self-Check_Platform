@@ -310,3 +310,20 @@ workflow_level: 3
   - code_review: [PASS] 独立首轮审查要求补充真实点击、路由切换与副作用隔离断言；修复测试后复审确认 MUST FIX 全部关闭，无剩余 MUST FIX。遗留 SHOULD：Ant Design Dropdown 测试可在后续引入异步用户交互工具以消除既有 `act(...)` warning，不阻塞本轮。
   - final_gate: [N/A] 用户明确本次不需要完整门控；已停止正在运行的 `verify:full -- --change background-compression-archive-completion`。停止前环境预检、架构、类型、治理测试与仓库资产检查均通过。
   - manual_acceptance: [BLOCKED] 内置浏览器当前无可接管标签页，新建 localhost 页面未能附着，未执行导出或删除；菜单结构、可点击路由与主操作保持由合成数据组件测试覆盖。
+
+- [x] T041 修复二进制容量、45GB 五卷与超大单卷机制（用户实测回归）。
+  - 现象：生产计划器仍生成十进制 `4000000000` 字节的 4GB 分卷，45GB 仍限制 3 卷，并在 135GB 后报 `ARCHIVE_TOO_LARGE`。
+  - 内容：容量统一为 `1024³`；标准档位保持 4GB/22GB/45GB，卷数为 2/2/5，最多覆盖 225GB；超过阈值切换为显式 `oversized_single_volume`，WinRAR 不传 `-v`，Manifest 与物理校验只接受单一 `<案件名>.rar`。历史无模式 Manifest 继续按旧十进制规则复核。
+  - 文件：归档计划、WinRAR 执行、产物校验、Manifest、共享常量/类型、相关测试、本变更包 delta/design/proposal 与 living specs。
+  - 验证：planner/validator/executor/Manifest 定向 pytest，`npm run lint:arch`、`npm run typecheck`、`npm run verify:quick`、scoped strict docs 与 `git diff --check`。
+  - 收尾补漏：默认资源准入由旧 135GB 上限改为安全整数边界（保留 `BIJI_ARCHIVE_MAX_INPUT_BYTES` 部署覆盖）；附件与 Word 计划接受超大单卷 Manifest 的空容量字段，标准分卷仍拒绝缺失容量；前后端旧 135GB 错误文案改为策略容量描述。
+  - 自动化证据：受影响后端 247 passed；前端 `useRecordExport` 10 passed；架构检查与 TypeScript 类型检查通过；`verify:quick`、scoped strict docs 与 `git diff --check` 通过。
+  - code_review: [PASS] 独立首轮审查发现历史无模式 Manifest 在导出访问层错误使用二进制容量补值；修复为统一模式感知容量策略，并加入 4.1GB 边界回归。复审 `CONDITIONAL PASS`，原 MUST FIX 关闭且无新 MUST FIX；遗留 SHOULD 为补对称归一化测试、共享类型表达历史可选模式及执行前更早拒绝非法模式，不阻塞本轮。
+  - final_gate: [PASS] `npm run verify:full -- --change background-compression-archive-completion` 在隔离的可写临时目录与合成工作台数据目录下通过：preflight、架构、类型、治理测试、仓库资产、全量测试、构建和 scoped strict docs 全部 PASS。首次默认数据目录运行因沙箱对 `%LOCALAPPDATA%/文枢` 仅只读而失败；第二次仅命中既有并发 retry flaky（后端 1156 passed、1 failed，失败用例隔离重跑通过）；第三次完整门控取得 exit 0，期间未修改实现。
+
+- [ ] T042 归档失败状态刚出现时立即重试可能误报 REVISION_CONFLICT。[DEFERRED]
+  - 类型：低概率时序边界 Bug；不影响正常压缩、容量规划、归档产物或失败后的数据安全。
+  - 用户复现：启动归档并使其进入可重试失败；在界面刚显示“压缩失败，可重试”时立即点击“重试”。若后台仍在把案件生命周期收敛为 `archive_interrupted` 并递增 case revision，前端携带的旧 revision 会收到 409 `REVISION_CONFLICT`。
+  - 临时规避：刷新或重新进入案件后再次点击重试；读取到最新案件 revision 后通常可成功。
+  - 根因：retry 对 task revision 与 case revision 分阶段校验，案件读取与新 attempt/task 创建不在同一原子事务；后台失败收尾可在检查与使用之间推进 case revision。
+  - 后续验收：内部失败收尾仅推进生命周期且 source/draft/report fingerprint 未变化时，重试应受控重基并成功；真实用户编辑、来源变化或新活动任务仍必须返回 409；增加确定性并发测试，不以盲目重跑掩盖竞态。
