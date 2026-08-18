@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository import CaseDraftRepository, CaseShellRepository, WorkbenchDatabase, database_path_for_deployment  # noqa: E402
+from app.repository.workbench_constants import MAX_CASE_IMAGE_BYTES  # noqa: E402
 from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive_export_service import _resolve_photo_paths  # noqa: E402
@@ -87,14 +88,21 @@ def test_upload_refresh_restart_and_opaque_http_contract(asset_context):
 def test_signature_extension_and_size_limits_are_enforced(asset_context):
     _, services, lease = asset_context
     args = (CASE_ID, lease["lease_id"], lease["lease_token"])
+    content = png_bytes()
+    assert MAX_CASE_IMAGE_BYTES == 100 * 1024 * 1024
+    with patch("app.services.case_asset_service.MAX_CASE_IMAGE_BYTES", len(content)):
+        boundary = services.assets.upload_image(
+            args[0], "SYNTHETIC-boundary.png", content, args[1], args[2]
+        )
+    assert boundary["metadata"]["size_bytes"] == len(content)
     with pytest.raises(WorkbenchPersistenceError) as extension:
-        services.assets.upload_image(args[0], "SYNTHETIC-fake.jpg", png_bytes(), args[1], args[2])
+        services.assets.upload_image(args[0], "SYNTHETIC-fake.jpg", content, args[1], args[2])
     assert extension.value.code == "ASSET_IMAGE_INVALID"
     with pytest.raises(WorkbenchPersistenceError) as format_error:
         services.assets.upload_image(args[0], "SYNTHETIC-file.txt", b"SYNTHETIC", args[1], args[2])
     assert format_error.value.code == "ASSET_IMAGE_FORMAT_INVALID"
-    with pytest.raises(WorkbenchPersistenceError) as too_large:
-        services.assets.upload_image(args[0], "SYNTHETIC-large.png", b"0" * (10 * 1024 * 1024 + 1), args[1], args[2])
+    with patch("app.services.case_asset_service.MAX_CASE_IMAGE_BYTES", len(content) - 1), pytest.raises(WorkbenchPersistenceError) as too_large:
+        services.assets.upload_image(args[0], "SYNTHETIC-large.png", content, args[1], args[2])
     assert too_large.value.code == "ASSET_IMAGE_TOO_LARGE"
 
 

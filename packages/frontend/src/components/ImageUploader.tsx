@@ -35,7 +35,7 @@ export default function ImageUploader({ materials, photos, onChange }: Props) {
       return Upload.LIST_IGNORE
     }
     if (file.size > MAX_IMAGE_SIZE) {
-      message.error('图片不能超过 10MB')
+      message.error('图片不能超过 100MB')
       return Upload.LIST_IGNORE
     }
     return false // 阻止自动上传，手动管理

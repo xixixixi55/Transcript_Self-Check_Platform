@@ -86,7 +86,7 @@ export const DEFAULT_DATA_SUMMARY = '即时通讯、手机信息'
 export const SUPPORTED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png']
 
 /** 图片上传大小限制 */
-export const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
+export const MAX_IMAGE_SIZE = 100 * 1024 * 1024 // 100MB
 
 /** 支持的压缩包上传格式 */
 export const SUPPORTED_ARCHIVE_FORMATS = ['.rar', '.zip']

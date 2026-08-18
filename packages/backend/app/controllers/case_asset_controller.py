@@ -94,7 +94,7 @@ def _message(code: str) -> str:
     return {
         "ASSET_IMAGE_FORMAT_INVALID": "鍥剧墖鏍煎紡涓嶆敮鎸侊紝璇峰厓鎴愪负 JPG 鎴?PNG 鍥剧墖銆?",
         "ASSET_IMAGE_INVALID": "鍥剧墖鏃犳硶璇诲彇鎴栨牸寮忎笉姝ｇ‘锛岃鏇存崲鍚庨噸璇曘€?",
-        "ASSET_IMAGE_TOO_LARGE": "鍗曞紶鍥剧墖瓒呭嚭 10MB 闄愬埗銆?",
+        "ASSET_IMAGE_TOO_LARGE": "单张图片超出 100MB 限制。",
         "ASSET_IMAGE_COUNT_EXCEEDED": "妗堜欢鍥剧墖鏁伴噺瓒呭嚭闄愬埗銆?",
         "ASSET_CASE_SIZE_EXCEEDED": "妗堜欢鍥剧墖鎬诲ぇ灏忚秴鍑洪檺鍒躲€?",
         "ASSET_CONTENT_MISSING": "鍥剧墖璧勪骇缂哄け锛岃閲嶆柊涓婁紶銆?",

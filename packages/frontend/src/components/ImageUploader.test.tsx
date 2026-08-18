@@ -1,15 +1,18 @@
 import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { message } from 'antd'
 import type { UploadFile } from 'antd'
+import { MAX_IMAGE_SIZE } from '@biji/shared/constants'
 import type { EvidenceItem } from '@biji/shared/types'
 import ImageUploader from './ImageUploader'
 
-vi.mock('antd', () => ({
-  Upload: ({ children, fileList, onChange, 'aria-label': ariaLabel }: {
+vi.mock('antd', () => {
+  const UploadMock = ({ children, fileList, onChange, beforeUpload, 'aria-label': ariaLabel }: {
     children?: React.ReactNode
     fileList: UploadFile[]
     onChange: (info: { fileList: UploadFile[] }) => void
+    beforeUpload?: (file: File) => unknown
     'aria-label'?: string
   }) => (
     <div aria-label={ariaLabel}>
@@ -20,14 +23,25 @@ vi.mock('antd', () => ({
         </div>
       ))}
       {children && (
-        <button aria-label={`${ariaLabel} 添加`} onClick={() => onChange({
-          fileList: [{ uid: `new-${ariaLabel}`, name: `SYNTHETIC-${ariaLabel}.png` }],
-        })}>{children}</button>
+        <>
+          <button aria-label={`${ariaLabel} 添加`} onClick={() => onChange({
+            fileList: [{ uid: `new-${ariaLabel}`, name: `SYNTHETIC-${ariaLabel}.png` }],
+          })}>{children}</button>
+          <button aria-label={`${ariaLabel} 校验100MB`} onClick={() => beforeUpload?.({
+            name: 'SYNTHETIC-boundary.png', size: 100 * 1024 * 1024,
+          } as File)}>校验100MB</button>
+          <button aria-label={`${ariaLabel} 校验超限`} onClick={() => beforeUpload?.({
+            name: 'SYNTHETIC-too-large.png', size: 100 * 1024 * 1024 + 1,
+          } as File)}>校验超限</button>
+        </>
       )}
     </div>
-  ),
-  message: { error: vi.fn() },
-}))
+  )
+  return {
+    Upload: Object.assign(UploadMock, { LIST_IGNORE: 'LIST_IGNORE' }),
+    message: { error: vi.fn() },
+  }
+})
 
 vi.mock('@ant-design/icons', () => ({ UploadOutlined: () => null }))
 
@@ -41,6 +55,18 @@ function photo(index: number): UploadFile {
 }
 
 describe('ImageUploader material groups', () => {
+  it('允许恰好 100MB 的图片并拒绝超过 100MB 的图片', () => {
+    vi.mocked(message.error).mockClear()
+    render(<ImageUploader materials={materials.slice(0, 1)} photos={[]} onChange={vi.fn()} />)
+
+    expect(MAX_IMAGE_SIZE).toBe(100 * 1024 * 1024)
+    fireEvent.click(screen.getByRole('button', { name: '检材 1 · SYN-JC00000001 图片 1 校验100MB' }))
+    expect(message.error).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '检材 1 · SYN-JC00000001 图片 1 校验超限' }))
+    expect(message.error).toHaveBeenCalledWith('图片不能超过 100MB')
+  })
+
   it('按检材顺序展示双图片槽位，并只开放下一个空槽', () => {
     render(<ImageUploader materials={materials} photos={[photo(1), photo(2), photo(3)]} onChange={vi.fn()} />)
 
