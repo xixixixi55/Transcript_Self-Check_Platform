@@ -44,7 +44,7 @@ from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from .entrust_person_service import normalize_entrust_persons
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 20  # v20: normalize common multi-entrust-person separators
+_CACHE_VERSION = 21  # v21: include the primary software action in process step 4
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
@@ -331,11 +331,12 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     main_candidates = main_software.get("candidates", [])
     sv = main_version or _extract_version(versions)
     main_display = main_name
+    main_action_name = _software_action_name(main_display)
     process_steps = [
         {"step_number": 1, "content": f"将{'；'.join(material_descriptions)}。"},
         {"step_number": 2, "content": f"对检材{evidence_label}进行拍照。"},
         {"step_number": 3, "content": "检查环境将在案件初始化时自动识别。"},
-        {"step_number": 4, "content": f"启动{main_display or '待确认主取证软件'}（版本号为{main_version or '待确认'}）对检材{evidence_label}进行检查。"},
+        {"step_number": 4, "content": f"启动{main_action_name}（版本号为{main_version or '待确认'}）使用{main_action_name}对检材{evidence_label}进行检查。"},
     ]
 
     # 7. 数据摘要是报告字段默认值，不从导航分类列表动态拼接。
@@ -431,6 +432,11 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "burning_date": "",
         },
     }
+
+
+def _software_action_name(value: object) -> str:
+    name = str(value or "").strip() or "待确认主取证软件"
+    return name if name.endswith("软件") else f"{name}软件"
 
 
 def _natural_evidence_order(items: list[dict]) -> list[dict]:

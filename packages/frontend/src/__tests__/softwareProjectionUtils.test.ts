@@ -53,6 +53,14 @@ describe('primary software projection', () => {
     expect(runtimeNames).toContain('Python hashlib')
     expect(runtimeNames).toContain('WinRAR压缩管理软件')
   })
+
+  it('rebuilds step 4 with both startup and software-use actions after a primary software edit', () => {
+    const renamed = applyPrimarySoftwareEdit(evidenceReport(), 'name', 'SYNTHETIC EDITED TOOL')
+    const updated = applyPrimarySoftwareEdit(renamed, 'version', 'V3.2.08602')
+
+    expect(updated.inspection.process_steps.find(step => step.step_number === 4)?.content)
+      .toBe('启动SYNTHETIC EDITED TOOL软件（版本号为V3.2.08602）使用SYNTHETIC EDITED TOOL软件对检材SYNTHETIC-1进行检查。')
+  })
 })
 
 const firstMaterial = {
@@ -125,7 +133,7 @@ describe('evidence list projection', () => {
     expect(updated.inspection.process_steps.find(step => step.step_number === 3)?.content)
       .toBe('SYNTHETIC unchanged environment step')
     expect(updated.inspection.process_steps.find(step => step.step_number === 4)?.content)
-      .toBe('启动SYNTHETIC TOOL（版本号为1.0）对检材SYNTHETIC-1、SYNTHETIC-2进行检查。')
+      .toBe('启动SYNTHETIC TOOL软件（版本号为1.0）使用SYNTHETIC TOOL软件对检材SYNTHETIC-1、SYNTHETIC-2进行检查。')
     expect(updated.attachments.photo_groups).toEqual([
       {
         material_id: 'SYNTHETIC-MATERIAL-1', material_number: 'SYNTHETIC-1',

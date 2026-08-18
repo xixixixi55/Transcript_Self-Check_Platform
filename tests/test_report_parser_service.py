@@ -349,7 +349,7 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 20
+    assert result["cache_version"] == 21
     assert result["_case_metadata"] == {
         "case_name": "合成案件", "case_number": "CASE-SYNTH-001", "case_summary": "合成案件案",
     }
@@ -378,7 +378,14 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
         if step["step_number"] == 3
     )
     assert step_three == "检查环境将在案件初始化时自动识别。"
+    software_name = report["inspection"]["primary_software"]["name"]
     software_version = report["inspection"]["primary_software"]["version"]
+    evidence_numbers = report["inspection"]["result"]["evidence_number"]
+    action_name = software_name if software_name.endswith("软件") else f"{software_name}软件"
+    assert step_four == (
+        f"启动{action_name}（版本号为{software_version}）"
+        f"使用{action_name}对检材{evidence_numbers}进行检查。"
+    )
     assert f" {software_version}（版本号为{software_version}）" not in step_four
     assert f"（版本号为{software_version}）" in step_four
     assert step_four.count(software_version) == 1
@@ -439,8 +446,8 @@ def test_cache_version_twelve_does_not_reuse_old_payload(tmp_path):
          patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
          patch("app.services.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 20
-    assert result["cache_version"] == 20
+    assert _CACHE_VERSION == 21
+    assert result["cache_version"] == 21
     mock_build.assert_called_once()
 
 

@@ -82,3 +82,12 @@ spec_sync_evidence: `openspec/specs/electronic-inspection-record/spec.md` REQ-01
 - 后端完整模块：1125 项通过、3 项跳过；36 条既有环境/fixture 警告。
 - `npm run verify:quick`：架构、类型、治理测试、文档和仓库资产检查全部通过。
 - Word 消费链：后端集成测试将初始化后的草稿送入 `build_record_document`，断言公司前缀进入文书文本且 HashMyFiles 不加前缀。
+
+## 回归修复：检查步骤 4 补充实际软件处理动作
+
+- [x] 修改 `packages/shared/utils/softwareProjectionUtils.ts` 与对应前端测试：检材增删、改号以及主软件名称/版本编辑后，步骤 4 统一生成“启动软件……使用同一软件对全部检材进行检查”，软件名已带“软件”后缀时不重复追加。验证：`packages/frontend/src/__tests__/softwareProjectionUtils.test.ts` 精确整句断言。
+- [x] 修改 `packages/backend/app/services/report_parser_service.py`、`software_policy_service.py` 与对应后端测试：Parser 首次生成相同句式，公司前缀投影同步替换启动和使用位置的两次软件名称；解析缓存升级，旧句式缓存不复用。验证：`tests/test_report_parser_service.py`、`tests/test_software_policy_service.py`。
+- [x] 在 `packages/backend/app/services/software_policy_service.py` 与 `record_generator_service.py` 增加旧自动步骤兼容投影：仅当步骤 4 与当前软件名、版本和检材编号组成的旧模板精确一致时，在 Word 生成前补全使用动作；人工编辑文本不改写、不回写草稿。验证：`tests/test_software_policy_service.py`、`tests/test_record_generator_service.py`。
+- [x] 对照 delta spec 核对实现并同步 living spec，运行 `npm run verify:quick`、受影响前后端定向测试、`npm run verify:docs:strict -- --change device-company-software-prefix` 与 `git diff --check`。
+
+验证证据：前端投影 10 项、后端 Parser/软件策略 66 项、旧草稿兼容与 Word 生成 30 项、工作台初始化到 Word 精确整句 1 项通过；临时移除“使用软件”动作后前端 2 项、后端 1 项按预期失败，恢复实现后全部重跑通过。

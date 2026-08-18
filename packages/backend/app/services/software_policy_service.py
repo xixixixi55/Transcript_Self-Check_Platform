@@ -24,6 +24,34 @@ def _text(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
+def _normalize_legacy_process_step_four(
+    inspection: dict[str, Any], facts: Mapping[str, Any],
+) -> None:
+    source_name = _text(facts.get("name")) or "待确认主取证软件"
+    version = _text(facts.get("version")) or "待确认"
+    result = inspection.get("result") or {}
+    evidence_label = _text(result.get("evidence_number")) or "xx"
+    legacy_content = (
+        f"启动{source_name}（版本号为{version}）"
+        f"对检材{evidence_label}进行检查。"
+    )
+    action_name = source_name if source_name.endswith("软件") else f"{source_name}软件"
+    replacement = (
+        f"启动{action_name}（版本号为{version}）"
+        f"使用{action_name}对检材{evidence_label}进行检查。"
+    )
+    projected = []
+    for step in inspection.get("process_steps") or []:
+        if not isinstance(step, Mapping):
+            projected.append(copy.deepcopy(step))
+            continue
+        item = dict(step)
+        if step.get("step_number") == 4 and _text(step.get("content")) == legacy_content:
+            item["content"] = replacement
+        projected.append(item)
+    inspection["process_steps"] = projected
+
+
 def primary_software_facts(report: Mapping[str, Any]) -> dict[str, Any]:
     """Read the stable primary-software fields without guessing from tool order."""
     inspection = report.get("inspection") or {}
@@ -125,7 +153,7 @@ def apply_device_company_prefix(
         projected_step = dict(step)
         if step.get("step_number") == 4:
             projected_step["content"] = _text(step.get("content")).replace(
-                source_name, prefixed_name, 1,
+                source_name, prefixed_name,
             )
         process_steps.append(projected_step)
     inspection["process_steps"] = process_steps
@@ -203,6 +231,7 @@ def normalize_primary_software_projection(report: Mapping[str, Any]) -> dict[str
     inspection["primary_software"] = primary
     result["software_name"] = facts["name"]
     result["software_version"] = facts["version"]
+    _normalize_legacy_process_step_four(inspection, facts)
 
     runtime_tools = []
     for tool in inspection.get("software_tools") or []:

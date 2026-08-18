@@ -21,6 +21,7 @@ from ..repository.template_registry_repository import TemplateRegistryRepository
 from .document_builder_service import build_record_document
 from .template_filler_service import fill_template
 from .legacy_report_projection_service import project_ordered_legacy_report
+from .software_policy_service import normalize_primary_software_projection
 from .template_profile_service import require_registered_template
 from ..repository.officecli_runtime_repository import run_officecli
 from ..repository.runtime_paths import get_runtime_paths
@@ -80,7 +81,7 @@ def generate_docx(report: dict, photo_paths: list[str] = None, output_dir: str =
         template_path = registered["internal_locator"]
         template_fingerprint = registered["fingerprint"]
 
-    report = project_ordered_legacy_report(report)
+    report = project_ordered_legacy_report(normalize_primary_software_projection(report))
 
     os.makedirs(output_dir, exist_ok=True)
 

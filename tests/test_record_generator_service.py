@@ -48,6 +48,27 @@ def test_generator_passes_the_same_saved_order_projection_to_word_renderer(tmp_p
     assert "SYNTHETIC-UI-SOURCE" not in repr(report)
 
 
+def test_generator_migrates_the_exact_legacy_step_four_before_word_render(tmp_path: Path):
+    received = {}
+    report = _report()
+    report["inspection"]["process_steps"] = [{
+        "step_number": 4,
+        "content": "启动SYNTHETIC-TOOL（版本号为1.0）对检材SYNTHETIC-2、SYNTHETIC-10进行检查。",
+    }]
+
+    def fake_fill(normalized, _template, output, _photos):
+        received["report"] = normalized
+        Path(output).write_bytes(b"SYNTHETIC-DOCX")
+
+    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+        generate_docx(report, output_dir=str(tmp_path))
+
+    assert received["report"]["inspection"]["process_steps"][0]["content"] == (
+        "启动SYNTHETIC-TOOL软件（版本号为1.0）"
+        "使用SYNTHETIC-TOOL软件对检材SYNTHETIC-2、SYNTHETIC-10进行检查。"
+    )
+
+
 def test_generator_uses_user_output_filename_when_provided(tmp_path: Path):
     def fake_fill(report, _template, output, _photos):
         Path(output).write_bytes(b"SYNTHETIC-DOCX")

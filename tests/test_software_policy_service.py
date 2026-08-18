@@ -37,7 +37,7 @@ def _company_prefix_report(status: str = "confirmed_by_report") -> dict:
                 {"step_number": 3, "content": "SYNTHETIC/TEST unchanged"},
                 {
                     "step_number": 4,
-                    "content": "启动SYNTHETIC手机大师NEXT（版本号为V1.2.3）对检材SYNTHETIC-1进行检查。",
+                    "content": "启动SYNTHETIC手机大师NEXT软件（版本号为V1.2.3）使用SYNTHETIC手机大师NEXT软件对检材SYNTHETIC-1进行检查。",
                 },
             ],
             "result": {
@@ -59,7 +59,10 @@ def test_device_company_prefix_projects_report_primary_software_only():
     assert [item["name"] for item in inspection["software_tools"][1:]] == [
         "WinRAR压缩管理软件", "HashMyFiles", "SYNTHETIC人工工具",
     ]
-    assert "启动TEST美亚柏科SYNTHETIC手机大师NEXT" in inspection["process_steps"][1]["content"]
+    assert inspection["process_steps"][1]["content"] == (
+        "启动TEST美亚柏科SYNTHETIC手机大师NEXT软件（版本号为V1.2.3）"
+        "使用TEST美亚柏科SYNTHETIC手机大师NEXT软件对检材SYNTHETIC-1进行检查。"
+    )
     assert inspection["process_steps"][0]["content"] == "SYNTHETIC/TEST unchanged"
     assert inspection["primary_software"]["candidates"] == report["inspection"]["primary_software"]["candidates"]
     assert inspection["primary_software"]["provenance"] == report["inspection"]["primary_software"]["provenance"]
@@ -184,6 +187,25 @@ def test_runtime_tools_do_not_replace_report_primary_software():
         "name": "报告工具", "version": "V2.0.0"
     }
     assert is_primary_software_confirmed(normalized)
+
+
+def test_primary_projection_migrates_only_the_exact_legacy_generated_step_four():
+    legacy = _company_prefix_report()
+    legacy["inspection"]["result"]["evidence_number"] = "SYNTHETIC-1"
+    legacy["inspection"]["process_steps"][1]["content"] = (
+        "启动SYNTHETIC手机大师NEXT（版本号为V1.2.3）"
+        "对检材SYNTHETIC-1进行检查。"
+    )
+
+    normalized = normalize_primary_software_projection(legacy)
+
+    assert normalized["inspection"]["process_steps"][1]["content"] == (
+        "启动SYNTHETIC手机大师NEXT软件（版本号为V1.2.3）"
+        "使用SYNTHETIC手机大师NEXT软件对检材SYNTHETIC-1进行检查。"
+    )
+    legacy["inspection"]["process_steps"][1]["content"] += "SYNTHETIC/TEST 人工备注"
+    custom = normalize_primary_software_projection(legacy)
+    assert custom["inspection"]["process_steps"][1]["content"].endswith("SYNTHETIC/TEST 人工备注")
 
 
 def test_incomplete_primary_software_does_not_project_a_fake_tool():
