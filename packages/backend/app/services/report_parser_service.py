@@ -44,7 +44,8 @@ from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from .entrust_person_service import normalize_entrust_persons
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 21  # v21: include the primary software action in process step 4
+_CACHE_VERSION = 22  # v22: normalize report case names and stop auto-appending 案
+_TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
@@ -167,7 +168,7 @@ def _case_metadata(
     introduction = report.get("introduction") if isinstance(report, dict) else None
     summary = introduction.get("case_summary", "") if isinstance(introduction, dict) else ""
     return {
-        "case_name": str(case.get("case_name") or "").strip(),
+        "case_name": _normalize_case_name(case.get("case_name")),
         "case_number": str(case.get("case_number") or "").strip(),
         "case_summary": str(summary or "").strip(),
     }
@@ -233,11 +234,15 @@ def _split_persons(collector: str) -> list[str]:
     return normalize_entrust_persons(collector)
 
 
-def _format_case_summary(case_name: str) -> str:
-    """格式化案件简要情况，避免双"案"（如'XX诈骗案'→'XX诈骗案'，不追加）"""
-    if not case_name:
-        return ""
-    return f"{case_name}案" if not case_name.endswith("案") else case_name
+def _normalize_case_name(case_name: object) -> str:
+    """Normalize the parser case name without inventing a case suffix."""
+    value = str(case_name or "").strip()
+    return _TRAILING_CASE_NAME_MARK_RE.sub(r"\1", value).strip()
+
+
+def _format_case_summary(case_name: object) -> str:
+    """Use the normalized report case name as the editable case summary seed."""
+    return _normalize_case_name(case_name)
 
 
 def _build_report(data_dir: str, source_dir: str, output_dir: str,
@@ -351,8 +356,10 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         main_status=main_status,
     )
 
+    normalized_case_name = _normalize_case_name(case.get("case_name", ""))
+
     # 9. 条件压缩 RAR
-    rar_info = _build_rar_info_from_compress(source_dir, output_dir, case.get("case_name", "report"), compress)
+    rar_info = _build_rar_info_from_compress(source_dir, output_dir, normalized_case_name or "report", compress)
 
     # 附件1 电子数据提取固定清单 — 从 rar_info 自动填充
     extract_columns = [
@@ -389,7 +396,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "entrust_unit": case.get("submit_unit", ""),
             "entrust_persons": _split_persons(case.get("submit_person", "")),
             "entrust_time": format_time_chinese(case.get("create_time", "")),
-            "case_summary": _format_case_summary(case.get("case_name", "")),
+            "case_summary": _format_case_summary(normalized_case_name),
             "evidence_list": evidence_items,
             "inspection_requirement": "上述检材内电子数据的提取、固定和恢复",
             "inspection_time_range": time_range,

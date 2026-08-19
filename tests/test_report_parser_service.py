@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'ba
 
 from app.services.report_parser_service import (
     _CACHE_VERSION, _build_report, _build_software_tools, _device_display_name,
-    _split_persons, parse_from_archive, parse_report,
+    _format_case_summary, _normalize_case_name, _split_persons, parse_from_archive,
+    parse_report,
 )
 from app.services.report_defaults_service import DEFAULT_DATA_SUMMARY, normalize_data_summary
 from app.repository.report_format_adapter import ReportFormat
@@ -36,6 +37,26 @@ def test_device_display_name_uses_brand_and_model_without_duplication(
 
 def test_backend_data_summary_preserves_non_empty_value():
     assert normalize_data_summary("  通讯录、文件  ") == "通讯录、文件"
+
+
+@pytest.mark.parametrize(("value", "expected"), [
+    ("宜都0729卖淫嫖娼案（8.11）", "宜都0729卖淫嫖娼案"),
+    ("SYNTHETIC-CASE案(8.8)", "SYNTHETIC-CASE案"),
+    ("SYNTHETIC（8.8）", "SYNTHETIC（8.8）"),
+    ("SYNTHETIC-CASE案", "SYNTHETIC-CASE案"),
+    (" SYNTHETIC-NO-SUFFIX ", "SYNTHETIC-NO-SUFFIX"),
+])
+def test_normalize_case_name_removes_only_trailing_case_parentheses(value, expected):
+    assert _normalize_case_name(value) == expected
+
+
+@pytest.mark.parametrize(("value", "expected"), [
+    ("SYNTHETIC-NO-SUFFIX", "SYNTHETIC-NO-SUFFIX"),
+    ("SYNTHETIC-CASE案", "SYNTHETIC-CASE案"),
+    ("SYNTHETIC-CASE案（8.11）", "SYNTHETIC-CASE案"),
+])
+def test_case_summary_does_not_append_case_suffix(value, expected):
+    assert _format_case_summary(value) == expected
 
 
 @pytest.mark.parametrize("separator", ["、", ",", "，", ";", "；", "/", "／", "|", "｜", "\n"])
@@ -349,9 +370,9 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 21
+    assert result["cache_version"] == 22
     assert result["_case_metadata"] == {
-        "case_name": "合成案件", "case_number": "CASE-SYNTH-001", "case_summary": "合成案件案",
+        "case_name": "合成案件", "case_number": "CASE-SYNTH-001", "case_summary": "合成案件",
     }
     assert "case_name" not in result["report"]
     assert report["introduction"]["inspection_time_range"] == (
@@ -400,6 +421,22 @@ def test_new_report_unknown_main_software_version_stays_blank(tmp_path):
     assert names == {"WinRAR压缩管理软件", "HashMyFiles"}
 
 
+def test_new_report_cleans_trailing_case_name_marker_for_metadata_and_summary(tmp_path):
+    _write_service_fixture(str(tmp_path), known_software=True)
+    import json
+    case_file = tmp_path / "data" / "data_case_info.json"
+    case_payload = json.loads(case_file.read_text(encoding="utf-8"))
+    for item in case_payload["contents"]:
+        if item["tp"] == "案件名称":
+            item["ct"] = "SYNTHETIC-REPORT案（8.11）"
+    case_file.write_text(json.dumps(case_payload, ensure_ascii=False), encoding="utf-8")
+
+    result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
+    assert result["_case_metadata"]["case_name"] == "SYNTHETIC-REPORT案"
+    assert result["_case_metadata"]["case_summary"] == "SYNTHETIC-REPORT案"
+    assert result["report"]["introduction"]["case_summary"] == "SYNTHETIC-REPORT案"
+
+
 def test_parser_cache_tracks_all_json_inputs_but_ignores_attachment_html(tmp_path):
     _write_service_fixture(str(tmp_path))
     media = tmp_path / "data" / "JC01" / "Base" / "attachment.html"
@@ -446,8 +483,8 @@ def test_cache_version_twelve_does_not_reuse_old_payload(tmp_path):
          patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
          patch("app.services.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 21
-    assert result["cache_version"] == 21
+    assert _CACHE_VERSION == 22
+    assert result["cache_version"] == 22
     mock_build.assert_called_once()
 
 
@@ -526,7 +563,7 @@ def test_legacy_full_standard_model_regression(tmp_path):
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
     assert report["case_number"] == "CASE-OLD-SYNTH"
-    assert report["introduction"]["case_summary"] == "\u5408\u6210\u65e7\u683c\u5f0f\u6848\u4ef6\u6848"
+    assert report["introduction"]["case_summary"] == "\u5408\u6210\u65e7\u683c\u5f0f\u6848\u4ef6"
     assert report["introduction"]["inspection_time_range"].startswith("2026年7月13日11点55分")
     assert evidence["evidence_number"] == "JC-OLD"
     assert evidence["device_type"] == "Old Phone"
