@@ -30,6 +30,11 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Windows.Forms;
+public sealed class WindowHandleOwner : IWin32Window {{
+    public WindowHandleOwner(IntPtr handle) {{ Handle = handle; }}
+    public IntPtr Handle {{ get; private set; }}
+}}
 public static class PickerWindow {{
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
     public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
@@ -41,23 +46,32 @@ public static class PickerWindow {{
     public const int PROMOTION_INTERVAL_MS = 100;
     public const int PROMOTION_JOIN_TIMEOUT_MS = 1000;
     public static volatile bool WasRaised;
-    public static volatile bool ForegroundRequested;
+    public static volatile bool ForegroundConfirmed;
     private static volatile bool stopRequested;
     private static IntPtr ownerHandle;
     private static int processId;
     private static Thread promotionWorker;
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hWnd, uint command);
     [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int GetClassName(IntPtr hWnd, StringBuilder className, int maxCount);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
+    public static WindowHandleOwner CaptureForegroundOwner() {{
+        IntPtr handle = GetForegroundWindow();
+        if (handle == IntPtr.Zero) return null;
+        uint foregroundProcessId;
+        GetWindowThreadProcessId(handle, out foregroundProcessId);
+        return foregroundProcessId == Process.GetCurrentProcess().Id
+            ? null : new WindowHandleOwner(handle);
+    }}
     public static void StartPromotion(IntPtr owner) {{
         ownerHandle = owner;
         processId = Process.GetCurrentProcess().Id;
         WasRaised = false;
-        ForegroundRequested = false;
+        ForegroundConfirmed = false;
         stopRequested = false;
         promotionWorker = new Thread(PromoteDialog);
         promotionWorker.IsBackground = true;
@@ -99,13 +113,14 @@ public static class PickerWindow {{
             if (candidate != IntPtr.Zero) {{
                 if (candidate != lastCandidate) {{
                     lastCandidate = candidate;
-                    ForegroundRequested = false;
+                    ForegroundConfirmed = false;
                 }}
                 uint flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW;
                 if (SetWindowPos(candidate, HWND_TOPMOST, 0, 0, 0, 0, flags)) {{
                     WasRaised = true;
-                    if (!ForegroundRequested) {{
-                        ForegroundRequested = SetForegroundWindow(candidate);
+                    if (!ForegroundConfirmed) {{
+                        SetForegroundWindow(candidate);
+                        ForegroundConfirmed = GetForegroundWindow() == candidate;
                     }}
                 }}
             }}
@@ -119,18 +134,27 @@ $dialog.Description = '{safe_description}';
 $dialog.RootFolder = [System.Environment+SpecialFolder]::MyComputer;
 $dialog.ShowNewFolderButton = $false;
 if ('{safe_initial}') {{ $dialog.SelectedPath = '{safe_initial}'; }}
-$owner = New-Object System.Windows.Forms.Form;
-$owner.TopMost = $true;
-$owner.ShowInTaskbar = $false;
-$owner.Opacity = 0;
-$owner.Show();
+$owner = [PickerWindow]::CaptureForegroundOwner();
+$fallbackOwner = $null;
+if ($null -eq $owner) {{
+    [Console]::Error.Write('PICKER_FOREGROUND_OWNER_NOT_CAPTURED;');
+    $fallbackOwner = New-Object System.Windows.Forms.Form;
+    $fallbackOwner.TopMost = $true;
+    $fallbackOwner.ShowInTaskbar = $false;
+    $fallbackOwner.Opacity = 0;
+    $fallbackOwner.Show();
+    $owner = $fallbackOwner;
+}}
 $ownerHandle = $owner.Handle;
 [PickerWindow]::StartPromotion($ownerHandle);
 try {{
     $dialogResult = $dialog.ShowDialog($owner);
     if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK) {{
         if (-not [PickerWindow]::WasRaised) {{
-            [Console]::Error.Write('PICKER_TOPMOST_NOT_CONFIRMED');
+            [Console]::Error.Write('PICKER_TOPMOST_NOT_CONFIRMED;');
+        }}
+        if (-not [PickerWindow]::ForegroundConfirmed) {{
+            [Console]::Error.Write('PICKER_FOREGROUND_NOT_CONFIRMED;');
         }}
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
         [Console]::Write($dialog.SelectedPath);
@@ -138,8 +162,10 @@ try {{
 }} finally {{
     [PickerWindow]::StopPromotion();
     $dialog.Dispose();
-    $owner.Close();
-    $owner.Dispose();
+    if ($null -ne $fallbackOwner) {{
+        $fallbackOwner.Close();
+        $fallbackOwner.Dispose();
+    }}
 }}
 """
 _PICKER_TIMEOUT_SECONDS = 600
@@ -227,6 +253,10 @@ class LocalDirectoryPickerService:
             raise WorkbenchPersistenceError("DIRECTORY_PICKER_FAILED")
         if "PICKER_TOPMOST_NOT_CONFIRMED" in (result.stderr or ""):
             logger.warning("directory picker: native topmost state was not confirmed")
+        if "PICKER_FOREGROUND_OWNER_NOT_CAPTURED" in (result.stderr or ""):
+            logger.warning("directory picker: foreground owner was not captured; fallback owner used")
+        if "PICKER_FOREGROUND_NOT_CONFIRMED" in (result.stderr or ""):
+            logger.warning("directory picker: native foreground activation was not confirmed")
         if history_kind is not None and self.history is not None:
             self.history.remember_directory(history_kind, candidate)
         logger.info("directory picker: directory selected")

@@ -74,6 +74,12 @@ Layer 20 的运行时路径模块按显式环境覆盖、冻结包资源根、�
 
 备选方案：继续用模态 MessageBox 会长期占用桌面且关闭即退出；引入 pystray/Pillow 会扩大冻结依赖和发布面；无退出入口的纯后台进程会让用户难以安全释放单实例锁，因此均拒绝。
 
+### D9. 原生文件夹选择框绑定触发时的前台窗口
+
+报告目录和导出目录仍由后端启动 Windows `FolderBrowserDialog`，以保持本地路径授权且不经浏览器复制大文件。PowerShell STA 进程在显示对话框前捕获当前前台 HWND，通过 `IWin32Window` 包装器将该窗口作为跨进程 owner；对话框因此进入触发浏览器的 owned-window Z-order。既有 HWND 枚举和置顶提升保留为兜底，并分别记录 owner 捕获、置顶和前台激活结果。
+
+备选方案：浏览器目录上传无法返回可授权的绝对本机路径，不能支撑大报告目录和导出目录；只调用 `SetForegroundWindow` 受 Windows 前台激活限制且目标窗口没有浏览器 owner，已在部署机出现高概率被覆盖，因此拒绝。
+
 ## Risks / Trade-offs
 
 - [PyInstaller/Node/HashMyFiles可能触发杀毒误报] → 使用固定供应链、哈希清单、代码签名和干净VM Defender验收；不压缩自有二进制。

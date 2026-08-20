@@ -14,7 +14,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.repository.local_directory_history_repository import LocalDirectoryHistoryRepository  # noqa: E402
-from app.services.local_directory_picker_service import LocalDirectoryPickerService  # noqa: E402
+from app.services.local_directory_picker_service import (  # noqa: E402
+    LocalDirectoryPickerService,
+    _folder_picker_script,
+)
 
 
 def test_picker_returns_selected_absolute_directory_and_uses_fixed_native_command(tmp_path: Path):
@@ -33,7 +36,10 @@ def test_picker_returns_selected_absolute_directory_and_uses_fixed_native_comman
     assert command[:6] == ["powershell.exe", "-NoLogo", "-NoProfile", "-STA", "-WindowStyle", "Hidden"]
     assert "FolderBrowserDialog" in command[-1]
     assert "ShowDialog($owner)" in command[-1]
-    assert "$owner.TopMost = $true" in command[-1]
+    assert "WindowHandleOwner : IWin32Window" in command[-1]
+    assert "CaptureForegroundOwner()" in command[-1]
+    assert "$owner = [PickerWindow]::CaptureForegroundOwner()" in command[-1]
+    assert "$fallbackOwner.TopMost = $true" in command[-1]
     assert "EnumWindows" in command[-1]
     assert "promotionWorker = new Thread(PromoteDialog)" in command[-1]
     assert "GetWindow(hWnd, GW_OWNER) == ownerHandle" in command[-1]
@@ -41,11 +47,14 @@ def test_picker_returns_selected_absolute_directory_and_uses_fixed_native_comman
     assert "return ownedCandidate != IntPtr.Zero ? ownedCandidate : dialogCandidate" in command[-1]
     assert "SetWindowPos(candidate, HWND_TOPMOST" in command[-1]
     assert "SWP_NOACTIVATE" in command[-1]
-    assert "if (!ForegroundRequested)" in command[-1]
+    assert "if (!ForegroundConfirmed)" in command[-1]
+    assert "ForegroundConfirmed = GetForegroundWindow() == candidate" in command[-1]
     assert "Thread.Sleep(PROMOTION_INTERVAL_MS)" in command[-1]
     assert "Thread.Sleep(50)" not in command[-1]
     assert "worker.Join(PROMOTION_JOIN_TIMEOUT_MS)" in command[-1]
     assert "PICKER_TOPMOST_NOT_CONFIRMED" in command[-1]
+    assert "PICKER_FOREGROUND_OWNER_NOT_CAPTURED" in command[-1]
+    assert "PICKER_FOREGROUND_NOT_CONFIRMED" in command[-1]
     assert "exit 21" not in command[-1]
     assert "-Command" in command
     assert options["timeout"] == 600
@@ -66,12 +75,29 @@ def test_picker_promotion_loop_cannot_exit_after_first_success_and_reactivates_n
     assert "while (!stopRequested)" in promotion_body
     assert "return;" not in promotion_body
     assert promotion_body.index("candidate != lastCandidate") < promotion_body.index(
-        "ForegroundRequested = false",
+        "ForegroundConfirmed = false",
     )
     assert promotion_body.index("SetWindowPos(candidate, HWND_TOPMOST") < promotion_body.index(
         "Thread.Sleep(PROMOTION_INTERVAL_MS)",
     )
     assert "SWP_NOACTIVATE" in promotion_body
+
+
+@pytest.mark.skipif(os.name != "nt", reason="PowerShell WinForms compilation requires Windows")
+def test_generated_picker_native_owner_type_compiles() -> None:
+    type_definition = _folder_picker_script("SYNTHETIC").split("$dialog =", 1)[0]
+    result = subprocess.run(
+        [
+            str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" /
+                "WindowsPowerShell" / "v1.0" / "powershell.exe"),
+            "-NoLogo", "-NoProfile", "-STA", "-Command",
+            type_definition + "[Console]::Write('SYNTHETIC-COMPILED');",
+        ],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=30, check=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "SYNTHETIC-COMPILED"
 
 
 def test_picker_cancel_returns_none_without_path_validation(tmp_path: Path):
@@ -159,6 +185,24 @@ def test_picker_keeps_valid_selection_when_native_topmost_confirmation_is_missin
 
     assert picker.select(history_kind="export") == str(tmp_path)
     assert history.last_directory("export") == str(tmp_path)
+
+
+def test_picker_keeps_valid_selection_when_foreground_owner_or_activation_is_unconfirmed(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+):
+    picker = LocalDirectoryPickerService(
+        runner=lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=0,
+            stdout=str(tmp_path),
+            stderr="PICKER_FOREGROUND_OWNER_NOT_CAPTURED;PICKER_FOREGROUND_NOT_CONFIRMED;",
+        ),
+        platform_name="nt",
+    )
+
+    with caplog.at_level("WARNING"):
+        assert picker.select() == str(tmp_path)
+    assert "fallback owner used" in caplog.text
+    assert "foreground activation was not confirmed" in caplog.text
 
 
 def test_report_and_export_picker_histories_are_independent(tmp_path: Path):

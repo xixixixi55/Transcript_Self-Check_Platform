@@ -41,3 +41,9 @@ workflow_level: 3
 - [x] 7.2 新增原生 Win32 托盘消息循环，将启动器的阻塞式运行提示替换为“打开文枢/退出文枢”菜单，并在后端意外结束时撤销托盘；验证启动器单元测试覆盖打开、显式退出、异常退出和清理。
 - [x] 7.3 运行启动器测试、真实 Win32 托盘烟雾、PyInstaller EXE 图标构建和工程增量门控，并记录验证结果。
 - [ ] 7.4 按 `manual-acceptance.md` 在目标 Windows 10/11 电脑验收托盘显示、重新打开、浏览器关闭后继续运行及显式退出；反馈收敛后重新冻结候选，再统一 Review 与 scoped full gate。 [DEFERRED]
+
+## 8. 部署反馈：原生目录选择框前台归属
+
+- [x] 8.1 修改 `local_directory_picker_service.py`，捕获触发时的前台窗口并作为 `FolderBrowserDialog` owner；保留隐藏 owner/置顶兜底并记录前台确认状态。
+- [x] 8.2 更新现有目录选择器测试，区分浏览器 owner、兜底 owner、持续提升和诊断日志合同；运行定向 pytest、真实 PowerShell 类型编译及工程增量门控。
+- [ ] 8.3 按 `manual-acceptance.md` 在部署电脑分别验证上传报告和统一导出的选择框始终位于浏览器之前。 [DEFERRED]
