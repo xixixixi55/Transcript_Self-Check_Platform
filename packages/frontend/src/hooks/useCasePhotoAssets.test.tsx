@@ -63,6 +63,82 @@ describe('useCasePhotoAssets', () => {
     expect(view.result.current.assetError).toContain('图片保存失败')
   })
 
+  it('bounds upload and export-read concurrency for a 202-image batch', async () => {
+    let activeUploads = 0
+    let maxUploads = 0
+    postMock.mockImplementation(async (_url, body) => {
+      const file = (body as FormData).get('photo') as File
+      activeUploads += 1
+      maxUploads = Math.max(maxUploads, activeUploads)
+      await new Promise(resolve => setTimeout(resolve, 1))
+      activeUploads -= 1
+      return { data: { data: { ...ref(`asset-${file.name}`), content_status: 'available' } } } as any
+    })
+    const onAssetRefsChange = vi.fn(async () => true)
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+    const files = Array.from({ length: 202 }, (_, index) => {
+      const file = new File(['SYNTHETIC'], `pic${index + 1}.png`, { type: 'image/png' })
+      return { uid: `local-${index + 1}`, name: file.name, originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']> }
+    })
+
+    await act(async () => { await view.result.current.handleChange(files) })
+
+    expect(postMock).toHaveBeenCalledTimes(202)
+    expect(maxUploads).toBe(4)
+    expect(onAssetRefsChange).toHaveBeenCalledTimes(1)
+    expect(view.result.current.files).toHaveLength(202)
+    expect(view.result.current.files[0].uid).toBe('asset-pic1.png')
+    expect(view.result.current.files[201].uid).toBe('asset-pic202.png')
+    const boundRefs = (onAssetRefsChange.mock.calls[0] as unknown as [OpaqueAssetRef[]])[0]
+    expect([boundRefs[0].asset_id, boundRefs[201].asset_id]).toEqual(['asset-pic1.png', 'asset-pic202.png'])
+
+    let activeReads = 0
+    let maxReads = 0
+    getMock.mockReset().mockImplementation(async () => {
+      activeReads += 1
+      maxReads = Math.max(maxReads, activeReads)
+      await new Promise(resolve => setTimeout(resolve, 1))
+      activeReads -= 1
+      return { data: new Blob(['SYNTHETIC']) } as any
+    })
+    const restored = await view.result.current.readFiles()
+    expect(restored).toHaveLength(202)
+    expect(maxReads).toBe(4)
+    expect([restored[0].name, restored[201].name]).toEqual(['asset-pic1.png.png', 'asset-pic202.png.png'])
+  })
+
+  it('retries only failed files after a partial batch upload failure', async () => {
+    const files = [1, 2, 3].map(index => {
+      const file = new File(['SYNTHETIC'], `retry-${index}.png`, { type: 'image/png' })
+      return { uid: `local-retry-${index}`, name: file.name, originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']> }
+    })
+    const attempts = new Map<string, number>()
+    postMock.mockImplementation(async (_url, body) => {
+      const file = (body as FormData).get('photo') as File
+      attempts.set(file.name, (attempts.get(file.name) || 0) + 1)
+      if (file.name === 'retry-2.png' && attempts.get(file.name) === 1) throw new Error('SYNTHETIC_UPLOAD_FAILED')
+      return { data: { data: { ...ref(`asset-${file.name}`), content_status: 'available' } } } as any
+    })
+    const onAssetRefsChange = vi.fn(async () => true)
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+
+    await act(async () => { await view.result.current.handleChange(files) })
+    expect(onAssetRefsChange).not.toHaveBeenCalled()
+    await act(async () => { await view.result.current.handleChange(files) })
+
+    expect(attempts).toEqual(new Map([
+      ['retry-1.png', 1], ['retry-2.png', 2], ['retry-3.png', 1],
+    ]))
+    expect(onAssetRefsChange).toHaveBeenCalledTimes(1)
+    expect(view.result.current.files.map(file => file.uid)).toEqual([
+      'asset-retry-1.png', 'asset-retry-2.png', 'asset-retry-3.png',
+    ])
+  })
+
   it('coalesces repeated Ant Design callbacks for one two-image selection', async () => {
     const onAssetRefsChange = vi.fn(async () => true)
     const firstFile = new File(['SYNTHETIC-FRONT'], 'front.png', { type: 'image/png' })
@@ -169,6 +245,34 @@ describe('useCasePhotoAssets', () => {
     })
     expect(view.result.current.uploading).toBe(false)
     await expect(view.result.current.waitForIdle()).resolves.toBe(true)
+  })
+
+  it('lets standalone Word stop waiting for a stalled photo operation', async () => {
+    const file = new File(['SYNTHETIC-STALLED-SAVE'], 'stalled.png', { type: 'image/png' })
+    const created = { ...ref('asset-synthetic-stalled'), content_status: 'available' as const }
+    let resolveSave: ((saved: boolean) => void) | undefined
+    const onAssetRefsChange = vi.fn(() => new Promise<boolean>(resolve => { resolveSave = resolve }))
+    postMock.mockResolvedValueOnce({ data: { data: created } } as any)
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+    let upload!: Promise<boolean>
+
+    act(() => {
+      upload = view.result.current.handleChange([{
+        uid: 'local-stalled', name: file.name,
+        originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']>,
+      }])
+    })
+    await waitFor(() => expect(onAssetRefsChange).toHaveBeenCalledTimes(1))
+
+    await expect(view.result.current.waitForIdle(5)).resolves.toBe(false)
+    expect(view.result.current.uploading).toBe(true)
+
+    await act(async () => {
+      resolveSave?.(true)
+      await upload
+    })
   })
 
   it('reports a non-idle-safe result when the immediate draft binding save fails', async () => {

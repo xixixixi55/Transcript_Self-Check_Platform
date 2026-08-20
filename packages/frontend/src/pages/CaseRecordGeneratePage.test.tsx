@@ -6,12 +6,8 @@ import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/consta
 import { unifiedExportRequestTimeoutMs } from '@biji/shared/utils'
 import type { ArchiveTaskCardSummary, ArchiveTaskResult, CaseDetail, CaseDraft, CaseShell, ClientIdentity, EditLease, InspectionReport, SharedDefaults, SourceRecord, TaskRecord } from '@biji/shared/types'
 import CaseRecordGeneratePage from './CaseRecordGeneratePage'
-
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn() } }))
-
-const getMock = vi.mocked(axios.get)
-const postMock = vi.mocked(axios.post)
-const patchMock = vi.mocked(axios.patch)
+const getMock = vi.mocked(axios.get); const postMock = vi.mocked(axios.post); const patchMock = vi.mocked(axios.patch)
 const caseId = 'case-synthetic-archive-race'
 const identity: ClientIdentity = { client_instance_id: 'client-synthetic', session_id: 'session-synthetic', deployment_instance_id: 'synthetic-uat', observed_at: '2026-01-01T00:00:00Z', identity_kind: 'local_session' }
 const defaults: SharedDefaults = { schema_version: 1, deployment_instance_id: 'synthetic-uat', revision: 0, entrust_unit_prefix: '', document_number: '', inspection_place: '', inspection_method: '', hardware_device: '', inspector_order: [], disc_number_prefix: 'GP', migration_decision: 'ignored', updated_at: '2026-01-01T00:00:00Z' }
@@ -59,20 +55,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let detailReads = 0
   let decisionBodies: Record<string, unknown>[] = []
   let events: string[] = []
-  let rejectSave = false
-  let failSharedDefaults = false
-  let conflictDecision = false
-  let holdSave = false
-  let showCompletedArchive = false
-  let useExportedLifecycle = false
-  let sourcePending = false
-  let recoverPhotoOnLoad = false
+  let rejectSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
+  let showCompletedArchive = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
-  let resolveSave: (() => void) | null = null
+  let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; initialLifecycle = 'review_ready'; resolveSave = null; archiveResultParts = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -91,6 +81,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         return { data: { data: { ...completedArchiveResult, parts: archiveResultParts ?? completedArchiveResult.parts } } }
       }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: recoverPhotoOnLoad ? [{ asset_id: 'asset-synthetic-recovered', asset_kind: 'image', fingerprint: 'a'.repeat(64), metadata: { file_name: 'SYNTHETIC-recovered.png', extension: '.png', media_type: 'image/png', size_bytes: 1 }, content_status: 'available' }] : [] } } }
+      if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSET(caseId, 'asset-synthetic-recovered')) return failPhotoAssetRead ? Promise.reject(new Error('SYNTHETIC_PHOTO_READ_FAILED')) : { data: new Blob(['SYNTHETIC-PHOTO'], { type: 'image/png' }) }
       if (url === API_ENDPOINTS.DEVICES) return { data: { data: [] } }
       if (url === API_ENDPOINTS.INSPECTORS) return { data: { data: [availableInspector] } }
       throw new Error(`unexpected GET ${url}`)
@@ -119,7 +110,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         }))
         return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, plan_row_revision: request.expected_plan_row_revision + 1, lifecycle: 'archive_verified', prefix: 'GP', disc_date: '2026-07-31', parts: archiveResultParts.map((part, index) => ({ part_number: index + 1, disc_number: part.disc_number, disc_date: part.disc_date })) } } }
       }
-      if (url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY) return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } }
+      if (url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY) { if (holdDirectory) await new Promise<void>(resolve => { resolveDirectory = resolve }); return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } } }
       if (url === API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId)) {
         const request = body as { expected_revision: number; export_path: string; directory_token: string }
         return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, lifecycle: 'exported', output: { export_path: request.export_path, word_filename: 'SYNTHETIC.docx', rar_filenames: ['SYNTHETIC.part1.rar'], hash_verification_image: 'SYNTHETIC-hashes.png', exported_at: '2026-01-01T00:00:00Z' } } } }
@@ -272,6 +263,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     } finally {
       anchorClick.mockRestore()
     }
+  }, 15000)
+
+  it('uses the latest revision when photo binding finishes during directory selection after timeout', async () => {
+    recoverPhotoOnLoad = true; failPhotoAssetRead = true; holdSave = true; holdDirectory = true; renderPage()
+    await screen.findByRole('heading', { name: '审核编辑', level: 2 }); await waitFor(() => expect(patchMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_CASE_PHOTO_BINDING(caseId))).toBe(true))
+    fireEvent.click(screen.getByRole('button', { name: /导出 Word/ })); fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
+    await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY)).toBe(true), { timeout: 7000 }); await act(async () => { holdSave = false; resolveSave?.(); resolveSave = null; await Promise.resolve() }); holdDirectory = false; resolveDirectory?.(); resolveDirectory = null
+    await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)).toBe(true)); const formData = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)?.[1] as FormData
+    expect(formData.getAll('photos')).toHaveLength(0); expect(formData.get('case_revision')).toBe('8')
   }, 15000)
 
   it('saves a newly selected inspector once without entering a PATCH loop', async () => {

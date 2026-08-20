@@ -39,6 +39,9 @@ vi.mock('antd', () => {
   )
   return {
     Upload: Object.assign(UploadMock, { LIST_IGNORE: 'LIST_IGNORE' }),
+    Button: ({ children, icon, onClick }: { children: React.ReactNode; icon?: React.ReactNode; onClick?: () => void }) => (
+      <button onClick={onClick}>{icon}{children}</button>
+    ),
     message: { error: vi.fn() },
   }
 })
@@ -55,6 +58,164 @@ function photo(index: number): UploadFile {
 }
 
 describe('ImageUploader material groups', () => {
+  it('通过独立按钮批量选择，并按跳号数字自然排序后一次填入', () => {
+    const onChange = vi.fn()
+    const view = render(<ImageUploader materials={materials} photos={[]} onChange={onChange} />)
+    const input = view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement
+    const files = [
+      new File(['5'], 'pic1005.png', { type: 'image/png' }),
+      new File(['4'], 'pic1004.jpg', { type: 'image/jpeg' }),
+      new File(['1'], 'pic1001.png', { type: 'image/png' }),
+      new File(['3'], 'pic1003.jpeg', { type: 'image/jpeg' }),
+    ]
+
+    expect(screen.getByRole('button', { name: '批量导入图片' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '检材 1 · SYN-JC00000001 图片 1 添加' })).toBeTruthy()
+    fireEvent.change(input, { target: { files } })
+
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange.mock.calls[0][0].map((file: UploadFile) => file.name)).toEqual([
+      'pic1001.png', 'pic1003.jpeg', 'pic1004.jpg', 'pic1005.png',
+    ])
+    expect(onChange.mock.calls[0][0].every((file: UploadFile) => file.originFileObj)).toBe(true)
+  })
+
+  it('按检材位置-图片位置识别三组图片且不依赖检材编号', () => {
+    const threeMaterials: EvidenceItem[] = [...materials, {
+      id: 'material-synthetic-3', evidence_number: 'SYN-JC00990003',
+      device_type: '', device_name: '', model: '',
+    }]
+    const files = [
+      new File(['6'], '3-2.png', { type: 'image/png' }),
+      new File(['2'], '1-2.png', { type: 'image/png' }),
+      new File(['3'], '2-1.png', { type: 'image/png' }),
+      new File(['1'], '1-1.jpg', { type: 'image/jpeg' }),
+      new File(['5'], '3-1.jpeg', { type: 'image/jpeg' }),
+      new File(['4'], '2-2.png', { type: 'image/png' }),
+    ]
+    const onChange = vi.fn()
+    const view = render(<ImageUploader materials={threeMaterials} photos={[]} onChange={onChange} />)
+
+    fireEvent.change(view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement, { target: { files } })
+
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange.mock.calls[0][0].map((file: UploadFile) => file.name)).toEqual([
+      '1-1.jpg', '1-2.png', '2-1.png', '2-2.png', '3-1.jpeg', '3-2.png',
+    ])
+  })
+
+  it('分组命名出现重复槽位时整批拒绝', () => {
+    vi.mocked(message.error).mockClear()
+    const onChange = vi.fn()
+    const view = render(<ImageUploader materials={materials} photos={[]} onChange={onChange} />)
+    const files = [
+      new File(['1'], '1-1.png', { type: 'image/png' }),
+      new File(['2'], '1-1.jpg', { type: 'image/jpeg' }),
+      new File(['3'], '2-1.png', { type: 'image/png' }),
+      new File(['4'], '2-2.png', { type: 'image/png' }),
+    ]
+
+    fireEvent.change(view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement, { target: { files } })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(message.error).toHaveBeenCalledWith(
+      '按“检材顺序-图片顺序”命名时，每个检材都应各有 1、2 两张图片（如 1-1、1-2），未导入任何图片。',
+    )
+  })
+
+  it.each([
+    ['检材位置越界', ['1-1.png', '1-2.png', '3-1.png', '3-2.png']],
+    ['图片位置非法', ['1-1.png', '1-3.png', '2-1.png', '2-2.png']],
+  ])('分组命名%s时整批拒绝', (_caseName, names) => {
+    vi.mocked(message.error).mockClear()
+    const onChange = vi.fn()
+    const view = render(<ImageUploader materials={materials} photos={[]} onChange={onChange} />)
+    const files = names.map(name => new File(['SYNTHETIC'], name, { type: 'image/png' }))
+
+    fireEvent.change(view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement, { target: { files } })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(message.error).toHaveBeenCalledWith(
+      '按“检材顺序-图片顺序”命名时，每个检材都应各有 1、2 两张图片（如 1-1、1-2），未导入任何图片。',
+    )
+  })
+
+  it('分组命名与普通自然排序命名混用时整批拒绝', () => {
+    vi.mocked(message.error).mockClear()
+    const onChange = vi.fn()
+    const view = render(<ImageUploader materials={materials} photos={[]} onChange={onChange} />)
+    const files = [
+      new File(['1'], '1-1.png', { type: 'image/png' }),
+      new File(['2'], '1-2.png', { type: 'image/png' }),
+      new File(['3'], 'pic1003.png', { type: 'image/png' }),
+      new File(['4'], 'pic1005.png', { type: 'image/png' }),
+    ]
+
+    fireEvent.change(view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement, { target: { files } })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(message.error).toHaveBeenCalledWith(
+      '请统一使用“检材顺序-图片顺序”（如 1-1、1-2）或普通数字文件名，未导入任何图片。',
+    )
+  })
+
+  it('批量数量不匹配时整批拒绝并保留既有图片', () => {
+    vi.mocked(message.error).mockClear()
+    const onChange = vi.fn()
+    const existing = [photo(1), photo(2)]
+    const view = render(<ImageUploader materials={materials} photos={existing} onChange={onChange} />)
+    const input = view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement
+
+    fireEvent.change(input, { target: { files: [
+      new File(['1'], 'pic1001.png', { type: 'image/png' }),
+      new File(['2'], 'pic1002.png', { type: 'image/png' }),
+      new File(['3'], 'front.gif', { type: 'image/gif' }),
+    ] } })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(message.error).toHaveBeenCalledWith(
+      '当前有 2 个检材，应选择 4 张图片；本次选择 3 张，未导入任何图片。',
+    )
+    expect(screen.getByText('SYNTHETIC-photo-1.png')).toBeTruthy()
+    expect(screen.getByText('SYNTHETIC-photo-2.png')).toBeTruthy()
+  })
+
+  it('批量图片存在无数字文件名时整批拒绝', () => {
+    vi.mocked(message.error).mockClear()
+    const onChange = vi.fn()
+    const view = render(<ImageUploader materials={materials.slice(0, 1)} photos={[]} onChange={onChange} />)
+    const input = view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement
+
+    fireEvent.change(input, { target: { files: [
+      new File(['a'], 'front.png', { type: 'image/png' }),
+      new File(['2'], 'pic1002.png', { type: 'image/png' }),
+    ] } })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(message.error).toHaveBeenCalledWith('front.png：文件名必须包含数字，未导入任何图片。')
+  })
+
+  it('一次处理 202 张图片并按顺序对应 101 个检材', () => {
+    const manyMaterials = Array.from({ length: 101 }, (_, index): EvidenceItem => ({
+      id: `material-synthetic-${index + 1}`,
+      evidence_number: `SYN-JC${String(index + 1).padStart(8, '0')}`,
+      device_type: '', device_name: '', model: '',
+    }))
+    const files = Array.from({ length: 202 }, (_, index) => new File(
+      ['SYNTHETIC'], `pic${202 - index}.png`, { type: 'image/png' },
+    ))
+    const onChange = vi.fn()
+    const view = render(<ImageUploader materials={manyMaterials} photos={[]} onChange={onChange} />)
+
+    fireEvent.change(view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement, { target: { files } })
+
+    expect(onChange).toHaveBeenCalledOnce()
+    const imported = onChange.mock.calls[0][0] as UploadFile[]
+    expect(imported).toHaveLength(202)
+    expect(imported.slice(0, 2).map(file => file.name)).toEqual(['pic1.png', 'pic2.png'])
+    expect(imported.slice(-2).map(file => file.name)).toEqual(['pic201.png', 'pic202.png'])
+  })
+
   it('允许恰好 100MB 的图片并拒绝超过 100MB 的图片', () => {
     vi.mocked(message.error).mockClear()
     render(<ImageUploader materials={materials.slice(0, 1)} photos={[]} onChange={vi.fn()} />)

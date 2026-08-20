@@ -1,6 +1,7 @@
 // Layer 10: FE_Hooks — 笔录导出 Hook
 import { useState, useCallback } from 'react'
 import axios from 'axios'
+import { message } from 'antd'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import type { InspectionReport, WordDirectoryExportResult, WordDirectoryExportTarget } from '@biji/shared/types'
 import { buildMaterialPhotoGroups, getDefaultExportFileName, normalizeDataSummary, normalizeExportFileName } from '@biji/shared/utils'
@@ -70,6 +71,8 @@ const ARCHIVE_INPUT_MESSAGES: Record<string, string> = {
 
 Object.assign(EXPORT_BLOCKER_MESSAGES, ARCHIVE_INPUT_MESSAGES)
 
+const ATTACHMENT2_SKIPPED_MESSAGE = 'Word 已成功导出，但当前图片不完整或无效，本次未生成附件2。'
+
 function formatExportBlockers(blockers: Array<{ code?: string }>): string {
   return blockers.map(item => EXPORT_BLOCKER_MESSAGES[item.code || ''] || '导出门控未通过。').join('；')
 }
@@ -124,7 +127,16 @@ export function useRecordExport(): UseRecordExportReturn {
       normalizedReport.inspection.result.data_summary = normalizeDataSummary(
         normalizedReport.inspection.result.data_summary,
       )
-      const runtimePhotoIds = photoIds.map((_, index) => `photo-${index + 1}`)
+      const expectedPhotoCount = (normalizedReport.introduction?.evidence_list?.length || 0) * 2
+      const selectedPhotoFiles = photoFiles || []
+      const persistedPhotoCount = normalizedReport.attachments?.photo_ids?.length || 0
+      const providedPhotoCount = Math.max(photoIds.length, selectedPhotoFiles.length, persistedPhotoCount)
+      const photosComplete = expectedPhotoCount > 0
+        && photoIds.length === expectedPhotoCount
+        && selectedPhotoFiles.length === expectedPhotoCount
+      const effectivePhotoFiles = photosComplete ? selectedPhotoFiles : []
+      const photoWarningNeeded = !photosComplete && (expectedPhotoCount > 0 || providedPhotoCount > 0)
+      const runtimePhotoIds = effectivePhotoFiles.map((_, index) => `photo-${index + 1}`)
       const reportJson = JSON.stringify({
         ...normalizedReport,
         attachments: {
@@ -151,24 +163,28 @@ export function useRecordExport(): UseRecordExportReturn {
         formData.append('word_filename', resolveExportFileName(report.document_number, fileName))
       }
       // 附加图片文件
-      if (photoFiles) {
-        photoFiles.forEach(f => formData.append('photos', f))
-      }
+      effectivePhotoFiles.forEach(file => formData.append('photos', file))
       const response = await axios.post(API_ENDPOINTS.EXPORT_RECORD, formData, {
         responseType: exportDirectory ? 'json' : 'blob',
       })
+      let backendPhotoWarning = false
       if (exportDirectory) {
         const result = response.data?.data as WordDirectoryExportResult | undefined
         if (!result?.export_path || !result.word_filename) throw new Error('WORD_EXPORT_RESPONSE_INVALID')
-        return true
+        backendPhotoWarning = Boolean(result.warnings?.some(warning => warning.code.startsWith('ATTACHMENT2_')))
+      } else {
+        backendPhotoWarning = Boolean(response.headers?.['x-wenshu-word-warning'])
       }
-      // 触发浏览器下载
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = resolveExportFileName(report.document_number, fileName)
-      a.click()
-      window.URL.revokeObjectURL(url)
+      if (!exportDirectory) {
+        // 触发浏览器下载
+        const url = window.URL.createObjectURL(new Blob([response.data]))
+        const a = document.createElement('a')
+        a.href = url
+        a.download = resolveExportFileName(report.document_number, fileName)
+        a.click()
+        window.URL.revokeObjectURL(url)
+      }
+      if (photoWarningNeeded || backendPhotoWarning) message.warning(ATTACHMENT2_SKIPPED_MESSAGE)
       return true
     } catch (e: any) {
       alert('导出失败: ' + await resolveExportErrorMessage(e))

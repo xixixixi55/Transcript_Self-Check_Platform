@@ -1,5 +1,10 @@
 import type { InspectionReport } from '../types'
-import { buildMaterialPhotoGroups } from './materialPhotoGroups'
+import {
+  buildMaterialPhotoGroups,
+  hasNumericFileName,
+  parseMaterialPhotoPosition,
+  sortFilesByNumericName,
+} from './materialPhotoGroups'
 
 declare const describe: (name: string, run: () => void) => void
 declare const it: (name: string, run: () => void) => void
@@ -33,5 +38,54 @@ describe('buildMaterialPhotoGroups', () => {
         source_order: 2,
       },
     ])
+  })
+})
+
+describe('sortFilesByNumericName', () => {
+  it('naturally sorts discontinuous and variable-width numeric file names', () => {
+    const files = [
+      { name: 'pic1005.png' },
+      { name: 'pic10.jpg' },
+      { name: 'pic1003.jpeg' },
+      { name: 'pic2.png' },
+    ]
+
+    expect(sortFilesByNumericName(files).map(file => file.name)).toEqual([
+      'pic2.png', 'pic10.jpg', 'pic1003.jpeg', 'pic1005.png',
+    ])
+  })
+
+  it('keeps the source order when names compare equally', () => {
+    const first = { name: 'pic1.png', marker: 'first' }
+    const second = { name: 'pic1.png', marker: 'second' }
+
+    expect(sortFilesByNumericName([first, second]).map(file => file.marker)).toEqual([
+      'first', 'second',
+    ])
+  })
+
+  it('compares every numeric segment and then the extension', () => {
+    const files = [
+      { name: 'case10_pic1.png' }, { name: 'case2_pic10.png' },
+      { name: 'case2_pic2.png' }, { name: 'case2_pic2.jpg' },
+    ]
+    expect(sortFilesByNumericName(files).map(file => file.name)).toEqual([
+      'case2_pic2.jpg', 'case2_pic2.png', 'case2_pic10.png', 'case10_pic1.png',
+    ])
+  })
+
+  it('identifies whether a file name contains a numeric sequence', () => {
+    expect(hasNumericFileName('现场照片1003.png')).toBe(true)
+    expect(hasNumericFileName('现场照片.png')).toBe(false)
+  })
+
+  it('parses one-based material and photo positions without using evidence numbers', () => {
+    expect(parseMaterialPhotoPosition('1-1.png')).toEqual({
+      materialPosition: 1, photoPosition: 1,
+    })
+    expect(parseMaterialPhotoPosition('003-2.JPG')).toEqual({
+      materialPosition: 3, photoPosition: 2,
+    })
+    expect(parseMaterialPhotoPosition('pic1003.png')).toBeNull()
   })
 })

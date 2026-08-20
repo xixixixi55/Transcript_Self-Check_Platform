@@ -334,3 +334,17 @@ workflow_level: 3
   - 验证：统一导出与调用链后端定向 pytest 52 passed、2 个既有 `ARCHIVE_CONFIGURED_ROOT_INVALID` warnings；架构检查、TypeScript 类型检查、`npm run verify:quick` 与 `git diff --check` 通过；当前变更 scoped strict docs 13 checks/0 drift。
   - final_gate: [ENVIRONMENT-BLOCKED] scoped full gate 的全量测试在默认数据根因只读数据库失败；切换可写数据根后相关失败用例 10 passed，但全量运行又命中既有 `TEMPLATE_VERSION_IMMUTABLE` 测试隔离冲突（1205 passed、3 failed、7 errors）。
   - code_review: [N/A] 用户明确要求本轮不执行独立审查。
+
+- [x] T044 新增批量导入图片按钮，按文件名数字排序配对，且图片异常不阻止单独 Word 导出（用户需求）。
+  - 目标：审核编辑界面的附件图片区域新增独立「批量导入图片」按钮，原有逐张添加入口保留；按钮允许一次全选图片。普通数字文件名允许跳号，按自然升序排列后每两张依次对应当前检材；同时支持 `1-1、1-2、2-1、2-2` 位置分组命名，第一个数字表示当前检材顺序而非检材编号。批量图片数不等于检材数两倍时整批不填入、既有图片不变；一次 200 多张图片仍以有界并发正常上传和导出读取；任何图片缺失、数量、映射、绑定或读取问题均不得阻止审核页单独 Word 导出。
+  - Layer 0：修改 `packages/shared/types/wordDownload.ts` 与 `openspec/specs/data-model.md`，为目录落盘成功但省略可选附件2的结果增加结构化非阻断 warning 契约。
+  - Layer 2：修改 `packages/shared/utils/materialPhotoGroups.ts` 及同目录测试，新增稳定的文件名数字自然排序和 `<检材顺序>-<图片顺序>` 位置解析纯函数，覆盖 `pic1003.png`/`pic1005.png` 跳号、不同数字位数、扩展名差异、同序稳定性及 `1-1`/`1-2` 位置语义。
+  - Layer 10：新增 `packages/frontend/src/hooks/useBatchImageImport.ts`，修改 `useCasePhotoAssets.ts`、`useRecordExport.ts` 及测试；在 Hook 层完成总数优先的批量原子校验和自然排序，使批量图片上传与导出读取最多 4 并发、保序且仅保存一次图片绑定，局部上传失败重试只重传失败项；单独 Word 请求仅在图片完整有效时携带附件2，零图片及后端图片异常均展示非阻断提示，不再把任何图片错误映射为 Word 导出失败。
+  - Layer 11：修改 `packages/frontend/src/components/ImageUploader.tsx`、`packages/frontend/src/reviewWorkspace.css` 及测试，在附件说明行新增带上传图标的次要按钮「批量导入图片」，通过隐藏/受控多选文件入口接收整批图片，同时保留逐张槽位；先统一校验格式、大小、文件名数字和 `图片数 = 检材数 × 2`，全部通过才按自然排序结果一次调用 `onChange`，否则整批拒绝并提示当前检材数、应选数、实际数和未导入结果；窄屏下说明与按钮纵向排列且按钮保持完整可点击标签。
+  - Layer 12：修改 `packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及测试，使图片仍在上传时最多等待 5 秒，等待超时或持久化图片读取失败时，单独 Word 导出继续以无附件2模式执行。
+  - Layer 22：修改 `packages/backend/app/controllers/record_controller.py` 及 `tests/test_record_controller.py`，把图片门控从审核页单独 Word 导出失败条件中移除；有效图片正常渲染附件2，无效或不完整图片安全省略附件2并返回非阻断提示，其他 Word 门控保持不变。
+  - 验证：运行共享工具、`ImageUploader`、`useCasePhotoAssets`、`useRecordExport`、页面与 `record_controller` 定向测试；覆盖独立按钮可访问名称、多选、逐张入口仍存在、批量成功配对、数量不足/超出均零写入、原列表保留、跳号排序、202 张图片上传/读取并发上限与单次绑定、前端直接请求与旧客户端请求均无法用图片问题阻断 Word；再运行 `npm run verify:quick`、`npm run verify:docs:strict -- --change background-compression-archive-completion` 与 `git diff --check`。真实 `.docx` 需人工确认完整图片生成附件2、异常图片仍成功导出且附件2省略。
+  - 自动化证据：前端 4 files / 60 tests、共享排序与位置解析 6 tests、后端图片及 revision 定向 9 tests 全部通过；202 张合成图片上传与读取峰值并发均为 4，原顺序和单次绑定断言通过；三检材 `1-1` 至 `3-2` 乱序选择按位置正确配对，重复、越界、非法槽位和两种命名混用整批拒绝；页面回归真实等待 5 秒并覆盖目录选择期间图片绑定推进 revision；后端正向只容忍迟到图片绑定，非图片变化、未来 revision 及缺失/空图片等价均保持 409。临时反转位置排序后核心回归按预期失败，恢复实现后通过；`npm run verify:quick`、`lint:arch`、TypeScript 与 `git diff --check` PASS。
+  - code_review: [PASS] 用户补充位置分组命名后重新冻结候选；独立复审继续识别并关闭目录选择期间 revision 竞态、未来 revision 误放行及空图片表示误判，最终确认先前跨层引用、图片读取容错、零图片提示、数量提示优先级和非图片写入失败合同均已修复，无剩余 MUST/SHOULD。最终门控仅更新一处旧帮助文案测试断言后再次复审 PASS。
+  - final_gate: [ENVIRONMENT-BLOCKED] 两次使用独立可写合成数据根执行 scoped full gate：预检、架构、类型、治理、仓库资产及前端 60 files / 387 tests 均 PASS；后端两次均为 1213 passed、3 skipped、3 failed、7 errors，全部归因既有共享模板状态 `TEMPLATE_VERSION_IMMUTABLE`。对应 10 个失败/错误用例换全新数据根隔离重跑 10/10 PASS，T044 后端图片与 revision 定向 9/9 PASS；按重复失败终止规则未继续重跑，生产构建阶段因前置全量测试失败未执行。
+  - manual_acceptance: [PENDING] 真实 Windows 桌面 `.docx` 尚需确认：完整图片生成附件2、异常图片仍成功导出且附件2省略。

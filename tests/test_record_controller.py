@@ -118,6 +118,99 @@ def _directory_export_report():
     }
 
 
+def test_word_export_allows_stale_revision_caused_only_by_late_photo_binding(client, tmp_path):
+    from app.controllers import record_controller, record_template_context_controller
+
+    submitted = _directory_export_report()
+    current = json.loads(json.dumps(submitted))
+    current["attachments"].update({
+        "photo_ids": ["asset-SYNTHETIC-1", "asset-SYNTHETIC-2"],
+        "photo_groups": [{
+            "material_id": "material-SYNTHETIC-1",
+            "material_number": "SYNTHETIC-JC-1",
+            "display_text": "检材SYNTHETIC-JC-1照片",
+            "ordered_image_ids": ["asset-SYNTHETIC-1", "asset-SYNTHETIC-2"],
+            "source_order": 1,
+        }],
+    })
+    services = MagicMock()
+    services.cases.drafts.get.return_value = {
+        "revision": 8, "report": current, "template_ref": None,
+    }
+    docx_path = tmp_path / "SYNTHETIC-photo-drift.docx"
+    docx_path.write_bytes(b"SYNTHETIC-DOCX")
+
+    with patch.object(record_template_context_controller, "get_workbench_services", return_value=services), \
+         patch.object(record_controller, "resolve_case_disc_mapping") as disc_mapping, \
+         patch.object(record_controller, "generate_docx", return_value=str(docx_path)) as generate:
+        disc_mapping.return_value.plan_exists = False
+        response = client.post("/api/v1/records/export", data={
+            "report_json": json.dumps(submitted, ensure_ascii=False),
+            "case_id": "case-SYNTHETIC-photo-drift", "case_revision": "7",
+        })
+
+    assert response.status_code == 200, response.text
+    assert response.content == b"SYNTHETIC-DOCX"
+    generate.assert_called_once()
+
+
+def test_word_export_rejects_stale_revision_with_non_photo_change(client):
+    from app.controllers import record_controller, record_template_context_controller
+
+    submitted = _directory_export_report()
+    current = json.loads(json.dumps(submitted))
+    current["document_number"] = "SYNTHETIC-CHANGED-BY-OTHER-EDITOR"
+    current["attachments"].update({
+        "photo_ids": ["asset-SYNTHETIC-1", "asset-SYNTHETIC-2"],
+        "photo_groups": [],
+    })
+    services = MagicMock()
+    services.cases.drafts.get.return_value = {
+        "revision": 8, "report": current, "template_ref": None,
+    }
+
+    with patch.object(record_template_context_controller, "get_workbench_services", return_value=services), \
+         patch.object(record_controller, "generate_docx") as generate:
+        response = client.post("/api/v1/records/export", data={
+            "report_json": json.dumps(submitted, ensure_ascii=False),
+            "case_id": "case-SYNTHETIC-non-photo-drift", "case_revision": "7",
+        })
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "REVISION_CONFLICT"
+    generate.assert_not_called()
+
+
+@pytest.mark.parametrize(("case_revision", "current_photo_state"), [
+    (999, {"photo_ids": ["asset-SYNTHETIC-1"], "photo_groups": []}),
+    (7, {"photo_ids": [], "photo_groups": []}),
+])
+def test_word_export_does_not_misclassify_invalid_revision_as_late_photo_binding(
+    client, case_revision, current_photo_state,
+):
+    from app.controllers import record_controller, record_template_context_controller
+
+    submitted = _directory_export_report()
+    current = json.loads(json.dumps(submitted))
+    current["attachments"].update(current_photo_state)
+    services = MagicMock()
+    services.cases.drafts.get.return_value = {
+        "revision": 8, "report": current, "template_ref": None,
+    }
+
+    with patch.object(record_template_context_controller, "get_workbench_services", return_value=services), \
+         patch.object(record_controller, "generate_docx") as generate:
+        response = client.post("/api/v1/records/export", data={
+            "report_json": json.dumps(submitted, ensure_ascii=False),
+            "case_id": "case-SYNTHETIC-invalid-photo-drift",
+            "case_revision": str(case_revision),
+        })
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "REVISION_CONFLICT"
+    generate.assert_not_called()
+
+
 def test_standalone_word_export_writes_to_picker_authorized_directory(client, tmp_path):
     from app.controllers import record_controller
     from app.services.archive_authorization_service import ArchiveAuthorizationService
@@ -431,7 +524,10 @@ def test_case_word_export_rejects_pending_plan_despite_client_disc_number(client
     generate.assert_not_called()
 
 
-def test_export_blocks_odd_uploaded_attachment2_images_before_docx(client):
+def test_directory_word_export_omits_odd_attachment2_images_without_blocking(client, tmp_path):
+    from app.controllers import record_controller
+    from app.services.archive_authorization_service import ArchiveAuthorizationService
+
     report = {
         "attachments": {"disc_number": "GP20260720-01", "photo_ids": []},
         "inspection": {"primary_software": {
@@ -440,17 +536,195 @@ def test_export_blocks_odd_uploaded_attachment2_images_before_docx(client):
             "confirmation_status": "confirmed_by_user",
         }},
     }
-    response = client.post(
-        "/api/v1/records/export",
-        data={"report_json": json.dumps(report, ensure_ascii=False)},
-        files={"photos": ("one.png", io.BytesIO(b"not-an-image"), "image/png")},
-    )
-    assert response.status_code == 422
-    detail = response.json()["detail"]
-    assert detail["code"] == "EXPORT_BLOCKED"
-    assert detail["blockers"][0]["code"] == "ATTACHMENT2_IMAGE_COUNT_ODD"
-    assert "图片数量必须为偶数" in detail["blockers"][0]["message"]
-    assert "one.png" not in response.text
+    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    token = authorization.issue_exact_directory_grant(str(tmp_path))
+    services = MagicMock()
+    services.sources.authorization = authorization
+
+    def generate_to_staging(generated_report, **kwargs):
+        assert generated_report["attachments"]["photo_ids"] == []
+        assert generated_report["attachments"]["photo_groups"] == []
+        assert kwargs["photo_paths"] == []
+        output = Path(kwargs["output_dir"]) / "SYNTHETIC-no-attachment2.docx"
+        output.write_bytes(b"SYNTHETIC-DOCX")
+        return str(output)
+
+    with patch.object(record_controller, "get_workbench_services", return_value=services), \
+         patch.object(record_controller, "generate_docx", side_effect=generate_to_staging) as generate:
+        response = client.post(
+            "/api/v1/records/export",
+            data={
+                "report_json": json.dumps(report, ensure_ascii=False),
+                "export_path": str(tmp_path),
+                "directory_token": token,
+                "word_filename": "SYNTHETIC-no-attachment2.docx",
+            },
+            files={"photos": ("pic1003.png", io.BytesIO(b"not-an-image"), "image/png")},
+        )
+
+    assert response.status_code == 200
+    assert generate.call_count == 1
+    assert response.json()["data"]["warnings"] == [{
+        "code": "ATTACHMENT2_IMAGE_COUNT_ODD",
+        "message": "当前图片不完整或无效，本次 Word 未生成附件2。",
+    }]
+    assert (tmp_path / "SYNTHETIC-no-attachment2.docx").read_bytes() == b"SYNTHETIC-DOCX"
+
+
+def test_word_export_warns_when_material_has_no_attachment2_images(client, tmp_path):
+    from app.controllers import record_controller
+
+    report = _directory_export_report()
+    report["introduction"]["evidence_list"] = [{
+        "id": "material-SYNTHETIC-1",
+        "evidence_number": "SYNTHETIC-JC-1",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }]
+    docx_path = tmp_path / "SYNTHETIC-missing-attachment2.docx"
+    docx_path.write_bytes(b"SYNTHETIC-DOCX")
+
+    with patch.object(record_controller, "generate_docx", return_value=str(docx_path)) as generate:
+        response = client.post(
+            "/api/v1/records/export",
+            data={"report_json": json.dumps(report, ensure_ascii=False)},
+        )
+
+    assert response.status_code == 200
+    assert response.headers["x-wenshu-word-warning"] == "ATTACHMENT2_IMAGE_MISSING"
+    assert generate.call_args.kwargs["photo_paths"] == []
+    assert generate.call_args.args[0]["attachments"]["photo_ids"] == []
+
+
+def test_word_export_omits_unreadable_even_attachment2_images(client, tmp_path):
+    from app.controllers import record_controller
+
+    report = {
+        "introduction": {"evidence_list": [{
+            "id": "material-SYNTHETIC-1",
+            "evidence_number": "SYNTHETIC-JC-1",
+            "material_type": "phone",
+            "material_type_status": "confirmed_by_user",
+            "material_type_source": "user",
+        }]},
+        "attachments": {
+            "disc_number": "GP20260720-01",
+            "photo_ids": ["photo-1", "photo-2"],
+            "photo_groups": [{
+                "material_id": "material-SYNTHETIC-1",
+                "material_number": "SYNTHETIC-JC-1",
+                "display_text": "检材SYNTHETIC-JC-1照片",
+                "ordered_image_ids": ["photo-1", "photo-2"],
+                "source_order": 1,
+            }],
+        },
+        "inspection": {"primary_software": {
+            "name": "SYNTHETIC 取证软件",
+            "version": "V1.0",
+            "confirmation_status": "confirmed_by_user",
+        }},
+    }
+    docx_path = tmp_path / "SYNTHETIC-unreadable-omitted.docx"
+    docx_path.write_bytes(b"SYNTHETIC-DOCX")
+    with patch.object(record_controller, "generate_docx", return_value=str(docx_path)) as generate:
+        response = client.post(
+            "/api/v1/records/export",
+            data={"report_json": json.dumps(report, ensure_ascii=False)},
+            files=[
+                ("photos", ("pic1003.png", io.BytesIO(b"not-an-image-1"), "image/png")),
+                ("photos", ("pic1005.png", io.BytesIO(b"not-an-image-2"), "image/png")),
+            ],
+        )
+
+    assert response.status_code == 200
+    assert generate.call_args.kwargs["photo_paths"] == []
+    assert generate.call_args.args[0]["attachments"]["photo_ids"] == []
+    assert response.headers["x-wenshu-word-warning"] == "ATTACHMENT2_IMAGE_INVALID"
+
+
+def test_word_export_omits_attachment2_when_upload_stream_read_fails(client, tmp_path):
+    from app.controllers import record_controller
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
+    report = _directory_export_report()
+    report["introduction"]["evidence_list"] = [{
+        "id": "material-SYNTHETIC-1",
+        "evidence_number": "SYNTHETIC-JC-1",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }]
+    report["attachments"].update({
+        "photo_ids": ["photo-1", "photo-2"],
+        "photo_groups": [{
+            "material_id": "material-SYNTHETIC-1",
+            "material_number": "SYNTHETIC-JC-1",
+            "display_text": "检材SYNTHETIC-JC-1照片",
+            "ordered_image_ids": ["photo-1", "photo-2"],
+            "source_order": 1,
+        }],
+    })
+    docx_path = tmp_path / "SYNTHETIC-read-failed-omitted.docx"
+    docx_path.write_bytes(b"SYNTHETIC-DOCX")
+
+    with patch.object(StarletteUploadFile, "read", new=AsyncMock(side_effect=OSError("SYNTHETIC_READ_FAILED"))), \
+         patch.object(record_controller, "generate_docx", return_value=str(docx_path)) as generate:
+        response = client.post(
+            "/api/v1/records/export",
+            data={"report_json": json.dumps(report, ensure_ascii=False)},
+            files=[
+                ("photos", ("pic1003.png", io.BytesIO(b"image-1"), "image/png")),
+                ("photos", ("pic1005.png", io.BytesIO(b"image-2"), "image/png")),
+            ],
+        )
+
+    assert response.status_code == 200
+    assert response.headers["x-wenshu-word-warning"] == "ATTACHMENT2_IMAGE_READ_FAILED"
+    assert generate.call_args.kwargs["photo_paths"] == []
+    assert generate.call_args.args[0]["attachments"]["photo_groups"] == []
+
+
+def test_word_export_does_not_hide_attachment2_staging_write_failure(client):
+    from app.controllers import record_controller
+
+    report = _directory_export_report()
+    report["introduction"]["evidence_list"] = [{
+        "id": "material-SYNTHETIC-1",
+        "evidence_number": "SYNTHETIC-JC-1",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+    }]
+    report["attachments"].update({
+        "photo_ids": ["photo-1", "photo-2"],
+        "photo_groups": [{
+            "material_id": "material-SYNTHETIC-1",
+            "material_number": "SYNTHETIC-JC-1",
+            "display_text": "检材SYNTHETIC-JC-1照片",
+            "ordered_image_ids": ["photo-1", "photo-2"],
+            "source_order": 1,
+        }],
+    })
+
+    with patch.object(
+        record_controller,
+        "open",
+        create=True,
+        side_effect=OSError("SYNTHETIC_STAGING_WRITE_FAILED"),
+    ), patch.object(record_controller, "generate_docx") as generate:
+        response = client.post(
+            "/api/v1/records/export",
+            data={"report_json": json.dumps(report, ensure_ascii=False)},
+            files=[
+                ("photos", ("pic1003.png", io.BytesIO(b"image-1"), "image/png")),
+                ("photos", ("pic1005.png", io.BytesIO(b"image-2"), "image/png")),
+            ],
+        )
+
+    assert response.status_code == 500
+    assert response.json()["detail"]["code"] == "DOCX_RENDER_FAILED"
+    generate.assert_not_called()
 
 
 def test_parse_folder_compress_true(client):

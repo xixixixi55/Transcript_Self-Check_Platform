@@ -22,7 +22,10 @@ from ..services.archive_execution_service import (
 from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
 from ..services.attachment_plan_service import AttachmentPlanError
 from ..services.attachment2_plan_service import material_photo_groups
-from ..services.attachment2_image_service import Attachment2ImageError
+from ..services.attachment2_image_service import (
+    Attachment2ImageError,
+    validate_attachment2_photos,
+)
 from ..services.template_profile_service import TemplateProfileError
 from ..services.archive_runtime_service import ArchiveRuntimeError
 from ..services.archive_source_runtime_service import (
@@ -47,6 +50,22 @@ from ..services.workbench_factory_service import get_workbench_services
 from ..config import OUTPUT_BASE, UPLOAD_BASE, ARCHIVE_MAX_SIZE
 router = APIRouter()
 ARCHIVE_AUTHORIZATION_SERVICE = ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)
+ATTACHMENT2_SKIPPED_MESSAGE = "当前图片不完整或无效，本次 Word 未生成附件2。"
+
+
+def _clear_optional_attachment2(report: dict) -> None:
+    attachments = report.setdefault("attachments", {})
+    attachments["photo_ids"] = []
+    attachments["photo_groups"] = []
+
+
+def _attachment2_warning(code: str | None) -> dict[str, str]:
+    return {
+        "code": code or "ATTACHMENT2_IMAGE_INVALID",
+        "message": ATTACHMENT2_SKIPPED_MESSAGE,
+    }
+
+
 @router.post("/reports/parse")
 async def parse_report_endpoint(
     request: Request,
@@ -141,7 +160,12 @@ async def export_record_endpoint(
         report = json.loads(report_json)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="笔录数据 JSON 格式无效")
-    template_context = resolve_case_template_context(case_id, case_revision)
+    template_context = resolve_case_template_context(
+        case_id,
+        case_revision,
+        allow_attachment2_revision_drift=True,
+        submitted_report=report,
+    )
     directory_export_requested = bool(export_path or directory_token or word_filename)
     report = normalize_primary_software_projection(report)
     attachments = report.setdefault("attachments", {})
@@ -152,15 +176,24 @@ async def export_record_endpoint(
         attachments["disc_number"] = disc_mapping.first_disc_number or ""
     disc_result = apply_disc_sequence_to_attachments(attachments)
     uploaded_photos = [photo for photo in photos if photo.filename]
+    had_attachment2_state = bool(
+        attachments.get("photo_ids") or attachments.get("photo_groups")
+    )
     attachments["photo_ids"] = [f"photo-{index}" for index in range(1, len(uploaded_photos) + 1)]
-    photo_mapping_valid = True
-    photo_mapping_error_code = None
+    photo_warning_code = None
     if uploaded_photos:
-        try:
-            material_photo_groups(report)
-        except AttachmentPlanError as error:
-            photo_mapping_valid = False
-            photo_mapping_error_code = error.code
+        if len(uploaded_photos) % 2:
+            photo_warning_code = "ATTACHMENT2_IMAGE_COUNT_ODD"
+        else:
+            try:
+                material_photo_groups(report)
+            except AttachmentPlanError as error:
+                photo_warning_code = error.code
+    elif had_attachment2_state or report.get("introduction", {}).get("evidence_list"):
+        photo_warning_code = "ATTACHMENT2_IMAGE_MISSING"
+    if photo_warning_code:
+        uploaded_photos = []
+        _clear_optional_attachment2(report)
     material_fields = unconfirmed_material_fields(report)
     manifest_valid = False
     manifest_blocker_code = None
@@ -185,9 +218,8 @@ async def export_record_endpoint(
             material_types_confirmed=not material_fields,
             material_type_fields=material_fields,
             primary_software_confirmed=is_primary_software_confirmed(report),
-            photo_count_valid=len(uploaded_photos) % 2 == 0,
-            photo_mapping_valid=photo_mapping_valid,
-            photo_mapping_error_code=photo_mapping_error_code,
+            photo_count_valid=True,
+            photo_mapping_valid=True,
             disc_sequence_valid=disc_result.valid,
             disc_sequence_error_code=disc_result.error_code,
             archive_manifest_required=formal_archive_requested,
@@ -244,15 +276,40 @@ async def export_record_endpoint(
             for index, photo in enumerate(uploaded_photos, 1):
                 suffix = os.path.splitext(photo.filename or "")[1].lower()
                 photo_path = os.path.join(photo_dir, f"photo-{index:04d}{suffix}")
+                try:
+                    photo_content = await photo.read()
+                except (OSError, ValueError):
+                    photo_warning_code = "ATTACHMENT2_IMAGE_READ_FAILED"
+                    photo_paths = []
+                    _clear_optional_attachment2(report)
+                    break
                 with open(photo_path, "wb") as handle:
-                    handle.write(await photo.read())
+                    handle.write(photo_content)
                 photo_paths.append(photo_path)
-            docx_path = generate_docx(
-                report, photo_paths=photo_paths,
-                output_dir=staging_dir if directory_export_requested else selected_output,
-                archive_manifest=validated_manifest,
-                output_filename=word_filename or None, **template_context,
-            )
+            if photo_paths:
+                try:
+                    validate_attachment2_photos(photo_paths, attachments["photo_ids"])
+                except Attachment2ImageError as error:
+                    photo_warning_code = error.code
+                    photo_paths = []
+                    _clear_optional_attachment2(report)
+            generate_kwargs = {
+                "photo_paths": photo_paths,
+                "output_dir": staging_dir if directory_export_requested else selected_output,
+                "archive_manifest": validated_manifest,
+                "output_filename": word_filename or None,
+                **template_context,
+            }
+            try:
+                docx_path = generate_docx(report, **generate_kwargs)
+            except (Attachment2ImageError, AttachmentPlanError) as error:
+                if not str(error.code).startswith("ATTACHMENT2_"):
+                    raise
+                photo_warning_code = error.code
+                _clear_optional_attachment2(report)
+                docx_path = generate_docx(report, **{
+                    **generate_kwargs, "photo_paths": [],
+                })
             filename = os.path.basename(docx_path)
             if directory_export_requested:
                 os.replace(docx_path, os.path.join(selected_output, filename))
@@ -262,14 +319,29 @@ async def export_record_endpoint(
                 legacy_plan=legacy_plan, canonical_source=canonical_source,
             )
         if directory_export_requested:
+            warnings = (
+                [_attachment2_warning(photo_warning_code)]
+                if photo_warning_code else []
+            )
+            response_data = {
+                "export_path": selected_output,
+                "word_filename": filename,
+            }
+            if warnings:
+                response_data["warnings"] = warnings
             return {
                 "api_version": "v1", "schema_version": 1,
-                "data": {"export_path": selected_output, "word_filename": filename},
+                "data": response_data,
             }
+        headers = (
+            {"X-Wenshu-Word-Warning": str(photo_warning_code)}
+            if photo_warning_code else None
+        )
         return FileResponse(
             path=docx_path,
             filename=filename,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers=headers,
         )
     except (Attachment2ImageError, AttachmentPlanError, TemplateProfileError) as error:
         if validated_manifest is not None and formal_context_id is not None:

@@ -1,10 +1,11 @@
 // Layer 11: FE_Components — 附件图片上传组件
 import React from 'react'
-import { Upload, message } from 'antd'
+import { Button, Upload } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
-import { SUPPORTED_IMAGE_FORMATS, MAX_IMAGE_SIZE } from '@biji/shared/constants'
+import { SUPPORTED_IMAGE_FORMATS } from '@biji/shared/constants'
 import type { EvidenceItem } from '@biji/shared/types'
+import { useBatchImageImport } from '../hooks/useBatchImageImport'
 
 interface Props {
   materials: EvidenceItem[]
@@ -18,6 +19,9 @@ function materialLabel(material: EvidenceItem, index: number): string {
 }
 
 export default function ImageUploader({ materials, photos, onChange }: Props) {
+  const { inputRef, beforeUpload, importBatch, openBatchPicker } = useBatchImageImport({
+    materialCount: materials.length, onChange,
+  })
   const updateSlot = (slotIndex: number, fileList: UploadFile[]) => {
     if (fileList.length) {
       const next = [...photos]
@@ -28,19 +32,6 @@ export default function ImageUploader({ materials, photos, onChange }: Props) {
     onChange(photos.filter((_, index) => index !== slotIndex))
   }
 
-  const beforeUpload = (file: File) => {
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase()
-    if (!SUPPORTED_IMAGE_FORMATS.includes(ext)) {
-      message.error('仅支持 JPG/PNG 格式')
-      return Upload.LIST_IGNORE
-    }
-    if (file.size > MAX_IMAGE_SIZE) {
-      message.error('图片不能超过 100MB')
-      return Upload.LIST_IGNORE
-    }
-    return false // 阻止自动上传，手动管理
-  }
-
   const capacity = materials.length * 2
   const nextEmptySlot = capacity > 0 ? Math.min(photos.length, capacity - 1) : -1
   const overflowPhotos = photos.slice(capacity)
@@ -48,7 +39,23 @@ export default function ImageUploader({ materials, photos, onChange }: Props) {
   return (
     <div className="material-photo-uploader">
       {materials.length ? <>
-        <p className="material-photo-uploader__hint">每个检材对应两张图片，按检材顺序依次对应。</p>
+        <div className="material-photo-uploader__header">
+          <p className="material-photo-uploader__hint">
+            每个检材对应两张图片；支持普通数字自然排序，或用 1-1、1-2 表示第一个检材的两张图片。
+          </p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={SUPPORTED_IMAGE_FORMATS.join(',')}
+            multiple
+            hidden
+            aria-label="批量导入图片"
+            onChange={importBatch}
+          />
+          <Button icon={<UploadOutlined />} onClick={openBatchPicker}>
+            批量导入图片
+          </Button>
+        </div>
         <div className="material-photo-uploader__groups">
           {materials.map((material, materialIndex) => (
           <section className="material-photo-group" key={material.evidence_id || material.id || materialIndex}>

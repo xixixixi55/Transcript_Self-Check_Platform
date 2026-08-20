@@ -16,6 +16,7 @@
 - **盘号映射完成后不可修订**：归档完成态隐藏了首个光盘编号输入，且单独 Word 导出只校验草稿字段、未读取持久化分卷映射，导致已映射案件仍可能被 `FIRST_DISC_NUMBER_MISSING` 阻断。
 - **两处 Word 导出交互不一致**：案件工作台「统一导出」会打开 Windows 原生目录选择器并写入用户选择路径，但审核编辑界面「导出 Word」仍由浏览器直接下载，用户无法在同一交互中明确选择落盘目录。两处入口需要复用同一目录选择器、目录记忆和一次性路径授权机制；统一导出仍额外包含 RAR 与校验截图。
 - **压缩期间上传图片可能丢失草稿绑定**：图片二进制已经登记，但压缩中的草稿冻结与前端延迟保存使 `asset_refs/photo_groups` 未可靠落库；统一导出随后扫描到未绑定文件并以泛化 422 失败。图片绑定必须作为可并发审核编辑持久化，统一导出只能消费草稿明确绑定的图片并给出可操作错误。
+- **逐槽上传不适合既有命名照片**：现场图片通常以含数字的文件名批量存在，数字序号可能不连续，且一次可能超过 200 张；审核页目前只能逐槽添加。系统需要在附件图片区域新增独立的「批量导入图片」按钮，按文件名数字自然排序后每两张对应一个检材，并以整批原子校验和有界图片 I/O 避免半批写入或请求洪峰；原有逐张添加入口继续保留。图片数量或映射异常只影响附件2，不得阻止审核页单独导出 Word。
 
 ## Non-Goals
 
@@ -31,7 +32,7 @@
 - `electronic-inspection-record`：
   - **MODIFIED REQ-012**：案件打开提供「立即/稍后」启动后台压缩选择，作为主触发（替换预览手动归档触发）；压缩不阻塞审核编辑；「稍后」持久化 `archive_deferred` 并从案件卡片再次启动。
   - **MODIFIED REQ-017**：附件1与检查结果由「归档完成后一次性填充」改为「每个 RAR 完成时实时覆盖填写」（文件名/大小/MD5）。
-  - **MODIFIED REQ-009**：案件工作台统一导出与审核编辑单独 Word 导出均通过 Windows 原生目录选择器写入用户选择路径；统一导出包含最新 Word + 全部 RAR + HashMyFiles 三列校验截图，单独 Word 导出仅写入最新 `.docx`。两处均可重复导出并使用导出时刻最新编辑。
+  - **MODIFIED REQ-009**：案件工作台统一导出与审核编辑单独 Word 导出均通过 Windows 原生目录选择器写入用户选择路径；统一导出包含最新 Word + 全部 RAR + HashMyFiles 三列校验截图，单独 Word 导出仅写入最新 `.docx`。审核页在既有逐张入口之外新增「批量导入图片」按钮，支持按文件名数字自然排序的原子批量图片导入；图片不完整、映射无效或不可读取时不得阻止单独 Word 导出，只省略无效的附件2。两处均可重复导出并使用导出时刻最新编辑。
   - **MODIFIED REQ-018**：4GB/22GB/45GB 容量统一按 `1024³` 字节计算，最大卷数为 2/2/5；225GB 内使用标准分卷，超过后生成不分卷的 `<案件名>.rar`，并由 Manifest 显式记录超大单卷模式。
   - **ADDED REQ-030**：首个光盘编号可在压缩前或压缩后输入；压缩后可输入首个盘号，系统按 part 顺序自动生成全序列并一一映射；未填时卡片显示「待补盘号」中间态并保留补填入口。
     - 归档完成或已导出后仍保留首盘号编辑入口；再次提交按当前实际 part 顺序整体重建映射。
@@ -44,12 +45,12 @@
 
 | 层 | 预计文件 | 影响 |
 |----|---------|------|
-| SharedTypes/Constants (0–1) | `packages/shared/types/*`、`workbenchConstants.ts`、`constants/index.ts` | 统一导出、单独 Word 路径导出、盘号映射、案件状态与 HashMyFiles PNG 产物契约 |
+| SharedTypes/Constants/Utils (0–2) | `packages/shared/types/*`、`workbenchConstants.ts`、`constants/index.ts`、`materialPhotoGroups.ts` | 统一导出、单独 Word 路径导出、盘号映射、案件状态、HashMyFiles PNG 产物契约与图片文件名自然排序 |
 | BE Repository (20) | `workbench_schema.py`、归档/案件 repository | 持久化每 part 元数据与盘号映射、导出记录、已导出标记 |
 | BE Services (21) | `archive_execution_service.py`、`archive_planner_service.py`、`archive_manifest_service.py`、新增盘号映射/HashMyFiles/统一导出服务 | 盘号后填（plan 不要求盘号）、每 RAR 回填回调、HashMyFiles.exe 调用、统一导出编排 |
-| BE Controllers/Routes (22–23) | `archive_controller.py`、`record_controller.py`、导出相关路由 | 后台压缩触发与状态、盘号映射、统一/单独 Word 路径导出、导出记录 |
-| FE Hooks (10) | `useArchivePreparation.ts`、`usePreviewArchive.ts`、案件完成/统一导出 hooks、`useRecordExport.ts` | 案件打开立即/稍后选择、盘号后填与映射、复用原生导出目录选择、已导出状态 |
-| FE Components/Pages (11–12) | `CaseCard.tsx`、`ArchiveStatusCard.tsx`、`CaseWorkbenchPage.tsx`、`CaseRecordGeneratePage.tsx` | 卡片立即/稍后入口、待补盘号中间态、阶段主状态与推荐操作、已导出后的删除主操作 |
+| BE Controllers/Routes (22–23) | `archive_controller.py`、`record_controller.py`、导出相关路由 | 后台压缩触发与状态、盘号映射、统一/单独 Word 路径导出、图片容错与导出记录 |
+| FE Hooks (10) | `useArchivePreparation.ts`、`usePreviewArchive.ts`、案件完成/统一导出 hooks、`useBatchImageImport.ts`、`useRecordExport.ts`、`useCasePhotoAssets.ts` | 案件打开立即/稍后选择、盘号后填与映射、复用原生导出目录选择、批量图片原子校验及有界上传/读取、单独 Word 图片容错、已导出状态 |
+| FE Components/Pages (11–12) | `ImageUploader.tsx`、`CaseCard.tsx`、`ArchiveStatusCard.tsx`、`CaseWorkbenchPage.tsx`、`CaseRecordGeneratePage.tsx` | 图片原子批量导入、卡片立即/稍后入口、待补盘号中间态、阶段主状态与推荐操作、已导出后的删除主操作 |
 
 ### 风险与依赖
 

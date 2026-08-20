@@ -381,6 +381,12 @@ final export directory and sanitized Word filename after the document has been
 atomically published there. Neither DTO grants reusable filesystem access;
 Legacy requests without a target retain the browser-download response.
 
+`WordExportWarning` carries a stable warning code and user-facing message for a
+successful standalone Word export that safely omitted an optional section. The
+current producer uses it when invalid or incomplete photos cause Attachment 2
+to be omitted; the warning does not turn the successful Word result into an
+export failure.
+
 ### Source authorization request types
 
 `SourceAuthorizationRequest` is the shared request fragment for the ordinary
@@ -934,7 +940,7 @@ type DiscMappingConfirmation, type FieldSource, type FieldConfirmation,
 type LeaseStatus, type SourceAccessStatus, type CaseAssetContentStatus, interface OpaqueAssetRef, interface CaseAssetRecord,
 interface CaseAssetList, interface CasePhotoBindingRequest, interface CasePhotoBindingResult,
 interface FieldState,
-interface WordDownloadName, interface WordDirectoryExportResult,
+interface WordDownloadName, interface WordDirectoryExportResult, interface WordExportWarning,
 interface WordDirectoryExportTarget,
 interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,

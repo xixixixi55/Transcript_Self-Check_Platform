@@ -54,6 +54,33 @@ function fileForRef(caseId: string, ref: OpaqueAssetRef): UploadFile {
   }
 }
 
+const PHOTO_IO_CONCURRENCY = 4
+
+async function mapPhotoIo<T, R>(items: T[], operation: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let cursor = 0
+  let failed = false
+  let failure: unknown
+  const worker = async () => {
+    while (!failed) {
+      const index = cursor++
+      if (index >= items.length) return
+      try {
+        results[index] = await operation(items[index])
+      } catch (error) {
+        failed = true
+        failure = error
+      }
+    }
+  }
+  await Promise.all(Array.from(
+    { length: Math.min(PHOTO_IO_CONCURRENCY, items.length) },
+    worker,
+  ))
+  if (failed) throw failure
+  return results
+}
+
 export function useCasePhotoAssets(options: Options) {
   const { caseId, assetRefs, draftRevision, editingEnabled, lease, onAssetRefsChange } = options
   const [files, setFiles] = useState<UploadFile[]>([])
@@ -209,12 +236,13 @@ export function useCasePhotoAssets(options: Options) {
     setFiles(nextFiles.map(file => newFiles.some(item => item.uid === file.uid) ? { ...file, status: 'uploading' } : file))
     const previousRefs = refsRef.current
     try {
-      const uploaded = await Promise.all(newFiles.map(async file => [file.uid, refForRecord(await upload(file))] as const))
+      const uploaded = await mapPhotoIo(newFiles, async file => {
+        const created = refForRecord(await upload(file))
+        completedUploads.set(file.uid, created)
+        completedUploads.set(created.asset_id, created)
+        return [file.uid, created] as const
+      })
       const uploadedByUid = new Map(uploaded)
-      for (const [uid, ref] of uploaded) {
-        completedUploads.set(uid, ref)
-        completedUploads.set(ref.asset_id, ref)
-      }
       const nextRefs = nextFiles.flatMap(file => {
         const created = uploadedByUid.get(file.uid) || completedUploads.get(file.uid)
         if (created) return [created]
@@ -244,19 +272,33 @@ export function useCasePhotoAssets(options: Options) {
     return beginOperation(() => applyChange(nextFiles))
   }, [applyChange, beginOperation, editingEnabled])
 
-  const waitForIdle = useCallback(async (): Promise<boolean> => {
-    while (pendingOperationRef.current) await pendingOperationRef.current
-    return lastOperationSucceededRef.current
+  const waitForIdle = useCallback(async (maxWaitMs?: number): Promise<boolean> => {
+    const wait = async () => {
+      while (pendingOperationRef.current) await pendingOperationRef.current
+      return lastOperationSucceededRef.current
+    }
+    if (maxWaitMs === undefined) return wait()
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        wait(),
+        new Promise<boolean>(resolve => {
+          timeoutId = setTimeout(() => resolve(false), Math.max(0, maxWaitMs))
+        }),
+      ])
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+    }
   }, [])
 
   const readFiles = useCallback(async (): Promise<File[]> => {
     try {
       if (refsRef.current.length !== filesRef.current.length) throw new Error('ASSET_CONTENT_MISSING')
-      return await Promise.all(filesRef.current.map(async file => {
+      return await mapPhotoIo(filesRef.current, async file => {
         if (file.status === 'error' || !file.uid) throw new Error('ASSET_CONTENT_MISSING')
         const response = await axios.get<Blob>(API_ENDPOINTS.WORKBENCH_CASE_ASSET(caseId, file.uid), { responseType: 'blob' })
         return new File([response.data], file.name, { type: file.type || 'image/jpeg' })
-      }))
+      })
     } catch (error) {
       setAssetError(errorMessage(error))
       throw error

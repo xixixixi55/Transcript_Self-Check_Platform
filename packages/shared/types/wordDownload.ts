@@ -11,6 +11,12 @@ export interface WordDownloadName {
 export interface WordDirectoryExportResult {
   export_path: string
   word_filename: string
+  warnings?: WordExportWarning[]
+}
+
+export interface WordExportWarning {
+  code: string
+  message: string
 }
 
 /** Directory authorization fields appended to a standalone Word export request. */

@@ -23,6 +23,9 @@ import { ArchiveCompletionPanel } from '../components/ArchiveCompletionPanel'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import { runWithSourceExportRiskConfirmation } from '../hooks/useSourceExportRisk'
+
+const WORD_EXPORT_PHOTO_WAIT_MS = 5_000
+
 export default function CaseRecordGeneratePage() {
   const { caseId = '' } = useParams<{ caseId: string }>()
   const navigate = useNavigate()
@@ -59,20 +62,17 @@ export default function CaseRecordGeneratePage() {
     if (!session.report || !detail || exporting || exportPreparing || exportDirectory.busy) return false
     setExportPreparing(true)
     try {
-      if (session.photoAssets.uploading) {
-        message.warning('图片仍在保存，请完成图片保存后再生成 Word。')
-        return false
-      }
+      const photosReady = await session.photoAssets.waitForIdle(WORD_EXPORT_PHOTO_WAIT_MS)
       if (!await session.autosave.saveNow()) {
         message.warning('案件仍有未完成保存，完成保存后才能生成 Word。')
         return false
       }
-      const savedDraft = session.autosave.getLastSavedDraft()
-      if (!savedDraft) {
+      const preparedDraft = session.autosave.getLastSavedDraft()
+      if (!preparedDraft) {
         message.warning('无法确认最新案件版本，请重新加载后再导出。')
         return false
       }
-      const report = savedDraft.report
+      const report = preparedDraft.report
       const dateErrors = [
         !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
         !isValidMinuteTimeRangeValue(report.introduction.inspection_time_range) && '检查起止时间',
@@ -80,9 +80,11 @@ export default function CaseRecordGeneratePage() {
       ].filter(Boolean)
       if (dateErrors.length) { message.error(`请修正以下日期时间字段：${dateErrors.join('、')}`); return false }
       return await runWithSourceExportRiskConfirmation(detail.source.access_status, async () => {
-        let files: File[]
-        try { files = await session.photoAssets.readFiles() }
-        catch { return false }
+        let files: File[] = []
+        if (photosReady) {
+          try { files = await session.photoAssets.readFiles() }
+          catch { files = [] }
+        }
         let chosen
         try { chosen = await exportDirectory.chooseDirectory() }
         catch {
@@ -90,10 +92,11 @@ export default function CaseRecordGeneratePage() {
           return false
         }
         if ('cancelled' in chosen) return false
+        const exportDraft = session.autosave.getLastSavedDraft() ?? preparedDraft
         setReviewStatus('导出中')
         const success = await exportDocx(
-          report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
-          null, null, caseId, savedDraft.revision, chosen,
+          exportDraft.report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
+          null, null, caseId, exportDraft.revision, chosen,
         )
         setReviewStatus(success ? '导出成功' : '导出失败')
         if (success) message.success(`Word 已导出至：${chosen.path}`)

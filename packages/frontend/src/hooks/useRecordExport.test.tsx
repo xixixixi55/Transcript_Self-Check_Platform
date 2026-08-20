@@ -1,6 +1,7 @@
 import React from 'react'
 import { fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { message } from 'antd'
 import type { InspectionReport } from '@biji/shared/types'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import { useRecordExport } from './useRecordExport'
@@ -53,6 +54,14 @@ function CaseExportHarness({ onResult }: { onResult: (value: boolean) => void })
   ))}>导出</button>
 }
 
+function IncompletePhotoExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
+  const { exportDocx } = useRecordExport()
+  const files = [1, 3, 5].map(index => new File([`photo-${index}`], `photo-${index}.png`))
+  return <button onClick={async () => onResult(await exportDocx(
+    report, files.map(file => file.name), files, undefined, null, null,
+  ))}>导出不完整图片</button>
+}
+
 function DirectoryExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
   const { exportDocx } = useRecordExport()
   return <button onClick={async () => onResult(await exportDocx(
@@ -67,6 +76,7 @@ describe('useRecordExport', () => {
 
   it('保留现有下载链路并返回成功状态', async () => {
     post.mockResolvedValueOnce({ data: new Blob(['docx']) })
+    const warning = vi.spyOn(message, 'warning').mockImplementation(() => undefined as never)
     const createObjectURL = vi.fn().mockReturnValue('blob:test')
     const revokeObjectURL = vi.fn()
     Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: createObjectURL })
@@ -80,6 +90,7 @@ describe('useRecordExport', () => {
     expect(createObjectURL).toHaveBeenCalled()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:test')
     expect(click).toHaveBeenCalled()
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining('本次未生成附件2'))
     delete (window.URL as unknown as Record<string, unknown>).createObjectURL
     delete (window.URL as unknown as Record<string, unknown>).revokeObjectURL
     click.mockRestore()
@@ -201,6 +212,31 @@ describe('useRecordExport', () => {
     vi.restoreAllMocks()
   })
 
+  it('omits an incomplete photo set without blocking Word export', async () => {
+    post.mockResolvedValueOnce({ data: new Blob(['docx']), headers: {} })
+    const warning = vi.spyOn(message, 'warning').mockImplementation(() => undefined as never)
+    Object.defineProperty(window.URL, 'createObjectURL', {
+      configurable: true, value: vi.fn().mockReturnValue('blob:photo-omitted'),
+    })
+    Object.defineProperty(window.URL, 'revokeObjectURL', {
+      configurable: true, value: vi.fn(),
+    })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    const onResult = vi.fn()
+    render(<IncompletePhotoExportHarness onResult={onResult} />)
+
+    fireEvent.click(screenButton())
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true))
+
+    const form = post.mock.calls[0][1] as FormData
+    const payload = JSON.parse(form.get('report_json') as string)
+    expect(form.getAll('photos')).toHaveLength(0)
+    expect(payload.attachments.photo_ids).toEqual([])
+    expect(payload.attachments.photo_groups).toEqual([])
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining('本次未生成附件2'))
+    vi.restoreAllMocks()
+  })
+
   it('sends the picker-authorized directory and does not trigger a browser download', async () => {
     post.mockResolvedValueOnce({ data: { data: {
       export_path: 'D:\\SYNTHETIC\\EXPORT', word_filename: 'SYNTHETIC-result.docx',
@@ -218,6 +254,22 @@ describe('useRecordExport', () => {
     expect(config).toEqual({ responseType: 'json' })
     expect(click).not.toHaveBeenCalled()
     click.mockRestore()
+  })
+
+  it('shows a non-blocking warning returned after a successful directory export', async () => {
+    post.mockResolvedValueOnce({ data: { data: {
+      export_path: 'D:\\SYNTHETIC\\EXPORT', word_filename: 'SYNTHETIC-result.docx',
+      warnings: [{ code: 'ATTACHMENT2_IMAGE_INVALID', message: 'safe backend warning' }],
+    } } })
+    const warning = vi.spyOn(message, 'warning').mockImplementation(() => undefined as never)
+    const onResult = vi.fn()
+    render(<DirectoryExportHarness onResult={onResult} />)
+
+    fireEvent.click(screenButton())
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true))
+
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining('本次未生成附件2'))
+    vi.restoreAllMocks()
   })
 
   it('rejects an invalid directory-export response without downloading a blob', async () => {

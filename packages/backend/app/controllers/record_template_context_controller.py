@@ -12,6 +12,8 @@ from ..services.workbench_factory_service import get_workbench_services
 def resolve_case_template_context(
     case_id: str, case_revision: int | None,
     *, require_current_revision: bool = True,
+    allow_attachment2_revision_drift: bool = False,
+    submitted_report: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Return generator dependencies without trusting client template metadata.
 
@@ -36,7 +38,12 @@ def resolve_case_template_context(
         status = 404 if code == "DRAFT_NOT_FOUND" else 422
         safe_code = code if isinstance(code, str) and code else "CASE_TEMPLATE_CONTEXT_INVALID"
         _reject(status, safe_code, "案件模板上下文不可用，请重新加载案件。", error)
-    if require_current_revision and draft["revision"] != case_revision:
+    attachment2_only_drift = (
+        allow_attachment2_revision_drift
+        and case_revision < draft["revision"]
+        and _differs_only_in_attachment2(draft.get("report"), submitted_report)
+    )
+    if require_current_revision and draft["revision"] != case_revision and not attachment2_only_drift:
         _reject(409, "REVISION_CONFLICT", "案件已被其他会话修改，请重新读取后再导出。")
     template_ref = draft.get("template_ref")
     if template_ref is None:
@@ -48,6 +55,32 @@ def resolve_case_template_context(
         "template_registry": services.template_registry,
         "template_approvals": services.template_approvals,
     }
+
+
+def _differs_only_in_attachment2(current: object, submitted: object) -> bool:
+    """Allow a late photo binding without weakening ordinary draft CAS."""
+    if not isinstance(current, dict) or not isinstance(submitted, dict):
+        return False
+
+    def split(report: dict) -> tuple[dict, tuple[object, object]]:
+        normalized = dict(report)
+        attachments = report.get("attachments")
+        if not isinstance(attachments, dict):
+            return normalized, (None, None)
+        normalized["attachments"] = {
+            key: value for key, value in attachments.items()
+            if key not in {"photo_ids", "photo_groups"}
+        }
+        photo_ids = attachments.get("photo_ids")
+        photo_groups = attachments.get("photo_groups")
+        return normalized, (
+            [] if photo_ids is None else photo_ids,
+            [] if photo_groups is None else photo_groups,
+        )
+
+    current_report, current_photos = split(current)
+    submitted_report, submitted_photos = split(submitted)
+    return current_report == submitted_report and current_photos != submitted_photos
 
 
 def resolve_case_disc_mapping(case_id: str) -> DiscMappingState:
