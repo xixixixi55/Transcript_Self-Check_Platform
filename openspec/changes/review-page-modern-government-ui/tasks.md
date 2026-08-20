@@ -513,3 +513,30 @@ spec_sync_evidence: achievement-overview homepage scenarios synchronized into op
 - Impeccable 静态检查完成；仅报告本次修改前已存在且不在改动区域的侧边强调线与宽度动画警告。
 - 架构检查、共享/前端 TypeScript 类型检查、治理测试、文档快速检查、仓库资产检查和 `verify:quick` 通过；delta 已同步到 living spec。
 - 人工验收待部署电脑复测：3440×1440 属于真实桌面布局验证，自动化交互测试不能替代最终视觉确认。
+
+## 第十八阶段：部署环境中文图片文件名预览修复
+
+### 目标与验收标准
+
+- [x] 用户上传文件名含中文的合法 JPG/JPEG/PNG 后，审核编辑页能够读取并显示图片缩略图，不再出现裂图。
+- [x] 图片读取响应保持原有二进制内容和媒体类型，并使用符合 HTTP 响应头编码约束的 UTF-8 文件名参数；英文文件名和既有 opaque 资产接口保持兼容。
+- [x] 不改变图片持久化、租约、revision、检材映射、容量限制或 Word 导出合同。
+
+### Layer 22：资源响应头与回归测试
+
+- [x] 调整 `packages/backend/app/controllers/case_asset_controller.py`，避免把非 Latin-1 文件名直接写入 `Content-Disposition`。
+- [x] 更新 `tests/test_workbench_case_assets.py`，以明确标记的 SYNTHETIC 中文文件名覆盖资源上传后读取、二进制内容和响应头编码。
+- [x] 运行图片资产定向 Pytest、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 影响范围
+
+- 影响层级：Layer 22 BE_Controllers；不修改公共 JSON DTO、数据库、资产路径、前端上传组件或 Word 模板。
+- 规格归属：本阶段恢复 living spec `REQ-008` 的“预览和管理已上传照片”及“上传成功后持久化并恢复”既有场景，不新增或修改正式 Requirement/Scenario。
+- 人工验收：在部署 EXE 中上传中文文件名图片，确认上传完成和重新进入案件后缩略图均可见。
+
+### 第十八阶段验证记录
+
+- 失败用例先复现：含 SYNTHETIC 中文文件名的图片读取接口在修复前返回 422；采用 UTF-8 扩展文件名参数后返回 200、图片二进制保持一致且响应头可按 Latin-1 安全传输。
+- 图片资产定向 Pytest：`tests/test_workbench_case_assets.py` 12 项用例通过；覆盖英文/中文文件名、上传读取、重启恢复、签名/大小限制、损坏/缺失、租约、revision、绑定冲突和导出解析。
+- 架构检查、共享/前端 TypeScript 类型检查、治理测试、文档快速检查、仓库资产检查、`verify:quick` 与 `git diff --check` 通过。
+- 人工验收待部署 EXE 复测；自动化已覆盖导致裂图的 HTTP 失败链路，但不能替代目标电脑中的真实浏览器显示确认。

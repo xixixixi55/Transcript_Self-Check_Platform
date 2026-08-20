@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
@@ -72,7 +73,7 @@ async def read_case_asset_endpoint(case_id: str, asset_id: str):
         media_type = str(metadata.get("media_type", "application/octet-stream"))
         return Response(
             content=content, media_type=media_type,
-            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+            headers={"Content-Disposition": _inline_content_disposition(filename)},
         )
     except Exception as error:
         _handle(error)
@@ -80,6 +81,12 @@ async def read_case_asset_endpoint(case_id: str, asset_id: str):
 
 def _envelope(data: Any) -> dict[str, Any]:
     return {"api_version": "v1", "schema_version": 1, "data": data}
+
+
+def _inline_content_disposition(filename: str) -> str:
+    safe_filename = filename.replace("\r", "_").replace("\n", "_") or "photo"
+    encoded_filename = quote(safe_filename, safe="", encoding="utf-8", errors="replace")
+    return f"inline; filename*=UTF-8''{encoded_filename}"
 
 
 def _handle(error: Exception) -> None:

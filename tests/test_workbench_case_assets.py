@@ -85,6 +85,28 @@ def test_upload_refresh_restart_and_opaque_http_contract(asset_context):
         assert binary.status_code == 200 and binary.content == content
 
 
+def test_asset_http_read_supports_synthetic_unicode_filename(asset_context):
+    _, services, lease = asset_context
+    content = png_bytes()
+    asset = services.assets.upload_image(
+        CASE_ID, "SYNTHETIC-检材正面.png", content,
+        lease["lease_id"], lease["lease_token"],
+    )
+
+    from app.main import app
+    from app.controllers import case_asset_controller
+    with patch.object(case_asset_controller, "get_workbench_services", return_value=services):
+        response = TestClient(app).get(
+            f"/api/v1/workbench/cases/{CASE_ID}/assets/{asset['asset_id']}"
+        )
+
+    assert response.status_code == 200
+    assert response.content == content
+    disposition = response.headers["content-disposition"]
+    disposition.encode("latin-1")
+    assert "filename*=UTF-8''SYNTHETIC-%E6%A3%80%E6%9D%90%E6%AD%A3%E9%9D%A2.png" in disposition
+
+
 def test_signature_extension_and_size_limits_are_enforced(asset_context):
     _, services, lease = asset_context
     args = (CASE_ID, lease["lease_id"], lease["lease_token"])
