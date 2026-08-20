@@ -4,61 +4,13 @@ description: "快速修 Bug（Level 1 局部修复直接修改；Level 2 使用 
 argument-hint: "<Bug 描述>"
 ---
 
-快速修 Bug。**不覆盖根目录 AGENTS.md 的级别规则。**
+<!-- context-loading: progressive -->
 
-**Input**：Bug 描述（如 `/harness:fix "仪表盘日期筛选不生效"`）。
+按根目录 `AGENTS.md` 处理 Bug，不以文件数或 change 级别决定本次验证。
 
----
-
-**所有路径的前置步骤（MUST）**：
-
-1. 扫描 `openspec/changes/` 下除 `archive/` 外的活跃变更包。
-2. 读取范围相近候选包的 `tasks.md` 及必要的 proposal/spec/design。
-3. 完全属于已有需求时，必须在原变更包内修复并更新任务状态和测试证据，不得创建重复包。
-4. 仅名称相似但范围不一致时不得强行挂靠；存在多个无法排除的候选时暂停并请求用户选择。
-5. 确认没有匹配包后，按行为影响、调用范围和回滚风险判断 Level；不确定时默认较轻级别。
-
-**步骤**
-
-**Level 1 路径（局部 Bug 修复，默认）**：
-
-1. 检查 Git 状态，阅读直接相关代码和测试
-2. 搜索调用范围
-3. 实施最小修改
-4. 运行针对性测试或 `lint:arch` + `typecheck`
-5. 检查 `git diff`
-6. 汇报结果
-7. **不创建 OpenSpec change**
-
-**Level 2/3 路径（复杂 Bug，影响范围较大）**：
-
-1. **创建或选择变更包**
-
-   - 已有匹配包：继续使用原变更包，不创建重复包。
-   - 没有匹配包：Level 2 创建 `openspec/changes/<名称>/tasks.md` + 至少一个 `specs/<能力>/spec.md` 精简 delta，并记录 `workflow_level: 2`；Level 3 创建完整变更包（proposal + specs + design + tasks）。
-   - Level 2 不得使用 `Spec impact: N/A`；没有行为 delta 时应重新归为 Level 1。
-   - 不依赖未在仓库入口中定义的快捷命令；不能使用 OpenSpec 快速命令时按上述规则手动创建。
-
-2. **定位问题**
-   - 读取 `AGENTS.md` 了解架构
-   - 定位到具体文件和层级
-
-3. **执行修复**
-   - Level 2：写码 → 验证 → 测试
-   - Level 3：遵循 `/harness:apply` 的完整开发节奏
-
-4. **运行验证**
-   - Level 2：运行 `npm run verify:quick`、受影响模块原始测试，收尾运行 `npm run verify:docs:strict -- --change <名称>`。
-   - Level 3：按完整开发节奏执行定向测试，收尾运行 `npm run verify:full -- --change <名称>`。
-   - 先读取测试和门控的退出码、最终汇总和失败数量；失败时再下钻具体日志。
-   - 确认 Bug 已修复
-
-5. **归档**（按级别）
-   - Level 2：仅执行 Level 2 的自动化门控，不执行 Level 3 完整归档协议；正式归档前必须完成 delta → 实现核对 → sync → living spec 检查。
-   - Level 3：完整归档协议（详见 `harness/entropy-rules.md`）
-
-**Guardrails**
-- 判断依据为行为影响和回滚风险，不按文件数量判断
-- Level 1 不创建 OpenSpec change
-- 复杂 Bug 或不确定时，可升级为 Level 2 或 3
-- 修复仍 MUST 有配套测试
+1. 搜索活跃 change 的名称和 `tasks.md` 命中；候选范围相关时按需读取 tasks、相关 delta，必要时再读 proposal/design。同能力、结果、调用链或原实现回归继续原包。
+2. 没有匹配包时判断 Level：局部恢复既有预期默认 Level 1；正式 Requirement/Scenario 或中等能力变化为 Level 2；重大架构/迁移风险为 Level 3。
+3. 渐进式读取：Level 1 只读直接源码/测试；Level 2 再读 tasks/delta；Level 3 只读当前阶段工件。仅在新文件、跨层、公共契约或架构风险时读取 `harness/architecture.md`。
+4. 定位根因并最小修复，先复用现有回归证据；覆盖缺口存在时才新增测试。
+5. Level 1 跑定向验证；Level 2 跑 `verify:quick`、受影响模块测试、sync 和 scoped strict docs；Level 3 在冻结前定向验证，冻结后统一 Review 与 scoped full gate。
+6. 输出关联结论、已读取资料、根因、修改和验证汇总；多个候选仍重叠或需求语义不清时请求用户判定。

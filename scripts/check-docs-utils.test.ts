@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict'
 import {
+  countTextLines,
+  getCompletedTaskFileReferences,
+  getLineBudgetOverflow,
   getManagedAgentToolingFiles,
   getRequiredIncompleteTasks,
   getTaskEntries,
   parseWorkflowLevel,
   validateDeltaSpec,
+  validateProgressiveContextCommand,
 } from './check-docs-utils'
 import {
   buildVerificationEnvironment,
@@ -20,6 +24,28 @@ import {
   parseVerificationPreflightConfig,
 } from './verification-preflight-utils'
 import { resolveVerificationTempRoot } from './verify-preflight'
+
+const lines250 = Array.from({ length: 250 }, (_, index) => `line ${index + 1}`).join('\n')
+const lines251 = `${lines250}\nline 251`
+assert.equal(countTextLines(lines250), 250)
+assert.equal(countTextLines(lines250.replaceAll('\n', '\r\n')), 250)
+assert.equal(getLineBudgetOverflow(lines250, 250), undefined)
+assert.equal(getLineBudgetOverflow(lines251, 250), 251)
+
+const progressiveCommand = [
+  '<!-- context-loading: progressive -->',
+  '以 `AGENTS.md` 为规则入口，采用渐进式上下文。',
+  'Level 1 按需读取直接源码。',
+].join('\n')
+assert.deepEqual(validateProgressiveContextCommand(progressiveCommand), [])
+assert.deepEqual(validateProgressiveContextCommand(progressiveCommand.replace('<!-- context-loading: progressive -->\n', '')), [
+  'missing progressive context marker',
+])
+assert.ok(validateProgressiveContextCommand([
+  '<!-- context-loading: progressive -->',
+  '以 AGENTS.md 为入口并按需读取。',
+  '前置读取（MUST 在开始前阅读）：全部 Harness 文档',
+].join('\n')).includes('contains unconditional pre-read instruction'))
 
 const content = [
   '- [ ] T1 ordinary task',
@@ -47,6 +73,18 @@ assert.deepEqual(
   getRequiredIncompleteTasks(content).map((task) => task.text),
   ['T1 ordinary task', 'T5 OPTIONAL in ordinary prose', 'T6 task [OPTIONAL] with trailing prose'],
 )
+
+assert.deepEqual(getCompletedTaskFileReferences([
+  '- [ ] `packages/backend/app/services/future_phase.py`',
+  '- [x] `packages/backend/app/services/case_draft_service.py`',
+  '- [X] `openspec/specs/data-model.md`',
+  '```text',
+  '- [x] `packages/backend/app/services/inside_code_block.py`',
+  '```',
+].join('\n')), [
+  'packages/backend/app/services/case_draft_service.py',
+  'openspec/specs/data-model.md',
+])
 
 const lowercaseMarker = '- [ ] T6 optional is not an explicit uppercase exemption'
 assert.deepEqual(getRequiredIncompleteTasks(lowercaseMarker).map((task) => task.text), [

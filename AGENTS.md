@@ -1,189 +1,115 @@
 # AGENTS.md — 笔录自检平台（文枢）
 
-> Agent 项目级工作规则入口。工具专属命令、Skill、Harness 指南与本文件冲突时以本文件为准。
+> Agent 项目级规则入口；安全与法律要求不可覆盖。Harness、工具命令和 Skill 与本文件冲突时，以本文件为准。
 
----
-
-## 1. 项目目标
+## 1. 项目与资产安全
 
 电子数据检查笔录自动生成平台（React 18 + TypeScript + FastAPI + officecli），面向用户使用。
 
----
+- 仓库资产政策见 `harness/repository-assets.md`。
+- 测试数据必须明确标记为 SYNTHETIC/TEST/FIXTURE。
+- 禁止提交真实案件数据、人员信息、设备编号、生成输出。
+- 资产检查使用 `npx tsx scripts/check-repository-assets.ts`，已接入 `npm run verify:quick`。
 
-## 1.1 仓库资产与合规
+## 2. 事实源与读取范围
 
-**本仓库经过敏感数据清理**
+工作流程规则优先级：本文件 → `harness/` → `.agents/`、`.claude/` 工具入口。行为预期来自当前任务与有效 OpenSpec/产品文档；实现事实来自代码、Git 状态、测试、构建和实际运行。二者冲突时报告差异，不假设任一方天然正确。
 
-- 仓库资产政策：`harness/repository-assets.md`
-- 所有测试数据必须是明确合成数据（使用 SYNTHETIC/TEST/FIXTURE 标记）
-- 禁止提交真实案件数据、人员信息、设备编号、生成输出
-- 资产检查门控：`npx tsx scripts/check-repository-assets.ts`（已接入 `verify:quick`）
-
-
----
-
-## 2. 规则优先级
-
-**工作流程规则**（冲突时按此顺序）：
-1. 安全与法律合规 — 不可覆盖
-2. 根目录 AGENTS.md — Agent 工作流程最高规则来源
-3. Harness 运营文档（`harness/`）— 架构约束、熵治理详情
-4. 工具命令与 Skill（`.claude/`、`.agents/`）— 快捷入口，不得覆盖以上
-
-**行为预期**：当前任务要求 + 有效 OpenSpec / 产品文档描述预期行为。
-**实现事实**：代码、Git 状态、测试、构建和实际运行结果为当前实现状态的判断依据。
-
-规格与实现冲突 → 报告差异，根据任务决定修改实现还是更新规格。不确定时暂停请求人类判定。
-
----
-
-## 3. 任务开始前检查
-
-按需读取，不得一次性加载所有 `harness/` 和 `openspec/`：
+按需读取，不批量加载全部 Harness 或 OpenSpec：
 
 | 优先级 | 内容 | 何时读取 |
-|:------:|------|---------|
-| P0 | 直接相关源文件和测试 | 每个任务 |
-| P1 | `harness/architecture.md` | 涉及新建文件或跨层引用 |
-| P2 | 本文件的级别判断规则 | 不确定级别时 |
-| P3 | 其他 `harness/` 详情 | 仅明确需要时 |
+|:--:|---|---|
+| P0 | 直接相关源码与现有测试 | 每个任务 |
+| P1 | `harness/architecture.md` | 新建文件、跨层引用或架构影响 |
+| P2 | 本文件的关联、Level、验证规则 | 修改需求、功能、Bug 或回归 |
+| P3 | 其他 Harness/OpenSpec 正文 | 候选确认或专用流程明确需要时 |
 
-### 活跃变更包关联检查
+工具入口采用渐进式上下文：已在当前上下文中的本文件不重复读取；Level 1 只读取直接相关源码/测试，Level 2 再读取匹配包的 tasks 与相关 delta，Level 3 只读取当前阶段所需的指南章节和工件。`harness/architecture.md` 仅在新建文件、跨层引用、公共契约或架构风险出现时加载；验证、Review、归档细则到对应阶段再加载，不得在需求入口无条件预读全部 Harness 文档。
 
-提出新需求、修改现有功能、修复 Bug 或回归问题时，必须在 Level 判断前检查任务是否已属于现有活跃变更包。
+## 3. 未归档变更关联
 
-首先扫描 `openspec/changes/` 下除 `archive/` 外的活跃变更。候选发现采用**搜索优先、正文按需读取**的方式：先根据当前任务的业务对象、行为、模块和关键术语，对活跃变更名称及 `tasks.md` 进行内容搜索，仅利用文件路径和少量命中内容筛选候选；结果不足时再扩大到 delta spec。不得为了寻找候选而批量读取所有活跃变更包的 `tasks.md`、spec、proposal 或 design 正文进入上下文。
+在判断 Level 前扫描 `openspec/changes/`（排除 `archive/`）。先搜索变更名、`tasks.md` 和少量命中内容；候选不足时扩大到 delta spec，必要时再读 proposal/design，不得为找候选批量载入全部正文。
 
-对范围可能相关的候选包，优先读取 `tasks.md`；不足以确认范围时读取对应 delta spec；仍不足时才按需读取 proposal/design。目录名称、关键词、搜索命中或 capability 相同仅用于候选发现，不得作为最终关联依据。
+以下任一项是强关联信号：同一正式能力或 Requirement/Scenario、同一用户结果或验收场景、同一核心调用链/设计决策、原实现引入的回归、候选冻结前反馈。文件、关键词和 capability 相同只用于发现候选，不单独决定归属。
 
-任务完全属于已有活跃变更目标时，必须继续在原变更包内实施，并按任务性质补充或更新任务状态、实现内容和验证证据，不得创建同目标的重复变更包。仅名称或关键词相似但实际行为范围不同的不得强行挂靠；存在多个候选且按需读取后仍无法排除重叠时，暂停并请求人类选择。
+- `in-progress`：同目标任务继续原包并补充任务、delta 和证据。
+- `complete` 但未归档：归档前反馈或原验收范围回归可重开原包；其他任务独立判断 Level。
+- 已归档：不改写；后续任务重新判断 Level，只有新的 Level 2/3 才创建包。
+- 多个候选按需读取后仍重叠不清时，请求用户选择。
+- 创建新 Level 2/3 包前，在结果中列出主要候选及排除理由；无关键词命中不等于无关联。
 
-确认不存在匹配的活跃变更包后，再按下述 Level 规则决定 Level 1 直接修改、Level 2 创建 `tasks.md` + delta spec，或 Level 3 创建完整变更包。已归档变更不直接改写；其后续需求、Bug 或回归视为新的当前任务重新判断 Level，仅在 Level 2/3 时创建新的变更包。
+任务归属只决定需求记录位置，不决定本次增量验证强度。
 
+## 4. Level 判断
 
-## 4. 任务级别判断
+按正式合同、影响范围、调用范围、回滚风险判断，不按文件数或代码行数机械升级；无法明确判断时采用较轻级别。公共组件、接口、模型、共享类型、持久化和安全边界是影响搜索信号，不自动等于 Level 3。
 
-根据行为变化、影响范围、公共契约、调用范围和回滚风险判断，不得根据文件数量或代码行数机械判断。新增局部字段（即使改 3 个文件）可能仍是 Level 1；修改公共组件（影响多个页面）可能是 Level 2。
+| 级别 | 适用范围 | 工件与流程 |
+|:--:|---|---|
+| Level 1 | 文案/样式/展示、内部重构、测试调整、恢复既有预期的 Bug，以及单一能力内部低风险调整；可有局部可观察变化，但不新增公共合同、持久化格式或安全边界 | 直接修改和定向验证；不创建 change、proposal/spec/design，不归档 |
+| Level 2 | 需要新增/修改正式 Requirement/Scenario，或引入中等范围能力；保持总体架构 | 复用匹配包；否则创建 `tasks.md` + 至少一个 delta spec，记录 `workflow_level: 2`；不自动增加 proposal/design/Review |
+| Level 3 | 重大架构或核心链路变化、大规模重构、框架/引擎/部署/安全模型重大迁移或高回滚风险 | proposal → spec → design → tasks → implementation → verify → review → archive |
 
-**无法明确判断时默认采用较轻级别。**
+Level 2 delta 使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关键场景；不得以 `Spec impact: N/A` 绕过。收尾按 delta → 实现核对 → sync → living spec 检查，未同步不得正式归档。
 
-公共组件、公共接口、核心数据模型、共享类型、跨模块行为、鉴权和安全边界、持久化格式、模板公共语法只是**影响范围搜索信号**，不自动触发 Level 3。先搜索调用范围，只有确认属于重大架构、核心功能链路、大规模重构、重大迁移或高回滚风险时才升级。级别可在实施中调整，升级时只补充必要材料。
+## 5. 验证与测试
 
----
+验证强度由本次修改风险决定，不继承所在变更包 Level。行为变化必须提供足够证据；新增测试前先搜索现有覆盖，优先复用、修改或合并已有测试，仅在现有证据无法区分新增风险时新增用例。
 
-## 5. Level 1 — 轻量修改
+- 安全、权限、持久化、公共契约、核心业务逻辑和关键数据转换必须有可区分的自动化回归。
+- 纯文档、文案、样式、图标及非交互展示不要求新增测试；按需执行类型、构建或视觉检查。
+- 前后端同时修改不自动要求两侧新增测试；验证实际改变的逻辑和合同边界。
+- Spec Scenario 不要求与测试用例一一对应；避免在多个层重复验证同一实现细节，替换行为时合并或删除失效/重复测试。
+- 人工验收独立于 Level，仅用于自动化不能可靠覆盖的 UI 视觉、真实 Word/PDF、桌面环境或真实业务流程；不适用时记录 `N/A`。
 
-**适用**：纯样式、文案、小修复、内部重构、测试调整，以及其他不新增或改变正式行为的修改。
+增量任务先运行失败用例或最小定向检查。Level 3 开发和反馈阶段不因包级别立即运行最终 Review/full gate；待必选任务、适用人工验收和反馈全部收敛后冻结候选，统一 Review 并运行一次 `npm run verify:full -- --change <name>`。冻结后修改先解冻并做受影响验证，再于下一次收敛时统一冻结。细则见 `harness/verification-strategy.md`。
 
-**流程**：检查 Git → 读相关代码和测试 → 搜索调用范围 → 最小修改 → 针对性验证（相关测试或 `lint:arch` + `typecheck`）→ 检查 diff → 汇报。不创建 OpenSpec change、proposal/spec/design、迭代记录。不要求读取 `iteration-guide.md`、独立 Code Review Agent、归档。
+| 级别 | 收尾自动化 |
+|:--:|---|
+| Level 1 | 最小定向测试，或适用的 `lint:arch` + `typecheck` |
+| Level 2 | `npm run verify:quick` + 受影响模块测试 + `npm run verify:docs:strict -- --change <name>` |
+| Level 3 | 冻结候选后的 Review + `npm run verify:full -- --change <name>` |
 
----
+全局发布/集中归档才运行 `npm run verify:full:all`。`package.json` 是命令唯一来源；输出、环境预检和失败下钻见 `harness/verification-strategy.md`。
 
-## 6. Level 2 — 普通功能或中等影响修改
+## 6. Code Review
 
-**适用**：引入新的可观察行为或扩大现有能力，影响范围中等，但仍保持现有公共契约和总体架构。模块数和文件数仅作参考。
+- Level 1 默认不启用；Level 2 仅在公共合同、核心数据、安全或高风险跨模块行为有明确审查价值时启用。
+- Level 3 在冻结候选后统一审查一次，不按 Task 启动。
+- 修改被审查的核心逻辑、接口、模型、正式行为或测试预期会使相关结论失效；纯文案、样式、格式、命名或注释只做受影响 diff 检查，除非它们本身属于正式合同。
+- 复审范围和独立审查要求见 `harness/code-review-agent.md`。
 
-**固定产物**：`openspec/changes/<name>/tasks.md` 与至少一个 `openspec/changes/<name>/specs/<capability>/spec.md`。在 tasks.md 持久化 `workflow_level: 2`；delta spec 只记录最终行为要求和关键场景，必须使用 ADDED/MODIFIED/REMOVED/RENAMED 结构。不得使用 `Spec impact: N/A` 绕过；没有行为 delta 时重新归为 Level 1。不因此新增 proposal.md、design.md、verify 或 review 要求。
+## 7. 架构与工具约束
 
-**收尾**：实现完成后核对 delta 与最终行为，按 `delta spec → 实现核对 → sync → 检查 living spec` 同步到 `openspec/specs`；主规格未同步不得正式归档。
+分层方向：SharedTypes(0)→Constants(1)→Utils(2)；FE Hooks(10)→Components(11)→Pages(12)；BE Repo(20)→Services(21)→Controllers(22)→Routes(23)。前后端仅通过 SharedTypes API 契约通信。
 
----
+- 源码文件不超过 400 行；TS 使用 camelCase/PascalCase 和命名导出，Python 使用 snake_case。新增目录更新 `harness/directory.md`。
+- 详细依赖矩阵、文件和测试组织见 `harness/architecture.md`。
+- `.agents/` 与 `.claude/` 中 Git 管理的对应命令/Skill 必须镜像一致；工具入口只转发本文件和 Harness 细则，不复制独立流程规则。
+- `AGENTS.md` 必须不超过 250 行；详细执行说明下沉到已有 Harness 专用文档。
 
-## 7. Level 3 — 重大变更
+## 8. 完成标准
 
-**适用**：重大架构变化、核心功能链路变化、跨模块大规模重构、框架/引擎更换、数据库/队列引入、重大部署变化、重大安全模型变化或高回滚风险迁移。小范围新增接口、局部持久化字段或受控上传实现，按影响范围判断，默认不直接升级。
+- 适用的架构、类型检查和受影响验证通过；`git diff` 仅含预期变更。
+- Level 2：必选任务完成、delta 与实现核对并同步 living spec、scoped strict docs 通过。
+- Level 3：冻结候选的 Review 与 scoped full gate 通过；全局发布/集中归档另跑 global full gate。
+- 普通 checklist 默认必选；只有行末明确 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 可不勾选。
 
-**完整流程**：proposal → spec → design → tasks → implementation → verify → review → archive。默认读取完整 Harness 迭代、评审和熵治理文档。
+## 9. 禁止事项
 
----
+- ❌ 以文件数/行数升级风险，或不确定时自动扩大流程。
+- ❌ 因行为变化机械新增测试，或在多个层重复同一断言。
+- ❌ 将 change 归属直接等同于本次 Task 的验证强度。
+- ❌ 多处复制同一规则、硬编码会变化的数字、批量跳过适用验证。
+- ❌ 常规使用 `git commit --no-verify`。
 
-## 8. 自动化测试与人工验收
-
-- 纯样式、文案、图标或不改变交互的展示调整，不强制新增自动化测试。
-- 改变交互、导航、可访问性、数据处理或业务行为时，必须有受影响层的定向测试；前后端都变更时两侧都测。
-- 核心业务逻辑、权限、安全、关键数据转换必须有可区分的有效断言；不要求对纯展示代码做突变验证。
-- 人工验收是独立维度，不由 Level 1/2/3 自动推导。只有 UI 视觉、真实 Word/PDF、桌面环境、真实业务流程或用户明确要求无法由自动化可靠覆盖时才触发；不适用时记录 `N/A`。候选冻结、环境预检与日志下钻细则见 `harness/verification-strategy.md`。
-
-所有自动化验证命令（pytest、Vitest、模块测试、完整门控及其子命令）的输出处理都先给通过/失败汇总和按类型计数；失败默认不展开逐条日志，只有需要定位失败时才下钻具体日志。命令没有提供对应参数时，不得虚构通用的 `--details` 参数。
-运行 pytest 默认使用安静模式和短 traceback（`-q --tb=short`），前端 Vitest 优先使用非 verbose 模式：先只读取退出码、最终统计和失败数量；通过时不逐条读取通过用例，失败时只下钻失败用例及其 traceback。修复后先重跑失败用例，再按需运行受影响模块；除非明确需要，不使用 `-v` 或逐条输出。
-
----
-
-## 9. Code Review Agent
-
-| 级别 | 要求 |
-|:----:|------|
-| Level 1 | 默认不启用 |
-| Level 2 | 按需启用；仅在审查有明确价值时使用 |
-| Level 3 | 候选版本统一审查一次，不按 Task 启动；必须保留独立审查或人工审查证据 |
-
-Review 驳回后，修改了被审查源码、接口、数据模型或行为时必须复审；只改文档、格式、命名或注释等测试元数据时可不复审；修改测试断言、fixture、mock、覆盖范围或预期结果时必须复审。最终验证失败导致实现修改时，原 Review 结论失效。详见 `harness/code-review-agent.md`。
-
----
-
-## 10. 验证与治理范围
-
-| 级别 | 验证命令 | OpenSpec | 归档 |
-|:----:|------|---------|:----:|
-| Level 1 | 按变化执行定向测试，或 `npm run verify:quick` | 不创建 | 不归档 |
-| Level 2 | `npm run verify:quick` + 受影响模块原始测试；收尾执行 scoped strict docs | tasks.md + delta specs | sync 后方可正式归档 |
-| Level 3 | 执行全仓库自动化工程检查；严格任务状态仅检查 `npm run verify:full -- --change <name>` 指定的变更包；全局发布/集中归档执行 `npm run verify:full:all` | 完整变更包 | 完整归档协议 |
-
-Level 2 的严格任务状态和 delta 结构只检查 `<name>` 当前变更包；Level 3 当前变更收尾也只检查显式传入的 `<name>`，全局发布/集中归档才检查所有活跃变更包。普通 checklist 任务默认必选；只有任务行末尾明确写成 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时可不勾选。脚本只读取显式状态和 `workflow_level`，不根据 proposal/design 是否存在反向猜测级别，也不宣称能自动判断代码与规格的完整语义一致性。
-
-`npm run verify:full -- --change <name>` 执行全仓库自动化工程检查，但严格任务状态只检查指定变更包；`npm run verify:full:all` 才检查全部活跃变更包。两者都不等同于完整系统验收；当前不包含 Playwright E2E、mypy、真实桌面环境和 Word/PDF 人工验收。未提供 scope 时，`verify:full` 不猜测当前变更，直接提示使用 `--change` 或 `--all`。
-
-`package.json` 是命令唯一来源；`scripts/verify.sh` 和 `harness.config.yaml` 只做转发。保留的 `verify:frontend`/`verify:backend` 仅是模块便利入口；`verify` 是显式的全局完整门控别名，不与 `verify:quick`、当前变更 `verify:full` 叠加作为额外门控。全局文档任务检查使用 `npm run verify:docs:strict:all`。
-
-不推荐常规使用 `git commit --no-verify`（仅限人工确认后的异常处理）。
-
----
-
-## 11. 工具兼容 + 旧变更包迁移
-
-- `.claude/`、`.agents/` 下命令和 Skill 是工具快捷入口，不得维护与本文件冲突的流程规则。
-- `.agents/` 与 `.claude/` 的对应文件必须保持内容一致（忽略 CRLF/LF 行尾差异）；默认和 strict docs 都执行镜像检查。
-- `/harness:fix` 支持 Level 1（不创建 OpenSpec change）。
-- **现有活跃变更包**不自动删除或降级，继续按原约定处理或后续逐个评估迁移。新三级规则默认适用于新任务。
-
----
-
-## 12. 架构约束（摘要）
-
-详见 `harness/architecture.md`。
-
-**分层方向**：SharedTypes(0)→Constants(1)→Utils(2)；FE Hooks(10)→Components(11)→Pages(12)；BE Repo(20)→Services(21)→Controllers(22)→Routes(23)。前后端仅通过 SharedTypes API 契约通信。
-
-**文件**：≤400 行、命名导出、TS camelCase/PascalCase、Python snake_case。新增目录后更新 `harness/directory.md`。
-
-**测试**：Utils/Repo/Services → 单元测试；Hooks/Components → Vitest+RTL；Pages/Routes → E2E；Controllers → 集成测试。
-
----
-
-## 13. 任务完成标准
-
-- lint:arch + typecheck 通过 / 针对本次修改的测试通过 / `git diff` 仅含预期变更
-- Level 2：当前变更包的必选任务标记完成、受影响验证和 scoped strict docs 通过；Level 3：当前变更的 scoped full gate 和 Review 证据通过；全局发布/集中归档再增加 global full gate
-
----
-
-## 14. 禁止事项
-
-- ❌ 以文件数量或代码行数作为风险判断标准
-- ❌ 不确定时自动扩大流程 / 在工具命令中独立定义流程规则
-- ❌ 多个文件复制同一信息（用"详见 xxx"）/ 硬编码会变的数字
-- ❌ 假设代码或 Spec 任一方天然正确 / 批量跳过测试
-
----
-
-## 15. 文档索引
+## 10. 文档索引
 
 | 路径 | 用途 |
-|------|------|
-| `harness/iteration-guide.md` | 六步闭环详情（Level 3） |
-| `harness/architecture.md` | 分层规则、依赖矩阵 |
-| `harness/entropy-rules.md` | 归档门控、教训反哺（Level 3） |
-| `harness/code-review-agent.md` | 审查维度和流程 |
-| `harness/directory.md` | 目录结构 |
-| `openspec/specs/` | 能力 spec |
-| `openspec/specs/data-model.md` | 实体定义 |
+|---|---|
+| `harness/iteration-guide.md` | Level 3 闭环与候选节奏 |
+| `harness/verification-strategy.md` | 验证选择、人工验收、预检和日志 |
+| `harness/architecture.md` | 分层、依赖、文件与测试组织 |
+| `harness/code-review-agent.md` | Review 范围和复审 |
+| `harness/entropy-rules.md` | 归档与熵治理 |
+| `openspec/specs/` | living specs |

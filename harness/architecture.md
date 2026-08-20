@@ -88,24 +88,24 @@
 - 测试文件与源码**同目录**，命名为 `<name>.test.ts(x)` / `test_<name>.py`
 - 测试文件**不受**源码命名约定约束（测试文件遵循测试框架的命名约定，不继承所在目录的源码命名规则）
 - E2E 测试放在 `tests/e2e/` 目录
-- **MUST**: 前端迭代开始前先配置测试基础设施：测试框架配置文件（DOM 环境 + 框架插件）+ 测试 setup 文件（mock 浏览器 API 等运行时环境差异）
-- 测试分层对应：
+- 新增、替换测试基础设施或现有链路不可用时，先验证 DOM 环境、框架插件、setup 和运行时 mock；既有链路正常时不得为每次迭代重复配置。
+- 常用测试落点如下；是否新增测试以 `harness/verification-strategy.md` 的风险与覆盖缺口判断为准：
 
-| 源码层级 | 测试类型 | 工具 | 映射来源 |
+| 源码层级 | 常用验证 | 工具 | 选择依据 |
 |---------|---------|------|---------|
 | Layer 0-1 (SharedTypes / SharedConstants) | 不需要测试 | tsc 覆盖 | — |
-| Layer 2 (SharedUtils) | 单元测试 | Vitest | Agent 自主，MUST 覆盖边界 |
-| Layer 10 (FE_Hooks) | Hook 测试 | Vitest + React Testing Library | Agent 自主 |
-| Layer 11 (FE_Components) | 组件测试 | React Testing Library | Spec 场景驱动 |
+| Layer 2 (SharedUtils) | 单元测试 | Vitest | 新增纯逻辑风险或现有覆盖缺口 |
+| Layer 10 (FE_Hooks) | Hook 测试 | Vitest + React Testing Library | 状态或副作用行为风险 |
+| Layer 11 (FE_Components) | 组件测试 | React Testing Library | 用户交互与可访问合同风险 |
 | Layer 12 (FE_Pages) | E2E | Playwright（规划中，当前未启用） | Spec 场景驱动 |
-| Layer 20 (BE_Repository) | 单元测试 | pytest | Agent 自主，MUST 覆盖边界 |
-| Layer 21 (BE_Services) | 单元测试 | pytest | Agent 自主 |
-| Layer 22 (BE_Controllers) | 集成测试 | pytest + httpx | Spec 场景驱动 |
+| Layer 20 (BE_Repository) | 单元测试 | pytest | IO、持久化和安全边界风险 |
+| Layer 21 (BE_Services) | 单元测试 | pytest | 核心业务规则风险 |
+| Layer 22 (BE_Controllers) | 集成测试 | pytest + httpx | API 合同和跨层接线风险 |
 | Layer 23 (BE_Routes) | E2E | Playwright / pytest（规划中，当前未启用） | Spec 场景驱动 |
 
 ### 任务执行约束
 
 - **MUST**: 按架构层级从低到高排列任务（Layer 0 → Layer 23）
-- 改变交互、业务行为或数据处理时，任务清单必须说明对应的定向测试；纯样式、文案、图标和不改变交互的展示调整不强制新增测试任务
-- 测试任务标注覆盖的 Spec 场景编号（E2E 和组件测试）
-- 单元测试覆盖边界条件（由 Agent 根据代码逻辑自行补充）
+- 行为变化的任务清单必须说明验证证据；先复用、修改或合并现有测试，只在覆盖缺口存在时新增用例。
+- 测试可标注其覆盖的关键 Spec 场景，但不要求 Scenario 与用例一一对应。
+- 核心合同、安全、持久化和关键转换覆盖必要边界；低风险展示不因所在层级被迫新增测试。

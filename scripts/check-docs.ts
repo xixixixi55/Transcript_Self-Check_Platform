@@ -8,11 +8,12 @@
  * 4.  [补充] 必选任务完成状态（只读取显式 checklist 标记）     [strict]
  * 5.  [补充] specs 能力目录 vs directory.md/AGENTS.md 中列出的能力名 [strict]
  * 6.  [E-A2] [按需] data-model.md 接口字段 vs 类型定义文件实际字段
- * 7.  [补充] AGENTS.md 行数限制（默认模式：仅警告）
+ * 7.  [补充] AGENTS.md 行数预算（所有模式阻断）
  * 8.  [E-A3] 文档链接有效性
  * 9.  [E-A4] OpenSpec 版本一致性                              [strict]
  * 10. [E-A5] TEMPLATE_CANDIDATE 积压统计                      [strict]
  * 11. [E-A6] 迭代记录教训反哺完整性                           [strict]
+ * 12. [补充] 高频 Harness 入口渐进式上下文合同（所有模式阻断）
  *
  * 用法：
  *   npx tsx scripts/check-docs.ts             默认模式（低噪音检查）
@@ -26,12 +27,14 @@ import * as path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import {
+  getLineBudgetOverflow,
   getCompletedTaskFileReferences,
   getManagedAgentToolingFiles,
   getRequiredIncompleteTasks,
   getWorkflowMetadata,
   parseWorkflowLevel,
   validateDeltaSpec,
+  validateProgressiveContextCommand,
   type WorkflowLevel,
 } from './check-docs-utils'
 
@@ -68,8 +71,15 @@ const EXPECTED_DIRS: Record<number, string[]> = {
   2: ['repository', 'services', 'controllers', 'routes', 'data'], // packages/backend/app
 }
 
-// 默认模式：超出仅警告；严格模式：作为错误阻断
-const AGENTS_MAX_LINES = 200
+// 根规则入口保持精简；详细执行说明应下沉到 Harness 专用文档。
+const AGENTS_MAX_LINES = 250
+
+const PROGRESSIVE_CONTEXT_COMMANDS = [
+  '.agents/commands/harness/propose.md',
+  '.agents/commands/harness/apply.md',
+  '.agents/commands/harness/fix.md',
+  '.agents/commands/harness/verify.md',
+]
 
 /** 数据模型 spec 路径 */
 const DATA_MODEL_MD = path.join(OPENSPEC_DIR, 'specs', 'data-model.md')
@@ -101,9 +111,10 @@ type DriftType =
   | 'task-file-missing' | 'task-incomplete' | 'spec-not-listed' | 'file-not-in-tree'
   | 'type-drift' | 'broken-link' | 'version-mismatch'
   | 'template-candidate-backlog' | 'lesson-not-fed-back'
-  | 'agents-size-exceeded' | 'workflow-level-missing' | 'workflow-level-invalid'
+  | 'agents-md-line-budget' | 'workflow-level-missing' | 'workflow-level-invalid'
   | 'level2-delta-spec-missing' | 'delta-spec-invalid'
   | 'legacy-reconciliation-invalid' | 'agent-tooling-mirror-drift'
+  | 'harness-context-loading-regression'
 
 interface Drift { type: DriftType; message: string }
 
@@ -422,6 +433,29 @@ function checkAgentToolingMirror(): Drift[] {
   return drifts
 }
 
+// ─── Check 4d: high-frequency Harness context loading contract ──
+
+function checkHarnessContextLoading(): Drift[] {
+  const drifts: Drift[] = []
+  for (const relativePath of PROGRESSIVE_CONTEXT_COMMANDS) {
+    const content = readFileIfExists(path.join(ROOT, relativePath))
+    if (!content) {
+      drifts.push({
+        type: 'harness-context-loading-regression',
+        message: `${relativePath} is missing`,
+      })
+      continue
+    }
+    for (const error of validateProgressiveContextCommand(content)) {
+      drifts.push({
+        type: 'harness-context-loading-regression',
+        message: `${relativePath}: ${error}`,
+      })
+    }
+  }
+  return drifts
+}
+
 // ─── Check 5: specs vs directory.md ─────────
 
 function checkSpecsListed(): Drift[] {
@@ -472,10 +506,10 @@ function checkDataModelConsistency(): Drift[] {
 function checkAgentsSize(): Drift[] {
   const content = readFileIfExists(AGENTS_MD)
   if (!content) return []
-  const lines = content.split('\n').length
-  if (lines > AGENTS_MAX_LINES) {
+  const lines = getLineBudgetOverflow(content, AGENTS_MAX_LINES)
+  if (lines !== undefined) {
     return [{
-      type: 'agents-size-exceeded',
+      type: 'agents-md-line-budget',
       message: `AGENTS.md has ${lines} lines, exceeds limit of ${AGENTS_MAX_LINES}.`,
     }]
   }
@@ -607,14 +641,16 @@ function main() {
     ...checkDirectoryStructure(),          // E-A1
     ...checkCommands(),                    // npm commands
     ...checkDataModelConsistency(),        // E-A2
-    ...checkAgentsSize(),                  // AGENTS.md size (warn in default, error in strict)
+    ...checkAgentsSize(),                  // AGENTS.md hard line budget
     ...checkDocLinks(),                    // E-A3
     ...checkAgentToolingMirror(),          // mirrored command/skill source
+    ...checkHarnessContextLoading(),       // progressive context loading contract
   ]
 
   const checks = [
     'E-A1:directory-structure', 'npm-commands',
     'E-A2:data-model-consistency', 'agents-md-size', 'E-A3:doc-links', 'agent-tooling-mirror',
+    'harness-context-loading',
   ]
 
   // Strict mode: add governance checks
@@ -634,21 +670,12 @@ function main() {
     )
   }
 
-  // Separate errors from warnings
-  const errors = allDrifts.filter(d => d.type !== 'agents-size-exceeded')
-  const warnings = allDrifts.filter(d => d.type === 'agents-size-exceeded')
-
-  const severe = STRICT_MODE ? [...errors, ...warnings] : errors
+  const severe = allDrifts
   console.log(`Summary: ${severe.length === 0 ? 'PASS' : 'FAIL'} | checks=${checks.length} | drifts=${severe.length}`)
 
   if (severe.length === 0) {
     console.log('✅ Documentation is consistent with codebase!\n')
     console.log(`   Active checks (${checks.length}): ${checks.join(', ')}`)
-    if (warnings.length > 0) {
-      console.log(`\nWarnings: ${warnings.length}`)
-      printDriftCounts(warnings)
-      if (SHOW_DETAILS) printDriftDetails(warnings)
-    }
     process.exit(0)
   } else {
     printDriftCounts(severe)

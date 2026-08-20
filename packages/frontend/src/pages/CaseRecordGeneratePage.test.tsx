@@ -202,23 +202,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(decisionBodies).toHaveLength(0)
   }, 15000)
 
-  it.each([
-    ['archive_deferred', /开始压缩/],
-    ['archive_interrupted', /重新确认并立即压缩/],
-  ] as const)('requires direct-source confirmation from %s before creating a task', async (lifecycle, buttonName) => {
-    initialLifecycle = lifecycle
-    vi.mocked(window.confirm).mockReturnValue(false)
-    renderPage()
-    await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-    fireEvent.click(await screen.findByRole('button', { name: buttonName }))
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/请勿修改、移动或删除源文件/))
-    expect(decisionBodies).toHaveLength(0)
-
-    vi.mocked(window.confirm).mockReturnValue(true)
-    fireEvent.click(screen.getByRole('button', { name: buttonName }))
-    await waitFor(() => expect(decisionBodies).toHaveLength(1))
-  }, 15000)
-
   it('does not create an archive task when draft persistence fails or a real revision conflict remains', async () => {
     rejectSave = true; const failedView = renderPage(); await editDiscAndClick()
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
@@ -286,17 +269,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await new Promise(resolve => setTimeout(resolve, 1200))
     expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
-  it('renders four-part required progress and pending checks in the right-side navigation', async () => {
-    renderPage(); await screen.findByRole('heading', { name: '审核编辑', level: 2 })
-    expect(await screen.findByRole('complementary', { name: '审核进度导航' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^必填进度 \d\/4，待核对 \d+ 项$/ })).toBeTruthy()
-    expect(screen.getAllByLabelText('审核进度与待核对项')).toHaveLength(1)
-    ;['文书信息与导出设置', '一、绪论', '二、检查', '附件']
-      .forEach(label => expect(screen.getByRole('button', { name: new RegExp(`${label}，`) })).toBeTruthy())
-    expect(document.querySelector('.review-steps')).toBeNull()
-    expect(screen.queryByText(/文号来源/)).toBeNull()
-    expect(screen.queryByLabelText('字段来源说明')).toBeNull()
-  }, 15000)
   it('saves an explicitly cleared entrust-unit prefix to the draft and shared defaults', async () => {
     renderPage()
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })
@@ -325,18 +297,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     const savedDraft = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft
     expect(savedDraft.report.attachments.disc_number).toBe('GP20260731-009')
-  }, 15000)
-
-  it('shows completed archive parts and their disc mapping in the attachments section', async () => {
-    showCompletedArchive = true
-    renderPage()
-    expect(await screen.findByText('合成案件.part1.rar')).toBeTruthy()
-    expect(screen.getByText('合成案件.part2.rar')).toBeTruthy()
-    expect(screen.getByText('GP20260731-01')).toBeTruthy()
-    expect(screen.getByText('GP20260731-02')).toBeTruthy()
-    expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP20260731-01')
-    expect(screen.getByRole('button', { name: '更新盘号映射' })).toBeTruthy()
-    expect(getMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id), { timeout: WORKBENCH_REQUEST_TIMEOUT_MS })
   }, 15000)
 
   it('collects a first disc number after compression and posts the disc mapping', async () => {

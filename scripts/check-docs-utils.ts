@@ -83,6 +83,36 @@ export function validateDeltaSpec(content: string): string[] {
   return errors
 }
 
+/** Count logical text lines consistently across LF and CRLF content. */
+export function countTextLines(content: string): number {
+  if (content.length === 0) return 0
+  return content.replaceAll('\r\n', '\n').split('\n').length
+}
+
+/** Return the actual line count only when a document exceeds its budget. */
+export function getLineBudgetOverflow(content: string, maxLines: number): number | undefined {
+  const lineCount = countTextLines(content)
+  return lineCount > maxLines ? lineCount : undefined
+}
+
+/** Keep high-frequency Harness commands as progressive routers instead of eager document loaders. */
+export function validateProgressiveContextCommand(content: string): string[] {
+  const errors: string[] = []
+  if (!/<!--\s*context-loading:\s*progressive\s*-->/i.test(content)) {
+    errors.push('missing progressive context marker')
+  }
+  if (!/(?:渐进式|按需)(?:上下文|读取|加载)/i.test(content)) {
+    errors.push('missing progressive loading instructions')
+  }
+  if (/MUST\s*在开始前阅读|前置读取[^\n]*(?:MUST|必须)/i.test(content)) {
+    errors.push('contains unconditional pre-read instruction')
+  }
+  if (!/AGENTS\.md/i.test(content)) {
+    errors.push('missing AGENTS.md policy source')
+  }
+  return errors
+}
+
 export interface ManagedAgentToolingFiles {
   agentsFiles: string[]
   claudeFiles: string[]

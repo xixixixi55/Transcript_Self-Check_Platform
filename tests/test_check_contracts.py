@@ -54,74 +54,36 @@ def _restore_file(path: Path, content: str) -> None:
 
 
 class TestContractCheckerDriftDetection:
-    """Each test introduces a deliberate drift and asserts the checker catches it."""
+    """Keep one clean integration run and one run covering every drift dimension."""
 
-    def test_field_name_drift_caught(self):
-        """Removing a Python field MUST trigger a field-name drift."""
-        # Remove 'evidence_number' from Python Material model
-        original = _modify_file(
-            CANONICAL_MODELS,
-            "    evidence_number: str\n",
-            "",
-        )
-        try:
-            exit_code, output = _run_checker()
-            assert exit_code == 1, f"Checker should fail with drift; got exit {exit_code}\n{output}"
-            assert "field-name" in output, f"Expected field-name drift, got:\n{output}"
-            assert "evidence_number" in output.lower(), f"Expected evidence_number missing, got:\n{output}"
-        finally:
-            _restore_file(CANONICAL_MODELS, original)
-
-    def test_optionality_drift_caught(self):
-        """Making a TS-required field optional MUST trigger optionality drift."""
-        # Use 'Material.name' which is auto-parsed (no tsFields override).
-        # TS: name: string (required).  Add ? to make it optional.
-        ts_canonical_path = ROOT / "packages" / "shared" / "types" / "canonical.ts"
-        original_ts = _modify_file(
-            ts_canonical_path,
-            '  name: string\n',
-            '  name?: string\n',
-        )
-        try:
-            exit_code, output = _run_checker()
-            assert exit_code == 1, f"Checker should fail with drift; got exit {exit_code}\n{output}"
-            assert "optionality" in output, f"Expected optionality drift, got:\n{output}"
-        finally:
-            _restore_file(ts_canonical_path, original_ts)
-
-    def test_enum_value_drift_caught(self):
-        """Adding a spurious TS literal union member MUST trigger enum-values drift."""
+    def test_all_supported_drift_dimensions_caught_in_one_run(self):
+        """One checker invocation reports field, optionality, enum and error-code drift."""
         ts_canonical = ROOT / "packages" / "shared" / "types" / "canonical.ts"
-        # Inject a nonsense value into MaterialKind
-        original = _modify_file(
-            ts_canonical,
-            "export type MaterialKind = 'phone' | 'tablet' | 'unconfirmed'",
-            "export type MaterialKind = 'phone' | 'tablet' | 'unconfirmed' | 'laptop'",
-        )
-        try:
-            exit_code, output = _run_checker()
-            assert exit_code == 1, f"Checker should fail with drift; got exit {exit_code}\n{output}"
-            assert "enum-values" in output, f"Expected enum-values drift, got:\n{output}"
-            assert "laptop" in output, f"Expected 'laptop' in drift report, got:\n{output}"
-        finally:
-            _restore_file(ts_canonical, original)
-
-    def test_error_code_drift_caught(self):
-        """Removing a TS ExportGateBlockerCode member MUST trigger error-code-set drift."""
         ts_export_gate = ROOT / "packages" / "shared" / "types" / "exportGate.ts"
-        # Remove a code from the type union
-        original = _modify_file(
-            ts_export_gate,
-            "  | 'TEMPLATE_PROFILE_MISMATCH'\n",
-            "",
-        )
+        originals = {
+            CANONICAL_MODELS: CANONICAL_MODELS.read_text(encoding="utf-8"),
+            ts_canonical: ts_canonical.read_text(encoding="utf-8"),
+            ts_export_gate: ts_export_gate.read_text(encoding="utf-8"),
+        }
         try:
+            _modify_file(CANONICAL_MODELS, "    evidence_number: str\n", "")
+            _modify_file(ts_canonical, "  name: string\n", "  name?: string\n")
+            _modify_file(
+                ts_canonical,
+                "export type MaterialKind = 'phone' | 'tablet' | 'unconfirmed'",
+                "export type MaterialKind = 'phone' | 'tablet' | 'unconfirmed' | 'laptop'",
+            )
+            _modify_file(ts_export_gate, "  | 'TEMPLATE_PROFILE_MISMATCH'\n", "")
+
             exit_code, output = _run_checker()
             assert exit_code == 1, f"Checker should fail with drift; got exit {exit_code}\n{output}"
-            assert "error-code-set" in output, f"Expected error-code-set drift, got:\n{output}"
-            assert "TEMPLATE_PROFILE_MISMATCH" in output, f"Expected TEMPLATE_PROFILE_MISMATCH in report, got:\n{output}"
+            for dimension in ("field-name", "optionality", "enum-values", "error-code-set"):
+                assert dimension in output, f"Expected {dimension} drift, got:\n{output}"
+            for detail in ("evidence_number", "laptop", "TEMPLATE_PROFILE_MISMATCH"):
+                assert detail.lower() in output.lower(), f"Expected {detail} in drift report, got:\n{output}"
         finally:
-            _restore_file(ts_export_gate, original)
+            for file_path, original in originals.items():
+                _restore_file(file_path, original)
 
     def test_no_drift_when_aligned(self):
         """Checker MUST pass (exit 0) when the contracts are aligned."""
