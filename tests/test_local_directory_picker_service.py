@@ -35,6 +35,8 @@ def test_picker_returns_selected_absolute_directory_and_uses_fixed_native_comman
     command, options = calls[0]
     assert command[:6] == ["powershell.exe", "-NoLogo", "-NoProfile", "-STA", "-WindowStyle", "Hidden"]
     assert "FolderBrowserDialog" in command[-1]
+    assert "$ownerTypeDefinition = @'" in command[-1]
+    assert "-ReferencedAssemblies @('System.dll', 'System.Windows.Forms.dll')" in command[-1]
     assert "ShowDialog($owner)" in command[-1]
     assert "WindowHandleOwner : IWin32Window" in command[-1]
     assert "CaptureForegroundOwner()" in command[-1]

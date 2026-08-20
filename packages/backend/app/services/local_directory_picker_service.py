@@ -24,7 +24,7 @@ def _folder_picker_script(description: str, initial_directory: str | None = None
     safe_initial = (initial_directory or "").replace("'", "''")
     return f"""
 Add-Type -AssemblyName System.Windows.Forms;
-Add-Type -TypeDefinition @'
+$ownerTypeDefinition = @'
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -129,6 +129,8 @@ public static class PickerWindow {{
     }}
 }}
 '@;
+Add-Type -TypeDefinition $ownerTypeDefinition `
+    -ReferencedAssemblies @('System.dll', 'System.Windows.Forms.dll');
 $dialog = New-Object System.Windows.Forms.FolderBrowserDialog;
 $dialog.Description = '{safe_description}';
 $dialog.RootFolder = [System.Environment+SpecialFolder]::MyComputer;

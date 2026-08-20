@@ -47,3 +47,12 @@ workflow_level: 3
 - [x] 8.1 修改 `local_directory_picker_service.py`，捕获触发时的前台窗口并作为 `FolderBrowserDialog` owner；保留隐藏 owner/置顶兜底并记录前台确认状态。
 - [x] 8.2 更新现有目录选择器测试，区分浏览器 owner、兜底 owner、持续提升和诊断日志合同；运行定向 pytest、真实 PowerShell 类型编译及工程增量门控。
 - [ ] 8.3 按 `manual-acceptance.md` 在部署电脑分别验证上传报告和统一导出的选择框始终位于浏览器之前。 [DEFERRED]
+
+## 9. 部署反馈：Windows PowerShell WinForms 编译引用兼容
+
+- [x] 9.1 记录部署失败：目标 Windows PowerShell 执行 `Add-Type -TypeDefinition` 时未自动引用 `System.Windows.Forms`，导致 `IWin32Window` owner 包装类编译失败，上传报告与统一导出均无法打开目录选择器。
+- [x] 9.2 将 owner C# 源码保存为独立 PowerShell 变量，并为 `Add-Type` 显式传入 `System.dll` 与 `System.Windows.Forms.dll`；不改变浏览器 owner、置顶兜底、目录授权或历史目录合同。
+- [x] 9.3 更新脚本合同测试并运行真实 Windows PowerShell 5.1 显式引用编译、目录选择器定向 pytest、`verify:quick`、scoped strict docs 与 `git diff --check`。
+- [ ] 9.4 重新构建便携 ZIP，并在部署电脑复测上传报告和统一导出目录选择器。 [DEFERRED]
+
+验证记录：目录选择器与工作台控制器定向 Pytest 50 项通过，其中生成脚本在 Windows PowerShell 5.1 中真实编译；`verify:quick` 与 `git diff --check` 通过。部署电脑复测随下一版便携 ZIP 进行。
