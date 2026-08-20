@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import subprocess
+import struct
 import sys
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from portable_launcher import (  # noqa: E402
     validate_program_integrity,
     wait_until_ready,
 )
+from windows_tray import TrayController  # noqa: E402
 
 
 class FakeProcess:
@@ -136,6 +138,31 @@ def test_browser_bootstrap_url_contains_encoded_one_time_secret() -> None:
     assert captured == [
         "http://127.0.0.1:32123/desktop/bootstrap#token=SYNTHETIC%20secret%2F%2B",
     ]
+
+
+def test_tray_controller_opens_application_and_detects_backend_stop() -> None:
+    opened: list[str] = []
+    running = True
+    controller = TrayController(lambda: opened.append("SYNTHETIC-OPEN"), lambda: running)
+    controller.open_application()
+    assert opened == ["SYNTHETIC-OPEN"]
+    assert controller.poll_backend() is True
+    running = False
+    assert controller.poll_backend() is False
+    assert controller.result == "backend_stopped"
+
+
+def test_windows_icon_contains_required_tray_and_executable_sizes() -> None:
+    icon_path = Path(__file__).parents[1] / "packaging" / "wenshu.ico"
+    payload = icon_path.read_bytes()
+    reserved, icon_type, count = struct.unpack_from("<HHH", payload)
+    assert (reserved, icon_type) == (0, 1)
+    sizes = set()
+    for index in range(count):
+        width, height = struct.unpack_from("<BB", payload, 6 + index * 16)
+        sizes.add((width or 256, height or 256))
+    assert {(16, 16), (20, 20), (24, 24), (32, 32), (40, 40), (48, 48),
+            (64, 64), (128, 128), (256, 256)} <= sizes
 
 
 def test_program_integrity_rejects_missing_modified_and_unknown_files(tmp_path: Path) -> None:

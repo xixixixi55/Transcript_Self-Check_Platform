@@ -55,7 +55,7 @@
 
 ### Windows 便携发布
 
-正式便携包通过 `npm run build:portable` 构建。发布物包含冻结后端、生产前端、私有 Node/officecli、内置模板和 HashMyFiles，不包含 WinRAR 或任何案件数据。用户从官方渠道独立安装并按许可使用 WinRAR 后，解压 ZIP 并双击 `文枢.exe`；持久数据统一写入 `%LOCALAPPDATA%\文枢`。发布清单和详细行为以 `openspec/changes/portable-windows-distribution/` 为准。
+正式便携包通过 `npm run build:portable` 构建。发布物包含冻结后端、生产前端、私有 Node/officecli、内置模板和 HashMyFiles，不包含 WinRAR 或任何案件数据。用户从官方渠道独立安装并按许可使用 WinRAR 后，解压 ZIP 并双击 `文枢.exe`；应用启动后驻留系统托盘，可从托盘重新打开或安全退出，持久数据统一写入 `%LOCALAPPDATA%\文枢`。发布清单和详细行为以 `openspec/changes/portable-windows-distribution/` 为准。
 
 ### 环境要求
 

@@ -17,4 +17,5 @@ exe = EXE(
     pyz, a.scripts, a.binaries, a.datas, [],
     name="文枢", debug=False, bootloader_ignore_signals=False,
     strip=False, upx=False, console=False,
+    icon=str(ROOT / "packaging" / "wenshu.ico"),
 )

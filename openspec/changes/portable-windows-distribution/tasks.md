@@ -34,3 +34,10 @@ workflow_level: 3
 - [x] 6.1 运行后端/启动器/发布脚本定向测试、`lint:arch`、`typecheck`、`verify:quick`，并构建本机候选ZIP；记录通过/失败统计，不提交候选二进制。验证：命令退出码和ZIP清单哈希。
 - [ ] 6.2 在无全局Python、Node、pnpm、officecli和旧版文枢的Windows 10/11 x64环境执行解压启动、中文路径、重启、Word、officecli回退、WinRAR和统一导出验收，证据写入本变更包；仅开发机验证不得勾选。 [DEFERRED]
 - [x] 6.3 冻结候选后执行一次独立Code Review，修复源码/行为后复审；通过后运行`npm run verify:full -- --change portable-windows-distribution`并记录人工验收适用性。验证：Review结论、scoped full gate和`git diff`仅含预期变更。
+
+## 7. 部署反馈：托盘启动生命周期
+
+- [x] 7.1 设计并生成无文字、多尺寸的文枢 Windows 图标，接入 PyInstaller EXE 图标资源；验证 ICO 包含 16/20/24/32/40/48/64/128/256 像素帧且发布构建可读取。
+- [x] 7.2 新增原生 Win32 托盘消息循环，将启动器的阻塞式运行提示替换为“打开文枢/退出文枢”菜单，并在后端意外结束时撤销托盘；验证启动器单元测试覆盖打开、显式退出、异常退出和清理。
+- [x] 7.3 运行启动器测试、真实 Win32 托盘烟雾、PyInstaller EXE 图标构建和工程增量门控，并记录验证结果。
+- [ ] 7.4 按 `manual-acceptance.md` 在目标 Windows 10/11 电脑验收托盘显示、重新打开、浏览器关闭后继续运行及显式退出；反馈收敛后重新冻结候选，再统一 Review 与 scoped full gate。 [DEFERRED]

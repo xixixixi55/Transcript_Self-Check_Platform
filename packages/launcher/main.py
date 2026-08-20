@@ -11,6 +11,7 @@ from portable_launcher import (
     SingleInstance,
     attach_kill_on_close_job,
     new_secret,
+    open_application_browser,
     open_desktop_browser,
     resolve_launcher_paths,
     start_backend,
@@ -18,6 +19,7 @@ from portable_launcher import (
     validate_program_integrity,
     wait_until_ready,
 )
+from windows_tray import TrayError, run_windows_tray
 
 MB_OK = 0x00000000
 MB_ICONINFORMATION = 0x00000040
@@ -40,7 +42,7 @@ def main() -> int:
         validate_program_integrity(paths)
         lock = SingleInstance(paths.lock_file)
         if not lock.acquire():
-            show_message("文枢", "文枢已经在运行，请使用已打开的浏览器窗口。", MB_ICONINFORMATION)
+            show_message("文枢", "文枢已经在运行，请通过系统托盘重新打开。", MB_ICONINFORMATION)
             return 0
         ready_file = paths.log_root / "backend-ready.json"
         ready_file.unlink(missing_ok=True)
@@ -49,13 +51,22 @@ def main() -> int:
         process_job = attach_kill_on_close_job(process)
         port = wait_until_ready(process, ready_file, secret)
         open_desktop_browser(port, secret)
-        show_message(
-            "文枢正在运行",
-            "文枢已在浏览器中打开。\n\n使用期间请保留本窗口；点击“确定”将退出文枢。",
-            MB_ICONINFORMATION,
+
+        def reopen_application() -> None:
+            try:
+                open_application_browser(port)
+            except (LauncherError, OSError) as error:
+                show_message("无法打开文枢", str(error), MB_ICONERROR)
+
+        tray_result = run_windows_tray(
+            reopen_application,
+            lambda: process.poll() is None,
         )
+        if tray_result == "backend_stopped":
+            show_message("文枢已停止", "文枢后端意外退出，请查看日志后重新启动。", MB_ICONERROR)
+            return 1
         return 0
-    except LauncherError as error:
+    except (LauncherError, TrayError) as error:
         show_message("文枢启动失败", str(error), MB_ICONERROR)
         return 1
     except OSError:
