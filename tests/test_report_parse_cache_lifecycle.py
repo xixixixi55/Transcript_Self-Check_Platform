@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from test_report_parse_cache_metadata import _make_report, _write_json  # noqa: E402
+from synthetic_report_builders import build_parse_cache_report_tree  # noqa: E402
 from app.repository.report_parse_input_metadata_repository import validate_cached_input_metadata  # noqa: E402
 from app.repository.report_parse_input_models import DependencyRecord, ReportParseInputError  # noqa: E402
 from app.repository.report_parse_input_repository import build_report_parse_input_snapshot  # noqa: E402
@@ -21,7 +21,7 @@ from app.services.report_parsing_cache_service import ReportParsingCacheService 
 
 
 def test_deleted_selected_candidate_invalidates_cache(tmp_path):
-    data_root, candidate, _ = _make_report(tmp_path)
+    data_root, candidate, _ = build_parse_cache_report_tree(tmp_path)
     parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     candidate.unlink()
 
@@ -34,7 +34,7 @@ def test_deleted_selected_candidate_invalidates_cache(tmp_path):
 
 
 def test_deleted_core_file_fails_safely_and_does_not_reuse_old_cache(tmp_path):
-    data_root, _, _ = _make_report(tmp_path)
+    data_root, _, _ = build_parse_cache_report_tree(tmp_path)
     parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     (data_root / "data_case_info.json").unlink()
 
@@ -49,7 +49,7 @@ def test_deleted_core_file_fails_safely_and_does_not_reuse_old_cache(tmp_path):
 
 
 def test_old_cache_without_dependency_manifest_is_safely_rebuilt(tmp_path):
-    _make_report(tmp_path)
+    build_parse_cache_report_tree(tmp_path)
     snapshot = build_report_parse_input_snapshot(str(tmp_path))
     cache_dir = tmp_path / "output" / "parsed"
     cache_dir.mkdir(parents=True)
@@ -69,7 +69,7 @@ def test_old_cache_without_dependency_manifest_is_safely_rebuilt(tmp_path):
 
 
 def test_same_directory_requests_share_snapshot_and_parser(tmp_path):
-    _make_report(tmp_path)
+    build_parse_cache_report_tree(tmp_path)
     started = Event()
     release = Event()
     snapshot_calls = []
@@ -100,7 +100,7 @@ def test_same_directory_requests_share_snapshot_and_parser(tmp_path):
 
 
 def test_cache_clear_during_snapshot_build_blocks_old_manifest_write(tmp_path):
-    _make_report(tmp_path)
+    build_parse_cache_report_tree(tmp_path)
     snapshot = build_report_parse_input_snapshot(str(tmp_path))
     service = ReportParsingCacheService()
     started = Event()
@@ -139,7 +139,7 @@ def test_cache_clear_during_snapshot_build_blocks_old_manifest_write(tmp_path):
 
 
 def test_cache_clear_starts_new_generation_without_waiting_for_old_task(tmp_path):
-    _make_report(tmp_path)
+    build_parse_cache_report_tree(tmp_path)
     service = ReportParsingCacheService()
     old_started = Event()
     old_release = Event()
@@ -186,7 +186,7 @@ def test_cache_clear_starts_new_generation_without_waiting_for_old_task(tmp_path
 
 
 def test_same_directory_retry_joins_during_metadata_validation(tmp_path):
-    _make_report(tmp_path)
+    build_parse_cache_report_tree(tmp_path)
     parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     started = Event()
     release = Event()
@@ -215,7 +215,7 @@ def test_same_directory_retry_joins_during_metadata_validation(tmp_path):
 
 
 def test_unsafe_cached_dependency_path_is_rejected(tmp_path):
-    data_root, _, _ = _make_report(tmp_path)
+    data_root, _, _ = build_parse_cache_report_tree(tmp_path)
     with pytest.raises(ReportParseInputError):
         validate_cached_input_metadata(
             str(data_root),

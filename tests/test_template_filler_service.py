@@ -24,6 +24,7 @@ from app.services.attachment2_image_service import (
     calculate_fixed_geometry,
 )
 from app.services.template_profile_service import current_template_profile
+from synthetic_report_builders import build_archive_manifest
 
 
 _ROOT = Path(__file__).parents[1]
@@ -70,28 +71,6 @@ def _report(data_summary_marker=...):
             "disc_number": "TEST-DISC",
             "burning_date": "2026年7月16日",
         },
-    }
-
-
-def _manifest(count=3):
-    return {
-        "manifest_id": "trusted-synthetic-manifest",
-        "validation_status": "validated",
-        "volume_size_bytes": 4_000_000_000,
-        "parts": [
-            {
-                "part_id": f"part-{index}",
-                "part_number": index,
-                "filename": f"synthetic.part{index}.rar",
-                "size_bytes": index * 100,
-                "md5": f"{index:032x}",
-                "disc_number": f"GP20260706-{index:02d}",
-                "disc_date": "2026-07-06",
-                "disc_capacity_bytes": 4_000_000_000,
-                "volume_size_bytes": 4_000_000_000,
-            }
-            for index in range(1, count + 1)
-        ],
     }
 
 
@@ -223,7 +202,7 @@ def test_manifest_render_removes_spread_formatting_from_short_extract_headers(tm
     output = tmp_path / "normalized-manifest-format.docx"
 
     fill_template(
-        report, str(modified_template), str(output), [], _manifest(1),
+        report, str(modified_template), str(output), [], build_archive_manifest(1),
         compute_ooxml_package_fingerprint(modified_template),
     )
 
@@ -251,7 +230,7 @@ def test_manifest_disc_date_overrides_attachment_summary_signature_date(tmp_path
         {"name": "Python hashlib", "version": "3.12"},
     ]
     output = tmp_path / "manifest-signature-date.docx"
-    fill_template(report, str(_TEMPLATE), str(output), [], _manifest())
+    fill_template(report, str(_TEMPLATE), str(output), [], build_archive_manifest())
 
     paragraphs = Document(output).paragraphs
     signature_index = next(
@@ -283,7 +262,7 @@ def test_fill_template_combines_all_evidence_numbers_in_result_sentence(tmp_path
     assert "；经对编号为JC02号检材" not in document_xml
 
 
-def test_evidence_renderer_projects_identifiers_by_confirmed_material_type(tmp_path):
+def test_evidence_renderer_preserves_material_type_and_identifier_contracts(tmp_path):
     report = _report()
     report["introduction"]["evidence_list"] = [
         {
@@ -298,59 +277,47 @@ def test_evidence_renderer_projects_identifiers_by_confirmed_material_type(tmp_p
             "material_type_source": "user", "imei1": "222222222222222",
             "serial_number": "TABLET-SERIAL-MUST-RENDER",
         },
+        {
+            "id": "synthetic-phone", "evidence_number": "SYN-JC-PHONE",
+            "device_name": "SYNTHETIC HUAWEI SGU-AL10", "material_type": "phone",
+            "material_type_status": "confirmed_by_user", "material_type_source": "user",
+            "extractable": False,
+        },
+        {
+            "id": "synthetic-iphone", "evidence_number": "SYN-JC-IPHONE",
+            "device_name": "SYNTHETIC iPhone 14", "material_type": "phone",
+            "material_type_status": "confirmed_by_user", "material_type_source": "user",
+            "extractable": False,
+        },
+        {
+            "evidence_number": "SYN-JC-NO-ID", "device_type": "SYNTHETIC vivo V2141A",
+            "extractable": False, "imei1": "333333333333333",
+            "serial_number": "SYNTHETIC-SERIAL-MUST-NOT-RENDER",
+        },
     ]
-    output = tmp_path / "material-identifiers.docx"
+    output = tmp_path / "material-contracts.docx"
     fill_template(report, str(_TEMPLATE), str(output))
 
     with zipfile.ZipFile(output) as package:
         document_xml = package.read("word/document.xml").decode("utf-8")
 
-    assert "111111111111111" in document_xml
-    assert "PHONE-SERIAL-MUST-NOT-RENDER" not in document_xml
-    assert "TABLET-SERIAL-MUST-RENDER" in document_xml
-    assert "222222222222222" not in document_xml
-
-
-def test_evidence_renderer_appends_reviewed_material_type_to_device_name(tmp_path):
-    report = _report()
-    report["introduction"]["evidence_list"] = [{
-        "id": "synthetic-phone",
-        "evidence_number": "SYN-JC-PHONE",
-        "device_name": "SYNTHETIC HUAWEI SGU-AL10",
-        "material_type": "phone",
-        "material_type_status": "confirmed_by_user",
-        "material_type_source": "user",
-        "extractable": False,
-    }]
-    output = tmp_path / "reviewed-material-type.docx"
-
-    fill_template(report, str(_TEMPLATE), str(output))
-
-    with zipfile.ZipFile(output) as package:
-        document_xml = package.read("word/document.xml").decode("utf-8")
-    assert "SYNTHETIC HUAWEI SGU-AL10手机一部（无法提取）" in document_xml
-    assert "SYNTHETIC HUAWEI SGU-AL10一部" not in document_xml
-
-
-def test_evidence_renderer_appends_phone_after_iphone_product_name(tmp_path):
-    report = _report()
-    report["introduction"]["evidence_list"] = [{
-        "id": "synthetic-iphone",
-        "evidence_number": "SYN-JC-IPHONE",
-        "device_name": "SYNTHETIC iPhone 14",
-        "material_type": "phone",
-        "material_type_status": "confirmed_by_user",
-        "material_type_source": "user",
-        "extractable": False,
-    }]
-    output = tmp_path / "reviewed-iphone-material-type.docx"
-
-    fill_template(report, str(_TEMPLATE), str(output))
-
-    with zipfile.ZipFile(output) as package:
-        document_xml = package.read("word/document.xml").decode("utf-8")
-    assert "SYNTHETIC iPhone 14手机一部（无法提取）" in document_xml
-    assert "SYNTHETIC iPhone 14一部" not in document_xml
+    for expected in (
+        "111111111111111",
+        "TABLET-SERIAL-MUST-RENDER",
+        "SYNTHETIC HUAWEI SGU-AL10手机一部（无法提取）",
+        "SYNTHETIC iPhone 14手机一部（无法提取）",
+        "SYNTHETIC vivo V2141A一部（无法提取）",
+    ):
+        assert expected in document_xml
+    for forbidden in (
+        "PHONE-SERIAL-MUST-NOT-RENDER",
+        "222222222222222",
+        "SYNTHETIC HUAWEI SGU-AL10一部",
+        "SYNTHETIC iPhone 14一部",
+        "333333333333333",
+        "SYNTHETIC-SERIAL-MUST-NOT-RENDER",
+    ):
+        assert forbidden not in document_xml
 
 
 def test_evidence_renderer_preserves_unconfirmed_template_name_priority(tmp_path):
@@ -365,33 +332,12 @@ def test_evidence_renderer_preserves_unconfirmed_template_name_priority(tmp_path
         "extractable": False,
     }]
     output = tmp_path / "unconfirmed-name-priority.docx"
-
     fill_template(report, str(_TEMPLATE), str(output))
 
     with zipfile.ZipFile(output) as package:
         document_xml = package.read("word/document.xml").decode("utf-8")
     assert "SYNTHETIC HUAWEI一部（无法提取）" in document_xml
     assert "SYNTHETIC Android设备一部" not in document_xml
-
-
-def test_evidence_renderer_marks_unextractable_without_identifiers(tmp_path):
-    report = _report()
-    report["introduction"]["evidence_list"] = [{
-        "evidence_number": "SYN-JC-NO-ID",
-        "device_type": "SYNTHETIC vivo V2141A",
-        "extractable": False,
-        "imei1": "111111111111111",
-        "serial_number": "SYNTHETIC-SERIAL-MUST-NOT-RENDER",
-    }]
-    output = tmp_path / "unextractable.docx"
-    fill_template(report, str(_TEMPLATE), str(output))
-
-    with zipfile.ZipFile(output) as package:
-        document_xml = package.read("word/document.xml").decode("utf-8")
-
-    assert "SYNTHETIC vivo V2141A一部（无法提取）" in document_xml
-    assert "111111111111111" not in document_xml
-    assert "SYNTHETIC-SERIAL-MUST-NOT-RENDER" not in document_xml
 
 
 def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
@@ -411,7 +357,7 @@ def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
         {"name": "Python hashlib", "version": "3.12"},
     ]
     output = tmp_path / "manifest-result.docx"
-    fill_template(report, str(_TEMPLATE), str(output), [], _manifest())
+    fill_template(report, str(_TEMPLATE), str(output), [], build_archive_manifest())
 
     with zipfile.ZipFile(output) as package:
         document_xml = package.read("word/document.xml").decode("utf-8")
@@ -468,7 +414,7 @@ def test_attachment_summary_uses_page_top_suppressed_spacing_and_conditional_pag
     ]
     output = tmp_path / "long-result.docx"
 
-    fill_template(report, str(_TEMPLATE), str(output), [], _manifest(2))
+    fill_template(report, str(_TEMPLATE), str(output), [], build_archive_manifest(2))
 
     with zipfile.ZipFile(output) as package:
         root = ET.fromstring(package.read("word/document.xml"))
@@ -538,7 +484,7 @@ def test_attachment_summary_signature_and_date_layout_stay_unchanged(tmp_path):
         {"name": "WinRAR压缩管理软件", "version": "6.24"},
         {"name": "Python hashlib", "version": "3.12"},
     ]
-    fill_template(report, str(_TEMPLATE), str(output), [], _manifest())
+    fill_template(report, str(_TEMPLATE), str(output), [], build_archive_manifest())
 
     def body_children(path):
         with zipfile.ZipFile(path) as package:
@@ -663,11 +609,7 @@ def _write_png(path: Path, width: int, height: int, color=(50, 120, 200)):
 
 @pytest.mark.parametrize("sizes", [
     [],
-    [(1600, 900)],       # 1张横图
-    [(900, 1600)],       # 1张竖图
     [(4000, 4000)],      # 1张超出页面可用区域的图
-    [(1600, 900), (900, 1600)],  # 2张横/竖图
-    [(4000, 4000), (4000, 4000)],  # 2张超尺寸图
     [(1600, 900), (900, 1600), (1200, 1200), (2000, 1000)],  # 4张图片
 ])
 def test_photo_regression_scenarios_keep_images_and_page_xml(tmp_path, sizes):

@@ -15,17 +15,3 @@ export function getFieldSourceLabel(source: FieldSource): string {
 export function getFieldConfirmationMessage(state: FieldState): string | null {
   return state.confirmation === 'pending' ? '待人工确认' : null
 }
-
-/**
- * Moves a persisted field state to the user source while keeping confirmation
- * independent. The caller decides whether an edit confirms a particular
- * business field; this helper never silently clears an existing pending gate.
- */
-export function markFieldStateUserEdited(state: FieldState, changedAt: string): FieldState {
-  return {
-    ...state,
-    source: 'user',
-    revision: state.revision + 1,
-    last_changed_at: changedAt,
-  }
-}

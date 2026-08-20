@@ -58,3 +58,49 @@ manual_acceptance: N/A（仅治理文档与确定性检查脚本变化，无 UI�
 - [x] T032 运行治理、受影响前后端测试和工程门控，记录测试数量、耗时变化与未处理的高风险套件。文件：`openspec/changes/harness-workflow-alignment/tasks.md`；验证：定向测试、`npm run verify:quick`、前后端全量测试和 `git diff --check`。
   - 证据：前端全量 60 个文件/383 条通过，后端全量 1219 通过/3 跳过；Vitest+pytest 收集项由 1613 降至 1605（净减 8）。并发全量墙钟受资源竞争影响不作前后对比；剩余优先审计候选为页面/管理组件警告噪音、autosave 慢测试、portable/checker/Word 集成进程成本，当前批次不以合并安全矩阵来换取数量下降。
   - 收尾：`verify:quick`、OpenSpec strict、scoped strict docs、scoped full gate 与 `git diff --check` 全部通过；full gate 中全仓 test 282.1 秒、build 27.8 秒。
+- [x] T033 审计第二批高数量、高耗时和高噪音测试，确认仅合并已有风险覆盖而不压缩安全矩阵。文件：`tests/test_template_filler_service.py`、`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx` 及其组件/Hook 测试；验证：定向基线与职责映射。
+  - 证据：检材渲染基线为 5 次 DOCX 生成/约 3.05 秒 call；工作台页面为 17 条/11.62 秒 call，并反复输出 Modal 废弃属性警告。安全、恢复、持久化、归档执行和文件校验矩阵未纳入删减候选。
+- [x] T034 将 5 次检材渲染 DOCX 的测试合并为两次多检材渲染，保留已确认手机/平板标识符、类型后缀、未确认名称优先级和不可提取脱敏断言。文件：`tests/test_template_filler_service.py`；验证：定向 pytest 与耗时对比。
+  - 证据：首次尝试单次渲染时，第 6 个检材被模板容量边界截断并导致断言失败；据此保留两次真实渲染。最终 2 条通过，call 合计约 1.23 秒，所有原有正向与脱敏反向断言仍在。
+- [x] T035 删除工作台页面层重复验证的取消删除和重复导出 loading 场景，保留删除成功接线、导出成功接线、CaseCard 禁用/loading 合同与 Hook 请求合同；同时迁移 AntD Modal 的废弃属性以清除重复日志噪音。文件：`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx`、`packages/frontend/src/components/CaseCardCompletion.test.tsx`、`packages/frontend/src/hooks/useArchiveCompletion.test.tsx`、`packages/frontend/src/components/ReviewPreviewDrawer.tsx`、`packages/frontend/src/components/WordDownloadNameDialog.tsx`；验证：相关前端测试与 typecheck。
+  - 证据：工作台页面 17 条降至 15 条，call 约 11.62 秒降至 9.73 秒；相关页面、组件、Hook 与文件名对话框 32 条通过，typecheck 通过，`destroyOnClose` 警告清零。
+- [x] T036 运行第二批定向、前后端全量和 scoped Harness 门控，记录累计测试数量与剩余候选。文件：`openspec/changes/harness-workflow-alignment/tasks.md`；验证：受影响测试、`npm run verify:quick`、前后端全量、scoped strict docs 与 `git diff --check`。
+  - 证据：前端全量 60 个文件/381 条通过；后端全量 1216 通过/3 跳过。Vitest+pytest 收集项累计由最初 1613 降至 1600（两批净减 13）；第二批净减 5，且减少 3 次 DOCX 生成。剩余高价值候选为 autosave 的异步警告与等待、管理组件 mock 属性噪音、jsdom `getComputedStyle` 噪音及慢 portable/Word 集成进程，需逐组验证而不按数量批量删除。
+- [x] T037 暂停 warning 治理，完成测试源文件、收集项、fixture/helper、模板二进制、动态生成资产、门控范围和维护热点盘点。文件：`openspec/changes/harness-workflow-alignment/test-assets-inventory.md`；验证：静态文件统计、pytest collect-only、Shared 显式 Vitest 与现有前后端全量结果交叉核对。
+  - 证据：确认 168 个测试源文件/约 35,944 行；标准门控收集 1,600 条，另有 4 个 Shared 文件/12 条可通过但未纳入门控；识别 4 个产品/测试共用 DOCX、10 个 cross-test import consumer、19 个超 400 行测试文件以及无 E2E 资产的覆盖层级缺口。
+- [x] T038 核对 Shared 4 个孤儿测试的生产调用和门控内重复覆盖，区分应迁移的风险断言与可删除的实现细节断言。文件：`packages/shared/utils/*.test.ts` 及受影响前端测试；验证：调用范围和现有测试映射。
+  - 证据：下载命名、检材分组、数字文件名识别与位置错误已有 gated direct/UI/Hook 覆盖；来源标签、复杂排序和前导零位置解析需要迁移；`naturalEvidenceOrder` 与 `markFieldStateUserEdited` 无生产调用。
+- [x] T039 将仍有价值的来源标签、自然排序和位置解析断言并入现有门控测试，删除无生产调用的工具及 4 个孤儿测试文件，不新增测试条目。文件：`packages/shared/utils/`、`packages/frontend/src/components/InspectorEditor.test.tsx`、`packages/frontend/src/components/ImageUploader.test.tsx`；验证：受影响前端测试与 typecheck。
+  - 证据：7 个受影响前端文件/73 条定向测试通过，Frontend 全量 60 文件/381 条通过；Shared typecheck、Frontend typecheck 通过；`packages/shared` 测试文件清零。
+- [x] T040 更新测试资产盘点并运行 Level 2 收尾门控，确认 Shared 孤儿测试清零、标准门控测试数不增加。文件：`openspec/changes/harness-workflow-alignment/test-assets-inventory.md`、`openspec/changes/harness-workflow-alignment/tasks.md`；验证：`verify:quick`、受影响前端测试、scoped strict docs、OpenSpec strict 与 `git diff --check`。
+  - 证据：测试源文件 168→164、测试代码约 35,944→35,765 行、门控外测试 12→0；标准 Frontend 仍为 381 条，Backend 本轮未改。`verify:quick`、OpenSpec strict 与 `git diff --check` 通过；scoped strict docs 在任务完成前准确拦截 T040，更新状态后复跑通过。
+- [x] T041 建立 cross-test import consumer/provider 依赖表，并核对 Workbench、Record、Template Controller 大套件与 Service/Repository 层的重复职责；每个删除候选必须记录删除原因和替代覆盖。文件：`tests/`、`openspec/changes/harness-workflow-alignment/test-assets-inventory.md`；验证：静态依赖与测试职责映射。
+  - 证据：确认 10 个 consumer、7 个 provider、13 条导入边；本批不改 provider。三个 Controller 基线 94 条中识别出 7 个可合并的重复 setup/映射收集项，逐项删除原因和替代覆盖已记录在测试资产盘点第 10 节。
+- [x] T042 仅合并已证明由其他层或同套件等价覆盖的低风险测试，保留安全、权限、持久化、并发、恢复、归档生命周期和关键转换矩阵。文件：经 T041 确认的测试文件；验证：删除映射、定向 pytest 和收集项变化。
+  - 证据：Record Controller 合并 5 个、Workbench Controller 合并 2 个收集项；8 条定向 Controller/Service/Repository 证据通过。Backend 全量 1,209 passed/3 skipped，收集项 1,219→1,212；删除原因和替代覆盖逐项记录在盘点第 10 节。
+- [x] T043 运行受影响 Backend 全量与 Level 2 收尾门控，记录删减原因、测试数、耗时和剩余高风险候选。文件：`openspec/changes/harness-workflow-alignment/tasks.md`、`test-assets-inventory.md`；验证：Backend 全量、`verify:quick`、scoped strict docs、OpenSpec strict 与 `git diff --check`。
+  - 证据：Backend 全量 1,209 passed/3 skipped/37 warnings，183.10 秒；标准总收集项 1,600→1,593，本批测试代码约 35,765→35,723 行。`verify:quick`、OpenSpec strict 与 `git diff --check` 通过；scoped strict docs 在本任务完成后复跑通过。剩余并发、归档、恢复和模板迁移高风险测试未删。
+- [x] T044 建立 Word/DOCX 相关 Renderer、Generator、Profile、Customization 与 Filler 套件的生成调用、耗时和跨层职责基线；识别可合并候选但不触碰模板合法性、不可变性、脱敏、损坏和导出安全矩阵。文件：`tests/test_attachment_docx_renderer.py`、`tests/test_record_generator_service.py`、`tests/test_template_profile_service.py`、`tests/test_template_customization_service.py`、`tests/test_template_filler_service.py`；验证：定向 pytest durations 与调用映射。
+  - 证据：5 个套件基线 84 passed/48.82 秒；附件一签名分页 7 个参数约 6.7 秒、Filler 图片回归 7 个参数约 6.8 秒、附件二固定网格 4 个参数约 3.7 秒。确认 5 个附件一数量已有同输入的更强专项渲染、两个三检材续页测试重复 6 图渲染、4 个图片几何组合已被纯几何与 Renderer 边界覆盖。
+- [x] T045 仅合并已证明重复的 DOCX 生成过程或跨层实现断言；每个删除项记录原测试、删除原因、替代覆盖和保留风险。文件：经 T044 确认的测试文件、`test-assets-inventory.md`；验证：定向 pytest 与收集项/生成次数变化。
+  - 证据：附件一重复数量渲染合并 5 项、三检材续页重复渲染合并 1 项、Filler 重复图片几何组合合并 4 项；定向套件 84→74 条、48.82→34.32 秒，减少 10 次真实 DOCX 生成。逐项删除原因和替代覆盖见盘点第 11 节。
+- [x] T046 运行 Backend 全量与 Level 2 收尾门控，记录测试数、耗时和未删高风险套件。文件：`tasks.md`、`test-assets-inventory.md`；验证：Backend 全量、`verify:quick`、scoped strict docs、OpenSpec strict 与 `git diff --check`。
+  - 证据：Backend 全量 1,199 passed/3 skipped/37 warnings，162.52 秒；标准总收集项 1,593→1,583，定向 Word/DOCX 套件减少 10 次真实生成和约 14.5 秒。`verify:quick`、OpenSpec strict 与 `git diff --check` 通过；scoped strict docs 在任务完成后复跑通过。奇数/损坏图片、模板 profile、不可变性、脱敏和正式导出门控保留。
+- [x] T047 盘点 9 个子进程测试文件的启动次数、耗时和进程边界职责，排除 WinRAR 超时、Portable 完整性、安全资产检查和失败清理矩阵。文件：`tests/`；验证：静态 subprocess/runpy 映射与定向 pytest durations。
+  - 证据：纠正静态口径为 15 个引用进程类型/API 的文件，其中 7 个实际启动外部进程；合同、模板脚本、Portable、Job Object、Phase1D 与真实 WinRAR 边界必须保留。可合并候选仅为 Python 架构提取器 9 次重复 CLI 启动。
+- [x] T048 仅合并内部逻辑已有直接测试或同一进程可覆盖多个诊断的重复启动；每个删除项记录原测试、删除原因、替代覆盖和减少的进程次数。文件：经 T047 确认的测试文件、`test-assets-inventory.md`；验证：定向 pytest 与启动次数/收集项变化。
+  - 证据：`_python_imports.py` 提取 CLI 与直接调用共用 `extract_files`；测试 9→4、进程启动 9→1。合同检查与模板脚本组合定向结果 18→13 passed、8.74→7.24 秒；5 个合并项的原因和替代覆盖见盘点第 12 节。
+- [x] T049 运行 Backend 全量与 Level 2 收尾门控，记录测试数、耗时和保留的进程边界。文件：`tasks.md`、`test-assets-inventory.md`；验证：Backend 全量、`verify:quick`、scoped strict docs、OpenSpec strict 与 `git diff --check`。
+  - 证据：Backend 全量 1,194 passed/3 skipped/37 warnings，161.09 秒；标准总收集项 1,583→1,578，Python 架构测试减少 5 条并减少 8 次真实进程启动。`verify:quick`、OpenSpec strict 与 `git diff --check` 通过；scoped strict docs 在任务完成后复跑通过。合同、模板确定性、Portable、进程所有权和真实 WinRAR 边界保留。
+- [x] T050 盘点报告 Projection、Record Generator、Template Profile/Customization/Filler 的 cross-test helper 依赖、职责和耗时，确认 provider 删除风险与可合并候选。文件：相关 `tests/test_*.py`；验证：静态导入、调用和定向 pytest durations。
+  - 证据：确认 report/template 链有 5 条 cross-test 导入边，来自 Legacy Projection report builder 与 Template Filler manifest builder；6 个相关套件原收集 60 条。Projection 单元、真实 DOCX、Profile 漂移、Customization allowlist 和 Controller 持久化/并发职责均不重复，唯一可合并项是 Generator 对同一 renderer handoff 的排序/脱敏与旧步骤迁移测试。
+- [x] T051 将本批实际触及的共享 report/manifest builder 与 provider 测试解耦，并仅合并已证明跨层重复的测试；每个删除项记录原因和替代覆盖。文件：经 T050 确认的测试支持与套件、`test-assets-inventory.md`；验证：无相关 cross-test import、定向 pytest 与收集项变化。
+  - 证据：共享 builder 迁入 `tests/synthetic_report_builders.py`，report/template 链 5 条 `test_*.py` 导入边清零；Generator 两个相同 handoff 测试合并为一个，排序、人员快照、UI 元数据清理和旧步骤精确迁移断言全部保留。相关套件 60→59 条，定向 59 passed/16 warnings/33.90 秒；删除原因与保留风险见盘点第 13 节。
+- [x] T052 运行 Backend 全量与 Level 2 收尾门控，记录测试数、耗时和保留风险。文件：`tasks.md`、`test-assets-inventory.md`；验证：Backend 全量、`verify:quick`、scoped strict docs、OpenSpec strict 与 `git diff --check`。
+  - 证据：正常权限下 Backend 全量 1,193 passed/3 skipped/37 warnings，196.29 秒，收集项 1,197→1,196；标准总收集项 1,578→1,577。首次沙箱运行因默认 LocalAppData SQLite 仅有读取权限统一失败，未作为代码结果；同命令在正常权限下全绿。`verify:quick`、OpenSpec strict 与 `git diff --check` 通过；scoped strict docs 在任务完成后复跑通过。
+- [x] T053 盘点 parse-cache 与 case cleanup provider/consumer 的 cross-test helper、测试职责和耗时，排除缓存并发、安全路径、formal authority 与 fail-closed 矩阵。文件：相关 `tests/test_*.py`；验证：静态导入、调用映射、定向 pytest durations。
+  - 证据：4 个套件基线 25 passed/5.93 秒；确认 2 条 cross-test 导入边。Parse-cache 13 条分别覆盖元数据命中、内容/候选变化、删除、旧缓存、并发代际与路径安全，全部保留；cleanup 仅发现两个同状态重复完整 setup 的可合并项。
+- [x] T054 将共享 parse-cache/cleanup setup 迁入非测试支持模块，并仅合并同一状态下重复 setup 的测试；逐项记录删除原因和替代覆盖。文件：经 T053 确认的测试支持与套件、`test-assets-inventory.md`；验证：相关 cross-test import 清零、定向 pytest 与收集项变化。
+  - 证据：parse-cache tree builder 与 tombstone setup 已迁入非测试支持模块，本批 2 条 cross-test 导入清零，全仓剩余 6 条均属于暂不触碰的 Phase1D 链。成功 tombstone 后的编辑拒绝与重启证据合并、deployment scope 与异 deployment lease 证据合并；全部异常码、formal fact、重启和隔离断言保留。相关套件 25→23 条，定向 23 passed/8.33 秒；耗时受环境波动未宣称下降，明确减少 2 次完整 setup。逐项原因见盘点第 14 节。
+- [x] T055 运行 Backend 全量与 Level 2 收尾门控，记录测试数、耗时和保留风险。文件：`tasks.md`、`test-assets-inventory.md`；验证：Backend 全量、`verify:quick`、scoped strict docs、OpenSpec strict 与 `git diff --check`。
+  - 证据：Backend 全量复跑 1,191 passed/3 skipped/37 warnings，168.35 秒，收集项 1,196→1,194；标准总收集项 1,577→1,575。首次全量仅既有 archive runtime revision 时序用例失败，单独复跑通过且第二次全量未复现，未修改该链。`verify:quick`、OpenSpec strict 与 `git diff --check` 通过；scoped strict docs 在任务完成后复跑通过。

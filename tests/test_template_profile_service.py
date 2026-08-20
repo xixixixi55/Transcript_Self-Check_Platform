@@ -24,7 +24,7 @@ from app.services.template_profile_service import (  # noqa: E402
     validate_registered_template,
 )
 from app.services.template_registry_service import TemplateRegistryService  # noqa: E402
-from test_legacy_report_projection_service import _report  # noqa: E402
+from synthetic_report_builders import build_ordered_report  # noqa: E402
 
 ROOT = Path(__file__).parents[1]
 SOURCE_TEMPLATE = ROOT / "word_templates" / "template.docx"
@@ -114,7 +114,7 @@ def test_case_selection_only_updates_version_ref_and_invalidates_word(tmp_path: 
     shutil.copy2(SOURCE_TEMPLATE, template)
     registry, approvals, reference = setup_version(tmp_path, template)
     database = registry.database
-    report = _report()
+    report = build_ordered_report()
     report["inspection"].pop("primary_software", None)
     with database.transaction() as connection:
         connection.execute(

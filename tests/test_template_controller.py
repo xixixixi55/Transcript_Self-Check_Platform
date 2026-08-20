@@ -35,7 +35,7 @@ from app.services.template_profile_service import (  # noqa: E402
 from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
 from app.services import template_registry_service  # noqa: E402
 from app.services.docx_package_service import compute_ooxml_package_fingerprint  # noqa: E402
-from test_legacy_report_projection_service import _report  # noqa: E402
+from synthetic_report_builders import build_ordered_report  # noqa: E402
 
 CASE_ID = "case-SYNTHETIC-template-api"
 REFERENCE = {
@@ -64,7 +64,7 @@ def template_api(tmp_path: Path):
         tmp_path / "workbench.sqlite3", IDENTITY["deployment_instance_id"],
     )
     services = build_workbench_services(database)
-    report = _report()
+    report = build_ordered_report()
     report["inspection"].pop("primary_software", None)
     with database.transaction() as connection:
         connection.execute(
@@ -685,7 +685,7 @@ def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_
         connection.execute(
             "INSERT INTO case_drafts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                "case-SYNTHETIC-template-upgrade", 1, json.dumps(_report()),
+                "case-SYNTHETIC-template-upgrade", 1, json.dumps(build_ordered_report()),
                 "legacy-v1", "{}", "[]", json.dumps(LEGACY_REFERENCE), None,
                 "review_ready", 1, "2026-08-13T00:00:00+00:00",
                 "2026-08-13T00:00:00+00:00",
@@ -802,7 +802,7 @@ def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_ca
         connection.execute(
             "INSERT INTO case_drafts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                case_id, 1, json.dumps(_report()), "legacy-v1", "{}", "[]",
+                case_id, 1, json.dumps(build_ordered_report()), "legacy-v1", "{}", "[]",
                 json.dumps(PREVIOUS_REFERENCE), None, "review_ready", 1,
                 "2026-08-13T00:00:00+00:00", "2026-08-13T00:00:00+00:00",
             ),

@@ -23,47 +23,34 @@ from app.services.template_profile_service import (  # noqa: E402
     TemplateProfileError,
 )
 from app.services.template_filler_service import fill_template  # noqa: E402
-from test_legacy_report_projection_service import _report  # noqa: E402
-from test_template_filler_service import _manifest  # noqa: E402
+from synthetic_report_builders import build_archive_manifest, build_ordered_report  # noqa: E402
 
 
 _ROOT = Path(__file__).parents[1]
 _TEMPLATE = _ROOT / "word_templates" / "template.docx"
 
 
-def test_generator_passes_the_same_saved_order_projection_to_word_renderer(tmp_path: Path):
+def test_generator_passes_normalized_saved_order_projection_to_word_renderer(tmp_path: Path):
     received = {}
+    source_report = build_ordered_report()
+    source_report["inspection"]["process_steps"] = [{
+        "step_number": 4,
+        "content": "启动SYNTHETIC-TOOL（版本号为1.0）对检材SYNTHETIC-2、SYNTHETIC-10进行检查。",
+    }]
 
     def fake_fill(report, _template, output, _photos):
         received["report"] = report
         Path(output).write_bytes(b"SYNTHETIC-DOCX")
 
     with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
-        generate_docx(_report(), output_dir=str(tmp_path))
+        generate_docx(source_report, output_dir=str(tmp_path))
 
     report = received["report"]
     assert [item["evidence_number"] for item in report["introduction"]["evidence_list"]] == ["SYNTHETIC-10", "SYNTHETIC-2"]
     assert [item["name"] for item in report["introduction"]["inspectors"]] == ["SYNTHETIC-B", "SYNTHETIC-A"]
     assert "SYNTHETIC-UI-COLOR" not in repr(report)
     assert "SYNTHETIC-UI-SOURCE" not in repr(report)
-
-
-def test_generator_migrates_the_exact_legacy_step_four_before_word_render(tmp_path: Path):
-    received = {}
-    report = _report()
-    report["inspection"]["process_steps"] = [{
-        "step_number": 4,
-        "content": "启动SYNTHETIC-TOOL（版本号为1.0）对检材SYNTHETIC-2、SYNTHETIC-10进行检查。",
-    }]
-
-    def fake_fill(normalized, _template, output, _photos):
-        received["report"] = normalized
-        Path(output).write_bytes(b"SYNTHETIC-DOCX")
-
-    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
-        generate_docx(report, output_dir=str(tmp_path))
-
-    assert received["report"]["inspection"]["process_steps"][0]["content"] == (
+    assert report["inspection"]["process_steps"][0]["content"] == (
         "启动SYNTHETIC-TOOL软件（版本号为1.0）"
         "使用SYNTHETIC-TOOL软件对检材SYNTHETIC-2、SYNTHETIC-10进行检查。"
     )
@@ -74,22 +61,28 @@ def test_generator_uses_user_output_filename_when_provided(tmp_path: Path):
         Path(output).write_bytes(b"SYNTHETIC-DOCX")
 
     with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
-        generated = generate_docx(_report(), output_dir=str(tmp_path), output_filename="用户命名.docx")
+        generated = generate_docx(
+            build_ordered_report(), output_dir=str(tmp_path), output_filename="用户命名.docx",
+        )
     assert Path(generated).name == "用户命名.docx"
 
     # Path separators and Windows-invalid characters are stripped; .docx ensured.
     with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
-        generated = generate_docx(_report(), output_dir=str(tmp_path), output_filename=r"C:\SYNTHETIC\bad:name")
+        generated = generate_docx(
+            build_ordered_report(), output_dir=str(tmp_path), output_filename=r"C:\SYNTHETIC\bad:name",
+        )
     assert Path(generated).name == "badname.docx"
 
     with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
-        generated = generate_docx(_report(), output_dir=str(tmp_path), output_filename="no-extension")
+        generated = generate_docx(
+            build_ordered_report(), output_dir=str(tmp_path), output_filename="no-extension",
+        )
     assert Path(generated).name == "no-extension.docx"
 
 
 def test_template_docx_uses_saved_order_without_review_metadata(tmp_path: Path):
     output = tmp_path / "SYNTHETIC-ordered.docx"
-    fill_template(_report(), str(_TEMPLATE), str(output))
+    fill_template(build_ordered_report(), str(_TEMPLATE), str(output))
 
     with zipfile.ZipFile(output) as package:
         document_xml = package.read("word/document.xml").decode("utf-8")
@@ -137,7 +130,7 @@ def test_generator_uses_revalidated_case_template_without_archive_side_effect(tm
 
     with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
         generated = generate_docx(
-            _report(), output_dir=str(output.parent), template_ref=reference,
+            build_ordered_report(), output_dir=str(output.parent), template_ref=reference,
             template_registry=registry, template_approvals=approvals,
         )
 
@@ -151,7 +144,7 @@ def test_generator_rejects_unapproved_case_template_without_fallback(tmp_path: P
     with patch("app.services.record_generator_service.fill_template") as fill:
         with pytest.raises(TemplateProfileError) as error:
             generate_docx(
-                _report(), output_dir=str(tmp_path / "exports"), template_ref=reference,
+                build_ordered_report(), output_dir=str(tmp_path / "exports"), template_ref=reference,
                 template_registry=registry, template_approvals=approvals,
             )
     assert error.value.code == "TEMPLATE_NOT_APPROVED"
@@ -177,13 +170,13 @@ def test_formal_generator_reuses_registered_fingerprint_for_all_word_gates(tmp_p
     with zipfile.ZipFile(_TEMPLATE) as source, zipfile.ZipFile(template) as variant:
         assert source.read("word/document.xml") == variant.read("word/document.xml")
     registry, approvals, reference = _registered_template(tmp_path, template=template)
-    report = _report()
+    report = build_ordered_report()
     report["attachments"]["photo_ids"] = []
     report["attachments"].pop("photo_groups", None)
 
     generated = generate_docx(
         report, output_dir=str(tmp_path / "exports"),
-        archive_manifest=_manifest(1), template_ref=reference,
+        archive_manifest=build_archive_manifest(1), template_ref=reference,
         template_registry=registry, template_approvals=approvals,
     )
 

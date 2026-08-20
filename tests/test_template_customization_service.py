@@ -23,7 +23,7 @@ from app.services.template_customization_service import (  # noqa: E402
 )
 from app.services.template_profile_service import validate_current_template_profile  # noqa: E402
 from app.services.template_filler_service import fill_template  # noqa: E402
-from test_legacy_report_projection_service import _report  # noqa: E402
+from synthetic_report_builders import build_ordered_report  # noqa: E402
 
 
 def test_customization_changes_only_allowlisted_typography_and_keeps_profile(tmp_path: Path):
@@ -80,7 +80,7 @@ def test_customization_changes_only_allowlisted_typography_and_keeps_profile(tmp
     fingerprint = compute_ooxml_package_fingerprint(destination)
     validate_current_template_profile(str(destination), document, fingerprint)
 
-    report = _report()
+    report = build_ordered_report()
     report["title"] = "SYNTHETIC 案件标题不应覆盖模板"
     output = tmp_path / "SYNTHETIC-filled.docx"
     fill_template(report, str(destination), str(output))

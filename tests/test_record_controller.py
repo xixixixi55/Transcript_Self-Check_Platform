@@ -727,19 +727,24 @@ def test_word_export_does_not_hide_attachment2_staging_write_failure(client):
     generate.assert_not_called()
 
 
-def test_parse_folder_compress_true(client):
-    """文件夹 + compress=true → 200"""
+def test_parse_folder_accepts_deprecated_compress_values(client):
+    """兼容旧 compress 参数，但两种取值都只返回待准备的预览上下文。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
-        resp = client.post("/api/v1/reports/parse", data={
+        enabled = client.post("/api/v1/reports/parse", data={
             "report_dir": tmpdir, "compress": "true",
         })
-        assert resp.status_code == 200
-        assert resp.json()["success"] is True
-        assert resp.json()["data"]["archive_context_id"]
-        assert resp.json()["data"]["archive_status"] == "not_prepared"
-        assert resp.json()["data"]["archive_preparation_status"] == "not_prepared"
-        assert resp.json()["data"]["archive_context_deprecated_compress"] is True
+        disabled = client.post("/api/v1/reports/parse", data={
+            "report_dir": tmpdir, "compress": "false",
+        })
+
+        for response in (enabled, disabled):
+            assert response.status_code == 200
+            assert response.json()["success"] is True
+            assert response.json()["data"]["archive_context_id"]
+            assert response.json()["data"]["archive_status"] == "not_prepared"
+            assert response.json()["data"]["archive_preparation_status"] == "not_prepared"
+            assert response.json()["data"]["archive_context_deprecated_compress"] is True
 
 
 def test_parse_controller_offloads_blocking_work_from_event_loop(client):
@@ -757,17 +762,6 @@ def test_parse_controller_offloads_blocking_work_from_event_loop(client):
     called_functions = [call.args[0] for call in offload.await_args_list]
     assert record_controller.parse_report in called_functions
     assert record_controller.create_preview_source in called_functions
-
-
-def test_parse_folder_compress_false(client):
-    """文件夹 + compress=false → 200"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
-        resp = client.post("/api/v1/reports/parse", data={
-            "report_dir": tmpdir, "compress": "false",
-        })
-        assert resp.status_code == 200
-        assert resp.json()["data"]["archive_context_id"]
 
 
 def test_parse_folder_returns_path_free_context_summary(client):
@@ -813,12 +807,15 @@ def test_preview_source_capacity_error_has_stable_code(client):
     assert tmpdir not in response.text
 
 
-def test_parse_rejects_unconfigured_root_and_does_not_echo_path(client):
+def test_parse_rejects_disallowed_roots_and_does_not_echo_paths(client):
     outside = os.environ.get("SystemRoot", r"C:\Windows")
-    response = client.post("/api/v1/reports/parse", data={"report_dir": outside})
-    assert response.status_code == 422
-    assert response.json()["detail"]["code"] == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
-    assert outside not in response.text
+    configured = str(Path(tempfile.gettempdir()))
+
+    for path in (outside, configured):
+        response = client.post("/api/v1/reports/parse", data={"report_dir": path})
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
+        assert path not in response.text
 
 
 def test_parse_allows_unconfigured_directory_when_authorization_is_disabled(client):
@@ -830,13 +827,6 @@ def test_parse_allows_unconfigured_directory_when_authorization_is_disabled(clie
         )
     assert response.status_code == 200
     assert response.json()["success"] is True
-
-
-def test_parse_rejects_configured_root_itself(client):
-    configured = Path(tempfile.gettempdir())
-    root_response = client.post("/api/v1/reports/parse", data={"report_dir": str(configured)})
-    assert root_response.status_code == 422
-    assert root_response.json()["detail"]["code"] == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
 
 
 def test_archive_endpoint_requires_opaque_context_and_does_not_accept_client_path(client):
@@ -946,16 +936,26 @@ def test_parse_archive_zip(client):
         assert resp.status_code == 200
 
 
-def test_parse_no_input_returns_400(client):
-    """report_dir 和 archive_file 都为空 → 400"""
-    resp = client.post("/api/v1/reports/parse", data={})
-    assert resp.status_code == 400
+def test_parse_rejects_missing_or_invalid_archive_input(client):
+    missing = client.post("/api/v1/reports/parse", data={})
+    invalid = client.post("/api/v1/reports/parse", files={
+        "archive_file": ("test.txt", io.BytesIO(b"not an archive"), "text/plain"),
+    })
+
+    assert missing.status_code == 400
+    assert "请提供 report_dir 或上传压缩包文件" in missing.json()["detail"]
+    assert invalid.status_code == 400
+    assert "仅支持 .rar 和 .zip" in invalid.json()["detail"]
 
 
 def test_clear_report_parsing_cache_returns_count_and_ignores_client_path(client):
     from app.controllers import cache_controller
 
-    with patch.object(cache_controller, "clear_report_parsing_cache", return_value=3) as clear:
+    async def run_sync(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    with patch.object(cache_controller, "clear_report_parsing_cache", return_value=3) as clear, \
+         patch.object(cache_controller, "run_in_threadpool", new=AsyncMock(side_effect=run_sync)) as offload:
         response = client.delete(
             "/api/v1/cache/report-parsing",
             params={"path": r"C:\sensitive\case"},
@@ -965,16 +965,8 @@ def test_clear_report_parsing_cache_returns_count_and_ignores_client_path(client
     assert response.json() == {"success": True, "data": {"cleared_count": 3}}
     assert r"C:\sensitive\case" not in response.text
     clear.assert_called_once_with(os.path.join(cache_controller.OUTPUT_BASE, "parsed"))
-
-
-def test_clear_empty_report_parsing_cache_is_idempotent(client):
-    from app.controllers import cache_controller
-
-    with patch.object(cache_controller, "clear_report_parsing_cache", return_value=0):
-        response = client.delete("/api/v1/cache/report-parsing")
-
-    assert response.status_code == 200
-    assert response.json()["data"]["cleared_count"] == 0
+    offload.assert_awaited_once()
+    assert offload.await_args.args[0] is clear
 
 
 def test_clear_report_parsing_cache_failure_is_not_reported_as_success(client):
@@ -994,27 +986,6 @@ def test_clear_report_parsing_cache_failure_is_not_reported_as_success(client):
         "message": "解析缓存清理失败，请稍后重试。",
     }
     assert "private storage detail" not in response.text
-
-
-def test_clear_cache_controller_offloads_file_work(client):
-    from app.controllers import cache_controller
-
-    with patch.object(cache_controller, "clear_report_parsing_cache", return_value=0) as clear_fn, \
-         patch.object(cache_controller, "run_in_threadpool", new=AsyncMock(return_value=0)) as offload:
-        response = client.delete("/api/v1/cache/report-parsing")
-
-    assert response.status_code == 200
-    offload.assert_awaited_once()
-    assert offload.await_args.args[0] is clear_fn
-
-
-def test_parse_invalid_format_returns_400(client):
-    """上传非 .rar/.zip 文件 → 400"""
-    fake_file = io.BytesIO(b"not an archive")
-    resp = client.post("/api/v1/reports/parse", files={
-        "archive_file": ("test.txt", fake_file, "text/plain"),
-    })
-    assert resp.status_code == 400
 
 
 def test_parse_structure_error_returns_safe_422(client):

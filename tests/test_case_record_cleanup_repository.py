@@ -22,9 +22,9 @@ from app.repository import (  # noqa: E402
     database_path_for_deployment,
 )
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from test_case_tombstone_repository import (  # noqa: E402
+from case_cleanup_test_support import (  # noqa: E402
     CASE_ID, CLAIM_TOKEN, OWNER_ID, PUBLICATION_ID, RUN_ID, SOURCE_ID, TASK_ID, TIME,
-    _prepare,
+    prepare_tombstone_case,
 )
 
 EXTRA_TASK = "SYNTHETIC-TASK-WORK-CLEANUP"
@@ -46,7 +46,7 @@ def _prepare_work_records(
     database: WorkbenchDatabase, *, snapshot_status: str = "cleaned",
     active_context: bool = False, unknown_asset: bool = False,
 ) -> tuple[dict[str, object], str]:
-    proof = _prepare(database)
+    proof = prepare_tombstone_case(database)
     TaskRecordRepository(database).create({
         "task_id": EXTRA_TASK, "case_id": CASE_ID, "kind": "parse",
         "status": "succeeded", "stage": "completed",

@@ -115,9 +115,14 @@ describe('InspectorEditor', () => {
         { ...snapshot('one', '甲', 0), snapshot_id: 'snapshot-1' },
         { ...snapshot('two', '乙', 1), snapshot_id: 'snapshot-2' },
       ]}
-      fieldStates={{ 'inspectors.snapshot-1.name': {
-        field_path: 'inspectors.snapshot-1.name', source: 'user', confirmation: 'pending', revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
-      } }}
+      fieldStates={{
+        'inspectors.snapshot-1.name': {
+          field_path: 'inspectors.snapshot-1.name', source: 'user', confirmation: 'pending', revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
+        },
+        'inspectors.snapshot-2.name': {
+          field_path: 'inspectors.snapshot-2.name', source: 'system_default', confirmation: 'confirmed', revision: 0, last_changed_at: '2026-01-01T00:00:00Z',
+        },
+      }}
       availableInspectors={[]}
       onChange={onChange}
     />)
@@ -126,6 +131,7 @@ describe('InspectorEditor', () => {
     expect(screen.getByText('单位：单位甲')).toBeTruthy()
     expect(screen.getByText('警号：001')).toBeTruthy()
     expect(screen.getByText('人工修改')).toBeTruthy()
-    expect(screen.getByText('待人工确认')).toBeTruthy()
+    expect(screen.getByText('系统默认值')).toBeTruthy()
+    expect(screen.getAllByText('待人工确认')).toHaveLength(1)
   })
 })

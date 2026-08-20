@@ -193,17 +193,6 @@ describe('CaseWorkbenchPage', () => {
     expect(postMock).toHaveBeenCalledTimes(1)
   })
 
-  it('cancels the deletion confirmation without calling the delete API', async () => {
-    render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-    await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
-    fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
-    fireEvent.click(screen.getByRole('menuitem', { name: '删除案件' }))
-    expect(screen.getByText('确认删除该案件？')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /^取\s*消$/ }))
-    expect(deleteMock).not.toHaveBeenCalled()
-    expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6)
-  })
-
   it('deletes the case after confirmation and refreshes the workbench list', async () => {
     deleteMock.mockImplementationOnce(async () => {
       listItems = []
@@ -260,42 +249,6 @@ it('exports a completed archive bundle directly from the card', async () => {
   fireEvent.change(nameInput, { target: { value: '自定义案件.docx' } }); fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
   await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic', word_filename: '自定义案件.docx' }, { timeout: unifiedExportRequestTimeoutMs(45_000_000_000) }))
   expect(await screen.findByText(/已导出至：D:\SYNTHETIC\EXPORT/)).toBeTruthy()
-})
-
-it('shows re-export loading and prevents duplicate submission while the request is pending', async () => {
-  listItems = [{ ...shell(1), lifecycle: 'exported', report_available: true, revision: 4 }]
-  let resolveExport!: (value: { data: { data: unknown } }) => void
-  postMock.mockImplementation(async (url: string) => {
-    if (url.endsWith('/select-export-directory')) {
-      return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } }
-    }
-    if (url.endsWith('/export-bundle')) {
-      return await new Promise<{ data: { data: unknown } }>(resolve => { resolveExport = resolve })
-    }
-    return { data: { data: {} } }
-  })
-
-  render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-  fireEvent.click(await screen.findByRole('button', { name: '更多操作' }))
-  fireEvent.click(screen.getByRole('menuitem', { name: '再次导出' }))
-  fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
-
-  const loadingButton = await screen.findByRole('button', { name: /loading.*再次导出/ })
-  fireEvent.click(loadingButton)
-  fireEvent.click(loadingButton)
-  expect(postMock.mock.calls.filter(([url]) => String(url).endsWith('/export-bundle'))).toHaveLength(1)
-
-  await act(async () => {
-    resolveExport({ data: { data: {
-      case_id: 'case-synthetic-1', task_id: 'archive-SYNTHETIC-1', expected_revision: 4,
-      lifecycle: 'exported', output: {
-        export_path: 'D:\\SYNTHETIC\\EXPORT', word_filename: 'out.docx', rar_filenames: [],
-        hash_verification_image: 'hash.png', exported_at: '2026-07-30T12:01:00Z',
-      },
-    } } })
-    await Promise.resolve()
-  })
-  await waitFor(() => expect(screen.getByRole('button', { name: '删除案件' })).toBeTruthy())
 })
 
 it('explains that exported target-directory files survive case deletion', async () => {

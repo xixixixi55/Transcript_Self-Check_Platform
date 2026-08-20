@@ -44,7 +44,7 @@ export function WordDownloadNameDialog({
       okText="开始导出"
       cancelText="取消"
       confirmLoading={exporting}
-      destroyOnClose
+      destroyOnHidden
       onCancel={onCancel}
       onOk={confirm}
     >

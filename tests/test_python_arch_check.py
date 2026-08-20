@@ -8,18 +8,23 @@
 import json
 import os
 import sys
-import tempfile
 import subprocess
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXTRACTOR = REPO_ROOT / "scripts" / "_python_imports.py"
+sys.path.insert(0, str(EXTRACTOR.parent))
+
+from _python_imports import extract_files  # noqa: E402
 
 
 def _extract(files: list[str]) -> dict:
-    """运行 AST 提取器并返回解析后的 JSON。"""
+    """Directly exercise the AST and payload logic without a process startup."""
+    return extract_files(files)
+
+
+def _extract_cli(files: list[str]) -> dict:
+    """Keep one real CLI boundary test for argument and JSON output wiring."""
     r = subprocess.run(
         [sys.executable, str(EXTRACTOR)] + files,
         capture_output=True, text=True, timeout=10,
@@ -36,104 +41,73 @@ def _write_py(tmpdir: str, relpath: str, content: str) -> str:
     return fp
 
 
-class TestRelativeImports:
-    """相对导入提取"""
+def test_cli_batches_relative_import_shapes(tmp_path):
+    files = [
+        _write_py(str(tmp_path), "controllers/level2.py",
+                  "from ..services.foo import bar\nfrom ..config import X\n"),
+        _write_py(str(tmp_path), "controllers/level1.py", "from .other import helper\n"),
+        _write_py(str(tmp_path), "services/multiline.py",
+                  "from ..repository.foo import (\n    bar,\n    baz,\n)\n"),
+        _write_py(str(tmp_path), "services/type_checking.py",
+                  "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from ..config import X\n"),
+    ]
 
-    def test_level2_services_and_config(self, tmp_path):
-        fp = _write_py(str(tmp_path), "controllers/test1.py",
-                       "from ..services.foo import bar\nfrom ..config import X\n")
-        data = _extract([fp])
-        key = fp.replace("\\", "/")
-        imports = data[key]
-        assert len(imports) == 2
-        assert imports[0]["level"] == 2
-        assert imports[0]["module"] == "services.foo"
-        assert imports[1]["level"] == 2
-        assert imports[1]["module"] == "config"
+    data = _extract_cli(files)
 
-    def test_level1_same_package(self, tmp_path):
-        fp = _write_py(str(tmp_path), "controllers/test2.py",
-                       "from .other import helper\n")
-        data = _extract([fp])
-        imports = data[fp.replace("\\", "/")]
-        assert len(imports) == 1
-        assert imports[0]["level"] == 1
-        assert imports[0]["module"] == "other"
-
-    def test_multi_line_parenthesized(self, tmp_path):
-        fp = _write_py(str(tmp_path), "services/test4.py",
-                       "from ..repository.foo import (\n    bar,\n    baz,\n)\n")
-        data = _extract([fp])
-        imports = data[fp.replace("\\", "/")]
-        assert len(imports) == 1
-        assert imports[0]["level"] == 2
-        assert imports[0]["module"] == "repository.foo"
-
-    def test_type_checking_block_still_extracted(self, tmp_path):
-        fp = _write_py(str(tmp_path), "services/test6.py",
-                       "from typing import TYPE_CHECKING\n"
-                       "if TYPE_CHECKING:\n"
-                       "    from ..config import X\n")
-        data = _extract([fp])
-        imports = data[fp.replace("\\", "/")]
-        assert len(imports) == 1
-        assert imports[0]["module"] == "config"
+    level2 = data[files[0].replace("\\", "/")]
+    assert [(item["level"], item["module"]) for item in level2] == [
+        (2, "services.foo"), (2, "config"),
+    ]
+    assert data[files[1].replace("\\", "/")][0] == {
+        "line": 1, "level": 1, "module": "other",
+    }
+    assert data[files[2].replace("\\", "/")][0]["module"] == "repository.foo"
+    assert data[files[3].replace("\\", "/")][0]["module"] == "config"
 
 
-class TestAbsoluteImports:
-    """项目内部绝对导入提取"""
+def test_absolute_imports_include_only_app_modules(tmp_path):
+    internal = _write_py(
+        str(tmp_path), "controllers/absolute.py",
+        "from app.services.report_parser_service import parse_report\n",
+    )
+    external = _write_py(
+        str(tmp_path), "controllers/external.py",
+        "from fastapi import APIRouter\nimport os\nfrom typing import Optional\n",
+    )
 
-    def test_app_prefix_absolute_import(self, tmp_path):
-        fp = _write_py(str(tmp_path), "controllers/test_abs.py",
-                       "from app.services.report_parser_service import parse_report\n")
-        data = _extract([fp])
-        imports = data[fp.replace("\\", "/")]
-        assert len(imports) == 1
-        assert imports[0]["level"] == 0
-        assert imports[0]["absolute"] is True
-        # 已去除 app. 前缀
-        assert imports[0]["module"] == "services.report_parser_service"
-
-    def test_third_party_absolute_skipped(self, tmp_path):
-        fp = _write_py(str(tmp_path), "controllers/test_3rd.py",
-                       "from fastapi import APIRouter\nimport os\nfrom typing import Optional\n")
-        data = _extract([fp])
-        imports = data[fp.replace("\\", "/")]
-        assert len(imports) == 0
+    data = _extract([internal, external])
+    imports = data[internal.replace("\\", "/")]
+    assert data[external.replace("\\", "/")] == []
+    assert len(imports) == 1
+    assert imports[0]["level"] == 0
+    assert imports[0]["absolute"] is True
+    assert imports[0]["module"] == "services.report_parser_service"
 
 
-class TestSyntaxErrors:
-    """语法错误 → 错误标记，不能静默跳过"""
+def test_syntax_errors_are_reported_without_affecting_valid_files(tmp_path):
+    broken = _write_py(
+        str(tmp_path), "services/broken.py", "this is @@@ not valid python\n",
+    )
+    valid = _write_py(
+        str(tmp_path), "services/valid.py", "from ..repository.foo import bar\n",
+    )
 
-    def test_syntax_error_reported(self, tmp_path):
-        fp = _write_py(str(tmp_path), "services/broken.py",
-                       "this is @@@ not valid python\n")
-        data = _extract([fp])
-        # imports 为空
-        assert data[fp.replace("\\", "/")] == []
-        # __errors__ 中包含该文件
-        errors = data.get("__errors__", [])
-        assert len(errors) == 1
-        assert "SyntaxError" in errors[0]["error"]
-
-    def test_valid_file_no_errors(self, tmp_path):
-        fp = _write_py(str(tmp_path), "services/valid.py",
-                       "from ..repository.foo import bar\n")
-        data = _extract([fp])
-        assert data.get("__errors__") == []
+    data = _extract([broken, valid])
+    assert data[broken.replace("\\", "/")] == []
+    assert data[valid.replace("\\", "/")][0]["module"] == "repository.foo"
+    errors = data.get("__errors__", [])
+    assert len(errors) == 1
+    assert errors[0]["file"] == broken.replace("\\", "/")
+    assert "SyntaxError" in errors[0]["error"]
 
 
-class TestAppRootFiles:
-    """app/*.py 文件导入提取"""
-
-    def test_main_py_imports_extracted(self, tmp_path):
-        fp = _write_py(str(tmp_path), "main.py",
-                       "from .routes import router\n"
-                       "from .services.pipeline_runtime_service import load_pipeline_settings\n")
-        data = _extract([fp])
-        imports = data[fp.replace("\\", "/")]
-        assert len(imports) == 2
-        assert imports[0]["level"] == 1
-        assert imports[0]["module"] == "routes"
-        assert imports[1]["level"] == 1
-        assert imports[1]["module"] == "services.pipeline_runtime_service"
+def test_app_root_relative_imports_are_extracted(tmp_path):
+    fp = _write_py(
+        str(tmp_path), "main.py",
+        "from .routes import router\n"
+        "from .services.pipeline_runtime_service import load_pipeline_settings\n",
+    )
+    imports = _extract([fp])[fp.replace("\\", "/")]
+    assert [(item["level"], item["module"]) for item in imports] == [
+        (1, "routes"), (1, "services.pipeline_runtime_service"),
+    ]

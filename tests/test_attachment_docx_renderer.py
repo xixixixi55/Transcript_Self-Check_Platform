@@ -203,6 +203,7 @@ def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
     tables = attachment_tables(root)
     assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 2]
     assert "附件：1、电子数据提取固定清单，共2页；" in text
+    assert "检查人员" not in "".join(tables[0].itertext())
     assert "人员0" not in "".join("".join(node.itertext()) for node in tables[-1].iter())
     signature = "".join("".join(node.itertext()) for node in tables[-1].findall("./{%s}tr" % W_NS)[-1].iter())
     assert "检查人员" in signature and "盖章" in signature
@@ -215,8 +216,7 @@ def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
 @pytest.mark.parametrize(
     ("count", "table_rows"),
     [
-        (1, [5]), (3, [5]), (4, [5, 1]), (5, [5, 2]),
-        (6, [5, 3]), (8, [5, 4, 1]), (9, [5, 4, 2]),
+        (8, [5, 4, 1]), (9, [5, 4, 2]),
     ],
 )
 def test_attachment1_final_page_keeps_template_signature_row(tmp_path, count, table_rows):
@@ -251,7 +251,9 @@ def test_attachment1_three_rows_match_customer_font_baseline(tmp_path):
         fonts = r_pr.find("./{%s}rFonts" % W_NS)
         assert fonts.get("{%s}eastAsia" % W_NS) == east_asia
         assert r_pr.find("./{%s}sz" % W_NS).get("{%s}val" % W_NS) == size
-    assert "\u68c0\u67e5\u4eba\u5458" in "".join(rows[-1].itertext())
+    signature = "".join(rows[-1].itertext())
+    assert "\u68c0\u67e5\u4eba\u5458" in signature
+    assert "\u76d6\u7ae0" in signature
 
 
 def test_attachment1_latin_fields_allow_character_wrap_on_every_page(tmp_path):
@@ -338,6 +340,7 @@ def test_attachment1_four_rows_put_signature_on_new_page(tmp_path):
     assert "server.part4.rar" in first_text
     assert "\u68c0\u67e5\u4eba\u5458" not in first_text
     assert "\u68c0\u67e5\u4eba\u5458" in second_text
+    assert "\u76d6\u7ae0" in second_text
 
 
 def test_attachment1_six_rows_use_one_blank_row_before_signature(tmp_path):
@@ -348,7 +351,10 @@ def test_attachment1_six_rows_use_one_blank_row_before_signature(tmp_path):
     second_rows = tables[1].findall("./{%s}tr" % W_NS)
     assert "server.part5.rar" in "".join(second_rows[0].itertext())
     assert "server.part6.rar" in "".join(second_rows[1].itertext())
-    assert "\u68c0\u67e5\u4eba\u5458" in "".join(second_rows[2].itertext())
+    assert "\u68c0\u67e5\u4eba\u5458" not in "".join(tables[0].itertext())
+    signature = "".join(second_rows[2].itertext())
+    assert "\u68c0\u67e5\u4eba\u5458" in signature
+    assert "\u76d6\u7ae0" in signature
 
 
 @pytest.mark.parametrize(("count", "max_end_y"), [(1, 100), (2, 50)])
@@ -363,6 +369,10 @@ def test_attachment1_blank_diagonal_stays_inside_blank_rows(tmp_path, count, max
     end_y = float(lines[0].get("to").rsplit(",", 1)[1].removesuffix("pt"))
     assert end_y < max_end_y
     assert not rows[-1].findall(".//{%s}line" % V_NS)
+    assert len(rows) == 5
+    signature = "".join(rows[-1].itertext())
+    assert "\u68c0\u67e5\u4eba\u5458" in signature
+    assert "\u76d6\u7ae0" in signature
 
 
 def test_attachment1_three_rows_do_not_copy_blank_diagonal(tmp_path):
@@ -636,7 +646,7 @@ def test_attachment2_drawing_extents_are_fixed_for_landscape_and_portrait(
     assert transform_extents == extents
 
 
-def test_three_material_attachment2_centers_single_group_continuation(tmp_path):
+def test_three_material_attachment2_centers_single_group_and_uses_empty_break_title(tmp_path):
     current_report = report_with_photo_count(6)
     set_photo_ids(current_report, [f"center-three-{index}" for index in range(6)])
     paths = []
@@ -661,21 +671,6 @@ def test_three_material_attachment2_centers_single_group_continuation(tmp_path):
     ] == ["0", str(profile.attachment2_page_break_after_twips)]
     assert page_breaks[0].find("./{%s}pPr" % W_NS) is not None
     assert page_breaks[1].find("./{%s}pPr" % W_NS) is not None
-
-
-def test_attachment2_continuation_titles_are_empty_break_paragraphs(tmp_path):
-    current_report = report_with_photo_count(6)
-    set_photo_ids(current_report, [
-        "one", "two", "three", "four", "five", "six",
-    ])
-    paths = []
-    for index in range(6):
-        path = tmp_path / f"continuation-{index}.png"
-        path.write_bytes(png_bytes(800 + index, 600 + index))
-        paths.append(str(path))
-    output = tmp_path / "attachment-2-continuation.docx"
-    fill_template(current_report, str(TEMPLATE), str(output), paths, manifest(1))
-    root = document_root(output)
     paragraphs = body_paragraphs(root)
     title_paragraphs = [p for p in paragraphs if paragraph_text(p) == "附件2："]
     assert len(title_paragraphs) == 1

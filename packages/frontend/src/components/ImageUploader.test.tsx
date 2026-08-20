@@ -58,15 +58,15 @@ function photo(index: number): UploadFile {
 }
 
 describe('ImageUploader material groups', () => {
-  it('通过独立按钮批量选择，并按跳号数字自然排序后一次填入', () => {
+  it('通过独立按钮批量选择，并按多段数字和扩展名自然排序后一次填入', () => {
     const onChange = vi.fn()
     const view = render(<ImageUploader materials={materials} photos={[]} onChange={onChange} />)
     const input = view.container.querySelector('input[type="file"][multiple]') as HTMLInputElement
     const files = [
-      new File(['5'], 'pic1005.png', { type: 'image/png' }),
-      new File(['4'], 'pic1004.jpg', { type: 'image/jpeg' }),
-      new File(['1'], 'pic1001.png', { type: 'image/png' }),
-      new File(['3'], 'pic1003.jpeg', { type: 'image/jpeg' }),
+      new File(['4'], 'case10_pic1.png', { type: 'image/png' }),
+      new File(['3'], 'case2_pic10.png', { type: 'image/png' }),
+      new File(['2'], 'case2_pic2.png', { type: 'image/png' }),
+      new File(['1'], 'case2_pic2.jpg', { type: 'image/jpeg' }),
     ]
 
     expect(screen.getByRole('button', { name: '批量导入图片' })).toBeTruthy()
@@ -75,7 +75,7 @@ describe('ImageUploader material groups', () => {
 
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange.mock.calls[0][0].map((file: UploadFile) => file.name)).toEqual([
-      'pic1001.png', 'pic1003.jpeg', 'pic1004.jpg', 'pic1005.png',
+      'case2_pic2.jpg', 'case2_pic2.png', 'case2_pic10.png', 'case10_pic1.png',
     ])
     expect(onChange.mock.calls[0][0].every((file: UploadFile) => file.originFileObj)).toBe(true)
   })
@@ -86,7 +86,7 @@ describe('ImageUploader material groups', () => {
       device_type: '', device_name: '', model: '',
     }]
     const files = [
-      new File(['6'], '3-2.png', { type: 'image/png' }),
+      new File(['6'], '003-2.JPG', { type: 'image/jpeg' }),
       new File(['2'], '1-2.png', { type: 'image/png' }),
       new File(['3'], '2-1.png', { type: 'image/png' }),
       new File(['1'], '1-1.jpg', { type: 'image/jpeg' }),
@@ -100,7 +100,7 @@ describe('ImageUploader material groups', () => {
 
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange.mock.calls[0][0].map((file: UploadFile) => file.name)).toEqual([
-      '1-1.jpg', '1-2.png', '2-1.png', '2-2.png', '3-1.jpeg', '3-2.png',
+      '1-1.jpg', '1-2.png', '2-1.png', '2-2.png', '3-1.jpeg', '003-2.JPG',
     ])
   })
 

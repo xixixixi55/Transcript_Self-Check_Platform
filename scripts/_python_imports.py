@@ -18,6 +18,7 @@ from pathlib import Path
 
 APP_ROOT_MARKER = "app."
 
+
 def extract_imports(filepath: str) -> tuple[list[dict], str | None]:
     """返回 (imports, error_string)。error_string 非空时 imports 应被忽略。"""
     try:
@@ -57,8 +58,9 @@ def extract_imports(filepath: str) -> tuple[list[dict], str | None]:
 
     return results, None
 
-def main():
-    files = sys.argv[1:]
+
+def extract_files(files: list[str]) -> dict[str, object]:
+    """Extract every file into the same JSON-ready payload used by the CLI."""
     output = {}
     errors = []
 
@@ -72,7 +74,12 @@ def main():
             output[norm] = imports
 
     output["__errors__"] = errors
-    json.dump(output, sys.stdout, ensure_ascii=False)
+    return output
+
+
+def main():
+    json.dump(extract_files(sys.argv[1:]), sys.stdout, ensure_ascii=False)
+
 
 if __name__ == "__main__":
     main()
