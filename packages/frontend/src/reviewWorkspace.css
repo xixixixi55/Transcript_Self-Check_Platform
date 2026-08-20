@@ -466,45 +466,11 @@
 
 @media (min-width: 1920px) {
   .review-pending-dock {
-    top: 84px;
     right: max(24px, calc(50vw - 936px));
-    width: 240px;
-    height: auto;
-    max-height: calc(100vh - 108px);
-    transform: none;
   }
 
   .platform-shell--collapsed .review-pending-dock {
     right: max(24px, calc(50vw - 848px));
-  }
-
-  .review-pending-dock__trigger,
-  .review-pending-dock__close {
-    display: none;
-  }
-
-  .review-pending-dock__controls {
-    justify-content: flex-start;
-  }
-
-  .review-pending-dock .review-pending-summary {
-    position: static;
-    width: 240px;
-    max-height: calc(100vh - 108px);
-    display: block;
-    margin: 0;
-    padding: 14px;
-    box-shadow: 0 4px 16px rgba(31, 52, 73, 0.1);
-  }
-
-  .review-pending-dock .review-pending-summary__groups {
-    display: grid;
-    gap: 12px;
-    margin: 12px 0 0 24px;
-  }
-
-  .review-pending-dock .review-pending-summary__group {
-    min-width: 0;
   }
 }
 

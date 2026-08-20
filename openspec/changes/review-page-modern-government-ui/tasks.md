@@ -488,3 +488,28 @@ spec_sync_evidence: achievement-overview homepage scenarios synchronized into op
 - 架构检查、共享/前端 TypeScript 类型检查与 `git diff --check` 通过；delta 已与实现核对并同步到 living spec 的 REQ-029。
 - `verify:quick` 与 scoped strict docs 已运行，本次代码、类型、治理测试和任务状态检查无新增失败；两项文档门控仍被任务开始前已存在的 39 项 `agent-tooling-mirror-drift` 阻断，本修复未改动相关用户工具文件。
 - 人工验收：N/A；Tooltip 与子菜单互斥及入口可用性已由真实 Ant Design 组件交互测试覆盖。
+
+## 第十七阶段：超宽屏审核进度导航收缩修复
+
+### 目标与验收标准
+
+- [x] 审核编辑页在 3440×1440 等超宽屏分辨率下默认只显示可拖动的“进度 N/4”入口，不再强制展开完整进度导航。
+- [x] 用户点击入口后可以展开导航，并可通过“收起进度导航”立即恢复为入口；普通桌面、窄屏及浏览器缩放下保持同一交互语义。
+- [x] 超宽屏仍利用主表单右侧空白定位入口，不压缩主表单、不改变必填进度和待核对项的派生、定位、保存或导出行为。
+
+### Layer 11：响应式样式与回归验证
+
+- [x] 调整 `packages/frontend/src/reviewWorkspace.css`，让超宽屏媒体查询只负责横向定位，不再覆盖组件的展开状态或隐藏展开、收起控件。
+- [x] 运行审核工作台定向 Vitest、Impeccable 静态检查、前端类型检查、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 影响范围
+
+- 影响层级：Layer 11 FE_Components 样式；不修改组件状态模型、共享类型、后端接口、持久化、上传解析或 Word 导出合同。
+- 人工验收：在 3440×1440 部署电脑上确认首次进入默认收起、展开后可收起，且浮层不遮挡主要编辑区域。
+
+### 第十七阶段验证记录
+
+- 审核工作台定向 Vitest：1 个文件、11 项用例通过；既有交互回归覆盖默认收起、点击展开、点击条目或“收起进度导航”后恢复收起。
+- Impeccable 静态检查完成；仅报告本次修改前已存在且不在改动区域的侧边强调线与宽度动画警告。
+- 架构检查、共享/前端 TypeScript 类型检查、治理测试、文档快速检查、仓库资产检查和 `verify:quick` 通过；delta 已同步到 living spec。
+- 人工验收待部署电脑复测：3440×1440 属于真实桌面布局验证，自动化交互测试不能替代最终视觉确认。
