@@ -765,6 +765,35 @@ def test_builtin_template_rename_survives_service_restart(tmp_path: Path):
     assert restarted.defaults.get()["default_template_ref"] == REFERENCE
 
 
+def test_current_builtin_template_relocates_after_portable_directory_change(tmp_path: Path):
+    database = WorkbenchDatabase(
+        tmp_path / "workbench.sqlite3", "SYNTHETIC-CURRENT-TEMPLATE-RELOCATION",
+    )
+    services = build_workbench_services(database)
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE template_versions SET internal_locator=? "
+            "WHERE template_id=? AND version=?",
+            (
+                str(tmp_path / "SYNTHETIC-old-portable" / "resources" /
+                    "word_templates" / "template.docx"),
+                REFERENCE["template_id"], REFERENCE["version"],
+            ),
+        )
+
+    restarted = build_workbench_services(
+        WorkbenchDatabase(database.database_path, database.deployment_instance_id),
+    )
+
+    current = restarted.template_registry.get_internal(REFERENCE)
+    assert Path(current["internal_locator"]).resolve() == (
+        Path(__file__).parents[1] / "word_templates" / "template.docx"
+    ).resolve()
+    assert current["fingerprint"] == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
+    assert current["asset_id"] == "template-asset-current-v1-refined"
+    assert restarted.templates.validate(REFERENCE)["valid"] is True
+
+
 def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_case(tmp_path: Path):
     database = WorkbenchDatabase(tmp_path / "workbench.sqlite3", "SYNTHETIC-UPGRADE-PREVIOUS")
     template_root = Path(__file__).parents[1] / "word_templates"

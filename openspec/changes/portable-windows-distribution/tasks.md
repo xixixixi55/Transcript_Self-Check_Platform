@@ -56,3 +56,12 @@ workflow_level: 3
 - [ ] 9.4 重新构建便携 ZIP，并在部署电脑复测上传报告和统一导出目录选择器。 [DEFERRED]
 
 验证记录：目录选择器与工作台控制器定向 Pytest 50 项通过，其中生成脚本在 Windows PowerShell 5.1 中真实编译；`verify:quick` 与 `git diff --check` 通过。部署电脑复测随下一版便携 ZIP 进行。
+
+## 10. 部署反馈：当前内置模板跨解压目录启动迁移
+
+- [x] 10.1 记录部署失败：已有数据根中的当前内置模板 `1.0.3` 保存了旧程序目录定位，新便携包从不同目录启动时只迁移历史 `1.0.0`～`1.0.2`，当前版本注册因定位不同触发 `TEMPLATE_VERSION_IMMUTABLE`。
+- [x] 10.2 在注册当前 `1.0.3` 前复用既有 `relocate_builtin_asset`，仅当版本、包指纹与资产 ID 均匹配时更新受控定位；内容或身份不一致时继续 fail-closed。
+- [x] 10.3 增加 SYNTHETIC 旧便携目录定位回归，运行模板定向 pytest、`verify:quick`、scoped strict docs、`git diff --check` 并重新构建便携 ZIP。
+- [ ] 10.4 在保留 `%LOCALAPPDATA%\文枢` 数据根的情况下更换解压目录，确认启动成功且既有案件与模板引用可继续读取。 [DEFERRED]
+
+验证记录：失败回归先稳定复现 `TEMPLATE_VERSION_IMMUTABLE`，修复后当前模板跨目录迁移、内置模板重命名重启和历史模板升级 3 项通过；模板控制器/仓库模块 20 项通过，`verify:quick`、`git diff --check` 和便携包完整构建通过。目标电脑保留数据根的真实换目录验收保持延期。

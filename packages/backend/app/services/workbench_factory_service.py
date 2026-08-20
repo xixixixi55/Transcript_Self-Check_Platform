@@ -240,6 +240,12 @@ def _register_builtin_templates(
     reference = {
         "template_id": BUILTIN_TEMPLATE_ID, "version": CURRENT_TEMPLATE_VERSION,
     }
+    registry.relocate_builtin_asset(
+        reference,
+        CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
+        "template-asset-current-v1-refined",
+        current_asset,
+    )
     _register_builtin_template(
         registry, approvals, legacy_reference,
         "电子数据检查笔录（current-template-v1）",
