@@ -35,7 +35,7 @@ def test_captures_windows_11_and_projects_detected_huorong():
     projected = service.apply_to_report(report)
     snapshot = projected["inspection"]["environment_snapshot"]
     content = projected["inspection"]["process_steps"][1]["content"]
-    assert snapshot["operating_system"]["display_name"] == "Windows 11 TEST-24H2 专业版 64位"
+    assert snapshot["operating_system"]["display_name"] == "Windows 11 专业版 64位"
     assert "TEST-A 手机取证工作站" in content
     assert "火绒安全软件（版本号为TEST-6.0.7.0）" in content
     assert projected["inspection"]["process_steps"][0]["content"] == "SYNTHETIC step 2"
@@ -53,17 +53,17 @@ def test_marks_unknown_huorong_version_without_using_a_default():
     }
 
 
-def test_formats_synthetic_windows_10_32_bit_without_upgrading_the_name():
+def test_formats_synthetic_windows_10_without_release_version_or_name_upgrade():
     service = InspectionEnvironmentService(SyntheticRepository({
         "operating_system": {
             "product_name": "Windows 10 Enterprise", "edition_id": "Enterprise",
-            "display_version": "TEST-22H2", "build_number": "19045", "architecture": "x86",
+            "display_version": "21H2", "build_number": "19045", "architecture": "x86",
         },
         "huorong": {"detected": False, "version": ""},
     }))
-    assert service.capture()["operating_system"]["display_name"] == (
-        "Windows 10 TEST-22H2 企业版 32位"
-    )
+    display_name = service.capture()["operating_system"]["display_name"]
+    assert display_name == "Windows 10 企业版 32位"
+    assert "21H2" not in display_name
 
 
 def test_missing_facts_use_pending_language_without_false_scan_result():

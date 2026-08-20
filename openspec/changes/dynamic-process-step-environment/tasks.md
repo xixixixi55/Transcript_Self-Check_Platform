@@ -46,6 +46,10 @@ workflow_level: 2
 - [x] 对照 delta spec 核对最终实现，完成 `delta spec → 实现核对 → sync → living spec 检查`，并运行 `npm run verify:docs:strict -- --change dynamic-process-step-environment` 与 `git diff --check`。
 - [x] 人工验收：在纯合成案件中选择一台合成硬件设备，确认审核页与 Word 的步骤3显示当前机器识别结果；火绒未安装或版本不可读场景可使用受控适配器/测试构建验收，不采集或提交真实软件清单。
 
+## 反馈修正（2026-08-20）
+
+- [x] 检查过程中的 Windows 系统展示名称不再拼接 `DisplayVersion` 发布版本号；例如“Windows 10 21H2 企业版”规范为“Windows 10 企业版”，Windows 10/11 均保留系统代际、版本类型和位数。验证：更新环境服务定向测试，覆盖 Windows 10 `21H2` 与 Windows 11 `24H2` 均不进入展示名称。
+
 ## 验证证据（2026-08-17）
 
 - 后端定向测试：`89 passed`。
@@ -54,6 +58,11 @@ workflow_level: 2
 - `verify:quick` 与 scoped strict docs 已执行；本变更 type drift 修复后，仅剩工作区既有 Agent 工具镜像漂移需由其所有者处理。
 - 本机只读 smoke：操作系统识别状态为 `detected`，火绒识别状态为 `not_found`，因此本机新案件会显示安全软件及杀毒结果“待确认”；未输出或保存本机软件清单与版本详情。
 - living spec 与 `openspec/specs/data-model.md` 已同步动态步骤3和可选环境快照契约。
+
+## 反馈修正验证证据（2026-08-20）
+
+- 环境服务、Repository、共享默认与工作台定向测试：`45 passed`。
+- `npm run verify:quick`、`npm run verify:docs:strict -- --change dynamic-process-step-environment` 与 `git diff --check` 通过。
 
 ## 边界
 

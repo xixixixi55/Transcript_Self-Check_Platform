@@ -100,14 +100,13 @@ def _operating_system_display(value: Any) -> str:
         product = re.sub(r"Windows\s+10", "Windows 11", product, flags=re.IGNORECASE)
     base_match = re.search(r"Windows\s+(?:10|11)", product, flags=re.IGNORECASE)
     base = base_match.group(0).replace("windows", "Windows") if base_match else product
-    display_version = _text(value.get("display_version"))
     edition_id = _text(value.get("edition_id")).casefold()
     edition = next((label for key, label in _EDITION_LABELS.items() if key in edition_id), "")
     machine = _text(value.get("architecture")).casefold()
     bits = "64位" if any(item in machine for item in ("64", "amd64", "arm64")) else (
         "32位" if machine in {"x86", "i386", "i686"} else ""
     )
-    return " ".join(item for item in (base, display_version, edition, bits) if item)
+    return " ".join(item for item in (base, edition, bits) if item)
 
 
 def _text(value: Any) -> str:
