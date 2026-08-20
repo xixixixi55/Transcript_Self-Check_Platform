@@ -65,3 +65,11 @@ workflow_level: 3
 - [ ] 10.4 在保留 `%LOCALAPPDATA%\文枢` 数据根的情况下更换解压目录，确认启动成功且既有案件与模板引用可继续读取。 [DEFERRED]
 
 验证记录：失败回归先稳定复现 `TEMPLATE_VERSION_IMMUTABLE`，修复后当前模板跨目录迁移、内置模板重命名重启和历史模板升级 3 项通过；模板控制器/仓库模块 20 项通过，`verify:quick`、`git diff --check` 和便携包完整构建通过。目标电脑保留数据根的真实换目录验收保持延期。
+
+## 11. 构建反馈：项目内锁定工具链自动发现
+
+- [x] 11.1 记录构建失败：新 PowerShell 会话未保留 `BIJI_NODE_DIST_DIR` 与 `BIJI_OFFICECLI_PACKAGE_DIR`，构建回退到缺少官方 `LICENSE` 的系统 Node，导致每次手工设置三行命令。
+- [x] 11.2 调整 `build-portable.ps1` 的解析顺序为显式环境覆盖、`dist/toolchain` 中清单锁定版本、系统安装；本地目录不存在或内容/版本无效时继续明确失败，不自动下载、不放宽许可证和版本校验。
+- [x] 11.3 增加构建脚本优先级合同测试，清空两个环境变量后仅运行 `npm.cmd run build:portable` 完成真实构建，并执行 `verify:quick`、scoped strict docs 与 `git diff --check`。
+
+验证记录：便携构建脚本测试 11 项通过；在同一 PowerShell 进程清空两个工具链环境变量后，仅执行 `npm.cmd run build:portable` 成功生成版本化 ZIP；`verify:quick`、scoped strict docs 与 `git diff --check` 均通过。

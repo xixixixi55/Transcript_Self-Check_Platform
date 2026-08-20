@@ -45,7 +45,14 @@ try {
     $nodeDistributionRoot = if ($env:BIJI_NODE_DIST_DIR) {
         $env:BIJI_NODE_DIST_DIR
     } else {
-        Split-Path -Parent (Get-Command node.exe).Source
+        $localNodeDistributionRoot = Join-Path (
+            Join-Path $projectRoot "dist/toolchain"
+        ) "node-v$($manifest.node_version)-win-x64"
+        if (Test-Path -LiteralPath $localNodeDistributionRoot -PathType Container) {
+            $localNodeDistributionRoot
+        } else {
+            Split-Path -Parent (Get-Command node.exe -ErrorAction Stop).Source
+        }
     }
     $nodeExecutable = Join-Path $nodeDistributionRoot "node.exe"
     $nodeLicense = Join-Path $nodeDistributionRoot "LICENSE"
@@ -63,7 +70,16 @@ try {
     $officecliRoot = if ($env:BIJI_OFFICECLI_PACKAGE_DIR) {
         $env:BIJI_OFFICECLI_PACKAGE_DIR
     } else {
-        Join-Path $env:APPDATA "npm/node_modules/@officecli/officecli"
+        $localOfficecliRoot = Join-Path (
+            Join-Path (
+                Join-Path $projectRoot "dist/toolchain"
+            ) "officecli-$($manifest.officecli_version)"
+        ) "node_modules/@officecli/officecli"
+        if (Test-Path -LiteralPath $localOfficecliRoot -PathType Container) {
+            $localOfficecliRoot
+        } else {
+            Join-Path $env:APPDATA "npm/node_modules/@officecli/officecli"
+        }
     }
     $officePackage = Get-Content -Raw -LiteralPath (Join-Path $officecliRoot "package.json") -Encoding UTF8 | ConvertFrom-Json
     if ([string]$officePackage.version -ne [string]$manifest.officecli_version) {

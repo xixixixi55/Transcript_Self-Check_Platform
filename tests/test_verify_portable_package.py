@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "verify-portable-package.py"
+BUILD_SCRIPT = Path(__file__).parents[1] / "scripts" / "build-portable.ps1"
 SPEC = importlib.util.spec_from_file_location("verify_portable_package", SCRIPT)
 assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
@@ -91,3 +92,18 @@ def test_missing_required_file_fails_closed(tmp_path: Path) -> None:
     (staging / "runtime" / "node" / "node.exe").unlink()
     with pytest.raises(module.PortablePackageError, match="REQUIRED_PATH_MISSING"):
         module.validate_staging(staging, manifest())
+
+
+def test_portable_build_prefers_versioned_local_toolchain_before_system_fallback() -> None:
+    script = BUILD_SCRIPT.read_text(encoding="utf-8")
+
+    node_override = script.index("$env:BIJI_NODE_DIST_DIR")
+    node_local = script.index('"node-v$($manifest.node_version)-win-x64"')
+    node_system = script.index("Get-Command node.exe")
+    assert node_override < node_local < node_system
+
+    office_override = script.index("$env:BIJI_OFFICECLI_PACKAGE_DIR")
+    office_local = script.index('"officecli-$($manifest.officecli_version)"')
+    office_system = script.index('"npm/node_modules/@officecli/officecli"')
+    assert office_override < office_local < office_system
+    assert 'Join-Path $projectRoot "dist/toolchain"' in script
