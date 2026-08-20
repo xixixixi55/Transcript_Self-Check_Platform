@@ -67,6 +67,29 @@ def test_build_disc_mappings_rejects_invalid_number() -> None:
     assert error.value.code == "FIRST_DISC_NUMBER_INVALID"
 
 
+def test_hard_drive_mapping_uses_one_user_number_and_rejects_disc_prefix() -> None:
+    slots = [slot("SLOT-HARD-DRIVE", 1)]
+    mappings = build_disc_mappings(
+        "YP20260413-01", slots, "oversized_single_volume",
+    )
+    assert [item["disc_number"] for item in mappings] == ["YP20260413-01"]
+
+    with pytest.raises(DiscMappingError) as error:
+        build_disc_mappings(
+            "GP20260413-01", slots, "oversized_single_volume",
+        )
+    assert error.value.code == "HARD_DRIVE_NUMBER_INVALID"
+
+
+def test_hard_drive_mapping_rejects_multiple_archive_parts() -> None:
+    with pytest.raises(DiscMappingError) as error:
+        build_disc_mappings(
+            "YP20260413-01", [slot("SLOT-A", 1), slot("SLOT-B", 2)],
+            "oversized_single_volume",
+        )
+    assert error.value.code == "ARCHIVE_PLAN_INVALID"
+
+
 def test_apply_disc_mapping_persists_to_plan(database: WorkbenchDatabase) -> None:
     repository = ArchivePlanRepository(database)
     plan = repository.create({
@@ -91,7 +114,31 @@ def test_apply_disc_mapping_persists_to_plan(database: WorkbenchDatabase) -> Non
     # the plan write is CAS-guarded by the plan row's own revision.
     assert result["expected_revision"] == plan["revision"]
     assert result["lifecycle"] == "archive_verified"
+    assert result["archive_medium"] == "optical_disc"
     assert first_mapped_disc_number(database, CASE_ID) == "GP20260718-01"
+
+
+def test_apply_hard_drive_mapping_persists_one_yp_number(database: WorkbenchDatabase) -> None:
+    repository = ArchivePlanRepository(database)
+    plan = repository.create({
+        "plan_id": "SYNTHETIC-HARD-DRIVE-PLAN", "case_id": CASE_ID,
+        "plan_revision": 1, "input_inventory_revision": 4, "mapping_revision": 0,
+        "volume_slots": [slot("SYNTHETIC-HARD-DRIVE-SLOT", 1)],
+    })
+
+    result = apply_disc_mapping(
+        database, CASE_ID, plan["revision"], plan["revision"],
+        "YP20260413-01", "oversized_single_volume",
+    )
+
+    assert result["archive_medium"] == "hard_drive"
+    assert result["parts"] == [{
+        "part_number": 1,
+        "disc_number": "YP20260413-01",
+        "disc_date": "2026-04-13",
+    }]
+    reopened = repository.get(plan["plan_id"])
+    assert active_slots(reopened)[0]["disc_mapping"]["disc_number"] == "YP20260413-01"
 
 
 def test_apply_disc_mapping_uses_plan_revision_for_cas(database: WorkbenchDatabase) -> None:

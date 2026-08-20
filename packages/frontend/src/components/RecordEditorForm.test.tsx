@@ -78,6 +78,7 @@ describe('RecordEditorForm', () => {
       onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
       archiveResult={{ result: {
         task_id: 'archive-task-1', case_id: 'case-synthetic', manifest_id: 'manifest-synthetic',
+        archive_mode: 'standard_split', archive_medium: 'optical_disc',
         plan_row_revision: 1, verified_slots: [], assets: [], parts: [], finished_at: '2026-08-13T00:00:00Z',
       } satisfies ArchiveTaskResult, loading: false, error: null }}
       workbenchMode />)
@@ -91,7 +92,7 @@ describe('RecordEditorForm', () => {
     expect(screen.getByTestId('archive-status-card').textContent).toBe('false')
   })
 
-  it('keeps the read-only attachment date summary for a saved valid disc number', () => {
+  it('keeps a neutral attachment hint while the saved medium is not known', () => {
     const reportWithDisc = JSON.parse(JSON.stringify(report)) as InspectionReport
     reportWithDisc.attachments.disc_number = 'GP20260718-001'
     render(<RecordEditorForm report={reportWithDisc} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
@@ -100,7 +101,7 @@ describe('RecordEditorForm', () => {
 
     expect(screen.queryByText('附件3：光盘编号')).toBeNull()
     expect(screen.getByText('附件摘要/附件3日期')).toBeTruthy()
-    expect(screen.getByText('后续光盘编号将在最终卷数确定后按序号自动生成。')).toBeTruthy()
+    expect(screen.getByText('压缩完成后，系统将按最终介质类型确认该编号。')).toBeTruthy()
   })
 
   it('keeps the read-only validation feedback for a saved invalid disc number', () => {
@@ -111,7 +112,23 @@ describe('RecordEditorForm', () => {
       workbenchMode />)
 
     expect(screen.queryByText('附件3：光盘编号')).toBeNull()
-    expect(screen.getByText('首个光盘编号格式或日期无效，导出前必须修正。')).toBeTruthy()
+    expect(screen.getByText('介质编号必须符合 GPyyyyMMdd-序号 或 YPyyyyMMdd-序号 格式且日期真实有效。')).toBeTruthy()
+  })
+
+  it('shows hard-drive attachment semantics for an oversized archive result', () => {
+    const reportWithDrive = JSON.parse(JSON.stringify(report)) as InspectionReport
+    reportWithDrive.attachments.disc_number = 'YP20260820-01'
+    render(<RecordEditorForm report={reportWithDrive} updateReport={vi.fn()} onExport={vi.fn()} exporting={false}
+      onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()}
+      archiveResult={{ result: {
+        task_id: 'archive-task-hard-drive', case_id: 'case-synthetic', manifest_id: 'manifest-hard-drive',
+        archive_mode: 'oversized_single_volume', archive_medium: 'hard_drive',
+        plan_row_revision: 1, verified_slots: [], assets: [], parts: [], finished_at: '2026-08-20T00:00:00Z',
+      } satisfies ArchiveTaskResult, loading: false, error: null }}
+      workbenchMode />)
+
+    expect(screen.getByText('该硬盘编号对应唯一完整 RAR。')).toBeTruthy()
+    expect(screen.queryByText('后续光盘编号将在最终卷数确定后按序号自动生成。')).toBeNull()
   })
 
   it('集成所有审核编辑区域和附件编辑器', () => {

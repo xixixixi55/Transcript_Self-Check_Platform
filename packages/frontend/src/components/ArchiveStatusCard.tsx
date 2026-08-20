@@ -3,7 +3,7 @@ import React from 'react'
 import { Alert, Button, Card, Descriptions, Space, Tag, Typography } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { ArchiveLifecycleStatus, ArchiveManifest, ArchiveTaskResult } from '@biji/shared/types'
+import type { ArchiveLifecycleStatus, ArchiveManifest, ArchiveMedium, ArchiveTaskResult } from '@biji/shared/types'
 
 const { Text } = Typography
 const LABELS: Record<ArchiveLifecycleStatus, string> = {
@@ -31,6 +31,7 @@ interface Props {
   taskId?: string | null
   error: string | null
   showPartDownload?: boolean
+  archiveMedium?: ArchiveMedium | null
 }
 
 interface DisplayPart {
@@ -50,10 +51,11 @@ function readableSize(bytes: number): string {
 }
 
 export function ArchiveStatusCard({ contextId, status, loading = false, onPrepare = () => undefined,
-  manifest, resultParts = null, taskId = null, error, showPartDownload = true }: Props) {
+  manifest, resultParts = null, taskId = null, error, showPartDownload = true, archiveMedium = null }: Props) {
   const parts: DisplayPart[] = manifest?.parts || resultParts?.map((part, index) => ({
     ...part, part_number: index + 1,
   })) || []
+  const hardDrive = archiveMedium === 'hard_drive' || manifest?.archive_mode === 'oversized_single_volume'
   return (
     <Card size="small" title="真实 RAR 归档">
       <Space direction="vertical" style={{ width: '100%' }}>
@@ -73,8 +75,8 @@ export function ArchiveStatusCard({ contextId, status, loading = false, onPrepar
               <Descriptions.Item label="文件大小">{readableSize(part.size_bytes)}</Descriptions.Item>
               <Descriptions.Item label="MD5"><Text code>{part.md5.toUpperCase()}</Text></Descriptions.Item>
               <Descriptions.Item label="分卷序号">{part.part_number}</Descriptions.Item>
-              <Descriptions.Item label="光盘编号">{part.disc_number}</Descriptions.Item>
-              {part.disc_capacity_bytes !== undefined && <Descriptions.Item label="光盘容量">{readableSize(part.disc_capacity_bytes)}</Descriptions.Item>}
+              <Descriptions.Item label={hardDrive ? '硬盘编号' : '光盘编号'}>{part.disc_number}</Descriptions.Item>
+              {part.disc_capacity_bytes !== undefined && <Descriptions.Item label={hardDrive ? '硬盘容量' : '光盘容量'}>{readableSize(part.disc_capacity_bytes)}</Descriptions.Item>}
               <Descriptions.Item label="归档状态">已验证</Descriptions.Item>
             </Descriptions>
             {showPartDownload && (contextId || taskId) && (

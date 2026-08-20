@@ -83,6 +83,38 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     expect(mapping).not.toHaveBeenCalled()
   })
 
+  it('uses neutral GP/YP guidance before the archive medium is known', () => {
+    const { onFirstDiscNumberChange } = renderPanel({
+      archiveMedium: null,
+      firstDiscNumber: 'YP20260413-01',
+    })
+    expect(screen.getByText('介质编号（可提前填写）')).toBeTruthy()
+    expect(screen.getByText(/最终介质由压缩前归档总量决定/)).toBeTruthy()
+    const input = screen.getByRole('textbox', { name: '介质编号' }) as HTMLInputElement
+    expect(input.value).toBe('YP20260413-01')
+    fireEvent.change(input, { target: { value: 'GP20260731-01' } })
+    expect(onFirstDiscNumberChange).toHaveBeenCalledWith('GP20260731-01')
+  })
+
+  it('asks for one user hard-drive number for an oversized single volume', async () => {
+    renderPanel({
+      lifecycle: 'archive_verified',
+      archiveMedium: 'hard_drive',
+      parts: [{ disc_number: '' }],
+      firstDiscNumber: 'YP20260413-01',
+    })
+    expect(screen.getByText('待补硬盘编号')).toBeTruthy()
+    expect(screen.getByText(/一个超大单卷/)).toBeTruthy()
+    const input = screen.getByRole('textbox', { name: '硬盘编号' }) as HTMLInputElement
+    expect(input.value).toBe('YP20260413-01')
+    fireEvent.click(screen.getByRole('button', { name: '提交硬盘编号' }))
+    await vi.waitFor(() => {
+      expect(mapping).toHaveBeenCalledWith(
+        'case-synthetic-disc-input', 1, 2, 'YP20260413-01',
+      )
+    })
+  })
+
   it('keeps the persisted first disc editable after the mapping is verified', async () => {
     const { onFirstDiscNumberChange } = renderPanel({
       lifecycle: 'archive_verified',

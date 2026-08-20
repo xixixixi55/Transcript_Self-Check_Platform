@@ -17,7 +17,9 @@ from .attachment2_plan_service import (
     photo_values,
 )
 from .attachment_plan_errors_service import AttachmentPlanError
-from .disc_sequence_service import parse_disc_sequence
+from .disc_sequence_service import (
+    archive_medium_for_mode, parse_archive_medium_sequence,
+)
 from .attachment_plan_models_service import (
     ARCHIVE_ROWS_PAGE_KIND,
     Attachment1PagePlan,
@@ -43,12 +45,19 @@ def build_attachment_plan(
     """Build all stage-one attachment pages without I/O or Word side effects."""
     report = project_ordered_legacy_report(report)
     manifest_id, parts = _validated_parts(manifest)
+    archive_mode = str(manifest.get("archive_mode") or "standard_split")
+    archive_medium = archive_medium_for_mode(archive_mode)
+    if archive_medium == "hard_drive" and len(parts) != 1:
+        raise AttachmentPlanError(
+            "ARCHIVE_MANIFEST_INVALID", "硬盘归档必须只有一个完整压缩包。",
+        )
     source_text = _source_text(report)
     extraction_method = _extraction_method(report)
     first_disc = parts[0]["disc_number"]
-    disc_result = parse_disc_sequence(first_disc)
+    disc_result = parse_archive_medium_sequence(first_disc, archive_mode)
     if not disc_result.valid or disc_result.sequence is None:
-        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "首个光盘编号无法解析日期。")
+        medium_label = "硬盘编号" if archive_medium == "hard_drive" else "首个光盘编号"
+        raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", f"{medium_label}无法解析日期。")
     inspection_date = disc_result.sequence.date
     disc_numbers = tuple(str(item["disc_number"]) for item in parts)
     rows = tuple(_part_row(item, manifest) for item in parts)
@@ -85,6 +94,7 @@ def build_attachment_plan(
     return AttachmentPlan(
         profile_id=PROFILE_ID,
         archive_manifest_id=manifest_id,
+        archive_medium=archive_medium,
         attachment_summary=AttachmentSummaryPlan(
             inspection_date, len(parts), disc_numbers,
         ),
@@ -127,9 +137,10 @@ def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷缺少刻录日期。")
         if not _text(item.get("part_id")) or not _text(item.get("disc_number")):
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷缺少绑定字段。")
-        disc = parse_disc_sequence(str(item["disc_number"]))
+        archive_mode = str(manifest.get("archive_mode") or "standard_split")
+        disc = parse_archive_medium_sequence(str(item["disc_number"]), archive_mode)
         if not disc.valid:
-            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档光盘编号无效。")
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档介质编号无效。")
         parts.append(item)
         numbers.append(number)
     parts.sort(key=lambda item: int(item["part_number"]))

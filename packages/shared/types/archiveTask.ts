@@ -4,6 +4,7 @@ import type {
   ArchiveWorkerState,
   TaskStatus,
 } from './task'
+import type { ArchiveMedium, ArchiveMode } from './archive'
 
 export type ArchiveWorkflowStage =
   | 'queued'
@@ -122,6 +123,8 @@ export interface ArchiveTaskResult {
   task_id: string
   case_id: string
   manifest_id: string
+  archive_mode: ArchiveMode
+  archive_medium: ArchiveMedium
   /** Optimistic concurrency token for updates to the persisted archive plan. */
   plan_row_revision: number | null
   verified_slots: VerifiedVolumeSlot[]

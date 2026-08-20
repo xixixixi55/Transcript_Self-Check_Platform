@@ -22,6 +22,7 @@ const archiveTaskSummary: ArchiveTaskCardSummary = {
 }
 const completedArchiveResult: ArchiveTaskResult = {
   task_id: archiveTaskSummary.task_id, case_id: caseId, manifest_id: 'manifest-synthetic',
+  archive_mode: 'standard_split', archive_medium: 'optical_disc',
   plan_row_revision: 4, verified_slots: [], assets: [],
   parts: [
     { part_id: 'part-1', filename: '合成案件.part1.rar', size_bytes: 123, md5: 'a'.repeat(32), disc_number: 'GP20260731-01', disc_date: '2026-07-31' },
@@ -158,7 +159,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_LEASE(caseId), expect.anything()))
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-    const input = await screen.findByRole('textbox', { name: '首个光盘编号' })
+    const input = await screen.findByRole('textbox', { name: '介质编号' })
     expect((input as HTMLInputElement).value).toBe('GP20260731-001')
     fireEvent.change(input, { target: { value: 'GP20260731-002' } })
   }
@@ -288,15 +289,17 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(request.shared_defaults_patch).toEqual({ entrust_unit_prefix: '' })
   }, 15000)
 
-  it('keeps the top disc-number input editable and autosaved while compression is running', async () => {
+  it('accepts and autosaves a YP number before compression determines the medium', async () => {
     initialLifecycle = 'archive_queued'
     renderPage()
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-    expect(await screen.findByText('压缩正在后台进行；现在仍可填写首个光盘编号，压缩完成后将沿用该编号。')).toBeTruthy()
-    fireEvent.change(screen.getByRole('textbox', { name: '首个光盘编号' }), { target: { value: 'GP20260731-009' } })
+    expect(await screen.findByText(/压缩正在后台进行，可以先填写编号/)).toBeTruthy()
+    expect(screen.getByText('GPyyyyMMdd-序号 · 光盘')).toBeTruthy()
+    expect(screen.getByText('YPyyyyMMdd-序号 · 硬盘')).toBeTruthy()
+    fireEvent.change(screen.getByRole('textbox', { name: '介质编号' }), { target: { value: 'YP20260731-009' } })
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     const savedDraft = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft
-    expect(savedDraft.report.attachments.disc_number).toBe('GP20260731-009')
+    expect(savedDraft.report.attachments.disc_number).toBe('YP20260731-009')
   }, 15000)
 
   it('collects a first disc number after compression and posts the disc mapping', async () => {

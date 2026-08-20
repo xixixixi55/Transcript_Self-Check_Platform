@@ -198,9 +198,12 @@ class ArchiveTaskApiService:
         from .disc_mapping_service import DiscMappingError, apply_disc_mapping
 
         try:
+            archive_mode = "standard_split"
+            if current is not None and current["status"] == "succeeded":
+                archive_mode = str(self.results.result(current["task_id"])["archive_mode"])
             result = apply_disc_mapping(
                 self.database, case_id, expected_revision,
-                expected_plan_row_revision, first_disc_number,
+                expected_plan_row_revision, first_disc_number, archive_mode,
             )
             if current is not None:
                 result["task_id"] = current["task_id"]

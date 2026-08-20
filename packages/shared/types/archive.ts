@@ -1,5 +1,6 @@
 export type ArchiveVolumeTier = '4GB' | '22GB' | '45GB'
 export type ArchiveMode = 'standard_split' | 'oversized_single_volume'
+export type ArchiveMedium = 'optical_disc' | 'hard_drive'
 export type ArchivePlanStatus = 'planned' | 'blocked'
 export type ArchiveValidationStatus = 'validated' | 'invalid'
 export type ArchiveExecutionStatus =

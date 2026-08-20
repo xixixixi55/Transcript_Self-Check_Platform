@@ -30,6 +30,14 @@ class DiscSequenceParseResult:
 
 
 _PATTERN = re.compile(r"^([A-Za-z\u3400-\u9fff]{1,20})(\d{4})(\d{2})(\d{2})-(\d+)$", re.IGNORECASE)
+_ARCHIVE_MODE_PREFIX = {
+    "standard_split": "GP",
+    "oversized_single_volume": "YP",
+}
+_ARCHIVE_MODE_MEDIUM = {
+    "standard_split": "optical_disc",
+    "oversized_single_volume": "hard_drive",
+}
 
 
 def parse_disc_sequence(value: str | None) -> DiscSequenceParseResult:
@@ -60,6 +68,33 @@ def parse_disc_sequence(value: str | None) -> DiscSequenceParseResult:
         first_disc_number=f"{prefix}{year:04d}{month:02d}{day:02d}-{raw_number}",
     )
     return DiscSequenceParseResult(sequence)
+
+
+def archive_medium_for_mode(archive_mode: str) -> str:
+    try:
+        return _ARCHIVE_MODE_MEDIUM[archive_mode]
+    except KeyError as error:
+        raise ValueError("ARCHIVE_MODE_INVALID") from error
+
+
+def parse_archive_medium_sequence(
+    value: str | None, archive_mode: str,
+) -> DiscSequenceParseResult:
+    """Parse a user identifier and enforce the prefix selected by archive mode."""
+    result = parse_disc_sequence(value)
+    if not result.valid or result.sequence is None:
+        return result
+    expected_prefix = _ARCHIVE_MODE_PREFIX.get(archive_mode)
+    if expected_prefix is None:
+        return DiscSequenceParseResult(None, "ARCHIVE_MODE_INVALID")
+    if result.sequence.prefix != expected_prefix:
+        code = (
+            "HARD_DRIVE_NUMBER_INVALID"
+            if archive_mode == "oversized_single_volume"
+            else "FIRST_DISC_NUMBER_INVALID"
+        )
+        return DiscSequenceParseResult(None, code)
+    return result
 
 
 def apply_disc_sequence_to_attachments(attachments: dict[str, Any]) -> DiscSequenceParseResult:

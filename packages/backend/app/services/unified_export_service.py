@@ -54,7 +54,7 @@ def _require_disc_mapping(
         ]
         if missing:
             raise UnifiedExportError(
-                "DISC_MAPPING_INCOMPLETE", "光盘编号尚未全部补齐，无法导出。",
+                "DISC_MAPPING_INCOMPLETE", "介质编号尚未全部补齐，无法导出。",
             )
         return
     parts = manifest.get("parts") or []
@@ -63,7 +63,7 @@ def _require_disc_mapping(
     ]
     if missing:
         raise UnifiedExportError(
-            "DISC_MAPPING_INCOMPLETE", "光盘编号尚未全部补齐，无法导出。",
+            "DISC_MAPPING_INCOMPLETE", "介质编号尚未全部补齐，无法导出。",
         )
 
 

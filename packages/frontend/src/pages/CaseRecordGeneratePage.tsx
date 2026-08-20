@@ -51,7 +51,13 @@ export default function CaseRecordGeneratePage() {
       .finally(() => setInspectorLoading(false))
       .catch(() => setInspectorError('获取启用检查人员失败，请稍后重试。'))
   }, [])
-  const pendingItems = useMemo(() => session.report ? getReviewPendingItems(session.report) : [], [session.report])
+  // Before compression finishes, accept either user-entered medium prefix.
+  // The verified result then switches the same editor to the exact GP/YP contract.
+  const archiveMedium = session.completedArchive.result?.archive_medium ?? null
+  const pendingItems = useMemo(
+    () => session.report ? getReviewPendingItems(session.report, undefined, archiveMedium) : [],
+    [archiveMedium, session.report],
+  )
   const { navigateToPendingItem, navigateToSection } = useReviewPendingNavigation()
   const updateReport = useCallback((path: string, value: unknown) => {
     session.updateReport(path, value)
@@ -217,6 +223,7 @@ export default function CaseRecordGeneratePage() {
           <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
             expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
             planRowRevision={session.completedArchive.result?.plan_row_revision ?? null}
+            archiveMedium={archiveMedium}
             firstDiscNumber={session.report.attachments?.disc_number || ''}
             onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
             readOnly={!session.editingEnabled} defaultWordName={session.report.document_number}

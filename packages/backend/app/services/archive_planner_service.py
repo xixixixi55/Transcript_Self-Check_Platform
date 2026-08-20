@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from ..repository.archive_input_repository import MAX_SAFE_INTEGER
-from .disc_sequence_service import generate_disc_numbers, parse_disc_sequence
+from .disc_sequence_service import (
+    generate_disc_numbers, parse_archive_medium_sequence, parse_disc_sequence,
+)
 
 
 @dataclass(frozen=True)
@@ -185,12 +187,13 @@ def plan_archive(
     if first_disc_number is not None:
         parsed = parse_disc_sequence(first_disc_number)
         if not parsed.valid:
-            return _invalid_plan(case_name, base_name, normalized, policy, [ArchiveDiagnostic(parsed.error_code or "FIRST_DISC_NUMBER_INVALID", "首个光盘编号无效。")], total=total)
+            return _invalid_plan(case_name, base_name, normalized, policy, [ArchiveDiagnostic(parsed.error_code or "FIRST_DISC_NUMBER_INVALID", "介质编号无效。")], total=total)
 
     tier = _select_tier(total, policy)
     if tier is None:
         if policy.forced_tier_gb is None and policy.allow_oversized_single_volume:
-            expected_discs = tuple(generate_disc_numbers(first_disc_number, 1)) if first_disc_number else ()
+            medium_number = _medium_number(first_disc_number, "oversized_single_volume")
+            expected_discs = tuple(generate_disc_numbers(medium_number, 1)) if medium_number else ()
             diagnostics.append(ArchiveDiagnostic(
                 "ARCHIVE_OVERSIZED_SINGLE_VOLUME",
                 "输入超过标准分卷阈值，切换为超大单卷模式。",
@@ -200,7 +203,7 @@ def plan_archive(
                 archive_base_name=base_name, source_entries=normalized,
                 total_input_bytes=total, volume_size_bytes=None,
                 volume_tier_gb=None, expected_part_count=1, max_part_count=1,
-                first_disc_number=first_disc_number,
+                first_disc_number=medium_number,
                 expected_disc_numbers=expected_discs,
                 max_replan_attempts=0, status="planned",
                 diagnostics=tuple(diagnostics),
@@ -212,12 +215,13 @@ def plan_archive(
     if expected_count > tier.max_part_count:
         return _invalid_plan(case_name, base_name, normalized, policy, [ArchiveDiagnostic("ARCHIVE_TOO_LARGE", "归档输入超过当前档位允许卷数。")], total=total)
     diagnostics.append(ArchiveDiagnostic("ARCHIVE_TIER_SELECTED", f"按二进制总大小选择 {tier.gb}GB 档位。"))
-    expected_discs = tuple(generate_disc_numbers(first_disc_number, expected_count)) if first_disc_number else ()
+    medium_number = _medium_number(first_disc_number, "standard_split")
+    expected_discs = tuple(generate_disc_numbers(medium_number, expected_count)) if medium_number else ()
     return ArchivePlan(
         plan_id=str(uuid4()), case_display_name=case_name, archive_base_name=base_name,
         source_entries=normalized, total_input_bytes=total, volume_size_bytes=tier.volume_size_bytes,
         volume_tier_gb=tier.gb, expected_part_count=expected_count, max_part_count=tier.max_part_count,
-        first_disc_number=first_disc_number, expected_disc_numbers=expected_discs,
+        first_disc_number=medium_number, expected_disc_numbers=expected_discs,
         max_replan_attempts=policy.max_replan_attempts, status="planned", diagnostics=tuple(diagnostics),
     )
 
@@ -234,4 +238,14 @@ def replan_to_next_tier(plan: ArchivePlan, policy: ArchivePolicy) -> ArchivePlan
         plan.case_display_name, plan.source_entries,
         first_disc_number=plan.first_disc_number,
         policy=ArchivePolicy(policy.tiers, plan.max_replan_attempts, next_gb),
+    )
+
+
+def _medium_number(value: str | None, archive_mode: str) -> str | None:
+    if value is None:
+        return None
+    parsed = parse_archive_medium_sequence(value, archive_mode)
+    return (
+        parsed.sequence.first_disc_number
+        if parsed.valid and parsed.sequence is not None else None
     )

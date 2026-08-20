@@ -162,7 +162,7 @@ def _format_plan_date(value: str) -> str:
 
 
 def _update_attachment_summary(doc: Document, plan) -> None:
-    """Write the disc summary from the validated manifest-derived plan."""
+    """Write the storage-medium summary from the validated manifest plan."""
     attachment1_summary = (
         f"附件：1、电子数据提取固定清单，共{len(plan.attachment1_pages)}页；"
     )
@@ -180,12 +180,14 @@ def _update_attachment_summary(doc: Document, plan) -> None:
             break
     disc_numbers = plan.attachment_summary.disc_numbers
     count = len(plan.attachment3_pages)
-    first, last = disc_numbers[0], disc_numbers[-1]
-    if count == 1:
-        disc_text = f"编号为“{first}”的光盘1张，共1页。"
+    if plan.archive_medium == "hard_drive":
+        summary = f"3、本鉴定中心拷贝的编号为“{disc_numbers[0]}”的硬盘1块，共1页。"
     else:
-        disc_text = f"编号为“{first}”至“{last}”的光盘{count}张，共{count}页。"
-    summary = f"3、本鉴定中心刻制的{disc_text}"
+        joined = "、".join(disc_numbers)
+        summary = (
+            f"3、本鉴定中心刻制的编号为“{joined}”的光盘{count}张，"
+            f"共{count}页。"
+        )
     for paragraph in doc.paragraphs:
         if "3、本鉴定中心刻制的" in paragraph.text:
             nodes = paragraph._element.findall(
@@ -242,7 +244,12 @@ def _update_inspection_result(
         )
         disc_numbers = _ordered_unique(part.disc_number for part in parts)
         result_text += f"将检出结果生成为{part_text}。"
-        result_text += f"结果以封盘方式刻录在编号为“{'、'.join(disc_numbers)}”的光盘中。"
+        if plan.archive_medium == "hard_drive":
+            result_text += (
+                f"结果以拷贝的方式保存在编号为“{disc_numbers[0]}”的硬盘中。"
+            )
+        else:
+            result_text += f"结果以封盘方式刻录在编号为“{'、'.join(disc_numbers)}”的光盘中。"
     for paragraph in doc.paragraphs:
         if "经对编号为" in paragraph.text:
             _replace_paragraph_text(paragraph, result_text)

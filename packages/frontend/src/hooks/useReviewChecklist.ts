@@ -1,4 +1,4 @@
-import type { InspectionReport } from '@biji/shared/types'
+import type { ArchiveMedium, InspectionReport } from '@biji/shared/types'
 import { isValidDateFieldValue, isValidMinuteTimeRangeValue, parseDiscSequence } from '@biji/shared/utils'
 
 export type ReviewPendingSeverity = 'warning' | 'error'
@@ -129,6 +129,7 @@ function addInvalidItem(
 export function getReviewPendingItems(
   report: InspectionReport,
   exportFileNameError?: string,
+  archiveMedium: ArchiveMedium | null = 'optical_disc',
 ): ReviewPendingItem[] {
   const items: ReviewPendingItem[] = []
   const introduction = report.introduction
@@ -193,9 +194,13 @@ export function getReviewPendingItems(
     addBlankItem(items, REVIEW_SECTION_IDS.inspection, REVIEW_TARGET_IDS.result(key), '二、检查', label, value)
   })
 
-  addBlankItem(items, REVIEW_SECTION_IDS.archive, REVIEW_TARGET_IDS.discNumber, '附件', '光盘编号', attachments?.disc_number)
-  if (attachments?.disc_number && !parseDiscSequence(attachments.disc_number).valid) {
-    addInvalidItem(items, REVIEW_SECTION_IDS.archive, REVIEW_TARGET_IDS.discNumber, '附件', '光盘编号', '首个光盘编号必须符合 GPyyyyMMdd-序号 格式且日期真实有效。')
+  const mediumLabel = archiveMedium === 'hard_drive' ? '硬盘编号' : archiveMedium === 'optical_disc' ? '光盘编号' : '介质编号'
+  const parsedMediumNumber = attachments?.disc_number ? parseDiscSequence(attachments.disc_number) : null
+  const expectedPrefixes = archiveMedium === 'hard_drive' ? ['YP'] : archiveMedium === 'optical_disc' ? ['GP'] : ['GP', 'YP']
+  addBlankItem(items, REVIEW_SECTION_IDS.archive, REVIEW_TARGET_IDS.discNumber, '附件', mediumLabel, attachments?.disc_number)
+  if (parsedMediumNumber && (!parsedMediumNumber.valid || !expectedPrefixes.includes(parsedMediumNumber.sequence?.prefix || ''))) {
+    const formatHint = expectedPrefixes.map(prefix => `${prefix}yyyyMMdd-序号`).join(' 或 ')
+    addInvalidItem(items, REVIEW_SECTION_IDS.archive, REVIEW_TARGET_IDS.discNumber, '附件', mediumLabel, `${mediumLabel}必须符合 ${formatHint} 格式且日期真实有效。`)
   }
   if (exportFileNameError) {
     items.push({

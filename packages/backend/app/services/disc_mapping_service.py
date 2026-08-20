@@ -13,7 +13,9 @@ from typing import Any, Mapping
 
 from ..repository.archive_plan_repository import ArchivePlanRepository
 from ..repository.workbench_database import WorkbenchDatabase
-from .disc_sequence_service import generate_disc_numbers, parse_disc_sequence
+from .disc_sequence_service import (
+    archive_medium_for_mode, generate_disc_numbers, parse_archive_medium_sequence,
+)
 
 
 class DiscMappingError(ValueError):
@@ -34,16 +36,20 @@ class DiscMappingState:
 
 def build_disc_mappings(
     first_disc_number: str, slots: list[Mapping[str, Any]],
+    archive_mode: str = "standard_split",
 ) -> list[dict[str, Any]]:
     """Generate the sequence for ``slots`` in ordinal order.
 
     ``slots`` must already be ordered by ordinal and exclude removed slots.
     """
-    parsed = parse_disc_sequence(first_disc_number)
+    parsed = parse_archive_medium_sequence(first_disc_number, archive_mode)
     if not parsed.valid or parsed.sequence is None:
+        medium_label = "硬盘" if archive_mode == "oversized_single_volume" else "首个光盘"
         raise DiscMappingError(
-            parsed.error_code or "FIRST_DISC_NUMBER_INVALID", "首个光盘编号无效。",
+            parsed.error_code or "FIRST_DISC_NUMBER_INVALID", f"{medium_label}编号无效。",
         )
+    if archive_mode == "oversized_single_volume" and len(slots) != 1:
+        raise DiscMappingError("ARCHIVE_PLAN_INVALID", "硬盘归档必须对应一个完整压缩包。")
     numbers = generate_disc_numbers(first_disc_number, len(slots))
     disc_date = parsed.sequence.date
     return [
@@ -106,6 +112,7 @@ def apply_disc_mapping(
     expected_revision: int,
     expected_plan_row_revision: int,
     first_disc_number: str,
+    archive_mode: str = "standard_split",
 ) -> dict[str, Any]:
     """Map the sequence for ``first_disc_number`` onto the latest case plan.
 
@@ -120,7 +127,7 @@ def apply_disc_mapping(
     slots = active_slots(plan)
     if not slots:
         raise DiscMappingError("ARCHIVE_PLAN_EMPTY", "归档计划没有可映射的分卷。")
-    mappings = build_disc_mappings(first_disc_number, slots)
+    mappings = build_disc_mappings(first_disc_number, slots, archive_mode)
     updated = repository.update_mappings(
         plan["plan_id"], mappings, expected_plan_row_revision,
     )
@@ -139,6 +146,7 @@ def apply_disc_mapping(
         "expected_revision": expected_revision,
         "plan_row_revision": updated["revision"],
         "lifecycle": "archive_verified",
+        "archive_medium": archive_medium_for_mode(archive_mode),
         "prefix": parts[0]["disc_number"][:2] if parts else "",
         "disc_date": parts[0]["disc_date"] if parts else "",
         "parts": parts,

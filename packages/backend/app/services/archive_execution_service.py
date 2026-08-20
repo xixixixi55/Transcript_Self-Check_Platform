@@ -29,7 +29,7 @@ from .archive_planner_service import (
     ArchiveDiagnostic, ArchivePlan, ArchivePolicy, ArchiveSourceEntry,
     PRODUCTION_ARCHIVE_POLICY, plan_archive, replan_to_next_tier,
 )
-from .disc_sequence_service import generate_disc_numbers, parse_disc_sequence
+from .disc_sequence_service import generate_disc_numbers, parse_archive_medium_sequence
 from .archive_publish_service import publish_staged_archive
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord
 from .export_gate_service import ExportGateCode, ExportGateIssue
@@ -181,7 +181,7 @@ def execute_archive(
                         (publication_report.get("attachments") or {}).get("disc_number") or ""
                     ).strip()
                     raise_gate(pre_archive_gate(publication_report))
-                    parsed_disc = parse_disc_sequence(latest_disc)
+                    parsed_disc = parse_archive_medium_sequence(latest_disc, plan.archive_mode)
                     first_disc_number = (
                         parsed_disc.sequence.first_disc_number
                         if parsed_disc.valid and parsed_disc.sequence is not None else None

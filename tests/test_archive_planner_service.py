@@ -49,6 +49,7 @@ def test_production_binary_tier_boundaries(size, tier, expected, status):
         assert plan.volume_size_bytes is None
         assert plan.max_part_count == 1
         assert plan.diagnostics[0].code == "ARCHIVE_OVERSIZED_SINGLE_VOLUME"
+        assert plan.first_disc_number is None
     else:
         assert plan.archive_mode == "standard_split"
 
@@ -77,6 +78,15 @@ def test_plan_records_selection_reason_and_disc_projection():
     assert plan.diagnostics[0].code == "ARCHIVE_TIER_SELECTED"
     assert "4GB" in plan.diagnostics[0].message
     assert plan.expected_disc_numbers == ("GP20260718-09", "GP20260718-10")
+
+
+def test_oversized_plan_keeps_only_a_user_hard_drive_number():
+    plan = plan_archive(
+        "合成案件", entry(225 * GB + 1), first_disc_number="YP20260413-01",
+    )
+    assert plan.archive_mode == "oversized_single_volume"
+    assert plan.first_disc_number == "YP20260413-01"
+    assert plan.expected_disc_numbers == ("YP20260413-01",)
 
 
 def test_public_plan_projection_has_no_filesystem_paths():

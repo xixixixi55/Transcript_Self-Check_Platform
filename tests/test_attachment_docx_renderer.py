@@ -151,6 +151,22 @@ def manifest(count):
     }
 
 
+def hard_drive_manifest():
+    return {
+        "manifest_id": "manifest-hard-drive-xml",
+        "validation_status": "validated",
+        "archive_mode": "oversized_single_volume",
+        "volume_size_bytes": None,
+        "parts": [{
+            "part_id": "part-hard-drive", "part_number": 1,
+            "filename": "server.rar", "md5": "f" * 32,
+            "size_bytes": 226 * 1024**3,
+            "disc_number": "YP20260413-01", "disc_date": "2026-04-13",
+            "volume_size_bytes": None,
+        }],
+    }
+
+
 def document_root(path):
     with zipfile.ZipFile(path) as package:
         assert package.testzip() is None
@@ -749,12 +765,26 @@ def test_attachment3_has_vertical_metadata_and_part_specific_bottom_anchor(tmp_p
     ]
 
 
-def test_attachment_summary_uses_manifest_range_and_counts(tmp_path):
+def test_attachment_summary_lists_all_manifest_numbers_and_counts(tmp_path):
     output = tmp_path / "attachment-summary.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(9))
     text = visible_text(output)
-    assert "3、本鉴定中心刻制的编号为“GP20260706-01”至“GP20260706-09”的光盘9张，共9页。" in text
+    numbers = "、".join(f"GP20260706-{index:02d}" for index in range(1, 10))
+    assert f"3、本鉴定中心刻制的编号为“{numbers}”的光盘9张，共9页。" in text
     assert "GP20260706-01”的光盘1张，共1页" not in text
+
+
+def test_oversized_single_volume_renders_hard_drive_word_semantics(tmp_path):
+    output = tmp_path / "hard-drive.docx"
+    fill_template(report(), str(TEMPLATE), str(output), [], hard_drive_manifest())
+    text = visible_text(output)
+
+    assert "结果以拷贝的方式保存在编号为“YP20260413-01”的硬盘中。" in text
+    assert "3、本鉴定中心拷贝的编号为“YP20260413-01”的硬盘1块，共1页。" in text
+    assert "硬盘编号：YP20260413-01" in text
+    assert "拷贝时间：2026年4月13日" in text
+    assert "本鉴定中心拷贝的YP20260413-01号硬盘" in text
+    assert "本鉴定中心刻制的YP20260413-01号光盘" not in text
 
 
 def test_footer_fields_are_dynamic_and_not_section_pages(tmp_path):

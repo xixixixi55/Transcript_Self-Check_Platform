@@ -116,6 +116,26 @@ describe('ArchiveStatusCard', () => {
     )
   })
 
+  it('labels an oversized single-volume result as a hard drive', () => {
+    render(
+      <ArchiveStatusCard
+        contextId={null}
+        taskId="archive-task-hard-drive"
+        status="completed"
+        manifest={null}
+        archiveMedium="hard_drive"
+        resultParts={[{
+          part_id: 'part-hard-drive', filename: '合成超大归档.rar', size_bytes: 123,
+          md5: 'c'.repeat(32), disc_number: 'YP20260820-01', disc_date: '2026-08-20',
+        }]}
+        error={null}
+      />,
+    )
+    expect(screen.getByText('硬盘编号')).toBeTruthy()
+    expect(screen.queryByText('光盘编号')).toBeNull()
+    expect(screen.getByText('YP20260820-01')).toBeTruthy()
+  })
+
   it('hides the part download action when requested by the review workspace', () => {
     render(
       <ArchiveStatusCard

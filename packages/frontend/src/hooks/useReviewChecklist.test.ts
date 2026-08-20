@@ -163,4 +163,22 @@ describe('getReviewPendingItems', () => {
       expect.arrayContaining(discItems),
     )
   })
+
+  it('按归档介质区分 GP 与 YP 编号校验', () => {
+    const withNumber = (discNumber: string) => ({
+      ...report,
+      attachments: { ...report.attachments, disc_number: discNumber },
+    })
+
+    expect(getReviewPendingItems(withNumber('YP20260820-01'), undefined, 'hard_drive')
+      .some(item => item.fieldLabel === '硬盘编号' && item.kind === 'validation')).toBe(false)
+    expect(getReviewPendingItems(withNumber('GP20260820-01'), undefined, 'hard_drive')
+      .some(item => item.reason.includes('YPyyyyMMdd-序号'))).toBe(true)
+    expect(getReviewPendingItems(withNumber('YP20260820-01'), undefined, 'optical_disc')
+      .some(item => item.reason.includes('GPyyyyMMdd-序号'))).toBe(true)
+    expect(getReviewPendingItems(withNumber('YP20260820-01'), undefined, null)
+      .some(item => item.kind === 'validation' && item.targetId === REVIEW_TARGET_IDS.discNumber)).toBe(false)
+    expect(getReviewPendingItems(withNumber('AB20260820-01'), undefined, null)
+      .some(item => item.reason.includes('GPyyyyMMdd-序号 或 YPyyyyMMdd-序号'))).toBe(true)
+  })
 })

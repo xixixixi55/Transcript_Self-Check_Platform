@@ -1,6 +1,7 @@
 // Layer 0: SharedTypes — deferred disc mapping and unified export contracts.
 
 import type { CaseLifecycle } from './workbench'
+import type { ArchiveMedium } from './archive'
 
 /** One RAR part's disc mapping produced from the first disc number sequence. */
 export interface ArchivePartDiscMapping {
@@ -23,6 +24,7 @@ export interface DiscMappingResult {
   expected_revision: number
   plan_row_revision: number
   lifecycle: CaseLifecycle
+  archive_medium: ArchiveMedium
   prefix: string
   disc_date: string
   parts: ArchivePartDiscMapping[]

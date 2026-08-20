@@ -81,7 +81,7 @@ def oversized_manifest():
         "parts": [{
             "part_id": "part-oversized", "part_number": 1,
             "filename": "case.rar", "size_bytes": 226 * 1024**3,
-            "md5": "f" * 32, "disc_number": "GP20260706-01",
+            "md5": "f" * 32, "disc_number": "YP20260706-01",
             "disc_date": "2026-07-06", "volume_size_bytes": None,
         }],
     }
@@ -181,6 +181,8 @@ def test_oversized_single_volume_keeps_nullable_capacity_fields() -> None:
     assert row.volume_size_bytes is None
     assert page.disc_capacity_bytes is None
     assert page.volume_size_bytes is None
+    assert plan.archive_medium == "hard_drive"
+    assert page.disc_number == "YP20260706-01"
 
 
 def test_standard_split_still_requires_capacity_fields() -> None:

@@ -177,9 +177,19 @@ def _render_attachment3(body: Any, label: Any, plan: AttachmentPlan,
                 "burning_date": _format_date(page.burning_date),
             },
         )
+        if plan.archive_medium == "hard_drive":
+            for element in region:
+                _replace_text_nodes(element, "光盘编号：", "硬盘编号：")
+                _replace_text_nodes(element, "刻录时间：", "拷贝时间：")
+                _replace_text_nodes(element, "光盘粘贴处", "硬盘粘贴处")
         if end_anchor_element is not None:
             page_end_anchor = copy.deepcopy(end_anchor_element)
             _replace_element_text(page_end_anchor, first_disc, page.disc_number)
+            if plan.archive_medium == "hard_drive":
+                _replace_element_text(
+                    page_end_anchor, "本鉴定中心刻制的", "本鉴定中心拷贝的",
+                )
+                _replace_element_text(page_end_anchor, "号光盘", "号硬盘")
             region.append(page_end_anchor)
         for element in region:
             make_unique_vml_ids(element, used_ids, f"attachment3_{index}")
@@ -247,6 +257,13 @@ def _replace_element_text(element: Any, old: str, new: str) -> None:
         return
     full = "".join(node.text or "" for node in nodes).replace(old, new)
     set_paragraph_text(element, full)
+
+
+def _replace_text_nodes(element: Any, old: str, new: str) -> None:
+    """Replace a fixed label without flattening VML/textbox paragraph structure."""
+    for node in element.findall(".//%s" % qn(W_NS, "t")):
+        if node.text and old in node.text:
+            node.text = node.text.replace(old, new)
 
 
 def _format_date(value: str) -> str:

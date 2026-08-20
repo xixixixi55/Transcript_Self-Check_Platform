@@ -287,8 +287,8 @@
 `InspectorSnapshot` 分离；快照保存报告生成时的姓名、单位、警号和顺序，不随人员库
 后续修改而变化。旧 `introduction.inspectors` 仅作为由快照派生的 legacy 投影。
 
-`DiscSequence` 保存首个光盘编号解析结果的 `prefix`、真实日期、首序号、输入位宽
-和规范化首编号；`generateDiscNumbers` 只根据该结构和最终卷数派生后续编号，不能
+`DiscSequence` 保存介质编号解析结果的 `prefix`、真实日期、首序号、输入位宽
+和规范化首编号；正式标准分卷只接受 `GP`，超大单卷只接受 `YP`。`generateDiscNumbers` 只根据该结构和最终卷数派生后续编号，不能
 根据目录位置或预估卷数伪造正式清单。
 
 ### 归档规划与最终清单
@@ -307,13 +307,13 @@ inventory、Manifest 和 RAR 尚未准备，不能被当作正式归档证据。
 `ArchiveLifecycleStatus` 是 `ArchiveExecutionStatus | ArchivePreparationStatus`，因此
 `ArchiveContextSummary.status` 同时能够表达预览准备状态和正式归档执行状态；`idle` 不表示尚未建立预览来源记录。
 
-type ArchiveMode 取 `standard_split` 或 `oversized_single_volume`。档位合同为：4GB 与 22GB 档预计超过 2 卷时升级，45GB 档最多 5 卷；不超过 225GB 使用 `standard_split`，超过 225GB 使用 `oversized_single_volume` 生成单一 `<案件名>.rar`。默认资源准入不再以旧 135GB 上限阻断，但部署人员可显式配置本机输入安全上限。标准分卷初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 表达标准档位每卷上限，`ArchivePart.size_bytes` 表达实际文件大小；超大单卷的 `volume_size_bytes` 与 `volume_tier_gb` 为空，附件与 Word 计划继续保留这些空值而不伪造光盘容量档位。
+type ArchiveMode 取 `standard_split` 或 `oversized_single_volume`，type ArchiveMedium 取 `optical_disc` 或 `hard_drive`，两者固定一一对应。档位合同为：4GB 与 22GB 档预计超过 2 卷时升级，45GB 档最多 5 卷；不超过 225GB 使用 `standard_split` 和光盘，超过 225GB 使用 `oversized_single_volume` 和硬盘并生成单一 `<案件名>.rar`。模式只看压缩前输入总量，压缩后的实际大小不重新分类。默认资源准入不再以旧 135GB 上限阻断，但部署人员可显式配置本机输入安全上限。标准分卷初始执行后最多允许 2 次向上 replan。`volume_size_bytes` 表达标准档位每卷上限，`ArchivePart.size_bytes` 表达实际文件大小；超大单卷的 `volume_size_bytes` 与 `volume_tier_gb` 为空，附件与 Word 计划继续保留这些空值而不伪造光盘容量档位。
 
 `ArchiveExecutionStatus` 表示 idle、planning、blocked、compressing、validating、
 hashing、completed 或 failed。WinRAR 成功退出不直接产生清单；只有当前执行目录中的
 标准分卷按数字连续、非零且满足 `0 < actual_size <= volume_size_bytes`；超大单卷只接受一个非空的 `<案件名>.rar`。首个 RAR 通过
 WinRAR 完整性测试后，才能使用 Python `hashlib` 流式计算 MD5 并构建 `ArchiveManifest`。
-Manifest 的 parts 按实际文件系统结果排序，保存模式、文件名、`size_bytes`、MD5、光盘编号与刻录日期，不保存绝对路径。标准分卷额外保存 `volume_size_bytes` 和按实际大小选择的最小二进制 4GB/22GB/45GB `disc_capacity_bytes`；超大单卷这两个容量字段为空。未带模式的历史 Manifest 按旧十进制规则复核。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 MD5 校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
+Manifest 的 parts 按实际文件系统结果排序，保存模式、文件名、`size_bytes`、MD5、历史字段名 `disc_number` 所承载的介质编号与日期，不保存绝对路径。标准分卷额外保存 `volume_size_bytes` 和按实际大小选择的最小二进制 4GB/22GB/45GB `disc_capacity_bytes`；超大单卷这两个容量字段为空。`ArchiveTaskResult` 与 `DiscMappingResult` 对外同时投影 `archive_medium`，供审核界面和 Word 选择光盘或硬盘语义。未带模式的历史 Manifest 按旧十进制规则复核。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 MD5 校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
 
 当前生产 renderer 消费 `InspectionReport` 兼容数据、最终 `ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1` TemplateProfile。`DocumentRenderPlan` 是未来统一渲染合同，不属于当前生产模型。
 

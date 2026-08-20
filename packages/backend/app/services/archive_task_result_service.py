@@ -14,6 +14,7 @@ from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_manifest_service import validate_manifest_files, validate_manifest_metadata
 from .archive_publication_identity_service import assert_publication_identity
+from .disc_sequence_service import archive_medium_for_mode
 
 
 class ArchiveTaskResultService:
@@ -48,6 +49,7 @@ class ArchiveTaskResultService:
             task_id, str(attempt_id), str(attempt["manifest_id"]),
             verify_content=False,
         )
+        archive_mode = str(manifest.public_manifest.get("archive_mode") or "standard_split")
         plan = self.plans.get_latest_for_case(task["case_id"])
         disc_by_ordinal = {
             slot["ordinal"]: slot.get("disc_mapping") or {}
@@ -77,6 +79,8 @@ class ArchiveTaskResultService:
             "task_id": task_id,
             "case_id": task["case_id"],
             "manifest_id": attempt["manifest_id"],
+            "archive_mode": archive_mode,
+            "archive_medium": archive_medium_for_mode(archive_mode),
             "plan_row_revision": None if plan is None else plan["revision"],
             "verified_slots": [] if plan is None else plan["verified_slots"],
             "assets": self.assets.list_public_for_task(task_id),

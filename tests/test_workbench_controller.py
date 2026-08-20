@@ -1307,6 +1307,8 @@ def test_archive_mapping_and_verified_result_routes(app_services):
             assert result.status_code == 200, result.text
             assert compute_md5.call_count == 0
             assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"
+            assert result.json()["data"]["archive_mode"] == "standard_split"
+            assert result.json()["data"]["archive_medium"] == "optical_disc"
             assert result.json()["data"]["parts"][0]["part_id"] == "SYNTHETIC-PART-API"
             assert "internal_locator" not in result.text
             download = client.get(

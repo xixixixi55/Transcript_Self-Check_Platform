@@ -127,13 +127,15 @@ export default function RecordEditorForm({
             onPrepare={onPrepareArchive}
             manifest={archiveManifest}
             resultParts={archiveResult.result?.parts}
+            archiveMedium={archiveResult.result?.archive_medium ?? null}
             taskId={archiveResult.result?.task_id}
             error={archiveError || archiveResult.error}
             showPartDownload={!workbenchMode}
           />}
         <ReviewAttachmentsSection attachments={attachments} materials={introduction.evidence_list || []}
           hardwareDevice={report.inspection?.hardware_device || ''} photoFiles={photoFiles}
-          onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport} />
+          onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport}
+          archiveMedium={archiveResult.result?.archive_medium ?? null} />
         </ReviewSection>
       </fieldset>
 

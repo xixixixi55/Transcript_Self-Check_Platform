@@ -325,6 +325,7 @@ workflow_level: 3
   - 类型：低概率时序边界 Bug；不影响正常压缩、容量规划、归档产物或失败后的数据安全。
   - 用户复现：启动归档并使其进入可重试失败；在界面刚显示“压缩失败，可重试”时立即点击“重试”。若后台仍在把案件生命周期收敛为 `archive_interrupted` 并递增 case revision，前端携带的旧 revision 会收到 409 `REVISION_CONFLICT`。
   - 临时规避：刷新或重新进入案件后再次点击重试；读取到最新案件 revision 后通常可成功。
+
   - 根因：retry 对 task revision 与 case revision 分阶段校验，案件读取与新 attempt/task 创建不在同一原子事务；后台失败收尾可在检查与使用之间推进 case revision。
   - 后续验收：内部失败收尾仅推进生命周期且 source/draft/report fingerprint 未变化时，重试应受控重基并成功；真实用户编辑、来源变化或新活动任务仍必须返回 409；增加确定性并发测试，不以盲目重跑掩盖竞态。
 
@@ -348,3 +349,15 @@ workflow_level: 3
   - code_review: [PASS] 用户补充位置分组命名后重新冻结候选；独立复审继续识别并关闭目录选择期间 revision 竞态、未来 revision 误放行及空图片表示误判，最终确认先前跨层引用、图片读取容错、零图片提示、数量提示优先级和非图片写入失败合同均已修复，无剩余 MUST/SHOULD。最终门控仅更新一处旧帮助文案测试断言后再次复审 PASS。
   - final_gate: [ENVIRONMENT-BLOCKED] 两次使用独立可写合成数据根执行 scoped full gate：预检、架构、类型、治理、仓库资产及前端 60 files / 387 tests 均 PASS；后端两次均为 1213 passed、3 skipped、3 failed、7 errors，全部归因既有共享模板状态 `TEMPLATE_VERSION_IMMUTABLE`。对应 10 个失败/错误用例换全新数据根隔离重跑 10/10 PASS，T044 后端图片与 revision 定向 9/9 PASS；按重复失败终止规则未继续重跑，生产构建阶段因前置全量测试失败未执行。
   - manual_acceptance: [PENDING] 真实 Windows 桌面 `.docx` 尚需确认：完整图片生成附件2、异常图片仍成功导出且附件2省略。
+
+- [x] T045 超大单卷使用用户填写的硬盘编号并生成硬盘文书（用户需求反馈，补充压缩前编号体验优化）。
+  - 规则：继续按压缩前归档输入总量选择现有模式；不超过 `225 × 1024³` 字节保持标准光盘分卷，超过阈值保持一个不分卷的大 RAR。`standard_split` 对应光盘，`oversized_single_volume` 对应硬盘；恰好 225GB 仍属于光盘。
+  - 编号：编号由用户在审核编辑界面填写。标准分卷要求 `GPyyyyMMdd-序号` 首盘号并按实际 part 顺序生成连续光盘编号；超大单卷要求一个 `YPyyyyMMdd-序号` 硬盘编号，不生成后续编号。压缩可在编号为空时继续，错误介质前缀不得成为已完成映射。
+  - Word：光盘正文、附件摘要和附件3保持“封盘/刻录/光盘”语义并在摘要列出全部编号；硬盘正文改为“结果以拷贝的方式保存在编号为……的硬盘中”，附件摘要改为“本鉴定中心拷贝的编号为……的硬盘1块，共1页”，附件3显示“硬盘编号”及“本鉴定中心拷贝的……号硬盘”。
+  - 文件：`packages/shared/types/archive.ts`、`archiveCompletion.ts`、`archiveTask.ts`；`packages/backend/app/services/disc_sequence_service.py`、`archive_execution_service.py`、`archive_task_api_service.py`、`archive_task_result_service.py`、`disc_mapping_service.py`、`attachment_plan_models_service.py`、`attachment_plan_service.py`、`attachment_docx_renderer_service.py`、`template_filler_service.py`；`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`；相关现有测试、delta/design 与 living spec。
+  - 验证：盘号/硬盘号解析映射、归档结果投影、AttachmentPlan 和真实 DOCX XML 定向 pytest；`ArchiveCompletionPanel` 定向 Vitest；`npm run lint:arch`、`npm run typecheck`、scoped strict docs 与 `git diff --check`。核心介质映射与 Word 文案断言需验证区分度。
+  - 自动化证据：后端归档规划、介质映射、AttachmentPlan、DOCX renderer 与统一导出定向 pytest 121 passed；归档结果 HTTP 投影 1 passed；前端介质输入、状态卡、审核附件、待办校验与页面接线 54 tests passed；officecli 硬盘版合成 DOCX validate PASS，document builder 14 passed；`npm run pre-commit`、架构、类型、治理、quick docs、仓库资产与 `git diff --check` PASS。
+  - 区分度证据：临时把超大单卷前缀由 `YP` 错设为 `GP` 后，硬盘映射回归 3 failed；恢复后映射套件 9 passed。临时把硬盘附件摘要“拷贝”改回“刻制”后，硬盘 Word 精确文案用例按预期失败；恢复后 DOCX renderer 32 passed。
+  - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有 T044 真实 Word 人工验收待完成，候选尚未冻结；按 Harness 节奏不在单项反馈收敛时重复运行 scoped full gate 或最终 Review。
+  - manual_acceptance: N/A（本任务不改变模板样式、分页或图形结构；合成硬盘版 DOCX 已通过精确文本/页计划断言和 officecli 文件结构校验。真实案件数据与 225GB 以上实际 WinRAR 执行不进入仓库测试。）
+  - 追加反馈：归档模式尚未确定时，审核页使用中性的“介质编号”标签，同时接受 GP/YP 两种合法格式并明确说明最终介质由压缩前归档总量决定；模式确定后再切换为光盘或硬盘精确校验。补充前端 4 files / 49 tests PASS，覆盖压缩前填写并自动保存 YP、GP/YP 双格式及非法前缀校验；Impeccable 界面规范扫描 0 findings。
