@@ -118,11 +118,11 @@ def test_unified_export_writes_bundle_and_audit(database, tmp_path, monkeypatch)
     assert result["rar_filenames"] == ["SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"]
     assert result["hash_verification_image"] == "hash.png"
     assert (export_path / "SYNTHETIC-CASE.docx").exists()
-    assert not (export_path / "SYNTHETIC-CASE.part1.rar").exists()
-    assert not (export_path / "SYNTHETIC-CASE.part2.rar").exists()
+    assert (export_path / "SYNTHETIC-CASE.part1.rar").read_bytes() == b"SYNTHETIC/RAR"
+    assert (export_path / "SYNTHETIC-CASE.part2.rar").read_bytes() == b"SYNTHETIC/RAR"
     assert not (export_path / "hash-verification.html").exists()
-    assert (export_path.parent / "SYNTHETIC-CASE.part1.rar").exists()
-    assert (export_path.parent / "SYNTHETIC-CASE.part2.rar").exists()
+    assert not (export_path.parent / "SYNTHETIC-CASE.part1.rar").exists()
+    assert not (export_path.parent / "SYNTHETIC-CASE.part2.rar").exists()
     assert (export_path / "hash.png").exists()
     connection = database.connect()
     try:
@@ -171,15 +171,10 @@ def test_hash_capture_failure_preserves_previous_complete_bundle(database, tmp_p
 def test_bundle_publish_failure_rolls_back_every_replaced_file(tmp_path, monkeypatch) -> None:
     staging = tmp_path / "staging"
     export = tmp_path / "export"
-    archive_export = tmp_path / "archive-export"
-    staging.mkdir(); export.mkdir(); archive_export.mkdir()
-    for name in ("report.docx", "hash.png"):
+    staging.mkdir(); export.mkdir()
+    for name in ("report.docx", "part1.rar", "hash.png"):
         (staging / name).write_bytes(f"NEW-{name}".encode())
         (export / name).write_bytes(f"OLD-{name}".encode())
-    (staging / "part1.rar").write_bytes(b"NEW-part1.rar")
-    (archive_export / "part1.rar").write_bytes(b"OLD-part1.rar")
-    legacy_rar = export / "part1.rar"
-    legacy_rar.write_bytes(b"LEGACY-part1.rar")
     legacy_html = export / "hash-verification.html"
     legacy_html.write_bytes(b"LEGACY-hash-verification.html")
     real_replace = unified_export_service.os.replace
@@ -193,25 +188,13 @@ def test_bundle_publish_failure_rolls_back_every_replaced_file(tmp_path, monkeyp
     monkeypatch.setattr(unified_export_service.os, "replace", fail_second_publish)
     with pytest.raises(UnifiedExportError) as error:
         unified_export_service._publish_staged_bundle(
-            staging, {
-                "report.docx": export,
-                "part1.rar": archive_export,
-                "hash.png": export,
-            }, cleanup_paths=[legacy_rar],
+            staging, export, ["report.docx", "part1.rar", "hash.png"],
         )
 
     assert error.value.code == "EXPORT_PUBLISH_FAILED"
-    for name in ("report.docx", "hash.png"):
+    for name in ("report.docx", "part1.rar", "hash.png"):
         assert (export / name).read_bytes() == f"OLD-{name}".encode()
-    assert (archive_export / "part1.rar").read_bytes() == b"OLD-part1.rar"
-    assert legacy_rar.read_bytes() == b"LEGACY-part1.rar"
     assert legacy_html.read_bytes() == b"LEGACY-hash-verification.html"
-
-
-def test_archive_export_path_falls_back_at_filesystem_root(tmp_path) -> None:
-    root = Path(tmp_path.anchor)
-    assert unified_export_service._archive_export_path(root) == root
-    assert unified_export_service._archive_export_path(tmp_path) == tmp_path.parent
 
 
 def test_unified_export_forwards_user_word_filename(database, tmp_path, monkeypatch) -> None:

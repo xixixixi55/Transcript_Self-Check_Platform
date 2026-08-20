@@ -114,8 +114,8 @@
 系统 MUST 满足以下现有合同：
 #### Scenario: 确认无误后统一导出到用户路径
 - WHEN 案件进入归档完成态且民警点击「导出」
-- THEN 系统提示用户选择导出文件夹，把最新编辑数据生成的 Word 与 HashMyFiles 校验 PNG 写入所选文件夹，并把全部 RAR 文件写入所选文件夹的上级文件夹
-- AND 所选文件夹没有上级文件夹时，全部 RAR 文件与 Word、HashMyFiles 校验 PNG 写入同一所选文件夹
+- THEN 系统提示用户选择导出文件夹，把最新编辑数据生成的 Word、HashMyFiles 校验 PNG 与全部 RAR 文件写入所选文件夹
+- AND 本次统一导出不在所选文件夹的上级目录生成新的 RAR 文件
 - AND 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
 - AND Word 使用案件明确引用且当前重新校验通过的 approved 模板版本生成 .docx；带 Manifest 的正式渲染失败时必须明确失败，不得静默回退到无 Manifest 的 officecli batch 输出
 - AND 系统启动真实 HashMyFiles.exe 窗口对全部导出 RAR 计算 MD5，最终 PNG 捕获其原生界面，每个 RAR 一行且只显示 Filename、MD5、File Size（值为字节）

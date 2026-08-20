@@ -1,7 +1,6 @@
 """Unified export: latest Word + all RAR parts + HashMyFiles verification PNG.
 
-The service writes Word and PNG into the user-chosen export path, while RAR
-parts go to its parent (or the chosen path itself when it has no parent).
+The service writes the complete archive bundle into the user-chosen export path.
 Inputs are pre-resolved by the controller (report, validated manifest, physical
 part files, photos, template context) so the service stays testable.
 """
@@ -108,15 +107,10 @@ def unified_export(
             hash_image = runner(staged_rar_paths, staging_path)
         except HashMyFilesError as error:
             raise UnifiedExportError(error.code, error.args[0]) from error
-        archive_export_path = _archive_export_path(export_path)
-        _publish_staged_bundle(staging_path, {
-            word_filename: export_path,
-            hash_image: export_path,
-            **{name: archive_export_path for name in rar_filenames},
-        }, cleanup_paths=[
-            export_path / name for name in rar_filenames
-            if archive_export_path != export_path
-        ])
+        _publish_staged_bundle(
+            staging_path, export_path,
+            [word_filename, *rar_filenames, hash_image],
+        )
 
     exported_at = _utc_now()
     _record_export(
@@ -133,51 +127,36 @@ def unified_export(
 
 
 def _publish_staged_bundle(
-    staging_path: Path,
-    destinations: dict[str, Path],
-    cleanup_paths: list[Path] | None = None,
+    staging_path: Path, export_path: Path, filenames: list[str],
 ) -> None:
-    """Publish one complete multi-directory bundle and roll it back on error."""
-    targets = {
-        Path(name).name: directory / Path(name).name
-        for name, directory in destinations.items()
-    }
+    """Publish one complete bundle and restore the previous version on error."""
+    names = list(dict.fromkeys(Path(name).name for name in filenames))
     rollback_path = staging_path / ".rollback"
     rollback_path.mkdir()
-    backed_up: list[tuple[Path, Path]] = []
-    published: list[Path] = []
+    backed_up: list[str] = []
+    published: list[str] = []
     try:
-        legacy_html = staging_path.parent / "hash-verification.html"
-        backup_targets = list(dict.fromkeys([
-            *targets.values(), *(cleanup_paths or []), legacy_html,
-        ]))
-        for index, target in enumerate(backup_targets):
+        for name in [*names, "hash-verification.html"]:
+            target = export_path / name
             if target.is_file():
-                backup = rollback_path / f"{index}-{target.name}"
-                os.replace(target, backup)
-                backed_up.append((target, backup))
-        for name, target in targets.items():
+                os.replace(target, rollback_path / name)
+                backed_up.append(name)
+        for name in names:
             source = staging_path / name
             if not source.is_file():
                 raise OSError("staged export artifact missing")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(source, target)
-            published.append(target)
+            os.replace(source, export_path / name)
+            published.append(name)
     except OSError as error:
-        for target in published:
-            target.unlink(missing_ok=True)
-        for target, backup in backed_up:
+        for name in published:
+            (export_path / name).unlink(missing_ok=True)
+        for name in backed_up:
+            backup = rollback_path / name
             if backup.is_file():
-                os.replace(backup, target)
+                os.replace(backup, export_path / name)
         raise UnifiedExportError(
             "EXPORT_PUBLISH_FAILED", "统一导出文件发布失败，已保留上一版导出。",
         ) from error
-
-
-def _archive_export_path(export_path: Path) -> Path:
-    """Resolve the RAR destination, falling back at a filesystem root."""
-    parent = export_path.parent
-    return export_path if parent == export_path else parent
 
 
 def with_disc_mapping(

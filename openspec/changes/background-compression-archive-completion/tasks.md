@@ -327,3 +327,10 @@ workflow_level: 3
   - 临时规避：刷新或重新进入案件后再次点击重试；读取到最新案件 revision 后通常可成功。
   - 根因：retry 对 task revision 与 case revision 分阶段校验，案件读取与新 attempt/task 创建不在同一原子事务；后台失败收尾可在检查与使用之间推进 case revision。
   - 后续验收：内部失败收尾仅推进生命周期且 source/draft/report fingerprint 未变化时，重试应受控重基并成功；真实用户编辑、来源变化或新活动任务仍必须返回 409；增加确定性并发测试，不以盲目重跑掩盖竞态。
+
+- [x] T043 将统一导出压缩包归位到所选文件夹（用户需求）。
+  - 内容：统一导出时 Word、HashMyFiles 校验 PNG 与全部 RAR 分卷均写入用户选择的文件夹；发布阶段不访问所选文件夹上级目录，保留目录授权边界。
+  - 文件：`packages/backend/app/services/unified_export_service.py`、`tests/test_unified_export_service.py`、本变更包 `design.md`、delta spec 与 living spec。
+  - 验证：统一导出与调用链后端定向 pytest 52 passed、2 个既有 `ARCHIVE_CONFIGURED_ROOT_INVALID` warnings；架构检查、TypeScript 类型检查、`npm run verify:quick` 与 `git diff --check` 通过；当前变更 scoped strict docs 13 checks/0 drift。
+  - final_gate: [ENVIRONMENT-BLOCKED] scoped full gate 的全量测试在默认数据根因只读数据库失败；切换可写数据根后相关失败用例 10 passed，但全量运行又命中既有 `TEMPLATE_VERSION_IMMUTABLE` 测试隔离冲突（1205 passed、3 failed、7 errors）。
+  - code_review: [N/A] 用户明确要求本轮不执行独立审查。
