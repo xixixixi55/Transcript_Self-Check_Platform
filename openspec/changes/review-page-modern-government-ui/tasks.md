@@ -540,3 +540,32 @@ spec_sync_evidence: achievement-overview homepage scenarios synchronized into op
 - 图片资产定向 Pytest：`tests/test_workbench_case_assets.py` 12 项用例通过；覆盖英文/中文文件名、上传读取、重启恢复、签名/大小限制、损坏/缺失、租约、revision、绑定冲突和导出解析。
 - 架构检查、共享/前端 TypeScript 类型检查、治理测试、文档快速检查、仓库资产检查、`verify:quick` 与 `git diff --check` 通过。
 - 人工验收待部署 EXE 复测；自动化已覆盖导致裂图的 HTTP 失败链路，但不能替代目标电脑中的真实浏览器显示确认。
+
+## 第十九阶段：附件2图片折叠与紧凑图标入口
+
+### 目标与验收标准
+
+- [x] 附件2提供纯图标的展开/收起入口；完整展示收起后隐藏缩略图、上传槽位和批量导入操作，并按检材逐项显示 `0/2`、`1/2` 或 `2/2`。
+- [x] 再次展开后恢复既有双图片槽位、上传、删除和待处理图片操作；切换展示状态不修改图片列表、检材映射、草稿 revision 或 Word 导出结果。
+- [x] 展开/收起和批量导入按钮均只显示图标；鼠标悬浮或键盘聚焦时显示动作提示，并提供同义 `aria-label`、键盘焦点和展开状态语义。
+- [x] 批量导入的文件选择、格式、数量、排序、容量和错误反馈规则保持不变。
+
+### Layer 11：组件、样式与回归验证
+
+- [x] 修改 `packages/frontend/src/components/ImageUploader.tsx`，实现附件2渐进披露、逐检材完成度摘要以及纯图标操作入口；既有 `ReviewAttachmentsSection.tsx` 接线无需改动。
+- [x] 修改 `packages/frontend/src/reviewWorkspace.css`，让完成度摘要和图标按钮在桌面及窄屏下保持清晰对齐，并复用现有审核页颜色、间距和焦点体系。
+- [x] 更新 `packages/frontend/src/components/ImageUploader.test.tsx` 及必要的审核编辑组件测试，覆盖展开/收起、`0/2`、`1/2`、`2/2`、恢复完整展示、纯图标可访问名称、Tooltip 和批量导入行为不变。
+- [x] 先运行附件组件定向 Vitest，再运行 `npm run lint:arch`、`npm run typecheck`、`npm run verify:quick`、`npm run verify:docs:strict -- --change review-page-modern-government-ui` 与 `git diff --check`。
+
+### 影响范围
+
+- 影响层级：Layer 11 FE_Components 与审核页样式；不修改共享类型、后端接口、图片持久化、`photo_groups` 映射、上传校验或 Word 导出合同。
+- 复用既有 `review-page-modern-government-ui` 变更包中“附件2按检材分组的双图片卡片”能力，不创建新的变更包。
+- 人工验收：在桌面与窄屏真实界面确认收起摘要可扫描、纯图标含义在悬浮时清楚、键盘焦点可见，展开后图片管理能力完整恢复。
+
+### 第十九阶段验证记录
+
+- 失败用例先复现：旧实现新增的纯图标入口与折叠完成度测试精确失败 2 项，既有 17 项通过；实现后附件组件 19/19 通过，审核编辑关联测试合计 3 files / 37 passed。
+- 架构检查与共享/前端 TypeScript 类型检查通过；折叠状态只保存在组件会话内，`onChange` 无副作用断言确认展开/收起不修改图片列表。
+- Impeccable 机械检测只报告本次改动前已存在的侧边强调线和宽度动画；真实桌面与 640px 窄屏检查确认纯图标入口、双槽卡片和响应式排列清晰，窄屏首轮发现的图标按钮整行拉伸已修正并复核。
+- delta 已与实现核对并同步到 living spec 的 REQ-029；未强制接管被其他页面占用的真实案件，折叠后的三种完成度由合成组件测试覆盖。

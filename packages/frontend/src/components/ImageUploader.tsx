@@ -1,7 +1,7 @@
 // Layer 11: FE_Components — 附件图片上传组件
-import React from 'react'
-import { Button, Upload } from 'antd'
-import { UploadOutlined } from '@ant-design/icons'
+import React, { useState } from 'react'
+import { Button, Tooltip, Upload } from 'antd'
+import { DownOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import { SUPPORTED_IMAGE_FORMATS } from '@biji/shared/constants'
 import type { EvidenceItem } from '@biji/shared/types'
@@ -19,6 +19,7 @@ function materialLabel(material: EvidenceItem, index: number): string {
 }
 
 export default function ImageUploader({ materials, photos, onChange }: Props) {
+  const [expanded, setExpanded] = useState(true)
   const { inputRef, beforeUpload, importBatch, openBatchPicker } = useBatchImageImport({
     materialCount: materials.length, onChange,
   })
@@ -35,14 +36,15 @@ export default function ImageUploader({ materials, photos, onChange }: Props) {
   const capacity = materials.length * 2
   const nextEmptySlot = capacity > 0 ? Math.min(photos.length, capacity - 1) : -1
   const overflowPhotos = photos.slice(capacity)
+  const toggleLabel = expanded ? '收起图片' : '展开图片'
 
   return (
     <div className="material-photo-uploader">
       {materials.length ? <>
         <div className="material-photo-uploader__header">
-          <p className="material-photo-uploader__hint">
+          {expanded && <p className="material-photo-uploader__hint">
             每个检材对应两张图片；支持普通数字自然排序，或用 1-1、1-2 表示第一个检材的两张图片。
-          </p>
+          </p>}
           <input
             ref={inputRef}
             type="file"
@@ -52,11 +54,22 @@ export default function ImageUploader({ materials, photos, onChange }: Props) {
             aria-label="批量导入图片"
             onChange={importBatch}
           />
-          <Button icon={<UploadOutlined />} onClick={openBatchPicker}>
-            批量导入图片
-          </Button>
+          <div className="material-photo-uploader__actions">
+            {expanded && <Tooltip title="批量导入图片">
+              <Button type="text" size="small" shape="circle" icon={<UploadOutlined />}
+                aria-label="批量导入图片" onClick={openBatchPicker} />
+            </Tooltip>}
+            <Tooltip title={toggleLabel}>
+              <Button type="text" size="small" shape="circle"
+                icon={expanded ? <UpOutlined /> : <DownOutlined />}
+                aria-label={toggleLabel}
+                aria-expanded={expanded}
+                aria-controls="material-photo-content"
+                onClick={() => setExpanded(value => !value)} />
+            </Tooltip>
+          </div>
         </div>
-        <div className="material-photo-uploader__groups">
+        {expanded ? <div id="material-photo-content" className="material-photo-uploader__groups">
           {materials.map((material, materialIndex) => (
           <section className="material-photo-group" key={material.evidence_id || material.id || materialIndex}>
             <div className="material-photo-group__title">{materialLabel(material, materialIndex)}</div>
@@ -88,13 +101,26 @@ export default function ImageUploader({ materials, photos, onChange }: Props) {
             </div>
           </section>
           ))}
-        </div>
+        </div> : <div id="material-photo-content" className="material-photo-summary" role="list">
+          {materials.map((material, materialIndex) => {
+            const filledCount = Math.min(2, Math.max(0, photos.length - materialIndex * 2))
+            return (
+              <div className="material-photo-summary__item" role="listitem"
+                key={material.evidence_id || material.id || materialIndex}>
+                <span>{materialLabel(material, materialIndex)}</span>
+                <span className={`material-photo-summary__count${filledCount === 2 ? ' material-photo-summary__count--complete' : ''}`}>
+                  {filledCount}/2
+                </span>
+              </div>
+            )
+          })}
+        </div>}
       </> : (
         <div className="material-photo-uploader__empty">
           请先在“检材情况”中添加检材，再上传对应图片。
         </div>
       )}
-      {overflowPhotos.length > 0 && (
+      {expanded && overflowPhotos.length > 0 && (
         <section className="material-photo-overflow">
           <div className="material-photo-overflow__title">待处理图片</div>
           <p>当前图片多于检材可对应数量，请删除多余图片或先补充检材。</p>

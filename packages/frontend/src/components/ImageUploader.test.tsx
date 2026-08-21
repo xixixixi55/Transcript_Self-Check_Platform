@@ -39,14 +39,26 @@ vi.mock('antd', () => {
   )
   return {
     Upload: Object.assign(UploadMock, { LIST_IGNORE: 'LIST_IGNORE' }),
-    Button: ({ children, icon, onClick }: { children: React.ReactNode; icon?: React.ReactNode; onClick?: () => void }) => (
-      <button onClick={onClick}>{icon}{children}</button>
+    Button: ({ children, icon, onClick, ...props }: {
+      children?: React.ReactNode
+      icon?: React.ReactNode
+      onClick?: () => void
+      [key: string]: unknown
+    }) => (
+      <button {...props} onClick={onClick}>{icon}{children}</button>
+    ),
+    Tooltip: ({ children, title }: { children: React.ReactNode; title: string }) => (
+      <span title={title}>{children}</span>
     ),
     message: { error: vi.fn() },
   }
 })
 
-vi.mock('@ant-design/icons', () => ({ UploadOutlined: () => null }))
+vi.mock('@ant-design/icons', () => ({
+  DownOutlined: () => null,
+  UpOutlined: () => null,
+  UploadOutlined: () => null,
+}))
 
 const materials: EvidenceItem[] = [
   { id: 'material-synthetic-1', evidence_number: 'SYN-JC00000001', device_type: '', device_name: '', model: '' },
@@ -78,6 +90,43 @@ describe('ImageUploader material groups', () => {
       'case2_pic2.jpg', 'case2_pic2.png', 'case2_pic10.png', 'case10_pic1.png',
     ])
     expect(onChange.mock.calls[0][0].every((file: UploadFile) => file.originFileObj)).toBe(true)
+  })
+
+  it('将批量导入和图片收起操作显示为带提示的纯图标按钮', () => {
+    render(<ImageUploader materials={materials} photos={[]} onChange={vi.fn()} />)
+
+    const batchButton = screen.getByRole('button', { name: '批量导入图片' })
+    const collapseButton = screen.getByRole('button', { name: '收起图片' })
+    expect(batchButton.textContent).toBe('')
+    expect(collapseButton.textContent).toBe('')
+    expect(screen.getByTitle('批量导入图片')).toBeTruthy()
+    expect(screen.getByTitle('收起图片')).toBeTruthy()
+    expect(collapseButton.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('收起后按检材显示0/2、1/2和2/2，并可无副作用恢复完整展示', () => {
+    const threeMaterials: EvidenceItem[] = [...materials, {
+      id: 'material-synthetic-3', evidence_number: 'SYN-JC00000003',
+      device_type: '', device_name: '', model: '',
+    }]
+    const onChange = vi.fn()
+    render(<ImageUploader materials={threeMaterials} photos={[photo(1), photo(2), photo(3)]} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '收起图片' }))
+
+    expect(screen.getByText('2/2')).toBeTruthy()
+    expect(screen.getByText('1/2')).toBeTruthy()
+    expect(screen.getByText('0/2')).toBeTruthy()
+    expect(screen.queryByText('图片 1')).toBeNull()
+    expect(screen.queryByRole('button', { name: '批量导入图片' })).toBeNull()
+    const expandButton = screen.getByRole('button', { name: '展开图片' })
+    expect(expandButton.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(expandButton)
+
+    expect(screen.getAllByText('图片 1')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: '批量导入图片' })).toBeTruthy()
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('按检材位置-图片位置识别三组图片且不依赖检材编号', () => {

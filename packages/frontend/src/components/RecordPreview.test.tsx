@@ -20,12 +20,15 @@ vi.mock('antd', () => ({
   Divider: () => null,
   Alert: () => null,
   Spin: () => null,
+  Tooltip: ({ children }: { children: React.ReactNode }) => children,
   Image: () => null,
   Menu: () => null,
   Layout: Object.assign(() => null, { Header: () => null, Content: () => null, Footer: () => null }),
 }))
 
 vi.mock('@ant-design/icons', () => ({
+  DownOutlined: () => null,
+  UpOutlined: () => null,
   UploadOutlined: () => null,
   FolderOpenOutlined: () => null,
   FileTextOutlined: () => null,
