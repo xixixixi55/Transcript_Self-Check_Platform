@@ -116,6 +116,7 @@
 - WHEN 案件进入归档完成态且民警点击「导出」
 - THEN 系统提示用户选择导出文件夹，把最新编辑数据生成的 Word、HashMyFiles 校验 PNG 与全部 RAR 文件写入所选文件夹
 - AND 本次统一导出不在所选文件夹的上级目录生成新的 RAR 文件
+- AND 所选目录位于文枢程序目录或用户数据目录中时，系统必须在签发目录授权和写入任何文件前明确拒绝，不得污染便携发布包或内部工作数据
 - AND 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
 - AND Word 使用案件明确引用且当前重新校验通过的 approved 模板版本生成 .docx；带 Manifest 的正式渲染失败时必须明确失败，不得静默回退到无 Manifest 的 officecli batch 输出
 - AND 系统启动真实 HashMyFiles.exe 窗口对全部导出 RAR 计算 MD5，最终 PNG 捕获其原生界面，每个 RAR 一行且只显示 Filename、MD5、File Size（值为字节）
@@ -128,6 +129,7 @@
 - AND 成功选择目录后，系统持久化该导出目录作为本地偏好
 - AND 两处入口复用同一导出目录偏好，后续再次打开时默认定位到上次成功选择且仍然存在的目录
 - AND 用户取消选择不得覆盖已记忆目录，已记忆目录不存在或偏好损坏时安全回退到系统默认位置
+- AND 被判定为程序目录或用户数据目录的选择不得写入目录偏好，后续合法选择仍从上一次有效目录继续
 
 #### Scenario: 审核编辑界面单独导出 Word 到所选目录
 - WHEN 民警在审核编辑界面点击「导出 Word」、确认文件名并在 Windows 原生目录选择器中选择目录

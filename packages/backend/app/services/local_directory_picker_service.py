@@ -17,6 +17,7 @@ from ..repository.workbench_errors import WorkbenchPersistenceError
 logger = logging.getLogger(__name__)
 
 PowerShellRunner = Callable[..., Any]
+SelectionValidator = Callable[[Path], Any]
 
 def _folder_picker_script(description: str, initial_directory: str | None = None) -> str:
     """Build the native dialog script with direct HWND Z-order enforcement."""
@@ -196,6 +197,7 @@ class LocalDirectoryPickerService:
         description: str = "选择报告目录",
         *,
         history_kind: DirectoryHistoryKind | None = None,
+        selection_validator: SelectionValidator | None = None,
     ) -> str | None:
         if self.platform_name != "nt":
             logger.warning("directory picker: unavailable on platform %s", self.platform_name)
@@ -253,6 +255,8 @@ class LocalDirectoryPickerService:
         if not candidate.is_absolute() or not candidate.is_dir():
             logger.error("directory picker: selected path rejected by safety checks")
             raise WorkbenchPersistenceError("DIRECTORY_PICKER_FAILED")
+        if selection_validator is not None:
+            selection_validator(candidate)
         if "PICKER_TOPMOST_NOT_CONFIRMED" in (result.stderr or ""):
             logger.warning("directory picker: native topmost state was not confirmed")
         if "PICKER_FOREGROUND_OWNER_NOT_CAPTURED" in (result.stderr or ""):

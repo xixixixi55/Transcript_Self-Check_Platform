@@ -151,6 +151,31 @@ def test_export_picker_cancel_preserves_persisted_directory(tmp_path: Path):
     assert history.last_directory("export") == str(previous)
 
 
+def test_export_picker_validation_runs_before_history_update(tmp_path: Path):
+    previous = tmp_path / "SYNTHETIC-PREVIOUS"
+    rejected = tmp_path / "SYNTHETIC-REJECTED"
+    previous.mkdir()
+    rejected.mkdir()
+    history = LocalDirectoryHistoryRepository(tmp_path / "history.json")
+    history.remember_directory("export", previous)
+    picker = LocalDirectoryPickerService(
+        runner=lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=0, stdout=str(rejected), stderr="",
+        ),
+        platform_name="nt",
+        history=history,
+    )
+
+    def reject(_path: Path) -> None:
+        raise WorkbenchPersistenceError("EXPORT_DIRECTORY_UNSAFE")
+
+    with pytest.raises(WorkbenchPersistenceError) as failure:
+        picker.select(history_kind="export", selection_validator=reject)
+
+    assert failure.value.code == "EXPORT_DIRECTORY_UNSAFE"
+    assert history.last_directory("export") == str(previous)
+
+
 def test_picker_escapes_quotes_in_description_and_initial_directory(tmp_path: Path):
     previous = tmp_path / "SYNTHETIC 中文 ' EXPORT"
     previous.mkdir()

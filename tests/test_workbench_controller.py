@@ -1613,8 +1613,30 @@ def test_select_export_directory_endpoint_covers_selected_cancelled_and_unavaila
     picker.select.assert_called_with(
         description="选择导出目录",
         history_kind="export",
+        selection_validator=workbench_controller.validate_export_directory,
     )
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["data"] == {"cancelled": True}
     assert unavailable.status_code == 422
     assert unavailable.json()["detail"]["code"] == "DIRECTORY_PICKER_UNAVAILABLE"
+
+
+def test_select_export_directory_rejects_program_root_without_issuing_grant(app_services):
+    from app.config import RUNTIME_PATHS
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    picker = MagicMock()
+    picker.select.return_value = str(RUNTIME_PATHS.resource_root)
+    app_services.directory_picker = picker
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), \
+         patch.object(
+             app_services.sources.authorization,
+             "issue_exact_directory_grant",
+             wraps=app_services.sources.authorization.issue_exact_directory_grant,
+         ) as issue_grant:
+        response = TestClient(app).post("/api/v1/workbench/select-export-directory")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "EXPORT_DIRECTORY_UNSAFE"
+    issue_grant.assert_not_called()

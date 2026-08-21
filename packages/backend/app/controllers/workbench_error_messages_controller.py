@@ -49,6 +49,7 @@ _MESSAGES = {
     "EXPORT_PUBLISH_FAILED": "统一导出文件发布失败，已保留上一版导出，请重试。",
     "EXPORT_PATH_NOT_AUTHORIZED": "导出目录授权已失效，请重新选择导出目录。",
     "EXPORT_PATH_INVALID": "导出目录不存在或不可用，请重新选择。",
+    "EXPORT_DIRECTORY_UNSAFE": "导出目录不能位于文枢程序或用户数据目录中，请选择其他位置。",
     "ARCHIVE_RESULT_NOT_AVAILABLE": "归档结果尚不可导出，请刷新归档状态后重试。",
     "EXPORT_LIFECYCLE_FAILED": "文件已导出，但案件状态更新失败，请刷新后核对导出目录。",
     "PHOTO_ASSETS_NOT_SAVED": "检测到已上传但尚未保存到草稿的图片，请返回审核页完成图片恢复与保存后再导出。",

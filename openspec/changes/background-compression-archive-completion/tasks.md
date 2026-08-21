@@ -371,3 +371,10 @@ workflow_level: 3
   - 自动化证据：归档设置、案件产物删除、Workbench HTTP 与归档生命周期后端定向 61 passed；历史默认根归档在切换根后仍可读取的区分用例 PASS；侧栏/弹窗前端 25 passed；TypeScript、生产构建、架构检查与 `git diff --check` PASS。
   - 视觉与审查：3440×1440 桌面实测确认折叠侧栏按钮为既有 40×40、10px 圆角、阴影和紫色反馈；Impeccable detector 仅命中既有侧栏 margin 动画。独立 finish review 关闭 portal 变量、恢复默认确认、加载失败重试和 mutation 失败反馈问题后最终 PASS。
   - final_gate: [DEFERRED] 当前 Level 3 变更包仍有 T044 真实 Word 人工验收待完成，候选尚未冻结；本反馈只运行增量门控，不重复 scoped full gate。
+
+- [x] T047 阻止统一导出污染便携版程序目录（用户实测回归）。
+  - 现象：统一导出允许选择文枢便携包程序目录，Word、RAR 和 HashMyFiles PNG 会成为完整性清单之外的未知文件；下次启动时启动器提示“程序文件不完整或包含未知文件”。取消另一个归档任务后立即删除只产生已安全忽略的 stale-owner 收敛日志，不是该启动提示的来源。
+  - 修复：导出目录选择器在记忆偏好前校验目录；控制器在签发一次性授权前复核；统一导出与审核页单独 Word 落盘前再次复核。程序资源根、用户数据根及其子目录统一返回稳定 `EXPORT_DIRECTORY_UNSAFE`，不消费授权、不写文件、不覆盖上次有效目录偏好。
+  - 文件：`packages/backend/app/services/archive_export_service.py`、`local_directory_picker_service.py`、`packages/backend/app/controllers/workbench_controller.py`、`record_controller.py`、`workbench_error_messages_controller.py`、对应后端测试、delta spec 与 living spec。
+  - 验证：导出服务、目录选择器、统一/单独 Word 控制器定向 pytest；`npm run verify:quick`、scoped strict docs 与 `git diff --check`。本反馈不冻结仍含人工验收待办的 Level 3 候选，不重复最终 Review/full gate。
+  - 自动化证据：统一导出服务、授权服务、目录选择器与统一/单独 Word 控制器定向 39 passed；`npm run verify:quick` PASS（架构、类型、治理、quick docs、仓库资产）；程序目录与用户数据目录拒绝、拒绝时不消费 grant、不覆盖有效目录历史及正常目录导出均有区分断言。首次扩大运行 `test_record_controller.py` 的 2 个无关 archive endpoint 用例因默认 SQLite 只读失败，受影响用例隔离重跑全部通过。

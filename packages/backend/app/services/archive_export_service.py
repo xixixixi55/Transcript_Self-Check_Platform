@@ -10,6 +10,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+from ..config import RUNTIME_PATHS
 from ..repository.asset_reference_repository import AssetReferenceRepository
 from ..repository.case_asset_storage import CaseAssetStorage
 from ..repository.workbench_errors import WorkbenchPersistenceError
@@ -17,6 +18,40 @@ from .attachment2_plan_service import with_compatible_material_photo_groups
 from .case_asset_service import within_asset_orphan_retention
 from .software_policy_service import normalize_runtime_software_tool_projection
 from .unified_export_service import UnifiedExportError, unified_export, with_disc_mapping
+
+
+def validate_export_directory(
+    export_path: str | Path,
+    *,
+    protected_roots: tuple[str | Path, ...] | None = None,
+) -> Path:
+    """Resolve an export directory without allowing writes into app-owned roots."""
+    candidate = Path(export_path)
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as error:
+        raise WorkbenchPersistenceError(
+            "EXPORT_PATH_INVALID", "导出目录不存在或不可用，请重新选择。",
+        ) from error
+    if not resolved.is_dir():
+        raise WorkbenchPersistenceError(
+            "EXPORT_PATH_INVALID", "导出目录不存在或不可用，请重新选择。",
+        )
+    roots = protected_roots or (
+        RUNTIME_PATHS.resource_root,
+        RUNTIME_PATHS.app_data_root,
+    )
+    for root in roots:
+        protected = Path(root).resolve(strict=False)
+        try:
+            resolved.relative_to(protected)
+        except ValueError:
+            continue
+        raise WorkbenchPersistenceError(
+            "EXPORT_DIRECTORY_UNSAFE",
+            "导出目录不能位于文枢程序或用户数据目录中，请选择其他位置。",
+        )
+    return resolved
 
 
 def resolve_case_word_manifest(api: Any, case_id: str) -> dict[str, Any] | None:
@@ -65,8 +100,9 @@ def export_bundle(
     shell = api.shells.get(case_id)
     if shell["revision"] != expected_revision:
         raise WorkbenchPersistenceError("REVISION_CONFLICT")
+    export_dir = validate_export_directory(export_path)
     if not api.sources.authorization.consume_exact_directory_grant(
-        directory_token, export_path,
+        directory_token, str(export_dir),
     ):
         raise WorkbenchPersistenceError(
             "EXPORT_PATH_NOT_AUTHORIZED", "导出目录未授权，请通过目录选择器重新选择。",
@@ -86,9 +122,6 @@ def export_bundle(
     attachments = report.setdefault("attachments", {})
     attachments["photo_ids"] = bound_photo_ids
     report = with_compatible_material_photo_groups(report)
-    export_dir = Path(export_path)
-    if not export_dir.is_absolute() or not export_dir.is_dir():
-        raise WorkbenchPersistenceError("EXPORT_PATH_INVALID", "导出路径无效。")
     try:
         output = unified_export(
             report=report, manifest=bundle["public_manifest"],

@@ -363,6 +363,37 @@ def test_standalone_word_export_rejects_reused_or_mismatched_directory_grant(cli
     assert generate.call_count == 1
 
 
+def test_standalone_word_export_rejects_unsafe_directory_before_consuming_grant(
+    client, tmp_path,
+):
+    from app.controllers import record_controller
+    from app.repository.workbench_errors import WorkbenchPersistenceError
+
+    services = MagicMock()
+    with patch.object(record_controller, "get_workbench_services", return_value=services), \
+         patch.object(
+             record_controller,
+             "validate_export_directory",
+             side_effect=WorkbenchPersistenceError(
+                 "EXPORT_DIRECTORY_UNSAFE",
+                 "导出目录不能位于文枢程序或用户数据目录中，请选择其他位置。",
+             ),
+         ):
+        response = client.post(
+            "/api/v1/records/export",
+            data={
+                "report_json": json.dumps(_directory_export_report(), ensure_ascii=False),
+                "export_path": str(tmp_path),
+                "directory_token": "token-SYNTHETIC",
+                "word_filename": "SYNTHETIC-result.docx",
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "EXPORT_DIRECTORY_UNSAFE"
+    services.sources.authorization.consume_exact_directory_grant.assert_not_called()
+
+
 def test_standalone_word_export_failure_preserves_existing_file(client, tmp_path):
     from app.controllers import record_controller
     from app.services.archive_authorization_service import ArchiveAuthorizationService

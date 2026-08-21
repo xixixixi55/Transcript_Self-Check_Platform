@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.services.archive_export_service import (  # noqa: E402
     export_bundle,
     resolve_case_word_manifest,
+    validate_export_directory,
 )
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive_manifest_projection_service import (  # noqa: E402
@@ -76,10 +77,29 @@ def test_export_bundle_rejects_unauthorized_path(tmp_path: Path) -> None:
     api = _api(consume_ok=False)
     with pytest.raises(WorkbenchPersistenceError) as error:
         export_bundle(
-            api, "case-synthetic", 3, "D:\\unauthorized\\out",
+            api, "case-synthetic", 3, str(tmp_path),
             directory_token="token-synthetic", template_context={},
         )
     assert error.value.code == "EXPORT_PATH_NOT_AUTHORIZED"
+
+
+def test_export_directory_rejects_program_and_user_data_roots(tmp_path: Path) -> None:
+    program_root = tmp_path / "SYNTHETIC-PROGRAM"
+    user_data_root = tmp_path / "SYNTHETIC-USER-DATA"
+    safe_root = tmp_path / "SYNTHETIC-EXPORT"
+    for path in (program_root, user_data_root, safe_root, program_root / "nested"):
+        path.mkdir(parents=True, exist_ok=True)
+
+    for unsafe in (program_root, program_root / "nested", user_data_root):
+        with pytest.raises(WorkbenchPersistenceError) as error:
+            validate_export_directory(
+                unsafe, protected_roots=(program_root, user_data_root),
+            )
+        assert error.value.code == "EXPORT_DIRECTORY_UNSAFE"
+
+    assert validate_export_directory(
+        safe_root, protected_roots=(program_root, user_data_root),
+    ) == safe_root.resolve()
 
 
 def test_standalone_word_manifest_matches_unified_export_projection() -> None:

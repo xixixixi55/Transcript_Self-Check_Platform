@@ -20,6 +20,8 @@ from ..services.archive_execution_service import (
     get_valid_manifest,
 )
 from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
+from ..services.archive_export_service import validate_export_directory
+from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..services.attachment_plan_service import AttachmentPlanError
 from ..services.attachment2_plan_service import material_photo_groups
 from ..services.attachment2_image_service import (
@@ -251,8 +253,15 @@ async def export_record_endpoint(
                 status_code=422,
                 detail={"code": "EXPORT_PATH_NOT_AUTHORIZED", "message": "导出目录授权已失效，请重新选择导出目录。"},
             )
+        try:
+            validated_export_path = validate_export_directory(export_path)
+        except WorkbenchPersistenceError as error:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": error.code, "message": str(error)},
+            ) from error
         if not get_workbench_services().sources.authorization.consume_exact_directory_grant(
-            directory_token, export_path,
+            directory_token, str(validated_export_path),
         ):
             raise HTTPException(
                 status_code=422,
@@ -268,8 +277,8 @@ async def export_record_endpoint(
     try:
         output_dir = os.path.join(OUTPUT_BASE, "exports")
         os.makedirs(output_dir, exist_ok=True)
-        selected_output = export_path if directory_export_requested else output_dir
-        staging_parent = export_path if directory_export_requested else None
+        selected_output = str(validated_export_path) if directory_export_requested else output_dir
+        staging_parent = str(validated_export_path) if directory_export_requested else None
         with tempfile.TemporaryDirectory(prefix=".biji-word-export-", dir=staging_parent) as staging_dir, \
              tempfile.TemporaryDirectory(prefix="attachment2-images-") as photo_dir:
             photo_paths = []
