@@ -289,13 +289,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(request.shared_defaults_patch).toEqual({ entrust_unit_prefix: '' })
   }, 15000)
 
-  it('accepts and autosaves a YP number before compression determines the medium', async () => {
-    initialLifecycle = 'archive_queued'
+  it.each(['archive_queued', 'archive_deferred'] as const)('accepts and autosaves a YP number without medium guidance while lifecycle is %s', async lifecycle => {
+    initialLifecycle = lifecycle
     renderPage()
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-    expect(await screen.findByText(/压缩正在后台进行，可以先填写编号/)).toBeTruthy()
-    expect(screen.getByText('GPyyyyMMdd-序号 · 光盘')).toBeTruthy()
-    expect(screen.getByText('YPyyyyMMdd-序号 · 硬盘')).toBeTruthy()
+    expect(screen.queryByText(/压缩正在后台进行，可以先填写编号/)).toBeNull()
+    expect(screen.queryByText(/最终介质由压缩前归档总量决定，可以先填写编号/)).toBeNull()
+    expect(screen.queryByText('GPyyyyMMdd-序号 · 光盘')).toBeNull()
+    expect(screen.queryByText('YPyyyyMMdd-序号 · 硬盘')).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: '介质编号' }), { target: { value: 'YP20260731-009' } })
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     const savedDraft = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft

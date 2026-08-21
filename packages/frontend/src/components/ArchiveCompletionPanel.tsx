@@ -1,6 +1,6 @@
 // Layer 11: FE_Components — unified first-disc input, deferred mapping and export.
 import React, { useEffect, useState } from 'react'
-import { Alert, Button, Input, Space, Tag, message } from 'antd'
+import { Alert, Button, Input, Space, message } from 'antd'
 import type { ArchiveMedium, CaseLifecycle } from '@biji/shared/types'
 import {
   resolveArchiveCompletionStatusForParts,
@@ -41,17 +41,6 @@ export function ArchiveCompletionPanel({
   const numberLabel = hardDrive ? '硬盘编号' : archiveMedium === 'optical_disc' ? '首个光盘编号' : '介质编号'
   const numberPlaceholder = hardDrive ? '如 YP20260413-01' : archiveMedium === 'optical_disc'
     ? '如 GP20260731-01' : '如 GP20260731-01 或 YP20260413-01'
-  const unknownMediumDescription = (compressing: boolean) => (
-    <Space direction="vertical" size={4}>
-      <span>{compressing
-        ? '压缩正在后台进行，可以先填写编号；完成后系统会按归档模式校验。'
-        : '最终介质由压缩前归档总量决定，可以先填写编号。'}</span>
-      <Space size={[4, 4]} wrap>
-        <Tag color="blue">GPyyyyMMdd-序号 · 光盘</Tag>
-        <Tag color="gold">YPyyyyMMdd-序号 · 硬盘</Tag>
-      </Space>
-    </Space>
-  )
   useEffect(() => {
     if (archive.error) message.error(archive.error)
   }, [archive.error])
@@ -163,10 +152,10 @@ export function ArchiveCompletionPanel({
           ? '压缩正在后台进行；完成后可填写硬盘编号。'
           : archiveMedium === 'optical_disc'
             ? '压缩正在后台进行；现在仍可填写首个光盘编号，压缩完成后将沿用该编号。'
-            : unknownMediumDescription(true)
+            : undefined
         : archiveMedium
           ? '可提前填写编号；系统会在压缩完成后按归档模式校验。'
-          : unknownMediumDescription(false)}
+          : undefined}
       action={<Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={firstDiscNumber}
         disabled={readOnly} onChange={event => onFirstDiscNumberChange(event.target.value)} />}
     />
