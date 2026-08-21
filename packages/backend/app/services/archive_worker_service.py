@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from ..repository.archive_manifest_index_repository import (
+    ArchiveManifestRepositoryError,
+)
 from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.workbench_database import utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
@@ -252,5 +255,15 @@ def _safe_failure(error: Exception) -> tuple[str, str]:
         blocker = error.blockers[0]
         raw_code = blocker.code.value if hasattr(blocker.code, "value") else blocker.code
         return str(raw_code), str(blocker.message)
+    if isinstance(error, ArchiveManifestRepositoryError):
+        code = str(error)
+        if code == "ARCHIVE_INDEX_UNTRUSTED":
+            return code, (
+                "归档目录包含当前案件库无法确认的历史 RAR。请在归档存储设置中选择 "
+                "D 盘上的新空白目录，重启文枢后重试；现有文件不会被修改。"
+            )
+        if code.startswith("ARCHIVE_INDEX_"):
+            return code, "归档目录登记无法安全确认，请更换新的空白归档目录并重启后重试。"
+        return "ARCHIVE_INDEX_INVALID", "归档目录登记无法安全确认，请更换新的空白归档目录并重启后重试。"
     code = getattr(error, "code", "ARCHIVE_EXECUTION_FAILED")
     return str(code), "Archive execution failed safely."

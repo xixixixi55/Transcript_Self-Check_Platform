@@ -34,6 +34,9 @@ from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E
 from app.repository.archive_attempt_recovery_repository import (  # noqa: E402
     _verified_output_metrics,
 )
+from app.repository.archive_manifest_index_repository import (  # noqa: E402
+    ArchiveManifestRepositoryError,
+)
 from app.services.archive_progress_service import ArchiveProgressService  # noqa: E402
 from app.services.archive_manifest_access_service import ArchiveGateError  # noqa: E402
 from app.services.export_gate_service import ExportGateIssue  # noqa: E402
@@ -289,6 +292,32 @@ def test_worker_failure_preserves_last_real_milestone(setup, monkeypatch) -> Non
     assert result["error_summary"] == "Synthetic archive execution failed."
     assert attempts.failed == [(
         "SYNTHETIC-WORKER-ATTEMPT-1", "ARCHIVE_EXECUTION_FAILED",
+    )]
+
+
+def test_worker_reports_untrusted_archive_directory_actionably(setup, monkeypatch) -> None:
+    _, tasks, progress, tmp_path = setup
+    queue(tasks)
+    owned = claim(tasks)
+    attempts = FakeAttemptService()
+
+    monkeypatch.setattr(
+        "app.services.archive_worker_service.execute_archive",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ArchiveManifestRepositoryError("ARCHIVE_INDEX_UNTRUSTED")
+        ),
+    )
+
+    result = ArchiveWorkerService(tasks, progress).run(
+        owned, work_item(tmp_path, attempts),
+    )
+
+    assert result["status"] == "failed_retryable"
+    assert result["error_code"] == "ARCHIVE_INDEX_UNTRUSTED"
+    assert "新空白目录" in result["error_summary"]
+    assert "现有文件不会被修改" in result["error_summary"]
+    assert attempts.failed == [(
+        "SYNTHETIC-WORKER-ATTEMPT-1", "ARCHIVE_INDEX_UNTRUSTED",
     )]
 
 
