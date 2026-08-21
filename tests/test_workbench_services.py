@@ -347,6 +347,11 @@ def test_case_save_persists_dragged_card_order_and_field_provenance(database, tm
     submitted_states = copy.deepcopy(draft["field_states"])
     model_path = f"evidence.{report['introduction']['evidence_list'][0]['evidence_id']}.model"
     submitted_states[model_path]["confirmation"] = "pending"
+    completeness_path = "introduction.evidence_list.completeness"
+    submitted_states[completeness_path] = {
+        "field_path": completeness_path, "source": "user", "confirmation": "confirmed",
+        "revision": 1, "last_changed_at": "2026-08-21T00:00:00Z",
+    }
 
     saved = lifecycle.save_draft({
         "case_id": identifiers["case_id"], "report": report, "field_states": submitted_states,
@@ -364,6 +369,7 @@ def test_case_save_persists_dragged_card_order_and_field_provenance(database, tm
     ]
     assert persisted["field_states"][model_path]["source"] == "user"
     assert persisted["field_states"][model_path]["confirmation"] == "pending"
+    assert persisted["field_states"][completeness_path]["confirmation"] == "confirmed"
     assert persisted["field_states"]["inspectors." + persisted["report"]["introduction"]["inspector_snapshots"][0]["snapshot_id"] + ".name"]["source"] == "report"
     assert persisted["field_states"]["photo_groups.SYNTHETIC-MATERIAL-1"]["source"] == "report"
 

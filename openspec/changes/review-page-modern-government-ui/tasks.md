@@ -600,3 +600,18 @@ spec_sync_evidence: achievement-overview homepage scenarios synchronized into op
 - 架构检查、共享/前端 TypeScript 类型检查、治理测试、文档快速检查、仓库资产检查与 `verify:quick` 通过；delta 已同步到 living spec 的 REQ-029。
 - Impeccable 机械检测仅报告本次修改前已存在的 3px 侧边强调线与宽度过渡；本次新增按钮、红色进度状态、文本换行和焦点样式无新增告警。
 - 人工验收待真实案件页面复测；自动化已覆盖状态与样式类切换，但不能替代部署环境中的最终视觉确认。
+
+## 第二十一阶段：修复检材完整性确认在自动保存后回弹
+
+### 回归原因与修复
+
+- [x] 复现并确认：前端点击后已将检材完整性标记为 `confirmed`，但草稿自动保存的后端字段状态整理只保留报告派生字段，删除了该人工控制状态，保存响应覆盖页面状态后按钮重新出现。
+- [x] 调整 `FieldProvenanceService`，仅将 `introduction.evidence_list.completeness` 登记为允许持久化的人工控制状态；继续过滤其他未知字段状态，不修改报告、Word、端点或数据库合同。
+- [x] 补充字段状态单元测试和案件草稿保存集成断言，覆盖 `confirmed` 经保存整理后仍出现在返回草稿中。
+- [x] 运行受影响后端测试、原有检材完整性前端回归、`npm run verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 第二十一阶段验证记录
+
+- 失败用例先复现保存整理后的 `KeyError`；修复后字段状态与工作台服务测试共 25 项通过，案件草稿保存响应保留 `confirmed`。
+- 原有检材完整性、审核进度、表单和图片绑定并发回归共 4 个文件、43 项用例通过。
+- `verify:quick` 与当前变更包 scoped strict docs 通过；本次 4 个文件的 scoped `git diff --check` 通过。全仓 diff 检查仅报告本次范围外既有 `AGENTS.md` 文件末尾空行。

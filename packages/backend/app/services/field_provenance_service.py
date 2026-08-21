@@ -11,6 +11,7 @@ from ..repository.workbench_database import utc_now
 _SOURCE_VALUES = {"report", "user", "system_default"}
 _CONFIRMATION_VALUES = {"confirmed", "pending"}
 _STABLE_FIELDS = {"evidence_id", "snapshot_id", "inspector_id", "id", "selected_order"}
+_PERSISTED_CONTROL_FIELDS = {"introduction.evidence_list.completeness"}
 
 
 class FieldProvenanceService:
@@ -44,6 +45,12 @@ class FieldProvenanceService:
                 state["revision"] = int(previous.get("revision", 0)) + 1 if isinstance(previous, Mapping) else 1
                 state["last_changed_at"] = now
             states[path] = state
+        for path in _PERSISTED_CONTROL_FIELDS:
+            raw = provided.get(path, previous_states.get(path))
+            if raw is not None:
+                states[path] = _state(
+                    {"field_path": path, "value": None, "subject_id": None}, raw, now,
+                )
         return states
 
 
