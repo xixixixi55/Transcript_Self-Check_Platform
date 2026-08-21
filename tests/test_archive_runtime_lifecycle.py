@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import sys
 import threading
 import time
@@ -501,6 +502,39 @@ def test_public_result_rejects_formal_part_tamper_after_completion(tmp_path: Pat
         )
         assert rejected_download.status_code == 422
         assert completed["status"] == "succeeded"
+
+
+def test_public_result_resolves_completed_archive_from_legacy_root(tmp_path: Path) -> None:
+    services, _worker = _services(tmp_path)
+    legacy_root = tmp_path / "SYNTHETIC-LEGACY-ARCHIVE-ROOT"
+    with _controller_patches(services), TestClient(
+        create_app(service_provider=lambda: services)
+    ) as client:
+        ready = _create_ready_case(client, services)
+        queued = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        _wait_task(client, queued["task_id"], {"succeeded"})
+        task = ArchiveTaskRepository(services.database).get(queued["task_id"])
+        attempt_id = task["process_binding"]["staging_asset_id"]
+        active_repository = ArchiveManifestRepository(
+            services.archive_attempts.output_root, database=services.database,
+        )
+        record = active_repository.find_for_attempt(attempt_id)[0]
+        source = active_repository.resolve_final_dir(record)
+        legacy_repository = ArchiveManifestRepository(
+            legacy_root, database=services.database,
+        )
+        destination = legacy_repository.resolve_final_dir(record)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(destination))
+        services.archive_api.results.manifests = (active_repository, legacy_repository)
+
+        result = client.get(f"/api/v1/workbench/tasks/{queued['task_id']}/result")
+
+        assert result.status_code == 200, result.text
+        assert result.json()["data"]["parts"]
 
 
 def test_runtime_start_is_idempotent_and_empty_queue_waits(tmp_path: Path) -> None:

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 _SCHEMA_VERSION = 1
 _WRITE_LOCK = threading.RLock()
-DirectoryHistoryKind = Literal["report", "export"]
+DirectoryHistoryKind = Literal["report", "export", "archive"]
 
 
 class LocalDirectoryHistoryRepository:
@@ -91,7 +91,7 @@ class LocalDirectoryHistoryRepository:
             return {}
         raw = payload.get("directories")
         directories = (
-            {key: value for key, value in raw.items() if key in {"report", "export"} and isinstance(value, str)}
+            {key: value for key, value in raw.items() if key in {"report", "export", "archive"} and isinstance(value, str)}
             if isinstance(raw, dict)
             else {}
         )

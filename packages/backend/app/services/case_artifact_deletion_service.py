@@ -31,10 +31,24 @@ class CaseArtifactDeletionPlan:
 class CaseArtifactDeletionService:
     """Resolve only durable, platform-owned artifact locations before deletion."""
 
-    def __init__(self, database: WorkbenchDatabase, output_root: str | Path) -> None:
+    def __init__(
+        self,
+        database: WorkbenchDatabase,
+        output_root: str | Path,
+        *,
+        archive_output_roots: tuple[str | Path, ...] = (),
+    ) -> None:
         self.database = database
         self.output_root = Path(output_root).resolve(strict=False)
-        self.compressed_root = (self.output_root / "compressed").resolve(strict=False)
+        configured_roots = archive_output_roots or (self.output_root,)
+        self.archive_output_roots = tuple(dict.fromkeys(
+            Path(root).resolve(strict=False) for root in configured_roots
+        ))
+        self.compressed_roots = tuple(
+            (root / "compressed").resolve(strict=False)
+            for root in self.archive_output_roots
+        )
+        self.compressed_root = self.compressed_roots[0]
         self.staging_root = (self.compressed_root / ".staging").resolve(strict=False)
         self.snapshot_root = (self.compressed_root / ".inputs").resolve(strict=False)
         self.short_snapshot_root = (self.output_root / ".i").resolve(strict=False)
@@ -137,11 +151,13 @@ class CaseArtifactDeletionService:
 
         owned_dirs = final_dirs - shared_dirs
         paths = [
-            self._controlled_path(self.compressed_root, value, reject_names=_INDEX_NAMES | {".staging", ".inputs"})
+            self._controlled_path(root, value, reject_names=_INDEX_NAMES | {".staging", ".inputs"})
+            for root in self.compressed_roots
             for value in owned_dirs
         ]
         paths.extend(
-            self._controlled_path(self.staging_root, row["staging_locator"])
+            self._controlled_path(root / ".staging", row["staging_locator"])
+            for root in self.compressed_roots
             for row in attempts if row["staging_locator"]
         )
         paths.extend(
@@ -154,9 +170,10 @@ class CaseArtifactDeletionService:
             for path in self._snapshot_paths(locator)
         )
         paths.extend(
-            self._controlled_path(self.output_root, row["internal_locator"])
+            path
             for row in archive_assets
             if row["internal_locator"] and str(row["internal_locator"]) not in shared_asset_locators
+            for path in self._controlled_archive_paths(row["internal_locator"])
         )
         paths.extend(
             self._controlled_path(self.exports_root, value)
@@ -181,24 +198,26 @@ class CaseArtifactDeletionService:
             raise WorkbenchPersistenceError("CASE_DELETE_FAILED") from error
 
     def _remove_empty_archive_parents(self, relative_dir: str) -> None:
-        archive_dir = self._controlled_path(
-            self.compressed_root, relative_dir,
-            reject_names=_INDEX_NAMES | {".staging", ".inputs"},
-        )
-        parent = archive_dir.parent
-        while parent != self.compressed_root:
-            if parent.is_symlink():
-                return
-            if not _remove_empty_directory(parent):
-                return
-            parent = parent.parent
+        for compressed_root in self.compressed_roots:
+            archive_dir = self._controlled_path(
+                compressed_root, relative_dir,
+                reject_names=_INDEX_NAMES | {".staging", ".inputs"},
+            )
+            parent = archive_dir.parent
+            while parent != compressed_root:
+                if parent.is_symlink():
+                    break
+                if not _remove_empty_directory(parent):
+                    break
+                parent = parent.parent
 
     def remove_manifest_index(self, plan: CaseArtifactDeletionPlan) -> None:
         try:
-            ArchiveManifestRepository(self.output_root).remove_for_case(
-                attempt_ids=set(plan.attempt_ids),
-                relative_final_dirs=set(plan.relative_final_dirs),
-            )
+            for output_root in self.archive_output_roots:
+                ArchiveManifestRepository(output_root).remove_for_case(
+                    attempt_ids=set(plan.attempt_ids),
+                    relative_final_dirs=set(plan.relative_final_dirs),
+                )
         except (OSError, RuntimeError, ValueError) as error:
             raise WorkbenchPersistenceError("CASE_DELETE_FAILED") from error
 
@@ -220,30 +239,52 @@ class CaseArtifactDeletionService:
         return candidate.absolute() if candidate.is_symlink() else resolved
 
     def _snapshot_paths(self, locator: Any) -> tuple[Path, ...]:
-        snapshot = self._snapshot_path(locator)
-        temporary = snapshot.parent / f".{snapshot.name}.copying"
-        return snapshot, temporary, marker_path(snapshot)
+        paths = []
+        for snapshot in self._snapshot_path_candidates(locator):
+            temporary = snapshot.parent / f".{snapshot.name}.copying"
+            paths.extend((snapshot, temporary, marker_path(snapshot)))
+        return tuple(paths)
 
-    def _snapshot_path(self, locator: Any) -> Path:
+    def _snapshot_path_candidates(self, locator: Any) -> tuple[Path, ...]:
         if not isinstance(locator, str) or not locator.strip():
             raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
         normalized = locator.replace("\\", "/")
-        roots = (
-            (".inputs/", self.snapshot_root),
-            (".i/", self.short_snapshot_root),
-            (".t/", self.external_snapshot_root),
-        )
+        roots = tuple(
+            (".inputs/", compressed_root / ".inputs")
+            for compressed_root in self.compressed_roots
+        ) + tuple(
+            (".i/", output_root / ".i")
+            for output_root in self.archive_output_roots
+        ) + ((".t/", self.external_snapshot_root),)
         if not Path(locator).is_absolute():
-            for prefix, root in roots:
-                if normalized.startswith(prefix):
-                    return self._controlled_path(root, normalized.removeprefix(prefix))
+            candidates = tuple(
+                self._controlled_path(root, normalized.removeprefix(prefix))
+                for prefix, root in roots
+                if normalized.startswith(prefix)
+            )
+            if candidates:
+                return _unique_paths(list(candidates))
             raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
-        for root in (self.snapshot_root, self.short_snapshot_root, self.external_snapshot_root):
+        candidates = []
+        for _prefix, root in roots:
             try:
-                return self._controlled_path(root, locator)
+                candidates.append(self._controlled_path(root, locator))
             except WorkbenchPersistenceError:
                 continue
-        raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
+        if not candidates:
+            raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
+        return _unique_paths(candidates)
+
+    def _controlled_archive_paths(self, locator: Any) -> tuple[Path, ...]:
+        candidates = []
+        for output_root in self.archive_output_roots:
+            try:
+                candidates.append(self._controlled_path(output_root, locator))
+            except WorkbenchPersistenceError:
+                continue
+        if not candidates:
+            raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
+        return _unique_paths(candidates)
 
 
 def _unique_paths(paths: list[Path]) -> tuple[Path, ...]:

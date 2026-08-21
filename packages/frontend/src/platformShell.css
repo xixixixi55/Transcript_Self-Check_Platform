@@ -199,6 +199,8 @@ body {
 }
 
 .platform-sidebar__footer {
+  display: grid;
+  gap: 8px;
   padding: 12px;
   border-top: 1px solid var(--platform-preview-border);
 }
@@ -313,10 +315,51 @@ body {
 }
 
 .platform-sidebar.ant-layout-sider-collapsed .platform-sidebar__footer {
-  display: flex;
+  display: grid;
+  gap: 14px;
   justify-content: center;
   padding: 18px 0;
   border-top: 0;
+}
+
+.archive-storage-settings .ant-modal-body {
+  --archive-settings-text: #292735;
+  --archive-settings-neutral-soft: #f3f2f7;
+  --archive-settings-radius-control: 8px;
+  display: grid;
+  gap: 16px;
+}
+
+.archive-storage-settings .ant-typography {
+  margin-block: 0;
+}
+
+.archive-storage-settings__path-group {
+  display: grid;
+  gap: 6px;
+}
+
+.archive-storage-settings__path {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 9px 12px;
+  color: var(--archive-settings-text);
+  overflow-wrap: anywhere;
+  background: var(--archive-settings-neutral-soft);
+  border-radius: var(--archive-settings-radius-control);
+}
+
+.archive-storage-settings__loading {
+  min-height: 110px;
+}
+
+.archive-storage-settings__actions {
+  margin-top: 2px;
+}
+
+.archive-storage-settings__hint {
+  font-size: 13px;
 }
 
 .platform-sidebar.ant-layout-sider-collapsed .platform-sidebar__footer .ant-btn {

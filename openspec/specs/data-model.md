@@ -979,4 +979,7 @@ type CleanupRunPhase, type CleanupRunStatus, type RetentionBlockerCode,
 type CleanupErrorCode, interface RetentionPolicyDto,
 interface RetentionStatusDto, interface CleanupPreviewItemDto,
 interface CleanupPreviewDto, interface CleanupRunStatusDto,
-interface FormalWordArtifactSafeProjection.
+interface FormalWordArtifactSafeProjection,
+interface ArchiveStorageSettings.
+
+`ArchiveStorageSettings` 是部署本机的归档目录设置投影，包含当前生效目录、待生效目录、默认目录、自定义/有效状态、是否需要重启及稳定错误码。它不保存案件内容，也不把本机绝对路径写入案件数据库或归档 Manifest。

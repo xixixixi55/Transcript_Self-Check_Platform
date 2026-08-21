@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..repository.archive_asset_repository import ArchiveAssetRepository
@@ -29,6 +30,7 @@ class ArchiveTaskApiService:
         sources: SourceRecordService,
         progress: ArchiveProgressService,
         runtime: ArchiveRuntimeCoordinator | None = None,
+        legacy_output_roots: tuple[str | Path, ...] = (),
     ) -> None:
         self.database = database
         self.attempts = attempts
@@ -39,7 +41,7 @@ class ArchiveTaskApiService:
         self.plans = ArchivePlanRepository(database)
         self.assets = ArchiveAssetRepository(database)
         self.results = ArchiveTaskResultService(
-            self.tasks, self.plans, self.assets, attempts,
+            self.tasks, self.plans, self.assets, attempts, legacy_output_roots,
         )
         self.shells = CaseShellRepository(database)
         self.drafts = CaseDraftRepository(database)

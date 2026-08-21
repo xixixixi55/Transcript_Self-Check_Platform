@@ -361,3 +361,13 @@ workflow_level: 3
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有 T044 真实 Word 人工验收待完成，候选尚未冻结；按 Harness 节奏不在单项反馈收敛时重复运行 scoped full gate 或最终 Review。
   - manual_acceptance: N/A（本任务不改变模板样式、分页或图形结构；合成硬盘版 DOCX 已通过精确文本/页计划断言和 officecli 文件结构校验。真实案件数据与 225GB 以上实际 WinRAR 执行不进入仓库测试。）
   - 追加反馈：归档模式尚未确定时，审核页使用中性的“介质编号”标签，同时接受 GP/YP 两种合法格式并明确说明最终介质由压缩前归档总量决定；模式确定后再切换为光盘或硬盘精确校验。补充前端 4 files / 49 tests PASS，覆盖压缩前填写并自动保存 YP、GP/YP 双格式及非法前缀校验；Impeccable 界面规范扫描 0 findings。
+
+- [x] T046 允许用户在平台设置中选择 RAR 工作与存储目录（部署空间反馈）。
+  - 现象：便携 EXE 默认把 staging 与已验证 RAR 都写入 `%LOCALAPPDATA%\文枢`；系统盘仅剩约 1.36GB 时，两次任务均在首卷增长到约 1.4GB 后由 WinRAR 非零退出，批量导入图片进一步竞争系统盘空间。
+  - Layer 0–1：新增归档存储设置的读取、选择与恢复默认 API 契约及稳定错误码。
+  - Layer 20–23：以用户数据根内的原子 JSON 保存选择；启动时将所选目录下的专用 `文枢归档工作区` 解析为归档 output root，使 staging、已验证 RAR、Manifest 索引和恢复/删除继续位于同一受控文件系统；目录不存在、不可写或与程序资源根重叠时不静默启用。原生选择器复用既有窗口归属和独立历史记录，设置在文枢重启后生效。
+  - Layer 10–11：侧栏底部新增与现有按钮同尺寸、同圆角和同阴影的设置按钮；弹窗展示当前生效目录、待生效目录、空间提示、选择目录与恢复默认操作，明确正在运行的归档不会迁移。
+  - 验证：设置仓库/路径解析/控制器 pytest，侧栏与设置弹窗 Vitest，`lint:arch`、`typecheck`、`verify:quick`、scoped strict docs、生产构建、Impeccable detector 与桌面视觉检查。
+  - 自动化证据：归档设置、案件产物删除、Workbench HTTP 与归档生命周期后端定向 61 passed；历史默认根归档在切换根后仍可读取的区分用例 PASS；侧栏/弹窗前端 25 passed；TypeScript、生产构建、架构检查与 `git diff --check` PASS。
+  - 视觉与审查：3440×1440 桌面实测确认折叠侧栏按钮为既有 40×40、10px 圆角、阴影和紫色反馈；Impeccable detector 仅命中既有侧栏 margin 动画。独立 finish review 关闭 portal 变量、恢复默认确认、加载失败重试和 mutation 失败反馈问题后最终 PASS。
+  - final_gate: [DEFERRED] 当前 Level 3 变更包仍有 T044 真实 Word 人工验收待完成，候选尚未冻结；本反馈只运行增量门控，不重复 scoped full gate。

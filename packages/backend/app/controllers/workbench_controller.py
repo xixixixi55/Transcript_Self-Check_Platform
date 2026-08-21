@@ -129,6 +129,48 @@ def select_export_directory_endpoint():
         _handle(error)
 
 
+@router.get("/workbench/archive-storage-settings")
+def archive_storage_settings_endpoint():
+    services = get_workbench_services()
+    try:
+        if services.archive_storage_settings is None:
+            raise WorkbenchPersistenceError("ARCHIVE_STORAGE_SETTINGS_UNAVAILABLE")
+        return _envelope(services.archive_storage_settings.status())
+    except Exception as error:
+        _handle(error)
+
+
+@router.post("/workbench/archive-storage-settings/select-directory")
+def select_archive_storage_directory_endpoint():
+    services = get_workbench_services()
+    try:
+        if services.directory_picker is None or services.archive_storage_settings is None:
+            raise WorkbenchPersistenceError("ARCHIVE_STORAGE_SETTINGS_UNAVAILABLE")
+        selected_path = services.directory_picker.select(
+            description="选择 RAR 工作与存储目录",
+            history_kind="archive",
+        )
+        if selected_path is None:
+            return _envelope({"cancelled": True, "settings": services.archive_storage_settings.status()})
+        return _envelope({
+            "cancelled": False,
+            "settings": services.archive_storage_settings.select(selected_path),
+        })
+    except Exception as error:
+        _handle(error)
+
+
+@router.delete("/workbench/archive-storage-settings")
+def reset_archive_storage_settings_endpoint():
+    services = get_workbench_services()
+    try:
+        if services.archive_storage_settings is None:
+            raise WorkbenchPersistenceError("ARCHIVE_STORAGE_SETTINGS_UNAVAILABLE")
+        return _envelope(services.archive_storage_settings.reset())
+    except Exception as error:
+        _handle(error)
+
+
 @router.get("/workbench/cases")
 async def list_cases_endpoint(offset: int = Query(0, ge=0), limit: int = Query(6, ge=1, le=100)):
     try:

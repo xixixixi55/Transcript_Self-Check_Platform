@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from pathlib import Path
 from typing import Any
 
 from ..repository.archive_asset_repository import ArchiveAssetRepository
@@ -24,13 +25,17 @@ class ArchiveTaskResultService:
         plans: ArchivePlanRepository,
         assets: ArchiveAssetRepository,
         attempts: ArchiveAttemptService,
+        legacy_output_roots: tuple[str | Path, ...] = (),
     ) -> None:
         self.tasks = tasks
         self.plans = plans
         self.assets = assets
         self.attempts = attempts
-        self.manifests = ArchiveManifestRepository(
-            attempts.output_root, database=attempts.database,
+        roots = (attempts.output_root, *legacy_output_roots)
+        unique_roots = tuple(dict.fromkeys(Path(root).resolve(strict=False) for root in roots))
+        self.manifests = tuple(
+            ArchiveManifestRepository(root, database=attempts.database)
+            for root in unique_roots
         )
 
     def result(self, task_id: str) -> dict[str, Any]:
@@ -45,7 +50,7 @@ class ArchiveTaskResultService:
         self._assert_task_attempt(task, attempt)
         if attempt["status"] != "succeeded" or not attempt["manifest_id"]:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
-        manifest = self._verified_manifest(
+        manifest, _repository = self._verified_manifest(
             task_id, str(attempt_id), str(attempt["manifest_id"]),
             verify_content=False,
         )
@@ -101,10 +106,12 @@ class ArchiveTaskResultService:
         self._assert_task_attempt(task, attempt)
         if attempt["status"] != "succeeded" or not attempt["manifest_id"]:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
-        record = self._verified_manifest(task_id, str(attempt_id), str(attempt["manifest_id"]))
+        record, repository = self._verified_manifest(
+            task_id, str(attempt_id), str(attempt["manifest_id"]),
+        )
         return {
             "public_manifest": record.public_manifest,
-            "final_dir": self.manifests.resolve_final_dir(record),
+            "final_dir": repository.resolve_final_dir(record),
         }
 
     def download_part(self, task_id: str, part_id: str) -> tuple[str, Any]:
@@ -119,7 +126,9 @@ class ArchiveTaskResultService:
         self._assert_task_attempt(task, attempt)
         if attempt["status"] != "succeeded":
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
-        manifest = self._verified_manifest(task_id, str(attempt_id), str(attempt["manifest_id"]))
+        manifest, repository = self._verified_manifest(
+            task_id, str(attempt_id), str(attempt["manifest_id"]),
+        )
         part = next(
             (
                 item for item in manifest.public_manifest["parts"]
@@ -129,7 +138,7 @@ class ArchiveTaskResultService:
         )
         if part is None:
             raise WorkbenchPersistenceError("ARCHIVE_PART_NOT_FOUND")
-        root = self.manifests.resolve_final_dir(manifest).resolve(strict=True)
+        root = repository.resolve_final_dir(manifest).resolve(strict=True)
         path = (root / str(part["filename"])).resolve(strict=True)
         try:
             path.relative_to(root)
@@ -141,13 +150,17 @@ class ArchiveTaskResultService:
         self, task_id: str, attempt_id: str, manifest_id: str, *,
         verify_content: bool = True,
     ) -> Any:
-        records = [
-            item for item in self.manifests.find_for_attempt(attempt_id)
-            if item.manifest_id == manifest_id
-        ]
-        if len(records) != 1:
+        matches = []
+        for repository in self.manifests:
+            records = [
+                item for item in repository.find_for_attempt(attempt_id)
+                if item.manifest_id == manifest_id
+            ]
+            if len(records) == 1 and repository.resolve_final_dir(records[0]).is_dir():
+                matches.append((records[0], repository))
+        if len(matches) != 1:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
-        record = records[0]
+        record, repository = matches[0]
         intent = ArchivePublishIntentRepository(self.attempts.database).get_for_attempt(attempt_id)
         if intent is None or intent["phase"] != "verified" or intent.get("publication_status") != "verified" or any(
             intent[key] != value for key, value in {
@@ -170,7 +183,7 @@ class ArchiveTaskResultService:
         view = SimpleNamespace(
             manifest_id=record.manifest_id,
             public_manifest=record.public_manifest,
-            final_dir=self.manifests.resolve_final_dir(record),
+            final_dir=repository.resolve_final_dir(record),
         )
         try:
             assert_publication_identity(record, intent)
@@ -183,7 +196,7 @@ class ArchiveTaskResultService:
         )
         if validation_error is not None:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
-        return record
+        return record, repository
 
     def _assert_task_attempt(self, task: dict[str, Any], attempt: dict[str, Any]) -> None:
         if (

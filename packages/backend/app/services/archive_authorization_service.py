@@ -13,7 +13,10 @@ from .archive_input_snapshot_layout_service import private_snapshot_root
 
 
 class ArchiveAuthorizationService:
-    def __init__(self, upload_base: str, output_base: str) -> None:
+    def __init__(
+        self, upload_base: str, output_base: str,
+        additional_output_roots: tuple[str, ...] = (),
+    ) -> None:
         self.store = ArchiveAuthorizationStore(upload_base)
         self.output_roots = (
             output_base,
@@ -26,6 +29,7 @@ class ArchiveAuthorizationService:
             str(Path(output_base) / "temp"),
             str(Path(output_base) / "tmp"),
             str(private_snapshot_root()),
+            *additional_output_roots,
         )
 
     def authorize_report_directory(

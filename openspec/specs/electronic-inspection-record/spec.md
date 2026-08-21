@@ -1622,11 +1622,36 @@ Shutdown and recovery MUST use bounded compare-and-set ownership checks for task
 
 ## 存储路径
 
+### Requirement: REQ-ARCHIVE-STORAGE-SETTINGS
+
+The deployment MUST allow the user to move RAR staging and durable archive generations away from the default application-data volume while retaining controlled-path and same-filesystem publication guarantees.
+
+#### Scenario: select a custom archive storage directory
+- **WHEN** the user opens archive storage settings from either expanded or collapsed platform navigation and selects an existing writable local directory
+- **THEN** the deployment persists the selection and shows its dedicated `文枢归档工作区` child as the restart-bound destination
+- **AND** after restart, new archive staging, verified RAR parts, Manifest projection, recovery and case cleanup use that configured archive root without moving completed parts back to the default system volume
+- **AND** ordinary case data, uploaded images, logs and Word exports remain in their existing application-data locations
+
+#### Scenario: configured archive storage is unavailable or unsafe
+- **WHEN** the configured parent is missing, unwritable, or its dedicated workspace overlaps the packaged program resource root
+- **THEN** the application exposes a stable actionable settings error and refuses to begin a new archive there
+- **AND** it does not silently redirect that task to the default system volume
+
+#### Scenario: apply or reset a restart-bound setting
+- **WHEN** the user selects a different directory or restores the default
+- **THEN** the settings surface distinguishes the active directory from the directory that will apply after restart
+- **AND** no running archive is migrated, while verified archives under the previous/default root remain resolvable for result viewing, export and explicit case cleanup
+
+#### Scenario: settings entry follows existing sidebar controls
+- **WHEN** the platform sidebar is expanded or collapsed
+- **THEN** the settings control uses the existing footer-button size, radius, shadow, hover and focus treatment
+- **AND** its collapsed form retains the accessible name and right-side tooltip `归档存储设置`
+
 | 用途 | 路径 |
 |------|------|
 | 解析缓存 | `output/parsed/`（本地，不得进入 Git） |
-| 归档文件 | `output/compressed/`（本地，不得进入 Git） |
-| 归档登记索引 | `output/compressed/.archive-manifest-index.json`（本地，不得进入 Git；与解析缓存独立） |
+| 归档文件 | 默认 `output/compressed/`；配置后为所选目录下 `文枢归档工作区/compressed/`（本地，不得进入 Git） |
+| 归档登记索引 | 与归档文件同根的 `compressed/.archive-manifest-index.json`（本地，不得进入 Git；与解析缓存独立） |
 | 导出 .docx | `output/exports/`（本地，不得进入 Git） |
 | 硬件设备配置 | `packages/backend/app/data/hardware_devices.json` |
 

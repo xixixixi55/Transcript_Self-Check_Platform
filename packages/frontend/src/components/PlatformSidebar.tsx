@@ -10,8 +10,10 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   SafetyCertificateOutlined,
+  SettingOutlined,
 } from '@ant-design/icons'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { ArchiveStorageSettingsModal } from './ArchiveStorageSettingsModal'
 
 const { Sider } = Layout
 const moduleKey = 'electronic-inspection'
@@ -43,6 +45,7 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const [openTooltipLabel, setOpenTooltipLabel] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const isModulePath = location.pathname.startsWith('/electronic-inspection')
     || location.pathname === '/generate' || location.pathname === '/devices'
     || location.pathname === '/inspectors' || location.pathname === '/templates'
@@ -152,11 +155,18 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
         </Menu.SubMenu>
       </Menu>
       <div className="platform-sidebar__footer">
+        <Tooltip title={collapsed ? '归档存储设置' : undefined} placement="right">
+          <Button type="text" aria-label="归档存储设置" icon={<SettingOutlined />}
+            onClick={() => setSettingsOpen(true)}>
+            {!collapsed && '归档存储设置'}
+          </Button>
+        </Tooltip>
         <Tooltip title={collapsed ? '展开导航' : '收起导航'} placement="right">
           <Button type="text" aria-label={collapsed ? '展开导航' : '收起导航'}
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={onToggle} />
         </Tooltip>
       </div>
+      <ArchiveStorageSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </Sider>
   )
 }

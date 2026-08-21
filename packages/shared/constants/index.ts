@@ -34,6 +34,8 @@ export const API_ENDPOINTS = {
   WORKBENCH_CASES: `${API_PREFIX}/workbench/cases`,
   WORKBENCH_SELECT_DIRECTORY_CASE: `${API_PREFIX}/workbench/cases/select-directory`,
   WORKBENCH_SELECT_EXPORT_DIRECTORY: `${API_PREFIX}/workbench/select-export-directory`,
+  WORKBENCH_ARCHIVE_STORAGE_SETTINGS: `${API_PREFIX}/workbench/archive-storage-settings`,
+  WORKBENCH_SELECT_ARCHIVE_STORAGE_DIRECTORY: `${API_PREFIX}/workbench/archive-storage-settings/select-directory`,
   WORKBENCH_CASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}`,
   WORKBENCH_DELETE_CASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}`,
   WORKBENCH_DRAFT: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/draft`,

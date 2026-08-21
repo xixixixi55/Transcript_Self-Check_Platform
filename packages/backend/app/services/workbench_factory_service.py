@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from ..config import OUTPUT_BASE, UPLOAD_BASE
+from ..config import ARCHIVE_OUTPUT_BASE, OUTPUT_BASE, UPLOAD_BASE
+from ..repository.archive_storage_settings_repository import ArchiveStorageSettingsRepository
 from ..repository.workbench_database import WorkbenchDatabase, database_path_for_deployment
 from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.local_directory_history_repository import LocalDirectoryHistoryRepository
@@ -28,6 +29,7 @@ from .archive_runtime_resource_service import (
 )
 from .archive_scheduler_service import ArchiveSchedulerService
 from .archive_source_runtime_service import prepare_archive_source
+from .archive_storage_settings_service import ArchiveStorageSettingsService
 from .archive_task_api_service import ArchiveTaskApiService
 from .archive_worker_service import ArchiveWorkItem, ArchiveWorkerService
 from .case_asset_service import CaseAssetService
@@ -79,6 +81,7 @@ class WorkbenchServices:
     template_approvals: TemplateApprovalRepository | None = None
     templates: TemplateRegistryService | None = None
     directory_picker: LocalDirectoryPickerService | None = None
+    archive_storage_settings: ArchiveStorageSettingsService | None = None
 
 
 def build_workbench_services(
@@ -86,7 +89,9 @@ def build_workbench_services(
     archive_admission_config: ArchiveAdmissionConfig | None = None,
 ) -> WorkbenchServices:
     sources = SourceRecordService(
-        database, ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE),
+        database, ArchiveAuthorizationService(
+            UPLOAD_BASE, OUTPUT_BASE, (ARCHIVE_OUTPUT_BASE,),
+        ),
     )
     leases = EditLeaseService(database)
     assets = CaseAssetService(database, leases)
@@ -94,8 +99,15 @@ def build_workbench_services(
     archive_progress = ArchiveProgressService(
         archive_tasks, ResourceSnapshotRepository(database),
     )
-    attempts = ArchiveAttemptService(database, OUTPUT_BASE)
-    template_root = get_runtime_paths().templates_root
+    attempts = ArchiveAttemptService(database, ARCHIVE_OUTPUT_BASE)
+    runtime_paths = get_runtime_paths()
+    storage_settings = ArchiveStorageSettingsService(
+        ArchiveStorageSettingsRepository(),
+        default_output_root=OUTPUT_BASE,
+        active_output_root=ARCHIVE_OUTPUT_BASE,
+        resource_root=runtime_paths.resource_root,
+    )
+    template_root = runtime_paths.templates_root
     template_registry = TemplateRegistryRepository(
         database, (template_root, database.database_path.parent / "template-assets"),
     )
@@ -112,7 +124,7 @@ def build_workbench_services(
         ArchiveResourceAdmissionService(admission_config),
     )
     archive_worker = ArchiveWorkerService(archive_tasks, archive_progress)
-    resource_provider = ArchiveRuntimeResourceProvider(OUTPUT_BASE)
+    resource_provider = ArchiveRuntimeResourceProvider(ARCHIVE_OUTPUT_BASE)
     inspection_environment = InspectionEnvironmentService(
         LocalInspectionEnvironmentRepository(),
     )
@@ -125,7 +137,9 @@ def build_workbench_services(
         ),
         lifecycle=CaseLifecycleService(
             database, asset_service=assets,
-            artifact_deletion_service=CaseArtifactDeletionService(database, OUTPUT_BASE),
+            artifact_deletion_service=CaseArtifactDeletionService(
+                database, OUTPUT_BASE, archive_output_roots=(ARCHIVE_OUTPUT_BASE, OUTPUT_BASE),
+            ),
         ),
         defaults=SharedDefaultsService(database),
         leases=leases,
@@ -142,6 +156,7 @@ def build_workbench_services(
         directory_picker=LocalDirectoryPickerService(
             history=LocalDirectoryHistoryRepository(),
         ),
+        archive_storage_settings=storage_settings,
     )
     services.archive_runtime = ArchiveRuntimeCoordinator(
         archive_scheduler,
@@ -149,7 +164,7 @@ def build_workbench_services(
         attempts,
         archive_progress,
         item_factory=lambda claim, context_id, cancellation_check: _archive_work_item(
-            attempts, claim, context_id, cancellation_check,
+            attempts, storage_settings, claim, context_id, cancellation_check,
         ),
         snapshot_provider=resource_provider.snapshot,
         poll_interval_seconds=positive_float_env(
@@ -161,28 +176,31 @@ def build_workbench_services(
     )
     services.archive_api = ArchiveTaskApiService(
         database, attempts, sources, archive_progress, services.archive_runtime,
+        legacy_output_roots=(OUTPUT_BASE,),
     )
     return services
 
 
 def _archive_work_item(
     attempts: ArchiveAttemptService,
+    storage_settings: ArchiveStorageSettingsService,
     claim: object,
     context_id: str,
     cancellation_check: Callable[[], bool],
 ) -> ArchiveWorkItem:
+    storage_settings.require_ready_for_new_archive()
     attempt_id = str(getattr(claim, "attempt_id"))
     report = attempts.workbench_report(attempt_id, context_id)
     formal_context_id = prepare_archive_source(
         context_id,
         report,
-        output_root=OUTPUT_BASE,
+        output_root=ARCHIVE_OUTPUT_BASE,
         cancellation_check=cancellation_check,
     )
     return ArchiveWorkItem(
         formal_context_id,
         report,
-        OUTPUT_BASE,
+        ARCHIVE_OUTPUT_BASE,
         attempts,
         workbench_context_id=context_id,
         configured_winrar_path=os.environ.get("BIJI_WINRAR_PATH"),

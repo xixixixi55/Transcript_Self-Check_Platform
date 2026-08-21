@@ -8,7 +8,7 @@ import { PlatformSidebar } from '../components/PlatformSidebar'
 import HomePage, { HomePageContent, type HomeAchievementItem } from './HomePage'
 import { LegacyRedirect } from '../App'
 
-vi.mock('axios', () => ({ default: { get: vi.fn() } }))
+vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
 
 function RedirectLocationProbe() {
   const location = useLocation()
