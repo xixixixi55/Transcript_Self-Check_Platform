@@ -8,7 +8,7 @@ vi.mock('antd', () => ({
   Alert: ({ message, description }: { message?: React.ReactNode; description?: React.ReactNode }) => (
     <div>{message || '注意修改文号！'}{description}</div>
   ),
-  Button: ({ children, icon, onClick, disabled, loading, shape: _shape, size: _size, ...props }: any) => (
+  Button: ({ children, icon, onClick, disabled, loading, shape: _shape, size: _size, danger: _danger, ...props }: any) => (
     <button {...props} onClick={onClick} disabled={disabled || loading}>{icon}{children}</button>
   ),
   Divider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -38,7 +38,11 @@ vi.mock('./EditableField', () => ({ default: (props: { value?: string; onChange?
   <input data-testid="editable-field" value={props.value || ''}
     onChange={event => props.onChange?.(event.target.value)} />
 ) }))
-vi.mock('./EvidenceEditor', () => ({ default: () => <div data-testid="evidence-editor" /> }))
+vi.mock('./EvidenceEditor', () => ({ default: ({ onChange }: { onChange: (items: unknown[]) => void }) => (
+  <div data-testid="evidence-editor">
+    <button type="button" onClick={() => onChange([])}>修改合成检材</button>
+  </div>
+) }))
 vi.mock('./InspectorEditor', () => ({ default: () => <div data-testid="inspector-editor" /> }))
 vi.mock('./ProcessStepsEditor', () => ({ default: () => <div data-testid="process-steps-editor" /> }))
 vi.mock('./SoftwareToolsList', () => ({ default: () => <div data-testid="software-tools-list" /> }))
@@ -63,6 +67,29 @@ const report: InspectionReport = {
 }
 
 describe('RecordEditorForm', () => {
+  it('要求人工确认检材完整性，并在确认或修改检材时更新状态', () => {
+    const onEvidenceCompletenessChange = vi.fn()
+    const updateReport = vi.fn()
+    const view = render(<RecordEditorForm report={report} updateReport={updateReport} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} onEvidenceCompletenessChange={onEvidenceCompletenessChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '请确认检材是否完整？' }))
+    expect(onEvidenceCompletenessChange).toHaveBeenCalledWith(true)
+    fireEvent.click(screen.getByRole('button', { name: '修改合成检材' }))
+    expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [])
+    expect(onEvidenceCompletenessChange).toHaveBeenLastCalledWith(false)
+
+    view.rerender(<RecordEditorForm report={report} updateReport={updateReport} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} onEvidenceCompletenessChange={onEvidenceCompletenessChange}
+      fieldStates={{ 'introduction.evidence_list.completeness': {
+        field_path: 'introduction.evidence_list.completeness', source: 'user', confirmation: 'confirmed',
+        revision: 1, last_changed_at: '2026-08-21T00:00:00.000Z',
+      } }} />)
+    expect(screen.queryByRole('button', { name: '请确认检材是否完整？' })).toBeNull()
+  })
+
   it('fires onExport when the export button is clicked and does not render the filename input inline', () => {
     const onExport = vi.fn()
     render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={onExport} exporting={false}

@@ -1,8 +1,10 @@
-import type { ArchiveMedium, InspectionReport } from '@biji/shared/types'
+import type { ArchiveMedium, FieldState, InspectionReport } from '@biji/shared/types'
 import { isValidDateFieldValue, isValidMinuteTimeRangeValue, parseDiscSequence } from '@biji/shared/utils'
 
 export type ReviewPendingSeverity = 'warning' | 'error'
-export type ReviewPendingKind = 'required_missing' | 'validation'
+export type ReviewPendingKind = 'required_missing' | 'confirmation_required' | 'validation'
+
+export const EVIDENCE_COMPLETENESS_FIELD_PATH = 'introduction.evidence_list.completeness'
 
 export interface ReviewPendingItem {
   id: string
@@ -63,6 +65,7 @@ export const REVIEW_TARGET_IDS = {
   discNumber: 'review-target-first-disc-number',
   burningDate: 'review-target-burning-date',
   exportFileName: 'review-target-document-number',
+  evidenceCompleteness: 'review-target-evidence-completeness',
   evidence: (index: number) => `review-target-evidence-${index}`,
   inspector: (index: number) => `review-target-inspector-${index}`,
   softwareTool: (index: number) => `review-target-software-tool-${index}`,
@@ -130,6 +133,7 @@ export function getReviewPendingItems(
   report: InspectionReport,
   exportFileNameError?: string,
   archiveMedium: ArchiveMedium | null = 'optical_disc',
+  fieldStates?: Record<string, FieldState>,
 ): ReviewPendingItem[] {
   const items: ReviewPendingItem[] = []
   const introduction = report.introduction
@@ -145,6 +149,19 @@ export function getReviewPendingItems(
   addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.inspectionRequirement, '一、绪论', '检查要求', introduction?.inspection_requirement)
   addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.inspectionTimeRange, '一、绪论', '检查起止时间', introduction?.inspection_time_range)
   addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.inspectionPlace, '一、绪论', '检查地点', introduction?.inspection_place)
+
+  if (fieldStates?.[EVIDENCE_COMPLETENESS_FIELD_PATH]?.confirmation !== 'confirmed') {
+    items.push({
+      id: 'review-evidence-completeness-confirmation',
+      sectionId: REVIEW_SECTION_IDS.introduction,
+      targetId: REVIEW_TARGET_IDS.evidenceCompleteness,
+      sectionLabel: '一、绪论',
+      fieldLabel: '检材完整性',
+      reason: '请确认检材是否完整。',
+      severity: 'error',
+      kind: 'confirmation_required',
+    })
+  }
 
   introduction?.evidence_list?.forEach((item, index) => {
     addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.evidence(index), '一、绪论', `检材${index + 1}设备类型`, effectiveEvidenceDeviceType(item))

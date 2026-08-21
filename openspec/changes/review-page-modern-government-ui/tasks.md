@@ -569,3 +569,34 @@ spec_sync_evidence: achievement-overview homepage scenarios synchronized into op
 - 架构检查与共享/前端 TypeScript 类型检查通过；折叠状态只保存在组件会话内，`onChange` 无副作用断言确认展开/收起不修改图片列表。
 - Impeccable 机械检测只报告本次改动前已存在的侧边强调线和宽度动画；真实桌面与 640px 窄屏检查确认纯图标入口、双槽卡片和响应式排列清晰，窄屏首轮发现的图标按钮整行拉伸已修正并复核。
 - delta 已与实现核对并同步到 living spec 的 REQ-029；未强制接管被其他页面占用的真实案件，折叠后的三种完成度由合成组件测试覆盖。
+
+## 第二十阶段：检材完整性人工确认门控
+
+### 目标与验收标准
+
+- [x] “（五）检材情况”标题旁在未确认时显示红色“请确认检材是否完整？”按钮；用户点击后按钮消失。
+- [x] 未确认完整性时，右侧审核进度将该状态计入“一、绪论”的未完成条件，并以红色而非绿色显示进度；确认后才允许该部分及总进度进入绿色完成状态。
+- [x] 确认结果使用既有案件草稿 `FieldState` 持久化；重新进入案件仍保持已确认，增删或修改检材后自动恢复为待确认。
+- [x] 按钮提供原生键盘操作、明确的可访问名称和禁用语义，不新增弹窗或只依赖颜色表达状态。
+
+### Layer 10–11：状态、组件、样式与回归验证
+
+- [x] 调整 `packages/frontend/src/hooks/useCaseRecordSession.ts`，通过既有 `field_states` 保存检材列表完整性确认，并在并发自动保存响应后保留更新较新的确认状态。
+- [x] 调整 `packages/frontend/src/hooks/useReviewChecklist.ts`、`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`RecordEditorForm.tsx`、`ReviewPendingSummary.tsx` 及页面接线，让确认按钮、待核对项和右侧进度使用同一状态事实源。
+- [x] 调整 `packages/frontend/src/reviewWorkspace.css`，复用审核页现有错误色、间距和焦点体系，覆盖桌面及窄屏文本换行。
+- [x] 更新既有 Hook、表单和审核进度测试；先运行定向 Vitest，再运行 `npm run lint:arch`、`npm run typecheck`、`npm run verify:quick`、`npm run verify:docs:strict -- --change review-page-modern-government-ui` 与 `git diff --check`。
+
+### 影响范围
+
+- 影响层级：Layer 10 FE_Hooks、Layer 11 FE_Components；复用现有 `FieldState` 和草稿 PATCH 合同，不新增共享类型、后端端点、数据库字段或 Word 导出字段。
+- 关联结论：复用未归档 `review-page-modern-government-ui` 的右侧审核进度与待确认状态能力；不归入目标更宽且处于历史收敛阶段的 `audit-edit-enhancement`。
+- `impeccable harden` 约束：检材内容变化必须使旧确认失效；提示不只依赖红色，键盘与只读状态保持可用。
+- 人工验收：在真实审核编辑页确认红色按钮、右侧进度颜色、点击后的消失与重新进入后的持久化状态。
+
+### 第二十阶段验证记录
+
+- 定向 Vitest：4 个文件、43 项用例通过；覆盖按钮确认/消失、检材修改后确认失效、右侧红色 `3/4` 状态及确认状态在自动保存与图片绑定并发中的重放。
+- 前端完整测试：61 个文件、394 项用例通过；输出中的 React `act(...)`、Ant Design 测试桩属性及 JSDOM `getComputedStyle` 提示均为既有告警，不影响退出码。
+- 架构检查、共享/前端 TypeScript 类型检查、治理测试、文档快速检查、仓库资产检查与 `verify:quick` 通过；delta 已同步到 living spec 的 REQ-029。
+- Impeccable 机械检测仅报告本次修改前已存在的 3px 侧边强调线与宽度过渡；本次新增按钮、红色进度状态、文本换行和焦点样式无新增告警。
+- 人工验收待真实案件页面复测；自动化已覆盖状态与样式类切换，但不能替代部署环境中的最终视觉确认。

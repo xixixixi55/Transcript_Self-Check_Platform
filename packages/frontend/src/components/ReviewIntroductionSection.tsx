@@ -1,11 +1,11 @@
 import React from 'react'
 import type { FieldState, InspectorLibraryRecord, InspectionReport, InspectorSnapshot } from '@biji/shared/types'
-import { Alert } from 'antd'
+import { Alert, Button } from 'antd'
 import EvidenceEditor from './EvidenceEditor'
 import InspectorEditor from './InspectorEditor'
 import { DateTimeField } from './DateTimeField'
 import { ReviewField } from './ReviewField'
-import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
+import { EVIDENCE_COMPLETENESS_FIELD_PATH, REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 
 interface ReviewIntroductionSectionProps {
   introduction: InspectionReport['introduction']
@@ -14,6 +14,7 @@ interface ReviewIntroductionSectionProps {
   inspectorLoading: boolean
   inspectorError: string | null
   fieldStates?: Record<string, FieldState>
+  onEvidenceCompletenessChange: (confirmed: boolean) => void
 }
 
 const ENTRUST_PERSON_SEPARATOR = /[、,，;；/／|｜\r\n]+/
@@ -45,8 +46,10 @@ export function ReviewIntroductionSection({
   inspectorLoading,
   inspectorError,
   fieldStates,
+  onEvidenceCompletenessChange,
 }: ReviewIntroductionSectionProps) {
   const hasTrailingWhitespace = /[ \t\r\n]+$/.test(introduction.case_summary || '')
+  const evidenceCompletenessConfirmed = fieldStates?.[EVIDENCE_COMPLETENESS_FIELD_PATH]?.confirmation === 'confirmed'
   return (
     <>
       <div className="review-field-row review-field-row--entrust-unit">
@@ -67,11 +70,22 @@ export function ReviewIntroductionSection({
         showIcon
         message="当前内容末尾存在多余回车、空格或制表符，请检查并删除。"
       />}
-      <div className="review-editor-block">
-        <div className="review-field__label">（五）检材情况</div>
+      <div id={REVIEW_TARGET_IDS.evidenceCompleteness} className="review-editor-block review-navigation-target" tabIndex={-1}>
+        <div className="review-evidence-heading">
+          <div className="review-field__label">（五）检材情况</div>
+          {!evidenceCompletenessConfirmed && (
+            <Button className="review-evidence-confirmation" danger type="primary" size="small"
+              onClick={() => onEvidenceCompletenessChange(true)}>
+              请确认检材是否完整？
+            </Button>
+          )}
+        </div>
         <EvidenceEditor items={introduction.evidence_list || []}
           fieldStates={fieldStates}
-          onChange={value => updateReport('introduction.evidence_list', value)} />
+          onChange={value => {
+            updateReport('introduction.evidence_list', value)
+            onEvidenceCompletenessChange(false)
+          }} />
       </div>
       <ReviewField targetId={REVIEW_TARGET_IDS.inspectionRequirement} label="（六）检查要求" type="textarea" value={introduction.inspection_requirement}
         onChange={value => updateReport('introduction.inspection_requirement', value)} />

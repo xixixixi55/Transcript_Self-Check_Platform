@@ -169,6 +169,10 @@
   color: var(--review-warning);
 }
 
+.review-pending-summary--confirmation-pending .review-pending-summary__heading {
+  color: var(--review-error);
+}
+
 .review-pending-summary--complete {
   border-left-color: var(--review-success);
 }
@@ -210,6 +214,10 @@
   transition: width 180ms ease;
 }
 
+.review-progress__bar--confirmation-pending span {
+  background: var(--review-error);
+}
+
 .review-progress__sections {
   display: grid;
   gap: 8px;
@@ -224,6 +232,10 @@
 
 .review-progress__section--complete {
   border-left-color: #9fd0ae;
+}
+
+.review-progress__section--confirmation-pending {
+  border-left-color: var(--review-error);
 }
 
 .review-progress__section-button {
@@ -251,6 +263,11 @@
 .review-progress__section--complete .review-progress__section-icon,
 .review-progress__section--complete .review-progress__section-copy > span {
   color: var(--review-success);
+}
+
+.review-progress__section--confirmation-pending .review-progress__section-icon,
+.review-progress__section--confirmation-pending .review-progress__section-copy > span {
+  color: var(--review-error);
 }
 
 .review-progress__section-copy {
@@ -423,6 +440,39 @@
   color: var(--review-text);
   font-size: 14px;
   font-weight: 600;
+}
+
+.review-pending-dock--confirmation-pending .review-pending-dock__trigger {
+  color: var(--review-error);
+  background: #fff2f0;
+  border-color: #ffaaa3;
+}
+
+.review-evidence-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+
+.review-evidence-heading .review-field__label {
+  margin-bottom: 0;
+}
+
+.review-evidence-confirmation.ant-btn {
+  height: auto;
+  min-height: 30px;
+  padding: 4px 12px;
+  white-space: normal;
+  line-height: 20px;
+  text-align: center;
+}
+
+.review-evidence-confirmation.ant-btn:focus-visible {
+  outline: 2px solid var(--review-primary);
+  outline-offset: 2px;
 }
 
 .review-navigation-target {

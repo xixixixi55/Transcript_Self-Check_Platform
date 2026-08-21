@@ -55,8 +55,8 @@ export default function CaseRecordGeneratePage() {
   // The verified result then switches the same editor to the exact GP/YP contract.
   const archiveMedium = session.completedArchive.result?.archive_medium ?? null
   const pendingItems = useMemo(
-    () => session.report ? getReviewPendingItems(session.report, undefined, archiveMedium) : [],
-    [archiveMedium, session.report],
+    () => session.report ? getReviewPendingItems(session.report, undefined, archiveMedium, session.draft?.field_states) : [],
+    [archiveMedium, session.draft?.field_states, session.report],
   )
   const { navigateToPendingItem, navigateToSection } = useReviewPendingNavigation()
   const updateReport = useCallback((path: string, value: unknown) => {
@@ -251,6 +251,10 @@ export default function CaseRecordGeneratePage() {
           photoFiles={session.photoAssets.files}
           onPhotoFilesChange={session.photoAssets.handleChange}
           fieldStates={session.draft?.field_states}
+          onEvidenceCompletenessChange={confirmed => {
+            session.setEvidenceCompletenessConfirmed(confirmed)
+            if (session.editingEnabled) setReviewStatus('存在未导出修改')
+          }}
           saveStatus={reviewStatus}
           saveBusy={session.photoAssets.uploading || session.autosave.draftState.status === 'saving'}
           onSave={saveNow}

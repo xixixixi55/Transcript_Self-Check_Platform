@@ -181,6 +181,23 @@ describe('review workspace components', () => {
     expect(screen.getAllByText('必填已齐')).toHaveLength(4)
   })
 
+  it('检材完整性未确认时使用红色进度并阻止绪论完成', () => {
+    const items = [{
+      id: 'evidence-completeness', sectionId: 'review-section-introduction',
+      targetId: 'review-target-evidence-completeness', sectionLabel: '一、绪论',
+      fieldLabel: '检材完整性', reason: '请确认检材是否完整。',
+      severity: 'error' as const, kind: 'confirmation_required' as const,
+    }]
+    const view = render(<ReviewPendingSummary variant="side" items={items} onNavigate={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: '必填进度 3/4，待核对 1 项' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '必填进度 3/4，待核对 1 项' }))
+    expect(screen.getByRole('button', { name: '一、绪论，待确认 1 项' })).toBeTruthy()
+    expect(screen.getByText(/四部分必填字段均已填写，另有 1 项完整性待确认/)).toBeTruthy()
+    expect(view.container.querySelector('.review-progress__bar--confirmation-pending')).toBeTruthy()
+    expect(view.container.querySelector('.review-pending-dock--complete')).toBeNull()
+  })
+
   it('四部分均有必填空缺时显示 0/4', () => {
     const sectionIds = ['review-section-document', 'review-section-introduction', 'review-section-inspection', 'review-section-archive']
     const items = sectionIds.map((sectionId, index) => ({

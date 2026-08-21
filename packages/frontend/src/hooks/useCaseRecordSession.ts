@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import { applyReportEdit, buildMaterialPhotoGroups, parseDiscSequence } from '@biji/shared/utils'
-import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, CasePhotoBindingResult, ClientIdentity, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
+import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, CasePhotoBindingResult, ClientIdentity, FieldConfirmation, FieldState, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
 import { useCaseDraftAutosave } from './useCaseDraftAutosave'
 import type { AutosaveSaveMeta, AutosaveViewState } from './useCaseDraftAutosave'
 import { useCasePhotoAssets } from './useCasePhotoAssets'
@@ -13,6 +13,7 @@ import { useTaskRecords } from './useTaskRecords'
 import { shouldHydrateServerDraft } from './useCaseDraftHydration'
 import { useCompletedArchiveResult } from './useCompletedArchiveResult'
 import { buildSourceReplacementRequest } from './useSourceAuthorizationRequests'
+import { EVIDENCE_COMPLETENESS_FIELD_PATH } from './useReviewChecklist'
 
 const SHARED_FIELD_PATHS = new Set([
   'document_number', 'introduction.entrust_unit_prefix', 'introduction.inspection_place', 'inspection.method', 'inspection.hardware_device',
@@ -71,6 +72,7 @@ export function useCaseRecordSession(caseId: string) {
   const lastHydratedDraftKey = useRef<string | null>(null)
   const changeTokenRef = useRef(0)
   const localReportEdits = useRef<Array<{ path: string; value: unknown; token: number }>>([])
+  const localFieldStateEdits = useRef<Array<{ fieldPath: string; state: FieldState; token: number }>>([])
   const handleLeaseLost = useCallback(() => setLeaseLost(true), [])
 
   useEffect(() => {
@@ -94,6 +96,7 @@ export function useCaseRecordSession(caseId: string) {
     setSharedDefaultsPatch({})
     setLeaseLost(false)
     localReportEdits.current = []
+    localFieldStateEdits.current = []
   }, [caseId])
 
   const serverDraft = workbench.detail?.draft
@@ -151,7 +154,16 @@ export function useCaseRecordSession(caseId: string) {
       edit => edit.token > meta.savedThroughChangeToken,
     )
     lastHydratedDraftKey.current = `${caseId}:${savedDraft.revision}`
-    setDraft(savedDraft)
+    localFieldStateEdits.current = localFieldStateEdits.current.filter(
+      edit => edit.token > meta.savedThroughChangeToken,
+    )
+    const rebasedFieldStates = localFieldStateEdits.current.reduce((states, edit) => ({
+      ...states,
+      [edit.fieldPath]: edit.state,
+    }), savedDraft.field_states)
+    setDraft(localFieldStateEdits.current.length > 0
+      ? { ...savedDraft, field_states: rebasedFieldStates }
+      : savedDraft)
     if (!meta.hasNewerChanges) changeTokenRef.current = 0
     setChangeToken(current => meta.hasNewerChanges ? current : 0)
     if (!meta.hasNewerChanges) setReport(JSON.parse(JSON.stringify(savedDraft.report)) as InspectionReport)
@@ -214,6 +226,34 @@ export function useCaseRecordSession(caseId: string) {
     setChangeToken(token)
   }, [editingEnabled])
 
+  const setEvidenceCompletenessConfirmed = useCallback((confirmed: boolean) => {
+    if (!editingEnabled) return
+    const token = changeTokenRef.current + 1
+    changeTokenRef.current = token
+    setDraft(current => {
+      if (!current) return current
+      const previous = current.field_states[EVIDENCE_COMPLETENESS_FIELD_PATH]
+      const confirmation: FieldConfirmation = confirmed ? 'confirmed' : 'pending'
+      const state: FieldState = {
+        field_path: EVIDENCE_COMPLETENESS_FIELD_PATH,
+        source: 'user',
+        confirmation,
+        revision: (previous?.revision ?? 0) + 1,
+        last_changed_at: new Date().toISOString(),
+      }
+      localFieldStateEdits.current.push({
+        fieldPath: EVIDENCE_COMPLETENESS_FIELD_PATH,
+        state,
+        token,
+      })
+      return {
+        ...current,
+        field_states: { ...current.field_states, [EVIDENCE_COMPLETENESS_FIELD_PATH]: state },
+      }
+    })
+    setChangeToken(token)
+  }, [editingEnabled])
+
   const updatePhotoAssetRefs = useCallback(async (
     refs: OpaqueAssetRef[], expectedRefs: OpaqueAssetRef[],
   ): Promise<boolean> => {
@@ -232,11 +272,20 @@ export function useCaseRecordSession(caseId: string) {
       rebasedReport = applyReportEdit(rebasedReport, edit.path, edit.value)
     }
     rebasedReport = reportWithPhotoAssetRefs(rebasedReport, refs)
-    const rebasedDraft = { ...savedDraft, report: rebasedReport, asset_refs: refs }
+    const rebasedFieldStates = localFieldStateEdits.current.reduce((states, edit) => ({
+      ...states,
+      [edit.fieldPath]: edit.state,
+    }), savedDraft.field_states)
+    const rebasedDraft = {
+      ...savedDraft,
+      report: rebasedReport,
+      field_states: rebasedFieldStates,
+      asset_refs: refs,
+    }
     setDraft(rebasedDraft)
     setReport(rebasedReport)
     lastHydratedDraftKey.current = `${caseId}:${savedDraft.revision}`
-    autosave.rebase(rebasedDraft, localReportEdits.current.length > 0)
+    autosave.rebase(rebasedDraft, localReportEdits.current.length > 0 || localFieldStateEdits.current.length > 0)
     return true
   }, [autosave, caseId, editingEnabled, lease.lease])
 
@@ -280,7 +329,7 @@ export function useCaseRecordSession(caseId: string) {
   return {
     ...workbench, draft, report, defaults, identity, parseTask, taskRecords, lease, editingEnabled,
     leaseLost, autosave, sharedDefaultsPatch, sharedDefaultsSaveState, retrySave,
-    updateReport, updatePhotoAssetRefs, photoAssets, replaceSource, decideArchive, loadServerVersion,
+    updateReport, setEvidenceCompletenessConfirmed, updatePhotoAssetRefs, photoAssets, replaceSource, decideArchive, loadServerVersion,
     completedArchive,
   }
 }

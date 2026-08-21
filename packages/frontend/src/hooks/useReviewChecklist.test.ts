@@ -1,6 +1,7 @@
 import type { InspectionReport } from '@biji/shared/types'
 import { describe, expect, it } from 'vitest'
 import {
+  EVIDENCE_COMPLETENESS_FIELD_PATH,
   getReviewPendingItems,
   getReviewProgressSectionItems,
   REVIEW_SECTION_IDS,
@@ -62,6 +63,21 @@ describe('getReviewPendingItems', () => {
       },
     })
     expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
+  })
+
+  it('检材完整性未确认时阻止绪论进度完成，确认后清除提示', () => {
+    const pending = getReviewPendingItems(report)
+    expect(pending.some(item => item.kind === 'confirmation_required'
+      && item.targetId === REVIEW_TARGET_IDS.evidenceCompleteness)).toBe(true)
+
+    const confirmed = getReviewPendingItems(report, undefined, 'optical_disc', {
+      [EVIDENCE_COMPLETENESS_FIELD_PATH]: {
+        field_path: EVIDENCE_COMPLETENESS_FIELD_PATH,
+        source: 'user', confirmation: 'confirmed', revision: 1,
+        last_changed_at: '2026-08-21T00:00:00.000Z',
+      },
+    })
+    expect(confirmed.some(item => item.kind === 'confirmation_required')).toBe(false)
   })
 
   it('人工检材确认类型后不再保留旧设备类型待核对项', () => {

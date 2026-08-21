@@ -37,6 +37,7 @@ interface Props {
   photoFiles: UploadFile[]
   onPhotoFilesChange: (files: UploadFile[]) => void
   fieldStates?: Record<string, FieldState>
+  onEvidenceCompletenessChange?: (confirmed: boolean) => void
   /** Deprecated UI compatibility props; defaults are updated by successful draft saves. */
   hasReportDefaults?: boolean
   onSaveReportDefaults?: () => void
@@ -70,6 +71,7 @@ export default function RecordEditorForm({
   photoFiles,
   onPhotoFilesChange,
   fieldStates,
+  onEvidenceCompletenessChange = () => undefined,
   saveStatus = '尚未修改',
   saveBusy = false,
   onSave = () => undefined,
@@ -112,6 +114,7 @@ export default function RecordEditorForm({
           inspectorLoading={inspectorLoading}
           inspectorError={inspectorError}
           fieldStates={fieldStates}
+          onEvidenceCompletenessChange={onEvidenceCompletenessChange}
         />
         </ReviewSection>
 

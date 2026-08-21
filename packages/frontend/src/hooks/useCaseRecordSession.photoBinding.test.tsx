@@ -7,6 +7,7 @@ import type {
   InspectionReport, OpaqueAssetRef, SharedDefaults,
 } from '@biji/shared/types'
 import { useCaseRecordSession } from './useCaseRecordSession'
+import { EVIDENCE_COMPLETENESS_FIELD_PATH } from './useReviewChecklist'
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), patch: vi.fn(), post: vi.fn() } }))
 vi.mock('./useCaseWorkbench', () => ({ useCaseWorkbench: () => ({
@@ -127,7 +128,10 @@ describe('useCaseRecordSession photo binding coordination', () => {
     })
     const view = renderHook(() => useCaseRecordSession(caseId))
     await waitFor(() => expect(view.result.current.report).not.toBeNull())
-    act(() => view.result.current.updateReport('introduction.evidence_list', [manualMaterial]))
+    act(() => {
+      view.result.current.updateReport('introduction.evidence_list', [manualMaterial])
+      view.result.current.setEvidenceCompletenessConfirmed(true)
+    })
     await waitFor(() => expect(draftBodies).toHaveLength(1), { timeout: 2500 })
 
     let bindingPromise!: Promise<boolean>
@@ -153,6 +157,9 @@ describe('useCaseRecordSession photo binding coordination', () => {
           introduction: expect.objectContaining({ evidence_list: [manualMaterial] }),
           attachments: expect.objectContaining({ photo_ids: [firstRef.asset_id, secondRef.asset_id] }),
         }),
+        field_states: expect.objectContaining({
+          [EVIDENCE_COMPLETENESS_FIELD_PATH]: expect.objectContaining({ confirmation: 'confirmed' }),
+        }),
       }),
     }))
     const finalDraft = {
@@ -162,6 +169,7 @@ describe('useCaseRecordSession photo binding coordination', () => {
     await waitFor(() => expect(view.result.current.draft?.revision).toBe(6))
     expect(view.result.current.draft?.asset_refs).toEqual([firstRef, secondRef])
     expect(view.result.current.report?.introduction.evidence_list).toEqual([manualMaterial])
+    expect(view.result.current.draft?.field_states[EVIDENCE_COMPLETENESS_FIELD_PATH]?.confirmation).toBe('confirmed')
     expect(view.result.current.autosave.draftState.status).toBe('saved')
   })
 
