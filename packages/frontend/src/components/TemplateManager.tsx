@@ -28,8 +28,6 @@ const errorMessages: Record<string, string> = {
 }
 
 interface TemplateFormValues {
-  templateId: string
-  version: string
   displayName: string
 }
 
@@ -71,8 +69,6 @@ export default function TemplateManager() {
       return
     }
     const succeeded = await addTemplate({
-      templateId: values.templateId.trim(),
-      version: values.version.trim(),
       displayName: values.displayName.trim(),
       file,
     })
@@ -244,23 +240,9 @@ export default function TemplateManager() {
       >
         <Form form={form} layout="vertical" onFinish={handleAdd}>
           <Form.Item
-            name="templateId"
-            label="模版 ID"
-            rules={[{ required: true, whitespace: true, message: '请输入模版 ID' }]}
-          >
-            <Input placeholder="例如 electronic-inspection-record" />
-          </Form.Item>
-          <Form.Item
-            name="version"
-            label="版本"
-            rules={[{ required: true, whitespace: true, message: '请输入模版版本' }]}
-          >
-            <Input placeholder="例如 1.0.0" />
-          </Form.Item>
-          <Form.Item
             name="displayName"
-            label="显示名称"
-            rules={[{ required: true, whitespace: true, message: '请输入模版显示名称' }]}
+            label="命名"
+            rules={[{ required: true, whitespace: true, message: '请输入模版命名' }]}
           >
             <Input placeholder="例如 电子数据检查笔录" />
           </Form.Item>

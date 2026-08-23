@@ -86,14 +86,14 @@ describe('useTemplateManagement', () => {
 
     await act(async () => {
       await view.result.current.addTemplate({
-        templateId: uploaded.template_ref.template_id,
-        version: uploaded.template_ref.version,
         displayName: uploaded.display_name,
         file,
       })
     })
     const form = postMock.mock.calls[0][1] as FormData
-    expect(form.get('template_id')).toBe(uploaded.template_ref.template_id)
+    expect(form.get('template_id')).toBeNull()
+    expect(form.get('version')).toBeNull()
+    expect(form.get('display_name')).toBe(uploaded.display_name)
     expect(form.get('file')).toBe(file)
 
     await act(async () => {

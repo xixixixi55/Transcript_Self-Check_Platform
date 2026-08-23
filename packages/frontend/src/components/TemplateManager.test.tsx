@@ -79,9 +79,10 @@ describe('TemplateManager', () => {
     expect(deleteTemplate).toHaveBeenCalledWith(extraTemplate.template_ref)
 
     fireEvent.click(screen.getByRole('button', { name: /添加模版/ }))
-    fireEvent.change(screen.getByLabelText('模版 ID'), { target: { value: 'template-SYNTHETIC-new' } })
-    fireEvent.change(screen.getByLabelText('版本'), { target: { value: '1.0.0' } })
-    fireEvent.change(screen.getByLabelText('显示名称'), { target: { value: 'SYNTHETIC 新模版' } })
+    expect(screen.queryByLabelText('模版 ID')).toBeNull()
+    expect(screen.queryByLabelText('版本')).toBeNull()
+    expect(screen.queryByLabelText('显示名称')).toBeNull()
+    fireEvent.change(screen.getByLabelText('命名'), { target: { value: 'SYNTHETIC 新模版' } })
     const file = new File(['SYNTHETIC'], 'SYNTHETIC-new.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
     const fileInput = document.querySelector('input[type="file"]')
     expect(fileInput).toBeTruthy()
@@ -89,7 +90,7 @@ describe('TemplateManager', () => {
     await waitFor(() => expect(screen.getByText('SYNTHETIC-new.docx')).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: '保存模版' }))
     await waitFor(() => expect(addTemplate).toHaveBeenCalledWith({
-      templateId: 'template-SYNTHETIC-new', version: '1.0.0', displayName: 'SYNTHETIC 新模版', file,
+      displayName: 'SYNTHETIC 新模版', file,
     }))
   })
 

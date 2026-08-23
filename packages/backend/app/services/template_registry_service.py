@@ -24,6 +24,8 @@ from .template_profile_service import (
     validate_registered_template,
 )
 
+UPLOADED_TEMPLATE_INITIAL_VERSION = "1.0.0"
+
 
 class TemplateRegistryService:
     def __init__(
@@ -118,7 +120,7 @@ class TemplateRegistryService:
         return self.list_management()
 
     def register_uploaded(
-        self, template_ref: Mapping[str, Any], display_name: str, asset_path: str | Path,
+        self, display_name: str, asset_path: str | Path,
     ) -> dict[str, Any]:
         path = Path(asset_path)
         try:
@@ -130,8 +132,8 @@ class TemplateRegistryService:
         except Exception as error:
             raise WorkbenchPersistenceError("TEMPLATE_RULE_VALIDATION_FAILED") from error
         reference = {
-            "template_id": template_ref.get("template_id"),
-            "version": template_ref.get("version"),
+            "template_id": f"template-upload-{secrets.token_hex(16)}",
+            "version": UPLOADED_TEMPLATE_INITIAL_VERSION,
         }
         self.registry.register({
             "schema_version": 1,

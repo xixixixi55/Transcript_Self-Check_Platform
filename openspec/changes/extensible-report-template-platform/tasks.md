@@ -161,6 +161,9 @@ Renderer 当前正式渲染输入为 `InspectionReport` 兼容数据 + `ArchiveM
 - [ ] 12.6T 增加可区分的前后端回归测试：有效重命名即时刷新列表；空白、超长及额外字段被拒绝并保持原名；模板 ID/版本、资产指纹、审批、默认状态和案件引用不变；三个说明文案不再渲染。验证：定向 Vitest、pytest、架构检查、类型检查、`npm run verify:quick`、scoped strict docs 和 `git diff --check`。
   - 当前证据：前端 2 files / 7 passed；后端 18 passed；架构、类型、OpenSpec strict validate 和 `git diff --check` 通过。`verify:quick` 的本次 type drift 已清零，但仍被任务开始前已存在的 39 项 `.agents`/`.claude` 未跟踪工具镜像漂移阻断；按工作区保护规则未改写这些本地工具文件，因此本任务暂不勾选。视觉验收按用户要求由用户执行，独立审查按用户要求取消。
   - 启动回归修复：内置模板启动注册沿用已持久化的用户显示名称，同时继续校验版本、资产、指纹、规则和审批元数据的不可变性；新增服务重启测试覆盖名称、指纹、审批及默认模板状态保持。模板控制器与注册仓库定向测试 19 passed；架构和类型检查通过。`verify:quick` 仍仅被上述 39 项既有工具镜像漂移阻断；scoped strict docs 同时报告该漂移和本任务未勾选状态。
+- [x] 12.7 精简添加模板流程：移除“模板 ID”和“版本”输入项，将“显示名称”标签改为“命名”；上传接口只接收名称和 DOCX，Service 为成功上传生成唯一不透明模板 ID 与内部初始版本 `1.0.0`，保留模板不可变性、审批、默认值和案件引用合同。文件：`packages/frontend/src/components/TemplateManager.tsx`、`packages/frontend/src/hooks/useTemplateManagement.ts`、`packages/backend/app/controllers/template_controller.py`、`packages/backend/app/services/template_registry_service.py`。
+- [x] 12.7T 更新现有前后端回归：组件断言添加弹窗不出现 ID/版本且以“命名”提交；Hook 断言 multipart 不再发送两个技术字段；Controller 断言仅名称和文件即可注册且系统生成唯一 ID/`1.0.0`。验证：定向 Vitest、pytest、架构检查、类型检查、Impeccable detector 和 `git diff --check`。
+  - 证据：前端模板管理组件/Hook 2 files / 7 passed；后端模板控制器 16 passed；架构、TypeScript、OpenSpec strict validate 通过；Impeccable detector 0 findings；本任务文件范围 `git diff --check` 通过。全仓 diff 检查仍报告任务开始前已有的 `AGENTS.md` 末尾空行，未改写该用户变更。
 - [x] 12.2T 增加确定性模板清理、无批注部件/标记/关系、无模板媒体、附件二锚点保留、历史模板指纹可复现、新默认模板注册、已有案件继续引用 `1.0.0`、自定义默认模板不被覆盖、0/2/4 张动态图片回归测试；受影响后端组合 127 passed / 1 skipped，核心清理逻辑突变验证按预期失败且恢复后通过。人工 Word 视觉验收因当前环境缺少 LibreOffice/Word 渲染器保持待验收，不伪报通过。
 
 ## 13. 全黑字体策略（Layer 21）

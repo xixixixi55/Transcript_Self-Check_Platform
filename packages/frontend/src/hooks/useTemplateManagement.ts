@@ -115,8 +115,6 @@ export function useTemplateManagement() {
   }, [applyResponse, defaultsRevision])
 
   const addTemplate = useCallback(async (input: {
-    templateId: string
-    version: string
     displayName: string
     file: File
   }) => {
@@ -124,8 +122,6 @@ export function useTemplateManagement() {
     setErrorCode(null)
     try {
       const form = new FormData()
-      form.append('template_id', input.templateId)
-      form.append('version', input.version)
       form.append('display_name', input.displayName)
       form.append('file', input.file)
       await axios.post(API_ENDPOINTS.WORKBENCH_TEMPLATES, form)

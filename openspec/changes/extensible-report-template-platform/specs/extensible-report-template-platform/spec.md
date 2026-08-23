@@ -49,9 +49,17 @@
 - **AND** 结构标题保持一级略突出、同级对齐的缩进层次
 - **AND** 页数、分页、表格列宽、VML 文本框、页眉和页脚内容保持不变
 
-### Requirement: Template display names are editable metadata
+### Requirement: Template upload identity is system-managed and display names are editable metadata
 
 已审核模板的显示名称 MUST 可由用户在模板管理页单独修改。重命名只更新展示元数据，MUST NOT 改写模板 ID、版本、DOCX 资产、指纹、校验规则、审批记录、默认模板状态或案件中的模板引用。名称去除首尾空白后 MUST 非空且不超过 120 个字符；非法名称 MUST 被拒绝且保留原名称。
+
+添加模板时，用户 MUST 只需提供“命名”和 DOCX 文件，不得要求用户填写模板 ID 或版本。系统 MUST 为每次成功上传生成唯一的不透明模板 ID，并以内部初始版本 `1.0.0` 注册；生成的 ID 和版本继续用于模板不可变性、默认模板和案件引用，不得因界面精简而从内部合同移除。
+
+#### Scenario: Upload a template without technical identity fields
+
+- **WHEN** 用户在添加模板界面填写有效“命名”并选择通过结构校验的 DOCX 文件
+- **THEN** 界面不显示模板 ID 或版本输入项，并仅提交名称和文件
+- **AND** 系统生成唯一模板 ID 和内部初始版本 `1.0.0`，返回已审核模板并保留既有不可变版本合同
 
 #### Scenario: Rename an approved template
 

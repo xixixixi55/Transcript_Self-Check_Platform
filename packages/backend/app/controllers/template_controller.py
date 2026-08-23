@@ -88,8 +88,6 @@ def set_template_default_endpoint(body: TemplateDefaultRequest) -> dict[str, Any
 @router.post("/workbench/templates")
 def add_template_endpoint(
     file: UploadFile = File(...),
-    template_id: str = Form(...),
-    version: str = Form(...),
     display_name: str = Form(...),
 ) -> dict[str, Any]:
     services = get_workbench_services()
@@ -98,7 +96,7 @@ def add_template_endpoint(
     try:
         staged_path = _stage_template_upload(file, services.database.database_path.parent)
         result = _template_service(services).register_uploaded(
-            {"template_id": template_id, "version": version}, display_name, staged_path,
+            display_name, staged_path,
         )
         registered = True
         return _envelope(result)

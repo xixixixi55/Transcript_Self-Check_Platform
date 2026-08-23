@@ -327,11 +327,7 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     source_template = Path(__file__).parents[1] / "word_templates" / "template.docx"
     upload_response = client.post(
         "/api/v1/workbench/templates",
-        data={
-            "template_id": "template-SYNTHETIC-uploaded",
-            "version": "1.0.0",
-            "display_name": "SYNTHETIC 上传笔录模版",
-        },
+        data={"display_name": "SYNTHETIC 上传笔录模版"},
         files={
             "file": (
                 "SYNTHETIC-template.docx", source_template.read_bytes(),
@@ -340,8 +336,25 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
         },
     )
     assert upload_response.status_code == 200, upload_response.text
-    uploaded_ref = {"template_id": "template-SYNTHETIC-uploaded", "version": "1.0.0"}
+    uploaded_ref = upload_response.json()["data"]["template_ref"]
+    assert uploaded_ref["template_id"].startswith("template-upload-")
+    assert uploaded_ref["version"] == "1.0.0"
     assert upload_response.json()["data"]["template_ref"] == uploaded_ref
+
+    second_upload = client.post(
+        "/api/v1/workbench/templates",
+        data={"display_name": "SYNTHETIC 第二个上传笔录模版"},
+        files={
+            "file": (
+                "SYNTHETIC-template-2.docx", source_template.read_bytes(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        },
+    )
+    assert second_upload.status_code == 200, second_upload.text
+    second_ref = second_upload.json()["data"]["template_ref"]
+    assert second_ref["template_id"] != uploaded_ref["template_id"]
+    assert second_ref["version"] == "1.0.0"
 
     updated = client.get("/api/v1/workbench/templates/management").json()["data"]
     assert any(item["template_ref"] == uploaded_ref for item in updated["templates"])
@@ -351,7 +364,7 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
             (json.dumps(uploaded_ref), CASE_ID),
         )
     in_use_response = client.delete(
-        "/api/v1/workbench/templates/template-SYNTHETIC-uploaded/1.0.0",
+        f"/api/v1/workbench/templates/{uploaded_ref['template_id']}/{uploaded_ref['version']}",
     )
     assert in_use_response.status_code == 409
     assert in_use_response.json()["detail"]["code"] == "TEMPLATE_IN_USE"
@@ -374,7 +387,7 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     assert all(item["template_ref"] != REFERENCE for item in remaining["templates"])
 
     blocked_response = client.delete(
-        "/api/v1/workbench/templates/template-SYNTHETIC-uploaded/1.0.0",
+        f"/api/v1/workbench/templates/{uploaded_ref['template_id']}/{uploaded_ref['version']}",
     )
     assert blocked_response.status_code == 409
     assert blocked_response.json()["detail"]["code"] == "DEFAULT_TEMPLATE_CANNOT_DELETE"
@@ -387,11 +400,7 @@ def test_upload_cannot_reclassify_historical_bytes_as_custom_template(template_a
 
     response = client.post(
         "/api/v1/workbench/templates",
-        data={
-            "template_id": "template-SYNTHETIC-old-layout",
-            "version": "1.0.0",
-            "display_name": "SYNTHETIC 旧版式上传模板",
-        },
+        data={"display_name": "SYNTHETIC 旧版式上传模板"},
         files={
             "file": (
                 "SYNTHETIC-old-layout.docx", source.read_bytes(),
@@ -528,20 +537,24 @@ def test_broken_title_slot_is_rejected_without_upload_or_derive_residue(template
     document.save(malformed)
     before = set(asset_root.glob("*.docx"))
 
-    upload_ref = {"template_id": "template-SYNTHETIC-broken-upload", "version": "1.0.0"}
+    with services.database.connect() as connection:
+        registered_before = connection.execute(
+            "SELECT COUNT(*) FROM template_versions",
+        ).fetchone()[0]
     upload = client.post(
         "/api/v1/workbench/templates",
-        data={
-            "template_id": upload_ref["template_id"], "version": upload_ref["version"],
-            "display_name": "SYNTHETIC broken title upload",
-        },
+        data={"display_name": "SYNTHETIC broken title upload"},
         files={"file": (
             malformed.name, malformed.read_bytes(),
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )},
     )
     assert upload.status_code == 422
-    assert services.template_registry.find_internal(upload_ref) is None
+    with services.database.connect() as connection:
+        registered_after = connection.execute(
+            "SELECT COUNT(*) FROM template_versions",
+        ).fetchone()[0]
+    assert registered_after == registered_before
     assert set(asset_root.glob("*.docx")) == before
 
     source_asset = asset_root / "SYNTHETIC-broken-title-source.docx"
