@@ -1640,3 +1640,37 @@ def test_select_export_directory_rejects_program_root_without_issuing_grant(app_
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "EXPORT_DIRECTORY_UNSAFE"
     issue_grant.assert_not_called()
+
+
+def test_select_export_directory_issues_grant_for_canonical_path(app_services, tmp_path):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    selected_path = str(tmp_path / "SYNTHETIC-EXPORT" / ".." / "SYNTHETIC-EXPORT")
+    canonical_path = (tmp_path / "SYNTHETIC-EXPORT").resolve()
+    canonical_path.mkdir()
+    picker = MagicMock()
+    picker.select.return_value = selected_path
+    app_services.directory_picker = picker
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), \
+         patch.object(
+             workbench_controller, "validate_export_directory", return_value=canonical_path,
+         ) as validate, \
+         patch.object(
+             app_services.sources.authorization,
+             "issue_exact_directory_grant",
+             return_value="token-SYNTHETIC",
+         ) as issue_grant:
+        response = TestClient(app).post("/api/v1/workbench/select-export-directory")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "path": str(canonical_path), "token": "token-SYNTHETIC",
+    }
+    picker.select.assert_called_once_with(
+        description="选择导出目录",
+        history_kind="export",
+        selection_validator=validate,
+    )
+    validate.assert_called_once_with(selected_path)
+    issue_grant.assert_called_once_with(str(canonical_path))

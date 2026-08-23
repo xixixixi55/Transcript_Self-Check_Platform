@@ -102,6 +102,22 @@ def test_export_directory_rejects_program_and_user_data_roots(tmp_path: Path) ->
     ) == safe_root.resolve()
 
 
+def test_export_bundle_rejects_program_root_before_consuming_grant_or_exporting() -> None:
+    from app.config import RUNTIME_PATHS
+
+    api = _api(consume_ok=True)
+    with patch("app.services.archive_export_service.unified_export") as render:
+        with pytest.raises(WorkbenchPersistenceError) as error:
+            export_bundle(
+                api, "case-synthetic", 3, str(RUNTIME_PATHS.resource_root),
+                directory_token="token-synthetic", template_context={},
+            )
+
+    assert error.value.code == "EXPORT_DIRECTORY_UNSAFE"
+    api.sources.authorization.consume_exact_directory_grant.assert_not_called()
+    render.assert_not_called()
+
+
 def test_standalone_word_manifest_matches_unified_export_projection() -> None:
     api = _api(consume_ok=True)
     api.results.manifest_bundle.return_value["public_manifest"]["parts"][0].update({

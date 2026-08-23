@@ -125,9 +125,10 @@ def select_export_directory_endpoint():
         )
         if selected_path is None:
             return _envelope({"cancelled": True})
-        validate_export_directory(selected_path)
-        token = services.sources.authorization.issue_exact_directory_grant(selected_path)
-        return _envelope({"path": selected_path, "token": token})
+        validated_path = validate_export_directory(selected_path)
+        canonical_path = str(validated_path)
+        token = services.sources.authorization.issue_exact_directory_grant(canonical_path)
+        return _envelope({"path": canonical_path, "token": token})
     except Exception as error:
         _handle(error)
 
