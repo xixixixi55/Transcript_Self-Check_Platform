@@ -40,14 +40,27 @@ def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Pa
     second = repository.patch({"inspection_place": "SYNTHETIC-PLACE"}, updated["defaults"]["revision"])
     assert second["defaults"]["document_number"] == "SYNTHETIC-DOC-001"
 
-    unchanged = repository.patch({"document_number": "   "}, updated["defaults"]["revision"])
-    assert unchanged["status"] == "unchanged"
-    assert unchanged["defaults"]["document_number"] == "SYNTHETIC-DOC-001"
+    cleared = repository.patch(
+        {"document_number": "   "}, second["defaults"]["revision"], allow_clear=True,
+    )
+    assert cleared["status"] == "updated"
+    assert cleared["defaults"]["document_number"] == ""
+    assert cleared["defaults"]["inspection_place"] == "SYNTHETIC-PLACE"
+
+    with_inspectors = repository.patch(
+        {"inspector_order": ["SYNTHETIC-A|SYNTHETIC-UNIT|SYNTHETIC-001"]},
+        cleared["defaults"]["revision"],
+    )
+    cleared_inspectors = repository.patch(
+        {"inspector_order": []}, with_inspectors["defaults"]["revision"], allow_clear=True,
+    )
+    assert cleared_inspectors["status"] == "updated"
+    assert cleared_inspectors["defaults"]["inspector_order"] == []
 
     with pytest.raises(WorkbenchPersistenceError) as error:
-        repository.patch({"case_name": "SYNTHETIC-FORBIDDEN"}, unchanged["defaults"]["revision"])
+        repository.patch({"case_name": "SYNTHETIC-FORBIDDEN"}, cleared_inspectors["defaults"]["revision"])
     assert error.value.code == "UNKNOWN_SHARED_DEFAULT_FIELD"
-    assert repository.get()["document_number"] == "SYNTHETIC-DOC-001"
+    assert repository.get()["document_number"] == ""
 
 
 def test_entrust_unit_prefix_can_be_persisted_and_cleared(tmp_path: Path):

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { InspectionReport, OpaqueAssetRef } from '@biji/shared/types'
 import { applyReportEdit } from '@biji/shared/utils'
 import { shouldHydrateServerDraft } from './useCaseDraftHydration'
-import { reportWithPhotoAssetRefs, sharedPatchForEdit } from './useCaseRecordSession'
+import { reportWithPhotoAssetRefs } from './useCaseRecordSession'
 
 describe('shouldHydrateServerDraft', () => {
   const draft = (caseId: string, revision: number) => ({ case_id: caseId, revision })
@@ -27,43 +27,7 @@ describe('shouldHydrateServerDraft', () => {
     expect(shouldHydrateServerDraft('case-synthetic-1', draft('case-synthetic-1', 7), 'case-synthetic-1:6', 0)).toBe(true)
   })
 
-  it('keeps inspector order and extracts only the disc-number prefix', () => {
-    const report = {
-      introduction: {
-        inspectors: [
-          { name: 'SYNTHETIC-A', unit: 'SYNTHETIC-UNIT-A', badge_number: 'SYNTHETIC-001' },
-          { name: 'SYNTHETIC-B', unit: 'SYNTHETIC-UNIT-B', badge_number: 'SYNTHETIC-002' },
-        ],
-      },
-      attachments: { disc_number: 'ABC20260729-01' },
-    } as InspectionReport
-
-    expect(sharedPatchForEdit(report, 'introduction.inspectors')).toEqual({
-      inspector_order: [
-        'SYNTHETIC-A|SYNTHETIC-UNIT-A|SYNTHETIC-001',
-        'SYNTHETIC-B|SYNTHETIC-UNIT-B|SYNTHETIC-002',
-      ],
-    })
-    expect(sharedPatchForEdit(report, 'attachments.disc_number')).toEqual({
-      disc_number_prefix: 'ABC',
-    })
-  })
-
-  it('creates a clearable shared patch for the entrust-unit prefix', () => {
-    const report = {
-      introduction: { entrust_unit_prefix: ' SYNTHETIC-公安分局 ' },
-    } as InspectionReport
-
-    expect(sharedPatchForEdit(report, 'introduction.entrust_unit_prefix')).toEqual({
-      entrust_unit_prefix: 'SYNTHETIC-公安分局',
-    })
-    report.introduction.entrust_unit_prefix = ''
-    expect(sharedPatchForEdit(report, 'introduction.entrust_unit_prefix')).toEqual({
-      entrust_unit_prefix: '',
-    })
-  })
-
-  it('projects dragged inspector order to both the form and shared export input', () => {
+  it('projects dragged inspector order to the current report only', () => {
     const report = {
       introduction: {
         inspectors: [
@@ -80,12 +44,6 @@ describe('shouldHydrateServerDraft', () => {
     const edited = applyReportEdit(report, 'introduction.inspector_snapshots', dragged)
 
     expect(edited.introduction.inspectors.map(item => item.name)).toEqual(['SYNTHETIC-B', 'SYNTHETIC-A'])
-    expect(sharedPatchForEdit(edited, 'introduction.inspector_snapshots')).toEqual({
-      inspector_order: [
-        'SYNTHETIC-B|SYNTHETIC-UNIT-B|SYNTHETIC-002',
-        'SYNTHETIC-A|SYNTHETIC-UNIT-A|SYNTHETIC-001',
-      ],
-    })
   })
 
   it('persists photo ids and deterministic material groups from asset reference order', () => {

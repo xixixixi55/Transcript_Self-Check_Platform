@@ -8,6 +8,7 @@ import TemplateManagePage from './pages/TemplateManagePage'
 import HomePage from './pages/HomePage'
 import CaseWorkbenchPage from './pages/CaseWorkbenchPage'
 import CaseRecordGeneratePage from './pages/CaseRecordGeneratePage'
+import { SharedDefaultsSettingsPage } from './pages/SharedDefaultsSettingsPage'
 
 export function LegacyRedirect({ to }: { to: string }) {
   const location = useLocation()
@@ -26,10 +27,12 @@ export default function App() {
         <Route path="/electronic-inspection/devices" element={<DeviceManagePage />} />
         <Route path="/electronic-inspection/inspectors" element={<InspectorManagePage />} />
         <Route path="/electronic-inspection/templates" element={<TemplateManagePage />} />
+        <Route path="/electronic-inspection/defaults" element={<SharedDefaultsSettingsPage />} />
         <Route path="/generate" element={<LegacyRedirect to="/electronic-inspection/workbench" />} />
         <Route path="/devices" element={<LegacyRedirect to="/electronic-inspection/devices" />} />
         <Route path="/inspectors" element={<LegacyRedirect to="/electronic-inspection/inspectors" />} />
         <Route path="/templates" element={<LegacyRedirect to="/electronic-inspection/templates" />} />
+        <Route path="/defaults" element={<LegacyRedirect to="/electronic-inspection/defaults" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </PlatformShell>

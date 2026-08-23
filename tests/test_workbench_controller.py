@@ -353,6 +353,17 @@ def test_http_revision_conflict_and_defaults_are_stable(app_services):
         saved = client.put("/api/v1/workbench/defaults", json={"values": {"document_number": "SYNTHETIC-DEFAULT"}, "expected_revision": defaults["revision"], "identity": IDENTITY})
         assert saved.status_code == 200
         assert saved.json()["data"]["document_number"] == "SYNTHETIC-DEFAULT"
+        cleared = client.put(
+            "/api/v1/workbench/defaults",
+            json={
+                "values": {"document_number": "", "inspector_order": []},
+                "expected_revision": saved.json()["data"]["revision"],
+                "identity": IDENTITY,
+            },
+        )
+        assert cleared.status_code == 200
+        assert cleared.json()["data"]["document_number"] == ""
+        assert cleared.json()["data"]["inspector_order"] == []
 
 
 def test_http_draft_save_reports_shared_defaults_partial_success_and_current_revision(app_services):

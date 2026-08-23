@@ -49,6 +49,7 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
   const isModulePath = location.pathname.startsWith('/electronic-inspection')
     || location.pathname === '/generate' || location.pathname === '/devices'
     || location.pathname === '/inspectors' || location.pathname === '/templates'
+    || location.pathname === '/defaults'
   const [openKeys, setOpenKeys] = useState<string[]>(isModulePath ? [moduleKey] : [])
 
   useEffect(() => {
@@ -92,6 +93,9 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
     if (location.pathname === '/electronic-inspection/templates' || location.pathname === '/templates') {
       return 'electronic-inspection-templates'
     }
+    if (location.pathname === '/electronic-inspection/defaults' || location.pathname === '/defaults') {
+      return 'electronic-inspection-defaults'
+    }
     if (location.pathname === '/electronic-inspection') return 'electronic-inspection-workbench'
     if (location.pathname === '/electronic-inspection/workbench'
       || location.pathname.startsWith('/electronic-inspection/cases/')
@@ -133,6 +137,9 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
           </Menu.Item>
           <Menu.Item key="electronic-inspection-templates">
             <Link to="/electronic-inspection/templates">笔录模版管理</Link>
+          </Menu.Item>
+          <Menu.Item key="electronic-inspection-defaults">
+            <Link to="/electronic-inspection/defaults">笔录默认设置</Link>
           </Menu.Item>
         </Menu.SubMenu>
         <Menu.SubMenu key={moreCapabilitiesKey} aria-label="更多能力"

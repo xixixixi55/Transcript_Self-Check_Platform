@@ -2,10 +2,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
-import { applyReportEdit, buildMaterialPhotoGroups, parseDiscSequence } from '@biji/shared/utils'
+import { applyReportEdit, buildMaterialPhotoGroups } from '@biji/shared/utils'
 import type { ArchiveDecision, ArchiveDecisionResult, CaseDraft, CasePhotoBindingResult, ClientIdentity, FieldConfirmation, FieldState, InspectionReport, OpaqueAssetRef, SharedDefaults, SharedDefaultsSaveStatus } from '@biji/shared/types'
 import { useCaseDraftAutosave } from './useCaseDraftAutosave'
-import type { AutosaveSaveMeta, AutosaveViewState } from './useCaseDraftAutosave'
+import type { AutosaveSaveMeta } from './useCaseDraftAutosave'
 import { useCasePhotoAssets } from './useCasePhotoAssets'
 import { useCaseWorkbench } from './useCaseWorkbench'
 import { createClientIdentity, useEditLease } from './useEditLease'
@@ -15,29 +15,7 @@ import { useCompletedArchiveResult } from './useCompletedArchiveResult'
 import { buildSourceReplacementRequest } from './useSourceAuthorizationRequests'
 import { EVIDENCE_COMPLETENESS_FIELD_PATH } from './useReviewChecklist'
 
-const SHARED_FIELD_PATHS = new Set([
-  'document_number', 'introduction.entrust_unit_prefix', 'introduction.inspection_place', 'inspection.method', 'inspection.hardware_device',
-  'introduction.inspectors', 'introduction.inspector_snapshots', 'attachments.disc_number',
-])
 const ACTIVE_ARCHIVE_LIFECYCLES = new Set(['archive_queued', 'archiving'])
-
-export function sharedPatchForEdit(report: InspectionReport, path: string): Record<string, unknown> | null {
-  if (path === 'introduction.entrust_unit_prefix') {
-    return { entrust_unit_prefix: report.introduction?.entrust_unit_prefix?.trim() || '' }
-  }
-  if (path === 'document_number') return { document_number: report.document_number || '' }
-  if (path === 'introduction.inspection_place') return { inspection_place: report.introduction?.inspection_place || '' }
-  if (path === 'inspection.method') return { inspection_method: report.inspection?.method || '' }
-  if (path === 'inspection.hardware_device') return { hardware_device: report.inspection?.hardware_device || '' }
-  if (path.startsWith('introduction.inspectors') || path.startsWith('introduction.inspector_snapshots')) {
-    return { inspector_order: (report.introduction?.inspectors || []).map(item => `${item.name}|${item.unit}|${item.badge_number}`) }
-  }
-  if (path === 'attachments.disc_number') {
-    const parsed = parseDiscSequence(report.attachments?.disc_number || '')
-    return parsed.valid && parsed.sequence ? { disc_number_prefix: parsed.sequence.prefix } : null
-  }
-  return null
-}
 
 export function reportWithPhotoAssetRefs(
   report: InspectionReport,
@@ -64,9 +42,6 @@ export function useCaseRecordSession(caseId: string) {
   const [defaults, setDefaults] = useState<SharedDefaults | null>(null)
   const [identity, setIdentity] = useState<ClientIdentity | null>(null)
   const [changeToken, setChangeToken] = useState(0)
-  const [needsSharedDefaults, setNeedsSharedDefaults] = useState(false)
-  const [sharedDefaultsPatch, setSharedDefaultsPatch] = useState<Record<string, unknown>>({})
-  const [sharedDefaultsSaveState, setSharedDefaultsSaveState] = useState<AutosaveViewState>({ status: 'not_changed' })
   const [leaseLost, setLeaseLost] = useState(false)
   const terminalStatus = useRef<string | null>(null)
   const lastHydratedDraftKey = useRef<string | null>(null)
@@ -92,8 +67,6 @@ export function useCaseRecordSession(caseId: string) {
     setReport(null)
     setChangeToken(0)
     changeTokenRef.current = 0
-    setNeedsSharedDefaults(false)
-    setSharedDefaultsPatch({})
     setLeaseLost(false)
     localReportEdits.current = []
     localFieldStateEdits.current = []
@@ -107,8 +80,6 @@ export function useCaseRecordSession(caseId: string) {
     setReport(JSON.parse(JSON.stringify(serverDraft.report)) as InspectionReport)
     setChangeToken(0)
     changeTokenRef.current = 0
-    setNeedsSharedDefaults(false)
-    setSharedDefaultsPatch({})
     setLeaseLost(false)
   }, [caseId, changeToken, serverDraft?.case_id, serverDraft?.revision])
 
@@ -149,7 +120,7 @@ export function useCaseRecordSession(caseId: string) {
   })
   const editingEnabled = lease.phase === 'active' && !leaseLost
   const draftForSave = useMemo(() => draft && report ? { ...draft, report } : draft, [draft, report])
-  const onSaved = useCallback((savedDraft: CaseDraft, sharedStatus: SharedDefaultsSaveStatus, meta: AutosaveSaveMeta) => {
+  const onSaved = useCallback((savedDraft: CaseDraft, _sharedStatus: SharedDefaultsSaveStatus, meta: AutosaveSaveMeta) => {
     localReportEdits.current = localReportEdits.current.filter(
       edit => edit.token > meta.savedThroughChangeToken,
     )
@@ -167,40 +138,10 @@ export function useCaseRecordSession(caseId: string) {
     if (!meta.hasNewerChanges) changeTokenRef.current = 0
     setChangeToken(current => meta.hasNewerChanges ? current : 0)
     if (!meta.hasNewerChanges) setReport(JSON.parse(JSON.stringify(savedDraft.report)) as InspectionReport)
-    if (sharedStatus.status === 'updated' || sharedStatus.status === 'unchanged' || (sharedStatus.status as string) === 'saved') {
-      const appliedPatch = meta.sharedDefaultsPatch || {}
-      setDefaults(current => current ? {
-        ...current,
-        ...(sharedStatus.status === 'updated' || (sharedStatus.status as string) === 'saved' ? appliedPatch : {}),
-        revision: sharedStatus.revision ?? current.revision,
-      } : current)
-      setSharedDefaultsPatch(current => {
-        const remaining = { ...current }
-        for (const [key, value] of Object.entries(appliedPatch)) {
-          if (JSON.stringify(remaining[key]) === JSON.stringify(value)) delete remaining[key]
-        }
-        setNeedsSharedDefaults(Object.keys(remaining).length > 0)
-        return remaining
-      })
-      setSharedDefaultsSaveState(meta.hasNewerChanges
-        ? { status: 'not_changed' }
-        : { status: 'saved', revision: sharedStatus.revision })
-    } else if (sharedStatus.status === 'failed' || sharedStatus.status === 'revision_conflict') {
-      // Keep the sparse patch for the next explicit shared-field edit, but do
-      // not retry independently of a successful case-draft save.
-      if (sharedStatus.revision !== undefined) {
-        setDefaults(current => current ? { ...current, revision: sharedStatus.revision as number } : current)
-      }
-      setNeedsSharedDefaults(meta.hasNewerChanges)
-      setSharedDefaultsSaveState(meta.hasNewerChanges ? { status: 'not_changed' } : {
-        status: sharedStatus.status === 'revision_conflict' ? 'conflict' : 'failed',
-        revision: sharedStatus.revision, errorCode: sharedStatus.error_code,
-      })
-    }
   }, [caseId])
   const autosave = useCaseDraftAutosave({
-    caseId, draft: draftForSave, identity, sharedDefaultsPatch,
-    sharedDefaultsRevision: defaults?.revision ?? null, includeSharedDefaults: needsSharedDefaults,
+    caseId, draft: draftForSave, identity, sharedDefaultsPatch: null,
+    sharedDefaultsRevision: null, includeSharedDefaults: false,
     changeToken, enabled: editingEnabled, leaseId: lease.lease?.lease_id,
     leaseToken: lease.lease?.lease_token, onSaved,
   })
@@ -209,16 +150,7 @@ export function useCaseRecordSession(caseId: string) {
     if (!editingEnabled) return
     setReport(current => {
       if (!current) return current
-      const next = applyReportEdit(current, path, value)
-      if (SHARED_FIELD_PATHS.has(path) || path.startsWith('introduction.inspectors') || path.startsWith('introduction.inspector_snapshots')) {
-        const patch = sharedPatchForEdit(next, path)
-        if (patch) {
-          setSharedDefaultsPatch(previous => ({ ...previous, ...patch }))
-          setNeedsSharedDefaults(true)
-          setSharedDefaultsSaveState({ status: 'not_changed' })
-        }
-      }
-      return next
+      return applyReportEdit(current, path, value)
     })
     const token = changeTokenRef.current + 1
     changeTokenRef.current = token
@@ -328,7 +260,7 @@ export function useCaseRecordSession(caseId: string) {
 
   return {
     ...workbench, draft, report, defaults, identity, parseTask, taskRecords, lease, editingEnabled,
-    leaseLost, autosave, sharedDefaultsPatch, sharedDefaultsSaveState, retrySave,
+    leaseLost, autosave, retrySave,
     updateReport, setEvidenceCompletenessConfirmed, updatePhotoAssetRefs, photoAssets, replaceSource, decideArchive, loadServerVersion,
     completedArchive,
   }

@@ -61,6 +61,7 @@ describe('platform shell navigation', () => {
     expect(screen.queryByText('生成笔录')).toBeNull()
     expect(screen.getByText('电子设备管理')).toBeTruthy()
     expect(screen.getByText('笔录模版管理')).toBeTruthy()
+    expect(screen.getByText('笔录默认设置')).toBeTruthy()
     expect(screen.getByText('更多能力')).toBeTruthy()
     fireEvent.click(screen.getByText('更多能力').closest('.ant-menu-submenu-title') as HTMLElement)
     expect(screen.getAllByText('即将开放')).toHaveLength(1)
@@ -130,7 +131,7 @@ describe('platform shell navigation', () => {
     expect(moduleTitle?.getAttribute('aria-expanded')).toBe('true')
     await waitFor(() => expect(screen.queryByRole('tooltip', { name: '电子数据检查笔录' })).toBeNull())
     expect(screen.getByText('案件工作台')).toBeTruthy()
-    for (const label of ['案件工作台', '电子设备管理', '检查人员管理', '笔录模版管理']) {
+    for (const label of ['案件工作台', '电子设备管理', '检查人员管理', '笔录模版管理', '笔录默认设置']) {
       expect(screen.getByText(label).closest('.ant-menu-item')?.getAttribute('title')).toBeNull()
     }
   })
@@ -230,6 +231,20 @@ describe('platform shell navigation', () => {
     const templateItem = templateLink.closest('.ant-menu-item')
     expect(templateItem?.className).toContain('ant-menu-item-selected')
     expect(templateItem?.querySelector('.ant-menu-item-icon')).toBeNull()
+  })
+
+  it('笔录默认设置位于模板管理之后并可高亮', () => {
+    render(
+      <MemoryRouter initialEntries={['/electronic-inspection/defaults']}>
+        <PlatformSidebar collapsed={false} onToggle={vi.fn()} />
+      </MemoryRouter>,
+    )
+    const defaultLink = screen.getByRole('link', { name: '笔录默认设置' })
+    expect(defaultLink.getAttribute('href')).toBe('/electronic-inspection/defaults')
+    expect(defaultLink.closest('.ant-menu-item')?.className).toContain('ant-menu-item-selected')
+    const labels = Array.from(document.querySelectorAll('.platform-sidebar .ant-menu-item'))
+      .map(item => item.textContent?.trim())
+    expect(labels.indexOf('笔录默认设置')).toBe(labels.indexOf('笔录模版管理') + 1)
   })
 })
 

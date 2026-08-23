@@ -34,7 +34,9 @@ async def get_defaults_endpoint():
 @router.put("/workbench/defaults")
 async def save_defaults_endpoint(body: DefaultsSaveRequest):
     try:
-        result = get_workbench_services().defaults.patch(body.values, body.expected_revision, body.identity)
+        result = get_workbench_services().defaults.patch(
+            body.values, body.expected_revision, body.identity, allow_clear=True,
+        )
         return _envelope(result["defaults"])
     except Exception as error:
         _handle(error)

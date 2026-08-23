@@ -270,7 +270,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await new Promise(resolve => setTimeout(resolve, 1200))
     expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
-  it('saves an explicitly cleared entrust-unit prefix to the draft and shared defaults', async () => {
+  it('saves an explicitly cleared entrust-unit prefix only to the current draft', async () => {
     renderPage()
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
@@ -282,11 +282,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     const request = patchMock.mock.calls[0][1] as {
       draft: CaseDraft
-      shared_defaults_patch: Record<string, unknown>
+      shared_defaults_patch?: Record<string, unknown> | null
     }
     expect(request.draft.report.introduction.entrust_unit_prefix).toBe('')
     expect(request.draft.report.introduction.entrust_unit).toBe('SYNTHETIC-UNIT')
-    expect(request.shared_defaults_patch).toEqual({ entrust_unit_prefix: '' })
+    expect(request.shared_defaults_patch).toBeNull()
   }, 15000)
 
   it.each(['archive_queued', 'archive_deferred'] as const)('accepts and autosaves a YP number without medium guidance while lifecycle is %s', async lifecycle => {

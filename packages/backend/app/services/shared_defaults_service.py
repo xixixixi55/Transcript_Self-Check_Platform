@@ -30,10 +30,11 @@ class SharedDefaultsService:
         return result
 
     def patch(
-        self, values: Mapping[str, Any], expected_revision: int, identity: Mapping[str, Any]
+        self, values: Mapping[str, Any], expected_revision: int, identity: Mapping[str, Any],
+        *, allow_clear: bool = False,
     ) -> dict[str, Any]:
         _validate_identity(self.database, identity)
-        result = self.repository.patch(values, expected_revision)
+        result = self.repository.patch(values, expected_revision, allow_clear=allow_clear)
         if result["status"] == "updated":
             self._audit("shared_defaults_changed", identity, payload={"revision": result["defaults"]["revision"]})
         return result

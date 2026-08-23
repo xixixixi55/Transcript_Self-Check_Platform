@@ -67,9 +67,11 @@ class SharedDefaultsRepository:
                 raise RevisionConflictError("shared_defaults", expected_revision, actual)
         return self.get_or_create()
 
-    def patch(self, values: Mapping[str, Any], expected_revision: int) -> dict[str, Any]:
-        """Merge only explicitly supplied, non-empty shared default fields."""
-        normalized = _normalize_patch(values)
+    def patch(
+        self, values: Mapping[str, Any], expected_revision: int, *, allow_clear: bool = False
+    ) -> dict[str, Any]:
+        """Merge explicitly supplied fields, including intentional clears."""
+        normalized = _normalize_patch(values, allow_clear=allow_clear)
         current = self.get_or_create()
         if not normalized:
             return {"status": "unchanged", "defaults": current, "changed_fields": []}
@@ -168,7 +170,7 @@ def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _normalize_patch(values: Mapping[str, Any]) -> dict[str, Any]:
+def _normalize_patch(values: Mapping[str, Any], *, allow_clear: bool = False) -> dict[str, Any]:
     if not isinstance(values, Mapping):
         raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
     unknown = set(values) - set(_DEFAULT_VALUES)
@@ -183,7 +185,7 @@ def _normalize_patch(values: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(value, str):
             raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
         validate_safe_string(value, "INVALID_SHARED_DEFAULTS")
-        if value.strip() or key == "entrust_unit_prefix":
+        if value.strip() or allow_clear or key == "entrust_unit_prefix":
             normalized[key] = value.strip()
     if "inspector_order" in values:
         items = values["inspector_order"]
@@ -194,7 +196,7 @@ def _normalize_patch(values: Mapping[str, Any]) -> dict[str, Any]:
             validate_safe_string(item, "INVALID_SHARED_DEFAULTS")
             if not item:
                 raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
-        if normalized_items:
+        if normalized_items or allow_clear:
             normalized["inspector_order"] = normalized_items
     if "default_template_ref" in values:
         normalized["default_template_ref"] = _normalize_template_ref(
