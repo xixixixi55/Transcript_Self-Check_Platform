@@ -11,13 +11,14 @@ def project_case_inspector_snapshot(
 ) -> dict[str, Any]:
     """Copy library or parser values into a detached, case-scoped inspector snapshot."""
     raw = dict(value) if isinstance(value, Mapping) else {
-        "id": value.id, "name": value.name, "unit": value.unit,
+        "id": value.id, "name": value.name, "unit": value.unit, "position": value.position,
         "police_number": value.police_number,
     }
     snapshot = {
         "snapshot_id": snapshot_id,
         "name": str(raw.get("name", "")),
         "unit": str(raw.get("unit", "")),
+        "position": str(raw.get("position", "")),
         "police_number": str(raw.get("police_number", raw.get("badge_number", ""))),
         "selected_order": selected_order,
     }

@@ -14,12 +14,10 @@ const putMock = vi.mocked(axios.put)
 
 const devices = [
   {
-    id: 'device-SYNTHETIC-1', name: 'SYNTHETIC FL-901', model: 'SYNTHETIC-MODEL-1',
-    company: 'SYNTHETIC美亚柏科', description: 'SYNTHETIC/TEST device',
+    id: 'device-SYNTHETIC-1', name: 'SYNTHETIC FL-901', company: 'SYNTHETIC美亚柏科',
   },
   {
-    id: 'device-SYNTHETIC-legacy', name: 'SYNTHETIC LEGACY', model: 'SYNTHETIC-MODEL-2',
-    company: '', description: 'SYNTHETIC/TEST legacy device',
+    id: 'device-SYNTHETIC-legacy', name: 'SYNTHETIC LEGACY', company: '',
   },
 ]
 
@@ -50,6 +48,8 @@ describe('DeviceManager company field', () => {
     expect(await screen.findByText('SYNTHETIC美亚柏科')).toBeTruthy()
     expect(screen.getByText('待补充')).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: '所属公司' })).toBeTruthy()
+    expect(screen.queryByRole('columnheader', { name: '型号' })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: '描述' })).toBeNull()
   })
 
   it('新增设备时要求所属公司并将其提交到设备 API', async () => {
@@ -57,7 +57,6 @@ describe('DeviceManager company field', () => {
     await screen.findByText('SYNTHETIC FL-901')
     fireEvent.click(screen.getByRole('button', { name: /添加设备/ }))
     fireEvent.change(screen.getByLabelText('设备名称'), { target: { value: 'SYNTHETIC NEW DEVICE' } })
-    fireEvent.change(screen.getByLabelText('型号'), { target: { value: 'SYNTHETIC-MODEL-NEW' } })
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
 
     expect(await screen.findByText('请输入所属公司')).toBeTruthy()
@@ -66,7 +65,7 @@ describe('DeviceManager company field', () => {
     fireEvent.change(screen.getByLabelText('所属公司'), { target: { value: 'SYNTHETIC COMPANY' } })
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.DEVICES, {
-      name: 'SYNTHETIC NEW DEVICE', model: 'SYNTHETIC-MODEL-NEW', company: 'SYNTHETIC COMPANY',
+      name: 'SYNTHETIC NEW DEVICE', company: 'SYNTHETIC COMPANY',
     }))
   })
 

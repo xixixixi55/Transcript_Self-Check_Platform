@@ -28,7 +28,6 @@ export const API_ENDPOINTS = {
   DEVICES: `${API_PREFIX}/devices`,
   INSPECTORS: `${API_PREFIX}/inspectors`,
   INSPECTOR: (id: string) => `${API_PREFIX}/inspectors/${id}`,
-  INSPECTOR_STATUS: (id: string) => `${API_PREFIX}/inspectors/${id}/status`,
   UPLOAD_PHOTO: `${API_PREFIX}/photos/upload`,
   PHOTO_FILE: (id: string) => `${API_PREFIX}/photos/${id}`,
   WORKBENCH_CASES: `${API_PREFIX}/workbench/cases`,

@@ -7,7 +7,7 @@ import InspectorManager, { filterInspectorRecords } from './InspectorManager'
 const mocks = vi.hoisted(() => ({
   axios: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
   form: {
-    validateFields: vi.fn(async () => ({ name: '新增姓名', unit: '新增单位', police_number: '003' })),
+    validateFields: vi.fn(async () => ({ name: '新增姓名', unit: '新增单位', position: '新增职位', police_number: '003' })),
     resetFields: vi.fn(),
     setFieldsValue: vi.fn(),
   },
@@ -27,7 +27,6 @@ vi.mock('antd', () => {
     Modal: ({ open, children, onOk }: any) => open ? <div role="dialog"><button onClick={onOk}>确定</button>{children}</div> : null,
     Popconfirm: ({ children, onConfirm }: any) => <span onClick={onConfirm}>{children}</span>,
     Space: ({ children }: any) => <div>{children}</div>,
-    Switch: ({ checked, checkedChildren, unCheckedChildren, onChange }: any) => <button onClick={() => onChange(!checked)}>{checked ? checkedChildren : unCheckedChildren}</button>,
     Table: ({ columns, dataSource, locale }: any) => (
       <div>{dataSource.length === 0 ? locale.emptyText : dataSource.map((record: any) => (
         <div key={record.id}>{columns.map((column: any) => column.dataIndex
@@ -40,7 +39,7 @@ vi.mock('antd', () => {
 })
 
 const record: InspectorLibraryRecord = {
-  id: 'inspector-1', name: '合成姓名', unit: '合成单位', police_number: '001', enabled: true,
+  id: 'inspector-1', name: '合成姓名', unit: '合成单位', position: '合成职位', police_number: '001',
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 
@@ -52,19 +51,19 @@ describe('InspectorManager', () => {
     mocks.axios.put.mockResolvedValue({ data: { data: record } })
   })
 
-  it('按姓名、单位或警号筛选人员', () => {
+  it('按姓名、单位、职位或警号筛选人员', () => {
     expect(filterInspectorRecords([record], '合成单位')).toEqual([record])
+    expect(filterInspectorRecords([record], '合成职位')).toEqual([record])
     expect(filterInspectorRecords([record], '不存在')).toEqual([])
   })
 
-  it('显示列表、搜索并支持启停', async () => {
+  it('显示单位和职位，且不提供启停状态', async () => {
     render(<InspectorManager />)
     expect(await screen.findByText('合成姓名')).toBeTruthy()
+    expect(screen.getByText('合成职位')).toBeTruthy()
     fireEvent.change(screen.getByLabelText('搜索检查人员'), { target: { value: '不存在' } })
     expect(screen.getByText('没有匹配的检查人员')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('搜索检查人员'), { target: { value: '' } })
-    fireEvent.click(await screen.findByRole('button', { name: '启用' }))
-    expect(mocks.axios.post).toHaveBeenCalledWith('/api/v1/inspectors/inspector-1/status', { enabled: false })
+    expect(screen.queryByRole('button', { name: /启用|停用/ })).toBeNull()
   })
 
   it('支持新增并刷新列表', async () => {

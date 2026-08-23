@@ -32,6 +32,7 @@ def snapshots_to_legacy(snapshots: Iterable[Mapping[str, Any]]) -> list[dict[str
         {
             "name": _snapshot_text(item.get("name")),
             "unit": _snapshot_text(item.get("unit")),
+            "position": _snapshot_text(item.get("position")),
             "badge_number": _snapshot_text(item.get("police_number")),
         }
         for item in snapshots
@@ -43,6 +44,7 @@ def legacy_to_snapshots(inspectors: Iterable[Mapping[str, Any]]) -> list[dict[st
         {
             "name": _snapshot_text(item.get("name")),
             "unit": _snapshot_text(item.get("unit")),
+            "position": _snapshot_text(item.get("position")),
             "police_number": _snapshot_text(item.get("badge_number")),
         }
         for item in inspectors
@@ -65,6 +67,7 @@ def apply_inspector_snapshot_compatibility(report: Mapping[str, Any]) -> dict[st
         {
             "name": _snapshot_text(item.get("name")),
             "unit": _snapshot_text(item.get("unit")),
+            "position": _snapshot_text(item.get("position")),
             "police_number": _snapshot_text(item.get("police_number")),
         }
         for item in snapshots
@@ -80,21 +83,23 @@ class InspectorService:
     def __init__(self, repository: InspectorRepository | None = None):
         self.repository = repository or InspectorRepository()
 
-    def list(self, *, enabled_only: bool = False) -> list[dict[str, Any]]:
-        return [inspector_to_dict(item) for item in self.repository.list(enabled_only=enabled_only)]
+    def list(self) -> list[dict[str, Any]]:
+        return [inspector_to_dict(item) for item in self.repository.list()]
 
     def get(self, inspector_id: str) -> dict[str, Any] | None:
         record = self.repository.get(inspector_id)
         return inspector_to_dict(record) if record else None
 
-    def create(self, name: Any, unit: Any, police_number: Any) -> dict[str, Any]:
-        return inspector_to_dict(self.repository.create(name, unit, police_number))
+    def create(self, name: Any, unit: Any, position: Any, police_number: Any) -> dict[str, Any]:
+        return inspector_to_dict(self.repository.create(name, unit, position, police_number))
 
-    def update(self, inspector_id: str, *, name: Any = None, unit: Any = None, police_number: Any = None) -> dict[str, Any]:
-        return inspector_to_dict(self.repository.update(inspector_id, name=name, unit=unit, police_number=police_number))
-
-    def set_enabled(self, inspector_id: str, enabled: Any) -> dict[str, Any]:
-        return inspector_to_dict(self.repository.set_enabled(inspector_id, enabled))
+    def update(
+        self, inspector_id: str, *, name: Any = None, unit: Any = None,
+        position: Any = None, police_number: Any = None,
+    ) -> dict[str, Any]:
+        return inspector_to_dict(self.repository.update(
+            inspector_id, name=name, unit=unit, position=position, police_number=police_number,
+        ))
 
     def delete(self, inspector_id: str) -> None:
         self.repository.delete(inspector_id)
@@ -113,6 +118,7 @@ class InspectorService:
                     inspector_id=record.id,
                     name=record.name,
                     unit=record.unit,
+                    position=record.position,
                     police_number=record.police_number,
                     selected_order=order,
                 )

@@ -31,7 +31,7 @@ def test_new_case_uses_natural_evidence_order_and_creates_stable_card_ids():
     assert all(item["evidence_id"].startswith("SYNTHETIC-evidence-") for item in initialized["introduction"]["evidence_list"])
     assert initialized["introduction"]["inspector_snapshots"] == [{
         "snapshot_id": "SYNTHETIC-inspector-4", "name": "SYNTHETIC-A",
-        "unit": "SYNTHETIC-U", "police_number": "SYNTHETIC-001", "selected_order": 0,
+        "unit": "SYNTHETIC-U", "position": "", "police_number": "SYNTHETIC-001", "selected_order": 0,
     }]
 
 

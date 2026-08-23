@@ -128,7 +128,7 @@ def _evidence_match_key(value: Mapping[str, Any]) -> str:
 
 def _inspector_match_key(value: Mapping[str, Any]) -> str:
     return "|".join(str(value.get(key, "")) for key in (
-        "inspector_id", "id", "name", "unit", "police_number", "badge_number",
+        "inspector_id", "id", "name", "unit", "position", "police_number", "badge_number",
     ))
 
 

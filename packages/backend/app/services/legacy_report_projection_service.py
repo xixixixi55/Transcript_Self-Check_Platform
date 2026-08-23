@@ -44,6 +44,7 @@ def _project_inspectors(introduction: dict[str, Any]) -> None:
     introduction["inspectors"] = [
         {
             "name": _text(item.get("name")), "unit": _text(item.get("unit")),
+            "position": _text(item.get("position")),
             "badge_number": _text(item.get("police_number")),
         }
         for item in copied if isinstance(item, Mapping)

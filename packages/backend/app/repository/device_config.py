@@ -14,9 +14,7 @@ _DEFAULT_DEVICES = [
     {
         "id": "default-fl901",
         "name": "美亚FL-901 手机取证塔",
-        "model": "美亚FL-901",
         "company": "美亚柏科",
-        "description": "美亚柏科手机取证塔，支持主流手机数据提取",
     },
 ]
 
@@ -35,9 +33,11 @@ def _read_config() -> list[dict]:
 
 
 def _normalise_device(device: dict) -> dict:
-    normalised = dict(device)
-    normalised["company"] = str(device.get("company") or "").strip()
-    return normalised
+    return {
+        "id": str(device.get("id") or "").strip(),
+        "name": str(device.get("name") or "").strip(),
+        "company": str(device.get("company") or "").strip(),
+    }
 
 
 def _write_config(devices: list[dict]) -> None:
@@ -50,11 +50,10 @@ def list_all() -> list[dict]:
     return _read_config()
 
 
-def insert(name: str, model: str, company: str, description: str = "") -> dict:
+def insert(name: str, company: str) -> dict:
     devices = _read_config()
     device = {
-        "id": str(uuid.uuid4())[:8], "name": name, "model": model,
-        "company": company, "description": description,
+        "id": str(uuid.uuid4())[:8], "name": name, "company": company,
     }
     devices.append(device)
     _write_config(devices)
@@ -62,16 +61,14 @@ def insert(name: str, model: str, company: str, description: str = "") -> dict:
 
 
 def update(
-    device_id: str, name: str = "", model: str = "", description: str = "",
+    device_id: str, name: str = "",
     company: Optional[str] = None,
 ) -> Optional[dict]:
     devices = _read_config()
     for d in devices:
         if d["id"] == device_id:
             if name: d["name"] = name
-            if model: d["model"] = model
             if company is not None: d["company"] = company
-            if description is not None: d["description"] = description
             _write_config(devices)
             return d
     return None

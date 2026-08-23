@@ -56,6 +56,7 @@ export interface InspectorSnapshot {
   inspector_id?: string | null
   name: string
   unit: string
+  position?: string
   police_number: string
   selected_order?: number
   captured_at?: string

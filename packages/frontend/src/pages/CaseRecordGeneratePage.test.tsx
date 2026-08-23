@@ -11,7 +11,7 @@ const getMock = vi.mocked(axios.get); const postMock = vi.mocked(axios.post); co
 const caseId = 'case-synthetic-archive-race'
 const identity: ClientIdentity = { client_instance_id: 'client-synthetic', session_id: 'session-synthetic', deployment_instance_id: 'synthetic-uat', observed_at: '2026-01-01T00:00:00Z', identity_kind: 'local_session' }
 const defaults: SharedDefaults = { schema_version: 1, deployment_instance_id: 'synthetic-uat', revision: 0, entrust_unit_prefix: '', document_number: '', inspection_place: '', inspection_method: '', hardware_device: '', inspector_order: [], disc_number_prefix: 'GP', migration_decision: 'ignored', updated_at: '2026-01-01T00:00:00Z' }
-const availableInspector = { id: 'inspector-synthetic', name: '张三', unit: 'SYNTHETIC-UNIT', police_number: 'SYN-001', enabled: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
+const availableInspector = { id: 'inspector-synthetic', name: '张三', unit: 'SYNTHETIC-UNIT', position: 'SYNTHETIC-POSITION', police_number: 'SYN-001', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
 const task: TaskRecord = { schema_version: 1, task_id: 'task-synthetic-parse', case_id: caseId, kind: 'parse', status: 'succeeded', stage: 'parse', percent: 100, counters: {}, input_revision: 0, attempt: 1, cancel_requested: false, revision: 0, created_at: '2026-01-01T00:00:00Z', finished_at: '2026-01-01T00:00:00Z' }
 const archiveTaskSummary: ArchiveTaskCardSummary = {
   progress_kind: 'workflow_milestone', stage: 'completed', stage_label: '归档完成', stage_index: 7,

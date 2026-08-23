@@ -33,7 +33,7 @@ export default function CaseRecordGeneratePage() {
   const photoNavigationBlocker = useBlocker(session.photoAssets.navigationUnsafe)
   const { exportDocx, exporting } = useRecordExport()
   const exportDirectory = useArchiveCompletion()
-  const [devices, setDevices] = useState<{ id: string; name: string; model: string }[]>([])
+  const [devices, setDevices] = useState<{ id: string; name: string }[]>([])
   const [inspectors, setInspectors] = useState<InspectorLibraryRecord[]>([])
   const [reviewStatus, setReviewStatus] = useState<ReviewPageStatus>('尚未修改')
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -46,10 +46,10 @@ export default function CaseRecordGeneratePage() {
   useEffect(() => {
     axios.get(API_ENDPOINTS.DEVICES).then(response => setDevices(response.data.data || [])).catch(() => undefined)
     setInspectorLoading(true)
-    axios.get(API_ENDPOINTS.INSPECTORS, { params: { enabled_only: true } })
+    axios.get(API_ENDPOINTS.INSPECTORS)
       .then(response => setInspectors(response.data.data || []))
       .finally(() => setInspectorLoading(false))
-      .catch(() => setInspectorError('获取启用检查人员失败，请稍后重试。'))
+      .catch(() => setInspectorError('获取检查人员失败，请稍后重试。'))
   }, [])
   // Before compression finishes, accept either user-entered medium prefix.
   // The verified result then switches the same editor to the exact GP/YP contract.
@@ -244,7 +244,7 @@ export default function CaseRecordGeneratePage() {
           onExport={() => setDownloadNameDialogOpen(true)}
           exporting={exporting || exportPreparing || exportDirectory.busy}
           onBackToUpload={() => { void handleBackToWorkbench() }}
-          deviceOptions={devices.map(device => ({ label: `${device.name} (${device.model})`, value: device.name }))}
+          deviceOptions={devices.map(device => ({ label: device.name, value: device.name }))}
           availableInspectors={inspectors}
           inspectorLoading={inspectorLoading}
           inspectorError={inspectorError}

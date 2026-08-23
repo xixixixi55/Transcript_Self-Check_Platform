@@ -108,6 +108,7 @@
 |------|------|------|
 | name | string | 姓名 |
 | unit | string | 单位 |
+| position | string（历史数据可为空） | 职位 |
 | badge_number | string | 警号 |
 
 ### 软件工具（SoftwareItem）
@@ -229,9 +230,7 @@
 |------|------|------|
 | id | string | 唯一标识 |
 | name | string | 设备名称 |
-| model | string | 型号 |
 | company | string | 所属公司；旧持久化记录缺失时规范化为空字符串 |
-| description | string | 描述（可选） |
 
 ---
 
@@ -288,8 +287,8 @@
 检材类型由导出门控阻止。
 
 `InspectorLibraryRecord` 表示当前可选择的人员库记录，包含唯一 `id`、`name`、
-`unit`、`police_number`、`enabled` 以及创建和更新时间。人员库记录与报告中的
-`InspectorSnapshot` 分离；快照保存报告生成时的姓名、单位、警号和顺序，不随人员库
+`unit`、`position`、`police_number` 以及创建和更新时间，不包含启用/停用状态；所有未删除记录均可选择。人员库记录与报告中的
+`InspectorSnapshot` 分离；快照保存报告生成时的姓名、单位、职位、警号和顺序，不随人员库
 后续修改而变化。旧 `introduction.inspectors` 仅作为由快照派生的 legacy 投影。
 
 `DiscSequence` 保存介质编号解析结果的 `prefix`、真实日期、首序号、输入位宽

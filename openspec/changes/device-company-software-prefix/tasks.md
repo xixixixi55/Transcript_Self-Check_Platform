@@ -91,3 +91,11 @@ spec_sync_evidence: `openspec/specs/electronic-inspection-record/spec.md` REQ-01
 - [x] 对照 delta spec 核对实现并同步 living spec，运行 `npm run verify:quick`、受影响前后端定向测试、`npm run verify:docs:strict -- --change device-company-software-prefix` 与 `git diff --check`。
 
 验证证据：前端投影 10 项、后端 Parser/软件策略 66 项、旧草稿兼容与 Word 生成 30 项、工作台初始化到 Word 精确整句 1 项通过；临时移除“使用软件”动作后前端 2 项、后端 1 项按预期失败，恢复实现后全部重跑通过。
+
+## 后续调整：精简电子设备管理字段
+
+- [x] 将 `HardwareDevice`、设备 CRUD 请求/响应与本地配置投影收敛为“设备名称、所属公司”；旧配置中的 `model`、`description` 只作为可忽略兼容输入，不再通过管理 API 展示或继续写入。验证：shared/frontend typecheck、设备 Repository/Controller 定向测试。
+- [x] 更新电子设备管理列表及新增/编辑弹窗，移除型号、描述列和表单项，保持名称/所属公司校验、编辑回填、删除和错误恢复行为。验证：复用并修改 `DeviceManager.test.tsx`。
+- [x] 对照更新后的 REQ-010 核对实现，完成 living spec/data-model 同步，并运行本变更适用的 Level 2 收尾门控。
+
+本轮证据：设备/人员/快照/文书及相关兼容投影后端定向 113 passed；前端设备、人员、默认设置定向 18 passed，案件页及相关投影组合 44 passed；`npm run verify:quick` 与 scoped strict docs（14 checks、0 drift）通过，`git diff --check` 仅报告本次开始前已存在的 `AGENTS.md` EOF 空行。

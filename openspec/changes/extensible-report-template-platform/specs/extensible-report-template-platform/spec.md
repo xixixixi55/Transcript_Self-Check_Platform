@@ -71,6 +71,30 @@
 - **THEN** 页面保留标题和主要管理内容
 - **AND** 不显示标题下方的说明性副文案
 
+### Requirement: Inspector library records unit and position without availability state
+
+检查人员库 MUST 维护姓名、单位、职位和警号，不再维护或展示启用/停用状态。所有未删除人员 MUST 统一出现在管理列表和案件选择入口。新增人员时四项业务字段均为必填；历史 v1 人员记录 MUST 忽略原 `enabled` 值并兼容为可用，缺少职位时以空值加载，等待用户后续补充，不得因此丢失或隐藏人员。
+
+案件 `InspectorSnapshot` MUST 保存职位并与人员库后续修改解耦；共享默认值、Canonical/Legacy 兼容投影和正式文书 MUST 保留职位。历史快照缺少职位时继续可读，正式文本不得产生空职位对应的重复分隔符。
+
+#### Scenario: 管理和选择检查人员
+
+- **WHEN** 用户进入检查人员管理或案件人员选择入口
+- **THEN** 系统展示所有未删除人员及姓名、单位、职位、警号
+- **AND** 页面不显示状态列、启停开关或启用/停用提示
+
+#### Scenario: 兼容原停用人员
+
+- **WHEN** 本地人员库仍是 v1 且某条记录的 `enabled` 为 `false`
+- **THEN** 系统仍返回并允许选择该人员
+- **AND** 缺少职位时显示空值并允许在编辑时补充
+
+#### Scenario: 职位随案件快照进入文书
+
+- **WHEN** 用户选择具有职位的检查人员并保存或导出案件
+- **THEN** 案件快照、兼容投影和正式文书保留该职位
+- **AND** 后续修改或删除人员库记录不改写既有案件快照
+
 ### Requirement: Local Windows directory picker preserves the path-based source contract
 
 本地 Windows 案件工作台 MUST 提供点击式“上传报告目录/添加案件”入口。入口 MUST 由后端在本机交互桌面会话中弹出原生文件夹选择窗口；选择成功后 MUST 在同一请求内使用真实绝对路径登记既有 `SourceRecord`、创建案件壳和解析任务。浏览器 MUST NOT 上传或复制报告目录，公共响应、日志和浏览器状态 MUST NOT 暴露绝对路径；选择范围 MUST NOT 被硬编码为桌面目录。取消选择 MUST 是无副作用操作。

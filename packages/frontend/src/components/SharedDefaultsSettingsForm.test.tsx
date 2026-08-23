@@ -13,7 +13,7 @@ const defaults = {
   entrust_unit_prefix: 'SYNTHETIC-PREFIX', document_number: 'SYNTHETIC-DOC',
   inspection_place: 'SYNTHETIC-PLACE', inspection_method: 'SYNTHETIC-METHOD',
   hardware_device: 'SYNTHETIC-DEVICE',
-  inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-001'],
+  inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-POSITION|SYNTHETIC-001'],
   disc_number_prefix: 'GP', hash_algorithm: 'md5', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
 }
 

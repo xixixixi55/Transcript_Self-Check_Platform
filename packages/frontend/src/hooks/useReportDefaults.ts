@@ -33,7 +33,7 @@ export function readReportDefaults(storage: Pick<Storage, 'getItem'> = window.lo
       hardware_device: clean(raw.hardware_device, 200),
       inspector_snapshots: Array.isArray(raw.inspector_snapshots) ? raw.inspector_snapshots.map((item: any) => ({
         inspector_id: clean(item.inspector_id, 100) || undefined,
-        name: clean(item.name, 100), unit: clean(item.unit, 200),
+        name: clean(item.name, 100), unit: clean(item.unit, 200), position: clean(item.position, 100),
         police_number: clean(item.police_number, 100), selected_order: Number(item.selected_order) || 0,
       })).filter((item: InspectorSnapshot) => item.name) : [],
       disc_number_prefix: clean(raw.disc_number_prefix, 20),
@@ -54,7 +54,7 @@ export function applyReportDefaults(report: InspectionReport, defaults: ReportUs
   if (defaults.inspector_snapshots.length) {
     next.introduction.inspector_snapshots = defaults.inspector_snapshots
     next.introduction.inspectors = defaults.inspector_snapshots.map(item => ({
-      name: item.name, unit: item.unit, badge_number: item.police_number,
+      name: item.name, unit: item.unit, position: item.position, badge_number: item.police_number,
     }))
   }
   const parsed = parseDiscSequence(next.attachments.disc_number || '')
@@ -74,7 +74,7 @@ export function useReportDefaults() {
     hardware_device: clean(report.inspection.hardware_device, 200),
     inspector_snapshots: JSON.parse(JSON.stringify(report.introduction.inspector_snapshots
       || report.introduction.inspectors.map(item => ({
-        name: item.name, unit: item.unit, police_number: item.badge_number,
+        name: item.name, unit: item.unit, position: item.position, police_number: item.badge_number,
       })))),
     disc_number_prefix: defaults.disc_number_prefix,
   }), [defaults.disc_number_prefix, persist])

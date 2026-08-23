@@ -28,12 +28,12 @@ vi.mock('@ant-design/icons', () => ({
 }))
 
 const activeInspector: InspectorLibraryRecord = {
-  id: 'inspector-1', name: '张三', unit: '单位', police_number: '001', enabled: true,
+  id: 'inspector-1', name: '张三', unit: '单位', position: '职位', police_number: '001',
   created_at: 'now', updated_at: 'now',
 }
 
 function snapshot(id: string, name: string, order: number): InspectorSnapshot {
-  return { inspector_id: id, name, unit: `单位${name}`, police_number: `00${order + 1}`, selected_order: order }
+  return { inspector_id: id, name, unit: `单位${name}`, position: `职位${name}`, police_number: `00${order + 1}`, selected_order: order }
 }
 
 describe('InspectorEditor', () => {
@@ -90,21 +90,21 @@ describe('InspectorEditor', () => {
     ])
   })
 
-  it('停用人员保留在当前快照中，添加框只展示启用人员', () => {
+  it('历史快照保留，添加框展示所有未选择人员', () => {
     const onChange = vi.fn()
     render(<InspectorEditor
-      snapshots={[{ inspector_id: 'disabled', name: '停用甲', unit: '单位甲', police_number: '001' }]}
-      availableInspectors={[{ ...activeInspector, id: 'active', name: '启用乙', police_number: '002' }]}
+      snapshots={[{ inspector_id: 'legacy', name: '历史甲', unit: '单位甲', police_number: '001' }]}
+      availableInspectors={[{ ...activeInspector, id: 'available', name: '可用乙', police_number: '002' }]}
       onChange={onChange}
     />)
 
-    expect(screen.getByText('停用甲')).toBeTruthy()
+    expect(screen.getByText('历史甲')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '添加检查人员' }))
-    expect(screen.queryByTestId('inspector-option-disabled')).toBeNull()
-    fireEvent.click(screen.getByTestId('inspector-option-active'))
+    expect(screen.queryByTestId('inspector-option-legacy')).toBeNull()
+    fireEvent.click(screen.getByTestId('inspector-option-available'))
     expect(onChange).toHaveBeenCalledWith([
-      expect.objectContaining({ inspector_id: 'disabled' }),
-      expect.objectContaining({ inspector_id: 'active', selected_order: 1 }),
+      expect.objectContaining({ inspector_id: 'legacy' }),
+      expect.objectContaining({ inspector_id: 'available', selected_order: 1 }),
     ])
   })
 

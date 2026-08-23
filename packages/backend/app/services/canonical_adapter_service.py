@@ -100,6 +100,7 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
         {
             "name": inspector.name,
             "unit": inspector.unit,
+            "position": inspector.position,
             "badge_number": inspector.police_number,
         }
         for inspector in case.inspectors
@@ -126,6 +127,7 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
                 {
                     "name": inspector.name,
                     "unit": inspector.unit,
+                    "position": inspector.position,
                     "police_number": inspector.police_number,
                 }
                 for inspector in case.inspectors
@@ -186,6 +188,7 @@ def inspection_report_to_canonical(
                 snapshot_id=_text(item.get("snapshot_id")) or None,
                 name=_text(item.get("name")),
                 unit=_text(item.get("unit")),
+                position=_text(item.get("position")),
                 police_number=_text(item.get("police_number")),
                 selected_order=index,
             )
@@ -197,6 +200,7 @@ def inspection_report_to_canonical(
         InspectorSnapshot(
             name=_text(item.get("name")),
             unit=_text(item.get("unit")),
+            position=_text(item.get("position")),
             police_number=_text(item.get("badge_number")),
             selected_order=index,
         )

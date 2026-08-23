@@ -52,6 +52,7 @@ def _canonical_case() -> CanonicalInspectionCase:
                 inspector_id="inspector-1",
                 name="Synthetic inspector",
                 unit="Synthetic unit",
+                position="Synthetic position",
                 police_number="P-001",
                 selected_order=0,
             )
@@ -154,6 +155,7 @@ def test_canonical_projection_preserves_material_and_inspector_input_order():
             inspector_id="inspector-2",
             name="Second synthetic inspector",
             unit="Synthetic unit",
+            position="Second synthetic position",
             police_number="P-002",
             selected_order=1,
         )
@@ -168,6 +170,9 @@ def test_canonical_projection_preserves_material_and_inspector_input_order():
     assert [item["name"] for item in report["introduction"]["inspectors"]] == [
         "Synthetic inspector",
         "Second synthetic inspector",
+    ]
+    assert [item["position"] for item in report["introduction"]["inspectors"]] == [
+        "Synthetic position", "Second synthetic position",
     ]
 
 

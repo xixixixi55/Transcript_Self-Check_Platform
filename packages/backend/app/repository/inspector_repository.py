@@ -15,9 +15,11 @@ from typing import Any, Mapping
 
 from .inspector_snapshot_repository import project_case_inspector_snapshot
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+LEGACY_SCHEMA_VERSION = 1
 MAX_NAME_LENGTH = 100
 MAX_UNIT_LENGTH = 200
+MAX_POSITION_LENGTH = 100
 MAX_POLICE_NUMBER_LENGTH = 64
 _WRITE_LOCK = threading.RLock()
 
@@ -39,8 +41,8 @@ class InspectorRecord:
     id: str
     name: str
     unit: str
+    position: str
     police_number: str
-    enabled: bool
     created_at: str
     updated_at: str
 
@@ -80,10 +82,21 @@ def _validate_text(field: str, value: Any, maximum: int) -> str:
     return normalized
 
 
-def _validate_fields(name: Any, unit: Any, police_number: Any) -> tuple[str, str, str]:
+def _validate_fields(
+    name: Any, unit: Any, position: Any, police_number: Any, *, position_required: bool = True,
+) -> tuple[str, str, str, str]:
+    if position_required:
+        position_value = _validate_text("职位", position, MAX_POSITION_LENGTH)
+    elif not isinstance(position, str):
+        raise InspectorValidationError("职位必须是文本")
+    else:
+        position_value = position.strip()
+        if position_value:
+            position_value = _validate_text("职位", position_value, MAX_POSITION_LENGTH)
     return (
         _validate_text("姓名", name, MAX_NAME_LENGTH),
         _validate_text("单位", unit, MAX_UNIT_LENGTH),
+        position_value,
         _validate_text("警号", police_number, MAX_POLICE_NUMBER_LENGTH),
     )
 
@@ -96,46 +109,41 @@ class InspectorRepository:
         self.file_path = self.data_dir / "inspectors.json"
         self.backup_path = self.data_dir / "inspectors.json.bak"
 
-    def list(self, *, enabled_only: bool = False) -> list[InspectorRecord]:
+    def list(self) -> list[InspectorRecord]:
         with _WRITE_LOCK:
             records = self._read_records(create_if_missing=True)
-            return [record for record in records if record.enabled or not enabled_only]
+            return records
 
     def get(self, inspector_id: str) -> InspectorRecord | None:
         with _WRITE_LOCK:
             return next((record for record in self._read_records(True) if record.id == inspector_id), None)
 
-    def create(self, name: Any, unit: Any, police_number: Any) -> InspectorRecord:
-        fields = _validate_fields(name, unit, police_number)
+    def create(self, name: Any, unit: Any, position: Any, police_number: Any) -> InspectorRecord:
+        fields = _validate_fields(name, unit, position, police_number)
         with _WRITE_LOCK:
             records = self._read_records(True)
             self._reject_duplicate(records, fields)
             now = _now()
-            record = InspectorRecord(str(uuid.uuid4()), *fields, True, now, now)
+            record = InspectorRecord(str(uuid.uuid4()), *fields, now, now)
             self._write_records([*records, record])
             return record
 
-    def update(self, inspector_id: str, *, name: Any = None, unit: Any = None, police_number: Any = None) -> InspectorRecord:
+    def update(
+        self, inspector_id: str, *, name: Any = None, unit: Any = None,
+        position: Any = None, police_number: Any = None,
+    ) -> InspectorRecord:
         with _WRITE_LOCK:
             records = self._read_records(True)
             current = self._find_or_raise(records, inspector_id)
             fields = _validate_fields(
                 current.name if name is None else name,
                 current.unit if unit is None else unit,
+                current.position if position is None else position,
                 current.police_number if police_number is None else police_number,
+                position_required=position is not None or bool(current.position),
             )
             self._reject_duplicate(records, fields, exclude_id=inspector_id)
-            updated = InspectorRecord(current.id, *fields, current.enabled, current.created_at, _now())
-            self._write_records([updated if item.id == inspector_id else item for item in records])
-            return updated
-
-    def set_enabled(self, inspector_id: str, enabled: Any) -> InspectorRecord:
-        if not isinstance(enabled, bool):
-            raise InspectorValidationError("enabled必须是布尔值")
-        with _WRITE_LOCK:
-            records = self._read_records(True)
-            current = self._find_or_raise(records, inspector_id)
-            updated = InspectorRecord(current.id, current.name, current.unit, current.police_number, enabled, current.created_at, _now())
+            updated = InspectorRecord(current.id, *fields, current.created_at, _now())
             self._write_records([updated if item.id == inspector_id else item for item in records])
             return updated
 
@@ -165,33 +173,37 @@ class InspectorRepository:
                 payload = json.load(handle)
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise InspectorDataError("检查人员数据文件损坏或不可读取") from exc
-        if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
+        schema_version = payload.get("schema_version") if isinstance(payload, dict) else None
+        if schema_version not in {LEGACY_SCHEMA_VERSION, SCHEMA_VERSION}:
             raise InspectorDataError("检查人员数据版本不受支持")
         raw_records = payload.get("inspectors")
         if not isinstance(raw_records, list):
             raise InspectorDataError("检查人员数据结构无效")
-        records = [self._record_from_json(item) for item in raw_records]
+        records = [self._record_from_json(item, schema_version) for item in raw_records]
         if len({record.id for record in records}) != len(records):
             raise InspectorDataError("检查人员数据包含重复ID")
         return records
 
-    def _record_from_json(self, item: Any) -> InspectorRecord:
+    def _record_from_json(self, item: Any, schema_version: int) -> InspectorRecord:
         if (
             not isinstance(item, dict)
             or not isinstance(item.get("id"), str)
             or not item.get("id", "").strip()
-            or not isinstance(item.get("enabled"), bool)
         ):
             raise InspectorDataError("检查人员数据结构无效")
         try:
-            name, unit, police_number = _validate_fields(item.get("name"), item.get("unit"), item.get("police_number"))
+            name, unit, position, police_number = _validate_fields(
+                item.get("name"), item.get("unit"),
+                item.get("position", "") if schema_version == SCHEMA_VERSION else "",
+                item.get("police_number"), position_required=False,
+            )
         except InspectorValidationError as exc:
             raise InspectorDataError("检查人员数据校验失败") from exc
         created_at = item.get("created_at")
         updated_at = item.get("updated_at")
         if not isinstance(created_at, str) or not isinstance(updated_at, str):
             raise InspectorDataError("检查人员时间字段无效")
-        return InspectorRecord(item["id"].strip(), name, unit, police_number, item["enabled"], created_at, updated_at)
+        return InspectorRecord(item["id"].strip(), name, unit, position, police_number, created_at, updated_at)
 
     def _write_records(self, records: list[InspectorRecord], *, keep_backup: bool = True) -> None:
         temp_path: Path | None = None
@@ -227,9 +239,9 @@ class InspectorRepository:
                     pass
 
     @staticmethod
-    def _reject_duplicate(records: list[InspectorRecord], fields: tuple[str, str, str], exclude_id: str | None = None) -> None:
-        if any((item.id != exclude_id and (item.name, item.unit, item.police_number) == fields) for item in records):
-            raise InspectorValidationError("相同姓名、单位和警号的人员已存在")
+    def _reject_duplicate(records: list[InspectorRecord], fields: tuple[str, str, str, str], exclude_id: str | None = None) -> None:
+        if any((item.id != exclude_id and (item.name, item.unit, item.position, item.police_number) == fields) for item in records):
+            raise InspectorValidationError("相同姓名、单位、职位和警号的人员已存在")
 
     @staticmethod
     def _find_or_raise(records: list[InspectorRecord], inspector_id: str) -> InspectorRecord:

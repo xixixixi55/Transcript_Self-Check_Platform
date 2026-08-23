@@ -168,8 +168,8 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
     assert initialized["inspection"]["method"] == "SYNTHETIC-SHARED-METHOD"
     assert initialized["inspection"]["hardware_device"] == "SYNTHETIC-SHARED-HARDWARE"
     assert initialized["introduction"]["inspectors"] == [
-        {"name": "SYNTHETIC-A", "unit": "SYNTHETIC-UNIT-A", "badge_number": "SYNTHETIC-001"},
-        {"name": "SYNTHETIC-B", "unit": "SYNTHETIC-UNIT-B", "badge_number": "SYNTHETIC-002"},
+            {"name": "SYNTHETIC-A", "unit": "SYNTHETIC-UNIT-A", "position": "", "badge_number": "SYNTHETIC-001"},
+            {"name": "SYNTHETIC-B", "unit": "SYNTHETIC-UNIT-B", "position": "", "badge_number": "SYNTHETIC-002"},
     ]
     snapshot_id = initialized["introduction"]["inspector_snapshots"][0]["snapshot_id"]
     assert field_states[f"inspectors.{snapshot_id}.name"]["source"] == "system_default"

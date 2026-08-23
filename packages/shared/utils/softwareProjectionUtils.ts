@@ -125,7 +125,7 @@ export function applyReportEdit(report: InspectionReport, path: string, value: a
   }
   if (path === 'introduction.inspector_snapshots') {
     next.introduction.inspectors = (value as InspectorSnapshot[]).map(snapshot => ({
-      name: snapshot.name, unit: snapshot.unit, badge_number: snapshot.police_number,
+      name: snapshot.name, unit: snapshot.unit, position: snapshot.position, badge_number: snapshot.police_number,
     }))
   }
   if (path === 'inspection.hardware_device' && next.inspection.environment_snapshot) {

@@ -63,6 +63,7 @@ class InspectorSnapshot(CanonicalBaseModel):
     inspector_id: str | None = None
     name: str
     unit: str
+    position: str = ""
     police_number: str
     selected_order: int | None = Field(default=None, ge=0)
     captured_at: str | None = None

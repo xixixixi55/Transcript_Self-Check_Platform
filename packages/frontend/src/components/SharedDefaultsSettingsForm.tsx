@@ -152,6 +152,10 @@ export function SharedDefaultsSettingsForm() {
                       rules={[{ required: true, whitespace: true, message: '请输入单位' }, noSeparatorRule]}>
                       <Input maxLength={200} />
                     </Form.Item>
+                    <Form.Item name={[field.name, 'position']} label="职位"
+                      rules={[{ required: true, whitespace: true, message: '请输入职位' }, noSeparatorRule]}>
+                      <Input maxLength={100} />
+                    </Form.Item>
                     <Form.Item name={[field.name, 'badgeNumber']} label="警号"
                       rules={[{ required: true, whitespace: true, message: '请输入警号' }, noSeparatorRule]}>
                       <Input maxLength={64} />
@@ -167,7 +171,7 @@ export function SharedDefaultsSettingsForm() {
                   </div>
                 ))}
                 <Button type="dashed" icon={<PlusOutlined />}
-                  onClick={() => add({ name: '', unit: '', badgeNumber: '' })}>添加检查人员</Button>
+                  onClick={() => add({ name: '', unit: '', position: '', badgeNumber: '' })}>添加检查人员</Button>
               </div>
             )}
           </Form.List>

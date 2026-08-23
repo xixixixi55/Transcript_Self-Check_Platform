@@ -50,6 +50,7 @@ export interface EvidenceItem {
 export interface Inspector {
   name: string
   unit: string
+  position?: string
   badge_number: string
 }
 
@@ -58,8 +59,8 @@ export interface InspectorLibraryRecord {
   id: string
   name: string
   unit: string
+  position: string
   police_number: string
-  enabled: boolean
   created_at: string
   updated_at: string
 }
@@ -197,9 +198,7 @@ export interface ExportRecordResponse {
 export interface HardwareDevice {
   id: string
   name: string
-  model: string
   company: string
-  description?: string
   created_at?: string
 }
 

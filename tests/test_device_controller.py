@@ -34,20 +34,22 @@ def client(tmp_path: Path, monkeypatch) -> TestClient:
 def test_device_controller_crud_company_contract(client: TestClient):
     listed = client.get("/api/v1/devices")
     assert listed.status_code == 200
-    assert listed.json()["data"][0]["company"] == "SYNTHETIC COMPANY"
+    assert listed.json()["data"][0] == {
+        "id": "device-SYNTHETIC-existing", "name": "SYNTHETIC EXISTING",
+        "company": "SYNTHETIC COMPANY",
+    }
 
     missing_company = client.post("/api/v1/devices", json={
-        "name": "SYNTHETIC NEW", "model": "SYNTHETIC-MODEL-NEW",
+        "name": "SYNTHETIC NEW",
     })
     assert missing_company.status_code == 422
     blank_company = client.post("/api/v1/devices", json={
-        "name": "SYNTHETIC NEW", "model": "SYNTHETIC-MODEL-NEW", "company": "   ",
+        "name": "SYNTHETIC NEW", "company": "   ",
     })
     assert blank_company.status_code == 422
 
     created = client.post("/api/v1/devices", json={
-        "name": "SYNTHETIC NEW", "model": "SYNTHETIC-MODEL-NEW",
-        "company": "  SYNTHETIC NEW COMPANY  ", "description": "SYNTHETIC/TEST NEW",
+        "name": "SYNTHETIC NEW", "company": "  SYNTHETIC NEW COMPANY  ",
     })
     assert created.status_code == 200
     assert created.json()["data"]["company"] == "SYNTHETIC NEW COMPANY"

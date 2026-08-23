@@ -109,7 +109,7 @@ def _snapshot_entries(value: Any, items: list[dict[str, Any]]) -> None:
         identifier = str(snapshot.get("snapshot_id", "")).strip()
         if not identifier:
             continue
-        for key in ("name", "unit", "police_number"):
+        for key in ("name", "unit", "position", "police_number"):
             _add(items, f"inspectors.{identifier}.{key}", snapshot.get(key, ""), identifier)
 
 

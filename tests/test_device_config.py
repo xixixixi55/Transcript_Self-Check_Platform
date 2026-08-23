@@ -30,6 +30,7 @@ def test_list_default_devices_includes_company():
     devices = list_devices()
     assert len(devices) == 1
     assert devices[0]["company"] == "美亚柏科"
+    assert set(devices[0]) == {"id", "name", "company"}
 
 
 def test_legacy_device_without_company_is_normalized(tmp_path: Path):
@@ -40,17 +41,15 @@ def test_legacy_device_without_company_is_normalized(tmp_path: Path):
         "model": "SYNTHETIC-MODEL", "description": "SYNTHETIC/TEST",
     }]), encoding="utf-8")
 
-    assert list_devices()[0]["company"] == ""
+    assert list_devices()[0] == {
+        "id": "device-SYNTHETIC-legacy", "name": "SYNTHETIC LEGACY", "company": "",
+    }
 
 
 def test_add_update_and_delete_device_preserve_company():
-    device = add_device(
-        "  SYNTHETIC Device  ", "  SYNTHETIC-MODEL  ",
-        "  SYNTHETIC Company  ", "  SYNTHETIC/TEST description  ",
-    )
+    device = add_device("  SYNTHETIC Device  ", "  SYNTHETIC Company  ")
     assert device == {
-        "id": device["id"], "name": "SYNTHETIC Device", "model": "SYNTHETIC-MODEL",
-        "company": "SYNTHETIC Company", "description": "SYNTHETIC/TEST description",
+        "id": device["id"], "name": "SYNTHETIC Device", "company": "SYNTHETIC Company",
     }
 
     updated = update_device(device["id"], name="SYNTHETIC Updated")
@@ -65,20 +64,20 @@ def test_add_update_and_delete_device_preserve_company():
 
 def test_company_is_required_for_service_create_and_explicit_update():
     with pytest.raises(DeviceConfigError, match="所属公司不能为空"):
-        add_device("SYNTHETIC Device", "SYNTHETIC-MODEL", "   ")
+        add_device("SYNTHETIC Device", "   ")
 
-    device = add_device("SYNTHETIC Device", "SYNTHETIC-MODEL", "SYNTHETIC Company")
+    device = add_device("SYNTHETIC Device", "SYNTHETIC Company")
     with pytest.raises(DeviceConfigError, match="所属公司不能为空"):
         update_device(device["id"], company="\t")
     assert list_devices()[-1]["company"] == "SYNTHETIC Company"
 
 
 def test_company_lookup_ignores_case_and_whitespace_but_rejects_ambiguity():
-    add_device("SYNTHETIC Device A", "SYNTHETIC-MODEL-A", "SYNTHETIC Company A")
+    add_device("SYNTHETIC Device A", "SYNTHETIC Company A")
     assert company_for_device_name(" syntheticdevicea ") == "SYNTHETIC Company A"
     assert company_for_device_name("SYNTHETIC MISSING") == ""
 
-    add_device("synthetic device a", "SYNTHETIC-MODEL-B", "SYNTHETIC Company B")
+    add_device("synthetic device a", "SYNTHETIC Company B")
     assert company_for_device_name("SYNTHETIC DEVICE A") == ""
 
 

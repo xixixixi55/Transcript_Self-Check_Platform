@@ -26,6 +26,7 @@ function snapshotFromRecord(record: InspectorLibraryRecord): InspectorSnapshot {
     inspector_id: record.id,
     name: record.name,
     unit: record.unit,
+    position: record.position,
     police_number: record.police_number,
   }
 }
@@ -103,7 +104,7 @@ export default function InspectorEditor({
     <div className="inspector-selector">
       {error && <Alert type="error" showIcon message={error} />}
       {!loading && !error && availableInspectors.length === 0 && (
-        <Text type="secondary">暂无可选择的启用人员，请先在检查人员管理中添加或启用人员。</Text>
+        <Text type="secondary">暂无可选择的检查人员，请先在检查人员管理中添加人员。</Text>
       )}
       <div className="inspector-selector__selected" role="list" aria-label="已选择检查人员，可拖拽卡片调整顺序">
         {snapshots.length > 0 && <Text className="inspector-selector__hint" type="secondary">可拖拽卡片调整检查人员顺序。</Text>}
@@ -121,6 +122,7 @@ export default function InspectorEditor({
               <Space direction="vertical" size={0}>
                 <Text>{snapshot.name}</Text>
                 <Text type="secondary">单位：{snapshot.unit}</Text>
+                <Text type="secondary">职位：{snapshot.position || '待补充'}</Text>
                 <Text type="secondary">警号：{snapshot.police_number}</Text>
               </Space>
               <Space>
@@ -153,6 +155,7 @@ export default function InspectorEditor({
             >
               <strong>{record.name}</strong>
               <span>单位：{record.unit}</span>
+              <span>职位：{record.position || '待补充'}</span>
               <span>警号：{record.police_number}</span>
             </button>
           ))}

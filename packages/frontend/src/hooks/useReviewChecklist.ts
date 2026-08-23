@@ -176,6 +176,7 @@ export function getReviewPendingItems(
     || (introduction?.inspectors || []).map(item => ({
       name: item.name,
       unit: item.unit,
+      position: item.position,
       police_number: item.badge_number,
     }))
   inspectorSnapshots.forEach((item, index) => {

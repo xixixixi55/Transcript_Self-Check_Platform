@@ -227,8 +227,13 @@ def _parse_case_metadata(parsed: Mapping[str, Any], report: Mapping[str, Any]) -
 
 
 def _inspector_from_default(value: str) -> dict[str, str]:
-    parts = value.split("|", 2)
-    return {"name": parts[0], "unit": parts[1] if len(parts) > 1 else "", "badge_number": parts[2] if len(parts) > 2 else ""}
+    parts = value.split("|")
+    position = parts[2] if len(parts) >= 4 else ""
+    badge_number = parts[3] if len(parts) >= 4 else (parts[2] if len(parts) > 2 else "")
+    return {
+        "name": parts[0], "unit": parts[1] if len(parts) > 1 else "",
+        "position": position, "badge_number": badge_number,
+    }
 
 
 def _select_value(report_value: Any, default_value: Any, system_default: Any = None) -> tuple[Any, str]:

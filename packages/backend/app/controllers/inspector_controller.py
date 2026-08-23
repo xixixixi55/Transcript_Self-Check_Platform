@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ConfigDict, Field, StrictStr
 
 from ..services.inspector_service import (
     InspectorDataError,
@@ -23,6 +23,7 @@ class InspectorCreate(BaseModel):
 
     name: Annotated[StrictStr, Field(min_length=1, max_length=100)]
     unit: Annotated[StrictStr, Field(min_length=1, max_length=200)]
+    position: Annotated[StrictStr, Field(min_length=1, max_length=100)]
     police_number: Annotated[StrictStr, Field(min_length=1, max_length=64)]
 
 
@@ -31,13 +32,8 @@ class InspectorUpdate(BaseModel):
 
     name: Annotated[StrictStr, Field(min_length=1, max_length=100)] | None = None
     unit: Annotated[StrictStr, Field(min_length=1, max_length=200)] | None = None
+    position: Annotated[StrictStr, Field(min_length=1, max_length=100)] | None = None
     police_number: Annotated[StrictStr, Field(min_length=1, max_length=64)] | None = None
-
-
-class InspectorStatus(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    enabled: StrictBool
 
 
 def _handle_error(error: Exception) -> None:
@@ -51,9 +47,9 @@ def _handle_error(error: Exception) -> None:
 
 
 @router.get("/inspectors")
-async def list_inspectors(enabled_only: bool = Query(False)):
+async def list_inspectors():
     try:
-        return {"success": True, "data": _service.list(enabled_only=enabled_only)}
+        return {"success": True, "data": _service.list()}
     except Exception as error:
         _handle_error(error)
 
@@ -72,7 +68,7 @@ async def get_inspector(inspector_id: str):
 @router.post("/inspectors")
 async def create_inspector(body: InspectorCreate):
     try:
-        return {"success": True, "data": _service.create(body.name, body.unit, body.police_number)}
+        return {"success": True, "data": _service.create(body.name, body.unit, body.position, body.police_number)}
     except Exception as error:
         _handle_error(error)
 
@@ -80,15 +76,10 @@ async def create_inspector(body: InspectorCreate):
 @router.put("/inspectors/{inspector_id}")
 async def update_inspector(inspector_id: str, body: InspectorUpdate):
     try:
-        return {"success": True, "data": _service.update(inspector_id, name=body.name, unit=body.unit, police_number=body.police_number)}
-    except Exception as error:
-        _handle_error(error)
-
-
-@router.post("/inspectors/{inspector_id}/status")
-async def set_inspector_status(inspector_id: str, body: InspectorStatus):
-    try:
-        return {"success": True, "data": _service.set_enabled(inspector_id, body.enabled)}
+        return {"success": True, "data": _service.update(
+            inspector_id, name=body.name, unit=body.unit,
+            position=body.position, police_number=body.police_number,
+        )}
     except Exception as error:
         _handle_error(error)
 

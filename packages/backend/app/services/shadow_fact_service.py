@@ -130,6 +130,7 @@ def _inspector_order(introduction: Mapping[str, Any]) -> tuple[str, ...] | None:
         fingerprint("|".join((
             normalize_business_text(item.get("name")),
             normalize_business_text(item.get("unit")),
+            normalize_business_text(item.get("position")),
             normalize_business_text(item.get("police_number", item.get("badge_number"))),
         ))) or ""
         for item in values if isinstance(item, Mapping)
@@ -173,6 +174,7 @@ def snapshot_from_canonical(case: CanonicalInspectionCase) -> ShadowComparableSn
         fingerprint("|".join((
             normalize_business_text(item.name),
             normalize_business_text(item.unit),
+            normalize_business_text(item.position),
             normalize_business_text(item.police_number),
         ))) or ""
         for item in sorted(case.inspectors, key=lambda value: value.selected_order or 0)

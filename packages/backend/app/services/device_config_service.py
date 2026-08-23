@@ -18,26 +18,21 @@ def list_devices() -> list[dict]:
     return list_all()
 
 
-def add_device(name: str, model: str, company: str, description: str = "") -> dict:
+def add_device(name: str, company: str) -> dict:
     """添加设备。输入规范化后委托 Repository。"""
     company_value = _required_company(company)
-    return insert(
-        name.strip(), model.strip(), company_value,
-        description.strip() if description else "",
-    )
+    return insert(_required_name(name), company_value)
 
 
 def update_device(
-    device_id: str, name: str = "", model: str = "", description: str = "",
+    device_id: str, name: str = "",
     company: str | None = None,
 ) -> dict:
     """更新设备。输入规范化后委托 Repository。"""
     company_value = _required_company(company) if company is not None else None
     result = update(
         device_id,
-        name.strip() if name else "",
-        model.strip() if model else "",
-        description.strip() if description else "",
+        _required_name(name) if name else "",
         company_value,
     )
     if result is None:
@@ -71,6 +66,13 @@ def _required_company(company: object) -> str:
     value = str(company or "").strip()
     if not value:
         raise DeviceConfigError("所属公司不能为空")
+    return value
+
+
+def _required_name(name: object) -> str:
+    value = str(name or "").strip()
+    if not value:
+        raise DeviceConfigError("设备名称不能为空")
     return value
 
 

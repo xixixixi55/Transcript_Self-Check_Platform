@@ -1,6 +1,6 @@
 // Layer 11: FE_Components — 检查人员库管理
 import React, { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Form, Input, Modal, Popconfirm, Space, Switch, Table, message } from 'antd'
+import { Alert, Button, Form, Input, Modal, Popconfirm, Space, Table, message } from 'antd'
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
@@ -9,7 +9,7 @@ import type { InspectorLibraryRecord } from '@biji/shared/types'
 export function filterInspectorRecords(records: InspectorLibraryRecord[], search: string): InspectorLibraryRecord[] {
   const keyword = search.trim().toLowerCase()
   if (!keyword) return records
-  return records.filter(record => [record.name, record.unit, record.police_number]
+  return records.filter(record => [record.name, record.unit, record.position, record.police_number]
     .some(value => value.toLowerCase().includes(keyword)))
 }
 
@@ -80,16 +80,6 @@ export default function InspectorManager() {
     }
   }
 
-  const handleStatus = async (record: InspectorLibraryRecord, enabled: boolean) => {
-    try {
-      await axios.post(API_ENDPOINTS.INSPECTOR_STATUS(record.id), { enabled })
-      message.success(enabled ? '检查人员已启用' : '检查人员已停用')
-      await fetchRecords()
-    } catch {
-      message.error('更新检查人员状态失败')
-    }
-  }
-
   const handleDelete = async (id: string) => {
     try {
       await axios.delete(API_ENDPOINTS.INSPECTOR(id))
@@ -103,12 +93,8 @@ export default function InspectorManager() {
   const columns = [
     { title: '姓名', dataIndex: 'name', key: 'name' },
     { title: '单位', dataIndex: 'unit', key: 'unit' },
+    { title: '职位', dataIndex: 'position', key: 'position', render: (value: string) => value || '待补充' },
     { title: '警号', dataIndex: 'police_number', key: 'police_number' },
-    {
-      title: '状态', key: 'enabled', render: (_value: unknown, record: InspectorLibraryRecord) => (
-        <Switch checked={record.enabled} checkedChildren="启用" unCheckedChildren="停用" onChange={value => handleStatus(record, value)} />
-      ),
-    },
     {
       title: '操作', key: 'actions', render: (_value: unknown, record: InspectorLibraryRecord) => (
         <Space>
@@ -125,7 +111,7 @@ export default function InspectorManager() {
     <div className="inspector-manager">
       {error && <Alert type="error" showIcon message={error} action={<Button onClick={fetchRecords}>重试</Button>} />}
       <Space style={{ marginBottom: 16 }}>
-        <Input aria-label="搜索检查人员" placeholder="搜索姓名、单位或警号" value={search} onChange={event => setSearch(event.target.value)} allowClear />
+        <Input aria-label="搜索检查人员" placeholder="搜索姓名、单位、职位或警号" value={search} onChange={event => setSearch(event.target.value)} allowClear />
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增检查人员</Button>
       </Space>
       <Table
@@ -142,6 +128,9 @@ export default function InspectorManager() {
           </Form.Item>
           <Form.Item name="unit" label="单位" rules={[{ required: true, whitespace: true, message: '请输入单位' }]}>
             <Input maxLength={200} />
+          </Form.Item>
+          <Form.Item name="position" label="职位" rules={[{ required: true, whitespace: true, message: '请输入职位' }]}>
+            <Input maxLength={100} />
           </Form.Item>
           <Form.Item name="police_number" label="警号" rules={[{ required: true, whitespace: true, message: '请输入警号' }]}>
             <Input maxLength={64} />

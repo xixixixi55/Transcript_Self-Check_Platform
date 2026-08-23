@@ -8,6 +8,7 @@ import { createClientIdentity } from './useEditLease'
 export interface SharedInspectorDefault {
   name: string
   unit: string
+  position: string
   badgeNumber: string
 }
 
@@ -26,8 +27,11 @@ export type SharedDefaultsSettingsStatus = 'idle' | 'loading' | 'saving' | 'save
 export type SharedDefaultsFailedOperation = 'load' | 'save' | null
 
 function parseInspector(value: string): SharedInspectorDefault {
-  const [name = '', unit = '', badgeNumber = ''] = value.split('|')
-  return { name, unit, badgeNumber }
+  const parts = value.split('|')
+  const [name = '', unit = ''] = parts
+  const position = parts.length >= 4 ? parts[2] : ''
+  const badgeNumber = parts.length >= 4 ? parts[3] : (parts[2] || '')
+  return { name, unit, position, badgeNumber }
 }
 
 export function sharedDefaultsToForm(defaults: SharedDefaults): SharedDefaultsFormValues {
@@ -51,7 +55,7 @@ export function sharedDefaultsPatch(values: SharedDefaultsFormValues): Record<st
     inspection_method: values.inspectionMethod,
     hardware_device: values.hardwareDevice,
     inspector_order: values.inspectors.map(item => (
-      `${item.name.trim()}|${item.unit.trim()}|${item.badgeNumber.trim()}`
+      `${item.name.trim()}|${item.unit.trim()}|${item.position.trim()}|${item.badgeNumber.trim()}`
     )),
     disc_number_prefix: values.discNumberPrefix,
     hash_algorithm: values.hashAlgorithm,

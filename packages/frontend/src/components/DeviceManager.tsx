@@ -62,12 +62,10 @@ export default function DeviceManager() {
 
   const columns = [
     { title: '设备名称', dataIndex: 'name', key: 'name' },
-    { title: '型号', dataIndex: 'model', key: 'model' },
     {
       title: '所属公司', dataIndex: 'company', key: 'company',
       render: (company: string) => company?.trim() || '待补充',
     },
-    { title: '描述', dataIndex: 'description', key: 'description' },
     {
       title: '操作', key: 'action',
       render: (_: any, record: HardwareDevice) => (
@@ -101,15 +99,9 @@ export default function DeviceManager() {
           <Form.Item name="name" label="设备名称" rules={[{ required: true, message: '请输入设备名称' }]}>
             <Input placeholder="如 FL-901 手机取证塔" />
           </Form.Item>
-          <Form.Item name="model" label="型号" rules={[{ required: true, message: '请输入型号' }]}>
-            <Input placeholder="如 美亚FL-901" />
-          </Form.Item>
           <Form.Item name="company" label="所属公司"
             rules={[{ required: true, whitespace: true, message: '请输入所属公司' }]}>
             <Input placeholder="如 美亚柏科" />
-          </Form.Item>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={2} placeholder="可选描述" />
           </Form.Item>
         </Form>
       </Modal>

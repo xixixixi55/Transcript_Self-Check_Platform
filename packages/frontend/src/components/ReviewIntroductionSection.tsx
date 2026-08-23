@@ -35,6 +35,7 @@ function toSnapshots(introduction: InspectionReport['introduction']): InspectorS
   return (introduction.inspectors || []).map(inspector => ({
     name: inspector.name,
     unit: inspector.unit,
+    position: inspector.position,
     police_number: inspector.badge_number,
   }))
 }

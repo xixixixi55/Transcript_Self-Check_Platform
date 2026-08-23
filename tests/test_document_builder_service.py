@@ -70,6 +70,19 @@ def test_build_table_contains_standard_headers_and_empty_row():
     assert len(cell_texts) == 10
 
 
+def test_build_document_includes_inspector_position_without_blank_separator():
+    report = _report()
+    report["introduction"]["inspectors"] = [
+        {"name": "SYNTHETIC-NAME", "unit": "SYNTHETIC-UNIT", "position": "SYNTHETIC-POSITION", "badge_number": "SYNTHETIC-001"},
+        {"name": "SYNTHETIC-LEGACY", "unit": "SYNTHETIC-UNIT", "badge_number": "SYNTHETIC-002"},
+    ]
+
+    texts = [command.get("props", {}).get("text", "") for command in build_record_document(report)]
+
+    assert "SYNTHETIC-NAME，SYNTHETIC-UNIT，SYNTHETIC-POSITION，警号：SYNTHETIC-001" in texts
+    assert "SYNTHETIC-LEGACY，SYNTHETIC-UNIT，警号：SYNTHETIC-002" in texts
+
+
 def test_batch_builder_uses_selected_sha1_label_in_result_and_attachment():
     report = _report()
     report["inspection"]["result"].update({
