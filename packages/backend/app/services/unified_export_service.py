@@ -24,6 +24,7 @@ from .attachment2_image_service import Attachment2ImageError
 from .attachment_plan_errors_service import AttachmentPlanError
 from .hashmyfiles_service import generate_verification_image
 from .record_generator_service import generate_docx
+from .hash_algorithm_service import report_hash_algorithm
 
 
 class UnifiedExportError(ValueError):
@@ -92,7 +93,12 @@ def unified_export(
             raise UnifiedExportError("ARCHIVE_PART_MISSING", "归档分卷文件缺失，无法导出。")
 
     export_path.mkdir(parents=True, exist_ok=True)
-    runner = hash_runner or (lambda paths, out: generate_verification_image(paths, out))
+    hash_algorithm = report_hash_algorithm(report)
+    runner = hash_runner or (
+        lambda paths, out: generate_verification_image(
+            paths, out, hash_algorithm=hash_algorithm,
+        )
+    )
     with tempfile.TemporaryDirectory(prefix=".biji-export-", dir=export_path) as temp_dir:
         staging_path = Path(temp_dir)
         word_filename = _export_word(

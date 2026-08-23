@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import PurePath, PureWindowsPath
 from typing import Any, Mapping
 
@@ -32,11 +31,14 @@ from .attachment_plan_models_service import (
 )
 from .template_profile_service import current_template_profile
 from .legacy_report_projection_service import project_ordered_legacy_report
+from .hash_algorithm_service import (
+    hash_extraction_method,
+    manifest_part_business_hash,
+)
 
 PROFILE_ID = "current-template-v1"
 MAX_PART_ROWS_PER_PAGE = 4
 _TEMPLATE_PROFILE = current_template_profile()
-_MD5_PATTERN = re.compile(r"^[0-9a-fA-F]{32}$")
 _CONFIRMED_SOFTWARE = {"confirmed", "confirmed_by_report", "confirmed_by_user"}
 
 def build_attachment_plan(
@@ -45,6 +47,7 @@ def build_attachment_plan(
     """Build all stage-one attachment pages without I/O or Word side effects."""
     report = project_ordered_legacy_report(report)
     manifest_id, parts = _validated_parts(manifest)
+    hash_algorithm, _ = manifest_part_business_hash(parts[0])
     archive_mode = str(manifest.get("archive_mode") or "standard_split")
     archive_medium = archive_medium_for_mode(archive_mode)
     if archive_medium == "hard_drive" and len(parts) != 1:
@@ -52,7 +55,7 @@ def build_attachment_plan(
             "ARCHIVE_MANIFEST_INVALID", "硬盘归档必须只有一个完整压缩包。",
         )
     source_text = _source_text(report)
-    extraction_method = _extraction_method(report)
+    extraction_method = _extraction_method(report, hash_algorithm)
     first_disc = parts[0]["disc_number"]
     disc_result = parse_archive_medium_sequence(first_disc, archive_mode)
     if not disc_result.valid or disc_result.sequence is None:
@@ -81,7 +84,7 @@ def build_attachment_plan(
             part_number=int(item["part_number"]),
             filename=str(item["filename"]),
             size_bytes=int(item["size_bytes"]),
-            md5=str(item["md5"]).upper(),
+            md5=manifest_part_business_hash(item)[1].upper(),
             disc_capacity_bytes=_capacity_value(
                 item.get("disc_capacity_bytes"), optional=oversized_single,
             ),
@@ -94,6 +97,7 @@ def build_attachment_plan(
     return AttachmentPlan(
         profile_id=PROFILE_ID,
         archive_manifest_id=manifest_id,
+        hash_algorithm=hash_algorithm,
         archive_medium=archive_medium,
         attachment_summary=AttachmentSummaryPlan(
             inspection_date, len(parts), disc_numbers,
@@ -122,7 +126,6 @@ def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str
         number = item.get("part_number")
         filename = _text(item.get("filename"))
         size_bytes = item.get("size_bytes")
-        md5 = _text(item.get("md5"))
         disc_date = _text(item.get("disc_date"))
         if not isinstance(number, int) or isinstance(number, bool) or number < 1:
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷序号无效。")
@@ -131,8 +134,10 @@ def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str
         if (not isinstance(size_bytes, int) or isinstance(size_bytes, bool)
                 or size_bytes <= 0):
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷大小无效。")
-        if not _MD5_PATTERN.fullmatch(md5):
-            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷 MD5 无效。")
+        try:
+            hash_algorithm, _ = manifest_part_business_hash(item)
+        except ValueError as error:
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", str(error)) from error
         if not disc_date:
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷缺少刻录日期。")
         if not _text(item.get("part_id")) or not _text(item.get("disc_number")):
@@ -143,6 +148,8 @@ def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档介质编号无效。")
         parts.append(item)
         numbers.append(number)
+        if parts and hash_algorithm != manifest_part_business_hash(parts[0])[0]:
+            raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷哈希算法不一致。")
     parts.sort(key=lambda item: int(item["part_number"]))
     if len(numbers) != len(set(numbers)) or [int(item["part_number"]) for item in parts] != list(range(1, len(parts) + 1)):
         raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷序号不连续。")
@@ -194,7 +201,7 @@ def _source_text(report: Mapping[str, Any]) -> str:
     return "、".join(values) + "检材内提取"
 
 
-def _extraction_method(report: Mapping[str, Any]) -> str:
+def _extraction_method(report: Mapping[str, Any], hash_algorithm: str) -> str:
     inspection = report.get("inspection") or {}
     primary = inspection.get("primary_software")
     if not isinstance(primary, Mapping):
@@ -214,7 +221,7 @@ def _extraction_method(report: Mapping[str, Any]) -> str:
     if not winrar or not hashlib_name:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "归档工具来源未确认。")
     hardware = _text(inspection.get("hardware_device")) or "取证设备"
-    return f"使用{hardware}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值"
+    return hash_extraction_method(hardware, hash_algorithm)
 
 
 def _part_row(item: Mapping[str, Any], manifest: Mapping[str, Any]) -> AttachmentPartRow:
@@ -222,7 +229,7 @@ def _part_row(item: Mapping[str, Any], manifest: Mapping[str, Any]) -> Attachmen
     return AttachmentPartRow(
         part_id=str(item["part_id"]), part_number=int(item["part_number"]),
         filename=str(item["filename"]), size_bytes=int(item["size_bytes"]),
-        md5=str(item["md5"]).upper(),
+        md5=manifest_part_business_hash(item)[1].upper(),
         disc_capacity_bytes=_capacity_value(
             item.get("disc_capacity_bytes"), optional=oversized_single,
         ),

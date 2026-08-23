@@ -124,5 +124,24 @@ def test_verified_manifest_backfills_existing_report_result_fields():
         "rar_filename": "server.part1.rar、server.part2.rar",
         "md5_hash": "1" * 32 + "、" + "2" * 32,
         "file_size": "100、200",
+        "hash_algorithm": "md5",
     }
     assert "manifest_id" not in result
+
+
+def test_sha256_manifest_drives_legacy_value_title_and_result_algorithm():
+    value = manifest()
+    for index, part in enumerate(value["parts"], 1):
+        part.update({"hash_algorithm": "sha256", "hash_value": str(index) * 64})
+    report_value = report()
+    report_value["inspection"]["result"] = {"hash_algorithm": "sha256"}
+
+    projected = project_manifest_to_legacy_report(report_value, value)
+    table = projected["attachments"]["extract_list"]
+    assert table["columns"][-1]["title"] == "文件SHA-256哈希值"
+    assert [row["md5_hash"] for row in table["rows"]] == ["1" * 64, "2" * 64]
+    assert all("SHA-256" in row["extraction_method"] for row in table["rows"])
+
+    completed = apply_verified_archive_result(report_value, value)
+    assert completed["inspection"]["result"]["hash_algorithm"] == "sha256"
+    assert completed["inspection"]["result"]["md5_hash"] == "1" * 64 + "、" + "2" * 64

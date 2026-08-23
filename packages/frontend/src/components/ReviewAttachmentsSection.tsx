@@ -1,8 +1,8 @@
 import React from 'react'
 import { Alert, Typography } from 'antd'
 import type { UploadFile } from 'antd'
-import type { ArchiveMedium, EvidenceItem, InspectionReport } from '@biji/shared/types'
-import { formatDiscDate, parseDiscSequence } from '@biji/shared/utils'
+import type { ArchiveMedium, EvidenceItem, HashAlgorithm, InspectionReport } from '@biji/shared/types'
+import { formatDiscDate, hashExtractionMethod, parseDiscSequence } from '@biji/shared/utils'
 import ExtractListEditor from './ExtractListEditor'
 import ImageUploader from './ImageUploader'
 import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
@@ -17,20 +17,22 @@ interface ReviewAttachmentsSectionProps {
   onPhotoFilesChange: (files: UploadFile[]) => void
   updateReport: (path: string, value: any) => void
   archiveMedium?: ArchiveMedium | null
+  hashAlgorithm?: HashAlgorithm
 }
 
-export function ReviewAttachmentsSection({ attachments, materials, hardwareDevice, photoFiles, onPhotoFilesChange, updateReport, archiveMedium = 'optical_disc' }: ReviewAttachmentsSectionProps) {
+export function ReviewAttachmentsSection({ attachments, materials, hardwareDevice, photoFiles, onPhotoFilesChange, updateReport, archiveMedium = 'optical_disc', hashAlgorithm = 'md5' }: ReviewAttachmentsSectionProps) {
   const discResult = parseDiscSequence(attachments.disc_number || '')
   const expectedPrefixes = archiveMedium === 'hard_drive' ? ['YP'] : archiveMedium === 'optical_disc' ? ['GP'] : ['GP', 'YP']
   const mediumNumberValid = discResult.valid && expectedPrefixes.includes(discResult.sequence?.prefix || '')
   const hardDrive = archiveMedium === 'hard_drive'
-  const extractionMethod = `使用${hardwareDevice.trim() || '取证设备'}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值`
+  const extractionMethod = hashExtractionMethod(hardwareDevice, hashAlgorithm)
 
   return (
     <>
       <div className="review-editor-block">
         <div className="review-field__label">附件1：电子数据提取固定清单</div>
         <ExtractListEditor tableData={attachments.extract_list || { columns: [], rows: [] }}
+          hashAlgorithm={hashAlgorithm}
           fallbackExtractionMethod={extractionMethod}
           onChange={value => updateReport('attachments.extract_list', value)} />
       </div>

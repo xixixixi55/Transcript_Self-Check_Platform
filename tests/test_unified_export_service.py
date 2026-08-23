@@ -135,6 +135,37 @@ def test_unified_export_writes_bundle_and_audit(database, tmp_path, monkeypatch)
     assert "hash_verification_html" not in payload
 
 
+def test_default_hashmyfiles_runner_receives_case_sha256(tmp_path, monkeypatch) -> None:
+    final_dir = tmp_path / "SYNTHETIC-FINAL-SHA256"
+    final_dir.mkdir()
+    for name in ("SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"):
+        (final_dir / name).write_bytes(b"SYNTHETIC/RAR")
+    export_path = tmp_path / "SYNTHETIC-EXPORT-SHA256"
+    export_path.mkdir()
+    captured = {}
+
+    def capture_hash(paths, output_dir, *, hash_algorithm):
+        captured["algorithm"] = hash_algorithm
+        (output_dir / "hash.png").write_bytes(b"SYNTHETIC/PNG")
+        return "hash.png"
+
+    monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
+    monkeypatch.setattr(
+        unified_export_service, "generate_verification_image", capture_hash,
+    )
+    report = {
+        "inspection": {"result": {"hash_algorithm": "sha256"}},
+        "introduction": {"case_summary": "SYNTHETIC"},
+    }
+
+    unified_export(
+        report=report, manifest=manifest(), final_dir=final_dir,
+        export_path=export_path, photo_paths=[], template_context={},
+    )
+
+    assert captured["algorithm"] == "sha256"
+
+
 def test_hash_capture_failure_preserves_previous_complete_bundle(database, tmp_path, monkeypatch) -> None:
     final_dir = tmp_path / "SYNTHETIC-FINAL-ATOMIC"
     final_dir.mkdir()

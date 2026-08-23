@@ -37,6 +37,7 @@ from .template_profile_service import (
     CurrentTemplateProfile,
     TemplateProfileError,
 )
+from .hash_algorithm_service import hash_display_name, hash_field_title
 
 def render_attachment_plan(
     doc: Any, plan: AttachmentPlan, profile: CurrentTemplateProfile,
@@ -83,14 +84,15 @@ def _render_attachment1(body: Any, label: Any, heading: Any, table: Any,
         )
         nodes.append(_build_attachment1_table(
             original_table, template_rows, page, page_index == 0,
-            include_signature,
+            include_signature, plan.hash_algorithm,
         ))
     for offset, node in enumerate(nodes):
         body.insert(start + offset, node)
 
 
 def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1PagePlan,
-                             include_header: bool, include_signature: bool) -> Any:
+                             include_header: bool, include_signature: bool,
+                             hash_algorithm: str) -> Any:
     if page.page_kind not in {ARCHIVE_ROWS_PAGE_KIND, INSPECTOR_FINAL_PAGE_KIND}:
         raise TemplateProfileError("附件一页面类型不受 current-template-v1 支持。")
     if page.page_kind == INSPECTOR_FINAL_PAGE_KIND and page.serial_rows:
@@ -98,7 +100,13 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
     table = copy.deepcopy(template)
     clear_table_rows(table)
     if include_header:
-        table.append(copy.deepcopy(rows[0]))
+        header = copy.deepcopy(rows[0])
+        header_cells = header.findall("./%s" % qn(W_NS, "tc"))
+        if len(header_cells) >= 5:
+            _set_attachment1_cell_text(
+                header_cells[4], hash_field_title(hash_algorithm), 4,
+            )
+        table.append(header)
     data_template = rows[1]
     for index, item in enumerate(page.serial_rows):
         row = copy.deepcopy(data_template)
@@ -177,6 +185,10 @@ def _render_attachment3(body: Any, label: Any, plan: AttachmentPlan,
                 "burning_date": _format_date(page.burning_date),
             },
         )
+        selected_hash_name = hash_display_name(plan.hash_algorithm)
+        if selected_hash_name != "MD5":
+            for element in region:
+                _replace_text_nodes(element, "MD5", selected_hash_name)
         if plan.archive_medium == "hard_drive":
             for element in region:
                 _replace_text_nodes(element, "光盘编号：", "硬盘编号：")

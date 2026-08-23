@@ -13,7 +13,7 @@ from ..repository.hashmyfiles_repository import (
     run_hashmyfiles,
 )
 
-Runner = Callable[[Path, list[Path], Path, int], str]
+Runner = Callable[[Path, list[Path], Path, int, str], str]
 
 _DEFAULT_RUNNER: Runner = run_hashmyfiles
 _MIN_TIMEOUT_SECONDS = 120
@@ -26,6 +26,7 @@ def generate_verification_image(
     rar_paths: list[Path],
     output_dir: Path,
     *,
+    hash_algorithm: str = "md5",
     runner: Runner = _DEFAULT_RUNNER,
 ) -> str:
     """Generate the HashMyFiles verification PNG for ``rar_paths``.
@@ -40,7 +41,10 @@ def generate_verification_image(
     if executable is None:
         raise HashMyFilesError("HASHMYFILES_UNAVAILABLE", "HashMyFiles 工具不可用，无法生成校验截图。")
     output_dir.mkdir(parents=True, exist_ok=True)
-    return runner(executable, rar_paths, output_dir, _hash_timeout_seconds(rar_paths))
+    return runner(
+        executable, rar_paths, output_dir, _hash_timeout_seconds(rar_paths),
+        hash_algorithm,
+    )
 
 
 def _hash_timeout_seconds(rar_paths: list[Path]) -> int:

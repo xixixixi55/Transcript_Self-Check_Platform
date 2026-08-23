@@ -61,11 +61,12 @@ def test_generate_verification_image_invokes_runner_and_returns_filename(monkeyp
     out = tmp_path / "out"
     captured = {}
 
-    def fake_runner(executable, rar_paths, output_dir, timeout_seconds):
+    def fake_runner(executable, rar_paths, output_dir, timeout_seconds, hash_algorithm):
         captured["exe"] = executable
         captured["rar_paths"] = list(rar_paths)
         captured["out"] = output_dir
         captured["timeout"] = timeout_seconds
+        captured["hash_algorithm"] = hash_algorithm
         (output_dir / "hash.png").write_bytes(b"SYNTHETIC/PNG")
         return "hash.png"
 
@@ -74,6 +75,7 @@ def test_generate_verification_image_invokes_runner_and_returns_filename(monkeyp
     assert captured["rar_paths"] == [rar]
     assert captured["out"] == out
     assert captured["timeout"] == 121
+    assert captured["hash_algorithm"] == "md5"
     assert (out / "hash.png").exists()
 
 
@@ -137,10 +139,11 @@ def test_run_hashmyfiles_publishes_real_window_capture_and_removes_legacy_html(t
     (out / "hash-verification.html").write_text("SYNTHETIC/LEGACY")
     captured = {}
 
-    def fake_capture(executable, rar_paths, output_path, timeout_seconds):
+    def fake_capture(executable, rar_paths, output_path, timeout_seconds, hash_algorithm):
         captured.update({
             "executable": executable, "rar_paths": rar_paths,
             "timeout": timeout_seconds,
+            "hash_algorithm": hash_algorithm,
         })
         output_path.write_bytes(b"\x89PNG\r\n\x1a\nSYNTHETIC")
 
@@ -152,6 +155,7 @@ def test_run_hashmyfiles_publishes_real_window_capture_and_removes_legacy_html(t
     assert name == "hash-verification.png"
     assert captured == {
         "executable": exe, "rar_paths": [rar1, rar2], "timeout": 60,
+        "hash_algorithm": "md5",
     }
     assert (out / name).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert not list(out.glob("*.html"))
@@ -167,7 +171,7 @@ def test_failed_screenshot_preserves_previous_artifacts_and_cleans_temporary_fil
     (out / "hash-verification.png").write_bytes(previous_png)
     (out / "hash-verification.html").write_text("SYNTHETIC/LEGACY")
 
-    def failed_capture(executable, rar_paths, output_path, timeout_seconds):
+    def failed_capture(executable, rar_paths, output_path, timeout_seconds, hash_algorithm):
         output_path.write_bytes(b"PARTIAL")
         raise HashMyFilesError(
             "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
@@ -206,7 +210,17 @@ def test_missing_screenshot_does_not_replace_previous_png(tmp_path):
     assert (out / "hash-verification.png").read_bytes() == previous_png
 
 
-def test_capture_passes_real_executable_files_and_md5_only_configuration(tmp_path):
+@pytest.mark.parametrize(
+    ("algorithm", "column", "length", "md5_enabled", "sha1_enabled", "sha256_enabled"),
+    [
+        ("md5", 1, 32, "1", "0", "0"),
+        ("sha1", 2, 40, "0", "1", "0"),
+        ("sha256", 4, 64, "0", "0", "1"),
+    ],
+)
+def test_capture_passes_selected_hash_configuration(
+    tmp_path, algorithm, column, length, md5_enabled, sha1_enabled, sha256_enabled,
+):
     exe = tmp_path / "HashMyFiles.exe"
     rar = tmp_path / "case.part1.rar"
     rar.write_bytes(b"SYNTHETIC/RAR")
@@ -219,20 +233,24 @@ def test_capture_passes_real_executable_files_and_md5_only_configuration(tmp_pat
         output_path.write_bytes(b"\x89PNG\r\n\x1a\nSYNTHETIC")
         result_path.write_text(
             '{"item_count": 1, "rows": [{"filename": "case.part1.rar", '
-            '"md5": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size_bytes": "13"}]}',
+            f'"hash_value": "{"a" * length}", "size_bytes": "13"}}]}}',
             encoding="utf-8-sig",
         )
         return type("Completed", (), {"returncode": 0})()
 
     with patch.object(hashmyfiles_repository.subprocess, "run", side_effect=fake_run):
-        hashmyfiles_repository._capture_hashmyfiles_window(exe, [rar], output, 30)
+        hashmyfiles_repository._capture_hashmyfiles_window(
+            exe, [rar], output, 30, algorithm,
+        )
 
     assert captured["executable"] == str(exe)
     assert captured["files"] == [str(rar)]
     assert captured["hash_arguments"] == [
-        "/MD5", "1", "/SHA1", "0", "/CRC32", "0",
-        "/SHA256", "0", "/SHA512", "0", "/SHA384", "0",
+        "/MD5", md5_enabled, "/SHA1", sha1_enabled, "/CRC32", "0",
+        "/SHA256", sha256_enabled, "/SHA512", "0", "/SHA384", "0",
     ]
+    assert captured["hash_column_index"] == column
+    assert captured["hash_digest_length"] == length
     assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 
@@ -245,6 +263,6 @@ def test_capture_script_uses_native_window_and_only_three_visible_columns():
     assert "CreateKillOnCloseJob" in script
     assert "WaitForExit(3000)" in script
     assert "[IntPtr]0, [IntPtr]300" in script
-    assert "[IntPtr]1, [IntPtr]300" in script
+    assert "[int]$payload.hash_column_index" in script
     assert "[IntPtr]11, [IntPtr]145" in script
     assert "DrawString" not in script

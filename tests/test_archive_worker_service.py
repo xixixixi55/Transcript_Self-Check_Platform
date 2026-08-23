@@ -37,6 +37,7 @@ from app.repository.archive_attempt_recovery_repository import (  # noqa: E402
 from app.repository.archive_manifest_index_repository import (  # noqa: E402
     ArchiveManifestRepositoryError,
 )
+from app.repository.runtime_paths import get_runtime_paths  # noqa: E402
 from app.services.archive_progress_service import ArchiveProgressService  # noqa: E402
 from app.services.archive_manifest_access_service import ArchiveGateError  # noqa: E402
 from app.services.export_gate_service import ExportGateIssue  # noqa: E402
@@ -360,6 +361,9 @@ def test_composition_root_keeps_archive_recovery_with_archive_worker(setup) -> N
     services = build_workbench_services(database, config)
     assert services.archive_scheduler is not None
     assert services.archive_worker is not None
+    assert get_runtime_paths().output_root.resolve(strict=False) in (
+        services.lifecycle.artifacts.archive_output_roots
+    )
     services.tasks.recover_after_restart(include_archive=False)
     recovered = services.archive_worker.recover_after_restart(
         services.archive_attempts,

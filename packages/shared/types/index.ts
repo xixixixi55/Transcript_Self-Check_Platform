@@ -1,6 +1,7 @@
 // Layer 0: SharedTypes — 前后端共享的类型定义（实体、DTO、API 契约）
 
 import type { InspectorSnapshot, MaterialClassificationStatus, MaterialPhotoGroup, PrimarySoftware } from './canonical'
+import type { HashAlgorithm } from './hash'
 
 /** 文书类型枚举 */
 export enum RecordType {
@@ -102,6 +103,8 @@ export interface InspectionResult {
   data_summary: string        // 检出数据分类摘要
   rar_filename: string
   md5_hash: string
+  /** Business hash algorithm. Missing legacy values are interpreted as MD5. */
+  hash_algorithm?: HashAlgorithm
   file_size: string
 }
 
@@ -264,3 +267,4 @@ export * from './archiveTask'
 export * from './archiveStorageSettings'
 export * from './template'
 export * from './retention'
+export * from './hash'

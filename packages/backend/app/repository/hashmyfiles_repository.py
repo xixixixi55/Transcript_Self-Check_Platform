@@ -9,16 +9,18 @@ import tempfile
 from pathlib import Path
 
 from .runtime_paths import get_runtime_paths
+from .hashmyfiles_result_repository import validate_hashmyfiles_rows
 
 _HASH_IMAGE_FILENAME = "hash-verification.png"
 _LEGACY_HASH_HTML_FILENAME = "hash-verification.html"
 # Probed against HashMyFiles v2.51 on Windows (2026-08-06); shown in the
 # report's software_tools runtime entry for newly parsed cases.
 HASHMYFILES_DISPLAY_VERSION = "2.51"
-_HASH_TYPES_ARGS = [
-    "/MD5", "1", "/SHA1", "0", "/CRC32", "0",
-    "/SHA256", "0", "/SHA512", "0", "/SHA384", "0",
-]
+_HASH_POLICIES = {
+    "md5": {"column": 1, "length": 32},
+    "sha1": {"column": 2, "length": 40},
+    "sha256": {"column": 4, "length": 64},
+}
 # Resolved once after the launcher has established the portable environment.
 _DEFAULT_TOOL_PATH = get_runtime_paths().hashmyfiles_executable
 
@@ -48,11 +50,12 @@ def run_hashmyfiles(
     rar_paths: list[Path],
     output_dir: Path,
     timeout_seconds: int = 120,
+    hash_algorithm: str = "md5",
 ) -> str:
     """Produce the verification PNG file name inside ``output_dir``.
 
-    Only MD5 is enabled. The real HashMyFiles window is captured after its
-    native list view is reduced to Filename, MD5, and File Size.
+    Only the selected business hash is enabled. The real HashMyFiles window is
+    captured after its native list view is reduced to Filename, hash, and File Size.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     image_path = output_dir / _HASH_IMAGE_FILENAME
@@ -65,6 +68,7 @@ def run_hashmyfiles(
         candidate_image_path = Path(temp_dir) / _HASH_IMAGE_FILENAME
         _capture_hashmyfiles_window(
             executable, rar_paths, candidate_image_path, timeout_seconds,
+            hash_algorithm,
         )
         _validate_png(candidate_image_path)
         try:
@@ -97,7 +101,20 @@ def _capture_hashmyfiles_window(
     rar_paths: list[Path],
     output_path: Path,
     timeout_seconds: int,
+    hash_algorithm: str,
 ) -> None:
+    policy = _HASH_POLICIES.get(hash_algorithm)
+    if policy is None:
+        raise HashMyFilesError(
+            "HASHMYFILES_ALGORITHM_INVALID", "HashMyFiles 哈希算法无效。",
+        )
+    hash_arguments = [
+        "/MD5", "1" if hash_algorithm == "md5" else "0",
+        "/SHA1", "1" if hash_algorithm == "sha1" else "0",
+        "/CRC32", "0",
+        "/SHA256", "1" if hash_algorithm == "sha256" else "0",
+        "/SHA512", "0", "/SHA384", "0",
+    ]
     try:
         with tempfile.TemporaryDirectory(prefix="biji-hash-capture-") as temp_dir:
             payload_path = Path(temp_dir) / "capture.json"
@@ -108,7 +125,9 @@ def _capture_hashmyfiles_window(
                 "files": [str(path) for path in rar_paths],
                 "expected_count": len(rar_paths),
                 "timeout_seconds": timeout_seconds,
-                "hash_arguments": _HASH_TYPES_ARGS,
+                "hash_arguments": hash_arguments,
+                "hash_column_index": policy["column"],
+                "hash_digest_length": policy["length"],
             }, ensure_ascii=False), encoding="utf-8")
             script_path.write_text(_CAPTURE_SCRIPT, encoding="utf-8-sig")
             result = subprocess.run(
@@ -134,36 +153,18 @@ def _capture_hashmyfiles_window(
                 raise HashMyFilesError(
                     "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
                 )
-            _validate_rows(capture_result.get("rows"), rar_paths)
+            try:
+                validate_hashmyfiles_rows(
+                    capture_result.get("rows"), rar_paths, int(policy["length"]),
+                )
+            except (OSError, KeyError, TypeError, ValueError) as error:
+                raise HashMyFilesError(
+                    "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
+                ) from error
     except (OSError, subprocess.TimeoutExpired) as error:
         raise HashMyFilesError(
             "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
         ) from error
-
-
-def _validate_rows(rows: object, rar_paths: list[Path]) -> None:
-    try:
-        if not isinstance(rows, list):
-            raise ValueError("rows missing")
-        expected = sorted((path.name, path.stat().st_size) for path in rar_paths)
-        actual = sorted((
-            str(row["filename"]),
-            int(str(row["size_bytes"]).replace(",", "").replace("\u00a0", "").replace(" ", "")),
-        ) for row in rows if isinstance(row, dict))
-        valid_md5 = len(rows) == len(rar_paths) and all(
-            isinstance(row, dict)
-            and len(str(row.get("md5", ""))) == 32
-            and all(char in "0123456789abcdefABCDEF" for char in str(row.get("md5", "")))
-            for row in rows
-        )
-    except (OSError, KeyError, TypeError, ValueError) as error:
-        raise HashMyFilesError(
-            "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
-        ) from error
-    if actual != expected or not valid_md5:
-        raise HashMyFilesError(
-            "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
-        )
 
 
 _CAPTURE_SCRIPT = r'''param([string]$JsonPath, [string]$OutputPath, [string]$ResultPath)
@@ -336,12 +337,13 @@ try {
       for ($rowIndex = 0; $rowIndex -lt $itemCount; $rowIndex++) {
         $row = @{
           filename = [HmfWindow]::ReadListText($list, [uint32]$process.Id, $rowIndex, 0)
-          md5 = [HmfWindow]::ReadListText($list, [uint32]$process.Id, $rowIndex, 1)
+          hash_value = [HmfWindow]::ReadListText($list, [uint32]$process.Id, $rowIndex, [int]$payload.hash_column_index)
           size_bytes = [HmfWindow]::ReadListText($list, [uint32]$process.Id, $rowIndex, 11)
         }
         $rows += $row
       }
-      $resultsComplete = @($rows | Where-Object { ([string]$_.md5) -notmatch '^[0-9a-fA-F]{32}$' }).Count -eq 0
+      $hashPattern = '^[0-9a-fA-F]{' + [string]$payload.hash_digest_length + '}$'
+      $resultsComplete = @($rows | Where-Object { ([string]$_.hash_value) -notmatch $hashPattern }).Count -eq 0
       if ($resultsComplete) { break }
     }
     Start-Sleep -Milliseconds 100
@@ -351,7 +353,7 @@ try {
     $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]$column, [IntPtr]::Zero)
   }
   $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]0, [IntPtr]300)
-  $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]1, [IntPtr]300)
+  $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]([int]$payload.hash_column_index), [IntPtr]300)
   $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]11, [IntPtr]145)
   if (-not [HmfWindow]::ClearSelection($list, [uint32]$process.Id)) {
     throw 'HashMyFiles selection state could not be cleared'

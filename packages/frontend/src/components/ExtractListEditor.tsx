@@ -3,7 +3,8 @@
 import React from 'react'
 import { Button, Table } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
-import type { TableData } from '@biji/shared/types'
+import type { HashAlgorithm, TableData } from '@biji/shared/types'
+import { hashFieldTitle } from '@biji/shared/utils'
 import EditableField from './EditableField'
 
 const DEFAULT_COLS: TableData['columns'] = [
@@ -16,20 +17,30 @@ const DEFAULT_COLS: TableData['columns'] = [
 const DEFAULT_ROWS = [
   { no: '1', electronic_data: '', source: '', extraction_method: '', md5_hash: '' },
 ]
+const GENERATED_HASH_METHOD = /然后对报告压缩并计算(?:MD5|SHA-1|SHA-256)值$/
+
+function shouldUseGeneratedMethod(value: unknown): boolean {
+  const text = String(value || '').trim()
+  return !text || GENERATED_HASH_METHOD.test(text)
+}
 
 interface Props {
   tableData: TableData
   onChange: (data: TableData) => void
   fallbackExtractionMethod?: string
+  hashAlgorithm?: HashAlgorithm
 }
 
-export default function ExtractListEditor({ tableData, onChange, fallbackExtractionMethod = '' }: Props) {
-  const cols = tableData.columns.length > 0 ? tableData.columns : DEFAULT_COLS
+export default function ExtractListEditor({ tableData, onChange, fallbackExtractionMethod = '', hashAlgorithm = 'md5' }: Props) {
+  const sourceCols = tableData.columns.length > 0 ? tableData.columns : DEFAULT_COLS
+  const cols = sourceCols.map(column => column.key === 'md5_hash'
+    ? { ...column, title: hashFieldTitle(hashAlgorithm) }
+    : column)
   const sourceRows = tableData.rows.length > 0 ? tableData.rows : DEFAULT_ROWS
   const displayRows = sourceRows.map(row => (
-    !String(row.extraction_method || '').trim() && fallbackExtractionMethod
-      ? { ...row, extraction_method: fallbackExtractionMethod }
-      : row
+    fallbackExtractionMethod && shouldUseGeneratedMethod(row.extraction_method)
+    ? { ...row, extraction_method: fallbackExtractionMethod }
+    : row
   ))
 
   const addRow = () => {

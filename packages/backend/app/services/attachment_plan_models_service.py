@@ -106,6 +106,7 @@ class Attachment3PagePlan:
 class AttachmentPlan:
     profile_id: str
     archive_manifest_id: str
+    hash_algorithm: str
     archive_medium: str
     attachment_summary: AttachmentSummaryPlan
     attachment1_pages: tuple[Attachment1PagePlan, ...]

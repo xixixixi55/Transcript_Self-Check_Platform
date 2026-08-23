@@ -171,6 +171,23 @@ def test_attachment3_is_one_page_per_manifest_part_and_uses_manifest_values():
     assert [page.show_attachment_title for page in plan.attachment3_pages] == [True, False, False]
 
 
+def test_selected_sha256_hash_drives_attachment_rows_and_extraction_copy():
+    value = manifest(1)
+    value["parts"][0].update({
+        "hash_algorithm": "sha256",
+        "hash_value": "a" * 64,
+    })
+    report_value = report()
+    report_value["inspection"]["result"] = {"hash_algorithm": "sha256"}
+
+    plan = build_attachment_plan(value, report_value)
+
+    assert plan.hash_algorithm == "sha256"
+    assert plan.attachment1_pages[0].serial_rows[0].md5 == "A" * 64
+    assert plan.attachment3_pages[0].md5 == "A" * 64
+    assert "SHA-256" in plan.attachment1_pages[0].extraction_method
+
+
 def test_oversized_single_volume_keeps_nullable_capacity_fields() -> None:
     plan = build_attachment_plan(oversized_manifest(), report())
 

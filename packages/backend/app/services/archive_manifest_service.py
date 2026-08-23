@@ -8,17 +8,14 @@ from pathlib import Path
 from uuid import uuid4
 
 from ..repository.archive_hash_repository import compute_md5_streaming
+from ..repository.hash_algorithm_repository import manifest_part_business_hash, normalize_hash_algorithm
 from ..repository.archive_validator_repository import ArchiveValidationResult
 from ..repository.winrar_discovery_repository import WinRarCapability
-from .disc_sequence_service import (
-    generate_disc_numbers,
-    parse_disc_sequence,
-    validate_disc_mapping,
-)
+from .disc_sequence_service import generate_disc_numbers, parse_disc_sequence, validate_disc_mapping
 from .archive_staging_security_service import OWNERSHIP_MARKER_NAME
+from .hash_algorithm_service import archive_business_hash
 from .archive_manifest_output_security_service import (
-    assert_safe_output_file as _assert_safe_output_file,
-    compute_disc_capacity,
+    assert_safe_output_file as _assert_safe_output_file, compute_disc_capacity,
     compute_manifest_disc_capacity as _expected_disc_capacity,
     is_safe_output_file as _is_safe_output_file,
 )
@@ -26,7 +23,6 @@ from .archive_manifest_output_security_service import (
 ArchiveFileIdentity = tuple[int, int, int, int, int]
 _STANDARD_SPLIT_MODE = "standard_split"
 _OVERSIZED_SINGLE_VOLUME_MODE = "oversized_single_volume"
-
 def _manifest_mode(manifest: dict) -> str:
     mode = manifest.get("archive_mode")
     return "legacy_standard_split" if mode is None else str(mode)
@@ -66,6 +62,8 @@ def assemble_archive_manifest(
     *,
     retry_count: int,
     verified_md5s: dict[str, str] | None = None,
+    business_hash_algorithm: str = "md5",
+    verified_business_hashes: dict[str, str] | None = None,
 ) -> tuple[dict[str, object], dict[str, Path]]:
     if not validation.valid or not validation.parts:
         raise ValueError("ARCHIVE_PARTS_INVALID")
@@ -87,6 +85,10 @@ def assemble_archive_manifest(
     public_parts: list[dict[str, object]] = []
     internal_paths: dict[str, Path] = {}
     total_archive_bytes = 0
+    try:
+        business_algorithm = normalize_hash_algorithm(business_hash_algorithm)
+    except ValueError as error:
+        raise ValueError("ARCHIVE_HASH_ALGORITHM_INVALID") from error
     for part, disc_number in zip(validation.parts, actual_disc_numbers, strict=True):
         md5 = (
             verified_md5s.get(part.filename)
@@ -95,6 +97,10 @@ def assemble_archive_manifest(
         )
         if not isinstance(md5, str) or not re.fullmatch(r"[0-9a-fA-F]{32}", md5):
             raise ValueError("ARCHIVE_PARTS_INVALID")
+        business_hash = archive_business_hash(
+            part.path, validation.parts[0].path.parent, business_algorithm,
+            md5, verified_business_hashes,
+        )
         disc_capacity = _expected_disc_capacity(part.size_bytes, archive_mode)
         public_part = {
             "part_id": str(uuid4()),
@@ -102,6 +108,8 @@ def assemble_archive_manifest(
             "filename": part.filename,
             "size_bytes": part.size_bytes,
             "md5": md5,
+            "hash_algorithm": business_algorithm,
+            "hash_value": business_hash,
             "disc_number": disc_number,
             "disc_date": disc_date,
             "volume_size_bytes": plan.volume_size_bytes,
@@ -157,6 +165,10 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
     actual_total = 0
     for item in parts:
         if not isinstance(item, dict):
+            return False
+        try:
+            manifest_part_business_hash(item)
+        except ValueError:
             return False
         disc_number = item.get("disc_number")
         disc_date = item.get("disc_date")

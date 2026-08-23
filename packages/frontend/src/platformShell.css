@@ -793,6 +793,18 @@ body {
   grid-column: 1 / -1;
 }
 
+.shared-defaults-settings__hash-options {
+  display: flex;
+  width: min(100%, 320px);
+}
+
+.shared-defaults-settings__hash-options .ant-radio-button-wrapper {
+  flex: 1 1 0;
+  padding-inline: 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .shared-defaults-settings__inspectors {
   display: grid;
   gap: 12px;

@@ -138,7 +138,8 @@ export default function RecordEditorForm({
         <ReviewAttachmentsSection attachments={attachments} materials={introduction.evidence_list || []}
           hardwareDevice={report.inspection?.hardware_device || ''} photoFiles={photoFiles}
           onPhotoFilesChange={onPhotoFilesChange} updateReport={updateReport}
-          archiveMedium={archiveResult.result?.archive_medium ?? null} />
+          archiveMedium={archiveResult.result?.archive_medium ?? null}
+          hashAlgorithm={report.inspection?.result?.hash_algorithm || 'md5'} />
         </ReviewSection>
       </fieldset>
 

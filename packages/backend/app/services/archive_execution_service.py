@@ -33,6 +33,7 @@ from .disc_sequence_service import generate_disc_numbers, parse_archive_medium_s
 from .archive_publish_service import publish_staged_archive
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord
 from .export_gate_service import ExportGateCode, ExportGateIssue
+from .hash_algorithm_service import report_hash_algorithm
 
 _PUBLICATION_EVIDENCE_RETRIES = 3
 def execute_archive(
@@ -160,6 +161,7 @@ def execute_archive(
             try:
                 publication_attempt = 0
                 verified_output_md5s: dict[str, str] | None = None
+                verified_business_hashes: dict[str, str] | None = None
                 while True:
                     publication_report = report
                     publication_snapshot = None
@@ -199,13 +201,21 @@ def execute_archive(
                     )
                     observe_stage(stage_observer, "integrity_verified")
                     observe_stage(stage_observer, "md5")
+                    business_algorithm = report_hash_algorithm(publication_report)
                     public_manifest, _ = assemble_archive_manifest(
                         plan, validation, winrar, retry_count=retry_count,
                         verified_md5s=verified_output_md5s,
+                        business_hash_algorithm=business_algorithm,
+                        verified_business_hashes=verified_business_hashes,
                     )
                     if verified_output_md5s is None:
                         verified_output_md5s = {
                             str(part["filename"]): str(part["md5"])
+                            for part in public_manifest["parts"]
+                        }
+                    if verified_business_hashes is None:
+                        verified_business_hashes = {
+                            str(part["filename"]): str(part["hash_value"])
                             for part in public_manifest["parts"]
                         }
                     observe_stage(stage_observer, "manifest")

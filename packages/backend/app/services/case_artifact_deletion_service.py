@@ -156,9 +156,9 @@ class CaseArtifactDeletionService:
             for value in owned_dirs
         ]
         paths.extend(
-            self._controlled_path(root / ".staging", row["staging_locator"])
-            for root in self.compressed_roots
+            path
             for row in attempts if row["staging_locator"]
+            for path in self._controlled_staging_paths(row["staging_locator"])
         )
         paths.extend(
             path
@@ -280,6 +280,17 @@ class CaseArtifactDeletionService:
         for output_root in self.archive_output_roots:
             try:
                 candidates.append(self._controlled_path(output_root, locator))
+            except WorkbenchPersistenceError:
+                continue
+        if not candidates:
+            raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
+        return _unique_paths(candidates)
+
+    def _controlled_staging_paths(self, locator: Any) -> tuple[Path, ...]:
+        candidates = []
+        for compressed_root in self.compressed_roots:
+            try:
+                candidates.append(self._controlled_path(compressed_root / ".staging", locator))
             except WorkbenchPersistenceError:
                 continue
         if not candidates:

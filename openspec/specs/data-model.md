@@ -140,6 +140,10 @@
 
 取值为 `detected | version_unknown | not_found | unavailable`。
 
+### 哈希算法（HashAlgorithm）
+
+`HashAlgorithm` 是受控字符串联合类型 `md5 | sha1 | sha256`。共享默认值和新案件快照使用该类型；存量缺失值按 `md5` 兼容。
+
 ### 检查结果（InspectionResult）
 
 | 字段 | 类型 | 说明 |
@@ -151,12 +155,13 @@
 | rar_filename | string | legacy 兼容字段；文件夹解析不生成最终归档文件名 |
 | md5_hash | string | legacy 兼容字段；文件夹解析不生成最终归档 MD5 |
 | file_size | string | legacy 兼容字段；文件夹解析当前仅保留空值/零值语义，不表达最终归档大小 |
+| hash_algorithm | `md5 \| sha1 \| sha256`（可选） | 案件业务哈希算法快照；存量缺失时按 `md5` 兼容 |
 
 ### 表格数据（TableData）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| columns | `{ key: string; title: string; width?: string }[]` | 列定义；附件1 默认五列：序号、电子数据、来源、提取方式、文件MD5哈希值 |
+| columns | `{ key: string; title: string; width?: string }[]` | 列定义；附件1默认五列，末列标题按案件算法显示文件 MD5、SHA-1 或 SHA-256 哈希值 |
 | rows | `Record<string, string>[]` | legacy 可编辑行数据；解析阶段的 `rar_info` 不驱动正式附件1，正式附件1由已验证 Manifest 派生的 AttachmentPlan 生成 |
 
 ### 检材照片组（MaterialPhotoGroup）
@@ -313,7 +318,7 @@ type ArchiveMode 取 `standard_split` 或 `oversized_single_volume`，type Archi
 hashing、completed 或 failed。WinRAR 成功退出不直接产生清单；只有当前执行目录中的
 标准分卷按数字连续、非零且满足 `0 < actual_size <= volume_size_bytes`；超大单卷只接受一个非空的 `<案件名>.rar`。首个 RAR 通过
 WinRAR 完整性测试后，才能使用 Python `hashlib` 流式计算 MD5 并构建 `ArchiveManifest`。
-Manifest 的 parts 按实际文件系统结果排序，保存模式、文件名、`size_bytes`、MD5、历史字段名 `disc_number` 所承载的介质编号与日期，不保存绝对路径。标准分卷额外保存 `volume_size_bytes` 和按实际大小选择的最小二进制 4GB/22GB/45GB `disc_capacity_bytes`；超大单卷这两个容量字段为空。`ArchiveTaskResult` 与 `DiscMappingResult` 对外同时投影 `archive_medium`，供审核界面和 Word 选择光盘或硬盘语义。未带模式的历史 Manifest 按旧十进制规则复核。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 MD5 校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
+Manifest 的 parts 按实际文件系统结果排序，保存模式、文件名、`size_bytes`、内部完整性 `md5`、案件业务 `hash_algorithm` 与 `hash_value`、历史字段名 `disc_number` 所承载的介质编号与日期，不保存绝对路径。`hash_algorithm` 取 `md5 | sha1 | sha256`；选择 MD5 时 `hash_value` 复用 `md5`，选择 SHA-1/SHA-256 时保存对应完整十六进制摘要；旧 part 缺少新增字段时以 `md5` 和现有 `md5` 兼容投影。标准分卷额外保存 `volume_size_bytes` 和按实际大小选择的最小二进制 4GB/22GB/45GB `disc_capacity_bytes`；超大单卷这两个容量字段为空。`ArchiveTaskResult` 与 `DiscMappingResult` 对外同时投影 `archive_medium`，供审核界面和 Word 选择光盘或硬盘语义。未带模式的历史 Manifest 按旧十进制规则复核。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 MD5 校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
 
 当前生产 renderer 消费 `InspectionReport` 兼容数据、最终 `ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1` TemplateProfile。`DocumentRenderPlan` 是未来统一渲染合同，不属于当前生产模型。
 
@@ -544,7 +549,9 @@ unreferenced temporary assets are removed after a grace period.
 `SharedDefaults` is backend-persisted and deployment-scoped for the current local
 operator; this scope does not provide or claim multi-user isolation. It is limited
 to document number, inspection place, inspection method, hardware device, ordered
-inspector snapshots and disc-number prefix. A successful draft save may send a
+inspector snapshots, disc-number prefix and a `md5 | sha1 | sha256` hash algorithm.
+The algorithm defaults to MD5, is snapshotted into each later new case, and never
+rewrites an existing case. A successful draft save may send a
 sparse patch containing only non-empty values that the user explicitly changed.
 Case fields follow user edit > non-empty Parser report value > non-empty shared
 default > system default or empty. Later cases use shared values only when the
@@ -557,7 +564,7 @@ session identity, not an authenticated person. `EditLease` provides one active c
 lease with expiry and takeover metadata.
 `SaveStatus`, `SharedDefaultsSaveStatus` and `DualSaveResult` report draft and
 shared-default persistence independently. Shared-default writes use a sparse
-six-field `shared_defaults_patch`; `updated`, `unchanged`, `failed` and
+supported-field `shared_defaults_patch`; `updated`, `unchanged`, `failed` and
 `revision_conflict` are distinct statuses, and blank values do not clear stored
 defaults. `RevisionConflictDto` describes optimistic concurrency failures.
 `WorkbenchApiEnvelope`, `CaseShellResponse`, `CaseDraftResponse`,

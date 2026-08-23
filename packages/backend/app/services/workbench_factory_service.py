@@ -138,7 +138,13 @@ def build_workbench_services(
         lifecycle=CaseLifecycleService(
             database, asset_service=assets,
             artifact_deletion_service=CaseArtifactDeletionService(
-                database, OUTPUT_BASE, archive_output_roots=(ARCHIVE_OUTPUT_BASE, OUTPUT_BASE),
+                database,
+                OUTPUT_BASE,
+                archive_output_roots=(
+                    ARCHIVE_OUTPUT_BASE,
+                    OUTPUT_BASE,
+                    runtime_paths.output_root,
+                ),
             ),
         ),
         defaults=SharedDefaultsService(database),

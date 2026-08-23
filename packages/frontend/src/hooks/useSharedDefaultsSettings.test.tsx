@@ -17,7 +17,7 @@ const defaults: SharedDefaults = {
   inspection_place: 'SYNTHETIC-PLACE', inspection_method: 'SYNTHETIC-METHOD',
   hardware_device: 'SYNTHETIC-DEVICE',
   inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-001'],
-  disc_number_prefix: 'GP', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
+  disc_number_prefix: 'GP', hash_algorithm: 'sha256', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
 }
 
 beforeEach(() => {
@@ -36,6 +36,7 @@ describe('useSharedDefaultsSettings', () => {
     expect(sharedDefaultsPatch(values)).toEqual(expect.objectContaining({
       document_number: '   ',
       inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-001'],
+      hash_algorithm: 'sha256',
     }))
 
     await act(async () => { await result.current.save(values) })

@@ -1,7 +1,7 @@
 // Layer 11: FE_Components — explicit editor for deployment-scoped record defaults.
 import { useEffect, useState } from 'react'
 import {
-  Alert, Button, Form, Input, Modal, Skeleton, Space, Typography,
+  Alert, Button, Form, Input, Modal, Radio, Skeleton, Space, Typography,
 } from 'antd'
 import {
   ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, PlusOutlined,
@@ -118,6 +118,16 @@ export function SharedDefaultsSettingsForm() {
             <Form.Item name="discNumberPrefix" label="光盘编号前缀"
               extra="这里只保存前缀，不会复制日期、序号或完整光盘编号。">
               <Input maxLength={20} placeholder="例如：GP" allowClear />
+            </Form.Item>
+            <Form.Item name="hashAlgorithm" label="文件哈希算法"
+              extra="新建案件会固化所选算法；历史案件仍按 MD5 显示和校验。">
+              <Radio.Group className="shared-defaults-settings__hash-options"
+                optionType="button" buttonStyle="solid"
+                options={[
+                  { label: 'MD5', value: 'md5' },
+                  { label: 'SHA-1', value: 'sha1' },
+                  { label: 'SHA-256', value: 'sha256' },
+                ]} />
             </Form.Item>
           </div>
         </section>

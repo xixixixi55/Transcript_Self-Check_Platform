@@ -50,6 +50,7 @@ from .template_profile_service import (
     validate_template_package_fingerprint,
 )
 from .legacy_report_projection_service import project_ordered_legacy_report
+from .hash_algorithm_service import hash_field_title, report_hash_algorithm
 
 _ATTACHMENT_SUMMARY_GAP_TWIPS = 3 * 520
 
@@ -228,17 +229,19 @@ def _update_inspection_result(
         f"{software_version}）进行检查，检出{flat['data_summary']}等电子数据。"
     )
     if plan is None:
+        hash_title = hash_field_title(report_hash_algorithm(report))
         result_text += (
             f"将检出结果生成为“{flat['rar_filename']}”文件，"
-            f"文件MD5哈希值为“{flat['md5_hash'].upper()}”，"
+            f"{hash_title}为“{flat['md5_hash'].upper()}”，"
             f"文件大小为“{flat['file_size']}”字节。"
         )
         if flat.get("disc_number"):
             result_text += f"结果以封盘方式刻录在编号为“{flat['disc_number']}”的光盘中。"
     else:
         parts = plan.attachment3_pages
+        hash_title = hash_field_title(plan.hash_algorithm)
         part_text = "；".join(
-            f"“{part.filename}”文件，文件MD5哈希值为“{part.md5.upper()}”，"
+            f"“{part.filename}”文件，{hash_title}为“{part.md5.upper()}”，"
             f"文件大小为“{part.size_bytes}”字节"
             for part in parts
         )

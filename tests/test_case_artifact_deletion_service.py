@@ -224,6 +224,50 @@ def test_explicit_delete_removes_incomplete_archive_records_with_context_binding
     assert source_dir.exists()
 
 
+def test_delete_accepts_staging_from_one_of_multiple_controlled_archive_roots(
+    tmp_path: Path,
+) -> None:
+    database = WorkbenchDatabase(
+        database_path_for_deployment(tmp_path, "SYNTHETIC-DEPLOYMENT"), "SYNTHETIC-DEPLOYMENT",
+    )
+    identifiers, source_dir = _case(database, tmp_path)
+    active_output_root = tmp_path / "SYNTHETIC-ACTIVE-OUTPUT"
+    legacy_output_root = tmp_path / "SYNTHETIC-LEGACY-OUTPUT"
+    portable_output_root = tmp_path / "SYNTHETIC-PORTABLE-OUTPUT"
+    attempt_id = "attempt-SYNTHETIC-MULTI-ROOT-DELETE"
+    staging_dir = portable_output_root / "compressed" / ".staging" / attempt_id
+    staging_dir.mkdir(parents=True)
+    (staging_dir / "SYNTHETIC-partial.rar").write_bytes(b"SYNTHETIC")
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO archive_attempts(attempt_id,schema_version,case_id,task_id,deployment_instance_id,source_id,"
+            "input_revision,status,cleanup_status,staging_locator,created_at,revision) "
+            "VALUES (?,?,?,?,?,?,?,'succeeded','succeeded',?,?,0)",
+            (attempt_id, 1, identifiers["case_id"], identifiers["task_id"],
+             database.deployment_instance_id, identifiers["source_id"], 0, str(staging_dir),
+             "2026-08-21T00:00:00Z"),
+        )
+
+    lifecycle = CaseLifecycleService(
+        database,
+        artifact_deletion_service=CaseArtifactDeletionService(
+            database,
+            legacy_output_root,
+            archive_output_roots=(
+                active_output_root,
+                legacy_output_root,
+                portable_output_root,
+            ),
+        ),
+    )
+
+    assert lifecycle.delete_case(identifiers["case_id"]) == {
+        "case_id": identifiers["case_id"], "deleted": True,
+    }
+    assert not staging_dir.exists()
+    assert source_dir.exists()
+
+
 def test_explicit_delete_removes_short_snapshot_and_owner_artifacts(
     tmp_path: Path,
 ) -> None:

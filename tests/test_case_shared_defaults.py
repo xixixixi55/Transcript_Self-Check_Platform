@@ -71,6 +71,7 @@ def test_entrust_unit_prefix_can_be_persisted_and_cleared(tmp_path: Path):
     repository = SharedDefaultsRepository(database)
 
     initial = repository.get()
+    assert initial["hash_algorithm"] == "md5"
     assert initial["entrust_unit_prefix"] == ""
 
     updated = repository.patch(
@@ -275,7 +276,7 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
     )
     repository = SharedDefaultsRepository(database)
     first_defaults = repository.patch(
-        {"inspection_place": "SYNTHETIC-FIRST-PLACE"},
+        {"inspection_place": "SYNTHETIC-FIRST-PLACE", "hash_algorithm": "sha1"},
         repository.get()["revision"],
     )["defaults"]
     blank_report = {
@@ -287,13 +288,26 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
     existing_case, _ = _initialize_draft(blank_report, first_defaults)
 
     second_defaults = repository.patch(
-        {"inspection_place": "SYNTHETIC-SECOND-PLACE"},
+        {"inspection_place": "SYNTHETIC-SECOND-PLACE", "hash_algorithm": "sha256"},
         first_defaults["revision"],
     )["defaults"]
     later_case, _ = _initialize_draft(blank_report, second_defaults)
 
     assert existing_case["introduction"]["inspection_place"] == "SYNTHETIC-FIRST-PLACE"
     assert later_case["introduction"]["inspection_place"] == "SYNTHETIC-SECOND-PLACE"
+    assert existing_case["inspection"]["result"]["hash_algorithm"] == "sha1"
+    assert later_case["inspection"]["result"]["hash_algorithm"] == "sha256"
+
+
+def test_shared_default_rejects_unsupported_hash_algorithm(tmp_path: Path):
+    database = WorkbenchDatabase(
+        database_path_for_deployment(tmp_path, "SYNTHETIC-HASH-DEFAULT"),
+        "SYNTHETIC-HASH-DEFAULT",
+    )
+    repository = SharedDefaultsRepository(database)
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        repository.patch({"hash_algorithm": "sha512"}, repository.get()["revision"])
+    assert error.value.code == "INVALID_SHARED_DEFAULTS"
 
 
 def test_parser_system_default_value_yields_to_shared_default():

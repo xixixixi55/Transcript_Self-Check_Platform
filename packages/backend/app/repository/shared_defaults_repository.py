@@ -9,6 +9,7 @@ from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import bool_int, json_text, row_json
 from .workbench_serialization import validate_opaque_id, validate_safe_string
+from .hash_algorithm_repository import normalize_hash_algorithm
 
 _DEFAULT_VALUES = {
     "entrust_unit_prefix": "",
@@ -18,6 +19,7 @@ _DEFAULT_VALUES = {
     "hardware_device": "",
     "inspector_order": [],
     "disc_number_prefix": "",
+    "hash_algorithm": "md5",
     "default_template_ref": None,
 }
 _MIGRATION_DECISIONS = {"pending", "imported", "ignored"}
@@ -166,6 +168,12 @@ def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
     normalized["default_template_ref"] = _normalize_template_ref(
         normalized.get("default_template_ref"),
     )
+    try:
+        normalized["hash_algorithm"] = normalize_hash_algorithm(
+            normalized.get("hash_algorithm"), legacy_default=True,
+        )
+    except ValueError as error:
+        raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS") from error
     json_text(normalized)
     return normalized
 
@@ -202,6 +210,11 @@ def _normalize_patch(values: Mapping[str, Any], *, allow_clear: bool = False) ->
         normalized["default_template_ref"] = _normalize_template_ref(
             values["default_template_ref"],
         )
+    if "hash_algorithm" in values:
+        try:
+            normalized["hash_algorithm"] = normalize_hash_algorithm(values["hash_algorithm"])
+        except ValueError as error:
+            raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS") from error
     return normalized
 
 

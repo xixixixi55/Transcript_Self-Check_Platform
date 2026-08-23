@@ -132,6 +132,43 @@ def test_manifest_uses_actual_numeric_order_streaming_md5_and_disc_date(tmp_path
 
 
 @pytest.mark.parametrize(
+    ("algorithm", "hash_factory"),
+    [("sha1", hashlib.sha1), ("sha256", hashlib.sha256)],
+)
+def test_manifest_keeps_internal_md5_and_adds_selected_business_hash(
+    tmp_path, algorithm, hash_factory,
+):
+    part = tmp_path / "SYNTHETIC.rar"
+    payload = b"SYNTHETIC/HASH-ALGORITHM"
+    part.write_bytes(payload)
+    plan = SimpleNamespace(
+        plan_id="SYNTHETIC-PLAN", archive_base_name="SYNTHETIC",
+        volume_size_bytes=4_000_000_000, volume_tier_gb=4,
+        max_part_count=1, total_input_bytes=len(payload),
+        first_disc_number="GP20260823-01",
+        expected_disc_numbers=("GP20260823-01",),
+    )
+    capability = SimpleNamespace(
+        available=True, executable_path="SYNTHETIC", executable_name="WinRAR.exe",
+        version="6.24", supports_rar_volumes=True,
+        public_dict=lambda: {"available": True},
+    )
+    validation = validate_archive_parts(
+        tmp_path, plan, capability, integrity_runner=probe_ok,
+    )
+
+    manifest, _ = assemble_archive_manifest(
+        plan, validation, capability, retry_count=0,
+        business_hash_algorithm=algorithm,
+    )
+
+    item = manifest["parts"][0]
+    assert item["md5"] == hashlib.md5(payload).hexdigest()
+    assert item["hash_algorithm"] == algorithm
+    assert item["hash_value"] == hash_factory(payload).hexdigest()
+
+
+@pytest.mark.parametrize(
     ("prefix", "expected_prefix"),
     [
         ("G", "G"),

@@ -20,6 +20,7 @@ from .report_defaults_service import normalize_data_summary
 from .legacy_report_projection_service import project_ordered_legacy_report
 from .entrust_person_service import format_entrust_persons
 from .material_policy_service import reviewed_material_display_name
+from .hash_algorithm_service import hash_field_title, report_hash_algorithm
 
 
 DEFAULT_EXTRACT_COLUMNS = [
@@ -123,6 +124,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     # (四) 检查结果
     commands.append(_heading_small("（四）检查结果"))
     result = insp.get("result", {})
+    hash_algorithm = report_hash_algorithm(report)
     evidence_numbers = [
         str(item.get("evidence_number")).strip()
         for item in evidence_list
@@ -136,7 +138,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
         + result.get("software_version", "") + "）进行检查，检出"
         + normalize_data_summary(result.get("data_summary")) + "等电子数据。"
         + "将检出结果生成为\"" + result.get("rar_filename", "") + "\"文件，"
-        + "文件MD5哈希值为\"" + str(result.get("md5_hash", "")).upper() + "\"，"
+        + hash_field_title(hash_algorithm) + "为\"" + str(result.get("md5_hash", "")).upper() + "\"，"
         + "文件大小为\"" + result.get("file_size", "") + "\"字节。"
     )
     # 光盘记录句（参照最终 Word 标准）
@@ -163,7 +165,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     commands.append(_p("电子数据提取固定清单", bold=True, size=22, align="center"))
 
     extract_list = attach.get("extract_list", {})
-    commands.extend(_build_table(extract_list))
+    commands.extend(_build_table(extract_list, hash_algorithm))
 
     # ─── 附件2：检材照片 (REQ-008: officecli 嵌入原图) ───
     commands.append(_empty_line())
@@ -255,9 +257,14 @@ def _empty_line() -> dict:
     return _p("", spacing_after=0, first_line="")
 
 
-def _build_table(table_data: dict) -> list[dict]:
+def _build_table(table_data: dict, hash_algorithm: str = "md5") -> list[dict]:
     """构建附件1 表格（表头加粗，仿宋 16pt）"""
-    cols = table_data.get("columns") or DEFAULT_EXTRACT_COLUMNS
+    source_columns = table_data.get("columns") or DEFAULT_EXTRACT_COLUMNS
+    cols = [
+        {**column, "title": hash_field_title(hash_algorithm)}
+        if column.get("key") == "md5_hash" else column
+        for column in source_columns
+    ]
     rows = table_data.get("rows") or DEFAULT_EXTRACT_ROWS
     all_rows = [[column.get("title", "") for column in cols]] + [
         [_table_cell_value(row, column.get("key", "")) for column in cols]

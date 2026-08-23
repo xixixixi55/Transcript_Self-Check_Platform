@@ -8,6 +8,12 @@ from typing import Any
 from .attachment_plan_service import build_attachment_plan
 from .attachment_plan_errors_service import AttachmentPlanError
 from .legacy_report_projection_service import project_ordered_legacy_report
+from .hash_algorithm_service import (
+    hash_extraction_method,
+    hash_field_title,
+    manifest_part_business_hash,
+    report_hash_algorithm,
+)
 
 
 _ARCHIVE_EXTRACT_COLUMNS = (
@@ -15,7 +21,6 @@ _ARCHIVE_EXTRACT_COLUMNS = (
     {"key": "electronic_data", "title": "电子数据", "width": "220"},
     {"key": "source", "title": "来源", "width": "180"},
     {"key": "extraction_method", "title": "提取方式", "width": "180"},
-    {"key": "md5_hash", "title": "文件MD5哈希值", "width": "260"},
 )
 
 
@@ -37,7 +42,7 @@ def project_manifest_to_legacy_report_with_plan(
     attachments["disc_number"] = plan.attachment_summary.disc_numbers[0]
     attachments["burning_date"] = _format_date(plan.attachment_summary.inspection_date)
     attachments["extract_list"] = {
-        "columns": _archive_extract_columns(),
+        "columns": _archive_extract_columns(plan.hash_algorithm),
         "rows": [
             {
                 "no": str(row.part_number),
@@ -90,21 +95,19 @@ def _project_manifest_rows_without_review_fields(
     source = _normalize_extract_source(
         _existing_extract_value(report, "source") or _source_from_evidence(report)
     )
-    extraction_method = (
-        _existing_extract_value(report, "extraction_method")
-        or _hardware_extraction_method(report)
-    )
+    hash_algorithm, _ = manifest_part_business_hash(parts[0])
+    extraction_method = _hardware_extraction_method(report, hash_algorithm)
     attachments["disc_number"] = _text(parts[0].get("disc_number"))
     attachments["burning_date"] = _format_date_if_possible(_text(parts[0].get("disc_date")))
     attachments["extract_list"] = {
-        "columns": _archive_extract_columns(),
+        "columns": _archive_extract_columns(hash_algorithm),
         "rows": [
             {
                 "no": str(part["part_number"]),
                 "electronic_data": _text(part.get("filename")),
                 "source": source,
                 "extraction_method": extraction_method,
-                "md5_hash": _text(part.get("md5")).upper(),
+                "md5_hash": manifest_part_business_hash(part)[1].upper(),
             }
             for part in parts
         ],
@@ -155,13 +158,17 @@ def _source_from_evidence(report: Mapping[str, Any]) -> str:
     return "、".join(values) + "检材内提取" if values else ""
 
 
-def _hardware_extraction_method(report: Mapping[str, Any]) -> str:
+def _hardware_extraction_method(
+    report: Mapping[str, Any], hash_algorithm: str | None = None,
+) -> str:
     inspection = report.get("inspection")
     hardware = (
         _text(inspection.get("hardware_device"))
         if isinstance(inspection, Mapping) else ""
     ) or "取证设备"
-    return f"使用{hardware}对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值"
+    return hash_extraction_method(
+        hardware, hash_algorithm or report_hash_algorithm(report),
+    )
 
 
 def _normalize_extract_source(value: str) -> str:
@@ -171,8 +178,11 @@ def _normalize_extract_source(value: str) -> str:
     return source
 
 
-def _archive_extract_columns() -> list[dict[str, str]]:
-    return [dict(column) for column in _ARCHIVE_EXTRACT_COLUMNS]
+def _archive_extract_columns(hash_algorithm: str) -> list[dict[str, str]]:
+    return [
+        *(dict(column) for column in _ARCHIVE_EXTRACT_COLUMNS),
+        {"key": "md5_hash", "title": hash_field_title(hash_algorithm), "width": "260"},
+    ]
 
 
 def _format_date(value: str) -> str:

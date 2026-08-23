@@ -1,3 +1,5 @@
+import type { HashAlgorithm } from './hash'
+
 export type ArchiveVolumeTier = '4GB' | '22GB' | '45GB'
 export type ArchiveMode = 'standard_split' | 'oversized_single_volume'
 export type ArchiveMedium = 'optical_disc' | 'hard_drive'
@@ -72,6 +74,9 @@ export interface ArchivePart {
   /** WinRAR actual output file size. Standard parts must not exceed the tier limit. */
   size_bytes: number
   md5: string
+  /** Case-selected business digest; legacy manifests omit both fields and use md5. */
+  hash_algorithm?: HashAlgorithm
+  hash_value?: string
   disc_number: string
   disc_date: string
   /** Smallest binary capacity tier for standard parts; absent for oversized single volumes. */

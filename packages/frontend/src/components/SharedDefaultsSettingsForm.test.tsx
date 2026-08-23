@@ -14,7 +14,7 @@ const defaults = {
   inspection_place: 'SYNTHETIC-PLACE', inspection_method: 'SYNTHETIC-METHOD',
   hardware_device: 'SYNTHETIC-DEVICE',
   inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-001'],
-  disc_number_prefix: 'GP', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
+  disc_number_prefix: 'GP', hash_algorithm: 'md5', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
 }
 
 beforeAll(() => {
@@ -41,6 +41,7 @@ describe('SharedDefaultsSettingsForm', () => {
     expect(await screen.findByDisplayValue('SYNTHETIC-DOC')).toBeTruthy()
     expect(screen.getByText('仅影响之后新建的案件')).toBeTruthy()
     expect(screen.getByDisplayValue('SYNTHETIC-NAME')).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: 'SHA-256' }))
 
     fireEvent.change(screen.getByLabelText('文号'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: '删除第1名检查人员' }))
@@ -50,7 +51,9 @@ describe('SharedDefaultsSettingsForm', () => {
       API_ENDPOINTS.WORKBENCH_DEFAULTS,
       expect.objectContaining({
         expected_revision: 2,
-        values: expect.objectContaining({ document_number: '', inspector_order: [] }),
+        values: expect.objectContaining({
+          document_number: '', inspector_order: [], hash_algorithm: 'sha256',
+        }),
       }),
     ))
     expect(await screen.findByText('笔录默认设置已保存')).toBeTruthy()

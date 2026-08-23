@@ -1,7 +1,7 @@
 import React from 'react'
 import type { InspectionReport } from '@biji/shared/types'
 import { Typography } from 'antd'
-import { normalizeDataSummary } from '@biji/shared/utils'
+import { hashAlgorithmLabel, normalizeDataSummary } from '@biji/shared/utils'
 import type { PrimarySoftware } from '@biji/shared/types'
 import EditableField from './EditableField'
 import ProcessStepsEditor from './ProcessStepsEditor'
@@ -28,7 +28,9 @@ export function ReviewInspectionSection({ inspection, updateReport, deviceOption
   }
   const resultFields: [string, keyof InspectionReport['inspection']['result']][] = [
     ['检材编号', 'evidence_number'],
-    ['数据摘要', 'data_summary'], ['RAR 文件名', 'rar_filename'], ['MD5 哈希', 'md5_hash'], ['文件大小', 'file_size'],
+    ['数据摘要', 'data_summary'], ['RAR 文件名', 'rar_filename'],
+    [`${hashAlgorithmLabel(inspection.result?.hash_algorithm)} 哈希`, 'md5_hash'],
+    ['文件大小', 'file_size'],
   ]
 
   return (

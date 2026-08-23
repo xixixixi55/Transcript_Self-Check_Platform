@@ -188,6 +188,32 @@ describe('结构化编辑器', () => {
     }))
   })
 
+  it('提取方式只升级系统哈希文案并保留用户自定义内容', () => {
+    const onChange = vi.fn()
+    render(<ExtractListEditor tableData={{
+      columns: [
+        { key: 'extraction_method', title: '提取方式' },
+        { key: 'md5_hash', title: '文件MD5哈希值' },
+      ],
+      rows: [
+        { extraction_method: '然后对报告压缩并计算MD5值', md5_hash: '' },
+        { extraction_method: 'SYNTHETIC/CUSTOM-METHOD', md5_hash: '' },
+      ],
+    }} fallbackExtractionMethod="然后对报告压缩并计算SHA-256值" onChange={onChange} />)
+
+    expect(screen.getByText('然后对报告压缩并计算SHA-256值')).toBeTruthy()
+    expect(screen.getByText('SYNTHETIC/CUSTOM-METHOD')).toBeTruthy()
+    fireEvent.click(screen.getAllByText('点击编辑')[1])
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      rows: [
+        expect.objectContaining({ extraction_method: '然后对报告压缩并计算MD5值' }),
+        expect.objectContaining({
+          extraction_method: 'SYNTHETIC/CUSTOM-METHOD', md5_hash: '已修改',
+        }),
+      ],
+    }))
+  })
+
   it('prefers brand and concrete model for the device name display', () => {
     render(<EvidenceEditor items={[{
       id: '1', device_type: '手机', device_name: '手机',

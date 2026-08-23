@@ -907,7 +907,8 @@ def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
             assert CaseShellRepository(services.database).get(case_id)["lifecycle"] != "exported"
 
         token = services.sources.authorization.issue_exact_directory_grant(str(export_dir))
-        def fake_hash_image(_paths, output_dir):
+        def fake_hash_image(_paths, output_dir, *, hash_algorithm="md5"):
+            assert hash_algorithm == "md5"
             (Path(output_dir) / "hash.png").write_bytes(b"SYNTHETIC/PNG")
             return "hash.png"
 

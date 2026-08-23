@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { SharedDefaults } from '@biji/shared/types'
+import type { HashAlgorithm, SharedDefaults } from '@biji/shared/types'
 import { createClientIdentity } from './useEditLease'
 
 export interface SharedInspectorDefault {
@@ -19,6 +19,7 @@ export interface SharedDefaultsFormValues {
   hardwareDevice: string
   inspectors: SharedInspectorDefault[]
   discNumberPrefix: string
+  hashAlgorithm: HashAlgorithm
 }
 
 export type SharedDefaultsSettingsStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'conflict' | 'failed'
@@ -38,6 +39,7 @@ export function sharedDefaultsToForm(defaults: SharedDefaults): SharedDefaultsFo
     hardwareDevice: defaults.hardware_device,
     inspectors: defaults.inspector_order.map(parseInspector),
     discNumberPrefix: defaults.disc_number_prefix,
+    hashAlgorithm: defaults.hash_algorithm || 'md5',
   }
 }
 
@@ -52,6 +54,7 @@ export function sharedDefaultsPatch(values: SharedDefaultsFormValues): Record<st
       `${item.name.trim()}|${item.unit.trim()}|${item.badgeNumber.trim()}`
     )),
     disc_number_prefix: values.discNumberPrefix,
+    hash_algorithm: values.hashAlgorithm,
   }
 }
 

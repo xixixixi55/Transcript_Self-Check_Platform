@@ -10,9 +10,10 @@ from typing import Any
 from .workbench_errors import WorkbenchPersistenceError
 from .workbench_database import WorkbenchDatabase
 from .workbench_repository_helpers import json_text
+from .hash_algorithm_repository import manifest_part_business_hash
 
 
-_VERIFIED_RESULT_KEYS = ("rar_filename", "md5_hash", "file_size")
+_VERIFIED_RESULT_KEYS = ("rar_filename", "md5_hash", "file_size", "hash_algorithm")
 
 
 def apply_verified_archive_result(
@@ -49,16 +50,27 @@ def verified_archive_result_fields(manifest: Mapping[str, Any]) -> dict[str, str
     if not isinstance(parts, list) or not parts:
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
     values: dict[str, list[str]] = {"rar_filename": [], "md5_hash": [], "file_size": []}
+    algorithms: set[str] = set()
     for part in parts:
         if not isinstance(part, Mapping):
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
         values["rar_filename"].append(_required_text(part, "filename"))
-        values["md5_hash"].append(_required_text(part, "md5").upper())
+        try:
+            algorithm, digest = manifest_part_business_hash(part)
+        except ValueError as error:
+            raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED") from error
+        algorithms.add(algorithm)
+        values["md5_hash"].append(digest.upper())
         size = part.get("size_bytes")
         if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
             raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
         values["file_size"].append(str(size))
-    return {key: "、".join(items) for key, items in values.items()}
+    if len(algorithms) != 1:
+        raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
+    return {
+        **{key: "、".join(items) for key, items in values.items()},
+        "hash_algorithm": algorithms.pop(),
+    }
 
 
 def preserve_verified_archive_projection(

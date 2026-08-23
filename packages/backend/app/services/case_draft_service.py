@@ -25,6 +25,7 @@ from .device_config_service import company_for_device_name
 from .shared_defaults_service import SharedDefaultsService
 from .software_policy_service import apply_device_company_prefix
 from .source_record_service import SourceRecordService
+from ..repository.hash_algorithm_repository import normalize_hash_algorithm
 
 Parser = Callable[[Path, Path], Mapping[str, Any]]
 Dispatch = Callable[[str, str], None]
@@ -184,6 +185,14 @@ def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) ->
         "field_path": "introduction.inspectors", "source": inspector_source,
         "confirmation": inspector_confirmation, "revision": 0, "last_changed_at": now,
     }
+    inspection = value.setdefault("inspection", {})
+    result = inspection.setdefault("result", {})
+    try:
+        result["hash_algorithm"] = normalize_hash_algorithm(
+            defaults.get("hash_algorithm"), legacy_default=True,
+        )
+    except ValueError:
+        result["hash_algorithm"] = "md5"
     attachments = value.setdefault("attachments", {})
     apply_disc_sequence_to_attachments(attachments)
     disc_current = attachments.get("disc_number")

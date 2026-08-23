@@ -2,6 +2,7 @@ import type { InspectionReport } from './index'
 import type { ArchiveTaskCardSummary } from './archiveTask'
 import type { TaskRecord } from './task'
 import type { TemplateVersionRef } from './template'
+import type { HashAlgorithm } from './hash'
 
 export type WorkbenchSchemaVersion = 1
 export type WorkbenchApiVersion = 'v1'
@@ -113,6 +114,8 @@ export interface SharedDefaults {
   hardware_device: string
   inspector_order: string[]
   disc_number_prefix: string
+  /** Defaults to MD5 when omitted by a legacy deployment. */
+  hash_algorithm?: HashAlgorithm
   default_template_ref?: TemplateVersionRef | null
   migration_decision: 'pending' | 'imported' | 'ignored'
   updated_at: string

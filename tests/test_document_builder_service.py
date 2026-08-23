@@ -70,6 +70,28 @@ def test_build_table_contains_standard_headers_and_empty_row():
     assert len(cell_texts) == 10
 
 
+def test_batch_builder_uses_selected_sha1_label_in_result_and_attachment():
+    report = _report()
+    report["inspection"]["result"].update({
+        "hash_algorithm": "sha1", "md5_hash": "a" * 40,
+    })
+    report["attachments"]["extract_list"] = {
+        "columns": [
+            {"key": "no", "title": "序号"},
+            {"key": "electronic_data", "title": "电子数据"},
+            {"key": "source", "title": "来源"},
+            {"key": "extraction_method", "title": "提取方式"},
+            {"key": "md5_hash", "title": "文件MD5哈希值"},
+        ],
+        "rows": [{"no": "1", "md5_hash": "a" * 40}],
+    }
+
+    commands = build_record_document(report)
+    texts = [command.get("props", {}).get("text", "") for command in commands]
+    assert any("文件SHA-1哈希值为" in value for value in texts)
+    assert "文件SHA-1哈希值" in texts
+
+
 def test_build_document_contains_evidence_fields():
     commands = build_record_document(_report())
     paragraph_text = "\n".join(
