@@ -370,7 +370,7 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 22
+    assert result["cache_version"] == 23
     assert result["_case_metadata"] == {
         "case_name": "合成案件", "case_number": "CASE-SYNTH-001", "case_summary": "合成案件",
     }
@@ -378,6 +378,7 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     assert report["introduction"]["inspection_time_range"] == (
         "2026年7月13日11点55分至2026年7月13日15点43分"
     )
+    assert report["introduction"]["entrust_time"] == ""
     assert "2099" not in report["introduction"]["inspection_time_range"]
     assert evidence["device_type"] == "合成新手机"
     assert evidence["device_name"] == "Model-NEW"
@@ -476,15 +477,15 @@ def test_parser_cache_ignores_json_outside_selected_evidence(tmp_path):
     assert build.call_count == 1
 
 
-def test_cache_version_twelve_does_not_reuse_old_payload(tmp_path):
+def test_current_cache_version_does_not_reuse_old_payload(tmp_path):
     old_cache = {"report": _MOCK_REPORT, "cache_version": 4}
     with patch("app.services.report_parser_service.is_cache_valid", return_value=True), \
          patch("app.services.report_parser_service.read_json", return_value=old_cache), \
          patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
          patch("app.services.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 22
-    assert result["cache_version"] == 22
+    assert _CACHE_VERSION == 23
+    assert result["cache_version"] == 23
     mock_build.assert_called_once()
 
 

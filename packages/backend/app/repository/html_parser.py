@@ -171,21 +171,6 @@ def find_base_directories(data_dir: str) -> list[str]:
     return sorted(result)
 
 
-def format_time_chinese(iso_str: str) -> str:
-    """将 ISO 时间字符串转换为中文格式。如 '2026-06-30' → '2026年6月30日'"""
-    if not iso_str:
-        return ""
-    import re as _re
-    # 尝试匹配 YYYY-MM-DD 或 YYYY/MM/DD 等常见格式
-    m = _re.match(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", iso_str.strip())
-    if m:
-        return f"{m.group(1)}年{int(m.group(2))}月{int(m.group(3))}日"
-    # 若已是中文格式则直接返回
-    if "年" in iso_str:
-        return iso_str
-    return iso_str
-
-
 def format_time_range_chinese(time_range: str) -> str:
     """将原始时间范围转换为中文格式。
     '2026-07-07 16:00:22 ~ 2026-07-07 16:05:39' → '2026年7月7日16点00分至2026年7月7日16点05分'

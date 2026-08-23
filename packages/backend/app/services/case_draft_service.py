@@ -6,8 +6,10 @@ import copy
 import secrets
 import shutil
 from collections.abc import Callable, Mapping
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.case_workflow_repository import CaseWorkflowRepository
@@ -29,6 +31,7 @@ from ..repository.hash_algorithm_repository import normalize_hash_algorithm
 
 Parser = Callable[[Path, Path], Mapping[str, Any]]
 Dispatch = Callable[[str, str], None]
+_DRAFT_TIME_ZONE = ZoneInfo("Asia/Shanghai")
 
 
 class CaseDraftService:
@@ -146,9 +149,11 @@ def _prefix_report_software_for_selected_device(
     return apply_device_company_prefix(report, company_for_device_name(hardware_name))
 
 
-def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _initialize_draft(
+    report: Mapping[str, Any], defaults: Mapping[str, Any], *, initialized_at: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     value = copy.deepcopy(dict(report))
-    now = utc_now()
+    now = initialized_at or utc_now()
     fields: dict[str, dict[str, Any]] = {}
     candidates = (
         ("introduction.entrust_unit_prefix", ("introduction", "entrust_unit_prefix"), defaults.get("entrust_unit_prefix"), None),
@@ -168,6 +173,11 @@ def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) ->
             "revision": 0, "last_changed_at": now,
         }
     introduction = value.setdefault("introduction", {})
+    introduction["entrust_time"] = _current_entrust_date(now)
+    fields["introduction.entrust_time"] = {
+        "field_path": "introduction.entrust_time", "source": "system_default",
+        "confirmation": "confirmed", "revision": 0, "last_changed_at": now,
+    }
     parser_inspectors = introduction.get("inspectors")
     parser_snapshots = introduction.get("inspector_snapshots")
     serialized = defaults.get("inspector_order") or []
@@ -203,6 +213,14 @@ def _initialize_draft(report: Mapping[str, Any], defaults: Mapping[str, Any]) ->
     }
     ordered = CaseOrderService().initialize(value)
     return ordered, FieldProvenanceService().initialize(ordered, fields)
+
+
+def _current_entrust_date(now: str) -> str:
+    parsed = datetime.fromisoformat(now.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("initialized_at must include a timezone")
+    local_date = parsed.astimezone(_DRAFT_TIME_ZONE).date()
+    return f"{local_date.year}年{local_date.month}月{local_date.day}日"
 
 
 def _parse_case_metadata(parsed: Mapping[str, Any], report: Mapping[str, Any]) -> dict[str, str]:

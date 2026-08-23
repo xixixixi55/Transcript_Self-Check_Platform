@@ -17,7 +17,7 @@ from app.repository import WorkbenchDatabase, database_path_for_deployment  # no
 from app.repository.archive_authorization_repository import ArchiveAuthorizationError  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
-from app.services.case_draft_service import CaseDraftService  # noqa: E402
+from app.services.case_draft_service import CaseDraftService, _initialize_draft  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.document_builder_service import build_record_document  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
@@ -109,7 +109,11 @@ def source_descriptor(source_service: SourceRecordService, tmp_path: Path, name:
     return source_service.register_report_directory(str(report_dir)), report_dir
 
 
-def test_submit_persists_shell_and_task_before_parse(database, tmp_path):
+def test_submit_persists_shell_and_task_before_parse(database, tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.case_draft_service.utc_now",
+        lambda: "2026-08-22T16:30:00+00:00",
+    )
     calls = []
 
     def parser(path, output):
@@ -128,8 +132,22 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path):
     ready = lifecycle.detail(identifiers["case_id"])
     assert ready["shell"]["lifecycle"] == "review_ready"
     assert ready["parse_task"]["status"] == "succeeded"
-    assert ready["draft"]["report"] == REPORT
+    assert ready["draft"]["report"]["title"] == REPORT["title"]
+    assert ready["draft"]["report"]["introduction"]["entrust_time"] == "2026年8月23日"
     assert calls and Path(calls[0][0]) == report_dir
+
+
+def test_new_draft_uses_shanghai_today_instead_of_report_entrust_time():
+    parsed_report = copy.deepcopy(REPORT)
+    parsed_report["introduction"]["entrust_time"] = "2020年1月2日"
+
+    initialized, field_states = _initialize_draft(
+        parsed_report, {}, initialized_at="2026-08-22T16:30:00Z",
+    )
+
+    assert initialized["introduction"]["entrust_time"] == "2026年8月23日"
+    assert field_states["introduction.entrust_time"]["source"] == "system_default"
+    assert parsed_report["introduction"]["entrust_time"] == "2020年1月2日"
 
 
 def test_parse_applies_deployment_default_template_to_new_draft(database, tmp_path):

@@ -91,11 +91,27 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 | 送检单位 | contents[tp=送检单位] | 一(一) 委托单位 |
 | 采集人 | contents[tp=采集人] | —（备用） |
 | 案件类型 | contents[tp=案件类型] | —（备用） |
+| 创建时间 | contents[tp=创建时间] | 一(七) 检查开始时间 |
 | 报告时间 | contents[tp=报告时间] | 一(七) 检查结束时间 |
 
 #### Scenario: 解析案件字段供当前笔录使用
 - **WHEN** 解析受授权报告目录中的 `data_case_info.json`
 - **THEN** 系统提取表中字段并填入当前 `InspectionReport`/`CaseDraft`，无法确认的字段保持为空，不伪造案件事实
+
+#### Scenario: 新案件委托时间默认当天日期
+- **WHEN** 系统完成报告解析并首次初始化新案件草稿
+- **THEN** `introduction.entrust_time` 使用 `Asia/Shanghai` 时区的当天日期
+- **AND** 值使用 `YYYY年M月D日` 的纯日期格式，不包含时分秒
+
+#### Scenario: 报告创建时间不作为委托时间
+- **WHEN** 报告 `data_case_info.json` 包含“创建时间”，且该日期与草稿初始化当天不同
+- **THEN** 系统 MUST NOT 将报告“创建时间”写入 `introduction.entrust_time`
+- **AND** “创建时间”仍按现有合同参与检查起止时间计算
+
+#### Scenario: 用户人工维护委托时间
+- **WHEN** 用户在审核页面修改新案件预填的委托时间并保存草稿
+- **THEN** 系统保留用户选择的日期供预览和 Word 导出使用
+- **AND** 后续加载已保存案件时不得用新的当天日期覆盖用户值
 
 #### Scenario: 清理案件名称末尾括号标记
 - **WHEN** 报告案件名称识别结果为 `xx案（yy）` 或 `xx案(yy)` 形式
@@ -1744,7 +1760,7 @@ The deployment MUST allow the user to move RAR staging and durable archive gener
 - **MUST**: 解压操作仅存在于 BE_Repository 层（`file_storage.py`）
 - **MUST**: 软件工具列表由报告来源与运行环境共同生成；新解析案件和存量案件均显示 WinRAR 与 HashMyFiles（旧 Python hashlib 数据仅作底层兼容），WinRAR 未检测到时不伪造默认版本，主软件候选不完整时保持未确认
 - **MUST**: 主软件只从 `data_report_info.json.contents[].value` 的明确主产品句式绑定名称和紧随其后的版本；括号可属于主名称，后续“子模块/插件/组件”的名称和版本不得覆盖主字段
-- **MUST**: `entrust_time`（委托时间）使用中文格式（如 `2026年6月30日`），由 `format_time_chinese()` 转换
+- **MUST**: 新案件草稿的 `entrust_time`（委托时间）不从报告“创建时间”推导，而是在首次初始化时按 `Asia/Shanghai` 当天日期预填为中文纯日期（如 `2026年6月30日`），并允许用户人工修改；已保存案件不得因再次加载而被当天日期覆盖
 - **MUST**: legacy `InspectionResult.file_size` 在文件夹解析中只保留空值/零值兼容语义；压缩包直传的实际大小位于 `rar_info.size_bytes`，最终归档大小只以已验证 `ArchiveManifest.parts[].size_bytes` 为准
 - **MUST**: 设备解析时优先结构化 JSON，再正则回退；按检材分别读取手机品牌及手机型号/设备型号，以单个空格生成设备名称，型号已含品牌时不重复；“手机”只作为检材类型，品牌和型号均缺失时才参与兜底
 - **MUST**: 当前模板附件2中同一检材的两张照片固定在同一表格行的左右两个槽位，单元格边距为零并分别向中间对齐；保持图片比例；模板卫生修改必须发布不可变新版本，不得覆盖历史模板资产

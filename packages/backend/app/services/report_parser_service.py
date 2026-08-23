@@ -19,7 +19,7 @@ from ..repository.html_parser import (
     _resolve_evidence_directory,
     parse_case_info, parse_device_lists, parse_report_info,
     parse_device_base,
-    format_time_chinese, format_inspection_time_range,
+    format_inspection_time_range,
 )
 from ..repository.device_field_parser import is_generic_device_label
 from ..repository.report_format_adapter import require_supported_report_format
@@ -44,7 +44,7 @@ from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from .entrust_person_service import normalize_entrust_persons
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 22  # v22: normalize report case names and stop auto-appending 案
+_CACHE_VERSION = 23  # v23: stop deriving entrust time from report creation time
 _TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
@@ -395,7 +395,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         "introduction": {
             "entrust_unit": case.get("submit_unit", ""),
             "entrust_persons": _split_persons(case.get("submit_person", "")),
-            "entrust_time": format_time_chinese(case.get("create_time", "")),
+            "entrust_time": "",
             "case_summary": _format_case_summary(normalized_case_name),
             "evidence_list": evidence_items,
             "inspection_requirement": "上述检材内电子数据的提取、固定和恢复",
