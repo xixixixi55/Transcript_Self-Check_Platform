@@ -735,13 +735,6 @@ body {
   margin-bottom: 16px;
 }
 
-.platform-shared-defaults-page__description {
-  max-width: 680px;
-  margin: -8px 0 24px;
-  color: var(--review-muted);
-}
-
-.shared-defaults-settings__notice,
 .shared-defaults-settings__status {
   margin-bottom: 16px;
 }

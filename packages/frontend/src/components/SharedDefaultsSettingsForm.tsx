@@ -64,10 +64,6 @@ export function SharedDefaultsSettingsForm() {
 
   return (
     <div className="shared-defaults-settings">
-      <Alert className="shared-defaults-settings__notice" type="info" showIcon
-        message="仅影响之后新建的案件"
-        description="案件审核页中的修改只属于当前案件，不会同步到这里；清空某项后，新案件将使用报告识别值、系统默认值或留空。" />
-
       {status === 'conflict' && (
         <Alert className="shared-defaults-settings__status" type="warning" showIcon
           message="设置已被其他窗口更新"

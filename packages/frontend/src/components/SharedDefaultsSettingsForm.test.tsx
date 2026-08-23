@@ -39,7 +39,6 @@ describe('SharedDefaultsSettingsForm', () => {
     render(<SharedDefaultsSettingsForm />)
 
     expect(await screen.findByDisplayValue('SYNTHETIC-DOC')).toBeTruthy()
-    expect(screen.getByText('仅影响之后新建的案件')).toBeTruthy()
     expect(screen.getByDisplayValue('SYNTHETIC-NAME')).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: 'SHA-256' }))
 
