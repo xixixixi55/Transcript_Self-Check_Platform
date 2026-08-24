@@ -123,6 +123,24 @@ def test_flatten_report_combines_entrust_unit_prefix_without_separator():
     assert _flatten_report(report)["entrust_unit"] == "SYNTHETIC-派出所"
 
 
+def test_word_inspector_unit_and_position_are_rendered_without_separator(tmp_path):
+    report = _report()
+    report["introduction"]["inspectors"] = [{
+        "name": "SYNTHETIC-NAME",
+        "unit": "SYNTHETIC-UNIT",
+        "position": "SYNTHETIC-POSITION",
+        "badge_number": "SYNTHETIC-001",
+    }]
+    output = tmp_path / "inspector-format.docx"
+
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    assert any(paragraph.text == (
+        "SYNTHETIC-NAME，SYNTHETIC-UNITSYNTHETIC-POSITION，"
+        "警号：SYNTHETIC-001"
+    ) for paragraph in Document(output).paragraphs)
+
+
 def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
     report = _report()
     report["introduction"]["entrust_unit_prefix"] = "SYNTHETIC-公安分局"

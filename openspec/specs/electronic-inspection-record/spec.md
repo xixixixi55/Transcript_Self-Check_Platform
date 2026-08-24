@@ -222,13 +222,13 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 
 本机环境快照 MUST 与新案件草稿一同保存，使审核编辑、自动保存和最终 Word 使用相同事实。系统只读取环境元数据，不得自动启动火绒、执行杀毒或把自动识别等同于已完成病毒扫描。既有案件和人工编辑的历史步骤不得因应用升级或本机环境变化被批量重写。
 
-Windows 系统展示名称 MUST 保留系统代际、版本类型和位数，但 MUST 忽略 `DisplayVersion` 发布版本号；例如 Windows 10 的 `21H2` 不得出现在检查过程文本中。
+Windows 系统展示名称 MUST 按“系统代际 + 位数 + 版本类型”的顺序显示，并 MUST 忽略 `DisplayVersion` 发布版本号；例如 Windows 10 的 `21H2` 不得出现在检查过程文本中。
 
 #### Scenario: 使用实际硬件与本机环境生成步骤3
 
 - WHEN 新案件最终选中的检查硬件设备为“TEST-A 手机取证工作站”
-- AND 本机识别到“Windows 11 专业版 64位”及火绒安全软件版本“TEST-6.0.7.0”
-- THEN 步骤3使用“TEST-A 手机取证工作站”“Windows 11 专业版 64位”和“火绒安全软件（版本号为TEST-6.0.7.0）”
+- AND 本机识别到“Windows 11 64位 专业版”及火绒安全软件版本“TEST-6.0.7.0”
+- THEN 步骤3使用“TEST-A 手机取证工作站”“Windows 11 64位 专业版”和“火绒安全软件（版本号为TEST-6.0.7.0）”
 - AND 审核编辑、自动保存与最终 Word 使用同一环境快照生成的文本
 - AND 文本中不出现写死的 FL-901、Windows 10 或 6.0.6.1
 
@@ -536,6 +536,7 @@ Windows 系统展示名称 MUST 保留系统代际、版本类型和位数，但
 - AND 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
 - AND Word 使用案件明确引用且当前重新校验通过的 approved 模板版本生成 .docx；带 Manifest 的正式渲染失败时必须明确失败，不得静默回退到无 Manifest 的 officecli batch 输出
 - AND 系统启动真实 HashMyFiles.exe 窗口，只启用案件固化的 MD5、SHA-1 或 SHA-256 算法；最终 PNG 捕获其原生界面，每个 RAR 一行且只显示 Filename、所选算法、File Size（值为字节）
+- AND 哈希列与原生窗口按 32、40 或 64 位摘要长度展开，完整摘要不得以省略号替代
 - AND 结果必须从所选算法对应列读取并按 32、40 或 64 位十六进制长度校验，列缺失或摘要长度错误时导出失败
 - AND 截图使用独立临时配置，不修改用户的 HashMyFiles 配置；结果缺失、不完整或截图失败时导出必须明确失败
 - AND Word、RAR 副本和 PNG 必须先完整暂存后统一发布；HashMyFiles 校验待发布的 RAR 副本，任一步失败时保留上一版完整导出，不得形成新旧产物混合包

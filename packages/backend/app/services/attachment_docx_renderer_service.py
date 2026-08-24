@@ -176,8 +176,9 @@ def _render_attachment3(body: Any, label: Any, plan: AttachmentPlan,
             nodes.append(clone_page_break(page_break_anchor))
         if not page.show_attachment_title:
             region = region[1:]
+        region_root = _region_root(region)
         replace_vml_text(
-            _region_root(region),
+            region_root,
             {
                 "inspection_place": place,
                 "disc_number": page.disc_number,
@@ -185,6 +186,9 @@ def _render_attachment3(body: Any, label: Any, plan: AttachmentPlan,
                 "burning_date": _format_date(page.burning_date),
             },
         )
+        for paragraph in region_root.findall(".//%s" % qn(W_NS, "p")):
+            if text_of(paragraph).startswith("文件哈希："):
+                allow_latin_character_wrap(paragraph)
         selected_hash_name = hash_display_name(plan.hash_algorithm)
         if selected_hash_name != "MD5":
             for element in region:

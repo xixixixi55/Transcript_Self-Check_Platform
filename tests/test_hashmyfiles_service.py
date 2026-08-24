@@ -211,15 +211,19 @@ def test_missing_screenshot_does_not_replace_previous_png(tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("algorithm", "column", "length", "md5_enabled", "sha1_enabled", "sha256_enabled"),
+    (
+        "algorithm", "column", "length", "column_width", "window_width",
+        "md5_enabled", "sha1_enabled", "sha256_enabled",
+    ),
     [
-        ("md5", 1, 32, "1", "0", "0"),
-        ("sha1", 2, 40, "0", "1", "0"),
-        ("sha256", 4, 64, "0", "0", "1"),
+        ("md5", 1, 32, 312, 787, "1", "0", "0"),
+        ("sha1", 2, 40, 384, 859, "0", "1", "0"),
+        ("sha256", 4, 64, 600, 1075, "0", "0", "1"),
     ],
 )
 def test_capture_passes_selected_hash_configuration(
-    tmp_path, algorithm, column, length, md5_enabled, sha1_enabled, sha256_enabled,
+    tmp_path, algorithm, column, length, column_width, window_width,
+    md5_enabled, sha1_enabled, sha256_enabled,
 ):
     exe = tmp_path / "HashMyFiles.exe"
     rar = tmp_path / "case.part1.rar"
@@ -251,6 +255,8 @@ def test_capture_passes_selected_hash_configuration(
     ]
     assert captured["hash_column_index"] == column
     assert captured["hash_digest_length"] == length
+    assert captured["hash_column_width"] == column_width
+    assert captured["window_width"] == window_width
     assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 
@@ -264,5 +270,7 @@ def test_capture_script_uses_native_window_and_only_three_visible_columns():
     assert "WaitForExit(3000)" in script
     assert "[IntPtr]0, [IntPtr]300" in script
     assert "[int]$payload.hash_column_index" in script
+    assert "[int]$payload.hash_column_width" in script
     assert "[IntPtr]11, [IntPtr]145" in script
+    assert "[int]$payload.window_width" in script
     assert "DrawString" not in script

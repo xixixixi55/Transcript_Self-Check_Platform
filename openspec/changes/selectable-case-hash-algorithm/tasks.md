@@ -2,7 +2,7 @@
 
 workflow_level: 2
 spec_sync_status: reconciled
-spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007/REQ-015 与统一导出场景、openspec/specs/data-model.md HashAlgorithm/InspectionResult/ArchiveManifest 已同步
+spec_sync_evidence: electronic-inspection-record 的统一导出场景已同步按摘要长度展开哈希列与原生窗口的完整展示合同；既有 REQ-007/REQ-015、data-model 哈希合同保持一致
 
 > Specs:
 > - `openspec/changes/selectable-case-hash-algorithm/specs/electronic-inspection-record/spec.md`
@@ -73,6 +73,28 @@ spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007/
 - [x] 核对 delta 与实现，sync `openspec/specs/electronic-inspection-record/spec.md` 和 `openspec/specs/data-model.md`，将 `spec_sync_status` 更新为 `reconciled` 并记录证据。
 - [x] 运行受影响前后端测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change selectable-case-hash-algorithm` 和 scoped `git diff --check`。
 - [x] 完成设置页桌面/窄屏验收和独立界面复核；真实 HashMyFiles.exe 已用 SYNTHETIC/TEST 小文件完成 MD5、SHA-1、SHA-256 三算法原生截图验收。
+
+### 反馈修正（2026-08-24）
+
+- [x] 按摘要长度扩展 HashMyFiles 哈希列和截图窗口，确保 SHA-1、SHA-256 摘要不以省略号截断，同时保持 Filename、所选算法、File Size 三列。验证：Repository 定向测试区分三种算法的列宽与窗口宽度，并核对原生截图脚本使用动态值。
+- [x] 核对 delta 与实现，sync living spec，运行受影响测试、`npm run verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 反馈修正验证证据（2026-08-24）
+
+- HashMyFiles Repository/Service 定向测试：`19 passed`；受影响的 Word、环境和 HashMyFiles 四个测试文件合计 `65 passed`。
+- `npm run verify:quick` 与 scoped `git diff --check` 通过；scoped strict docs 在任务勾选前仅报告本反馈任务未完成，勾选后复跑通过。
+- 真实 HashMyFiles 2.51 使用 `SYNTHETIC` 测试文件生成 SHA-1、SHA-256 原生 PNG；40 位与 64 位摘要均完整显示且无省略号，截图保持三列。
+
+### 反馈修正 — 附件3长哈希换行（2026-08-24）
+
+- [x] 仅为附件3各页的“文件哈希”段落启用西文字符级换行，使 SHA-1、SHA-256 完整摘要在 VML 文本框内自然折行，不改变相邻元数据段落。验证：真实模板生成的 SHA-256 多页 DOCX XML 中，哈希段落设置 `w:wordWrap w:val="off"`，其他段落不设置。
+- [x] 运行附件 DOCX 与 officecli 要求的定向验证、`npm run pre-commit`、scoped strict docs 和 `git diff --check`，并校验真实 DOCX 包。
+
+### 附件3长哈希换行验证证据（2026-08-24）
+
+- 附件 DOCX 完整回归 `33 passed`，officecli 要求的 document builder 回归 `16 passed`；失败先行用例由缺少 `w:wordWrap` 转为通过。
+- 真实模板生成两页 SHA-256 附件3，officecli `validate` 无错误、原生 Word 渲染共 6 页；第 5、6 页的 64 位摘要均在哈希段落内自然折行，相邻元数据布局未改变。
+- `npm run pre-commit` 通过，包含架构、类型、治理文档和仓库资产检查；scoped strict docs 与 `git diff --check` 复跑通过。
 
 ## 非目标
 

@@ -96,8 +96,9 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     # (八) 检查人员
     commands.append(_p("（八）检查人员："))
     for inspector in intro.get("inspectors", []):
+        unit_and_position = f"{inspector.get('unit', '')}{inspector.get('position', '')}"
         identity = "，".join(filter(None, (
-            inspector.get("name", ""), inspector.get("unit", ""), inspector.get("position", ""),
+            inspector.get("name", ""), unit_and_position,
         )))
         commands.append(_p(f"{identity}，警号：{inspector.get('badge_number', '')}"))
 

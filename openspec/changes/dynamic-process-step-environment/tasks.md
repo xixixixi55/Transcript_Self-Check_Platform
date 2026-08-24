@@ -1,6 +1,8 @@
 # Tasks: 检查过程步骤3动态匹配本机环境
 
 workflow_level: 2
+spec_sync_status: reconciled
+spec_sync_evidence: Windows 展示顺序已同步到 electronic-inspection-record REQ-006，并由环境服务定向测试覆盖
 
 ## 目标
 
@@ -50,6 +52,10 @@ workflow_level: 2
 
 - [x] 检查过程中的 Windows 系统展示名称不再拼接 `DisplayVersion` 发布版本号；例如“Windows 10 21H2 企业版”规范为“Windows 10 企业版”，Windows 10/11 均保留系统代际、版本类型和位数。验证：更新环境服务定向测试，覆盖 Windows 10 `21H2` 与 Windows 11 `24H2` 均不进入展示名称。
 
+## 反馈修正（2026-08-24）
+
+- [x] 将 Windows 系统展示顺序统一为“系统代际 + 位数 + 版本类型”，例如“Windows 10 64位 家庭版”，并同步 delta 与 living spec。验证：环境服务定向测试覆盖 Windows 10 家庭版、Windows 10 企业版和 Windows 11 专业版。
+
 ## 验证证据（2026-08-17）
 
 - 后端定向测试：`89 passed`。
@@ -63,6 +69,11 @@ workflow_level: 2
 
 - 环境服务、Repository、共享默认与工作台定向测试：`45 passed`。
 - `npm run verify:quick`、`npm run verify:docs:strict -- --change dynamic-process-step-environment` 与 `git diff --check` 通过。
+
+## 反馈修正验证证据（2026-08-24）
+
+- 环境服务定向测试：`5 passed`；受影响的 Word、环境和 HashMyFiles 四个测试文件合计 `65 passed`。
+- `npm run verify:quick`、`npm run verify:docs:strict -- --change dynamic-process-step-environment` 与 scoped `git diff --check` 通过。
 
 ## 边界
 

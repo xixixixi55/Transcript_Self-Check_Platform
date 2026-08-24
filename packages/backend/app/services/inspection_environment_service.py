@@ -106,7 +106,7 @@ def _operating_system_display(value: Any) -> str:
     bits = "64位" if any(item in machine for item in ("64", "amd64", "arm64")) else (
         "32位" if machine in {"x86", "i386", "i686"} else ""
     )
-    return " ".join(item for item in (base, edition, bits) if item)
+    return " ".join(item for item in (base, bits, edition) if item)
 
 
 def _text(value: Any) -> str:

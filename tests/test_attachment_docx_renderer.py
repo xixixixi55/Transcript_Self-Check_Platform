@@ -765,6 +765,37 @@ def test_attachment3_has_vertical_metadata_and_part_specific_bottom_anchor(tmp_p
     ]
 
 
+def test_attachment3_sha256_hash_allows_latin_character_wrap(tmp_path):
+    current_report = report()
+    current_report["inspection"]["result"]["hash_algorithm"] = "sha256"
+    current_manifest = manifest(2)
+    for index, part in enumerate(current_manifest["parts"], 1):
+        part["hash_algorithm"] = "sha256"
+        part["hash_value"] = f"{index:064x}"
+    output = tmp_path / "attachment-3-sha256-wrap.docx"
+
+    fill_template(current_report, str(TEMPLATE), str(output), [], current_manifest)
+
+    matching_textboxes = 0
+    for textbox in document_root(output).findall(".//{%s}textbox" % V_NS):
+        paragraphs = textbox.findall(".//{%s}txbxContent/{%s}p" % (W_NS, W_NS))
+        hash_paragraph = next(
+            (paragraph for paragraph in paragraphs if paragraph_text(paragraph).startswith("文件哈希：")),
+            None,
+        )
+        if hash_paragraph is None:
+            continue
+        matching_textboxes += 1
+        word_wrap = hash_paragraph.find("./{%s}pPr/{%s}wordWrap" % (W_NS, W_NS))
+        assert word_wrap is not None
+        assert word_wrap.get("{%s}val" % W_NS) == "off"
+        for paragraph in paragraphs:
+            if paragraph is hash_paragraph:
+                continue
+            assert paragraph.find("./{%s}pPr/{%s}wordWrap" % (W_NS, W_NS)) is None
+    assert matching_textboxes == 2
+
+
 def test_attachment_summary_lists_all_manifest_numbers_and_counts(tmp_path):
     output = tmp_path / "attachment-summary.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(9))

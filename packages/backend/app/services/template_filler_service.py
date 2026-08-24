@@ -503,7 +503,8 @@ def _fill_inspector_item(text_elements, item_template: str, item: dict):
     unit = item.get("unit", "")
     position = item.get("position", "")
     badge = item.get("badge_number", "")
-    identity = "，".join(part for part in (name, unit, position) if part)
+    unit_and_position = f"{unit}{position}"
+    identity = "，".join(part for part in (name, unit_and_position) if part)
     full_text = f"{identity}，警号：{badge}" if identity else f"警号：{badge}"
     _set_text_elements(text_elements, full_text)
 

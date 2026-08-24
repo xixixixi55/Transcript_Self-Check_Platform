@@ -68,7 +68,12 @@ def set_cell_text(cell: Any, value: str) -> None:
 
 def allow_latin_character_wrap(element: Any) -> None:
     """Allow Latin text to wrap between characters in every paragraph."""
-    for paragraph in element.findall(".//%s" % qn(W_NS, "p")):
+    paragraphs = (
+        [element]
+        if element.tag == qn(W_NS, "p")
+        else element.findall(".//%s" % qn(W_NS, "p"))
+    )
+    for paragraph in paragraphs:
         paragraph_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
         if paragraph_pr is None:
             paragraph_pr = etree.Element(qn(W_NS, "pPr"))

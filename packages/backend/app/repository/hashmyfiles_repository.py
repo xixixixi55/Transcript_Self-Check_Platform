@@ -17,10 +17,11 @@ _LEGACY_HASH_HTML_FILENAME = "hash-verification.html"
 # report's software_tools runtime entry for newly parsed cases.
 HASHMYFILES_DISPLAY_VERSION = "2.51"
 _HASH_POLICIES = {
-    "md5": {"column": 1, "length": 32},
-    "sha1": {"column": 2, "length": 40},
-    "sha256": {"column": 4, "length": 64},
+    "md5": {"column": 1, "length": 32, "display_width": 312},
+    "sha1": {"column": 2, "length": 40, "display_width": 384},
+    "sha256": {"column": 4, "length": 64, "display_width": 600},
 }
+_WINDOW_NON_HASH_WIDTH = 475
 # Resolved once after the launcher has established the portable environment.
 _DEFAULT_TOOL_PATH = get_runtime_paths().hashmyfiles_executable
 
@@ -115,6 +116,7 @@ def _capture_hashmyfiles_window(
         "/SHA256", "1" if hash_algorithm == "sha256" else "0",
         "/SHA512", "0", "/SHA384", "0",
     ]
+    hash_column_width = policy["display_width"]
     try:
         with tempfile.TemporaryDirectory(prefix="biji-hash-capture-") as temp_dir:
             payload_path = Path(temp_dir) / "capture.json"
@@ -128,6 +130,8 @@ def _capture_hashmyfiles_window(
                 "hash_arguments": hash_arguments,
                 "hash_column_index": policy["column"],
                 "hash_digest_length": policy["length"],
+                "hash_column_width": hash_column_width,
+                "window_width": _WINDOW_NON_HASH_WIDTH + hash_column_width,
             }, ensure_ascii=False), encoding="utf-8")
             script_path.write_text(_CAPTURE_SCRIPT, encoding="utf-8-sig")
             result = subprocess.run(
@@ -353,13 +357,18 @@ try {
     $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]$column, [IntPtr]::Zero)
   }
   $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]0, [IntPtr]300)
-  $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]([int]$payload.hash_column_index), [IntPtr]300)
+  $null = [HmfWindow]::SendSafe(
+    $list, 0x101E, [IntPtr]([int]$payload.hash_column_index),
+    [IntPtr]([int]$payload.hash_column_width)
+  )
   $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]11, [IntPtr]145)
   if (-not [HmfWindow]::ClearSelection($list, [uint32]$process.Id)) {
     throw 'HashMyFiles selection state could not be cleared'
   }
   $height = [Math]::Max(230, 150 + ($itemCount * 22))
-  $null = [HmfWindow]::SetWindowPos($window, [IntPtr]::Zero, 0, 0, 775, $height, 0x0014)
+  $null = [HmfWindow]::SetWindowPos(
+    $window, [IntPtr]::Zero, 0, 0, [int]$payload.window_width, $height, 0x0014
+  )
   $null = [HmfWindow]::ShowWindow($window, 4)
   $null = [HmfWindow]::SetFocus($window)
   $null = [HmfWindow]::RedrawWindow($window, [IntPtr]::Zero, [IntPtr]::Zero, 0x0185)

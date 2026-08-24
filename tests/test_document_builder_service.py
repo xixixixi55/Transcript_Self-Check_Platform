@@ -79,7 +79,7 @@ def test_build_document_includes_inspector_position_without_blank_separator():
 
     texts = [command.get("props", {}).get("text", "") for command in build_record_document(report)]
 
-    assert "SYNTHETIC-NAME，SYNTHETIC-UNIT，SYNTHETIC-POSITION，警号：SYNTHETIC-001" in texts
+    assert "SYNTHETIC-NAME，SYNTHETIC-UNITSYNTHETIC-POSITION，警号：SYNTHETIC-001" in texts
     assert "SYNTHETIC-LEGACY，SYNTHETIC-UNIT，警号：SYNTHETIC-002" in texts
 
 
