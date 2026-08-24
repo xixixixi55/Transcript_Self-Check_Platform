@@ -182,7 +182,7 @@ def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
         for paragraph in document.tables[0].rows[1].cells[2].paragraphs
     )
     assert document.tables[0].rows[1].cells[4].text.strip() == "ABCDEF0123456789ABCDEF0123456789"
-    for cell_index in (1, 4):
+    for cell_index in (1, 3, 4):
         for paragraph in document.tables[0].rows[1].cells[cell_index].paragraphs:
             word_wrap = paragraph._p.pPr.find(qn("w:wordWrap"))
             assert word_wrap is not None

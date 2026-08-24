@@ -967,7 +967,7 @@ def _apply_required_attachment_table_styles(doc: Document) -> None:
                     if node is not None:
                         run_properties.remove(node)
     for row in attachment_table.rows:
-        for cell_index in (1, 4):
+        for cell_index in (1, 3, 4):
             if cell_index < len(row.cells):
                 allow_latin_character_wrap(row.cells[cell_index]._tc)
 

@@ -281,7 +281,7 @@ def test_attachment1_latin_fields_allow_character_wrap_on_every_page(tmp_path):
             cells = row.findall("./{%s}tc" % W_NS)
             if len(cells) < 5 or "检查人员" in "".join(row.itertext()):
                 continue
-            for cell_index in (1, 4):
+            for cell_index in (1, 3, 4):
                 paragraphs = cells[cell_index].findall(".//{%s}p" % W_NS)
                 assert paragraphs
                 for paragraph in paragraphs:

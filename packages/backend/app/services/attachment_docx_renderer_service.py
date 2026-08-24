@@ -139,7 +139,7 @@ def _set_attachment1_cell_text(cell: Any, value: str, cell_index: int) -> None:
         set_paragraph_alignment(cell, "both")
     else:
         set_cell_text(cell, value)
-    if cell_index in (1, 4):
+    if cell_index in (1, 3, 4):
         allow_latin_character_wrap(cell)
     east_asia = "楷体" if cell_index == 0 else "仿宋_GB2312"
     size_half_points = 22 if cell_index == 3 else 32

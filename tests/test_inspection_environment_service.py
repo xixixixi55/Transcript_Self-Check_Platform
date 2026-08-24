@@ -35,7 +35,7 @@ def test_captures_windows_11_and_projects_detected_huorong():
     projected = service.apply_to_report(report)
     snapshot = projected["inspection"]["environment_snapshot"]
     content = projected["inspection"]["process_steps"][1]["content"]
-    assert snapshot["operating_system"]["display_name"] == "Windows 11 64位 专业版"
+    assert snapshot["operating_system"]["display_name"] == "Windows 11 64位专业版"
     assert "TEST-A 手机取证工作站" in content
     assert "火绒安全软件（版本号为TEST-6.0.7.0）" in content
     assert projected["inspection"]["process_steps"][0]["content"] == "SYNTHETIC step 2"
@@ -62,7 +62,7 @@ def test_formats_synthetic_windows_10_without_release_version_or_name_upgrade():
         "huorong": {"detected": False, "version": ""},
     }))
     display_name = service.capture()["operating_system"]["display_name"]
-    assert display_name == "Windows 10 32位 企业版"
+    assert display_name == "Windows 10 32位企业版"
     assert "21H2" not in display_name
 
 
@@ -75,7 +75,7 @@ def test_formats_windows_10_home_with_architecture_before_edition():
         "huorong": {"detected": False, "version": ""},
     }))
 
-    assert service.capture()["operating_system"]["display_name"] == "Windows 10 64位 家庭版"
+    assert service.capture()["operating_system"]["display_name"] == "Windows 10 64位家庭版"
 
 
 def test_missing_facts_use_pending_language_without_false_scan_result():

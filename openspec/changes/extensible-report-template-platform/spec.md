@@ -531,8 +531,8 @@
 
 #### Scenario: Attachment 1 Latin fields wrap within words
 
-- **WHEN** 附件1的“电子数据”或“文件MD5哈希值”包含超出单元格当前行宽的连续西文字符
-- **THEN** 首页和续页的对应数据单元格都允许西文在单词中间换行，不将整个文件名或 MD5 整体挪到下一行
+- **WHEN** 附件1的“电子数据”、“提取方法”或“文件MD5哈希值”包含超出单元格当前行宽的连续西文字符
+- **THEN** 首页和续页的对应数据单元格都允许西文在单词中间换行，不将整个文件名、提取方法或 MD5 整体挪到下一行
 
 #### Scenario: Attachment 1 source uses one material number per line
 

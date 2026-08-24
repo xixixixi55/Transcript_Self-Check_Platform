@@ -192,6 +192,8 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 14A.10 修复审核编辑界面单独导出与统一导出的 Word 附件版式分叉：案件已有成功归档时，`/records/export` 复用统一导出的已验证 Manifest、Manifest 绑定计划中的持久化光盘映射和 `AttachmentPlan` 渲染分支；尚无成功归档时保留 report-only 兼容导出，旧浏览器下载与 Shadow 路径不额外读取案件 Manifest。文件：`packages/backend/app/controllers/record_controller.py`、`record_template_context_controller.py`、`packages/backend/app/services/archive_export_service.py`、`packages/backend/app/services/unified_export_service.py`；验证：定向后端 15 passed，架构与类型检查通过，历史任务选择突变测试有效，独立复审 PASS；scoped full gate 的预检/架构/类型/治理/资产检查通过，全仓测试 1133 passed、3 skipped，剩余 3 failed/7 errors 为既有 SQLite 临时数据库只读夹具问题，未伪报全门控通过。
 - [x] 14A.11 使附件1“电子数据”和“文件MD5哈希值”数据列在首页与续页均写入 Word 的西文字符级换行属性，保持长 RAR 文件名和 MD5 按图二样式排版，同时保持无 Manifest 兼容导出一致。文件：`packages/backend/app/services/docx_attachment_xml_service.py`、`attachment_docx_renderer_service.py`、`template_filler_service.py`；验证：受影响后端组合 104 passed，属性与 schema 顺序突变测试有效，两份合成 DOCX 均通过 officecli validate，架构、类型、生产构建和独立复审通过。
 - [x] 14A.12 使附件1“来源”按图二样式将每个检材编号单独换行显示，除最后一个外保留顿号，并将“检材内提取”放在编号后的独立一行；Manifest 固定渲染与无 Manifest 兼容导出保持一致。文件：`packages/backend/app/services/docx_attachment_xml_service.py`、`attachment_docx_renderer_service.py`、`template_filler_service.py`；验证：5 卷首页/续页的六检材 `w:br` 与 `vMerge` 回归通过，换行逻辑突变测试有效，兼容导出及 officecli validate 通过，独立最终复审 PASS。
+- [x] 14A.13 将附件1“提取方法”加入西文字符级换行范围，Manifest 首页/续页与无 Manifest 兼容导出都主动写入 `w:wordWrap w:val="off"`，不依赖模板原有属性。文件：`packages/backend/app/services/attachment_docx_renderer_service.py`、`template_filler_service.py`；验证：扩展现有首页/续页与兼容填充定向测试。
+  - 证据：先扩展断言并确认 Manifest 路径属性值不统一、兼容路径属性缺失；修复后两个原失败项通过，四个受影响测试文件合计 `68 passed`，`verify:quick` 与本变更包 scoped strict docs 通过。
 
 ### 14A.8 笔录模版管理人工验收补充（Level 2）
 
