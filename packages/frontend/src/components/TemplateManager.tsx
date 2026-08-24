@@ -35,6 +35,11 @@ function templateKey(template: TemplateManagementRecord): string {
   return `${template.template_ref.template_id}@${template.template_ref.version}`
 }
 
+function deleteBlockedMessage(template: TemplateManagementRecord): string {
+  if (template.is_default) return '默认模版不能删除，请先将其他模版设为默认。'
+  return '已有案件引用该模版版本，不能删除。'
+}
+
 export default function TemplateManager() {
   const {
     templates, loading, saving, errorCode, reload, setDefault, addTemplate, deleteTemplate,
@@ -83,7 +88,38 @@ export default function TemplateManager() {
   }
 
   const handleDelete = async (templateRef: TemplateVersionRef) => {
-    if (await deleteTemplate(templateRef)) message.success('笔录模版已撤销')
+    if (await deleteTemplate(templateRef)) message.success('笔录模版已从列表移除')
+  }
+
+  const renderDeleteAction = (record: TemplateManagementRecord) => {
+    const interactionDisabled = saving || renamingKey !== null
+    if (!record.can_delete) {
+      return (
+        <Button
+          type="link"
+          danger
+          icon={<DeleteOutlined />}
+          disabled={interactionDisabled}
+          onClick={() => message.warning(deleteBlockedMessage(record))}
+        >
+          删除
+        </Button>
+      )
+    }
+    return (
+      <Popconfirm
+        title="确认移除该模版？"
+        description="移除后将不再出现在模板列表中，底层 DOCX 文件仍会保留。"
+        okText="确认移除"
+        cancelText="取消"
+        disabled={interactionDisabled}
+        onConfirm={() => void handleDelete(record.template_ref)}
+      >
+        <Button type="link" danger icon={<DeleteOutlined />} disabled={interactionDisabled}>
+          删除
+        </Button>
+      </Popconfirm>
+    )
   }
 
   const cancelRename = () => {
@@ -172,18 +208,7 @@ export default function TemplateManager() {
           >
             前端微调
           </Button>
-          <Popconfirm
-            title="确认撤销该模版？"
-            description="撤销后不会物理删除模版文件，已被案件引用的版本仍会保留。"
-            okText="确认撤销"
-            cancelText="取消"
-            disabled={saving || renamingKey !== null || !record.can_delete}
-            onConfirm={() => void handleDelete(record.template_ref)}
-          >
-            <Button type="link" danger icon={<DeleteOutlined />} disabled={saving || renamingKey !== null || !record.can_delete}>
-              删除
-            </Button>
-          </Popconfirm>
+          {renderDeleteAction(record)}
         </Space>
       ),
     },

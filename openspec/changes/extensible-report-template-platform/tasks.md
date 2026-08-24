@@ -158,9 +158,10 @@ Renderer 当前正式渲染输入为 `InspectionReport` 兼容数据 + `ArchiveM
 - [x] 12.5 修正 Word 原生渲染仍暴露的版式锚点：保留 `1.0.2` 为 `word_templates/template-v1.0.2.docx` 历史只读资产，发布主标题真正居中、一级结构标题略突出、同级“检查过程/检查结果”对齐以及首页/页脚粗横线相对页面居中的 `1.0.3`；保持 6 页、分页、段落可用宽度、表格列宽、VML 文本框、页眉页脚内容和线型不变。文件：`scripts/balance_template_layout.py`、版本化模板资产、TemplateProfile/注册、资产清单和 OOXML 回归测试；验证：确定性重建、版本指纹、定向 pytest、架构/类型/资产检查、`officecli validate` 及 Microsoft Word 原生 PDF 视觉复核。
   - 证据：模板/Profile/注册/填充定向回归合计 98 passed、1 skipped；架构、类型、仓库资产、diff 和当前/历史模板 `officecli validate` 检查通过。临时破坏标题居中后确定性重建测试如预期失败，还原后通过。Microsoft Word 原生导出仍为 6 页 A4，逐页确认主标题、一级/同级标题及首页/页脚粗横线相对页面居中或按层级对齐。
 - [x] 12.6 增加已审核模板显示名称的独立重命名能力，并移除三个管理页标题下方的冗余说明：SharedTypes/Constants 定义请求与端点；FE Hook/Component 提供带长度校验、提交中状态和失败保留输入的重命名交互；Pages 删除指定副文案；Repository/Service/Controller 只更新显示名称元数据，保持模板资产、指纹、审批、默认状态与案件引用不变。文件：`packages/shared/types/template.ts`、`packages/shared/constants/index.ts`、`packages/frontend/src/hooks/useTemplateManagement.ts`、`packages/frontend/src/components/TemplateManager.tsx`、三个管理页、`packages/backend/app/repository/template_registry_repository.py`、`packages/backend/app/services/template_registry_service.py`、`packages/backend/app/controllers/template_controller.py`。
-- [ ] 12.6T 增加可区分的前后端回归测试：有效重命名即时刷新列表；空白、超长及额外字段被拒绝并保持原名；模板 ID/版本、资产指纹、审批、默认状态和案件引用不变；三个说明文案不再渲染。验证：定向 Vitest、pytest、架构检查、类型检查、`npm run verify:quick`、scoped strict docs 和 `git diff --check`。
+- [x] 12.6T 增加可区分的前后端回归测试：有效重命名即时刷新列表；空白、超长及额外字段被拒绝并保持原名；模板 ID/版本、资产指纹、审批、默认状态和案件引用不变；三个说明文案不再渲染。验证：定向 Vitest、pytest、架构检查、类型检查、`npm run verify:quick`、scoped strict docs 和 `git diff --check`。
   - 当前证据：前端 2 files / 7 passed；后端 18 passed；架构、类型、OpenSpec strict validate 和 `git diff --check` 通过。`verify:quick` 的本次 type drift 已清零，但仍被任务开始前已存在的 39 项 `.agents`/`.claude` 未跟踪工具镜像漂移阻断；按工作区保护规则未改写这些本地工具文件，因此本任务暂不勾选。视觉验收按用户要求由用户执行，独立审查按用户要求取消。
   - 启动回归修复：内置模板启动注册沿用已持久化的用户显示名称，同时继续校验版本、资产、指纹、规则和审批元数据的不可变性；新增服务重启测试覆盖名称、指纹、审批及默认模板状态保持。模板控制器与注册仓库定向测试 19 passed；架构和类型检查通过。`verify:quick` 仍仅被上述 39 项既有工具镜像漂移阻断；scoped strict docs 同时报告该漂移和本任务未勾选状态。
+  - 阻断解除（2026-08-24）：当前工作区 `npm run verify:quick` 的架构、类型、治理、文档一致性和仓库资产检查全部通过；原工具镜像漂移已不再出现，因此依据既有定向证据勾选本任务。
 - [x] 12.7 精简添加模板流程：移除“模板 ID”和“版本”输入项，将“显示名称”标签改为“命名”；上传接口只接收名称和 DOCX，Service 为成功上传生成唯一不透明模板 ID 与内部初始版本 `1.0.0`，保留模板不可变性、审批、默认值和案件引用合同。文件：`packages/frontend/src/components/TemplateManager.tsx`、`packages/frontend/src/hooks/useTemplateManagement.ts`、`packages/backend/app/controllers/template_controller.py`、`packages/backend/app/services/template_registry_service.py`。
 - [x] 12.7T 更新现有前后端回归：组件断言添加弹窗不出现 ID/版本且以“命名”提交；Hook 断言 multipart 不再发送两个技术字段；Controller 断言仅名称和文件即可注册且系统生成唯一 ID/`1.0.0`。验证：定向 Vitest、pytest、架构检查、类型检查、Impeccable detector 和 `git diff --check`。
   - 证据：前端模板管理组件/Hook 2 files / 7 passed；后端模板控制器 16 passed；架构、TypeScript、OpenSpec strict validate 通过；Impeccable detector 0 findings；本任务文件范围 `git diff --check` 通过。全仓 diff 检查仍报告任务开始前已有的 `AGENTS.md` 末尾空行，未改写该用户变更。
@@ -197,6 +198,9 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [ ] 14A.8.1 在检查人员管理同级增加“笔录模版管理”导航和页面，支持查看已校验版本、选择默认模版、上传新增模版和安全删除非默认且未被案件引用的版本；案件仍只保存模板 ID/版本，既有案件引用不因默认值变化而改写。 [DEFERRED]
 - [ ] 14A.8.2 复用 current-template-v1 资产指纹与结构校验，上传文件只进入受控模板资产目录；删除记录为审批撤销，不物理删除被案件引用的文件；默认模板在新案件解析完成首次创建草稿时写入。 [DEFERRED]
 - [ ] 14A.8.3 增加前端导航/管理 Hook/管理组件和后端管理 API 回归：默认选择、上传校验、删除保护、案件引用保护、既有单案模板选择与默认值无回归。 [DEFERRED]
+- [x] 14A.8.4 修复删除保护状态的无反馈禁用交互（Level 1 反馈）：`packages/frontend/src/components/TemplateManager.tsx` 中可删除模板继续进入撤销确认；默认模板和案件引用模板的删除入口保持可点击并分别说明保护原因与恢复动作，不放宽后端删除边界。`packages/frontend/src/components/TemplateManager.test.tsx` 增加默认模板提示与不发送删除请求的区分回归；定向 Vitest 4 passed，TypeScript、架构检查和 Impeccable detector 通过。历史内置模板的管理列表投影由后续 14A.8.5 收敛。
+- [x] 14A.8.5 仅在笔录模版管理列表保留最新内置版本：修改 `packages/backend/app/services/template_registry_service.py`，过滤 `is_historical_builtin_template_ref` 记录，同时保留其注册、审批、DOCX 资产和既有案件引用；更新 `tests/test_template_controller.py`，区分断言管理列表仅含最新内置版本、旧版本仍不可设为默认且既有引用可继续解析。前端沿用现有列表投影和删除确认，不新增并行状态。验证：先运行失败用例，再运行模板控制器定向 pytest、`TemplateManager` 定向 Vitest、类型、架构、`verify:quick`、scoped strict docs 和 `git diff --check`。
+  - 证据：管理列表投影过滤历史内置版本，旧版本审批和 `validate` 断言保持有效；模板控制器 16 passed，`TemplateManager` 4 passed；架构、TypeScript、`verify:quick` 和 Impeccable detector 通过；delta 已同步到 `openspec/specs/electronic-inspection-record/spec.md`。测试依赖仅安装于系统临时目录，未写入仓库。
 
 ## 15. 人工 Word 验收（跨层）
 

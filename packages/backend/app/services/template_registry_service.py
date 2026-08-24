@@ -80,18 +80,18 @@ class TemplateRegistryService:
         default_ref = defaults.get("default_template_ref")
         records: list[dict[str, Any]] = []
         for candidate in self.approvals.list_approved():
-            result = self.validate(candidate["template_ref"])
+            reference = candidate["template_ref"]
+            if is_historical_builtin_template_ref(reference):
+                continue
+            result = self.validate(reference)
             if not result["valid"]:
                 continue
-            reference = candidate["template_ref"]
             is_default = _same_ref(reference, default_ref)
-            is_historical = is_historical_builtin_template_ref(reference)
             records.append({
                 **result["template"],
                 "is_default": is_default,
-                "can_delete": not is_historical and not is_default
-                and not self.references.is_referenced(reference),
-                "can_customize": not is_historical,
+                "can_delete": not is_default and not self.references.is_referenced(reference),
+                "can_customize": True,
                 "customization": read_template_customization(
                     self.registry.get_internal(reference)["internal_locator"],
                 ),

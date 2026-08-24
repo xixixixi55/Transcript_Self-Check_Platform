@@ -267,23 +267,20 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     )
     assert default_template["is_default"] is True
     assert default_template["can_delete"] is False
-    historical_template = next(
-        item for item in management["templates"] if item["template_ref"] == LEGACY_REFERENCE
-    )
-    assert historical_template["is_default"] is False
-    assert historical_template["can_delete"] is False
-    assert historical_template["can_customize"] is False
+    managed_references = {(
+        item["template_ref"]["template_id"], item["template_ref"]["version"]
+    ) for item in management["templates"]}
+    assert (LEGACY_REFERENCE["template_id"], LEGACY_REFERENCE["version"]) not in managed_references
+    assert (PREVIOUS_REFERENCE["template_id"], PREVIOUS_REFERENCE["version"]) not in managed_references
+    assert services.template_approvals.require_approved(LEGACY_REFERENCE)["status"] == "approved"
+    assert services.template_approvals.require_approved(PREVIOUS_REFERENCE)["status"] == "approved"
+    assert services.templates.validate(LEGACY_REFERENCE)["valid"] is True
+    assert services.templates.validate(PREVIOUS_REFERENCE)["valid"] is True
     historical_delete = client.delete(
         f"/api/v1/workbench/templates/electronic-inspection-record/{LEGACY_TEMPLATE_VERSION}",
     )
     assert historical_delete.status_code == 409
     assert historical_delete.json()["detail"]["code"] == "HISTORICAL_TEMPLATE_READ_ONLY"
-    previous_template = next(
-        item for item in management["templates"] if item["template_ref"] == PREVIOUS_REFERENCE
-    )
-    assert previous_template["is_default"] is False
-    assert previous_template["can_delete"] is False
-    assert previous_template["can_customize"] is False
     assert default_template["can_customize"] is True
 
     before_rename = services.template_registry.get_internal(REFERENCE)

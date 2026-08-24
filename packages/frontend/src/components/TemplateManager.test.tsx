@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { message } from 'antd'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TemplateManagementRecord } from '@biji/shared/types'
 import { useTemplateManagement } from '../hooks/useTemplateManagement'
@@ -75,7 +76,8 @@ describe('TemplateManager', () => {
     fireEvent.click(screen.getAllByRole('button', { name: '设为默认' })[1])
     expect(setDefault).toHaveBeenCalledWith(extraTemplate.template_ref)
     fireEvent.click(screen.getAllByRole('button', { name: /删除/ })[1])
-    fireEvent.click(screen.getByRole('button', { name: '确认撤销' }))
+    expect(screen.getByText('移除后将不再出现在模板列表中，底层 DOCX 文件仍会保留。')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '确认移除' }))
     expect(deleteTemplate).toHaveBeenCalledWith(extraTemplate.template_ref)
 
     fireEvent.click(screen.getByRole('button', { name: /添加模版/ }))
@@ -92,6 +94,18 @@ describe('TemplateManager', () => {
     await waitFor(() => expect(addTemplate).toHaveBeenCalledWith({
       displayName: 'SYNTHETIC 新模版', file,
     }))
+  })
+
+  it('explains why a protected template cannot be deleted instead of disabling the action', () => {
+    const warning = vi.spyOn(message, 'warning').mockImplementation(() => undefined as never)
+    render(<TemplateManager />)
+
+    const defaultDelete = screen.getAllByRole('button', { name: /删除/ })[0]
+    expect((defaultDelete as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(defaultDelete)
+
+    expect(warning).toHaveBeenCalledWith('默认模版不能删除，请先将其他模版设为默认。')
+    expect(deleteTemplate).not.toHaveBeenCalled()
   })
 
   it('opens controlled customization, updates preview, and derives a new version', async () => {
