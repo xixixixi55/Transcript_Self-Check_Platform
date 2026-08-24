@@ -22,6 +22,7 @@ from portable_launcher import (  # noqa: E402
     attach_kill_on_close_job,
     build_backend_environment,
     open_desktop_browser,
+    record_integrity_warning,
     resolve_launcher_paths,
     validate_program_integrity,
     wait_until_ready,
@@ -165,7 +166,7 @@ def test_windows_icon_contains_required_tray_and_executable_sizes() -> None:
             (64, 64), (128, 128), (256, 256)} <= sizes
 
 
-def test_program_integrity_rejects_missing_modified_and_unknown_files(tmp_path: Path) -> None:
+def test_program_integrity_rejects_missing_and_modified_files(tmp_path: Path) -> None:
     program = tmp_path / "program"
     trusted = program / "runtime" / "backend" / "backend.exe"
     trusted.parent.mkdir(parents=True)
@@ -174,13 +175,57 @@ def test_program_integrity_rejects_missing_modified_and_unknown_files(tmp_path: 
         {"LOCALAPPDATA": str(tmp_path / "local")}, executable=program / "文枢.exe",
     )
     expected = {"runtime/backend/backend.exe": hashlib.sha256(trusted.read_bytes()).hexdigest()}
-    validate_program_integrity(paths, expected_files=expected)
+    assert validate_program_integrity(paths, expected_files=expected) == ()
+    trusted.unlink()
+    with pytest.raises(LauncherError, match="不完整"):
+        validate_program_integrity(paths, expected_files=expected)
     trusted.write_bytes(b"SYNTHETIC/MODIFIED")
     with pytest.raises(LauncherError, match="校验失败"):
         validate_program_integrity(paths, expected_files=expected)
+
+
+def test_program_integrity_allows_unknown_files_and_logs_only_count(tmp_path: Path) -> None:
+    program = tmp_path / "program"
+    trusted = program / "runtime" / "backend" / "backend.exe"
+    trusted.parent.mkdir(parents=True)
     trusted.write_bytes(b"SYNTHETIC/TRUSTED")
-    (program / "SYNTHETIC-unknown.txt").write_text("SYNTHETIC", encoding="utf-8")
-    with pytest.raises(LauncherError, match="未知文件"):
+    paths = resolve_launcher_paths(
+        {"LOCALAPPDATA": str(tmp_path / "local")}, executable=program / "文枢.exe",
+    )
+    expected = {"runtime/backend/backend.exe": hashlib.sha256(trusted.read_bytes()).hexdigest()}
+    unknown = program / "SYNTHETIC-sensitive-case-name.docx"
+    unknown.write_text("SYNTHETIC", encoding="utf-8")
+
+    result = validate_program_integrity(paths, expected_files=expected)
+    record_integrity_warning(paths, result)
+
+    assert result == ("SYNTHETIC-sensitive-case-name.docx",)
+    warning = (paths.log_root / "launcher.log").read_text(encoding="utf-8")
+    assert "PROGRAM_INTEGRITY_UNKNOWN_FILES_IGNORED count=1" in warning
+    assert unknown.name not in warning
+    assert str(program) not in warning
+
+
+def test_program_integrity_still_rejects_symlinks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    program = tmp_path / "program"
+    trusted = program / "runtime" / "backend" / "backend.exe"
+    trusted.parent.mkdir(parents=True)
+    trusted.write_bytes(b"SYNTHETIC/TRUSTED")
+    synthetic_link = program / "SYNTHETIC-link"
+    synthetic_link.write_text("SYNTHETIC", encoding="utf-8")
+    original_is_symlink = Path.is_symlink
+    monkeypatch.setattr(
+        Path, "is_symlink",
+        lambda self: self == synthetic_link or original_is_symlink(self),
+    )
+    paths = resolve_launcher_paths(
+        {"LOCALAPPDATA": str(tmp_path / "local")}, executable=program / "文枢.exe",
+    )
+    expected = {"runtime/backend/backend.exe": hashlib.sha256(trusted.read_bytes()).hexdigest()}
+
+    with pytest.raises(LauncherError, match="链接"):
         validate_program_integrity(paths, expected_files=expected)
 
 

@@ -14,6 +14,7 @@ import time
 import urllib.request
 import webbrowser
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import BinaryIO, Callable
 from urllib.parse import quote
@@ -40,7 +41,7 @@ def validate_program_integrity(
     paths: LauncherPaths,
     *,
     expected_files: dict[str, str] | None = None,
-) -> None:
+) -> tuple[str, ...]:
     expected = _EMBEDDED_EXPECTED_FILES if expected_files is None else expected_files
     if not expected:
         raise LauncherError("程序完整性清单不可用，请重新解压完整发布包。")
@@ -54,16 +55,33 @@ def validate_program_integrity(
             if path.is_file() and path.relative_to(paths.resource_root).as_posix()
             not in {"文枢.exe", "PORTABLE-FILES.json"}
         }
-        if actual != set(expected):
-            raise LauncherError("程序文件不完整或包含未知文件，请重新解压完整发布包。")
+        if set(expected) - actual:
+            raise LauncherError("程序文件不完整，请重新解压完整发布包。")
         for relative, expected_hash in expected.items():
             candidate = paths.resource_root / Path(relative)
             if candidate.is_symlink() or _file_sha256(candidate) != expected_hash:
                 raise LauncherError("程序文件校验失败，请重新解压完整发布包。")
+        return tuple(sorted(actual - set(expected)))
     except LauncherError:
         raise
     except OSError as error:
         raise LauncherError("无法校验程序文件，请重新解压完整发布包。") from error
+
+
+def record_integrity_warning(paths: LauncherPaths, unknown_files: tuple[str, ...]) -> None:
+    """Record extra-file counts without leaking names or absolute paths."""
+    if not unknown_files:
+        return
+    try:
+        paths.log_root.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).isoformat()
+        with (paths.log_root / "launcher.log").open("a", encoding="utf-8") as log:
+            log.write(
+                f"{timestamp} PROGRAM_INTEGRITY_UNKNOWN_FILES_IGNORED "
+                f"count={len(unknown_files)}\n"
+            )
+    except OSError:
+        return
 
 
 def _paths_overlap(left: Path, right: Path) -> bool:
@@ -362,7 +380,7 @@ __all__ = [
     "LauncherError", "LauncherPaths", "ProcessJob", "SingleInstance",
     "attach_kill_on_close_job", "build_backend_environment",
     "new_secret", "open_application_browser", "open_desktop_browser",
-    "resolve_launcher_paths", "select_loopback_port",
+    "record_integrity_warning", "resolve_launcher_paths", "select_loopback_port",
     "start_backend", "terminate_process_tree", "validate_program_integrity",
     "wait_until_ready",
 ]

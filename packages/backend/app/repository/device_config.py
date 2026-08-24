@@ -1,14 +1,19 @@
-"""Layer 20: BE_Repository — 硬件设备配置存取。
-
-存储位置: packages/backend/app/data/hardware_devices.json
-"""
+"""Layer 20: BE_Repository — 用户数据根中的硬件设备配置存取。"""
 import json
 import os
 import uuid
+from pathlib import Path
 from typing import Optional
 
-CONFIG_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+from .runtime_paths import get_runtime_paths
+
+_RUNTIME_PATHS = get_runtime_paths()
+CONFIG_DIR = str(_RUNTIME_PATHS.data_root)
 CONFIG_FILE = os.path.join(CONFIG_DIR, "hardware_devices.json")
+LEGACY_CONFIG_FILE = (
+    str(Path(__file__).resolve().parent.parent / "data" / "hardware_devices.json")
+    if _RUNTIME_PATHS.portable else None
+)
 
 _DEFAULT_DEVICES = [
     {
@@ -22,8 +27,27 @@ _DEFAULT_DEVICES = [
 def _ensure_config() -> None:
     if not os.path.exists(CONFIG_FILE):
         os.makedirs(CONFIG_DIR, exist_ok=True)
+        devices = _legacy_devices() if LEGACY_CONFIG_FILE else None
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(_DEFAULT_DEVICES, f, ensure_ascii=False, indent=2)
+            json.dump(
+                _DEFAULT_DEVICES if devices is None else devices,
+                f, ensure_ascii=False, indent=2,
+            )
+
+
+def _legacy_devices() -> list[dict] | None:
+    legacy_path = Path(LEGACY_CONFIG_FILE) if LEGACY_CONFIG_FILE else None
+    config_path = Path(CONFIG_FILE)
+    if not legacy_path or legacy_path == config_path or not legacy_path.is_file():
+        return None
+    try:
+        with legacy_path.open("r", encoding="utf-8") as source:
+            payload = json.load(source)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, list) or not all(isinstance(item, dict) for item in payload):
+        return None
+    return [_normalise_device(item) for item in payload]
 
 
 def _read_config() -> list[dict]:

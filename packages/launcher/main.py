@@ -13,6 +13,7 @@ from portable_launcher import (
     new_secret,
     open_application_browser,
     open_desktop_browser,
+    record_integrity_warning,
     resolve_launcher_paths,
     start_backend,
     terminate_process_tree,
@@ -39,7 +40,8 @@ def main() -> int:
     ready_file = None
     try:
         paths = resolve_launcher_paths(executable=Path(sys.executable).resolve())
-        validate_program_integrity(paths)
+        unknown_files = validate_program_integrity(paths)
+        record_integrity_warning(paths, unknown_files)
         lock = SingleInstance(paths.lock_file)
         if not lock.acquire():
             show_message("文枢", "文枢已经在运行，请通过系统托盘重新打开。", MB_ICONINFORMATION)

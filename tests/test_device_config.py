@@ -24,6 +24,7 @@ def isolated_device_config(tmp_path: Path, monkeypatch):
     config_dir = tmp_path / "SYNTHETIC-DEVICE-CONFIG"
     monkeypatch.setattr(device_config_repository, "CONFIG_DIR", str(config_dir))
     monkeypatch.setattr(device_config_repository, "CONFIG_FILE", str(config_dir / "hardware_devices.json"))
+    monkeypatch.setattr(device_config_repository, "LEGACY_CONFIG_FILE", None)
 
 
 def test_list_default_devices_includes_company():
@@ -44,6 +45,52 @@ def test_legacy_device_without_company_is_normalized(tmp_path: Path):
     assert list_devices()[0] == {
         "id": "device-SYNTHETIC-legacy", "name": "SYNTHETIC LEGACY", "company": "",
     }
+
+
+def test_legacy_program_config_migrates_once_to_user_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+):
+    legacy_file = tmp_path / "SYNTHETIC-PROGRAM" / "hardware_devices.json"
+    legacy_file.parent.mkdir(parents=True)
+    legacy_payload = [{
+        "id": "device-SYNTHETIC-legacy", "name": "SYNTHETIC Legacy",
+        "company": "SYNTHETIC Company", "obsolete": "SYNTHETIC",
+    }]
+    legacy_file.write_text(json.dumps(legacy_payload), encoding="utf-8")
+    monkeypatch.setattr(device_config_repository, "LEGACY_CONFIG_FILE", str(legacy_file))
+
+    assert list_devices() == [{
+        "id": "device-SYNTHETIC-legacy", "name": "SYNTHETIC Legacy",
+        "company": "SYNTHETIC Company",
+    }]
+    migrated = json.loads(Path(device_config_repository.CONFIG_FILE).read_text(encoding="utf-8"))
+    assert migrated == list_devices()
+    assert json.loads(legacy_file.read_text(encoding="utf-8")) == legacy_payload
+
+
+def test_user_data_config_wins_and_mutations_do_not_touch_legacy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+):
+    legacy_file = tmp_path / "SYNTHETIC-PROGRAM" / "hardware_devices.json"
+    legacy_file.parent.mkdir(parents=True)
+    legacy_text = json.dumps([{
+        "id": "device-SYNTHETIC-legacy", "name": "SYNTHETIC Legacy",
+        "company": "SYNTHETIC Legacy Company",
+    }])
+    legacy_file.write_text(legacy_text, encoding="utf-8")
+    monkeypatch.setattr(device_config_repository, "LEGACY_CONFIG_FILE", str(legacy_file))
+    config_file = Path(device_config_repository.CONFIG_FILE)
+    config_file.parent.mkdir(parents=True)
+    config_file.write_text(json.dumps([{
+        "id": "device-SYNTHETIC-user", "name": "SYNTHETIC User",
+        "company": "SYNTHETIC User Company",
+    }]), encoding="utf-8")
+
+    assert list_devices()[0]["id"] == "device-SYNTHETIC-user"
+    added = add_device("SYNTHETIC Added", "SYNTHETIC Added Company")
+    update_device(added["id"], company="SYNTHETIC Updated Company")
+    delete_device(added["id"])
+    assert legacy_file.read_text(encoding="utf-8") == legacy_text
 
 
 def test_add_update_and_delete_device_preserve_company():
