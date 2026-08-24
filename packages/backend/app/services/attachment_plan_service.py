@@ -220,6 +220,13 @@ def _extraction_method(report: Mapping[str, Any], hash_algorithm: str) -> str:
     ), None)
     if not winrar or not hashlib_name:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "归档工具来源未确认。")
+    attachments = report.get("attachments")
+    snapshot = (
+        _text(attachments.get("extraction_method"))
+        if isinstance(attachments, Mapping) else ""
+    )
+    if snapshot:
+        return snapshot
     hardware = _text(inspection.get("hardware_device")) or "取证设备"
     return hash_extraction_method(hardware, hash_algorithm)
 

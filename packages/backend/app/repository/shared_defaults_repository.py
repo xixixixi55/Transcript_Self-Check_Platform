@@ -14,10 +14,13 @@ from .hash_algorithm_repository import normalize_hash_algorithm
 _DEFAULT_VALUES = {
     "entrust_unit_prefix": "",
     "document_number": "",
+    "document_number_template": {"prefix": "", "suffix": ""},
     "inspection_place": "",
     "inspection_method": "",
     "hardware_device": "",
     "inspector_order": [],
+    "extraction_method": "",
+    "data_summary": "",
     "disc_number_prefix": "",
     "hash_algorithm": "md5",
     "default_template_ref": None,
@@ -161,12 +164,18 @@ def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
         not isinstance(item, str) for item in normalized["inspector_order"]
     ):
         raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
-    for key in ("entrust_unit_prefix", "document_number", "inspection_place", "inspection_method", "hardware_device", "disc_number_prefix"):
+    for key in (
+        "entrust_unit_prefix", "document_number", "inspection_place", "inspection_method",
+        "hardware_device", "extraction_method", "data_summary", "disc_number_prefix",
+    ):
         validate_safe_string(normalized[key], "INVALID_SHARED_DEFAULTS")
     for item in normalized["inspector_order"]:
         validate_safe_string(item, "INVALID_SHARED_DEFAULTS")
     normalized["default_template_ref"] = _normalize_template_ref(
         normalized.get("default_template_ref"),
+    )
+    normalized["document_number_template"] = _normalize_document_number_template(
+        normalized.get("document_number_template"),
     )
     try:
         normalized["hash_algorithm"] = normalize_hash_algorithm(
@@ -185,7 +194,10 @@ def _normalize_patch(values: Mapping[str, Any], *, allow_clear: bool = False) ->
     if unknown:
         raise WorkbenchPersistenceError("UNKNOWN_SHARED_DEFAULT_FIELD")
     normalized: dict[str, Any] = {}
-    scalar_keys = ("entrust_unit_prefix", "document_number", "inspection_place", "inspection_method", "hardware_device", "disc_number_prefix")
+    scalar_keys = (
+        "entrust_unit_prefix", "document_number", "inspection_place", "inspection_method",
+        "hardware_device", "extraction_method", "data_summary", "disc_number_prefix",
+    )
     for key in scalar_keys:
         if key not in values:
             continue
@@ -210,6 +222,10 @@ def _normalize_patch(values: Mapping[str, Any], *, allow_clear: bool = False) ->
         normalized["default_template_ref"] = _normalize_template_ref(
             values["default_template_ref"],
         )
+    if "document_number_template" in values:
+        normalized["document_number_template"] = _normalize_document_number_template(
+            values["document_number_template"],
+        )
     if "hash_algorithm" in values:
         try:
             normalized["hash_algorithm"] = normalize_hash_algorithm(values["hash_algorithm"])
@@ -227,6 +243,14 @@ def _normalize_template_ref(value: Any) -> dict[str, str] | None:
         "template_id": validate_opaque_id(value["template_id"]),
         "version": validate_opaque_id(value["version"]),
     }
+
+
+def _normalize_document_number_template(value: Any) -> dict[str, str]:
+    if not isinstance(value, Mapping) or set(value) != {"prefix", "suffix"}:
+        raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
+    prefix = validate_safe_string(value["prefix"], "INVALID_SHARED_DEFAULTS").strip()
+    suffix = validate_safe_string(value["suffix"], "INVALID_SHARED_DEFAULTS").strip()
+    return {"prefix": prefix, "suffix": suffix}
 
 
 def _defaults_dict(row: Mapping[str, Any]) -> dict[str, Any]:

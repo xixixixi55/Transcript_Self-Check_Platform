@@ -21,6 +21,7 @@ import { getReviewProgressSectionItems, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } 
 import type { ReviewPendingItem } from '../hooks/useReviewChecklist'
 import EditableField from './EditableField'
 import { ArchiveStatusCard } from './ArchiveStatusCard'
+import { DocumentNumberEditor, documentNumberSequence } from './DocumentNumberEditor'
 
 const { Title } = Typography
 
@@ -89,6 +90,9 @@ export default function RecordEditorForm({
   const introduction = report.introduction
   const attachments = report.attachments || { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' }
   const countFor = (sectionId: string) => getReviewProgressSectionItems(pendingItems, sectionId).length
+  const documentNumberTemplate = report.document_number_template
+  const usesDocumentNumberTemplate = Boolean(documentNumberTemplate
+    && documentNumberSequence(report.document_number, documentNumberTemplate) !== null)
 
   return (
     <div className="review-editor-form">
@@ -102,8 +106,12 @@ export default function RecordEditorForm({
 
       <fieldset disabled={readOnly} className="review-editor-form__fieldset">
         <ReviewSection id={REVIEW_SECTION_IDS.document} title="文书信息与导出设置" pendingCount={countFor(REVIEW_SECTION_IDS.document)}>
-          <ReviewField targetId={REVIEW_TARGET_IDS.documentNumber} label="文号" type="text" value={report.document_number}
-            onChange={value => updateReport('document_number', value)} />
+          {usesDocumentNumberTemplate && documentNumberTemplate
+            ? <DocumentNumberEditor targetId={REVIEW_TARGET_IDS.documentNumber}
+                template={documentNumberTemplate} documentNumber={report.document_number}
+                onChange={value => updateReport('document_number', value)} />
+            : <ReviewField targetId={REVIEW_TARGET_IDS.documentNumber} label="文号" type="text"
+                value={report.document_number} onChange={value => updateReport('document_number', value)} />}
         </ReviewSection>
 
         <ReviewSection id={REVIEW_SECTION_IDS.introduction} title="一、绪论" pendingCount={countFor(REVIEW_SECTION_IDS.introduction)}>

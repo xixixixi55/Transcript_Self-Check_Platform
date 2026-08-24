@@ -1,4 +1,4 @@
-import type { InspectionReport } from './index'
+import type { DocumentNumberTemplate, InspectionReport } from './index'
 import type { ArchiveTaskCardSummary } from './archiveTask'
 import type { TaskRecord } from './task'
 import type { TemplateVersionRef } from './template'
@@ -108,11 +108,19 @@ export interface SharedDefaults {
   deployment_instance_id: string
   revision: number
   entrust_unit_prefix: string
+  /** Legacy complete-value default retained for persisted deployment compatibility. */
   document_number: string
+  /** Format snapshotted into later new cases; the sequence remains case-scoped. */
+  document_number_template?: DocumentNumberTemplate
   inspection_place: string
   inspection_method: string
   hardware_device: string
   inspector_order: string[]
+  /** Optional only for compatibility with responses created before this field existed. */
+  extraction_method?: string
+  /** Defaults for later new cases; legacy deployments may omit it. */
+  data_summary?: string
+  /** Retained in the API for legacy migration compatibility; the settings page no longer edits it. */
   disc_number_prefix: string
   /** Defaults to MD5 when omitted by a legacy deployment. */
   hash_algorithm?: HashAlgorithm

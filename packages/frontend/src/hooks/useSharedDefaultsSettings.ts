@@ -7,12 +7,14 @@ import { createClientIdentity } from './useEditLease'
 
 export interface SharedDefaultsFormValues {
   entrustUnitPrefix: string
-  documentNumber: string
+  documentNumberPrefix: string
+  documentNumberSuffix: string
   inspectionPlace: string
   inspectionMethod: string
   hardwareDevice: string
   inspectors: InspectorSnapshot[]
-  discNumberPrefix: string
+  extractionMethod: string
+  dataSummary: string
   hashAlgorithm: HashAlgorithm
 }
 
@@ -30,27 +32,41 @@ function parseInspector(value: string, index: number): InspectorSnapshot {
 export function sharedDefaultsToForm(defaults: SharedDefaults): SharedDefaultsFormValues {
   return {
     entrustUnitPrefix: defaults.entrust_unit_prefix,
-    documentNumber: defaults.document_number,
+    documentNumberPrefix: defaults.document_number_template?.prefix || '',
+    documentNumberSuffix: defaults.document_number_template?.suffix || '',
     inspectionPlace: defaults.inspection_place,
     inspectionMethod: defaults.inspection_method,
     hardwareDevice: defaults.hardware_device,
     inspectors: defaults.inspector_order.map(parseInspector),
-    discNumberPrefix: defaults.disc_number_prefix,
+    extractionMethod: defaults.extraction_method || '',
+    dataSummary: defaults.data_summary || '',
     hashAlgorithm: defaults.hash_algorithm || 'md5',
   }
 }
 
-export function sharedDefaultsPatch(values: SharedDefaultsFormValues): Record<string, unknown> {
+export function sharedDefaultsPatch(
+  values: SharedDefaultsFormValues,
+  legacyDocumentNumber = '',
+  hadDocumentNumberTemplate = false,
+): Record<string, unknown> {
+  const hasDocumentNumberTemplate = Boolean(
+    values.documentNumberPrefix.trim() || values.documentNumberSuffix.trim(),
+  )
   return {
     entrust_unit_prefix: values.entrustUnitPrefix,
-    document_number: values.documentNumber,
+    document_number: hasDocumentNumberTemplate || hadDocumentNumberTemplate ? '' : legacyDocumentNumber,
+    document_number_template: {
+      prefix: values.documentNumberPrefix,
+      suffix: values.documentNumberSuffix,
+    },
     inspection_place: values.inspectionPlace,
     inspection_method: values.inspectionMethod,
     hardware_device: values.hardwareDevice,
     inspector_order: values.inspectors.map(item => (
       `${item.name.trim()}|${item.unit.trim()}|${(item.position || '').trim()}|${item.police_number.trim()}`
     )),
-    disc_number_prefix: values.discNumberPrefix,
+    extraction_method: values.extractionMethod,
+    data_summary: values.dataSummary,
     hash_algorithm: values.hashAlgorithm,
   }
 }
@@ -93,7 +109,12 @@ export function useSharedDefaultsSettings() {
     setFailedOperation(null)
     try {
       const response = await axios.put<{ data: SharedDefaults }>(API_ENDPOINTS.WORKBENCH_DEFAULTS, {
-        values: sharedDefaultsPatch(values),
+        values: sharedDefaultsPatch(
+          values,
+          defaults.document_number,
+          Boolean(defaults.document_number_template?.prefix
+            || defaults.document_number_template?.suffix),
+        ),
         expected_revision: defaults.revision,
         identity: createClientIdentity(defaults.deployment_instance_id),
       })

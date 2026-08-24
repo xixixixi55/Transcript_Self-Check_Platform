@@ -1,7 +1,7 @@
 // Layer 11: FE_Components — explicit editor for deployment-scoped record defaults.
 import { useEffect, useState } from 'react'
 import {
-  Alert, Button, Form, Input, Modal, Radio, Skeleton, Typography,
+  Alert, Button, Form, Input, Modal, Radio, Skeleton,
 } from 'antd'
 import {
   ReloadOutlined, SaveOutlined,
@@ -14,8 +14,6 @@ import type { SharedDefaultsFormValues } from '../hooks/useSharedDefaultsSetting
 import { useRecordEditorCatalogs } from '../hooks/useRecordEditorCatalogs'
 import { HardwareDeviceSelect } from './HardwareDeviceSelect'
 import InspectorEditor from './InspectorEditor'
-
-const { Paragraph, Text } = Typography
 
 interface DefaultInspectorEditorProps {
   value?: InspectorSnapshot[]
@@ -58,6 +56,8 @@ export function SharedDefaultsSettingsForm() {
   const catalogs = useRecordEditorCatalogs()
   const [form] = Form.useForm<SharedDefaultsFormValues>()
   const [dirty, setDirty] = useState(false)
+  const documentNumberPrefix = Form.useWatch('documentNumberPrefix', form) || ''
+  const documentNumberSuffix = Form.useWatch('documentNumberSuffix', form) || ''
 
   useEffect(() => {
     if (!defaults) return
@@ -127,18 +127,28 @@ export function SharedDefaultsSettingsForm() {
         onValuesChange={() => setDirty(true)} onFinish={() => void handleSave()}>
         <section className="shared-defaults-settings__section" aria-labelledby="shared-defaults-basic-title">
           <div className="shared-defaults-settings__section-heading">
-            <div>
-              <h2 id="shared-defaults-basic-title">案件基础信息</h2>
-              <Paragraph>报告没有识别出真实内容时，系统才会使用这些值预填新案件。</Paragraph>
-            </div>
-            <Text type="secondary">当前版本 {defaults.revision}</Text>
+            <h2 id="shared-defaults-basic-title">案件基础信息</h2>
           </div>
           <div className="shared-defaults-settings__grid">
             <Form.Item name="entrustUnitPrefix" label="委托单位前缀">
               <Input maxLength={200} placeholder="例如：宜都公安分局" allowClear />
             </Form.Item>
-            <Form.Item name="documentNumber" label="文号">
-              <Input maxLength={200} placeholder="输入完整文号，不会自动递增" allowClear />
+            <Form.Item className="shared-defaults-settings__wide" label="文号格式">
+              <div className="shared-defaults-settings__document-number-format">
+                <Form.Item name="documentNumberPrefix" noStyle>
+                  <Input aria-label="文号编号前内容" maxLength={150}
+                    placeholder="编号前内容，例如：SYN-TEST〔2026〕" allowClear />
+                </Form.Item>
+                <span className="shared-defaults-settings__document-number-slot">编号</span>
+                <Form.Item name="documentNumberSuffix" noStyle>
+                  <Input aria-label="文号编号后内容" maxLength={40}
+                    placeholder="编号后内容，例如：号" allowClear />
+                </Form.Item>
+              </div>
+              <div className="shared-defaults-settings__document-number-example" aria-live="polite">
+                <span>示例</span>
+                <strong>{documentNumberPrefix}142{documentNumberSuffix}</strong>
+              </div>
             </Form.Item>
             <Form.Item name="inspectionPlace" label="检查地点">
               <Input maxLength={300} placeholder="输入默认检查地点" allowClear />
@@ -160,12 +170,15 @@ export function SharedDefaultsSettingsForm() {
               <Input.TextArea maxLength={2000} rows={4}
                 placeholder="输入默认检查方法" allowClear showCount />
             </Form.Item>
-            <Form.Item name="discNumberPrefix" label="光盘编号前缀"
-              extra="这里只保存前缀，不会复制日期、序号或完整光盘编号。">
-              <Input maxLength={20} placeholder="例如：GP" allowClear />
+            <Form.Item className="shared-defaults-settings__wide" name="dataSummary" label="数据摘要">
+              <Input.TextArea maxLength={1000} rows={3}
+                placeholder="输入默认数据摘要" allowClear showCount />
             </Form.Item>
-            <Form.Item name="hashAlgorithm" label="文件哈希算法"
-              extra="新建案件会固化所选算法；历史案件仍按 MD5 显示和校验。">
+            <Form.Item className="shared-defaults-settings__wide" name="extractionMethod" label="提取方式">
+              <Input.TextArea maxLength={2000} rows={4}
+                placeholder="输入附件1默认提取方式" allowClear showCount />
+            </Form.Item>
+            <Form.Item name="hashAlgorithm" label="文件哈希算法">
               <Radio.Group className="shared-defaults-settings__hash-options"
                 optionType="button" buttonStyle="solid"
                 options={[
@@ -179,10 +192,7 @@ export function SharedDefaultsSettingsForm() {
 
         <section className="shared-defaults-settings__section" aria-labelledby="shared-defaults-inspectors-title">
           <div className="shared-defaults-settings__section-heading">
-            <div>
-              <h2 id="shared-defaults-inspectors-title">检查人员顺序</h2>
-              <Paragraph>按实际落入笔录的顺序排列；清空全部人员表示不设置默认检查人员。</Paragraph>
-            </div>
+            <h2 id="shared-defaults-inspectors-title">检查人员顺序</h2>
           </div>
           <Form.Item className="shared-defaults-settings__inspector-editor" name="inspectors"
             rules={[{ validator: validateInspectors }]}>

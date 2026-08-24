@@ -12,6 +12,11 @@ def validate_legacy_report(value: Any) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise WorkbenchPersistenceError("INVALID_LEGACY_REPORT")
     _strings(value, ("title", "document_number"))
+    if "document_number_template" in value:
+        template = _mapping(value, "document_number_template")
+        if set(template) != {"prefix", "suffix"}:
+            raise WorkbenchPersistenceError("INVALID_LEGACY_REPORT")
+        _strings(template, ("prefix", "suffix"))
     if "case_number" in value and value["case_number"] is not None:
         _string(value["case_number"])
     introduction = _mapping(value, "introduction")
@@ -41,6 +46,8 @@ def validate_legacy_report(value: Any) -> Mapping[str, Any]:
 
     attachments = _mapping(value, "attachments")
     _table_data(attachments, "extract_list")
+    if "extraction_method" in attachments:
+        _string(attachments["extraction_method"])
     _strings_list(attachments, "photo_ids")
     if "photo_groups" in attachments and attachments["photo_groups"] is not None:
         _photo_groups(attachments["photo_groups"])

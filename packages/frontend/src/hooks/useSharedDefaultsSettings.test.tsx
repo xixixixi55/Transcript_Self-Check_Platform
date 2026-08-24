@@ -14,10 +14,13 @@ const putMock = vi.mocked(axios.put)
 const defaults: SharedDefaults = {
   schema_version: 1, deployment_instance_id: 'SYNTHETIC-DEPLOYMENT', revision: 4,
   entrust_unit_prefix: 'SYNTHETIC-PREFIX', document_number: 'SYNTHETIC-DOC',
+  document_number_template: { prefix: 'SYN-TEST〔2026〕', suffix: '号' },
   inspection_place: 'SYNTHETIC-PLACE', inspection_method: 'SYNTHETIC-METHOD',
   hardware_device: 'SYNTHETIC-DEVICE',
   inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-POSITION|SYNTHETIC-001'],
-  disc_number_prefix: 'GP', hash_algorithm: 'sha256', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
+  disc_number_prefix: 'GP', extraction_method: 'SYNTHETIC-EXTRACTION-METHOD',
+  data_summary: 'SYNTHETIC-DATA-SUMMARY',
+  hash_algorithm: 'sha256', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
 }
 
 beforeEach(() => {
@@ -32,17 +35,25 @@ describe('useSharedDefaultsSettings', () => {
     await waitFor(() => expect(result.current.defaults?.revision).toBe(4))
 
     const values = sharedDefaultsToForm(defaults)
-    values.documentNumber = '   '
-    expect(sharedDefaultsPatch(values)).toEqual(expect.objectContaining({
-      document_number: '   ',
+    values.documentNumberPrefix = 'SYN-TEST〔2027〕'
+    values.documentNumberSuffix = '号'
+    expect(sharedDefaultsPatch(values, defaults.document_number, true)).toEqual(expect.objectContaining({
+      document_number: '',
+      document_number_template: { prefix: 'SYN-TEST〔2027〕', suffix: '号' },
       inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-POSITION|SYNTHETIC-001'],
+      extraction_method: 'SYNTHETIC-EXTRACTION-METHOD',
+      data_summary: 'SYNTHETIC-DATA-SUMMARY',
       hash_algorithm: 'sha256',
     }))
+    expect(sharedDefaultsPatch(values, defaults.document_number, true)).not.toHaveProperty('disc_number_prefix')
 
     await act(async () => { await result.current.save(values) })
 
     expect(putMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_DEFAULTS, {
-      values: expect.objectContaining({ document_number: '   ' }),
+      values: expect.objectContaining({
+        document_number: '',
+        document_number_template: { prefix: 'SYN-TEST〔2027〕', suffix: '号' },
+      }),
       expected_revision: 4,
       identity: expect.objectContaining({
         deployment_instance_id: 'SYNTHETIC-DEPLOYMENT', identity_kind: 'local_session',
@@ -61,6 +72,22 @@ describe('useSharedDefaultsSettings', () => {
 
     expect(result.current.status).toBe('conflict')
     expect(result.current.defaults?.revision).toBe(4)
+  })
+
+  it('preserves a legacy complete document-number default until a format is configured', () => {
+    const legacyDefaults = {
+      ...defaults,
+      document_number: 'SYNTHETIC-LEGACY-DOC',
+      document_number_template: undefined,
+    }
+    const values = sharedDefaultsToForm(legacyDefaults)
+
+    expect(sharedDefaultsPatch(values, legacyDefaults.document_number, false)).toEqual(
+      expect.objectContaining({
+        document_number: 'SYNTHETIC-LEGACY-DOC',
+        document_number_template: { prefix: '', suffix: '' },
+      }),
+    )
   })
 
   it('distinguishes a reload failure and keeps the last loaded values', async () => {

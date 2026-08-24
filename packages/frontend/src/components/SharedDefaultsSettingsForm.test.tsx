@@ -38,10 +38,13 @@ const inspectors = [
 const defaults = {
   schema_version: 1, deployment_instance_id: 'SYNTHETIC-DEPLOYMENT', revision: 2,
   entrust_unit_prefix: 'SYNTHETIC-PREFIX', document_number: 'SYNTHETIC-DOC',
+  document_number_template: { prefix: 'SYN-TEST〔2026〕', suffix: '号' },
   inspection_place: 'SYNTHETIC-PLACE', inspection_method: 'SYNTHETIC-METHOD',
   hardware_device: 'SYNTHETIC-DEVICE',
   inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-POSITION|SYNTHETIC-001'],
-  disc_number_prefix: 'GP', hash_algorithm: 'md5', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
+  disc_number_prefix: 'GP', extraction_method: 'SYNTHETIC-EXTRACTION-METHOD',
+  data_summary: 'SYNTHETIC-DATA-SUMMARY',
+  hash_algorithm: 'md5', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
 }
 
 beforeAll(() => {
@@ -69,11 +72,22 @@ describe('SharedDefaultsSettingsForm', () => {
   it('shows all settings and saves an intentional clear without default inspectors', async () => {
     render(<SharedDefaultsSettingsForm />)
 
-    expect(await screen.findByDisplayValue('SYNTHETIC-DOC')).toBeTruthy()
+    expect(await screen.findByDisplayValue('SYN-TEST〔2026〕')).toBeTruthy()
+    expect(screen.getByDisplayValue('号')).toBeTruthy()
+    expect(screen.getByText('SYN-TEST〔2026〕142号')).toBeTruthy()
+    expect((screen.getByLabelText('提取方式') as HTMLTextAreaElement).value).toBe('SYNTHETIC-EXTRACTION-METHOD')
+    expect((screen.getByLabelText('数据摘要') as HTMLTextAreaElement).value).toBe('SYNTHETIC-DATA-SUMMARY')
     expect(screen.getByText('SYNTHETIC-NAME')).toBeTruthy()
+    expect(screen.queryByLabelText('光盘编号前缀')).toBeNull()
+    expect(screen.queryByText(/当前版本/)).toBeNull()
+    expect(screen.queryByText('报告没有识别出真实内容时，系统才会使用这些值预填新案件。')).toBeNull()
+    expect(screen.queryByText('新建案件会固化所选算法；历史案件仍按 MD5 显示和校验。')).toBeNull()
+    expect(screen.queryByText('按实际落入笔录的顺序排列；清空全部人员表示不设置默认检查人员。')).toBeNull()
     fireEvent.click(screen.getByRole('radio', { name: 'SHA-256' }))
 
-    fireEvent.change(screen.getByLabelText('文号'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('文号编号前内容'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('文号编号后内容'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('数据摘要'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: '移除1' }))
     fireEvent.click(screen.getByRole('button', { name: /保存默认设置/ }))
 
@@ -82,16 +96,22 @@ describe('SharedDefaultsSettingsForm', () => {
       expect.objectContaining({
         expected_revision: 2,
         values: expect.objectContaining({
-          document_number: '', inspector_order: [], hash_algorithm: 'sha256',
+          document_number: '',
+          document_number_template: { prefix: '', suffix: '' },
+          inspector_order: [],
+          extraction_method: 'SYNTHETIC-EXTRACTION-METHOD', hash_algorithm: 'sha256',
+          data_summary: '',
         }),
       }),
     ))
+    const request = putMock.mock.calls[0]?.[1] as { values?: Record<string, unknown> }
+    expect(request.values).not.toHaveProperty('disc_number_prefix')
     expect(await screen.findByText('笔录默认设置已保存')).toBeTruthy()
   })
 
   it('selects a managed device and reuses inspector cards for add and drag sorting', async () => {
     render(<SharedDefaultsSettingsForm />)
-    await screen.findByDisplayValue('SYNTHETIC-DOC')
+    await screen.findByDisplayValue('SYN-TEST〔2026〕')
 
     const deviceSelect = screen.getByRole('combobox', { name: '检查硬件设备' })
     fireEvent.change(deviceSelect, { target: { value: 'SYNTHETIC-DEVICE-2' } })
@@ -121,7 +141,7 @@ describe('SharedDefaultsSettingsForm', () => {
   it('keeps server values visible and offers reload after a revision conflict', async () => {
     putMock.mockRejectedValue({ response: { data: { detail: { code: 'REVISION_CONFLICT' } } } })
     render(<SharedDefaultsSettingsForm />)
-    await screen.findByDisplayValue('SYNTHETIC-DOC')
+    await screen.findByDisplayValue('SYN-TEST〔2026〕')
 
     fireEvent.change(screen.getByLabelText('检查地点'), { target: { value: 'SYNTHETIC-NEW-PLACE' } })
     fireEvent.click(screen.getByRole('button', { name: /保存默认设置/ }))

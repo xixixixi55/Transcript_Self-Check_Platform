@@ -116,9 +116,16 @@ export interface TableData {
 }
 
 /** 检查笔录全文 */
+export interface DocumentNumberTemplate {
+  prefix: string
+  suffix: string
+}
+
 export interface InspectionReport {
   title: string                          // "电子数据检查笔录"
   document_number: string                // "xx电检〔2026〕xx号"
+  /** New-case snapshot used by the review editor; Word still consumes document_number. */
+  document_number_template?: DocumentNumberTemplate
   case_number?: string                   // 案件编号（从报告解析），用于生成文号
   introduction: {
     entrust_unit_prefix?: string         // 委托单位共享前缀（允许为空）
@@ -144,6 +151,7 @@ export interface InspectionReport {
   }
   attachments: {
     extract_list: TableData              // 附件1: 电子数据提取固定清单
+    extraction_method?: string           // 附件1: 新案固化的默认提取方式
     photo_ids: string[]                  // 附件2: 已上传检材照片 ID 列表
     photo_groups?: MaterialPhotoGroup[]  // 附件2: 显式检材-照片归属和组内顺序
     disc_number: string                  // 附件3: 光盘编号

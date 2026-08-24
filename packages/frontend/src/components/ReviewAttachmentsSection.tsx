@@ -25,7 +25,8 @@ export function ReviewAttachmentsSection({ attachments, materials, hardwareDevic
   const expectedPrefixes = archiveMedium === 'hard_drive' ? ['YP'] : archiveMedium === 'optical_disc' ? ['GP'] : ['GP', 'YP']
   const mediumNumberValid = discResult.valid && expectedPrefixes.includes(discResult.sequence?.prefix || '')
   const hardDrive = archiveMedium === 'hard_drive'
-  const extractionMethod = hashExtractionMethod(hardwareDevice, hashAlgorithm)
+  const extractionMethod = attachments.extraction_method?.trim()
+    || hashExtractionMethod(hardwareDevice, hashAlgorithm)
 
   return (
     <>

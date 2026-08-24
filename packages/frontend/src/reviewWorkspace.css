@@ -442,6 +442,29 @@
   font-weight: 600;
 }
 
+.document-number-editor {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 220px) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.document-number-editor__affix {
+  min-width: 0;
+  color: var(--review-text);
+  overflow-wrap: anywhere;
+}
+
+.document-number-editor .ant-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.document-number-editor__error {
+  margin-top: 6px;
+  color: var(--review-error, #c53030);
+  font-size: 12px;
+}
+
 .review-pending-dock--confirmation-pending .review-pending-dock__trigger {
   color: var(--review-error);
   background: #fff2f0;
@@ -1044,6 +1067,15 @@
 }
 
 @media (max-width: 640px) {
+  .document-number-editor {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .document-number-editor .ant-input {
+    width: 100%;
+  }
+
   .material-photo-uploader__header {
     align-items: stretch;
     flex-direction: column;

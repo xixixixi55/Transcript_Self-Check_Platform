@@ -8,7 +8,7 @@ import shutil
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
@@ -16,8 +16,13 @@ from ..repository.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
-from .report_parser_service import parse_report
-from .report_defaults_service import DEFAULT_DOCUMENT_NUMBER, DEFAULT_HARDWARE_DEVICE, DEFAULT_INSPECTION_METHOD, DEFAULT_INSPECTION_PLACE
+from .report_defaults_service import (
+    DEFAULT_DATA_SUMMARY,
+    DEFAULT_DOCUMENT_NUMBER,
+    DEFAULT_HARDWARE_DEVICE,
+    DEFAULT_INSPECTION_METHOD,
+    DEFAULT_INSPECTION_PLACE,
+)
 from .disc_sequence_service import apply_disc_sequence_to_attachments
 from .case_order_service import CaseOrderService
 from .field_provenance_service import FieldProvenanceService
@@ -26,8 +31,10 @@ from .material_policy_service import enrich_report_material_types
 from .device_config_service import company_for_device_name
 from .shared_defaults_service import SharedDefaultsService
 from .software_policy_service import apply_device_company_prefix
-from .source_record_service import SourceRecordService
 from ..repository.hash_algorithm_repository import normalize_hash_algorithm
+
+if TYPE_CHECKING:
+    from .source_record_service import SourceRecordService
 
 Parser = Callable[[Path, Path], Mapping[str, Any]]
 Dispatch = Callable[[str, str], None]
@@ -45,7 +52,12 @@ class CaseDraftService:
         self.shells = CaseShellRepository(database)
         self.drafts = CaseDraftRepository(database)
         self.tasks = TaskRecordRepository(database)
-        self.sources = source_service or SourceRecordService(database)
+        if source_service is None:
+            from .source_record_service import SourceRecordService
+
+            self.sources = SourceRecordService(database)
+        else:
+            self.sources = source_service
         self.defaults = SharedDefaultsService(database)
         self.parser = parser or _parse_source
         self.environment = environment_service or InspectionEnvironmentService()
@@ -138,6 +150,8 @@ class CaseDraftService:
 
 
 def _parse_source(path: Path, output: Path) -> Mapping[str, Any]:
+    from .report_parser_service import parse_report
+
     output.mkdir(parents=True, exist_ok=True)
     return parse_report(str(path), str(output), compress=False)
 
@@ -155,12 +169,49 @@ def _initialize_draft(
     value = copy.deepcopy(dict(report))
     now = initialized_at or utc_now()
     fields: dict[str, dict[str, Any]] = {}
+    document_current = _read_path(value, ("document_number",))
+    document_template = _document_number_template(defaults.get("document_number_template"))
+    value.pop("document_number_template", None)
+    if document_template is not None:
+        value["document_number_template"] = document_template
+        if (
+            document_current is not None
+            and str(document_current).strip()
+            and str(document_current).strip() != DEFAULT_DOCUMENT_NUMBER
+        ):
+            document_source = "report"
+            document_confirmation = "confirmed"
+        else:
+            value["document_number"] = ""
+            document_source = "system_default"
+            document_confirmation = "pending"
+    else:
+        document_selected, document_source = _select_value(
+            document_current, defaults.get("document_number"), DEFAULT_DOCUMENT_NUMBER,
+        )
+        if document_selected is not None and (
+            document_source == "system_default"
+            or document_current is None
+            or not str(document_current).strip()
+        ):
+            value["document_number"] = document_selected
+        document_confirmation = "confirmed" if document_selected is not None else "pending"
+    fields["document_number"] = {
+        "field_path": "document_number", "source": document_source,
+        "confirmation": document_confirmation,
+        "revision": 0, "last_changed_at": now,
+    }
+    data_summary_current = _read_path(value, ("inspection", "result", "data_summary"))
+    if data_summary_current is None or not str(data_summary_current).strip():
+        _write_path(
+            value, ("inspection", "result", "data_summary"), DEFAULT_DATA_SUMMARY,
+        )
     candidates = (
         ("introduction.entrust_unit_prefix", ("introduction", "entrust_unit_prefix"), defaults.get("entrust_unit_prefix"), None),
-        ("document_number", ("document_number",), defaults.get("document_number"), DEFAULT_DOCUMENT_NUMBER),
         ("introduction.inspection_place", ("introduction", "inspection_place"), defaults.get("inspection_place"), DEFAULT_INSPECTION_PLACE),
         ("inspection.method", ("inspection", "method"), defaults.get("inspection_method"), DEFAULT_INSPECTION_METHOD),
         ("inspection.hardware_device", ("inspection", "hardware_device"), defaults.get("hardware_device"), DEFAULT_HARDWARE_DEVICE),
+        ("inspection.result.data_summary", ("inspection", "result", "data_summary"), defaults.get("data_summary"), DEFAULT_DATA_SUMMARY),
     )
     for field_path, path, default, system_default in candidates:
         current = _read_path(value, path)
@@ -204,6 +255,19 @@ def _initialize_draft(
     except ValueError:
         result["hash_algorithm"] = "md5"
     attachments = value.setdefault("attachments", {})
+    extraction_current = attachments.get("extraction_method")
+    extraction_selected, extraction_source = _select_value(
+        extraction_current, defaults.get("extraction_method"),
+    )
+    if extraction_selected is not None and (
+        extraction_current is None or not str(extraction_current).strip()
+    ):
+        attachments["extraction_method"] = extraction_selected
+    fields["attachments.extraction_method"] = {
+        "field_path": "attachments.extraction_method", "source": extraction_source,
+        "confirmation": "confirmed" if extraction_selected is not None else "pending",
+        "revision": 0, "last_changed_at": now,
+    }
     apply_disc_sequence_to_attachments(attachments)
     disc_current = attachments.get("disc_number")
     fields["attachments.disc_number"] = {
@@ -261,6 +325,17 @@ def _select_value(report_value: Any, default_value: Any, system_default: Any = N
     if default_value is not None and str(default_value).strip():
         return default_value, "system_default"
     return report_value, "system_default"
+
+
+def _document_number_template(value: Any) -> dict[str, str] | None:
+    if not isinstance(value, Mapping):
+        return None
+    prefix = value.get("prefix")
+    suffix = value.get("suffix")
+    if not isinstance(prefix, str) or not isinstance(suffix, str):
+        return None
+    normalized = {"prefix": prefix.strip(), "suffix": suffix.strip()}
+    return normalized if normalized["prefix"] or normalized["suffix"] else None
 
 
 def _has_items(value: Any) -> bool:

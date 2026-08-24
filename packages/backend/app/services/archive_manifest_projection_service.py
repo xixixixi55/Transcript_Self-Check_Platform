@@ -161,6 +161,13 @@ def _source_from_evidence(report: Mapping[str, Any]) -> str:
 def _hardware_extraction_method(
     report: Mapping[str, Any], hash_algorithm: str | None = None,
 ) -> str:
+    attachments = report.get("attachments")
+    snapshot = (
+        _text(attachments.get("extraction_method"))
+        if isinstance(attachments, Mapping) else ""
+    )
+    if snapshot:
+        return snapshot
     inspection = report.get("inspection")
     hardware = (
         _text(inspection.get("hardware_device"))

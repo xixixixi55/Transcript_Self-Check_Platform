@@ -179,7 +179,7 @@
 
 ### 检查笔录全文（InspectionReport）
 
-顶层结构，包含 title、document_number、可选 case_number、introduction（9字段）、inspection（4字段）和 attachments（含 `photo_ids`、可选 `photo_groups`、光盘字段）。其中 `photo_groups` 存在图片时必须明确每个检材的两张图片归属和顺序。
+顶层结构，包含 title、最终完整 `document_number`、可选 `document_number_template` 案件快照、可选 case_number、introduction（9字段）、inspection（4字段）和 attachments（含 `photo_ids`、可选 `photo_groups`、光盘字段）。其中 `photo_groups` 存在图片时必须明确每个检材的两张图片归属和顺序。`document_number_template` 只含 `prefix` 和 `suffix` 字符串；审核编辑可用该快照输入案件编号并生成完整 `document_number`，Word、预览和导出文件名仍只消费完整文号。
 
 ### RAR/压缩包文件信息（RarInfo）
 
@@ -546,11 +546,16 @@ enter a case draft. Missing or corrupt content is a recoverable error, and
 unreferenced temporary assets are removed after a grace period.
 
 `SharedDefaults` is backend-persisted and deployment-scoped for the current local
-operator; this scope does not provide or claim multi-user isolation. It is limited
-to document number, inspection place, inspection method, hardware device, ordered
-inspector snapshots, disc-number prefix and a `md5 | sha1 | sha256` hash algorithm.
+operator; this scope does not provide or claim multi-user isolation. Its editable
+business values are limited to entrust-unit prefix, document-number template,
+inspection place, inspection method, hardware device, data summary, attachment-1
+extraction method, ordered inspector snapshots and a `md5 | sha1 | sha256` hash algorithm.
+The legacy complete document number and disc-number prefix remain API-compatible
+persisted values but are not edited by the centralized settings page.
 The algorithm defaults to MD5, is snapshotted into each later new case, and never
-rewrites an existing case. A successful draft save may send a
+rewrites an existing case. A later new case also snapshots a non-empty shared data
+summary when the Parser value is missing, blank or the fixed system summary; a real
+Parser summary remains authoritative. A successful draft save may send a
 sparse patch containing only non-empty values that the user explicitly changed.
 Case fields follow user edit > non-empty Parser report value > non-empty shared
 default > system default or empty. Later cases use shared values only when the
@@ -562,10 +567,11 @@ separately represents pending human confirmation. `ClientIdentity` is a local
 session identity, not an authenticated person. `EditLease` provides one active case
 lease with expiry and takeover metadata.
 `SaveStatus`, `SharedDefaultsSaveStatus` and `DualSaveResult` report draft and
-shared-default persistence independently. Shared-default writes use a sparse
-supported-field `shared_defaults_patch`; `updated`, `unchanged`, `failed` and
-`revision_conflict` are distinct statuses, and blank values do not clear stored
-defaults. `RevisionConflictDto` describes optimistic concurrency failures.
+shared-default persistence independently. Shared-default writes use a supported-field
+patch; the explicit centralized settings request may clear values, while legacy sparse
+draft patches retain their non-empty semantics. `updated`, `unchanged`, `failed` and
+`revision_conflict` are distinct statuses. `RevisionConflictDto` describes optimistic
+concurrency failures.
 `WorkbenchApiEnvelope`, `CaseShellResponse`, `CaseDraftResponse`,
 `SourceRecordResponse`, `SharedDefaultsResponse` and `TaskRecordResponse` are the
 versioned API DTO envelopes and contain no absolute paths.
@@ -948,7 +954,8 @@ interface CaseAssetList, interface CasePhotoBindingRequest, interface CasePhotoB
 interface FieldState,
 interface WordDownloadName, interface WordDirectoryExportResult, interface WordExportWarning,
 interface WordDirectoryExportTarget,
-interface CaseShell, interface CaseDraft, interface SharedDefaults, interface ClientIdentity,
+interface DocumentNumberTemplate, interface CaseShell, interface CaseDraft,
+interface SharedDefaults, interface ClientIdentity,
 interface EditLease, interface TaskRecord, interface SourceRecord, interface SaveStatus,
 interface DiscMapping, interface VolumeSlot, interface PlannedVolumeSlot,
 interface ArchivePlanSnapshot, interface ProgressSnapshot, interface ArchiveTaskCardSummary,

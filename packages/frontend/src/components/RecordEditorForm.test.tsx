@@ -67,6 +67,57 @@ const report: InspectionReport = {
 }
 
 describe('RecordEditorForm', () => {
+  it('只填写文号编号并组合完整文号，同时保留前导零', () => {
+    const updateReport = vi.fn()
+    const templatedReport = {
+      ...report,
+      document_number: 'SYN-TEST〔2026〕00142号',
+      document_number_template: { prefix: 'SYN-TEST〔2026〕', suffix: '号' },
+    }
+
+    render(<RecordEditorForm report={templatedReport} updateReport={updateReport}
+      onExport={vi.fn()} exporting={false} onBackToUpload={vi.fn()}
+      deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()} />)
+
+    const sequence = screen.getByRole('textbox', { name: '文号编号' })
+    expect((sequence as HTMLInputElement).value).toBe('00142')
+    fireEvent.change(sequence, { target: { value: '00143' } })
+    expect(updateReport).toHaveBeenCalledWith('document_number', 'SYN-TEST〔2026〕00143号')
+  })
+
+  it('没有格式快照或文号不匹配时继续编辑完整文号', () => {
+    const updateReport = vi.fn()
+    const unmatchedReport = {
+      ...report,
+      document_number_template: { prefix: 'OTHER〔2026〕', suffix: '号' },
+    }
+    render(<RecordEditorForm report={unmatchedReport} updateReport={updateReport} onExport={vi.fn()}
+      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
+      onPhotoFilesChange={vi.fn()} />)
+
+    expect(screen.queryByRole('textbox', { name: '文号编号' })).toBeNull()
+    expect(screen.getByDisplayValue('SYN-TEST〔2026〕000001号')).toBeTruthy()
+  })
+
+  it('文号编号为空时清空完整文号，非数字输入保持在当前输入框并提示', () => {
+    const updateReport = vi.fn()
+    const templatedReport = {
+      ...report,
+      document_number: 'SYN-TEST〔2026〕142号',
+      document_number_template: { prefix: 'SYN-TEST〔2026〕', suffix: '号' },
+    }
+    render(<RecordEditorForm report={templatedReport} updateReport={updateReport}
+      onExport={vi.fn()} exporting={false} onBackToUpload={vi.fn()}
+      deviceOptions={[]} photoFiles={[]} onPhotoFilesChange={vi.fn()} />)
+
+    const sequence = screen.getByRole('textbox', { name: '文号编号' })
+    fireEvent.change(sequence, { target: { value: '' } })
+    expect(updateReport).toHaveBeenCalledWith('document_number', '')
+    fireEvent.change(sequence, { target: { value: '14A' } })
+    expect(screen.getByRole('alert').textContent).toBe('编号只能填写数字。')
+    expect(updateReport).not.toHaveBeenCalledWith('document_number', 'SYN-TEST〔2026〕14A号')
+  })
+
   it('要求人工确认检材完整性，并在确认或修改检材时更新状态', () => {
     const onEvidenceCompletenessChange = vi.fn()
     const updateReport = vi.fn()

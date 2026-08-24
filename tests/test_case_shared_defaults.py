@@ -18,6 +18,7 @@ from app.services.case_draft_service import (  # noqa: E402
     _prefix_report_software_for_selected_device,
 )
 from app.services.report_defaults_service import (  # noqa: E402
+    DEFAULT_DATA_SUMMARY,
     DEFAULT_DOCUMENT_NUMBER,
     DEFAULT_HARDWARE_DEVICE,
     DEFAULT_INSPECTION_METHOD,
@@ -31,11 +32,26 @@ def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Pa
     database = WorkbenchDatabase(database_path_for_deployment(tmp_path, "SYNTHETIC-DEFAULTS"), "SYNTHETIC-DEFAULTS")
     repository = SharedDefaultsRepository(database)
     initial = repository.get()
+    assert initial["extraction_method"] == ""
+    assert initial["data_summary"] == ""
+    assert initial["document_number_template"] == {"prefix": "", "suffix": ""}
 
-    updated = repository.patch({"document_number": "SYNTHETIC-DOC-001"}, initial["revision"])
+    updated = repository.patch({
+        "document_number": "SYNTHETIC-DOC-001",
+        "document_number_template": {
+            "prefix": "SYN-TEST〔2026〕", "suffix": "号",
+        },
+        "extraction_method": "SYNTHETIC-EXTRACTION-METHOD",
+        "data_summary": "SYNTHETIC-DATA-SUMMARY",
+    }, initial["revision"])
     assert updated["status"] == "updated"
     assert updated["defaults"]["document_number"] == "SYNTHETIC-DOC-001"
     assert updated["defaults"]["inspection_place"] == ""
+    assert updated["defaults"]["extraction_method"] == "SYNTHETIC-EXTRACTION-METHOD"
+    assert updated["defaults"]["data_summary"] == "SYNTHETIC-DATA-SUMMARY"
+    assert updated["defaults"]["document_number_template"] == {
+        "prefix": "SYN-TEST〔2026〕", "suffix": "号",
+    }
 
     second = repository.patch({"inspection_place": "SYNTHETIC-PLACE"}, updated["defaults"]["revision"])
     assert second["defaults"]["document_number"] == "SYNTHETIC-DOC-001"
@@ -47,9 +63,16 @@ def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Pa
     assert cleared["defaults"]["document_number"] == ""
     assert cleared["defaults"]["inspection_place"] == "SYNTHETIC-PLACE"
 
+    cleared_method = repository.patch(
+        {"extraction_method": "   ", "data_summary": "   "},
+        cleared["defaults"]["revision"], allow_clear=True,
+    )
+    assert cleared_method["defaults"]["extraction_method"] == ""
+    assert cleared_method["defaults"]["data_summary"] == ""
+
     with_inspectors = repository.patch(
         {"inspector_order": ["SYNTHETIC-A|SYNTHETIC-UNIT|SYNTHETIC-001"]},
-        cleared["defaults"]["revision"],
+        cleared_method["defaults"]["revision"],
     )
     cleared_inspectors = repository.patch(
         {"inspector_order": []}, with_inspectors["defaults"]["revision"], allow_clear=True,
@@ -61,6 +84,12 @@ def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Pa
         repository.patch({"case_name": "SYNTHETIC-FORBIDDEN"}, cleared_inspectors["defaults"]["revision"])
     assert error.value.code == "UNKNOWN_SHARED_DEFAULT_FIELD"
     assert repository.get()["document_number"] == ""
+
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        repository.patch({
+            "document_number_template": {"prefix": "SYNTHETIC-MISSING-SUFFIX"},
+        }, repository.get()["revision"], allow_clear=True)
+    assert error.value.code == "INVALID_SHARED_DEFAULTS"
 
 
 def test_entrust_unit_prefix_can_be_persisted_and_cleared(tmp_path: Path):
@@ -110,6 +139,8 @@ def test_parser_non_empty_values_win_over_shared_defaults_without_mutating_input
         "inspection_place": "SYNTHETIC-SHARED-PLACE",
         "inspection_method": "SYNTHETIC-SHARED-METHOD",
         "hardware_device": "SYNTHETIC-SHARED-HARDWARE",
+        "extraction_method": "SYNTHETIC-SHARED-EXTRACTION",
+        "data_summary": "SYNTHETIC-SHARED-SUMMARY",
         "inspector_order": ["SYNTHETIC-SHARED|SYNTHETIC-SHARED-UNIT|SYNTHETIC-999"],
         "disc_number_prefix": "ABC",
     }
@@ -153,6 +184,7 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
         "inspection_place": "SYNTHETIC-SHARED-PLACE",
         "inspection_method": "SYNTHETIC-SHARED-METHOD",
         "hardware_device": "SYNTHETIC-SHARED-HARDWARE",
+        "extraction_method": "SYNTHETIC-SHARED-EXTRACTION",
         "inspector_order": [
             "SYNTHETIC-A|SYNTHETIC-UNIT-A|SYNTHETIC-001",
             "SYNTHETIC-B|SYNTHETIC-UNIT-B|SYNTHETIC-002",
@@ -167,6 +199,7 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
     assert initialized["introduction"]["inspection_place"] == "SYNTHETIC-SHARED-PLACE"
     assert initialized["inspection"]["method"] == "SYNTHETIC-SHARED-METHOD"
     assert initialized["inspection"]["hardware_device"] == "SYNTHETIC-SHARED-HARDWARE"
+    assert initialized["attachments"]["extraction_method"] == "SYNTHETIC-SHARED-EXTRACTION"
     assert initialized["introduction"]["inspectors"] == [
             {"name": "SYNTHETIC-A", "unit": "SYNTHETIC-UNIT-A", "position": "", "badge_number": "SYNTHETIC-001"},
             {"name": "SYNTHETIC-B", "unit": "SYNTHETIC-UNIT-B", "position": "", "badge_number": "SYNTHETIC-002"},
@@ -182,6 +215,7 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
         "introduction.inspection_place",
         "inspection.method",
         "inspection.hardware_device",
+        "attachments.extraction_method",
         "introduction.inspectors",
     ))
 
@@ -276,7 +310,11 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
     )
     repository = SharedDefaultsRepository(database)
     first_defaults = repository.patch(
-        {"inspection_place": "SYNTHETIC-FIRST-PLACE", "hash_algorithm": "sha1"},
+        {
+            "inspection_place": "SYNTHETIC-FIRST-PLACE", "hash_algorithm": "sha1",
+            "extraction_method": "SYNTHETIC-FIRST-EXTRACTION",
+            "data_summary": "SYNTHETIC-FIRST-SUMMARY",
+        },
         repository.get()["revision"],
     )["defaults"]
     blank_report = {
@@ -288,7 +326,11 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
     existing_case, _ = _initialize_draft(blank_report, first_defaults)
 
     second_defaults = repository.patch(
-        {"inspection_place": "SYNTHETIC-SECOND-PLACE", "hash_algorithm": "sha256"},
+        {
+            "inspection_place": "SYNTHETIC-SECOND-PLACE", "hash_algorithm": "sha256",
+            "extraction_method": "SYNTHETIC-SECOND-EXTRACTION",
+            "data_summary": "SYNTHETIC-SECOND-SUMMARY",
+        },
         first_defaults["revision"],
     )["defaults"]
     later_case, _ = _initialize_draft(blank_report, second_defaults)
@@ -297,6 +339,39 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
     assert later_case["introduction"]["inspection_place"] == "SYNTHETIC-SECOND-PLACE"
     assert existing_case["inspection"]["result"]["hash_algorithm"] == "sha1"
     assert later_case["inspection"]["result"]["hash_algorithm"] == "sha256"
+    assert existing_case["attachments"]["extraction_method"] == "SYNTHETIC-FIRST-EXTRACTION"
+    assert later_case["attachments"]["extraction_method"] == "SYNTHETIC-SECOND-EXTRACTION"
+    assert existing_case["inspection"]["result"]["data_summary"] == "SYNTHETIC-FIRST-SUMMARY"
+    assert later_case["inspection"]["result"]["data_summary"] == "SYNTHETIC-SECOND-SUMMARY"
+
+
+def test_parser_system_data_summary_yields_to_shared_default_and_real_value_wins():
+    base = {
+        "document_number": "",
+        "introduction": {"inspection_place": "", "inspectors": []},
+        "inspection": {
+            "method": "", "hardware_device": "",
+            "result": {"data_summary": DEFAULT_DATA_SUMMARY},
+        },
+        "attachments": {"disc_number": ""},
+    }
+    defaults = {"data_summary": "SYNTHETIC-SHARED-SUMMARY", "inspector_order": []}
+
+    initialized, field_states = _initialize_draft(copy.deepcopy(base), defaults)
+    assert initialized["inspection"]["result"]["data_summary"] == "SYNTHETIC-SHARED-SUMMARY"
+    assert field_states["inspection.result.data_summary"]["source"] == "system_default"
+
+    real_report = copy.deepcopy(base)
+    real_report["inspection"]["result"]["data_summary"] = "SYNTHETIC-PARSER-SUMMARY"
+    real, real_states = _initialize_draft(real_report, defaults)
+    assert real["inspection"]["result"]["data_summary"] == "SYNTHETIC-PARSER-SUMMARY"
+    assert real_states["inspection.result.data_summary"]["source"] == "report"
+
+    blank_report = copy.deepcopy(base)
+    blank_report["inspection"]["result"]["data_summary"] = "   "
+    fallback, fallback_states = _initialize_draft(blank_report, {"data_summary": ""})
+    assert fallback["inspection"]["result"]["data_summary"] == DEFAULT_DATA_SUMMARY
+    assert fallback_states["inspection.result.data_summary"]["source"] == "system_default"
 
 
 def test_shared_default_rejects_unsupported_hash_algorithm(tmp_path: Path):
@@ -342,6 +417,66 @@ def test_parser_system_default_value_yields_to_shared_default():
         "inspection.method",
         "inspection.hardware_device",
     ))
+
+
+def test_document_number_template_is_snapshotted_for_new_case_and_waits_for_sequence():
+    report = {
+        "document_number": DEFAULT_DOCUMENT_NUMBER,
+        "introduction": {"inspection_place": "", "inspectors": []},
+        "inspection": {
+            "method": "", "hardware_device": "",
+            "result": {"data_summary": DEFAULT_DATA_SUMMARY},
+        },
+        "attachments": {"disc_number": ""},
+    }
+    defaults = {
+        "document_number": "SYNTHETIC-LEGACY-DOCUMENT-NUMBER",
+        "document_number_template": {
+            "prefix": "SYN-TEST〔2026〕", "suffix": "号",
+        },
+        "inspector_order": [],
+    }
+
+    initialized, field_states = _initialize_draft(copy.deepcopy(report), defaults)
+
+    assert initialized["document_number"] == ""
+    assert initialized["document_number_template"] == {
+        "prefix": "SYN-TEST〔2026〕", "suffix": "号",
+    }
+    assert field_states["document_number"]["source"] == "system_default"
+    assert field_states["document_number"]["confirmation"] == "pending"
+
+    changed_defaults = copy.deepcopy(defaults)
+    changed_defaults["document_number_template"] = {
+        "prefix": "SYN-TEST〔2027〕", "suffix": "号",
+    }
+    later_case, _ = _initialize_draft(copy.deepcopy(report), changed_defaults)
+    assert initialized["document_number_template"]["prefix"] == "SYN-TEST〔2026〕"
+    assert later_case["document_number_template"]["prefix"] == "SYN-TEST〔2027〕"
+
+
+def test_real_parser_document_number_is_not_replaced_by_document_number_template():
+    report = {
+        "document_number": "SYNTHETIC-PARSER-DOC",
+        "introduction": {"inspection_place": "", "inspectors": []},
+        "inspection": {"method": "", "hardware_device": ""},
+        "attachments": {"disc_number": ""},
+    }
+    defaults = {
+        "document_number_template": {
+            "prefix": "SYN-TEST〔2026〕", "suffix": "号",
+        },
+        "inspector_order": [],
+    }
+
+    initialized, field_states = _initialize_draft(copy.deepcopy(report), defaults)
+
+    assert initialized["document_number"] == "SYNTHETIC-PARSER-DOC"
+    assert initialized["document_number_template"] == {
+        "prefix": "SYN-TEST〔2026〕", "suffix": "号",
+    }
+    assert field_states["document_number"]["source"] == "report"
+    assert field_states["document_number"]["confirmation"] == "confirmed"
 
 
 def test_environment_projection_uses_hardware_after_shared_default_selection():

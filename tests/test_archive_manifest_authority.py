@@ -117,6 +117,18 @@ def test_verified_attachment_projection_fills_extraction_method_before_review_is
     }
 
 
+def test_verified_attachment_projection_prefers_case_extraction_method_snapshot():
+    incomplete = report()
+    incomplete["inspection"].pop("primary_software")
+    incomplete["attachments"]["extraction_method"] = "SYNTHETIC/CUSTOM-EXTRACTION-METHOD"
+
+    projection = project_verified_manifest_to_legacy_attachments(incomplete, manifest())
+
+    assert {
+        row["extraction_method"] for row in projection["extract_list"]["rows"]
+    } == {"SYNTHETIC/CUSTOM-EXTRACTION-METHOD"}
+
+
 def test_verified_manifest_backfills_existing_report_result_fields():
     projected = apply_verified_archive_result(report(), manifest())
     result = projected["inspection"]["result"]

@@ -138,6 +138,17 @@ def test_attachment1_has_complete_source_and_method_on_every_page():
     assert all("将检出数据生成报告" in page.extraction_method for page in plan.attachment1_pages)
 
 
+def test_attachment1_prefers_case_extraction_method_snapshot():
+    current = report(2)
+    current["attachments"]["extraction_method"] = "SYNTHETIC/CUSTOM-EXTRACTION-METHOD"
+
+    plan = build_attachment_plan(manifest(2), current)
+
+    assert {
+        page.extraction_method for page in plan.attachment1_pages
+    } == {"SYNTHETIC/CUSTOM-EXTRACTION-METHOD"}
+
+
 @pytest.mark.parametrize("inspector_count", [0, 1, 4, 5, 8, 20, 21])
 def test_inspectors_do_not_change_attachment1_plan_or_create_overflow(inspector_count):
     plan = build_attachment_plan(manifest(5), report(inspector_count))

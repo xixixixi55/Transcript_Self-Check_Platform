@@ -786,6 +786,37 @@ body {
   grid-column: 1 / -1;
 }
 
+.shared-defaults-settings__document-number-format {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(120px, 0.45fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.shared-defaults-settings__document-number-slot {
+  padding: 5px 10px;
+  border: 1px solid var(--review-border);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--review-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.shared-defaults-settings__document-number-example {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--review-muted);
+  font-size: 12px;
+}
+
+.shared-defaults-settings__document-number-example strong {
+  color: var(--review-text);
+  font-weight: 500;
+}
+
 .shared-defaults-settings__catalog-error {
   grid-column: 1 / -1;
   margin: -12px 0 20px;
@@ -866,6 +897,14 @@ body {
 
   .shared-defaults-settings__wide {
     grid-column: auto;
+  }
+
+  .shared-defaults-settings__document-number-format {
+    grid-template-columns: 1fr;
+  }
+
+  .shared-defaults-settings__document-number-slot {
+    justify-self: start;
   }
 
   .shared-defaults-settings__section-heading {

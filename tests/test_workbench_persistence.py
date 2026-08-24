@@ -248,6 +248,33 @@ def test_draft_requires_complete_legacy_report_and_opaque_archive_plan(database:
         repository.save({"case_id": CASE_ID, "report": REPORT, "archive_plan_id": "C:\\SYNTHETIC\\plan", "asset_refs": [], "field_states": {}})
 
 
+def test_draft_persists_only_a_bounded_document_number_template(database: WorkbenchDatabase) -> None:
+    create_shell(database)
+    CaseShellRepository(database).update_lifecycle(CASE_ID, "parsing", 0)
+    repository = CaseDraftRepository(database)
+    report = {
+        **REPORT,
+        "document_number_template": {
+            "prefix": "SYN-TEST〔2026〕", "suffix": "号",
+        },
+    }
+
+    repository.save({
+        "case_id": CASE_ID, "report": report, "asset_refs": [], "field_states": {},
+    })
+    assert repository.get(CASE_ID)["report"]["document_number_template"] == {
+        "prefix": "SYN-TEST〔2026〕", "suffix": "号",
+    }
+
+    with pytest.raises(WorkbenchPersistenceError) as invalid:
+        repository.save({
+            "case_id": CASE_ID,
+            "report": {**REPORT, "document_number_template": {"prefix": "SYNTHETIC"}},
+            "asset_refs": [], "field_states": [],
+        }, expected_revision=1)
+    assert invalid.value.code == "INVALID_LEGACY_REPORT"
+
+
 def test_corrupt_legacy_report_is_not_returned_as_reviewable_draft(database: WorkbenchDatabase) -> None:
     create_shell(database)
     CaseShellRepository(database).update_lifecycle(CASE_ID, "parsing", 0)
