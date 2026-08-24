@@ -548,8 +548,11 @@ unreferenced temporary assets are removed after a grace period.
 `SharedDefaults` is backend-persisted and deployment-scoped for the current local
 operator; this scope does not provide or claim multi-user isolation. Its editable
 business values are limited to entrust-unit prefix, document-number template,
-inspection place, inspection method, hardware device, data summary, attachment-1
-extraction method, ordered inspector snapshots and a `md5 | sha1 | sha256` hash algorithm.
+inspection place, inspection method, hardware device, data summary, inspection
+requirement, ordered inspector snapshots and a `md5 | sha1 | sha256` hash algorithm.
+Legacy attachment-1 extraction-method values remain readable for persisted deployment
+compatibility, but the centralized settings page does not display or submit them and
+new-case initialization does not consume them.
 The legacy complete document number and disc-number prefix remain API-compatible
 persisted values but are not edited by the centralized settings page.
 The algorithm defaults to MD5, is snapshotted into each later new case, and never

@@ -13,7 +13,7 @@ export interface SharedDefaultsFormValues {
   inspectionMethod: string
   hardwareDevice: string
   inspectors: InspectorSnapshot[]
-  extractionMethod: string
+  inspectionRequirement: string
   dataSummary: string
   hashAlgorithm: HashAlgorithm
 }
@@ -38,7 +38,7 @@ export function sharedDefaultsToForm(defaults: SharedDefaults): SharedDefaultsFo
     inspectionMethod: defaults.inspection_method,
     hardwareDevice: defaults.hardware_device,
     inspectors: defaults.inspector_order.map(parseInspector),
-    extractionMethod: defaults.extraction_method || '',
+    inspectionRequirement: defaults.inspection_requirement || '',
     dataSummary: defaults.data_summary || '',
     hashAlgorithm: defaults.hash_algorithm || 'md5',
   }
@@ -65,7 +65,7 @@ export function sharedDefaultsPatch(
     inspector_order: values.inspectors.map(item => (
       `${item.name.trim()}|${item.unit.trim()}|${(item.position || '').trim()}|${item.police_number.trim()}`
     )),
-    extraction_method: values.extractionMethod,
+    inspection_requirement: values.inspectionRequirement,
     data_summary: values.dataSummary,
     hash_algorithm: values.hashAlgorithm,
   }

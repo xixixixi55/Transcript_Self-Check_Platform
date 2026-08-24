@@ -43,6 +43,7 @@ const defaults = {
   hardware_device: 'SYNTHETIC-DEVICE',
   inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-POSITION|SYNTHETIC-001'],
   disc_number_prefix: 'GP', extraction_method: 'SYNTHETIC-EXTRACTION-METHOD',
+  inspection_requirement: 'SYNTHETIC-INSPECTION-REQUIREMENT',
   data_summary: 'SYNTHETIC-DATA-SUMMARY',
   hash_algorithm: 'md5', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
 }
@@ -75,7 +76,8 @@ describe('SharedDefaultsSettingsForm', () => {
     expect(await screen.findByDisplayValue('SYN-TEST〔2026〕')).toBeTruthy()
     expect(screen.getByDisplayValue('号')).toBeTruthy()
     expect(screen.getByText('SYN-TEST〔2026〕142号')).toBeTruthy()
-    expect((screen.getByLabelText('提取方式') as HTMLTextAreaElement).value).toBe('SYNTHETIC-EXTRACTION-METHOD')
+    expect((screen.getByLabelText('检查要求') as HTMLTextAreaElement).value).toBe('SYNTHETIC-INSPECTION-REQUIREMENT')
+    expect(screen.queryByLabelText('提取方式')).toBeNull()
     expect((screen.getByLabelText('数据摘要') as HTMLTextAreaElement).value).toBe('SYNTHETIC-DATA-SUMMARY')
     expect(screen.getByText('SYNTHETIC-NAME')).toBeTruthy()
     expect(screen.queryByLabelText('光盘编号前缀')).toBeNull()
@@ -99,13 +101,14 @@ describe('SharedDefaultsSettingsForm', () => {
           document_number: '',
           document_number_template: { prefix: '', suffix: '' },
           inspector_order: [],
-          extraction_method: 'SYNTHETIC-EXTRACTION-METHOD', hash_algorithm: 'sha256',
+          inspection_requirement: 'SYNTHETIC-INSPECTION-REQUIREMENT', hash_algorithm: 'sha256',
           data_summary: '',
         }),
       }),
     ))
     const request = putMock.mock.calls[0]?.[1] as { values?: Record<string, unknown> }
     expect(request.values).not.toHaveProperty('disc_number_prefix')
+    expect(request.values).not.toHaveProperty('extraction_method')
     expect(await screen.findByText('笔录默认设置已保存')).toBeTruthy()
   })
 

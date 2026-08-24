@@ -20,6 +20,7 @@ from .report_defaults_service import (
     DEFAULT_HARDWARE_DEVICE,
     DEFAULT_INSPECTION_METHOD,
     DEFAULT_INSPECTION_PLACE,
+    DEFAULT_INSPECTION_REQUIREMENT,
 )
 from .disc_sequence_service import apply_disc_sequence_to_attachments
 from .case_order_service import CaseOrderService
@@ -203,9 +204,18 @@ def _initialize_draft(
         _write_path(
             value, ("inspection", "result", "data_summary"), DEFAULT_DATA_SUMMARY,
         )
+    inspection_requirement_current = _read_path(
+        value, ("introduction", "inspection_requirement"),
+    )
+    if inspection_requirement_current is None or not str(inspection_requirement_current).strip():
+        _write_path(
+            value, ("introduction", "inspection_requirement"),
+            DEFAULT_INSPECTION_REQUIREMENT,
+        )
     candidates = (
         ("introduction.entrust_unit_prefix", ("introduction", "entrust_unit_prefix"), defaults.get("entrust_unit_prefix"), None),
         ("introduction.inspection_place", ("introduction", "inspection_place"), defaults.get("inspection_place"), DEFAULT_INSPECTION_PLACE),
+        ("introduction.inspection_requirement", ("introduction", "inspection_requirement"), defaults.get("inspection_requirement"), DEFAULT_INSPECTION_REQUIREMENT),
         ("inspection.method", ("inspection", "method"), defaults.get("inspection_method"), DEFAULT_INSPECTION_METHOD),
         ("inspection.hardware_device", ("inspection", "hardware_device"), defaults.get("hardware_device"), DEFAULT_HARDWARE_DEVICE),
         ("inspection.result.data_summary", ("inspection", "result", "data_summary"), defaults.get("data_summary"), DEFAULT_DATA_SUMMARY),
@@ -254,7 +264,7 @@ def _initialize_draft(
     attachments = value.setdefault("attachments", {})
     extraction_current = attachments.get("extraction_method")
     extraction_selected, extraction_source = _select_value(
-        extraction_current, defaults.get("extraction_method"),
+        extraction_current, None,
     )
     if extraction_selected is not None and (
         extraction_current is None or not str(extraction_current).strip()

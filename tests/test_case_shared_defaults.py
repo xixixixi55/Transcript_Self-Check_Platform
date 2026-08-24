@@ -23,6 +23,7 @@ from app.services.report_defaults_service import (  # noqa: E402
     DEFAULT_HARDWARE_DEVICE,
     DEFAULT_INSPECTION_METHOD,
     DEFAULT_INSPECTION_PLACE,
+    DEFAULT_INSPECTION_REQUIREMENT,
 )
 from app.services.inspection_environment_service import InspectionEnvironmentService  # noqa: E402
 from app.services.shared_defaults_service import SharedDefaultsService  # noqa: E402
@@ -33,6 +34,7 @@ def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Pa
     repository = SharedDefaultsRepository(database)
     initial = repository.get()
     assert initial["extraction_method"] == ""
+    assert initial["inspection_requirement"] == ""
     assert initial["data_summary"] == ""
     assert initial["document_number_template"] == {"prefix": "", "suffix": ""}
 
@@ -42,12 +44,14 @@ def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Pa
             "prefix": "SYN-TEST〔2026〕", "suffix": "号",
         },
         "extraction_method": "SYNTHETIC-EXTRACTION-METHOD",
+        "inspection_requirement": "SYNTHETIC-INSPECTION-REQUIREMENT",
         "data_summary": "SYNTHETIC-DATA-SUMMARY",
     }, initial["revision"])
     assert updated["status"] == "updated"
     assert updated["defaults"]["document_number"] == "SYNTHETIC-DOC-001"
     assert updated["defaults"]["inspection_place"] == ""
     assert updated["defaults"]["extraction_method"] == "SYNTHETIC-EXTRACTION-METHOD"
+    assert updated["defaults"]["inspection_requirement"] == "SYNTHETIC-INSPECTION-REQUIREMENT"
     assert updated["defaults"]["data_summary"] == "SYNTHETIC-DATA-SUMMARY"
     assert updated["defaults"]["document_number_template"] == {
         "prefix": "SYN-TEST〔2026〕", "suffix": "号",
@@ -64,10 +68,11 @@ def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Pa
     assert cleared["defaults"]["inspection_place"] == "SYNTHETIC-PLACE"
 
     cleared_method = repository.patch(
-        {"extraction_method": "   ", "data_summary": "   "},
+        {"extraction_method": "   ", "inspection_requirement": "   ", "data_summary": "   "},
         cleared["defaults"]["revision"], allow_clear=True,
     )
     assert cleared_method["defaults"]["extraction_method"] == ""
+    assert cleared_method["defaults"]["inspection_requirement"] == ""
     assert cleared_method["defaults"]["data_summary"] == ""
 
     with_inspectors = repository.patch(
@@ -122,6 +127,7 @@ def test_parser_non_empty_values_win_over_shared_defaults_without_mutating_input
         "document_number": "SYNTHETIC-PARSER-DOC",
         "introduction": {
             "inspection_place": "SYNTHETIC-PARSER-PLACE",
+            "inspection_requirement": "SYNTHETIC-PARSER-REQUIREMENT",
             "inspectors": [
                 {"name": "SYNTHETIC-PARSER-A", "unit": "SYNTHETIC-UNIT-A", "badge_number": "SYNTHETIC-001"},
                 {"name": "SYNTHETIC-PARSER-B", "unit": "SYNTHETIC-UNIT-B", "badge_number": "SYNTHETIC-002"},
@@ -140,6 +146,7 @@ def test_parser_non_empty_values_win_over_shared_defaults_without_mutating_input
         "inspection_method": "SYNTHETIC-SHARED-METHOD",
         "hardware_device": "SYNTHETIC-SHARED-HARDWARE",
         "extraction_method": "SYNTHETIC-SHARED-EXTRACTION",
+        "inspection_requirement": "SYNTHETIC-SHARED-REQUIREMENT",
         "data_summary": "SYNTHETIC-SHARED-SUMMARY",
         "inspector_order": ["SYNTHETIC-SHARED|SYNTHETIC-SHARED-UNIT|SYNTHETIC-999"],
         "disc_number_prefix": "ABC",
@@ -151,6 +158,7 @@ def test_parser_non_empty_values_win_over_shared_defaults_without_mutating_input
 
     assert initialized["document_number"] == "SYNTHETIC-PARSER-DOC"
     assert initialized["introduction"]["inspection_place"] == "SYNTHETIC-PARSER-PLACE"
+    assert initialized["introduction"]["inspection_requirement"] == "SYNTHETIC-PARSER-REQUIREMENT"
     assert initialized["inspection"]["method"] == "SYNTHETIC-PARSER-METHOD"
     assert initialized["inspection"]["hardware_device"] == "SYNTHETIC-PARSER-HARDWARE"
     assert initialized["introduction"]["inspectors"] == original_report["introduction"]["inspectors"]
@@ -159,6 +167,7 @@ def test_parser_non_empty_values_win_over_shared_defaults_without_mutating_input
     assert all(field_states[path]["source"] == "report" for path in (
         "document_number",
         "introduction.inspection_place",
+        "introduction.inspection_requirement",
         "inspection.method",
         "inspection.hardware_device",
         "introduction.inspectors",
@@ -171,7 +180,7 @@ def test_parser_non_empty_values_win_over_shared_defaults_without_mutating_input
 def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
     report = {
         "document_number": "   ",
-        "introduction": {"inspection_place": "", "inspectors": []},
+        "introduction": {"inspection_place": "", "inspection_requirement": "", "inspectors": []},
         "inspection": {
             "hardware_device": "\t",
             "result": {"data_summary": "SYNTHETIC-UNCHANGED-SUMMARY"},
@@ -185,6 +194,7 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
         "inspection_method": "SYNTHETIC-SHARED-METHOD",
         "hardware_device": "SYNTHETIC-SHARED-HARDWARE",
         "extraction_method": "SYNTHETIC-SHARED-EXTRACTION",
+        "inspection_requirement": "SYNTHETIC-SHARED-REQUIREMENT",
         "inspector_order": [
             "SYNTHETIC-A|SYNTHETIC-UNIT-A|SYNTHETIC-001",
             "SYNTHETIC-B|SYNTHETIC-UNIT-B|SYNTHETIC-002",
@@ -197,9 +207,10 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
     assert initialized["introduction"]["entrust_unit_prefix"] == "SYNTHETIC-PREFIX"
     assert initialized["document_number"] == "SYNTHETIC-DOC-001"
     assert initialized["introduction"]["inspection_place"] == "SYNTHETIC-SHARED-PLACE"
+    assert initialized["introduction"]["inspection_requirement"] == "SYNTHETIC-SHARED-REQUIREMENT"
     assert initialized["inspection"]["method"] == "SYNTHETIC-SHARED-METHOD"
     assert initialized["inspection"]["hardware_device"] == "SYNTHETIC-SHARED-HARDWARE"
-    assert initialized["attachments"]["extraction_method"] == "SYNTHETIC-SHARED-EXTRACTION"
+    assert "extraction_method" not in initialized["attachments"]
     assert initialized["introduction"]["inspectors"] == [
             {"name": "SYNTHETIC-A", "unit": "SYNTHETIC-UNIT-A", "position": "", "badge_number": "SYNTHETIC-001"},
             {"name": "SYNTHETIC-B", "unit": "SYNTHETIC-UNIT-B", "position": "", "badge_number": "SYNTHETIC-002"},
@@ -213,9 +224,9 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
         "introduction.entrust_unit_prefix",
         "document_number",
         "introduction.inspection_place",
+        "introduction.inspection_requirement",
         "inspection.method",
         "inspection.hardware_device",
-        "attachments.extraction_method",
         "introduction.inspectors",
     ))
 
@@ -312,7 +323,7 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
     first_defaults = repository.patch(
         {
             "inspection_place": "SYNTHETIC-FIRST-PLACE", "hash_algorithm": "sha1",
-            "extraction_method": "SYNTHETIC-FIRST-EXTRACTION",
+            "inspection_requirement": "SYNTHETIC-FIRST-REQUIREMENT",
             "data_summary": "SYNTHETIC-FIRST-SUMMARY",
         },
         repository.get()["revision"],
@@ -328,7 +339,7 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
     second_defaults = repository.patch(
         {
             "inspection_place": "SYNTHETIC-SECOND-PLACE", "hash_algorithm": "sha256",
-            "extraction_method": "SYNTHETIC-SECOND-EXTRACTION",
+            "inspection_requirement": "SYNTHETIC-SECOND-REQUIREMENT",
             "data_summary": "SYNTHETIC-SECOND-SUMMARY",
         },
         first_defaults["revision"],
@@ -339,8 +350,8 @@ def test_shared_default_change_only_affects_later_new_case_initialization(tmp_pa
     assert later_case["introduction"]["inspection_place"] == "SYNTHETIC-SECOND-PLACE"
     assert existing_case["inspection"]["result"]["hash_algorithm"] == "sha1"
     assert later_case["inspection"]["result"]["hash_algorithm"] == "sha256"
-    assert existing_case["attachments"]["extraction_method"] == "SYNTHETIC-FIRST-EXTRACTION"
-    assert later_case["attachments"]["extraction_method"] == "SYNTHETIC-SECOND-EXTRACTION"
+    assert existing_case["introduction"]["inspection_requirement"] == "SYNTHETIC-FIRST-REQUIREMENT"
+    assert later_case["introduction"]["inspection_requirement"] == "SYNTHETIC-SECOND-REQUIREMENT"
     assert existing_case["inspection"]["result"]["data_summary"] == "SYNTHETIC-FIRST-SUMMARY"
     assert later_case["inspection"]["result"]["data_summary"] == "SYNTHETIC-SECOND-SUMMARY"
 
@@ -389,7 +400,11 @@ def test_parser_system_default_value_yields_to_shared_default():
     """Parser returning only the hardcoded system defaults must not block shared-default prefill."""
     report = {
         "document_number": DEFAULT_DOCUMENT_NUMBER,
-        "introduction": {"inspection_place": DEFAULT_INSPECTION_PLACE, "inspectors": []},
+        "introduction": {
+            "inspection_place": DEFAULT_INSPECTION_PLACE,
+            "inspection_requirement": DEFAULT_INSPECTION_REQUIREMENT,
+            "inspectors": [],
+        },
         "inspection": {
             "method": DEFAULT_INSPECTION_METHOD,
             "hardware_device": DEFAULT_HARDWARE_DEVICE,
@@ -399,6 +414,7 @@ def test_parser_system_default_value_yields_to_shared_default():
     defaults = {
         "document_number": "SYNTHETIC-SHARED-DOC",
         "inspection_place": "SYNTHETIC-SHARED-PLACE",
+        "inspection_requirement": "SYNTHETIC-SHARED-REQUIREMENT",
         "inspection_method": "SYNTHETIC-SHARED-METHOD",
         "hardware_device": "SYNTHETIC-SHARED-HARDWARE",
         "inspector_order": [],
@@ -409,11 +425,13 @@ def test_parser_system_default_value_yields_to_shared_default():
 
     assert initialized["document_number"] == "SYNTHETIC-SHARED-DOC"
     assert initialized["introduction"]["inspection_place"] == "SYNTHETIC-SHARED-PLACE"
+    assert initialized["introduction"]["inspection_requirement"] == "SYNTHETIC-SHARED-REQUIREMENT"
     assert initialized["inspection"]["method"] == "SYNTHETIC-SHARED-METHOD"
     assert initialized["inspection"]["hardware_device"] == "SYNTHETIC-SHARED-HARDWARE"
     assert all(field_states[path]["source"] == "system_default" for path in (
         "document_number",
         "introduction.inspection_place",
+        "introduction.inspection_requirement",
         "inspection.method",
         "inspection.hardware_device",
     ))
@@ -538,7 +556,11 @@ def test_parser_system_default_value_kept_when_no_shared_default():
     """Without a shared default, the parser's system default remains and is sourced as system_default."""
     report = {
         "document_number": DEFAULT_DOCUMENT_NUMBER,
-        "introduction": {"inspection_place": DEFAULT_INSPECTION_PLACE, "inspectors": []},
+        "introduction": {
+            "inspection_place": DEFAULT_INSPECTION_PLACE,
+            "inspection_requirement": DEFAULT_INSPECTION_REQUIREMENT,
+            "inspectors": [],
+        },
         "inspection": {
             "method": DEFAULT_INSPECTION_METHOD,
             "hardware_device": DEFAULT_HARDWARE_DEVICE,
@@ -554,11 +576,13 @@ def test_parser_system_default_value_kept_when_no_shared_default():
 
     assert initialized["document_number"] == DEFAULT_DOCUMENT_NUMBER
     assert initialized["introduction"]["inspection_place"] == DEFAULT_INSPECTION_PLACE
+    assert initialized["introduction"]["inspection_requirement"] == DEFAULT_INSPECTION_REQUIREMENT
     assert initialized["inspection"]["method"] == DEFAULT_INSPECTION_METHOD
     assert initialized["inspection"]["hardware_device"] == DEFAULT_HARDWARE_DEVICE
     assert all(field_states[path]["source"] == "system_default" for path in (
         "document_number",
         "introduction.inspection_place",
+        "introduction.inspection_requirement",
         "inspection.method",
         "inspection.hardware_device",
     ))

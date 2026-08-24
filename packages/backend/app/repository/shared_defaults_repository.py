@@ -21,6 +21,7 @@ _DEFAULT_VALUES = {
     "inspector_order": [],
     "extraction_method": "",
     "data_summary": "",
+    "inspection_requirement": "",
     "disc_number_prefix": "",
     "hash_algorithm": "md5",
     "default_template_ref": None,
@@ -166,7 +167,8 @@ def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
         raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
     for key in (
         "entrust_unit_prefix", "document_number", "inspection_place", "inspection_method",
-        "hardware_device", "extraction_method", "data_summary", "disc_number_prefix",
+        "hardware_device", "extraction_method", "data_summary", "inspection_requirement",
+        "disc_number_prefix",
     ):
         validate_safe_string(normalized[key], "INVALID_SHARED_DEFAULTS")
     for item in normalized["inspector_order"]:
@@ -196,7 +198,8 @@ def _normalize_patch(values: Mapping[str, Any], *, allow_clear: bool = False) ->
     normalized: dict[str, Any] = {}
     scalar_keys = (
         "entrust_unit_prefix", "document_number", "inspection_place", "inspection_method",
-        "hardware_device", "extraction_method", "data_summary", "disc_number_prefix",
+        "hardware_device", "extraction_method", "data_summary", "inspection_requirement",
+        "disc_number_prefix",
     )
     for key in scalar_keys:
         if key not in values:

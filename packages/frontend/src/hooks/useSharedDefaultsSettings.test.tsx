@@ -19,6 +19,7 @@ const defaults: SharedDefaults = {
   hardware_device: 'SYNTHETIC-DEVICE',
   inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-POSITION|SYNTHETIC-001'],
   disc_number_prefix: 'GP', extraction_method: 'SYNTHETIC-EXTRACTION-METHOD',
+  inspection_requirement: 'SYNTHETIC-INSPECTION-REQUIREMENT',
   data_summary: 'SYNTHETIC-DATA-SUMMARY',
   hash_algorithm: 'sha256', migration_decision: 'ignored', updated_at: '2026-08-23T00:00:00Z',
 }
@@ -41,11 +42,12 @@ describe('useSharedDefaultsSettings', () => {
       document_number: '',
       document_number_template: { prefix: 'SYN-TEST〔2027〕', suffix: '号' },
       inspector_order: ['SYNTHETIC-NAME|SYNTHETIC-UNIT|SYNTHETIC-POSITION|SYNTHETIC-001'],
-      extraction_method: 'SYNTHETIC-EXTRACTION-METHOD',
+      inspection_requirement: 'SYNTHETIC-INSPECTION-REQUIREMENT',
       data_summary: 'SYNTHETIC-DATA-SUMMARY',
       hash_algorithm: 'sha256',
     }))
     expect(sharedDefaultsPatch(values, defaults.document_number, true)).not.toHaveProperty('disc_number_prefix')
+    expect(sharedDefaultsPatch(values, defaults.document_number, true)).not.toHaveProperty('extraction_method')
 
     await act(async () => { await result.current.save(values) })
 

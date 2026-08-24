@@ -5,6 +5,7 @@ DEFAULT_DOCUMENT_NUMBER = "SYN-TEST〔2026〕000号"
 DEFAULT_INSPECTION_PLACE = "合成检验鉴定中心"
 DEFAULT_INSPECTION_METHOD = "采用 GA/T 1069-2021《法庭科学电子物证手机检验技术规范》进行检查。"
 DEFAULT_HARDWARE_DEVICE = "美亚FL-901手机取证塔"
+DEFAULT_INSPECTION_REQUIREMENT = "上述检材内电子数据的提取、固定和恢复"
 
 
 def normalize_data_summary(value) -> str:

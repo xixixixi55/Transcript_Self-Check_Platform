@@ -174,9 +174,9 @@ export function SharedDefaultsSettingsForm() {
               <Input.TextArea maxLength={1000} rows={3}
                 placeholder="输入默认数据摘要" allowClear showCount />
             </Form.Item>
-            <Form.Item className="shared-defaults-settings__wide" name="extractionMethod" label="提取方式">
+            <Form.Item className="shared-defaults-settings__wide" name="inspectionRequirement" label="检查要求">
               <Input.TextArea maxLength={2000} rows={4}
-                placeholder="输入附件1默认提取方式" allowClear showCount />
+                placeholder="输入默认检查要求" allowClear showCount />
             </Form.Item>
             <Form.Item name="hashAlgorithm" label="文件哈希算法">
               <Radio.Group className="shared-defaults-settings__hash-options"

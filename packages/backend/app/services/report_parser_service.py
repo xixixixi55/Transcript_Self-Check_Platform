@@ -38,6 +38,7 @@ from .report_defaults_service import (
     DEFAULT_HARDWARE_DEVICE,
     DEFAULT_INSPECTION_METHOD,
     DEFAULT_INSPECTION_PLACE,
+    DEFAULT_INSPECTION_REQUIREMENT,
 )
 from .material_policy_service import material_from_legacy_item, select_display_identifiers
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
@@ -398,7 +399,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "entrust_time": "",
             "case_summary": _format_case_summary(normalized_case_name),
             "evidence_list": evidence_items,
-            "inspection_requirement": "上述检材内电子数据的提取、固定和恢复",
+            "inspection_requirement": DEFAULT_INSPECTION_REQUIREMENT,
             "inspection_time_range": time_range,
             "inspectors": [],
             "inspection_place": DEFAULT_INSPECTION_PLACE,

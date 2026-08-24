@@ -116,7 +116,9 @@ export interface SharedDefaults {
   inspection_method: string
   hardware_device: string
   inspector_order: string[]
-  /** Optional only for compatibility with responses created before this field existed. */
+  /** Defaults for later new cases; legacy deployments may omit it. */
+  inspection_requirement?: string
+  /** Retained only for persisted deployment compatibility; the settings page no longer edits it. */
   extraction_method?: string
   /** Defaults for later new cases; legacy deployments may omit it. */
   data_summary?: string

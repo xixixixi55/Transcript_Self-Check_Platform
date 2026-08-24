@@ -2,7 +2,7 @@
 
 workflow_level: 2
 spec_sync_status: reconciled
-spec_sync_evidence: 数据摘要默认值最终行为已同步到 electronic-inspection-record REQ-007 与 data-model SharedDefaults 合同
+spec_sync_evidence: 检查要求替换提取方式的最终行为已同步到 electronic-inspection-record REQ-007 与 data-model SharedDefaults 合同
 
 > Spec: `openspec/changes/centralize-shared-default-settings/specs/electronic-inspection-record/spec.md`
 
@@ -16,11 +16,11 @@ spec_sync_evidence: 数据摘要默认值最终行为已同步到 electronic-ins
 ## 目标行为
 
 - 左侧“电子数据检查笔录”子菜单在“笔录模版管理”下方提供六字入口“笔录默认设置”，路由为 `/electronic-inspection/defaults`。
-- 独立页面从 `/api/v1/workbench/defaults` 读取并展示九项可配置业务默认值：委托单位前缀、文号格式、检查地点、检查方法、检查硬件设备、数据摘要、附件1提取方式、有序检查人员和文件哈希算法；文号格式由编号前内容和编号后内容组成，不再展示或提交光盘编号前缀。
+- 独立页面从 `/api/v1/workbench/defaults` 读取并展示九项可配置业务默认值：委托单位前缀、文号格式、检查地点、检查方法、检查硬件设备、数据摘要、检查要求、有序检查人员和文件哈希算法；文号格式由编号前内容和编号后内容组成，不再展示或提交光盘编号前缀及附件1提取方式。
 - 页面显式保存九项默认值，允许用空值清除对应默认；保存使用服务端 revision，冲突时不覆盖新值并提示重新加载。
 - 检查硬件设备只能从“电子设备管理”的当前设备中下拉选择；检查人员顺序直接复用审核编辑的人员卡片、添加、删除和拖拽排序交互。
 - 案件审核编辑页修改字段只保存当前案件，不再生成或提交共享默认值 patch。
-- 修改只影响之后创建的新案件，不回写已有案件；附件1提取方式作为案件快照供预览和正式文书使用，空值继续使用既有硬件与哈希算法生成逻辑，光盘完整编号生成逻辑保持不变。
+- 修改只影响之后创建的新案件，不回写已有案件；检查要求按 Parser 真实值优先、共享默认值次之、系统固定值兜底初始化，附件1提取方式继续使用案件值或既有硬件与哈希算法生成逻辑，光盘完整编号生成逻辑保持不变。
 - 文号格式作为新案件快照；审核编辑页对匹配该格式的案件只填写数字编号并实时形成完整文号，保留前导零；已有案件及不匹配格式的 Parser 文号继续按完整文号编辑。
 - 非空数据摘要默认值在 Parser 仅返回系统固定摘要时预填后续新案件；Parser 真实非空摘要优先，已有案件不回写，空默认值继续使用既有固定摘要。
 - `default_template_ref`、部署实例 ID、revision、迁移状态和更新时间只作为系统元数据，不在该页面开放编辑；模板默认版本继续由笔录模版管理维护。
@@ -28,7 +28,7 @@ spec_sync_evidence: 数据摘要默认值最终行为已同步到 electronic-ins
 ## 验收标准
 
 - [x] 导航入口名称、位置、路由与高亮正确，折叠和展开侧栏行为无回归。
-- [x] 页面加载九项当前值；加载失败可重试，空状态与说明明确。
+- [x] 页面加载九项当前值，其中包含检查要求且不包含附件1提取方式；加载失败可重试，空状态与说明明确。
 - [x] 保存单项、多项及清空值后，后端事实源按 revision 更新；未知字段仍整体拒绝。
 - [x] revision 冲突不覆盖服务端值，页面提供重新加载入口；保存中避免重复提交。
 - [x] 检查人员按姓名、单位、警号三段结构和显示顺序保存，非法或不完整条目不能提交。
@@ -41,6 +41,7 @@ spec_sync_evidence: 数据摘要默认值最终行为已同步到 electronic-ins
 - [x] 后续新案件固化提取方式快照，附件1预览、归档投影和正式文书优先使用该值；空值保持既有自动生成语义，已有案件不回写。
 - [x] 笔录默认设置将文号改为“编号前内容 + 编号后内容”，后续新案件固化格式快照，审核编辑只填数字编号并生成完整文号；旧案件和不匹配 Parser 文号保持兼容。
 - [x] 设置页展示并保存数据摘要默认值；新案件按 Parser 真实值 > 非空共享默认值 > 固定系统摘要初始化，已有案件不回写。
+- [x] 设置页展示并保存检查要求默认值，不展示或提交附件1提取方式；新案件按 Parser 真实值 > 非空共享默认值 > 固定系统检查要求初始化，已有案件不回写。
 
 ## 任务列表
 
@@ -116,6 +117,16 @@ spec_sync_evidence: 数据摘要默认值最终行为已同步到 electronic-ins
   - 验证：前端 Hook/组件测试覆盖加载、提交和清空；运行 Impeccable detector，不执行视觉检查。
 - [x] 核对 delta 与实现，sync living specs，并执行 `npm run verify:quick`、受影响模块测试、`npm run verify:docs:strict -- --change centralize-shared-default-settings` 与 scoped `git diff --check`。
 
+### 反馈迭代 — 检查要求替换提取方式
+
+- [x] 修改共享默认值合同与持久化：新增可保存、清空的 `inspection_requirement`；保留旧 `extraction_method` 数据读取兼容，但独立设置页不再展示或提交该字段。
+  - 验证：共享默认值持久化测试覆盖检查要求的默认值、保存、清空与未知字段拒绝。
+- [x] 修改新案件初始化：Parser 真实非空检查要求优先；Parser 固定系统检查要求、空值或缺失时使用非空共享默认值；共享值为空时回到固定系统检查要求。附件1提取方式不再读取共享默认值。
+  - 验证：后端测试覆盖检查要求优先级、已有案件不回写，以及遗留提取方式默认值不再影响新案件。
+- [x] 修改默认设置 Hook 与表单：用“检查要求”替换“提取方式”，保存请求包含 `inspection_requirement` 且不包含 `extraction_method`。
+  - 验证：前端 Hook/组件测试覆盖加载、提交、清空、字段可访问名称及提取方式隐藏；运行 Impeccable detector。
+- [x] 核对 delta 与实现，sync living specs，并执行 `npm run verify:quick`、受影响模块测试、`npm run verify:docs:strict -- --change centralize-shared-default-settings` 与 scoped `git diff --check`。
+
 ## 验证证据
 
 - 前端定向 Vitest：49 项通过；界面复核修正后 Hook/表单 5 项通过。
@@ -140,10 +151,13 @@ spec_sync_evidence: 数据摘要默认值最终行为已同步到 electronic-ins
 - 数据摘要反馈定向验证：前端 Hook/表单 2 个测试文件、7 项通过；后端共享默认值与新案初始化 17 项通过；typecheck 通过。
 - 数据摘要反馈界面检查：Impeccable detector 0 项发现；按用户要求不执行视觉检查。
 - 数据摘要反馈门控：`npm run verify:quick` 通过；scoped strict docs 14 项、0 drift；scoped `git diff --check` 通过。
+- 检查要求反馈定向验证：前端 Hook/表单 2 个测试文件、7 项通过；后端共享默认值与新案初始化 17 项通过；Python 编译检查与前端 typecheck 通过。
+- 检查要求反馈界面检查：Impeccable detector 0 项发现；字段沿用现有表单布局，无新增视觉结构，人工真实业务数据验收 N/A。
+- 检查要求反馈门控：`npm run verify:quick` 通过；scoped strict docs 14 项、0 drift；living specs 已同步；scoped `git diff --check` 通过。
 
 ## 非目标
 
-- 除文号格式和数据摘要外不新增共享默认值字段，不把案件、来源、附件、路径、归档或运行时状态纳入默认值。
+- 除文号格式、数据摘要和检查要求外不新增共享默认值字段，不把案件、来源、附件、路径、归档或运行时状态纳入默认值。
 - 不修改笔录模板默认版本的管理入口，不开放 `default_template_ref` 编辑。
 - 不修改 Parser、Word/VML、分页、Manifest、RAR 或完整光盘编号生成合同。
 - 不建立用户账户或多用户权限体系；继续使用部署实例/本地操作者作用域。
