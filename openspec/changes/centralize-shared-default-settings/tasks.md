@@ -2,7 +2,7 @@
 
 workflow_level: 2
 spec_sync_status: reconciled
-spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 已同步集中管理、显式清空、revision 冲突和案件编辑不再隐式更新默认值场景
+spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 已同步资源库设备下拉与检查人员卡片编辑器复用行为
 
 > Spec: `openspec/changes/centralize-shared-default-settings/specs/electronic-inspection-record/spec.md`
 
@@ -18,6 +18,7 @@ spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 
 - 左侧“电子数据检查笔录”子菜单在“笔录模版管理”下方提供六字入口“笔录默认设置”，路由为 `/electronic-inspection/defaults`。
 - 独立页面从 `/api/v1/workbench/defaults` 读取并展示七项可配置业务默认值：委托单位前缀、文号、检查地点、检查方法、检查硬件设备、有序检查人员和光盘编号前缀。
 - 页面显式保存七项默认值，允许用空值清除对应默认；保存使用服务端 revision，冲突时不覆盖新值并提示重新加载。
+- 检查硬件设备只能从“电子设备管理”的当前设备中下拉选择；检查人员顺序直接复用审核编辑的人员卡片、添加、删除和拖拽排序交互。
 - 案件审核编辑页修改字段只保存当前案件，不再生成或提交共享默认值 patch。
 - 修改只影响之后创建的新案件，不回写已有案件；Parser 真实非空值、系统默认值优先级及光盘完整编号生成逻辑保持不变。
 - `default_template_ref`、部署实例 ID、revision、迁移状态和更新时间只作为系统元数据，不在该页面开放编辑；模板默认版本继续由笔录模版管理维护。
@@ -32,6 +33,8 @@ spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 
 - [x] 案件审核页修改七项字段只更新当前草稿，不携带 `shared_defaults_patch`。
 - [x] 后续新案件继续按“当前案件用户修改 > Parser 真实非空值 > 非空共享默认值 > 系统默认值或空值”初始化，已有案件不变。
 - [x] Level 2 定向验证、`npm run verify:quick`、scoped strict docs、资产检查与 diff 检查通过。
+- [x] 检查硬件设备使用与审核编辑相同的设备下拉选择能力，选项来自“电子设备管理”，不再接受自由输入。
+- [x] 检查人员使用与审核编辑相同的人员库卡片编辑器，可从“检查人员管理”添加、删除并拖拽排序，保存时保持显示顺序。
 
 ## 任务列表
 
@@ -67,6 +70,16 @@ spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 
 - [x] 运行受影响前后端测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change centralize-shared-default-settings` 和 `git diff --check`，记录证据。
 - [x] 完成桌面/窄屏视觉检查和独立界面复核；人工真实业务验收不在本轮自动环境内执行时记录 N/A。
 
+### 反馈迭代 — 资源库选择器复用
+
+- [x] 新增 `packages/frontend/src/hooks/useRecordEditorCatalogs.ts`，统一加载审核编辑与笔录默认设置使用的电子设备、检查人员资源库；修改 `packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 复用该 Hook。
+  - 验证：运行默认设置组件与案件审核页现有定向 Vitest，确认两处请求相同资源库并保留加载/失败状态。
+- [x] 新增 `packages/frontend/src/components/HardwareDeviceSelect.tsx`，并修改 `EditableField.tsx` 与 `SharedDefaultsSettingsForm.tsx`，让审核编辑和默认设置复用同一设备下拉控件。
+  - 验证：组件测试证明默认设置只能选择电子设备管理返回的设备，且仍可显式清空默认值。
+- [x] 修改 `SharedDefaultsSettingsForm.tsx` 与 `useSharedDefaultsSettings.ts`，移除默认设置自建的检查人员输入/上下移实现，直接接入 `InspectorEditor` 的人员库添加、删除和拖拽排序。
+  - 验证：组件测试覆盖已有默认人员展示、人员库添加、删除、拖拽排序及保存顺序。
+- [x] 核对 delta 与实现，sync living spec，并执行 `npm run verify:quick`、受影响前端测试、`npm run verify:docs:strict -- --change centralize-shared-default-settings`、Impeccable detector 与 `git diff --check`。
+
 ## 验证证据
 
 - 前端定向 Vitest：49 项通过；界面复核修正后 Hook/表单 5 项通过。
@@ -76,6 +89,11 @@ spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 
 - 桌面展开侧栏实测 `body scrollWidth/clientWidth = 1440/1440`、`main = 1185/1185`；窄屏折叠侧栏实测 `body = 420/420`、`main = 325/325`。
 - 独立 Impeccable 交付复核：无剩余 P0/P1，结论可交付。
 - 人工真实业务数据验收：N/A；自动浏览器使用 `SYNTHETIC-VISUAL-DOC` 与临时部署数据完成加载、保存和 revision 递增验证。
+- 本轮反馈前端定向 Vitest：6 个测试文件、55 项通过，覆盖默认设备选择、人员库添加/删除/拖拽排序、保存顺序及审核页回归。
+- 本轮 `npm run verify:quick`：通过；架构、共享/前端类型、治理、文档与仓库资产检查全部通过。
+- 本轮 `npm run verify:docs:strict -- --change centralize-shared-default-settings`：通过，14 项检查、0 drift。
+- 本轮 scoped `git diff --check` 与新增文件尾随空白检查：通过；全局检查仅命中用户既存 `AGENTS.md:116` 文件末空行，未修改该文件。
+- 本轮视觉验收：按用户明确要求不执行；Impeccable 静态检测仅报告 `platformShell.css:67` 的既存布局动画警告，本次未引入新的检测项。
 
 ## 非目标
 

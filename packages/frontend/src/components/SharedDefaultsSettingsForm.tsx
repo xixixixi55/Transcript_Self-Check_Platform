@@ -1,22 +1,61 @@
 // Layer 11: FE_Components — explicit editor for deployment-scoped record defaults.
 import { useEffect, useState } from 'react'
 import {
-  Alert, Button, Form, Input, Modal, Radio, Skeleton, Space, Typography,
+  Alert, Button, Form, Input, Modal, Radio, Skeleton, Typography,
 } from 'antd'
 import {
-  ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, PlusOutlined,
   ReloadOutlined, SaveOutlined,
 } from '@ant-design/icons'
+import type { InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
 import {
   sharedDefaultsToForm, useSharedDefaultsSettings,
 } from '../hooks/useSharedDefaultsSettings'
 import type { SharedDefaultsFormValues } from '../hooks/useSharedDefaultsSettings'
+import { useRecordEditorCatalogs } from '../hooks/useRecordEditorCatalogs'
+import { HardwareDeviceSelect } from './HardwareDeviceSelect'
+import InspectorEditor from './InspectorEditor'
 
 const { Paragraph, Text } = Typography
-const noSeparatorRule = { pattern: /^[^|]*$/, message: '不能包含竖线字符“|”' }
+
+interface DefaultInspectorEditorProps {
+  value?: InspectorSnapshot[]
+  onChange?: (value: InspectorSnapshot[]) => void
+  availableInspectors: InspectorLibraryRecord[]
+  loading: boolean
+  error: string | null
+  disabled: boolean
+}
+
+function DefaultInspectorEditor({
+  value = [], onChange, availableInspectors, loading, error, disabled,
+}: DefaultInspectorEditorProps) {
+  return (
+    <InspectorEditor
+      snapshots={value}
+      availableInspectors={availableInspectors}
+      loading={loading}
+      error={error}
+      disabled={disabled}
+      onChange={onChange || (() => undefined)}
+    />
+  )
+}
+
+function validateInspectors(_: unknown, snapshots?: InspectorSnapshot[]) {
+  const valid = (snapshots || []).every(snapshot => (
+    snapshot.name.trim()
+    && snapshot.unit.trim()
+    && (snapshot.position || '').trim()
+    && snapshot.police_number.trim()
+    && ![snapshot.name, snapshot.unit, snapshot.position || '', snapshot.police_number]
+      .some(value => value.includes('|'))
+  ))
+  return valid ? Promise.resolve() : Promise.reject(new Error('检查人员信息不完整或包含竖线字符，请删除后从人员库重新添加。'))
+}
 
 export function SharedDefaultsSettingsForm() {
   const { defaults, status, requestErrorCode, failedOperation, load, save } = useSharedDefaultsSettings()
+  const catalogs = useRecordEditorCatalogs()
   const [form] = Form.useForm<SharedDefaultsFormValues>()
   const [dirty, setDirty] = useState(false)
 
@@ -105,8 +144,18 @@ export function SharedDefaultsSettingsForm() {
               <Input maxLength={300} placeholder="输入默认检查地点" allowClear />
             </Form.Item>
             <Form.Item name="hardwareDevice" label="检查硬件设备">
-              <Input maxLength={300} placeholder="输入默认取证硬件设备" allowClear />
+              <HardwareDeviceSelect
+                options={catalogs.deviceOptions}
+                loading={catalogs.deviceLoading}
+                disabled={Boolean(catalogs.deviceError)}
+                placeholder="从电子设备管理中选择"
+                allowClear
+              />
             </Form.Item>
+            {catalogs.deviceError && (
+              <Alert className="shared-defaults-settings__catalog-error" type="error" showIcon
+                message={catalogs.deviceError} />
+            )}
             <Form.Item className="shared-defaults-settings__wide" name="inspectionMethod" label="检查方法">
               <Input.TextArea maxLength={2000} rows={4}
                 placeholder="输入默认检查方法" allowClear showCount />
@@ -135,46 +184,15 @@ export function SharedDefaultsSettingsForm() {
               <Paragraph>按实际落入笔录的顺序排列；清空全部人员表示不设置默认检查人员。</Paragraph>
             </div>
           </div>
-          <Form.List name="inspectors">
-            {(fields, { add, remove, move }) => (
-              <div className="shared-defaults-settings__inspectors">
-                {fields.length === 0 && (
-                  <div className="shared-defaults-settings__empty">暂未设置默认检查人员</div>
-                )}
-                {fields.map((field, index) => (
-                  <div className="shared-defaults-settings__inspector" key={field.key}>
-                    <span className="shared-defaults-settings__order">{index + 1}</span>
-                    <Form.Item name={[field.name, 'name']} label="姓名"
-                      rules={[{ required: true, whitespace: true, message: '请输入姓名' }, noSeparatorRule]}>
-                      <Input maxLength={100} />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'unit']} label="单位"
-                      rules={[{ required: true, whitespace: true, message: '请输入单位' }, noSeparatorRule]}>
-                      <Input maxLength={200} />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'position']} label="职位"
-                      rules={[{ required: true, whitespace: true, message: '请输入职位' }, noSeparatorRule]}>
-                      <Input maxLength={100} />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'badgeNumber']} label="警号"
-                      rules={[{ required: true, whitespace: true, message: '请输入警号' }, noSeparatorRule]}>
-                      <Input maxLength={64} />
-                    </Form.Item>
-                    <Space className="shared-defaults-settings__row-actions" size={4}>
-                      <Button aria-label={`上移第${index + 1}名检查人员`} icon={<ArrowUpOutlined />}
-                        disabled={index === 0} onClick={() => move(index, index - 1)} />
-                      <Button aria-label={`下移第${index + 1}名检查人员`} icon={<ArrowDownOutlined />}
-                        disabled={index === fields.length - 1} onClick={() => move(index, index + 1)} />
-                      <Button danger aria-label={`删除第${index + 1}名检查人员`} icon={<DeleteOutlined />}
-                        onClick={() => remove(field.name)} />
-                    </Space>
-                  </div>
-                ))}
-                <Button type="dashed" icon={<PlusOutlined />}
-                  onClick={() => add({ name: '', unit: '', position: '', badgeNumber: '' })}>添加检查人员</Button>
-              </div>
-            )}
-          </Form.List>
+          <Form.Item className="shared-defaults-settings__inspector-editor" name="inspectors"
+            rules={[{ validator: validateInspectors }]}>
+            <DefaultInspectorEditor
+              availableInspectors={catalogs.inspectors}
+              loading={catalogs.inspectorLoading}
+              error={catalogs.inspectorError}
+              disabled={status === 'loading' || status === 'saving'}
+            />
+          </Form.Item>
         </section>
 
         <div className="shared-defaults-settings__actions">

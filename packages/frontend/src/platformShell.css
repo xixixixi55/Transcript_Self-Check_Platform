@@ -786,6 +786,11 @@ body {
   grid-column: 1 / -1;
 }
 
+.shared-defaults-settings__catalog-error {
+  grid-column: 1 / -1;
+  margin: -12px 0 20px;
+}
+
 .shared-defaults-settings__hash-options {
   display: flex;
   width: min(100%, 320px);
@@ -798,49 +803,8 @@ body {
   white-space: nowrap;
 }
 
-.shared-defaults-settings__inspectors {
-  display: grid;
-  gap: 12px;
-}
-
-.shared-defaults-settings__empty {
-  padding: 20px;
-  border-radius: 10px;
-  background: var(--review-page-bg);
-  color: var(--review-muted);
-  text-align: center;
-}
-
-.shared-defaults-settings__inspector {
-  display: grid;
-  grid-template-columns: 32px minmax(120px, 0.8fr) minmax(180px, 1.2fr) minmax(120px, 0.8fr) auto;
-  align-items: start;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 10px;
-  background: var(--review-page-bg);
-}
-
-.shared-defaults-settings__inspector .ant-form-item {
+.shared-defaults-settings__inspector-editor {
   margin-bottom: 0;
-}
-
-.shared-defaults-settings__order {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin-top: 30px;
-  border-radius: 50%;
-  background: #e8f1f8;
-  color: var(--review-primary);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-.shared-defaults-settings__row-actions {
-  margin-top: 30px;
 }
 
 .shared-defaults-settings__actions {
@@ -902,26 +866,6 @@ body {
 
   .shared-defaults-settings__wide {
     grid-column: auto;
-  }
-
-  .shared-defaults-settings__inspector {
-    grid-template-columns: 32px 1fr;
-  }
-
-  .shared-defaults-settings__inspector .ant-form-item,
-  .shared-defaults-settings__row-actions {
-    grid-column: 2;
-  }
-
-  .shared-defaults-settings__order,
-  .shared-defaults-settings__row-actions {
-    margin-top: 0;
-  }
-
-  .shared-defaults-settings__row-actions .ant-btn {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
   }
 
   .shared-defaults-settings__section-heading {

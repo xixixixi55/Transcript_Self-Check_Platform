@@ -2,16 +2,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Spin, message } from 'antd'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
-import type { InspectorLibraryRecord } from '@biji/shared/types'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
+import { useRecordEditorCatalogs } from '../hooks/useRecordEditorCatalogs'
 import { useRecordExport } from '../hooks/useRecordExport'
 import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
 import { getReviewPendingItems, REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
 import { useReviewPendingNavigation } from '../hooks/useReviewPendingNavigation'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
 import { isValidDateFieldValue, isValidMinuteTimeRangeValue } from '@biji/shared/utils'
-import { API_ENDPOINTS } from '@biji/shared/constants'
-import axios from 'axios'
 import RecordEditorForm from '../components/RecordEditorForm'
 import { ReviewPageHeader } from '../components/ReviewPageHeader'
 import { ReviewPendingSummary } from '../components/ReviewPendingSummary'
@@ -33,24 +31,13 @@ export default function CaseRecordGeneratePage() {
   const photoNavigationBlocker = useBlocker(session.photoAssets.navigationUnsafe)
   const { exportDocx, exporting } = useRecordExport()
   const exportDirectory = useArchiveCompletion()
-  const [devices, setDevices] = useState<{ id: string; name: string }[]>([])
-  const [inspectors, setInspectors] = useState<InspectorLibraryRecord[]>([])
+  const catalogs = useRecordEditorCatalogs()
   const [reviewStatus, setReviewStatus] = useState<ReviewPageStatus>('尚未修改')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [exportPreparing, setExportPreparing] = useState(false)
-  const [inspectorError, setInspectorError] = useState<string | null>(null)
-  const [inspectorLoading, setInspectorLoading] = useState(false)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const archiveDecisionInFlight = useRef(false)
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
-  useEffect(() => {
-    axios.get(API_ENDPOINTS.DEVICES).then(response => setDevices(response.data.data || [])).catch(() => undefined)
-    setInspectorLoading(true)
-    axios.get(API_ENDPOINTS.INSPECTORS)
-      .then(response => setInspectors(response.data.data || []))
-      .finally(() => setInspectorLoading(false))
-      .catch(() => setInspectorError('获取检查人员失败，请稍后重试。'))
-  }, [])
   // Before compression finishes, accept either user-entered medium prefix.
   // The verified result then switches the same editor to the exact GP/YP contract.
   const archiveMedium = session.completedArchive.result?.archive_medium ?? null
@@ -244,10 +231,10 @@ export default function CaseRecordGeneratePage() {
           onExport={() => setDownloadNameDialogOpen(true)}
           exporting={exporting || exportPreparing || exportDirectory.busy}
           onBackToUpload={() => { void handleBackToWorkbench() }}
-          deviceOptions={devices.map(device => ({ label: device.name, value: device.name }))}
-          availableInspectors={inspectors}
-          inspectorLoading={inspectorLoading}
-          inspectorError={inspectorError}
+          deviceOptions={catalogs.deviceOptions}
+          availableInspectors={catalogs.inspectors}
+          inspectorLoading={catalogs.inspectorLoading}
+          inspectorError={catalogs.inspectorError}
           photoFiles={session.photoAssets.files}
           onPhotoFilesChange={session.photoAssets.handleChange}
           fieldStates={session.draft?.field_states}

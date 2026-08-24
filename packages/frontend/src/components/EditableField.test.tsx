@@ -14,7 +14,8 @@ vi.mock('antd', () => {
 
   return {
     Input: Object.assign(Input, { TextArea }),
-    Select: ({ value, onChange, onBlur, options = [], ...props }: any) => (
+    Select: ({ value, onChange, onBlur, options = [], showSearch: _showSearch,
+      optionFilterProp: _optionFilterProp, notFoundContent: _notFoundContent, ...props }: any) => (
       <select value={value ?? ''} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)} onBlur={onBlur} {...props}>
         {options.map((option: { label: string; value: string }) => (
           <option key={option.value} value={option.value}>{option.label}</option>

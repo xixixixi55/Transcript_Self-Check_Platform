@@ -2,15 +2,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
-import type { HashAlgorithm, SharedDefaults } from '@biji/shared/types'
+import type { HashAlgorithm, InspectorSnapshot, SharedDefaults } from '@biji/shared/types'
 import { createClientIdentity } from './useEditLease'
-
-export interface SharedInspectorDefault {
-  name: string
-  unit: string
-  position: string
-  badgeNumber: string
-}
 
 export interface SharedDefaultsFormValues {
   entrustUnitPrefix: string
@@ -18,7 +11,7 @@ export interface SharedDefaultsFormValues {
   inspectionPlace: string
   inspectionMethod: string
   hardwareDevice: string
-  inspectors: SharedInspectorDefault[]
+  inspectors: InspectorSnapshot[]
   discNumberPrefix: string
   hashAlgorithm: HashAlgorithm
 }
@@ -26,12 +19,12 @@ export interface SharedDefaultsFormValues {
 export type SharedDefaultsSettingsStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'conflict' | 'failed'
 export type SharedDefaultsFailedOperation = 'load' | 'save' | null
 
-function parseInspector(value: string): SharedInspectorDefault {
+function parseInspector(value: string, index: number): InspectorSnapshot {
   const parts = value.split('|')
   const [name = '', unit = ''] = parts
   const position = parts.length >= 4 ? parts[2] : ''
   const badgeNumber = parts.length >= 4 ? parts[3] : (parts[2] || '')
-  return { name, unit, position, badgeNumber }
+  return { name, unit, position, police_number: badgeNumber, selected_order: index }
 }
 
 export function sharedDefaultsToForm(defaults: SharedDefaults): SharedDefaultsFormValues {
@@ -55,7 +48,7 @@ export function sharedDefaultsPatch(values: SharedDefaultsFormValues): Record<st
     inspection_method: values.inspectionMethod,
     hardware_device: values.hardwareDevice,
     inspector_order: values.inspectors.map(item => (
-      `${item.name.trim()}|${item.unit.trim()}|${item.position.trim()}|${item.badgeNumber.trim()}`
+      `${item.name.trim()}|${item.unit.trim()}|${(item.position || '').trim()}|${item.police_number.trim()}`
     )),
     disc_number_prefix: values.discNumberPrefix,
     hash_algorithm: values.hashAlgorithm,

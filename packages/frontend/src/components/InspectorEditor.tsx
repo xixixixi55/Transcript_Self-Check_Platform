@@ -14,6 +14,7 @@ interface Props {
   loading?: boolean
   error?: string | null
   fieldStates?: Record<string, FieldState>
+  disabled?: boolean
   onChange: (snapshots: InspectorSnapshot[]) => void
 }
 
@@ -31,6 +32,19 @@ function snapshotFromRecord(record: InspectorLibraryRecord): InspectorSnapshot {
   }
 }
 
+function snapshotRecordId(
+  snapshot: InspectorSnapshot,
+  availableInspectors: InspectorLibraryRecord[],
+): string | null {
+  if (snapshot.inspector_id) return snapshot.inspector_id
+  return availableInspectors.find(record => (
+    record.name === snapshot.name
+    && record.unit === snapshot.unit
+    && record.position === (snapshot.position || '')
+    && record.police_number === snapshot.police_number
+  ))?.id || null
+}
+
 function inspectorState(snapshot: InspectorSnapshot, fieldStates?: Record<string, FieldState>): FieldState | undefined {
   const identity = snapshot.snapshot_id || snapshot.inspector_id
   if (!identity) return fieldStates?.['introduction.inspectors']
@@ -43,20 +57,22 @@ export default function InspectorEditor({
   loading = false,
   error = null,
   fieldStates,
+  disabled = false,
   onChange,
 }: Props) {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null)
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const selectedIds = snapshots
-    .map(snapshot => snapshot.inspector_id)
+    .map(snapshot => snapshotRecordId(snapshot, availableInspectors))
     .filter((id): id is string => Boolean(id))
   const addableInspectors = availableInspectors.filter(record => !selectedIds.includes(record.id))
-  const pickerDisabled = loading || Boolean(error) || addableInspectors.length === 0
+  const pickerDisabled = disabled || loading || Boolean(error) || addableInspectors.length === 0
 
   const handleSelect = (ids: string[]) => {
     const existing = new Map<string, InspectorSnapshot>()
     snapshots.forEach(snapshot => {
-      if (snapshot.inspector_id) existing.set(snapshot.inspector_id, snapshot)
+      const id = snapshotRecordId(snapshot, availableInspectors)
+      if (id) existing.set(id, snapshot.inspector_id ? snapshot : { ...snapshot, inspector_id: id })
     })
     const records = new Map<string, InspectorLibraryRecord>(availableInspectors.map(record => [record.id, record]))
     const unavailableSelectedIds = snapshots.flatMap(snapshot => {
@@ -75,10 +91,12 @@ export default function InspectorEditor({
   }
 
   const remove = (index: number) => {
+    if (disabled) return
     onChange(normalizeOrder(snapshots.filter((_, itemIndex) => itemIndex !== index)))
   }
 
   const moveTo = (from: number, to: number) => {
+    if (disabled) return
     if (from === to || from < 0 || to < 0 || from >= snapshots.length || to >= snapshots.length) return
     const next = [...snapshots]
     const [snapshot] = next.splice(from, 1)
@@ -113,8 +131,8 @@ export default function InspectorEditor({
             key={`${snapshot.snapshot_id || snapshot.inspector_id || 'legacy'}-${index}`}
             role="listitem" aria-label={`检查人员 ${index + 1}，可拖拽调整顺序`}
             aria-grabbed={draggedIndex === index ? 'true' : 'false'}
-            data-testid={`inspector-card-${index}`} draggable
-            onDragStart={() => setDraggedIndex(index)}
+            data-testid={`inspector-card-${index}`} draggable={!disabled}
+            onDragStart={() => { if (!disabled) setDraggedIndex(index) }}
             onDragOver={event => event.preventDefault()}
             onDrop={() => { if (draggedIndex !== null) moveTo(draggedIndex, index); setDraggedIndex(null) }}
             onDragEnd={() => setDraggedIndex(null)}>
@@ -126,7 +144,8 @@ export default function InspectorEditor({
                 <Text type="secondary">警号：{snapshot.police_number}</Text>
               </Space>
               <Space>
-                <Button aria-label={`移除${index + 1}`} danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
+                <Button aria-label={`移除${index + 1}`} danger disabled={disabled}
+                  icon={<DeleteOutlined />} onClick={() => remove(index)} />
               </Space>
             </Card>
           </div>

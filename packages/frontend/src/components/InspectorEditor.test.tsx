@@ -108,6 +108,21 @@ describe('InspectorEditor', () => {
     ])
   })
 
+  it('将与人员库一致的无 ID 默认快照视为已选择人员', () => {
+    render(<InspectorEditor
+      snapshots={[{
+        name: activeInspector.name,
+        unit: activeInspector.unit,
+        position: activeInspector.position,
+        police_number: activeInspector.police_number,
+      }]}
+      availableInspectors={[activeInspector]}
+      onChange={vi.fn()}
+    />)
+
+    expect(screen.getByRole('button', { name: '添加检查人员' }).hasAttribute('disabled')).toBe(true)
+  })
+
   it('展示检查人员字段和来源状态', () => {
     const onChange = vi.fn()
     render(<InspectorEditor
