@@ -6,10 +6,8 @@ import copy
 import secrets
 import shutil
 from collections.abc import Callable, Mapping
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
 
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.case_workflow_repository import CaseWorkflowRepository
@@ -38,7 +36,6 @@ if TYPE_CHECKING:
 
 Parser = Callable[[Path, Path], Mapping[str, Any]]
 Dispatch = Callable[[str, str], None]
-_DRAFT_TIME_ZONE = ZoneInfo("Asia/Shanghai")
 
 
 class CaseDraftService:
@@ -224,10 +221,10 @@ def _initialize_draft(
             "revision": 0, "last_changed_at": now,
         }
     introduction = value.setdefault("introduction", {})
-    introduction["entrust_time"] = _current_entrust_date(now)
+    introduction["entrust_time"] = ""
     fields["introduction.entrust_time"] = {
         "field_path": "introduction.entrust_time", "source": "system_default",
-        "confirmation": "confirmed", "revision": 0, "last_changed_at": now,
+        "confirmation": "pending", "revision": 0, "last_changed_at": now,
     }
     parser_inspectors = introduction.get("inspectors")
     parser_snapshots = introduction.get("inspector_snapshots")
@@ -277,14 +274,6 @@ def _initialize_draft(
     }
     ordered = CaseOrderService().initialize(value)
     return ordered, FieldProvenanceService().initialize(ordered, fields)
-
-
-def _current_entrust_date(now: str) -> str:
-    parsed = datetime.fromisoformat(now.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        raise ValueError("initialized_at must include a timezone")
-    local_date = parsed.astimezone(_DRAFT_TIME_ZONE).date()
-    return f"{local_date.year}年{local_date.month}月{local_date.day}日"
 
 
 def _parse_case_metadata(parsed: Mapping[str, Any], report: Mapping[str, Any]) -> dict[str, str]:

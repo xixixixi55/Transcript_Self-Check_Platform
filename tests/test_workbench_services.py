@@ -133,11 +133,11 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path, monkeyp
     assert ready["shell"]["lifecycle"] == "review_ready"
     assert ready["parse_task"]["status"] == "succeeded"
     assert ready["draft"]["report"]["title"] == REPORT["title"]
-    assert ready["draft"]["report"]["introduction"]["entrust_time"] == "2026年8月23日"
+    assert ready["draft"]["report"]["introduction"]["entrust_time"] == ""
     assert calls and Path(calls[0][0]) == report_dir
 
 
-def test_new_draft_uses_shanghai_today_instead_of_report_entrust_time():
+def test_new_draft_leaves_entrust_time_empty_instead_of_using_report_seed():
     parsed_report = copy.deepcopy(REPORT)
     parsed_report["introduction"]["entrust_time"] = "2020年1月2日"
 
@@ -145,8 +145,9 @@ def test_new_draft_uses_shanghai_today_instead_of_report_entrust_time():
         parsed_report, {}, initialized_at="2026-08-22T16:30:00Z",
     )
 
-    assert initialized["introduction"]["entrust_time"] == "2026年8月23日"
+    assert initialized["introduction"]["entrust_time"] == ""
     assert field_states["introduction.entrust_time"]["source"] == "system_default"
+    assert field_states["introduction.entrust_time"]["confirmation"] == "pending"
     assert parsed_report["introduction"]["entrust_time"] == "2020年1月2日"
 
 

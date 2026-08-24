@@ -1,6 +1,6 @@
 workflow_level: 2
 spec_sync_status: reconciled
-spec_sync_evidence: delta synced to openspec/specs/electronic-inspection-record/spec.md REQ-002 and parser contract
+spec_sync_evidence: 2026-08-24 feedback delta synced to openspec/specs/electronic-inspection-record/spec.md REQ-002 after implementation reconciliation
 
 # Tasks
 
@@ -21,3 +21,18 @@ spec_sync_evidence: delta synced to openspec/specs/electronic-inspection-record/
   - 证据：delta 已同步至 living spec；后端 77 passed、前端日期编辑与页面链路 32 passed；`verify:quick` 全部通过；scoped strict docs 14 checks、0 drift。
 
 manual_acceptance: N/A（委托时间来源、时区换日和人工编辑链路均由确定性自动化测试覆盖，不改变页面布局。）
+
+## 归档前反馈：委托时间改为空值并提示人工选择
+
+- [x] T004 新案件草稿将委托时间初始化为空，并将字段状态标记为待确认；报告创建时间和旧委托时间种子均不得回填，新旧案件加载边界保持不变。
+- [x] T005 审核页在委托时间为空时显示“请选择委托日期”提示，用户选择后提示消失，日期保存和 Word 导出格式保持不变。
+- [x] T006 核对 delta 与实现、同步 living spec，并执行后端/前端定向测试、`verify:quick` 和 scoped strict docs。
+
+### 归档前反馈验证记录
+
+- 新案初始化函数断言通过：委托时间为空、字段状态为 `pending`、输入报告旧种子未被原地修改。
+- 前端日期、审核清单、表单与进度组件定向测试 4 files / 48 passed；全量前端 408 项中 407 passed，唯一失败为本次范围外 `ArchiveCompletionPanel` 既有介质说明文案断言。
+- `lint:arch`、`typecheck` 与 `verify:quick` 通过；delta 已同步 living spec，scoped strict docs 14 checks / 0 drift。
+- Impeccable 检测仅报告本次修改前已存在的侧边强调线与宽度过渡，本次日期空态提示无新增机械告警。
+
+manual_acceptance: 待在真实审核页确认新案件日期为空、提示清晰且选择日期后消失；自动化已覆盖初始化、空态提示与清单派生。

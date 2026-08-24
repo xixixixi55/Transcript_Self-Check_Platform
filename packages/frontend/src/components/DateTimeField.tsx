@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useId, useState } from 'react'
 import { Input, Space } from 'antd'
 import {
   fromDateInputValue,
@@ -15,11 +15,15 @@ interface DateTimeFieldProps {
   label?: string
   precision: DateTimeFieldPrecision
   value: string
+  emptyHint?: string
   onChange: (value: string) => void
 }
 
-function DateTimeField({ targetId, label, precision, value, onChange }: DateTimeFieldProps) {
+function DateTimeField({ targetId, label, precision, value, emptyHint, onChange }: DateTimeFieldProps) {
   const [rangeValues, setRangeValues] = useState(() => toDateTimeRangeInputValues(value))
+  const hintId = useId()
+  const dateInputValue = toDateInputValue(value)
+  const showEmptyHint = precision === 'date' && value.trim() === '' && Boolean(emptyHint)
 
   useEffect(() => {
     setRangeValues(toDateTimeRangeInputValues(value))
@@ -47,8 +51,10 @@ function DateTimeField({ targetId, label, precision, value, onChange }: DateTime
       {precision === 'date' ? (
         <Input
           aria-label={label || '日期'}
+          aria-describedby={showEmptyHint ? hintId : undefined}
           type="date"
-          value={toDateInputValue(value)}
+          value={dateInputValue}
+          status={showEmptyHint ? 'warning' : undefined}
           onChange={event => handleDateChange(event.target.value)}
           style={{ width: '100%' }}
         />
@@ -71,6 +77,7 @@ function DateTimeField({ targetId, label, precision, value, onChange }: DateTime
           />
         </Space>
       )}
+      {showEmptyHint && <div id={hintId} className="review-date-field__hint" aria-live="polite">{emptyHint}</div>}
     </div>
   )
 }

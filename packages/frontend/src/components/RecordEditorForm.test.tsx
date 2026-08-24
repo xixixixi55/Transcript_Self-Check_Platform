@@ -220,6 +220,7 @@ describe('RecordEditorForm', () => {
     expect(screen.getByTestId('software-tools-list')).toBeTruthy()
     expect(screen.getByTestId('extract-list-editor')).toBeTruthy()
     expect(screen.getByTestId('image-uploader')).toBeTruthy()
+    expect(screen.getByTestId('image-uploader').closest('#review-target-material-photos')).toBeTruthy()
     expect(screen.getAllByTestId('editable-field').length).toBeGreaterThan(0)
     expect(screen.getByDisplayValue('即时通讯、手机信息')).toBeTruthy()
   })

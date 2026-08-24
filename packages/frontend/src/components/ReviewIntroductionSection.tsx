@@ -62,6 +62,7 @@ export function ReviewIntroductionSection({
       <ReviewField targetId={REVIEW_TARGET_IDS.entrustPersons} label="（二）委托人员" type="text" value={formatEntrustPersons(introduction.entrust_persons || [])}
         onChange={value => updateReport('introduction.entrust_persons', normalizeEntrustPersons(value))} />
       <DateTimeField targetId={REVIEW_TARGET_IDS.entrustTime} label="（三）委托时间" precision="date" value={introduction.entrust_time}
+        emptyHint="请选择委托日期。"
         onChange={value => updateReport('introduction.entrust_time', value)} />
       <ReviewField targetId={REVIEW_TARGET_IDS.caseSummary} label="（四）案件简要情况" labelNote="（请注意人工核对）" type="textarea" value={introduction.case_summary}
         onChange={value => updateReport('introduction.case_summary', value)} />

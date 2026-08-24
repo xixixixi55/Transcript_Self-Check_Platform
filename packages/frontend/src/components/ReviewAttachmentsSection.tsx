@@ -37,7 +37,7 @@ export function ReviewAttachmentsSection({ attachments, materials, hardwareDevic
           fallbackExtractionMethod={extractionMethod}
           onChange={value => updateReport('attachments.extract_list', value)} />
       </div>
-      <div className="review-editor-block">
+      <div id={REVIEW_TARGET_IDS.photos} className="review-editor-block review-navigation-target" tabIndex={-1}>
         <div className="review-field__label">附件2：检材照片</div>
         <ImageUploader materials={materials} photos={photoFiles} onChange={onPhotoFilesChange} />
       </div>

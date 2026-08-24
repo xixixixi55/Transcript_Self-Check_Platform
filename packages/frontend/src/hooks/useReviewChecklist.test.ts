@@ -65,6 +65,35 @@ describe('getReviewPendingItems', () => {
     expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
   })
 
+  it('按每个检材两张图片汇总附件图片缺失并指向图片区域', () => {
+    const withMaterials: InspectionReport = {
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [
+          { id: 'material-synthetic-1', evidence_number: 'SYN-1', device_type: '手机' },
+          { id: 'material-synthetic-2', evidence_number: 'SYN-2', device_type: '平板' },
+        ],
+      },
+      attachments: { ...report.attachments, photo_ids: ['asset-synthetic-1'] },
+    }
+
+    const pending = getReviewPendingItems(withMaterials)
+    expect(pending).toEqual(expect.arrayContaining([expect.objectContaining({
+      fieldLabel: '检材照片',
+      sectionId: REVIEW_SECTION_IDS.attachments,
+      targetId: REVIEW_TARGET_IDS.photos,
+      kind: 'required_missing',
+      reason: '还需上传 3 张图片（每个检材需 2 张）。',
+    })]))
+
+    const complete = getReviewPendingItems({
+      ...withMaterials,
+      attachments: { ...withMaterials.attachments, photo_ids: ['a', 'b', 'c', 'd'] },
+    })
+    expect(complete.some(item => item.fieldLabel === '检材照片')).toBe(false)
+  })
+
   it('检材完整性未确认时阻止绪论进度完成，确认后清除提示', () => {
     const pending = getReviewPendingItems(report)
     expect(pending.some(item => item.kind === 'confirmation_required'

@@ -615,3 +615,30 @@ spec_sync_evidence: achievement-overview homepage scenarios synchronized into op
 - 失败用例先复现保存整理后的 `KeyError`；修复后字段状态与工作台服务测试共 25 项通过，案件草稿保存响应保留 `confirmed`。
 - 原有检材完整性、审核进度、表单和图片绑定并发回归共 4 个文件、43 项用例通过。
 - `verify:quick` 与当前变更包 scoped strict docs 通过；本次 4 个文件的 scoped `git diff --check` 通过。全仓 diff 检查仅报告本次范围外既有 `AGENTS.md` 文件末尾空行。
+
+## 第二十二阶段：委托日期空态与图片缺失进度提示
+
+### 目标与验收标准
+
+- [x] 新案件委托时间为空时，日期控件附近明确提示“请选择委托日期”，选择日期后提示消失。
+- [x] 存在检材且任一双图片槽位未填充时，右侧进度导航的“附件”显示检材照片缺失项和剩余张数；图片补齐后该项消失。
+- [x] 图片缺失项点击后定位到附件2图片编辑区域，且继续使用现有扁平图片顺序、持久化和 Word 导出合同。
+
+### 实现与验证
+
+- [x] 调整 `DateTimeField.tsx`、`ReviewIntroductionSection.tsx`、`ReviewAttachmentsSection.tsx` 与样式，提供可访问的日期空态提示和图片区域导航锚点。
+- [x] 调整 `useReviewChecklist.ts`，按 `检材数 × 2` 与 `attachments.photo_ids` 的实际数量派生一个聚合图片缺失项，不新增后端字段或导出门控。
+- [x] 更新既有日期字段和审核清单测试，运行前端定向测试、`lint:arch`、`typecheck`、`verify:quick`、scoped strict docs 与 Impeccable 检测。
+
+### 影响范围
+
+- 影响 Layer 10–11 前端派生与组件展示；委托时间的新案初始化另由 `manual-entrust-time-default-today` 变更包承载。
+- 复用既有进度导航、日期控件、图片顺序和保存事实源；不修改共享类型、后端 API、数据库、图片上传约束或 Word 合同。
+- 人工验收：在真实审核页确认日期空态提示以及附件图片 `0/2`、`1/2`、`2/2` 时的进度变化与点击定位。
+
+### 第二十二阶段验证记录
+
+- 前端日期、审核清单、表单与进度组件定向测试 4 files / 48 passed；覆盖空态提示、可访问关联、缺少 3 张的聚合文案、图片补齐清除提示和图片区域锚点。
+- 前端全量 408 项中 407 passed；唯一失败为本次范围外 `ArchiveCompletionPanel` 既有介质说明文案断言，相关文件不在本阶段差异内。
+- `lint:arch`、`typecheck` 与 `verify:quick` 通过；delta 已同步 living spec，scoped strict docs 14 checks / 0 drift。
+- Impeccable 检测仅报告本次修改前已存在的侧边强调线与宽度过渡；日期提示和图片缺失进度无新增机械告警。

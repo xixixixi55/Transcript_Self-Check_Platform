@@ -66,6 +66,7 @@ export const REVIEW_TARGET_IDS = {
   burningDate: 'review-target-burning-date',
   exportFileName: 'review-target-document-number',
   evidenceCompleteness: 'review-target-evidence-completeness',
+  photos: 'review-target-material-photos',
   evidence: (index: number) => `review-target-evidence-${index}`,
   inspector: (index: number) => `review-target-inspector-${index}`,
   softwareTool: (index: number) => `review-target-software-tool-${index}`,
@@ -215,6 +216,20 @@ export function getReviewPendingItems(
   const mediumLabel = archiveMedium === 'hard_drive' ? '硬盘编号' : archiveMedium === 'optical_disc' ? '光盘编号' : '介质编号'
   const parsedMediumNumber = attachments?.disc_number ? parseDiscSequence(attachments.disc_number) : null
   const expectedPrefixes = archiveMedium === 'hard_drive' ? ['YP'] : archiveMedium === 'optical_disc' ? ['GP'] : ['GP', 'YP']
+  const requiredPhotoCount = (introduction?.evidence_list?.length || 0) * 2
+  const missingPhotoCount = Math.max(0, requiredPhotoCount - (attachments?.photo_ids?.length || 0))
+  if (missingPhotoCount > 0) {
+    items.push({
+      id: 'review-attachments-material-photos',
+      sectionId: REVIEW_SECTION_IDS.attachments,
+      targetId: REVIEW_TARGET_IDS.photos,
+      sectionLabel: '附件',
+      fieldLabel: '检材照片',
+      reason: `还需上传 ${missingPhotoCount} 张图片（每个检材需 2 张）。`,
+      severity: 'warning',
+      kind: 'required_missing',
+    })
+  }
   addBlankItem(items, REVIEW_SECTION_IDS.archive, REVIEW_TARGET_IDS.discNumber, '附件', mediumLabel, attachments?.disc_number)
   if (parsedMediumNumber && (!parsedMediumNumber.valid || !expectedPrefixes.includes(parsedMediumNumber.sequence?.prefix || ''))) {
     const formatHint = expectedPrefixes.map(prefix => `${prefix}yyyyMMdd-序号`).join(' 或 ')

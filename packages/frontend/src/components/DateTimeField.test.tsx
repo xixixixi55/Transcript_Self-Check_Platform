@@ -15,6 +15,20 @@ describe('DateTimeField', () => {
     expect(onChange).toHaveBeenCalledWith('2024年2月29日')
   })
 
+  it('prompts for an empty date and clears the prompt after selection', () => {
+    const onChange = vi.fn()
+    const view = render(<DateTimeField label="委托时间" precision="date" value=""
+      emptyHint="请选择委托日期。" onChange={onChange} />)
+
+    expect(screen.getByText('请选择委托日期。')).toBeTruthy()
+    const input = screen.getByLabelText('委托时间')
+    expect(input.getAttribute('aria-describedby')).toBeTruthy()
+
+    view.rerender(<DateTimeField label="委托时间" precision="date" value="2026年8月24日"
+      emptyHint="请选择委托日期。" onChange={onChange} />)
+    expect(screen.queryByText('请选择委托日期。')).toBeNull()
+  })
+
   it('renders a minute-only range without a seconds control', () => {
     const onChange = vi.fn()
     render(<DateTimeField label="检查起止时间" precision="minute-range"

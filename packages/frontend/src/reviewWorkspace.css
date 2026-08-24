@@ -554,6 +554,13 @@
   font-size: 12px;
 }
 
+.review-date-field__hint {
+  margin-top: 6px;
+  color: var(--review-warning);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .review-editor-block {
   margin-top: 18px;
 }
