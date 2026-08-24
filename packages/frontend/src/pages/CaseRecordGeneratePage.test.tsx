@@ -57,13 +57,13 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let decisionBodies: Record<string, unknown>[] = []
   let events: string[] = []
   let rejectSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
-  let showCompletedArchive = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false
+  let showCompletedArchive = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -74,6 +74,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
           value.source.access_status = 'pending'
           value.source.fingerprint = 'pending:source-synthetic'
           value.source.last_verified_at = null
+        }
+        if (unextractableWithoutReason && value.draft) {
+          value.draft.report.introduction.evidence_list = [{
+            id: 'material-unextractable', device_type: 'SYNTHETIC HUAWEI ADY-AL10',
+            evidence_number: 'SYN-E-REASON', material_type: 'phone',
+            material_type_status: 'confirmed_by_user', material_type_source: 'user',
+            extractable: false, unextractable_reason: '',
+          }]
         }
         return { data: { data: value } }
       }
@@ -247,6 +255,18 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     } finally {
       anchorClick.mockRestore()
     }
+  }, 15000)
+
+  it('blocks Word export until every unextractable material has a reason', async () => {
+    unextractableWithoutReason = true
+    renderPage()
+    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
+    await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
+
+    fireEvent.click(screen.getByRole('button', { name: /导出 Word/ }))
+
+    expect(screen.queryByRole('button', { name: '开始导出' })).toBeNull()
+    expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY)).toBe(false)
   }, 15000)
 
   it('uses the latest revision when photo binding finishes during directory selection after timeout', async () => {

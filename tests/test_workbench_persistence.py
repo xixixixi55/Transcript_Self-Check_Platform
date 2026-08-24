@@ -213,6 +213,8 @@ def test_stable_review_ids_preserve_legacy_report_projection(database: Workbench
         "evidence_id": "SYNTHETIC-STABLE-EVIDENCE-1",
         "device_type": "phone",
         "evidence_number": "检材2",
+        "extractable": False,
+        "unextractable_reason": "SYNTHETIC/TEST：设备损坏",
     }]
     report["introduction"]["inspectors"] = [{
         "name": "SYNTHETIC-NAME", "unit": "SYNTHETIC-UNIT", "badge_number": "SYNTHETIC-BADGE",
@@ -230,6 +232,7 @@ def test_stable_review_ids_preserve_legacy_report_projection(database: Workbench
     persisted = CaseDraftRepository(database).get(CASE_ID)["report"]
     assert saved["revision"] == 1
     assert persisted["introduction"]["evidence_list"][0]["evidence_id"] == "SYNTHETIC-STABLE-EVIDENCE-1"
+    assert persisted["introduction"]["evidence_list"][0]["unextractable_reason"] == "SYNTHETIC/TEST：设备损坏"
     assert persisted["introduction"]["inspector_snapshots"][0]["snapshot_id"] == "SYNTHETIC-STABLE-INSPECTOR-1"
     assert persisted["introduction"]["inspectors"] == report["introduction"]["inspectors"]
 

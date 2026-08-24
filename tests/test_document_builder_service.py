@@ -229,6 +229,30 @@ def test_build_document_marks_unextractable_evidence_without_identifiers():
     assert "SYN-SERIAL-00000001" not in paragraph_text
 
 
+def test_build_document_uses_unextractable_reason_instead_of_identifiers():
+    report = _report()
+    item = report["introduction"]["evidence_list"][0]
+    item.update({
+        "device_type": "手机",
+        "device_name": "SYNTHETIC HUAWEI ADY-AL10",
+        "material_type": "phone",
+        "material_type_status": "confirmed_by_user",
+        "material_type_source": "user",
+        "extractable": False,
+        "unextractable_reason": "SYNTHETIC/TEST：设备接口损坏",
+    })
+
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(report)
+        if command.get("type") == "paragraph"
+    )
+
+    assert "SYNTHETIC HUAWEI ADY-AL10手机一部（SYNTHETIC/TEST：设备接口损坏）。" in paragraph_text
+    assert "123456789012345" not in paragraph_text
+    assert "543210987654321" not in paragraph_text
+
+
 def test_build_document_combines_entrust_unit_prefix_without_separator():
     report = _report()
     report["introduction"]["entrust_unit_prefix"] = "SYNTHETIC-公安分局"

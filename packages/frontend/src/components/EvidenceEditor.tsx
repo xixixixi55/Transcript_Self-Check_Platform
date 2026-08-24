@@ -1,6 +1,6 @@
 // Layer 11: FE_Components — 检材情况编辑器
 import React from 'react'
-import { Alert, Button, Card, Select, Space, Typography } from 'antd'
+import { Alert, Button, Card, Input, Select, Space, Typography } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { EvidenceItem, FieldState } from '@biji/shared/types'
 import EditableField from './EditableField'
@@ -135,6 +135,27 @@ export default function EvidenceEditor({ items, fieldStates, onChange }: Props) 
                 style={{ minWidth: 140 }} />
               <Text type="secondary">（根据 IMEI 或序列号自动判断）</Text>
             </div>
+            {!isExtractable(item) && (
+              <div className="review-evidence-reason">
+                <label htmlFor={`unextractable-reason-${idx}`}>
+                  <Text strong>无法提取原因：</Text>
+                </label>
+                <Input.TextArea
+                  id={`unextractable-reason-${idx}`}
+                  aria-label={`检材${idx + 1}无法提取原因`}
+                  aria-invalid={!item.unextractable_reason?.trim()}
+                  value={item.unextractable_reason || ''}
+                  placeholder="请填写无法提取原因，该内容将写入笔录"
+                  autoSize={{ minRows: 2, maxRows: 4 }}
+                  maxLength={500}
+                  status={item.unextractable_reason?.trim() ? undefined : 'error'}
+                  onChange={event => updateItem(idx, 'unextractable_reason', event.target.value)}
+                />
+                {!item.unextractable_reason?.trim() && (
+                  <Text type="danger" role="alert">请填写无法提取原因。</Text>
+                )}
+              </div>
+            )}
             {isExtractable(item) && item.material_type !== 'tablet' && <>
               <div><Text strong>IMEI1：</Text><EditableField type="text" value={item.imei1 || ''}
                 onChange={value => updateItem(idx, 'imei1', value)} /></div>

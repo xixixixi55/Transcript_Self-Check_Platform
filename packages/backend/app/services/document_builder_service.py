@@ -19,7 +19,7 @@ Layer 21: BE_Services — docx 文档构建器
 from .report_defaults_service import normalize_data_summary
 from .legacy_report_projection_service import project_ordered_legacy_report
 from .entrust_person_service import format_entrust_persons
-from .material_policy_service import reviewed_material_display_name
+from .material_policy_service import reviewed_material_display_name, unextractable_reason_text
 from .hash_algorithm_service import hash_field_title, report_hash_algorithm
 
 
@@ -87,7 +87,11 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
             for key, label in (("imei1", "IMEI1"), ("imei2", "IMEI2"), ("serial_number", "序列号")):
                 if ev.get(key):
                     details.append(f"{label}：{ev[key]}")
-        suffix = f"（{'；'.join(details)}）" if details else "" if extractable else "（无法提取）"
+        suffix = (
+            f"（{'；'.join(details)}）" if details
+            else "" if extractable
+            else f"（{unextractable_reason_text(ev)}）"
+        )
         commands.append(_p(f"{i}、{device}一部{suffix}。"))
 
     commands.append(_p(f"（六）检查要求：{intro.get('inspection_requirement', '')}"))

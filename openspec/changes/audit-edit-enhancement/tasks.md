@@ -279,6 +279,16 @@ workflow_level: 3
   - human_review: [PASS] 2026-08-18 用户对同页与独立页两张 Word/PDF 渲染图进行人工审查，确认两种排版均符合要求；用户明确要求不启动独立 Review Agent，已停止该代理审查。
   - final_gate: [PASS] 使用 `D:\harness-temp-root` 作为短临时目录执行 `npm run verify:full -- --change audit-edit-enhancement`；预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
 
+## 🟡 Phase 16: 无法提取原因
+
+- [x] T030 **在审核编辑与 Word 检材情况中支持无法提取原因**
+  - 文件：`packages/shared/types/`、`packages/frontend/src/components/EvidenceEditor.tsx`、`packages/frontend/src/hooks/useReviewChecklist.ts`、`packages/backend/app/services/canonical_*`、`material_policy_service.py`、`document_builder_service.py`、`template_filler_service.py`、`packages/backend/app/repository/workbench_legacy_report.py` 及相关测试、本变更包 delta spec。
+  - 内容：检材设为无法提取时显示原因输入框并保存到草稿；空原因进入待核对清单并阻止 Word 导出；检查过程步骤 1、正式模板和 officecli batch 兼容导出均使用原因替代 IMEI/序列号，存量空原因继续使用“无法提取”兜底。
+  - 覆盖 Spec：REQ-034“用户填写无法提取原因”。
+  - 验证：共享类型检查、审核编辑与待核对组件测试、Canonical/Legacy 持久化测试、两条 Word 生成路径定向 pytest、`verify:quick` 和 scoped strict docs。
+  - manual_acceptance: N/A（字段显隐、持久化和确定性 Word 文案由合成数据自动化覆盖，不改变 Word 版式。）
+  - 证据：前端原因输入、步骤 1 投影、待核对与页面导出拦截定向 Vitest 4 files / 56 passed；草稿持久化、Canonical 往返、正式模板与 officecli batch 兼容路径定向 pytest 5 passed；`lint:arch`、共享/前端 typecheck、`verify:quick`、仓库资产检查和 `git diff --check` 通过。Impeccable 机械检查仅命中 `reviewWorkspace.css` 中本任务开始前已存在的第 67、214 行告警，新增原因输入区域无命中。
+
 ---
 
 ## 任务摘要
@@ -300,7 +310,8 @@ workflow_level: 3
 | 🟡 P13 | Services | 1 | 附件摘要三行留白与条件分页 |
 | 🟢 P14 | Services | 1 | 附件一来源正文两端对齐 |
 | 🟡 P15 | Services | 1 | 附件摘要独立页顶部留白回归 |
-| **合计** | **Layer 0、2、10~12、20~21** | **28** | |
+| 🟡 P16 | SharedTypes / Components / Services | 1 | 无法提取原因输入、持久化与 Word 投影 |
+| **合计** | **Layer 0、2、10~12、20~21** | **29** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。
 

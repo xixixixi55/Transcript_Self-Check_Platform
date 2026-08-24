@@ -39,6 +39,7 @@ export interface EvidenceItem {
   imei2?: string
   serial_number?: string
   extractable?: boolean        // 是否可提取；解析时由 IMEI/序列号是否存在自动判断
+  unextractable_reason?: string // 无法提取时由用户填写并写入 Word 检材情况及检查过程
   evidence_number: string     // 检材编号，如 SYN-JC00000001
   material_type?: 'phone' | 'tablet' | 'unconfirmed'
   material_type_status?: MaterialClassificationStatus

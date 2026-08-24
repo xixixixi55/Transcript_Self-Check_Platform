@@ -6,10 +6,10 @@ import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
 import { useRecordEditorCatalogs } from '../hooks/useRecordEditorCatalogs'
 import { useRecordExport } from '../hooks/useRecordExport'
 import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
-import { getReviewPendingItems, REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
+import { findMissingUnextractableReasonIndex, getReviewPendingItems, REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
 import { useReviewPendingNavigation } from '../hooks/useReviewPendingNavigation'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
-import { isValidDateFieldValue, isValidMinuteTimeRangeValue } from '@biji/shared/utils'
+import { isValidDateFieldValue, isValidMinuteTimeRangeValue, projectEvidenceDerivedContent } from '@biji/shared/utils'
 import RecordEditorForm from '../components/RecordEditorForm'
 import { ReviewPageHeader } from '../components/ReviewPageHeader'
 import { ReviewPendingSummary } from '../components/ReviewPendingSummary'
@@ -41,11 +41,26 @@ export default function CaseRecordGeneratePage() {
   // Before compression finishes, accept either user-entered medium prefix.
   // The verified result then switches the same editor to the exact GP/YP contract.
   const archiveMedium = session.completedArchive.result?.archive_medium ?? null
+  const projectedReport = useMemo(
+    () => session.report ? projectEvidenceDerivedContent(session.report) : null,
+    [session.report],
+  )
   const pendingItems = useMemo(
-    () => session.report ? getReviewPendingItems(session.report, undefined, archiveMedium, session.draft?.field_states) : [],
-    [archiveMedium, session.draft?.field_states, session.report],
+    () => projectedReport ? getReviewPendingItems(projectedReport, undefined, archiveMedium, session.draft?.field_states) : [],
+    [archiveMedium, projectedReport, session.draft?.field_states],
   )
   const { navigateToPendingItem, navigateToSection } = useReviewPendingNavigation()
+  const requestExport = () => {
+    if (!projectedReport) return
+    const missingIndex = findMissingUnextractableReasonIndex(projectedReport)
+    if (missingIndex >= 0) {
+      message.warning(`请先填写检材${missingIndex + 1}的无法提取原因，再生成 Word。`)
+      const pendingReason = pendingItems.find(item => item.id === `review-evidence-${missingIndex}-unextractable-reason`)
+      if (pendingReason) navigateToPendingItem(pendingReason)
+      return
+    }
+    setDownloadNameDialogOpen(true)
+  }
   const updateReport = useCallback((path: string, value: unknown) => {
     session.updateReport(path, value)
     if (session.editingEnabled) setReviewStatus('存在未导出修改')
@@ -65,7 +80,12 @@ export default function CaseRecordGeneratePage() {
         message.warning('无法确认最新案件版本，请重新加载后再导出。')
         return false
       }
-      const report = preparedDraft.report
+      const report = projectEvidenceDerivedContent(preparedDraft.report)
+      const missingReasonIndex = findMissingUnextractableReasonIndex(report)
+      if (missingReasonIndex >= 0) {
+        message.error(`请填写检材${missingReasonIndex + 1}的无法提取原因后再生成 Word。`)
+        return false
+      }
       const dateErrors = [
         !isValidDateFieldValue(report.introduction.entrust_time) && '委托时间',
         !isValidMinuteTimeRangeValue(report.introduction.inspection_time_range) && '检查起止时间',
@@ -86,9 +106,10 @@ export default function CaseRecordGeneratePage() {
         }
         if ('cancelled' in chosen) return false
         const exportDraft = session.autosave.getLastSavedDraft() ?? preparedDraft
+        const exportReport = projectEvidenceDerivedContent(exportDraft.report)
         setReviewStatus('导出中')
         const success = await exportDocx(
-          exportDraft.report, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
+          exportReport, files.map(file => file.name), files.length ? files : undefined, requestedFileName,
           null, null, caseId, exportDraft.revision, chosen,
         )
         setReviewStatus(success ? '导出成功' : '导出失败')
@@ -226,9 +247,9 @@ export default function CaseRecordGeneratePage() {
         <ReviewPendingSummary variant="side" items={pendingItems}
           onNavigate={navigateToPendingItem} onNavigateSection={navigateToSection} />
         <RecordEditorForm
-          report={session.report}
+          report={projectedReport || session.report}
           updateReport={updateReport}
-          onExport={() => setDownloadNameDialogOpen(true)}
+          onExport={requestExport}
           exporting={exporting || exportPreparing || exportDirectory.busy}
           onBackToUpload={() => { void handleBackToWorkbench() }}
           deviceOptions={catalogs.deviceOptions}
@@ -259,7 +280,7 @@ export default function CaseRecordGeneratePage() {
         onCancel={() => setDownloadNameDialogOpen(false)}
         onConfirm={downloadName => { setDownloadNameDialogOpen(false); void handleExport(downloadName) }}
       />
-      <ReviewPreviewDrawer open={previewOpen} report={session.report} photoFiles={session.photoAssets.files} onClose={() => setPreviewOpen(false)} />
+      <ReviewPreviewDrawer open={previewOpen} report={projectedReport || session.report} photoFiles={session.photoAssets.files} onClose={() => setPreviewOpen(false)} />
     </>
   )
 }

@@ -12,6 +12,11 @@ vi.mock('antd', () => ({
   Card: ({ title, extra, children }: { title?: React.ReactNode; extra?: React.ReactNode; children: React.ReactNode }) => (
     <section><div>{title}{extra}</div>{children}</section>
   ),
+  Input: {
+    TextArea: ({ value, onChange, autoSize: _autoSize, status: _status, ...props }: any) => (
+      <textarea value={value} onChange={onChange} {...props} />
+    ),
+  },
   Space: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Select: ({ value, options, onChange, mode, 'aria-label': ariaLabel }: any) => (
     <select aria-label={ariaLabel} multiple={mode === 'multiple'} value={value} onChange={event => onChange(mode === 'multiple' ? [event.target.value] : event.target.value)}>
@@ -170,6 +175,23 @@ describe('结构化编辑器', () => {
     expect((screen.getByLabelText('检材1是否可提取') as HTMLSelectElement).value).toBe('false')
     expect(screen.queryByText('IMEI1：')).toBeNull()
     expect(screen.queryByText('序列号：')).toBeNull()
+  })
+
+  it('无法提取时显示原因输入框并写回用户填写内容', () => {
+    const onChange = vi.fn()
+    render(<EvidenceEditor items={[{
+      id: 'unextractable-reason', device_type: '手机', material_type: 'phone', model: '',
+      imei1: 'SYNTHETIC-IMEI-MUST-HIDE', evidence_number: 'SYN-JC-REASON', extractable: false,
+      unextractable_reason: '',
+    }]} onChange={onChange} />)
+
+    const input = screen.getByLabelText('检材1无法提取原因')
+    expect(input).toBeTruthy()
+    expect(screen.queryByText('IMEI1：')).toBeNull()
+    fireEvent.change(input, { target: { value: 'SYNTHETIC/TEST：设备接口损坏' } })
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ unextractable_reason: 'SYNTHETIC/TEST：设备接口损坏' }),
+    ])
   })
 
   it('提取清单中的 MD5 以大写显示并以大写写回', () => {

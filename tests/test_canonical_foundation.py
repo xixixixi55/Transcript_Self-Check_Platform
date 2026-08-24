@@ -145,6 +145,27 @@ def test_canonical_model_supports_all_material_states_and_identifier_types():
     assert materials[2].identifiers[0].value == "serial-two"
 
 
+def test_unextractable_reason_survives_canonical_compatibility_projection():
+    result = inspection_report_to_canonical({
+        "title": "Synthetic inspection",
+        "document_number": "SYNTHETIC-DOC-REASON",
+        "introduction": {
+            "evidence_list": [{
+                "id": "material-reason",
+                "device_type": "SYNTHETIC PHONE",
+                "evidence_number": "SYN-E-REASON",
+                "extractable": False,
+                "unextractable_reason": "SYNTHETIC/TEST：设备损坏",
+            }],
+        },
+    })
+
+    material = result.canonical_case.materials[0]
+    assert material.unextractable_reason == "SYNTHETIC/TEST：设备损坏"
+    projected = canonical_to_inspection_report(result.canonical_case)
+    assert projected["introduction"]["evidence_list"][0]["unextractable_reason"] == "SYNTHETIC/TEST：设备损坏"
+
+
 def test_canonical_projection_preserves_material_and_inspector_input_order():
     case = _canonical_case()
     case.materials.append(

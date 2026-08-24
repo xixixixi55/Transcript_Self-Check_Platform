@@ -2,6 +2,7 @@ import type { InspectionReport } from '@biji/shared/types'
 import { describe, expect, it } from 'vitest'
 import {
   EVIDENCE_COMPLETENESS_FIELD_PATH,
+  findMissingUnextractableReasonIndex,
   getReviewPendingItems,
   getReviewProgressSectionItems,
   REVIEW_SECTION_IDS,
@@ -63,6 +64,40 @@ describe('getReviewPendingItems', () => {
       },
     })
     expect(items.some(item => item.fieldLabel === '检材1类型' && item.severity === 'error')).toBe(true)
+  })
+
+  it('无法提取原因留空时生成待核对提示，填写后清除', () => {
+    const evidence = {
+      id: 'material-unextractable', device_type: 'SYNTHETIC PHONE', evidence_number: 'SYN-E-1',
+      material_type: 'phone' as const, material_type_status: 'confirmed_by_user' as const,
+      material_type_source: 'user' as const, extractable: false,
+    }
+    const pending = getReviewPendingItems({
+      ...report,
+      introduction: { ...report.introduction, evidence_list: [evidence] },
+    })
+    expect(pending.some(item => item.fieldLabel === '检材1无法提取原因'
+      && item.reason === '请填写无法提取原因。')).toBe(true)
+    expect(findMissingUnextractableReasonIndex({
+      ...report,
+      introduction: { ...report.introduction, evidence_list: [evidence] },
+    })).toBe(0)
+
+    const completed = getReviewPendingItems({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{ ...evidence, unextractable_reason: 'SYNTHETIC/TEST：设备损坏' }],
+      },
+    })
+    expect(completed.some(item => item.fieldLabel === '检材1无法提取原因')).toBe(false)
+    expect(findMissingUnextractableReasonIndex({
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{ ...evidence, unextractable_reason: 'SYNTHETIC/TEST：设备损坏' }],
+      },
+    })).toBe(-1)
   })
 
   it('按每个检材两张图片汇总附件图片缺失并指向图片区域', () => {
@@ -140,7 +175,8 @@ describe('getReviewPendingItems', () => {
         }],
       },
     })
-    expect(items.some(item => item.fieldLabel.startsWith('检材1'))).toBe(false)
+    expect(items.some(item => item.fieldLabel === '检材1设备类型')).toBe(false)
+    expect(items.some(item => item.fieldLabel === '检材1类型')).toBe(false)
   })
 
   it('人工确认状态的来源非法时仍保留类型阻断', () => {

@@ -24,6 +24,7 @@ from .material_policy_service import (
     reviewed_material_display_name,
     material_from_legacy_item,
     select_display_identifiers,
+    unextractable_reason_text,
 )
 from .attachment2_image_service import (
     EMU_PER_INCH,
@@ -491,7 +492,11 @@ def _fill_evidence_item(text_elements, item_template: str, item: dict):
         parts.append(f"IMEI2：{imei2}")
     if serial:
         parts.append(f"序列号：{serial}")
-    full_text = "（" + "；".join(parts[1:]) + "）。" if len(parts) > 1 else "。" if extractable else "（无法提取）。"
+    full_text = (
+        "（" + "；".join(parts[1:]) + "）。" if len(parts) > 1
+        else "。" if extractable
+        else f"（{unextractable_reason_text(item)}）。"
+    )
     full_text = parts[0] + full_text
 
     _set_text_elements(text_elements, full_text)

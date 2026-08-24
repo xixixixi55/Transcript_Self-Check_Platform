@@ -88,6 +88,17 @@ function effectiveEvidenceDeviceType(item: InspectionReport['introduction']['evi
   return ''
 }
 
+function isEvidenceExtractable(item: InspectionReport['introduction']['evidence_list'][number]): boolean {
+  if (typeof item.extractable === 'boolean') return item.extractable
+  return Boolean(item.imei1?.trim() || item.imei2?.trim() || item.serial_number?.trim())
+}
+
+export function findMissingUnextractableReasonIndex(report: InspectionReport): number {
+  return (report.introduction?.evidence_list || []).findIndex(item =>
+    !isEvidenceExtractable(item) && isBlank(item.unextractable_reason),
+  )
+}
+
 function addBlankItem(
   items: ReviewPendingItem[],
   sectionId: string,
@@ -171,6 +182,18 @@ export function getReviewPendingItems(
       || item.material_type_status !== 'confirmed_by_report' && item.material_type_status !== 'confirmed_by_user'
       || item.material_type_source !== 'report' && item.material_type_source !== 'user') {
       addInvalidItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.evidence(index), '一、绪论', `检材${index + 1}类型`, '必须确认检材为手机或平板后才能导出。')
+    }
+    if (!isEvidenceExtractable(item) && isBlank(item.unextractable_reason)) {
+      items.push({
+        id: `review-evidence-${index}-unextractable-reason`,
+        sectionId: REVIEW_SECTION_IDS.introduction,
+        targetId: REVIEW_TARGET_IDS.evidence(index),
+        sectionLabel: '一、绪论',
+        fieldLabel: `检材${index + 1}无法提取原因`,
+        reason: '请填写无法提取原因。',
+        severity: 'warning',
+        kind: 'required_missing',
+      })
     }
   })
   const inspectorSnapshots = introduction?.inspector_snapshots

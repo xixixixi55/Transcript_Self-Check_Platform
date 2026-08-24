@@ -53,6 +53,7 @@ class Material(CanonicalBaseModel):
     name: str = ""
     model: str = ""
     extractable: bool | None = None
+    unextractable_reason: str = ""
     identifiers: list[MaterialIdentifier] = Field(default_factory=list)
     provenance: list[FieldProvenance] = Field(default_factory=list)
     classification: MaterialClassification = Field(default_factory=MaterialClassification)

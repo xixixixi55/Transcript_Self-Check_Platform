@@ -498,6 +498,20 @@
   outline-offset: 2px;
 }
 
+.review-evidence-reason {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.review-evidence-reason .ant-input {
+  resize: vertical;
+}
+
+.review-evidence-reason .ant-typography-danger {
+  font-size: 13px;
+}
+
 .review-navigation-target {
   scroll-margin-block: 96px 112px;
   transition: background-color 180ms ease, box-shadow 180ms ease;

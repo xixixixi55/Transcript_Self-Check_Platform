@@ -299,7 +299,7 @@ def test_evidence_renderer_preserves_material_type_and_identifier_contracts(tmp_
             "id": "synthetic-phone", "evidence_number": "SYN-JC-PHONE",
             "device_name": "SYNTHETIC HUAWEI SGU-AL10", "material_type": "phone",
             "material_type_status": "confirmed_by_user", "material_type_source": "user",
-            "extractable": False,
+            "extractable": False, "unextractable_reason": "SYNTHETIC/TEST：设备接口损坏",
         },
         {
             "id": "synthetic-iphone", "evidence_number": "SYN-JC-IPHONE",
@@ -322,7 +322,7 @@ def test_evidence_renderer_preserves_material_type_and_identifier_contracts(tmp_
     for expected in (
         "111111111111111",
         "TABLET-SERIAL-MUST-RENDER",
-        "SYNTHETIC HUAWEI SGU-AL10手机一部（无法提取）",
+        "SYNTHETIC HUAWEI SGU-AL10手机一部（SYNTHETIC/TEST：设备接口损坏）",
         "SYNTHETIC iPhone 14手机一部（无法提取）",
         "SYNTHETIC vivo V2141A一部（无法提取）",
     ):

@@ -23,7 +23,7 @@ function evidenceDeviceName(item: EvidenceItem): string {
 }
 
 function evidenceIdentifiers(item: EvidenceItem): string {
-  if (!isEvidenceExtractable(item)) return '无法提取'
+  if (!isEvidenceExtractable(item)) return text(item.unextractable_reason) || '无法提取'
   const imeiValues = [text(item.imei1), text(item.imei2)].filter(Boolean)
   const serialNumber = text(item.serial_number)
   const identifiers = item.material_type === 'tablet'
@@ -72,6 +72,10 @@ function applyEvidenceListProjection(report: InspectionReport): InspectionReport
   report.inspection.process_steps = projectEvidenceProcessSteps(report)
   report.attachments.photo_groups = buildMaterialPhotoGroups(report, report.attachments.photo_ids || [])
   return report
+}
+
+export function projectEvidenceDerivedContent(report: InspectionReport): InspectionReport {
+  return applyEvidenceListProjection(JSON.parse(JSON.stringify(report)) as InspectionReport)
 }
 
 export function applyPrimarySoftwareEdit(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InspectionReport } from '@biji/shared/types'
-import { applyPrimarySoftwareEdit, applyReportEdit } from '@biji/shared/utils'
+import { applyPrimarySoftwareEdit, applyReportEdit, projectEvidenceDerivedContent } from '@biji/shared/utils'
 
 const report: InspectionReport = {
   title: '合成笔录', document_number: 'DOC-001',
@@ -116,6 +116,21 @@ describe('evidence list projection', () => {
     )
     expect(updated.inspection.process_steps.find(step => step.step_number === 1)?.content)
       .toContain('将SYNTHETIC PHONE OFF（无法提取）编号为SYNTHETIC-1。')
+  })
+
+  it('uses the user-entered unextractable reason in process step 1', () => {
+    const unavailable = {
+      ...firstMaterial,
+      extractable: false,
+      device_name: 'SYNTHETIC iPhone 15 Pro',
+      unextractable_reason: 'SYNTHETIC/TEST：设备接口损坏',
+    }
+    const staleReport = evidenceReport()
+    staleReport.introduction.evidence_list = [unavailable]
+    staleReport.inspection.process_steps[0].content = '将SYNTHETIC iPhone 15 Pro（无法提取）编号为SYNTHETIC-1。'
+    const updated = projectEvidenceDerivedContent(staleReport)
+    expect(updated.inspection.process_steps.find(step => step.step_number === 1)?.content)
+      .toContain('将SYNTHETIC iPhone 15 Pro（SYNTHETIC/TEST：设备接口损坏）编号为SYNTHETIC-1。')
   })
 
   it('updates process/result fields and rebuilds existing photo groups after adding a material', () => {

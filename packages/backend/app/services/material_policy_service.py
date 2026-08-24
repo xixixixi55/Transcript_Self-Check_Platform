@@ -147,6 +147,7 @@ def material_from_legacy_item(item: Mapping[str, Any], index: int) -> Material:
         name=_safe_text(item.get("device_type")),
         model=_safe_text(item.get("model")),
         extractable=extractable,
+        unextractable_reason=_safe_text(item.get("unextractable_reason")),
         identifiers=identifiers,
         provenance=[_legacy_provenance(f"introduction.evidence_list[{index}].device_type")],
         classification=classification,
@@ -199,6 +200,12 @@ def reviewed_material_display_name(item: Mapping[str, Any], index: int = 0) -> s
     if _contains_material_type(base_name, material.type):
         return base_name
     return f"{base_name}{type_label}"
+
+
+def unextractable_reason_text(item: Mapping[str, Any]) -> str:
+    """Return the reviewed Word reason with a legacy-safe fallback."""
+
+    return _safe_text(item.get("unextractable_reason")) or "无法提取"
 
 
 def _contains_material_type(value: str, material_type: str) -> bool:
