@@ -105,7 +105,7 @@
 
 **问题**：文号生成为 `xx电检〔2026〕SYNTHETIC案件名称号`，格式不符合规范。
 **修复**：
-- `generateDocumentNumber()` 增加 `prefix` 参数，从委托单位提取区域前缀（如"测试公"）
+- `generateDocumentNumber()` 增加 `prefix` 参数，从委托单位提取区域前缀（如测试值"测试公"）
 - 文号来源从 `case_summary` 改为解析出的 `case_number`
 - 页面文号旁添加 `Alert` 警告提示："注意修改文号！"
 

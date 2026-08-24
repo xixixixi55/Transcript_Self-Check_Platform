@@ -27,7 +27,7 @@ describe('disc sequence rules', () => {
     expect(generateDiscNumbers('GP20260718-09', 0)).toEqual([])
   })
 
-  it('preserves a configured Chinese prefix', () => {
+  it('preserves a configured synthetic Chinese prefix', () => {
     const parsed = parseDiscSequence('测试公20260718-001')
     expect(parsed.valid).toBe(true)
     expect(parsed.sequence?.prefix).toBe('测试公')

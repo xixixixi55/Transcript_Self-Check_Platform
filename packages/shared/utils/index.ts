@@ -47,7 +47,7 @@ export function sanitizeFileName(name: string): string {
  * 格式: XX电检〔YYYY〕XXXXXX号
  * @param caseNumber 案件编号（如 A0000000000000000000000）
  * @param year 年份，默认当前年份
- * @param prefix 前缀（如 "测试公"），默认 "xx"
+ * @param prefix 前缀（如测试值 "测试公"），默认 "xx"
  */
 export function generateDocumentNumber(caseNumber: string, year?: number, prefix: string = 'xx'): string {
   const y = year ?? new Date().getFullYear()
