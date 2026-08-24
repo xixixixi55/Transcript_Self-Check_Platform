@@ -120,6 +120,27 @@ class TemplateRegistryRepository:
                 ),
             )
 
+    def remove_builtin_versions(
+        self, template_id: str, versions: set[str] | frozenset[str],
+    ) -> int:
+        """Remove retired built-in registry metadata after references are migrated."""
+        template_id = validate_opaque_id(template_id)
+        normalized = tuple(sorted(validate_opaque_id(version) for version in versions))
+        if not normalized:
+            return 0
+        placeholders = ",".join("?" for _ in normalized)
+        parameters = (template_id, *normalized)
+        with self.database.transaction() as connection:
+            connection.execute(
+                f"DELETE FROM template_approvals WHERE template_id=? AND version IN ({placeholders})",
+                parameters,
+            )
+            removed = connection.execute(
+                f"DELETE FROM template_versions WHERE template_id=? AND version IN ({placeholders})",
+                parameters,
+            )
+        return removed.rowcount
+
     def public_with_approval(
         self, template_ref: Mapping[str, Any], approval: Mapping[str, Any],
     ) -> dict[str, Any]:

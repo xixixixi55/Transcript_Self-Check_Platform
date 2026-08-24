@@ -16,6 +16,7 @@ from ..repository.local_inspection_environment_repository import LocalInspection
 from ..repository.resource_snapshot_repository import ResourceSnapshotRepository
 from ..repository.template_approval_repository import TemplateApprovalRepository
 from ..repository.template_registry_repository import TemplateRegistryRepository
+from ..repository.case_template_reference_repository import CaseTemplateReferenceRepository
 from ..repository.shared_defaults_repository import SharedDefaultsRepository
 from .archive_authorization_service import ArchiveAuthorizationService
 from .archive_attempt_service import ArchiveAttemptService
@@ -48,12 +49,7 @@ from .template_profile_service import (
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     CURRENT_TEMPLATE_VERSION,
     CURRENT_TEMPLATE_VALIDATION_RULE,
-    CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
-    CLEAN_TEMPLATE_VERSION,
-    LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
-    LEGACY_TEMPLATE_VERSION,
-    PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-    PREVIOUS_TEMPLATE_VERSION,
+    RETIRED_BUILTIN_TEMPLATE_VERSIONS,
     validate_template_package_fingerprint,
 )
 from .template_registry_service import TemplateRegistryService
@@ -117,6 +113,12 @@ def build_workbench_services(
     )
     SharedDefaultsRepository(database).ensure_default_template(
         current_template_ref, replace_refs=historical_template_refs,
+    )
+    CaseTemplateReferenceRepository(database).replace_builtin_versions(
+        BUILTIN_TEMPLATE_ID, RETIRED_BUILTIN_TEMPLATE_VERSIONS, current_template_ref,
+    )
+    template_registry.remove_builtin_versions(
+        BUILTIN_TEMPLATE_ID, RETIRED_BUILTIN_TEMPLATE_VERSIONS,
     )
     admission_config = archive_admission_config or build_archive_admission_config()
     archive_scheduler = ArchiveSchedulerService(
@@ -218,48 +220,9 @@ def _register_builtin_templates(
     approvals: TemplateApprovalRepository,
     template_root: Path,
 ) -> tuple[dict[str, str], tuple[dict[str, str], ...]]:
-    legacy_reference = {
-        "template_id": BUILTIN_TEMPLATE_ID, "version": LEGACY_TEMPLATE_VERSION,
-    }
-    legacy_asset = template_root / "template-v1.0.0.docx"
-    clean_reference = {
-        "template_id": BUILTIN_TEMPLATE_ID, "version": CLEAN_TEMPLATE_VERSION,
-    }
-    clean_asset = template_root / "template-v1.0.1.docx"
-    previous_reference = {
-        "template_id": BUILTIN_TEMPLATE_ID, "version": PREVIOUS_TEMPLATE_VERSION,
-    }
-    previous_asset = template_root / "template-v1.0.2.docx"
     current_asset = template_root / "template.docx"
     validate_template_package_fingerprint(
-        str(legacy_asset), LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
-    )
-    validate_template_package_fingerprint(
-        str(clean_asset), CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
-    )
-    validate_template_package_fingerprint(
-        str(previous_asset), PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-    )
-    validate_template_package_fingerprint(
         str(current_asset), CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
-    )
-    registry.relocate_builtin_asset(
-        legacy_reference,
-        LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1",
-        legacy_asset,
-    )
-    registry.relocate_builtin_asset(
-        clean_reference,
-        CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-clean",
-        clean_asset,
-    )
-    registry.relocate_builtin_asset(
-        previous_reference,
-        PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-balanced",
-        previous_asset,
     )
     reference = {
         "template_id": BUILTIN_TEMPLATE_ID, "version": CURRENT_TEMPLATE_VERSION,
@@ -267,46 +230,23 @@ def _register_builtin_templates(
     registry.relocate_builtin_asset(
         reference,
         CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-refined",
+        "template-asset-current-v1-private-clean",
         current_asset,
-    )
-    _register_builtin_template(
-        registry, approvals, legacy_reference,
-        "电子数据检查笔录（current-template-v1）",
-        LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1",
-        "template-approval-current-v1",
-        legacy_asset,
-        "current-template-v1 已通过既有 Word、VML、分页、表格和附件验收。",
-    )
-    _register_builtin_template(
-        registry, approvals, clean_reference,
-        "电子数据检查笔录（current-template-v1）",
-        CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-clean",
-        "template-approval-current-v1-clean",
-        clean_asset,
-        "current-template-v1 已清理批注和示例图片并通过结构验收。",
-    )
-    _register_builtin_template(
-        registry, approvals, previous_reference,
-        "电子数据检查笔录（current-template-v1）",
-        PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-balanced",
-        "template-approval-current-v1-balanced",
-        previous_asset,
-        "current-template-v1 已修正正文与附件一整体偏右并通过 Word 版式验收。",
     )
     _register_builtin_template(
         registry, approvals, reference,
         "电子数据检查笔录（current-template-v1）",
         CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-refined",
-        "template-approval-current-v1-refined",
+        "template-asset-current-v1-private-clean",
+        "template-approval-current-v1-private-clean",
         current_asset,
-        "current-template-v1 已修正主标题、结构标题和粗横线版式。",
+        "current-template-v1 已清除隐藏隐私元数据，正文与版式保持不变。",
     )
-    return reference, (legacy_reference, clean_reference, previous_reference)
+    retired_references = tuple(
+        {"template_id": BUILTIN_TEMPLATE_ID, "version": version}
+        for version in sorted(RETIRED_BUILTIN_TEMPLATE_VERSIONS)
+    )
+    return reference, retired_references
 
 
 def _register_builtin_template(

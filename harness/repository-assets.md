@@ -6,13 +6,11 @@
 
 | Asset | Status |
 |-------|--------|
-| `word_templates/template.docx` | **Tracked — do not modify casually** |
-| `word_templates/template-v1.0.0.docx` | **Tracked — immutable historical template** |
-| `word_templates/template-v1.0.1.docx` | **Tracked — immutable historical template** |
-| `word_templates/template-v1.0.2.docx` | **Tracked — immutable historical template** |
+| `word_templates/template.docx` | **Tracked — sole current built-in template; do not modify casually** |
 
-- `template.docx` is the current authoritative Word report template; the versioned historical asset exists only for reproducible legacy-case exports.
+- `template.docx` is the sole authoritative Word report template. Retired built-in versions are migrated to the current version and are not distributed as repository assets.
 - Identity verified by OOXML package fingerprint (SHA-256 of canonical blob).
+- Core/custom properties and WPS document variables must not contain user, workstation, or case identity metadata.
 - Must never be rewritten by a generation run.
 - Any modification requires independent acceptance testing.
 

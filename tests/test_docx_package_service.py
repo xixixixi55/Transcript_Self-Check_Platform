@@ -17,11 +17,7 @@ from app.services.docx_package_service import (  # noqa: E402
     compute_ooxml_package_fingerprint,
 )
 from app.services.template_profile_service import (  # noqa: E402
-    CLEAN_TEMPLATE_PACKAGE_FINGERPRINT,
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
-    LEGACY_TEMPLATE_PACKAGE_FINGERPRINT,
-    PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-    PREVIOUS_TEMPLATE_VERSION,
     TemplateProfileError,
     current_template_profile,
     validate_current_template_profile,
@@ -32,9 +28,6 @@ from docx import Document  # noqa: E402
 
 ROOT = Path(__file__).parents[1]
 TEMPLATE = ROOT / "word_templates" / "template.docx"
-LEGACY_TEMPLATE = ROOT / "word_templates" / "template-v1.0.0.docx"
-CLEAN_TEMPLATE = ROOT / "word_templates" / "template-v1.0.1.docx"
-PREVIOUS_TEMPLATE = ROOT / "word_templates" / "template-v1.0.2.docx"
 REFERENCE = ROOT / "2026报告模板（one压缩包）最终提交.docx"
 
 
@@ -100,20 +93,10 @@ def test_entry_set_changes_fingerprint(tmp_path, entries):
     assert compute_ooxml_package_fingerprint(original) != compute_ooxml_package_fingerprint(changed)
 
 
-def test_versioned_templates_match_registered_fingerprints_and_current_profile():
+def test_current_template_matches_registered_fingerprint_and_profile():
     current_fingerprint = compute_ooxml_package_fingerprint(TEMPLATE)
-    legacy_fingerprint = compute_ooxml_package_fingerprint(LEGACY_TEMPLATE)
-    clean_fingerprint = compute_ooxml_package_fingerprint(CLEAN_TEMPLATE)
-    previous_fingerprint = compute_ooxml_package_fingerprint(PREVIOUS_TEMPLATE)
 
     assert current_fingerprint == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
-    assert legacy_fingerprint == LEGACY_TEMPLATE_PACKAGE_FINGERPRINT
-    assert clean_fingerprint == CLEAN_TEMPLATE_PACKAGE_FINGERPRINT
-    assert previous_fingerprint == PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT
-    assert len({
-        current_fingerprint, previous_fingerprint, clean_fingerprint,
-        legacy_fingerprint,
-    }) == 4
     profile = current_template_profile()
     assert profile.fingerprint_algorithm == OOXML_PACKAGE_FINGERPRINT_ALGORITHM
     assert validate_current_template_profile(
@@ -212,25 +195,6 @@ def test_profile_requires_fixed_title_and_document_number_slots():
         node.text = ""
     with pytest.raises(TemplateProfileError, match="固定标题槽"):
         validate_current_template_profile(str(TEMPLATE), moved_title)
-
-
-def test_previous_layout_requires_exact_historical_builtin_reference():
-    document = Document(str(PREVIOUS_TEMPLATE))
-    with pytest.raises(TemplateProfileError, match="未居中"):
-        validate_current_template_profile(
-            str(PREVIOUS_TEMPLATE), document,
-            PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-        )
-
-    profile = validate_current_template_profile(
-        str(PREVIOUS_TEMPLATE), Document(str(PREVIOUS_TEMPLATE)),
-        PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
-        {
-            "template_id": "electronic-inspection-record",
-            "version": PREVIOUS_TEMPLATE_VERSION,
-        },
-    )
-    assert profile.package_fingerprint == PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT
 
 
 def test_accepted_reference_does_not_match_current_profile():

@@ -39,7 +39,7 @@
 
 - [x] T006 **解析器测试**
   - 文件：`tests/test_html_parser.py`（新建）
-  - 内容：用SYNTHETIC案件案的 JSON 数据做输入，验证各字段提取正确性
+  - 内容：用脱敏合成案件 JSON 数据做输入，验证各字段提取正确性
   - 依赖：T005
   - 验证：`python -m pytest tests/test_html_parser.py -v`
 

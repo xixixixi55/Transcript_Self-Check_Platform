@@ -8,8 +8,7 @@
 ## 1. 架构决策
 
 ### 模板创建方式
-- `scripts/create_template.py`：历史 v1 一次性脚本，按段落索引替换，已不作为当前重建入口。
-- `scripts/create_template_v2.py`：当前一次性重建脚本，按 run 级别替换并保留段落结构。
+- 历史一次性模板创建脚本已因包含样例隐私替换串且不再参与运行而删除。
 - 两个脚本都不会在每次导出时自动执行；正常导出直接读取 `word_templates/template.docx`。
 
 ### 模板填充方式
@@ -111,9 +110,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| `word_templates/template.docx` | Word 模板（由 create_template_v2.py 生成） |
-| `scripts/create_template.py` | 历史 v1 一次性模板脚本，不是当前重建入口 |
-| `scripts/create_template_v2.py` | 模板生成脚本（run 级纯文本替换） |
+| `word_templates/template.docx` | 唯一内置 Word 模板；隐藏身份元数据已净化 |
 | `packages/backend/app/services/template_filler_service.py` | 模板填充核心服务 |
 | `packages/backend/app/services/report_parser_service.py` | 报告解析 + 默认值 |
 | `packages/backend/app/services/record_generator_service.py` | 文档生成入口（模板优先） |

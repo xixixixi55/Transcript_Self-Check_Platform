@@ -16,7 +16,7 @@ export default function ReportUploader({ onUpload, loading }: Props) {
   // Prompt 方式：手动输入路径（降级方案）
   const handlePromptPath = () => {
     const dirPath = prompt(
-      '请输入报告目录路径\n（如 D:\\脱敏示例\\SYNTHETIC案件SYNTHETIC当事人被诈骗案_20260707161248_html）：'
+      '请输入报告目录路径\n（如 D:\\脱敏示例\\SYNTHETIC_CASE_001_html）：'
     )
     if (dirPath) onUpload(dirPath.trim())
   }

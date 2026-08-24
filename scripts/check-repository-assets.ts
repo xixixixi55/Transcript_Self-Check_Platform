@@ -7,6 +7,7 @@
  * 仅读取 Git 跟踪文件（不扫描磁盘目录）。
  */
 import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 function run(cmd: string): string {
   try {
@@ -49,9 +50,6 @@ const FORBIDDEN_SUFFIXES = [
 /** 明确允许的资产（不应被上述规则误报） */
 const ALLOWED_ASSETS = new Set([
   'word_templates/template.docx',
-  'word_templates/template-v1.0.0.docx',
-  'word_templates/template-v1.0.1.docx',
-  'word_templates/template-v1.0.2.docx',
 ]);
 
 // 使用 NUL 分隔符读取跟踪文件（安全处理所有字符）
@@ -66,7 +64,8 @@ if (!trackedRaw || trackedRaw.length === 0) {
 const trackedFiles = trackedRaw
   .split('\0')
   .filter(Boolean)
-  .map((f) => f.replace(/\\/g, '/'));
+  .map((f) => f.replace(/\\/g, '/'))
+  .filter((f) => existsSync(f));
 
 if (trackedFiles.length === 0) {
   console.error('错误: 未找到任何跟踪文件，无法验证资产。');
@@ -84,6 +83,10 @@ function report(file: string, rule: string, fix: string) {
 }
 
 for (const file of trackedFiles) {
+  if (file.startsWith('word_templates/') && file.toLowerCase().endsWith('.docx') && !ALLOWED_ASSETS.has(file)) {
+    report(file, '只允许跟踪当前 word_templates/template.docx', '删除退役或样例 DOCX');
+    continue;
+  }
   // 跳过明确允许的资产
   if (ALLOWED_ASSETS.has(file)) continue;
 

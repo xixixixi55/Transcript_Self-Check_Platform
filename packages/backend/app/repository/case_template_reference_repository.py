@@ -53,6 +53,36 @@ class CaseTemplateReferenceRepository:
             for row in rows
         )
 
+    def replace_builtin_versions(
+        self,
+        template_id: str,
+        retired_versions: set[str] | frozenset[str],
+        current_ref: Mapping[str, Any],
+    ) -> int:
+        """Replace exact retired built-in references without touching custom templates."""
+        current = _reference(current_ref)
+        template_id = validate_opaque_id(template_id)
+        retired = {validate_opaque_id(version) for version in retired_versions}
+        migrated = 0
+        with self.database.transaction() as connection:
+            rows = connection.execute(
+                "SELECT case_id,template_ref_json FROM case_drafts "
+                "WHERE template_ref_json IS NOT NULL"
+            ).fetchall()
+            for row in rows:
+                reference = _safe_json_reference(row["template_ref_json"])
+                if reference is None or reference.get("template_id") != template_id:
+                    continue
+                if reference.get("version") not in retired:
+                    continue
+                updated = connection.execute(
+                    "UPDATE case_drafts SET template_ref_json=?,revision=revision+1,"
+                    "updated_at=? WHERE case_id=?",
+                    (json_text(current), utc_now(), row["case_id"]),
+                )
+                migrated += updated.rowcount
+        return migrated
+
 
 def _reference(value: Any) -> dict[str, str]:
     if not isinstance(value, Mapping) or set(value) != {"template_id", "version"}:

@@ -28,6 +28,9 @@ COMMENT_PARTS = {
 }
 COMMENT_MARKERS = {"commentRangeStart", "commentRangeEnd", "commentReference"}
 FIXED_ZIP_TIMESTAMP = (2020, 1, 1, 0, 0, 0)
+CP_NS = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+DC_NS = "http://purl.org/dc/elements/1.1/"
+PRIVACY_REMOVED_PARTS = {"docProps/custom.xml"}
 
 
 def clean_template(source_path: str | Path, output_path: str | Path) -> None:
@@ -47,6 +50,69 @@ def clean_template(source_path: str | Path, output_path: str | Path) -> None:
         parts.pop(name, None)
     _remove_comment_content_types(parts)
     _write_atomic(output, parts)
+
+
+def sanitize_template_privacy(source_path: str | Path, output_path: str | Path) -> None:
+    """Remove non-rendering identity metadata while preserving visible OOXML bytes."""
+    source = Path(source_path)
+    output = Path(output_path)
+    parts = {
+        name: content
+        for name, content in read_validated_docx_entries(source)
+        if name not in PRIVACY_REMOVED_PARTS
+    }
+    _sanitize_core_properties(parts)
+    _remove_docvars(parts)
+    _remove_custom_property_relationship(parts)
+    _remove_custom_property_content_type(parts)
+    _write_atomic(output, parts)
+
+
+def _sanitize_core_properties(parts: dict[str, bytes]) -> None:
+    name = "docProps/core.xml"
+    root = etree.fromstring(parts[name])
+    for child in list(root):
+        root.remove(child)
+    values = (
+        (DC_NS, "title", ""),
+        (DC_NS, "creator", "文枢"),
+        (CP_NS, "lastModifiedBy", "文枢"),
+        (CP_NS, "revision", "1"),
+    )
+    for namespace, local_name, value in values:
+        node = etree.SubElement(root, f"{{{namespace}}}{local_name}")
+        node.text = value
+    parts[name] = _xml_bytes(root)
+
+
+def _remove_docvars(parts: dict[str, bytes]) -> None:
+    name = "word/settings.xml"
+    root = etree.fromstring(parts[name])
+    for child in list(root):
+        if _local_name(child.tag) == "docVars":
+            root.remove(child)
+    parts[name] = _xml_bytes(root)
+
+
+def _remove_custom_property_relationship(parts: dict[str, bytes]) -> None:
+    name = "_rels/.rels"
+    root = etree.fromstring(parts[name])
+    for relationship in list(root):
+        if (
+            relationship.get("Target", "").lstrip("/") in PRIVACY_REMOVED_PARTS
+            or "custom-properties" in relationship.get("Type", "").casefold()
+        ):
+            root.remove(relationship)
+    parts[name] = _xml_bytes(root)
+
+
+def _remove_custom_property_content_type(parts: dict[str, bytes]) -> None:
+    name = "[Content_Types].xml"
+    root = etree.fromstring(parts[name])
+    for child in list(root):
+        if child.get("PartName", "").lstrip("/") in PRIVACY_REMOVED_PARTS:
+            root.remove(child)
+    parts[name] = _xml_bytes(root)
 
 
 def _clean_document(parts: dict[str, bytes]) -> set[str]:
@@ -173,13 +239,17 @@ def main() -> None:
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--preserve-source-as", type=Path)
+    parser.add_argument("--privacy-only", action="store_true")
     args = parser.parse_args()
     if args.preserve_source_as:
         args.preserve_source_as.write_bytes(args.source.read_bytes())
         source = args.preserve_source_as
     else:
         source = args.source
-    clean_template(source, args.output)
+    if args.privacy_only:
+        sanitize_template_privacy(source, args.output)
+    else:
+        clean_template(source, args.output)
 
 
 if __name__ == "__main__":

@@ -272,10 +272,10 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     ) for item in management["templates"]}
     assert (LEGACY_REFERENCE["template_id"], LEGACY_REFERENCE["version"]) not in managed_references
     assert (PREVIOUS_REFERENCE["template_id"], PREVIOUS_REFERENCE["version"]) not in managed_references
-    assert services.template_approvals.require_approved(LEGACY_REFERENCE)["status"] == "approved"
-    assert services.template_approvals.require_approved(PREVIOUS_REFERENCE)["status"] == "approved"
-    assert services.templates.validate(LEGACY_REFERENCE)["valid"] is True
-    assert services.templates.validate(PREVIOUS_REFERENCE)["valid"] is True
+    with pytest.raises(WorkbenchPersistenceError):
+        services.template_registry.get_internal(LEGACY_REFERENCE)
+    with pytest.raises(WorkbenchPersistenceError):
+        services.template_registry.get_internal(PREVIOUS_REFERENCE)
     historical_delete = client.delete(
         f"/api/v1/workbench/templates/electronic-inspection-record/{LEGACY_TEMPLATE_VERSION}",
     )
@@ -391,16 +391,20 @@ def test_template_management_supports_upload_default_and_safe_revoke(template_ap
     assert services.defaults.get()["default_template_ref"] == uploaded_ref
 
 
-def test_upload_cannot_reclassify_historical_bytes_as_custom_template(template_api):
+def test_upload_rejects_invalid_template_layout(template_api, tmp_path: Path):
     client, _services, _lease = template_api
-    source = Path(__file__).parents[1] / "word_templates" / "template-v1.0.2.docx"
+    source = Path(__file__).parents[1] / "word_templates" / "template.docx"
+    broken = tmp_path / "SYNTHETIC-invalid-layout.docx"
+    document = Document(str(source))
+    document.paragraphs[0].text = ""
+    document.save(broken)
 
     response = client.post(
         "/api/v1/workbench/templates",
         data={"display_name": "SYNTHETIC 旧版式上传模板"},
         files={
             "file": (
-                "SYNTHETIC-old-layout.docx", source.read_bytes(),
+                "SYNTHETIC-invalid-layout.docx", broken.read_bytes(),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ),
         },
@@ -647,7 +651,7 @@ def test_frontend_customization_rejects_readonly_invalid_and_extra_fields(templa
     assert len(services.template_approvals.list_approved()) == before
 
 
-def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_path: Path):
+def test_builtin_template_upgrade_migrates_legacy_cases_and_preserves_custom_default(tmp_path: Path):
     database = WorkbenchDatabase(tmp_path / "workbench.sqlite3", "SYNTHETIC-UPGRADE")
     template_root = Path(__file__).parents[1] / "word_templates"
     registry = TemplateRegistryRepository(database, (template_root,))
@@ -673,7 +677,7 @@ def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_
         "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
         "asset_id": "template-asset-current-v1-balanced",
         "registered_at": "2026-07-30T00:00:00+00:00",
-    }, template_root / "template-v1.0.2.docx")
+    }, template_root / "template.docx")
     approvals.record(PREVIOUS_REFERENCE, {
         "approval_record_id": "template-approval-current-v1-balanced", "status": "approved",
         "acceptance_summary": "current-template-v1 已修正正文与附件一整体偏右并通过 Word 版式验收。",
@@ -713,20 +717,16 @@ def test_builtin_template_upgrade_preserves_legacy_cases_and_custom_default(tmp_
         WorkbenchDatabase(database.database_path, database.deployment_instance_id),
     )
     assert upgraded.defaults.get()["default_template_ref"] == REFERENCE
-    legacy = upgraded.template_registry.get_internal(LEGACY_REFERENCE)
-    assert Path(legacy["internal_locator"]).name == "template-v1.0.0.docx"
-    assert legacy["fingerprint"] == LEGACY_TEMPLATE_PACKAGE_FINGERPRINT
-    assert upgraded.templates.validate(LEGACY_REFERENCE)["valid"] is True
+    with pytest.raises(WorkbenchPersistenceError):
+        upgraded.template_registry.get_internal(LEGACY_REFERENCE)
+    with pytest.raises(WorkbenchPersistenceError):
+        upgraded.template_registry.get_internal(PREVIOUS_REFERENCE)
     with upgraded.database.connect() as connection:
         saved_reference = json.loads(connection.execute(
             "SELECT template_ref_json FROM case_drafts WHERE case_id=?",
             ("case-SYNTHETIC-template-upgrade",),
         ).fetchone()["template_ref_json"])
-    assert saved_reference == LEGACY_REFERENCE
-
-    with pytest.raises(WorkbenchPersistenceError) as blocked_default:
-        upgraded.templates.set_default(LEGACY_REFERENCE)
-    assert blocked_default.value.code == "HISTORICAL_TEMPLATE_READ_ONLY"
+    assert saved_reference == REFERENCE
     recovered = build_workbench_services(
         WorkbenchDatabase(database.database_path, database.deployment_instance_id),
     )
@@ -800,11 +800,11 @@ def test_current_builtin_template_relocates_after_portable_directory_change(tmp_
         Path(__file__).parents[1] / "word_templates" / "template.docx"
     ).resolve()
     assert current["fingerprint"] == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
-    assert current["asset_id"] == "template-asset-current-v1-refined"
+    assert current["asset_id"] == "template-asset-current-v1-private-clean"
     assert restarted.templates.validate(REFERENCE)["valid"] is True
 
 
-def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_case(tmp_path: Path):
+def test_builtin_template_upgrade_migrates_previous_default_and_case(tmp_path: Path):
     database = WorkbenchDatabase(tmp_path / "workbench.sqlite3", "SYNTHETIC-UPGRADE-PREVIOUS")
     template_root = Path(__file__).parents[1] / "word_templates"
     registry = TemplateRegistryRepository(database, (template_root,))
@@ -816,7 +816,7 @@ def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_ca
         "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
         "asset_id": "template-asset-current-v1-balanced",
         "registered_at": "2026-07-30T00:00:00+00:00",
-    }, template_root / "template-v1.0.2.docx")
+    }, template_root / "template.docx")
     approvals.record(PREVIOUS_REFERENCE, {
         "approval_record_id": "template-approval-current-v1-balanced",
         "status": "approved",
@@ -850,17 +850,13 @@ def test_builtin_template_upgrade_migrates_previous_default_without_rewriting_ca
         WorkbenchDatabase(database.database_path, database.deployment_instance_id),
     )
     assert upgraded.defaults.get()["default_template_ref"] == REFERENCE
-    previous = upgraded.template_registry.get_internal(PREVIOUS_REFERENCE)
-    assert Path(previous["internal_locator"]).name == "template-v1.0.2.docx"
-    assert upgraded.templates.validate(PREVIOUS_REFERENCE)["valid"] is True
+    with pytest.raises(WorkbenchPersistenceError):
+        upgraded.template_registry.get_internal(PREVIOUS_REFERENCE)
     with upgraded.database.connect() as connection:
         saved_reference = json.loads(connection.execute(
             "SELECT template_ref_json FROM case_drafts WHERE case_id=?", (case_id,),
         ).fetchone()["template_ref_json"])
-    assert saved_reference == PREVIOUS_REFERENCE
-    with pytest.raises(WorkbenchPersistenceError) as blocked_default:
-        upgraded.templates.set_default(PREVIOUS_REFERENCE)
-    assert blocked_default.value.code == "HISTORICAL_TEMPLATE_READ_ONLY"
+    assert saved_reference == REFERENCE
 
 
 def test_formal_export_resolves_server_reference_and_safely_revalidates(
