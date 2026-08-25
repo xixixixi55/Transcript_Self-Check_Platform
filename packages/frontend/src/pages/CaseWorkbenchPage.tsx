@@ -1,5 +1,5 @@
 // Layer 12: FE_Pages — persistent multi-case workbench entry.
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Col, Modal, Pagination, Row, Space, Spin, Tooltip, Typography, message } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import type {
@@ -47,11 +47,28 @@ export default function CaseWorkbenchPage() {
   const archiveCompletion = useArchiveCompletion()
   const [submitBusy, setSubmitBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
-  const [exportingCaseId, setExportingCaseId] = useState<string | null>(null)
+  const [exportingCaseIds, setExportingCaseIds] = useState<ReadonlySet<string>>(() => new Set())
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
   const [archiveDetail, setArchiveDetail] = useState<ArchiveTaskPublicDetail | null>(null)
   const [archiveHistory, setArchiveHistory] = useState<ArchiveTaskHistory | null>(null)
   const [exportNameCaseId, setExportNameCaseId] = useState<string | null>(null)
+  const exportingCaseIdsRef = useRef(new Set<string>())
+  const pageOffsetRef = useRef(workbench.page.offset)
+  useEffect(() => {
+    pageOffsetRef.current = workbench.page.offset
+  }, [workbench.page.offset])
+
+  const reserveExport = (caseId: string): boolean => {
+    if (exportingCaseIdsRef.current.has(caseId)) return false
+    exportingCaseIdsRef.current.add(caseId)
+    setExportingCaseIds(new Set(exportingCaseIdsRef.current))
+    return true
+  }
+
+  const releaseExport = (caseId: string) => {
+    exportingCaseIdsRef.current.delete(caseId)
+    setExportingCaseIds(new Set(exportingCaseIdsRef.current))
+  }
 
   const submit = async () => {
     setSubmitBusy(true)
@@ -101,16 +118,14 @@ export default function CaseWorkbenchPage() {
   }
 
   const exportCase = (shell: CaseShell) => {
-    if (actionCaseId) return
+    if (actionCaseId === shell.case_id || exportingCaseIdsRef.current.has(shell.case_id)) return
     setExportNameCaseId(shell.case_id)
   }
 
   const confirmExportName = async (wordFileName: string) => {
     const shell = workbench.page.items.find(item => item.case_id === exportNameCaseId)
     setExportNameCaseId(null)
-    if (!shell || actionCaseId) return
-    setActionCaseId(shell.case_id)
-    setExportingCaseId(shell.case_id)
+    if (!shell || actionCaseId === shell.case_id || !reserveExport(shell.case_id)) return
     try {
       const chosen = await archiveCompletion.chooseDirectory()
       if ('cancelled' in chosen) return
@@ -124,12 +139,11 @@ export default function CaseWorkbenchPage() {
         archiveResult?.parts ?? null,
       )
       message.success(`已导出至：${result.output.export_path}`)
-      await workbench.loadPage(workbench.page.offset)
+      await workbench.loadPage(pageOffsetRef.current)
     } catch (error) {
       message.error(resolveWorkbenchError(error).message)
     } finally {
-      setActionCaseId(null)
-      setExportingCaseId(null)
+      releaseExport(shell.case_id)
     }
   }
 
@@ -165,6 +179,11 @@ export default function CaseWorkbenchPage() {
     ? workbench.page.offset + workbench.page.items.length + 1
     : workbench.page.offset + workbench.page.items.length
   const deleteShell = workbench.page.items.find(item => item.case_id === deleteCaseId)
+  const changePage = (pageNumber: number) => {
+    const nextOffset = (pageNumber - 1) * CASE_PAGE_SIZE
+    pageOffsetRef.current = nextOffset
+    void workbench.loadPage(nextOffset)
+  }
 
   return (
     <div className="case-workbench-page">
@@ -210,7 +229,7 @@ export default function CaseWorkbenchPage() {
               actionBusy={actionCaseId === shell.case_id}
               completionStatus={completionStatusFor(shell, completionResults[shell.case_id])}
               onExport={() => { void exportCase(shell) }}
-              exporting={exportingCaseId === shell.case_id}
+              exporting={exportingCaseIds.has(shell.case_id)}
             />
           </Col>)}
           {workbench.page.items.length < CASE_PAGE_SIZE && (
@@ -221,7 +240,7 @@ export default function CaseWorkbenchPage() {
         </Row>
       )}
 
-      {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={pageNumber => { void workbench.loadPage((pageNumber - 1) * CASE_PAGE_SIZE) }} /></div>}
+      {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={changePage} /></div>}
       <Modal
         open={Boolean(deleteCaseId)}
         title="确认删除该案件？"
@@ -254,7 +273,7 @@ export default function CaseWorkbenchPage() {
       <WordDownloadNameDialog
         open={Boolean(exportNameCaseId)}
         documentNumber={workbench.page.items.find(item => item.case_id === exportNameCaseId)?.case_name}
-        exporting={Boolean(exportingCaseId)}
+        exporting={Boolean(exportNameCaseId && exportingCaseIds.has(exportNameCaseId))}
         onCancel={() => setExportNameCaseId(null)}
         onConfirm={downloadName => { void confirmExportName(downloadName) }}
       />

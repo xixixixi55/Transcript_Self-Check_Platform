@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
@@ -249,6 +249,103 @@ it('exports a completed archive bundle directly from the card', async () => {
   fireEvent.change(nameInput, { target: { value: '自定义案件.docx' } }); fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
   await waitFor(() => expect(postMock).toHaveBeenCalledWith(expect.stringContaining('/export-bundle'), { expected_revision: 3, export_path: 'D:\SYNTHETIC\EXPORT', directory_token: 'token-synthetic', word_filename: '自定义案件.docx' }, { timeout: unifiedExportRequestTimeoutMs(45_000_000_000) }))
   expect(await screen.findByText(/已导出至：D:\SYNTHETIC\EXPORT/)).toBeTruthy()
+})
+
+it('keeps unified exports isolated so another case can start before the first finishes', async () => {
+  const completedSummary = (index: number): ArchiveTaskCardSummary => ({
+    ...archiveSummary,
+    task_id: `archive-SYNTHETIC-${index}`,
+    case_id: `case-synthetic-${index}`,
+    status: 'succeeded',
+    stage: 'completed',
+    stage_label: '归档完成',
+    stage_index: 9,
+    stage_count: 9,
+    percent: 100,
+    output_bytes: 1024,
+    finished_at: '2026-07-30T12:00:00Z',
+    allowed_actions: ['view_result'],
+  })
+  listItems = [1, 2].map(index => ({
+    ...shell(index),
+    lifecycle: 'archive_verified' as const,
+    report_available: true,
+    revision: index,
+    archive_task_summary: completedSummary(index),
+  }))
+  const archiveResult = (index: number) => ({
+    task_id: `archive-SYNTHETIC-${index}`,
+    case_id: `case-synthetic-${index}`,
+    manifest_id: `manifest-synthetic-${index}`,
+    verified_slots: [],
+    assets: [],
+    parts: [{
+      part_id: `part-${index}`,
+      filename: `SYNTHETIC-${index}.part1.rar`,
+      size_bytes: 1024,
+      md5: String(index).repeat(32),
+      disc_number: `GP20260730-0${index}`,
+      disc_date: '2026-07-30',
+    }],
+    finished_at: '2026-07-30T12:00:00Z',
+  })
+  getMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/workbench/cases')) return { data: { data: { items: listItems, offset: 0, limit: 6, has_more: false } } }
+    if (url.includes('/archive-SYNTHETIC-1/result')) return { data: { data: archiveResult(1) } }
+    if (url.includes('/archive-SYNTHETIC-2/result')) return { data: { data: archiveResult(2) } }
+    if (url.includes('/workbench/tasks/')) return { data: { data: { task_id: url.split('/').pop(), case_id: 'case-synthetic', kind: 'parse', status: 'succeeded', stage: 'parse', percent: null, counters: {}, input_revision: 0, attempt: 0, cancel_requested: false, revision: 0 } } }
+    throw new Error(`unexpected GET ${url}`)
+  })
+
+  let rejectFirstExport!: (reason?: unknown) => void
+  let resolveSecondExport!: (value: unknown) => void
+  let pickerIndex = 0
+  postMock.mockImplementation((url: string) => {
+    if (url.endsWith('/select-export-directory')) {
+      pickerIndex += 1
+      return Promise.resolve({ data: { data: { path: `D:\\SYNTHETIC\\EXPORT-${pickerIndex}`, token: `token-${pickerIndex}` } } })
+    }
+    if (url.includes('/case-synthetic-1/export-bundle')) {
+      return new Promise((_, reject) => { rejectFirstExport = reject })
+    }
+    if (url.includes('/case-synthetic-2/export-bundle')) {
+      return new Promise(resolve => { resolveSecondExport = resolve })
+    }
+    return Promise.resolve({ data: { data: {} } })
+  })
+
+  render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
+  await screen.findAllByRole('button', { name: '统一导出' })
+  const cards = document.querySelectorAll<HTMLElement>('.case-workbench-card')
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '统一导出' }))
+  const firstStartButton = await screen.findByRole('button', { name: '开始导出' })
+  act(() => {
+    firstStartButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    firstStartButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await waitFor(() => expect(postMock.mock.calls.filter(([url]) => String(url).endsWith('/select-export-directory'))).toHaveLength(1))
+  await waitFor(() => expect(postMock.mock.calls.filter(([url]) => String(url).includes('/export-bundle'))).toHaveLength(1))
+
+  expect(screen.getAllByRole('button', { name: '更多操作' })[0].hasAttribute('disabled')).toBe(true)
+  fireEvent.click(within(cards[1]).getByRole('button', { name: '统一导出' }))
+  fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
+  await waitFor(() => expect(postMock.mock.calls.filter(([url]) => String(url).includes('/export-bundle'))).toHaveLength(2))
+
+  rejectFirstExport({ response: { data: { detail: { code: 'EXPORT_PUBLISH_FAILED', message: 'SYNTHETIC/TEST first export failed' } } } })
+  await waitFor(() => {
+    const moreButtons = screen.getAllByRole('button', { name: '更多操作' })
+    expect(moreButtons[0].hasAttribute('disabled')).toBe(false)
+    expect(moreButtons[1].hasAttribute('disabled')).toBe(true)
+  })
+
+  resolveSecondExport({ data: { data: {
+    case_id: 'case-synthetic-2',
+    task_id: 'archive-SYNTHETIC-2',
+    expected_revision: 2,
+    lifecycle: 'exported',
+    output: { export_path: 'D:\\SYNTHETIC\\EXPORT-2', word_filename: 'SYNTHETIC-CASE-2.docx', rar_filenames: ['SYNTHETIC-2.part1.rar'], exported_at: '2026-07-30T12:01:00Z' },
+  } } })
+  await waitFor(() => expect(screen.getAllByRole('button', { name: '更多操作' })[1].hasAttribute('disabled')).toBe(false))
 })
 
 it('explains that exported target-directory files survive case deletion', async () => {

@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import json
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -187,6 +189,69 @@ def test_bundle_publish_failure_rolls_back_every_replaced_file(tmp_path, monkeyp
         assert (export / name).read_bytes() == f"OLD-{name}".encode()
     assert legacy_png.read_bytes() == b"LEGACY-hash-verification.png"
     assert legacy_html.read_bytes() == b"LEGACY-hash-verification.html"
+
+
+def test_bundle_publish_serializes_concurrent_writes_to_same_directory(
+    tmp_path, monkeypatch,
+) -> None:
+    export = tmp_path / "SYNTHETIC-SHARED-EXPORT"
+    staging_paths = [tmp_path / "staging-1", tmp_path / "staging-2"]
+    export.mkdir()
+    for index, staging in enumerate(staging_paths, start=1):
+        staging.mkdir()
+        (staging / "report.docx").write_bytes(f"SYNTHETIC/DOCX/{index}".encode())
+        (staging / "part1.rar").write_bytes(f"SYNTHETIC/RAR/{index}".encode())
+
+    real_replace = unified_export_service.os.replace
+    activity_lock = threading.Lock()
+    start = threading.Barrier(3)
+    active_replaces = 0
+    max_active_replaces = 0
+    completed_publishes = 0
+    publish_errors: list[BaseException] = []
+
+    def observed_replace(source, target):
+        nonlocal active_replaces, max_active_replaces
+        with activity_lock:
+            active_replaces += 1
+            max_active_replaces = max(max_active_replaces, active_replaces)
+        time.sleep(0.02)
+        try:
+            return real_replace(source, target)
+        finally:
+            with activity_lock:
+                active_replaces -= 1
+
+    def publish(staging: Path) -> None:
+        nonlocal completed_publishes
+        try:
+            start.wait()
+            unified_export_service._publish_staged_bundle(
+                staging, export, ["report.docx", "part1.rar"],
+            )
+            with activity_lock:
+                completed_publishes += 1
+        except BaseException as error:
+            with activity_lock:
+                publish_errors.append(error)
+
+    monkeypatch.setattr(unified_export_service.os, "replace", observed_replace)
+    threads = [threading.Thread(target=publish, args=(staging,)) for staging in staging_paths]
+    for thread in threads:
+        thread.start()
+    start.wait()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert publish_errors == []
+    assert completed_publishes == 2
+    assert max_active_replaces == 1
+    published_versions = {
+        (export / "report.docx").read_bytes().rsplit(b"/", 1)[-1],
+        (export / "part1.rar").read_bytes().rsplit(b"/", 1)[-1],
+    }
+    assert len(published_versions) == 1
 
 
 def test_unified_export_forwards_user_word_filename(database, tmp_path, monkeypatch) -> None:

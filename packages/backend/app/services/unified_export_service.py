@@ -11,6 +11,8 @@ import copy
 import os
 import shutil
 import tempfile
+import threading
+import weakref
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,12 @@ from ..repository.workbench_database import WorkbenchDatabase
 from .attachment2_image_service import Attachment2ImageError
 from .attachment_plan_errors_service import AttachmentPlanError
 from .record_generator_service import generate_docx
+
+
+_EXPORT_DIRECTORY_LOCKS: weakref.WeakValueDictionary[str, threading.Lock] = (
+    weakref.WeakValueDictionary()
+)
+_EXPORT_DIRECTORY_LOCKS_GUARD = threading.RLock()
 
 
 class UnifiedExportError(ValueError):
@@ -117,6 +125,25 @@ def _publish_staged_bundle(
     staging_path: Path, export_path: Path, filenames: list[str],
 ) -> None:
     """Publish one complete bundle and restore the previous version on error."""
+    with _export_directory_lock(export_path):
+        _publish_staged_bundle_unlocked(staging_path, export_path, filenames)
+
+
+def _export_directory_lock(export_path: Path) -> threading.Lock:
+    normalized = os.path.normcase(
+        os.path.normpath(str(export_path.resolve(strict=False)))
+    ).casefold()
+    with _EXPORT_DIRECTORY_LOCKS_GUARD:
+        lock = _EXPORT_DIRECTORY_LOCKS.get(normalized)
+        if lock is None:
+            lock = threading.Lock()
+            _EXPORT_DIRECTORY_LOCKS[normalized] = lock
+        return lock
+
+
+def _publish_staged_bundle_unlocked(
+    staging_path: Path, export_path: Path, filenames: list[str],
+) -> None:
     names = list(dict.fromkeys(Path(name).name for name in filenames))
     rollback_path = staging_path / ".rollback"
     rollback_path.mkdir()

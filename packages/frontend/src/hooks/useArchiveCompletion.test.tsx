@@ -105,4 +105,37 @@ describe('useArchiveCompletion', () => {
     })
     expect(chosen).toEqual({ cancelled: true })
   })
+
+  it('stays busy until every concurrent operation has settled', async () => {
+    let resolveFirst!: (value: unknown) => void
+    let resolveSecond!: (value: unknown) => void
+    postMock
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve }))
+    const { result } = renderHook(() => useArchiveCompletion())
+
+    let first!: Promise<unknown>
+    let second!: Promise<unknown>
+    act(() => {
+      first = result.current.exportBundle(
+        'case-synthetic-1', 1, 'D:\\SYNTHETIC\\one', 'token-1', 'one.docx', [],
+      )
+      second = result.current.exportBundle(
+        'case-synthetic-2', 2, 'D:\\SYNTHETIC\\two', 'token-2', 'two.docx', [],
+      )
+    })
+    expect(result.current.busy).toBe(true)
+
+    await act(async () => {
+      resolveFirst({ data: { data: EXPORT_RESULT } })
+      await first
+    })
+    expect(result.current.busy).toBe(true)
+
+    await act(async () => {
+      resolveSecond({ data: { data: EXPORT_RESULT } })
+      await second
+    })
+    expect(result.current.busy).toBe(false)
+  })
 })

@@ -34,15 +34,21 @@ function detailMessage(error: unknown): string {
 }
 
 export function useArchiveCompletion(): ArchiveCompletion {
-  const [busy, setBusy] = useState(false)
+  const [pendingOperations, setPendingOperations] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const beginOperation = () => {
+    setPendingOperations(current => current + 1)
+    setError(null)
+  }
+  const endOperation = () => {
+    setPendingOperations(current => Math.max(0, current - 1))
+  }
 
   const mapping = useCallback(async (
     caseId: string, expectedRevision: number,
     expectedPlanRowRevision: number, firstDiscNumber: string,
   ) => {
-    setBusy(true)
-    setError(null)
+    beginOperation()
     try {
       const response = await axios.post<{ data: DiscMappingResult }>(
         API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId),
@@ -58,7 +64,7 @@ export function useArchiveCompletion(): ArchiveCompletion {
       setError(detailMessage(failure))
       throw failure
     } finally {
-      setBusy(false)
+      endOperation()
     }
   }, [])
 
@@ -67,8 +73,7 @@ export function useArchiveCompletion(): ArchiveCompletion {
     directoryToken: string, wordFilename: string,
     parts: { size_bytes?: number | null }[] | null,
   ) => {
-    setBusy(true)
-    setError(null)
+    beginOperation()
     try {
       const response = await axios.post<{ data: UnifiedExportResult }>(
         API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId),
@@ -83,13 +88,12 @@ export function useArchiveCompletion(): ArchiveCompletion {
       setError(detailMessage(failure))
       throw failure
     } finally {
-      setBusy(false)
+      endOperation()
     }
   }, [])
 
   const chooseDirectory = useCallback(async (): Promise<ExportDirectoryResult> => {
-    setBusy(true)
-    setError(null)
+    beginOperation()
     try {
       const response = await axios.post<{ data: ExportDirectoryResult }>(
         API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY,
@@ -101,9 +105,9 @@ export function useArchiveCompletion(): ArchiveCompletion {
       setError(detailMessage(failure))
       throw failure
     } finally {
-      setBusy(false)
+      endOperation()
     }
   }, [])
 
-  return { mapping, exportBundle, chooseDirectory, busy, error }
+  return { mapping, exportBundle, chooseDirectory, busy: pendingOperations > 0, error }
 }
