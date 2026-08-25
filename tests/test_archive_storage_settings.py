@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository.archive_storage_settings_repository import (  # noqa: E402
     ArchiveStorageSettingsRepository,
 )
+from app.repository import archive_storage_settings_repository as storage_repository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive_storage_settings_service import (  # noqa: E402
     ArchiveStorageSettingsService,
@@ -71,3 +72,35 @@ def test_archive_storage_rejects_program_directory_overlap(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="ARCHIVE_STORAGE_DIRECTORY_UNSAFE"):
         repository.save_parent(resource_root, resource_root)
+
+
+def test_writable_probe_returns_immediately_when_file_creation_is_denied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def deny_open(_path: Path, *_args: object, **_kwargs: object):
+        nonlocal attempts
+        attempts += 1
+        raise PermissionError("SYNTHETIC/TEST permission denial")
+
+    monkeypatch.setattr(Path, "open", deny_open)
+
+    assert storage_repository._probe_writable(tmp_path / "SYNTHETIC-DENIED") is False
+    assert attempts == 1
+
+
+def test_writable_probe_bounds_random_name_collisions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def collide(_path: Path, *_args: object, **_kwargs: object):
+        nonlocal attempts
+        attempts += 1
+        raise FileExistsError("SYNTHETIC/TEST collision")
+
+    monkeypatch.setattr(Path, "open", collide)
+
+    assert storage_repository._probe_writable(tmp_path / "SYNTHETIC-COLLISION") is False
+    assert attempts == storage_repository._PROBE_CREATE_ATTEMPTS

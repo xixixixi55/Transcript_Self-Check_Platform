@@ -96,16 +96,16 @@ def test_hash_timeout_scales_for_three_maximum_size_parts(monkeypatch):
 
     monkeypatch.delenv("BIJI_HASHMYFILES_TIMEOUT_SECONDS", raising=False)
     timeout = _hash_timeout_seconds([SizedPart(), SizedPart(), SizedPart()])
-    assert timeout >= 8 * 60 * 60
-    assert timeout <= 10 * 60 * 60
+    assert timeout >= 16 * 24 * 60 * 60
+    assert timeout <= 30 * 24 * 60 * 60
 
 
 @pytest.mark.parametrize(
     ("total_bytes", "expected"),
     [
-        (23_000_000_000, 4_720),
-        (135_000_000_000, 27_120),
-        (500_000_000_000, 36_000),
+        (23_000_000_000, 230_120),
+        (135_000_000_000, 1_350_120),
+        (500_000_000_000, 2_592_000),
     ],
 )
 def test_hash_timeout_uses_exact_hdd_budget(monkeypatch, total_bytes, expected):
@@ -127,8 +127,17 @@ def test_hash_timeout_allows_bounded_deployment_override(monkeypatch, tmp_path):
 def test_hash_timeout_caps_deployment_override_for_hdd_budget(monkeypatch, tmp_path):
     part = tmp_path / "SYNTHETIC.part1.rar"
     part.write_bytes(b"SYNTHETIC/RAR")
-    monkeypatch.setenv("BIJI_HASHMYFILES_TIMEOUT_SECONDS", "999999")
-    assert _hash_timeout_seconds([part]) == 10 * 60 * 60
+    monkeypatch.setenv("BIJI_HASHMYFILES_TIMEOUT_SECONDS", "9999999")
+    assert _hash_timeout_seconds([part]) == 30 * 24 * 60 * 60
+
+
+def test_hash_timeout_invalid_override_falls_back_to_size_budget(monkeypatch):
+    class SizedPart:
+        def stat(self):
+            return type("Stat", (), {"st_size": 23_000_000_000})()
+
+    monkeypatch.setenv("BIJI_HASHMYFILES_TIMEOUT_SECONDS", "invalid")
+    assert _hash_timeout_seconds([SizedPart()]) == 230_120
 
 
 def test_run_hashmyfiles_publishes_real_window_capture_and_removes_legacy_html(tmp_path):

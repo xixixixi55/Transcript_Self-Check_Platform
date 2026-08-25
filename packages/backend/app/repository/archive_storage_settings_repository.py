@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from .runtime_paths import get_runtime_paths
 
 _SCHEMA_VERSION = 1
 _WORKSPACE_NAME = "文枢归档工作区"
+_PROBE_CREATE_ATTEMPTS = 3
 _LOCK = threading.RLock()
 
 
@@ -96,23 +98,34 @@ class ArchiveStorageSettingsRepository:
 
 
 def _probe_writable(root: Path) -> bool:
-    probe: Path | None = None
     try:
         root.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(dir=root, prefix=".wenshu-write-probe-", delete=False) as handle:
-            probe = Path(handle.name)
-            handle.write(b"ok")
-            handle.flush()
-            os.fsync(handle.fileno())
-        return True
     except OSError:
         return False
-    finally:
-        if probe is not None:
+
+    for _attempt in range(_PROBE_CREATE_ATTEMPTS):
+        probe = root / f".wenshu-write-probe-{secrets.token_hex(16)}.tmp"
+        try:
+            handle = probe.open("xb")
+        except FileExistsError:
+            continue
+        except OSError:
+            return False
+
+        try:
+            with handle:
+                handle.write(b"ok")
+                handle.flush()
+                os.fsync(handle.fileno())
+            return True
+        except OSError:
+            return False
+        finally:
             try:
                 probe.unlink(missing_ok=True)
             except OSError:
                 pass
+    return False
 
 
 def _paths_overlap(left: Path, right: Path) -> bool:

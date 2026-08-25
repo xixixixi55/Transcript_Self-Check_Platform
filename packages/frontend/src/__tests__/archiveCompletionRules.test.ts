@@ -68,7 +68,7 @@ describe('HDD-oriented unified export timeout', () => {
   })
 
   it('covers a 45 GB HDD copy plus orchestration grace', () => {
-    expect(unifiedExportRequestTimeoutMs(45_000_000_000)).toBe(9_600_000)
+    expect(unifiedExportRequestTimeoutMs(45_000_000_000)).toBe(450_600_000)
   })
 
   it('does not let a small known export undercut the existing minimum', () => {
@@ -79,5 +79,10 @@ describe('HDD-oriented unified export timeout', () => {
     expect(unifiedExportRequestTimeoutMs(500_000_000_000)).toBe(
       UNIFIED_EXPORT_MAX_REQUEST_TIMEOUT_MS,
     )
+  })
+
+  it('uses a 30-day maximum that remains representable by XMLHttpRequest', () => {
+    expect(UNIFIED_EXPORT_MAX_REQUEST_TIMEOUT_MS).toBe(30 * 24 * 60 * 60 * 1000)
+    expect(UNIFIED_EXPORT_MAX_REQUEST_TIMEOUT_MS).toBeLessThan(2 ** 32)
   })
 })

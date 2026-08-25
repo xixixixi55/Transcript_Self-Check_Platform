@@ -21,21 +21,21 @@ _logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Execution timeout — per-attempt WinRAR "a" process
 #
-# Throughput floor of 5 MB/s is supported by real D2 acceptance data:
-#   4.5 GB input →  ~9 min wall time →  ~8.3 MB/s effective
-#   8.5 GB input → ~12 min wall time → ~11.8 MB/s effective
-# The 5 MB/s floor leaves ≥40 % headroom below the slowest observation.
+# A contended HDD deployment measured about 0.3 MB/s per task while several
+# disk-heavy jobs ran concurrently.  Budget at 0.1 MB/s so the timeout allows
+# three times that observed wall-clock duration without becoming unbounded.
 #
 # The default production policy can switch inputs above 225 GiB to an
 # unsplit RAR, so this timeout is an execution safety bound rather than an
-# archive-size admission limit. Operators can extend it up to 24 hours.
+# archive-size admission limit. The finite 30-day bound covers the standard
+# 225 GiB threshold at the contended-disk budget.
 # ---------------------------------------------------------------------------
 
 _DEFAULT_TIMEOUT_SECONDS = 300
-_MIN_THROUGHPUT_BYTES_PER_SEC = 5_000_000  # 5 MB/s (real-data-verified floor)
+_MIN_THROUGHPUT_BYTES_PER_SEC = 100_000  # 0.1 MB/s contended-HDD floor
 _COMPLETION_GRACE_SECONDS = 600  # HDD/WinRAR volume finalization margin
-_MAX_COMPUTED_TIMEOUT = 36_000  # 10 hours
-_MAX_ENV_TIMEOUT = 86_400  # 24 hours (operator override ceiling)
+_MAX_COMPUTED_TIMEOUT = 30 * 24 * 60 * 60
+_MAX_ENV_TIMEOUT = _MAX_COMPUTED_TIMEOUT
 
 _ENV_KEY = "BIJI_ARCHIVE_TIMEOUT_SECONDS"
 
@@ -46,22 +46,22 @@ _ENV_KEY = "BIJI_ARCHIVE_TIMEOUT_SECONDS"
 # (read + decompress + checksum).  Deployments predominantly use HDDs, where
 # old drives, fragmentation, antivirus and concurrent work can reduce the
 # effective rate far below nominal sequential-read specifications.  Use the
-# same 5 MB/s floor as archive execution plus a fixed completion margin.
+# same 0.1 MB/s floor as archive execution plus a fixed completion margin.
 # ---------------------------------------------------------------------------
 
 _INTEGRITY_DEFAULT_TIMEOUT = 300
-_INTEGRITY_THROUGHPUT = 5_000_000
+_INTEGRITY_THROUGHPUT = 100_000
 _INTEGRITY_COMPLETION_GRACE_SECONDS = 600
-_INTEGRITY_MAX_TIMEOUT = 36_000  # 10 hours
+_INTEGRITY_MAX_TIMEOUT = 30 * 24 * 60 * 60
 
 
 def compute_timeout(input_bytes: int) -> int:
     """Return a bounded per-attempt *execution* timeout in seconds.
 
     1. If ``BIJI_ARCHIVE_TIMEOUT_SECONDS`` is set to a positive integer
-       ≤ 86 400, use it verbatim (operator override).
-    2. Otherwise compute ``max(300, ceil(input_bytes / 5 MB/s) + 600)`` clamped to
-       [300, 36 000].
+       ≤ 2 592 000, use it verbatim (operator override).
+    2. Otherwise compute ``max(300, ceil(input_bytes / 0.1 MB/s) + 600)``
+       clamped to [300, 2 592 000].
 
     Invalid or out-of-range env values trigger exactly one sanitised
     warning per call and a safe fallback to the computed value.
@@ -114,8 +114,8 @@ def compute_integrity_timeout(total_archive_bytes: int) -> int:
     ``total_archive_bytes`` is the sum of all validated part sizes
     (not just part1), because ``rar t part1.rar`` verifies the full set.
 
-    Formula: ``max(300, ceil(total_bytes / 5 MB/s) + 600)`` for non-empty
-    archives, clamped to [300, 36,000].
+    Formula: ``max(300, ceil(total_bytes / 0.1 MB/s) + 600)`` for non-empty
+    archives, clamped to [300, 2,592,000].
     """
     size_based = max(
         _INTEGRITY_DEFAULT_TIMEOUT,

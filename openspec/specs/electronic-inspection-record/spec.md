@@ -567,6 +567,14 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - WHEN 本变更的案件、任务或模板流程运行
 - THEN 不启动 Shadow 真实样本治理，不调用 Canonical 作为正式输入；未来比较只能在独立边界和明确开关下进行
 
+#### Scenario: 机械盘大体积统一导出不被固定请求上限提前截断
+- WHEN 已验证 RAR 总体积使暂存复制在机械盘上可能超过既有固定请求上限
+- THEN 前端必须根据全部实际分卷字节数，为复制一遍和固定编排余量动态计算有界请求上限，不得再叠加 HashMyFiles 预算
+- AND 默认预算按 0.1 MB/s 的保守单任务有效吞吐计算，从而覆盖观测到的 0.3 MB/s 机械盘并行部署场景并保留额外安全余量
+- AND 客户端最大请求上限为 30 天，必须与该低吞吐预算可覆盖的最大支持体积一致，不得由旧 24 小时上限提前截断仍在正常复制的请求
+- AND 大小缺失或非法时安全回退到既有最小请求上限，不得产生无限或负数等待
+- AND 普通工作台请求仍使用其独立短超时，不得随统一导出一起放宽
+
 #### Scenario: 日期字段保持纯日期精度
 - **WHEN** 用户编辑委托时间或刻录时间
 - **THEN** 控件只允许选择年月日，不显示或提交时间和秒
@@ -1267,7 +1275,38 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 - WHEN 大文件归档长时间停留在创建 RAR 分卷阶段
 - THEN 案件卡片主要显示归档阶段文字、阶段 X/N、indeterminate 活动态、已运行时间、任务状态、最近心跳、当前检测分卷数量和当前输出总字节数
 - AND output_volume_count 只表示当前 attempt 受控 staging 中匹配分卷名规则的文件数量，output_bytes 只表示这些文件当前已写出的总字节数
-- AND 两项活动指标不得换算为压缩完成比例；输出大小暂时不变化不得单独判定失败、卡死或触发自动取消
+- AND 两项活动指标不得换算为压缩完成比例；输出大小暂时不变化且尚未超过有界无增长阈值时，不得单独判定失败、卡死或触发自动取消
+
+#### Scenario: 多分卷生成后仍在收尾
+- WHEN WinRAR 已在 staging 中生成一个或多个 RAR 分卷但进程仍在处理输入或执行收尾
+- THEN 任务状态继续保持“正在创建 RAR 分卷”，前端显示“已生成 N 个分卷（仍在压缩）”且不得将其视为完成
+- AND 只要 RAR 输出总大小仍在增长，监控器刷新无增长计时，不得因旧的固定 deadline 提前终止
+
+#### Scenario: 成功态使用最终验证分卷计数
+- WHEN 多分卷归档完成校验并提交成功态
+- THEN 任务的输出字节数与分卷计数 MUST 由同一事务中的已验证 Manifest 覆盖活动采样快照
+- AND 成功态不得保留 WinRAR 退出前尚未观察到最后一卷的过期计数
+
+#### Scenario: 首个 RAR 输出出现前仅受硬上限约束
+- WHEN WinRAR 进程已经启动但 staging 中尚未出现非零 RAR 输出
+- THEN 监控器不得启动无增长空闲计时
+- AND 进程仍必须受操作员覆盖或按输入体积计算的硬上限约束
+
+#### Scenario: RAR 输出长时间无增长
+- WHEN WinRAR 进程在受控硬上限内连续超过无增长阈值没有任何 RAR 输出大小变化
+- THEN 后端终止归档进程、清理 staging，并返回稳定的归档超时错误
+- AND 默认无增长阈值为 1800 秒，必须容忍繁忙机械盘与多个磁盘密集型任务并行造成的长时间收尾停顿，同时保持可配置、最长不超过 30 天且不允许无限等待
+- AND 若 hard 与 idle deadline 同时到期或一次轮询跨过两者，系统按绝对 deadline 选择最早者，相等时 hard 优先
+- AND 若自有 WinRAR 进程无法安全终止，系统不得清理仍可能被进程占用的 staging，并返回稳定的执行失败错误
+- AND 只有 WinRAR 正常退出且后续分卷完整性、MD5 与 Manifest 校验通过时任务才能成功
+
+#### Scenario: 完整性与 MD5 校验使用机械盘保守预算
+- WHEN 后端对全部实际 RAR 分卷执行 `rar t` 完整性校验或 HashMyFiles MD5 校验
+- THEN 两个阶段都必须按全部实际分卷总字节数和机械盘保守吞吐动态计算有界超时，并包含固定编排余量
+- AND 默认预算按 0.1 MB/s 的保守单任务有效吞吐计算，从而覆盖观测到的 0.3 MB/s 机械盘并行部署场景并保留额外安全余量
+- AND 内部最大上限为 30 天，必须与该低吞吐预算可覆盖的最大支持体积一致，不得由旧 10 小时上限提前终止仍在正常读取的校验
+- AND 不得以只适用于高速磁盘的固定吞吐或只统计首卷来提前终止仍在正常读取的校验
+- AND 超过各自有界上限时仍返回现有稳定超时错误，不得把未完成校验标记为成功
 
 #### Scenario: Worker 心跳和所有权状态准确
 - WHEN Worker 持有并执行当前归档任务
@@ -1895,6 +1934,7 @@ The deployment MUST allow the user to move RAR staging and durable archive gener
 - **WHEN** the configured parent is missing, unwritable, or its dedicated workspace overlaps the packaged program resource root
 - **THEN** the application exposes a stable actionable settings error and refuses to begin a new archive there
 - **AND** it does not silently redirect that task to the default system volume
+- **AND** a write probe denied by permissions, read-only media, an offline drive, or another I/O error finishes within bounded attempts and cannot hang startup or continuously consume CPU through temporary-name retries
 
 #### Scenario: apply or reset a restart-bound setting
 - **WHEN** the user selects a different directory or restores the default

@@ -1,8 +1,8 @@
 """Comprehensive tests for WinRAR timeout governance — v2 production closeout.
 
 Covers:
-  - Execution timeout (5 MB/s, 36 ks cap) verified against real D2 data
-  - HDD-oriented integrity timeout (5 MB/s + grace, 36 ks cap)
+  - Execution timeout (0.1 MB/s, 30-day cap) for contended HDD deployments
+  - HDD-oriented integrity timeout (0.1 MB/s + grace, 30-day cap)
   - Process tree termination (always tree-kill on Windows)
   - Set-based lock lifecycle (atomic claim/release)
   - Published manifest immutability (deepcopy normalization)
@@ -36,6 +36,11 @@ from app.repository.winrar_executor_repository import (  # noqa: E402
 from app.repository.winrar_timeout_policy import (  # noqa: E402
     compute_integrity_timeout,
     integrity_bounds,
+)
+from app.repository.winrar_process_monitor import (  # noqa: E402
+    OwnedProcessIdleTimeout,
+    archive_output_idle_timeout_seconds,
+    monitor_owned_process,
 )
 
 GB = 1_000_000_000
@@ -71,27 +76,27 @@ class TestExecutionTimeout:
     def test_default_for_zero(self):
         assert WinRarExecutor.compute_timeout(0) == 300
 
-    def test_4_5gb_covers_real_9_minutes(self):
+    def test_4_5gb_uses_contended_hdd_budget(self):
         t = WinRarExecutor.compute_timeout(4_500_000_000)
-        assert t == 1_500  # 900 s size budget + 600 s finalization grace
+        assert t == 45_600  # 45,000 s size budget + 600 s finalization grace
         assert t >= 540
 
-    def test_8_5gb_covers_real_12_minutes(self):
+    def test_8_5gb_uses_contended_hdd_budget(self):
         t = WinRarExecutor.compute_timeout(8_500_000_000)
-        assert t == 2_300  # 1700 s size budget + 600 s finalization grace
+        assert t == 85_600
         assert t >= 720
 
     def test_135gb_not_truncated(self):
         t = WinRarExecutor.compute_timeout(135 * GB)
-        assert t == 27_600
-        assert t < 36_000
+        assert t == 1_350_600
+        assert t < 2_592_000
 
-    def test_capped_at_10_hours(self):
-        assert WinRarExecutor.compute_timeout(300 * GB) == 36_000
+    def test_capped_at_30_days(self):
+        assert WinRarExecutor.compute_timeout(300 * GB) == 2_592_000
 
 
 # ============================================================================
-# 2. Integrity timeout (total archive size, HDD-oriented 5 MB/s + grace)
+# 2. Integrity timeout (total archive size, HDD-oriented 0.1 MB/s + grace)
 # ============================================================================
 
 
@@ -102,19 +107,19 @@ class TestIntegrityTimeout:
     def test_45gb_plus_45gb_plus_45gb_uses_135gb(self):
         """rar t part1.rar verifies the entire set — 3 × 45 GB = 135 GB."""
         t = compute_integrity_timeout(135 * GB)
-        assert t == 27_600
+        assert t == 1_350_600
 
     def test_22gb_plus_1gb_uses_23gb(self):
         t = compute_integrity_timeout(23 * GB)
-        assert t == 5_200
+        assert t == 230_600
 
-    def test_oversized_input_is_capped_at_10_hours(self):
-        assert compute_integrity_timeout(500 * GB) == 36_000
+    def test_oversized_input_is_capped_at_30_days(self):
+        assert compute_integrity_timeout(500 * GB) == 2_592_000
 
     def test_bounds(self):
         lo, hi = integrity_bounds()
         assert lo == 300
-        assert hi == 36_000
+        assert hi == 2_592_000
 
 
 class TestIntegrityTimeoutViaValidator:
@@ -213,7 +218,7 @@ class TestEnvTimeoutWarnings:
         assert caplog.text.count("已回退") == 1
 
     def test_above_max_one_warning(self, monkeypatch, caplog):
-        monkeypatch.setenv("BIJI_ARCHIVE_TIMEOUT_SECONDS", "99999")
+        monkeypatch.setenv("BIJI_ARCHIVE_TIMEOUT_SECONDS", "3000000")
         result = WinRarExecutor.compute_timeout(0)
         assert result == 300
         assert caplog.text.count("已回退") == 1
@@ -223,6 +228,50 @@ class TestEnvTimeoutWarnings:
         WinRarExecutor.compute_timeout(0)
         for forbidden in ("\\", "C:", "D:", "Users"):
             assert forbidden not in caplog.text
+
+
+class TestArchiveIdleTimeoutConfiguration:
+    def test_default_allows_30_minutes_without_output_growth(self, monkeypatch):
+        monkeypatch.delenv("BIJI_ARCHIVE_IDLE_TIMEOUT_SECONDS", raising=False)
+        assert archive_output_idle_timeout_seconds() == 1_800
+
+    def test_positive_override_is_used(self, monkeypatch):
+        monkeypatch.setenv("BIJI_ARCHIVE_IDLE_TIMEOUT_SECONDS", "3600")
+        assert archive_output_idle_timeout_seconds() == 3_600
+
+    @pytest.mark.parametrize("value", ["0", "-1", "invalid", "3000000"])
+    def test_invalid_or_out_of_range_override_falls_back(self, monkeypatch, caplog, value):
+        monkeypatch.setenv("BIJI_ARCHIVE_IDLE_TIMEOUT_SECONDS", value)
+        assert archive_output_idle_timeout_seconds() == 1_800
+        assert caplog.text.count("BIJI_ARCHIVE_IDLE_TIMEOUT_SECONDS") == 1
+        assert f"={value}" not in caplog.text
+
+    def test_monitor_uses_resolved_default_when_not_explicit(self, tmp_path):
+        class PollingProcess:
+            def poll(self):
+                return None
+
+            def wait(self, timeout=None):
+                raise subprocess.TimeoutExpired(["WinRAR.exe"], timeout)
+
+            def communicate(self):
+                return ("", "")
+
+        with mock.patch(
+            "app.repository.winrar_process_monitor.archive_output_idle_timeout_seconds",
+            return_value=2,
+        ), mock.patch(
+            "app.repository.winrar_process_monitor.time.monotonic",
+            side_effect=[0.0, 0.0, 2.0],
+        ):
+            with pytest.raises(OwnedProcessIdleTimeout) as failure:
+                monitor_owned_process(
+                    PollingProcess(), pid=4242, args=["WinRAR.exe"], timeout=60,
+                    staging_dir=tmp_path, terminate=lambda *_: True,
+                    activity_callback=None, cancellation_check=None,
+                    output_size_probe=lambda _root: 1,
+                )
+        assert failure.value.timeout == 2
 
 
 # ============================================================================

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import time
@@ -10,7 +11,10 @@ from typing import Callable
 
 from .workbench_constants import ARCHIVE_ACTIVITY_PERSIST_INTERVAL_SECONDS
 
-ARCHIVE_OUTPUT_IDLE_TIMEOUT_SECONDS = 600
+ARCHIVE_OUTPUT_IDLE_TIMEOUT_SECONDS = 1_800
+ARCHIVE_OUTPUT_IDLE_TIMEOUT_MAX_SECONDS = 30 * 24 * 60 * 60
+_ARCHIVE_OUTPUT_IDLE_TIMEOUT_ENV = "BIJI_ARCHIVE_IDLE_TIMEOUT_SECONDS"
+_logger = logging.getLogger(__name__)
 
 
 class OwnedProcessCancelled(RuntimeError):
@@ -27,6 +31,25 @@ class OwnedProcessTerminationFailed(RuntimeError):
 
 class OwnedProcessIdleTimeout(subprocess.TimeoutExpired):
     pass
+
+
+def archive_output_idle_timeout_seconds() -> int:
+    """Return the bounded no-growth timeout without logging raw env values."""
+    raw = os.environ.get(_ARCHIVE_OUTPUT_IDLE_TIMEOUT_ENV, "").strip()
+    if not raw:
+        return ARCHIVE_OUTPUT_IDLE_TIMEOUT_SECONDS
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if 0 < value <= ARCHIVE_OUTPUT_IDLE_TIMEOUT_MAX_SECONDS:
+        return value
+    _logger.warning(
+        "%s 配置无效，已回退到默认值；允许正整数且不超过 %d 秒。",
+        _ARCHIVE_OUTPUT_IDLE_TIMEOUT_ENV,
+        ARCHIVE_OUTPUT_IDLE_TIMEOUT_MAX_SECONDS,
+    )
+    return ARCHIVE_OUTPUT_IDLE_TIMEOUT_SECONDS
 
 
 def _rar_output_size(staging_dir: Path) -> int:
@@ -87,9 +110,13 @@ def monitor_owned_process(
     activity_callback: Callable[[Path], None] | None,
     cancellation_check: Callable[[], bool] | None,
     activity_interval_seconds: int = ARCHIVE_ACTIVITY_PERSIST_INTERVAL_SECONDS,
-    idle_timeout_seconds: int = ARCHIVE_OUTPUT_IDLE_TIMEOUT_SECONDS,
+    idle_timeout_seconds: int | None = None,
     output_size_probe: Callable[[Path], int] = _rar_output_size,
 ) -> None:
+    if idle_timeout_seconds is None:
+        idle_timeout_seconds = archive_output_idle_timeout_seconds()
+    elif idle_timeout_seconds <= 0:
+        raise ValueError("ARCHIVE_OUTPUT_IDLE_TIMEOUT_INVALID")
     deadline = time.monotonic() + timeout
     last_output_size = output_size_probe(staging_dir)
     last_output_change = time.monotonic() if last_output_size > 0 else None

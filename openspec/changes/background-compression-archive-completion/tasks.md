@@ -407,3 +407,22 @@ workflow_level: 3
   - 自动化证据：统一导出与导出编排后端 22 passed；Shared 超时、导出 Hook 与两个入口页面 4 files / 49 tests passed；`npm run verify:quick`、scoped strict docs、架构、类型、治理、仓库资产与 `git diff --check` PASS。临时恢复统一导出截图调用后核心“不调用 HashMyFiles”回归按预期失败，恢复正式实现后定向套件通过。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044 人工验收开放项，候选尚未冻结；本反馈只运行增量门控，不重复最终 Review/full gate。
   - manual_acceptance: [N/A] 当前任务移除外部截图调用与 PNG 产物，不改变 Word 布局；自动化断言覆盖导出目录内容、审计结果与旧产物清理/回滚。
+
+- [x] T051 适配繁忙机械盘 0.3 MB/s 单任务吞吐的超时治理（部署反馈）。
+  - 现象：同事电脑使用机械盘并同时运行大量磁盘密集型任务时，单任务有效吞吐约为 0.3 MB/s；现有 5 MB/s 预算、WinRAR/完整性/HashMyFiles 10 小时上限及统一导出 24 小时上限会提前终止仍在正常工作的任务。
+  - 决策：磁盘密集型体积预算统一按 0.1 MB/s 计算，为实测 0.3 MB/s 提供三倍耗时预算；WinRAR 执行、`rar t` 完整性、保留的 HashMyFiles 能力和统一导出客户端最大上限统一为 30 天。WinRAR 输出无增长阈值默认由 600 秒提高到 1800 秒并提供受边界约束的独立环境配置。普通工作台 30 秒请求、目录选择器、编辑租约、SQLite 锁等待及报告解析等待不变。
+  - Layer 1–2：修改 `packages/shared/constants/workbenchConstants.ts`、`packages/shared/utils/archiveCompletionRules.ts`，把统一导出的复制吞吐基线和最大请求上限改为新合同；复用 `archiveCompletionRules.test.ts` 覆盖 0.3 MB/s 场景、最小值、非法大小、30 天上限和超上限钳制。
+  - Layer 20：修改 `packages/backend/app/repository/winrar_timeout_policy.py`、`winrar_process_monitor.py`，统一 WinRAR 执行与完整性预算，新增受控 idle timeout 配置解析；扩展 `tests/test_winrar_timeout.py`，覆盖低吞吐大体积、增长不误杀、1800 秒停滞、环境覆盖、非法配置回退、30 天上限及稳定错误码。
+  - Layer 21：修改 `packages/backend/app/services/hashmyfiles_service.py`，同步保留能力的体积预算和环境覆盖边界；复用 `tests/test_hashmyfiles_service.py` 覆盖 0.3 MB/s 体积、30 天上限与非法覆盖回退。检查笔录统一导出仍不得启动 HashMyFiles。
+  - 一致性与验证：核对 delta/design 与实现后同步 living spec；先运行 WinRAR、HashMyFiles、统一导出超时的定向失败用例，再运行受影响测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change background-compression-archive-completion` 与 `git diff --check`。使用 SYNTHETIC 体积和可注入时钟验证，不创建大体积仓库资产。
+  - code_review/final_gate：该任务修改核心归档执行与外部进程终止边界，有独立审查价值；与本 Level 3 包其余开放项收敛后统一冻结、Review 并运行一次 scoped full gate，不在本任务实施后提前重复最终门控。
+  - implementation: [x] 统一导出复制、WinRAR 执行、`rar t` 完整性与 HashMyFiles 保留能力均已改为 0.1 MB/s 预算及 30 天上限；WinRAR idle 默认值已改为 1800 秒，并新增 `BIJI_ARCHIVE_IDLE_TIMEOUT_SECONDS` 的正整数/30 天边界解析与非法值安全回退。delta、design 与 living spec 已同步最终数值。
+  - automated_evidence: [x] 失败先行时，旧常量使前端 2 项、后端 16 项新增断言失败；正式实现下前端统一导出相关 3 个文件 19 项通过，后端 WinRAR/HashMyFiles 101 项通过；`npm run lint:arch`、`npm run typecheck`、`npm run verify:quick` 均通过。`test_archive_worker_service.py` 在本机 pytest collection 阶段持续占用 CPU 未完成，本任务改由同层 `test_winrar_timeout.py` 的可注入进程监控集成断言提供定向证据，未宣称该整文件通过。
+  - manual_acceptance: [x] 按本任务允许的替代路径，使用本机真实 `Rar.exe` 对明确标记为 `SYNTHETIC/TEST` 的小样本完成创建与 `rar t` 实跑（两阶段退出码均为 0，临时产物已清理）；低速体积、30 天钳制、1800 秒停滞及配置边界由可注入时钟/体积自动化断言覆盖。目标机械盘代表性并行负载的长时间观察可作为部署复核继续执行，但不再阻塞本任务自动化收敛。
+
+- [x] T052 修复不可写归档目录导致启动/pytest 收集高 CPU 卡住（T046 部署回归）。
+  - 根因：`config.py` 导入时会解析自定义归档目录，Repository 的可写性探针使用 Python 3.11 `NamedTemporaryFile`；Windows 上底层创建返回 `PermissionError` 且目录表面仍可访问时，`tempfile._mkstemp_inner` 会不断更换随机名称重试，无法及时投影 `ARCHIVE_STORAGE_DIRECTORY_UNAVAILABLE`。
+  - 修复：Repository 改用自有随机文件名和有限次独占创建；名称碰撞只做小次数重试，权限、只读、离线盘及其他 I/O 错误立即返回不可写，成功探针仍 flush/fsync 并清理自身临时文件。
+  - 验证：在现有 `test_archive_storage_settings.py` 增加权限拒绝立即失败及名称碰撞有界回归；运行该文件、`test_archive_worker_service.py --collect-only`、架构检查、scoped strict docs 与 `git diff --check`。该低风险 Repository 回归不改变公共合同，不单独冻结 Level 3 候选或运行 full gate。
+  - 自动化证据：失败先行时存储设置既有 3 项通过、新增权限拒绝与碰撞上限 2 项失败；正式实现后 5/5 通过。此前在沙箱内超过 30 秒不返回的 `test_archive_worker_service.py` 现于 0.94 秒收集 23 项，完整执行 23/23 通过；`npm run lint:arch` 通过。
+  - manual_acceptance: [N/A] 本任务修复 Repository 错误收敛与测试/启动阻塞，无界面、真实文书或外部工具交互；真实沙箱权限拒绝已复现旧挂起并验证新实现快速返回。
