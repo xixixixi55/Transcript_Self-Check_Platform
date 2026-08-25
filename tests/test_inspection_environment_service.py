@@ -37,6 +37,7 @@ def test_captures_windows_11_and_projects_detected_huorong():
     content = projected["inspection"]["process_steps"][1]["content"]
     assert snapshot["operating_system"]["display_name"] == "Windows 11 64位专业版"
     assert "TEST-A 手机取证工作站" in content
+    assert "Windows 11 64位专业版操作系统启动正常" in content
     assert "火绒安全软件（版本号为TEST-6.0.7.0）" in content
     assert projected["inspection"]["process_steps"][0]["content"] == "SYNTHETIC step 2"
     assert projected["inspection"]["process_steps"][2]["content"] == "SYNTHETIC step 4"
@@ -75,7 +76,17 @@ def test_formats_windows_10_home_with_architecture_before_edition():
         "huorong": {"detected": False, "version": ""},
     }))
 
-    assert service.capture()["operating_system"]["display_name"] == "Windows 10 64位家庭版"
+    snapshot = service.capture()
+    assert snapshot["operating_system"]["display_name"] == "Windows 10 64位家庭版"
+    report = service.apply_to_report({
+        "inspection": {
+            "hardware_device": "TEST-A 手机取证工作站",
+            "process_steps": [{"step_number": 3, "content": "SYNTHETIC old environment"}],
+        },
+    })
+    assert "Windows 10 64位家庭版操作系统启动正常" in (
+        report["inspection"]["process_steps"][0]["content"]
+    )
 
 
 def test_missing_facts_use_pending_language_without_false_scan_result():

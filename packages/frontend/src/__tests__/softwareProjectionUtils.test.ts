@@ -224,7 +224,7 @@ describe('inspection environment projection', () => {
     const steps = updated.inspection.process_steps
 
     expect(steps.find(step => step.step_number === 3)?.content)
-      .toBe('启动SYNTHETIC DEVICE B，Windows 11 TEST专业版 64位启动正常，使用火绒安全软件（版本号为TEST-6.0.7.0）对SYNTHETIC DEVICE B进行杀毒，未发现病毒，完毕后退出火绒安全软件。')
+      .toBe('启动SYNTHETIC DEVICE B，Windows 11 TEST专业版 64位操作系统启动正常，使用火绒安全软件（版本号为TEST-6.0.7.0）对SYNTHETIC DEVICE B进行杀毒，未发现病毒，完毕后退出火绒安全软件。')
     expect(steps.filter(step => step.step_number !== 3))
       .toEqual(initial.inspection.process_steps.filter(step => step.step_number !== 3))
   })

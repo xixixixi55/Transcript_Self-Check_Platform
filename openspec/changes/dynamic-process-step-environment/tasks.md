@@ -57,6 +57,10 @@ spec_sync_evidence: Windows 展示顺序已同步到 electronic-inspection-recor
 - [x] 将 Windows 系统展示顺序统一为“系统代际 + 位数 + 版本类型”，例如“Windows 10 64位 家庭版”，并同步 delta 与 living spec。验证：环境服务定向测试覆盖 Windows 10 家庭版、Windows 10 企业版和 Windows 11 专业版。
 - [x] 将位数与版本类型连续显示，例如“Windows 10 64位家庭版”，不在“64位”与“家庭版”之间插入空格；同步 delta 与 living spec。验证：环境服务定向测试覆盖 Windows 10 家庭版、Windows 10 企业版和 Windows 11 专业版。
 
+## 反馈修正（2026-08-25）
+
+- [x] 步骤3在已识别的 Windows 展示名称后明确补充“操作系统”，例如“Windows 10 64位家庭版操作系统启动正常”；操作系统信息待确认文案保持原状。同步 delta 与 living spec，并验证后端与共享前端两条步骤3投影路径。
+
 ## 验证证据（2026-08-17）
 
 - 后端定向测试：`89 passed`。
@@ -76,6 +80,11 @@ spec_sync_evidence: Windows 展示顺序已同步到 electronic-inspection-recor
 - 环境服务定向测试：`5 passed`；受影响的 Word、环境和 HashMyFiles 四个测试文件合计 `65 passed`。
 - `npm run verify:quick`、`npm run verify:docs:strict -- --change dynamic-process-step-environment` 与 scoped `git diff --check` 通过。
 - 位数与版本类型连续显示反馈：环境服务、本机环境 Repository、附件渲染与兼容填充四个受影响测试文件合计 `68 passed`；`verify:quick` 与本变更包 scoped strict docs 通过。
+
+## 反馈修正验证证据（2026-08-25）
+
+- 后端环境服务定向测试 `5 passed`，共享前端步骤投影定向 Vitest `11 passed`；已覆盖 Windows 10 家庭版与 Windows 11 专业版的“操作系统启动正常”表述，以及操作系统信息待确认分支。
+- delta 与 living spec 已同步；`npm run verify:quick`、`npm run verify:docs:strict -- --change dynamic-process-step-environment` 和 `git diff --check` 均通过。
 
 ## 边界
 

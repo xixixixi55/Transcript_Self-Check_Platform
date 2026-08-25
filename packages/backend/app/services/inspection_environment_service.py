@@ -74,17 +74,21 @@ def build_environment_step(hardware_device: Any, snapshot: Mapping[str, Any]) ->
     security = security if isinstance(security, Mapping) else {}
     os_display = _text(os_info.get("display_name")) if os_info.get("status") == "detected" else ""
     operating_system = os_display or "操作系统信息待确认"
+    operating_system_startup = (
+        f"{operating_system}操作系统启动正常" if os_display
+        else f"{operating_system}启动正常"
+    )
     status = security.get("status")
     if status in {"detected", "version_unknown"}:
         name = _text(security.get("name")) or "火绒安全软件"
         version = _text(security.get("version"))
         version_text = f"版本号为{version}" if status == "detected" and version else "版本号待确认"
         return (
-            f"启动{hardware}，{operating_system}启动正常，使用{name}（{version_text}）"
+            f"启动{hardware}，{operating_system_startup}，使用{name}（{version_text}）"
             f"对{hardware}进行杀毒，未发现病毒，完毕后退出{name}。"
         )
     return (
-        f"启动{hardware}，{operating_system}启动正常，安全软件待确认（版本号待确认），"
+        f"启动{hardware}，{operating_system_startup}，安全软件待确认（版本号待确认），"
         f"对{hardware}进行杀毒的结果待确认。"
     )
 
