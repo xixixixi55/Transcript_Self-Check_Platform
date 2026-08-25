@@ -379,3 +379,13 @@ workflow_level: 3
   - 验证：导出服务、目录选择器、统一/单独 Word 控制器定向 pytest；`npm run verify:quick`、scoped strict docs 与 `git diff --check`。本反馈不冻结仍含人工验收待办的 Level 3 候选，不重复最终 Review/full gate。
   - 自动化证据：统一导出服务、授权服务、目录选择器与统一/单独 Word 控制器定向 39 passed；`npm run verify:quick` PASS（架构、类型、治理、quick docs、仓库资产）；程序目录与用户数据目录拒绝、拒绝时不消费 grant、不覆盖有效目录历史及正常目录导出均有区分断言。首次扩大运行 `test_record_controller.py` 的 2 个无关 archive endpoint 用例因默认 SQLite 只读失败，受影响用例隔离重跑全部通过。
   - 追加修复：2026-08-23 审计发现选择器返回路径在控制器复核后仍以原始表示签发授权，而统一导出按规范路径消费授权；控制器现统一用校验返回的规范路径响应并签发授权，避免 junction、别名或含 `..` 的等价路径产生授权不匹配。补充统一导出拒绝程序根时不消费 grant、不中转到 renderer，以及控制器只为规范路径签发授权的回归断言。受影响回归 32 passed，扩大后端套件 100 passed；2 个既有 archive endpoint 用例仍因默认 SQLite 只读失败，换全新合成数据根隔离重跑 2/2 passed；架构与类型检查 PASS。
+
+- [x] T048 修复繁忙机械盘上 HashMyFiles 99% 后误报截图失败（用户稳定复现回归）。
+  - 现象：统一导出到正在进行电子取证的 F 盘时，HashMyFiles 在 120 秒内运行到 99% 后退出，前端提示截图生成失败；导出到空闲 G 盘正常。
+  - 根因：真实窗口捕获脚本开启 `LiveHashes` 并每 100ms 读取全部列表行，任一 `SendMessageTimeout` 超过 2 秒就终止进程；外层又把所有 PowerShell 非零退出统一包装成截图失败，丢失校验超时、窗口无响应、结果不完整与真实截图失败的差异。
+  - 内容：关闭实时摘要；单次窗口消息容忍调整为 5 秒，计算阶段短暂无响应按 500ms 低频重试并受既有动态总期限约束；摘要完整后再读取最终行和执行带独立宽限的窗口整理/截图；PowerShell 通过无路径结构化结果返回启动、校验总超时、窗口持续无响应、结果无效与截图失败，后端和前端安全文案保持区分。
+  - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、新增同层捕获脚本模块、`packages/backend/app/controllers/workbench_error_messages_controller.py`、`packages/shared/constants/workbenchConstants.ts`、相关后端测试、本变更包 delta/design 与 living spec。
+  - 验证：HashMyFiles Repository、统一导出错误传播与 Controller 文案定向 pytest；`npm run lint:arch`、`npm run typecheck`、`npm run verify:quick`、scoped strict docs 与 `git diff --check`。使用 SYNTHETIC RAR 在繁忙机械盘上的真实窗口复验作为人工验收。
+  - 自动化证据：Repository、统一导出原子回滚、API 错误传播与公共文案定向 pytest 45 passed；内嵌 PowerShell 解析、C# 编译及真实 PowerShell 启动失败结构化结果通过；随包 HashMyFiles 对临时 SYNTHETIC 小文件的真实窗口 PNG 冒烟验证 PASS；`npm run verify:quick`、架构、类型与 `git diff --check` PASS。临时恢复 `LiveHashes=1` 和 2 秒窗口阈值后核心回归按预期失败，恢复正式实现后通过。
+  - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044 真实 Word 人工验收待完成，候选尚未冻结；本反馈只运行增量门控，不重复最终 Review/full gate。
+  - manual_acceptance: [PENDING] 需在仍进行电子取证的 F 盘使用明确标记的 SYNTHETIC RAR 复验统一导出，确认短暂无响应可恢复、最终 PNG 正常，且实际失败提示与阶段一致。

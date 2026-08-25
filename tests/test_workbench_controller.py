@@ -1579,12 +1579,14 @@ def test_hashmyfiles_export_failures_have_safe_specific_messages():
     codes = [
         "HASHMYFILES_NO_PARTS", "HASHMYFILES_UNAVAILABLE",
         "HASHMYFILES_LAUNCH_FAILED", "HASHMYFILES_TIMEOUT",
+        "HASHMYFILES_WINDOW_UNRESPONSIVE",
         "HASHMYFILES_RUN_FAILED", "HASHMYFILES_OUTPUT_MISSING",
         "HASHMYFILES_RESULT_INVALID", "HASHMYFILES_SCREENSHOT_FAILED",
         "HASHMYFILES_SCREENSHOT_MISSING", "HASHMYFILES_SCREENSHOT_INVALID",
     ]
     messages = [_message(code) for code in codes]
     assert all("HashMyFiles" in message for message in messages)
+    assert len(messages) == len(set(messages))
     assert all(message != "工作台请求未完成，请稍后重试。" for message in messages)
 
 

@@ -19,6 +19,9 @@ from app.services.hashmyfiles_service import (  # noqa: E402
     _hash_timeout_seconds,
     generate_verification_image,
 )
+from app.controllers.workbench_error_messages_controller import (  # noqa: E402
+    message_for_workbench_error,
+)
 
 
 def test_resolve_hashmyfiles_uses_override(monkeypatch, tmp_path):
@@ -236,7 +239,7 @@ def test_capture_passes_selected_hash_configuration(
         captured.update(hashmyfiles_repository.json.loads(payload_path.read_text(encoding="utf-8")))
         output_path.write_bytes(b"\x89PNG\r\n\x1a\nSYNTHETIC")
         result_path.write_text(
-            '{"item_count": 1, "rows": [{"filename": "case.part1.rar", '
+            '{"status": "succeeded", "item_count": 1, "rows": [{"filename": "case.part1.rar", '
             f'"hash_value": "{"a" * length}", "size_bytes": "13"}}]}}',
             encoding="utf-8-sig",
         )
@@ -257,7 +260,113 @@ def test_capture_passes_selected_hash_configuration(
     assert captured["hash_digest_length"] == length
     assert captured["hash_column_width"] == column_width
     assert captured["window_width"] == window_width
+    assert captured["capture_grace_seconds"] == 30
     assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+@pytest.mark.parametrize(
+    ("error_code", "expected_message"),
+    [
+        ("HASHMYFILES_LAUNCH_FAILED", "HashMyFiles 无法启动。"),
+        ("HASHMYFILES_TIMEOUT", "HashMyFiles 校验未在规定时间内完成。"),
+        ("HASHMYFILES_WINDOW_UNRESPONSIVE", "HashMyFiles 窗口持续无响应。"),
+        ("HASHMYFILES_RUN_FAILED", "HashMyFiles 校验执行失败。"),
+        ("HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验已完成，但截图生成失败。"),
+    ],
+)
+def test_capture_preserves_structured_failure_code(
+    tmp_path, error_code, expected_message,
+):
+    exe = tmp_path / "HashMyFiles.exe"
+    rar = tmp_path / "SYNTHETIC.part1.rar"
+    rar.write_bytes(b"SYNTHETIC/RAR")
+
+    def fake_run(args, **kwargs):
+        result_path = Path(args[-1])
+        result_path.write_text(
+            hashmyfiles_repository.json.dumps({
+                "status": "failed", "stage": "synthetic", "error_code": error_code,
+            }),
+            encoding="utf-8-sig",
+        )
+        return type("Completed", (), {"returncode": 1})()
+
+    with (
+        patch.object(hashmyfiles_repository.subprocess, "run", side_effect=fake_run),
+        pytest.raises(HashMyFilesError) as error,
+    ):
+        hashmyfiles_repository._capture_hashmyfiles_window(
+            exe, [rar], tmp_path / "hash-verification.png", 30, "md5",
+        )
+
+    assert error.value.code == error_code
+    assert error.value.args[0] == expected_message
+
+
+def test_capture_maps_outer_process_timeout_to_hash_timeout(tmp_path):
+    exe = tmp_path / "HashMyFiles.exe"
+    rar = tmp_path / "SYNTHETIC.part1.rar"
+    rar.write_bytes(b"SYNTHETIC/RAR")
+
+    with (
+        patch.object(
+            hashmyfiles_repository.subprocess,
+            "run",
+            side_effect=hashmyfiles_repository.subprocess.TimeoutExpired("powershell", 75),
+        ),
+        pytest.raises(HashMyFilesError) as error,
+    ):
+        hashmyfiles_repository._capture_hashmyfiles_window(
+            exe, [rar], tmp_path / "hash-verification.png", 30, "md5",
+        )
+
+    assert error.value.code == "HASHMYFILES_TIMEOUT"
+    assert error.value.args[0] == "HashMyFiles 校验未在规定时间内完成。"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Native HashMyFiles capture is Windows-only")
+def test_real_capture_script_returns_structured_launch_failure(tmp_path):
+    rar = tmp_path / "SYNTHETIC.part1.rar"
+    rar.write_bytes(b"SYNTHETIC/RAR")
+
+    with pytest.raises(HashMyFilesError) as error:
+        hashmyfiles_repository._capture_hashmyfiles_window(
+            tmp_path / "missing-HashMyFiles.exe",
+            [rar],
+            tmp_path / "hash-verification.png",
+            30,
+            "md5",
+        )
+
+    assert error.value.code == "HASHMYFILES_LAUNCH_FAILED"
+    assert error.value.args[0] == "HashMyFiles 无法启动。"
+
+
+@pytest.mark.parametrize(
+    ("error_code", "expected_message"),
+    [
+        (
+            "HASHMYFILES_TIMEOUT",
+            "HashMyFiles 校验未在规定时间内完成，目标磁盘可能繁忙，请稍后重试或选择其他磁盘。",
+        ),
+        (
+            "HASHMYFILES_WINDOW_UNRESPONSIVE",
+            "HashMyFiles 校验已完成，但窗口持续无响应，无法读取和截图。",
+        ),
+        (
+            "HASHMYFILES_RESULT_INVALID",
+            "HashMyFiles 已结束，但校验结果缺失或不完整，请重试。",
+        ),
+        (
+            "HASHMYFILES_SCREENSHOT_FAILED",
+            "HashMyFiles 校验已完成，但窗口截图生成失败，请重试。",
+        ),
+    ],
+)
+def test_hashmyfiles_public_messages_distinguish_failure_stage(
+    error_code, expected_message,
+):
+    assert message_for_workbench_error(error_code) == expected_message
 
 
 def test_capture_script_uses_native_window_and_only_three_visible_columns():
@@ -268,9 +377,16 @@ def test_capture_script_uses_native_window_and_only_three_visible_columns():
     assert "ReadListText" in script
     assert "CreateKillOnCloseJob" in script
     assert "WaitForExit(3000)" in script
-    assert "[IntPtr]0, [IntPtr]300" in script
+    assert "@{ column = 0; width = 300 }" in script
     assert "[int]$payload.hash_column_index" in script
     assert "[int]$payload.hash_column_width" in script
-    assert "[IntPtr]11, [IntPtr]145" in script
+    assert "@{ column = 11; width = 145 }" in script
     assert "[int]$payload.window_width" in script
     assert "DrawString" not in script
+    assert "LiveHashes=0" in script
+    assert "LiveHashes=1" not in script
+    assert "SendMessageTimeout(window, message, wParam, lParam, 2, 5000" in script
+    assert "Start-Sleep -Milliseconds 500" in script
+    assert "TryGetItemCount" in script
+    assert "HASHMYFILES_WINDOW_UNRESPONSIVE" in script
+    assert "status = 'failed'" in script

@@ -166,7 +166,17 @@ def test_default_hashmyfiles_runner_receives_case_sha256(tmp_path, monkeypatch) 
     assert captured["algorithm"] == "sha256"
 
 
-def test_hash_capture_failure_preserves_previous_complete_bundle(database, tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "failure_code",
+    [
+        "HASHMYFILES_TIMEOUT",
+        "HASHMYFILES_WINDOW_UNRESPONSIVE",
+        "HASHMYFILES_SCREENSHOT_FAILED",
+    ],
+)
+def test_hash_capture_failure_preserves_previous_complete_bundle(
+    database, tmp_path, monkeypatch, failure_code,
+) -> None:
     final_dir = tmp_path / "SYNTHETIC-FINAL-ATOMIC"
     final_dir.mkdir()
     for name in ("SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"):
@@ -183,9 +193,7 @@ def test_hash_capture_failure_preserves_previous_complete_bundle(database, tmp_p
     monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
 
     def failed_hash(rar_paths, output_dir):
-        raise HashMyFilesError(
-            "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
-        )
+        raise HashMyFilesError(failure_code, "SYNTHETIC HashMyFiles failure")
 
     with pytest.raises(UnifiedExportError) as error:
         unified_export(
@@ -194,7 +202,7 @@ def test_hash_capture_failure_preserves_previous_complete_bundle(database, tmp_p
             photo_paths=[], template_context={}, hash_runner=failed_hash,
         )
 
-    assert error.value.code == "HASHMYFILES_SCREENSHOT_FAILED"
+    assert error.value.code == failure_code
     assert {name: (export_path / name).read_bytes() for name in previous} == previous
     assert not list(export_path.glob(".biji-export-*"))
 

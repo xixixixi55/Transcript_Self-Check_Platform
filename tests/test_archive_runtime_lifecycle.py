@@ -874,11 +874,15 @@ def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
             ),
             (
                 "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
-                "HashMyFiles 校验结果缺失或不完整，请重试。",
+                "HashMyFiles 已结束，但校验结果缺失或不完整，请重试。",
+            ),
+            (
+                "HASHMYFILES_WINDOW_UNRESPONSIVE", "HashMyFiles 窗口持续无响应。",
+                "HashMyFiles 校验已完成，但窗口持续无响应，无法读取和截图。",
             ),
             (
                 "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
-                "HashMyFiles 校验截图生成失败，请重试。",
+                "HashMyFiles 校验已完成，但窗口截图生成失败，请重试。",
             ),
         ]
         for index, (error_code, internal_message, public_message) in enumerate(failures):

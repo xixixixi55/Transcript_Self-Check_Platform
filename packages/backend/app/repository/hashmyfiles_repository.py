@@ -7,14 +7,15 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
-from .runtime_paths import get_runtime_paths
+from .hashmyfiles_capture_script import CAPTURE_SCRIPT
 from .hashmyfiles_result_repository import validate_hashmyfiles_rows
+from .runtime_paths import get_runtime_paths
 
+_CAPTURE_SCRIPT = CAPTURE_SCRIPT
 _HASH_IMAGE_FILENAME = "hash-verification.png"
 _LEGACY_HASH_HTML_FILENAME = "hash-verification.html"
-# Probed against HashMyFiles v2.51 on Windows (2026-08-06); shown in the
-# report's software_tools runtime entry for newly parsed cases.
 HASHMYFILES_DISPLAY_VERSION = "2.51"
 _HASH_POLICIES = {
     "md5": {"column": 1, "length": 32, "display_width": 312},
@@ -22,8 +23,16 @@ _HASH_POLICIES = {
     "sha256": {"column": 4, "length": 64, "display_width": 600},
 }
 _WINDOW_NON_HASH_WIDTH = 475
-# Resolved once after the launcher has established the portable environment.
+_CAPTURE_GRACE_SECONDS = 30
+_PROCESS_EXIT_GRACE_SECONDS = 15
 _DEFAULT_TOOL_PATH = get_runtime_paths().hashmyfiles_executable
+_FAILURE_MESSAGES = {
+    "HASHMYFILES_LAUNCH_FAILED": "HashMyFiles 无法启动。",
+    "HASHMYFILES_TIMEOUT": "HashMyFiles 校验未在规定时间内完成。",
+    "HASHMYFILES_WINDOW_UNRESPONSIVE": "HashMyFiles 窗口持续无响应。",
+    "HASHMYFILES_RUN_FAILED": "HashMyFiles 校验执行失败。",
+    "HASHMYFILES_SCREENSHOT_FAILED": "HashMyFiles 校验已完成，但截图生成失败。",
+}
 
 
 class HashMyFilesError(RuntimeError):
@@ -53,16 +62,10 @@ def run_hashmyfiles(
     timeout_seconds: int = 120,
     hash_algorithm: str = "md5",
 ) -> str:
-    """Produce the verification PNG file name inside ``output_dir``.
-
-    Only the selected business hash is enabled. The real HashMyFiles window is
-    captured after its native list view is reduced to Filename, hash, and File Size.
-    """
+    """Produce a validated native-window PNG inside ``output_dir``."""
     output_dir.mkdir(parents=True, exist_ok=True)
     image_path = output_dir / _HASH_IMAGE_FILENAME
     legacy_html_path = output_dir / _LEGACY_HASH_HTML_FILENAME
-    # Keep the previous published artifact intact until the replacement has
-    # been fully generated and validated on the same filesystem.
     with tempfile.TemporaryDirectory(
         prefix=".biji-hashmyfiles-", dir=output_dir,
     ) as temp_dir:
@@ -76,7 +79,8 @@ def run_hashmyfiles(
             os.replace(candidate_image_path, image_path)
         except OSError as error:
             raise HashMyFilesError(
-                "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图发布失败。",
+                "HASHMYFILES_SCREENSHOT_FAILED",
+                "HashMyFiles 校验截图发布失败。",
             ) from error
     legacy_html_path.unlink(missing_ok=True)
     return _HASH_IMAGE_FILENAME
@@ -116,43 +120,46 @@ def _capture_hashmyfiles_window(
         "/SHA256", "1" if hash_algorithm == "sha256" else "0",
         "/SHA512", "0", "/SHA384", "0",
     ]
-    hash_column_width = policy["display_width"]
     try:
         with tempfile.TemporaryDirectory(prefix="biji-hash-capture-") as temp_dir:
-            payload_path = Path(temp_dir) / "capture.json"
-            script_path = Path(temp_dir) / "render.ps1"
-            result_path = Path(temp_dir) / "result.json"
+            temp_path = Path(temp_dir)
+            payload_path = temp_path / "capture.json"
+            script_path = temp_path / "render.ps1"
+            result_path = temp_path / "result.json"
             payload_path.write_text(json.dumps({
                 "executable": str(executable),
                 "files": [str(path) for path in rar_paths],
                 "expected_count": len(rar_paths),
                 "timeout_seconds": timeout_seconds,
+                "capture_grace_seconds": _CAPTURE_GRACE_SECONDS,
                 "hash_arguments": hash_arguments,
                 "hash_column_index": policy["column"],
                 "hash_digest_length": policy["length"],
-                "hash_column_width": hash_column_width,
-                "window_width": _WINDOW_NON_HASH_WIDTH + hash_column_width,
+                "hash_column_width": policy["display_width"],
+                "window_width": _WINDOW_NON_HASH_WIDTH + policy["display_width"],
             }, ensure_ascii=False), encoding="utf-8")
-            script_path.write_text(_CAPTURE_SCRIPT, encoding="utf-8-sig")
+            script_path.write_text(CAPTURE_SCRIPT, encoding="utf-8-sig")
             result = subprocess.run(
                 [
                     "powershell.exe", "-NoProfile", "-NonInteractive",
                     "-ExecutionPolicy", "Bypass", "-File", str(script_path),
                     str(payload_path), str(output_path), str(result_path),
                 ],
-                capture_output=True, timeout=timeout_seconds + 15, check=False,
+                capture_output=True,
+                timeout=timeout_seconds + _CAPTURE_GRACE_SECONDS + _PROCESS_EXIT_GRACE_SECONDS,
+                check=False,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
+            capture_result = _read_capture_result(result_path)
             if result.returncode != 0:
-                raise HashMyFilesError(
-                    "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
-                )
-            try:
-                capture_result = json.loads(result_path.read_text(encoding="utf-8-sig"))
-            except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                code = str((capture_result or {}).get("error_code") or "")
+                if code not in _FAILURE_MESSAGES:
+                    code = "HASHMYFILES_RUN_FAILED"
+                raise HashMyFilesError(code, _FAILURE_MESSAGES[code])
+            if not capture_result or capture_result.get("status") != "succeeded":
                 raise HashMyFilesError(
                     "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果无法读取。",
-                ) from error
+                )
             if capture_result.get("item_count") != len(rar_paths):
                 raise HashMyFilesError(
                     "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
@@ -165,234 +172,19 @@ def _capture_hashmyfiles_window(
                 raise HashMyFilesError(
                     "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
                 ) from error
-    except (OSError, subprocess.TimeoutExpired) as error:
+    except subprocess.TimeoutExpired as error:
         raise HashMyFilesError(
-            "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
+            "HASHMYFILES_TIMEOUT", _FAILURE_MESSAGES["HASHMYFILES_TIMEOUT"],
+        ) from error
+    except OSError as error:
+        raise HashMyFilesError(
+            "HASHMYFILES_RUN_FAILED", _FAILURE_MESSAGES["HASHMYFILES_RUN_FAILED"],
         ) from error
 
 
-_CAPTURE_SCRIPT = r'''param([string]$JsonPath, [string]$OutputPath, [string]$ResultPath)
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Drawing
-Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class HmfWindow {
-  public delegate bool EnumChildProc(IntPtr hwnd, IntPtr lParam);
-  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
-  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumChildProc callback, IntPtr data);
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder name, int max);
-  [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
-  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int command);
-  [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr hwnd);
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
-  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
-  [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr hwnd, IntPtr rect, IntPtr region, uint flags);
-  [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint processId);
-  [DllImport("kernel32.dll")] static extern IntPtr VirtualAllocEx(IntPtr process, IntPtr address, uint size, uint allocationType, uint protect);
-  [DllImport("kernel32.dll")] static extern bool WriteProcessMemory(IntPtr process, IntPtr address, byte[] buffer, int size, out IntPtr written);
-  [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr process, IntPtr address, byte[] buffer, int size, out IntPtr read);
-  [DllImport("kernel32.dll")] static extern bool VirtualFreeEx(IntPtr process, IntPtr address, uint size, uint freeType);
-  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
-  [DllImport("kernel32.dll")] static extern bool IsWow64Process(IntPtr process, out bool wow64);
-  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] static extern IntPtr CreateJobObject(IntPtr attributes, string name);
-  [DllImport("kernel32.dll")] static extern bool SetInformationJobObject(IntPtr job, int infoClass, IntPtr info, uint length);
-  [DllImport("kernel32.dll")] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
-  public static IntPtr FindDescendant(IntPtr parent, string className) {
-    IntPtr found = IntPtr.Zero;
-    EnumChildWindows(parent, delegate(IntPtr child, IntPtr data) {
-      var name = new System.Text.StringBuilder(128);
-      GetClassName(child, name, name.Capacity);
-      if (name.ToString() == className) { found = child; return false; }
-      return true;
-    }, IntPtr.Zero);
-    return found;
-  }
-  public static IntPtr SendSafe(IntPtr window, uint message, IntPtr wParam, IntPtr lParam) {
-    IntPtr result;
-    if (SendMessageTimeout(window, message, wParam, lParam, 2, 2000, out result) == IntPtr.Zero)
-      throw new TimeoutException("HashMyFiles window did not respond");
-    return result;
-  }
-  public static bool ClearSelection(IntPtr list, uint processId) {
-    IntPtr process = OpenProcess(0x0038, false, processId);
-    if (process == IntPtr.Zero) return false;
-    IntPtr remote = VirtualAllocEx(process, IntPtr.Zero, 64, 0x3000, 0x04);
-    if (remote == IntPtr.Zero) { CloseHandle(process); return false; }
-    byte[] item = new byte[64];
-    BitConverter.GetBytes(3u).CopyTo(item, 16); // LVIS_FOCUSED | LVIS_SELECTED mask
-    IntPtr written;
-    bool ok = WriteProcessMemory(process, remote, item, item.Length, out written);
-    if (ok) SendSafe(list, 0x102B, new IntPtr(-1), remote); // LVM_SETITEMSTATE
-    VirtualFreeEx(process, remote, 0, 0x8000);
-    CloseHandle(process);
-    return ok;
-  }
-  public static string ReadListText(IntPtr list, uint processId, int itemIndex, int subItem) {
-    IntPtr process = OpenProcess(0x0038, false, processId);
-    if (process == IntPtr.Zero) throw new InvalidOperationException("Cannot open HashMyFiles process");
-    IntPtr remote = VirtualAllocEx(process, IntPtr.Zero, 4096, 0x3000, 0x04);
-    if (remote == IntPtr.Zero) { CloseHandle(process); throw new InvalidOperationException("Cannot allocate HashMyFiles memory"); }
-    try {
-      bool wow64;
-      if (!IsWow64Process(process, out wow64)) throw new InvalidOperationException("Cannot determine HashMyFiles architecture");
-      if (!Environment.Is64BitProcess && Environment.Is64BitOperatingSystem && !wow64)
-        throw new PlatformNotSupportedException("32-bit PowerShell cannot inspect 64-bit HashMyFiles");
-      bool target64 = IntPtr.Size == 8 && !wow64;
-      byte[] nativeItem = new byte[64];
-      BitConverter.GetBytes(1u).CopyTo(nativeItem, 0); // LVIF_TEXT
-      BitConverter.GetBytes(itemIndex).CopyTo(nativeItem, 4);
-      BitConverter.GetBytes(subItem).CopyTo(nativeItem, 8);
-      long textAddress = remote.ToInt64() + 128;
-      if (target64) {
-        BitConverter.GetBytes(textAddress).CopyTo(nativeItem, 24);
-        BitConverter.GetBytes(1024).CopyTo(nativeItem, 32);
-      } else {
-        BitConverter.GetBytes((uint)textAddress).CopyTo(nativeItem, 20);
-        BitConverter.GetBytes(1024).CopyTo(nativeItem, 24);
-      }
-      IntPtr transferred;
-      if (!WriteProcessMemory(process, remote, nativeItem, nativeItem.Length, out transferred))
-        throw new InvalidOperationException("Cannot prepare HashMyFiles row read");
-      SendSafe(list, 0x1073, new IntPtr(itemIndex), remote); // LVM_GETITEMTEXTW
-      byte[] text = new byte[2048];
-      if (!ReadProcessMemory(process, new IntPtr(textAddress), text, text.Length, out transferred))
-        throw new InvalidOperationException("Cannot read HashMyFiles row");
-      return System.Text.Encoding.Unicode.GetString(text).TrimEnd('\0');
-    } finally {
-      VirtualFreeEx(process, remote, 0, 0x8000);
-      CloseHandle(process);
-    }
-  }
-  [StructLayout(LayoutKind.Sequential)] struct BasicLimits {
-    public long PerProcessUserTime, PerJobUserTime; public uint LimitFlags;
-    public UIntPtr MinimumWorkingSet, MaximumWorkingSet; public uint ActiveProcessLimit;
-    public IntPtr Affinity; public uint PriorityClass, SchedulingClass;
-  }
-  [StructLayout(LayoutKind.Sequential)] struct IoCounters {
-    public ulong ReadOps, WriteOps, OtherOps, ReadBytes, WriteBytes, OtherBytes;
-  }
-  [StructLayout(LayoutKind.Sequential)] struct ExtendedLimits {
-    public BasicLimits Basic; public IoCounters Io;
-    public UIntPtr ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory;
-  }
-  public static IntPtr CreateKillOnCloseJob() {
-    IntPtr job = CreateJobObject(IntPtr.Zero, null);
-    if (job == IntPtr.Zero) throw new InvalidOperationException("Cannot create HashMyFiles job");
-    var limits = new ExtendedLimits(); limits.Basic.LimitFlags = 0x2000;
-    int size = Marshal.SizeOf(limits); IntPtr data = Marshal.AllocHGlobal(size);
-    try {
-      Marshal.StructureToPtr(limits, data, false);
-      if (!SetInformationJobObject(job, 9, data, (uint)size)) throw new InvalidOperationException("Cannot configure HashMyFiles job");
-    } catch { CloseHandle(job); throw; } finally { Marshal.FreeHGlobal(data); }
-    return job;
-  }
-  public static void AssignToJob(IntPtr job, IntPtr process) {
-    if (!AssignProcessToJobObject(job, process)) throw new InvalidOperationException("Cannot contain HashMyFiles process");
-  }
-  public static void CloseJob(IntPtr job) { if (job != IntPtr.Zero) CloseHandle(job); }
-}
-'@
-$payload = Get-Content -LiteralPath $JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$configPath = Join-Path ([IO.Path]::GetDirectoryName($JsonPath)) 'HashMyFiles.capture.cfg'
-@"
-[General]
-MarkOddEvenRows=0
-ShowGridLines=0
-MarkHashInClipboard=0
-MarkIdenticals=0
-LiveHashes=1
-HashTypes=1
-"@ | Set-Content -LiteralPath $configPath -Encoding ASCII
-function Quote-Arg([string]$value) { return '"' + $value.Replace('"', '\"') + '"' }
-$arguments = @('/cfg', (Quote-Arg $configPath), '/files')
-$arguments += @($payload.files | ForEach-Object { Quote-Arg ([string]$_) })
-$arguments += @($payload.hash_arguments | ForEach-Object { [string]$_ })
-$startInfo = New-Object System.Diagnostics.ProcessStartInfo
-$startInfo.FileName = [string]$payload.executable
-$startInfo.Arguments = $arguments -join ' '
-$startInfo.UseShellExecute = $false
-$process = New-Object System.Diagnostics.Process
-$process.StartInfo = $startInfo
-$started = $false
-$job = [HmfWindow]::CreateKillOnCloseJob()
-try {
-  if (-not $process.Start()) { throw 'HashMyFiles did not start' }
-  $started = $true
-  [HmfWindow]::AssignToJob($job, $process.Handle)
-  $null = $process.WaitForInputIdle(10000)
-  $deadline = [DateTime]::UtcNow.AddSeconds([double]$payload.timeout_seconds)
-  $window = [IntPtr]::Zero
-  while ([DateTime]::UtcNow -lt $deadline -and $window -eq [IntPtr]::Zero) {
-    if ($process.HasExited) { throw 'HashMyFiles exited before opening its window' }
-    $process.Refresh(); $window = $process.MainWindowHandle
-    Start-Sleep -Milliseconds 100
-  }
-  if ($window -eq [IntPtr]::Zero) { throw 'HashMyFiles window was not found' }
-  $list = [HmfWindow]::FindDescendant($window, 'SysListView32')
-  if ($list -eq [IntPtr]::Zero) { throw 'HashMyFiles result list was not found' }
-  $itemCount = 0; $rows = @(); $resultsComplete = $false
-  while ([DateTime]::UtcNow -lt $deadline) {
-    if ($process.HasExited) { throw 'HashMyFiles exited before hashing completed' }
-    $itemCount = [HmfWindow]::SendSafe($list, 0x1004, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
-    if ($itemCount -eq [int]$payload.expected_count) {
-      $rows = @()
-      for ($rowIndex = 0; $rowIndex -lt $itemCount; $rowIndex++) {
-        $row = @{
-          filename = [HmfWindow]::ReadListText($list, [uint32]$process.Id, $rowIndex, 0)
-          hash_value = [HmfWindow]::ReadListText($list, [uint32]$process.Id, $rowIndex, [int]$payload.hash_column_index)
-          size_bytes = [HmfWindow]::ReadListText($list, [uint32]$process.Id, $rowIndex, 11)
-        }
-        $rows += $row
-      }
-      $hashPattern = '^[0-9a-fA-F]{' + [string]$payload.hash_digest_length + '}$'
-      $resultsComplete = @($rows | Where-Object { ([string]$_.hash_value) -notmatch $hashPattern }).Count -eq 0
-      if ($resultsComplete) { break }
-    }
-    Start-Sleep -Milliseconds 100
-  }
-  if (-not $resultsComplete) { throw 'HashMyFiles result is incomplete' }
-  for ($column = 0; $column -lt 20; $column++) {
-    $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]$column, [IntPtr]::Zero)
-  }
-  $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]0, [IntPtr]300)
-  $null = [HmfWindow]::SendSafe(
-    $list, 0x101E, [IntPtr]([int]$payload.hash_column_index),
-    [IntPtr]([int]$payload.hash_column_width)
-  )
-  $null = [HmfWindow]::SendSafe($list, 0x101E, [IntPtr]11, [IntPtr]145)
-  if (-not [HmfWindow]::ClearSelection($list, [uint32]$process.Id)) {
-    throw 'HashMyFiles selection state could not be cleared'
-  }
-  $height = [Math]::Max(230, 150 + ($itemCount * 22))
-  $null = [HmfWindow]::SetWindowPos(
-    $window, [IntPtr]::Zero, 0, 0, [int]$payload.window_width, $height, 0x0014
-  )
-  $null = [HmfWindow]::ShowWindow($window, 4)
-  $null = [HmfWindow]::SetFocus($window)
-  $null = [HmfWindow]::RedrawWindow($window, [IntPtr]::Zero, [IntPtr]::Zero, 0x0185)
-  Start-Sleep -Milliseconds 300
-  $rect = New-Object HmfWindow+RECT
-  if (-not [HmfWindow]::GetWindowRect($window, [ref]$rect)) { throw 'HashMyFiles window bounds unavailable' }
-  $bitmap = New-Object System.Drawing.Bitmap(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
-  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  $dc = $graphics.GetHdc()
-  try {
-    if (-not [HmfWindow]::PrintWindow($window, $dc, 2)) { throw 'HashMyFiles window capture failed' }
-  } finally { $graphics.ReleaseHdc($dc) }
-  $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
-  $graphics.Dispose(); $bitmap.Dispose()
-  @{ item_count = $itemCount; rows = @($rows) } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultPath -Encoding UTF8
-} finally {
-  if ($started -and -not $process.HasExited) {
-    $null = $process.CloseMainWindow()
-    if (-not $process.WaitForExit(3000)) {
-      $process.Kill()
-      $null = $process.WaitForExit(3000)
-    }
-  }
-  $process.Dispose()
-  [HmfWindow]::CloseJob($job)
-}
-'''
+def _read_capture_result(result_path: Path) -> dict[str, Any] | None:
+    try:
+        value = json.loads(result_path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
