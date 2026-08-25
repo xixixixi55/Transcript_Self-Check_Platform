@@ -45,23 +45,15 @@ export function ReviewInspectionSection({ inspection, updateReport, deviceOption
             onChange={value => updateReport('inspection.hardware_device', value)} options={deviceOptions} />
         </div>
         <div className="review-subfield">
-          <Text strong>{inspection.software_tools?.length ? `2-${inspection.software_tools.length + 1}、软件工具` : '2、软件工具'}</Text>
-          <SoftwareToolsList tools={inspection.software_tools || []}
-            onChange={() => undefined} readOnly />
-        </div>
-        <div id={REVIEW_TARGET_IDS.primarySoftwareStatus} className="review-subfield review-primary-software review-navigation-target" tabIndex={-1} aria-label="主取证软件">
-          <Text strong>主取证软件</Text>
-          <span className={`review-primary-software__status ${primarySoftware.confirmation_status === 'unconfirmed' ? 'review-primary-software__status--pending' : ''}`}>
-            {primarySoftware.confirmation_status === 'confirmed_by_user' ? '人工确认' :
-              primarySoftware.confirmation_status === 'confirmed_by_report' ? '报告自动识别' : '待确认'}
-          </span>
-          <ReviewField targetId={REVIEW_TARGET_IDS.primarySoftwareName} label="主取证软件名称" type="text" value={primarySoftware.name}
-            onChange={value => updateReport('inspection.primary_software.name', value)} placeholder="请输入主取证软件名称" />
-          <ReviewField targetId={REVIEW_TARGET_IDS.primarySoftwareVersion} label="主取证软件版本" type="text" value={primarySoftware.version}
-            onChange={value => updateReport('inspection.primary_software.version', value)} placeholder="请输入主取证软件版本" />
-          {primarySoftware.candidates && primarySoftware.candidates.length > 1 ? (
-            <Text type="secondary">报告候选存在冲突，请分别确认名称和版本后再导出。</Text>
-          ) : null}
+          <Text strong>2、软件工具</Text>
+          <SoftwareToolsList
+            tools={inspection.software_tools || []}
+            primarySoftware={primarySoftware}
+            onPrimarySoftwareChange={(field, value) =>
+              updateReport(`inspection.primary_software.${field}`, value)}
+            onChange={() => undefined}
+            readOnly
+          />
         </div>
       </div>
       <div className="review-editor-block">

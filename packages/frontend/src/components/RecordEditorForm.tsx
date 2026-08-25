@@ -105,7 +105,7 @@ export default function RecordEditorForm({
       </div>
 
       <fieldset disabled={readOnly} className="review-editor-form__fieldset">
-        <ReviewSection id={REVIEW_SECTION_IDS.document} title="文书信息与导出设置" pendingCount={countFor(REVIEW_SECTION_IDS.document)}>
+        <ReviewSection id={REVIEW_SECTION_IDS.document} title="文书信息" pendingCount={countFor(REVIEW_SECTION_IDS.document)}>
           {usesDocumentNumberTemplate && documentNumberTemplate
             ? <DocumentNumberEditor targetId={REVIEW_TARGET_IDS.documentNumber}
                 template={documentNumberTemplate} documentNumber={report.document_number}

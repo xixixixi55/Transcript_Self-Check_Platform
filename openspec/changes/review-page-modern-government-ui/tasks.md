@@ -3,13 +3,37 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: achievement-overview homepage scenarios synchronized into openspec/specs/electronic-inspection-record/spec.md REQ-029 on 2026-08-16
+spec_sync_evidence: existing scenarios plus primary-software single-display scenarios synchronized into openspec/specs/electronic-inspection-record/spec.md on 2026-08-25
 
 ## 目标
 
 在不改变报告解析、字段数据结构、上传、附件处理和 Word 导出行为的前提下，为平台建立现代政务工作台全局外壳，并在电子数据检查笔录流程中保留已验收的审核编辑页样板。
 
 本任务为 Level 2，仅维护本文件；不创建 proposal、spec 或 design，不实现其他五类未开放文书。
+
+## 第十二阶段：审核章节标题反馈补丁
+
+- [x] 将完整审核编辑器及右侧进度导航中的“文书信息与导出设置”统一精简为“文书信息”。
+- [x] 保持文号编辑、四部分进度、章节定位、主取证软件、软件工具、保存和导出行为不变，并完成前端定向验证与差异检查。
+
+### 第十二阶段验证记录
+
+- 前端定向 Vitest：`RecordEditorForm`、`ReviewPendingSummary`/`ReviewSection`、`useReviewChecklist` 共 3 个文件、46 项用例通过。
+- 架构检查、共享/前端 TypeScript 类型检查与 Impeccable UI 机械检测通过；`git diff --check` 通过。
+- 本次仅调整章节展示文案，不改变正式业务行为；无需新增测试或 delta spec，人工验收不适用。
+
+## 第十三阶段：主取证软件展示去重
+
+- [x] 在“软件工具”区域只展示一次主取证软件名称和版本，并移除其下方重复的独立主取证软件区块。
+- [x] 将主软件来源/确认状态及名称、版本编辑入口合并到同一主软件行；编辑继续更新 `inspection.primary_software` 并沿用既有派生与导出门控。
+- [x] 运行主软件列表聚焦回归、受影响前端测试、Level 2 工程与文档门控，并核对最终差异。
+
+### 第十三阶段验证记录
+
+- 聚焦 Vitest：`SoftwareToolsList`、`RecordEditorForm`、`useReviewChecklist`、`softwareProjectionUtils` 共 4 个文件、47 项用例通过；覆盖主软件名称/版本只显示一次、待确认入口和原有派生行为。
+- `npm run verify:quick` 通过，包含架构、共享/前端类型、治理文档、快速文档和仓库资产检查。
+- delta 已与实现核对并同步 living spec；Impeccable 检测未发现本次新增区域问题，报告的两项告警均位于未修改的既有样式行。
+- 人工验收：N/A；本次不改变视觉体系，单点展示、响应式结构和交互由聚焦 DOM 回归、类型与机械检测覆盖。
 
 ## 验收标准
 

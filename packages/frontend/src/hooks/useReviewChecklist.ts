@@ -32,7 +32,7 @@ export interface ReviewProgressSection {
 }
 
 export const REVIEW_PROGRESS_SECTIONS: readonly ReviewProgressSection[] = [
-  { id: REVIEW_SECTION_IDS.document, label: '文书信息与导出设置', itemSectionIds: [REVIEW_SECTION_IDS.document] },
+  { id: REVIEW_SECTION_IDS.document, label: '文书信息', itemSectionIds: [REVIEW_SECTION_IDS.document] },
   { id: REVIEW_SECTION_IDS.introduction, label: '一、绪论', itemSectionIds: [REVIEW_SECTION_IDS.introduction] },
   { id: REVIEW_SECTION_IDS.inspection, label: '二、检查', itemSectionIds: [REVIEW_SECTION_IDS.inspection] },
   {
