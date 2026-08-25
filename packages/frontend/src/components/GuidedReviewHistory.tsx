@@ -1,0 +1,55 @@
+import { CheckCircleOutlined, ClockCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { useLayoutEffect, useRef } from 'react'
+import type { GuidedReviewHistoryItem } from '../hooks/useGuidedReviewCards'
+
+interface Props {
+  items: GuidedReviewHistoryItem[]
+}
+
+function HistoryIcon({ tone }: { tone: GuidedReviewHistoryItem['tone'] }) {
+  if (tone === 'complete' || tone === 'recovered') return <CheckCircleOutlined aria-hidden />
+  if (tone === 'warning') return <ExclamationCircleOutlined aria-hidden />
+  return <ClockCircleOutlined aria-hidden />
+}
+
+export function GuidedReviewHistory({ items }: Props) {
+  const regionRef = useRef<HTMLElement>(null)
+  const followsLatest = useRef(true)
+
+  useLayoutEffect(() => {
+    const region = regionRef.current
+    if (region && followsLatest.current) region.scrollTop = region.scrollHeight
+  }, [items.length])
+
+  const rememberReadingPosition = () => {
+    const region = regionRef.current
+    if (!region) return
+    followsLatest.current = region.scrollHeight - region.clientHeight - region.scrollTop <= 24
+  }
+
+  return (
+    <section ref={regionRef} className="guided-review-history" role="region"
+      aria-labelledby="guided-review-history-title" tabIndex={0}
+      onScroll={rememberReadingPosition}>
+      <div className="guided-review-history__heading">
+        <h2 id="guided-review-history-title">历史处理轨迹</h2>
+        <span>{items.length ? `${items.length} 条现有事实摘要` : '等待形成轨迹'}</span>
+      </div>
+      {items.length ? (
+        <ol className="guided-review-history__list">
+          {items.map(item => (
+            <li className={`guided-review-history__item guided-review-history__item--${item.tone}`} key={item.id}>
+              <span className="guided-review-history__icon"><HistoryIcon tone={item.tone} /></span>
+              <div>
+                <h3>{item.title}</h3>
+                {item.detail && <p>{item.detail}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="guided-review-history__empty">办理轨迹会随案件现有事实逐步形成。</div>
+      )}
+    </section>
+  )
+}

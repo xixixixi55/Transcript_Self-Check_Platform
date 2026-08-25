@@ -1,12 +1,12 @@
 // Layer 12: FE_Pages — case-id based full editor using the Legacy production mappings.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Card, Spin, message } from 'antd'
+import { Alert, Button, Card, Space, Spin, message } from 'antd'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
 import { useRecordEditorCatalogs } from '../hooks/useRecordEditorCatalogs'
 import { useRecordExport } from '../hooks/useRecordExport'
 import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
-import { findMissingUnextractableReasonIndex, getReviewPendingItems, REVIEW_SECTION_IDS } from '../hooks/useReviewChecklist'
+import { findMissingUnextractableReasonIndex, getReviewPendingItems, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import { useReviewPendingNavigation } from '../hooks/useReviewPendingNavigation'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
 import { isValidDateFieldValue, isValidMinuteTimeRangeValue, projectEvidenceDerivedContent } from '@biji/shared/utils'
@@ -21,6 +21,10 @@ import { ArchiveCompletionPanel } from '../components/ArchiveCompletionPanel'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import { runWithSourceExportRiskConfirmation } from '../hooks/useSourceExportRisk'
+import { useGuidedReviewCards } from '../hooks/useGuidedReviewCards'
+import { GuidedReviewView } from '../components/GuidedReviewView'
+import { GuidedReviewCard } from '../components/GuidedReviewCard'
+import ImageUploader from '../components/ImageUploader'
 
 const WORD_EXPORT_PHOTO_WAIT_MS = 5_000
 
@@ -36,8 +40,14 @@ export default function CaseRecordGeneratePage() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [exportPreparing, setExportPreparing] = useState(false)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
+  const [reviewMode, setReviewMode] = useState<'guided' | 'full'>('guided')
+  const [fullEditorTargetId, setFullEditorTargetId] = useState<string | null>(null)
   const archiveDecisionInFlight = useRef(false)
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
+  useEffect(() => {
+    setReviewMode('guided')
+    setFullEditorTargetId(null)
+  }, [caseId])
   // Before compression finishes, accept either user-entered medium prefix.
   // The verified result then switches the same editor to the exact GP/YP contract.
   const archiveMedium = session.completedArchive.result?.archive_medium ?? null
@@ -49,7 +59,36 @@ export default function CaseRecordGeneratePage() {
     () => projectedReport ? getReviewPendingItems(projectedReport, undefined, archiveMedium, session.draft?.field_states) : [],
     [archiveMedium, projectedReport, session.draft?.field_states],
   )
+  const guidedReview = useGuidedReviewCards({
+    caseId,
+    report: projectedReport,
+    pendingItems,
+    lifecycle: session.detail?.shell.lifecycle || 'case_created',
+    archiveTask: session.detail?.shell.archive_task_summary,
+    archiveMedium,
+    archiveParts: session.completedArchive.result?.parts ?? null,
+    sourceStatus: session.detail?.source.access_status || 'pending',
+    sourceRequiresReselection: Boolean(session.detail?.source.requires_reselection),
+    leaseState: session.lease.phase === 'active' && !session.leaseLost ? 'editable'
+      : session.lease.phase === 'read_only' ? 'read_only'
+        : session.lease.phase === 'expired' || session.leaseLost ? 'expired'
+          : session.lease.phase === 'failed' ? 'failed' : 'acquiring',
+    photoState: session.photoAssets.assetError ? 'error' : session.photoAssets.uploading ? 'uploading' : 'ready',
+  })
   const { navigateToPendingItem, navigateToSection } = useReviewPendingNavigation()
+  const openFullEditor = (targetId?: string) => {
+    setFullEditorTargetId(targetId || null)
+    setReviewMode('full')
+  }
+  useEffect(() => {
+    if (reviewMode !== 'full' || !fullEditorTargetId) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const item = pendingItems.find(candidate => candidate.targetId === fullEditorTargetId)
+      if (item) navigateToPendingItem(item)
+      setFullEditorTargetId(null)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [fullEditorTargetId, navigateToPendingItem, pendingItems, reviewMode])
   const requestExport = () => {
     if (!projectedReport) return
     const missingIndex = findMissingUnextractableReasonIndex(projectedReport)
@@ -219,59 +258,115 @@ export default function CaseRecordGeneratePage() {
   const leaseMessage = session.lease.phase === 'read_only' ? '该案件当前由其他页面占用，当前页面为只读。'
     : session.lease.phase === 'expired' || session.leaseLost ? '编辑租约已失效，已停止自动保存。请重新获取租约后继续。'
       : session.lease.phase === 'acquiring' ? '正在获取编辑租约，请稍候。' : null
+  const archiveCompletionPanel = (
+    <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
+      expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
+      planRowRevision={session.completedArchive.result?.plan_row_revision ?? null}
+      archiveMedium={archiveMedium}
+      firstDiscNumber={session.report.attachments?.disc_number || ''}
+      onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
+      readOnly={!session.editingEnabled} defaultWordName={session.report.document_number}
+      onCompleted={() => {
+        session.completedArchive.reload()
+        void session.reloadDetail(caseId)
+      }} />
+  )
+  const currentGuidedAction = guidedReview.currentAction
+  let guidedSpecialContent: React.ReactNode
+  if (currentGuidedAction?.kind === 'source_recovery') {
+    guidedSpecialContent = <SourceReselectionPanel required onReselect={session.replaceSource} />
+  } else if (currentGuidedAction?.kind === 'lease_recovery') {
+    guidedSpecialContent = <Alert type="warning" showIcon message={leaseMessage || '当前页面没有有效编辑权限。'}
+      action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />
+  } else if (currentGuidedAction?.kind === 'photo_recovery') {
+    guidedSpecialContent = <Alert type="error" showIcon message={session.photoAssets.assetError || '图片尚未完成保存。'}
+      action={<Button onClick={() => openFullEditor(REVIEW_TARGET_IDS.photos)}>打开图片控件</Button>} />
+  } else if (currentGuidedAction?.kind === 'archive_decision'
+    || currentGuidedAction?.kind === 'waiting' && ['archive_queued', 'archiving'].includes(session.detail.shell.lifecycle)) {
+    guidedSpecialContent = <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy}
+      onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
+  } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.photos) {
+    guidedSpecialContent = <ImageUploader materials={session.report.introduction.evidence_list || []}
+      photos={session.photoAssets.files} onChange={session.photoAssets.handleChange} />
+  } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.discNumber) {
+    guidedSpecialContent = archiveCompletionPanel
+  } else if (currentGuidedAction?.kind === 'ready') {
+    guidedSpecialContent = <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Button type="primary" loading={exporting || exportPreparing} onClick={requestExport}>单独导出 Word</Button>
+      {archiveCompletionPanel}
+    </Space>
+  }
+  const guidedSummary = (
+    <>
+      <dl><dt>文号</dt><dd>{session.report.document_number || '待整理'}</dd></dl>
+      <dl><dt>案件简要情况</dt><dd>{session.report.introduction.case_summary || '待整理'}</dd></dl>
+      <dl><dt>检材</dt><dd>{session.report.introduction.evidence_list.length} 项</dd></dl>
+      <dl><dt>检查地点</dt><dd>{session.report.introduction.inspection_place || '待整理'}</dd></dl>
+      <dl><dt>检查方法</dt><dd>{session.report.inspection.method || '待整理'}</dd></dl>
+      <dl><dt>介质编号</dt><dd>{session.report.attachments.disc_number || '待整理'}</dd></dl>
+    </>
+  )
   return (
     <>
-      <div className="review-page">
+      <div className={`review-page${reviewMode === 'guided' ? ' review-page--guided' : ''}`}>
         <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
-        <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
-        {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待快速复核" description="可直接选择压缩时机；开始压缩前会快速核对授权路径、报告结构和核心报告文件。" />}
-        {!sourceInvalid && <>
-          <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
-          <div id={REVIEW_SECTION_IDS.archive} className="review-navigation-target" tabIndex={-1}>
-          <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
-            expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
-            planRowRevision={session.completedArchive.result?.plan_row_revision ?? null}
-            archiveMedium={archiveMedium}
-            firstDiscNumber={session.report.attachments?.disc_number || ''}
-            onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
-            readOnly={!session.editingEnabled} defaultWordName={session.report.document_number}
-            onCompleted={() => {
-              session.completedArchive.reload()
-              void session.reloadDetail(caseId)
-            }} />
+        {reviewMode === 'guided' && currentGuidedAction ? (
+          <GuidedReviewView history={guidedReview.history} currentAction={currentGuidedAction}
+            allActions={guidedReview.allActions} onSelectAction={guidedReview.selectAction}
+            summary={guidedSummary} onOpenFullEditor={() => openFullEditor()}
+            onBackToWorkbench={() => { void handleBackToWorkbench() }}>
+            <GuidedReviewCard action={currentGuidedAction} report={projectedReport || session.report}
+              updateReport={updateReport}
+              readOnly={!session.editingEnabled || exportPreparing || exportDirectory.busy || exporting}
+              specialContent={guidedSpecialContent}
+              onEvidenceCompletenessChange={confirmed => {
+                session.setEvidenceCompletenessConfirmed(confirmed)
+                if (session.editingEnabled) setReviewStatus('存在未导出修改')
+              }}
+              onOpenFullEditor={openFullEditor} />
+          </GuidedReviewView>
+        ) : reviewMode === 'full' ? <>
+          <div className="review-mode-toolbar">
+            <Button onClick={() => setReviewMode('guided')}>返回引导模式</Button>
           </div>
-        </>}
-        {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
-        {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
-        {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
-        <ReviewPendingSummary variant="side" items={pendingItems}
-          onNavigate={navigateToPendingItem} onNavigateSection={navigateToSection} />
-        <RecordEditorForm
-          report={projectedReport || session.report}
-          updateReport={updateReport}
-          onExport={requestExport}
-          exporting={exporting || exportPreparing || exportDirectory.busy}
-          onBackToUpload={() => { void handleBackToWorkbench() }}
-          deviceOptions={catalogs.deviceOptions}
-          availableInspectors={catalogs.inspectors}
-          inspectorLoading={catalogs.inspectorLoading}
-          inspectorError={catalogs.inspectorError}
-          photoFiles={session.photoAssets.files}
-          onPhotoFilesChange={session.photoAssets.handleChange}
-          fieldStates={session.draft?.field_states}
-          onEvidenceCompletenessChange={confirmed => {
-            session.setEvidenceCompletenessConfirmed(confirmed)
-            if (session.editingEnabled) setReviewStatus('存在未导出修改')
-          }}
-          saveStatus={reviewStatus}
-          saveBusy={session.photoAssets.uploading || session.autosave.draftState.status === 'saving'}
-          onSave={saveNow}
-          pendingItems={pendingItems}
-          workbenchMode
-          readOnly={!session.editingEnabled || exportPreparing || exportDirectory.busy || exporting}
-          archiveContextId={null}
-          archiveResult={session.completedArchive}
-        />
+          <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
+          {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待快速复核" description="可直接选择压缩时机；开始压缩前会快速核对授权路径、报告结构和核心报告文件。" />}
+          {!sourceInvalid && <>
+            <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
+            <div id={REVIEW_SECTION_IDS.archive} className="review-navigation-target" tabIndex={-1}>{archiveCompletionPanel}</div>
+          </>}
+          {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
+          {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
+          {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
+          <ReviewPendingSummary variant="side" items={pendingItems}
+            onNavigate={navigateToPendingItem} onNavigateSection={navigateToSection} />
+          <RecordEditorForm
+            report={projectedReport || session.report}
+            updateReport={updateReport}
+            onExport={requestExport}
+            exporting={exporting || exportPreparing || exportDirectory.busy}
+            onBackToUpload={() => { void handleBackToWorkbench() }}
+            deviceOptions={catalogs.deviceOptions}
+            availableInspectors={catalogs.inspectors}
+            inspectorLoading={catalogs.inspectorLoading}
+            inspectorError={catalogs.inspectorError}
+            photoFiles={session.photoAssets.files}
+            onPhotoFilesChange={session.photoAssets.handleChange}
+            fieldStates={session.draft?.field_states}
+            onEvidenceCompletenessChange={confirmed => {
+              session.setEvidenceCompletenessConfirmed(confirmed)
+              if (session.editingEnabled) setReviewStatus('存在未导出修改')
+            }}
+            saveStatus={reviewStatus}
+            saveBusy={session.photoAssets.uploading || session.autosave.draftState.status === 'saving'}
+            onSave={saveNow}
+            pendingItems={pendingItems}
+            workbenchMode
+            readOnly={!session.editingEnabled || exportPreparing || exportDirectory.busy || exporting}
+            archiveContextId={null}
+            archiveResult={session.completedArchive}
+          />
+        </> : null}
       </div>
       <WordDownloadNameDialog
         open={downloadNameDialogOpen}
