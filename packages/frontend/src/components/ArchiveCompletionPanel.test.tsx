@@ -64,6 +64,18 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     expect(mapping).not.toHaveBeenCalled()
   })
 
+  it('keeps one complete input string for the new GP format', () => {
+    const { onFirstDiscNumberChange } = renderPanel({
+      firstDiscNumber: 'GP2026073102-001',
+    })
+    const input = screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement
+    expect(input.value).toBe('GP2026073102-001')
+    expect(input.placeholder).toBe('如 GP2026073102-01')
+    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    fireEvent.change(input, { target: { value: 'GP2026073199-001' } })
+    expect(onFirstDiscNumberChange).toHaveBeenCalledWith('GP2026073199-001')
+  })
+
   it('keeps the same draft-bound input during compression', () => {
     const { onFirstDiscNumberChange } = renderPanel({ lifecycle: 'archiving' })
     expect(screen.getByText(/压缩正在后台进行/)).toBeTruthy()

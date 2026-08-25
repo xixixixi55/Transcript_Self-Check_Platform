@@ -40,7 +40,7 @@ def entry(size: int) -> list[ArchiveSourceEntry]:
     ],
 )
 def test_production_binary_tier_boundaries(size, tier, expected, status):
-    plan = plan_archive("合成案件", entry(size), first_disc_number="GP20260718-01")
+    plan = plan_archive("合成案件", entry(size), first_disc_number="GP2026071802-01")
     assert plan.volume_tier_gb == tier
     assert plan.expected_part_count == expected
     assert plan.status == status
@@ -67,30 +67,39 @@ def test_production_binary_tier_boundaries(size, tier, expected, status):
 )
 def test_named_capacity_planning(size, tier, expected):
     """Planner selects tier and expected count from input bytes; no WinRAR call."""
-    plan = plan_archive("合成案件", entry(size), first_disc_number="GP20260718-01")
+    plan = plan_archive("合成案件", entry(size), first_disc_number="GP2026071802-01")
     assert plan.volume_tier_gb == tier
     assert plan.expected_part_count == expected
     assert plan.status == "planned"
 
 
 def test_plan_records_selection_reason_and_disc_projection():
-    plan = plan_archive("合成案件", entry(8 * GB), first_disc_number="GP20260718-09")
+    plan = plan_archive("合成案件", entry(8 * GB), first_disc_number="GP2026071802-09")
     assert plan.diagnostics[0].code == "ARCHIVE_TIER_SELECTED"
     assert "4GB" in plan.diagnostics[0].message
-    assert plan.expected_disc_numbers == ("GP20260718-09", "GP20260718-10")
+    assert plan.expected_disc_numbers == ("GP2026071802-09", "GP2026071802-10")
 
 
 def test_oversized_plan_keeps_only_a_user_hard_drive_number():
     plan = plan_archive(
-        "合成案件", entry(225 * GB + 1), first_disc_number="YP20260413-01",
+        "合成案件", entry(225 * GB + 1), first_disc_number="YP2026041302-01",
     )
     assert plan.archive_mode == "oversized_single_volume"
-    assert plan.first_disc_number == "YP20260413-01"
-    assert plan.expected_disc_numbers == ("YP20260413-01",)
+    assert plan.first_disc_number == "YP2026041302-01"
+    assert plan.expected_disc_numbers == ("YP2026041302-01",)
+
+
+def test_legacy_number_remains_accepted_and_bound_to_a_new_plan():
+    plan = plan_archive(
+        "合成案件", entry(1), first_disc_number="GP20260718-01",
+    )
+    assert plan.status == "planned"
+    assert plan.first_disc_number == "GP20260718-01"
+    assert plan.expected_disc_numbers == ("GP20260718-01",)
 
 
 def test_public_plan_projection_has_no_filesystem_paths():
-    plan = plan_archive("合成案件", entry(1), first_disc_number="GP20260718-01")
+    plan = plan_archive("合成案件", entry(1), first_disc_number="GP2026071802-01")
     public_plan = plan.public_dict()
     assert "output_directory" not in public_plan
     assert all("absolute_path" not in entry for entry in public_plan["source_entries"])

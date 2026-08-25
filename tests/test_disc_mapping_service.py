@@ -52,9 +52,9 @@ def slot(slot_id: str, ordinal: int) -> dict:
 
 def test_build_disc_mappings_generates_sequence_in_ordinal_order() -> None:
     slots = [slot("SLOT-A", 1), slot("SLOT-B", 2), slot("SLOT-C", 3)]
-    mappings = build_disc_mappings("GP20260718-01", slots)
+    mappings = build_disc_mappings("GP2026071802-01", slots)
     assert [item["disc_number"] for item in mappings] == [
-        "GP20260718-01", "GP20260718-02", "GP20260718-03",
+        "GP2026071802-01", "GP2026071802-02", "GP2026071802-03",
     ]
     assert mappings[0]["disc_date"] == "2026-07-18"
     assert all(item["source"] == "user" and item["confirmation"] == "confirmed" for item in mappings)
@@ -67,16 +67,30 @@ def test_build_disc_mappings_rejects_invalid_number() -> None:
     assert error.value.code == "FIRST_DISC_NUMBER_INVALID"
 
 
+@pytest.mark.parametrize(
+    ("value", "archive_mode"),
+    [
+        ("GP20260718-01", "standard_split"),
+        ("YP20260413-01", "oversized_single_volume"),
+    ],
+)
+def test_mapping_accepts_legacy_number_without_user_identifier(
+    value: str, archive_mode: str,
+) -> None:
+    mappings = build_disc_mappings(value, [slot("SLOT-A", 1)], archive_mode)
+    assert mappings[0]["disc_number"] == value
+
+
 def test_hard_drive_mapping_uses_one_user_number_and_rejects_disc_prefix() -> None:
     slots = [slot("SLOT-HARD-DRIVE", 1)]
     mappings = build_disc_mappings(
-        "YP20260413-01", slots, "oversized_single_volume",
+        "YP2026041302-01", slots, "oversized_single_volume",
     )
-    assert [item["disc_number"] for item in mappings] == ["YP20260413-01"]
+    assert [item["disc_number"] for item in mappings] == ["YP2026041302-01"]
 
     with pytest.raises(DiscMappingError) as error:
         build_disc_mappings(
-            "GP20260413-01", slots, "oversized_single_volume",
+            "GP2026041302-01", slots, "oversized_single_volume",
         )
     assert error.value.code == "HARD_DRIVE_NUMBER_INVALID"
 
@@ -84,7 +98,7 @@ def test_hard_drive_mapping_uses_one_user_number_and_rejects_disc_prefix() -> No
 def test_hard_drive_mapping_rejects_multiple_archive_parts() -> None:
     with pytest.raises(DiscMappingError) as error:
         build_disc_mappings(
-            "YP20260413-01", [slot("SLOT-A", 1), slot("SLOT-B", 2)],
+            "YP2026041302-01", [slot("SLOT-A", 1), slot("SLOT-B", 2)],
             "oversized_single_volume",
         )
     assert error.value.code == "ARCHIVE_PLAN_INVALID"
@@ -98,11 +112,11 @@ def test_apply_disc_mapping_persists_to_plan(database: WorkbenchDatabase) -> Non
         "volume_slots": [slot("SYNTHETIC-SLOT-A", 1), slot("SYNTHETIC-SLOT-B", 2)],
     })
     result = apply_disc_mapping(
-        database, CASE_ID, plan["revision"], plan["revision"], "GP20260718-01",
+        database, CASE_ID, plan["revision"], plan["revision"], "GP2026071802-01",
     )
     assert result["parts"] == [
-        {"part_number": 1, "disc_number": "GP20260718-01", "disc_date": "2026-07-18"},
-        {"part_number": 2, "disc_number": "GP20260718-02", "disc_date": "2026-07-18"},
+        {"part_number": 1, "disc_number": "GP2026071802-01", "disc_date": "2026-07-18"},
+        {"part_number": 2, "disc_number": "GP2026071802-02", "disc_date": "2026-07-18"},
     ]
     reopened = repository.get(plan["plan_id"])
     assert reopened["mapping_revision"] == plan["mapping_revision"] + 1
@@ -115,7 +129,7 @@ def test_apply_disc_mapping_persists_to_plan(database: WorkbenchDatabase) -> Non
     assert result["expected_revision"] == plan["revision"]
     assert result["lifecycle"] == "archive_verified"
     assert result["archive_medium"] == "optical_disc"
-    assert first_mapped_disc_number(database, CASE_ID) == "GP20260718-01"
+    assert first_mapped_disc_number(database, CASE_ID) == "GP2026071802-01"
 
 
 def test_apply_hard_drive_mapping_persists_one_yp_number(database: WorkbenchDatabase) -> None:
@@ -128,17 +142,17 @@ def test_apply_hard_drive_mapping_persists_one_yp_number(database: WorkbenchData
 
     result = apply_disc_mapping(
         database, CASE_ID, plan["revision"], plan["revision"],
-        "YP20260413-01", "oversized_single_volume",
+        "YP2026041302-01", "oversized_single_volume",
     )
 
     assert result["archive_medium"] == "hard_drive"
     assert result["parts"] == [{
         "part_number": 1,
-        "disc_number": "YP20260413-01",
+        "disc_number": "YP2026041302-01",
         "disc_date": "2026-04-13",
     }]
     reopened = repository.get(plan["plan_id"])
-    assert active_slots(reopened)[0]["disc_mapping"]["disc_number"] == "YP20260413-01"
+    assert active_slots(reopened)[0]["disc_mapping"]["disc_number"] == "YP2026041302-01"
 
 
 def test_apply_disc_mapping_uses_plan_revision_for_cas(database: WorkbenchDatabase) -> None:
@@ -151,11 +165,11 @@ def test_apply_disc_mapping_uses_plan_revision_for_cas(database: WorkbenchDataba
     })
     result = apply_disc_mapping(
         database, CASE_ID, plan["revision"] - 1,
-        plan["revision"], "GP20260718-01",
+        plan["revision"], "GP2026071802-01",
     )
     assert result["expected_revision"] == plan["revision"] - 1
     reopened = repository.get(plan["plan_id"])
-    assert active_slots(reopened)[0]["disc_mapping"]["disc_number"] == "GP20260718-01"
+    assert active_slots(reopened)[0]["disc_mapping"]["disc_number"] == "GP2026071802-01"
 
 
 def test_first_mapped_disc_number_requires_every_active_slot_confirmed(database: WorkbenchDatabase) -> None:
@@ -193,11 +207,11 @@ def test_apply_disc_mapping_rejects_stale_plan_row_revision(database: WorkbenchD
         "volume_slots": [slot("SYNTHETIC-SLOT-A", 1)],
     })
     first = apply_disc_mapping(
-        database, CASE_ID, 8, plan["revision"], "GP20260718-01",
+        database, CASE_ID, 8, plan["revision"], "GP2026071802-01",
     )
     assert first["plan_row_revision"] == plan["revision"] + 1
 
     with pytest.raises(RevisionConflictError):
         apply_disc_mapping(
-            database, CASE_ID, 8, plan["revision"], "GP20260718-02",
+            database, CASE_ID, 8, plan["revision"], "GP2026071802-02",
         )

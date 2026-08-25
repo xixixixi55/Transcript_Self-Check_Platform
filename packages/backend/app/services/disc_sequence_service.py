@@ -14,6 +14,7 @@ _MAX_SAFE_INTEGER = 2**53 - 1
 class DiscSequence:
     prefix: str
     date: str
+    user_identifier: str | None
     start_number: int
     number_width: int
     first_disc_number: str
@@ -29,7 +30,10 @@ class DiscSequenceParseResult:
         return self.sequence is not None
 
 
-_PATTERN = re.compile(r"^([A-Za-z\u3400-\u9fff]{1,20})(\d{4})(\d{2})(\d{2})-(\d+)$", re.IGNORECASE)
+_PATTERN = re.compile(
+    r"^([A-Za-z\u3400-\u9fff]{1,20})(\d{4})(\d{2})(\d{2})(\d{2})?-(\d+)$",
+    re.IGNORECASE,
+)
 _ARCHIVE_MODE_PREFIX = {
     "standard_split": "GP",
     "oversized_single_volume": "YP",
@@ -55,7 +59,8 @@ def parse_disc_sequence(value: str | None) -> DiscSequenceParseResult:
         date(year, month, day)
     except ValueError:
         return DiscSequenceParseResult(None, "FIRST_DISC_DATE_INVALID")
-    raw_number = match.group(5)
+    user_identifier = match.group(5)
+    raw_number = match.group(6)
     start_number = int(raw_number)
     if start_number < 1 or start_number > _MAX_SAFE_INTEGER:
         return DiscSequenceParseResult(None, "FIRST_DISC_SEQUENCE_INVALID")
@@ -63,9 +68,13 @@ def parse_disc_sequence(value: str | None) -> DiscSequenceParseResult:
     sequence = DiscSequence(
         prefix=prefix,
         date=f"{year:04d}-{month:02d}-{day:02d}",
+        user_identifier=user_identifier,
         start_number=start_number,
         number_width=len(raw_number),
-        first_disc_number=f"{prefix}{year:04d}{month:02d}{day:02d}-{raw_number}",
+        first_disc_number=(
+            f"{prefix}{year:04d}{month:02d}{day:02d}"
+            f"{user_identifier or ''}-{raw_number}"
+        ),
     )
     return DiscSequenceParseResult(sequence)
 
@@ -102,13 +111,16 @@ def apply_disc_sequence_to_attachments(attachments: dict[str, Any]) -> DiscSeque
     if result.valid and result.sequence is not None:
         year, month, day = result.sequence.date.split("-")
         attachments["burning_date"] = f"{year}年{int(month)}月{int(day)}日"
-        attachments["disc_sequence"] = {
+        sequence_payload = {
             "prefix": result.sequence.prefix,
             "date": result.sequence.date,
             "start_number": result.sequence.start_number,
             "number_width": result.sequence.number_width,
             "first_disc_number": result.sequence.first_disc_number,
         }
+        if result.sequence.user_identifier is not None:
+            sequence_payload["user_identifier"] = result.sequence.user_identifier
+        attachments["disc_sequence"] = sequence_payload
     else:
         attachments.pop("disc_sequence", None)
     return result
@@ -131,7 +143,8 @@ def generate_disc_numbers(
     if sequence.start_number + max(count - 1, 0) > _MAX_SAFE_INTEGER:
         raise ValueError("FIRST_DISC_SEQUENCE_INVALID")
     return [
-        f"{sequence.prefix}{sequence.date.replace('-', '')}-"
+        f"{sequence.prefix}{sequence.date.replace('-', '')}"
+        f"{sequence.user_identifier or ''}-"
         f"{sequence.start_number + index:0{sequence.number_width}d}"
         for index in range(count)
     ]

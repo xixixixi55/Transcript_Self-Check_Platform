@@ -1,6 +1,6 @@
 import type { DiscSequence, DiscSequenceParseResult } from '../types/discSequence'
 
-const FIRST_DISC_PATTERN = /^([A-Za-z\u3400-\u9fff]{1,20})(\d{4})(\d{2})(\d{2})-(\d+)$/i
+const FIRST_DISC_PATTERN = /^([A-Za-z\u3400-\u9fff]{1,20})(\d{4})(\d{2})(\d{2})(\d{2})?-(\d+)$/i
 
 function isRealDate(year: number, month: number, day: number): boolean {
   const date = new Date(Date.UTC(year, month - 1, day))
@@ -22,7 +22,8 @@ export function parseDiscSequence(value: string): DiscSequenceParseResult {
   if (!isRealDate(year, month, day)) {
     return { valid: false, error_code: 'FIRST_DISC_DATE_INVALID' }
   }
-  const rawNumber = match[5]
+  const userIdentifier = match[5]
+  const rawNumber = match[6]
   const prefix = /^[A-Za-z]+$/.test(match[1]) ? match[1].toUpperCase() : match[1]
   const startNumber = Number(rawNumber)
   if (!Number.isSafeInteger(startNumber) || startNumber < 1) {
@@ -33,9 +34,10 @@ export function parseDiscSequence(value: string): DiscSequenceParseResult {
     sequence: {
       prefix,
       date: `${match[2]}-${match[3]}-${match[4]}`,
+      user_identifier: userIdentifier,
       start_number: startNumber,
       number_width: rawNumber.length,
-      first_disc_number: `${prefix}${match[2]}${match[3]}${match[4]}-${rawNumber}`,
+      first_disc_number: `${prefix}${match[2]}${match[3]}${match[4]}${userIdentifier || ''}-${rawNumber}`,
     },
   }
 }
@@ -60,7 +62,7 @@ export function generateDiscNumbers(
   }
   return Array.from({ length: count }, (_, index) => {
     const number = sequence.start_number + index
-    return `${sequence.prefix}${sequence.date.replaceAll('-', '')}-${String(number).padStart(sequence.number_width, '0')}`
+    return `${sequence.prefix}${sequence.date.replaceAll('-', '')}${sequence.user_identifier || ''}-${String(number).padStart(sequence.number_width, '0')}`
   })
 }
 

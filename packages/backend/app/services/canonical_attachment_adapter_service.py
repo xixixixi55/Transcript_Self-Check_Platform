@@ -58,6 +58,7 @@ def migrate_legacy_attachments(report: Mapping[str, Any]) -> dict[str, Any]:
         payload["disc_sequence"] = DiscSequence(
             prefix=sequence.prefix,
             date=sequence.date,
+            user_identifier=sequence.user_identifier,
             start_number=sequence.start_number,
             number_width=sequence.number_width,
             first_disc_number=sequence.first_disc_number,

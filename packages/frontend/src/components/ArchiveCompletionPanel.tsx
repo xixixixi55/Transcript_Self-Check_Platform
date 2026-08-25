@@ -39,8 +39,8 @@ export function ArchiveCompletionPanel({
   const hardDrive = archiveMedium === 'hard_drive'
   const mediumLabel = hardDrive ? '硬盘' : archiveMedium === 'optical_disc' ? '光盘' : '介质'
   const numberLabel = hardDrive ? '硬盘编号' : archiveMedium === 'optical_disc' ? '首个光盘编号' : '介质编号'
-  const numberPlaceholder = hardDrive ? '如 YP20260413-01' : archiveMedium === 'optical_disc'
-    ? '如 GP20260731-01' : '如 GP20260731-01 或 YP20260413-01'
+  const numberPlaceholder = hardDrive ? '如 YP2026041302-01' : archiveMedium === 'optical_disc'
+    ? '如 GP2026073102-01' : '如 GP2026073102-01 或 YP2026041302-01'
   useEffect(() => {
     if (archive.error) message.error(archive.error)
   }, [archive.error])
@@ -97,8 +97,8 @@ export function ArchiveCompletionPanel({
         showIcon
         message={hardDrive ? '待补硬盘编号' : archiveMedium === 'optical_disc' ? '待补盘号' : '待补介质编号'}
         description={hardDrive
-          ? '压缩已完成且产物为一个超大单卷，请输入用户确定的硬盘编号。'
-          : '压缩已完成，输入首个光盘编号后系统将按 part 顺序自动生成全序列映射。'}
+          ? '压缩已完成且产物为一个超大单卷；编号可使用旧格式，也可在日期后加入两位用户标识。'
+          : '压缩已完成；首盘号可使用旧格式，也可在日期后加入两位用户标识，系统将按 part 顺序生成全序列映射。'}
         action={<Space>
           <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
             disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
@@ -151,11 +151,11 @@ export function ArchiveCompletionPanel({
         ? hardDrive
           ? '压缩正在后台进行；完成后可填写硬盘编号。'
           : archiveMedium === 'optical_disc'
-            ? '压缩正在后台进行；现在仍可填写首个光盘编号，压缩完成后将沿用该编号。'
+            ? '压缩正在后台进行；现在仍可填写新格式或旧格式首盘号，压缩完成后将沿用该编号。'
             : undefined
         : archiveMedium
           ? '可提前填写编号；系统会在压缩完成后按归档模式校验。'
-          : undefined}
+          : '可提前填写新格式或旧格式的完整 GP/YP 编号；最终介质由压缩前归档总量决定。'}
       action={<Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={firstDiscNumber}
         disabled={readOnly} onChange={event => onFirstDiscNumberChange(event.target.value)} />}
     />

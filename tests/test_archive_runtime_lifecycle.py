@@ -94,7 +94,7 @@ REPORT = {
         },
     },
     "attachments": {
-        "disc_number": "GP20260730-01",
+        "disc_number": "GP2026073002-01",
         "photo_ids": [],
         "extract_list": {"columns": [], "rows": []},
     },

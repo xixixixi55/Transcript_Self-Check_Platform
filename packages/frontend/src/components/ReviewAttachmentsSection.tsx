@@ -54,10 +54,10 @@ export function ReviewAttachmentsSection({ attachments, materials, hardwareDevic
       ) : attachments.disc_number ? (
         <div id={REVIEW_TARGET_IDS.burningDate} className="review-navigation-target" tabIndex={-1}>
           <Alert type="error" showIcon message={hardDrive
-            ? '硬盘编号必须符合 YPyyyyMMdd-序号 格式且日期真实有效，导出前必须修正。'
+            ? '硬盘编号必须符合 YPyyyyMMdd-序号 或 YPyyyyMMddXX-序号 格式且日期真实有效（XX 为两位用户标识），导出前必须修正。'
             : archiveMedium === 'optical_disc'
-              ? '首个光盘编号必须符合 GPyyyyMMdd-序号 格式且日期真实有效，导出前必须修正。'
-              : '介质编号必须符合 GPyyyyMMdd-序号 或 YPyyyyMMdd-序号 格式且日期真实有效。'} />
+              ? '首个光盘编号必须符合 GPyyyyMMdd-序号 或 GPyyyyMMddXX-序号 格式且日期真实有效（XX 为两位用户标识），导出前必须修正。'
+              : '介质编号必须符合 GP/YP 的 yyyyMMdd-序号 或 yyyyMMddXX-序号 格式且日期真实有效（XX 为两位用户标识）。'} />
         </div>
       ) : null}
     </>

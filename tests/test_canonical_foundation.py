@@ -274,6 +274,19 @@ def test_legacy_disc_number_best_effort_migration_derives_sequence_and_date():
     assert result.canonical_case.attachments.burning_date == "2026年7月6日"
 
 
+def test_new_disc_number_migration_preserves_optional_user_identifier():
+    result = inspection_report_to_canonical({
+        "title": "Synthetic inspection",
+        "document_number": "DOC-001",
+        "attachments": {"disc_number": "GP2026070602-09"},
+    })
+
+    sequence = result.canonical_case.attachments.disc_sequence
+    assert sequence is not None
+    assert sequence.user_identifier == "02"
+    assert sequence.first_disc_number == "GP2026070602-09"
+
+
 def test_legacy_invalid_disc_number_does_not_preserve_manual_date():
     result = inspection_report_to_canonical({
         "title": "Synthetic inspection",

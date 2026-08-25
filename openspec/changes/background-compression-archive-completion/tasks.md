@@ -352,7 +352,7 @@ workflow_level: 3
 
 - [x] T045 超大单卷使用用户填写的硬盘编号并生成硬盘文书（用户需求反馈，补充压缩前编号体验优化）。
   - 规则：继续按压缩前归档输入总量选择现有模式；不超过 `225 × 1024³` 字节保持标准光盘分卷，超过阈值保持一个不分卷的大 RAR。`standard_split` 对应光盘，`oversized_single_volume` 对应硬盘；恰好 225GB 仍属于光盘。
-  - 编号：编号由用户在审核编辑界面填写。标准分卷要求 `GPyyyyMMdd-序号` 首盘号并按实际 part 顺序生成连续光盘编号；超大单卷要求一个 `YPyyyyMMdd-序号` 硬盘编号，不生成后续编号。压缩可在编号为空时继续，错误介质前缀不得成为已完成映射。
+  - 编号：编号由用户在审核编辑界面填写。该任务实施时标准分卷使用 `GPyyyyMMdd-序号`、超大单卷使用 `YPyyyyMMdd-序号`；后续 T049 在日期后增加两位用户标识并保留历史格式兼容。压缩可在编号为空时继续，错误介质前缀不得成为已完成映射。
   - Word：光盘正文、附件摘要和附件3保持“封盘/刻录/光盘”语义并在摘要列出全部编号；硬盘正文改为“结果以拷贝的方式保存在编号为……的硬盘中”，附件摘要改为“本鉴定中心拷贝的编号为……的硬盘1块，共1页”，附件3显示“硬盘编号”及“本鉴定中心拷贝的……号硬盘”。
   - 文件：`packages/shared/types/archive.ts`、`archiveCompletion.ts`、`archiveTask.ts`；`packages/backend/app/services/disc_sequence_service.py`、`archive_execution_service.py`、`archive_task_api_service.py`、`archive_task_result_service.py`、`disc_mapping_service.py`、`attachment_plan_models_service.py`、`attachment_plan_service.py`、`attachment_docx_renderer_service.py`、`template_filler_service.py`；`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`；相关现有测试、delta/design 与 living spec。
   - 验证：盘号/硬盘号解析映射、归档结果投影、AttachmentPlan 和真实 DOCX XML 定向 pytest；`ArchiveCompletionPanel` 定向 Vitest；`npm run lint:arch`、`npm run typecheck`、scoped strict docs 与 `git diff --check`。核心介质映射与 Word 文案断言需验证区分度。
@@ -389,3 +389,12 @@ workflow_level: 3
   - 自动化证据：Repository、统一导出原子回滚、API 错误传播与公共文案定向 pytest 45 passed；内嵌 PowerShell 解析、C# 编译及真实 PowerShell 启动失败结构化结果通过；随包 HashMyFiles 对临时 SYNTHETIC 小文件的真实窗口 PNG 冒烟验证 PASS；`npm run verify:quick`、架构、类型与 `git diff --check` PASS。临时恢复 `LiveHashes=1` 和 2 秒窗口阈值后核心回归按预期失败，恢复正式实现后通过。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044 真实 Word 人工验收待完成，候选尚未冻结；本反馈只运行增量门控，不重复最终 Review/full gate。
   - manual_acceptance: [PENDING] 需在仍进行电子取证的 F 盘使用明确标记的 SYNTHETIC RAR 复验统一导出，确认短暂无响应可恢复、最终 PNG 正常，且实际失败提示与阶段一致。
+
+- [x] T049 在 GP/YP 介质编号日期后增加两位用户标识（用户需求）。
+  - 规则：界面继续使用单个完整字符串输入；光盘编号新增支持 `GPyyyyMMddXX-序号`，硬盘编号新增支持 `YPyyyyMMddXX-序号`，其中 `XX` 为两位数字用户标识。连续分卷只递增末尾序号并保留用户标识。
+  - 兼容：原有 `GPyyyyMMdd-序号` / `YPyyyyMMdd-序号` 与新增格式都可用于提前规划、后填映射、修改、展示和导出，系统不自动补写或删除用户标识。
+  - 文件：共享与后端 `DiscSequence` 类型/解析生成事实源、Canonical 投影、审核页介质编号提示、现有盘号/规划/映射测试、本变更 delta 与 living spec。
+  - 验证：共享 Vitest、后端盘号/规划/映射 pytest、`ArchiveCompletionPanel` 与审核提示定向 Vitest；再运行 `npm run verify:quick`、`npm run verify:docs:strict -- --change background-compression-archive-completion` 与 `git diff --check`。纯编号与文案变化无需真实 Word 或桌面人工验收。
+  - 自动化证据：后端编号解析、规划、映射与 Canonical 投影 63 passed；共享解析生成、审核输入与提示 49 passed；页面自动保存和归档映射流程 17 passed；`npm run verify:quick`、scoped strict docs 与 `git diff --check` PASS。新旧 GP/YP 格式均覆盖提前规划、后填映射和连续生成，新格式额外断言两位用户标识保持不变。
+  - manual_acceptance: [N/A] 该任务仅改变结构化编号解析、校验提示与字符串投影，无真实 Word 版式或桌面外部工具行为变化。
+  - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044/T048 人工验收开放项，候选尚未冻结；本反馈按增量风险运行 quick/scoped docs，不重复最终 Review/full gate。

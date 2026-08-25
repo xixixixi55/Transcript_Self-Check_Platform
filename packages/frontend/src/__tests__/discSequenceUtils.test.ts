@@ -3,10 +3,10 @@ import { generateDiscNumbers, parseDiscSequence } from '@biji/shared/utils'
 
 describe('disc sequence rules', () => {
   it('parses GP date and preserves the entered width', () => {
-    const result = parseDiscSequence('gp20260718-09')
+    const result = parseDiscSequence('gp2026071802-09')
     expect(result.valid).toBe(true)
     expect(result.sequence).toMatchObject({
-      prefix: 'GP', date: '2026-07-18', start_number: 9, number_width: 2,
+      prefix: 'GP', date: '2026-07-18', user_identifier: '02', start_number: 9, number_width: 2,
     })
   })
 
@@ -17,14 +17,23 @@ describe('disc sequence rules', () => {
   })
 
   it('generates one or more numbers and expands after width overflow', () => {
-    expect(generateDiscNumbers('GP20260718-09', 1)).toEqual(['GP20260718-09'])
-    expect(generateDiscNumbers('GP20260718-09', 3)).toEqual([
-      'GP20260718-09', 'GP20260718-10', 'GP20260718-11',
+    expect(generateDiscNumbers('GP2026071802-09', 1)).toEqual(['GP2026071802-09'])
+    expect(generateDiscNumbers('GP2026071802-09', 3)).toEqual([
+      'GP2026071802-09', 'GP2026071802-10', 'GP2026071802-11',
     ])
-    expect(generateDiscNumbers('GP20260718-99', 2)).toEqual([
-      'GP20260718-99', 'GP20260718-100',
+    expect(generateDiscNumbers('GP2026071802-99', 2)).toEqual([
+      'GP2026071802-99', 'GP2026071802-100',
     ])
-    expect(generateDiscNumbers('GP20260718-09', 0)).toEqual([])
+    expect(generateDiscNumbers('GP2026071802-09', 0)).toEqual([])
+  })
+
+  it('keeps a legacy identifier readable without rewriting it', () => {
+    const parsed = parseDiscSequence('GP20260718-09')
+    expect(parsed.sequence?.user_identifier).toBeUndefined()
+    expect(parsed.sequence?.first_disc_number).toBe('GP20260718-09')
+    expect(generateDiscNumbers(parsed.sequence!, 2)).toEqual([
+      'GP20260718-09', 'GP20260718-10',
+    ])
   })
 
   it('preserves a configured synthetic Chinese prefix', () => {

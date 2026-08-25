@@ -72,7 +72,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         const request = body as { expected_revision: number; expected_plan_row_revision: number; first_disc_number: string }
         archiveResultParts = completedArchiveResult.parts.map((part, index) => ({
           ...part,
-          disc_number: index === 0 ? request.first_disc_number : 'GP20260731-02',
+          disc_number: index === 0 ? request.first_disc_number : 'GP2026073102-02',
           disc_date: '2026-07-31',
         }))
         return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, plan_row_revision: request.expected_plan_row_revision + 1, lifecycle: 'archive_verified', prefix: 'GP', disc_date: '2026-07-31', parts: archiveResultParts.map((part, index) => ({ part_number: index + 1, disc_number: part.disc_number, disc_date: part.disc_date })) } } }
@@ -308,12 +308,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
     expect(screen.queryByText(/压缩正在后台进行，可以先填写编号/)).toBeNull()
     expect(screen.queryByText(/最终介质由压缩前归档总量决定，可以先填写编号/)).toBeNull()
-    expect(screen.queryByText('GPyyyyMMdd-序号 · 光盘')).toBeNull()
-    expect(screen.queryByText('YPyyyyMMdd-序号 · 硬盘')).toBeNull()
-    fireEvent.change(screen.getByRole('textbox', { name: '介质编号' }), { target: { value: 'YP20260731-009' } })
+    expect(screen.queryByText('GPyyyyMMddXX-序号 · 光盘')).toBeNull()
+    expect(screen.queryByText('YPyyyyMMddXX-序号 · 硬盘')).toBeNull()
+    fireEvent.change(screen.getByRole('textbox', { name: '介质编号' }), { target: { value: 'YP2026073102-009' } })
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     const savedDraft = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft
-    expect(savedDraft.report.attachments.disc_number).toBe('YP20260731-009')
+    expect(savedDraft.report.attachments.disc_number).toBe('YP2026073102-009')
   }, 15000)
 
   it('collects a first disc number after compression and posts the disc mapping', async () => {
@@ -323,12 +323,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       renderPage()
       await openFullEditor()
       expect(await screen.findByText('待补盘号')).toBeTruthy()
-      fireEvent.change(await screen.findByPlaceholderText('如 GP20260731-01'), { target: { value: 'GP20260731-01' } })
+      fireEvent.change(await screen.findByPlaceholderText('如 GP2026073102-01'), { target: { value: 'GP2026073102-01' } })
       fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
-      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, expected_plan_row_revision: 4, first_disc_number: 'GP20260731-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, expected_plan_row_revision: 4, first_disc_number: 'GP2026073102-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
       await waitFor(() => expect(screen.getByText('归档完成')).toBeTruthy())
-      expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP20260731-01')
-      expect(screen.getByText('GP20260731-02')).toBeTruthy()
+      expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP2026073102-01')
+      expect(screen.getByText('GP2026073102-02')).toBeTruthy()
       expect(getMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id))).toHaveLength(2)
     } finally {
       archiveResultParts = null

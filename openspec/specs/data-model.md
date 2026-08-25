@@ -291,8 +291,8 @@
 `InspectorSnapshot` 分离；快照保存报告生成时的姓名、单位、职位、警号和顺序，不随人员库
 后续修改而变化。旧 `introduction.inspectors` 仅作为由快照派生的 legacy 投影。
 
-`DiscSequence` 保存介质编号解析结果的 `prefix`、真实日期、首序号、输入位宽
-和规范化首编号；正式标准分卷只接受 `GP`，超大单卷只接受 `YP`。`generateDiscNumbers` 只根据该结构和最终卷数派生后续编号，不能
+`DiscSequence` 保存介质编号解析结果的 `prefix`、真实日期、可选两位 `user_identifier`、首序号、输入位宽
+和规范化首编号；正式标准分卷同时接受 `GPyyyyMMdd-序号` 与 `GPyyyyMMddXX-序号`，超大单卷同时接受 `YPyyyyMMdd-序号` 与 `YPyyyyMMddXX-序号`，其中可选的 `XX` 为两位数字用户标识。`generateDiscNumbers` 只根据该结构和最终卷数派生后续编号，不自动补写或删除用户标识，且只递增末尾序号，不能
 根据目录位置或预估卷数伪造正式清单。
 
 ### 归档规划与最终清单

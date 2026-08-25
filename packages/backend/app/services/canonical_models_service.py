@@ -163,6 +163,7 @@ class MaterialPhotoGroup(CanonicalBaseModel):
 class DiscSequence(CanonicalBaseModel):
     prefix: str
     date: str
+    user_identifier: str | None = Field(default=None, pattern=r"^\d{2}$")
     start_number: int = Field(ge=1)
     number_width: int = Field(ge=1)
     first_disc_number: str

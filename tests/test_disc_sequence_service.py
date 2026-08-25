@@ -9,16 +9,37 @@ from app.services.disc_sequence_service import generate_disc_numbers, parse_disc
 
 
 def test_disc_sequence_parses_and_generates_with_width():
-    parsed = parse_disc_sequence("gp20260718-09")
+    parsed = parse_disc_sequence("gp2026071802-09")
     assert parsed.valid
     assert parsed.sequence is not None
     assert parsed.sequence.date == "2026-07-18"
+    assert parsed.sequence.user_identifier == "02"
     assert parsed.sequence.number_width == 2
     assert generate_disc_numbers(parsed.sequence, 3) == [
-        "GP20260718-09", "GP20260718-10", "GP20260718-11"
+        "GP2026071802-09", "GP2026071802-10", "GP2026071802-11"
     ]
-    assert generate_disc_numbers("GP20260718-99", 2)[1] == "GP20260718-100"
-    assert generate_disc_numbers("GP20260718-09", 0) == []
+    assert generate_disc_numbers("GP2026071802-99", 2)[1] == "GP2026071802-100"
+    assert generate_disc_numbers("GP2026071802-09", 0) == []
+
+
+def test_disc_sequence_preserves_legacy_number_without_rewriting():
+    parsed = parse_disc_sequence("GP20260718-09")
+    assert parsed.valid
+    assert parsed.sequence is not None
+    assert parsed.sequence.user_identifier is None
+    assert parsed.sequence.first_disc_number == "GP20260718-09"
+    assert generate_disc_numbers(parsed.sequence, 2) == [
+        "GP20260718-09", "GP20260718-10",
+    ]
+
+
+def test_archive_mapping_accepts_gp_and_yp_with_or_without_user_identifier():
+    from app.services.disc_sequence_service import parse_archive_medium_sequence
+
+    assert parse_archive_medium_sequence("GP20260718-01", "standard_split").valid
+    assert parse_archive_medium_sequence("YP20260718-01", "oversized_single_volume").valid
+    assert parse_archive_medium_sequence("GP2026071802-01", "standard_split").valid
+    assert parse_archive_medium_sequence("YP2026071802-01", "oversized_single_volume").valid
 
 
 @pytest.mark.parametrize(

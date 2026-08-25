@@ -31,7 +31,7 @@ def report() -> dict:
             "name": "SYNTHETIC TOOL", "version": "1.0",
             "confirmation_status": "confirmed_by_report",
         }},
-        "attachments": {"disc_number": "GP20260730-01", "photo_ids": []},
+        "attachments": {"disc_number": "GP2026073002-01", "photo_ids": []},
     }
 
 

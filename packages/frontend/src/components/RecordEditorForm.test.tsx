@@ -190,7 +190,7 @@ describe('RecordEditorForm', () => {
       workbenchMode />)
 
     expect(screen.queryByText('附件3：光盘编号')).toBeNull()
-    expect(screen.getByText('介质编号必须符合 GPyyyyMMdd-序号 或 YPyyyyMMdd-序号 格式且日期真实有效。')).toBeTruthy()
+    expect(screen.getByText('介质编号必须符合 GP/YP 的 yyyyMMdd-序号 或 yyyyMMddXX-序号 格式且日期真实有效（XX 为两位用户标识）。')).toBeTruthy()
   })
 
   it('shows hard-drive attachment semantics for an oversized archive result', () => {

@@ -42,7 +42,7 @@ def valid_report():
         "inspection": {"primary_software": {
             "name": "合成取证软件", "version": "1.0", "confirmation_status": "confirmed_by_report",
         }},
-        "attachments": {"disc_number": "GP20260718-01", "photo_ids": []},
+        "attachments": {"disc_number": "GP2026071802-01", "photo_ids": []},
     }
 
 
@@ -299,7 +299,7 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
     class AttemptService:
         remove_calls = 0
         latest_report = valid_report()
-        latest_report["attachments"]["disc_number"] = "GP20260808-08"
+        latest_report["attachments"]["disc_number"] = "GP2026080802-08"
 
         @staticmethod
         def staging_initializer(_attempt_id):
@@ -347,7 +347,7 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
         publish_calls += 1
         if publish_calls == 1:
             AttemptService.latest_report = valid_report()
-            AttemptService.latest_report["attachments"]["disc_number"] = "GP20260808-09"
+            AttemptService.latest_report["attachments"]["disc_number"] = "GP2026080802-09"
             raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
         attempt_service.remove_marker(staging_dir)
         final_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -381,7 +381,7 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
     manifest = get_valid_manifest(
         context_id, outcome.manifest_id, AttemptService.latest_report,
     )
-    assert manifest["parts"][0]["disc_number"] == "GP20260808-09"
+    assert manifest["parts"][0]["disc_number"] == "GP2026080802-09"
 
 
 @pytest.mark.parametrize(
@@ -496,7 +496,7 @@ def test_manifest_reuse_validates_output_without_rescanning_direct_source(tmp_pa
     # Disc numbers are mapped after compression and intentionally decoupled
     # from the reuse fingerprint: changing them must not invalidate the manifest.
     changed_disc = valid_report()
-    changed_disc["attachments"]["disc_number"] = "GP20260718-02"
+    changed_disc["attachments"]["disc_number"] = "GP2026071802-02"
     assert get_valid_manifest(context_id, first.manifest_id, changed_disc)
 
     (source / "input.bin").write_bytes(b"changed-input")

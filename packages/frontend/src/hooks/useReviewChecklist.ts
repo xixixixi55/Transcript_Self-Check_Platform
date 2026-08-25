@@ -255,8 +255,8 @@ export function getReviewPendingItems(
   }
   addBlankItem(items, REVIEW_SECTION_IDS.archive, REVIEW_TARGET_IDS.discNumber, '附件', mediumLabel, attachments?.disc_number)
   if (parsedMediumNumber && (!parsedMediumNumber.valid || !expectedPrefixes.includes(parsedMediumNumber.sequence?.prefix || ''))) {
-    const formatHint = expectedPrefixes.map(prefix => `${prefix}yyyyMMdd-序号`).join(' 或 ')
-    addInvalidItem(items, REVIEW_SECTION_IDS.archive, REVIEW_TARGET_IDS.discNumber, '附件', mediumLabel, `${mediumLabel}必须符合 ${formatHint} 格式且日期真实有效。`)
+    const formatHint = expectedPrefixes.map(prefix => `${prefix}yyyyMMdd[XX]-序号`).join(' 或 ')
+    addInvalidItem(items, REVIEW_SECTION_IDS.archive, REVIEW_TARGET_IDS.discNumber, '附件', mediumLabel, `${mediumLabel}必须符合 ${formatHint} 格式且日期真实有效（XX 可选，为两位用户标识）。`)
   }
   if (exportFileNameError) {
     items.push({

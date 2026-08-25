@@ -153,7 +153,7 @@ def evaluate_export_gate(
         message = (
             "首个光盘编号不能为空。"
             if code == ExportGateCode.FIRST_DISC_NUMBER_MISSING
-            else "首个光盘编号必须符合 GPyyyyMMdd-序号 格式并通过日期校验。"
+            else "首个光盘编号必须符合 GPyyyyMMdd-序号 或 GPyyyyMMddXX-序号格式（XX 为两位用户标识）并通过日期校验。"
         )
         blockers.append(
             ExportGateIssue(

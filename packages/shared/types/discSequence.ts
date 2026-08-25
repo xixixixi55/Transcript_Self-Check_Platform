@@ -7,6 +7,8 @@ export type DiscSequenceErrorCode =
 export interface DiscSequence {
   prefix: string
   date: string
+  /** Two-digit user marker in new GP/YP identifiers; absent on legacy values. */
+  user_identifier?: string
   start_number: number
   number_width: number
   first_disc_number: string
