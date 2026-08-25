@@ -1,4 +1,4 @@
-"""定向测试：统一导出（Word + RAR + HashMyFiles PNG + 审计记录）。"""
+"""定向测试：统一导出（Word + RAR + 审计记录）。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,6 @@ from app.services.unified_export_service import (  # noqa: E402
     UnifiedExportError,
     unified_export,
 )
-from app.repository.hashmyfiles_repository import HashMyFilesError  # noqa: E402
 from app.services.attachment_plan_errors_service import AttachmentPlanError  # noqa: E402
 
 CASE_ID = "SYNTHETIC-UNIFIED-EXPORT-CASE"
@@ -63,12 +62,6 @@ def fake_docx(report, *, photo_paths, output_dir, archive_manifest, **template_c
     return str(path)
 
 
-def fake_hash(rar_paths, output_dir):
-    assert all(Path(path).parent == Path(output_dir) for path in rar_paths)
-    (Path(output_dir) / "hash.png").write_bytes(b"SYNTHETIC/PNG")
-    return "hash.png"
-
-
 def test_attachment_mapping_error_is_not_wrapped_as_generic_word_failure(
     tmp_path, monkeypatch,
 ) -> None:
@@ -99,6 +92,7 @@ def test_unified_export_writes_bundle_and_audit(database, tmp_path, monkeypatch)
     export_path.mkdir()
     (export_path / "SYNTHETIC-CASE.part1.rar").write_bytes(b"SYNTHETIC/OLD-RAR")
     (export_path / "SYNTHETIC-CASE.part2.rar").write_bytes(b"SYNTHETIC/OLD-RAR")
+    (export_path / "hash-verification.png").write_bytes(b"SYNTHETIC/OLD-PNG")
     (export_path / "hash-verification.html").write_bytes(b"SYNTHETIC/OLD-HTML")
 
     result = unified_export(
@@ -111,19 +105,18 @@ def test_unified_export_writes_bundle_and_audit(database, tmp_path, monkeypatch)
         database=database,
         case_id=CASE_ID,
         task_id="SYNTHETIC-MANIFEST-1",
-        hash_runner=fake_hash,
     )
 
     assert result["word_filename"] == "SYNTHETIC-CASE.docx"
     assert result["rar_filenames"] == ["SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"]
-    assert result["hash_verification_image"] == "hash.png"
+    assert "hash_verification_image" not in result
     assert (export_path / "SYNTHETIC-CASE.docx").exists()
     assert (export_path / "SYNTHETIC-CASE.part1.rar").read_bytes() == b"SYNTHETIC/RAR"
     assert (export_path / "SYNTHETIC-CASE.part2.rar").read_bytes() == b"SYNTHETIC/RAR"
+    assert not (export_path / "hash-verification.png").exists()
     assert not (export_path / "hash-verification.html").exists()
     assert not (export_path.parent / "SYNTHETIC-CASE.part1.rar").exists()
     assert not (export_path.parent / "SYNTHETIC-CASE.part2.rar").exists()
-    assert (export_path / "hash.png").exists()
     connection = database.connect()
     try:
         payload = json.loads(connection.execute(
@@ -131,108 +124,68 @@ def test_unified_export_writes_bundle_and_audit(database, tmp_path, monkeypatch)
         ).fetchone()[0])
     finally:
         connection.close()
-    assert payload["hash_verification_image"] == "hash.png"
+    assert "hash_verification_image" not in payload
     assert "hash_verification_html" not in payload
 
 
-def test_default_hashmyfiles_runner_receives_case_sha256(tmp_path, monkeypatch) -> None:
-    final_dir = tmp_path / "SYNTHETIC-FINAL-SHA256"
+def test_unified_export_does_not_invoke_hashmyfiles_screenshot(tmp_path, monkeypatch) -> None:
+    final_dir = tmp_path / "SYNTHETIC-FINAL-NO-HASH-SCREENSHOT"
     final_dir.mkdir()
     for name in ("SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"):
         (final_dir / name).write_bytes(b"SYNTHETIC/RAR")
-    export_path = tmp_path / "SYNTHETIC-EXPORT-SHA256"
+    export_path = tmp_path / "SYNTHETIC-EXPORT-NO-HASH-SCREENSHOT"
     export_path.mkdir()
-    captured = {}
 
-    def capture_hash(paths, output_dir, *, hash_algorithm):
-        captured["algorithm"] = hash_algorithm
-        (output_dir / "hash.png").write_bytes(b"SYNTHETIC/PNG")
-        return "hash.png"
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("统一导出不得调用 HashMyFiles 截图机制")
 
     monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
     monkeypatch.setattr(
-        unified_export_service, "generate_verification_image", capture_hash,
+        unified_export_service, "generate_verification_image", fail_if_called,
+        raising=False,
     )
-    report = {
-        "inspection": {"result": {"hash_algorithm": "sha256"}},
-        "introduction": {"case_summary": "SYNTHETIC"},
-    }
 
-    unified_export(
-        report=report, manifest=manifest(), final_dir=final_dir,
+    result = unified_export(
+        report={"introduction": {"case_summary": "SYNTHETIC"}},
+        manifest=manifest(), final_dir=final_dir,
         export_path=export_path, photo_paths=[], template_context={},
     )
 
-    assert captured["algorithm"] == "sha256"
-
-
-@pytest.mark.parametrize(
-    "failure_code",
-    [
-        "HASHMYFILES_TIMEOUT",
-        "HASHMYFILES_WINDOW_UNRESPONSIVE",
-        "HASHMYFILES_SCREENSHOT_FAILED",
-    ],
-)
-def test_hash_capture_failure_preserves_previous_complete_bundle(
-    database, tmp_path, monkeypatch, failure_code,
-) -> None:
-    final_dir = tmp_path / "SYNTHETIC-FINAL-ATOMIC"
-    final_dir.mkdir()
-    for name in ("SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"):
-        (final_dir / name).write_bytes(b"SYNTHETIC/NEW-RAR")
-    export_path = tmp_path / "SYNTHETIC-EXISTING-EXPORT"
-    export_path.mkdir()
-    previous = {
-        "SYNTHETIC-CASE.docx": b"SYNTHETIC/OLD-DOCX",
-        "SYNTHETIC-CASE.part1.rar": b"SYNTHETIC/OLD-RAR",
-        "hash-verification.png": b"SYNTHETIC/OLD-PNG",
-    }
-    for name, content in previous.items():
-        (export_path / name).write_bytes(content)
-    monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
-
-    def failed_hash(rar_paths, output_dir):
-        raise HashMyFilesError(failure_code, "SYNTHETIC HashMyFiles failure")
-
-    with pytest.raises(UnifiedExportError) as error:
-        unified_export(
-            report={"introduction": {"case_summary": "SYNTHETIC"}},
-            manifest=manifest(), final_dir=final_dir, export_path=export_path,
-            photo_paths=[], template_context={}, hash_runner=failed_hash,
-        )
-
-    assert error.value.code == failure_code
-    assert {name: (export_path / name).read_bytes() for name in previous} == previous
-    assert not list(export_path.glob(".biji-export-*"))
+    assert result["rar_filenames"] == [
+        "SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar",
+    ]
+    assert not list(export_path.glob("*.png"))
 
 
 def test_bundle_publish_failure_rolls_back_every_replaced_file(tmp_path, monkeypatch) -> None:
     staging = tmp_path / "staging"
     export = tmp_path / "export"
     staging.mkdir(); export.mkdir()
-    for name in ("report.docx", "part1.rar", "hash.png"):
+    for name in ("report.docx", "part1.rar"):
         (staging / name).write_bytes(f"NEW-{name}".encode())
         (export / name).write_bytes(f"OLD-{name}".encode())
+    legacy_png = export / "hash-verification.png"
+    legacy_png.write_bytes(b"LEGACY-hash-verification.png")
     legacy_html = export / "hash-verification.html"
     legacy_html.write_bytes(b"LEGACY-hash-verification.html")
     real_replace = unified_export_service.os.replace
 
     def fail_second_publish(source, target):
         source_path, target_path = Path(source), Path(target)
-        if source_path.parent == staging and source_path.name == "hash.png":
+        if source_path.parent == staging and source_path.name == "part1.rar":
             raise OSError("SYNTHETIC/PUBLISH-FAILURE")
         return real_replace(source_path, target_path)
 
     monkeypatch.setattr(unified_export_service.os, "replace", fail_second_publish)
     with pytest.raises(UnifiedExportError) as error:
         unified_export_service._publish_staged_bundle(
-            staging, export, ["report.docx", "part1.rar", "hash.png"],
+            staging, export, ["report.docx", "part1.rar"],
         )
 
     assert error.value.code == "EXPORT_PUBLISH_FAILED"
-    for name in ("report.docx", "part1.rar", "hash.png"):
+    for name in ("report.docx", "part1.rar"):
         assert (export / name).read_bytes() == f"OLD-{name}".encode()
+    assert legacy_png.read_bytes() == b"LEGACY-hash-verification.png"
     assert legacy_html.read_bytes() == b"LEGACY-hash-verification.html"
 
 
@@ -256,7 +209,7 @@ def test_unified_export_forwards_user_word_filename(database, tmp_path, monkeypa
     result = unified_export(
         report={"introduction": {"case_summary": "SYNTHETIC"}},
         manifest=manifest(), final_dir=final_dir, export_path=export_path,
-        photo_paths=[], template_context={}, hash_runner=fake_hash,
+        photo_paths=[], template_context={},
         word_filename="用户命名.docx",
     )
     assert captured["output_filename"] == "用户命名.docx"
@@ -273,7 +226,6 @@ def test_unified_export_requires_disc_mapping(database, tmp_path) -> None:
         unified_export(
             report={}, manifest=m, final_dir=final_dir,
             export_path=tmp_path / "out", photo_paths=[], template_context={},
-            hash_runner=fake_hash,
         )
     assert error.value.code == "DISC_MAPPING_INCOMPLETE"
 
@@ -286,7 +238,6 @@ def test_unified_export_missing_part_fails(database, tmp_path) -> None:
         unified_export(
             report={}, manifest=manifest(), final_dir=final_dir,
             export_path=tmp_path / "out", photo_paths=[], template_context={},
-            hash_runner=fake_hash,
         )
     assert error.value.code == "ARCHIVE_PART_MISSING"
 
@@ -320,7 +271,7 @@ def test_unified_export_layers_deferred_discs_onto_word_manifest(database, tmp_p
     result = unified_export(
         report={"introduction": {"case_summary": "SYNTHETIC"}},
         manifest=empty, final_dir=final_dir, export_path=export_path,
-        photo_paths=[], template_context={}, hash_runner=fake_hash, plan=plan,
+        photo_paths=[], template_context={}, plan=plan,
     )
     assert captured["manifest"]["parts"][0]["disc_number"] == "GP20260718-01"
     assert captured["manifest"]["parts"][0]["disc_date"] == "2026-07-18"
@@ -342,6 +293,6 @@ def test_unified_export_rejects_pending_disc_mapping(database, tmp_path) -> None
         unified_export(
             report={}, manifest=manifest(), final_dir=tmp_path,
             export_path=tmp_path / "out", photo_paths=[], template_context={},
-            hash_runner=fake_hash, plan=plan,
+            plan=plan,
         )
     assert error.value.code == "DISC_MAPPING_INCOMPLETE"

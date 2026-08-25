@@ -44,7 +44,6 @@ export interface UnifiedExportOutput {
   export_path: string
   word_filename: string
   rar_filenames: string[]
-  hash_verification_image: string
   exported_at: string
 }
 
@@ -74,7 +73,7 @@ export interface ExportRecord {
   export_path: string
   word_filename: string
   rar_filenames: string[]
-  /** HashMyFiles-style verification screenshot published by current exports. */
+  /** @deprecated Compatibility field for records created while unified export published PNGs. */
   hash_verification_image?: string
   /** @deprecated Compatibility field for durable records created before PNG export. */
   hash_verification_html?: string

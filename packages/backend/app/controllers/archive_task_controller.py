@@ -182,7 +182,7 @@ async def map_disc_numbers_endpoint(case_id: str, body: FirstDiscMappingRequest)
 
 @router.post("/workbench/cases/{case_id}/export-bundle")
 def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
-    """Export latest Word + all RAR parts + HashMyFiles PNG to a picker-authorized path."""
+    """Export latest Word plus all RAR parts to a picker-authorized path."""
     try:
         # The unified export is guarded on the case shell revision inside
         # export_bundle; the template context is resolved fresh so the client

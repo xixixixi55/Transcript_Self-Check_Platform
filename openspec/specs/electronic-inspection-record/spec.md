@@ -530,25 +530,18 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 
 #### Scenario: 归档完成后统一导出到用户路径
 - WHEN 案件进入归档完成态且民警点击「导出」
-- THEN 系统提示用户选择导出文件夹，把最新编辑数据生成的 Word、HashMyFiles 校验 PNG 与全部 RAR 文件写入所选文件夹
+- THEN 系统提示用户选择导出文件夹，把最新编辑数据生成的 Word 与全部 RAR 文件写入所选文件夹
 - AND 本次统一导出不在所选文件夹的上级目录生成新的 RAR 文件
 - AND 所选目录位于文枢程序目录或用户数据目录中时，系统必须在签发目录授权和写入任何文件前明确拒绝，不得污染便携发布包或内部工作数据
 - AND 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
 - AND Word 使用案件明确引用且当前重新校验通过的 approved 模板版本生成 .docx；带 Manifest 的正式渲染失败时必须明确失败，不得静默回退到无 Manifest 的 officecli batch 输出
-- AND 系统启动真实 HashMyFiles.exe 窗口，只启用案件固化的 MD5、SHA-1 或 SHA-256 算法；最终 PNG 捕获其原生界面，每个 RAR 一行且只显示 Filename、所选算法、File Size（值为字节）
-- AND 哈希列与原生窗口按 32、40 或 64 位摘要长度展开，完整摘要不得以省略号替代
-- AND 结果必须从所选算法对应列读取并按 32、40 或 64 位十六进制长度校验，列缺失或摘要长度错误时导出失败
-- AND 截图使用独立临时配置，不修改用户的 HashMyFiles 配置；结果缺失、不完整或截图失败时导出必须明确失败
-- AND Word、RAR 副本和 PNG 必须先完整暂存后统一发布；HashMyFiles 校验待发布的 RAR 副本，任一步失败时保留上一版完整导出，不得形成新旧产物混合包
-
-#### Scenario: 繁忙机械盘上的 HashMyFiles 短暂无响应
-- WHEN HashMyFiles 正在校验待发布 RAR，目标机械盘同时承受电子取证等持续 I/O 负载
-- THEN 系统关闭实时摘要并避免在计算期间高频读取未完成列表；单次窗口消息至少允许 5 秒响应，短暂无响应必须继续低频重试，只有动态校验总期限耗尽才判定校验超时
-- AND 摘要完整后系统才读取最终结果并在独立宽限内整理窗口和截图；启动失败、校验超时、窗口持续无响应、结果无效和截图失败必须返回互不混淆的安全提示
+- AND 检查笔录的统一导出不得启动 HashMyFiles 或生成校验截图；现有截图能力保留，供后续鉴定文书流程接入
+- AND Word 与 RAR 副本必须先完整暂存后统一发布；任一步失败时保留上一版完整导出，不得形成新旧产物混合包
+- AND 再次导出到含旧 `hash-verification.png` 或 `hash-verification.html` 的同一目录时，成功发布必须移除这些历史校验产物；发布失败则恢复旧完整导出
 
 #### Scenario: 可重复导出且 Word 用最新编辑
 - WHEN 案件已导出成功后民警再次导出
-- THEN 系统重新打开导出路径选择，Word 用导出时刻的最新编辑数据重新生成，RAR 复用已验证分卷，HashMyFiles PNG 重新生成
+- THEN 系统重新打开导出路径选择，Word 用导出时刻的最新编辑数据重新生成，RAR 复用已验证分卷，不生成 HashMyFiles PNG
 - AND 导出成功不关闭审核编辑，民警可继续修改并再次导出
 
 #### Scenario: 导出后仍可修改

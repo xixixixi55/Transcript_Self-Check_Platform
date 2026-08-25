@@ -16,11 +16,9 @@ export const MAX_RUNNING_ARCHIVE_TASKS = 6
 export const WORKBENCH_REQUEST_TIMEOUT_MS = 30000
 /** Minimum/fallback for unified export when verified archive size is unavailable. */
 export const UNIFIED_EXPORT_REQUEST_TIMEOUT_MS = 30 * 60 * 1000
-/** Absolute client bound for HDD staging copy plus bounded HashMyFiles work. */
+/** Absolute client bound for the HDD staging copy and export orchestration. */
 export const UNIFIED_EXPORT_MAX_REQUEST_TIMEOUT_MS = 24 * 60 * 60 * 1000
 export const UNIFIED_EXPORT_HDD_MIN_THROUGHPUT_BYTES_PER_SECOND = 5_000_000
-/** Must match the backend's largest valid BIJI_HASHMYFILES_TIMEOUT_SECONDS. */
-export const UNIFIED_EXPORT_HASHMYFILES_MAX_TIMEOUT_MS = 10 * 60 * 60 * 1000
 export const UNIFIED_EXPORT_ORCHESTRATION_GRACE_MS = 10 * 60 * 1000
 /**
  * Native export-directory picker keeps the PowerShell dialog open up to

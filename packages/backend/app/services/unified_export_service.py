@@ -1,4 +1,4 @@
-"""Unified export: latest Word + all RAR parts + HashMyFiles verification PNG.
+"""Unified export: latest Word plus all verified RAR parts.
 
 The service writes the complete archive bundle into the user-chosen export path.
 Inputs are pre-resolved by the controller (report, validated manifest, physical
@@ -13,18 +13,15 @@ import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from uuid import uuid4
 
 from ..config import OUTPUT_BASE
 from ..repository.audit_event_repository import AuditEventRepository
-from ..repository.hashmyfiles_repository import HashMyFilesError
 from ..repository.workbench_database import WorkbenchDatabase
 from .attachment2_image_service import Attachment2ImageError
 from .attachment_plan_errors_service import AttachmentPlanError
-from .hashmyfiles_service import generate_verification_image
 from .record_generator_service import generate_docx
-from .hash_algorithm_service import report_hash_algorithm
 
 
 class UnifiedExportError(ValueError):
@@ -33,9 +30,6 @@ class UnifiedExportError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
-
-
-HashRunner = Callable[[list[Path], Path], str]
 
 
 def _require_disc_mapping(
@@ -81,7 +75,6 @@ def unified_export(
     case_id: str | None = None,
     task_id: str | None = None,
     output_root: str | Path = OUTPUT_BASE,
-    hash_runner: HashRunner | None = None,
     plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write the archive bundle into ``export_path`` and return its projection."""
@@ -93,12 +86,6 @@ def unified_export(
             raise UnifiedExportError("ARCHIVE_PART_MISSING", "归档分卷文件缺失，无法导出。")
 
     export_path.mkdir(parents=True, exist_ok=True)
-    hash_algorithm = report_hash_algorithm(report)
-    runner = hash_runner or (
-        lambda paths, out: generate_verification_image(
-            paths, out, hash_algorithm=hash_algorithm,
-        )
-    )
     with tempfile.TemporaryDirectory(prefix=".biji-export-", dir=export_path) as temp_dir:
         staging_path = Path(temp_dir)
         word_filename = _export_word(
@@ -108,26 +95,20 @@ def unified_export(
         for rar in rar_paths:
             shutil.copy2(rar, staging_path / rar.name)
         rar_filenames = [rar.name for rar in rar_paths]
-        staged_rar_paths = [staging_path / name for name in rar_filenames]
-        try:
-            hash_image = runner(staged_rar_paths, staging_path)
-        except HashMyFilesError as error:
-            raise UnifiedExportError(error.code, error.args[0]) from error
         _publish_staged_bundle(
             staging_path, export_path,
-            [word_filename, *rar_filenames, hash_image],
+            [word_filename, *rar_filenames],
         )
 
     exported_at = _utc_now()
     _record_export(
         database, case_id, task_id, export_path, word_filename,
-        rar_filenames, hash_image, exported_at,
+        rar_filenames, exported_at,
     )
     return {
         "export_path": str(export_path),
         "word_filename": word_filename,
         "rar_filenames": rar_filenames,
-        "hash_verification_image": hash_image,
         "exported_at": exported_at,
     }
 
@@ -142,7 +123,7 @@ def _publish_staged_bundle(
     backed_up: list[str] = []
     published: list[str] = []
     try:
-        for name in [*names, "hash-verification.html"]:
+        for name in [*names, "hash-verification.png", "hash-verification.html"]:
             target = export_path / name
             if target.is_file():
                 os.replace(target, rollback_path / name)
@@ -224,7 +205,6 @@ def _record_export(
     export_path: Path,
     word_filename: str,
     rar_filenames: list[str],
-    hash_image: str,
     exported_at: str,
 ) -> None:
     if database is None:
@@ -242,7 +222,6 @@ def _record_export(
         "payload": {
             "word_filename": word_filename,
             "rar_filenames": rar_filenames,
-            "hash_verification_image": hash_image,
             "exported_at": exported_at,
         },
         "created_at": exported_at,

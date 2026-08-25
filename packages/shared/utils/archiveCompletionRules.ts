@@ -2,7 +2,6 @@
 
 import {
   UNIFIED_EXPORT_HDD_MIN_THROUGHPUT_BYTES_PER_SECOND,
-  UNIFIED_EXPORT_HASHMYFILES_MAX_TIMEOUT_MS,
   UNIFIED_EXPORT_MAX_REQUEST_TIMEOUT_MS,
   UNIFIED_EXPORT_ORCHESTRATION_GRACE_MS,
   UNIFIED_EXPORT_REQUEST_TIMEOUT_MS,
@@ -47,8 +46,8 @@ export function archivePartsTotalBytes(
 }
 
 /**
- * Bound the synchronous export request for one HDD staging-copy pass plus the
- * backend's maximum valid HashMyFiles budget (including operator override).
+ * Bound the synchronous export request for one HDD staging-copy pass plus
+ * orchestration grace. HashMyFiles is not part of inspection-record export.
  */
 export function unifiedExportRequestTimeoutMs(
   totalArchiveBytes: number | null | undefined,
@@ -67,7 +66,6 @@ export function unifiedExportRequestTimeoutMs(
     Math.max(
       UNIFIED_EXPORT_REQUEST_TIMEOUT_MS,
       copyPassMilliseconds
-        + UNIFIED_EXPORT_HASHMYFILES_MAX_TIMEOUT_MS
         + UNIFIED_EXPORT_ORCHESTRATION_GRACE_MS,
     ),
   )

@@ -67,12 +67,12 @@ describe('HDD-oriented unified export timeout', () => {
     )
   })
 
-  it('covers the maximum HashMyFiles override plus a 45 GB HDD copy and grace', () => {
-    expect(unifiedExportRequestTimeoutMs(45_000_000_000)).toBe(45_600_000)
+  it('covers a 45 GB HDD copy plus orchestration grace', () => {
+    expect(unifiedExportRequestTimeoutMs(45_000_000_000)).toBe(9_600_000)
   })
 
-  it('does not let a small known export undercut the maximum backend hash budget', () => {
-    expect(unifiedExportRequestTimeoutMs(1_000)).toBe(36_600_001)
+  it('does not let a small known export undercut the existing minimum', () => {
+    expect(unifiedExportRequestTimeoutMs(1_000)).toBe(UNIFIED_EXPORT_REQUEST_TIMEOUT_MS)
   })
 
   it('caps abnormal inputs at the bounded request maximum', () => {

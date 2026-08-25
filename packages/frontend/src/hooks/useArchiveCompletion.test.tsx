@@ -21,7 +21,7 @@ const EXPORT_RESULT = {
   lifecycle: 'exported',
   output: {
     export_path: 'D:\\SYNTHETIC\\out', word_filename: 'case.docx',
-    rar_filenames: ['case.part1.rar'], hash_verification_image: 'hash.png',
+    rar_filenames: ['case.part1.rar'],
     exported_at: '2026-07-18T00:00:00Z',
   },
 }

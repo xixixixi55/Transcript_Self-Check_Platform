@@ -4,7 +4,7 @@ workflow_level: 3
 
 > Spec: `openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`
 > Design: `openspec/changes/background-compression-archive-completion/design.md`
-> 范围：案件打开「立即/稍后」后台压缩触发（替换预览手动归档主路径）；压缩不阻塞审核；每 RAR 实时覆盖回填附件1/检查结果；盘号后填与顺序映射；归档完成态与导出路径提示；统一导出最新 Word + RAR + HashMyFiles 校验截图；已导出标记与删除案件（复用 `case-workbench-delete`）。
+> 范围：案件打开「立即/稍后」后台压缩触发（替换预览手动归档主路径）；压缩不阻塞审核；每 RAR 实时覆盖回填附件1/检查结果；盘号后填与顺序映射；归档完成态与导出路径提示；统一导出最新 Word + RAR（T050 起不再生成 HashMyFiles 截图，底层能力保留）；已导出标记与删除案件（复用 `case-workbench-delete`）。
 
 ## SharedTypes / SharedConstants（Layer 0–1）
 
@@ -388,7 +388,7 @@ workflow_level: 3
   - 验证：HashMyFiles Repository、统一导出错误传播与 Controller 文案定向 pytest；`npm run lint:arch`、`npm run typecheck`、`npm run verify:quick`、scoped strict docs 与 `git diff --check`。使用 SYNTHETIC RAR 在繁忙机械盘上的真实窗口复验作为人工验收。
   - 自动化证据：Repository、统一导出原子回滚、API 错误传播与公共文案定向 pytest 45 passed；内嵌 PowerShell 解析、C# 编译及真实 PowerShell 启动失败结构化结果通过；随包 HashMyFiles 对临时 SYNTHETIC 小文件的真实窗口 PNG 冒烟验证 PASS；`npm run verify:quick`、架构、类型与 `git diff --check` PASS。临时恢复 `LiveHashes=1` 和 2 秒窗口阈值后核心回归按预期失败，恢复正式实现后通过。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044 真实 Word 人工验收待完成，候选尚未冻结；本反馈只运行增量门控，不重复最终 Review/full gate。
-  - manual_acceptance: [PENDING] 需在仍进行电子取证的 F 盘使用明确标记的 SYNTHETIC RAR 复验统一导出，确认短暂无响应可恢复、最终 PNG 正常，且实际失败提示与阶段一致。
+  - manual_acceptance: [N/A] T050 已将 HashMyFiles 截图从检查笔录统一导出调用链移除，本任务原定的繁忙盘统一导出截图验收不再适用；底层截图能力及其自动化验证保留，后续由鉴定文书接入任务另行验收。
 
 - [x] T049 在 GP/YP 介质编号日期后增加两位用户标识（用户需求）。
   - 规则：界面继续使用单个完整字符串输入；光盘编号新增支持 `GPyyyyMMddXX-序号`，硬盘编号新增支持 `YPyyyyMMddXX-序号`，其中 `XX` 为两位数字用户标识。连续分卷只递增末尾序号并保留用户标识。
@@ -398,3 +398,12 @@ workflow_level: 3
   - 自动化证据：后端编号解析、规划、映射与 Canonical 投影 63 passed；共享解析生成、审核输入与提示 49 passed；页面自动保存和归档映射流程 17 passed；`npm run verify:quick`、scoped strict docs 与 `git diff --check` PASS。新旧 GP/YP 格式均覆盖提前规划、后填映射和连续生成，新格式额外断言两位用户标识保持不变。
   - manual_acceptance: [N/A] 该任务仅改变结构化编号解析、校验提示与字符串投影，无真实 Word 版式或桌面外部工具行为变化。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044/T048 人工验收开放项，候选尚未冻结；本反馈按增量风险运行 quick/scoped docs，不重复最终 Review/full gate。
+
+- [x] T050 检查笔录统一导出停用 HashMyFiles 截图并保留底层能力（用户需求）。
+  - 决策：统一导出只发布最新 Word 与全部已验证 RAR，不启动 HashMyFiles、不生成截图；`hashmyfiles_repository`、`hashmyfiles_service` 与截图脚本保持可用，供后续鉴定文书流程复用。
+  - 兼容：统一导出结果与新审计记录不再声明 `hash_verification_image`；历史导出记录的 PNG/HTML 字段继续兼容读取。再次导出到同一目录成功时移除旧固定名截图/HTML，发布失败时与旧 Word/RAR 一并回滚恢复。
+  - 文件：`packages/backend/app/services/unified_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/shared/types/archiveCompletion.ts`、统一导出超时规则、现有后端/前端测试、本变更 delta/design 与 living spec。
+  - 验证：统一导出定向 pytest、Shared/前端相关 Vitest、`npm run lint:arch`、`npm run typecheck`、scoped strict docs 与 `git diff --check`；核心“不调用截图机制”断言需验证区分度。
+  - 自动化证据：统一导出与导出编排后端 22 passed；Shared 超时、导出 Hook 与两个入口页面 4 files / 49 tests passed；`npm run verify:quick`、scoped strict docs、架构、类型、治理、仓库资产与 `git diff --check` PASS。临时恢复统一导出截图调用后核心“不调用 HashMyFiles”回归按预期失败，恢复正式实现后定向套件通过。
+  - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044 人工验收开放项，候选尚未冻结；本反馈只运行增量门控，不重复最终 Review/full gate。
+  - manual_acceptance: [N/A] 当前任务移除外部截图调用与 PNG 产物，不改变 Word 布局；自动化断言覆盖导出目录内容、审计结果与旧产物清理/回滚。

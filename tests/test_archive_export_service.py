@@ -235,7 +235,7 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
         unified.return_value = {
             "export_path": str(export_dir), "word_filename": "用户命名.docx",
             "rar_filenames": ["case.part1.rar"],
-            "hash_verification_image": "hash.png", "exported_at": "2026-01-01T00:00:00Z",
+            "exported_at": "2026-01-01T00:00:00Z",
         }
         result = export_bundle(
             api, "case-synthetic", 3, str(export_dir),
@@ -286,7 +286,7 @@ def test_export_bundle_uses_asset_ref_order_and_rebuilds_missing_photo_groups(
     with patch("app.services.archive_export_service.unified_export") as unified:
         unified.return_value = {
             "export_path": str(export_dir), "word_filename": "SYNTHETIC.docx",
-            "rar_filenames": ["case.part1.rar"], "hash_verification_image": "hash.png",
+            "rar_filenames": ["case.part1.rar"],
             "exported_at": "2026-01-01T00:00:00Z",
         }
         export_bundle(
