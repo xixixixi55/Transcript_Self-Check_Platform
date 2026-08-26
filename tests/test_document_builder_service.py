@@ -314,7 +314,7 @@ def test_batch_fallback_normalizes_titles_md5_and_extract_source():
     attachment_summary = next(command for command in paragraphs
                               if "电子数据提取固定清单，共" in command["props"].get("text", ""))
     assert title["props"]["align"] == "center"
-    assert title["props"]["bold"] == "true"
+    assert title["props"]["bold"] == "false"
     assert extract_heading["props"]["bold"] == "true"
     assert attachment_summary["props"]["text"].startswith("附件：1、")
     assert any(

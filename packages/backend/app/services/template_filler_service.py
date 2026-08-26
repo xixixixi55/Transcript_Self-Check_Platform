@@ -941,7 +941,7 @@ def _apply_required_heading_styles(doc: Document) -> None:
         if index == 0 and normalized:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
             for run in paragraph.runs:
-                run.bold = True
+                run.bold = False
         elif normalized == "电子数据提取固定清单":
             for run in paragraph.runs:
                 run.bold = True

@@ -49,7 +49,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
 
     # ─── 标题（22pt 仿宋_GB2312 居中）───
     commands.append(_p(
-        report.get("title", "电子数据检查笔录"), bold=True,
+        report.get("title", "电子数据检查笔录"),
         size=22, align="center",
     ))
     # ─── 文号（18pt 仿宋 居中）───

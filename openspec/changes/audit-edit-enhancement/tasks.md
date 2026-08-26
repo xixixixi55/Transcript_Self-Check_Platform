@@ -289,6 +289,16 @@ workflow_level: 3
   - manual_acceptance: N/A（字段显隐、持久化和确定性 Word 文案由合成数据自动化覆盖，不改变 Word 版式。）
   - 证据：前端原因输入、步骤 1 投影、待核对与页面导出拦截定向 Vitest 4 files / 56 passed；草稿持久化、Canonical 往返、正式模板与 officecli batch 兼容路径定向 pytest 5 passed；`lint:arch`、共享/前端 typecheck、`verify:quick`、仓库资产检查和 `git diff --check` 通过。Impeccable 机械检查仅命中 `reviewWorkspace.css` 中本任务开始前已存在的第 67、214 行告警，新增原因输入区域无命中。
 
+## 🟢 Phase 17: Word 主标题字重修正
+
+- [x] T031 **取消电子数据检查笔录主标题加粗**
+  - 文件：`packages/backend/app/services/document_builder_service.py`、`template_filler_service.py`、相关测试及本变更包 delta spec。
+  - 内容：正式模板与 officecli batch 兼容导出均保持主标题居中，但明确取消粗体；“电子数据提取固定清单”标题继续加粗。
+  - 覆盖 Spec：REQ-032“Word 标题使用规定格式”。
+  - 验证：两条 Word 生成路径定向 pytest、架构与类型检查、`git diff --check`。
+  - manual_acceptance: N/A（标题字重由生成后 DOCX 与 batch 命令的确定性断言覆盖。）
+  - 证据：旧实现下 batch 兼容、普通模板和 Manifest 正式导出 3 个区分性用例均因主标题仍为粗体而失败；修复后 3 passed，扩展到两个受影响服务测试文件 42 passed；`verify:quick` 的架构、类型、治理、文档和仓库资产检查全部通过。
+
 ---
 
 ## 任务摘要
@@ -311,7 +321,8 @@ workflow_level: 3
 | 🟢 P14 | Services | 1 | 附件一来源正文两端对齐 |
 | 🟡 P15 | Services | 1 | 附件摘要独立页顶部留白回归 |
 | 🟡 P16 | SharedTypes / Components / Services | 1 | 无法提取原因输入、持久化与 Word 投影 |
-| **合计** | **Layer 0、2、10~12、20~21** | **29** | |
+| 🟢 P17 | Services | 1 | Word 主标题取消加粗 |
+| **合计** | **Layer 0、2、10~12、20~21** | **30** | |
 
 > 注：后端仅包含 REQ-022、REQ-026 的既有流程修复，不新增 API 端点。
 

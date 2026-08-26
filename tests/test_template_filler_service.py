@@ -161,7 +161,7 @@ def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
         p for p in document.paragraphs if p.text.strip() == "电子数据提取固定清单"
     )
     assert title.alignment == 1
-    assert title.runs and all(run.bold for run in title.runs if run.text)
+    assert title.runs and all(run.bold is False for run in title.runs if run.text)
     assert extract_heading.runs and all(run.bold for run in extract_heading.runs if run.text)
     header_cells = document.tables[0].rows[0].cells
     for cell_index, expected_text in ((1, "电子数据"), (2, "来源")):
@@ -386,7 +386,7 @@ def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
         p for p in document.paragraphs if p.text.strip() == "电子数据提取固定清单"
     )
     assert title.alignment == 1
-    assert title.runs and all(run.bold for run in title.runs if run.text)
+    assert title.runs and all(run.bold is False for run in title.runs if run.text)
     assert extract_heading.runs and all(run.bold for run in extract_heading.runs if run.text)
 
     assert "经对编号为JC-A、JC-B、JC-C号检材使用已确认取证软件（版本号为3.2）" in document_xml
