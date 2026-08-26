@@ -4,7 +4,7 @@ import axios from 'axios'
 import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type {
   ArchiveCompletionStatus, CaseLifecycle, DiscMappingResult,
-  ExportDirectoryResult, UnifiedExportResult,
+  ExportDirectoryResult, OpenExportDirectoryResult, UnifiedExportResult,
 } from '@biji/shared/types'
 import {
   allPartsDiscMapped, archivePartsTotalBytes,
@@ -22,6 +22,7 @@ interface ArchiveCompletion {
   mapping: (caseId: string, expectedRevision: number, expectedPlanRowRevision: number, firstDiscNumber: string) => Promise<DiscMappingResult>
   exportBundle: (caseId: string, expectedRevision: number, exportPath: string, directoryToken: string, wordFilename: string, parts: { size_bytes?: number | null }[] | null) => Promise<UnifiedExportResult>
   chooseDirectory: () => Promise<ExportDirectoryResult>
+  openExportDirectory: (caseId: string) => Promise<OpenExportDirectoryResult>
   busy: boolean
   error: string | null
 }
@@ -109,5 +110,27 @@ export function useArchiveCompletion(): ArchiveCompletion {
     }
   }, [])
 
-  return { mapping, exportBundle, chooseDirectory, busy: pendingOperations > 0, error }
+  const openExportDirectory = useCallback(async (
+    caseId: string,
+  ): Promise<OpenExportDirectoryResult> => {
+    beginOperation()
+    try {
+      const response = await axios.post<{ data: OpenExportDirectoryResult }>(
+        API_ENDPOINTS.WORKBENCH_OPEN_EXPORT_DIRECTORY(caseId),
+        undefined,
+        { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
+      )
+      return response.data.data
+    } catch (failure) {
+      setError(detailMessage(failure))
+      throw failure
+    } finally {
+      endOperation()
+    }
+  }, [])
+
+  return {
+    mapping, exportBundle, chooseDirectory, openExportDirectory,
+    busy: pendingOperations > 0, error,
+  }
 }

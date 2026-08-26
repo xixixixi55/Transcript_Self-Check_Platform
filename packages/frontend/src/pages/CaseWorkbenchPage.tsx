@@ -48,11 +48,14 @@ export default function CaseWorkbenchPage() {
   const [submitBusy, setSubmitBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
   const [exportingCaseIds, setExportingCaseIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [successfulExportCaseIds, setSuccessfulExportCaseIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [openingExportCaseIds, setOpeningExportCaseIds] = useState<ReadonlySet<string>>(() => new Set())
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
   const [archiveDetail, setArchiveDetail] = useState<ArchiveTaskPublicDetail | null>(null)
   const [archiveHistory, setArchiveHistory] = useState<ArchiveTaskHistory | null>(null)
   const [exportNameCaseId, setExportNameCaseId] = useState<string | null>(null)
   const exportingCaseIdsRef = useRef(new Set<string>())
+  const openingExportCaseIdsRef = useRef(new Set<string>())
   const pageOffsetRef = useRef(workbench.page.offset)
   useEffect(() => {
     pageOffsetRef.current = workbench.page.offset
@@ -138,6 +141,7 @@ export default function CaseWorkbenchPage() {
         shell.case_id, shell.revision, chosen.path, chosen.token, wordFileName,
         archiveResult?.parts ?? null,
       )
+      setSuccessfulExportCaseIds(current => new Set(current).add(shell.case_id))
       message.success(`已导出至：${result.output.export_path}`)
       await workbench.loadPage(pageOffsetRef.current)
     } catch (error) {
@@ -185,6 +189,20 @@ export default function CaseWorkbenchPage() {
     void workbench.loadPage(nextOffset)
   }
 
+  const openExportDirectory = async (caseId: string) => {
+    if (openingExportCaseIdsRef.current.has(caseId)) return
+    openingExportCaseIdsRef.current.add(caseId)
+    setOpeningExportCaseIds(new Set(openingExportCaseIdsRef.current))
+    try {
+      await archiveCompletion.openExportDirectory(caseId)
+    } catch (error) {
+      message.error(resolveWorkbenchError(error).message)
+    } finally {
+      openingExportCaseIdsRef.current.delete(caseId)
+      setOpeningExportCaseIds(new Set(openingExportCaseIdsRef.current))
+    }
+  }
+
   return (
     <div className="case-workbench-page">
       <div className="case-workbench-page__header">
@@ -230,6 +248,9 @@ export default function CaseWorkbenchPage() {
               completionStatus={completionStatusFor(shell, completionResults[shell.case_id])}
               onExport={() => { void exportCase(shell) }}
               exporting={exportingCaseIds.has(shell.case_id)}
+              canOpenExportDirectory={Boolean(shell.last_unified_export_at) || successfulExportCaseIds.has(shell.case_id)}
+              onOpenExportDirectory={() => { void openExportDirectory(shell.case_id) }}
+              openingExportDirectory={openingExportCaseIds.has(shell.case_id)}
             />
           </Col>)}
           {workbench.page.items.length < CASE_PAGE_SIZE && (

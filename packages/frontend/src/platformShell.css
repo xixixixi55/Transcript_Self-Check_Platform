@@ -581,6 +581,12 @@ body {
   padding-top: 18px;
 }
 
+.case-workbench-card__utilities {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .archive-status-panel {
   min-width: 0;
   margin-top: 14px;

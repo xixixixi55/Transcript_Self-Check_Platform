@@ -55,6 +55,12 @@ export interface UnifiedExportResult {
   output: UnifiedExportOutput
 }
 
+export interface OpenExportDirectoryResult {
+  case_id: string
+  opened: true
+  exported_at: string
+}
+
 /**
  * Result of the trusted native directory picker opened by the backend.
  * The export path is always chosen by the picker, never typed by the user.

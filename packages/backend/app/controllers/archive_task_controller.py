@@ -199,3 +199,12 @@ def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
         ))
     except Exception as error:
         _handle(error)
+
+
+@router.post("/workbench/cases/{case_id}/open-export-directory")
+def open_export_directory_endpoint(case_id: str):
+    """Open the case-bound latest successful export directory in Explorer."""
+    try:
+        return _envelope(_archive_api().open_export_directory(case_id))
+    except Exception as error:
+        _handle(error)

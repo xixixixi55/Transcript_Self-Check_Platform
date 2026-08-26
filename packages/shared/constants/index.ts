@@ -51,6 +51,7 @@ export const API_ENDPOINTS = {
   WORKBENCH_ARCHIVE_PLAN: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/archive-plan`,
   WORKBENCH_ARCHIVE_DISC_MAPPING: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/disc-mapping`,
   WORKBENCH_UNIFIED_EXPORT: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/export-bundle`,
+  WORKBENCH_OPEN_EXPORT_DIRECTORY: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/open-export-directory`,
   WORKBENCH_DEFAULTS: `${API_PREFIX}/workbench/defaults`,
   WORKBENCH_LEASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}/lease`,
   WORKBENCH_LEASE_HEARTBEAT: (leaseId: string) => `${API_PREFIX}/workbench/leases/${encodeURIComponent(leaseId)}/heartbeat`,

@@ -335,8 +335,9 @@ Manifest 的 parts 按实际文件系统结果排序，保存模式、文件名�
 类型索引追加：`interface ArchivePartDiscMapping`、`interface DiscMappingRequest`、
 `interface DiscMappingResult`、`interface UnifiedExportRequest`、
 `interface UnifiedExportOutput`、`interface UnifiedExportResult`、
-`interface ExportRecord`、`type ExportDirectoryResult`、`type ArchiveCompletionStatus`。
-（盘号映射与统一导出契约：压缩允许先无盘号执行，压缩后输入首个盘号自动生成全序列并映射到 plan 槽位；统一导出把最新 Word + 全部 RAR + HashMyFiles 三列校验 PNG 写入用户选择路径，导出路径由后端 native picker（`LocalDirectoryPickerService`）选择并返回，导出审计不保存绝对路径。`ExportDirectoryResult` 是 picker 的选择结果契约：`{ path }` 或 `{ cancelled }`。）
+`interface ExportRecord`、`type ExportDirectoryResult`、
+`interface OpenExportDirectoryResult`、`type ArchiveCompletionStatus`。
+（盘号映射与统一导出契约：压缩允许先无盘号执行，压缩后输入首个盘号自动生成全序列并映射到 plan 槽位；统一导出把最新 Word + 全部 RAR 写入用户选择路径，导出路径由后端 native picker（`LocalDirectoryPickerService`）选择并返回，导出审计不保存绝对路径。`ExportDirectoryResult` 是 picker 的选择结果契约：`{ path, token }` 或 `{ cancelled }`。案件最后成功导出路径只由专用本地 Repository 按 `case_id` 保存；`OpenExportDirectoryResult` 只返回案件标识、打开成功标记和导出时间，不向前端回传路径。）
 
 ### Additional migration support types
 

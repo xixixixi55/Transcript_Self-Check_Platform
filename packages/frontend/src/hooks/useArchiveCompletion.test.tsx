@@ -106,6 +106,25 @@ describe('useArchiveCompletion', () => {
     expect(chosen).toEqual({ cancelled: true })
   })
 
+  it('opens the latest export directory by case id without sending a path', async () => {
+    const opened = {
+      case_id: 'case-synthetic', opened: true, exported_at: '2026-08-26T10:00:00Z',
+    }
+    postMock.mockResolvedValueOnce({ data: { data: opened } } as never)
+    const { result } = renderHook(() => useArchiveCompletion())
+    let response: unknown
+    await act(async () => {
+      response = await result.current.openExportDirectory('case-synthetic')
+    })
+
+    expect(postMock).toHaveBeenCalledWith(
+      API_ENDPOINTS.WORKBENCH_OPEN_EXPORT_DIRECTORY('case-synthetic'),
+      undefined,
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
+    )
+    expect(response).toEqual(opened)
+  })
+
   it('stays busy until every concurrent operation has settled', async () => {
     let resolveFirst!: (value: unknown) => void
     let resolveSecond!: (value: unknown) => void

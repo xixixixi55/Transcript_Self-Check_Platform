@@ -404,7 +404,7 @@ workflow_level: 3
   - 兼容：统一导出结果与新审计记录不再声明 `hash_verification_image`；历史导出记录的 PNG/HTML 字段继续兼容读取。再次导出到同一目录成功时移除旧固定名截图/HTML，发布失败时与旧 Word/RAR 一并回滚恢复。
   - 文件：`packages/backend/app/services/unified_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/shared/types/archiveCompletion.ts`、统一导出超时规则、现有后端/前端测试、本变更 delta/design 与 living spec。
   - 验证：统一导出定向 pytest、Shared/前端相关 Vitest、`npm run lint:arch`、`npm run typecheck`、scoped strict docs 与 `git diff --check`；核心“不调用截图机制”断言需验证区分度。
-  - 自动化证据：统一导出与导出编排后端 22 passed；Shared 超时、导出 Hook 与两个入口页面 4 files / 49 tests passed；`npm run verify:quick`、scoped strict docs、架构、类型、治理、仓库资产与 `git diff --check` PASS。临时恢复统一导出截图调用后核心“不调用 HashMyFiles”回归按预期失败，恢复正式实现后定向套件通过。
+  - 自动化证据：统一导出与导出编排后端 22 passed；Shared 超时、导出 Hook 与两个入口页面 4 files / 49 tests passed；`npm run verify:quick`、scoped strict docs、架构、类型、治理、仓库资产与 `git diff --check` PASS。临时恢复统一导出截图调用后核心“不调用 HashMyFiles”回归按预期失败，恢复正式实现后定向套件通过。后续回归修复移除生命周期测试中已失效的截图错误 mock，恢复“revision 分离时仍可导出”的单一职责，并断言不生成 PNG/HTML；统一导出、归档导出、生命周期与保留的 HashMyFiles 能力相关测试 71 passed。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044 人工验收开放项，候选尚未冻结；本反馈只运行增量门控，不重复最终 Review/full gate。
   - manual_acceptance: [N/A] 当前任务移除外部截图调用与 PNG 产物，不改变 Word 布局；自动化断言覆盖导出目录内容、审计结果与旧产物清理/回滚。
 
@@ -426,3 +426,13 @@ workflow_level: 3
   - 验证：在现有 `test_archive_storage_settings.py` 增加权限拒绝立即失败及名称碰撞有界回归；运行该文件、`test_archive_worker_service.py --collect-only`、架构检查、scoped strict docs 与 `git diff --check`。该低风险 Repository 回归不改变公共合同，不单独冻结 Level 3 候选或运行 full gate。
   - 自动化证据：失败先行时存储设置既有 3 项通过、新增权限拒绝与碰撞上限 2 项失败；正式实现后 5/5 通过。此前在沙箱内超过 30 秒不返回的 `test_archive_worker_service.py` 现于 0.94 秒收集 23 项，完整执行 23/23 通过；`npm run lint:arch` 通过。
   - manual_acceptance: [N/A] 本任务修复 Repository 错误收敛与测试/启动阻塞，无界面、真实文书或外部工具交互；真实沙箱权限拒绝已复现旧挂起并验证新实现快速返回。
+
+- [x] T053 统一导出完成后按案件打开最后导出文件夹（用户需求）。
+  - 行为：统一导出成功后，案件卡片显示带“打开导出文件夹”悬浮提示和无障碍名称的文件夹图标按钮；点击后由后端从该案件最后一条成功统一导出记录解析目录并打开 Windows 文件资源管理器，前端不提交任意本机路径。
+  - 安全与恢复：专用本地 Repository 按案件持久化规范绝对路径，不绕过通用审计 JSON 的绝对路径禁令；无成功记录、目录已移动/删除或系统无法打开时返回稳定可操作错误，不启动 shell 命令解析，不泄露其他案件路径。
+  - 并发：案件 A 的统一导出未完成时可启动案件 B 导出；无论 A/B 完成顺序如何，每张卡片的 loading、成功标记和打开目录动作只绑定自身 `case_id`，不得被全局“最后完成”路径覆盖。
+  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/types/archiveCompletion.ts`、`packages/shared/constants/index.ts`、新增 `packages/backend/app/repository/local_case_export_directory_repository.py`、`packages/backend/app/services/archive_export_service.py`、`archive_task_api_service.py`、`case_lifecycle_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`components/CaseCard.tsx`、`pages/CaseWorkbenchPage.tsx` 及现有测试。
+  - 验证：复用统一导出审计、导出编排和工作台页面测试，覆盖路径持久化、按案件查询最新成功记录、目录不存在、无 shell 解析启动，以及 A/B 导出反序完成后两个图标分别请求自身案件端点；运行 `npm run verify:quick`、scoped strict docs、Impeccable detector 与 `git diff --check`。
+  - 自动化证据：后端导出目录 Repository、统一导出、导出编排及工作台持久化 52/52 通过；案件卡片 10/10、归档完成 Hook 7/7，通过案件页 A/B 反序完成定向回归 1/1；前端生产构建、`npm run verify:quick`、scoped strict docs（14 checks / 0 drift）与 `git diff --check` 通过。Impeccable detector 仅报告 `platformShell.css:67` 既有 `margin-left` 布局动画，本任务新增样式无新告警。
+  - code_review: [DEFERRED] 本任务复用当前未冻结 Level 3 变更包，按包级节奏待全部反馈收敛后统一独立审查，不为单项反馈提前冻结候选。
+  - manual_acceptance: [PENDING] 自动化已验证按案件端点和 Windows Explorer 参数列表；仍需在真实打包 Windows 客户端中点击图标，确认文件资源管理器聚焦到实际导出目录。

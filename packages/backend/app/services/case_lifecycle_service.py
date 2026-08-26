@@ -14,6 +14,7 @@ from ..repository.archive_report_metadata_repository import (
     preserve_verified_archive_projection,
 )
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ..repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ..repository.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
@@ -35,6 +36,9 @@ class CaseLifecycleService:
         self.tasks = TaskRecordRepository(database)
         self.workflow = CaseWorkflowRepository(database)
         self.audit = AuditEventRepository(database)
+        self.export_directories = LocalCaseExportDirectoryRepository(
+            database.database_path.parent / "case-export-directories.json",
+        )
         self.assets = asset_service
         self.artifacts = artifact_deletion_service
         self.archive_tasks = ArchiveTaskRepository(database)
@@ -44,7 +48,11 @@ class CaseLifecycleService:
             raise WorkbenchPersistenceError("INVALID_PAGE")
         items = self.shells.list(offset, limit + 1)
         public_items = [
-            {**item, "archive_task_summary": self.archive_tasks.get_card_summary(item["case_id"])}
+            {
+                **item,
+                "archive_task_summary": self.archive_tasks.get_card_summary(item["case_id"]),
+                "last_unified_export_at": self._last_unified_export_at(item["case_id"]),
+            }
             for item in items[:limit]
         ]
         return {"items": public_items, "offset": offset, "limit": limit, "has_more": len(items) > limit}
@@ -71,12 +79,19 @@ class CaseLifecycleService:
                     "shell": {
                         **shell,
                         "archive_task_summary": self.archive_tasks.get_card_summary(case_id),
+                        "last_unified_export_at": self._last_unified_export_at(case_id),
                     },
                     "draft": draft,
                     "source": source,
                     "parse_task": task,
                 }
         raise WorkbenchPersistenceError("CASE_DETAIL_CHANGED_DURING_READ")
+
+    def _last_unified_export_at(self, case_id: str) -> str | None:
+        record = self.export_directories.latest(case_id)
+        if not record:
+            return None
+        return str(record["exported_at"])
 
     def save_draft(
         self,

@@ -83,6 +83,7 @@ export interface CaseShell {
   created_at: string
   updated_at: string
   archive_task_summary?: ArchiveTaskCardSummary | null
+  last_unified_export_at?: string | null
 }
 
 export interface CaseDraft {

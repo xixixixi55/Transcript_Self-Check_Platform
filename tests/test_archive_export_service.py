@@ -12,7 +12,9 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.archive_export_service import (  # noqa: E402
+    _open_windows_directory,
     export_bundle,
+    open_latest_export_directory,
     resolve_case_word_manifest,
     validate_export_directory,
 )
@@ -71,6 +73,59 @@ def _api(consume_ok: bool) -> MagicMock:
 def _no_photo_side_effects():
     with patch("app.services.archive_export_service._resolve_photo_paths", return_value=[]):
         yield
+
+
+def test_open_latest_export_directory_uses_case_scoped_record(tmp_path: Path) -> None:
+    api = _api(consume_ok=True)
+    export_dir = tmp_path / "SYNTHETIC-CASE-A-EXPORT"
+    export_dir.mkdir()
+    opener = MagicMock()
+    api.export_directories.latest.return_value = {
+            "case_id": "case-synthetic-a",
+            "export_path": str(export_dir),
+            "exported_at": "2026-08-26T10:00:00Z",
+        }
+    result = open_latest_export_directory(
+        api, "case-synthetic-a", opener=opener,
+    )
+
+    api.shells.get.assert_called_once_with("case-synthetic-a")
+    api.export_directories.latest.assert_called_once_with("case-synthetic-a")
+    opener.assert_called_once_with(export_dir.resolve())
+    assert result == {
+        "case_id": "case-synthetic-a",
+        "opened": True,
+        "exported_at": "2026-08-26T10:00:00Z",
+    }
+
+
+def test_open_latest_export_directory_rejects_missing_directory(tmp_path: Path) -> None:
+    api = _api(consume_ok=True)
+    opener = MagicMock()
+    api.export_directories.latest.return_value = {
+            "case_id": "case-synthetic-a",
+            "export_path": str(tmp_path / "SYNTHETIC-MISSING"),
+            "exported_at": "2026-08-26T10:00:00Z",
+        }
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        open_latest_export_directory(api, "case-synthetic-a", opener=opener)
+
+    assert error.value.code == "EXPORT_DIRECTORY_MISSING"
+    opener.assert_not_called()
+
+
+def test_windows_directory_open_uses_argument_list_without_shell(tmp_path: Path) -> None:
+    export_dir = tmp_path / "SYNTHETIC OPEN DIRECTORY"
+    export_dir.mkdir()
+    with patch("app.services.archive_export_service.os.name", "nt"), patch(
+        "app.services.archive_export_service.subprocess.Popen",
+    ) as popen:
+        _open_windows_directory(export_dir)
+
+    arguments, options = popen.call_args
+    assert isinstance(arguments[0], list)
+    assert arguments[0][1] == str(export_dir)
+    assert options.get("shell") is not True
 
 
 def test_export_bundle_rejects_unauthorized_path(tmp_path: Path) -> None:
@@ -244,6 +299,9 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
         )
 
     assert result["lifecycle"] == "exported"
+    api.export_directories.remember.assert_called_once_with(
+        "case-synthetic", str(export_dir), "2026-01-01T00:00:00Z",
+    )
     api.sources.authorization.consume_exact_directory_grant.assert_called_once_with(
         "token-synthetic", str(export_dir),
     )

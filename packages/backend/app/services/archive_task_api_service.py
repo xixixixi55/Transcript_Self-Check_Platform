@@ -10,6 +10,7 @@ from ..repository.archive_asset_repository import ArchiveAssetRepository
 from ..repository.archive_plan_repository import ArchivePlanRepository
 from ..repository.archive_task_repository import ArchiveTaskRepository
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ..repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
@@ -45,6 +46,9 @@ class ArchiveTaskApiService:
         )
         self.shells = CaseShellRepository(database)
         self.drafts = CaseDraftRepository(database)
+        self.export_directories = LocalCaseExportDirectoryRepository(
+            database.database_path.parent / "case-export-directories.json",
+        )
 
     def enqueue(self, case_id: str, expected_case_revision: int) -> dict[str, Any]:
         shell = self.shells.get(case_id)
@@ -231,6 +235,11 @@ class ArchiveTaskApiService:
             word_filename=word_filename,
             template_context=template_context,
         )
+
+    def open_export_directory(self, case_id: str) -> dict[str, Any]:
+        from .archive_export_service import open_latest_export_directory
+
+        return open_latest_export_directory(self, case_id)
 
     @staticmethod
     def _require_action(

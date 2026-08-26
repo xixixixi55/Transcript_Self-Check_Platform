@@ -7,6 +7,9 @@ while reusing its repositories (drafts, results, shells, tasks, database).
 from __future__ import annotations
 
 import hashlib
+import os
+import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +21,8 @@ from .attachment2_plan_service import with_compatible_material_photo_groups
 from .case_asset_service import within_asset_orphan_retention
 from .software_policy_service import normalize_runtime_software_tool_projection
 from .unified_export_service import UnifiedExportError, unified_export, with_disc_mapping
+
+DirectoryOpener = Callable[[Path], None]
 
 
 def validate_export_directory(
@@ -52,6 +57,48 @@ def validate_export_directory(
             "导出目录不能位于文枢程序或用户数据目录中，请选择其他位置。",
         )
     return resolved
+
+
+def open_latest_export_directory(
+    api: Any,
+    case_id: str,
+    *,
+    opener: DirectoryOpener | None = None,
+) -> dict[str, Any]:
+    """Open only the latest successful export directory bound to ``case_id``."""
+    api.shells.get(case_id)
+    record = api.export_directories.latest(case_id)
+    if not record or not record["export_path"]:
+        raise WorkbenchPersistenceError("EXPORT_DIRECTORY_NOT_FOUND")
+    try:
+        export_path = Path(record["export_path"]).resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise WorkbenchPersistenceError("EXPORT_DIRECTORY_MISSING") from None
+    if not export_path.is_dir():
+        raise WorkbenchPersistenceError("EXPORT_DIRECTORY_MISSING")
+    try:
+        (opener or _open_windows_directory)(export_path)
+    except OSError as error:
+        raise WorkbenchPersistenceError("EXPORT_DIRECTORY_OPEN_FAILED") from error
+    return {
+        "case_id": case_id,
+        "opened": True,
+        "exported_at": record["exported_at"],
+    }
+
+
+def _open_windows_directory(path: Path) -> None:
+    if os.name != "nt":
+        raise OSError("Windows Explorer is unavailable")
+    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+    explorer = system_root / "explorer.exe"
+    subprocess.Popen(
+        [str(explorer), str(path)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+    )
 
 
 def resolve_case_word_manifest(api: Any, case_id: str) -> dict[str, Any] | None:
@@ -134,6 +181,9 @@ def export_bundle(
         )
     except UnifiedExportError as error:
         raise WorkbenchPersistenceError(error.code, error.args[0]) from error
+    api.export_directories.remember(
+        case_id, output["export_path"], output["exported_at"],
+    )
     try:
         api.shells.update_lifecycle(case_id, "exported", expected_revision)
     except Exception as error:

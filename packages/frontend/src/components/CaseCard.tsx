@@ -1,8 +1,8 @@
 // Layer 11: FE_Components — one persistent case workbench card.
 import React from 'react'
-import { Button, Card, Dropdown, Tag, Typography } from 'antd'
+import { Button, Card, Dropdown, Tag, Tooltip, Typography } from 'antd'
 import type { MenuProps } from 'antd'
-import { MoreOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, MoreOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import type {
   ArchiveCompletionStatus, ArchiveTaskAction, ArchiveTaskCardSummary, CaseShell, TaskRecord,
@@ -36,6 +36,9 @@ interface Props {
   completionStatus?: ArchiveCompletionStatus
   onExport?: () => void
   exporting?: boolean
+  canOpenExportDirectory?: boolean
+  onOpenExportDirectory?: () => void
+  openingExportDirectory?: boolean
 }
 
 const ACTION_LABELS: Record<ArchiveTaskAction, string> = {
@@ -126,7 +129,8 @@ function casePath(caseId: string): string {
 export function CaseCard({
   shell, task, archiveSummary, sourceRequiresReselection, onRetry, onCancel,
   onDelete, onArchiveAction, actionBusy = false, completionStatus, onExport,
-  exporting = false,
+  exporting = false, canOpenExportDirectory = false, onOpenExportDirectory,
+  openingExportDirectory = false,
 }: Props) {
   const phase = resolvePhase(shell, task, archiveSummary, completionStatus)
   const reviewable = shell.report_available && shell.lifecycle !== 'parse_failed_retryable'
@@ -270,9 +274,22 @@ export function CaseCard({
       {renderPhaseDetails()}
       <div className="case-workbench-card__actions">
         <div>{renderRecommendedAction()}</div>
-        <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-          <Button aria-label="更多操作" icon={<MoreOutlined />} disabled={actionBusy || exporting} />
-        </Dropdown>
+        <div className="case-workbench-card__utilities">
+          {canOpenExportDirectory && onOpenExportDirectory && (
+            <Tooltip title="打开导出文件夹">
+              <Button
+                aria-label="打开导出文件夹"
+                icon={<FolderOpenOutlined />}
+                onClick={onOpenExportDirectory}
+                loading={openingExportDirectory}
+                disabled={actionBusy || exporting}
+              />
+            </Tooltip>
+          )}
+          <Dropdown menu={{ items: menuItems }} trigger={['click']}>
+            <Button aria-label="更多操作" icon={<MoreOutlined />} disabled={actionBusy || exporting} />
+          </Dropdown>
+        </div>
       </div>
     </Card>
   )

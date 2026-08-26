@@ -53,6 +53,7 @@ describe('CaseCard archive completion states', () => {
   it('gives exported lifecycle precedence over stale active task details', () => {
     const onDelete = vi.fn()
     const onExport = vi.fn()
+    const onOpenExportDirectory = vi.fn()
     render(
       <MemoryRouter>
         <CaseCard
@@ -63,6 +64,8 @@ describe('CaseCard archive completion states', () => {
           onCancel={vi.fn()}
           onDelete={onDelete}
           onExport={onExport}
+          canOpenExportDirectory
+          onOpenExportDirectory={onOpenExportDirectory}
         />
       </MemoryRouter>,
     )
@@ -75,6 +78,10 @@ describe('CaseCard archive completion states', () => {
     expect(screen.queryByRole('button', { name: '统一导出' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '删除案件' }))
     expect(onDelete).toHaveBeenCalledTimes(1)
+    const openDirectoryButton = screen.getByRole('button', { name: '打开导出文件夹' })
+    expect(openDirectoryButton.textContent).toBe('')
+    fireEvent.click(openDirectoryButton)
+    expect(onOpenExportDirectory).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByLabelText('更多操作'))
     expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['打开案件', '再次导出'])
