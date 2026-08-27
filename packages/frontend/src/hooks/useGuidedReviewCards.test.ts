@@ -140,6 +140,26 @@ describe('guided review projection', () => {
     expect(result.current.history.some(item => item.title === '文号已完成')).toBe(true)
   })
 
+  it('keeps a completed text action current until Enter confirms it', () => {
+    const initial = buildInput({ ...syntheticReport, document_number: '' })
+    const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
+      initialProps: { input: initial },
+    })
+    const documentActionId = result.current.currentAction?.id
+
+    rerender({ input: buildInput({ ...syntheticReport, document_number: 'S' }) })
+
+    expect(result.current.currentAction?.id).toBe(documentActionId)
+    expect(result.current.allActions.some(action => action.id === documentActionId)).toBe(true)
+    expect(result.current.history.some(item => item.title === '文号已完成')).toBe(false)
+
+    act(() => result.current.confirmCurrentAction())
+
+    expect(result.current.currentAction?.id).not.toBe(documentActionId)
+    expect(result.current.allActions.some(action => action.id === documentActionId)).toBe(false)
+    expect(result.current.history.some(item => item.title === '文号已完成')).toBe(true)
+  })
+
   it('phrases every current action as an explicit assistant prompt', () => {
     const pendingItems = [
       {

@@ -2,7 +2,7 @@
 
 workflow_level: 2
 
-> 目标：案件审核地址默认只展示对话式引导，上方为历史处理轨迹，下方为当前对话和操作；现有完整审核编辑按用户操作切换显示。两种视图共用现有案件会话和全部业务机制；本包只改变前端展示与导航，不创建第二套业务流程。
+> 目标：案件审核地址默认只展示对话式引导，以当前对话和操作为主舞台，历史处理轨迹置于上方并通过上滑查看；现有完整审核编辑按用户操作切换显示。两种视图共用现有案件会话和全部业务机制；本包只改变前端展示与导航，不创建第二套业务流程。
 
 ## 1. 关联结论与边界
 
@@ -86,6 +86,12 @@ workflow_level: 2
   - 验证：组件用例区分形象与对话正文内容层，实际页面核对形象占据正文边界外的独立留白；运行组件测试、类型检查、生产构建、布局检测、scoped strict docs 与 `git diff --check`。
 - [x] 6.16 按交互反馈让外置獬豸与当前对话滚动联动：角色与正文进入同一滚动容器，宽屏仍位于主内容边界外；滚动时同步位移并受对话窗口纵向裁切，不覆盖历史区。
   - 验证：组件失败用例区分角色是否属于对话滚动容器；在实际页面滚动当前对话，核对角色与消息的位移量一致，并运行组件测试、类型检查、生产构建、布局检测、scoped strict docs 与 `git diff --check`。
+- [x] 6.17 根据“缺少对话灵动感”的反馈重排引导主舞台：当前对话先于历史摘要展示，历史默认收起且可访问展开；事项完成后使用与真实完成结果和下一项相关的承接语，不伪造处理中状态；窄屏取消角色独占列与对话内部裁切，并保持全部结构化控件和非线性入口可用。
+  - 验证：先调整组件失败用例，区分当前对话/历史 DOM 顺序、历史默认收起与展开关系、真实完成回执和情境化承接语；运行组件定向测试、前端类型检查、生产构建、Impeccable 检测、桌面与 390px 实际页面检查、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+- [x] 6.18 根据对话视口反馈把完整历史轨迹移到当前对话上方的同一纵向滚动轨道：首次进入、刷新和切换案件时默认锚定完整当前办理舞台，用户向上滚动后才看到历史；新增历史时，停留当前事项的用户继续锚定当前对话，正在阅读历史的用户保持原位置；窄屏与键盘操作沿用同一可访问滚动模型。
+  - 验证：先以组件失败用例区分历史/当前对话 DOM 顺序、默认锚点和两种新增历史位置策略；运行组件定向测试、前端页面测试、类型检查、生产构建、Impeccable 检测、桌面与 390px 实际页面检查、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+- [x] 6.19 修复文本事项输入首个字符后自动切换的问题：字段继续实时写入现有报告草稿和自动保存，但当前文本事项仅在用户按下非输入法组合态的 Enter 后推进；多行文本保留 Shift+Enter 换行，日期、确认按钮和其他显式操作沿用既有完成语义。
+  - 验证：先以 Hook/组件失败用例区分“输入单字符仍停留”“Enter 后推进”“输入法组合态 Enter 不推进”和“Shift+Enter 不推进”；再运行引导定向测试、类型检查、生产构建、Impeccable 检测、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
 
 ## 当前状态
 
@@ -174,3 +180,26 @@ workflow_level: 2
 - `assistant_scroll_linkage_contract: PASS`：角色层和正文内容层共同位于 `.guided-review-conversation__body` 滚动容器；宽屏由滚动容器内部预留 136px 外置区域，正文左边界和右侧滚动条位置不变，窄屏继续使用响应式双列布局。
 - `assistant_scroll_linkage_browser_visual: PASS`：在 1536px 实际本地页面中将当前对话滚动 60px，獬豸形象与助手消息均同步上移 60px；角色仍位于 x=152–272，正文左边界为 x=288，间隔保持 16px，并随对话窗口纵向裁切。
 - `assistant_scroll_linkage_gates: PASS`：失败用例实施后转绿，组件测试 4/4、前端类型检查、`npm run verify:quick`、生产构建、布局检测、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 全部通过；构建仅保留既有大包提示。
+
+## 2026-08-27 当前事项主舞台与对话节奏证据
+
+- `current_stage_contract: PASS`：当前对话在 DOM 与视觉顺序中先于历史处理轨迹；历史默认只展示事实数量、最近事实与可访问展开入口，展开后继续使用既有事实列表和末端跟随逻辑。事项真实完成后仅显示非逐字完成回执，并根据下一项生成“已确认—接下来”的情境化承接语，不伪造业务处理中状态或新增持久化聊天记录。
+- `current_stage_targeted_tests: PASS`：先调整失败用例，再实现至 `GuidedReviewView.test.tsx` 4/4 与 `CaseRecordGeneratePage.test.tsx` 19/19 通过；覆盖当前对话/历史顺序、历史展开关系、空历史、完成回执、等待状态、模式切换及导出事实查看。
+- `current_stage_browser_visual: PASS`：实际本地只读案件在 1440×900 下当前主舞台高度约 342px、历史折叠摘要约 54px，页面无横向溢出；390×844 下对话正文、响应区和工具区宽度约 249px，响应区完整落在内容列内，文档与对话均无横向溢出或内部裁切。窄屏角色缩为 40px 行内状态标记，当前对话不再建立独占角色列或内部纵向滚动。
+- `current_stage_gates: PASS`：前端类型检查、生产构建、Impeccable 检测（0 项）、`npm run verify:quick`、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 全部通过；构建仅保留既有大包提示。
+
+## 2026-08-27 对话视口单轨证据
+
+- `conversation_viewport_contract: PASS`：完整历史与当前对话共用 `.guided-review-scroll`；首次进入和切换案件使用滚动容器相对几何坐标锚定当前对话。历史新增时，当前办理舞台保留其视口内相对位置，已上滑阅读历史时保持原 `scrollTop`；事项与摘要面板不再建立第二条纵向滚动轨道。
+- `conversation_viewport_targeted_tests: PASS`：`GuidedReviewView.test.tsx` 4/4、`CaseRecordGeneratePage.test.tsx` 19/19 通过；用例区分默认锚点、轻微上滑后的历史阅读位置，以及当前对话内部非零视口偏移的保持策略。页面测试保留既有 jsdom `getComputedStyle` 与 React `act` 警告，不影响结果。
+- `conversation_viewport_browser_visual: PASS`：使用 SYNTHETIC/TEST 案件在 1440×900 与 390×844 实际页面复核；两种尺寸默认均由当前对话完整占据 856px/804px 可用滚动视口，历史位于视口上方，向上滚动后完整出现。两种尺寸横向溢出均为 0、嵌套纵向滚动均为 0，窄屏全局按钮最小高度为 44px。
+- `conversation_viewport_gates: PASS`：生产构建、Impeccable layout 检测（0 项）、`npm run verify:quick`、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 通过；构建仅保留既有大包提示。
+- `conversation_viewport_spec_sync: PASS_WITH_GLOBAL_BASELINE_ISSUES`：本包 delta 与 living spec 的目标 Scenario 已同步，scoped strict docs 为 14/14 通过。额外运行的全局 living-spec validate 仍报告本次范围外的既存结构问题：`electronic-inspection-record` 两个旧 Requirement 缺少 MUST/SHALL 且旧 `REQ-ARCHIVE-STORAGE-SETTINGS` 位于主 Requirements 区外，`harness-workflow` 一个旧 Requirement 缺少 MUST/SHALL。
+
+## 2026-08-28 文本事项 Enter 确认证据
+
+- `text_enter_confirmation_contract: PASS`：文本字段每次输入继续更新现有报告草稿和自动保存，但当前卡片与完成轨迹保持到用户按下 Enter；确认后才移除当前卡片、形成非逐字完成回执并推进下一事项。日期、确认按钮和其他显式操作未改为 Enter 门控。
+- `text_enter_confirmation_hardening: PASS`：输入法组合态 Enter 不推进；多行输入的 Shift+Enter 保留换行；用户聚焦文本控件后才锁定当前事项，未开始输入时新增的保存、租约等恢复事项仍沿用既有优先级。
+- `text_enter_confirmation_tests: PASS`：`useGuidedReviewCards.test.ts` 9/9、`GuidedReviewView.test.tsx` 5/5、`CaseRecordGeneratePage.test.tsx` 19/19 通过；页面测试保留既有 jsdom `getComputedStyle` 与 React `act` 警告，不影响结果。
+- `text_enter_confirmation_manual_acceptance: N/A`：本次为键盘事件与会话投影状态修复，无新增布局或视觉合同；IME、Shift+Enter、单字符停留、Enter 推进和恢复事项优先级均由可区分的自动化用例覆盖。
+- `text_enter_confirmation_gates: PASS`：前端类型检查、生产构建、Impeccable 检测（0 项）、`npm run verify:quick`、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 全部通过；构建仅保留既有大包提示。

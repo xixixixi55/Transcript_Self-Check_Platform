@@ -30,6 +30,7 @@ export interface GuidedReviewAction {
   title: string
   description: string
   pendingItem?: ReviewPendingItem
+  advanceOnEnter?: boolean
 }
 
 export interface GuidedReviewSystemStatus {
@@ -222,6 +223,25 @@ const DATE_PROMPT_TARGETS = new Set<string>([
   REVIEW_TARGET_IDS.burningDate,
 ])
 
+const ENTER_CONFIRM_TARGETS = new Set<string>([
+  REVIEW_TARGET_IDS.documentNumber,
+  REVIEW_TARGET_IDS.entrustUnit,
+  REVIEW_TARGET_IDS.entrustPersons,
+  REVIEW_TARGET_IDS.caseSummary,
+  REVIEW_TARGET_IDS.inspectionRequirement,
+  REVIEW_TARGET_IDS.inspectionPlace,
+  REVIEW_TARGET_IDS.inspectionMethod,
+  REVIEW_TARGET_IDS.hardwareDevice,
+  REVIEW_TARGET_IDS.primarySoftwareName,
+  REVIEW_TARGET_IDS.primarySoftwareVersion,
+  REVIEW_TARGET_IDS.discNumber,
+  REVIEW_TARGET_IDS.result('evidence_number'),
+  REVIEW_TARGET_IDS.result('data_summary'),
+  REVIEW_TARGET_IDS.result('rar_filename'),
+  REVIEW_TARGET_IDS.result('md5_hash'),
+  REVIEW_TARGET_IDS.result('file_size'),
+])
+
 function pendingPrompt(item: ReviewPendingItem): string {
   if (item.targetId === REVIEW_TARGET_IDS.photos) return '请上传检材照片'
   if (item.kind === 'confirmation_required') return `请确认${item.fieldLabel}`
@@ -234,6 +254,7 @@ function pendingAction(item: ReviewPendingItem): GuidedReviewAction {
   return {
     id: `pending-${item.id}`, kind: 'pending_item', pendingItem: item,
     title: pendingPrompt(item), description: item.reason,
+    advanceOnEnter: ENTER_CONFIRM_TARGETS.has(item.targetId),
   }
 }
 
@@ -292,6 +313,10 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const [history, setHistory] = useState(projection.history)
   const [historyCaseId, setHistoryCaseId] = useState(input.caseId)
   const [selectedActionId, setSelectedActionId] = useState(projection.allActions[0]?.id || '')
+  const retainedAction = useRef({
+    caseId: input.caseId,
+    action: projection.allActions[0] || null as GuidedReviewAction | null,
+  })
   const previousPending = useRef(new Map(projection.pendingItems.map(item => [item.id, item])))
   const previousPendingCaseId = useRef(input.caseId)
   const previousRecoveryState = useRef({
@@ -301,6 +326,30 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     photoState: input.photoState,
   })
   const pendingSignature = projection.pendingItems.map(item => item.id).join('|')
+  const projectedSelectedAction = projection.allActions.find(action => action.id === selectedActionId)
+  const retainedForCase = retainedAction.current.caseId === input.caseId
+    ? retainedAction.current.action : null
+  const currentAction = !projectedSelectedAction
+    && retainedForCase?.id === selectedActionId
+    && retainedForCase.advanceOnEnter
+    ? retainedForCase
+    : projectedSelectedAction || projection.allActions[0] || null
+  const selectedPendingId = currentAction?.advanceOnEnter ? currentAction.pendingItem?.id : undefined
+  const appendCompletedHistory = useCallback((items: ReviewPendingItem[]) => {
+    if (!items.length) return
+    setHistory(current => {
+      const known = new Set(current.map(item => item.id))
+      const additions = items.filter(item => !known.has(`completed-${item.id}`)).map(item => ({
+        id: `completed-${item.id}`, tone: 'complete' as const, title: `${item.fieldLabel}已完成`,
+        detail: '当前案件事实已不再要求处理此事项。',
+      }))
+      return additions.length ? [...current, ...additions] : current
+    })
+  }, [])
+
+  useEffect(() => {
+    retainedAction.current = { caseId: input.caseId, action: currentAction }
+  }, [currentAction, input.caseId])
 
   useEffect(() => {
     if (historyCaseId !== input.caseId) {
@@ -330,16 +379,9 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
       return
     }
     const completed = [...previousPending.current.values()].filter(item => !nextPending.has(item.id))
-    if (completed.length) setHistory(current => {
-      const known = new Set(current.map(item => item.id))
-      const additions = completed.filter(item => !known.has(`completed-${item.id}`)).map(item => ({
-        id: `completed-${item.id}`, tone: 'complete' as const, title: `${item.fieldLabel}已完成`,
-        detail: '当前案件事实已不再要求处理此事项。',
-      }))
-      return additions.length ? [...current, ...additions] : current
-    })
+    appendCompletedHistory(completed.filter(item => item.id !== selectedPendingId))
     previousPending.current = nextPending
-  }, [input.caseId, pendingSignature])
+  }, [appendCompletedHistory, input.caseId, pendingSignature, selectedPendingId])
 
   useEffect(() => {
     const previous = previousRecoveryState.current
@@ -383,11 +425,27 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     }
   }, [input.caseId, input.leaseState, input.photoState, input.saveState])
 
-  const currentAction = useMemo(
-    () => projection.allActions.find(action => action.id === selectedActionId) || projection.allActions[0] || null,
-    [projection.allActions, selectedActionId],
-  )
-  const selectAction = useCallback((actionId: string) => setSelectedActionId(actionId), [])
+  const allActions = useMemo(() => currentAction?.advanceOnEnter
+    && !projection.allActions.some(action => action.id === currentAction.id)
+    ? [currentAction, ...projection.allActions]
+    : projection.allActions, [currentAction, projection.allActions])
+  const finalizeRetainedAction = useCallback(() => {
+    if (!currentAction?.advanceOnEnter) return
+    if (projection.allActions.some(action => action.id === currentAction.id)) return
+    if (currentAction.pendingItem) appendCompletedHistory([currentAction.pendingItem])
+  }, [appendCompletedHistory, currentAction, projection.allActions])
+  const selectAction = useCallback((actionId: string) => {
+    const action = allActions.find(candidate => candidate.id === actionId)
+    if (!action) return
+    if (action.id !== currentAction?.id) finalizeRetainedAction()
+    setSelectedActionId(action.id)
+  }, [allActions, currentAction?.id, finalizeRetainedAction])
+  const confirmCurrentAction = useCallback(() => {
+    if (!currentAction?.advanceOnEnter) return
+    if (projection.allActions.some(action => action.id === currentAction.id)) return
+    finalizeRetainedAction()
+    setSelectedActionId(projection.allActions[0]?.id || '')
+  }, [currentAction, finalizeRetainedAction, projection.allActions])
 
-  return { ...projection, history, currentAction, selectAction }
+  return { ...projection, allActions, history, currentAction, selectAction, confirmCurrentAction }
 }

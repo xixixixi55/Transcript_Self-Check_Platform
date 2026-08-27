@@ -1207,7 +1207,7 @@
   }
 }
 
-/* Guided review shell: the history consumes the flexible height; the current task stays in flow. */
+/* Guided review shell: history sits above the current task in one conversation scroll track. */
 .review-page--guided {
   width: 100%;
   height: 100%;
@@ -1232,24 +1232,42 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  overflow: hidden;
+}
+
+.guided-review-scroll {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-color: #9bb0c2 #edf2f6;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.guided-review-scroll:focus-visible {
+  outline: 2px solid var(--review-primary);
+  outline-offset: -2px;
 }
 
 .guided-review-history {
-  min-height: 132px;
-  flex: 1 1 auto;
-  overflow: auto;
-  padding: 12px 16px 6px;
+  min-height: 0;
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: 0;
   color: var(--review-text);
   background: #f6f8fb;
   border: 1px solid var(--review-border);
   border-radius: 12px;
-  scrollbar-color: #9bb0c2 #edf2f6;
-  scrollbar-width: thin;
 }
 
-.guided-review-history:focus-visible,
-.guided-review-conversation:focus-within {
+.guided-review-conversation__identity h2:focus-visible {
   outline: 2px solid var(--review-primary);
   outline-offset: 2px;
 }
@@ -1264,12 +1282,20 @@
 
 .guided-review-history__heading {
   position: sticky;
-  top: -12px;
+  top: 0;
   z-index: 1;
-  margin: -12px -16px 4px;
-  padding: 10px 16px 8px;
+  margin: 0;
+  padding: 10px 12px 10px 14px;
   background: #f6f8fb;
   border-bottom: 1px solid #dde6ee;
+}
+
+.guided-review-history__summary {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 12px;
 }
 
 .guided-review-history h2,
@@ -1286,11 +1312,15 @@
   line-height: 26px;
 }
 
-.guided-review-history__heading > span {
+.guided-review-history__summary > span {
   color: var(--review-muted);
   font-size: 12px;
   line-height: 26px;
   white-space: nowrap;
+}
+
+.guided-review-history__content {
+  padding: 2px 16px 8px;
 }
 
 .guided-review-history__list {
@@ -1359,15 +1389,22 @@
 }
 
 .guided-review-history__empty {
-  padding: 14px 0 18px;
+  padding: 10px 0 14px;
 }
 
 .guided-review-conversation {
   position: relative;
   box-sizing: border-box;
+  min-height: 100%;
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
   overflow: visible;
+  padding: 18px 18px 16px;
   color: var(--review-text);
+  background: #fbfdff;
+  border: 1px solid #cfdde8;
+  border-radius: 16px;
   scrollbar-color: #9bb0c2 #edf2f6;
   scrollbar-width: thin;
 }
@@ -1406,12 +1443,13 @@
   position: relative;
   box-sizing: border-box;
   min-width: 0;
-  max-height: min(32dvh, 360px);
+  min-height: 0;
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: clamp(96px, 10vw, 120px) minmax(0, 1fr);
   align-items: start;
   gap: 16px;
-  overflow-y: auto;
+  overflow-y: visible;
   overflow-x: clip;
   padding: 4px 2px 2px 0;
   scrollbar-color: #9bb0c2 #edf2f6;
@@ -1424,6 +1462,7 @@
 
 .guided-review-conversation__identity {
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
 }
 
@@ -1432,10 +1471,47 @@
   line-height: 22px;
 }
 
-.guided-review-conversation__identity .ant-badge-count {
-  background: var(--review-primary);
-  box-shadow: none;
+.guided-review-conversation__status,
+.guided-review-action__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
   font-variant-numeric: tabular-nums;
+}
+
+.guided-review-conversation__pulse {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  background: currentColor;
+  border-radius: 50%;
+  animation: guided-review-status-pulse 1.4s ease-in-out infinite;
+}
+
+.guided-review-status--current,
+.guided-review-status--pending {
+  color: #245b87;
+  background: #e3eef7;
+}
+
+.guided-review-status--warning {
+  color: #815300;
+  background: #fff1d0;
+}
+
+.guided-review-status--system {
+  color: #40576a;
+  background: #edf2f6;
+}
+
+.guided-review-status--success {
+  color: #23663f;
+  background: #e5f4ea;
 }
 
 .guided-review-card {
@@ -1453,6 +1529,7 @@
 
 .guided-review-turn {
   margin-bottom: 8px;
+  animation: guided-review-turn-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .guided-review-turn__user {
@@ -1481,6 +1558,9 @@
 }
 
 .guided-review-turn__acknowledgement {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
   width: fit-content;
   max-width: 72ch;
   margin-top: 8px;
@@ -1492,6 +1572,11 @@
   font-size: 13px;
 }
 
+.guided-review-turn__acknowledgement .anticon {
+  margin-top: 3px;
+  color: #287a4a;
+}
+
 .guided-review-card__message {
   position: relative;
   width: fit-content;
@@ -1499,6 +1584,7 @@
   padding: 9px 12px 10px;
   background: #eef6fb;
   border-radius: 4px 14px 14px;
+  animation: guided-review-message-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .guided-review-card__message h3 {
@@ -1525,6 +1611,7 @@
   background: #ffffff;
   border: 1px solid #cbdce8;
   border-radius: 14px 4px 14px 14px;
+  box-sizing: border-box;
 }
 
 .guided-review-card__fieldset {
@@ -1554,9 +1641,56 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 14px;
   padding-top: 10px;
   border-top: 1px solid #dbe5ed;
+}
+
+@keyframes guided-review-message-enter {
+  from {
+    opacity: 0.84;
+    filter: blur(1.5px);
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes guided-review-turn-enter {
+  from {
+    opacity: 0.86;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes guided-review-status-pulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.86);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.guided-review-conversation__utilities {
+  min-width: 0;
+  margin-left: calc(clamp(96px, 10vw, 120px) + 16px);
+  padding-right: 2px;
+}
+
+.guided-review-tools .ant-btn[aria-expanded='true'] {
+  color: var(--review-primary);
+  background: #eaf2f8;
+  border-color: #9ebbd1;
 }
 
 .guided-review-tools__label {
@@ -1572,8 +1706,6 @@
 }
 
 .guided-review-popover-panel {
-  max-height: 184px;
-  overflow: auto;
   display: grid;
   gap: 4px;
   margin-top: 10px;
@@ -1597,6 +1729,18 @@
 .guided-review-popover-panel .ant-btn small {
   color: var(--review-muted);
   line-height: 1.5;
+}
+
+.guided-review-action__title-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guided-review-action__status {
+  flex: 0 0 auto;
 }
 
 .guided-review-action--current {
@@ -1624,52 +1768,39 @@
   overflow-wrap: anywhere;
 }
 
-@media (min-width: 1360px) {
-  .review-page--guided {
-    overflow-x: visible;
-  }
-
-  .guided-review-conversation {
-    width: calc(100% + 136px);
-    margin-left: -136px;
-  }
-
-  .guided-review-conversation__body {
-    display: block;
-    padding-left: 136px;
-  }
-
-  .guided-review-conversation__mascot {
-    position: absolute;
-    top: 4px;
-    left: 0;
-    z-index: 1;
-    width: 120px;
-  }
-}
-
 @media (max-width: 760px) {
   .review-page--guided {
     height: 100%;
     min-height: 0;
+    overflow-y: hidden;
     padding-bottom: 16px;
   }
 
   .guided-review-view {
     min-height: 0;
+    flex: 1;
   }
 
-  .guided-review-history {
-    min-height: 104px;
+  .guided-review-conversation {
+    min-height: 100%;
+    flex: 0 0 auto;
+    padding: 14px;
   }
 
   .guided-review-conversation__body {
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 10px;
-    padding-right: 0;
+    display: block;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
   }
 
   .guided-review-conversation__mascot {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 1;
+    width: 40px;
+    height: 40px;
     font-size: 24px;
   }
 
@@ -1679,6 +1810,22 @@
     border-radius: 12px;
   }
 
+  .guided-review-conversation__utilities {
+    margin-left: 0;
+    padding-right: 0;
+  }
+
+  .guided-review-conversation__identity,
+  .guided-review-turn__acknowledgement,
+  .guided-review-card__message {
+    margin-left: 50px;
+  }
+
+  .guided-review-card__message {
+    max-width: calc(100% - 50px);
+    box-sizing: border-box;
+  }
+
   .guided-review-tools .ant-btn {
     flex: 1 1 calc(50% - 8px);
     min-height: 44px;
@@ -1686,10 +1833,6 @@
 
   .guided-review-card__response,
   .guided-review-turn__user {
-    width: 92%;
-  }
-
-  .guided-review-card__response {
     width: 100%;
   }
 
@@ -1699,22 +1842,8 @@
 }
 
 @media (max-width: 480px) {
-  .guided-review-conversation__body {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
-
   .guided-review-card__response {
     width: 100%;
-  }
-
-  .guided-review-history__heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .guided-review-history__heading > span {
-    line-height: 18px;
   }
 
   .guided-review-tools .ant-btn {
