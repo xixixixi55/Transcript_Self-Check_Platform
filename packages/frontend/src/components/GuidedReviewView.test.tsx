@@ -7,7 +7,7 @@ import { GuidedReviewHistory } from './GuidedReviewHistory'
 import { GuidedReviewView } from './GuidedReviewView'
 
 const history: GuidedReviewHistoryItem[] = [
-  { id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '文书信息已整理', detail: '已沿用合成文号。' },
+  { id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '报告内容已自动识别', detail: '已从合成报告整理文号。' },
 ]
 const documentAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-DOCUMENT', kind: 'pending_item', title: '处理文号', description: '当前必填字段为空。',
@@ -55,12 +55,20 @@ describe('GuidedReviewView', () => {
     const historyRegion = screen.getByRole('region', { name: '历史处理轨迹' })
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('报告内容已自动识别')).toBeTruthy()
+    expect(screen.getByText('獬豸助手')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: '查看全部待处理事项' }))
+    const pendingButton = screen.getByRole('button', { name: '查看全部待处理事项' })
+    const summaryButton = screen.getByRole('button', { name: '查看已整理信息' })
+    expect(pendingButton.getAttribute('aria-controls')).toBe('guided-review-pending-panel')
+    expect(summaryButton.getAttribute('aria-controls')).toBe('guided-review-summary-panel')
+    fireEvent.click(pendingButton)
+    expect(screen.getByLabelText('全部待处理事项').id).toBe('guided-review-pending-panel')
     fireEvent.click(screen.getByRole('button', { name: /正在生成压缩分卷/ }))
     expect(selectAction).toHaveBeenCalledWith(waitingAction.id)
 
-    fireEvent.click(screen.getByRole('button', { name: '查看已整理信息' }))
+    fireEvent.click(summaryButton)
+    expect(screen.getByLabelText('已整理信息').id).toBe('guided-review-summary-panel')
     expect(screen.getByText('SYNTHETIC ORGANIZED SUMMARY')).toBeTruthy()
     expect(updateReport).not.toHaveBeenCalled()
 

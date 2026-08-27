@@ -9,6 +9,8 @@ import { buildMaterialPhotoGroups, getDefaultExportFileName, normalizeDataSummar
 interface UseRecordExportReturn {
   exportDocx: (report: InspectionReport, photoIds: string[], photoFiles?: File[], fileName?: string, archiveContextId?: string | null, manifestId?: string | null, caseId?: string | null, caseRevision?: number | null, exportDirectory?: WordDirectoryExportTarget) => Promise<boolean>
   exporting: boolean
+  attachmentWarning: string | null
+  resetAttachmentWarning: () => void
 }
 
 const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
@@ -109,6 +111,8 @@ async function resolveExportErrorMessage(error: any): Promise<string> {
 
 export function useRecordExport(): UseRecordExportReturn {
   const [exporting, setExporting] = useState(false)
+  const [attachmentWarning, setAttachmentWarning] = useState<string | null>(null)
+  const resetAttachmentWarning = useCallback(() => setAttachmentWarning(null), [])
 
   const exportDocx = useCallback(async (
     report: InspectionReport,
@@ -184,7 +188,11 @@ export function useRecordExport(): UseRecordExportReturn {
         a.click()
         window.URL.revokeObjectURL(url)
       }
-      if (photoWarningNeeded || backendPhotoWarning) message.warning(ATTACHMENT2_SKIPPED_MESSAGE)
+      const nextAttachmentWarning = photoWarningNeeded || backendPhotoWarning
+        ? ATTACHMENT2_SKIPPED_MESSAGE
+        : null
+      setAttachmentWarning(nextAttachmentWarning)
+      if (nextAttachmentWarning) message.warning(nextAttachmentWarning)
       return true
     } catch (e: any) {
       alert('导出失败: ' + await resolveExportErrorMessage(e))
@@ -194,5 +202,5 @@ export function useRecordExport(): UseRecordExportReturn {
     }
   }, [])
 
-  return { exportDocx, exporting }
+  return { exportDocx, exporting, attachmentWarning, resetAttachmentWarning }
 }

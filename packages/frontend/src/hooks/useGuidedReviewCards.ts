@@ -11,6 +11,7 @@ export type GuidedReviewActionKind =
   | 'pending_item'
   | 'source_recovery'
   | 'lease_recovery'
+  | 'save_recovery'
   | 'photo_recovery'
   | 'archive_decision'
   | 'waiting'
@@ -47,7 +48,10 @@ export interface GuidedReviewProjectionInput {
   sourceStatus: SourceAccessStatus
   sourceRequiresReselection: boolean
   leaseState: 'editable' | 'read_only' | 'expired' | 'failed' | 'acquiring'
-  photoState: 'ready' | 'uploading' | 'error'
+  saveState: 'idle' | 'saving' | 'saved' | 'failed' | 'conflict' | 'not_changed'
+  saveHasPending: boolean
+  photoState: 'ready' | 'uploading' | 'error' | 'warning'
+  wordExportSucceeded: boolean
 }
 
 export interface GuidedReviewProjection {
@@ -73,7 +77,7 @@ const ARCHIVE_STAGE_LABELS: Record<string, string> = {
   integrity_verified: '压缩文件完整性已确认',
   md5: '正在生成文件校验值',
   manifest: '正在整理归档清单',
-  completed: '归档处理已完成',
+  completed: '归档产物已生成，正在确认结果',
 }
 
 function formatBytes(bytes: number | null): string | null {
@@ -88,7 +92,18 @@ function archiveDetail(task: ArchiveTaskCardSummary): string {
     formatBytes(task.output_bytes),
     task.output_volume_count ? `已检测到 ${task.output_volume_count} 个分卷` : null,
   ].filter(Boolean)
-  return facts.length ? facts.join('，') : '后台任务仍在运行，可继续处理其他待办。'
+  return facts.length ? facts.join('，') : '后台任务正在推进'
+}
+
+function backgroundArchiveDetail(task: ArchiveTaskCardSummary): string {
+  const stage = ARCHIVE_STAGE_LABELS[task.stage] || '后台任务正在推进'
+  return `${stage}；${archiveDetail(task)}。可继续处理其他待办。`
+}
+
+function archiveMediumLabel(medium: ArchiveMedium | null): string {
+  if (medium === 'hard_drive') return '硬盘'
+  if (medium === 'optical_disc') return '光盘'
+  return '归档介质'
 }
 
 function hasCompleteInspectors(report: InspectionReport): boolean {
@@ -104,9 +119,21 @@ function hasCompleteInspectors(report: InspectionReport): boolean {
 function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHistoryItem[] {
   const history: GuidedReviewHistoryItem[] = []
   if (!input.report) return history
-  if (input.report.document_number.trim()) history.push({
-    id: 'fact-document-number', tone: 'complete', title: '文书信息已整理',
-    detail: `已沿用文号 ${input.report.document_number.trim()}。`,
+  const evidenceCount = input.report.introduction.evidence_list.length
+  const recognizedEvidenceCount = input.report.introduction.evidence_list.filter(item =>
+    item.material_type_source === 'report' || item.material_type_status === 'confirmed_by_report',
+  ).length
+  const recognizedFacts = [
+    input.report.document_number.trim() ? `文号 ${input.report.document_number.trim()}` : null,
+    recognizedEvidenceCount > 0 ? `${recognizedEvidenceCount} 项检材类型` : null,
+    input.report.inspection.primary_software?.confirmation_status === 'confirmed_by_report'
+      ? `主取证软件 ${input.report.inspection.primary_software.display_name
+        || input.report.inspection.primary_software.name}` : null,
+  ].filter(Boolean)
+  if (recognizedFacts.length > 0) history.push({
+    id: 'fact-report-recognition', tone: 'complete', title: '报告内容已自动识别',
+    detail: `已从当前报告解析结果整理${recognizedFacts.join('、')}${evidenceCount > recognizedEvidenceCount
+      ? `，当前共整理 ${evidenceCount} 项检材` : ''}。`,
   })
   if (input.report.introduction.inspection_place.trim()
     && input.report.inspection.method.trim()
@@ -115,8 +142,7 @@ function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHisto
     id: 'fact-defaults', tone: 'complete', title: '检查设置已沿用',
     detail: '检查人员、地点、方法和硬件设备已从案件信息与默认设置带入。',
   })
-  const evidenceCount = input.report.introduction.evidence_list.length
-  if (evidenceCount > 0) history.push({
+  if (evidenceCount > 0 && recognizedEvidenceCount === 0) history.push({
     id: 'fact-evidence', tone: 'complete', title: '检材信息已整理',
     detail: `当前已整理 ${evidenceCount} 项检材信息。`,
   })
@@ -124,11 +150,37 @@ function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHisto
     id: 'fact-source', tone: 'complete', title: '报告来源已确认',
     detail: '系统将继续沿用当前案件已授权的报告来源。',
   })
+  if (input.saveState === 'failed') history.push({
+    id: 'save-problem-failed', tone: 'warning', title: '草稿保存失败',
+    detail: '当前输入仍保留在本页面，需要重试保存。',
+  })
+  if (input.saveState === 'conflict') history.push({
+    id: 'save-problem-conflict', tone: 'warning', title: '草稿保存发生冲突',
+    detail: '当前输入仍保留在本页面，需要重试或加载服务端版本。',
+  })
+  if (['read_only', 'expired', 'failed'].includes(input.leaseState)) history.push({
+    id: `lease-problem-${input.leaseState}`, tone: 'warning', title: '编辑权限需要恢复',
+    detail: input.leaseState === 'read_only'
+      ? '当前案件由其他页面占用，本页面暂时只读。'
+      : '当前页面没有有效编辑权限，自动保存已经暂停。',
+  })
+  if (input.photoState === 'error') history.push({
+    id: 'photo-problem-error', tone: 'warning', title: '图片保存或读取需要处理',
+    detail: '图片尚未完成绑定或当前无法读取，请返回图片控件检查。',
+  })
+  if (input.photoState === 'warning') history.push({
+    id: 'photo-problem-warning', tone: 'warning', title: 'Word 已导出，附件2已省略',
+    detail: '当前图片无法完整读取，本次 Word 未生成附件2。',
+  })
+  if (input.wordExportSucceeded) history.push({
+    id: 'word-export-completed', tone: 'complete', title: 'Word 已导出',
+    detail: '单独 Word 已生成；这不代表压缩归档或统一导出已经完成。',
+  })
 
   const task = input.archiveTask
   if (input.lifecycle === 'archive_deferred') history.push({
-    id: 'archive-deferred', tone: 'warning', title: '已选择稍后压缩',
-    detail: '案件与草稿已保留，可随时继续开始压缩。',
+    id: 'archive-deferred', tone: 'complete', title: '草稿已保存并稍后处理',
+    detail: '当前草稿已安全保留，可以继续审核、返回案件列表或稍后开始压缩。',
   })
   if (input.lifecycle === 'archive_interrupted') history.push({
     id: 'archive-interrupted', tone: 'warning', title: '上次压缩未完成',
@@ -136,27 +188,30 @@ function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHisto
   })
   if (task && ['archive_queued', 'archiving'].includes(input.lifecycle)) history.push({
     id: `archive-stage-${task.stage}`, tone: 'system',
-    title: ARCHIVE_STAGE_LABELS[task.stage] || '后台归档正在处理', detail: archiveDetail(task),
+    title: '后台归档处理中', detail: backgroundArchiveDetail(task),
   })
   if (['archive_verified', 'exported'].includes(input.lifecycle)) history.push({
-    id: 'archive-completed', tone: 'complete', title: '归档处理已完成',
-    detail: input.archiveMedium === 'hard_drive'
-      ? '压缩产物已完成校验，并按硬盘介质办理。'
-      : '压缩产物已完成校验，并按光盘介质办理。',
+    id: 'archive-completed', tone: 'complete', title: '后台归档已完成校验',
+    detail: input.pendingItems.some(item => item.targetId === REVIEW_TARGET_IDS.discNumber)
+      ? `压缩产物已完成校验，仍需整理${archiveMediumLabel(input.archiveMedium)}编号后再统一导出。`
+      : `压缩产物已完成校验，${archiveMediumLabel(input.archiveMedium)}信息已整理。`,
   })
   if (input.lifecycle === 'exported') history.push({
-    id: 'export-completed', tone: 'complete', title: '案件材料已完成导出',
-    detail: '如案件信息继续修改，可使用现有导出入口重新生成。',
+    id: 'export-completed', tone: 'complete', title: '统一导出已完成',
+    detail: 'Word 与现有归档产物已按统一导出流程生成；案件信息继续修改后可重新导出。',
   })
   return history
 }
 
 function buildSystemStatus(input: GuidedReviewProjectionInput): GuidedReviewSystemStatus | null {
+  if (input.saveHasPending && input.saveState === 'saving') return {
+    title: '正在保存当前输入', detail: '保存完成前，当前输入会继续保留在本页面。',
+  }
   if (input.photoState === 'uploading') return { title: '正在保存图片', detail: '图片上传和绑定完成后会自动沿用。' }
   if (input.sourceStatus === 'pending') return { title: '正在复核报告来源', detail: '系统完成快速复核后会更新可办理事项。' }
   if (input.archiveTask && ['archive_queued', 'archiving'].includes(input.lifecycle)) return {
-    title: ARCHIVE_STAGE_LABELS[input.archiveTask.stage] || '后台归档正在处理',
-    detail: archiveDetail(input.archiveTask),
+    title: '后台归档处理中',
+    detail: backgroundArchiveDetail(input.archiveTask),
   }
   return null
 }
@@ -174,14 +229,28 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   }
   const pendingItems = input.pendingItems.filter(item => !SYSTEM_OUTPUT_TARGETS.has(item.targetId))
   const allActions: GuidedReviewAction[] = []
-  if (input.sourceRequiresReselection || ['invalid', 'requires_reselection'].includes(input.sourceStatus)) {
-    allActions.push({ id: 'source-recovery', kind: 'source_recovery', title: '重新选择报告来源', description: '当前来源不可用，请重新选择后继续。' })
-  }
   if (input.leaseState !== 'editable' && input.leaseState !== 'acquiring') {
     allActions.push({ id: 'lease-recovery', kind: 'lease_recovery', title: '恢复编辑权限', description: '当前页面不能写入案件，请先恢复有效编辑租约。' })
   }
-  if (input.photoState === 'error') {
-    allActions.push({ id: 'photo-recovery', kind: 'photo_recovery', title: '处理图片保存问题', description: '图片尚未完成绑定，请使用现有图片控件检查并重试。' })
+  if (input.saveHasPending && ['saving', 'failed', 'conflict'].includes(input.saveState)) {
+    allActions.push({
+      id: 'save-recovery', kind: 'save_recovery', title: '恢复草稿保存',
+      description: input.saveState === 'saving'
+        ? '正在重新保存，完成前当前输入会继续保留。'
+        : '当前输入仍保留在本页面，请先恢复保存后继续。',
+    })
+  }
+  if (input.sourceRequiresReselection || ['invalid', 'requires_reselection'].includes(input.sourceStatus)) {
+    allActions.push({ id: 'source-recovery', kind: 'source_recovery', title: '重新选择报告来源', description: '当前来源不可用，请重新选择后继续。' })
+  }
+  if (input.photoState === 'error' || input.photoState === 'warning') {
+    allActions.push({
+      id: 'photo-recovery', kind: 'photo_recovery',
+      title: input.photoState === 'warning' ? '检查附件2图片' : '处理图片保存问题',
+      description: input.photoState === 'warning'
+        ? 'Word 已导出，但附件2未生成；可返回图片控件检查后重新导出。'
+        : '图片尚未完成绑定，请使用现有图片控件检查并重试。',
+    })
   }
   allActions.push(...pendingItems.map(pendingAction))
   if (['review_ready', 'archive_deferred', 'archive_interrupted'].includes(input.lifecycle)
@@ -211,6 +280,12 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const [selectedActionId, setSelectedActionId] = useState(projection.allActions[0]?.id || '')
   const previousPending = useRef(new Map(projection.pendingItems.map(item => [item.id, item])))
   const previousPendingCaseId = useRef(input.caseId)
+  const previousRecoveryState = useRef({
+    caseId: input.caseId,
+    saveState: input.saveState,
+    leaseState: input.leaseState,
+    photoState: input.photoState,
+  })
   const pendingSignature = projection.pendingItems.map(item => item.id).join('|')
 
   useEffect(() => {
@@ -251,6 +326,48 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     })
     previousPending.current = nextPending
   }, [input.caseId, pendingSignature])
+
+  useEffect(() => {
+    const previous = previousRecoveryState.current
+    if (previous.caseId !== input.caseId) {
+      previousRecoveryState.current = {
+        caseId: input.caseId,
+        saveState: input.saveState,
+        leaseState: input.leaseState,
+        photoState: input.photoState,
+      }
+      return
+    }
+    const additions: GuidedReviewHistoryItem[] = []
+    if (['failed', 'conflict'].includes(previous.saveState)
+      && ['idle', 'saved', 'not_changed'].includes(input.saveState)) additions.push({
+      id: 'save-recovered', tone: 'recovered', title: '草稿保存状态已恢复',
+      detail: '此前保留在页面中的输入已经重新进入正常保存流程。',
+    })
+    if (['read_only', 'expired', 'failed'].includes(previous.leaseState)
+      && input.leaseState === 'editable') additions.push({
+      id: 'lease-recovered', tone: 'recovered', title: '编辑权限已恢复',
+      detail: '当前页面已经可以继续编辑并保存案件。',
+    })
+    if (['error', 'warning'].includes(previous.photoState) && input.photoState === 'ready') additions.push({
+      id: 'photo-recovered', tone: 'recovered', title: '附件2图片状态已恢复',
+      detail: '图片已经重新进入可保存和完整导出的状态。',
+    })
+    if (additions.length) setHistory(current => {
+      const known = new Set(current.map(item => item.id))
+      const novel = additions.filter(item => !known.has(item.id))
+      return novel.length ? [...current, ...novel] : current
+    })
+    previousRecoveryState.current = {
+      caseId: input.caseId,
+      saveState: input.saveState === 'saving' && ['failed', 'conflict'].includes(previous.saveState)
+        ? previous.saveState : input.saveState,
+      leaseState: input.leaseState === 'acquiring' && ['read_only', 'expired', 'failed'].includes(previous.leaseState)
+        ? previous.leaseState : input.leaseState,
+      photoState: input.photoState === 'uploading' && ['error', 'warning'].includes(previous.photoState)
+        ? previous.photoState : input.photoState,
+    }
+  }, [input.caseId, input.leaseState, input.photoState, input.saveState])
 
   const currentAction = useMemo(
     () => projection.allActions.find(action => action.id === selectedActionId) || projection.allActions[0] || null,

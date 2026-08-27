@@ -63,12 +63,16 @@ function IncompletePhotoExportHarness({ onResult }: { onResult: (value: boolean)
 }
 
 function DirectoryExportHarness({ onResult }: { onResult: (value: boolean) => void }) {
-  const { exportDocx } = useRecordExport()
-  return <button onClick={async () => onResult(await exportDocx(
-    report, [], undefined, 'SYNTHETIC-result.docx', null, null,
-    'case-SYNTHETIC-export', 9,
-    { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' },
-  ))}>导出到目录</button>
+  const { exportDocx, attachmentWarning, resetAttachmentWarning } = useRecordExport()
+  return <>
+    <button onClick={async () => onResult(await exportDocx(
+      report, [], undefined, 'SYNTHETIC-result.docx', null, null,
+      'case-SYNTHETIC-export', 9,
+      { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' },
+    ))}>导出到目录</button>
+    <output aria-label="附件警告">{attachmentWarning}</output>
+    <button onClick={resetAttachmentWarning}>切换测试案件</button>
+  </>
 }
 
 describe('useRecordExport', () => {
@@ -269,6 +273,9 @@ describe('useRecordExport', () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(true))
 
     expect(warning).toHaveBeenCalledWith(expect.stringContaining('本次未生成附件2'))
+    expect(document.querySelector('output')?.textContent).toContain('本次未生成附件2')
+    fireEvent.click(Array.from(document.querySelectorAll('button')).find(button => button.textContent === '切换测试案件')!)
+    await waitFor(() => expect(document.querySelector('output')?.textContent).toBe(''))
     vi.restoreAllMocks()
   })
 

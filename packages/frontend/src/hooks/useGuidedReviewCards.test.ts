@@ -65,8 +65,11 @@ function buildInput(report = syntheticReport): GuidedReviewProjectionInput {
     archiveParts: null,
     sourceStatus: 'available' as const,
     sourceRequiresReselection: false,
+    saveState: 'saved' as const,
+    saveHasPending: false,
     leaseState: 'editable' as const,
     photoState: 'ready' as const,
+    wordExportSucceeded: false,
   }
 }
 
@@ -80,7 +83,14 @@ describe('guided review projection', () => {
       REVIEW_TARGET_IDS.result('md5_hash'),
       REVIEW_TARGET_IDS.result('file_size'),
     ].includes(item.targetId))).toBe(false)
-    expect(projection.systemStatus?.title).toBe('正在生成压缩分卷')
+    expect(projection.systemStatus).toEqual(expect.objectContaining({
+      title: '后台归档处理中', detail: expect.stringContaining('正在生成压缩分卷'),
+    }))
+    expect(projection.history).toContainEqual(expect.objectContaining({
+      id: 'fact-report-recognition',
+      title: '报告内容已自动识别',
+      detail: expect.stringContaining('SYN-TEST〔2026〕001号'),
+    }))
     expect(projection.history.map(item => `${item.title}${item.detail || ''}`).join(' ')).not.toMatch(
       /SYNTHETIC-TASK|revision|Worker|worker|令牌|token|[A-Z]:\\/,
     )
@@ -96,7 +106,7 @@ describe('guided review projection', () => {
 
     expect(running.history.some(item => item.id === 'archive-stage-winrar')).toBe(true)
     expect(completed.history.some(item => item.id === 'archive-stage-winrar')).toBe(false)
-    expect(completed.history.some(item => item.title === '归档处理已完成')).toBe(true)
+    expect(completed.history.some(item => item.title === '后台归档已完成校验')).toBe(true)
   })
 
   it('keeps the current action stable when a background fact adds a higher-priority item', () => {
@@ -113,10 +123,121 @@ describe('guided review projection', () => {
     expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('文号')
     expect(result.current.allActions.some(action => action.kind === 'source_recovery')).toBe(true)
 
+    const saveFailed = {
+      ...sourceInvalid, saveState: 'failed' as const, saveHasPending: true,
+    }
+    rerender({ input: saveFailed })
+    expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('文号')
+    expect(result.current.allActions).toContainEqual(expect.objectContaining({
+      id: 'save-recovery', kind: 'save_recovery', title: '恢复草稿保存',
+    }))
+
     act(() => result.current.selectAction('source-recovery'))
     expect(result.current.currentAction?.kind).toBe('source_recovery')
 
     rerender({ input: buildInput() })
     expect(result.current.history.some(item => item.title === '文号已完成')).toBe(true)
+  })
+
+  it('projects save conflicts and lease failures as recoverable actions and records recovery', () => {
+    const failed: GuidedReviewProjectionInput = {
+      ...buildInput(), saveState: 'conflict' as const, saveHasPending: true,
+      leaseState: 'expired' as const,
+    }
+    const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
+      initialProps: { input: failed },
+    })
+
+    expect(result.current.allActions.slice(0, 2)).toEqual([
+      expect.objectContaining({ id: 'lease-recovery', kind: 'lease_recovery' }),
+      expect.objectContaining({ id: 'save-recovery', kind: 'save_recovery' }),
+    ])
+    expect(result.current.history).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: '草稿保存发生冲突', tone: 'warning' }),
+      expect.objectContaining({ title: '编辑权限需要恢复', tone: 'warning' }),
+    ]))
+
+    rerender({ input: { ...buildInput(), saveState: 'saved', saveHasPending: false } })
+    expect(result.current.history).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: '草稿保存状态已恢复', tone: 'recovered' }),
+      expect.objectContaining({ title: '编辑权限已恢复', tone: 'recovered' }),
+    ]))
+    expect(result.current.allActions.some(action => ['save_recovery', 'lease_recovery'].includes(action.kind))).toBe(false)
+  })
+
+  it('projects an omitted attachment2 as a recoverable image action and records a fact-based recovery', () => {
+    const warning: GuidedReviewProjectionInput = { ...buildInput(), photoState: 'warning' }
+    const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
+      initialProps: { input: warning },
+    })
+
+    expect(result.current.allActions).toContainEqual(expect.objectContaining({
+      id: 'photo-recovery', kind: 'photo_recovery', title: '检查附件2图片',
+    }))
+    expect(result.current.history).toContainEqual(expect.objectContaining({
+      id: 'photo-problem-warning', tone: 'warning', title: 'Word 已导出，附件2已省略',
+    }))
+
+    rerender({ input: buildInput() })
+    expect(result.current.history).toContainEqual(expect.objectContaining({
+      id: 'photo-recovered', tone: 'recovered', title: '附件2图片状态已恢复',
+    }))
+    expect(result.current.allActions.some(action => action.kind === 'photo_recovery')).toBe(false)
+  })
+
+  it('keeps deferred, queued, archiving, and verified archive states distinct from办理完成', () => {
+    const deferred = deriveGuidedReviewProjection({
+      ...buildInput(), lifecycle: 'archive_deferred', archiveTask: null,
+    })
+    expect(deferred.history).toContainEqual(expect.objectContaining({
+      id: 'archive-deferred', tone: 'complete', title: '草稿已保存并稍后处理',
+    }))
+
+    const queued = deriveGuidedReviewProjection({
+      ...buildInput(), lifecycle: 'archive_queued',
+      archiveTask: { ...archiveTask, stage: 'queued', stage_label: '等待处理' },
+    })
+    expect(queued.systemStatus).toEqual(expect.objectContaining({ title: '后台归档处理中' }))
+    expect(queued.history).toContainEqual(expect.objectContaining({
+      id: 'archive-stage-queued', title: '后台归档处理中', detail: expect.stringContaining('可继续处理'),
+    }))
+    expect(queued.allActions.some(action => action.kind === 'pending_item')).toBe(true)
+
+    const archiving = deriveGuidedReviewProjection({
+      ...buildInput(), lifecycle: 'archiving',
+      archiveTask: { ...archiveTask, stage: 'md5', stage_label: '生成校验值' },
+      photoState: 'uploading',
+    })
+    expect(archiving.history).toContainEqual(expect.objectContaining({
+      id: 'archive-stage-md5', title: '后台归档处理中', detail: expect.stringContaining('正在生成文件校验值'),
+    }))
+    expect(archiving.systemStatus?.title).toBe('正在保存图片')
+
+    const verified = deriveGuidedReviewProjection({
+      ...buildInput(), lifecycle: 'archive_verified',
+      archiveTask: { ...archiveTask, status: 'succeeded', stage: 'completed', stage_label: '归档完成' },
+      archiveMedium: 'optical_disc', archiveParts: [{ disc_number: null, size_bytes: 2048 }],
+    })
+    expect(verified.history).toContainEqual(expect.objectContaining({
+      id: 'archive-completed', title: '后台归档已完成校验', detail: expect.stringContaining('仍需整理光盘编号'),
+    }))
+    expect(verified.history.map(item => item.title).join(' ')).not.toContain('办理完成')
+  })
+
+  it('separates single Word success from unified export completion', () => {
+    const word = deriveGuidedReviewProjection({ ...buildInput(), wordExportSucceeded: true })
+    expect(word.history).toContainEqual(expect.objectContaining({
+      id: 'word-export-completed', title: 'Word 已导出',
+    }))
+    expect(word.history.some(item => item.title === '统一导出已完成')).toBe(false)
+
+    const unified = deriveGuidedReviewProjection({
+      ...buildInput(), lifecycle: 'exported', wordExportSucceeded: false,
+      archiveMedium: 'hard_drive', archiveParts: [{ disc_number: 'YP20260825-01', size_bytes: 2048 }],
+    })
+    expect(unified.history).toContainEqual(expect.objectContaining({
+      id: 'export-completed', title: '统一导出已完成',
+    }))
+    expect(unified.history.some(item => item.title === 'Word 已导出')).toBe(false)
   })
 })

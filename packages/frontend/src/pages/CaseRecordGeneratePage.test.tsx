@@ -14,14 +14,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let detailReads = 0
   let decisionBodies: Record<string, unknown>[] = []
   let events: string[] = []
-  let rejectSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
+  let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
+  let leaseFailure = false, leaseConflict = false
   let showCompletedArchive = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
   beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -54,7 +55,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       throw new Error(`unexpected GET ${url}`)
     })
     postMock.mockImplementation(async (url: string, body?: unknown) => {
-      if (url === API_ENDPOINTS.WORKBENCH_LEASE(caseId)) return { data: { data: lease } }
+      if (url === API_ENDPOINTS.WORKBENCH_LEASE(caseId)) {
+        if (leaseConflict) throw { response: { data: { detail: { code: 'LEASE_CONFLICT' } } } }
+        if (leaseFailure) throw { response: { data: { detail: { code: 'LEASE_REQUEST_FAILED' } } } }
+        return { data: { data: lease } }
+      }
       if (url === API_ENDPOINTS.WORKBENCH_LEASE_RELEASE(lease.lease_id)) return { data: { data: lease } }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DECISION(caseId)) {
         events.push('archive-decision'); decisionBodies.push(body as Record<string, unknown>)
@@ -98,6 +103,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       }
       events.push('draft-save')
       if (rejectSave) throw new Error('SYNTHETIC_SAVE_FAILED')
+      if (conflictSave) throw {
+        response: { status: 409, data: { detail: { code: 'REVISION_CONFLICT', data: {
+          draft_save_status: { status: 'conflict', error_code: 'REVISION_CONFLICT' },
+          shared_defaults_save_status: { status: 'failed', error_code: 'DRAFT_SAVE_NOT_APPLIED' },
+        } } } },
+      }
       const request = body as { draft: CaseDraft; shared_defaults_patch?: Record<string, unknown> | null }
       const sharedDefaultsSaveStatus = failSharedDefaults
         ? { status: 'failed', revision: 0, error_code: 'SYNTHETIC_DEFAULT_FAILURE' }
@@ -127,19 +138,66 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(document.querySelector('.review-editor-form')).toBeNull()
+    expect(screen.queryByText('笔录生成 / 审核编辑')).toBeNull()
+    expect(screen.queryByRole('button', { name: '打开结构摘要预览' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '完整审核编辑' }))
     await waitFor(() => expect(document.querySelector('.review-editor-form')).toBeTruthy())
+    expect(screen.getByText('笔录生成 / 审核编辑')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /打开结构摘要预览/ })).toBeTruthy()
+    await waitFor(() => expect(screen.getByRole('heading', { name: '审核编辑', level: 2 })).toBe(document.activeElement))
     const discInput = screen.getByRole('textbox', { name: '介质编号' })
     fireEvent.change(discInput, { target: { value: 'GP20260731-009' } })
 
     fireEvent.click(screen.getByRole('button', { name: '返回引导模式' }))
     await screen.findByRole('region', { name: '当前对话' })
+    await waitFor(() => expect(screen.getByRole('heading', { name: '獬豸助手', level: 2 })).toBe(document.activeElement))
     expect(document.querySelector('.review-editor-form')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '完整审核编辑' }))
     expect((await screen.findByRole('textbox', { name: '介质编号' }) as HTMLInputElement).value).toBe('GP20260731-009')
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_LEASE(caseId))).toHaveLength(1)
+  }, 15000)
+
+  it('keeps failed and conflicting edits in the guided shell and exposes the existing recovery operations', async () => {
+    rejectSave = true
+    const failedView = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: '确认检材信息完整' }))
+    expect(await screen.findByText('草稿保存失败')).toBeTruthy()
+    expect(screen.getByText('当前输入仍保留在本页面，请重试保存。')).toBeTruthy()
+
+    rejectSave = false
+    fireEvent.click(screen.getByRole('button', { name: '重试保存' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '重试保存' })).toBeNull())
+
+    failedView.unmount(); detailReads = 0; conflictSave = true
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: '确认检材信息完整' }))
+    expect(await screen.findByText('草稿保存发生冲突')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '加载服务端版本' })).toBeTruthy()
+
+    conflictSave = false
+    fireEvent.click(screen.getByRole('button', { name: '加载服务端版本' }))
+    await waitFor(() => expect(screen.queryByText('草稿保存发生冲突')).toBeNull())
+  }, 15000)
+
+  it('recovers failed and read-only edit leases from the guided action', async () => {
+    leaseFailure = true
+    const failedView = renderPage()
+    expect(await screen.findByText('编辑权限获取失败，请重新获取后继续。')).toBeTruthy()
+    leaseFailure = false
+    fireEvent.click(screen.getByRole('button', { name: '重新获取编辑权限' }))
+    await waitFor(() => expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_LEASE(caseId))).toHaveLength(2))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '重新获取编辑权限' })).toBeNull())
+
+    failedView.unmount(); detailReads = 0; leaseConflict = true
+    renderPage()
+    expect(await screen.findByText('该案件当前由其他页面占用，当前页面为只读。')).toBeTruthy()
+    leaseConflict = false
+    fireEvent.click(screen.getByRole('button', { name: '强制接管' }))
+    await waitFor(() => expect(postMock.mock.calls.filter(([url, body]) =>
+      url === API_ENDPOINTS.WORKBENCH_LEASE(caseId) && (body as { force_takeover?: boolean }).force_takeover,
+    )).toHaveLength(1))
   }, 15000)
 
   async function openFullEditor() {
@@ -240,6 +298,10 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       expect(formData.get('case_id')).toBe(caseId); expect(formData.get('case_revision')).toBe('6')
       expect(formData.get('export_path')).toBe('D:\\SYNTHETIC\\EXPORT'); expect(formData.get('directory_token')).toBe('token-synthetic')
       expect(events.indexOf('draft-save')).toBeLessThan(postMock.mock.calls.findIndex(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY))
+      fireEvent.click(screen.getByRole('button', { name: '返回引导模式' }))
+      const historyRegion = await screen.findByRole('region', { name: '历史处理轨迹' })
+      expect(await within(historyRegion).findByText('Word 已导出')).toBeTruthy()
+      expect(within(historyRegion).queryByText('统一导出已完成')).toBeNull()
     } finally {
       anchorClick.mockRestore()
     }
@@ -266,6 +328,10 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY)).toBe(true), { timeout: 7000 }); await act(async () => { holdSave = false; resolveSave?.(); resolveSave = null; await Promise.resolve() }); holdDirectory = false; resolveDirectory?.(); resolveDirectory = null
     await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)).toBe(true)); const formData = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)?.[1] as FormData
     expect(formData.getAll('photos')).toHaveLength(0); expect(formData.get('case_revision')).toBe('8')
+    const returnButton = await screen.findByRole('button', { name: '返回图片控件' })
+    expect(returnButton.closest('.ant-alert')?.textContent).toContain('本次未生成附件2')
+    fireEvent.click(returnButton)
+    await waitFor(() => expect(document.activeElement?.id).toBe('review-target-material-photos'))
   }, 15000)
 
   it('saves a newly selected inspector once without entering a PATCH loop', async () => {
@@ -373,6 +439,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   it('shows the exported state for a re-exported case', async () => {
     useExportedLifecycle = true
     renderPage()
+    const historyRegion = await screen.findByRole('region', { name: '历史处理轨迹' })
+    expect(await within(historyRegion).findByText('统一导出已完成')).toBeTruthy()
+    expect(within(historyRegion).queryByText('案件材料已完成导出')).toBeNull()
     await openFullEditor()
     expect(await screen.findByRole('button', { name: /再次导出/ })).toBeTruthy()
     expect(screen.getByText('已导出')).toBeTruthy()

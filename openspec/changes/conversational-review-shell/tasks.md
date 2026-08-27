@@ -53,27 +53,74 @@ workflow_level: 2
 - [x] 6.1 将用户流程图反馈关联到本包并保持 `workflow_level: 2`：流程图描述的獬豸助手与本包属于同一用户结果、同一审核页面和同一核心调用链；`review-page-modern-government-ui` 只提供原有审核布局，`case-record-retention-and-formal-artifact-protection` 与 `background-compression-archive-completion` 分别拥有保存和图片/归档业务合同，因此不新建 change，也不把这些合同迁入本包。
   - 需求结论：助手使用动态操作集，不采用“介质编号→文号→委托时间→案情→检材→图片”的固定题序；压缩时机、后台归档和人工审核可以并行；安全暂存、后台归档和两种导出具有不同终态。
   - 工件：仅更新本包 `tasks.md` 与 `specs/electronic-inspection-record/spec.md`，不创建 proposal/design，不修改应用代码或 living spec。
-- [ ] 6.2 Layer 10：扩展 `packages/frontend/src/hooks/useGuidedReviewCards.ts` 及测试，把现有 autosave `failed/conflict`、可恢复租约状态和图片上传/绑定/读取异常投影为可执行恢复事项；当前操作已开始编辑时只加入历史与全部待办，不突然抢占当前卡片。
+- [x] 6.2 Layer 10：扩展 `packages/frontend/src/hooks/useGuidedReviewCards.ts` 及测试，把现有 autosave `failed/conflict`、可恢复租约状态和图片上传/绑定/读取异常投影为可执行恢复事项；当前操作已开始编辑时只加入历史与全部待办，不突然抢占当前卡片。
   - 验证：SYNTHETIC/TEST 用例覆盖保存失败、revision conflict、租约 expired/failed、图片绑定失败、图片读取容错提示和恢复后事项自动消失；断言不复制保存、图片或导出业务规则。
-- [ ] 6.3 Layer 11：调整 `packages/frontend/src/components/GuidedReviewView.tsx`、`GuidedReviewCard.tsx`、相关测试与 `reviewWorkspace.css`，为恢复事项提供现有“重试保存/加载服务端版本/恢复租约/打开图片控件”操作；为待办与摘要开关建立稳定 `aria-controls` 关系，并保证窄屏和浏览器缩放下操作目标、长错误文案及焦点可见。
+  - [x] 6.2a 已完成 autosave `failed/conflict`、租约 `read_only/expired/failed` 与图片异常的会话级投影、警告事实和恢复事实；恢复事项使用稳定 ID，用户正在填写的现有卡片仍保持选中。
+- [x] 6.3 Layer 11：调整 `packages/frontend/src/components/GuidedReviewView.tsx`、`GuidedReviewCard.tsx`、相关测试与 `reviewWorkspace.css`，为恢复事项提供现有“重试保存/加载服务端版本/恢复租约/打开图片控件”操作；为待办与摘要开关建立稳定 `aria-controls` 关系，并保证窄屏和浏览器缩放下操作目标、长错误文案及焦点可见。
   - 验证：组件测试覆盖恢复按钮回调、展开控件关系、错误文案、键盘顺序和只读状态；浏览器人工验收覆盖 125%/150%/200% 缩放与窄屏触控，不以颜色、图标或角色表情单独表达状态。
-- [ ] 6.4 Layer 12：调整 `packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及页面测试，接通既有 autosave retry/load-server-version 与租约恢复能力；guided→full 切换后聚焦目标字段或完整编辑区标题，full→guided 后聚焦当前对话标题/卡片；卸载原按钮时不得留下不可预测焦点。
+  - [x] 6.3b 已在页面现有特殊内容插槽接通“重试保存/加载服务端版本/重新获取编辑权限/强制接管/返回图片控件”，窄屏 390×844 下四个全局操作目标均为 44px 且无横向溢出。完整缩放矩阵仍待 6.3 收口。
+- [x] 6.3a 按界面反馈收敛引导模式布局：移除旧审核页头；历史区保持事实轨迹并明确展示报告自动识别内容，不使用聊天气泡；仅下方当前对话采用带可替换角色占位的紧凑 Chat 布局，并补齐待办与摘要开关的 `aria-controls`。
+  - 验证：页面测试区分引导模式与完整编辑模式的页头可见性；组件测试断言历史在上、獬豸助手身份、稳定展开关系和现有结构化控件；Hook 测试覆盖报告识别摘要；运行定向 Vitest、类型检查、Impeccable 布局检测和 `git diff --check`。
+- [x] 6.4 Layer 12：调整 `packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及页面测试，接通既有 autosave retry/load-server-version 与租约恢复能力；guided→full 切换后聚焦目标字段或完整编辑区标题，full→guided 后聚焦当前对话标题/卡片；卸载原按钮时不得留下不可预测焦点。
   - 验证：页面测试覆盖保存失败/冲突后保留输入和恢复、expired/failed 租约可执行恢复、双向模式切换焦点、刷新重建，以及恢复过程不创建第二份 session、不改变 lifecycle。
-- [ ] 6.5 保持图片与导出合同：图片上传/绑定失败继续显示可恢复事项并保留现有离页保护；单独 Word 等待图片超时或持久化图片读取失败时，页面明确提示附件2将被省略并提供返回图片控件的入口，但继续遵守既有非阻断导出合同；统一导出、归档和介质映射门控不变。
+- [x] 6.5 保持图片与导出合同：图片上传/绑定失败继续显示可恢复事项并保留现有离页保护；单独 Word 等待图片超时或持久化图片读取失败时，页面明确提示附件2将被省略并提供返回图片控件的入口，但继续遵守既有非阻断导出合同；统一导出、归档和介质映射门控不变。
   - 验证：复用并扩展 `packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx`、`useCasePhotoAssets.test.tsx` 和既有导出测试，区分“图片未安全绑定阻止离页”与“单独 Word 图片读取容错提示”，防止静默声称图片已进入 Word。
-- [ ] 6.6 明确办理终态与并行状态：助手不得把“选择立即压缩”、`archive_queued`、`archiving` 或图片上传请求返回视为办理完成；分别表达“草稿已保存并稍后处理”“后台归档处理中”“单独 Word 已导出”和“统一导出已完成”，后台状态不得阻断用户继续处理其他待办。
+- [x] 6.6 明确办理终态与并行状态：助手不得把“选择立即压缩”、`archive_queued`、`archiving` 或图片上传请求返回视为办理完成；分别表达“草稿已保存并稍后处理”“后台归档处理中”“单独 Word 已导出”和“统一导出已完成”，后台状态不得阻断用户继续处理其他待办。
   - 验证：引导 Hook/组件/页面测试覆盖 deferred、queued、archiving、archive verified 待 GP/YP、单独 Word 成功和统一导出成功，断言不出现固定题号或虚假统一完成态。
-- [ ] 6.7 完成反馈实现后重新核对 delta，修正 living spec 中“獙豸”为“獬豸”并同步本次新增场景；运行引导定向测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec strict validate 与 `git diff --check`。
-- [ ] 6.8 使用 SYNTHETIC/TEST 案件重新人工验收恢复与无损切换：保存失败/冲突、租约失效、图片绑定失败、图片读取容错、归档中断、模式切换焦点和三类终态；不得使用或提交真实案件数据、人员信息、设备编号或生成输出。
+- [x] 6.7 完成反馈实现后重新核对 delta，修正 living spec 中“獙豸”为“獬豸”并同步本次新增场景；运行引导定向测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec strict validate 与 `git diff --check`。
+  - [x] 6.7a 已将本包 delta 智能合并到 living spec；`REQ-GUIDED-REVIEW-SHELL` 的 125 行需求块与 delta 精确一致，living spec 中“獙豸”残留为 0。最终 strict docs 待 6.3 与 6.8 人工验收完成后一并收口。
+- [x] 6.8 使用 SYNTHETIC/TEST 案件重新人工验收恢复与无损切换：保存失败/冲突、租约失效、图片绑定失败、图片读取容错、归档中断、模式切换焦点和三类终态；不得使用或提交真实案件数据、人员信息、设备编号或生成输出。
 
 ## 当前状态
 
-- `implementation_status: reopened_for_feedback`：首轮 Layer 10 → Layer 11 → Layer 12 实现仍作为基线保留；第 6 节新增反馈尚未实现。
-- `feedback_scope_status: requirements_updated_implementation_pending`：本次只更新 change 工件，未修改应用代码。
-- `spec_sync_status: pending_resync`：living spec 仍反映首轮基线，待第 6 节实现与核对完成后再同步。
+- `implementation_status: complete`：首轮实现与第 6 节流程评审反馈均已完成。
+- `feedback_scope_status: complete`：自动化验证与用户执行的 SYNTHETIC/TEST 人工验收均已通过。
+- `spec_sync_status: synced`：delta 已同步到 living spec，最终行为与主规格一致。
 
 ## 首轮基线证据
 
 - `baseline_targeted_tests: PASS`：引导 Hook/组件/页面共 23 个 SYNTHETIC/TEST 用例通过；页面回归覆盖租约、autosave、图片绑定、归档、GP/YP、单独 Word 和统一导出。
 - `baseline_level2_gates: PASS`：`lint:arch`、`typecheck`、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check` 全部通过。
 - `baseline_manual_acceptance: PASS`：使用临时 SYNTHETIC/TEST 页面执行桌面、125%、150%、窄屏布局及滚动验收；页级几何显示外层不滚动、历史独立滚动、对话不重叠。独立 Impeccable 完成度复核结论为 `ship`；3440 像素级截图因工具将文件硬裁为 1600×900，以 3440 DOM 几何无溢出证据代替。
+
+## 2026-08-27 界面收敛证据
+
+- `ui_convergence_targeted_tests: PASS`：引导 Hook/组件 6 个用例和审核页面 17 个用例通过；覆盖报告识别事实、历史/对话顺序、助手身份、稳定展开关系、引导模式页头移除及完整编辑模式页头恢复。
+- `ui_convergence_gates: PASS`：`npm run verify:quick`、TypeScript、Impeccable layout detector 和 `git diff --check` 通过；scoped strict docs 仍因 6.2–6.8 的 7 个反馈任务未完成而按预期保持失败。
+- `ui_convergence_browser_check: PASS`：本地现有案件只读验收显示桌面历史区 445px、当前对话区 219px、旧页头数量为 0；390×844 窄屏无横向溢出，四个对话操作目标均为 44px，历史仍为主要区域且当前对话复杂内容可独立滚动。
+
+## 2026-08-27 保存、租约与焦点恢复证据
+
+- `recovery_targeted_tests: PASS`：`useGuidedReviewCards.test.ts` 4 个用例与 `CaseRecordGeneratePage.test.tsx` 19 个用例全部通过；新增覆盖保存失败、revision conflict、重试保存、加载服务端版本、租约获取失败、只读强制接管、恢复事项消失、当前卡片稳定和双向模式切换焦点。
+- `recovery_typecheck: PASS`：`npm run typecheck` 通过；本次只复用既有 autosave、租约和页面会话接口，没有新增后端、共享 DTO 或持久化合同。
+- `recovery_browser_check: PASS`：使用临时 SYNTHETIC/TEST 报告验收；1280×720 下历史区约 434px、当前对话区约 230px、旧页头数量为 0且无横向溢出；guided→full 后焦点为 `#review-editor-title`，full→guided 后焦点为 `#guided-review-conversation-title`；390×844 下无横向溢出，四个全局操作目标均为 44px。
+- `recovery_impeccable_detector: PASS_WITH_EXISTING_FINDINGS`：对本次 UI 目标运行机械检测，命中 `reviewWorkspace.css` 中既有待办卡片左侧色边与既有进度条 `width` 过渡两项告警；两行均不在本次差异中，未扩大变更范围。
+- `recovery_level2_gates: PARTIAL_PASS`：`npm run verify:quick`、OpenSpec change strict validate 与 `git diff --check` 通过；scoped strict docs 准确报告 6 个未完成反馈主项，待 6.2/6.3/6.5–6.8 全部收口后再转为通过，不以本次局部完成提前勾选。
+
+## 2026-08-27 图片读取容错证据
+
+- `photo_tolerance_targeted_tests: PASS`：`useRecordExport.test.tsx`、`useGuidedReviewCards.test.ts`、`useCasePhotoAssets.test.tsx` 与 `CaseRecordGeneratePage.test.tsx` 共 49 个 SYNTHETIC/TEST 用例通过；覆盖图片绑定离页保护、持久化图片读取失败后继续单独 Word 导出、附件2明确省略提示、恢复事项投影及“返回图片控件”焦点。
+- `photo_tolerance_typecheck: PASS`：`npm run typecheck` 通过；本次仅把既有导出结果投影为会话级警告，没有新增后端、共享 DTO、持久化字段或导出门控。
+- `photo_tolerance_impeccable_detector: PASS_WITH_EXISTING_FINDINGS`：对当前 UI 目标执行一次机械检测，仅命中 `reviewWorkspace.css` 中既有待办卡片左侧色边与既有进度条 `width` 过渡；两行均不在本次图片容错差异中。
+- `photo_tolerance_diff_check: PASS`：`git diff --check` 通过；统一导出、归档和介质映射实现未改动。
+- `photo_tolerance_level2_gates: PARTIAL_PASS`：`npm run verify:quick` 与 `openspec validate conversational-review-shell --type change --strict --no-interactive` 通过；scoped strict docs 准确报告 6.3、6.6、6.7、6.8 共 4 个未完成主项，待完整反馈范围收口后再通过。
+
+## 2026-08-27 终态与并行状态证据
+
+- `terminal_state_targeted_tests: PASS`：`useGuidedReviewCards.test.ts` 7 个、`GuidedReviewView.test.tsx` 3 个和 `CaseRecordGeneratePage.test.tsx` 19 个用例通过；覆盖 deferred、queued、archiving、图片上传与归档并行、archive verified 待介质编号、单独 Word 成功及 exported 统一导出终态。
+- `terminal_state_contract: PASS`：单独 Word 成功仅投影“Word 已导出”；`archive_queued`/`archiving` 统一投影“后台归档处理中”并保留其他待办；`archive_verified` 仅表达“后台归档已完成校验”；只有 `exported` 表达“统一导出已完成”。
+- `terminal_state_typecheck_and_detector: PASS`：`npm run typecheck` 通过；对 `useGuidedReviewCards.ts` 与 `CaseRecordGeneratePage.tsx` 的单次 Impeccable 机械检测为零发现。
+- `terminal_state_level2_gates: PARTIAL_PASS`：`npm run verify:quick` 与 OpenSpec change strict validate 通过；scoped strict docs 准确报告 6.3、6.7、6.8 共 3 个未完成主项，待缩放验收、最终同步和整体人工验收完成后再通过。
+
+## 2026-08-27 人工验收前自动化收口证据
+
+- `pre_acceptance_targeted_tests: PASS`：`GuidedReviewView.test.tsx`、`useGuidedReviewCards.test.ts`、`useRecordExport.test.tsx` 与 `CaseRecordGeneratePage.test.tsx` 共 41 个 SYNTHETIC/TEST 用例通过；测试进程退出码为 0。jsdom 的 `getComputedStyle(..., pseudoElt)` 与既有 React `act(...)` 信息仅写入 stderr，未形成失败用例。
+- `pre_acceptance_spec_sync: PASS`：living spec 中 `REQ-GUIDED-REVIEW-SHELL` 与 delta 均为 125 行且内容精确一致；“獙豸”残留为 0。
+- `pre_acceptance_level2_automation: PARTIAL_PASS`：`npm run verify:quick`、OpenSpec change strict validate 与 `git diff --check` 通过；scoped strict docs 仅报告 6.3、6.7、6.8 三项未完成，待用户人工验收后复跑并完成 6.7。
+- `pre_acceptance_impeccable_detector: PASS_WITH_EXISTING_FINDINGS`：机械检测仍只命中 `reviewWorkspace.css` 第 67 行既有左侧色边与第 214 行既有 `width` 过渡；两处均不属于本次差异，未扩大修改范围。
+
+## 2026-08-27 最终人工验收证据
+
+- `final_manual_acceptance: PASS`：用户确认使用 SYNTHETIC/TEST 案件完成视觉人工验收并通过；覆盖 125%/150%/200% 缩放与窄屏、恢复操作和长文案、模式切换焦点、历史/当前对话布局、后台归档与三类终态。
+- `final_manual_acceptance_asset_scope: PASS`：验收未授权也未记录真实案件数据、人员信息、设备编号或生成输出进入仓库。
+- `final_level2_gates: PASS`：引导定向测试 41/41、`npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec change strict validate 与 `git diff --check` 全部通过。

@@ -98,7 +98,7 @@ export default function RecordEditorForm({
     <div className="review-editor-form">
       <div className="review-editor-form__title-row">
         <div>
-          <Title level={2}>审核编辑</Title>
+          <Title id="review-editor-title" level={2} tabIndex={-1}>审核编辑</Title>
           {!workbenchMode && <p>请核对解析内容，点击字段值即可编辑；当前页面不会自动写入服务器。</p>}
         </div>
         <span className="review-editor-form__document-number">文号：{report.document_number || '未填写'}</span>

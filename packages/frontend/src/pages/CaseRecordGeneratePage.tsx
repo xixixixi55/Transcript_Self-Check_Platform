@@ -33,7 +33,7 @@ export default function CaseRecordGeneratePage() {
   const navigate = useNavigate()
   const session = useCaseRecordSession(caseId)
   const photoNavigationBlocker = useBlocker(session.photoAssets.navigationUnsafe)
-  const { exportDocx, exporting } = useRecordExport()
+  const { exportDocx, exporting, attachmentWarning, resetAttachmentWarning } = useRecordExport()
   const exportDirectory = useArchiveCompletion()
   const catalogs = useRecordEditorCatalogs()
   const [reviewStatus, setReviewStatus] = useState<ReviewPageStatus>('尚未修改')
@@ -41,13 +41,19 @@ export default function CaseRecordGeneratePage() {
   const [exportPreparing, setExportPreparing] = useState(false)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const [reviewMode, setReviewMode] = useState<'guided' | 'full'>('guided')
-  const [fullEditorTargetId, setFullEditorTargetId] = useState<string | null>(null)
+  const [fullEditorFocusRequest, setFullEditorFocusRequest] = useState({ targetId: null as string | null, sequence: 0 })
+  const handledFullEditorFocusSequence = useRef(-1)
   const archiveDecisionInFlight = useRef(false)
+  const focusGuidedAfterSwitch = useRef(false)
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
   useEffect(() => {
     setReviewMode('guided')
-    setFullEditorTargetId(null)
-  }, [caseId])
+    setFullEditorFocusRequest({ targetId: null, sequence: 0 })
+    handledFullEditorFocusSequence.current = -1
+    focusGuidedAfterSwitch.current = false
+    setReviewStatus('尚未修改')
+    resetAttachmentWarning()
+  }, [caseId, resetAttachmentWarning])
   // Before compression finishes, accept either user-entered medium prefix.
   // The verified result then switches the same editor to the exact GP/YP contract.
   const archiveMedium = session.completedArchive.result?.archive_medium ?? null
@@ -73,22 +79,50 @@ export default function CaseRecordGeneratePage() {
       : session.lease.phase === 'read_only' ? 'read_only'
         : session.lease.phase === 'expired' || session.leaseLost ? 'expired'
           : session.lease.phase === 'failed' ? 'failed' : 'acquiring',
-    photoState: session.photoAssets.assetError ? 'error' : session.photoAssets.uploading ? 'uploading' : 'ready',
+    saveState: session.autosave.draftState.status,
+    saveHasPending: session.autosave.hasPending,
+    photoState: attachmentWarning ? 'warning'
+      : session.photoAssets.assetError ? 'error'
+        : session.photoAssets.uploading ? 'uploading' : 'ready',
+    wordExportSucceeded: reviewStatus === '导出成功',
   })
   const { navigateToPendingItem, navigateToSection } = useReviewPendingNavigation()
   const openFullEditor = (targetId?: string) => {
-    setFullEditorTargetId(targetId || null)
+    setFullEditorFocusRequest(current => ({
+      targetId: targetId || null,
+      sequence: current.sequence + 1,
+    }))
     setReviewMode('full')
   }
   useEffect(() => {
-    if (reviewMode !== 'full' || !fullEditorTargetId) return undefined
+    if (reviewMode !== 'full'
+      || handledFullEditorFocusSequence.current === fullEditorFocusRequest.sequence) return undefined
+    handledFullEditorFocusSequence.current = fullEditorFocusRequest.sequence
     const frame = window.requestAnimationFrame(() => {
-      const item = pendingItems.find(candidate => candidate.targetId === fullEditorTargetId)
+      const item = fullEditorFocusRequest.targetId
+        ? pendingItems.find(candidate => candidate.targetId === fullEditorFocusRequest.targetId)
+        : null
       if (item) navigateToPendingItem(item)
-      setFullEditorTargetId(null)
+      else if (fullEditorFocusRequest.targetId) {
+        const target = document.getElementById(fullEditorFocusRequest.targetId)
+        target?.scrollIntoView?.({ block: 'center' })
+        target?.focus()
+      } else document.getElementById('review-editor-title')?.focus()
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [fullEditorTargetId, navigateToPendingItem, pendingItems, reviewMode])
+  }, [fullEditorFocusRequest, navigateToPendingItem, pendingItems, reviewMode])
+  const returnToGuided = () => {
+    focusGuidedAfterSwitch.current = true
+    setReviewMode('guided')
+  }
+  useEffect(() => {
+    if (reviewMode !== 'guided' || !focusGuidedAfterSwitch.current) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('guided-review-conversation-title')?.focus()
+      focusGuidedAfterSwitch.current = false
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [reviewMode])
   const requestExport = () => {
     if (!projectedReport) return
     const missingIndex = findMissingUnextractableReasonIndex(projectedReport)
@@ -166,6 +200,20 @@ export default function CaseRecordGeneratePage() {
   const forceTakeover = () => {
     if (window.confirm('当前案件可能仍由其他页面编辑。强制接管会使旧页面失去写入资格，并记录本地会话审计。确定继续吗？')) void session.lease.acquire(true)
   }
+  const reacquireLease = () => { void session.lease.acquire(false) }
+  const retryDraftSave = async () => {
+    if (await session.retrySave()) message.success('当前输入已重新保存。')
+    else message.warning('当前输入仍未保存成功，请检查编辑权限后重试。')
+  }
+  const loadServerDraft = async () => {
+    if (!window.confirm('加载服务端版本会替换当前页面尚未保存的输入。确定继续吗？')) return
+    try {
+      await session.loadServerVersion()
+      message.success('已加载服务端版本。')
+    } catch {
+      message.error('服务端版本加载失败，当前输入仍保留在本页面。')
+    }
+  }
   const chooseArchive = async (decision: 'immediate' | 'deferred') => {
     if (archiveDecisionInFlight.current) return
     if (!session.editingEnabled) { message.warning('当前页面没有有效编辑租约，不能修改压缩决策。'); return }
@@ -184,7 +232,7 @@ export default function CaseRecordGeneratePage() {
       }
       const result = await session.decideArchive(decision)
       if (result.archive_task) message.success('归档任务已进入后台队列，可在案件卡片查看状态。')
-      if (decision === 'deferred') message.info('已选择稍后压缩，案件和草稿已保留。')
+      if (decision === 'deferred') message.success('草稿已保存并稍后处理，可继续审核或安全返回案件列表。')
     } catch (error) {
       const responseCode = (error as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
       if (responseCode === 'REVISION_CONFLICT') {
@@ -257,7 +305,8 @@ export default function CaseRecordGeneratePage() {
   const sourcePending = session.detail.source.access_status === 'pending'
   const leaseMessage = session.lease.phase === 'read_only' ? '该案件当前由其他页面占用，当前页面为只读。'
     : session.lease.phase === 'expired' || session.leaseLost ? '编辑租约已失效，已停止自动保存。请重新获取租约后继续。'
-      : session.lease.phase === 'acquiring' ? '正在获取编辑租约，请稍候。' : null
+      : session.lease.phase === 'failed' ? '编辑权限获取失败，请重新获取后继续。'
+        : session.lease.phase === 'acquiring' ? '正在获取编辑租约，请稍候。' : null
   const archiveCompletionPanel = (
     <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
       expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
@@ -273,14 +322,33 @@ export default function CaseRecordGeneratePage() {
   )
   const currentGuidedAction = guidedReview.currentAction
   let guidedSpecialContent: React.ReactNode
-  if (currentGuidedAction?.kind === 'source_recovery') {
+  if (currentGuidedAction?.kind === 'save_recovery') {
+    const saveState = session.autosave.draftState.status
+    guidedSpecialContent = <Alert
+      type={saveState === 'failed' ? 'error' : saveState === 'conflict' ? 'warning' : 'info'}
+      showIcon
+      message={saveState === 'failed' ? '草稿保存失败'
+        : saveState === 'conflict' ? '草稿保存发生冲突' : '正在重新保存当前输入'}
+      description={saveState === 'conflict'
+        ? '当前输入仍保留在本页面。可以重试保存，或确认后加载服务端版本。'
+        : saveState === 'failed' ? '当前输入仍保留在本页面，请重试保存。'
+          : '保存完成前，当前输入会继续保留在本页面。'}
+      action={saveState === 'saving' ? undefined : <Space wrap>
+        <Button type="primary" onClick={() => { void retryDraftSave() }}>重试保存</Button>
+        {saveState === 'conflict' && <Button onClick={() => { void loadServerDraft() }}>加载服务端版本</Button>}
+      </Space>} />
+  } else if (currentGuidedAction?.kind === 'source_recovery') {
     guidedSpecialContent = <SourceReselectionPanel required onReselect={session.replaceSource} />
   } else if (currentGuidedAction?.kind === 'lease_recovery') {
     guidedSpecialContent = <Alert type="warning" showIcon message={leaseMessage || '当前页面没有有效编辑权限。'}
-      action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />
+      action={session.lease.phase === 'read_only'
+        ? <Button onClick={forceTakeover}>强制接管</Button>
+        : session.lease.phase === 'acquiring' ? undefined
+          : <Button onClick={reacquireLease}>重新获取编辑权限</Button>} />
   } else if (currentGuidedAction?.kind === 'photo_recovery') {
-    guidedSpecialContent = <Alert type="error" showIcon message={session.photoAssets.assetError || '图片尚未完成保存。'}
-      action={<Button onClick={() => openFullEditor(REVIEW_TARGET_IDS.photos)}>打开图片控件</Button>} />
+    guidedSpecialContent = <Alert type={attachmentWarning ? 'warning' : 'error'} showIcon
+      message={attachmentWarning || session.photoAssets.assetError || '图片尚未完成保存。'}
+      action={<Button onClick={() => openFullEditor(REVIEW_TARGET_IDS.photos)}>返回图片控件</Button>} />
   } else if (currentGuidedAction?.kind === 'archive_decision'
     || currentGuidedAction?.kind === 'waiting' && ['archive_queued', 'archiving'].includes(session.detail.shell.lifecycle)) {
     guidedSpecialContent = <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy}
@@ -309,7 +377,9 @@ export default function CaseRecordGeneratePage() {
   return (
     <>
       <div className={`review-page${reviewMode === 'guided' ? ' review-page--guided' : ''}`}>
-        <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
+        {reviewMode === 'full' && (
+          <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
+        )}
         {reviewMode === 'guided' && currentGuidedAction ? (
           <GuidedReviewView history={guidedReview.history} currentAction={currentGuidedAction}
             allActions={guidedReview.allActions} onSelectAction={guidedReview.selectAction}
@@ -327,7 +397,7 @@ export default function CaseRecordGeneratePage() {
           </GuidedReviewView>
         ) : reviewMode === 'full' ? <>
           <div className="review-mode-toolbar">
-            <Button onClick={() => setReviewMode('guided')}>返回引导模式</Button>
+            <Button onClick={returnToGuided}>返回引导模式</Button>
           </div>
           <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
           {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待快速复核" description="可直接选择压缩时机；开始压缩前会快速核对授权路径、报告结构和核心报告文件。" />}
@@ -335,9 +405,18 @@ export default function CaseRecordGeneratePage() {
             <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
             <div id={REVIEW_SECTION_IDS.archive} className="review-navigation-target" tabIndex={-1}>{archiveCompletionPanel}</div>
           </>}
-          {leaseMessage && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={leaseMessage} action={session.lease.phase === 'read_only' ? <Button onClick={forceTakeover}>强制接管</Button> : undefined} />}
-          {session.lease.phase === 'failed' && <Alert className="case-workbench-page__toolbar" type="error" showIcon message="编辑租约获取失败，请刷新后重试。" />}
-          {session.photoAssets.assetError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={session.photoAssets.assetError} />}
+          {leaseMessage && <Alert className="case-workbench-page__toolbar"
+            type={session.lease.phase === 'failed' ? 'error' : 'warning'} showIcon message={leaseMessage}
+            action={session.lease.phase === 'read_only'
+              ? <Button onClick={forceTakeover}>强制接管</Button>
+              : session.lease.phase === 'acquiring' ? undefined
+                : <Button onClick={reacquireLease}>重新获取编辑权限</Button>} />}
+          {(attachmentWarning || session.photoAssets.assetError) && <Alert
+            className="case-workbench-page__toolbar"
+            type={attachmentWarning ? 'warning' : 'error'}
+            showIcon
+            message={attachmentWarning || session.photoAssets.assetError}
+            action={<Button onClick={() => openFullEditor(REVIEW_TARGET_IDS.photos)}>返回图片控件</Button>} />}
           <ReviewPendingSummary variant="side" items={pendingItems}
             onNavigate={navigateToPendingItem} onNavigateSection={navigateToSection} />
           <RecordEditorForm
