@@ -381,8 +381,9 @@ export default function CaseRecordGeneratePage() {
           <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
         )}
         {reviewMode === 'guided' && currentGuidedAction ? (
-          <GuidedReviewView history={guidedReview.history} currentAction={currentGuidedAction}
-            allActions={guidedReview.allActions} onSelectAction={guidedReview.selectAction}
+          <GuidedReviewView conversationKey={caseId} history={guidedReview.history} currentAction={currentGuidedAction}
+            allActions={guidedReview.allActions} hasResponse={Boolean(guidedSpecialContent || currentGuidedAction.pendingItem)}
+            onSelectAction={guidedReview.selectAction}
             summary={guidedSummary} onOpenFullEditor={() => openFullEditor()}
             onBackToWorkbench={() => { void handleBackToWorkbench() }}>
             <GuidedReviewCard action={currentGuidedAction} report={projectedReport || session.report}

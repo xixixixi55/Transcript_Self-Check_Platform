@@ -216,10 +216,24 @@ function buildSystemStatus(input: GuidedReviewProjectionInput): GuidedReviewSyst
   return null
 }
 
+const DATE_PROMPT_TARGETS = new Set<string>([
+  REVIEW_TARGET_IDS.entrustTime,
+  REVIEW_TARGET_IDS.inspectionTimeRange,
+  REVIEW_TARGET_IDS.burningDate,
+])
+
+function pendingPrompt(item: ReviewPendingItem): string {
+  if (item.targetId === REVIEW_TARGET_IDS.photos) return '请上传检材照片'
+  if (item.kind === 'confirmation_required') return `请确认${item.fieldLabel}`
+  if (item.kind === 'validation') return `请检查并修正${item.fieldLabel}`
+  if (DATE_PROMPT_TARGETS.has(item.targetId)) return `请选择${item.fieldLabel}`
+  return `请输入${item.fieldLabel}`
+}
+
 function pendingAction(item: ReviewPendingItem): GuidedReviewAction {
   return {
     id: `pending-${item.id}`, kind: 'pending_item', pendingItem: item,
-    title: `处理${item.fieldLabel}`, description: item.reason,
+    title: pendingPrompt(item), description: item.reason,
   }
 }
 
@@ -230,23 +244,23 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   const pendingItems = input.pendingItems.filter(item => !SYSTEM_OUTPUT_TARGETS.has(item.targetId))
   const allActions: GuidedReviewAction[] = []
   if (input.leaseState !== 'editable' && input.leaseState !== 'acquiring') {
-    allActions.push({ id: 'lease-recovery', kind: 'lease_recovery', title: '恢复编辑权限', description: '当前页面不能写入案件，请先恢复有效编辑租约。' })
+    allActions.push({ id: 'lease-recovery', kind: 'lease_recovery', title: '请恢复编辑权限', description: '当前页面不能写入案件，请先恢复有效编辑租约。' })
   }
   if (input.saveHasPending && ['saving', 'failed', 'conflict'].includes(input.saveState)) {
     allActions.push({
-      id: 'save-recovery', kind: 'save_recovery', title: '恢复草稿保存',
+      id: 'save-recovery', kind: 'save_recovery', title: '请恢复草稿保存',
       description: input.saveState === 'saving'
         ? '正在重新保存，完成前当前输入会继续保留。'
         : '当前输入仍保留在本页面，请先恢复保存后继续。',
     })
   }
   if (input.sourceRequiresReselection || ['invalid', 'requires_reselection'].includes(input.sourceStatus)) {
-    allActions.push({ id: 'source-recovery', kind: 'source_recovery', title: '重新选择报告来源', description: '当前来源不可用，请重新选择后继续。' })
+    allActions.push({ id: 'source-recovery', kind: 'source_recovery', title: '请重新选择报告来源', description: '当前来源不可用，请重新选择后继续。' })
   }
   if (input.photoState === 'error' || input.photoState === 'warning') {
     allActions.push({
       id: 'photo-recovery', kind: 'photo_recovery',
-      title: input.photoState === 'warning' ? '检查附件2图片' : '处理图片保存问题',
+      title: input.photoState === 'warning' ? '请检查附件2图片' : '请处理图片保存问题',
       description: input.photoState === 'warning'
         ? 'Word 已导出，但附件2未生成；可返回图片控件检查后重新导出。'
         : '图片尚未完成绑定，请使用现有图片控件检查并重试。',
@@ -256,7 +270,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   if (['review_ready', 'archive_deferred', 'archive_interrupted'].includes(input.lifecycle)
     && !input.sourceRequiresReselection) {
     allActions.push({
-      id: 'archive-decision', kind: 'archive_decision', title: '选择压缩时机',
+      id: 'archive-decision', kind: 'archive_decision', title: '请选择压缩时机',
       description: input.lifecycle === 'archive_deferred'
         ? '当前已选择稍后处理，也可以现在开始压缩。'
         : '建议现在开始压缩；也可以保留案件并稍后处理。',
@@ -267,8 +281,8 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
     && ['archive_verified', 'exported'].includes(input.lifecycle)
     && input.archiveParts !== null
   if (allActions.length === 0) allActions.push(readyToGenerate
-    ? { id: 'ready', kind: 'ready', title: '笔录已准备完成', description: '生成时仍由现有保存与导出门控进行最终检查。' }
-    : { id: 'waiting', kind: 'waiting', title: systemStatus?.title || '等待下一步办理', description: systemStatus?.detail || '当前没有需要立即填写的事项。' })
+    ? { id: 'ready', kind: 'ready', title: '请确认并生成笔录', description: '笔录已准备完成，生成时仍由现有保存与导出门控进行最终检查。' }
+    : { id: 'waiting', kind: 'waiting', title: systemStatus ? `请稍候，${systemStatus.title}` : '请稍候，正在整理下一步', description: systemStatus?.detail || '当前没有需要立即填写的事项。' })
   return { history: buildFactHistory(input), pendingItems, allActions, systemStatus, readyToGenerate }
 }
 

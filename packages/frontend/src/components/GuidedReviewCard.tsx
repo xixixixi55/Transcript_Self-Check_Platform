@@ -68,7 +68,7 @@ export function GuidedReviewCard({
 }: Props) {
   if (specialContent) return <div className="guided-review-card__control">{specialContent}</div>
   const pending = action.pendingItem
-  if (!pending) return <p className="guided-review-card__status">{action.description}</p>
+  if (!pending) return null
   const { targetId, fieldLabel } = pending
 
   if (targetId === REVIEW_TARGET_IDS.documentNumber && report.document_number_template) return (

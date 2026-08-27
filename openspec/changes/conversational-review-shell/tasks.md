@@ -68,8 +68,24 @@ workflow_level: 2
 - [x] 6.6 明确办理终态与并行状态：助手不得把“选择立即压缩”、`archive_queued`、`archiving` 或图片上传请求返回视为办理完成；分别表达“草稿已保存并稍后处理”“后台归档处理中”“单独 Word 已导出”和“统一导出已完成”，后台状态不得阻断用户继续处理其他待办。
   - 验证：引导 Hook/组件/页面测试覆盖 deferred、queued、archiving、archive verified 待 GP/YP、单独 Word 成功和统一导出成功，断言不出现固定题号或虚假统一完成态。
 - [x] 6.7 完成反馈实现后重新核对 delta，修正 living spec 中“獙豸”为“獬豸”并同步本次新增场景；运行引导定向测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec strict validate 与 `git diff --check`。
-  - [x] 6.7a 已将本包 delta 智能合并到 living spec；`REQ-GUIDED-REVIEW-SHELL` 的 125 行需求块与 delta 精确一致，living spec 中“獙豸”残留为 0。最终 strict docs 待 6.3 与 6.8 人工验收完成后一并收口。
+  - [x] 6.7a 已将本包 delta 智能合并到 living spec；当前 `REQ-GUIDED-REVIEW-SHELL` 的 127 行需求块与 delta 精确一致，living spec 中“獙豸”残留为 0。
 - [x] 6.8 使用 SYNTHETIC/TEST 案件重新人工验收恢复与无损切换：保存失败/冲突、租约失效、图片绑定失败、图片读取容错、归档中断、模式切换焦点和三类终态；不得使用或提交真实案件数据、人员信息、设备编号或生成输出。
+- [x] 6.9 采用用户提供的獬豸角色作为助手正式形象：提取透明角色切图并生成轻量项目资产，替换当前对话区的盾牌占位；角色图像加载失败时继续回退到既有图标，不改变助手身份文字、状态或操作可用性。
+  - 验证：透明 PNG 为 256×256、四角 alpha 为 0且约 66 KB；组件测试覆盖正式角色资源及加载失败回退，TypeScript 与 `git diff --check` 通过；Impeccable 检测仅命中本次差异外已记录的两处旧样式告警。
+- [x] 6.10 按界面反馈把獬豸形象从小头像提升为当前对话区主角色：桌面端完整角色栏使用 96–120px 响应式宽度，窄屏保持 64–72px，不增加角色底框，也不改变右侧对话、控件和 DOM/键盘顺序。
+  - 验证：组件测试继续覆盖角色资源与加载失败回退；前端类型检查、生产构建、Impeccable 布局检测和 `git diff --check` 通过。
+- [x] 6.11 按界面反馈把当前事项改为獬豸逐步提示：文号、日期、确认、上传、恢复、压缩、等待和生成状态均先展示完整可执行提示句，再展示对应现有控件；同一说明只出现一次，仍由动态待办集决定下一项，不新增固定题序或持久化聊天消息。
+  - 验证：Hook 测试覆盖“请输入/请选择/请确认”及恢复、等待、压缩、生成提示；组件测试覆盖具名助手消息区和非待办说明去重；同步 delta/living spec 并运行定向测试、类型检查、Impeccable 检测与 scoped strict docs。
+- [x] 6.12 按界面反馈把当前事项从局部展示台收敛为逐轮对话：助手提示与用户控件分别使用左右消息块，事项完成后仅在本次页面会话展示不含逐字输入的用户完成回执及助手承接语，其他审核操作退出主对话流；保留现有自动保存、动态事项排序和上方事实历史。
+  - 验证：组件失败用例先证明旧实现缺少“你的回复”和上一轮完成回执，实施后 4/4 通过，并覆盖案件切换清空回执；Hook/组件合计 12/12、页面 19/19、`typecheck`、`verify:quick`、生产构建和 `git diff --check` 通过；Impeccable 仅报告本次范围外第 67、214 行两处既存告警。
+- [x] 6.13 按视觉反馈提高历史处理轨迹的信息密度：保留上方主浏览区、时间顺序、独立滚动和窄屏顺序，仅压缩标题栏、轨迹条目、图标及空状态的纵向留白，不改变事实内容或交互行为。
+  - 验证：复用历史滚动组件测试；运行前端类型检查、生产构建、布局检测、scoped strict docs 与 `git diff --check`，不为纯样式调整机械新增测试。
+- [x] 6.14 按视觉反馈校正当前对话的位置关系：用户上一轮回复保持右侧，獬豸形象移动到当前助手消息行并独立位于提示气泡外侧，助手身份、承接语和当前提示与形象对齐；其他操作继续位于主对话流之外。
+  - 验证：先以组件失败用例区分旧版整区左栏与新版外置助手消息行，再运行组件测试、类型检查、生产构建、布局检测、scoped strict docs 与 `git diff --check`。
+- [x] 6.15 根据截图明确“外置”边界：宽屏下獬豸形象必须位于主内容左边界之外，当前对话正文、滚动条和操作控件留在边界以内；可用外部留白不足时恢复为对话区内的响应式侧栏，避免形象被视口裁切。
+  - 验证：组件用例区分形象与对话正文内容层，实际页面核对形象占据正文边界外的独立留白；运行组件测试、类型检查、生产构建、布局检测、scoped strict docs 与 `git diff --check`。
+- [x] 6.16 按交互反馈让外置獬豸与当前对话滚动联动：角色与正文进入同一滚动容器，宽屏仍位于主内容边界外；滚动时同步位移并受对话窗口纵向裁切，不覆盖历史区。
+  - 验证：组件失败用例区分角色是否属于对话滚动容器；在实际页面滚动当前对话，核对角色与消息的位移量一致，并运行组件测试、类型检查、生产构建、布局检测、scoped strict docs 与 `git diff --check`。
 
 ## 当前状态
 
@@ -124,3 +140,37 @@ workflow_level: 2
 - `final_manual_acceptance: PASS`：用户确认使用 SYNTHETIC/TEST 案件完成视觉人工验收并通过；覆盖 125%/150%/200% 缩放与窄屏、恢复操作和长文案、模式切换焦点、历史/当前对话布局、后台归档与三类终态。
 - `final_manual_acceptance_asset_scope: PASS`：验收未授权也未记录真实案件数据、人员信息、设备编号或生成输出进入仓库。
 - `final_level2_gates: PASS`：引导定向测试 41/41、`npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec change strict validate 与 `git diff --check` 全部通过。
+
+## 2026-08-27 助手逐步提示证据
+
+- `assistant_prompt_targeted_tests: PASS`：`useGuidedReviewCards.test.ts` 8 个与 `GuidedReviewView.test.tsx` 3 个用例全部通过；页面集成测试 19/19 通过。新增区分“请输入文号”“请选择委托时间”“请确认检材完整性”、恢复、压缩、等待和生成提示，并断言非待办说明只出现一次。
+- `assistant_prompt_contract: PASS`：当前事项先进入具名且 `aria-live` 的“獬豸助手提示”消息区，结构化控件位于消息之后；动作仍由现有动态待办与状态投影生成，不新增固定题序、业务规则或持久化聊天记录。
+- `assistant_prompt_gates: PASS`：`npm run verify:quick`、前端生产构建与 `git diff --check` 通过；Impeccable 检测仅命中本次差异外已记录的两处旧样式告警。
+
+## 2026-08-27 逐轮对话证据
+
+- `conversation_turn_contract: PASS`：助手提示和当前结构化控件已分成左右消息块；事项从动态动作集中消失时只生成“字段已填写/恢复已完成”等非逐字回执和助手承接语，不复制或持久化用户输入，案件标识变化时立即清空。
+- `conversation_turn_targeted_tests: PASS`：`GuidedReviewView.test.tsx` 4/4、`useGuidedReviewCards.test.ts` 8/8、`CaseRecordGeneratePage.test.tsx` 19/19 通过；页面既有 jsdom `getComputedStyle` 与 React `act` 警告不影响结果。
+- `conversation_turn_gates: PASS`：`npm run typecheck`、`npm run verify:quick`、前端生产构建、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 通过；构建保留既有大包提示，Impeccable 仅报告本次差异外第 67、214 行两处既存告警。
+
+## 2026-08-27 历史轨迹密度证据
+
+- `history_density_scope: PASS`：标题栏垂直占用由约 56px 收敛至约 44px，普通单行轨迹由约 60px 收敛至约 40px；时间线图标同步由 28px 调整为 24px，空状态留白同步压缩，历史区的 flex 主区域与滚动机制保持不变。
+- `history_density_gates: PASS`：历史滚动组件测试 4/4、前端类型检查、`npm run verify:quick`、生产构建、布局检测、scoped strict docs 与 `git diff --check` 通过；构建仅保留既有大包提示。
+
+## 2026-08-27 外置助手形象证据
+
+- `assistant_avatar_alignment: PASS`：DOM 与视觉顺序均为右侧上一轮回复、外置獬豸形象与助手消息、右侧当前回复控件；形象不再占据整个对话区左栏，长提示和窄屏仍由消息列自然换行。
+- `assistant_avatar_gates: PASS`：结构失败用例实施后转绿，组件测试 4/4、前端类型检查、`npm run verify:quick`、生产构建、布局检测、scoped strict docs 与 `git diff --check` 通过；构建仅保留既有大包提示。
+
+## 2026-08-27 主内容边界外置证据
+
+- `assistant_outside_content_boundary: PASS`：獬豸形象与对话正文使用相互独立的角色层和内容层；宽度达到 1360px 时以 120px 形象和 16px 间隔定位到主内容左边界外，较窄窗口改回 96–120px 响应式侧栏，760px 以下进一步收敛为 64–72px。
+- `assistant_outside_browser_visual: PASS`：在 1536px 实际本地页面中复核，历史与对话正文左边界为 x=288，獬豸形象位于 x=152–272，边界间隔 16px；图片资源已加载，命中检测与截图均确认角色可见且未被外层 `overflow-x` 裁切。
+- `assistant_outside_gates: PASS`：组件测试 4/4、`npm run verify:quick`、生产构建、布局检测、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 通过；构建仅保留既有大包提示。
+
+## 2026-08-27 助手滚动联动证据
+
+- `assistant_scroll_linkage_contract: PASS`：角色层和正文内容层共同位于 `.guided-review-conversation__body` 滚动容器；宽屏由滚动容器内部预留 136px 外置区域，正文左边界和右侧滚动条位置不变，窄屏继续使用响应式双列布局。
+- `assistant_scroll_linkage_browser_visual: PASS`：在 1536px 实际本地页面中将当前对话滚动 60px，獬豸形象与助手消息均同步上移 60px；角色仍位于 x=152–272，正文左边界为 x=288，间隔保持 16px，并随对话窗口纵向裁切。
+- `assistant_scroll_linkage_gates: PASS`：失败用例实施后转绿，组件测试 4/4、前端类型检查、`npm run verify:quick`、生产构建、布局检测、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 全部通过；构建仅保留既有大包提示。

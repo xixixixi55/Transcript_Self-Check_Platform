@@ -115,6 +115,7 @@ describe('guided review projection', () => {
       initialProps: { input: initial },
     })
     expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('文号')
+    expect(result.current.currentAction?.title).toBe('请输入文号')
 
     const sourceInvalid = {
       ...initial, sourceStatus: 'requires_reselection' as const, sourceRequiresReselection: true,
@@ -129,7 +130,7 @@ describe('guided review projection', () => {
     rerender({ input: saveFailed })
     expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('文号')
     expect(result.current.allActions).toContainEqual(expect.objectContaining({
-      id: 'save-recovery', kind: 'save_recovery', title: '恢复草稿保存',
+      id: 'save-recovery', kind: 'save_recovery', title: '请恢复草稿保存',
     }))
 
     act(() => result.current.selectAction('source-recovery'))
@@ -137,6 +138,44 @@ describe('guided review projection', () => {
 
     rerender({ input: buildInput() })
     expect(result.current.history.some(item => item.title === '文号已完成')).toBe(true)
+  })
+
+  it('phrases every current action as an explicit assistant prompt', () => {
+    const pendingItems = [
+      {
+        id: 'SYNTHETIC-DOCUMENT', sectionId: 'review-section-document',
+        targetId: REVIEW_TARGET_IDS.documentNumber, sectionLabel: '文书信息', fieldLabel: '文号',
+        reason: '当前必填字段为空。', severity: 'warning' as const, kind: 'required_missing' as const,
+      },
+      {
+        id: 'SYNTHETIC-ENTRUST-TIME', sectionId: 'review-section-introduction',
+        targetId: REVIEW_TARGET_IDS.entrustTime, sectionLabel: '一、绪论', fieldLabel: '委托时间',
+        reason: '当前必填字段为空。', severity: 'warning' as const, kind: 'required_missing' as const,
+      },
+      {
+        id: 'SYNTHETIC-EVIDENCE-CONFIRMATION', sectionId: 'review-section-introduction',
+        targetId: REVIEW_TARGET_IDS.evidenceCompleteness, sectionLabel: '一、绪论', fieldLabel: '检材完整性',
+        reason: '请确认检材是否完整。', severity: 'error' as const, kind: 'confirmation_required' as const,
+      },
+    ]
+    const pending = deriveGuidedReviewProjection({ ...buildInput(), pendingItems })
+    expect(pending.allActions.map(action => action.title)).toEqual([
+      '请输入文号', '请选择委托时间', '请确认检材完整性',
+    ])
+
+    const decision = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems: [], lifecycle: 'review_ready', archiveTask: null,
+    })
+    expect(decision.allActions[0]?.title).toBe('请选择压缩时机')
+
+    const waiting = deriveGuidedReviewProjection({ ...buildInput(), pendingItems: [] })
+    expect(waiting.allActions[0]?.title).toBe('请稍候，后台归档处理中')
+
+    const ready = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems: [], lifecycle: 'archive_verified',
+      archiveParts: [{ disc_number: 'GP20260825-01', size_bytes: 2048 }],
+    })
+    expect(ready.allActions[0]?.title).toBe('请确认并生成笔录')
   })
 
   it('projects save conflicts and lease failures as recoverable actions and records recovery', () => {
@@ -172,7 +211,7 @@ describe('guided review projection', () => {
     })
 
     expect(result.current.allActions).toContainEqual(expect.objectContaining({
-      id: 'photo-recovery', kind: 'photo_recovery', title: '检查附件2图片',
+      id: 'photo-recovery', kind: 'photo_recovery', title: '请检查附件2图片',
     }))
     expect(result.current.history).toContainEqual(expect.objectContaining({
       id: 'photo-problem-warning', tone: 'warning', title: 'Word 已导出，附件2已省略',
