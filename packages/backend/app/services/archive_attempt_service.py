@@ -2,18 +2,33 @@
 
 from __future__ import annotations
 
+import json
+import stat
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from ..repository.archive_attempt_repository import ArchiveAttemptRepository
+from ..repository.archive_attempt_restart_repository import interrupt_attempt
 from ..repository.archive_preparation_repository import ArchivePreparationRepository
-from ..repository.archive_context_binding_repository import find_binding, report_fingerprint
+from ..repository.archive_context_binding_repository import (
+    find_active_binding_for_attempt,
+    find_binding,
+    report_fingerprint,
+)
+from ..repository.archive_publish_fence_repository import get as get_fence
+from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.source_record_repository import SourceRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
+from .archive_manifest_service import validate_published_manifest
 from .archive_staging_security_service import (
+    OWNERSHIP_MARKER_NAME,
+    cleanup_owned_staging,
     controlled_staging_root_id,
     remove_ownership_marker,
     write_ownership_marker,
@@ -23,13 +38,26 @@ from .archive_input_snapshot_service import (
     create_sealed_input_snapshot, load_sealed_input_snapshot,
 )
 from ..repository.workbench_serialization import validate_opaque_id
-from .archive_attempt_failure_service import fail_attempt
-from .archive_attempt_marker_service import remove_owned_marker
-from .archive_attempt_validation_service import expired as _expired
-from .archive_attempt_validation_service import revalidate_before_publish as _revalidate_before_publish
 
 if TYPE_CHECKING:
     from .archive_manifest_service import ArchiveFileIdentity
+
+
+def _expired(value: object) -> bool:
+    if value is None:
+        return False
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed <= datetime.now(timezone.utc)
+    except (TypeError, ValueError):
+        return True
+
+
+@dataclass(frozen=True)
+class ArchivePublicationSnapshot:
+    report: dict[str, Any]
+    draft_revision: int
+    report_fingerprint: str
 
 
 class ArchiveAttemptService:
@@ -126,8 +154,35 @@ class ArchiveAttemptService:
         from .archive_attempt_completion_service import persist_publish_intent
         return persist_publish_intent(self, attempt_id, **kwargs)
 
-    def revalidate_before_publish(self, attempt_id: str, report: object) -> Any:
-        return _revalidate_before_publish(self, attempt_id, report)
+    def revalidate_before_publish(
+        self, attempt_id: str, report: object,
+    ) -> ArchivePublicationSnapshot:
+        attempt = self.repository.get_internal(attempt_id)
+        binding = find_active_binding_for_attempt(self.database, attempt_id)
+        shell = CaseShellRepository(self.database).get(attempt["case_id"])
+        source = self.sources.get(attempt["source_id"])
+        draft = CaseDraftRepository(self.database).get(attempt["case_id"])
+        if (
+            not binding or _expired(binding.get("expires_at"))
+            or binding["context_kind"] != "workbench"
+            or binding["case_id"] != attempt["case_id"]
+            or binding["source_id"] != attempt["source_id"]
+            or binding["source_revision"] != int(attempt["source_revision"])
+            or binding["draft_revision"] != int(attempt["draft_revision"])
+            or binding["report_fingerprint"] != attempt["report_fingerprint"]
+            or shell["source_id"] != attempt["source_id"]
+            or shell["lifecycle"] not in {"archive_queued", "archiving"}
+            or source["access_status"] != "available"
+            or int(source["revision"]) != int(attempt["source_revision"])
+            or int(draft["revision"]) != int(attempt["draft_revision"])
+            or report_fingerprint(draft["report"]) != attempt["report_fingerprint"]
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
+        return ArchivePublicationSnapshot(
+            report=draft["report"],
+            draft_revision=int(draft["revision"]),
+            report_fingerprint=report_fingerprint(draft["report"]),
+        )
 
     def mark_publish_phase(self, attempt_id: str, phase: str) -> dict[str, Any]:
         from .archive_attempt_completion_service import mark_publish_phase
@@ -146,7 +201,41 @@ class ArchiveAttemptService:
         )
 
     def fail(self, attempt_id: str, error_code: str) -> dict[str, Any]:
-        return fail_attempt(self, attempt_id, error_code)
+        intent = ArchivePublishIntentRepository(self.database).get_for_attempt(attempt_id)
+        if intent and intent["phase"] not in {"verified", "conflict"}:
+            result = interrupt_attempt(self.database, attempt_id)
+            record = self.repository.get_internal(attempt_id)
+            if record["staging_locator"]:
+                cleanup = cleanup_owned_staging(
+                    record, self.staging_root, self.database.deployment_instance_id,
+                )
+                if cleanup != "not_required":
+                    cleanup_error = (
+                        "ARCHIVE_STAGING_CLEANUP_UNKNOWN" if cleanup == "unknown" else None
+                    )
+                    if cleanup == "failed":
+                        cleanup_error = "ARCHIVE_STAGING_CLEANUP_FAILED"
+                    result = self.repository.mark_cleanup(
+                        attempt_id, cleanup, cleanup_error,
+                    )
+            self._cleanup_execution_input_best_effort(attempt_id)
+            return result
+        result = self.repository.mark_failed(attempt_id, error_code)
+        self.repository.interrupt_case(attempt_id)
+        record = self.repository.get_internal(attempt_id)
+        if record["staging_locator"]:
+            cleanup = cleanup_owned_staging(
+                record, self.staging_root, self.database.deployment_instance_id,
+            )
+            if cleanup != "not_required":
+                cleanup_error = (
+                    "ARCHIVE_STAGING_CLEANUP_UNKNOWN" if cleanup == "unknown" else None
+                )
+                if cleanup == "failed":
+                    cleanup_error = "ARCHIVE_STAGING_CLEANUP_FAILED"
+                result = self.repository.mark_cleanup(attempt_id, cleanup, cleanup_error)
+        self._cleanup_execution_input_best_effort(attempt_id)
+        return result
 
     def _cleanup_execution_input_best_effort(self, attempt_id: str) -> None:
         try:
@@ -192,7 +281,77 @@ class ArchiveAttemptService:
         return cleanup_sealed_input_snapshot(self.database, self.output_root, attempt_id)
 
     def remove_marker(self, staging_dir: Path, attempt_id: str | None = None) -> None:
-        remove_owned_marker(self, staging_dir, attempt_id)
+        marker = staging_dir / OWNERSHIP_MARKER_NAME
+        attempt_id = attempt_id or self._attempt_for_final_dir(staging_dir)
+        if attempt_id is None:
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_OWNER_REQUIRED")
+        attempt_id = validate_opaque_id(attempt_id)
+        intent = ArchivePublishIntentRepository(self.database).get_for_attempt(attempt_id)
+        if intent is None:
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_REQUIRED")
+        expected_final = (
+            self.output_root / "compressed" / intent["relative_final_dir"]
+        ).resolve(strict=False)
+        if expected_final != staging_dir.resolve(strict=False) or not staging_dir.is_dir():
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
+        fence = (
+            get_fence(self.database, str(intent.get("fence_id")))
+            if intent.get("fence_id")
+            else None
+        )
+        if (
+            fence is None or fence["attempt_id"] != attempt_id
+            or fence.get("task_id") != intent.get("task_id")
+            or fence.get("deployment_instance_id") != self.database.deployment_instance_id
+            or fence["status"] not in {"active", "pending_verification", "consumed"}
+            or intent.get("publication_status") not in {"sealed", "published", "verified"}
+        ):
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_OWNER_REQUIRED")
+        if not marker.exists():
+            if intent.get("publication_status") in {"published", "verified"}:
+                return
+            if (
+                intent.get("publication_status") == "sealed"
+                and validate_published_manifest(SimpleNamespace(
+                    public_manifest=intent["public_manifest"], final_dir=staging_dir,
+                ))
+            ):
+                return
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_MARKER_MISSING")
+        try:
+            payload = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_OWNER_REQUIRED") from error
+        attempt = self.repository.get_internal(attempt_id)
+        expected = {
+            "marker_version": 1, "attempt_id": attempt_id,
+            "deployment_instance_id": self.database.deployment_instance_id,
+            "staging_root_id": attempt.get("staging_root_id"),
+            "marker_token": attempt.get("ownership_marker_token"),
+        }
+        if attempt.get("task_id") is not None:
+            expected["task_id"] = attempt.get("task_id")
+        if payload != expected:
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_OWNER_REQUIRED")
+        try:
+            remove_ownership_marker(staging_dir)
+        except FileNotFoundError:
+            if intent.get("publication_status") in {"published", "verified"}:
+                return
+            if not (
+                intent.get("publication_status") == "sealed"
+                and validate_published_manifest(SimpleNamespace(
+                    public_manifest=intent["public_manifest"], final_dir=staging_dir,
+                ))
+            ):
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_MARKER_MISSING")
+        try:
+            staging_dir.chmod(
+                stat.S_IRUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
+                | stat.S_IROTH | stat.S_IXOTH,
+            )
+        except OSError:
+            pass
 
     def _publish_intent(self, attempt_id: str) -> dict[str, Any] | None:
         from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository

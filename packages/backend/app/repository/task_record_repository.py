@@ -15,12 +15,7 @@ from .workbench_constants import (
 from .workbench_database import WorkbenchDatabase, normalize_optional_utc, normalize_utc, utc_now
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import bool_int, json_text, row_json
-from .workbench_serialization import validate_opaque_id
-from .task_record_validation_repository import (
-    counter_map as _counter_map, non_negative_int as _non_negative_int,
-    process_binding as _process_binding, validate_error_fields as _validate_error_fields,
-    validate_progress as _validate_progress,
-)
+from .workbench_serialization import validate_opaque_id, validate_safe_string
 
 _UPDATE_FIELDS = {
     "status", "stage", "percent", "counters", "process_binding", "error_code",
@@ -29,6 +24,53 @@ _UPDATE_FIELDS = {
     "last_heartbeat_at", "output_bytes", "output_volume_count",
     "last_output_change_at", "worker_state", "allowed_actions",
 }
+
+
+def _validate_progress(value: Any) -> None:
+    if value is not None and (
+        isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100
+    ):
+        raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
+
+
+def _counter_map(value: Any) -> dict[str, int | float]:
+    if not isinstance(value, Mapping) or any(
+        not isinstance(key, str)
+        or isinstance(item, bool)
+        or not isinstance(item, (int, float))
+        for key, item in value.items()
+    ):
+        raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
+    return dict(value)
+
+
+def _process_binding(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping) or set(value) - {"process_tree_id", "staging_asset_id"}:
+        raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
+    if value.get("process_tree_id") is None and value.get("staging_asset_id") is None:
+        raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
+    if value.get("process_tree_id") is not None:
+        validate_opaque_id(value.get("process_tree_id"))
+    if value.get("staging_asset_id") is not None:
+        validate_opaque_id(value.get("staging_asset_id"))
+    return dict(value)
+
+
+def _validate_error_fields(code: Any, summary: Any) -> None:
+    if code is not None:
+        validate_safe_string(code, "INVALID_TASK_RECORD")
+    if summary is not None:
+        validate_safe_string(summary, "INVALID_TASK_RECORD")
+
+
+def _non_negative_int(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise WorkbenchPersistenceError("INVALID_TASK_RECORD")
+    return value
+
+
 class TaskRecordRepository:
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database

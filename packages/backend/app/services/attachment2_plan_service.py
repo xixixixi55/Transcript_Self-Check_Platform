@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import PureWindowsPath
 from typing import Any, Mapping
 
-from .attachment_plan_errors_service import AttachmentPlanError
 from .attachment_plan_models_service import (
+    AttachmentPlanError,
     Attachment2ImagePlan,
     Attachment2PagePlan,
     MaterialPhotoGroup,

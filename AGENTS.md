@@ -81,9 +81,11 @@ Level 2 delta 使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关�
 
 ## 7. 架构与工具约束
 
-分层方向：SharedTypes(0)→Constants(1)→Utils(2)；FE Hooks(10)→Components(11)→Pages(12)；BE Repo(20)→Services(21)→Controllers(22)→Routes(23)。前后端仅通过 SharedTypes API 契约通信。
+分层方向：SharedTypes(0)→Constants(1)→Utils(2)；FE Hooks(10)→Components(11)→Pages(12)；BE Repo(20)→Services(21)→Controllers(22)→Routes(23)。编号只表示允许的依赖方向，不要求每项业务机械经过 Repo→Service→Controller→Route 全部层级；前后端仅通过 SharedTypes API 契约通信。
 
-- 源码文件不超过 400 行；TS 使用 camelCase/PascalCase 和命名导出，Python 使用 snake_case。新增目录更新 `harness/directory.md`。
+- 源码文件 ≤400 行是推荐目标；400–600 行的高内聚模块允许保留；600–800 行必须评估自然职责边界并提供说明；>800 行原则上禁止，需按自然边界拆分或登记明确豁免理由。高内聚模块可合理超过 400 行，禁止仅为 LOC 拆分文件。
+- 模块拆分必须由领域职责、变化原因或可独立测试的行为边界驱动；新增 Service/Repository 必须具有可独立描述的领域职责，禁止创建仅承担行数拆分作用的 support/helper/pass-through Service 或 Repository。
+- TS 使用 camelCase/PascalCase 和命名导出，Python 使用 snake_case。新增目录更新 `harness/directory.md`。
 - 详细依赖矩阵、文件和测试组织见 `harness/architecture.md`。
 - `.agents/` 与 `.claude/` 中 Git 管理的对应命令/Skill 必须镜像一致；工具入口只转发本文件和 Harness 细则，不复制独立流程规则。
 - `AGENTS.md` 必须不超过 250 行；详细执行说明下沉到已有 Harness 专用文档。

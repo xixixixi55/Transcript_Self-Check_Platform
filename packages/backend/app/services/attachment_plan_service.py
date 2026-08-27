@@ -15,12 +15,12 @@ from .attachment2_plan_service import (
     material_photo_groups,
     photo_values,
 )
-from .attachment_plan_errors_service import AttachmentPlanError
 from .disc_sequence_service import (
     archive_medium_for_mode, parse_archive_medium_sequence,
 )
 from .attachment_plan_models_service import (
     ARCHIVE_ROWS_PAGE_KIND,
+    AttachmentPlanError,
     Attachment1PagePlan,
     Attachment2State,
     Attachment3PagePlan,

@@ -61,6 +61,10 @@ spec_sync_evidence: Windows 展示顺序已同步到 electronic-inspection-recor
 
 - [x] 步骤3在已识别的 Windows 展示名称后明确补充“操作系统”，例如“Windows 10 64位家庭版操作系统启动正常”；操作系统信息待确认文案保持原状。同步 delta 与 living spec，并验证后端与共享前端两条步骤3投影路径。
 
+## 反馈修正（2026-08-26）
+
+- [x] 本机同时安装火绒安全软件和火绒应用商店时，只选择火绒安全软件的版本；仅安装火绒应用商店时不得误报已识别到安全软件。保留标准 `HipsMain.exe` 的文件版本兜底。
+
 ## 验证证据（2026-08-17）
 
 - 后端定向测试：`89 passed`。
@@ -85,6 +89,10 @@ spec_sync_evidence: Windows 展示顺序已同步到 electronic-inspection-recor
 
 - 后端环境服务定向测试 `5 passed`，共享前端步骤投影定向 Vitest `11 passed`；已覆盖 Windows 10 家庭版与 Windows 11 专业版的“操作系统启动正常”表述，以及操作系统信息待确认分支。
 - delta 与 living spec 已同步；`npm run verify:quick`、`npm run verify:docs:strict -- --change dynamic-process-step-environment` 和 `git diff --check` 均通过。
+
+## 反馈修正验证证据（2026-08-26）
+
+- 本机环境 Repository 定向测试 `7 passed`；与环境 Service 联合定向测试 `12 passed`。新增合成用例覆盖“应用商店在前”和“仅安装应用商店”两个回归边界；scoped `git diff --check` 通过。
 
 ## 边界
 

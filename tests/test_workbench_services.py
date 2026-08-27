@@ -196,7 +196,7 @@ def test_parse_projects_step_three_from_final_hardware_and_local_environment(dat
     )
     assert inspection["hardware_device"] == "SYNTHETIC-SELECTED 手机取证工作站"
     assert inspection["environment_snapshot"]["operating_system"]["display_name"] == (
-        "Windows 11 专业版 64位"
+        "Windows 11 64位专业版"
     )
     assert "SYNTHETIC-SELECTED 手机取证工作站" in step_three
     assert "火绒安全软件（版本号为TEST-6.0.7.0）" in step_three

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,6 @@ from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.report_format_adapter import ReportFormatError, require_supported_report_format
 from .archive_authorization_service import ArchiveAuthorizationService
-from .source_revalidation_policy_service import is_temporary_source_failure
 from .source_record_fingerprint_service import (
     directory_summary,
     fingerprint as _fingerprint,
@@ -24,6 +24,16 @@ from .source_record_fingerprint_service import (
     SourceFingerprintCancelledError,
     validate_pending_locator,
 )
+
+
+def is_temporary_source_failure(error: Exception) -> bool:
+    if isinstance(error, FileNotFoundError):
+        return False
+    if isinstance(error, (PermissionError, TimeoutError, BlockingIOError, OSError)):
+        return True
+    return getattr(error, "code", None) in {
+        "SOURCE_ACCESS_DENIED", "ARCHIVE_INPUT_ACCESS_DENIED", errno.EACCES,
+    }
 
 
 class SourceRecordService:

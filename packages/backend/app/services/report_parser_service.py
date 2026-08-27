@@ -2,7 +2,7 @@
 Layer 21: BE_Services — 报告解析编排服务。
 REQ-011 缓存 / REQ-013 兼容压缩开关 / REQ-014 压缩包上传 / REQ-016 动态 software_tools。
 
-> 文件行数超过 250 行上限：本文件是报告解析的核心编排入口，包含 _build_report（组装完整
+> 本文件处于 400–600 行高内聚允许区间，是报告解析的核心编排入口，包含 _build_report（组装完整
   InspectionReport）、_build_software_tools（动态软件工具列表）、缓存判断、RAR 压缩编排、
   附件自动填充等多个紧密耦合的子流程。拆分会导致参数传递链过长，降低可维护性。
 """

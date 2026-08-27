@@ -410,7 +410,7 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 
 ## Risks / Trade-offs
 
-- [风险] 现有 `template_filler_service.py` 超过文件上限且承担多种职责。→ [缓解] 按 Repository/Service/Renderer/Plan 拆分，每个新模块 ≤250 行；旧文件仅作为迁移适配层逐步削薄。
+- [风险] 现有 `template_filler_service.py` 超过 800 行且承担多种职责。→ [缓解] 后续只按独立领域职责、变化原因和可测试行为边界评估 Repository/Service/Renderer/Plan 拆分；阶段 0 保留有界豁免，不以 LOC 单独驱动拆分，旧文件仅在自然边界明确时逐步削薄。
 - [风险] WinRAR 输出命名、分卷边界和压缩比受版本/参数影响。→ [缓解] staging、精确字节参数、真实卷验证、升级重试和合成大文件测试；不以源字节数冒充最终卷大小。
 - [风险] VML/页眉/普通分页的 OOXML 被 python-docx 改写。→ [缓解] 资产哈希、ZIP/XML 回归、保留宿主段落、固定 renderer 版本和 Word 人工验收。
 - [风险] “手机/平板”分类在部分报告中不明确。→ [缓解] provenance + confidence；低置信时阻止导出并要求确认，不在模板层猜测。

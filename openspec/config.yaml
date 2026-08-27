@@ -26,7 +26,9 @@ context: |
 
   开发约定：
   - 依赖方向严格单向，8个架构层级（0→1→2，10→11→12，20→21→22→23）
-  - 文件行数上限 400 行，建议 200 行以内
+  - 层级编号只表示允许的依赖方向，不要求业务机械补齐 Repo→Service→Controller→Route
+  - 源码文件 ≤400 行为推荐目标；400–600 行允许高内聚保留；600–800 行需评估并说明；>800 行原则上拆分或登记明确豁免，禁止仅为 LOC 拆分模块
+  - 模块拆分由领域职责、变化原因或可独立测试的行为边界驱动；新增 Service/Repository 必须具有可独立描述的职责，禁止 LOC-only support/helper/pass-through
   - 命名：TypeScript 使用 camelCase / PascalCase，Python 使用 snake_case
   - 前后端通过 SharedTypes API 契约通信，禁止跨边界直接引用
   - 测试：pytest (后端) + Vitest (前端) + React Testing Library (组件) + Playwright (E2E)

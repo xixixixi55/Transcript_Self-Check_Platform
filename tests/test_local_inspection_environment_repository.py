@@ -23,11 +23,54 @@ def test_reads_synthetic_windows_and_huorong_registry_facts():
     assert facts["huorong"] == {"detected": True, "version": "TEST-6.0.7.0"}
 
 
+def test_prefers_huorong_security_software_over_app_store():
+    repository = LocalInspectionEnvironmentRepository(
+        system_reader=lambda: {},
+        software_reader=lambda: [
+            {
+                "display_name": "火绒应用商店 TEST",
+                "display_version": "TEST-STORE-1.0",
+                "install_location": "C:/SYNTHETIC/HuorongStore",
+                "display_icon": "",
+            },
+            {
+                "display_name": "火绒安全软件 TEST",
+                "display_version": "TEST-SECURITY-6.0.7.0",
+                "install_location": "C:/SYNTHETIC/HuorongSecurity",
+                "display_icon": "",
+            },
+        ],
+        path_exists=lambda _path: False,
+        platform_name="nt",
+    )
+
+    assert repository.read()["huorong"] == {
+        "detected": True,
+        "version": "TEST-SECURITY-6.0.7.0",
+    }
+
+
+def test_does_not_treat_huorong_app_store_as_security_software():
+    repository = LocalInspectionEnvironmentRepository(
+        system_reader=lambda: {},
+        software_reader=lambda: [{
+            "display_name": "火绒应用商店 TEST",
+            "display_version": "TEST-STORE-1.0",
+            "install_location": "C:/SYNTHETIC/HuorongStore",
+            "display_icon": "",
+        }],
+        path_exists=lambda _path: False,
+        platform_name="nt",
+    )
+
+    assert repository.read()["huorong"] == {"detected": False, "version": ""}
+
+
 def test_uses_synthetic_file_version_when_registry_version_is_missing():
     repository = LocalInspectionEnvironmentRepository(
         system_reader=lambda: {},
         software_reader=lambda: [{
-            "display_name": "Huorong TEST", "display_version": "",
+            "display_name": "Huorong Internet Security TEST", "display_version": "",
             "install_location": "C:/SYNTHETIC/Huorong", "display_icon": "",
         }],
         file_version_reader=lambda _path: "TEST-7.0.0.0",

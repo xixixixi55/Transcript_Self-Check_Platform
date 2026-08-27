@@ -3,7 +3,7 @@
  *
  * 检查内容：
  * 1. 依赖方向：确保 import 不违反分层架构
- * 2. 文件大小：每个文件不超过配置的行数上限
+ * 2. 文件大小：推荐目标、评估说明和有界豁免
  * 3. 命名约定：根据项目配置检查文件命名
  *
  * 用法：npx tsx scripts/lint-arch.ts
@@ -28,14 +28,22 @@ const SRC_DIRS = [
   path.resolve(ROOT, 'packages/backend/app'),
 ]
 
-/** 文件大小上限 */
-const MAX_LINES = 400
+/** 文件大小分档：≤400 推荐，401–600 允许高内聚保留，601–800 需说明。 */
+const RECOMMENDED_MAX_LINES = 400
+const EXPLANATION_REQUIRED_LINES = 600
+const PRINCIPLE_MAX_LINES = 800
 
-/** 文件大小例外：文件头部已按架构规则添加超限原因说明 */
-const FILE_SIZE_EXCEPTIONS = [
-  'packages/backend/app/services/report_parser_service.py',
-  'packages/backend/app/services/template_filler_service.py',
-]
+/**
+ * 600 行以上文件的有界治理说明。超过 maxLines 会重新失败，避免豁免静默扩张。
+ * >800 行条目必须说明暂不拆分的明确理由；禁止用 support/helper/pass-through
+ * 模块只做行数搬运。
+ */
+const FILE_SIZE_JUSTIFICATIONS: Record<string, { maxLines: number; reason: string }> = {
+  'packages/backend/app/services/template_filler_service.py': {
+    maxLines: 1100,
+    reason: 'Existing Legacy template orchestration remains behavior-frozen until natural renderer and plan boundaries are implemented and verified.',
+  },
+}
 
 /**
  * 层级定义（数字越大层级越高，低层不能引用高层）
@@ -368,15 +376,21 @@ function checkAllPythonDeps(pythonFiles: string[], srcDir: string): Violation[] 
 function checkFileSize(filePath: string, content: string): Violation[] {
   const lineCount = content.split('\n').length
   const relPath = path.relative(ROOT, filePath)
-  if (lineCount > MAX_LINES && !FILE_SIZE_EXCEPTIONS.includes(relPath.replace(/\\/g, '/'))) {
-    return [{
-      file: relPath,
-      line: 0,
-      rule: 'file-size',
-      message: `File has ${lineCount} lines, exceeds maximum of ${MAX_LINES} lines. MUST split.`,
-    }]
-  }
-  return []
+  if (lineCount <= RECOMMENDED_MAX_LINES) return []
+  if (lineCount <= EXPLANATION_REQUIRED_LINES) return []
+
+  const normalizedPath = relPath.replace(/\\/g, '/')
+  const justification = FILE_SIZE_JUSTIFICATIONS[normalizedPath]
+  if (
+    justification
+    && justification.reason.trim().length > 0
+    && justification.maxLines >= lineCount
+  ) return []
+
+  const message = lineCount > PRINCIPLE_MAX_LINES
+    ? `File has ${lineCount} lines, exceeds the principle maximum of ${PRINCIPLE_MAX_LINES}. Split along natural responsibility boundaries or register a bounded FILE_SIZE_JUSTIFICATIONS exemption with an explicit reason; never split solely for LOC.`
+    : `File has ${lineCount} lines, exceeds ${EXPLANATION_REQUIRED_LINES}. Evaluate natural responsibility boundaries and register a bounded FILE_SIZE_JUSTIFICATIONS explanation when cohesion justifies retaining it; do not split solely for LOC.`
+  return [{ file: relPath, line: 0, rule: 'file-size', message }]
 }
 
 function checkNamingConvention(filePath: string, srcDir: string): Violation[] {

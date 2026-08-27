@@ -5,9 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .archive_attempt_projection_repository import internal_attempt
+from .archive_attempt_projection_repository import internal_attempt, public_attempt
 from .archive_attempt_evidence_repository import bind_manifest_evidence
-from .archive_attempt_lookup_repository import public as _public, row as _row
 from .archive_context_binding_repository import deactivate_bindings, report_fingerprint
 from .archive_report_metadata_repository import update_verified_draft
 from .workbench_database import WorkbenchDatabase, utc_now
@@ -15,6 +14,22 @@ from .workbench_errors import WorkbenchPersistenceError
 from .workbench_serialization import validate_opaque_id
 from .workbench_repository_helpers import json_text
 from .workbench_constants import ARCHIVE_TASK_ACTIONS
+
+
+def _row(database: WorkbenchDatabase, attempt_id: str) -> Any:
+    connection = database.connect()
+    try:
+        return connection.execute(
+            "SELECT * FROM archive_attempts WHERE attempt_id=? AND deployment_instance_id=?",
+            (attempt_id, database.deployment_instance_id),
+        ).fetchone()
+    finally:
+        connection.close()
+
+
+def _public(database: WorkbenchDatabase, attempt_id: str) -> dict[str, Any]:
+    return public_attempt(_row(database, attempt_id))
+
 
 def list_unfinished(database: WorkbenchDatabase) -> list[dict[str, Any]]:
     connection = database.connect()

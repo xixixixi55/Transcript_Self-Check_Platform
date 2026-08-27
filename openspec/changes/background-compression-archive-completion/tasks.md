@@ -24,7 +24,7 @@ workflow_level: 3
 ## BE Services（Layer 21）
 
 - [x] T003 允许无盘号执行压缩。
-  - 文件：`packages/backend/app/services/archive_gate_policy_service.py`、`packages/backend/app/services/archive_execution_service.py`
+  - 文件：`packages/backend/app/services/archive_execution_service.py`（现已合并原 archive gate policy 内部实现）
   - 内容：`pre_archive_gate` 对空盘号放行（非空仍校验）；`execute_archive` 空盘号传 `None` 给 plan（`plan_archive` 已支持 None，仅按体积计算 part）。导出 gate 仍要求盘号（归档完成前必须补齐）。
   - 验证：归档相关测试回归（`tests/test_archive_execution_service.py` 等）。
 
@@ -191,7 +191,7 @@ workflow_level: 3
   - 现象：点击“立即压缩”后在审核编辑界面上传图片，草稿 PATCH 返回 409，归档任务在发布前因草稿内容变化中断。
   - 根因：发布前校验把开始执行时的报告与当前草稿做归档稳定指纹比较，图片引用变化被误判为归档绑定失效；归档完成回填又会推进草稿 revision，与同一时刻的图片引用保存形成一次合法竞争。
   - 内容：归档发布继续校验密封输入快照、来源、attempt/binding/fence 与当前绑定一致性，但不再要求审核报告内容保持不变；发布采用校验时刻的最新草稿元数据，RAR 仍只消费密封快照。草稿保存遇到仅由归档完成产生的单次 revision 推进时，在后端保留可信 RAR/MD5/附件1投影并自动重试一次，其他真实并发冲突仍返回 409。
-  - 文件：`packages/backend/app/services/archive_attempt_validation_service.py`、`packages/backend/app/repository/archive_context_binding_repository.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
+  - 文件：`packages/backend/app/services/archive_attempt_service.py`（现已合并原 validation 内部实现）、`packages/backend/app/repository/archive_context_binding_repository.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
   - 验证：归档发布前任意审核编辑不再中断任务；归档完成与图片绑定保存竞争时保存成功且最终同时保留图片引用和可信归档字段；普通过期 revision 冲突仍被拒绝；执行后端定向 pytest、`npm run verify:quick`、当前变更 scoped strict docs 与 `git diff --check`。
   - code_review: [DEFERRED] 独立审查两次因模型容量/长时间无响应未能产出结论；按用户 2026-08-09 指示先提交并推送，后续可在新候选版本上补做独立审查。
 
@@ -395,7 +395,7 @@ workflow_level: 3
   - 兼容：原有 `GPyyyyMMdd-序号` / `YPyyyyMMdd-序号` 与新增格式都可用于提前规划、后填映射、修改、展示和导出，系统不自动补写或删除用户标识。
   - 文件：共享与后端 `DiscSequence` 类型/解析生成事实源、Canonical 投影、审核页介质编号提示、现有盘号/规划/映射测试、本变更 delta 与 living spec。
   - 验证：共享 Vitest、后端盘号/规划/映射 pytest、`ArchiveCompletionPanel` 与审核提示定向 Vitest；再运行 `npm run verify:quick`、`npm run verify:docs:strict -- --change background-compression-archive-completion` 与 `git diff --check`。纯编号与文案变化无需真实 Word 或桌面人工验收。
-  - 自动化证据：后端编号解析、规划、映射与 Canonical 投影 63 passed；共享解析生成、审核输入与提示 49 passed；页面自动保存和归档映射流程 17 passed；`npm run verify:quick`、scoped strict docs 与 `git diff --check` PASS。新旧 GP/YP 格式均覆盖提前规划、后填映射和连续生成，新格式额外断言两位用户标识保持不变。
+  - 自动化证据：后端编号解析、规划、映射与 Canonical 投影 63 passed；共享解析生成、审核输入与提示 49 passed；页面自动保存和归档映射流程 17 passed；`npm run verify:quick`、scoped strict docs 与 `git diff --check` PASS。新旧 GP/YP 格式均覆盖提前规划、后填映射和连续生成，新格式额外断言两位用户标识保持不变。后续回归修复将归档执行测试遗留的中文介质前缀改为受支持的 `GPyyyyMMddXX-序号`，继续区分两分卷序列、日期解析、Manifest 与计划投影；Runtime/Execution 核心测试 46 passed。
   - manual_acceptance: [N/A] 该任务仅改变结构化编号解析、校验提示与字符串投影，无真实 Word 版式或桌面外部工具行为变化。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044/T048 人工验收开放项，候选尚未冻结；本反馈按增量风险运行 quick/scoped docs，不重复最终 Review/full gate。
 

@@ -13,8 +13,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from .inspector_snapshot_repository import project_case_inspector_snapshot
-
 SCHEMA_VERSION = 2
 LEGACY_SCHEMA_VERSION = 1
 MAX_NAME_LENGTH = 100
@@ -45,6 +43,31 @@ class InspectorRecord:
     police_number: str
     created_at: str
     updated_at: str
+
+
+def project_case_inspector_snapshot(
+    value: Any, *, snapshot_id: str, selected_order: int,
+) -> dict[str, Any]:
+    """Copy library or parser values into a detached, case-scoped inspector snapshot."""
+    raw = dict(value) if isinstance(value, Mapping) else {
+        "id": value.id, "name": value.name, "unit": value.unit, "position": value.position,
+        "police_number": value.police_number,
+    }
+    snapshot = {
+        "snapshot_id": snapshot_id,
+        "name": str(raw.get("name", "")),
+        "unit": str(raw.get("unit", "")),
+        "position": str(raw.get("position", "")),
+        "police_number": str(raw.get("police_number", raw.get("badge_number", ""))),
+        "selected_order": selected_order,
+    }
+    inspector_id = raw.get("inspector_id", raw.get("id"))
+    if isinstance(inspector_id, str) and inspector_id.strip():
+        snapshot["inspector_id"] = inspector_id.strip()
+    for key in ("captured_at", "source_version"):
+        if isinstance(raw.get(key), str) and raw[key].strip():
+            snapshot[key] = raw[key]
+    return snapshot
 
 
 def resolve_app_data_dir(env: Mapping[str, str] | None = None) -> Path:

@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .attachment_plan_service import build_attachment_plan
-from .attachment_plan_errors_service import AttachmentPlanError
+from .attachment_plan_models_service import AttachmentPlanError
 from .legacy_report_projection_service import project_ordered_legacy_report
 from .hash_algorithm_service import (
     hash_extraction_method,

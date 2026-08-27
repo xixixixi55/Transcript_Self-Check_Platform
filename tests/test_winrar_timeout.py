@@ -777,42 +777,42 @@ class TestPositiveInt:
 
     def test_none_raises(self):
         from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_errors_service import AttachmentPlanError
+        from app.services.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(None)
         assert "缺少" in exc.value.safe_message
 
     def test_zero_raises(self):
         from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_errors_service import AttachmentPlanError
+        from app.services.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(0)
         assert "正整" in exc.value.safe_message
 
     def test_negative_raises(self):
         from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_errors_service import AttachmentPlanError
+        from app.services.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(-1)
         assert exc.value.code == "ATTACHMENT_PLAN_INVALID"
 
     def test_bool_raises(self):
         from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_errors_service import AttachmentPlanError
+        from app.services.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(True)
         assert "类型无效" in exc.value.safe_message
 
     def test_float_raises(self):
         from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_errors_service import AttachmentPlanError
+        from app.services.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(4.0)
         assert "类型无效" in exc.value.safe_message
 
     def test_string_raises(self):
         from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_errors_service import AttachmentPlanError
+        from app.services.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int("4000000000")
         assert "类型无效" in exc.value.safe_message

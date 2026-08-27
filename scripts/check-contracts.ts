@@ -117,6 +117,14 @@ const CANONICAL_PAIRS: ContractPair = {
   ],
 }
 
+// These editable TS inputs may omit fields that the Python canonical serializer
+// always materializes with an empty-string default. The asymmetry is intentional;
+// all other required/optional mismatches remain contract drift.
+const OPTIONALITY_EXCEPTIONS = new Set([
+  'Material.unextractable_reason',
+  'InspectorSnapshot.position',
+])
+
 // ─── Drift reporting ────────────────────────────────────────────────────
 
 interface Drift {
@@ -375,7 +383,10 @@ function compareFieldPresence(
   for (const name of tsNames) {
     const tsReq = tsMap.get(name)
     const pyReq = pyMap.get(name)
-    if (tsReq !== undefined && pyReq !== undefined && tsReq !== pyReq) {
+    if (
+      tsReq !== undefined && pyReq !== undefined && tsReq !== pyReq
+      && !OPTIONALITY_EXCEPTIONS.has(`${typeName}.${name}`)
+    ) {
       drift(label, 'optionality', `${typeName}.${name}: TS ${tsReq ? 'required' : 'optional'}, Python ${pyReq ? 'required' : 'optional'}`)
     }
   }

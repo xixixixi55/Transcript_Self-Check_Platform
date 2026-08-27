@@ -116,7 +116,7 @@ Tasks are ordered by architecture layer. Every implementation task is immediatel
 
 - [x] **T15 — Split context shell from full ArchiveContext materialization**
   - Requirements: REQ-ARCHIVE-LIFECYCLE-001 through REQ-ARCHIVE-LIFECYCLE-003.
-  - Files: `packages/backend/app/services/archive_runtime_models_service.py`, `packages/backend/app/services/archive_runtime_service.py`, `packages/backend/app/services/archive_source_runtime_service.py`, and `packages/backend/app/services/archive_execution_service.py`.
+  - Files: `packages/backend/app/services/archive_runtime_service.py` (including its co-located lifecycle records), `packages/backend/app/services/archive_source_runtime_service.py`, and `packages/backend/app/services/archive_execution_service.py`.
   - Add an opaque, short-lived authorized shell with explicit readiness and no inventory; make preview use the shell only. Add an explicit source-neutral preparation operation that revalidates authorization, builds complete inventory, and upgrades/publishes a full context.
   - Preserve formal `verify_input_inventory`, full input content fingerprint, WinRAR planning/execution, RAR integrity, Manifest, download, and export validation. A shell and parse cache must be rejected as formal evidence.
 

@@ -7,13 +7,10 @@ import shutil
 import subprocess
 import tempfile
 import threading
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Protocol
 
-from .winrar_execution_models_repository import (
-    ArchiveExecutionError, PlanEntry, PlanLike, ProcessRunner,
-    ProcessStartedCallback, StagingInitializer, WinRarExecutionResult,
-)
 from .winrar_discovery_repository import WinRarCapability
 from .winrar_timeout_policy import (  # noqa: E402
     _kill_process_tree_impl,
@@ -25,6 +22,42 @@ from .winrar_process_monitor import (
     OwnedProcessIdleTimeout, OwnedProcessTerminationFailed, monitor_owned_process,
     terminate_process_tree,
 )
+
+
+class ArchiveExecutionError(RuntimeError):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.safe_message = message
+
+
+class PlanEntry(Protocol):
+    relative_path: str
+    absolute_path: Path
+    size_bytes: int
+
+
+class PlanLike(Protocol):
+    plan_id: str
+    archive_base_name: str
+    volume_size_bytes: int | None
+    archive_mode: str
+
+
+@dataclass(frozen=True)
+class WinRarExecutionResult:
+    plan_id: str
+    staging_dir: Path
+    returncode: int
+    timed_out: bool
+    diagnostic_code: str | None = None
+    safe_output: str = ""
+
+
+ProcessRunner = Callable[..., subprocess.CompletedProcess[str]]
+StagingInitializer = Callable[[Path], None]
+ProcessStartedCallback = Callable[[int], None]
+
 
 def _terminate_process(process: subprocess.Popen[str], pid: int) -> bool:
     return terminate_process_tree(process, pid, _kill_process_tree_impl)

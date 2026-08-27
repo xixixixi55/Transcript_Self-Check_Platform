@@ -23,7 +23,7 @@ from app.services.unified_export_service import (  # noqa: E402
     UnifiedExportError,
     unified_export,
 )
-from app.services.attachment_plan_errors_service import AttachmentPlanError  # noqa: E402
+from app.services.attachment_plan_models_service import AttachmentPlanError  # noqa: E402
 
 CASE_ID = "SYNTHETIC-UNIFIED-EXPORT-CASE"
 

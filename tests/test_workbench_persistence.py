@@ -407,6 +407,8 @@ def test_client_identity_audit_is_local_session_not_authenticated(database: Work
         repository.record({"event_id": "SYNTHETIC-EVENT-003", "event_type": "invalid", **{**IDENTITY, "identity_kind": "authenticated_user"}, "payload": {}})
 
 
+
+
 def test_only_one_active_lease_and_expired_lease_can_be_taken_over(database: WorkbenchDatabase) -> None:
     create_shell(database)
     repository = EditLeaseRepository(database)

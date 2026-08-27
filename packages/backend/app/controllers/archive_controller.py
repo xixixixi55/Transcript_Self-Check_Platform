@@ -21,7 +21,7 @@ from ..services.archive_source_runtime_service import (
 )
 from ..services.archive_manifest_access_service import get_manifest_part_download
 from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
-from ..services.attachment_plan_errors_service import AttachmentPlanError
+from ..services.attachment_plan_models_service import AttachmentPlanError
 from ..services.software_policy_service import normalize_primary_software_projection
 from .pipeline_controller import (
     observe_shadow_archive,

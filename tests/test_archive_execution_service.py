@@ -23,7 +23,7 @@ from app.services.archive_execution_service import (  # noqa: E402
 )
 from app.services.archive_runtime_service import ARCHIVE_RUNTIME_STORE  # noqa: E402
 from app.services.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
-from app.services.archive_attempt_validation_service import ArchivePublicationSnapshot  # noqa: E402
+from app.services.archive_attempt_service import ArchivePublicationSnapshot  # noqa: E402
 from app.services.archive_manifest_access_service import get_manifest_part_download  # noqa: E402
 from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 from app.services.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
@@ -128,12 +128,12 @@ def test_archive_executes_without_first_disc_number(tmp_path):
     assert all(part["disc_date"] == "" for part in parts)
 
 
-def test_archive_publishes_two_parts_with_three_character_disc_prefix(
+def test_archive_publishes_two_parts_with_supported_disc_prefix(
     tmp_path, monkeypatch,
 ):
     _, output, context_id = make_context(tmp_path)
     report = valid_report()
-    report["attachments"]["disc_number"] = "检验盘20260809-01"
+    report["attachments"]["disc_number"] = "GP2026080902-01"
     fake = FakeExecutor(tmp_path / "fake-staging", lambda _tier: 2)
     projected_parts: list[dict] = []
     monkeypatch.setattr(
@@ -153,13 +153,13 @@ def test_archive_publishes_two_parts_with_three_character_disc_prefix(
     assert outcome.manifest_id
     manifest = get_valid_manifest(context_id, outcome.manifest_id, report)
     assert [part["disc_number"] for part in manifest["parts"]] == [
-        "检验盘20260809-01", "检验盘20260809-02",
+        "GP2026080902-01", "GP2026080902-02",
     ]
     assert [part["disc_date"] for part in manifest["parts"]] == [
         "2026-08-09", "2026-08-09",
     ]
     assert [part["disc_number"] for part in projected_parts] == [
-        "检验盘20260809-01", "检验盘20260809-02",
+        "GP2026080902-01", "GP2026080902-02",
     ]
     assert len(list((output / "compressed" / context_id).glob("**/*.rar"))) == 2
 

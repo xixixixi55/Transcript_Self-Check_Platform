@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
+
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
+from ..repository.filesystem_identity_repository import directory_fingerprint_matches
 from ..repository.archive_manifest_repository import (
     ArchiveManifestRepository, ArchiveManifestRepositoryError,
 )
@@ -16,9 +18,6 @@ from ..repository.winrar_executor_repository import ArchiveExecutionError, WinRa
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_completion_service import record_attempt_completion
 from .archive_attempt_service import ArchiveAttemptService
-from .archive_execution_models_service import ArchiveExecutionOutcome, create_archive_context
-from .archive_execution_support_service import find_reusable, observe_stage
-from .archive_gate_policy_service import pre_archive_gate, raise_gate, with_archive_gate
 from .archive_manifest_access_service import (
     ArchiveGateError, archive_report_fingerprint as _fingerprint, get_valid_manifest,
 )
@@ -29,13 +28,105 @@ from .archive_planner_service import (
     ArchiveDiagnostic, ArchivePlan, ArchivePolicy, ArchiveSourceEntry,
     PRODUCTION_ARCHIVE_POLICY, plan_archive, replan_to_next_tier,
 )
-from .disc_sequence_service import generate_disc_numbers, parse_archive_medium_sequence
+from .disc_sequence_service import (
+    generate_disc_numbers, parse_archive_medium_sequence, parse_disc_sequence,
+)
 from .archive_publish_service import publish_staged_archive
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord
-from .export_gate_service import ExportGateCode, ExportGateIssue
+from .export_gate_service import (
+    ExportGateCode, ExportGateInput, ExportGateIssue, ExportGateResult,
+    evaluate_export_gate,
+)
 from .hash_algorithm_service import report_hash_algorithm
 
 _PUBLICATION_EVIDENCE_RETRIES = 3
+
+
+def pre_archive_gate(report: dict) -> ExportGateResult:
+    attachments = report.get("attachments") or {}
+    disc_number = attachments.get("disc_number")
+    if disc_number is not None and str(disc_number).strip():
+        disc_result = parse_disc_sequence(str(disc_number))
+        return evaluate_export_gate(
+            ExportGateInput(
+                disc_sequence_valid=disc_result.valid,
+                disc_sequence_error_code=disc_result.error_code,
+            )
+        )
+    # Deferred disc number: compression may start without it; the sequence is
+    # mapped before export, where the export gate still requires a valid number.
+    return evaluate_export_gate(ExportGateInput())
+
+
+def with_archive_gate(
+    result: ExportGateResult, capability: WinRarCapability,
+) -> ExportGateResult:
+    if result.blockers:
+        return result
+    return evaluate_export_gate(
+        ExportGateInput(
+            automatic_archive_required=True,
+            winrar_available=capability.available and capability.supports_rar_volumes,
+        )
+    )
+
+
+def raise_gate(result: ExportGateResult) -> None:
+    if result.blockers:
+        raise ArchiveGateError(tuple(result.blockers))
+
+
+@dataclass(frozen=True)
+class ArchiveExecutionOutcome:
+    status: str
+    manifest_id: str | None
+    plan: ArchivePlan | None
+    diagnostics: tuple[ArchiveDiagnostic, ...] = ()
+    reused: bool = False
+
+
+def create_archive_context(
+    authorized_input: AuthorizedInputRoot, report: dict, *, output_root: str,
+    cleanup_root: str | None = None,
+    cancellation_check: Callable[[], bool] | None = None,
+) -> str:
+    case_name = report.get("introduction", {}).get("case_summary", "")
+    return ARCHIVE_RUNTIME_STORE.create_context(
+        authorized_input, str(case_name), output_root=output_root,
+        cleanup_root=cleanup_root,
+        cancellation_check=cancellation_check,
+    ).context_id
+
+
+def observe_stage(observer: Callable[[str], None] | None, stage: str) -> None:
+    if observer is not None:
+        observer(stage)
+
+
+def find_reusable(
+    runtime_store: Any, context_id: str, fingerprint: str,
+    attempt_service: Any, attempt_id: str | None,
+) -> Any:
+    if attempt_service is not None and attempt_id is not None:
+        return None
+    return runtime_store.find_reusable(context_id, fingerprint)
+
+
+def assert_source_unchanged(context: Any) -> None:
+    try:
+        unchanged = directory_fingerprint_matches(
+            context.inventory.source_root, context.input_fingerprint,
+        )
+    except Exception as error:
+        raise ArchiveGateError((ExportGateIssue(
+            ExportGateCode.ARCHIVE_INPUT_CHANGED, "archive", "归档输入在执行期间无法确认。",
+        ),)) from error
+    if not unchanged:
+        raise ArchiveGateError((ExportGateIssue(
+            ExportGateCode.ARCHIVE_INPUT_CHANGED, "archive", "归档输入在执行期间发生变化。",
+        ),))
+
+
 def execute_archive(
     context_id: str, report: dict, *, output_root: str,
     configured_winrar_path: str | None = None,

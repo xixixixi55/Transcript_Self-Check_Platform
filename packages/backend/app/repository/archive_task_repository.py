@@ -2,21 +2,144 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
 from .task_record_repository import TaskRecordRepository
-from .archive_task_progress_repository import milestone as _milestone
-from .archive_task_progress_repository import stage_index as _stage_index
-from .archive_task_progress_repository import validate_milestone as _validate_milestone
 from .workbench_constants import ARCHIVE_TASK_ACTIONS, ARCHIVE_WORKFLOW_MILESTONES
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import json_text, row_json
 from .workbench_serialization import validate_opaque_id
-from .archive_task_projection_repository import build_archive_task_card_summary, safe_error
 
 _ACTIVE = ("queued", "running", "cancelling", "blocked")
+_ERROR_STATES = {"interrupted", "failed_retryable", "failed_terminal", "cancelled", "blocked"}
+_PATH = re.compile(r"(?:[A-Za-z]:[\\/]|\\\\|/(?:Users|home|tmp|var|etc|opt)/)[^\s,;)]*", re.I)
+_TRACE = re.compile(r"^\s*(?:at\s|traceback|file\s+\".*\",\s+line\s+\d+)", re.I)
+
+
+def _milestone(stage: str) -> tuple[int, str]:
+    try:
+        return ARCHIVE_WORKFLOW_MILESTONES[stage]
+    except KeyError as error:
+        raise WorkbenchPersistenceError("INVALID_ARCHIVE_STAGE") from error
+
+
+def _stage_index(stage: str) -> int:
+    return list(ARCHIVE_WORKFLOW_MILESTONES).index(stage) + 1
+
+
+def _validate_milestone(task: Mapping[str, Any]) -> None:
+    if task.get("progress_kind") != "workflow_milestone":
+        raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
+    if task.get("percent") != _milestone(str(task.get("stage")))[0]:
+        raise WorkbenchPersistenceError("INVALID_TASK_PROGRESS")
+
+
+def bind_archive_task_attempt(
+    database: WorkbenchDatabase, task_id: str, attempt_id: str,
+) -> None:
+    task_id = validate_opaque_id(task_id)
+    attempt_id = validate_opaque_id(attempt_id)
+    now = utc_now()
+    with database.transaction() as connection:
+        task = connection.execute(
+            "SELECT case_id, status, deployment_instance_id, process_binding_json "
+            "FROM task_records WHERE task_id=? AND kind='archive'", (task_id,),
+        ).fetchone()
+        attempt = connection.execute(
+            "SELECT task_id, case_id, deployment_instance_id, status "
+            "FROM archive_attempts WHERE attempt_id=? AND deployment_instance_id=?",
+            (attempt_id, database.deployment_instance_id),
+        ).fetchone()
+        if task is None or attempt is None:
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_MISMATCH")
+        if task["deployment_instance_id"] != database.deployment_instance_id:
+            raise WorkbenchPersistenceError("ARCHIVE_DEPLOYMENT_MISMATCH")
+        if task["status"] != "queued" or task["case_id"] != attempt["case_id"]:
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_MISMATCH")
+        if attempt["deployment_instance_id"] not in (None, database.deployment_instance_id):
+            raise WorkbenchPersistenceError("ARCHIVE_DEPLOYMENT_MISMATCH")
+        if attempt["status"] not in {"accepted", "running"}:
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_MISMATCH")
+        if attempt["task_id"] not in (None, task_id):
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_ALREADY_BOUND")
+        if task["process_binding_json"] is not None:
+            current_binding = row_json(task, "process_binding_json")
+            if current_binding.get("staging_asset_id") == attempt_id:
+                return
+            raise WorkbenchPersistenceError("ARCHIVE_TASK_ALREADY_BOUND")
+        if attempt["task_id"] is None and connection.execute(
+            "UPDATE archive_attempts SET task_id=?, deployment_instance_id=?, "
+            "revision=revision+1 WHERE attempt_id=? AND task_id IS NULL "
+            "AND (deployment_instance_id IS NULL OR deployment_instance_id=?)",
+            (task_id, database.deployment_instance_id, attempt_id,
+             database.deployment_instance_id),
+        ).rowcount != 1:
+            raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_ALREADY_BOUND")
+        if connection.execute(
+            "UPDATE task_records SET process_binding_json=?, updated_at=?, "
+            "revision=revision+1 WHERE task_id=? AND kind='archive' "
+            "AND deployment_instance_id=? AND status='queued' "
+            "AND process_binding_json IS NULL",
+            (json_text({"staging_asset_id": attempt_id}), now, task_id,
+             database.deployment_instance_id),
+        ).rowcount != 1:
+            raise WorkbenchPersistenceError("ARCHIVE_TASK_ALREADY_BOUND")
+
+
+def build_archive_task_card_summary(
+    database: WorkbenchDatabase, task: Mapping[str, Any],
+) -> dict[str, Any]:
+    summary = {
+        key: task[key] for key in (
+            "task_id", "case_id", "status", "progress_kind", "stage", "stage_label",
+            "stage_index", "stage_count", "percent", "started_at", "updated_at",
+            "finished_at", "last_heartbeat_at", "output_bytes", "output_volume_count",
+            "last_output_change_at", "worker_state", "allowed_actions",
+        )
+    }
+    summary["error_summary"] = (
+        safe_error(task.get("error_summary")) if task["status"] in _ERROR_STATES else None
+    )
+    if task["status"] == "succeeded" and not _has_verified_manifest(database, task):
+        stage_index = list(ARCHIVE_WORKFLOW_MILESTONES).index("manifest") + 1
+        summary.update({
+            "status": "interrupted",
+            "stage": "manifest",
+            "stage_label": ARCHIVE_WORKFLOW_MILESTONES["manifest"][1],
+            "stage_index": stage_index,
+            "percent": ARCHIVE_WORKFLOW_MILESTONES["manifest"][0],
+            "worker_state": "released",
+            "allowed_actions": ["view_details"],
+            "error_summary": "归档结果尚未通过 Manifest 验证。",
+        })
+    return summary
+
+
+def _has_verified_manifest(
+    database: WorkbenchDatabase, task: Mapping[str, Any],
+) -> bool:
+    attempt_id = (task.get("process_binding") or {}).get("staging_asset_id")
+    if not attempt_id:
+        return False
+    with database.connect() as connection:
+        row = connection.execute(
+            "SELECT status,manifest_id FROM archive_attempts WHERE attempt_id=?",
+            (attempt_id,),
+        ).fetchone()
+    return bool(row and row["status"] == "succeeded" and row["manifest_id"])
+
+
+def safe_error(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    lines = [line for line in value.splitlines() if not _TRACE.search(line)]
+    compact = re.sub(
+        r"\s+", " ", _PATH.sub("[local path redacted]", " ".join(lines)),
+    ).strip()
+    return compact if len(compact) <= 160 else f"{compact[:159]}\u2026"
 
 
 class ArchiveTaskRepository:
@@ -54,7 +177,6 @@ class ArchiveTaskRepository:
         return task
 
     def bind_attempt(self, task_id: str, attempt_id: str) -> dict[str, Any]:
-        from .archive_task_binding_repository import bind_archive_task_attempt
         bind_archive_task_attempt(self.database, task_id, attempt_id)
         return self.get(task_id)
 

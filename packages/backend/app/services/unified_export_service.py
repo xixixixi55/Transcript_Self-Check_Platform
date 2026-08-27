@@ -22,7 +22,7 @@ from ..config import OUTPUT_BASE
 from ..repository.audit_event_repository import AuditEventRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from .attachment2_image_service import Attachment2ImageError
-from .attachment_plan_errors_service import AttachmentPlanError
+from .attachment_plan_models_service import AttachmentPlanError
 from .record_generator_service import generate_docx
 
 

@@ -58,7 +58,7 @@ workflow_level: 2
   - 验证：后端全量 989 passed/3 skipped，受影响前端 20 passed，`npm run verify:quick` PASS；delta 已同步到 living spec，scoped strict docs 与 `git diff --check` PASS。
 
 - [x] T011 消除归档发布重复 MD5 并恢复结果读取可用性。
-  - 文件：`packages/backend/app/services/archive_manifest_service.py`、`archive_publish_service.py`、`archive_execution_service.py`、`archive_attempt_completion_service.py`、`archive_attempt_completion_record_service.py`、`archive_task_result_service.py`、`packages/backend/app/controllers/archive_task_controller.py` 及对应后端测试。
+  - 文件：`packages/backend/app/services/archive_manifest_service.py`、`archive_publish_service.py`、`archive_execution_service.py`、`archive_attempt_completion_service.py`（现已合并原 completion record 内部实现）、`archive_task_result_service.py`、`packages/backend/app/controllers/archive_task_controller.py` 及对应后端测试。
   - 内容：每个新生成 RAR 在 Manifest 组装阶段只做一次完整 MD5；同一 attempt 的密封、原子发布、索引和完成提交复用该可信摘要并继续核对物理文件集合、类型和字节数。普通结果展示只验证 durable publication 身份和物理元数据，不重新读取 RAR 内容；正式导出、下载、恢复和复用仍保留完整内容校验。所有可能执行大文件 I/O 的结果下载与统一导出 HTTP 入口移入 FastAPI 同步线程池，避免阻塞事件循环。WinRAR 默认压缩级别保持不变。
   - 验证：SYNTHETIC 后端测试断言同次新归档每卷只计算一次 MD5、发布切点篡改仍安全失败、结果读取不调用内容哈希、下载/正式导出仍执行完整哈希，并发结果请求不阻塞工作台列表。
 

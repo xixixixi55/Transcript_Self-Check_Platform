@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import stat
+import tempfile
 import threading
 import time
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 from uuid import uuid4
@@ -11,12 +17,85 @@ from uuid import uuid4
 from ..repository.archive_authorization_repository import AuthorizedInputRoot
 from ..repository.filesystem_identity_repository import normalized_directory_key
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
-from .archive_source_runtime_models_service import PreviewSourceRecord, preview_source_summary
-from .archive_source_security_service import cleanup_owned_source, validate_authorized_input
 
 
 ARCHIVE_SOURCE_TTL_SECONDS = 30 * 60
 ARCHIVE_SOURCE_CAPACITY = 32
+_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+
+
+def validate_authorized_input(authorized_input: AuthorizedInputRoot) -> None:
+    root = authorized_input.resolved_input_root
+    try:
+        info = os.lstat(root)
+        current = root.resolve(strict=True)
+    except OSError as error:
+        raise ArchiveRuntimeError(
+            "ARCHIVE_AUTHORIZATION_INVALID",
+            "Archive input authorization is no longer valid.",
+        ) from error
+    if not stat.S_ISDIR(info.st_mode) or root.is_symlink() or bool(
+        getattr(info, "st_file_attributes", 0) & _REPARSE_POINT
+    ) or not current.is_dir():
+        raise ArchiveRuntimeError(
+            "ARCHIVE_AUTHORIZATION_INVALID",
+            "Archive input authorization is no longer valid.",
+        )
+    if authorized_input.authorization_type == "exact_directory_grant" and current != root:
+        raise ArchiveRuntimeError(
+            "ARCHIVE_INPUT_CHANGED", "Archive input changed before preparation.",
+        )
+    scope = authorized_input.authorized_scope
+    if scope is not None:
+        try:
+            current.relative_to(scope)
+        except ValueError as error:
+            raise ArchiveRuntimeError(
+                "ARCHIVE_AUTHORIZATION_INVALID",
+                "Archive input authorization is no longer valid.",
+            ) from error
+
+
+def cleanup_owned_source(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        resolved = path.resolve(strict=False)
+        temp_root = Path(tempfile.gettempdir()).resolve(strict=False)
+        resolved.relative_to(temp_root)
+    except (OSError, ValueError):
+        return
+    if resolved.name.startswith("biji_archive_context_"):
+        shutil.rmtree(resolved, ignore_errors=True)
+
+
+@dataclass
+class PreviewSourceRecord:
+    source_id: str
+    authorized_input: AuthorizedInputRoot
+    source_key: str
+    created_at: float
+    expires_at: float
+    cleanup_root: Path | None = None
+    prepared_context_id: str | None = None
+    preparation_status: str = "not_prepared"
+    prepare_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+
+def _preview_source_summary(record: PreviewSourceRecord) -> dict[str, object]:
+    def iso(value: float) -> str:
+        return datetime.fromtimestamp(value, timezone.utc).isoformat()
+
+    return {
+        "archive_context_id": record.source_id,
+        "file_count": None,
+        "total_input_bytes": None,
+        "status": record.preparation_status,
+        "context_kind": "preview_source",
+        "inventory_ready": False,
+        "created_at": iso(record.created_at),
+        "expires_at": iso(record.expires_at),
+    }
 
 
 class ArchiveSourceRuntimeStore:
@@ -75,7 +154,7 @@ class ArchiveSourceRuntimeStore:
                 record.preparation_status = "not_prepared"
             else:
                 return formal
-        return preview_source_summary(record)
+        return _preview_source_summary(record)
 
     def prepare(
         self,

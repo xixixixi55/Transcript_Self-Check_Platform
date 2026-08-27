@@ -4,7 +4,7 @@ Layer 21: BE_Services — docx 文档构建器
 将 InspectionReport 转换为 officecli batch JSON 命令数组。
 通过 officecli create + batch 生成标准格式检查笔录 .docx。
 
-> 文件行数超过 250 行上限：本文件是 Word 文档生成的核心编排入口，包含 build_record_document
+> 本文件是 Word 文档生成的高内聚核心编排入口，包含 build_record_document
   主流程（标题/绪论/检查/附件/签名/页码 6 大区块）及 _p/_heading/_build_table 等格式辅助函数。
   格式参数集中管理有利于与业务方 Word 标准保持一致，拆分会导致参数分散。
 

@@ -3,9 +3,10 @@ Layer 21: BE_Services — 模板填充服务。
 基于 template.docx，将 InspectionReport 数据填入 {{placeholder}} 占位符，
 支持 {{#list}}...{{/list}} 列表块扩展。保留模板原始格式。
 
-> 文件行数超过 250 行上限：本文件是模板填充的核心编排入口，包含 _flatten_report（报告
+> 文件超过 800 行的有界治理豁免：本文件是既有 Legacy 模板填充核心编排入口，包含 _flatten_report（报告
   扁平化）、_expand_all_lists（列表展开）、_expand_extract_table（表格展开）、
-  _replace_placeholders（占位符替换）及多个辅助函数。拆分会增加参数传递复杂度。
+  _replace_placeholders（占位符替换）及多个辅助函数。阶段 0 冻结业务行为；后续仅在自然的
+  Renderer/Plan 职责边界明确且验证充分时拆分，不创建只搬运行数的薄模块。
 """
 import copy
 import os

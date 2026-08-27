@@ -13,7 +13,11 @@ SoftwareReader = Callable[[], Iterable[Mapping[str, Any]]]
 FileVersionReader = Callable[[Path], str | None]
 PathExists = Callable[[Path], bool]
 
-_HUORONG_MARKERS = ("火绒", "huorong")
+_HUORONG_SECURITY_MARKERS = (
+    "火绒安全软件",
+    "huorong internet security",
+    "huorong security",
+)
 
 
 class LocalInspectionEnvironmentRepository:
@@ -45,7 +49,10 @@ class LocalInspectionEnvironmentRepository:
         return {"operating_system": system, "huorong": self._find_huorong(software)}
 
     def _find_huorong(self, software: list[dict[str, Any]]) -> dict[str, Any]:
-        match = next((item for item in software if _is_huorong(item.get("display_name"))), None)
+        match = next(
+            (item for item in software if _is_huorong_security_software(item.get("display_name"))),
+            None,
+        )
         candidates = _huorong_executable_candidates(match)
         version = _clean(match.get("display_version")) if match else ""
         detected = match is not None
@@ -66,9 +73,9 @@ def _clean(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
-def _is_huorong(value: Any) -> bool:
+def _is_huorong_security_software(value: Any) -> bool:
     name = _clean(value).casefold()
-    return any(marker in name for marker in _HUORONG_MARKERS)
+    return any(marker in name for marker in _HUORONG_SECURITY_MARKERS)
 
 
 def _read_windows_system() -> Mapping[str, Any]:

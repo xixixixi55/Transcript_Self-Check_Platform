@@ -866,62 +866,9 @@ def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
             path.write_bytes(b"SYNTHETIC/DOCX")
             return path
 
-        from app.repository.hashmyfiles_repository import HashMyFilesError
-        failures = [
-            (
-                "HASHMYFILES_OUTPUT_MISSING", "HashMyFiles 校验结果未生成。",
-                "HashMyFiles 校验结果未生成，请重试。",
-            ),
-            (
-                "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
-                "HashMyFiles 已结束，但校验结果缺失或不完整，请重试。",
-            ),
-            (
-                "HASHMYFILES_WINDOW_UNRESPONSIVE", "HashMyFiles 窗口持续无响应。",
-                "HashMyFiles 校验已完成，但窗口持续无响应，无法读取和截图。",
-            ),
-            (
-                "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
-                "HashMyFiles 校验已完成，但窗口截图生成失败，请重试。",
-            ),
-        ]
-        for index, (error_code, internal_message, public_message) in enumerate(failures):
-            if index:
-                token = services.sources.authorization.issue_exact_directory_grant(str(export_dir))
-            with patch(
-                "app.services.unified_export_service.generate_docx",
-                side_effect=fake_docx,
-            ), patch(
-                "app.services.unified_export_service.generate_verification_image",
-                side_effect=HashMyFilesError(error_code, internal_message),
-            ):
-                failed_response = client.post(
-                    f"/api/v1/workbench/cases/{case_id}/export-bundle",
-                    json={
-                        "expected_revision": shell["revision"],
-                        "export_path": str(export_dir),
-                        "directory_token": token,
-                        "word_filename": "SYNTHETIC-EXPORT.docx",
-                    },
-                )
-            assert failed_response.status_code == 422, failed_response.text
-            assert failed_response.json()["detail"] == {
-                "code": error_code, "message": public_message,
-            }
-            assert CaseShellRepository(services.database).get(case_id)["lifecycle"] != "exported"
-
-        token = services.sources.authorization.issue_exact_directory_grant(str(export_dir))
-        def fake_hash_image(_paths, output_dir, *, hash_algorithm="md5"):
-            assert hash_algorithm == "md5"
-            (Path(output_dir) / "hash.png").write_bytes(b"SYNTHETIC/PNG")
-            return "hash.png"
-
         with patch(
             "app.services.unified_export_service.generate_docx",
             side_effect=fake_docx,
-        ), patch(
-            "app.services.unified_export_service.generate_verification_image",
-            side_effect=fake_hash_image,
         ):
             response = client.post(
                 f"/api/v1/workbench/cases/{case_id}/export-bundle",
@@ -935,3 +882,5 @@ def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
         assert response.status_code == 200, response.text
         assert response.json()["data"]["lifecycle"] == "exported"
         assert response.json()["data"]["output"]["word_filename"] == "SYNTHETIC-EXPORT.docx"
+        assert not (export_dir / "hash-verification.png").exists()
+        assert not (export_dir / "hash-verification.html").exists()
