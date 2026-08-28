@@ -224,9 +224,6 @@ export default function TemplateManager() {
         <div className="template-manager__header">
           <div className="template-manager__header-copy">
             <Typography.Title level={4} className="template-manager__title">已校验模版</Typography.Title>
-            <Typography.Text type="secondary">
-              仅可使用通过 current-template-v1 结构校验的 DOCX。
-            </Typography.Text>
           </div>
           <Button type="primary" icon={<PlusOutlined />} onClick={openModal} disabled={saving}>
             添加模版

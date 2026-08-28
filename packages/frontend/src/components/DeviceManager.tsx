@@ -84,12 +84,17 @@ export default function DeviceManager() {
   ]
 
   return (
-    <div>
-      <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-        setEditing(null)
-        form.resetFields()
-        setModalOpen(true)
-      }} style={{ marginBottom: 16 }}>添加设备</Button>
+    <section className="management-surface device-manager" aria-labelledby="device-manager-title">
+      <div className="management-surface__header">
+        <div className="management-surface__header-copy">
+          <h2 id="device-manager-title">设备列表</h2>
+        </div>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+          setEditing(null)
+          form.resetFields()
+          setModalOpen(true)
+        }}>添加设备</Button>
+      </div>
 
       <Table columns={columns} dataSource={devices} rowKey="id" loading={loading} size="small" />
 
@@ -105,6 +110,6 @@ export default function DeviceManager() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </section>
   )
 }

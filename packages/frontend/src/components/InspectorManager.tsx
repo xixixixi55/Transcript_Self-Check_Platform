@@ -108,12 +108,17 @@ export default function InspectorManager() {
   ]
 
   return (
-    <div className="inspector-manager">
-      {error && <Alert type="error" showIcon message={error} action={<Button onClick={fetchRecords}>重试</Button>} />}
-      <Space style={{ marginBottom: 16 }}>
-        <Input aria-label="搜索检查人员" placeholder="搜索姓名、单位、职位或警号" value={search} onChange={event => setSearch(event.target.value)} allowClear />
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增检查人员</Button>
-      </Space>
+    <section className="management-surface inspector-manager" aria-labelledby="inspector-manager-title">
+      <div className="management-surface__header">
+        <div className="management-surface__header-copy">
+          <h2 id="inspector-manager-title">人员列表</h2>
+        </div>
+        <Space className="inspector-manager__toolbar" wrap>
+          <Input aria-label="搜索检查人员" placeholder="搜索姓名、单位、职位或警号" value={search} onChange={event => setSearch(event.target.value)} allowClear />
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增检查人员</Button>
+        </Space>
+      </div>
+      {error && <Alert className="management-surface__alert" type="error" showIcon message={error} action={<Button onClick={fetchRecords}>重试</Button>} />}
       <Table
         rowKey="id"
         columns={columns}
@@ -137,6 +142,6 @@ export default function InspectorManager() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </section>
   )
 }

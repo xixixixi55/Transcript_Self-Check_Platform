@@ -1,7 +1,7 @@
 // 第 11 层：FE_Components — 部署范围笔录默认值的显式编辑器。
 import { useEffect, useState } from 'react'
 import {
-  Alert, Button, Form, Input, Modal, Radio, Skeleton,
+  Alert, Button, Form, Input, Modal, Radio, Skeleton, Tooltip,
 } from 'antd'
 import {
   ReloadOutlined, SaveOutlined,
@@ -49,6 +49,15 @@ function validateInspectors(_: unknown, snapshots?: InspectorSnapshot[]) {
       .some(value => value.includes('|'))
   ))
   return valid ? Promise.resolve() : Promise.reject(new Error('检查人员信息不完整或包含竖线字符，请删除后从人员库重新添加。'))
+}
+
+function OptionalDefaultLabel({ fieldName }: { fieldName: string }) {
+  return (
+    <span className="shared-defaults-settings__optional-label">
+      <span>{fieldName}</span>
+      <span className="shared-defaults-settings__optional-hint">选填</span>
+    </span>
+  )
 }
 
 export function SharedDefaultsSettingsForm() {
@@ -125,7 +134,8 @@ export function SharedDefaultsSettingsForm() {
       <Form form={form} layout="vertical" requiredMark={false}
         disabled={status === 'loading' || status === 'saving'}
         onValuesChange={() => setDirty(true)} onFinish={() => void handleSave()}>
-        <section className="shared-defaults-settings__section" aria-labelledby="shared-defaults-basic-title">
+        <div className="shared-defaults-settings__surface">
+          <section className="shared-defaults-settings__section" aria-labelledby="shared-defaults-basic-title">
           <div className="shared-defaults-settings__section-heading">
             <h2 id="shared-defaults-basic-title">案件基础信息</h2>
           </div>
@@ -166,15 +176,18 @@ export function SharedDefaultsSettingsForm() {
               <Alert className="shared-defaults-settings__catalog-error" type="error" showIcon
                 message={catalogs.deviceError} />
             )}
-            <Form.Item className="shared-defaults-settings__wide" name="inspectionMethod" label="检查方法">
+            <Form.Item className="shared-defaults-settings__wide" name="inspectionMethod"
+              label={<OptionalDefaultLabel fieldName="检查方法" />}>
               <Input.TextArea maxLength={2000} rows={4}
                 placeholder="输入默认检查方法" allowClear showCount />
             </Form.Item>
-            <Form.Item className="shared-defaults-settings__wide" name="dataSummary" label="数据摘要">
+            <Form.Item className="shared-defaults-settings__wide" name="dataSummary"
+              label={<OptionalDefaultLabel fieldName="数据摘要" />}>
               <Input.TextArea maxLength={1000} rows={3}
                 placeholder="输入默认数据摘要" allowClear showCount />
             </Form.Item>
-            <Form.Item className="shared-defaults-settings__wide" name="inspectionRequirement" label="检查要求">
+            <Form.Item className="shared-defaults-settings__wide" name="inspectionRequirement"
+              label={<OptionalDefaultLabel fieldName="检查要求" />}>
               <Input.TextArea maxLength={2000} rows={4}
                 placeholder="输入默认检查要求" allowClear showCount />
             </Form.Item>
@@ -188,32 +201,30 @@ export function SharedDefaultsSettingsForm() {
                 ]} />
             </Form.Item>
           </div>
-        </section>
+          </section>
 
-        <section className="shared-defaults-settings__section" aria-labelledby="shared-defaults-inspectors-title">
-          <div className="shared-defaults-settings__section-heading">
-            <h2 id="shared-defaults-inspectors-title">检查人员顺序</h2>
-          </div>
-          <Form.Item className="shared-defaults-settings__inspector-editor" name="inspectors"
-            rules={[{ validator: validateInspectors }]}>
-            <DefaultInspectorEditor
-              availableInspectors={catalogs.inspectors}
-              loading={catalogs.inspectorLoading}
-              error={catalogs.inspectorError}
-              disabled={status === 'loading' || status === 'saving'}
-            />
-          </Form.Item>
-        </section>
+          <section className="shared-defaults-settings__section" aria-labelledby="shared-defaults-inspectors-title">
+            <div className="shared-defaults-settings__section-heading">
+              <h2 id="shared-defaults-inspectors-title">检查人员顺序</h2>
+            </div>
+            <Form.Item className="shared-defaults-settings__inspector-editor" name="inspectors"
+              rules={[{ validator: validateInspectors }]}>
+              <DefaultInspectorEditor
+                availableInspectors={catalogs.inspectors}
+                loading={catalogs.inspectorLoading}
+                error={catalogs.inspectorError}
+                disabled={status === 'loading' || status === 'saving'}
+              />
+            </Form.Item>
+          </section>
+        </div>
 
         <div className="shared-defaults-settings__actions">
-          <Button icon={<ReloadOutlined />} disabled={status === 'saving' || status === 'loading'}
-            onClick={handleReload}>
-            {dirty ? '放弃修改并重新加载' : '重新加载'}
-          </Button>
-          <Button type="primary" htmlType="submit" icon={<SaveOutlined />}
-            loading={status === 'saving'} disabled={!dirty || status === 'loading'}>
-            保存默认设置
-          </Button>
+          <Tooltip title="保存默认设置">
+            <Button type="primary" shape="circle" size="large" htmlType="submit"
+              icon={<SaveOutlined />} aria-label="保存默认设置"
+              loading={status === 'saving'} disabled={!dirty || status === 'loading'} />
+          </Tooltip>
         </div>
       </Form>
     </div>
