@@ -425,166 +425,8 @@ body {
   margin-top: 28px;
 }
 
-.case-workbench-page {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 32px;
-}
-
-.case-workbench-page__toolbar,
 .case-save-status-panel {
   margin-top: 16px;
-}
-
-.case-workbench-page__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 24px;
-}
-
-.case-workbench-page__heading {
-  min-width: 0;
-  flex: 1;
-}
-
-.case-workbench-page__heading .ant-typography {
-  margin-bottom: 0;
-}
-
-.case-workbench-page__submission {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 8px;
-  padding-top: 24px;
-}
-
-.case-workbench-directory-picker {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-height: 200px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 18px 16px;
-  color: var(--review-primary);
-  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
-  border: 1px dashed var(--review-primary);
-  border-radius: 10px;
-  cursor: pointer;
-  font: inherit;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.case-workbench-directory-picker__plus {
-  font-size: 30px;
-  line-height: 1;
-}
-
-.case-workbench-directory-picker strong {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 16px;
-}
-
-.case-workbench-directory-picker > span:last-child {
-  color: var(--review-muted);
-  font-size: 12px;
-  text-align: center;
-}
-
-.case-workbench-directory-picker:hover:not(:disabled),
-.case-workbench-directory-picker:focus-visible {
-  background: #eef7ff;
-  border-color: #1677ff;
-  box-shadow: 0 0 0 3px rgb(22 119 255 / 12%);
-}
-
-.case-workbench-directory-picker:focus-visible {
-  outline: none;
-}
-
-.case-workbench-directory-picker:disabled {
-  cursor: wait;
-  opacity: 0.62;
-}
-
-.case-workbench-grid {
-  margin-top: 24px;
-}
-
-.case-workbench-card {
-  height: 100%;
-  border-color: var(--review-border);
-  min-width: 0;
-  overflow: hidden;
-}
-
-.case-workbench-card .ant-card-body {
-  display: flex;
-  flex-direction: column;
-}
-
-.case-workbench-card__title {
-  display: block;
-  min-width: 0;
-  flex: 1;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.case-workbench-card__status {
-  margin-inline-end: 0;
-}
-
-.case-workbench-card__number {
-  color: var(--review-text);
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: 13px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.case-workbench-card__result {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 18px;
-  color: var(--review-text);
-}
-
-.case-workbench-card__result strong {
-  font-size: 15px;
-}
-
-.case-workbench-card__guidance {
-  margin-top: 10px;
-  color: var(--review-muted);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.case-workbench-card__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: auto;
-  padding-top: 18px;
-}
-
-.case-workbench-card__utilities {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .archive-status-panel {
@@ -660,19 +502,9 @@ body {
 }
 
 @media (max-width: 520px) {
-  .case-workbench-page {
-    padding: 20px 12px;
-  }
-
   .archive-status-panel__activity-line--secondary {
     display: none;
   }
-}
-
-.case-workbench-page__pagination {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 24px;
 }
 
 .case-save-status-panel {
@@ -865,9 +697,6 @@ body {
     padding: 24px;
   }
 
-  .case-workbench-page {
-    padding: 24px;
-  }
 }
 
 @media (max-width: 760px) {
@@ -877,20 +706,6 @@ body {
 
   .platform-flow-page {
     padding: 20px 16px;
-  }
-
-  .case-workbench-page {
-    padding: 20px 16px;
-  }
-
-  .case-workbench-page__header {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .case-workbench-page__submission {
-    align-self: flex-end;
-    padding-top: 0;
   }
 
   .template-manager__header {

@@ -14,6 +14,7 @@ import { useArchiveCompletionStatuses } from '../hooks/useArchiveCompletionStatu
 import { CaseCard } from '../components/CaseCard'
 import { CaseWorkbenchDirectoryPickerCard } from '../components/CaseWorkbenchDirectoryPickerCard'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
+import '../caseWorkbench.css'
 
 const { Title } = Typography
 
@@ -205,63 +206,65 @@ export default function CaseWorkbenchPage() {
 
   return (
     <div className="case-workbench-page">
-      <div className="case-workbench-page__header">
-        <div className="case-workbench-page__heading">
-          <div className="platform-page__eyebrow">电子数据检查笔录</div>
-          <Title level={1}>案件工作台</Title>
+      <div className="case-workbench-page__inner">
+        <div className="case-workbench-page__header">
+          <div className="case-workbench-page__heading">
+            <div className="platform-page__eyebrow">电子数据检查笔录</div>
+            <Title level={1}>案件工作台</Title>
+          </div>
+          <div className="case-workbench-page__submission">
+            <Tooltip title={sourceAuthorization.enabled
+              ? '已开启，只允许登记已配置或明确授权的来源目录。'
+              : '已关闭，可登记满足基础安全检查的本机报告目录。'}>
+              <Button
+                size="small"
+                type={sourceAuthorization.enabled ? 'primary' : 'default'}
+                aria-label="来源目录校验"
+                aria-pressed={sourceAuthorization.enabled}
+                onClick={() => sourceAuthorization.setEnabled(!sourceAuthorization.enabled)}
+              >
+                来源目录校验：{sourceAuthorization.enabled ? '开' : '关'}
+              </Button>
+            </Tooltip>
+            <Button icon={<ReloadOutlined />} onClick={() => workbench.loadPage(workbench.page.offset)} loading={workbench.pageLoading}>刷新</Button>
+          </div>
         </div>
-        <div className="case-workbench-page__submission">
-          <Tooltip title={sourceAuthorization.enabled
-            ? '已开启，只允许登记已配置或明确授权的来源目录。'
-            : '已关闭，可登记满足基础安全检查的本机报告目录。'}>
-            <Button
-              size="small"
-              type={sourceAuthorization.enabled ? 'primary' : 'default'}
-              aria-label="来源目录校验"
-              aria-pressed={sourceAuthorization.enabled}
-              onClick={() => sourceAuthorization.setEnabled(!sourceAuthorization.enabled)}
-            >
-              来源目录校验：{sourceAuthorization.enabled ? '开' : '关'}
-            </Button>
-          </Tooltip>
-          <Button icon={<ReloadOutlined />} onClick={() => workbench.loadPage(workbench.page.offset)} loading={workbench.pageLoading}>刷新</Button>
-        </div>
+
+        {workbench.pageError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={workbench.pageError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
+        {taskError && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={taskError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
+        {workbench.pageLoading && !workbench.page.items.length ? <Spin size="large" style={{ display: 'block', margin: '80px auto' }} /> : (
+          <Row gutter={[20, 20]} className="case-workbench-grid">
+            {workbench.page.items.map(shell => <Col key={shell.case_id} xs={24} md={12} lg={8}>
+              <CaseCard
+                shell={shell}
+                task={tasks[shell.parse_task_id]}
+                archiveSummary={archiveSummariesByCase[shell.case_id]}
+                onRetry={() => { void retry(shell.case_id) }}
+                onCancel={() => { void cancel(shell.case_id) }}
+                onDelete={() => setDeleteCaseId(shell.case_id)}
+                onArchiveAction={action => {
+                  const summary = archiveSummariesByCase[shell.case_id]
+                  if (summary) void handleArchiveAction(shell, summary.task_id, action)
+                }}
+                actionBusy={actionCaseId === shell.case_id}
+                completionStatus={completionStatusFor(shell, completionResults[shell.case_id])}
+                onExport={() => { void exportCase(shell) }}
+                exporting={exportingCaseIds.has(shell.case_id)}
+                canOpenExportDirectory={Boolean(shell.last_unified_export_at) || successfulExportCaseIds.has(shell.case_id)}
+                onOpenExportDirectory={() => { void openExportDirectory(shell.case_id) }}
+                openingExportDirectory={openingExportCaseIds.has(shell.case_id)}
+              />
+            </Col>)}
+            {workbench.page.items.length < CASE_PAGE_SIZE && (
+              <Col xs={24} md={12} lg={8}>
+                <CaseWorkbenchDirectoryPickerCard loading={submitBusy} onClick={() => { void submit() }} />
+              </Col>
+            )}
+          </Row>
+        )}
+
+        {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={changePage} /></div>}
       </div>
-
-      {workbench.pageError && <Alert className="case-workbench-page__toolbar" type="error" showIcon message={workbench.pageError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
-      {taskError && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message={taskError.message} action={<Button onClick={() => workbench.loadPage(workbench.page.offset)}>重试</Button>} />}
-      {workbench.pageLoading && !workbench.page.items.length ? <Spin size="large" style={{ display: 'block', margin: '80px auto' }} /> : (
-        <Row gutter={[16, 16]} className="case-workbench-grid">
-          {workbench.page.items.map(shell => <Col key={shell.case_id} xs={24} md={12} lg={8}>
-            <CaseCard
-              shell={shell}
-              task={tasks[shell.parse_task_id]}
-              archiveSummary={archiveSummariesByCase[shell.case_id]}
-              onRetry={() => { void retry(shell.case_id) }}
-              onCancel={() => { void cancel(shell.case_id) }}
-              onDelete={() => setDeleteCaseId(shell.case_id)}
-              onArchiveAction={action => {
-                const summary = archiveSummariesByCase[shell.case_id]
-                if (summary) void handleArchiveAction(shell, summary.task_id, action)
-              }}
-              actionBusy={actionCaseId === shell.case_id}
-              completionStatus={completionStatusFor(shell, completionResults[shell.case_id])}
-              onExport={() => { void exportCase(shell) }}
-              exporting={exportingCaseIds.has(shell.case_id)}
-              canOpenExportDirectory={Boolean(shell.last_unified_export_at) || successfulExportCaseIds.has(shell.case_id)}
-              onOpenExportDirectory={() => { void openExportDirectory(shell.case_id) }}
-              openingExportDirectory={openingExportCaseIds.has(shell.case_id)}
-            />
-          </Col>)}
-          {workbench.page.items.length < CASE_PAGE_SIZE && (
-            <Col xs={24} md={12} lg={8}>
-              <CaseWorkbenchDirectoryPickerCard loading={submitBusy} onClick={() => { void submit() }} />
-            </Col>
-          )}
-        </Row>
-      )}
-
-      {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={changePage} /></div>}
       <Modal
         open={Boolean(deleteCaseId)}
         title="确认删除该案件？"
