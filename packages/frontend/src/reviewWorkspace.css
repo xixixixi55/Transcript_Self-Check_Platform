@@ -1640,10 +1640,9 @@
 .guided-review-tools {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid #dbe5ed;
 }
 
 @keyframes guided-review-message-enter {
@@ -1693,16 +1692,28 @@
   border-color: #9ebbd1;
 }
 
-.guided-review-tools__label {
-  flex: 1 0 100%;
-  color: var(--review-muted);
-  font-size: 12px;
-  line-height: 18px;
-}
-
 .guided-review-tools .ant-btn {
   min-height: 34px;
   white-space: normal;
+}
+
+.guided-review-tools .ant-btn.guided-review-tools__icon-button {
+  flex: 0 0 40px;
+  font-size: 18px;
+  box-shadow: 0 2px 5px rgba(31, 52, 73, 0.12);
+}
+
+.guided-review-tools .ant-btn-default.guided-review-tools__icon-button {
+  color: #365267;
+}
+
+.guided-review-tools .ant-btn-default.guided-review-tools__icon-button:hover {
+  color: var(--review-primary);
+  background: #f7fafc;
+}
+
+.guided-review-tools .ant-badge {
+  line-height: 1;
 }
 
 .guided-review-popover-panel {
@@ -1831,6 +1842,14 @@
     min-height: 44px;
   }
 
+  .guided-review-tools .ant-btn.guided-review-tools__icon-button {
+    flex-basis: 44px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
   .guided-review-card__response,
   .guided-review-turn__user {
     width: 100%;
@@ -1848,6 +1867,10 @@
 
   .guided-review-tools .ant-btn {
     flex-basis: calc(50% - 8px);
+  }
+
+  .guided-review-tools .ant-btn.guided-review-tools__icon-button {
+    flex-basis: 44px;
   }
 }
 

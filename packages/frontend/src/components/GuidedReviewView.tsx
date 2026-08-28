@@ -1,5 +1,8 @@
-import { CheckCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
-import { Button } from 'antd'
+import {
+  ArrowLeftOutlined, CheckCircleOutlined, EditOutlined, FileDoneOutlined,
+  SafetyCertificateOutlined, UnorderedListOutlined,
+} from '@ant-design/icons'
+import { Badge, Button, Tooltip } from 'antd'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type {
   GuidedReviewAction, GuidedReviewActionKind, GuidedReviewHistoryItem,
@@ -218,17 +221,27 @@ export function GuidedReviewView({
         </div>
         <div className="guided-review-conversation__utilities">
           <div className="guided-review-tools" aria-label="其他审核操作">
-            <span className="guided-review-tools__label">其他操作</span>
-            <Button aria-expanded={openPanel === 'pending'} aria-controls="guided-review-pending-panel"
-              onClick={() => togglePanel('pending')}>
-              查看全部当前事项（{allActions.length}）
-            </Button>
-            <Button aria-expanded={openPanel === 'summary'} aria-controls="guided-review-summary-panel"
-              onClick={() => togglePanel('summary')}>
-              查看已整理信息
-            </Button>
-            <Button onClick={onOpenFullEditor}>完整审核编辑</Button>
-            <Button type="link" onClick={onBackToWorkbench}>返回案件列表</Button>
+            <Tooltip title={`查看全部当前事项（${allActions.length}）`}>
+              <Badge count={allActions.length} size="small" offset={[-2, 2]}>
+                <Button shape="circle" size="large" className="guided-review-tools__icon-button"
+                  icon={<UnorderedListOutlined />} aria-label={`查看全部当前事项（${allActions.length}）`}
+                  aria-expanded={openPanel === 'pending'} aria-controls="guided-review-pending-panel"
+                  onClick={() => togglePanel('pending')} />
+              </Badge>
+            </Tooltip>
+            <Tooltip title="查看已整理信息">
+              <Button shape="circle" size="large" className="guided-review-tools__icon-button" icon={<FileDoneOutlined />}
+                aria-label="查看已整理信息" aria-expanded={openPanel === 'summary'}
+                aria-controls="guided-review-summary-panel" onClick={() => togglePanel('summary')} />
+            </Tooltip>
+            <Tooltip title="完整审核编辑">
+              <Button type="primary" shape="circle" size="large" className="guided-review-tools__icon-button" icon={<EditOutlined />}
+                aria-label="完整审核编辑" onClick={onOpenFullEditor} />
+            </Tooltip>
+            <Tooltip title="返回案件列表">
+              <Button shape="circle" size="large" className="guided-review-tools__icon-button" icon={<ArrowLeftOutlined />}
+                aria-label="返回案件列表" onClick={onBackToWorkbench} />
+            </Tooltip>
           </div>
           {openPanel === 'pending' && (
             <div id="guided-review-pending-panel" className="guided-review-popover-panel" aria-label="全部当前事项">
