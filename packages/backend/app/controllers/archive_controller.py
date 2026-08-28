@@ -1,4 +1,4 @@
-"""Layer 22: preview archive execution, status, and secure part download."""
+"""第 22 层：预览归档执行、状态和安全分卷下载。"""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ async def execute_archive_endpoint(
     archive_context_id: str = Form(""),
     archive_attempt_id: str = Form(""),
 ):
-    """Execute the reviewed archive synchronously; no client path is accepted."""
+    """同步执行已审核归档；不接受客户端路径。"""
 
     settings = pipeline_settings_for_request(request)
     if not archive_context_id:
@@ -161,7 +161,7 @@ async def execute_archive_endpoint(
             legacy_report = projected
             attachment_preview = projected.get("attachments", {}).get("extract_list")
         except AttachmentPlanError:
-            # Incomplete review fields must not turn a valid archive into a failure.
+            # 审核字段不完整不得使有效归档转为失败。
             pass
     observe_shadow_archive(
         archive_context_id, legacy_report, stored_manifest or {}, settings, background_tasks,

@@ -1,4 +1,4 @@
-// Layer 12: FE_Pages — 应用路由定义
+// 第 12 层：FE_Pages — 应用路由定义
 
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { PlatformShell } from './components/PlatformShell'

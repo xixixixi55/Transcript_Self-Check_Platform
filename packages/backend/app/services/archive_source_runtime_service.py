@@ -1,4 +1,4 @@
-"""Layer 21: bounded preview-source handles and deferred archive preparation."""
+"""第 21 层：有界预览来源句柄和延迟归档准备。"""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def _preview_source_summary(record: PreviewSourceRecord) -> dict[str, object]:
 
 
 class ArchiveSourceRuntimeStore:
-    """Keep authorized source references separate from full archive contexts."""
+    """使授权来源引用与完整归档上下文分离。"""
 
     def __init__(
         self,

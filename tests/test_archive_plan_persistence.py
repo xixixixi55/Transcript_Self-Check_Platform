@@ -1,4 +1,4 @@
-"""T013 archive plan, stable-slot, Manifest, and asset persistence tests."""
+"""T013 归档计划、稳定槽位、Manifest 和资产持久化测试。"""
 
 from __future__ import annotations
 
@@ -148,14 +148,14 @@ def test_persist_archive_plan_projects_manifest_parts_to_slots(database: Workben
     slots = plan["volume_slots"]
     assert len(slots) == 2
     assert [item["lineage_key"] for item in slots] == ["case.part1.rar", "case.part2.rar"]
-    # Pre-filled disc becomes a confirmed mapping; empty disc stays deferred.
+    # 预填的光盘变为已确认映射；空光盘保持延迟状态。
     assert slots[0]["disc_mapping"]["disc_number"] == "GP20260718-01"
     assert slots[0]["status"] == "active"
     assert slots[1]["disc_mapping"] is None
     assert slots[1]["status"] == "pending"
     reopened = repository.get_latest_for_case(CASE_ID)
     assert reopened is not None
-    # No-op when a plan already exists for the case.
+    # 案件已有计划时不执行任何操作。
     again = persist_archive_plan(
         repository, plan_id="SYNTHETIC-PERSIST-PLAN-2", case_id=CASE_ID,
         manifest_parts=[

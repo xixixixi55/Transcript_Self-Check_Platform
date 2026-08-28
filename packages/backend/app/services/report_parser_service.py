@@ -45,7 +45,7 @@ from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from .entrust_person_service import normalize_entrust_persons
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 23  # v23: stop deriving entrust time from report creation time
+_CACHE_VERSION = 23  # v23：不再根据报告创建时间推导委托时间
 _TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
@@ -64,7 +64,7 @@ def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dic
 def _parse_report_task(
     source_dir: str, output_dir: str, compress: bool, generation: int,
 ) -> dict:
-    """Run cache validation and Parser work inside one shared task."""
+    """在同一个共享任务中运行缓存验证和 Parser 工作。"""
     data_dir = os.path.join(source_dir, "data")
     has_core_files = all(
         os.path.isfile(os.path.join(data_dir, name))
@@ -100,11 +100,10 @@ def _parse_report_task(
 
 
 def _report_parser_dependency_fingerprint(data_dir: str) -> str:
-    """Fingerprint the JSON paths reached by the current Legacy parser.
+    """为当前旧版解析器访问的 JSON 路径计算指纹。
 
-    Core report files are always read. Device-base JSON paths are discovered
-    from the report's device rows, matching ``parse_device_base`` instead of
-    hashing unrelated attachment and media JSON files.
+    核心报告文件始终会读取。设备 Base JSON 路径从报告设备行中发现，匹配
+    `parse_device_base` 的行为，而不对无关附件和媒体 JSON 文件计算哈希。
     """
     dependency_files = [
         "data_case_info.json",
@@ -141,7 +140,7 @@ def _build_parse_result(
     source_dir: str, output_dir: str, compress: bool,
     *, input_snapshot: ReportParseInputSnapshot | None = None,
 ) -> dict:
-    """Build one uncached parse result; cache metadata stays outside the payload."""
+    """构建一个未缓存的解析结果；缓存元数据保留在载荷之外。"""
     data_dir = os.path.join(source_dir, "data")
     report = _build_report(
         data_dir, source_dir, output_dir, compress=compress,
@@ -236,13 +235,13 @@ def _split_persons(collector: str) -> list[str]:
 
 
 def _normalize_case_name(case_name: object) -> str:
-    """Normalize the parser case name without inventing a case suffix."""
+    """规范化解析器案件名称，不虚构案件后缀。"""
     value = str(case_name or "").strip()
     return _TRAILING_CASE_NAME_MARK_RE.sub(r"\1", value).strip()
 
 
 def _format_case_summary(case_name: object) -> str:
-    """Use the normalized report case name as the editable case summary seed."""
+    """使用规范化的报告案件名称作为可编辑案件摘要的初始值。"""
     return _normalize_case_name(case_name)
 
 
@@ -301,9 +300,8 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     evidence_items = _natural_evidence_order(evidence_items)
 
     # 6. 检查过程步骤
-    # Keep the legacy scalar DTO fields, but project all evidence items into
-    # their display text.  The evidence list remains the structured source of
-    # truth; process/result strings must not silently fall back to item zero.
+    # 保留旧版标量 DTO 字段，但将所有证据项投影为其显示文本。
+    # 证据列表仍是结构化事实来源；过程/结果字符串不得静默回退到第 0 项。
     first_device = evidence_items[0] if evidence_items else {
         "model": "", "imei1": "", "imei2": "", "evidence_number": ""}
     process_devices = evidence_items or [first_device]
@@ -448,7 +446,7 @@ def _software_action_name(value: object) -> str:
 
 
 def _natural_evidence_order(items: list[dict]) -> list[dict]:
-    """Sort whole material records when all numeric keys are safe and unique."""
+    """当所有数字键安全且唯一时，对完整检材记录排序。"""
     keyed = [(_evidence_order_key(item.get("evidence_number")), item) for item in items]
     keys = [key for key, _ in keyed]
     if any(key is None for key in keys) or len(set(keys)) != len(keys):
@@ -465,7 +463,7 @@ def _evidence_order_key(value: object) -> tuple[int, ...] | None:
 
 
 def _device_display_name(brand: str, model: str, fallback_name: str = "") -> str:
-    """Build one stable device display name without duplicating its brand."""
+    """构建稳定且不重复品牌的设备显示名称。"""
     brand_value = " ".join(str(brand).split())
     model_value = " ".join(str(model).split())
     fallback = " ".join(str(fallback_name).split())
@@ -494,7 +492,7 @@ def _build_software_tools(
     main_name: str | None = None,
     main_status: str = "unconfirmed",
 ) -> list[dict]:
-    """Build only the report primary tool plus the two allowed runtime tools."""
+    """仅构建报告主工具以及两个允许的运行时工具。"""
     tools = []
     if main_name and sv:
         tools.append({
@@ -504,7 +502,7 @@ def _build_software_tools(
             "display_name": " ".join(filter(None, [main_name or "", sv])),
             "confirmation_status": main_status,
         })
-    # Keep the compatibility entry, but report the actual discovery result.
+    # 保留兼容条目，但报告实际探测结果。
     detected_version = detect_winrar_version()
     version = detected_version or ""
     tools.append({
@@ -531,10 +529,10 @@ def _build_software_tools(
 
 def _build_rar_info_from_compress(source_dir: str, output_dir: str,
                                    case_name: str, compress: bool) -> dict:
-    """Deprecated compatibility hook: parsing no longer has compression side effects.
+    """已弃用的兼容钩子：解析不再产生压缩副作用。
 
-    The controller creates an opaque archive context; execute_archive performs the
-    gated WinRAR run only after review supplies a valid first disc number.
+    控制器创建不透明的归档上下文；仅在审核提供有效的首个光盘编号后，
+    `execute_archive` 才执行受门控的 WinRAR 运行。
     """
     return {
         "filename": "",

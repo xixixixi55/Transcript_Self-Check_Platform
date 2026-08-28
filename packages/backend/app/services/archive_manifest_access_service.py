@@ -1,4 +1,4 @@
-"""Access and revalidate the immutable manifest used by DOCX export."""
+"""访问并重新验证 DOCX 导出使用的不可变 Manifest。"""
 
 from __future__ import annotations
 
@@ -24,9 +24,8 @@ class ArchiveGateError(ArchiveRuntimeError):
 def archive_report_fingerprint(
     report: dict, inventory, *, content_fingerprint: str | None = None,
 ) -> str:
-    # Disc numbers are a deferred per-part label mapped after compression
-    # (first number can be entered before or after). They are intentionally
-    # excluded so later mapping does not break Manifest reuse.
+    # 光盘编号是压缩后映射到各分卷的延迟标签（首个编号可提前或稍后输入）。
+    # 此处有意排除这些编号，避免后续映射破坏 Manifest 复用。
     payload = {
         "archive_base_name": str(
             (report.get("introduction") or {}).get("case_summary") or ""
@@ -79,7 +78,7 @@ def _normalized_manifest(manifest: dict[str, object]) -> dict[str, object]:
                 if capacity is not None:
                     part["disc_capacity_bytes"] = capacity
             except (KeyError, TypeError, ValueError):
-                pass  # Manifest validation reports malformed part fields first.
+                pass  # Manifest 验证会优先报告格式错误的分卷字段。
     return normalized
 
 
@@ -93,7 +92,7 @@ class ArchiveDownload:
 def get_manifest_part_download(
     context_id: str, manifest_id: str, part_id: str,
 ) -> ArchiveDownload:
-    """Resolve one opaque manifest part and revalidate it before download."""
+    """解析一个不透明的 Manifest 分卷，并在下载前重新验证。"""
     record = ARCHIVE_RUNTIME_STORE.get_current_manifest(context_id, manifest_id)
     _raise_manifest_file_error(record)
     part = next(

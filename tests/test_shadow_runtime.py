@@ -1,4 +1,4 @@
-"""Synthetic retention and concurrency tests for Shadow diagnostics."""
+"""Shadow 诊断的合成数据保留与并发测试。"""
 
 import os
 import sys

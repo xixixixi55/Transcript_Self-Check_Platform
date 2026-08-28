@@ -1,4 +1,4 @@
-# Spec Delta: 归档输入快照并行拷贝
+# 规格增量：归档输入快照并行拷贝
 
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED（归档输入快照拷贝改为受控并行执行，并放宽拷贝时刻逐文件落盘；元数据校验、目录/所有权 marker/文件清单持久化与崩溃重试契约保留）
@@ -7,15 +7,15 @@
 
 ### REQ-ARCHIVE-IMMUTABLE-INPUT: 输入快照并行拷贝与元数据密封
 
-The archive execution input MUST be a task/attempt/deployment-bound sealed snapshot; mutable source bytes MUST NOT be used as the execution or publication authority. 快照拷贝使用受控并行线程拷贝；逐文件内容不再在拷贝时刻 fsync 落盘（改由 OS 写回，秒级），但快照目录重命名、所有权 marker 与文件清单元数据仍持久化落盘；密封与校验继续使用元数据级身份（相对路径 + 大小 + mtime），归档输出侧 RAR 校验与 MD5 保留。
+归档执行输入 MUST 是与任务/尝试/部署绑定的已封存快照；MUST NOT 使用可变来源字节作为执行或发布权威。快照拷贝使用受控并行线程；逐文件内容不再在拷贝时刻 fsync 落盘（改由操作系统在数秒内写回），但快照目录重命名、所有权标记与文件清单元数据仍持久化落盘；封存与校验继续使用元数据级标识（相对路径 + 大小 + mtime），保留归档输出侧 RAR 校验与 MD5。
 
-#### Scenario: parallel sealed execution input
+#### Scenario: 并行封存执行输入
 
-- WHEN a task begins archive execution
-- THEN the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory in parallel（默认 4 工作线程，`BIJI_ARCHIVE_COPY_WORKERS` 可配置覆盖）without following links or reparse points, verifies every relative path, size and modified-time metadata, and durably marks it `sealed`
-- AND file content is flushed to the OS but not per-file fsynced at copy time; the snapshot directory rename (`os.replace` 后 `fsync_dir`)、owner marker 与文件清单元数据 remain durably persisted
-- AND content not yet written back when power is lost immediately after copy can leave partial or zero-filled bytes; truncated content is caught by the size-based metadata gate, equal-size zero-filled content is not caught by the metadata gate and is covered by archive-output RAR validation and crash-retry rebuild from source
-- AND the snapshot manifest records per-file relative path, size and modified-time metadata, not per-file content SHA-256
-- AND WinRAR, inventory, RAR validation and Manifest generation read only the sealed snapshot, never the mutable source directory
-- AND an unsealed, missing, owner-mismatched, incomplete or metadata-mismatched snapshot cannot enter WinRAR, publication, reuse or success
-- AND source changes after sealing cannot change the bytes read by this attempt; failure, cancellation, crash and retry never reuse a prior attempt snapshot
+- WHEN 任务开始归档执行
+- THEN 服务在受控输出根目录下创建与任务/尝试/部署绑定的快照，并行复制完整授权清单（默认 4 个工作线程，可由 `BIJI_ARCHIVE_COPY_WORKERS` 配置覆盖），不跟随链接或重解析点，校验每个相对路径、大小和修改时间元数据，并持久标记为 `sealed`
+- AND 文件内容刷新到操作系统，但复制时不逐文件执行 fsync；快照目录重命名（`os.replace` 后执行 `fsync_dir`）、所有者标记和文件清单元数据保持持久化落盘
+- AND 复制后立即断电时尚未回写的内容可能留下部分字节或零填充字节；基于大小的元数据门控可捕获截断内容，同尺寸零填充内容不会被元数据门控捕获，而由归档输出 RAR 校验和崩溃重试时从来源重建来覆盖
+- AND 快照 manifest 记录逐文件相对路径、大小和修改时间元数据，而不记录逐文件内容 SHA-256
+- AND WinRAR、清单、RAR 校验和 Manifest 生成只读取已封存快照，绝不读取可变来源目录
+- AND 未封存、缺失、所有者不匹配、不完整或元数据不匹配的快照不能进入 WinRAR、发布、复用或成功状态
+- AND 封存后的来源变化不能改变本次尝试读取的字节；失败、取消、崩溃和重试绝不复用先前尝试的快照

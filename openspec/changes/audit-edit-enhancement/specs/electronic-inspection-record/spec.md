@@ -1,4 +1,4 @@
-# Spec Delta: 电子数据检查笔录自动生成 — 审核编辑界面增强
+# 规格增量：电子数据检查笔录自动生成——审核编辑界面增强
 
 > 基准 Spec: `openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED (CAP-003 REQ-007) + ADDED (CAP-010, CAP-011)

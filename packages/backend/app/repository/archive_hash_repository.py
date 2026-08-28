@@ -1,4 +1,4 @@
-"""Streaming archive hashing with a constrained file root."""
+"""文件根目录受限的流式归档哈希计算。"""
 
 from __future__ import annotations
 

@@ -12,7 +12,7 @@ function readStoredPreference(): boolean {
     if (stored === 'true') return true
     if (stored === 'false') return false
   } catch {
-    // Storage can be unavailable in restricted browser contexts.
+    // 在受限的浏览器上下文中，存储功能可能不可用。
   }
   return DEFAULT_SOURCE_AUTHORIZATION_ENABLED
 }
@@ -29,7 +29,7 @@ export function setSourceAuthorizationEnabled(enabled: boolean): void {
       enabled ? 'true' : 'false',
     )
   } catch {
-    // The in-memory hook state still reflects the user's current choice.
+    // 内存中的 Hook 状态仍反映用户当前的选择。
   }
   window.dispatchEvent(new Event(SOURCE_AUTHORIZATION_PREFERENCE_EVENT))
 }

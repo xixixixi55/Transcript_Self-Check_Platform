@@ -1,4 +1,4 @@
-"""Probe WinRAR progress through a native Windows ConPTY using synthetic data."""
+"""使用合成数据，通过原生 Windows ConPTY 探测 WinRAR 进度。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Phase 1D archive-attempt boundary around the existing Legacy executor."""
+"""围绕现有旧版执行器的阶段 1D 归档尝试边界。"""
 
 from __future__ import annotations
 
@@ -241,8 +241,8 @@ class ArchiveAttemptService:
         try:
             self.cleanup_execution_input(attempt_id)
         except Exception:
-            # The durable snapshot row remains non-sealed/diagnosable for
-            # recovery; never turn a failed archive into a false success.
+            # 持久快照行保持未密封且可诊断，以便恢复；
+            # 绝不能将失败归档变成虚假成功。
             pass
 
     def staging_initializer(self, attempt_id: str) -> Callable[[Path], None]:

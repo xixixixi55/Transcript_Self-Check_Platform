@@ -48,7 +48,7 @@ def delete_device(device_id: str) -> bool:
 
 
 def company_for_device_name(device_name: object) -> str:
-    """Return one configured company only when the normalized device name is unique."""
+    """仅当规范化设备名称唯一时返回一个已配置公司。"""
     key = _device_name_key(device_name)
     if not key:
         return ""

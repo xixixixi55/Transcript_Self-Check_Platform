@@ -1,4 +1,4 @@
-"""Synthetic repository and controller tests for the local inspector library."""
+"""本地检查人员库的合成数据仓储与控制器测试。"""
 
 import json
 import os

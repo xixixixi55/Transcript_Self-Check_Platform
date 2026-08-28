@@ -1,4 +1,4 @@
-"""Layer 20: safe candidate selection for Parser input snapshots."""
+"""第 20 层：为 Parser 输入快照安全选择候选项。"""
 
 from __future__ import annotations
 
@@ -24,9 +24,8 @@ _DEVICE_FILENAME_PRIORITY = {
     "device_table.json": 1,
     "device.json": 2,
 }
-# Device tables in the supported exports place their row labels in the JSON
-# header. Keep the bounded probe small because ordinary data_ files can be
-# multi-megabyte; the full parser still reads only files that pass this probe.
+# 受支持导出中的设备表将行标签放在 JSON 头部。由于普通 data_ 文件可能有数 MB，
+# 应保持有限探测范围较小；完整解析器仍只读取通过该探测的文件。
 _DATA_FILE_SCAN_BYTES = 16 * 1024
 _STRUCTURED_DEVICE_LABELS = (
     "设备类型", "检材类型", "终端类型", "设备名称", "检材名称", "手机名称",
@@ -57,13 +56,11 @@ def build_evidence_directory_index(
 def find_vendor_device_names(
     evidence_numbers: list[str], entries: list,
 ) -> tuple[str, ...]:
-    """Find concrete device-name directories emitted beside JC evidence dirs.
+    """查找输出在 JC 证据目录旁、名称具体的设备目录。
 
-    One supported vendor export keeps the structured device rows under JC...
-    directories but emits empty ``Base`` directories named ``Brand Model`` at
-    the same level.  The export has no file-level relation between the two
-    trees, so the only available association is a deterministic name order;
-    it is used only when the counts match exactly and names are concrete.
+    某种受支持的厂商导出将结构化设备行保存在 JC... 目录下，
+    同时在同级输出以 ``Brand Model`` 命名的空 ``Base`` 目录。两棵目录树之间
+    没有文件级关联，因此只能采用确定性名称顺序；仅当数量完全相同且名称具体时使用。
     """
     evidence_keys = {_normalise_directory_name(item) for item in evidence_numbers}
     names: list[str] = []
@@ -133,10 +130,8 @@ def select_device_candidate_files(
     ]
     if files:
         if report_format == ReportFormat.LEGACY:
-            # The Legacy parser historically merged all direct JSON files in
-            # the named Base/Phone metadata directories. Keep that rule while
-            # allowing exports whose authoritative table is in Phone and
-            # whose Base directory contains only auxiliary data_ files.
+            # 旧版解析器历来会合并指定 Base/Phone 元数据目录中的所有直接 JSON 文件。
+            # 保留此规则，同时允许权威表位于 Phone、而 Base 目录仅包含辅助 data_ 文件的导出。
             return sorted(files, key=lambda item: str(item).casefold()), tuple(indexes)
         best_priority = min(_device_filename_priority(item.name) for item in files)
         selected = [
@@ -176,11 +171,10 @@ def _is_data_file(name: str) -> bool:
 
 
 def _is_selected_data_file(path: Path) -> bool:
-    """Select data_ JSON only when its header contains a structured table.
+    """仅当 data_ JSON 的头部包含结构化表格时才选择它。
 
-    Large exports put ordinary evidence tables beside device metadata. A
-    bounded label probe keeps the one-pass snapshot responsive and does not
-    rely on a report-specific filename or node number.
+    大型导出会将普通证据表与设备元数据并列放置。有界标签探测可保持
+    单次快照响应及时，且不依赖报告特定文件名或节点编号。
     """
     try:
         with path.open("rb") as stream:

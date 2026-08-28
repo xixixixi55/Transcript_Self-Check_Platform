@@ -1,4 +1,4 @@
-"""Atomic CaseDraft template-reference updates without archive side effects."""
+"""无归档副作用的原子 CaseDraft 模板引用更新。"""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ class CaseTemplateReferenceRepository:
         retired_versions: set[str] | frozenset[str],
         current_ref: Mapping[str, Any],
     ) -> int:
-        """Replace exact retired built-in references without touching custom templates."""
+        """精确替换已停用的内置引用，不触及自定义模板。"""
         current = _reference(current_ref)
         template_id = validate_opaque_id(template_id)
         retired = {validate_opaque_id(version) for version in retired_versions}

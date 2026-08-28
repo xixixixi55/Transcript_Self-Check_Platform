@@ -1,4 +1,4 @@
-# Spec Delta: 直接源报告归档与根目录修复
+# 规格增量：直接源报告归档与根目录修复
 
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 
@@ -68,7 +68,7 @@
 
 ### Requirement: REQ-ARCHIVE-RUNTIME-OWNERSHIP: 进程本地上下文不得被其他进程领取
 
-#### Scenario: 多个开发进程共享 durable queue
+#### Scenario: 多个开发进程共享持久队列
 
 - WHEN 多个后端进程短暂连接同一 deployment 数据库，且 queued task 的授权 context 只登记在其中一个 coordinator
 - THEN 只有持有该 task context 的 coordinator 可以领取并执行该 task

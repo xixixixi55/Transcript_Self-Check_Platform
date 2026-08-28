@@ -1,4 +1,4 @@
-"""T013 compatibility coverage for pre-v6 TaskRecord rows."""
+"""T013 v6 之前 TaskRecord 数据行的兼容性覆盖测试。"""
 
 from __future__ import annotations
 

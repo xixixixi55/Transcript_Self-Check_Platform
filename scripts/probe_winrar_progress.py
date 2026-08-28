@@ -1,4 +1,4 @@
-"""Probe raw WinRAR progress with synthetic inputs and no installation."""
+"""使用合成输入探测 WinRAR 原始进度，无需安装。"""
 
 from __future__ import annotations
 import argparse

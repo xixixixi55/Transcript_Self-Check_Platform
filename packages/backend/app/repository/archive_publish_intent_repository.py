@@ -1,4 +1,4 @@
-"""Durable publish intent records used to reconcile filesystem/database gaps."""
+"""用于协调文件系统与数据库间隙的持久发布意图记录。"""
 
 from __future__ import annotations
 
@@ -406,12 +406,10 @@ class ArchivePublishIntentRepository:
         self, publication_id: str, verified_at: str, *, publication_digest: str,
         file_set: list[dict[str, Any]], fence_id: str, case_id: str,
     ) -> dict[str, Any]:
-        """Record the first verified UTC fact without changing publication identity.
+        """记录首个已验证的 UTC 事实，不更改发布标识。
 
-        Revalidation is intentionally not performed here. The caller must
-        supply facts already checked against the durable publication authority.
-        The NULL-only predicate prevents ordinary reads or repeated checks from
-        moving the retention anchor.
+        此处有意不执行重新验证。调用方必须提供已根据持久发布权威检查的事实。
+        仅 NULL 谓词可防止普通读取或重复检查移动保留锚点。
         """
         publication_id = validate_opaque_id(publication_id)
         fence_id = validate_opaque_id(fence_id)

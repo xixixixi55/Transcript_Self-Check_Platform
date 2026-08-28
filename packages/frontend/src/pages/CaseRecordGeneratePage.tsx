@@ -1,4 +1,4 @@
-// Layer 12: FE_Pages — case-id based full editor using the Legacy production mappings.
+// 第 12 层：FE_Pages — 基于案件 ID、使用旧版生产映射的完整编辑器。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Space, Spin, message } from 'antd'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
@@ -54,8 +54,8 @@ export default function CaseRecordGeneratePage() {
     setReviewStatus('尚未修改')
     resetAttachmentWarning()
   }, [caseId, resetAttachmentWarning])
-  // Before compression finishes, accept either user-entered medium prefix.
-  // The verified result then switches the same editor to the exact GP/YP contract.
+  // 压缩完成前，接受用户输入的任一种介质前缀。
+  // 验证结果随后将同一编辑器切换为精确的 GP/YP 契约。
   const archiveMedium = session.completedArchive.result?.archive_medium ?? null
   const projectedReport = useMemo(
     () => session.report ? projectEvidenceDerivedContent(session.report) : null,

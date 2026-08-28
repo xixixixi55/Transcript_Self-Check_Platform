@@ -1,4 +1,4 @@
-"""Publish a validated staging directory through the workbench evidence boundary."""
+"""通过工作台证据边界发布已验证的暂存目录。"""
 
 from __future__ import annotations
 
@@ -58,9 +58,8 @@ def publish_staged_archive(
             expected_draft_revision=expected_draft_revision,
             expected_report_fingerprint=expected_report_fingerprint,
         )
-        # The durable fence is established by persist_publish_intent in the
-        # same transaction as the final server-fact validation.  A second
-        # ordinary read would not close a TOCTOU window.
+        # 持久围栏由 persist_publish_intent 在最终服务器事实验证的同一事务中建立。
+        # 再进行一次普通读取无法关闭 TOCTOU 窗口。
         assert_publishable(attempt_service.database, attempt_id)
         if final_dir.exists():
             raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_CONFLICT")
@@ -111,7 +110,7 @@ def publish_staged_archive(
 
 
 def _seal_publication_directory(root: Path) -> None:
-    """Make the sealed generation immutable to ordinary writers before move."""
+    """移动前使密封代次对普通写入者不可变。"""
     try:
         for path in sorted(root.rglob("*"), key=lambda item: len(item.parts), reverse=True):
             if path.is_file():

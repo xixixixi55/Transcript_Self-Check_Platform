@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — reusable opaque source accessibility status.
+// 第 11 层：FE_Components — 可复用的不透明来源可访问状态。
 import React from 'react'
 import { Tag } from 'antd'
 import type { SourceAccessStatus } from '@biji/shared/types'

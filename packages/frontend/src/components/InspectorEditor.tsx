@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 检查人员库多选和有序快照编辑器
+// 第 11 层：FE_Components — 检查人员库多选和有序快照编辑器
 import React from 'react'
 import { Alert, Button, Card, Modal, Space, Typography } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'

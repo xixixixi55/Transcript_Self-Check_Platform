@@ -1,9 +1,8 @@
-"""Deferred disc-number mapping for archive completion.
+"""归档完成时的延迟光盘编号映射。
 
-Compression may start without a first disc number (T003). Once compression is
-done, entering the first disc number generates the full sequence and maps it
-to the plan's volume slots in ordinal order; mapping is persisted through the
-existing plan repository so the mapping_revision and case revision advance.
+压缩可以在没有首个光盘编号（T003）时开始。压缩完成后，输入首个光盘编号会生成
+完整序列，并按序号映射到计划分卷槽位；映射通过现有计划仓储持久化，从而推进
+mapping_revision 和案件修订号。
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ from .disc_sequence_service import (
 
 
 class DiscMappingError(ValueError):
-    """Stable, path-free diagnostic for disc mapping failures."""
+    """不含路径的稳定光盘映射失败诊断。"""
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -28,7 +27,7 @@ class DiscMappingError(ValueError):
 
 @dataclass(frozen=True)
 class DiscMappingState:
-    """Whether a case plan exists and, if complete, its first disc number."""
+    """案件计划是否存在，以及完整时的首个光盘编号。"""
 
     plan_exists: bool
     first_disc_number: str | None
@@ -38,9 +37,9 @@ def build_disc_mappings(
     first_disc_number: str, slots: list[Mapping[str, Any]],
     archive_mode: str = "standard_split",
 ) -> list[dict[str, Any]]:
-    """Generate the sequence for ``slots`` in ordinal order.
+    """按序号为 `slots` 生成序列。
 
-    ``slots`` must already be ordered by ordinal and exclude removed slots.
+    `slots` 必须已按序号排序并排除已移除槽位。
     """
     parsed = parse_archive_medium_sequence(first_disc_number, archive_mode)
     if not parsed.valid or parsed.sequence is None:
@@ -65,7 +64,7 @@ def build_disc_mappings(
 
 
 def active_slots(plan: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Non-removed volume slots ordered by ordinal."""
+    """按序号排列的未移除分卷槽位。"""
     return sorted(
         (dict(slot) for slot in plan["volume_slots"] if slot["status"] != "removed"),
         key=lambda slot: slot["ordinal"],
@@ -75,14 +74,14 @@ def active_slots(plan: Mapping[str, Any]) -> list[dict[str, Any]]:
 def first_mapped_disc_number(
     database: WorkbenchDatabase, case_id: str,
 ) -> str | None:
-    """Return the first disc only when every active slot has a mapping."""
+    """仅当每个活动槽位均有映射时返回首张光盘。"""
     return resolve_disc_mapping_state(database, case_id).first_disc_number
 
 
 def resolve_disc_mapping_state(
     database: WorkbenchDatabase, case_id: str,
 ) -> DiscMappingState:
-    """Distinguish an absent plan from an incomplete persisted mapping."""
+    """区分缺失计划与不完整的持久映射。"""
     plan = ArchivePlanRepository(database).get_latest_for_case(case_id)
     if plan is None:
         return DiscMappingState(plan_exists=False, first_disc_number=None)
@@ -114,11 +113,10 @@ def apply_disc_mapping(
     first_disc_number: str,
     archive_mode: str = "standard_split",
 ) -> dict[str, Any]:
-    """Map the sequence for ``first_disc_number`` onto the latest case plan.
+    """将 `first_disc_number` 的序列映射到最新案件计划。
 
-    ``expected_revision`` guards the case shell (checked by the caller); the
-    plan write itself is CAS-guarded by the plan row's own revision so the two
-    independent counters never collide. Returns the updated plan projection.
+    `expected_revision` 保护案件外壳（由调用方检查）；计划写入本身由计划记录自身的
+    修订号通过 CAS 保护，因此两个独立计数器不会冲突。返回更新后的计划投影。
     """
     repository = ArchivePlanRepository(database)
     plan = repository.get_latest_for_case(case_id)

@@ -1,4 +1,4 @@
-"""CaseShell and CaseDraft repositories with optimistic revisions."""
+"""采用乐观修订的 CaseShell 和 CaseDraft 仓储。"""
 
 from __future__ import annotations
 

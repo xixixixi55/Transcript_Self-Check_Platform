@@ -1,8 +1,8 @@
-/** Public retention and formal-artifact contracts.
+/** 公开的保留与正式工件契约。
  *
- * These DTOs deliberately contain stable case/publication/artifact identities
- * only. Internal paths, database names, attempt/context identities, claims,
- * leases and fences stay in the backend persistence layer.
+ * 这些 DTO 有意只包含稳定的案件/发布/工件标识。
+ * 内部路径、数据库名称、尝试/上下文标识、认领、租约与围栏
+ * 均保留在后端持久化层。
  */
 
 export type RetentionPolicyMode = 'disabled' | 'preview_only' | 'enforce'

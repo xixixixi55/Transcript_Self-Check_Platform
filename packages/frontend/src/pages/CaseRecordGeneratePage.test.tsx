@@ -431,7 +431,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Word 下载文件名'), { target: { value: '合成案件.docx' } })
     fireEvent.click(within(dialog).getByRole('button', { name: '开始导出' }))
-    // Fresh grant on every export — re-export must not reuse a consumed token (422 regression).
+    // 每次导出都使用新授权 — 再次导出不得复用已消耗的令牌（422 回归）。
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY, undefined, expect.anything()))
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic', word_filename: '合成案件.docx' }, { timeout: unifiedExportRequestTimeoutMs(45_000_000_000) }))
   }, 15000)

@@ -1,6 +1,6 @@
 # extensible-report-template-platform
 
-## Why
+## 原因
 
 当前系统把解析结果、业务规则、压缩执行和 DOCX 排版都直接耦合在 `InspectionReport`、`report_parser_service.py` 与 `template_filler_service.py` 中。甲方已经确认报告结构、检材展示、分卷压缩、三类附件和模板选择都将继续变化；如果继续在现有字段和唯一模板上叠加条件分支，将无法同时保护新旧报告兼容性和版式验收结果。
 
@@ -10,7 +10,7 @@
 
 来源目录授权校验需要保留现有实现，以便后续恢复；当前产品阶段由电子数据检查笔录首页提供普通用户开关。开关状态持久化在浏览器本地，默认关闭来源目录根白名单校验，让用户可以登记任意满足基础安全校验的本机报告目录；重新开启后恢复既有配置根目录和精确目录授权规则。案件工作台不展示该开关，只在提交和重新登记来源时读取首页保存的状态。
 
-## What Changes
+## 变更内容
 
 - 新增 `CanonicalInspectionCase` 及相关领域模型，作为解析 DTO 和 Word 模板之间的内部唯一事实来源。
 - 明确主迁移方向为 `ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出`；`InspectionReport → CanonicalInspectionCase` 只作为旧前端提交/历史数据迁移的兼容入口，不承诺完整回填。
@@ -27,9 +27,9 @@
 - 预留 `TemplateProfile` 和可解释的字段位置推荐，支持阶段三的可视化绑定、重复块、图片区、显示条件和分页配置。
 - 增补跨层接口、缓存版本、失败回滚、审计信息和阶段化测试/人工验收门槛。
 
-## Capabilities
+## 能力
 
-### New Capabilities
+### 新增能力
 
 - `canonical-report-model`: 规范化报告、检材标识、检查人员快照和软件工具模型。
 - `archive-planning-and-execution`: 十进制分卷规划、WinRAR 执行、卷校验、MD5 和重新规划。
@@ -40,11 +40,11 @@
 - `inspector-library`: 单机检查人员库、报告有序选择和历史快照。
 - `shadow-pipeline-comparison`: 旧管线正式输出与新管线规范化/规划结果的脱敏比较和切换门控。
 
-### Modified Capabilities
+### 修改的能力
 
 - `electronic-inspection-record`: 修改现有电子数据检查笔录的检材展示、软件列表、光盘编号、压缩包、附件分页、图片校验和模板选择要求。现有能力的完整行为以本变更 `spec.md` 的兼容约束为准，旧 `InspectionReport` 请求仍受支持。
 
-## Impact
+## 影响
 
 - SharedTypes：增加规范化模型、Profile、规划和渲染计划类型；保留现有 `InspectionReport`/`ParseReportResponse`。
 - 后端 Repository：拆分报告适配、单机人员库、WinRAR 执行/校验、模板 Profile 存储和 DOCX OOXML 读取职责。
@@ -54,7 +54,7 @@
 - 模板与输出：不改动甲方当前模板资产；新增模板登记/校验元数据和版本化输出清单。现有输出、缓存、未跟踪文件不在本变更中清理或迁移。
 - 依赖：阶段一继续使用本地文件系统、python-docx 和已存在的 officecli/WinRAR；不新增数据库、云存储或异步队列。
 
-## Non-Goals
+## 非目标
 
 - 本阶段不修改业务代码、当前模板、已有输出、解析缓存或未跟踪资产；这些是后续 implementation 阶段的任务。
 - 不把 `CanonicalInspectionCase` 完整回投为 `InspectionReport` 作为领域事实。兼容投影可能缺少字段来源、通用 identifiers、`InspectorSnapshot`、`ArchiveManifest`、`TemplateProfile` 信息及其他新模型字段；这些内容必须保留在 canonical/plan/manifest 中并明确标记不可表示。
@@ -66,7 +66,7 @@
 - 不以模板推荐结果代替用户确认；阶段三禁止静默套用普通无标记模板。
 - 不允许前端直接读取、写入或解析检查人员 JSON 文件；人员库只能通过后端 Repository 暴露的接口访问。
 
-## Acceptance Boundary
+## 验收边界
 
 - 阶段一是本变更的必须实现范围，必须通过自动化测试、DOCX XML/分页检查和甲方人工视觉验收后才允许切换默认管线。
 - 阶段二、阶段三的接口和数据模型必须可序列化、可版本化、可回滚，但不以“支持任意报告/任意模板”作为阶段一验收条件。

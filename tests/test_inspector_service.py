@@ -1,4 +1,4 @@
-"""Synthetic tests for ordered snapshots and legacy DTO compatibility."""
+"""有序快照与旧版 DTO 兼容性的合成数据测试。"""
 
 import os
 import sys

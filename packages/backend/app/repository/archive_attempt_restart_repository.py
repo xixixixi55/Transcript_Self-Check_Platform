@@ -1,4 +1,4 @@
-"""Transactional runtime-state normalization for archive restart recovery."""
+"""归档重启恢复的事务性运行时状态规范化。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .workbench_serialization import validate_opaque_id
 
 
 def normalize_runtime_after_restart(database: WorkbenchDatabase) -> list[dict[str, Any]]:
-    """Clear stale runtime state before any durable evidence is inspected."""
+    """检查任何持久证据前清除过期运行时状态。"""
     now = utc_now()
     with database.transaction() as connection:
         rows = connection.execute(
@@ -81,10 +81,10 @@ def interrupt_owned_claim(
     database: WorkbenchDatabase, *, task_id: str, owner_token: str,
     attempt_id: str, task_revision: int,
 ) -> str:
-    """Re-read and CAS-settle the current local claim after bounded stop.
+    """有界停止后重新读取当前本地声明，并通过 CAS 使其收敛。
 
-    ``task_revision`` is retained for the caller contract and diagnostics only;
-    shutdown must never use that stale snapshot as the authority.
+    `task_revision` 仅为调用方契约和诊断保留；关闭过程绝不能将该过期快照
+    作为权威。
     """
     task_id = validate_opaque_id(task_id)
     owner_token = validate_opaque_id(owner_token)

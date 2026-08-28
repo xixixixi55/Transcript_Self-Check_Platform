@@ -1,22 +1,22 @@
-# Design: Large Report Preview Liveness
+# 设计：大型报告预览活性
 
-> Change: `large-report-preview-liveness`
-> Status: `PROPOSED`; implementation, external real-report acceptance, and full Harness verification are complete. The dedicated synthetic benchmark and remaining final review gates are still open.
-> Baseline: current Legacy DTO and formal ArchiveManifest contracts
+> 变更：`large-report-preview-liveness`
+> 状态：`PROPOSED`；实现、外部真实报告验收和完整 Harness 验证已经完成。专用合成基准和其余最终审查门控仍未完成。
+> 基准：当前 Legacy DTO 和正式 ArchiveManifest 契约
 
-## 1. Design boundary
+## 1. 设计边界
 
-This design changes the lifecycle of folder-mode preview and the timing of full ArchiveContext preparation. It does not implement Shadow, Canonical, Word template changes, or a new formal archive format.
+本设计改变文件夹模式预览的生命周期和完整 ArchiveContext 准备时机。它不实现 Shadow、Canonical、Word 模板变更或新的正式归档格式。
 
-The source of truth remains:
+事实源保持不变：
 
-- `InspectionReport` for editable Legacy-compatible business data;
-- the parse cache for the business preview result only;
-- a full, current `ArchiveContext` plus validated `ArchiveManifest` for formal archive and Manifest-bound export evidence; report-only Word export consumes only the editable report.
+- 可编辑且兼容 Legacy 的业务数据使用 `InspectionReport`；
+- 解析缓存只保存业务预览结果；
+- 正式归档和 Manifest 绑定的导出证据使用完整、当前的 `ArchiveContext` 加已验证 `ArchiveManifest`；仅报告 Word 导出只消费可编辑报告。
 
-This design exposes only an authorized report-directory preparation boundary.
+本设计只公开已授权报告目录的准备边界。
 
-## 2. Target request flow
+## 2. 目标请求流程
 
 ```mermaid
 flowchart TD
@@ -37,13 +37,13 @@ flowchart TD
     M --> N[Validated Manifest and formal export gate]
 ```
 
-The preview path ends at `J`. It may issue an opaque, short-lived context shell for later preparation, but it must not build the full inventory at that point.
+预览路径在 `J` 结束。它可以签发供以后准备使用的不透明短期上下文外壳，但此时不得构建完整清单。
 
-## 3. Request-scoped parser input snapshot
+## 3. 请求范围的解析器输入快照
 
-### 3.1 Internal model
+### 3.1 内部模型
 
-Introduce an internal request-only model in the backend repository/service boundary. It is not serialized into `InspectionReport`, frontend responses, or cache keys.
+在后端存储库/服务边界引入仅供内部请求使用的模型。它不会序列化到 `InspectionReport`、前端响应或缓存键中。
 
 ```text
 ReportParseInputSnapshot
@@ -68,31 +68,31 @@ DependencyRecord
   content_digest: digest
 ```
 
-Absolute paths are retained only in the live authorized object needed to open files. Public summaries, cache file names, log fields, and metrics use `source_key`, relative paths where explicitly safe, or counters only. The snapshot lifetime is limited to the parse task and any bounded cache write.
+绝对路径只保留在打开文件所需的实时授权对象中。公共摘要、缓存文件名、日志字段和指标仅使用 `source_key`、明确安全的相对路径或计数器。快照生存期仅限解析任务和有界缓存写入。
 
-### 3.2 Core JSON and directory index
+### 3.2 核心 JSON 和目录索引
 
-`detect_report_format`, `parse_device_lists`, `parse_case_info`, `parse_report_info`, and evidence-directory resolution must accept a snapshot or a preloaded input object. They must not independently reopen the three core JSON files or rescan the report root.
+`detect_report_format`、`parse_device_lists`、`parse_case_info`、`parse_report_info` 和证据目录解析必须接受快照或预加载输入对象。它们不得分别重新打开三个核心 JSON 文件或重新扫描报告根目录。
 
-The directory index is built from directory metadata and the known evidence-number mapping. It is not a recursive content inventory and does not open media, attachment HTML, navigation payloads, or unrelated JSON.
+目录索引从目录元数据和已知证据编号映射构建。它不是递归内容清单，也不会打开媒体、附件 HTML、导航载荷或无关 JSON。
 
-### 3.3 Device candidate selection
+### 3.3 设备候选选择
 
-The current Legacy `parse_device_base` behavior is a broad fallback: it opens every JSON under each selected device subdirectory. The implementation must replace that with a controlled selector:
+当前 Legacy `parse_device_base` 行为是一种宽泛回退：它会打开所选设备子目录下的每个 JSON。实现必须用受控选择器替换它：
 
-1. Resolve only the evidence directory named by the device row.
-2. Enumerate only the supported metadata subdirectories (`Base`/`Phone` semantics already understood by the parser); never recurse from the report root.
-3. Select files by an explicit, test-covered Legacy metadata candidate rule. The rule may use stable filenames, directory roles, or a one-pass lightweight index, but it must not inspect arbitrary media or business data merely for cache identity.
-4. If a fallback scan is required for a supported Legacy variant, the scan must stream through the candidate set once, stop as soon as all required fields are confirmed where the parser contract permits, and record every file actually read. A fallback that cannot meet the performance target must fail with a safe, diagnosable parser error rather than silently reintroduce a second full read pass.
-5. The same selected input stream supplies device fields and dependency records. No separate pre-fingerprint pass may reopen those files.
+1. 只解析设备行指定的证据目录。
+2. 只枚举受支持的元数据子目录（解析器已理解的 `Base`/`Phone` 语义）；绝不从报告根目录递归。
+3. 按经过测试覆盖的明确 Legacy 元数据候选规则选择文件。规则可使用稳定文件名、目录角色或单遍轻量索引，但不得仅为缓存身份检查任意媒体或业务数据。
+4. 如果受支持的 Legacy 变体需要回退扫描，扫描必须单次流式遍历候选集，在解析器契约允许且所有必需字段都已确认时立即停止，并记录实际读取的每个文件。无法满足性能目标的回退必须以安全、可诊断的解析器错误失败，不得静默重新引入第二次完整读取。
+5. 同一所选输入流同时提供设备字段和依赖记录。不得通过单独的预指纹遍历重新打开这些文件。
 
-The candidate rule and fallback behavior must be proven against synthetic Legacy fixtures and the external manual report. The real report is not copied into fixtures or repository assets.
+候选规则和回退行为必须通过合成 Legacy 固件和外部人工报告证明。真实报告不得复制到固件或仓库资产中。
 
-## 4. Parse cache algorithm
+## 4. 解析缓存算法
 
-### 4.1 Cache miss
+### 4.1 缓存未命中
 
-The parse task owns one snapshot and one parser pass:
+解析任务拥有一个快照和一次解析器遍历：
 
 ```text
 authorize
@@ -107,21 +107,21 @@ authorize
   -> atomically save cache payload + dependency manifest
 ```
 
-The cache payload contains the existing parse result, cache version, last-access metadata, and an internal dependency manifest composed of normalized relative paths, metadata, stable identities where available, and digests. It must not contain an absolute source path or report content outside the existing result payload.
+缓存载荷包含现有解析结果、缓存版本、最后访问元数据，以及由规范化相对路径、元数据、可用的稳定身份和摘要组成的内部依赖清单。除现有结果载荷外，不得包含绝对源路径或报告内容。
 
-### 4.2 Cache hit
+### 4.2 缓存命中
 
-The cache service first validates the stored dependency manifest using directory membership, relative path safety, file existence, size, modification time, and stable identity when available. If all identities are unchanged, it reuses the stored digest and returns the cached DTO without opening dependency contents. If a dependency is missing or its metadata changes, only the affected dependency set is reopened and digested; the resulting aggregate digest decides whether a reparse is required.
+缓存服务首先使用目录成员关系、相对路径安全性、文件存在性、大小、修改时间及可用的稳定身份验证已存依赖清单。如果所有身份未变化，则复用已存摘要，并在不打开依赖内容的情况下返回缓存 DTO。如果依赖缺失或元数据变化，只重新打开受影响依赖集并计算摘要；结果聚合摘要决定是否需要重新解析。
 
-Candidate-directory membership and the candidate index metadata are themselves dependencies. This prevents a newly added relevant metadata file from being ignored while still excluding unrelated media and attachment trees.
+候选目录成员关系和候选索引元数据本身也是依赖。这可防止忽略新增的相关元数据文件，同时仍排除无关媒体和附件目录树。
 
-The existing LRU limit, cache versioning, atomic writes, corruption cleanup, and cache-clear isolation remain in force. The cache service must not call ArchiveContext cleanup or delete archive outputs.
+现有 LRU 限制、缓存版本控制、原子写入、损坏清理和缓存清除隔离继续有效。缓存服务不得调用 ArchiveContext 清理或删除归档输出。
 
-## 5. In-flight registry
+## 5. 执行中注册表
 
-### 5.1 Ownership and key
+### 5.1 所有权和键
 
-Add a Layer 21 service-owned bounded registry keyed by the existing normalized directory identity. The normalized key is created before dependency discovery but contains no raw path. The registry entry stores:
+增加由第 21 层服务拥有、以现有规范化目录身份为键的有界注册表。规范化键在依赖发现前创建，但不含原始路径。注册表条目保存：
 
 ```text
 ParseInFlightEntry
@@ -134,62 +134,62 @@ ParseInFlightEntry
   failure: safe error only
 ```
 
-The registry owns a bounded executor or equivalent shared synchronous task runner. A request awaits the shared future; request cancellation removes only that waiter. The worker is not cancelled solely because the browser disconnected, so a later retry can join the same task.
+注册表拥有有界执行器或等价的共享同步任务运行器。请求等待共享 Future；取消请求只移除该等待方。工作进程不会仅因浏览器断开而取消，因此后续重试可加入同一任务。
 
-### 5.2 Lifecycle rules
+### 5.2 生命周期规则
 
-- Acquire the entry before any dependency fingerprint, directory scan, Parser call, or cache write.
-- A second request for the same key joins the existing future and does not call the builder.
-- Successful results remain available for a short post-completion handoff window, after which the entry is removed; the persistent parse cache remains the durable reuse mechanism.
-- Failed entries are removed after all waiters observe the safe failure. A retry can then start fresh.
-- Running entries have a maximum lifetime and registry capacity. Expiry must mark the task failed safely and clean the entry; it must never expose a half-built report or leave a permanent lock.
-- Metrics use counts, durations, state, and opaque key prefixes only.
+- 在任何依赖指纹、目录扫描、Parser 调用或缓存写入前获取条目。
+- 相同键的第二个请求加入现有 Future，不调用构造器。
+- 成功结果在完成后短暂交接窗口内保持可用，随后移除条目；持久解析缓存仍是持久复用机制。
+- 所有等待方观察到安全失败后移除失败条目，之后重试可重新开始。
+- 运行中条目具有最大生存期和注册表容量。过期必须安全标记任务失败并清理条目；绝不能公开半成品报告或留下永久锁。
+- 指标只使用计数、时长、状态和不透明键前缀。
 
-The existing cache key lock remains useful for cache-store consistency, but it is no longer the first concurrency boundary. It must not be relied on to deduplicate the expensive dependency discovery that currently happens before the lock.
+现有缓存键锁仍可保障缓存存储一致性，但不再是第一个并发边界。不得依赖它去重当前在加锁前发生的昂贵依赖发现。
 
-## 6. ArchiveContext shell and deferred full inventory
+## 6. ArchiveContext 外壳和延后的完整清单
 
-### 6.1 Shell semantics
+### 6.1 外壳语义
 
-Choose a context-shell design rather than exposing a new raw path handle to the browser. The parse controller may create a short-lived runtime shell containing:
+选择上下文外壳设计，而不是向浏览器公开新的原始路径句柄。解析控制器可以创建包含以下内容的短期运行时外壳：
 
-- opaque `archive_context_id`;
-- authorized source reference held only in memory;
-- authorization type, root identity, and scope;
-- case display label needed for later archive planning;
-- shell status `not_prepared`;
-- expiry and cleanup ownership metadata;
-- no file inventory, no total byte count, no full input fingerprint, and no Manifest.
+- 不透明 `archive_context_id`；
+- 仅保存在内存中的已授权源引用；
+- 授权类型、根目录身份和范围；
+- 后续归档规划所需的案件显示标签；
+- 外壳状态 `not_prepared`；
+- 过期及清理所有权元数据；
+- 不含文件清单、总字节数、完整输入指纹和 Manifest。
 
-The shell ID is not evidence. `ArchiveContextSummary` must expose readiness explicitly, using nullable inventory fields or an `inventory_ready` flag rather than zero values that look authoritative. Formal execution rejects a shell with a stable `ARCHIVE_CONTEXT_NOT_PREPARED` error.
+外壳 ID 不是证据。`ArchiveContextSummary` 必须显式公开就绪状态，使用可空清单字段或 `inventory_ready` 标志，而不是看似权威的零值。正式执行以稳定的 `ARCHIVE_CONTEXT_NOT_PREPARED` 错误拒绝外壳。
 
-If a future implementation chooses an opaque source handle instead, it must keep the same properties: no path exposure, short TTL, authorization binding, and no formal-evidence semantics. The choice must be finalized before implementation and represented consistently in shared types and design tests.
+如果未来实现改用不透明源句柄，也必须保持相同属性：不暴露路径、短 TTL、授权绑定且不具备正式证据语义。必须在实施前最终确定选择，并在共享类型和设计测试中保持一致。
 
-### 6.2 Explicit preparation boundary
+### 6.2 显式准备边界
 
-Add a source-neutral preparation operation, preferably a dedicated endpoint or service method, that upgrades a valid shell to a full context. It must be idempotent for the same shell/attempt while a preparation is running and must expose independent `not_prepared`, `preparing`, `ready`, and `failed` states.
+增加与源无关的准备操作，最好使用专用端点或服务方法，将有效外壳升级为完整上下文。同一外壳/尝试正在准备时，该操作必须幂等，并公开相互独立的 `not_prepared`、`preparing`、`ready` 和 `failed` 状态。
 
-The preparation operation:
+准备操作：
 
-1. Revalidates shell authorization and expiry.
-2. Builds the complete metadata inventory without following links or reparse points.
-3. Performs currentness/readability checks required by the formal archive entry point.
-4. Stores the full inventory only after a complete successful build.
-5. Returns a ready context summary only after inventory publication.
+1. 重新验证外壳授权和过期时间。
+2. 在不跟随链接或重解析点的情况下构建完整元数据清单。
+3. 执行正式归档入口要求的时效性/可读性检查。
+4. 仅在完整构建成功后存储完整清单。
+5. 仅在发布清单后返回就绪上下文摘要。
 
-The current formal execution path must continue to call `verify_input_inventory`, compute the full input content fingerprint, validate the archive plan, execute WinRAR, validate archive parts, publish the Manifest, and revalidate files before download or Manifest-bound formal export. A parse snapshot or shell can never bypass those checks. Report-only Word export is a separate document-generation path and must not be treated as archive evidence.
+当前正式执行路径必须继续调用 `verify_input_inventory`、计算完整输入内容指纹、验证归档计划、执行 WinRAR、验证归档分卷、发布 Manifest，并在下载或 Manifest 绑定的正式导出前重新验证文件。解析快照或外壳绝不能绕过这些检查。仅报告 Word 导出是独立文档生成路径，不得视为归档证据。
 
-### 6.3 Claimed preparation progress and cancellation
+### 6.3 已认领准备的进度和取消
 
-Full inventory construction is part of the claimed archive execution lifecycle even though it occurs before WinRAR. Immediately after a durable claim, the coordinator advances the task to `inventory` before traversing the source tree. The traversal receives the same cancellation/interruption signal as later execution stages and checks it between directory entries, so a large Windows tree does not remain visually at the queued admission milestone and does not defer cancellation until the complete scan returns.
+虽然完整清单构建发生在 WinRAR 前，但它属于已认领归档执行生命周期。持久认领后，协调器在遍历源目录树前立即将任务推进到 `inventory`。遍历接收与后续执行阶段相同的取消/中断信号，并在目录条目间检查，使大型 Windows 目录树不会在视觉上一直停留于排队准入里程碑，也不会等完整扫描返回后才处理取消。
 
-Task ownership is identified by the durable `process_tree_id` and bound archive attempt ID. The task revision remains a compare-and-swap version for individual writes; cancellation and progress legitimately advance it and therefore cannot be used as a long-lived ownership identity. If cancellation races with preparation or worker startup, both the worker and the coordinator fallback converge the task to `cancelled` and the attempt to `ARCHIVE_CANCELLED`. A changed owner token or attempt binding still rejects the stale worker with `ARCHIVE_TASK_OWNERSHIP_LOST`.
+任务所有权由持久 `process_tree_id` 和绑定归档尝试 ID 识别。任务修订版仍是单次写入的比较并交换版本；取消和进度会合法推进它，因此不能将其用作长期所有权身份。如果取消与准备或工作进程启动竞态，工作进程和协调器回退都会使任务收敛到 `cancelled`，尝试收敛到 `ARCHIVE_CANCELLED`。所有者令牌或尝试绑定变化时，仍以 `ARCHIVE_TASK_OWNERSHIP_LOST` 拒绝过期工作进程。
 
-## 7. Response and frontend contract
+## 7. 响应和前端契约
 
-### 7.1 Parse response
+### 7.1 解析响应
 
-Preserve existing `report`, `parsed_files`, and `rar_info` semantics. Add an explicit readiness contract, for example:
+保留现有 `report`、`parsed_files` 和 `rar_info` 语义。增加明确就绪契约，例如：
 
 ```text
 archive_preparation_status: "not_prepared" | "preparing" | "ready" | "failed"
@@ -197,81 +197,81 @@ archive_context_id: string | null       // shell or full context, opaque
 archive_context: ArchiveContextSummary | null
 ```
 
-`archive_status` must not be populated with `idle` when no full context exists. If compatibility requires keeping the field, it must be documented as deprecated and paired with the explicit readiness field; consumers must use the readiness field.
+不存在完整上下文时，不得用 `idle` 填充 `archive_status`。如果兼容性要求保留该字段，必须记录为已弃用并与明确就绪字段配对；消费者必须使用就绪字段。
 
-The exact field name and nullable summary shape must be finalized in the SharedTypes task before implementation. No absolute path or report-content diagnostic may be added.
+实施前必须在 SharedTypes 任务中最终确定准确字段名和可空摘要结构。不得增加绝对路径或报告内容诊断。
 
-### 7.2 Frontend behavior
+### 7.2 前端行为
 
-`useReportParser` owns preview loading/error/retry. `useArchivePreparation` owns only explicit context preparation and later archive execution. `usePreviewArchive` becomes passive: it resets to `not_prepared` on a new report and does not start a request from an effect.
+`useReportParser` 负责预览加载/错误/重试。`useArchivePreparation` 只负责显式上下文准备和后续归档执行。`usePreviewArchive` 变为被动：新报告到来时重置为 `not_prepared`，不从副作用启动请求。
 
-The review page displays a clear archive-not-prepared status and keeps report editing available. The user may explicitly export a Word report before archive preparation; this path does not start WinRAR or claim a Manifest. Manifest-bound formal archive export remains blocked until a ready context and validated Manifest are present. Preview timeout/network failure ends preview loading; archive preparation has separate loading and error cleanup.
+审核页面显示清晰的归档未准备状态，并保持报告可编辑。用户可在归档准备前显式导出 Word 报告；该路径不启动 WinRAR 或声称拥有 Manifest。Manifest 绑定的正式归档导出保持阻塞，直至存在就绪上下文和已验证 Manifest。预览超时/网络失败会结束预览加载；归档准备具有独立的加载和错误清理。
 
-### 7.3 Word export modes
+### 7.3 Word 导出模式
 
-The export Controller distinguishes two explicit cases:
+导出 Controller 区分两种明确情况：
 
-- Report-only Word export: no archive context/Manifest is supplied. It runs the existing report validation and DOCX renderer with the editable report, without archive execution or Shadow formal-export observation.
-- Manifest-bound formal export: both an opaque context and Manifest identifier are supplied. It performs the existing complete Manifest validation and formal gates before rendering.
+- 仅报告 Word 导出：不提供归档上下文/Manifest。它使用可编辑报告运行现有报告验证和 DOCX 渲染器，不执行归档或 Shadow 正式导出观察。
+- Manifest 绑定的正式导出：同时提供不透明上下文和 Manifest 标识符。渲染前执行现有完整 Manifest 验证和正式门控。
 
-A partial archive identifier is not treated as report-only; it fails with a stable missing-Manifest error. The frontend sends archive identifiers only when both are ready.
+部分归档标识符不按仅报告处理；它以稳定的 Manifest 缺失错误失败。前端仅在二者都就绪时发送归档标识符。
 
-## 8. Layered implementation map
+## 8. 分层实施图
 
-| Layer | Responsibility | Constraints |
+| 层 | 职责 | 约束 |
 |---|---|---|
-| 0-1 | Readiness status, nullable shell summary, preparation endpoint constants | No Manifest schema change |
-| 10-12 | Passive preview, explicit preparation state, accurate export gate | Hooks cannot import backend services; no auto archive effect |
-| 20 | Snapshot, candidate index, dependency metadata/digest reads | No response assembly or service orchestration |
-| 21 | Parser orchestration, in-flight registry, shell and materialization lifecycle | May depend on Repository, not Controller or Routes |
-| 22-23 | Safe endpoint parameter mapping and response/error construction | No filesystem traversal in Controller; no raw paths in response |
+| 0-1 | 就绪状态、可空外壳摘要、准备端点常量 | 不改变 Manifest 模式 |
+| 10-12 | 被动预览、显式准备状态、准确导出门控 | Hook 不能导入后端服务；无自动归档副作用 |
+| 20 | 快照、候选索引、依赖元数据/摘要读取 | 不组装响应或编排服务 |
+| 21 | Parser 编排、执行中注册表、外壳和实体化生命周期 | 可以依赖 Repository，不能依赖 Controller 或 Routes |
+| 22-23 | 安全端点参数映射和响应/错误构造 | Controller 中不遍历文件系统；响应中无原始路径 |
 
-All new files must use named exports/normal Python module exports, remain within the repository file-size rule, and have tests in the corresponding layer. No new directory is required outside the change package and existing source/test directories.
+所有新文件必须使用命名导出/普通 Python 模块导出，符合仓库文件大小规则，并在对应层提供测试。除变更包和现有源码/测试目录外，不需要新目录。
 
-## 9. Alternatives considered
+## 9. 已考虑的替代方案
 
-### D-001: Do not extend the timeout
+### D-001：不延长超时
 
-- Decision: keep the frontend timeout contract unchanged while making the backend task shareable and the preview path lightweight.
-- Reason: a longer timeout does not remove duplicate reads, ArchiveContext inventory cost, or retry races.
-- Rejected: changing 120 seconds to several minutes; it preserves the bad critical path and worsens user feedback.
+- 决策：保持前端超时契约不变，同时使后端任务可共享并减轻预览路径。
+- 原因：延长超时无法消除重复读取、ArchiveContext 清单成本或重试竞态。
+- 拒绝：将 120 秒改为数分钟；这会保留不良关键路径并恶化用户反馈。
 
-### D-002: Request-scoped snapshot plus one-pass dependency registration
+### D-002：请求范围快照加单遍依赖登记
 
-- Decision: core inputs and actual dependency records live in one parse task and feed both DTO construction and cache persistence.
-- Reason: it removes the measured “fingerprint then Parser” duplicate read and makes the cache dependency contract explicit.
-- Rejected: keeping `parse_device_base` and adding another cache around it; overlapping caches would still reopen files and make invalidation ambiguous.
+- 决策：核心输入和实际依赖记录位于一个解析任务中，同时供 DTO 构造和缓存持久化使用。
+- 原因：消除测得的“先计算指纹再执行 Parser”重复读取，并明确缓存依赖契约。
+- 拒绝：保留 `parse_device_base` 并在其外增加另一层缓存；重叠缓存仍会重新打开文件，并使失效语义模糊。
 
-### D-003: Metadata-first cache validation
+### D-003：元数据优先的缓存验证
 
-- Decision: unchanged dependency metadata reuses stored digests; only changed dependencies are reopened.
-- Reason: cache hits should not reread or rehash thousands of unchanged JSON files.
-- Rejected: full directory content fingerprint on every request; it includes irrelevant data and was measured as a major portion of the timeout.
+- 决策：未变化依赖元数据复用已存摘要；只重新打开已变化依赖。
+- 原因：缓存命中不应重新读取或计算数千个未变化 JSON 文件的哈希。
+- 拒绝：每次请求计算完整目录内容指纹；它包含无关数据，且测量表明这是超时的主要部分。
 
-### D-004: In-flight registry before fingerprinting
+### D-004：在计算指纹前使用执行中注册表
 
-- Decision: share a bounded future before all expensive work.
-- Reason: the existing cache key lock is acquired after dependency fingerprinting, so it cannot prevent concurrent timeout retries from duplicating that work.
-- Rejected: relying only on frontend `useRef` or only on the cache-store lock; neither survives a browser Abort at the backend boundary.
+- 决策：在所有昂贵工作前共享一个有界 Future。
+- 原因：现有缓存键锁在依赖指纹计算后才获取，因此不能阻止并发超时重试重复执行该工作。
+- 拒绝：只依赖前端 `useRef` 或缓存存储锁；两者都无法在后端边界经受浏览器 Abort。
 
-### D-005: Explicit shell plus later full context
+### D-005：显式外壳加后续完整上下文
 
-- Decision: use an opaque readiness-aware shell or equivalent source handle, then materialize full inventory only at explicit archive preparation.
-- Reason: preview needs an authorized continuation reference but not a 141,209-file inventory; formal archive must still use a fresh complete inventory.
-- Rejected: creating a full context during parse and simply marking it idle; that misrepresents readiness and preserves the measured 115-second delay.
+- 决策：使用感知就绪状态的不透明外壳或等价源句柄，仅在显式归档准备时实体化完整清单。
+- 原因：预览需要已授权的后续引用，但不需要 141,209 个文件的清单；正式归档仍必须使用新鲜完整清单。
+- 拒绝：解析期间创建完整上下文并只将其标记为空闲；这会错误表达就绪状态并保留测得的 115 秒延迟。
 
-## 10. Observability and privacy
+## 10. 可观测性和隐私
 
-Record only phase names, counts, durations, readiness state, cache hit/miss, in-flight join/start/finish, and stable opaque identifiers. Do not log absolute paths, case names, device identifiers, JSON contents, cache payloads, or user-owned archive paths. Real manual acceptance uses the external report locally and produces no repository, test, documentation, or Git asset.
+只记录阶段名、计数、时长、就绪状态、缓存命中/未命中、执行中加入/开始/完成，以及稳定不透明标识符。不得记录绝对路径、案件名称、设备标识符、JSON 内容、缓存载荷或用户拥有的归档路径。真实人工验收只在本地使用外部报告，不产生仓库、测试、文档或 Git 资产。
 
-## 11. Rollback and failure behavior
+## 11. 回滚和失败行为
 
-- Keep the old full-context path behind a controlled compatibility flag only during rollout if needed; do not use it as the default preview path after acceptance.
-- If snapshot candidate selection fails, return a safe parse error and leave no partial cache entry; do not silently fall back to a full unbounded scan in production.
-- If shell materialization fails, preserve the editable preview and expose a retryable archive-preparation error.
-- If in-flight capacity is exhausted, reject new work with a stable retryable error; do not evict a running task.
-- Rollback must not delete parse caches, original report directories, RAR/Manifest outputs, or user-owned files.
+- 仅在发布期间需要时，将旧完整上下文路径置于受控兼容标志后；验收后不得用作默认预览路径。
+- 快照候选选择失败时，返回安全解析错误且不留下部分缓存条目；生产中不得静默回退到完整无界扫描。
+- 外壳实体化失败时，保留可编辑预览并公开可重试的归档准备错误。
+- 执行中容量耗尽时，以稳定可重试错误拒绝新工作；不得驱逐运行中任务。
+- 回滚不得删除解析缓存、原始报告目录、RAR/Manifest 输出或用户拥有的文件。
 
-## 12. Validation strategy
+## 12. 验证策略
 
-Automated tests use only synthetic fixtures marked `SYNTHETIC`, `TEST`, or `FIXTURE`. They cover read counters, candidate selection, dependency invalidation, concurrent waiters, cancellation, shell readiness, full-inventory enforcement, and Legacy/New DTO parity. Manual acceptance runs the previously measured external multi-material report only on the local machine; the path and business data are never written to repository files, logs, tests, or docs.
+自动化测试只使用标记为 `SYNTHETIC`、`TEST` 或 `FIXTURE` 的合成固件。覆盖读取计数器、候选选择、依赖失效、并发等待方、取消、外壳就绪、完整清单强制执行及 Legacy/New DTO 等价。人工验收只在本地机器上运行之前测量的外部多检材报告；路径和业务数据绝不写入仓库文件、日志、测试或文档。

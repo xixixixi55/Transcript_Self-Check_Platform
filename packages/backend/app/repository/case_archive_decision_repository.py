@@ -1,4 +1,4 @@
-"""Atomic persistence for the post-parse archive timing decision."""
+"""解析后归档时机决策的原子持久化。"""
 
 from __future__ import annotations
 

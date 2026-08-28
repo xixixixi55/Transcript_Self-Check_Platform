@@ -1,4 +1,4 @@
-# OpenSpec Delta: formal-artifact-authority
+# OpenSpec 差异：formal-artifact-authority
 
 ## ADDED Requirements
 

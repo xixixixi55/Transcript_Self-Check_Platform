@@ -2,11 +2,11 @@
 
 workflow_level: 3
 
-> Spec: `openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`
-> Design: `openspec/changes/background-compression-archive-completion/design.md`
+> 规格：`openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`
+> 设计：`openspec/changes/background-compression-archive-completion/design.md`
 > 范围：案件打开「立即/稍后」后台压缩触发（替换预览手动归档主路径）；压缩不阻塞审核；每 RAR 实时覆盖回填附件1/检查结果；盘号后填与顺序映射；归档完成态与导出路径提示；统一导出最新 Word + RAR（T050 起不再生成 HashMyFiles 截图，底层能力保留）；已导出标记与删除案件（复用 `case-workbench-delete`）。
 
-## SharedTypes / SharedConstants（Layer 0–1）
+## 共享类型/共享常量（Layer 0–1）
 
 - [x] T001 统一导出与盘号映射契约。
   - 文件：`packages/shared/types/archiveCompletion.ts`、`packages/shared/types/index.ts`、`packages/shared/constants/index.ts`
@@ -14,14 +14,14 @@ workflow_level: 3
   - 设计细化（apply 阶段）：「待补盘号/归档完成」实现为派生状态投影（`archive_verified` + 盘号补齐标志），不新增 `CaseLifecycle` 枚举值，避免与 retention 包进行中的 v11 迁移冲突。
   - 验证：`pnpm --filter @biji/shared typecheck` 通过。
 
-## BE Repository（Layer 20）
+## 后端 Repository（Layer 20）
 
 - [x] T002 持久化盘号映射与每 part 元数据。
   - 文件：`packages/backend/app/repository/workbench_schema.py`、`packages/backend/app/repository/archive_plan_repository.py`
   - 内容：`archive_plans` 表持久化 `mapping_revision`/`volume_slots_json`/`verified_slots_json`，`archive_plan_repository.update_mappings` 以 mapping_revision + 1 与 CAS 防并发持久化 part→盘号映射；每 part 文件名/大小/MD5 落在归档结果 parts 记录；导出记录经 `AuditEventRepository`（unified_export 事件）。遵守既有 revision/CAS 与迁移约束（含 v11 schema 同步）。
   - 验证：`tests/test_disc_mapping_service.py` 4 passed（含持久化与过期 revision）+ 归档结果/导出审计相关测试回归。
 
-## BE Services（Layer 21）
+## 后端 Service（Layer 21）
 
 - [x] T003 允许无盘号执行压缩。
   - 文件：`packages/backend/app/services/archive_execution_service.py`（现已合并原 archive gate policy 内部实现）
@@ -54,7 +54,7 @@ workflow_level: 3
   - 内容：盘号补齐校验（DISC_MAPPING_INCOMPLETE）+ 最新 Word（`generate_docx`）+ 复制全部 RAR + HashMyFiles 校验产物写入导出路径；T022 将产物更新为 PNG 截图；导出审计经 `AuditEventRepository`（不含绝对路径，符合资产策略）。
   - 验证：`tests/test_unified_export_service.py` 3 passed（成功包/盘号未补齐失败/分卷缺失失败）。
 
-## BE Controllers / Routes（Layer 22–23）
+## 后端 Controller/Route（Layer 22–23）
 
 - [x] T009 后台压缩触发与状态路由（既有能力确认）。
   - 文件：`packages/backend/app/services/archive_task_api_service.py`
@@ -71,14 +71,14 @@ workflow_level: 3
   - 内容：`POST /workbench/cases/{id}/export-bundle` 解析 succeeded 任务 manifest/final_dir + 最新草稿报告 + 照片，调用 `unified_export_service` 写入导出路径；模板上下文由 Controller 解析传入（分层约束）；导出路径须绝对且存在。
   - 验证：`tests/test_unified_export_service.py` 3 passed + `tests/test_archive_task*.py`/`test_workbench_controller.py` 回归。
 
-## FE Hooks（Layer 10）
+## 前端 Hook（Layer 10）
 
 - [x] T012 归档完成/盘号映射/统一导出 hook 与状态投影。
   - 文件：新增 `packages/frontend/src/hooks/useArchiveCompletion.ts`、新增 `packages/shared/utils/archiveCompletionRules.ts`
   - 内容：`useArchiveCompletion` 提供盘号映射（POST disc-mapping）与统一导出（POST export-bundle）动作与错误投影；`resolveArchiveCompletionStatus`/`allPartsDiscMapped` 派生卡片完成状态。
   - 验证：`useArchiveCompletion.test.tsx` 3 passed + `archiveCompletionRules.test.ts` 7 passed。
 
-## FE Components / Pages（Layer 11–12）
+## 前端组件/页面（Layer 11–12）
 
 - [x] T013 案件卡片完成状态、统一导出入口与彻底删除。
   - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、新增 `packages/frontend/src/hooks/useArchiveCompletionStatuses.ts`

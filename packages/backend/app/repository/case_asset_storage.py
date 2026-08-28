@@ -1,4 +1,4 @@
-"""Controlled binary storage for opaque case assets."""
+"""不透明案件资产的受控二进制存储。"""
 
 from __future__ import annotations
 

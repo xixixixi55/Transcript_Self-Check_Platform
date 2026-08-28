@@ -1,5 +1,5 @@
-// Layer 11: FE_Components — click-to-edit 通用字段组件
-// REQ-019: 文本展示 → 点击 → 编辑 → 失焦保存 / Escape 取消
+// 第 11 层：FE_Components — 点击编辑通用字段组件
+// REQ-019：文本展示 → 点击 → 编辑 → 失焦保存 / Escape 取消
 import React, { useState, useRef, useEffect } from 'react'
 import { Input, Typography } from 'antd'
 import { EditOutlined } from '@ant-design/icons'

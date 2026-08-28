@@ -1,4 +1,4 @@
-"""Application service for selecting the restart-bound archive storage root."""
+"""选择重启绑定归档存储根目录的应用服务。"""
 
 from __future__ import annotations
 

@@ -22,20 +22,20 @@ spec_sync_evidence: Windows 展示顺序已同步到 electronic-inspection-recor
 
 任务按架构层级从低到高排列。
 
-### Layer 0 — SharedTypes
+### Layer 0——共享类型
 
 - [x] 在 `packages/shared/types/index.ts` 及必要的规范化类型中增加可选的检查环境快照契约，记录操作系统显示值、火绒名称/版本和识别状态；缺少字段的旧草稿保持兼容。验证：shared/frontend typecheck 与旧草稿 fixture 测试。
 
-### Layer 2 — SharedUtils
+### Layer 2——共享工具
 
 - [x] 在 `packages/shared/utils/` 增加步骤3的确定性文本投影函数，并让 `softwareProjectionUtils.ts` 在 `inspection.hardware_device` 修改时使用已保存环境快照重投影步骤3；步骤1、2、4及用户其他字段保持现状。验证：扩展 `packages/frontend/src/__tests__/softwareProjectionUtils.test.ts`，覆盖正常识别、各类“待确认”、硬件切换、旧草稿兼容与非目标步骤不变。
 - [x] 移除 `packages/shared/constants/index.ts` 中写死 FL-901、Windows 10 与火绒 6.0.6.1 的步骤3常量，改由动态投影函数承担正式文本生成。验证：全仓搜索不再存在该写死完整句。
 
-### Layer 20 — BE Repository
+### Layer 20——后端 Repository
 
 - [x] 新增 `packages/backend/app/repository/local_inspection_environment_repository.py`，通过可注入的 Windows 原生信息源读取系统版本/版本类型/位数，并从本机安装信息与可验证文件版本中识别火绒；非 Windows、键缺失、访问异常或值损坏均返回结构化未识别结果，不抛出原始路径或本机软件清单。验证：新增 `tests/test_local_inspection_environment_repository.py`，使用合成注册表/文件版本适配器覆盖 Windows 10/11、32/64 位、火绒已安装、版本未知、未安装和异常分支。
 
-### Layer 21 — BE Services
+### Layer 21——后端 Service
 
 - [x] 新增 `packages/backend/app/services/inspection_environment_service.py`，把 Repository 结果规范化为环境快照并生成步骤3；只使用检测事实和显式“待确认”文案，不启动安全软件或扫描。验证：新增 `tests/test_inspection_environment_service.py` 覆盖所有验收文案与无虚假“未发现病毒”边界。
 - [x] 修改 `packages/backend/app/services/case_draft_service.py` 及 `workbench_factory_service.py`，在新案件完成共享默认硬件选择后采集一次环境快照并覆盖 Parser 的步骤3占位内容；既有草稿加载/保存不重新探测。验证：扩展 `tests/test_case_shared_defaults.py` 与 `tests/test_workbench_services.py`，覆盖最终硬件优先、快照持久化、旧案件不重写和依赖注入。

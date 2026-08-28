@@ -1,4 +1,4 @@
-"""Constrained business hash algorithm metadata shared by backend repositories."""
+"""后端仓储共享的受限业务哈希算法元数据。"""
 
 from __future__ import annotations
 

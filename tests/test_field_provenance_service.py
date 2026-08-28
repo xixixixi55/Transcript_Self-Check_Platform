@@ -1,4 +1,4 @@
-"""SYNTHETIC T009 coverage for persisted case field provenance."""
+"""持久化案件字段来源的 SYNTHETIC T009 覆盖测试。"""
 
 import copy
 import os

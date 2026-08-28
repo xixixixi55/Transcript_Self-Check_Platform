@@ -1,4 +1,4 @@
-"""Versioned, atomic JSON storage for the local inspector library."""
+"""本地检查人员库的版本化原子 JSON 存储。"""
 
 from __future__ import annotations
 
@@ -23,15 +23,15 @@ _WRITE_LOCK = threading.RLock()
 
 
 class InspectorValidationError(ValueError):
-    """A user-supplied inspector field failed validation."""
+    """用户提供的检查人员字段验证失败。"""
 
 
 class InspectorDataError(RuntimeError):
-    """The library file is missing, corrupt, or cannot be safely written."""
+    """库文件缺失、损坏或无法安全写入。"""
 
 
 class InspectorNotFoundError(LookupError):
-    """The requested inspector ID does not exist."""
+    """请求的检查人员 ID 不存在。"""
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,7 @@ class InspectorRecord:
 def project_case_inspector_snapshot(
     value: Any, *, snapshot_id: str, selected_order: int,
 ) -> dict[str, Any]:
-    """Copy library or parser values into a detached, case-scoped inspector snapshot."""
+    """将库或解析器值复制到分离的案件级检查人员快照。"""
     raw = dict(value) if isinstance(value, Mapping) else {
         "id": value.id, "name": value.name, "unit": value.unit, "position": value.position,
         "police_number": value.police_number,
@@ -71,7 +71,7 @@ def project_case_inspector_snapshot(
 
 
 def resolve_app_data_dir(env: Mapping[str, str] | None = None) -> Path:
-    """Resolve the application data directory without logging user paths."""
+    """解析应用数据目录，不记录用户路径。"""
 
     values = env if env is not None else os.environ
     override = str(values.get("BIJI_APP_DATA_DIR", "")).strip()
@@ -125,7 +125,7 @@ def _validate_fields(
 
 
 class InspectorRepository:
-    """Repository interface that can later be replaced without changing services."""
+    """可在不更改服务的情况下替换的仓储接口。"""
 
     def __init__(self, data_dir: str | os.PathLike[str] | None = None):
         self.data_dir = Path(data_dir) if data_dir is not None else resolve_app_data_dir()

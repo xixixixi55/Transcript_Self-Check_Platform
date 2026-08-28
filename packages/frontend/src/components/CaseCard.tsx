@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — one persistent case workbench card.
+// 第 11 层：FE_Components — 单个持久化案件工作台卡片。
 import React from 'react'
 import { Button, Card, Dropdown, Tag, Tooltip, Typography } from 'antd'
 import type { MenuProps } from 'antd'

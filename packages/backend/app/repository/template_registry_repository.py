@@ -1,4 +1,4 @@
-"""Immutable, versioned template registry with path-free public projections."""
+"""具有无路径公开投影的不可变版本化模板注册表。"""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ class TemplateRegistryRepository:
         expected_asset_id: str,
         asset_path: str | Path,
     ) -> None:
-        """Relocate a known built-in version after the service validates its asset."""
+        """服务验证资产后重新定位已知内置版本。"""
         reference = _reference(template_ref)
         existing = self.find_internal(reference)
         if existing is None:
@@ -123,7 +123,7 @@ class TemplateRegistryRepository:
     def remove_builtin_versions(
         self, template_id: str, versions: set[str] | frozenset[str],
     ) -> int:
-        """Remove retired built-in registry metadata after references are migrated."""
+        """引用迁移后移除已停用的内置注册表元数据。"""
         template_id = validate_opaque_id(template_id)
         normalized = tuple(sorted(validate_opaque_id(version) for version in versions))
         if not normalized:

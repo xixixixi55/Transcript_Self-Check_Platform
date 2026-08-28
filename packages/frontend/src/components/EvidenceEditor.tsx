@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 检材情况编辑器
+// 第 11 层：FE_Components — 检材情况编辑器
 import React from 'react'
 import { Alert, Button, Card, Input, Select, Space, Typography } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'

@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — approved record-template management.
+// 第 11 层：FE_Components — 已批准的笔录模板管理。
 import React, { useState } from 'react'
 import {
   Alert, Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography, Upload, message,

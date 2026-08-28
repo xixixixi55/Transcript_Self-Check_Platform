@@ -1,4 +1,4 @@
-"""Pipeline guards, background Shadow observation and safe diagnostics query."""
+"""流水线防护、后台 Shadow 观测和安全诊断查询。"""
 
 from __future__ import annotations
 

@@ -397,7 +397,7 @@ def test_shared_default_rejects_unsupported_hash_algorithm(tmp_path: Path):
 
 
 def test_parser_system_default_value_yields_to_shared_default():
-    """Parser returning only the hardcoded system defaults must not block shared-default prefill."""
+    """解析器仅返回硬编码系统默认值时，不得阻止共享默认值预填。"""
     report = {
         "document_number": DEFAULT_DOCUMENT_NUMBER,
         "introduction": {
@@ -553,7 +553,7 @@ def test_company_prefix_resolves_after_shared_hardware_default(monkeypatch):
 
 
 def test_parser_system_default_value_kept_when_no_shared_default():
-    """Without a shared default, the parser's system default remains and is sourced as system_default."""
+    """没有共享默认值时，保留解析器的系统默认值，并将来源标记为 system_default。"""
     report = {
         "document_number": DEFAULT_DOCUMENT_NUMBER,
         "introduction": {

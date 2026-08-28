@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — session-only projection of existing review facts into guided cards.
+// 第 10 层：FE_Hooks — 仅在会话中将已有审核事实投影为引导卡片。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   ArchiveMedium, ArchiveTaskCardSummary, CaseLifecycle, InspectionReport, SourceAccessStatus,

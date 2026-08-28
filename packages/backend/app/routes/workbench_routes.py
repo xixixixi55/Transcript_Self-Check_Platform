@@ -1,4 +1,4 @@
-"""Layer 23: persistent workbench route aggregation."""
+"""第 23 层：持久化工作台路由聚合。"""
 
 from fastapi import APIRouter
 

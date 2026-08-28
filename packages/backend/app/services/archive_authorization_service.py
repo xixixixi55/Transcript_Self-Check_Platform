@@ -1,4 +1,4 @@
-"""Service boundary for fixed roots and future trusted local grants."""
+"""固定根目录和未来可信本地授权的服务边界。"""
 
 from __future__ import annotations
 
@@ -56,14 +56,14 @@ class ArchiveAuthorizationService:
         )
 
     def issue_exact_directory_grant(self, report_dir: str) -> str:
-        """Reserved for a trusted desktop bridge; no ordinary HTTP route calls it."""
+        """预留给可信桌面桥接；普通 HTTP 路由不会调用。"""
         return self.store.issue_exact_directory_grant(report_dir)
 
     def consume_exact_directory_grant(self, token: str, selected_path: str) -> bool:
-        """Consume a one-use grant produced by the native export-directory picker.
+        """使用原生导出目录选择器产生的一次性授权。
 
-        Returns False on an unknown, expired, used or path-mismatched token so
-        export-bundle only ever writes to a picker-authorised path.
+        对未知、过期、已使用或路径不匹配的令牌返回 False，使 export-bundle 始终仅写入
+        选择器授权的路径。
         """
         try:
             self.store._consume_grant(token, Path(selected_path).resolve(strict=False))

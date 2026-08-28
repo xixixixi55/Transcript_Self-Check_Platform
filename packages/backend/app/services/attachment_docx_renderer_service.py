@@ -1,4 +1,4 @@
-"""Render stage-one attachment plans into the fixed template XML."""
+"""将阶段一附件计划渲染到固定模板 XML。"""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def render_attachment_plan(
     doc: Any, plan: AttachmentPlan, profile: CurrentTemplateProfile,
     report: Mapping[str, Any], photo_assets: Sequence[Attachment2PhotoAsset] = (),
 ) -> None:
-    """Replace only the attachment regions described by current-template-v1."""
+    """仅替换 current-template-v1 描述的附件区域。"""
     body = doc.element.body
     label1 = _find_paragraph(body, profile.attachment1_label)
     heading1 = _find_paragraph(body, profile.attachment1_heading, exact=True)
@@ -258,7 +258,7 @@ def _remove_page_breaks(element: Any) -> None:
 
 
 def _is_empty_boundary_paragraph(element: Any) -> bool:
-    """Identify empty boundary paragraphs left when Attachment2 is skipped."""
+    """识别跳过 Attachment2 时留下的空边界段落。"""
     if element.tag != qn(W_NS, "p") or text_of(element):
         return False
     return not any(
@@ -276,7 +276,7 @@ def _replace_element_text(element: Any, old: str, new: str) -> None:
 
 
 def _replace_text_nodes(element: Any, old: str, new: str) -> None:
-    """Replace a fixed label without flattening VML/textbox paragraph structure."""
+    """替换固定标签，不展平 VML/文本框段落结构。"""
     for node in element.findall(".//%s" % qn(W_NS, "t")):
         if node.text and old in node.text:
             node.text = node.text.replace(old, new)

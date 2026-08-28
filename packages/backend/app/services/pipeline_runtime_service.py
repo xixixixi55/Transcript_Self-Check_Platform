@@ -1,4 +1,4 @@
-"""Central runtime settings and non-invasive pipeline orchestration."""
+"""中央运行时设置和非侵入式流水线编排。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def _configured_at() -> str:
 
 
 class PipelineMode(str, Enum):
-    """The only supported migration modes."""
+    """唯一受支持的迁移模式。"""
 
     LEGACY = "legacy"
     SHADOW = "shadow"
@@ -25,7 +25,7 @@ class PipelineMode(str, Enum):
 
 
 class PipelineRunStatus(str, Enum):
-    """Observable status without creating document side effects."""
+    """不产生文档副作用的可观察状态。"""
 
     LEGACY_FORMAL_OUTPUT = "legacy_formal_output"
     SHADOW_COMPARE_ONLY = "shadow_compare_only"
@@ -34,7 +34,7 @@ class PipelineRunStatus(str, Enum):
 
 @dataclass(frozen=True)
 class RuntimeVersions:
-    """Version anchors used to isolate future semantic caches."""
+    """用于隔离未来语义缓存的版本锚点。"""
 
     schema_version: str = "canonical-v1"
     adapter_version: str = "report-adapter-v1"
@@ -44,7 +44,7 @@ class RuntimeVersions:
 
 @dataclass(frozen=True)
 class PipelineSettings:
-    """Immutable settings shared by pipeline services."""
+    """流水线服务共享的不可变设置。"""
 
     mode: PipelineMode = PipelineMode.LEGACY
     source: str = "default"
@@ -55,12 +55,12 @@ class PipelineSettings:
 
     @property
     def cache_namespace(self) -> str:
-        """Keep mode-specific derived artifacts from sharing a cache namespace."""
+        """防止特定模式派生工件共享缓存命名空间。"""
 
         return f"pipeline-{self.mode.value}"
 
     def public_dict(self) -> dict[str, object]:
-        """Expose only stable mode metadata; never expose environment contents."""
+        """仅暴露稳定模式元数据；绝不暴露环境内容。"""
         return {
             "mode": self.mode.value,
             "source": self.source,
@@ -76,7 +76,7 @@ class PipelineSettings:
 
 
 def pipeline_settings_for_app(app: Any) -> PipelineSettings:
-    """Read the single startup-owned settings object used by Controllers."""
+    """读取控制器使用的唯一启动期自有设置对象。"""
 
     settings = getattr(getattr(app, "state", None), "pipeline_settings", None)
     return settings if isinstance(settings, PipelineSettings) else PipelineSettings()
@@ -85,11 +85,10 @@ def pipeline_settings_for_app(app: Any) -> PipelineSettings:
 def load_pipeline_settings(
     config: Mapping[str, str] | None = None,
 ) -> PipelineSettings:
-    """Read the mode once, safely falling back to legacy for invalid values.
+    """仅读取一次模式，对无效值安全回退到旧版。
 
-    Tests can pass a mapping explicitly. Production callers omit it so only this
-    function reads ``BIJI_PIPELINE_MODE``; parsers and renderers do not inspect
-    environment variables themselves.
+    测试可显式传入映射。生产调用方省略该值，因此只有此函数读取
+    `BIJI_PIPELINE_MODE`；解析器和渲染器自身不检查环境变量。
     """
 
     values = os.environ if config is None else config
@@ -112,7 +111,7 @@ def load_pipeline_settings(
 
 @dataclass(frozen=True)
 class PipelineRunResult:
-    """In-memory result for legacy/shadow/canonical orchestration."""
+    """旧版、Shadow 和规范编排的内存结果。"""
 
     mode: PipelineMode
     status: PipelineRunStatus
@@ -124,7 +123,7 @@ class PipelineRunResult:
 
 
 class PipelineOrchestrator:
-    """Select a pipeline mode without invoking compression or rendering."""
+    """选择流水线模式，不调用压缩或渲染。"""
 
     def __init__(self, settings: PipelineSettings) -> None:
         self._settings = settings

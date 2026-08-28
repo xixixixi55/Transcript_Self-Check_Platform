@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — atomic batch-image selection and ordering.
+// 第 10 层：FE_Hooks — 原子化的批量图片选择与排序。
 import { useCallback, useRef } from 'react'
 import type { ChangeEvent } from 'react'
 import { message, Upload } from 'antd'

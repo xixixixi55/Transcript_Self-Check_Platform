@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — controlled directory-source replacement without path echoing.
+// 第 11 层：FE_Components — 受控替换目录来源，不回显路径。
 import React, { useState } from 'react'
 import { Alert, Button, Input, Space } from 'antd'
 import { SourceStatusBadge } from './SourceStatusBadge'

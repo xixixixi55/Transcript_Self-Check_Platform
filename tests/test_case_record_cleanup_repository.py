@@ -1,4 +1,4 @@
-"""Synthetic whitelist, source-tombstone, and snapshot cleanup tests."""
+"""白名单、来源墓碑和快照清理的合成数据测试。"""
 
 from __future__ import annotations
 

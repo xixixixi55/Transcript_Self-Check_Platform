@@ -1,4 +1,4 @@
-"""Atomic cleaned-case tombstone compaction behind a durable cleanup claim."""
+"""在持久清理声明保护下原子压缩已清理案件墓碑。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ _ACTIVE_TASK_STATUSES = ("queued", "running", "cancelling", "interrupted", "fail
 
 
 class CaseTombstoneRepository:
-    """Compact only after the cleanup worker has proven its durable claim."""
+    """仅在清理工作进程证明其持久声明后压缩。"""
 
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database

@@ -1,9 +1,9 @@
-// Layer 0: SharedTypes — deferred disc mapping and unified export contracts.
+// 第 0 层：SharedTypes — 延迟光盘映射与统一导出契约。
 
 import type { CaseLifecycle } from './workbench'
 import type { ArchiveMedium } from './archive'
 
-/** One RAR part's disc mapping produced from the first disc number sequence. */
+/** 根据首个光盘编号序列生成的单个 RAR 分卷光盘映射。 */
 export interface ArchivePartDiscMapping {
   part_number: number
   disc_number: string
@@ -11,9 +11,9 @@ export interface ArchivePartDiscMapping {
 }
 
 export interface DiscMappingRequest {
-  /** Case revision guard, mirrors workbench command semantics. */
+  /** 案件版本保护值，与工作台命令语义一致。 */
   expected_revision: number
-  /** Archive-plan row revision observed with the displayed part mappings. */
+  /** 显示分卷映射时观测到的归档计划行版本。 */
   expected_plan_row_revision: number
   first_disc_number: string
 }
@@ -32,11 +32,11 @@ export interface DiscMappingResult {
 
 export interface UnifiedExportRequest {
   expected_revision: number
-  /** Path returned by the native directory picker; the backend re-validates it. */
+  /** 原生目录选择器返回的路径；后端会再次验证。 */
   export_path: string
-  /** One-use grant issued by the picker; the backend only writes to this path. */
+  /** 选择器签发的一次性授权；后端只写入此路径。 */
   directory_token: string
-  /** User-chosen Word file name (without directory); overrides the auto-generated one. */
+  /** 用户选择的 Word 文件名（不含目录）；覆盖自动生成的名称。 */
   word_filename: string
 }
 
@@ -62,16 +62,15 @@ export interface OpenExportDirectoryResult {
 }
 
 /**
- * Result of the trusted native directory picker opened by the backend.
- * The export path is always chosen by the picker, never typed by the user.
- * The one-use grant is consumed by export-bundle so the backend only ever
- * writes to a picker-authorised path.
+ * 后端打开的可信原生目录选择器的结果。
+ * 导出路径始终由选择器选定，绝不由用户键入。
+ * 一次性授权由 export-bundle 消耗，确保后端只写入选择器授权的路径。
  */
 export type ExportDirectoryResult =
   | { path: string; token: string }
   | { cancelled: true }
 
-/** Durable export log row projected for the workbench card and audit. */
+/** 投影到工作台卡片和审计中的持久导出日志行。 */
 export interface ExportRecord {
   export_id: string
   case_id: string
@@ -79,16 +78,16 @@ export interface ExportRecord {
   export_path: string
   word_filename: string
   rar_filenames: string[]
-  /** @deprecated Compatibility field for records created while unified export published PNGs. */
+  /** @deprecated 兼容统一导出曾发布 PNG 时创建的记录。 */
   hash_verification_image?: string
-  /** @deprecated Compatibility field for durable records created before PNG export. */
+  /** @deprecated 兼容 PNG 导出前创建的持久记录。 */
   hash_verification_html?: string
   exported_at: string
 }
 
 /**
- * Archive completion state projected for the case card. Derived from lifecycle
- * plus a persisted disc-mapping-complete flag; not a separate lifecycle value.
+ * 投影到案件卡片的归档完成状态。由生命周期加持久化的光盘映射完成标志推导；
+ * 并非独立的生命周期值。
  */
 export type ArchiveCompletionStatus =
   | 'compressing'

@@ -1,4 +1,4 @@
-"""Case-scoped evidence and inspector order normalization."""
+"""案件级证据和检查人员顺序规范化。"""
 
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ _MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
 
 class CaseOrderService:
-    """Apply the one-time parser default order and preserve later user order."""
+    """应用一次性解析器默认顺序，并保留后续用户顺序。"""
 
     def __init__(self, identifier_factory: Callable[[str], str] | None = None) -> None:
         self._identifier_factory = identifier_factory or _new_identifier
 
     def initialize(self, report: Mapping[str, Any]) -> dict[str, Any]:
-        """Create stable case IDs and use natural order only for a fresh parser draft."""
+        """创建稳定案件 ID，仅对新解析器草稿使用自然顺序。"""
         value = copy.deepcopy(dict(report))
         introduction = _introduction(value)
         evidence = self._evidence_items(introduction.get("evidence_list"), ())
@@ -33,7 +33,7 @@ class CaseOrderService:
     def prepare_save(
         self, previous_report: Mapping[str, Any] | None, report: Mapping[str, Any],
     ) -> dict[str, Any]:
-        """Keep submitted array order while recovering absent stable IDs from the draft."""
+        """保留提交数组顺序，同时从草稿恢复缺失的稳定 ID。"""
         value = copy.deepcopy(dict(report))
         introduction = _introduction(value)
         previous_intro = _introduction(copy.deepcopy(dict(previous_report or {})))

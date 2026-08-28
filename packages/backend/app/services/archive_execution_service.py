@@ -1,4 +1,4 @@
-"""Synchronous archive orchestration over authorized source and publication boundaries."""
+"""在授权来源和发布边界上进行同步归档编排。"""
 
 from __future__ import annotations
 
@@ -53,8 +53,8 @@ def pre_archive_gate(report: dict) -> ExportGateResult:
                 disc_sequence_error_code=disc_result.error_code,
             )
         )
-    # Deferred disc number: compression may start without it; the sequence is
-    # mapped before export, where the export gate still requires a valid number.
+    # 延迟光盘编号：压缩可在没有编号时开始；序号会在导出前映射，
+    # 届时导出门禁仍要求有效编号。
     return evaluate_export_gate(ExportGateInput())
 
 
@@ -381,7 +381,7 @@ def execute_archive(
                 workbench_context_id, verified_md5s=verified_output_md5s,
                 verified_file_identities=verified_output_identities,
             )
-            try:  # plan projection is best-effort; archive already succeeded
+            try:  # 计划投影仅尽力执行；归档已经成功
                 persist_archive_plan_for_attempt(attempt_service, attempt_id, plan, public_manifest)
             except Exception:
                 pass

@@ -1,4 +1,4 @@
-"""T014 scheduler, admission, progress, and mapping tests."""
+"""T014 调度、准入、进度和映射测试。"""
 
 from __future__ import annotations
 

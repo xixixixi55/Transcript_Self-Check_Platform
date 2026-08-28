@@ -1,4 +1,4 @@
-"""Ownership marker and conservative staging cleanup primitives."""
+"""所有权标记和保守的暂存清理原语。"""
 
 from __future__ import annotations
 
@@ -65,9 +65,8 @@ def remove_ownership_marker(staging_dir: Path) -> None:
     try:
         marker.unlink()
     except PermissionError:
-        # A concurrent legal publisher may have removed the marker and then
-        # restored the directory read-only.  Recheck before retrying so the
-        # caller can treat that exact race as idempotent success.
+        # 并发的合法发布者可能已删除标记，随后恢复目录只读状态。
+        # 重试前再次检查，使调用方可将这一特定竞争视为幂等成功。
         if not marker.exists():
             raise FileNotFoundError(marker)
         marker.chmod(stat.S_IRUSR | stat.S_IWUSR)

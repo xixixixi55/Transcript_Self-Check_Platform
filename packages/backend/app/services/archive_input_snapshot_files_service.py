@@ -1,4 +1,4 @@
-"""Filesystem primitives for task-bound sealed archive inputs."""
+"""任务绑定密封归档输入的文件系统原语。"""
 
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ def resolve_snapshot_dir(output_root: str | Path, locator: str) -> Path:
 
 
 def snapshot_name_matches_id(snapshot_id: str, snapshot_name: str) -> bool:
-    """Bind both legacy names and short fallback aliases to the full ID."""
+    """将旧版名称和短回退别名都绑定到完整 ID。"""
     if snapshot_name == snapshot_id:
         return True
     token = snapshot_id.removeprefix("snapshot-")

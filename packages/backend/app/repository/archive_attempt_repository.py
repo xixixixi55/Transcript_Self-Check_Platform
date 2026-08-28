@@ -1,4 +1,4 @@
-"""Persistent, path-free public views and private recovery data for archive attempts."""
+"""归档尝试的持久化无路径公开视图和私有恢复数据。"""
 
 from __future__ import annotations
 

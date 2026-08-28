@@ -1,4 +1,4 @@
-"""WinRAR discovery and capability probing without path disclosure."""
+"""不泄露路径的 WinRAR 发现和能力探测。"""
 
 from __future__ import annotations
 
@@ -44,9 +44,8 @@ def _safe_probe_output(result: subprocess.CompletedProcess[str]) -> str:
 
 
 def _probe_candidate(candidate: Path, probe_runner: ProbeRunner) -> WinRarCapability | None:
-    # WinRAR.exe is a GUI binary: `-?` opens a window and does not provide
-    # console help. Prefer the console sibling from the same installation so
-    # discovery never launches GUI interaction.
+    # WinRAR.exe 是 GUI 二进制文件：`-?` 会打开窗口且不提供控制台帮助。
+    # 优先使用同一安装目录中的控制台版本，确保探测绝不启动 GUI 交互。
     if candidate.name.casefold() == "winrar.exe":
         console_sibling = candidate.with_name("rar.exe")
         if console_sibling.is_file():
@@ -65,9 +64,9 @@ def _probe_candidate(candidate: Path, probe_runner: ProbeRunner) -> WinRarCapabi
         return None
     output = _safe_probe_output(result)
     match = re.search(r"(?:WinRAR|RAR)\s+([0-9]+\.[0-9]+)", output, re.IGNORECASE)
-    # WinRAR and the console RAR binary document this switch differently:
-    # WinRAR often prints `-v<bytes>b`, while RAR 5.x prints `v<size>[k,b]`.
-    # Both forms prove that the volume switch is exposed by this executable.
+    # WinRAR 与控制台 RAR 二进制文件对此开关的文档表述不同：
+    # WinRAR 通常显示 `-v<bytes>b`，而 RAR 5.x 显示 `v<size>[k,b]`。
+    # 两种形式都能证明该可执行文件公开了分卷开关。
     supports_volumes = bool(
         re.search(r"(?:-v(?:\d|<)|\bv\s*<size>|\bvolume)", output, re.IGNORECASE)
     )
@@ -84,7 +83,7 @@ def discover_winrar(
     path_lookup: Callable[[str], str | None] = shutil.which,
     probe_runner: ProbeRunner = subprocess.run,
 ) -> WinRarCapability:
-    """Use configured path → environment → PATH → standard install locations."""
+    """依次使用配置路径、环境变量、PATH 和标准安装位置。"""
 
     environment = os.environ if env is None else env
     seen: set[str] = set()

@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: T9 living spec sync; openspec/specs/electronic-inspection-record/spec.md REQ-011/REQ-012
+spec_sync_evidence: T9 现行规格同步；openspec/specs/electronic-inspection-record/spec.md REQ-011/REQ-012
 
 > 范围：阶段 1 主流程的报告解析缓存，以及与 RAR/ArchiveManifest 独立生命周期所需的安全复用登记。
 > 非范围：Canonical、Shadow、阶段 2、阶段 3、LLM，以及独立的归档文件清理 UI。
@@ -68,7 +68,7 @@ spec_sync_evidence: T9 living spec sync; openspec/specs/electronic-inspection-re
   - 文件：`packages/frontend/src/hooks/useReportParser.ts`、`packages/frontend/src/components/ReportUploadStep.tsx`、`packages/frontend/src/pages/RecordGeneratePage.tsx`
   - 验证：Vitest/React Testing Library 覆盖确认、成功、空缓存、失败重试和重复点击禁用；当前解析结果和表单状态不被清空动作强制抹除。
 
-### living spec
+### 现行规格
 
 - [x] **T9 同步当前 living spec**
   - 文件：`openspec/specs/electronic-inspection-record/spec.md`、`openspec/specs/data-model.md`

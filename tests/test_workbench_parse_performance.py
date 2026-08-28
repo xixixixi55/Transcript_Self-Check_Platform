@@ -1,4 +1,4 @@
-"""Synthetic timing evidence for the workbench Legacy parse fast path."""
+"""工作台旧版解析快速路径的合成数据计时证据。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Persist and validate the deployment-local archive storage selection."""
+"""持久化并验证部署本地归档存储选择。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Bounded, TTL-managed and thread-safe Shadow observations."""
+"""有界、TTL 管理且线程安全的 Shadow 观测。"""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class ShadowRunRecord:
 
 
 class ShadowRuntimeStore:
-    """Store only safe diagnostics; no report/canonical values or paths persist."""
+    """仅存储安全诊断；不持久化报告、规范值或路径。"""
 
     def __init__(
         self, *, max_records: int = SHADOW_RUNTIME_MAX_RECORDS,

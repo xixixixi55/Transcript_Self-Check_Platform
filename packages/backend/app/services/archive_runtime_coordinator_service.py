@@ -1,4 +1,4 @@
-"""FastAPI-lifespan-owned coordination over the durable archive queue."""
+"""由 FastAPI 生命周期负责的持久归档队列协调。"""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ _PREPARATION_CANCEL_POLL_SECONDS = 0.25
 
 
 class ArchiveRuntimeCoordinator:
-    """Own one bounded scheduler loop; persistence remains the queue authority."""
+    """持有一个有界调度循环；持久层仍是队列权威。"""
 
     def __init__(
         self,
@@ -241,12 +241,10 @@ class ArchiveRuntimeCoordinator:
             pass
 
     def _finish_cancelled(self, claim: ArchiveTaskClaim) -> bool:
-        """Converge a cancellation observed before a WorkItem exists.
+        """收敛在 WorkItem 创建前观察到的取消。
 
-        Preparation runs before ``ArchiveWorkerService.run`` starts the attempt.
-        A client cancellation can therefore race with item construction; that
-        race must settle as a normal cancellation instead of being normalized
-        as an ownership failure.
+        准备工作在 `ArchiveWorkerService.run` 启动尝试前运行，因此客户端取消可能与
+        工作项构造产生竞态；该竞态必须作为正常取消收敛，而不能规范化为所有权失败。
         """
         if not self._claim_binding_matches(claim):
             return False
@@ -266,7 +264,7 @@ class ArchiveRuntimeCoordinator:
         try:
             self.progress.cancel(claim.task_id, claim.owner_token)
         except WorkbenchPersistenceError:
-            # A concurrent worker may have already converged the same cancel.
+            # 并发工作线程可能已经收敛了同一次取消操作。
             current = self.scheduler.tasks.get(claim.task_id)
             if current["status"] != "cancelled":
                 raise
@@ -286,7 +284,7 @@ class ArchiveRuntimeCoordinator:
     def _preparation_interruption_check(
         self, claim: ArchiveTaskClaim,
     ) -> Callable[[], bool]:
-        """Poll durable cancellation without querying SQLite per file."""
+        """轮询持久取消状态，不按文件查询 SQLite。"""
         last_checked = 0.0
         cancelled = False
 

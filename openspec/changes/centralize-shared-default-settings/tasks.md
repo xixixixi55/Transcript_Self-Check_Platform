@@ -4,7 +4,7 @@ workflow_level: 2
 spec_sync_status: reconciled
 spec_sync_evidence: 检查要求替换提取方式的最终行为已同步到 electronic-inspection-record REQ-007 与 data-model SharedDefaults 合同
 
-> Spec: `openspec/changes/centralize-shared-default-settings/specs/electronic-inspection-record/spec.md`
+> 规格：`openspec/changes/centralize-shared-default-settings/specs/electronic-inspection-record/spec.md`
 
 ## 关联与级别
 

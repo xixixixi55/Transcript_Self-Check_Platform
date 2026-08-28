@@ -1,4 +1,4 @@
-// Layer 12: FE_Pages — persistent multi-case workbench entry.
+// 第 12 层：FE_Pages — 持久化多案件工作台入口。
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Col, Modal, Pagination, Row, Space, Spin, Tooltip, Typography, message } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'

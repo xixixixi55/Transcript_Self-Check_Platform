@@ -1,4 +1,4 @@
-"""Native Windows entry point for the portable application."""
+"""便携式应用的原生 Windows 入口。"""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ MB_ICONERROR = 0x00000010
 
 
 def show_message(title: str, message: str, flags: int = MB_OK) -> None:
-    """Use the Windows API so the launcher has no Tk runtime dependency."""
+    """使用 Windows API，使启动器不依赖 Tk 运行时。"""
     ctypes.windll.user32.MessageBoxW(None, message, title, flags)
 
 

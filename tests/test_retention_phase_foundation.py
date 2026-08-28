@@ -1,4 +1,4 @@
-"""Slice 5A-1 cleanup phase contract tests."""
+"""Slice 5A-1 清理阶段契约测试。"""
 
 from __future__ import annotations
 

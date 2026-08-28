@@ -1,4 +1,4 @@
-"""Small VT line-state model for the isolated WinRAR ConPTY spike."""
+"""用于隔离 WinRAR ConPTY 尖峰试验的精简 VT 行状态模型。"""
 
 import re
 

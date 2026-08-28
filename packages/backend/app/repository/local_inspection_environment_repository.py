@@ -1,4 +1,4 @@
-"""Layer 20: read local Windows and Huorong installation metadata."""
+"""第 20 层：读取本地 Windows 和火绒安装元数据。"""
 
 from __future__ import annotations
 

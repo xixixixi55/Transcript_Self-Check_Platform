@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — asks for a download name for every Word export.
+// 第 11 层：FE_Components — 每次导出 Word 时询问下载文件名。
 import React, { useEffect, useState } from 'react'
 import { Input, Modal } from 'antd'
 import { getDefaultWordDownloadName, toWordDownloadName, validateWordDownloadName } from '@biji/shared/utils'

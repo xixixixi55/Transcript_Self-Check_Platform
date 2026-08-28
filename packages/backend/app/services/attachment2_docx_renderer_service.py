@@ -1,4 +1,4 @@
-"""Render the fixed current-template-v1 attachment-two image slots."""
+"""渲染固定 current-template-v1 附件二图片槽位。"""
 from __future__ import annotations
 import copy
 from typing import Any, Sequence
@@ -138,7 +138,7 @@ def render_attachment2_pages(
     profile: CurrentTemplateProfile,
     assets: Sequence[Attachment2PhotoAsset],
 ) -> None:
-    """Replace the template's attachment-two region with explicit page blocks."""
+    """使用显式页面块替换模板的附件二区域。"""
     body = doc.element.body
     label2 = find_attachment2_paragraph(body, profile.attachment2_label, exact=True)
     label3 = find_attachment2_paragraph(body, profile.attachment3_label, exact=True)
@@ -289,7 +289,7 @@ def _build_page_table(
             append_fixed_table_spacer(table, caption_gap, sum(grid_widths), column_count)
     return table
 def _validate_material_groups(page: Attachment2PagePlan) -> None:
-    """Ensure the renderer consumes the planner's groups without re-pairing."""
+    """确保渲染器使用规划器分组而不重新配对。"""
     if not 1 <= len(page.material_groups) <= 2:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2检材组数量约束无效。")
     flattened = tuple(
@@ -305,7 +305,7 @@ def _validate_material_groups(page: Attachment2PagePlan) -> None:
                 or any(image.evidence_number != group.material_number for image in group.images)):
             raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "附件2检材图片组必须固定为两张。")
 def _page_grid(page: Attachment2PagePlan) -> list[list[tuple[Any, ...]]]:
-    """Convert explicit slots into a fixed table grid, never Word auto-flow."""
+    """将显式槽位转换为固定表格网格，绝不使用 Word 自动流式布局。"""
     by_slot = {image.slot: image for image in page.images}
     if page.layout == "two_centered":
         expected = ("left", "right")

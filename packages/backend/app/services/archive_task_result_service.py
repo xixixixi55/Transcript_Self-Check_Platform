@@ -1,4 +1,4 @@
-"""Verified public archive-result projection and part download lookup."""
+"""经验证的公开归档结果投影和分卷下载查询。"""
 
 from __future__ import annotations
 
@@ -68,8 +68,8 @@ class ArchiveTaskResultService:
             disc_number = str(mapping.get("disc_number") or "") if mapping_confirmed else ""
             disc_date = str(mapping.get("disc_date") or "") if mapping_confirmed else ""
             if not disc_number and plan is None:
-                # Fall back to the manifest's own disc metadata for callers that
-                # did not persist a plan (synthetic workers, pre-fill path).
+                # 对未持久化计划的调用方（合成工作线程、预填充路径），
+                # 回退到 manifest 自身的光盘元数据。
                 disc_number = str(part.get("disc_number") or "")
                 disc_date = str(part.get("disc_date") or "")
             parts.append({
@@ -94,7 +94,7 @@ class ArchiveTaskResultService:
         }
 
     def manifest_bundle(self, task_id: str) -> dict[str, Any]:
-        """Verified public manifest plus its physical final directory."""
+        """经验证的公开 Manifest 及其物理最终目录。"""
         task = self.tasks.get(task_id)
         summary = self.tasks.get_task_card_summary(task_id)
         if "view_result" not in summary["allowed_actions"] or summary["status"] != "succeeded":

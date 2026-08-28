@@ -1,4 +1,4 @@
-"""Short-lived metadata snapshots used only while building preview contexts."""
+"""仅在构建预览上下文时使用的短期元数据快照。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ ARCHIVE_INVENTORY_CACHE_LIMIT = 16
 
 
 class ArchiveInventorySnapshotStore:
-    """Reuse inventory within the confirmed immutable-input window."""
+    """在已确认的不可变输入窗口内复用清单。"""
 
     def __init__(self, *, ttl_seconds: int) -> None:
         self._ttl_seconds = ttl_seconds

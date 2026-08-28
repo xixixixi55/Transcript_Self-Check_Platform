@@ -1,6 +1,6 @@
 ## ADDED Requirements
 
-### Requirement: Level 2 change artifact contract
+### Requirement: Level 2 变更工件契约
 
 #### Scenario: 局部低风险行为调整
 
@@ -22,7 +22,7 @@
 - **THEN** 需求按 Level 1 处理
 - **AND** 不创建 Level 2 变更包或使用 `Spec impact: N/A` 绕过 delta spec
 
-### Requirement: Scoped Level 2 documentation gate
+### Requirement: 限定范围的 Level 2 文档门控
 
 #### Scenario: 执行当前变更包严格检查
 
@@ -35,7 +35,7 @@
 - **WHEN** 执行 `verify:docs:strict:all`
 - **THEN** 检查全部活跃变更包，并排除 `openspec/changes/archive/`
 
-### Requirement: Mirrored agent workflow files
+### Requirement: 代理工作流文件镜像
 
 #### Scenario: `.agents` 与 `.claude` 保持一致
 
@@ -51,7 +51,7 @@
 
 ## ADDED Requirements
 
-### Requirement: Candidate freeze follows applicable manual acceptance
+### Requirement: 候选冻结在适用人工验收之后
 
 #### Scenario: 变更需要真实界面或桌面环境验收
 
@@ -78,7 +78,7 @@
 - **THEN** Level 3 统一执行一次最终 Review 和完整门控
 - **AND** 冻结后发生修改时先解冻并完成受影响验证，待再次收敛后统一重新冻结
 
-### Requirement: Full verification environment preflight
+### Requirement: 完整验证环境预检
 
 #### Scenario: 验证环境不满足最低条件
 
@@ -93,7 +93,7 @@
 - **AND** 预检按需创建该目录，并将子进程的 `TEMP`、`TMP` 与 npm cache 指向该目录
 - **AND** 显式设置 `HARNESS_TEMP_ROOT` 时仍优先使用配置值
 
-### Requirement: Compact full verification output
+### Requirement: 紧凑的完整验证输出
 
 #### Scenario: 完整门控阶段通过
 
@@ -110,7 +110,7 @@
 
 ## ADDED Requirements
 
-### Requirement: Active change association follows behavioral scope
+### Requirement: 有效变更关联遵循行为范围
 
 未归档变更的关联 MUST 依据正式能力、用户结果、验收场景、核心调用链和反馈生命周期，不以关键词完全相同为前提。
 
@@ -126,7 +126,7 @@
 - **THEN** Agent 在结果中记录主要候选及排除理由
 - **AND** 不以无关键词命中或目录名称不同作为无关联的充分证据
 
-### Requirement: Proportionate verification evidence
+### Requirement: 相称的验证证据
 
 增量验证 MUST 由本次修改风险和现有覆盖缺口决定，不继承所在变更包 Level，也不以行为变化为由机械追加测试。
 
@@ -142,7 +142,7 @@
 - **THEN** Agent 增加与缺口相称的自动化回归
 - **AND** 避免在多个层重复验证同一实现细节
 
-### Requirement: AGENTS policy line budget
+### Requirement: AGENTS 策略行数预算
 
 根目录 `AGENTS.md` MUST 保持为紧凑决策入口，详细执行说明下沉到 Harness 专用文档。
 
@@ -154,7 +154,7 @@
 
 ## ADDED Requirements
 
-### Requirement: Progressive Harness context routing
+### Requirement: 渐进式 Harness 上下文路由
 
 高频 Harness 入口 MUST 先关联 change 和判断 Level，再按当前风险与阶段加载资料；不得以保证质量为由在普通需求入口无条件预读全部 Harness 或 OpenSpec 正文。
 
@@ -176,7 +176,7 @@
 - **THEN** 默认文档门控失败并报告 `harness-context-loading-regression`
 - **AND** `.agents` 与 `.claude` 镜像门控继续生效
 
-### Requirement: Progressive routing preserves quality gates
+### Requirement: 渐进式路由保留质量门控
 
 减少上下文加载 MUST NOT 删除风险判断、规格核对、受影响验证、同步或候选冻结门控。
 

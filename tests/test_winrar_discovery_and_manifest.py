@@ -394,10 +394,10 @@ def test_same_run_identity_detects_equal_size_change_without_rehash(monkeypatch,
     ) == "ARCHIVE_MANIFEST_PART_CHANGED"
 
 
-# ─── Disc capacity computation ───────────────────────────────────────────
+# ─── 光盘容量计算 ──────────────────────────────────────────────────────
 
 class TestComputeDiscCapacity:
-    """Pure-function boundary tests for disc capacity tier selection."""
+    """光盘容量档位选择的纯函数边界测试。"""
 
     def test_minimal_size_returns_smallest_tier(self):
         assert compute_disc_capacity(1) == 4 * 1024**3
@@ -412,9 +412,9 @@ class TestComputeDiscCapacity:
         assert compute_disc_capacity(22 * 1024**3 + 1) == 45 * 1024**3
 
     def test_typical_sizes(self):
-        # 9 GB → 22GB disc
+        # 9 GB → 22 GB 光盘
         assert compute_disc_capacity(9 * 1024**3) == 22 * 1024**3
-        # 2 GB → 4GB disc (tail part of 47GB scenario)
+        # 2 GB → 4 GB 光盘（47 GB 场景的尾部分卷）
         assert compute_disc_capacity(2 * 1024**3) == 4 * 1024**3
 
     def test_max_capacity(self):
@@ -444,10 +444,10 @@ class TestComputeDiscCapacity:
 
 
 class TestDiscCapacityInManifest:
-    """Verify disc_capacity_bytes is assembled and validated correctly."""
+    """验证 disc_capacity_bytes 能正确组装和校验。"""
 
     def test_manifest_parts_receive_independent_capacity(self, tmp_path):
-        """Each part gets its own disc capacity, not the tier value."""
+        """每个分卷获得自身的光盘容量，而不是档位值。"""
         from app.repository.archive_validator_repository import (
             ValidatedArchivePart,
             ArchiveValidationResult,
@@ -501,10 +501,10 @@ class TestDiscCapacityInManifest:
 
         parts = manifest["parts"]
         assert len(parts) == 2
-        # Both parts fit in 4GB disc
+        # 两个分卷都能装入 4 GB 光盘
         assert parts[0]["disc_capacity_bytes"] == 4 * 1024**3
         assert parts[1]["disc_capacity_bytes"] == 4 * 1024**3
-        # volume_size_bytes is tier limit (inherited)
+        # volume_size_bytes 是继承的档位上限
         assert parts[0]["volume_size_bytes"] == 4_000_000_000
         assert parts[1]["volume_size_bytes"] == 4_000_000_000
 
@@ -546,11 +546,11 @@ class TestDiscCapacityInManifest:
         assert validate_manifest_files(record) is None
 
     def test_tampered_capacity_rejected(self, tmp_path):
-        """A disc_capacity_bytes mismatch with actual size MUST fail validation."""
+        """disc_capacity_bytes 与实际大小不匹配时 MUST 校验失败。"""
         part = tmp_path / "case.part1.rar"
         part.write_bytes(b"X" * 10)
         digest = hashlib.md5(b"X" * 10).hexdigest()
-        # size=10 should give disc_capacity=4GB, but we inject a wrong value
+        # size=10 应得到 disc_capacity=4GB，但这里注入错误值
         record = SimpleNamespace(
             final_dir=tmp_path,
             public_manifest={
@@ -561,7 +561,7 @@ class TestDiscCapacityInManifest:
                 "parts": [{
                     "part_number": 1, "filename": part.name,
                     "size_bytes": 10, "md5": digest,
-                    "disc_capacity_bytes": 22_000_000_000,  # wrong: should be 4GB
+                    "disc_capacity_bytes": 22_000_000_000,  # 错误：应为 4 GB
                     "volume_size_bytes": 10_000_000,
                 }],
                 "actual_archive_bytes": 10,
@@ -570,7 +570,7 @@ class TestDiscCapacityInManifest:
         assert not validate_published_manifest(record)
 
     def test_capacity_absent_derives_from_size_bytes(self, tmp_path):
-        """Missing disc_capacity_bytes is derived from trusted size_bytes (old manifest compat)."""
+        """缺少 disc_capacity_bytes 时，根据可信 size_bytes 推导（兼容旧版 manifest）。"""
         part = tmp_path / "case.part1.rar"
         part.write_bytes(b"Y" * 20)
         digest = hashlib.md5(b"Y" * 20).hexdigest()
@@ -584,7 +584,7 @@ class TestDiscCapacityInManifest:
                     "part_number": 1, "filename": part.name,
                     "size_bytes": 20, "md5": digest,
                     "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
-                    # disc_capacity_bytes deliberately omitted (old manifest)
+                    # 有意省略 disc_capacity_bytes（旧版 manifest）
                 }],
                 "actual_archive_bytes": 20,
             },
@@ -592,7 +592,7 @@ class TestDiscCapacityInManifest:
         assert validate_manifest_files(record) is None
 
     def test_old_manifest_without_disc_capacity_still_validates(self, tmp_path):
-        """An old manifest lacking disc_capacity_bytes is derived from trusted size_bytes."""
+        """旧版 manifest 缺少 disc_capacity_bytes 时，根据可信 size_bytes 推导。"""
         part = tmp_path / "case.part1.rar"
         part.write_bytes(b"P" * 50)
         digest = hashlib.md5(b"P" * 50).hexdigest()
@@ -608,16 +608,16 @@ class TestDiscCapacityInManifest:
                     "size_bytes": 50, "md5": digest,
                     "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
                     "volume_size_bytes": 4_000_000_000,
-                    # disc_capacity_bytes deliberately omitted (old manifest)
+                    # 有意省略 disc_capacity_bytes（旧版 manifest）
                 }],
                 "actual_archive_bytes": 50,
             },
         )
-        # Should pass: disc_capacity is derived from size_bytes
+        # 应通过：disc_capacity 根据 size_bytes 推导
         assert validate_manifest_files(record) is None
 
     def test_volume_size_invariant_rejects_part_mismatch(self, tmp_path):
-        """Part volume_size_bytes must equal manifest volume_size_bytes when present."""
+        """分卷存在 volume_size_bytes 时，必须等于 manifest 的对应值。"""
         part = tmp_path / "case.part1.rar"
         part.write_bytes(b"Z" * 30)
         digest = hashlib.md5(b"Z" * 30).hexdigest()
@@ -633,7 +633,7 @@ class TestDiscCapacityInManifest:
                     "size_bytes": 30, "md5": digest,
                     "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
                     "disc_capacity_bytes": 4_000_000_000,
-                    "volume_size_bytes": 22_000_000_000,  # mismatched!
+                    "volume_size_bytes": 22_000_000_000,  # 不匹配
                 }],
                 "actual_archive_bytes": 30,
             },
@@ -641,7 +641,7 @@ class TestDiscCapacityInManifest:
         assert validate_manifest_files(record) == "ARCHIVE_MANIFEST_INVALID"
 
     def test_mixed_capacity_parts_get_independent_disc_sizes(self, tmp_path):
-        """Parts [22GB, 1GB] should get disc capacities [22GB, 4GB]."""
+        """分卷 [22 GB, 1 GB] 应得到光盘容量 [22 GB, 4 GB]。"""
         part1 = tmp_path / "case.part1.rar"
         part2 = tmp_path / "case.part2.rar"
         part1.write_bytes(b"X" * 100)
@@ -687,12 +687,12 @@ class TestDiscCapacityInManifest:
         parts = manifest["parts"]
         assert parts[0]["disc_capacity_bytes"] == 22 * 1024**3
         assert parts[1]["disc_capacity_bytes"] == 4 * 1024**3
-        # volume_size_bytes is the tier limit, same for all
+        # volume_size_bytes 是档位上限，所有分卷均相同
         assert parts[0]["volume_size_bytes"] == 22_000_000_000
         assert parts[1]["volume_size_bytes"] == 22_000_000_000
 
     def test_45gb_tier_mixed_capacity_parts(self, tmp_path):
-        """Parts [45GB, 2GB] from 45GB tier should get disc capacities [45GB, 4GB]."""
+        """45 GB 档位的分卷 [45 GB, 2 GB] 应得到光盘容量 [45 GB, 4 GB]。"""
         part1 = tmp_path / "case.part1.rar"
         part2 = tmp_path / "case.part2.rar"
         part1.write_bytes(b"A" * 200)

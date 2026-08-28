@@ -1,4 +1,4 @@
-"""Core process lifecycle for the windowed portable launcher."""
+"""窗口化便携启动器的核心进程生命周期。"""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ except ImportError:
 
 
 class LauncherError(RuntimeError):
-    """User-safe portable startup failure."""
+    """可安全向用户展示的便携式启动失败。"""
 
 
 def _file_sha256(path: Path) -> str:
@@ -69,7 +69,7 @@ def validate_program_integrity(
 
 
 def record_integrity_warning(paths: LauncherPaths, unknown_files: tuple[str, ...]) -> None:
-    """Record extra-file counts without leaking names or absolute paths."""
+    """记录额外文件数量，不泄露文件名或绝对路径。"""
     if not unknown_files:
         return
     try:
@@ -199,7 +199,7 @@ def build_backend_environment(paths: LauncherPaths, secret: str) -> dict[str, st
 
 
 class ProcessJob:
-    """Windows Job Object whose close terminates the owned backend tree."""
+    """关闭时会终止所属后端进程树的 Windows Job Object。"""
 
     def __init__(self, handle: int) -> None:
         self.handle = handle

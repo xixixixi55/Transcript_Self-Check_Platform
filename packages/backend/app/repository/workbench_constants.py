@@ -1,4 +1,4 @@
-"""Versioned persistence constants mirrored from the SharedTypes contract."""
+"""从 SharedTypes 契约镜像的版本化持久化常量。"""
 
 from __future__ import annotations
 

@@ -8,7 +8,7 @@ export interface TaskEntry {
 const TASK_LINE_PATTERN = /^\s*-\s*\[([ xX])\]\s+(.+?)\s*$/
 const EXEMPTION_PATTERN = /\[(OPTIONAL|DEFERRED|N\/A)\]\s*$/
 
-/** Parse checklist entries without inferring meaning from task titles or source files. */
+/** 解析检查清单条目，不根据任务标题或源文件推断含义。 */
 export function getTaskEntries(content: string): TaskEntry[] {
   return content.split('\n').flatMap((line, index) => {
     const match = line.match(TASK_LINE_PATTERN)
@@ -25,12 +25,12 @@ export function getTaskEntries(content: string): TaskEntry[] {
   })
 }
 
-/** Ordinary unchecked tasks are required; explicit uppercase markers exempt them. */
+/** 普通未勾选任务为必选项；显式大写标记可豁免。 */
 export function getRequiredIncompleteTasks(content: string): TaskEntry[] {
   return getTaskEntries(content).filter((entry) => !entry.checked && !entry.exemption)
 }
 
-/** Extract file references from completed task entries only. */
+/** 仅从已完成任务条目中提取文件引用。 */
 export function getCompletedTaskFileReferences(content: string): string[] {
   const completedTaskLines = content
     .replace(/```[\s\S]*?```/g, '')
@@ -45,20 +45,20 @@ export function getCompletedTaskFileReferences(content: string): string[] {
 export type WorkflowLevel = 2 | 3
 export type SpecSyncStatus = 'pending' | 'partial' | 'reconciled'
 
-/** Read a stable top-level scalar from the metadata header in tasks.md. */
+/** 从 tasks.md 元数据头部读取稳定的顶层标量。 */
 export function getWorkflowMetadata(content: string, key: string): string | undefined {
   const pattern = new RegExp(`^${key}:\\s*([^\\r\\n#]+?)\\s*$`, 'mi')
   return content.match(pattern)?.[1]?.trim()
 }
 
-/** Parse the persisted workflow level; never infer it from other artifacts. */
+/** 解析持久化的工作流级别；绝不从其他工件推断。 */
 export function parseWorkflowLevel(content: string): WorkflowLevel | undefined {
   const value = getWorkflowMetadata(content, 'workflow_level')
   if (value === '2' || value === '3') return Number(value) as WorkflowLevel
   return undefined
 }
 
-/** Validate only the structural contract of an OpenSpec delta, not its semantics. */
+/** 只验证 OpenSpec 增量的结构契约，不验证其语义。 */
 export function validateDeltaSpec(content: string): string[] {
   const errors: string[] = []
   const sections = [...content.matchAll(/^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)(?:\s+Requirements?|\s*:)/gim)]
@@ -83,19 +83,19 @@ export function validateDeltaSpec(content: string): string[] {
   return errors
 }
 
-/** Count logical text lines consistently across LF and CRLF content. */
+/** 在 LF 和 CRLF 内容中一致地统计逻辑文本行。 */
 export function countTextLines(content: string): number {
   if (content.length === 0) return 0
   return content.replaceAll('\r\n', '\n').split('\n').length
 }
 
-/** Return the actual line count only when a document exceeds its budget. */
+/** 仅在文档超过预算时返回实际行数。 */
 export function getLineBudgetOverflow(content: string, maxLines: number): number | undefined {
   const lineCount = countTextLines(content)
   return lineCount > maxLines ? lineCount : undefined
 }
 
-/** Keep high-frequency Harness commands as progressive routers instead of eager document loaders. */
+/** 让高频 Harness 命令充当渐进式路由器，而非预加载文档。 */
 export function validateProgressiveContextCommand(content: string): string[] {
   const errors: string[] = []
   if (!/<!--\s*context-loading:\s*progressive\s*-->/i.test(content)) {
@@ -118,7 +118,7 @@ export interface ManagedAgentToolingFiles {
   claudeFiles: string[]
 }
 
-/** Group Git-managed command/skill files by provider mirror root. */
+/** 按提供方镜像根目录对 Git 管理的命令/Skill 文件分组。 */
 export function getManagedAgentToolingFiles(files: string[]): ManagedAgentToolingFiles {
   const agentsFiles = new Set<string>()
   const claudeFiles = new Set<string>()

@@ -1,4 +1,4 @@
-"""Layer 21: normalize local environment facts and project process step 3."""
+"""第 21 层：规范化本地环境事实并投影处理步骤 3。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Deployment-scoped defaults and auditable one-time migration."""
+"""部署级默认值和可审计的一次性迁移。"""
 
 from __future__ import annotations
 

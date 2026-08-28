@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — debounced revision-checked draft persistence.
+// 第 10 层：FE_Hooks — 带防抖和版本检查的草稿持久化。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_DRAFT_AUTOSAVE_DEBOUNCE_MS } from '@biji/shared/constants'
@@ -15,7 +15,7 @@ interface Options {
   draft: CaseDraft | null
   identity: ClientIdentity | null
   sharedDefaultsPatch?: Record<string, unknown> | null
-  /** @deprecated compatibility alias; callers must provide a sparse object. */
+  /** @deprecated 兼容别名；调用方必须提供稀疏对象。 */
   sharedValues?: Record<string, unknown> | null
   sharedDefaultsRevision: number | null
   includeSharedDefaults: boolean

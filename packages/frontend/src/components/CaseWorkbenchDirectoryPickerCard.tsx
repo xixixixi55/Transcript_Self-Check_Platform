@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — local Windows report-directory picker entry.
+// 第 11 层：FE_Components — 本地 Windows 报告目录选择器入口。
 import React from 'react'
 import { FolderOpenOutlined, PlusOutlined } from '@ant-design/icons'
 

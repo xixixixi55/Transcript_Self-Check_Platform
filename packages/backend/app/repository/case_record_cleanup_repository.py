@@ -1,4 +1,4 @@
-"""Whitelist-only work-record cleanup inside the records transaction."""
+"""记录事务内仅限白名单的工作记录清理。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .retention_repository_helpers import identifier
 _RECOVERY_ATTEMPT_STATUSES = ("accepted", "running", "interrupted")
 
 class CaseRecordCleanupRepository:
-    """Apply the design matrix while the caller owns the SQLite transaction."""
+    """调用方持有 SQLite 事务时应用设计矩阵。"""
 
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database

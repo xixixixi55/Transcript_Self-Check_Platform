@@ -1,4 +1,4 @@
-"""Internal models for one report Parser input snapshot."""
+"""单个报告 Parser 输入快照的内部模型。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from .report_format_adapter import ReportFormat
 
 
 class ReportParseInputError(ValueError):
-    """Safe diagnostics for an invalid or unstable parser input snapshot."""
+    """无效或不稳定解析器输入快照的安全诊断。"""
 
 
 @dataclass(frozen=True)
@@ -37,7 +37,7 @@ class CandidateDirectoryIndex:
 
 @dataclass(frozen=True)
 class ReportParseInputSnapshot:
-    """Internal parse state; never serialized into a report or public response."""
+    """内部解析状态；绝不序列化到报告或公开响应中。"""
 
     source_key: str
     report_format: ReportFormat

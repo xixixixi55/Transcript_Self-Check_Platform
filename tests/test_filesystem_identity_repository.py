@@ -1,4 +1,4 @@
-"""Synthetic tests for path normalization and content identities."""
+"""路径规范化与内容标识的合成数据测试。"""
 
 import os
 import sys

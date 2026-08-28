@@ -1,4 +1,4 @@
-// Layer 2: SharedUtils — 前后端共享的纯函数工具
+// 第 2 层：SharedUtils — 前后端共享的纯函数工具
 import { DEFAULT_DATA_SUMMARY } from '../constants'
 export * from './exportFileNameUtils'
 export * from './downloadFileName'

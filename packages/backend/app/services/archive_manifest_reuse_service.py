@@ -1,4 +1,4 @@
-"""Restore an independently registered, still-valid archive Manifest."""
+"""恢复独立注册且仍有效的归档 Manifest。"""
 
 from __future__ import annotations
 

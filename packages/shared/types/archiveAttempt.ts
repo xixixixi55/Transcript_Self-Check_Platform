@@ -4,7 +4,7 @@ import type { ArchiveTaskPublicDetail } from './archiveTask'
 export type ArchiveAttemptStatus = 'accepted' | 'running' | 'succeeded' | 'failed' | 'interrupted'
 export type ArchiveCleanupStatus = 'not_required' | 'pending' | 'succeeded' | 'failed' | 'unknown'
 
-/** Public, path-free view of the Phase 1D archive attempt record. */
+/** 阶段 1D 归档尝试记录的无路径公开视图。 */
 export interface ArchiveAttemptRecord {
   schema_version: WorkbenchSchemaVersion
   attempt_id: string

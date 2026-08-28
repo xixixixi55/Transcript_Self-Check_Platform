@@ -1,4 +1,4 @@
-"""Application settings projected once from the process runtime roots."""
+"""从进程运行时根目录一次性投影的应用设置。"""
 from pathlib import Path
 
 from .repository.runtime_paths import get_runtime_paths
@@ -9,8 +9,8 @@ if RUNTIME_PATHS.portable:
     UPLOAD_BASE = str(RUNTIME_PATHS.upload_root)
     OUTPUT_BASE = str(RUNTIME_PATHS.output_root)
 else:
-    # Preserve the source/development layout.  Only the packaged runtime moves
-    # mutable state out of the program directory and into LOCALAPPDATA.
+    # 保持源码/开发环境布局不变。只有打包后的运行时才会将可变状态
+    # 从程序目录移至 LOCALAPPDATA。
     _SOURCE_PACKAGE_ROOT = Path(__file__).resolve().parents[2]
     UPLOAD_BASE = str(_SOURCE_PACKAGE_ROOT / "uploads")
     OUTPUT_BASE = str(_SOURCE_PACKAGE_ROOT / "output")

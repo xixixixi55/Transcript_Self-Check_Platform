@@ -1,4 +1,4 @@
-// Layer 12: FE_Pages 入口 — 前端应用根组件
+// 第 12 层：FE_Pages 入口 — 前端应用根组件
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'

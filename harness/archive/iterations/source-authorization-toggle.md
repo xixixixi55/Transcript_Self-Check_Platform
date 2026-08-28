@@ -1,29 +1,29 @@
-# Iteration: source authorization toggle
+# 迭代：源授权开关
 
-- Date: 2026-08-04
-- Change: `openspec/changes/extensible-report-template-platform`
-- Scope: homepage-only persisted source authorization mode, arbitrary local report-directory registration, retained path/output/report safety checks, and removal of the old authorization notice/readiness item.
+- 日期：2026-08-04
+- 变更：`openspec/changes/extensible-report-template-platform`
+- 范围：仅限首页并持久化的源授权模式、任意本地报告目录注册、保留路径/输出/报告安全检查，以及移除旧授权通知/就绪项。
 
-## Problem → cause → feedback
+## 问题 → 原因 → 反馈
 
-- Problem: the configured source-root authorization explanation had become a redundant user-facing gate even though users already know the local folder they intend to register.
-- Cause: the original authorization boundary was applied unconditionally at source registration, while the browser had no ordinary-user preference for temporarily disabling that boundary.
-- Feedback: the browser now stores `biji.sourceAuthorization.enabled`, defaults new profiles to `false`, and sends the current mode on workbench submission and source replacement. Backend/API defaults remain `true` for direct callers; disabled mode skips only configured-root/exact-grant authorization and keeps path, reparse, output-overlap, and report-structure checks. The legacy directory-parse request contract also has a shared mode field and a frontend request builder; no active frontend route currently calls the deprecated endpoint directly.
+- 问题：配置的源根目录授权说明已成为多余的用户门控，因为用户本就知道自己准备注册的本地文件夹。
+- 原因：原始授权边界在源注册时无条件应用，而浏览器未向普通用户提供临时禁用该边界的偏好设置。
+- 反馈：浏览器现在存储 `biji.sourceAuthorization.enabled`，新用户配置默认为 `false`，并在提交工作台和替换源时发送当前模式。后端/API 为直接调用方保留默认值 `true`；禁用模式只跳过配置根目录/精确授权检查，仍保留路径、重解析点、输出重叠和报告结构检查。旧版目录解析请求契约也增加了共享模式字段和前端请求构造器；当前没有有效前端路由直接调用这个已弃用端点。
 
-## Verification
+## 验证
 
-- Backend affected tests: `98 passed, 2 warnings`.
-- Frontend affected tests: `7 files, 22 passed`.
-- `lint:arch` and `typecheck`: passed.
-- Mutation effectiveness: temporarily disabling the repository's `source_authorization_enabled=false` branch caused both disabled-mode tests to fail; restoring the branch made both pass.
-- `git diff --check`: passed; Git line-ending normalization warnings only.
+- 后端受影响测试：`98 passed, 2 warnings`。
+- 前端受影响测试：`7 files, 22 passed`。
+- `lint:arch` 和 `typecheck`：通过。
+- 变异有效性：临时禁用存储库中的 `source_authorization_enabled=false` 分支会使两个禁用模式测试失败；恢复该分支后两个测试均通过。
+- `git diff --check`：通过；仅有 Git 行尾规范化警告。
 
-## Review handling
+## 审查处理
 
-- First independent review returned REJECT with findings about legacy request propagation, shared request types, and missing mode-matrix assertions.
-- The findings were addressed in this candidate. Per the user's instruction, no second review was started; final confidence is based on the added shared contract, targeted tests, mutation check, and final automated gates.
+- 首次独立审查返回 REJECT，发现旧版请求传播、共享请求类型及缺失模式矩阵断言等问题。
+- 当前候选已解决这些问题。按照用户指示，未启动第二次审查；最终信心来自新增的共享契约、定向测试、变异检查及最终自动化门控。
 
-## Boundary retained for later work
+## 留待后续工作的边界
 
-- The existing `extensible-report-template-platform` change package remains active because unrelated canonical/archive/manual-acceptance tasks are still pending; this iteration does not archive or commit the package.
-- Browser localStorage is a user-profile preference, not administrator configuration. Direct API callers that omit the field retain the existing strict default.
+- 现有 `extensible-report-template-platform` 变更包仍处于有效状态，因为无关的 Canonical/归档/人工验收任务尚未完成；本迭代不归档或提交该变更包。
+- 浏览器 localStorage 是用户配置偏好，不是管理员配置。省略该字段的直接 API 调用方仍使用现有严格默认值。

@@ -1,4 +1,4 @@
-"""Layer 20 repository exports; business orchestration stays in services."""
+"""第 20 层仓储导出；业务编排保留在服务层。"""
 
 from .asset_reference_repository import AssetReferenceRepository
 from .archive_attempt_repository import ArchiveAttemptRepository

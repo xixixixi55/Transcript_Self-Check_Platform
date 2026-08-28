@@ -1,4 +1,4 @@
-"""Fail-open, non-producing Shadow observations for the Legacy pipeline."""
+"""旧版流水线的失败开放且不生成输出的 Shadow 观测。"""
 
 from __future__ import annotations
 
@@ -97,7 +97,7 @@ def run_shadow_export(
     *, legacy_plan: Any = None, canonical_source: Mapping[str, Any] | None = None,
     run_id: str | None = None, task_token: str | None = None, legacy_export_succeeded: bool = True,
 ) -> dict[str, object]:
-    """Observe final prepared inputs only after the single Legacy DOCX succeeds."""
+    """仅在单个旧版 DOCX 成功后观测最终准备输入。"""
     handle = _handle(settings, context_id, run_id, task_token, EXPORT_STAGE)
     if handle is None:
         return shadow_runtime_failure(settings, context_id, EXPORT_STAGE)

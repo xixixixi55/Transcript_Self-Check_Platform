@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fix _handle_photos: caption below images, adaptive layout for 1 vs 2+ photos"""
+"""修复 _handle_photos：标题位于图片下方，并针对 1 张与 2 张以上照片自适应布局。"""
 import re, os
 
 path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

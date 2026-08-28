@@ -1,4 +1,4 @@
-"""Pure AttachmentPlan boundaries and deterministic pagination tests."""
+"""纯 AttachmentPlan 边界与确定性分页测试。"""
 
 import os
 import sys

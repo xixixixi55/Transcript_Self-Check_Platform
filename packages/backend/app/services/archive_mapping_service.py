@@ -1,4 +1,4 @@
-"""Stable archive-volume mapping over the persistent plan repository."""
+"""基于持久计划仓储的稳定归档分卷映射。"""
 
 from __future__ import annotations
 
@@ -112,12 +112,11 @@ def persist_archive_plan(
     case_id: str,
     manifest_parts: list[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    """Project an executed plan and its manifest parts into ``archive_plans``.
+    """将已执行计划及其 Manifest 分卷投影到 `archive_plans`。
 
-    Each manifest part becomes one volume slot keyed by its filename, so a later
-    deferred disc mapping (REQ-030) targets the same slots the manifest derived
-    from. Compression may run before any disc number is entered, so slots start
-    without a mapping. No-op when the case already has a persisted plan.
+    每个 Manifest 分卷成为以文件名为键的分卷槽位，使后续延迟光盘映射（REQ-030）
+    指向 Manifest 来源的同一槽位。压缩可在输入任何光盘编号前运行，因此槽位初始没有映射。
+    案件已有持久计划时不执行操作。
     """
     existing = plans.get_latest_for_case(case_id)
     if existing is not None:
@@ -152,7 +151,7 @@ def persist_archive_plan(
 def persist_archive_plan_for_attempt(
     attempt_service: Any, attempt_id: str | None, plan: Any, manifest: Mapping[str, Any],
 ) -> None:
-    """Best-effort plan projection from a completed attempt's manifest parts."""
+    """根据已完成尝试的 Manifest 分卷尽力投影计划。"""
     if attempt_service is None or attempt_id is None:
         return
     from ..repository.archive_plan_repository import ArchivePlanRepository

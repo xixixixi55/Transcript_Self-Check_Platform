@@ -1,4 +1,4 @@
-"""Pure binary-capacity archive planning rules."""
+"""纯二进制容量归档规划规则。"""
 
 from __future__ import annotations
 
@@ -165,7 +165,7 @@ def plan_archive(
     first_disc_number: str | None = None,
     policy: ArchivePolicy = PRODUCTION_ARCHIVE_POLICY,
 ) -> ArchivePlan:
-    """Build a plan only; this function never touches files or calls WinRAR."""
+    """仅构建计划；此函数绝不触及文件或调用 WinRAR。"""
 
     case_name = case_display_name if isinstance(case_display_name, str) else ""
     base_name = safe_archive_base_name(case_name)

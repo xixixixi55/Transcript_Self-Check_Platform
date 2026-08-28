@@ -1,4 +1,4 @@
-"""Pure validation and generation rules for the first disc number."""
+"""首个光盘编号的纯验证和生成规则。"""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def archive_medium_for_mode(archive_mode: str) -> str:
 def parse_archive_medium_sequence(
     value: str | None, archive_mode: str,
 ) -> DiscSequenceParseResult:
-    """Parse a user identifier and enforce the prefix selected by archive mode."""
+    """解析用户标识符，并强制使用归档模式选定的前缀。"""
     result = parse_disc_sequence(value)
     if not result.valid or result.sequence is None:
         return result
@@ -160,7 +160,7 @@ def validate_disc_mapping(
     ordered = [item for _, item in sorted(zip(part_numbers, metadata), key=lambda pair: pair[0])]
     first_disc = parse_disc_sequence(ordered[0][0])
     if not first_disc.valid or first_disc.sequence is None:
-        return True  # Preserve legacy synthetic opaque disc identifiers.
+        return True  # 保留旧版合成的不透明光盘标识符。
     return (
         [item[0] for item in ordered] == generate_disc_numbers(first_disc.sequence, len(ordered))
         and all(item[1] == first_disc.sequence.date for item in ordered)

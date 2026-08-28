@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — managed hardware-device selector shared by record editors.
+// 第 11 层：FE_Components — 笔录编辑器共用的受管硬件设备选择器。
 import { Select } from 'antd'
 import type { SelectProps } from 'antd'
 

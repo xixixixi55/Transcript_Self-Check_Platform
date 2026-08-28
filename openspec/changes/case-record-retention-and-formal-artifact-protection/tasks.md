@@ -5,7 +5,7 @@ workflow_level: 3
 > 除本条已记录的 Planning Review，以及下方明确标记为 Slice 5A-1 foundation 的已完成任务外，所有产品实现、测试、E2E、人工验收和后续 Review 任务保持未勾选。创建或修订本 change 不等于 Phase 5 产品能力已完成。
 > 原任务 T020–T025 和 Phase 5 gate 通过任务编号保留追溯；本节的 Spec Freeze Remediation 不新增原任务编号。
 
-## Phase 5 Human Acceptance Remediation — Inspector ordering and device metadata parsing
+## 第五阶段人工验收整改——检查人员顺序和设备元数据解析
 
 - [x] 记录人工验收发现的两项问题：检查人员卡片仍提供上移/下移入口；三份真实报告在设备名称、IMEI 或设备类型解析/审核展示上存在差异。
 - [x] 检查人员顺序仅保留拖拽：移除上下调序按钮及仅供按钮使用的状态/处理器，保留新增、删除、编辑检查人员、拖拽手柄、可访问名称/拖拽状态，以及表单和导出输入的稳定顺序投影。
@@ -16,7 +16,7 @@ workflow_level: 3
 - [x] 最终门控：新增解析候选回归 `python -m pytest tests/test_html_parser.py tests/test_report_parse_input_repository.py -q`（39 passed）；`npm.cmd run verify:backend`（871 passed, 3 skipped）；`npm.cmd run verify:quick`、`npm.cmd run verify:docs:strict`、当前 change 严格校验、全规格严格校验和 `git diff --check` 全部通过。
 - [x] 人工验收 remediation 状态：实现和定向验证完成；3.3 保持暂停，不自动恢复；待本轮全量工程/文档/OpenSpec 门控、提交和推送完成后汇报。
 
-## Phase 5 Human Acceptance Remediation — Photo asset save and Word export
+## 第五阶段人工验收整改——图片资产保存和 Word 导出
 
 - [x] 记录人工验收问题：一次选择两张图片后，图片保存与草稿自动保存存在竞态，点击保存后导出 Word 仍提示案件有未完成保存；同时共享默认值偶发保存失败。
 - [x] 根因分类：Ant Design 多选在 `beforeUpload=false` 时会对同一批文件连续触发 `onChange`，异步 React state 防重不及时导致重复上传和重复草稿变更；自动保存的 `saveNow` 原先只等待当前请求，未排空其后排队的较新图片草稿；共享默认值失败属于草稿成功后的部分失败，不能阻断 Word 导出。
@@ -25,7 +25,7 @@ workflow_level: 3
 - [x] 测试命令和结果：三份定向测试 3 个文件、17 项通过；前端完整验证 45 个测试文件、221 项通过；后端完整验证 875 项通过、3 项跳过；`npm.cmd run verify:quick`、`npm.cmd run verify:docs:strict`、当前 change 严格校验、全规格严格校验和 `git diff --check` 均通过。变异测试分别移除图片同步锁和保存队列排空逻辑后均被新增回归捕获，原实现已恢复。
 - [x] 人工验收 remediation 状态：修复和验证完成；3.3 保持暂停，不自动恢复；本轮不提交、不推送，先向用户汇报进度。
 
-## Phase 5 Human Acceptance Remediation — Late photo callback draft PATCH loop
+## 第五阶段人工验收整改——延迟图片回调导致草稿 PATCH 循环
 
 - [x] 记录人工验收问题：图片上传完成后点击导出 Word，保存状态持续转圈；后端反复收到返回 200 的 `PATCH /api/v1/workbench/cases/{case_id}/draft`，不是后端保存失败。
 - [x] 根因分类：Ant Design 可能在图片上传 Promise 完成后继续回调包含旧本地 `uid` 的 `fileList`；原逻辑只用当前持久化 `asset_refs` 判断新文件，迟到回调会再次上传同一图片并再次递增草稿变更 token。父组件新 `asset_refs` 尚未回传时，旧 props 还可能覆盖 hook 内刚完成的资产引用。
@@ -34,7 +34,7 @@ workflow_level: 3
 - [x] 验证：定向前端测试 3 个文件、22 项通过；`npm.cmd run verify:frontend` 通过（52 个测试文件、243 项）；`npm.cmd run lint:arch`、`npm.cmd run typecheck`、`npm.cmd run verify:quick`、change/living OpenSpec strict 和 `git diff --check` 通过。当前 change strict docs 仍只报告本变更包既有 30 个未完成 Level 3 任务，未新增本次修复相关缺口。
 - [x] 人工验收 remediation 状态：本次重复 PATCH 修复完成；保留 3.3 及其他后续 retention 任务未完成状态，不自动恢复或归档本 change。
 
-## Phase 5 Human Acceptance Remediation — HTTP 200 draft failure export loop
+## 第五阶段人工验收整改——HTTP 200 草稿失败导致导出循环
 
 - [x] 记录人工验收问题：现有归档完成案件卡片即使不上传图片，修改字段后点击导出 Word 仍持续转圈；后端重复返回 200 的 `PATCH /api/v1/workbench/cases/{case_id}/draft`，导出请求无法继续。
 - [x] 根因分类：后端以 HTTP 200 返回业务层 `draft_save_status=failed` 且 `draft=null` 时，前端 autosave 将其误判为成功；`saveNow()` 因待保存快照未清空而无限循环重发。
@@ -43,7 +43,7 @@ workflow_level: 3
 - [x] 浏览器验收：使用现有归档完成案件卡片验证无图片场景；修改普通字段后仅产生有限保存请求，约 2 秒后页面显示“案件仍有未完成保存，完成保存后才能生成 Word”，不再转圈；加载服务端原始数据后直接导出显示“导出成功”，`POST /api/v1/records/export` 返回 200。
 - [x] 人工验收 remediation 状态：HTTP 200 业务失败导致的保存循环已修复；保留 3.3 及其他后续 retention 任务未完成状态，不自动恢复或归档本 change。
 
-## Phase 5 Human Acceptance Remediation — Archived case photo draft state transition
+## 第五阶段人工验收整改——已归档案件图片草稿状态转换
 
 - [x] 记录人工验收问题：归档完成案件上传图片后，图片接口返回成功，但草稿保存返回 HTTP 200、`draft_save_status=failed`、`error_code=INVALID_STATE_TRANSITION`，页面提示“保存未完成”，导出无法继续。
 - [x] 根因分类：前端草稿保存请求按合同省略 `lifecycle`；后端仅对 `archive_queued` 缺省生命周期做了保留，其他可编辑生命周期被错误填充为 `review_ready`，导致 `archive_verified` 案件被拒绝状态流转。
@@ -52,7 +52,7 @@ workflow_level: 3
 - [x] 浏览器验收：使用现有案件卡片真实上传两张合成 PNG，确认图片 POST 成功、草稿保存状态变为已保存，并完成 Word 导出；确认无重复 PATCH 循环，测试资产在验收结束前通过页面移除并保存。
 - [x] 人工验收 remediation 状态：实现、定向验证和浏览器复测完成；保留 3.3 及其他后续 retention 任务未完成状态，不自动恢复或归档本 change。
 
-## Phase 5 Human Acceptance Remediation — Manual material edit followed by another photo
+## 第五阶段人工验收整改——人工编辑检材后继续添加图片
 
 - [x] 记录人工验收问题：已绑定图片后人工添加检材，再上传下一张图片时，前端先用旧 revision 保存草稿并收到 409，随后图片绑定也因旧图片基线收到 409，误提示“图片列表已被另一会话修改”。
 - [x] 根因分类：图片绑定前的 `saveNow()` 把可由绑定响应重放的本地字段编辑强制串行化；保存失败后仍继续绑定，造成同一会话内连续两个冲突。后端图片域 CAS 本身已能读取最新草稿并保护真实图片并发。
@@ -60,7 +60,7 @@ workflow_level: 3
 - [x] 脱敏回归 fixture：`useCaseRecordSession.photoBinding.test.tsx` 使用 SYNTHETIC 已绑定图片、人工检材和下一张图片，断言不调用旧草稿 `saveNow()`、绑定使用最后成功图片基线，并把人工检材重放到新 revision。
 - [x] 最终验证：图片绑定、真实 autosave 竞态、hydration 水位、图片 Hook、草稿保存、检材编辑与待核对清单共 7 个测试文件、56 项用例通过；`verify:quick`、diff 检查通过。独立 Code Review 首轮因协同测试 mock 状态机驳回；补齐两种响应顺序并修复旧服务端快照回灌后，复审 PASS、无 MUST FIX。2026-08-12 用户人工真实界面复测通过。
 
-## Spec Freeze Remediation（规划修订，不属于原 T020–T025 编号）
+## 规格冻结整改（规划修订，不属于原 T020–T025 编号）
 
 - [x] 固定 publication/Word/tombstone 的清理后稳定访问模型；
 - [x] 固定 v10 表级 KEEP/COMPACT/DELETE/DERIVED/NEW 矩阵，包括 source tombstone/FK、`asset_references` 和 global control tables；
@@ -76,8 +76,8 @@ workflow_level: 3
 - [x] 冻结旧 retention key 的首次迁移读取、配置优先级、非法值和 policy row 创建后停读规则；
 - [x] 冻结 `expires_at_utc = retention_anchor_utc + (retention_days × 24 hours)` 及 UTC/Asia/Shanghai 展示边界；
 - [x] Phase 5 Final Spec Freeze Review（独立 Planning Review 复审）已通过。
-  - Review result：`PASS`。
-  - baseline：`8d6800417deec09003c0a304340b8ba8c7037a3f`。
+  - 审查结果：`PASS`。
+  - 基线：`8d6800417deec09003c0a304340b8ba8c7037a3f`。
   - 关闭项：C-02、H-01、H-03 最终关闭；C-01、C-03、H-02、H-04、H-05 及 Windows/Legacy-only/Canonical/Shadow/Word/`asset_references` 既有关闭项无回归。
   - 验证证据：change strict、living strict（`openspec validate --specs --strict --no-interactive`）、`verify:docs:strict`、`git diff --check` 和 OpenSpec status 通过。
   - 结论：允许提交 Phase 5 立项包；Planning Review 到此终止，不再增加新的 Spec Freeze Review。此项只批准规划基线，不表示产品实现完成。
@@ -100,7 +100,7 @@ workflow_level: 3
   - v10 事实证据：`workbench_schema.py`/`workbench_database.py`、source/snapshot/reference、publication/fence/asset、Word/controller、lease/revision/recovery/runtime 代码已核对；具体结果记录于本 change `design.md` 的 Phase 5A Gate section。
   - 首批切片确认：仅允许进入 Slice 5A-1 共享合同与 v11 migration foundation；本任务未执行 migration、清理、Coordinator、API/UI 或测试实现。
 
-### Phase 5A first implementation slice confirmation（记录，不新增任务编号）
+### 阶段 5A 首个实现切片确认（记录，不新增任务编号）
 
 - 允许下一步：SharedTypes/constants/config parsing contract、v10→v11 migration foundation、四个新增 durable 对象、既定字段扩展、唯一约束/索引、source FK rebuild 和 `foreign_key_check` fixture。
 - 明确排除：Scheduler/Coordinator、`enforce`、preview 扫描、任何案件/文件删除、历史 publication 自动 verified、Word 生成/持久化、清理执行 API、公共 UI/API route 改造和完整测试/Harness/人工验收。
@@ -126,22 +126,22 @@ workflow_level: 3
 - [x] 2.1 **T022** 在 `workbench_schema.py`/`workbench_database.py` 实现规划中冻结的 v10→v11 事务 migration；完成条件：版本正式为 11，新增 policy/retention/run/Word artifact、`publication_verified_at`、source tombstone、nullable shell references、`archive_input_snapshots.source_id` work-only NOT NULL FK/DELETE 边界、`asset_references` 清理边界和 shell/task 最小字段，未新增 RAR/Manifest 平行 authority；验证：迁移前后 schema、所有 source FK/check、旧版本拒绝、重复启动幂等、revalidation NULL 初始状态和回滚测试；证据：migration tests。
   - Slice 5A-1 evidence：`python -m pytest tests/test_retention_foundation.py tests/test_publication_verified_foundation.py tests/test_workbench_persistence.py tests/test_archive_schema_migration.py tests/test_template_controller.py tests/test_template_profile_service.py -q` 通过；v10 fixture、v11 fresh schema、FK check、NULL publication time、初始 disabled policy、幂等和现有回归均有断言。
 
-### Slice 5A-1 validation record
+### 切片 5A-1 验证记录
 
 - `python -m pytest tests/test_check_contracts.py -q`：5 passed；Slice foundation targeted pytest：38 passed；`npm.cmd run test:backend`（`verify:backend` 的实际脚本）：802 passed、3 skipped、16 warnings。
 - `npm.cmd run verify:quick`：`lint:arch`、shared/frontend typecheck 通过；文档阶段以 1 退出，原因是新增 SharedTypes 尚未同步到 living `openspec/specs/data-model.md` 的 13 个 type-drift。本轮禁止修改 living specs，该同步保留给后续文档任务。
 - `openspec.cmd validate case-record-retention-and-formal-artifact-protection --strict --no-interactive`、`openspec.cmd validate --specs --strict --no-interactive` 和 `git diff --check` 通过；`npm.cmd run verify:docs:strict` 同样仅因上述 13 个 deferred type-drift 失败。
 
-### Slice 5A-1 Review Remediation
+### 切片 5A-1 审查整改
 
-- Independent Implementation Review result: `REJECT`.
-- High finding closed: `publication_verified_at` NULL-only CAS now accepts only `phase='verified'`; `indexed`, `publishing`, `failed` and other non-verified phases fail closed while digest, file-set, fence, deployment/case and ownership checks remain required.
-- Blocking Medium findings closed: `partial_failure` is represented consistently in the shared phase union, backend repository validation/status projection, SQLite v11 CHECK/index contract, living data model and round-trip/invalid-phase tests; the non-empty v10 graph fixture now covers deployment, case, draft, task, source, attempt, snapshot, context binding, intent, fence, work/formal assets and asset reference relationships.
-- Migration evidence: successful v10→v11 upgrade preserves identities, source FK relationships, non-empty draft/work/publication authority, `archive_input_snapshots.source_id` NOT NULL, NULL historical `publication_verified_at`, disabled policy, no cleanup run and no formal Word artifact; `foreign_key_check` is empty and reopen is idempotent. Failure injection rolls back to v10 with the complete graph intact and no partial v11 tables, after which a clean retry succeeds.
-- Remediation evidence: `python -m pytest tests/test_publication_verified_foundation.py tests/test_retention_phase_foundation.py tests/test_retention_migration_graph.py tests/test_retention_foundation.py tests/test_retention_utc_z.py tests/test_check_contracts.py -q` — 21 passed; `npm.cmd run verify:backend` — 813 passed, 3 skipped. A standalone full pytest run had one existing archive-retry timing failure; the isolated retry passed and the repository backend gate passed.
-- `6.1 T024` remains checked because the living data-model reconciliation and final documentation gates are now evidenced. No new task is checked here; all cleanup, Coordinator, revalidation, durable Word, API/UI, E2E/Harness, manual acceptance, Code Review, Final Review, Production Review and archive tasks remain unchecked. The known `CaseRetentionRepository.upsert` insert-only warning remains deferred to its later repository task.
+- 独立实现审查结果：`REJECT`。
+- 高优先级发现已关闭：`publication_verified_at` 的仅限 NULL CAS 现在只接受 `phase='verified'`；`indexed`、`publishing`、`failed` 及其他未验证阶段均安全失败，同时仍要求摘要、文件集、栅栏、部署/案件和所有权检查。
+- 阻塞性中优先级发现已关闭：`partial_failure` 在共享阶段联合类型、后端 Repository 校验/状态投影、SQLite v11 CHECK/索引合同、现行数据模型及往返/无效阶段测试中保持一致；非空 v10 图固定测试数据现覆盖部署、案件、草稿、任务、来源、尝试、快照、上下文绑定、意图、栅栏、工作/正式资产和资产引用关系。
+- 迁移证据：成功的 v10→v11 升级保留标识、来源外键关系、非空草稿/工作/发布权威、`archive_input_snapshots.source_id` 非空约束、历史空 `publication_verified_at`、禁用策略、无清理运行和无正式 Word 产物；`foreign_key_check` 为空且重新打开具幂等性。故障注入回滚到 v10 时完整图保持不变且没有部分 v11 表，随后干净重试成功。
+- 整改证据：`python -m pytest tests/test_publication_verified_foundation.py tests/test_retention_phase_foundation.py tests/test_retention_migration_graph.py tests/test_retention_foundation.py tests/test_retention_utc_z.py tests/test_check_contracts.py -q`——21 项通过；`npm.cmd run verify:backend`——813 项通过、3 项跳过。独立完整 pytest 运行出现一项既有归档重试时序失败；隔离重试及仓库后端门控均通过。
+- `6.1 T024` 保持勾选，因为现行 data-model 核对和最终文档门控已有证据。此处不新勾选任务；所有清理、Coordinator、复验、持久 Word、API/UI、E2E/Harness、人工验收、代码审查、最终审查、生产审查和归档任务仍未勾选。已知 `CaseRetentionRepository.upsert` 仅插入警告继续延期到后续 Repository 任务。
 
-### Slice 5A-1 Second Independent Implementation Review（记录，不新增业务任务编号）
+### 切片 5A-1 第二次独立实现审查（记录，不新增业务任务编号）
 
 - [x] `Slice 5A-1 Second Independent Implementation Review = PASS`
   - 审查基线：`928bd629790953ac0fb7e03c4e3adc404bf85c5f`；该 baseline 是 Slice 开始前的 Git HEAD，审查对象是该 HEAD 上的完整未提交工作树。
@@ -154,7 +154,7 @@ workflow_level: 3
   - 结论边界：允许形成一个 Slice 5A-1 本地实现提交；不代表 Phase 5 全部完成，不代表 T025 独立 Level 3 Code Review 已完成，不允许开始 Slice 5A-2/后续功能或 archive。
   - 非阻断 Warning：`CaseRetentionRepository.upsert` 当前为 INSERT-only，交由后续 retention repository/service 任务处理。
 
-### Slice 5A-1 UTC-Z contract remediation and living data-model reconciliation
+### 切片 5A-1 UTC-Z 合同整改与现行数据模型核对
 
 - 首次 living data-model reconciliation 判定为 `BLOCKED`：除 13 个真实公共 SharedTypes type-drift 外，部分新 v11 repository 通过 `utc_now()`/`normalize_utc()` 写入 `+00:00`，不符合 Phase 5 durable SQLite UTC `Z` 合同。
 - 根因已核实：旧 helper 仍服务既有 v10/Phase 1–4 读取和持久化路径；新 v11 policy、retention record、cleanup run、formal Word artifact 写入路径需要显式的 canonical UTC-Z helper。
@@ -260,7 +260,7 @@ workflow_level: 3
 - [ ] 6.4 **T024T** 准备人工验收清单，使用 `SYNTHETIC/TEST/FIXTURE` 输入和外部受控大报告边界；完成条件：不写真实输入、人员、路径或生成资产；验证：asset policy scan 和验收记录；证据：repository-assets policy。
 - [ ] 6.5 **T024T** 准备 SQLite、正式 RAR/Manifest/MD5、Word、template/assets、policy 和 authority 成组备份/恢复/回滚演练边界；完成条件：不把 Git rollback 当 data rollback，不实现 undelete；验证：受控 deployment 记录；证据：Production Review 输入材料。
 
-## 7. Phase 5G — Verify、Review、Production 和 Archive Gates（T025）
+## 7. 阶段 5G——验证、审查、生产与归档门控（T025）
 
 - [ ] 7.1 **Phase 5 verify gate** 完成 SharedTypes、v11 migration、backend、API、frontend、E2E、Legacy/authority、Word、Windows failure 和 asset policy 的定向验证；完成条件：T020T/T021T/T022T/T023T 证据可定位；验证：按 Level 3 规则执行 `verify:full` 或等价完整 Harness（执行者按仓库规则确认）；证据：完整 verify report。
 - [ ] 7.2 **Phase 5 integrated acceptance gate** 完成多案件、多任务、preview、Coordinator enforce、取消收尾、重试、重启、活动保护、未导出/失败保护、正式 RAR/Manifest/Word 保留和 Legacy cleaned access 验收；完成条件：只触及白名单，正式 authority 全部可验证；验证：合成数据 + 外部受控大报告；证据：人工验收记录。
@@ -270,18 +270,18 @@ workflow_level: 3
 - [ ] 7.6 **Archive readiness gate** 确认 verify、integrated acceptance、独立 Code Review、Final Review、Production Review、docs strict、living spec sync 和 status 均满足归档协议；完成条件：人类明确确认 archive；验证：status JSON、diff check 和归档前清单；证据：archive readiness record。
 - [ ] 7.7 **OpenSpec archive** 仅在全部 gate 通过且获得明确归档指令后执行；完成条件：归档记录、living specs、代码和资产与 Review 一致；验证：archive command、strict docs/status 和 Git diff；证据：archive record。
 
-## Original Task Traceability
+## 原始任务可追溯性
 
 | 原任务 | 对应 tasks | 完成证据 |
 |---|---|---|
-| T020 | 1.2–1.5、2.1–2.7、4.1 | SharedTypes、v11/data-model、authority/Word、API contract |
-| T020T | 1.6、3.9 | protection/anchor/Windows/backend test report |
-| T021 | 5.1–5.4 | workbench status/preview/cleaned access changes and tests |
-| T021T | 5.5–5.6 | Playwright/RTL comprehensive report |
-| T022 | 2.1–2.7、3.1–3.8 | migration/repository/service/Coordinator/authority evidence |
-| T022T | 2.8、3.9 | pytest and failure-injection evidence |
-| T023 | 4.1–4.5 | SharedTypes/status-preview/Legacy/stable identity evidence |
-| T023T | 4.6 | API integration regression evidence |
-| T024 | 1.1、6.1–6.3 | dependency/Harness/API/data-model documentation |
-| T024T | 6.4–6.5、7.2 | synthetic/external acceptance and backup boundary |
-| T025 | 7.3–7.7 | independent review, Final/Production/archive records |
+| T020 | 1.2–1.5、2.1–2.7、4.1 | SharedTypes、v11/data-model、权威/Word、API 合同 |
+| T020T | 1.6、3.9 | 保护/锚点/Windows/后端测试报告 |
+| T021 | 5.1–5.4 | 工作台状态/预览/已清理访问变更和测试 |
+| T021T | 5.5–5.6 | Playwright/RTL 综合报告 |
+| T022 | 2.1–2.7、3.1–3.8 | 迁移/Repository/Service/Coordinator/权威证据 |
+| T022T | 2.8、3.9 | pytest 和故障注入证据 |
+| T023 | 4.1–4.5 | SharedTypes/状态预览/Legacy/稳定标识证据 |
+| T023T | 4.6 | API 集成回归证据 |
+| T024 | 1.1、6.1–6.3 | 依赖/Harness/API/data-model 文档 |
+| T024T | 6.4–6.5、7.2 | 合成/外部验收和备份边界 |
+| T025 | 7.3–7.7 | 独立审查、最终/生产/归档记录 |

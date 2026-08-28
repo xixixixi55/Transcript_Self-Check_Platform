@@ -1,5 +1,5 @@
-// Layer 10: FE_Hooks — auto-load archive results so workbench cards derive
-// completion state without requiring a manual "view result" first.
+// 第 10 层：FE_Hooks — 自动加载归档结果，使工作台卡片无需先手动“查看结果”
+// 即可推导完成状态。
 import { useEffect, useState } from 'react'
 import type { ArchiveTaskCardSummary, ArchiveTaskResult, CaseShell } from '@biji/shared/types'
 

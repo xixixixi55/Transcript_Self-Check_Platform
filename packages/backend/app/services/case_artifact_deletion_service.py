@@ -1,4 +1,4 @@
-"""Delete platform-owned files for an explicitly confirmed case."""
+"""删除明确确认案件的平台自有文件。"""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class CaseArtifactDeletionPlan:
 
 
 class CaseArtifactDeletionService:
-    """Resolve only durable, platform-owned artifact locations before deletion."""
+    """删除前仅解析持久的平台自有工件位置。"""
 
     def __init__(
         self,
@@ -318,7 +318,7 @@ def _remove_path(path: Path) -> None:
 
 
 def _remove_empty_directory(path: Path) -> bool:
-    """Remove only an empty directory; return false when it still has owners."""
+    """仅移除空目录；仍有所有者时返回 false。"""
     if not path.exists():
         return True
     if path.is_symlink() or not path.is_dir():

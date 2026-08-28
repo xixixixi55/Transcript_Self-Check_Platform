@@ -1,4 +1,4 @@
-"""Task-bound sealed input snapshots for archive execution."""
+"""用于归档执行的任务绑定密封输入快照。"""
 
 from __future__ import annotations
 
@@ -213,7 +213,7 @@ def cleanup_sealed_input_snapshot(
 
 
 def cleanup_ephemeral_input_snapshot(snapshot: SealedInputSnapshot) -> None:
-    """Remove an unpersisted snapshot after making its owned tree writable."""
+    """使自有目录树可写后移除未持久化快照。"""
     assert_snapshot_tree_safe(snapshot.snapshot_dir)
     make_tree_writable(snapshot.snapshot_dir)
     shutil.rmtree(snapshot.snapshot_dir, ignore_errors=True)

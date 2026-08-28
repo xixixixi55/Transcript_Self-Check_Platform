@@ -1,4 +1,4 @@
-// Layer 1: SharedConstants — 前后端共享的常量
+// 第 1 层：SharedConstants — 前后端共享的常量
 
 import { RecordType } from '../types'
 

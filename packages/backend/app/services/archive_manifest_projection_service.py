@@ -1,4 +1,4 @@
-"""Compatibility projection from the trusted manifest to legacy attachment DTOs."""
+"""从可信 Manifest 到旧版附件 DTO 的兼容投影。"""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ _ARCHIVE_EXTRACT_COLUMNS = (
 def project_manifest_to_legacy_report(
     report: Mapping[str, Any], manifest: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Regenerate old attachment fields; manifest values always win."""
+    """重新生成旧附件字段；始终以 Manifest 值为准。"""
     result, _ = project_manifest_to_legacy_report_with_plan(report, manifest)
     return result
 
@@ -35,7 +35,7 @@ def project_manifest_to_legacy_report(
 def project_manifest_to_legacy_report_with_plan(
     report: Mapping[str, Any], manifest: Mapping[str, Any],
 ) -> tuple[dict[str, Any], Any]:
-    """Return the same legacy projection and the already-built formal plan."""
+    """返回相同旧版投影和已构建的正式计划。"""
     result = project_ordered_legacy_report(report)
     plan = build_attachment_plan(manifest, result)
     attachments = result.setdefault("attachments", {})
@@ -60,11 +60,10 @@ def project_manifest_to_legacy_report_with_plan(
 def project_verified_manifest_to_legacy_attachments(
     report: Mapping[str, Any], manifest: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Build the persisted attachment projection for a verified archive.
+    """为已验证归档构建持久附件投影。
 
-    A complete review uses the same projection as Word.  Archive completion is
-    also allowed before every review-only field is complete, so that path keeps
-    the manifest-controlled rows and preserves any existing row context.
+    完整审核使用与 Word 相同的投影。归档也允许在所有仅审核字段完成前结束，
+    因此该路径会保留 Manifest 控制的行和任何现有行上下文。
     """
     try:
         projected, _ = project_manifest_to_legacy_report_with_plan(report, manifest)

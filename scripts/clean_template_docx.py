@@ -1,4 +1,4 @@
-"""Deterministically remove comments and Attachment 2 sample images from DOCX."""
+"""以确定性方式从 DOCX 中删除批注和附件 2 示例图片。"""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ PRIVACY_REMOVED_PARTS = {"docProps/custom.xml"}
 
 
 def clean_template(source_path: str | Path, output_path: str | Path) -> None:
-    """Write a clean template while retaining the empty Attachment 2 anchor paragraph."""
+    """在保留空的附件 2 锚点段落的同时，写入已清理的模板。"""
     source = Path(source_path)
     output = Path(output_path)
     parts = {
@@ -53,7 +53,7 @@ def clean_template(source_path: str | Path, output_path: str | Path) -> None:
 
 
 def sanitize_template_privacy(source_path: str | Path, output_path: str | Path) -> None:
-    """Remove non-rendering identity metadata while preserving visible OOXML bytes."""
+    """保留可见 OOXML 字节，同时删除不参与渲染的身份元数据。"""
     source = Path(source_path)
     output = Path(output_path)
     parts = {

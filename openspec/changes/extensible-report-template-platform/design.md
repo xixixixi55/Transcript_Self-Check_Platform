@@ -1,6 +1,6 @@
-# Design: Extensible Report and Template Platform
+# 设计：可扩展报告与模板平台
 
-## Context
+## 背景
 
 当前生产仍以“HTML/JSON 解析 → `InspectionReport` legacy DTO → 最终 Manifest 投影/附件计划 → 填充 `template.docx`”为正式输出主链：
 
@@ -15,9 +15,9 @@
 
 本变更是跨解析、领域规则、持久化、文件执行和 DOCX 的 Level 3 架构变更。设计目标是逐步建立稳定的领域内核，而不是一次性替换所有调用方。
 
-## Goals / Non-Goals
+## 目标/非目标
 
-**Goals:**
+**目标：**
 
 - 阶段一完整实现当前报告 + 当前模板的已确认规则，并保护新旧解析回归。
 - 让 parser 只负责发现/归一化候选，让业务层决定显示、编号、工具、压缩和分页。
@@ -25,14 +25,14 @@
 - 让模板成为可登记的 `TemplateProfile`，保留当前 OOXML/VML 资产并使渲染规则可测试。
 - 为阶段二的报告结构 Profile 和阶段三的可视化模板 Profile 提供版本化、人工确认、解释和回滚接口。
 
-**Non-Goals:**
+**非目标：**
 
 - 本设计阶段不修改业务代码、模板、输出、缓存或未跟踪文件。
 - 不在阶段一实现任意厂商 JSON 或任意 DOCX 的完整自动化。
 - 不引入数据库/云同步；单机存储是阶段一约束。
 - 不让推荐、低置信解析或未知模板静默进入最终导出。
 
-## Target Architecture
+## 目标架构
 
 ```text
 Raw report directory/archive
@@ -71,7 +71,7 @@ Legacy InspectionReport input/history ──► LegacyReportInputAdapter ──�
 
 依赖方向遵守项目架构：SharedTypes → SharedConstants/Utils；后端 Repository → Services → Controllers → Routes；前端只通过 API DTO 通信。规划对象先放在后端领域服务和 SharedTypes 契约中，避免 React 组件直接依赖 Python 实现。主迁移方向是 `ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出`；legacy DTO 进入 canonical 只属于兼容/历史迁移路径。
 
-## Domain Models and Interfaces
+## 领域模型和接口
 
 以下是实现阶段应落在 SharedTypes/后端领域模型中的最小契约。字段名可以按项目现有 Python/TypeScript 命名约定分别采用 snake_case/camelCase，但序列化名称必须稳定。
 
@@ -95,7 +95,7 @@ CanonicalInspectionCase {
 
 `inspectionStart/inspectionEnd` 明确取报告创建时间/报告时间；光盘日期只进入附件日期字段。`case.name` 同时作为归档基础名称，但在文件系统层必须经过安全文件名规范化，并保留原始案件名用于正文。
 
-### `Material` and generic identifiers
+### `Material` 和通用标识符
 
 ```text
 Material {
@@ -136,7 +136,7 @@ SoftwareTool {
 
 `mainForensic` 的 `name` 和 `version` 都必须有报告来源；适配器低置信或缺失时标记为待确认，审核页面允许分别填写/修正名称和版本，确认前由 `ExportGate` 阻止正式导出。不得使用历史固定软件或从普通组件猜测；仅有 WinRAR/Python hashlib 时工具列表仍不完整。WinRAR 和 Python hashlib 只作为执行工具记录，可取运行时版本。`softwareTools` 由角色白名单去重，不能把报告中的其他软件直接带入模板。`InspectorSnapshot` 始终保持结构化的 `unit`、`name`、`police_number` 序列化字段，默认单文本框格式由 TemplateProfile 配置为 `单位　姓名（警号）`；多个单元格时由 Profile 分别绑定三字段。
 
-### `ReportProfile` and `FieldProvenance`
+### `ReportProfile` 和 `FieldProvenance`
 
 ```text
 ReportProfile {
@@ -201,7 +201,7 @@ DiscSequence { prefix, date, start_number, number_width, first_disc_number }
 
 导出前的首次 Manifest 校验必须对每个实际分卷执行存在性、大小和完整 MD5 校验；在同一次校验中，已得到的 MD5 传给后续结构校验，避免同一次导出把 135GB 分卷重复读取两遍。当前实现不使用大小、mtime 或文件标识替代哈希，也没有用不具备内容安全保证的快捷缓存：Word 失败后的同一请求不会重新执行 WinRAR，但新的导出请求复用 Manifest 时仍会重新读取并校验所有分卷 MD5。这样保留了“文件未变化”的内容级证据，代价是大分卷重试可能再次产生完整读取成本。后续若引入性能优化，必须保存受保护的文件身份快照并说明其安全边界，不能无条件跳过变化检测。
 
-### Archive input authorization mode and context boundary
+### 归档输入授权模式和上下文边界
 
 归档输入保留既有固定根目录、精确目录令牌和路径安全实现，但由浏览器首页的持久化用户偏好选择是否启用授权边界。具体案件目录不要求统一搬迁到一个总目录，也不要求系统移动、复制或删除用户原始取证数据。
 
@@ -222,7 +222,7 @@ DiscSequence { prefix, date, start_number, number_width, first_disc_number }
 
 上下文当前只保存在进程内存中：过期返回 `ARCHIVE_CONTEXT_EXPIRED`，不存在返回 `ARCHIVE_CONTEXT_NOT_FOUND`，同一上下文并发返回 `ARCHIVE_CONTEXT_BUSY`；服务重启后不伪造恢复能力，旧上下文按不存在处理，要求重新解析。清理只删除系统元数据和系统生成的临时目录，不删除精确授权的原始案件目录。Word 失败时保留已验证 Manifest 和同一次成功归档供安全重试，但输入快照、首个光盘编号或审核数据变化后不得复用旧 Manifest。
 
-### Attachment plans
+### 附件计划
 
 ```text
 Attachment1Plan {
@@ -250,7 +250,7 @@ Attachment3Plan {
 
 附件规划器只接收 final manifest、canonical case、光盘序列和审核后的显式 photo group manifest，不接收原始报告目录。附件一按 manifest 切成每页最多四行，第一页拥有表头和 label；来源/提取方式按数据页生成。`signatureBlankRowCount` 由规划器明确写入：总分卷数为1时最后页为2，总分卷数为2时最后页为1，总分卷数至少3时所有页面为0；数据页恰好四行时追加一个不含分卷行的 `inspector_final` 页面且其值为0。因此 1、2、3、4、5、6、8、9 个分卷的数据页分别为 `[1]`、`[2]`、`[3]`、`[4]`、`[4,1]`、`[4,2]`、`[4,4]`、`[4,4,1]`，其中满四行数据页后的签字页单独计入附件一页数。固定手写行不写入动态检查人员，正文检查人员仍由有序 `InspectorSnapshot[]` 动态生成。正式检查结果由同一个 manifest-driven `AttachmentPlan` 提供有序检材编号和全部 part 的文件名、MD5、实际大小及光盘编号；Renderer 不得使用报告中的单个旧分卷字段覆盖 manifest。附件二零张不生成附件二页面；有图片时先按 `MaterialPhotoGroup` 保持检材顺序，再按每页最多两组分页：一组为两张图片左右居中，两组为两行两列且每组图片左右相邻，说明文字使用独立行框；双检材页将两个完整检材组放入页面剩余区域的上、下等高区域并分别居中，组间使用独立固定间隔，不依赖连续行高碰巧形成对称；单检材页复用双检材页每组已经验收的图片行高度，并通过当前模板分页锚点的显式 after spacing 将完整图片组垂直居中，不依赖 Word 自动挤压或随机空段落；多页时只有第一页显示“附件2”且后续页面版式一致；附件三每个 part 一页且只首张显示“附件3”，附件二缺失不触发编号重排。
 
-### `DocumentRenderPlan` and `TemplateProfile`
+### `DocumentRenderPlan` 和 `TemplateProfile`
 
 本节定义未来统一渲染合同。当前生产 renderer 的实际输入仍为 `InspectionReport` 兼容数据 + 最终 `ArchiveManifest` + `AttachmentPlan` + `current-template-v1` TemplateProfile；尚无生产 `DocumentRenderPlan` 构造与消费，不得把下列结构定义视为已启用能力。
 
@@ -290,7 +290,7 @@ Renderer 先写入临时输出副本，再原子替换正式输出。输出副�
 
 部署只保留当前 `word_templates/template.docx` 作为内置模板，不再随程序分发 1.0.0～1.0.2 的退役 DOCX，也不保留依赖仓库外参考文档和真实案件替换串的一次性创建脚本。当前模板净化只允许改写 `docProps/core.xml`、删除 `docProps/custom.xml` 及其关系/内容类型声明、删除 `word/settings.xml` 中的 WPS `docVars`；正文、页眉页脚、样式、编号、主题、VML、表格、分页、图片关系和其他渲染部件必须逐字节保持。因包指纹变化发布新的当前内置版本，启动时把旧内置默认值和案件引用幂等迁移到新版本；自定义模板引用保持不变。
 
-## Key Decisions
+## 关键决策
 
 ### 阶段一前端模板编辑只产生受控派生版本
 
@@ -368,18 +368,18 @@ officecli batch 只保留为无 Manifest 的兼容分支；当前 `/records/expo
 
 Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号、检查时间、主软件、检查人员顺序、ArchiveManifest 和附件一/二/三页面数量。比较器只输出字段名、一致性、脱敏来源和诊断代码，严禁完整案件、人员、IMEI、序列号和原始 JSON 进入日志。
 
-## Migration Plan
+## 迁移计划
 
 当前检查点（2026-07-23）：Legacy 生产稳定化基本完成，包含旧/同厂商新版报告兼容、请求存活性、解析缓存生命周期和受 TTL/容量限制的 `ArchiveContext` metadata 快照；正式归档安全边界未降低。Shadow 生产接线已完成，真实样本差异治理的基础机制已完成但真实样本治理未完成。正式输出仍是 legacy DTO 管线；导出观测点不宣称完整最终渲染输入比较，Legacy DOCX 失败会记录失败诊断。归档最终 Manifest 当前没有解压树清单，因此根目录保留合同明确记为 `not_comparable`，待 14A.6 真实 WinRAR 列表/解压验收补证。Canonical 正式生产切换尚未开始；延期大容量验收不阻塞 Canonical 代码和只读预览、编辑门控、候选输出隔离、回滚演练等预切换开发与验证，但在补测通过或风险接受前不能切换为默认唯一正式输出；`DocumentRenderPlan`、15.1/15.1T 完整人工验收和 OpenSpec 归档仍未完成。
 
-### Stage 0: Contracts and shadow pipeline
+### 阶段 0：合同和 Shadow 管道
 
 1. 在不改变现有端点的前提下新增 SharedTypes、领域服务接口、schemaVersion 和集中 `pipeline_mode` 配置；默认 `legacy`。
 2. 按 `ReportAdapter → CanonicalInspectionCase → InspectionReport` 建立兼容投影；旧 DTO 输入/历史迁移只走 best-effort `LegacyReportInputAdapter`，不作为主路径。
 3. 为 `current-template-v1` 建立只读 Profile 和模板资产哈希；不替换运行时模板。
 4. 为压缩、附件规划和 renderer 增加纯函数测试、合成 fixture 和 XML 检查。
 
-### Stage 1: Required delivery
+### 阶段 1：必需交付
 
 1. 接入手机/平板显示政策、报告来源主软件、人员库/快照、光盘序列和分卷 manifest。
 2. 将附件一/二/三全部从 final manifest/page plans 渲染；保留旧 DTO 输入，officecli batch 仅保留为无 Manifest 兼容分支。
@@ -387,19 +387,19 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 4. Shadow 比较至少覆盖案件字段、检材类型、IMEI/序列号、检查时间、主软件、人员顺序、ArchiveManifest 和附件页数；人工确认正文、VML、分页、颜色、图片和附件。
 5. 正式切换前允许继续开发和验证 Canonical 只读预览、编辑门控、候选输出隔离与回滚演练；只有延期资源型验收补测通过或发布负责人明确接受风险后，才可把集中配置切换为 `canonical`，使其成为默认唯一正式输出；保留将同一配置改回 `legacy` 的人工回滚路径。
 
-### Stage 2: Arbitrary report, current template
+### 阶段 2：任意报告、当前模板
 
 1. 增加结构发现 API、候选确认 UI、ReportProfile Repository 和 provenance 审计。
 2. 仅对已确认 Profile 自动适配同类报告；未知/低置信字段仍需确认。
 3. 将 canonical DTO/问题列表逐步暴露给前端，旧 `InspectionReport` 继续作为兼容投影。
 
-### Stage 3: Arbitrary report, arbitrary template
+### 阶段 3：任意报告、任意模板
 
 1. 增加 DOCX AST、可视化元素选择、TemplateProfile 草稿和绑定编辑器。
 2. 增加重复区、图片区、显示条件、分页和 keepTogether 的可视化配置。
 3. 无标记模板只生成推荐草稿；用户确认后运行 renderer，支持版本化比较、撤销和回滚。
 
-### Rollback
+### 回滚
 
 - 通过集中 `pipeline_mode=legacy|shadow|canonical` 回退；默认初始值为 `legacy`，配置从后端应用统一运行时设置读取，不能由各 parser/service/renderer 分别覆盖。
 - 原始解析缓存按 source fingerprint、adapter/schema/profile 版本复用；shadow/canonical 的 plan、manifest、render 和正式输出缓存按 pipeline mode、plan、template 版本隔离或失效。Shadow 结果永远不能作为正式 Word 缓存。
@@ -408,7 +408,7 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 - 模板 Profile 以 ID/版本和 sha256 选择；新 Profile 失败可切回 `current-template-v1`，未知资产不自动接管。
 - 解析缓存携带 canonical/adapter/profile/schema 版本，版本不匹配即重建，不复用旧语义缓存。
 
-## Risks / Trade-offs
+## 风险/权衡
 
 - [风险] 现有 `template_filler_service.py` 超过 800 行且承担多种职责。→ [缓解] 后续只按独立领域职责、变化原因和可测试行为边界评估 Repository/Service/Renderer/Plan 拆分；阶段 0 保留有界豁免，不以 LOC 单独驱动拆分，旧文件仅在自然边界明确时逐步削薄。
 - [风险] WinRAR 输出命名、分卷边界和压缩比受版本/参数影响。→ [缓解] staging、精确字节参数、真实卷验证、升级重试和合成大文件测试；不以源字节数冒充最终卷大小。
@@ -426,14 +426,14 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 - 同一次 Manifest 校验中每个实际 part 只计算一次 MD5：首次 DOCX 导出前验证文件存在性、大小和完整 MD5，并将已得到的 MD5 传给后续结构校验，避免同一请求重复读取同一 part。Word 生成失败后的重试可能再次验证大文件；最大 135GB 时重新读取全部分卷可能产生明显成本。
 - 当前正确性优先，不建设复杂持久化哈希缓存。未来如引入受控复用，必须基于安全文件身份、大小、mtime 和已验证 Manifest 设计，并保留实际变化检测；不得为了性能跳过变化检测。
 
-## Resolved Business Decisions
+## 已解决的业务决策
 
 - `0` 张图片允许导出且不生成附件二图片页；正偶数正常生成，奇数阻止导出；附件二缺失不重排附件三编号。
 - 检材阶段一只允许 `phone`/`tablet`；可靠类型可预选，无法可靠判断时在审核页确认，不得仅根据 IMEI 推断。
 - WinRAR 未安装或不可调用时允许上传、解析和编辑，但禁止自动压缩和最终正式导出，不生成 `ArchiveManifest`，不降级 ZIP。
 - 主取证软件正常由报告适配器识别；无法可靠识别时可在审核页填写/修正名称和版本，确认前禁止最终正式导出。
 
-### Stage-one implementation clarifications
+### 第一阶段实现澄清
 
 - 检材自动候选只读取报告明确的 `device_type` 语义字段，不搜索报告全文，也不读取案件名称、单位、文件名、目录名、设备型号、IMEI 或序列号作为分类依据。字段值先去除首尾空白并做必要的全半角/英文大小写归一化，再匹配固定词表：`手机`、`智能手机`、`phone`、`smartphone`、`iPhone` 映射 `phone`；`平板`、`平板电脑`、`tablet`、`iPad` 映射 `tablet`。同一字段同时命中两类或没有命中时保持 `unconfirmed`。自动候选的来源和诊断必须保留，状态与人工确认严格区分为 `confirmed_by_report`、`confirmed_by_user`、`unconfirmed`。
 - `MaterialDisplayPolicy` 是业务规划层的唯一标识显示决策：`phone` 只返回合法 `imei1`/`imei2`，`tablet` 只返回合法 `serial_number`，`unconfirmed` 不返回推测标识；Canonical/解析层始终完整保留原始 identifiers，Renderer 不重新判断。
@@ -441,18 +441,18 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 - `InspectionReport.introduction.inspector_snapshots` 是新增可选的唯一权威快照字段。新审核页只编辑该数组，保存时按其顺序派生 legacy `introduction.inspectors` 投影，字段映射为 `police_number` → `badge_number`。读取旧 DTO 时，若没有快照但有 `inspectors`，按原顺序 best-effort 转换，不伪造人员库 ID、确认来源或当前人员库关系；两者冲突时快照优先并重建兼容投影。人员库变化不反向修改既有快照。
 - 当前检查人员库数据持久化到本地应用数据目录。报告中的 `InspectorSnapshot[]` 在当前审核会话和最终导出请求中保持有序；当前系统尚无独立报告草稿持久化接口，因此刷新页面或重新进入页面后，未正式保存的整个报告编辑状态不会自动恢复。该限制不属于人员库缺陷，也不作为 Task 3.1 → 4.2 的验收项；可登记为后续“本地报告草稿/任务持久化”候选任务，本轮不实现。
 
-## Remaining Implementation Questions
+## 剩余实现问题
 
 1. 附件一“来源”和“提取方法”合并框的文字是否按每页第一卷、每页相同值，还是需要按卷/页分别编辑？
 
-## Expected File Changes During Implementation
+## 实现期间预期文件变更
 
 本次只创建当前变更包文档。后续实现预计新增/调整以下类别，路径是迁移计划而非本次已修改文件：
 
 - `packages/shared/types/`：canonical、plans、profiles、API DTO 类型。
 - `packages/shared/constants/` 与 `packages/shared/utils/`：档位、编号、图片和显示规则纯函数。
-- `packages/backend/app/repository/`：report adapters、inspector library、archive executor/validator、profile/template asset repository。
-- `packages/backend/app/services/`：canonicalizer、domain planners、render planner、profile confirmation orchestration、legacy adapter。
+- `packages/backend/app/repository/`：报告适配器、检查人员库、归档执行器/验证器、配置/模板资产存储库。
+- `packages/backend/app/services/`：规范化转换器、领域规划器、渲染规划器、配置确认编排、旧版适配器。
 - `packages/backend/app/main.py` 及集中运行时配置：只在应用启动时读取 `pipeline_mode` 和相关版本，不让下层模块自行读取环境变量。
 - `packages/backend/app/controllers/` 与 `routes/`：兼容端点扩展及阶段二/三新 API。
 - `packages/frontend/src/hooks|components|pages/`：人员选择、光盘号、规划错误、Profile 确认和模板可视化配置。

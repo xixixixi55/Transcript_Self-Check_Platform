@@ -1,4 +1,4 @@
-"""Synthetic cleaned-case tombstone and formal-authority preservation tests."""
+"""已清理案件墓碑与正式权威信息保留的合成数据测试。"""
 
 from __future__ import annotations
 

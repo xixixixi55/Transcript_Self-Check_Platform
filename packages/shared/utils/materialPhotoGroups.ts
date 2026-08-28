@@ -1,4 +1,4 @@
-// Layer 2: SharedUtils — deterministic material/photo pairing for Attachment 2.
+// 第 2 层：SharedUtils — 附件 2 的确定性检材/照片配对。
 import type { InspectionReport, MaterialPhotoGroup } from '../types'
 
 const numericFileNameCollator = new Intl.Collator('zh-CN', {

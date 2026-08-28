@@ -1,4 +1,4 @@
-## Context
+## 背景
 
 当前解析缓存有两条输入校验路径：Legacy动态依赖使用`selected_files_content_fingerprint`及进程内digest缓存；新版报告输入快照使用依赖记录、候选目录成员和元数据优先校验。两条路径都可能在大小、stat时间和文件身份未变化时跳过内容读取，因此同路径同大小覆盖可能返回旧`InspectionReport`。
 
@@ -6,9 +6,9 @@ Spike证明了该缺口，并证明Windows NTFS的per-file USN令牌可以在恢
 
 这些数字不是同一调用链：真实Parser约366ms、预览API约450–492ms是完整服务调用，文件数量和缓存状态不同；Spike直接调用文件指纹、USN IOCTL或内容读取。后续验收必须使用同一合成目录、同一Parser/API入口，并分别记录冷启动、进程内热命中、重启后首次复核和单文件变化。
 
-## Goals / Non-Goals
+## 目标/非目标
 
-**Goals:**
+**目标：**
 
 - 同路径、同大小、stat不变的内容替换不得复用旧digest或旧解析结果。
 - 在Windows NTFS且变化令牌可信时，不无条件重读所有依赖文件。
@@ -18,13 +18,13 @@ Spike证明了该缺口，并证明Windows NTFS的per-file USN令牌可以在恢
 - 明确进程内缓存、磁盘解析缓存及服务重启后的信任边界。
 - 保持解析失败不发布旧结果，且不改变正式归档和Word安全门控。
 
-**Non-Goals:**
+**非目标：**
 
 - 不建设通用文件监听平台，不实现断点续读或跨机器缓存。
 - 不修改ArchiveContext、WinRAR、Manifest、Word、正式模板、Shadow或Canonical。
 - 首版不持久化USN游标；只有后续证明重启后性能需要时才增加令牌字段和格式迁移。
 
-## Decisions
+## 决策
 
 ### 1. 使用统一的变化可信度接口
 
@@ -36,7 +36,7 @@ Spike证明了该缺口，并证明Windows NTFS的per-file USN令牌可以在恢
 
 Provider返回不透明的原因码，不返回绝对路径。Legacy指纹函数和输入快照校验均通过该接口判断，禁止各自重新实现stat-only逻辑。
 
-### 2. Windows NTFS优先使用per-file USN令牌
+### 2. Windows NTFS 优先使用每文件 USN 令牌
 
 在受支持的本地NTFS卷上，适配层使用Win32文件句柄读取当前文件USN记录，并结合卷身份、Journal ID、File Reference Number和USN组成内部令牌。命中时必须重新取得当前令牌；令牌相同才允许复用digest。
 
@@ -87,7 +87,7 @@ Journal ID变化、当前USN超出可验证范围、USN读取失败、权限不�
 
 本变更只决定解析输入缓存是否可复用。正式ArchiveContext、完整inventory、WinRAR、Manifest和Word仍按现有正式门控执行；解析缓存不得提供RAR、Manifest或Word的可信替代物。Legacy仍是唯一正式输出，Canonical和Shadow不参与。
 
-## Risks / Trade-offs
+## 风险/权衡
 
 - **[USN不可用导致性能下降]** → 继续允许解析，但转入完整内容复核；记录不透明原因码和可聚合指标，不能静默复用旧结果。
 - **[Win32 API在EXE打包后行为不同]** → 使用最终PyInstaller/EXE执行普通文件、权限不足、非支持来源和API失败矩阵；将Windows适配放在惰性加载的后端Repository层。
@@ -97,7 +97,7 @@ Journal ID变化、当前USN超出可验证范围、USN读取失败、权限不�
 - **[13,500文件的令牌查询仍有开销]** → 以依赖文件数量和令牌查询次数作为性能门控；不引入未经证明的抽样、大小估算或输出文件增长假进度。
 - **[回滚到旧stat-only代码重新引入缺口]** → 新版本提供关闭快速令牌路径的开关，关闭后仍执行完整内容复核；若必须回退旧二进制，先隔离/失效解析缓存，不删除RAR、Manifest或Word。
 
-## Migration Plan
+## 迁移计划
 
 1. 先实现纯Provider合同和模拟Provider测试，不改变正式解析入口。
 2. 实现Windows NTFS适配及不可信降级，完成原地覆盖、替换、重建、权限和TOCTOU测试。
@@ -107,7 +107,7 @@ Journal ID变化、当前USN超出可验证范围、USN读取失败、权限不�
 
 回滚不执行历史改写，不触碰正式归档文件。新代码回滚优先关闭快速令牌路径；只有在隔离解析缓存并确认不再复用旧记录后才允许回退旧二进制。
 
-## Open Questions
+## 待决问题
 
 - 最终部署账户是否能在所有甲方目标机器上读取普通授权文件的USN记录，需用打包EXE验证。
 - 甲方是否要求服务重启后仍保持大型解析缓存的亚秒级命中；在该需求明确前不持久化USN令牌。

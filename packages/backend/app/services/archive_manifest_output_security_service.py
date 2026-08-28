@@ -1,4 +1,4 @@
-"""Output-size and filesystem-object safety checks for archive manifests."""
+"""归档 Manifest 的输出大小和文件系统对象安全检查。"""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def compute_disc_capacity(size_bytes: int) -> int:
 def compute_manifest_disc_capacity(
     size_bytes: int, archive_mode: object,
 ) -> int | None:
-    """Return the capacity using the manifest's persisted unit contract."""
+    """使用 Manifest 的持久化单位契约返回容量。"""
 
     if archive_mode == "oversized_single_volume":
         return None

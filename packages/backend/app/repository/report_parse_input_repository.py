@@ -1,4 +1,4 @@
-"""Layer 20: one-pass, request-scoped report Parser input snapshots."""
+"""第 20 层：单次遍历、请求级报告 Parser 输入快照。"""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ _CORE_FILES = (
 
 
 def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapshot:
-    """Read core and explicitly selected device metadata exactly once."""
+    """核心数据和明确选择的设备元数据各仅读取一次。"""
     source_root = resolve_directory(source_dir)
     data_root = source_root / "data"
     require_directory(data_root)

@@ -66,7 +66,7 @@ def test_production_binary_tier_boundaries(size, tier, expected, status):
     ],
 )
 def test_named_capacity_planning(size, tier, expected):
-    """Planner selects tier and expected count from input bytes; no WinRAR call."""
+    """规划器根据输入字节数选择档位和预期数量，不调用 WinRAR。"""
     plan = plan_archive("合成案件", entry(size), first_disc_number="GP2026071802-01")
     assert plan.volume_tier_gb == tier
     assert plan.expected_part_count == expected

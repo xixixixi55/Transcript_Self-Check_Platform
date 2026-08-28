@@ -1,4 +1,4 @@
-"""SQLite initialization, migrations, transactions, and deployment isolation."""
+"""SQLite 初始化、迁移、事务和部署隔离。"""
 
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ class WorkbenchDatabase:
 
 
 def _migrate_legacy_archive_identity(connection: sqlite3.Connection, deployment_id: str) -> None:
-    """Give pre-task records an explicit attempt-bound compatibility identity."""
+    """为任务前记录提供显式的尝试绑定兼容标识。"""
     connection.execute(
         "UPDATE task_records SET deployment_instance_id=? WHERE deployment_instance_id IS NULL",
         (deployment_id,),
@@ -219,7 +219,7 @@ def _ensure_initial_retention_policy(
     if parsed.diagnostic_code:
         _LOGGER.warning(parsed.diagnostic_code)
     now = utc_now_z()
-    # New installations and v10 upgrades never start executable retention work.
+    # 全新安装和 v10 升级绝不会启动可执行的保留任务。
     connection.execute(
         "INSERT INTO case_retention_policies(deployment_instance_id,mode,retention_days,"
         "scan_interval_seconds,batch_size,policy_revision,activated_at,created_at,updated_at) "

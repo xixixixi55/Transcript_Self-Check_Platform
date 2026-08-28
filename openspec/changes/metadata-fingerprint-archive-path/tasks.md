@@ -2,10 +2,10 @@
 
 workflow_level: 2
 
-> Spec: `openspec/changes/metadata-fingerprint-archive-path/specs/electronic-inspection-record/spec.md`
+> 规格：`openspec/changes/metadata-fingerprint-archive-path/specs/electronic-inspection-record/spec.md`
 > 范围：将来源复核与归档输入路径的全量内容指纹替换为元数据级指纹，修复归档决策请求阻塞并降低解析后复核与压缩任务负载；归档输出侧完整性校验保留。产品决策：放弃来源复核与归档输入快照的逐文件内容哈希，归档输出侧 RAR 校验与 MD5 仍保留。
 
-## Backend Services（Layer 21）
+## 后端 Service（Layer 21）
 
 - [x] T001 来源复核指纹改为元数据级。
   - 文件：`packages/backend/app/services/source_record_fingerprint_service.py`、`tests/test_phase1d_fourth_review.py`
@@ -22,7 +22,7 @@ workflow_level: 2
   - 内容：从同一稳定快照派生初次复核 metadata/fingerprint，来源复核使用独立有界执行池；瞬态失败后有限退避重试，耗尽时持久化稳定诊断码，归档安全门保持不变。
   - 验证：定向测试覆盖两次而非三次目录扫描、解析与来源复核资源隔离、瞬态失败后自动恢复、重试耗尽和异常 Future 收敛。
 
-## Frontend（Layer 10/12）
+## 前端（Layer 10/12）
 
 - [x] T003 修复删除门并给归档/删除请求加超时。
   - 文件：`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/hooks/useCaseWorkbench.ts`、`packages/frontend/src/hooks/useCaseRecordSession.ts`、`packages/shared/constants/workbenchConstants.ts`

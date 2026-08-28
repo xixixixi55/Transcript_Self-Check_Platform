@@ -1,4 +1,4 @@
-"""T014 Worker ownership, activity, terminal race, and restart tests."""
+"""T014 Worker 所有权、活动状态、终态竞争和重启测试。"""
 
 from __future__ import annotations
 

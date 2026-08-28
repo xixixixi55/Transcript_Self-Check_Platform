@@ -1,7 +1,7 @@
 # Design: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入 Archive Scheduler/Worker，随后补齐 runtime 接线、Windows 缺少 `busy_time` 的可选指标降级、staging ownership marker 发布时序，以及工作台 autosave 与归档决策的 revision 协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。随后独立 Level 3 Review 发现 M-1 至 M-4 与 L-1；本轮归档一致性、恢复和外部变更加固已完成并通过故障注入、受影响回归和完整 `verify:full`。2026-08-01 完整 Harness 退出码为 `0`，门控后的独立 Level 3 Review、Final Review 和 Production Review 均已通过；`1D-017R` 已完成。Production Review 结论适用于本节的 Legacy-only、单 Windows 实例支持模型；现有 gate 的 `OpenSpec 归档阻断解除` 已记录为解除，但 OpenSpec archive 和 Phase 5 尚未开始；TD-1/TD-2 已关闭，TD-4/TD-5 为环境债务，TD-3/TD-6 为 Low 技术债。
+> 设计状态：Phase 1–4 实现、自动化验证和真实浏览器复验已完成；2026-07-30 首次最终集成人工验收发现正式应用生命周期未接入归档调度器/工作进程，随后补齐运行时接线、Windows 缺少 `busy_time` 的可选指标降级、暂存区所有权标记发布时序，以及工作台自动保存与归档决策的修订版协调。2026-07-31 D 盘隔离环境真实浏览器复验通过，Phase 3、Phase 4 和 Phase 1–4 最终集成人工验收已通过；RAR/Manifest/MD5、取消/重试、停止/重启恢复和真实双会话冲突证据见 `tasks.md`。随后独立 Level 3 Review 发现 M-1 至 M-4 与 L-1；本轮归档一致性、恢复和外部变更加固已完成并通过故障注入、受影响回归和完整 `verify:full`。2026-08-01 完整 Harness 退出码为 `0`，门控后的独立 Level 3 Review、最终 Review 和生产 Review 均已通过；`1D-017R` 已完成。生产 Review 结论适用于本节的 Legacy-only、单 Windows 实例支持模型；现有门控的 `OpenSpec 归档阻断解除` 已记录为解除，但 OpenSpec 归档和 Phase 5 尚未开始；TD-1/TD-2 已关闭，TD-4/TD-5 为环境债务，TD-3/TD-6 为 Low 技术债。
 
 ## 1. 总体架构决策
 
@@ -93,7 +93,7 @@ Phase 1D 在现有 `/records/archive` Legacy 显式入口外围增加最小归�
 | `FieldState` | `field_path`, `subject_id`, `source`, `confirmation`, `revision`, `last_changed_at` | 来源状态覆盖可编辑叶子、检材、人员、图片组；派生显示字段不单独建状态 |
 | `EditLease` | `case_id`, `session_id`, owner token, `last_heartbeat_at`, `expires_at`, takeover audit | 一个案件最多一个有效租约；15 秒建议心跳，2 分钟失联可接管 |
 | `TaskRecord` | existing task identity/status/stage/percent/timestamps/error/cancel fields; Phase 3 persists stage ordinal, heartbeat, output activity, worker ownership/recovery and allowed-action facts | 后端任务、恢复和诊断事实源；`percent` 在归档任务中只表示里程碑；可以包含不进入列表 DTO 的内部字段 |
-| `ArchiveTaskCardSummary` | safe projection of case/task status, stage label/index/count, milestone, display times, compact activity, safe failure summary and allowed actions | 案件列表卡片专用摘要；不包含 Worker ID、路径、堆栈、日志、完整错误码、进程或内部租约 |
+| `ArchiveTaskCardSummary` | 案件/任务状态、阶段标签/索引/数量、里程碑、显示时间、紧凑活动、安全失败摘要和允许操作的安全投影 | 案件列表卡片专用摘要；不包含 Worker ID、路径、堆栈、日志、完整错误码、进程或内部租约 |
 | `SourceRecord` | opaque `source_id`, internal path, allowed root grant, source type, case/task refs, metadata/fingerprint, accessibility/review status | 来源授权与重启复核权威；绝对路径只存在后端受控存储 |
 | `ArchivePlan` | `plan_id`, `plan_revision`, input inventory revision, ordered `volume_slots`, mapping revision | 预计计划不是正式依据；最终由 VerifiedManifest 收敛 |
 | `VolumeSlot` | stable `slot_id`, ordinal, logical span/capacity, status, `disc_mapping` | 槽位身份独立于预计文件名，replan 尽量沿用 |
@@ -236,7 +236,7 @@ WinRAR、RAR 完整性校验、inventory 和 Manifest 只能读取 `sealed` 快�
 
 快照不移动、改名或锁死用户原始来源目录；其磁盘占用是归档执行的显式运行时成本，快照目录只允许落在配置的受控输出根内。快照清理不得越过该根或删除其他 task 的目录。旧的无快照 attempt 不自动补认身份：它们只能被恢复为 interrupted/conflict，不能作为新的正式输入证据。
 
-### Durable publication generation 边界（M-4A/M-4B）
+### 持久发布代次边界（M-4A/M-4B）
 
 每次正式发布生成唯一 `publication_id`，并在 durable publish intent 中固定 task、attempt、deployment、fence、Manifest、正式相对目录、文件集合和 publication 摘要。staging 在移动前必须完成当前 Manifest 的精确集合/顺序/大小/MD5 校验；随后计算包含相对文件名、大小、MD5、Manifest 摘要和 publication 身份的 generation digest，并将 intent 的 publication 状态提升为 `sealed`。只有该 sealed generation 才能通过同一文件系统的原子改名进入正式目录；目标目录已存在或身份不一致时拒绝，不覆盖历史资产。
 
@@ -250,7 +250,7 @@ SQLite 是 intent、fence、snapshot 和 publication generation 的唯一 durabl
 
 staging marker 的序列化 payload 绑定 task、attempt、deployment、受控 staging root 和随机 token；fence 绑定由 durable intent 的 `fence_id` 与当前 DB fence 在删除前交叉校验实现，payload 不要求重复存储 `fence_id`。marker 删除只发生在 intent/fence durable 建立及 publication 原子移动之后，由明确发布所有者执行；同一合法发布已经删除 marker 时返回幂等成功，身份不匹配不得删除。marker 仍存在于 pending publication 时由恢复沿同一 owner/fence 边界处理。
 
-本轮实现任务、schema/migration、故障注入和测试有效性记录在 `tasks.md` 的 `1D-044` 至 `1D-051T`；2026-08-01 已在完整 Harness 退出码为 `0` 后完成 `1D-017R` 独立重审并通过。随后对 remediation diff 按现有 Phase 1D Review gate 重新执行 Final Review，四项阻断均已关闭并判定 `PASS`；Production Review 随后按本节支持模型完成并判定 `PASS`，现有 gate 的归档阻断已解除。Phase 5 和 OpenSpec archive 仍未开始，详细基线和证据见 `tasks.md` 的 Review 结果记录。
+本轮实现任务、模式/迁移、故障注入和测试有效性记录在 `tasks.md` 的 `1D-044` 至 `1D-051T`；2026-08-01 已在完整 Harness 退出码为 `0` 后完成 `1D-017R` 独立重审并通过。随后对修复差异按现有 Phase 1D Review 门控重新执行最终 Review，四项阻断均已关闭并判定 `PASS`；生产 Review 随后按本节支持模型完成并判定 `PASS`，现有门控的归档阻断已解除。Phase 5 和 OpenSpec 归档仍未开始，详细基线和证据见 `tasks.md` 的 Review 结果记录。
 
 ### D-003E：第四次独立 Review 的 publish fence、运行态恢复与真实来源摘要
 
@@ -378,7 +378,7 @@ T015 完成后，工作台 `immediate` 决定改为创建持久化归档 TaskRec
 | 4 | TemplateRegistry/TemplateRef v1 | 依赖案件草稿和 Word export DTO；可用注册 fixture | 不要求重新压缩或重建 Manifest |
 | 5 | integrated acceptance/cleanup boundary | 阶段 1-4 的合同和定向验收证据 | 不把 Shadow 真实样本差异治理混入验收 |
 
-### Phase 1 internal gates
+### 阶段 1 内部门控
 
 | 小门控 | 范围 | 必须证明 |
 |---|---|---|
@@ -393,9 +393,9 @@ T015 完成后，工作台 `immediate` 决定改为创建持久化归档 TaskRec
 轻量冒烟不等同正式人工验收，阶段 checkpoint commit 是否创建由用户单独授权；运行
 `verify:full` 前仍按 `AGENTS.md` 询问执行者。
 
-### Phase 1C request liveness correction
+### 阶段 1C 请求活性修正
 
-The workbench submission request performs only source authorization and bounded report-structure validation before atomically creating the CaseShell, parse Task, and pending SourceRecord. It MUST NOT attach Legacy parsing to FastAPI `BackgroundTasks` or wait for recursive source metadata/fingerprint work. A bounded in-process dispatcher starts the same Legacy `parse_report` path after the transaction; the fast path is `parse readiness -> Legacy Parser -> draft persistence -> review_ready`. Full source metadata/fingerprint verification starts only after `review_ready`, remains independent of the parse task lifecycle, and changes only SourceRecord status when it fails. The dispatcher deduplicates an active `(case_id, task_id)` and treats unhandled parse-worker exceptions as retryable task failures. Restart recovery continues to use the persisted `queued`/`running` to `failed_retryable`/`interrupted` contract. A restart recovery pass must also find pending post-parse SourceRecord verification, requeue it within the bounded verifier or keep it explicitly pending; transient unavailability remains pending, while a confirmed source change requires reselection and a new parse before formal Word/archive execution.
+工作台提交请求在原子创建 CaseShell、解析 Task 和待处理 SourceRecord 前，只执行源授权和有界报告结构验证。它 MUST NOT 将 Legacy 解析附加到 FastAPI `BackgroundTasks`，也不得等待递归源元数据/指纹处理。事务完成后，有界进程内调度器启动相同的 Legacy `parse_report` 路径；快速路径为 `parse readiness -> Legacy Parser -> draft persistence -> review_ready`。完整源元数据/指纹验证仅在 `review_ready` 后启动，保持独立于解析任务生命周期，失败时只改变 SourceRecord 状态。调度器对有效的 `(case_id, task_id)` 去重，并将未处理的解析工作进程异常视为可重试任务失败。重启恢复继续使用持久化的 `queued`/`running` 到 `failed_retryable`/`interrupted` 契约。重启恢复过程还必须查找待处理的解析后 SourceRecord 验证，在有界验证器内重新排队或明确保持待处理；瞬态不可用继续保持待处理，而确认源已变更时，必须重新选择并重新解析，才能执行正式 Word/归档操作。
 
 ## 10. 兼容策略与安全门控
 
@@ -444,7 +444,7 @@ The workbench submission request performs only source authorization and bounded 
 
 若活跃包的设计与本包的 Legacy-only、Shadow 暂停或正式产物保护边界冲突，必须在开始实现前记录冲突处理决定；不能靠任务执行顺序或前端 feature flag 隐式解决。
 
-## 13. Production Review 部署与运维边界（2026-08-01）
+## 13. 生产 Review 部署与运维边界（2026-08-01）
 
 本节是当前实现可支持的正式部署模型，不是新的产品功能或 Phase 5 合同。支持范围为单个 Windows 应用实例、单个前端、单个 FastAPI 进程和该实例拥有的 in-process Scheduler/Worker；每个 deployment 必须使用独立的应用安装目录、SQLite 数据根、输出根和 staging 根。不同 deployment 不得共享 SQLite 文件、`packages/output` 或其 `.staging`/`.inputs` 子目录，也不支持多节点、远程数据库、共享 NAS、对象存储或高可用接管。
 
@@ -527,10 +527,10 @@ sealed snapshot、staging、RAR、Manifest、Word 和临时空间会叠加占用
 
 TD-3（失效 intent 重复扫描）由终态 conflict/invalidated 和幂等恢复补偿，规模化扫描优化后续处理；TD-4（外部修改授权来源）由 sealed snapshot、源证据复核和 fail-closed 补偿；TD-5（管理员级正式产物篡改）由 Manifest/MD5/SQLite publication 身份以及下载/复用/Word 门控检测并拒绝；TD-6（生产规模 fingerprint 性能）由输入上限、资源准入和容量提示补偿。它们均有触发条件、可见的稳定失败/排队行为和恢复路径，不阻断本次单机支持部署，但不应被写成已消除。
 
-## 14. OpenSpec archive-readiness reconciliation（2026-08-01）
+## 14. OpenSpec 归档就绪核对（2026-08-01）
 
-本轮只同步 living specs 并收敛归档前任务状态，不执行 archive。甲方 Demo 清单的 15 个历史 checkbox 由 2026-07-31 最终集成人工验收、`1D-008` 和原生 Word/真实浏览器证据覆盖后改为完成记录；T020–T025 及 Phase 5 gate 保留为明确的 `DEFERRED` follow-up，未开始实现、测试、Review 或 Phase 5。
+本轮只同步现行规格并收敛归档前任务状态，不执行归档。甲方演示清单的 15 个历史复选框由 2026-07-31 最终集成人工验收、`1D-008` 和原生 Word/真实浏览器证据覆盖后改为完成记录；T020–T025 及阶段 5 门控保留为明确的 `DEFERRED` 后续项，未开始实现、测试、审查或阶段 5。
 
-active delta 的 25 个 requirement block 已逐项映射：重叠内容合并到既有 REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束；新增内容写入 living `electronic-inspection-record`，包括四个 `REQ-ARCHIVE-*`。SQLite durable DTO/opaque asset、schema v10、deployment owner、sealed snapshot、publication generation、Manifest index 派生投影和 fail-closed 语义继续以 `openspec/specs/data-model.md` 为权威，不复制实现细节。唯一未提升为当前 living capability 的是案件清理/保留期合同，因为其实现属于尚未开始的 Phase 5；该边界记录在 tasks 的 deferred follow-up 中。
+有效增量的 25 个需求块已逐项映射：重叠内容合并到既有 REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束；新增内容写入现行 `electronic-inspection-record`，包括四个 `REQ-ARCHIVE-*`。SQLite 持久 DTO/不透明资产、模式 v10、部署所有者、密封快照、发布代次、Manifest 索引派生投影和失败关闭语义继续以 `openspec/specs/data-model.md` 为权威，不复制实现细节。唯一未提升为当前现行能力的是案件清理/保留期合同，因为其实现属于尚未开始的 Phase 5；该边界记录在任务的延期后续事项中。
 
-本次 reconciliation 不改变产品代码、测试、模板、部署支持模型、Final Review、Production Review 或风险债务结论。当前 change 的 Phase 1–4 归档范围已完成文档收敛，但 OpenSpec archive 仍未执行，Phase 5 仍未开始。
+本次核对不改变产品代码、测试、模板、部署支持模型、最终 Review、生产 Review 或风险债务结论。当前变更的 Phase 1–4 归档范围已完成文档收敛，但 OpenSpec 归档仍未执行，Phase 5 仍未开始。

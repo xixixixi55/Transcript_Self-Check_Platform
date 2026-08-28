@@ -1,4 +1,4 @@
-"""Owned archive-task transitions at verified workflow boundaries."""
+"""经验证工作流边界上的自有归档任务转换。"""
 
 from __future__ import annotations
 

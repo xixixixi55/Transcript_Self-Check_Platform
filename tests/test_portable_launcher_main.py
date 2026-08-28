@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for user-visible launcher startup failures."""
+"""用户可见启动器启动失败的 SYNTHETIC 测试。"""
 
 from __future__ import annotations
 

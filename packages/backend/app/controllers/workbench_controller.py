@@ -1,4 +1,4 @@
-"""Layer 22: case workbench HTTP DTO mapping and error boundary."""
+"""第 22 层：案件工作台 HTTP DTO 映射和错误边界。"""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ class ArchiveDecisionRequest(BaseModel):
 
 @router.post("/workbench/cases")
 def submit_case_endpoint(body: CaseSubmissionRequest):
-    """Persist a case shell before scheduling parsing of a selected directory."""
+    """调度所选目录解析前先持久化案件外壳。"""
     services = get_workbench_services()
     try:
         return _envelope(submit_case(
@@ -88,7 +88,7 @@ def submit_case_endpoint(body: CaseSubmissionRequest):
 
 @router.post("/workbench/cases/select-directory")
 def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
-    """Pick a local folder and immediately submit it through the directory contract."""
+    """选择本地文件夹并立即通过目录契约提交。"""
     services = get_workbench_services()
     try:
         if services.directory_picker is None:
@@ -113,7 +113,7 @@ def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
 
 @router.post("/workbench/select-export-directory")
 def select_export_directory_endpoint():
-    """Open the trusted native picker and return the chosen path plus a one-use grant."""
+    """打开可信原生选择器，并返回所选路径及一次性授权。"""
     services = get_workbench_services()
     try:
         if services.directory_picker is None:

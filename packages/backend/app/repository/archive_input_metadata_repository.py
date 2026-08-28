@@ -1,4 +1,4 @@
-"""Fast metadata-only identity checks for preview inventory snapshots."""
+"""针对预览清单快照的快速纯元数据标识检查。"""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def metadata_fingerprint_for_directory(
     source_root: str | os.PathLike[str],
     output_root: str | os.PathLike[str] | None = None,
 ) -> str:
-    """Hash current paths, sizes and mtimes without opening file contents."""
+    """在不打开文件内容的情况下对当前路径、大小和 mtime 计算哈希。"""
     root = Path(source_root)
     if _is_unsafe_special_path(root):
         raise ArchiveInputError("ARCHIVE_INPUT_LINK_NOT_ALLOWED", "Archive input links are not allowed.")

@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-009
+spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-009
 
 ## 目标
 

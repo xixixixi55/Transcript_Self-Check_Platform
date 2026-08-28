@@ -124,8 +124,8 @@ def test_apply_disc_mapping_persists_to_plan(database: WorkbenchDatabase) -> Non
         item["disc_mapping"]["confirmation"] == "confirmed"
         for item in active_slots(reopened)
     )
-    # expected_revision is the caller's case-level guard and is returned verbatim;
-    # the plan write is CAS-guarded by the plan row's own revision.
+    # expected_revision 是调用方的案件级保护值，并按原样返回；
+    # 计划写入由计划行自身版本通过 CAS 保护。
     assert result["expected_revision"] == plan["revision"]
     assert result["lifecycle"] == "archive_verified"
     assert result["archive_medium"] == "optical_disc"
@@ -156,7 +156,7 @@ def test_apply_hard_drive_mapping_persists_one_yp_number(database: WorkbenchData
 
 
 def test_apply_disc_mapping_uses_plan_revision_for_cas(database: WorkbenchDatabase) -> None:
-    """A stale case-level revision must not block the deferred mapping (REQ-030)."""
+    """过期的案件级版本不得阻止延迟映射（REQ-030）。"""
     repository = ArchivePlanRepository(database)
     plan = repository.create({
         "plan_id": "SYNTHETIC-DISC-PLAN-2", "case_id": CASE_ID, "plan_revision": 1,

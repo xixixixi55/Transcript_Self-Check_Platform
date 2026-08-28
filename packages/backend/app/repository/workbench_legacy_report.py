@@ -1,4 +1,4 @@
-"""Shape validation for the bounded Legacy InspectionReport DTO."""
+"""有界旧版 InspectionReport DTO 的结构验证。"""
 
 from __future__ import annotations
 

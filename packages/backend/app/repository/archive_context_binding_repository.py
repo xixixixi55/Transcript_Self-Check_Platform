@@ -1,4 +1,4 @@
-"""Persistent one-way bindings that distinguish workbench archive contexts."""
+"""用于区分工作台归档上下文的持久单向绑定。"""
 
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ def find_binding(database: WorkbenchDatabase, context_id: str) -> dict[str, Any]
 def find_active_binding_for_attempt(
     database: WorkbenchDatabase, attempt_id: str,
 ) -> dict[str, Any] | None:
-    """Return the one active workbench binding without exposing its raw context."""
+    """返回唯一活动的工作台绑定，不暴露其原始上下文。"""
     attempt_id = validate_opaque_id(attempt_id)
     connection = database.connect()
     try:

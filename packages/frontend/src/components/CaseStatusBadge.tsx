@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — safe case/task lifecycle labels.
+// 第 11 层：FE_Components — 安全的案件/任务生命周期标签。
 import React from 'react'
 import { Tag } from 'antd'
 import type { CaseLifecycle, TaskRecord } from '@biji/shared/types'

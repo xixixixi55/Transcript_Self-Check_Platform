@@ -1,4 +1,4 @@
-"""Validated serialization for the path-free ArchiveManifest index."""
+"""无路径 ArchiveManifest 索引的已验证序列化。"""
 
 from __future__ import annotations
 

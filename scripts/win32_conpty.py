@@ -1,4 +1,4 @@
-"""Minimal Windows ConPTY capture and visible-terminal progress model."""
+"""最小化的 Windows ConPTY 捕获与可见终端进度模型。"""
 
 from __future__ import annotations
 

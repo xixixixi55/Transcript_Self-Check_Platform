@@ -1,4 +1,4 @@
-"""Layer 20: local persistence for native directory-picker history."""
+"""第 20 层：原生目录选择器历史的本地持久化。"""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ DirectoryHistoryKind = Literal["report", "export", "archive"]
 
 
 class LocalDirectoryHistoryRepository:
-    """Persist independent report/export picker history without logging paths."""
+    """持久化独立的报告和导出选择器历史，不记录路径。"""
 
     def __init__(self, file_path: str | os.PathLike[str] | None = None) -> None:
         self.file_path = (

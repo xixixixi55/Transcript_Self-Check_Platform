@@ -1,4 +1,4 @@
-"""Durable case retention facts; no eligibility scan or deletion is started here."""
+"""持久案件保留事实；此处不启动资格扫描或删除。"""
 
 from __future__ import annotations
 

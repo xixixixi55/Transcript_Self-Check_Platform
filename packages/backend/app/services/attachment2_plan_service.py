@@ -1,4 +1,4 @@
-"""Pure Attachment2 planning from explicit reviewed material-photo groups."""
+"""根据明确审核的检材照片组进行纯 Attachment2 规划。"""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ class MaterialPhotoGroupInput:
 def build_attachment2_pages(
     groups: tuple[MaterialPhotoGroupInput, ...],
 ) -> tuple[Attachment2PagePlan, ...]:
-    """Build pages by material group; the renderer never re-groups flat photos."""
+    """按检材组构建页面；渲染器绝不重新分组平铺照片。"""
     pages: list[Attachment2PagePlan] = []
     for page_number, start in enumerate(
         range(0, len(groups), ATTACHMENT2_MAX_GROUPS_PER_PAGE), 1,
@@ -88,7 +88,7 @@ def build_attachment2_pages(
 
 
 def material_photo_groups(report: Mapping[str, Any]) -> tuple[MaterialPhotoGroupInput, ...]:
-    """Validate and normalize the explicit report-level material-photo mapping."""
+    """验证并规范化明确的报告级检材照片映射。"""
     attachments = report.get("attachments") or {}
     photo_ids = photo_values(report)
     raw_groups = attachments.get("photo_groups")
@@ -149,7 +149,7 @@ def material_photo_groups(report: Mapping[str, Any]) -> tuple[MaterialPhotoGroup
 
 
 def with_compatible_material_photo_groups(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Fill only a missing legacy mapping from ordered materials and photo ids."""
+    """仅根据有序检材和照片 ID 填充缺失的旧版映射。"""
     result = copy.deepcopy(dict(report))
     attachments = result.get("attachments")
     if not isinstance(attachments, dict):

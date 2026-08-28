@@ -1,4 +1,4 @@
-"""Layer 21: shared case-shell creation for path and native-picker submissions."""
+"""第 21 层：路径和原生选择器提交共享的案件外壳创建。"""
 
 from __future__ import annotations
 

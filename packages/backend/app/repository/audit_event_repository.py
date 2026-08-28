@@ -1,4 +1,4 @@
-"""Unauthenticated local-session audit events."""
+"""未经认证的本地会话审计事件。"""
 
 from __future__ import annotations
 

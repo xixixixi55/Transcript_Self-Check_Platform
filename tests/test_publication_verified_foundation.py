@@ -1,4 +1,4 @@
-"""Slice 5A-1 publication verification CAS foundation tests."""
+"""Slice 5A-1 发布验证 CAS 基础测试。"""
 
 from __future__ import annotations
 

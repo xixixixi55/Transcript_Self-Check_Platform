@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — shared managed-device and inspector catalogs for record editors.
+// 第 10 层：FE_Hooks — 笔录编辑器共用的受管设备和检查人员目录。
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'

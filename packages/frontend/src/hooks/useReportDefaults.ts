@@ -1,5 +1,5 @@
-// Layer 10: FE_Hooks - retired compatibility helper; workbench defaults are backend-persisted.
-/** @deprecated The case workbench uses /workbench/defaults; this helper is kept only for legacy test adapters. */
+// 第 10 层：FE_Hooks - 已停用的兼容辅助函数；工作台默认值由后端持久化。
+/** @deprecated 案件工作台使用 /workbench/defaults；此辅助函数仅为旧测试适配器保留。 */
 import { useCallback, useState } from 'react'
 import type { InspectionReport, InspectorSnapshot } from '@biji/shared/types'
 import { generateDiscNumbers, parseDiscSequence } from '@biji/shared/utils'

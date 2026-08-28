@@ -1,4 +1,4 @@
-"""Trusted case-input inventory used by archive planning and execution."""
+"""供归档规划和执行使用的可信案件输入清单。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ MAX_SAFE_INTEGER = 2**53 - 1
 
 
 class ArchiveInputError(ValueError):
-    """Safe, stable input diagnostics without filesystem paths."""
+    """不含文件系统路径的安全稳定输入诊断信息。"""
 
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -80,7 +80,7 @@ def _is_reparse_point(path: Path) -> bool:
 
 
 def _is_unsafe_special_path(path: Path) -> bool:
-    """Injectable boundary for symlink, junction and other reparse checks."""
+    """用于符号链接、联接及其他重解析检查的可注入边界。"""
     try:
         return path.is_symlink() or _is_reparse_point(path)
     except OSError:
@@ -88,7 +88,7 @@ def _is_unsafe_special_path(path: Path) -> bool:
 
 
 def _is_unsafe_directory_entry(entry: os.DirEntry[str], info: os.stat_result) -> bool:
-    """Check a scanned entry using its already-cached stat result."""
+    """使用已缓存的 stat 结果检查扫描条目。"""
     return entry.is_symlink() or bool(
         getattr(info, "st_file_attributes", 0)
         & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
@@ -121,10 +121,10 @@ def build_input_inventory(
     check_readability: bool = True,
     cancellation_check: Callable[[], bool] | None = None,
 ) -> InputInventory:
-    """Walk the allowed case root without following links or junctions.
+    """遍历允许的案件根目录，不跟随链接或联接。
 
-    The direct-source worker requests a metadata-only inventory so planning
-    does not open every media file; WinRAR reports any later read failure.
+    直接来源工作进程请求仅含元数据的清单，使规划阶段无需打开每个媒体文件；
+    后续读取失败由 WinRAR 报告。
     """
 
     _raise_if_cancelled(cancellation_check)
@@ -225,7 +225,7 @@ def metadata_fingerprint_for_directory(
     source_root: str | os.PathLike[str],
     output_root: str | os.PathLike[str] | None = None,
 ) -> str:
-    """Read only current paths and metadata for preview snapshot validation."""
+    """仅为预览快照验证读取当前路径和元数据。"""
     from .archive_input_metadata_repository import metadata_fingerprint_for_directory as read_metadata
 
     return read_metadata(source_root, output_root)
@@ -251,7 +251,7 @@ def _inventory_metadata_fingerprint(
 
 
 def verify_input_inventory(inventory: InputInventory) -> None:
-    """Compatibility verifier for historical snapshot/copy workflows."""
+    """历史快照和复制工作流的兼容性验证器。"""
 
     try:
         current_inventory = build_input_inventory(
@@ -263,9 +263,8 @@ def verify_input_inventory(inventory: InputInventory) -> None:
             raise
         raise ArchiveInputError("ARCHIVE_INPUT_CHANGED", "归档输入已发生变化。") from error
 
-    # build_input_inventory already stats every file (size + mtime) without a
-    # per-file open; comparing the ordered public entries covers additions,
-    # removals, size and mtime changes in one pass.
+    # build_input_inventory 已在不逐个打开文件的情况下统计每个文件（大小 + mtime）；
+    # 比较有序的公开条目即可一次覆盖新增、删除、大小及 mtime 变化。
     expected_entries = [item.public_entry() for item in inventory.files]
     current_entries = [item.public_entry() for item in current_inventory.files]
     expected_directories = [item.public_entry() for item in inventory.directories]

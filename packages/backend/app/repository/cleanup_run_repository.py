@@ -1,4 +1,4 @@
-"""Durable cleanup-run claim foundation; it never deletes records or files."""
+"""持久清理运行声明基础；绝不删除记录或文件。"""
 
 from __future__ import annotations
 

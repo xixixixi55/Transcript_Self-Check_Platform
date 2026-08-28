@@ -1,53 +1,53 @@
-# Iteration: direct source archive and root-name fix
+# 迭代：直接归档源目录并修复根目录名称
 
-- Date: 2026-08-08
-- Change: `openspec/changes/direct-source-archive-and-root-name-fix`
-- Scope: direct-source WinRAR execution, source-change metadata gates, archive-root preservation, and user warnings during the compression workflow.
+- 日期：2026-08-08
+- 变更：`openspec/changes/direct-source-archive-and-root-name-fix`
+- 范围：直接从源目录执行 WinRAR、源变更元数据门控、归档根目录保留，以及压缩工作流中的用户警告。
 
-## Problem → cause → feedback
+## 问题 → 原因 → 反馈
 
-- Problem: archives created from a sealed snapshot could expose generated internal paths such as `.i/s...` after extraction, and copying the complete source into a snapshot added a second full-data pass before compression.
-- Cause: the executor selected an absolute snapshot path when the generated snapshot basename differed from the original source basename. The safety model also assumed every new attempt had a sealed snapshot.
-- Feedback: new attempts now compress the authorized source directory directly, with the source parent as WinRAR's working directory and the source basename as the only input argument. Metadata inventory is checked before and after WinRAR; detected changes fail with `ARCHIVE_INPUT_CHANGED`, clean staging, and prevent publication. The UI requires confirmation and continuously warns users not to modify, move, delete, or write into the source while compression is active.
-- Manual acceptance exposed three follow-up defects. First, disc-number autosave advanced the draft from revision 5 to 7 during WinRAR, so the stage-8 publication fence rejected the stale attempt and a generic catch misreported it as `ARCHIVE_PARTS_INVALID`. Second, two hot-reload backend processes shared the durable queue; a process without the in-memory authorization context claimed the retry and failed at stage 1 with `ARCHIVE_RUNTIME_CONTEXT_UNAVAILABLE`. Third, unified export reused the ordinary 30-second request timeout although it generates Word, copies a roughly 660 MB RAR, and runs HashMyFiles, so Axios degraded the failure to the generic workbench request message.
-- Feedback: disc-only draft updates now atomically advance attempt and binding evidence and the manifest uses the latest valid disc number; non-disc edits remain rejected. Coordinators only claim tasks with process-local contexts. Unified export now has a dedicated 30-minute client timeout and stable messages for authorization, path, archive-result, and lifecycle failures. Publication persistence errors retain their real blocker code instead of being reported as corrupt RAR parts.
+- 问题：从密封快照创建的归档解压后可能暴露 `.i/s...` 等生成的内部路径，而且在压缩前将完整源目录复制到快照会增加第二次全量数据遍历。
+- 原因：生成的快照基本名称与原始源目录基本名称不同时，执行器选择了快照的绝对路径。安全模型还假定每次新尝试都有密封快照。
+- 反馈：新尝试现在直接压缩已授权的源目录，以源目录的父目录作为 WinRAR 工作目录，并只将源目录基本名称作为输入参数。在 WinRAR 执行前后检查元数据清单；检测到变更时以 `ARCHIVE_INPUT_CHANGED` 失败、清理暂存区并阻止发布。界面要求用户确认，并在压缩期间持续警告用户不要修改、移动、删除源目录或向其中写入内容。
+- 人工验收暴露了三个后续缺陷。第一，WinRAR 执行期间光盘编号自动保存使草稿从修订版 5 推进到 7，导致阶段 8 的发布围栏拒绝过期尝试，而通用异常捕获将其误报为 `ARCHIVE_PARTS_INVALID`。第二，两个热重载后端进程共享持久队列；缺少内存授权上下文的进程认领了重试任务，并在阶段 1 以 `ARCHIVE_RUNTIME_CONTEXT_UNAVAILABLE` 失败。第三，统一导出复用了普通请求的 30 秒超时，但该流程需要生成 Word、复制约 660 MB 的 RAR 并运行 HashMyFiles，导致 Axios 将失败降级为通用工作台请求消息。
+- 反馈：仅更新光盘编号的草稿操作现在会原子推进尝试及绑定证据，Manifest 使用最新有效光盘编号；非光盘编号编辑仍会被拒绝。协调器只认领拥有进程本地上下文的任务。统一导出现在具有专用的 30 分钟客户端超时，并为授权、路径、归档结果和生命周期失败提供稳定消息。发布持久化错误会保留真实阻断码，不再被报告为 RAR 分卷损坏。
 
-## Compatibility and safety
+## 兼容性与安全
 
-- Historical snapshot records, recovery, and ownership-checked cleanup remain supported.
-- New direct-source attempts persist no snapshot locator or false `sealed` status.
-- Successful and failed attempts leave the external source directory untouched.
-- The metadata gate detects path, size, and modification-time changes. An equal-size rewrite with the original mtime restored remains an explicitly documented limitation.
+- 继续支持历史快照记录、恢复以及经过所有权检查的清理。
+- 新的直接源目录尝试不会持久化快照定位符或错误的 `sealed` 状态。
+- 成功和失败的尝试都不会改动外部源目录。
+- 元数据门控会检测路径、大小和修改时间变化。等大小重写并恢复原始修改时间仍是明确记录的限制。
 
-## Verification
+## 验证
 
-- Backend affected regression: `73 passed, 2 warnings`.
-- Frontend affected regression: `2 files, 19 passed`; jsdom/Ant Design emitted existing non-fatal warnings.
-- Real WinRAR integration: passed; listing and extraction have exactly one top-level directory equal to the source basename, with no `.i`, `.inputs`, `.t`, snapshot, copying, or absolute staging path.
-- `lint:arch` and `typecheck`: passed.
-- Mutation effectiveness: temporarily removing the post-WinRAR metadata verification made the source-change test fail; restoring it made the test pass.
-- First scoped Level 3 gate passed preflight, architecture, type, governance, asset, and all 279 frontend tests. Backend reported `960 passed, 3 skipped, 2 failed`: one long-path fixture boundary was exactly 120 rather than greater than 120, and one source-mutation test used an equal-size rewrite that could retain the same filesystem timestamp. Both test fixtures were made deterministic before the final rerun.
-- Final scoped Level 3 gate: PASS. `preflight`, `lint:arch`, `typecheck`, `test:governance`, `check:repository-assets`, full `test`, `build`, and `verify:docs:strict` all passed using a repository-external D-drive temporary root; that temporary directory was removed afterward.
-- UI manual acceptance: N/A because the confirmation, cancellation, deferred/interrupted entry points, and queued/archiving warnings are covered by RTL tests.
-- Follow-up backend affected regression after manual acceptance fixes: `125 passed, 4 warnings`; the warnings are the existing synthetic configured-root warning.
-- Follow-up frontend affected regression: `3 files, 33 passed`; existing jsdom/Ant Design warnings remained non-fatal.
-- `lint:arch` and `typecheck` passed after the follow-up changes.
-- Manual evidence: the third archive attempt succeeded. The failed export click created no unified-export audit event or formal Word artifact, so successful end-to-end export remains to be rechecked after restarting a single updated backend instance.
-- First follow-up independent review: REJECT. It identified a disc-update TOCTOU between Manifest assembly and publish-intent creation, plus orphan queued-task starvation after a context-owning process exits.
-- Remediation adds CAS-bound publication snapshots with bounded Manifest rebuild, internal context-binding leases that do not alter task revision, graceful queued-task interruption, never-leased-task recovery, and expired-lease recovery by another coordinator. The focused remediation regression passed `104 tests` with 5 existing synthetic-root warnings; architecture lint and typecheck passed. Focused lease edge tests passed 7 cases and architecture lint passed after extracting the lease repository below the 400-line limit.
-- Third follow-up independent review after explicit human authorization: PASS with no MUST FIX. The reviewer confirmed task revision isolation, atomic claim/lease clearing, initial/never-leased/expired/graceful-stop convergence, lease renewal race closure, and the publication CAS boundary.
-- Final broad affected backend regression: `130 passed, 4 warnings`.
-- First final scoped gate: frontend `279 passed`; backend `969 passed, 3 skipped, 1 failed` because a legacy long-path fixture assumed at least 120 available relative characters under every temp-root prefix. The fixture now asserts a meaningful positive nested segment while retaining the actual `<260`/`>=260`, `.i/`, snapshot resolution, source-tree, and content checks; isolated same-temp-root rerun and independent assertion review passed.
-- Final scoped Level 3 gate rerun: PASS. `preflight`, `lint:arch`, `typecheck`, `test:governance`, `check:repository-assets`, full `test`, `build`, and `verify:docs:strict` all passed using the repository-external D-drive temporary root.
+- 后端受影响回归：`73 passed, 2 warnings`。
+- 前端受影响回归：`2 files, 19 passed`；jsdom/Ant Design 输出了已有的非致命警告。
+- 真实 WinRAR 集成：通过；列表和解压结果都恰好只有一个顶层目录，其名称等于源目录基本名称，且不含 `.i`、`.inputs`、`.t`、快照、复制目录或绝对暂存路径。
+- `lint:arch` 和 `typecheck`：通过。
+- 变异有效性：临时移除 WinRAR 后的元数据验证会使源变更测试失败；恢复后测试通过。
+- 首次限定范围的 Level 3 门控通过了预检、架构、类型、治理、资产检查和全部 279 个前端测试。后端报告 `960 passed, 3 skipped, 2 failed`：一个长路径固件边界恰好为 120，而不是大于 120；另一个源变更测试使用等大小重写，可能保留相同的文件系统时间戳。最终重跑前，两个测试固件均已改为确定性实现。
+- 最终限定范围的 Level 3 门控：PASS。`preflight`、`lint:arch`、`typecheck`、`test:governance`、`check:repository-assets`、完整 `test`、`build` 和 `verify:docs:strict` 均在仓库外部的 D 盘临时根目录下通过；随后已删除该临时目录。
+- 界面人工验收：N/A，因为确认、取消、延期/中断入口及排队中/归档中警告已由 RTL 测试覆盖。
+- 人工验收修复后的后端受影响回归：`125 passed, 4 warnings`；警告为已有的合成配置根目录警告。
+- 后续前端受影响回归：`3 files, 33 passed`；已有的 jsdom/Ant Design 警告仍为非致命警告。
+- 后续变更完成后，`lint:arch` 和 `typecheck` 通过。
+- 人工证据：第三次归档尝试成功。失败的导出点击没有创建统一导出审计事件或正式 Word 产物，因此重启单个已更新的后端实例后，仍需重新检查成功的端到端导出。
+- 首次后续独立审查：REJECT。审查发现 Manifest 组装与创建发布意图之间存在光盘编号更新 TOCTOU，以及拥有上下文的进程退出后孤立排队任务饥饿的问题。
+- 修复增加了受 CAS 约束的发布快照及有界 Manifest 重建、不改变任务修订版的内部上下文绑定租约、排队任务优雅中断、从未租用任务恢复，以及由另一协调器恢复过期租约。聚焦修复回归通过 `104 tests`，并出现 5 个已有的合成根目录警告；架构检查和类型检查通过。将租约存储库提取到 400 行限制以内后，聚焦租约边界测试通过 7 个用例，架构检查也通过。
+- 明确取得人工授权后的第三次后续独立审查：PASS，无 MUST FIX。审查者确认了任务修订版隔离、原子认领/租约清理、初始/从未租用/已过期/优雅停止状态收敛、租约续期竞态闭合及发布 CAS 边界。
+- 最终广泛受影响的后端回归：`130 passed, 4 warnings`。
+- 首次最终限定范围门控：前端 `279 passed`；后端 `969 passed, 3 skipped, 1 failed`，原因是旧版长路径固件假设每种临时根目录前缀下都至少有 120 个可用相对路径字符。该固件现在断言有意义的正数嵌套段，同时保留实际的 `<260`/`>=260`、`.i/`、快照解析、源目录树和内容检查；使用相同临时根目录的隔离重跑及独立断言审查均通过。
+- 最终限定范围的 Level 3 门控重跑：PASS。`preflight`、`lint:arch`、`typecheck`、`test:governance`、`check:repository-assets`、完整 `test`、`build` 和 `verify:docs:strict` 均在仓库外部的 D 盘临时根目录下通过。
 
-## Review handling
+## 审查处理
 
-- First independent review: REJECT. It found false `sealed` snapshot persistence for new attempts and insufficient real-RAR root assertions.
-- Both blockers were fixed with persistence and real WinRAR extraction evidence.
-- Second independent review: PASS with no MUST FIX.
-- Non-blocking follow-up: if error reporting is refined later, preserve cancellation, ownership-loss, and unsafe-process-termination diagnoses rather than always prioritizing a simultaneous metadata change.
+- 首次独立审查：REJECT。审查发现新尝试错误持久化了 `sealed` 快照状态，且真实 RAR 根目录断言不足。
+- 两个阻断问题均已通过持久化修复和真实 WinRAR 解压证据解决。
+- 第二次独立审查：PASS，无 MUST FIX。
+- 非阻断后续事项：如果以后优化错误报告，应保留取消、所有权丢失和不安全进程终止诊断，不要总是优先报告同时发生的元数据变更。
 
-## Boundary retained for later work
+## 留待后续工作的边界
 
-- This iteration does not remove legacy snapshot schema or cleanup code because existing attempts may still reference it.
-- The active OpenSpec change is not archived in this implementation turn.
+- 本迭代不移除旧版快照模式或清理代码，因为现有尝试可能仍引用它们。
+- 本次实施不归档有效的 OpenSpec 变更。

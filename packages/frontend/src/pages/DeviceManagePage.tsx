@@ -1,4 +1,4 @@
-// Layer 12: FE_Pages — 硬件设备管理页面
+// 第 12 层：FE_Pages — 硬件设备管理页面
 
 import { Typography } from 'antd'
 import { SettingOutlined } from '@ant-design/icons'

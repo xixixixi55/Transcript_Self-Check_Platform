@@ -1,4 +1,4 @@
-"""Regression tests for the Phase 1D independent-review findings."""
+"""Phase 1D 独立审查发现项的回归测试。"""
 
 from __future__ import annotations
 
@@ -176,8 +176,8 @@ def test_publish_intent_rechecks_server_draft_before_formal_move(database, tmp_p
     internal = service.repository.get_internal(attempt["attempt_id"])
     draft = CaseDraftRepository(database).get(CASE_ID)
     edited = {**draft, "report": {**draft["report"], "title": "SYNTHETIC/TEST/EDITED"}}
-    # Bypass the guarded save API to prove the publication boundary still
-    # rejects an out-of-band persisted report mutation.
+    # 绕过受保护的保存 API，以证明发布边界仍会拒绝
+    # 带外的持久化报告变更。
     with database.transaction() as connection:
         connection.execute(
             "UPDATE case_drafts SET report_json=?, revision=revision+1 WHERE case_id=?",
@@ -620,8 +620,8 @@ def test_move_before_sealed_publication_cannot_become_succeeded(
         attempt["attempt_id"], context_id=context_id, **identity,
         manifest_id=manifest_id, final_dir=final_dir, public_manifest=manifest,
     )
-    # A move before the publication generation is sealed is not recoverable as
-    # success.  The intent remains the only authority and must reject cleanup.
+    # 发布代次密封前的移动无法恢复为成功。
+    # 意图仍是唯一权威来源，必须拒绝清理。
     assert service.context_binding(context_id)["attempt_id"] == attempt["attempt_id"]
     with pytest.raises(ArchiveManifestRepositoryError, match="ARCHIVE_INDEX_MISSING"):
         ArchiveManifestRepository(output).find_for_attempt(attempt["attempt_id"])
@@ -1108,8 +1108,8 @@ def test_success_commit_and_verified_phase_share_one_transaction(
         return original_mark_phase(repository, attempt_id, phase)
 
     monkeypatch.setattr(ArchivePublishIntentRepository, "mark_phase", fail_verified)
-    # Completion no longer has a post-commit mark_phase call.  A failure
-    # injected there must not create a false intermediate success window.
+    # 完成流程不再有提交后的 mark_phase 调用。
+    # 在此注入失败不得产生虚假的中间成功窗口。
     service.complete_verified(attempt["attempt_id"], registry, record)
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
     assert ArchivePublishIntentRepository(database).get_for_attempt(attempt["attempt_id"])["phase"] == "verified"

@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — explicit editor for deployment-scoped record defaults.
+// 第 11 层：FE_Components — 部署范围笔录默认值的显式编辑器。
 import { useEffect, useState } from 'react'
 import {
   Alert, Button, Form, Input, Modal, Radio, Skeleton,

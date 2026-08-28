@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 软件工具列表
+// 第 11 层：FE_Components — 软件工具列表
 // REQ-017: 展示软件工具列表，名称和版本号均可编辑
 import React from 'react'
 import { Button, Space } from 'antd'

@@ -41,7 +41,7 @@ import {
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// ─── PROJECT CONFIG (generated from harness.config.yaml) ─────────
+// ─── 项目配置（由 harness.config.yaml 生成） ─────────
 
 const ROOT = path.resolve(__dirname, '..')
 
@@ -101,10 +101,10 @@ function getOptionValue(name: string): string | undefined {
   return inline?.slice(prefix.length)
 }
 
-/** Strict task checks require an explicit current-change or all-active scope. */
+/** 严格任务检查要求显式指定当前变更或所有活动变更范围。 */
 const CHANGE_NAME = getOptionValue('--change')
 
-// ─── END PROJECT CONFIG ──────────────────────────────────────────
+// ─── 项目配置结束 ───────────────────────────────────────────────
 
 type DriftType =
   | 'missing-in-code' | 'missing-in-docs' | 'command-missing'
@@ -136,7 +136,7 @@ function printDriftDetails(drifts: Drift[]): void {
   for (const drift of drifts) console.log(`  [${drift.type}] ${drift.message}`)
 }
 
-// ─── Helpers ────────────────────────────────
+// ─── 辅助函数 ──────────────────────────────
 
 function getAllFiles(dir: string, ext: string[], prefix = ''): string[] {
   const results: string[] = []
@@ -187,7 +187,7 @@ function readFileIfExists(p: string): string {
   return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : ''
 }
 
-// ─── Check 1: 目录结构 vs directory.md ──────
+// ─── 检查 1：目录结构与 directory.md 对比 ──
 
 function checkDirectoryStructure(): Drift[] {
   const drifts: Drift[] = []
@@ -204,7 +204,7 @@ function checkDirectoryStructure(): Drift[] {
   return drifts
 }
 
-// ─── Check 2: npm 命令 vs AGENTS.md ─────────
+// ─── 检查 2：npm 命令与 AGENTS.md 对比 ─────
 
 function checkCommands(): Drift[] {
   const drifts: Drift[] = []
@@ -218,7 +218,7 @@ function checkCommands(): Drift[] {
   return drifts
 }
 
-// ─── Check 3/4: active tasks.md scope and status ──
+// ─── 检查 3/4：活动 tasks.md 的范围和状态 ──
 
 interface ActiveTaskFile {
   changeName: string
@@ -294,7 +294,7 @@ function checkTaskFiles(): Drift[] {
   return drifts
 }
 
-// ─── Check 4: 必选 tasks.md 完成状态 ─────────
+// ─── 检查 4：必选 tasks.md 完成状态 ─────────
 
 function checkRequiredTaskCompletion(): Drift[] {
   const drifts: Drift[] = []
@@ -309,7 +309,7 @@ function checkRequiredTaskCompletion(): Drift[] {
   return drifts
 }
 
-// ─── Check 4b: workflow level and delta spec contract ─────────────
+// ─── 检查 4b：工作流级别与增量 spec 契约 ─────────────────────────
 
 function checkWorkflowLevelAndDeltaSpecs(): Drift[] {
   const drifts: Drift[] = []
@@ -392,7 +392,7 @@ function checkWorkflowLevelAndDeltaSpecs(): Drift[] {
   return drifts
 }
 
-// ─── Check 4c: .agents/.claude mirror contract ───────────────────
+// ─── 检查 4c：.agents/.claude 镜像契约 ───────────────────────────
 
 function checkAgentToolingMirror(): Drift[] {
   const drifts: Drift[] = []
@@ -433,7 +433,7 @@ function checkAgentToolingMirror(): Drift[] {
   return drifts
 }
 
-// ─── Check 4d: high-frequency Harness context loading contract ──
+// ─── 检查 4d：高频 Harness 上下文加载契约 ───────────────────────
 
 function checkHarnessContextLoading(): Drift[] {
   const drifts: Drift[] = []
@@ -456,7 +456,7 @@ function checkHarnessContextLoading(): Drift[] {
   return drifts
 }
 
-// ─── Check 5: specs vs directory.md ─────────
+// ─── 检查 5：specs 与 directory.md 对比 ─────
 
 function checkSpecsListed(): Drift[] {
   const drifts: Drift[] = []
@@ -473,7 +473,7 @@ function checkSpecsListed(): Drift[] {
   return drifts
 }
 
-// ─── Check 6 [E-A2]: data-model.md vs 类型定义 ─
+// ─── 检查 6 [E-A2]：data-model.md 与类型定义对比 ─
 
 function checkDataModelConsistency(): Drift[] {
   const drifts: Drift[] = []
@@ -501,7 +501,7 @@ function checkDataModelConsistency(): Drift[] {
   return drifts
 }
 
-// ─── Check 7: AGENTS.md 行数限制 ───────────
+// ─── 检查 7：AGENTS.md 行数限制 ────────────
 
 function checkAgentsSize(): Drift[] {
   const content = readFileIfExists(AGENTS_MD)
@@ -516,7 +516,7 @@ function checkAgentsSize(): Drift[] {
   return []
 }
 
-// ─── Check 8 [E-A3]: 文档链接有效性 ────────
+// ─── 检查 8 [E-A3]：文档链接有效性 ─────────
 
 function checkDocLinks(): Drift[] {
   const drifts: Drift[] = []
@@ -547,7 +547,7 @@ function checkDocLinks(): Drift[] {
   return drifts
 }
 
-// ─── Check 9 [E-A4]: OpenSpec 版本一致性 ────
+// ─── 检查 9 [E-A4]：OpenSpec 版本一致性 ────
 
 function checkOpenSpecVersion(): Drift[] {
   const drifts: Drift[] = []
@@ -567,7 +567,7 @@ function checkOpenSpecVersion(): Drift[] {
   return drifts
 }
 
-// ─── Check 10 [E-A5]: TEMPLATE_CANDIDATE 积压 ──
+// ─── 检查 10 [E-A5]：TEMPLATE_CANDIDATE 积压 ─
 
 const TEMPLATE_CANDIDATE_LIMIT = 5
 
@@ -592,7 +592,7 @@ function checkTemplateCandidateBacklog(): Drift[] {
   return drifts
 }
 
-// ─── Check 11 [E-A6]: 迭代记录教训反哺完整性 ──
+// ─── 检查 11 [E-A6]：迭代记录教训反哺完整性 ──
 
 function checkLessonFeedback(): Drift[] {
   const drifts: Drift[] = []
@@ -620,7 +620,7 @@ function checkLessonFeedback(): Drift[] {
   return drifts
 }
 
-// ─── Main ────────────────────────────────────
+// ─── 主流程 ─────────────────────────────────
 
 function main() {
   if (STRICT_MODE && ALL_SCOPE && CHANGE_NAME) {
@@ -636,7 +636,7 @@ function main() {
   const scopeLabel = CHANGE_NAME ? `change:${CHANGE_NAME}` : ALL_SCOPE ? 'all-active-changes' : 'default'
   console.log(`🔍 Documentation Drift Check — mode: ${modeLabel} | task scope: ${scopeLabel}\n`)
 
-  // Default mode: core checks only
+  // 默认模式：仅运行核心检查
   const allDrifts: Drift[] = [
     ...checkDirectoryStructure(),          // E-A1
     ...checkCommands(),                    // npm commands
@@ -653,7 +653,7 @@ function main() {
     'harness-context-loading',
   ]
 
-  // Strict mode: add governance checks
+  // 严格模式：增加治理检查
   if (STRICT_MODE) {
     allDrifts.push(
       ...checkTaskFiles(),

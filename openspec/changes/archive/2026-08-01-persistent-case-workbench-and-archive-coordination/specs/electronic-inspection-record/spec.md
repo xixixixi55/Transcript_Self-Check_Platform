@@ -1,8 +1,8 @@
-# Electronic Inspection Record: Persistent Workbench Contract
+# 电子数据检查笔录：持久化工作台契约
 
 本文件是 persistent-case-workbench-and-archive-coordination 的变更合同。Phase 1–4 已实现并完成自动化验证、原生 Word 视觉检查及真实浏览器人工验收；2026-07-31 独立 Level 3 Review 发现 M-1 至 M-4 四项归档一致性/恢复/外部变更风险及 L-1 marker 顺序风险，本轮加固合同已实现并通过故障注入、受影响回归和完整 `verify:full`。2026-08-01 完整 Harness 退出码为 `0`，随后门控后的独立 Level 3 Review 结论为 `PASS`，Critical/High/Medium/Low 阻断均为 0，`1D-017R` 已完成。Phase 5、Final Review、Production Review 和 OpenSpec archive 尚未完成。未实现合同仍只保留在本 delta spec 中，不得提前写成当前生产事实。
 
-## Contract vocabulary
+## 契约词汇
 
 - CaseShell：提交报告后立即创建的案件记录；解析成功前不含可审核 Legacy InspectionReport。
 - CaseDraft：解析成功后的可编辑草稿；report 始终是 Legacy InspectionReport。
@@ -12,7 +12,7 @@
 - VolumeSlot：不依赖预计 RAR 文件名的稳定逻辑分卷槽位。
 - VerifiedManifest：完整归档门控通过后生成并验证的正式 Manifest。
 
-## ADDED Requirements
+## ADDED 需求
 
 ### Requirement: 案件壳和多案件工作台可恢复
 
@@ -236,76 +236,19 @@
 
 Phase 1D MUST 只在现有 Legacy `/records/archive` 显式入口外围记录一次归档尝试，不建设持久化归档 Worker、调度器、并发准入、真实进度、断点续压或自动重试。归档尝试记录只用于识别重启前未完成的归档操作、证明自有 staging/进程资源归属、记录接受/完成/中断/失败/清理结果，以及支撑幂等恢复和正式产物保护；它不是新的正式归档输出链路。
 
-The controlled workbench preparation path MUST bind the attempt to the case,
-source ID and revision, draft revision, server-side report fingerprint and
-one-way context hash before it moves the shell and draft to `archive_queued`.
-Formal completion MUST use one trusted evidence service for normal execution
-and restart recovery. A caller-provided Manifest ID alone MUST NOT change an
-attempt or case to a succeeded/verified state. Before success, the service
-MUST validate the internal publish intent, Manifest index identity and public
-Manifest, source/draft bindings, and the physical RAR contents. A durable
-publish intent distinguishes persisted-before-move, published-before-index,
-indexed-before-success, and conflict/incomplete recovery states without
-introducing a worker, queue, scheduler, progress or automatic retry contract.
+受控工作台准备路径在将外壳和草稿推进到 `archive_queued` 前，MUST 将尝试绑定到案件、源 ID 及其修订版、草稿修订版、服务端报告指纹和单向上下文哈希。正常执行和重启恢复的正式完成 MUST 使用同一个可信证据服务。仅凭调用方提供的 Manifest ID，MUST NOT 将尝试或案件改为成功/已验证状态。成功前，服务 MUST 验证内部发布意图、Manifest 索引身份和公开 Manifest、源/草稿绑定，以及 RAR 实际内容。持久发布意图区分移动前已持久化、索引前已发布、成功前已索引，以及冲突/未完成恢复状态，同时不引入工作进程、队列、调度器、进度或自动重试契约。
 
-The publish intent MUST be created only after a transaction re-reads the
-server-side CaseShell, SourceRecord, CaseDraft and active workbench binding.
-The final directory identity is bound to the Legacy executor's formal runtime
-context and Manifest ID, while the persistent workbench context remains the
-one-way binding authority. Before `os.replace`, the service MUST perform the
-same source/draft/report/context validation again. A changed draft revision,
-source revision or source trust state MUST prevent the move, index registration
-and success evidence.
+发布意图 MUST 仅在事务重新读取服务端 CaseShell、SourceRecord、CaseDraft 及有效工作台绑定后创建。最终目录身份绑定到 Legacy 执行器的正式运行时上下文和 Manifest ID，而持久化工作台上下文仍是单向绑定权威。在 `os.replace` 前，服务 MUST 再次执行相同的源/草稿/报告/上下文验证。草稿修订版、源修订版或源信任状态发生变化时，MUST 阻止移动、索引登记和成功证据。
 
-If a trusted final directory exists while the intent is still
-`intent_persisted`, recovery MAY advance it through `published` and then
-`indexed` only after validating the intent, attempt, case, source/draft/report
-identity, Manifest index and physical RAR. It MUST NOT jump directly to
-`indexed` or publish a second artifact. The normal path and restart path MUST
-call the same trusted completion service. That service MUST re-read SourceRecord,
-CaseShell and CaseDraft inside its write transaction and require exactly one
-row update for attempt, shell and draft; any zero-row update rolls back all
-state changes. A crash after the success commit but before the final `verified`
-phase marker MUST never turn the succeeded attempt into `interrupted`.
+如果可信最终目录已经存在，而意图仍为 `intent_persisted`，恢复 MAY 仅在验证意图、尝试、案件、源/草稿/报告身份、Manifest 索引及实际 RAR 后，依次将其推进到 `published` 和 `indexed`。MUST NOT 直接跳到 `indexed` 或发布第二份产物。正常路径和重启路径 MUST 调用同一个可信完成服务。该服务 MUST 在写事务中重新读取 SourceRecord、CaseShell 和 CaseDraft，并要求尝试、外壳和草稿都恰好更新一行；任何零行更新都会回滚所有状态变更。成功提交后、最终 `verified` 阶段标记前发生崩溃，MUST 绝不能将已成功尝试改为 `interrupted`。
 
-Recovery MUST classify confirmed identity/integrity/target conflicts separately
-from temporary SQLite locks, index unavailability, file locks and transient
-I/O/permission errors. Temporary errors retain the current intent phase and
-formal output for later explicit verification, without deleting, overwriting,
-republishing or adding a worker/queue/retry scheduler. Legacy contexts retain
-the existing client-report contract and do not use the workbench completion
-shortcut.
+恢复 MUST 将已确认的身份/完整性/目标冲突与临时 SQLite 锁、索引不可用、文件锁及瞬态 I/O/权限错误分别分类。临时错误会保留当前意图阶段和正式输出，供以后显式验证；不得删除、覆盖、重新发布，也不得增加工作进程/队列/重试调度器。Legacy 上下文保留现有客户端报告契约，不使用工作台完成捷径。
 
-The workbench publish boundary MUST also persist a `publish_fence` in the same
-database transaction that performs the final server-fact validation and creates
-the publish intent. The fence MUST bind case, attempt, source and source
-revision, draft revision, report digest, context hash and shell revision, with
-at most one active fence per case and attempt. Every ordinary write that could
-change a bound CaseDraft, SourceRecord or CaseShell MUST reject while the fence
-is active, or atomically invalidate the fence before changing the facts. A
-`pending_verification` fence after restart MUST invalidate the old runtime
-context, allow later editing, and become non-completable when such editing
-changes the bound facts; it MUST NOT permanently block the case.
+工作台发布边界还 MUST 在执行最终服务端事实验证并创建发布意图的同一数据库事务中持久化 `publish_fence`。该围栏 MUST 绑定案件、尝试、源及源修订版、草稿修订版、报告摘要、上下文哈希和外壳修订版，每个案件和尝试至多有一个有效围栏。围栏有效时，每个可能更改已绑定 CaseDraft、SourceRecord 或 CaseShell 的普通写入 MUST 被拒绝，或在更改事实前原子作废围栏。重启后的 `pending_verification` 围栏 MUST 作废旧运行时上下文、允许后续编辑，并在该编辑改变绑定事实后变为不可完成；MUST NOT 永久阻塞案件。
 
-Startup recovery MUST first convert stale accepted/running execution state and
-any failed attempt with a non-terminal publish intent to interrupted, update
-the user-facing shell/draft to a non-running state, and deactivate the old
-runtime context. Only then may it reconcile non-terminal publish intents. A
-trusted final directory MUST be matched to its persisted intent and fence; an
-intent without a final directory remains safely interrupted and is never
-republished. A temporary reconciliation error MUST preserve the intent, fence,
-index and formal artifact without leaving a false running state. A confirmed
-identity or integrity conflict MAY enter conflict; it MUST not delete or
-overwrite the unknown artifact.
+启动恢复 MUST 先将过期的已接受/运行中执行状态，以及所有具有非终态发布意图的失败尝试转为已中断，将面向用户的外壳/草稿更新为非运行状态，并停用旧运行时上下文。只有此后才能协调非终态发布意图。可信最终目录 MUST 与其持久化意图和围栏匹配；缺少最终目录的意图保持安全中断，绝不重新发布。临时协调错误 MUST 保留意图、围栏、索引和正式产物，且不得留下虚假的运行状态。已确认的身份或完整性冲突 MAY 进入冲突状态；MUST 不得删除或覆盖未知产物。
 
-SourceRecord directory fingerprints MUST use normalized relative paths, entry
-types, actual file-byte digests and a stable sorted collection structure. Each
-file MUST be checked through an open handle before and after reading, and the
-collection MUST be rescanned after digesting. A file change, disappearance,
-addition, deletion, temporary access error or inconsistent scan MUST keep the
-source in a stable pending/temporarily unverifiable state rather than produce a
-trusted available fingerprint. No absolute path or metadata-only cache is part
-of the public contract.
+SourceRecord 目录指纹 MUST 使用规范化相对路径、条目类型、实际文件字节摘要和稳定排序集合结构。读取每个文件前后都 MUST 通过打开的句柄检查，并 MUST 在完成摘要计算后重新扫描集合。文件变化、消失、新增、删除、临时访问错误或扫描不一致时，MUST 使源保持稳定的待处理/暂时不可验证状态，而不是生成可信可用指纹。公共契约不包含绝对路径或仅依赖元数据的缓存。
 
 #### Scenario: 归档中断时保持可恢复且不发布半成品
 
@@ -346,13 +289,7 @@ of the public contract.
 - **WHEN** staging 或正式发布目录中的任一卷、Manifest 或索引在后续门控前被修改、替换、删除、新增或重命名
 - **THEN** 系统拒绝完成、复用、下载和 Word 导出，不污染历史正式资产
 
-The report-parser inflight registry MUST separate active builders from a
-completing Future. It MUST remove and identity-check the active entry under the
-registry lock, publish the same Future in a completing map, complete the Future
-outside the lock, and finally remove only the matching completing entry. A
-same-key caller MUST reuse that Future during both phases; callbacks MAY
-re-enter registry queries without deadlock, and active_count MUST count only
-builders still running.
+报告解析器的执行中注册表 MUST 将有效构造器与即将完成的 Future 分开。它 MUST 在注册表锁下移除并核对有效条目身份，在完成中映射里发布同一个 Future，在锁外完成 Future，最后只移除匹配的完成中条目。相同键的调用方 MUST 在两个阶段复用该 Future；回调 MAY 重新进入注册表查询且不会死锁，`active_count` MUST 只统计仍在运行的构造器。
 
 归档尝试记录的内部状态为 `accepted | running | succeeded | failed | interrupted`，另有 `cleanup_status` 为 `not_required | pending | succeeded | failed | unknown`。恢复主要处理未完成的 `accepted/running` 记录；对于已完成但仍停在 `indexed` 的 intent，只允许补写最终 `verified` 阶段，绝不把 `succeeded` 记录改回 `interrupted`。新的用户确认必须创建新的 `attempt_id`，不得复用旧记录。
 
@@ -654,28 +591,19 @@ SQLite MUST 只保存案件业务 DTO、任务/租约/版本/索引元数据、S
 
 ### Requirement: 案件工作台承接完整生成笔录能力
 
-案件工作台 MUST be the primary production entry for electronic inspection records. It MUST
-use the same Legacy `InspectionReport` field contract, validation rules, date/time handling,
-attachment model, preview projection, and Word export mapping as the existing generation
-capability. The workbench presentation MAY reorganize the layout and add case status, autosave,
-lease, source, and multi-case controls, but MUST NOT maintain a simplified second editor.
-The retained backend `/records/*` endpoints are Legacy compatibility entries and the only formal
-Legacy output pipeline; they are not a competing persistent workbench flow.
+案件工作台 MUST 是电子数据检查笔录的主要生产入口。它 MUST 使用与现有生成能力相同的 Legacy `InspectionReport` 字段契约、验证规则、日期/时间处理、附件模型、预览投影和 Word 导出映射。工作台展示 MAY 重新组织布局，并增加案件状态、自动保存、租约、源和多案件控件，但 MUST NOT 维护简化的第二套编辑器。保留的后端 `/records/*` 端点是 Legacy 兼容入口和唯一正式 Legacy 输出管线；它们不是相互竞争的持久化工作台流程。
 
 #### Scenario: 完整审核编辑器
 
-- **WHEN** a case reaches `review_ready`
-- **THEN** the workbench exposes all Legacy review fields, data summary, attachment information,
-  image editing controls, required/format validation, preview, formal Word export, and custom
-  download filename handling
-- **AND** the case draft, revision, and edit lease remain the write authority for the workbench
+- **WHEN** 案件到达 `review_ready`
+- **THEN** 工作台提供全部 Legacy 审核字段、数据摘要、附件信息、图片编辑控件、必填/格式验证、预览、正式 Word 导出及自定义下载文件名处理
+- **AND** 案件草稿、修订版和编辑租约仍是工作台的写入权威
 
 #### Scenario: 统一入口和兼容路由
 
-- **WHEN** a user opens the old frontend generation URL
-- **THEN** the URL redirects to the workbench without exposing a competing upload/editor flow
-- **AND** backend `/records/*` compatibility contracts, Legacy Parser output, Word, Manifest,
-  and formal archive safety gates remain available and unchanged
+- **WHEN** 用户打开旧前端生成 URL
+- **THEN** URL 重定向到工作台，且不暴露相互竞争的上传/编辑器流程
+- **AND** 后端 `/records/*` 兼容契约、Legacy Parser 输出、Word、Manifest 及正式归档安全门控保持可用且不变
 
 #### Scenario: 工作台预览不自动归档
 
@@ -686,50 +614,48 @@ Legacy output pipeline; they are not a competing persistent workbench flow.
 
 #### Scenario: 完整能力不退化工作台优化
 
-- **WHEN** the user switches cases, refreshes, loses a lease, or receives a source warning
-- **THEN** the workbench preserves its case-card status, autosave result, read-only warning,
-  source status, retry, and return-to-list experience
-- **AND** it does not reintroduce the old page's mixed archive-upload flow or duplicate field,
-  validation, attachment, or export rules
+- **WHEN** 用户切换案件、刷新、丢失租约或收到源警告
+- **THEN** 工作台保留案件卡片状态、自动保存结果、只读警告、源状态、重试及返回列表体验
+- **AND** 不重新引入旧页面混合的归档上传流程，也不重复字段、验证、附件或导出规则
 
-## 2026-08-01 第二轮归档安全加固合同（active change）
+## 2026-08-01 第二轮归档安全加固合同（活跃变更）
 
 以下合同在本轮实现完成并经后续独立 Review 前，属于 active change 约束，不得提前当作已通过的生产事实。
 
 ### REQ-ARCHIVE-IMMUTABLE-INPUT
 
-**Scenario: sealed execution input**
+**Scenario: 密封执行输入**
 
-- **WHEN** a task begins archive execution
-- **THEN** the service creates a task/attempt/deployment-bound snapshot under the controlled output root, copies the complete authorized inventory without following links or reparse points, verifies every relative path, size and SHA-256, flushes the copy, and durably marks it `sealed`
-- **AND** WinRAR, inventory, RAR validation and Manifest generation read only the sealed snapshot, never the mutable source directory
-- **AND** an unsealed, missing, owner-mismatched, incomplete or digest-mismatched snapshot cannot enter WinRAR, publication, reuse or success
-- **AND** source changes after sealing cannot change the bytes read by this attempt; failure, cancellation, crash and retry never reuse a prior attempt snapshot
+- **WHEN** 任务开始执行归档
+- **THEN** 服务在受控输出根目录下创建与任务/尝试/部署绑定的快照，在不跟随链接或重解析点的情况下复制完整授权清单，验证每个相对路径、大小和 SHA-256，刷新副本并将其持久标记为 `sealed`
+- **AND** WinRAR、清单、RAR 验证和 Manifest 生成只读取密封快照，绝不读取可变源目录
+- **AND** 未密封、缺失、所有者不匹配、不完整或摘要不匹配的快照不能进入 WinRAR、发布、复用或成功状态
+- **AND** 密封后的源变更不能改变本次尝试读取的字节；失败、取消、崩溃和重试绝不复用先前尝试的快照
 
 ### REQ-ARCHIVE-PUBLICATION-GENERATION
 
-**Scenario: durable publication generation**
+**Scenario: 持久发布代次**
 
-- **WHEN** a validated staging set is published
-- **THEN** a unique `publication_id` and generation digest bind task, attempt, deployment, fence, Manifest, exact file set, sizes and MD5 values in the durable publish intent
-- **AND** the staging set is sealed before same-filesystem atomic rename, historical formal directories are never overwritten, and a partial/crashed generation remains pending or recoverable rather than succeeded
-- **AND** the completion transaction can set attempt and task to `succeeded` only when the sealed publication identity, intent/fence, current revisions, Manifest and index projection agree
-- **AND** download, reuse, recovery and Word export resolve the durable publication identity and re-run the existing physical integrity gate; post-completion tampering is rejected
+- **WHEN** 发布已验证的暂存集
+- **THEN** 唯一 `publication_id` 和代次摘要在持久发布意图中绑定任务、尝试、部署、围栏、Manifest、精确文件集、大小和 MD5 值
+- **AND** 暂存集在同一文件系统原子重命名前密封，历史正式目录绝不覆盖，部分完成/崩溃的代次保持待处理或可恢复，而非成功
+- **AND** 仅当已密封发布身份、意图/围栏、当前修订版、Manifest 和索引投影一致时，完成事务才能将尝试和任务设为 `succeeded`
+- **AND** 下载、复用、恢复和 Word 导出解析持久发布身份，并重新运行现有物理完整性门控；完成后的篡改会被拒绝
 
 ### REQ-ARCHIVE-MANIFEST-PROJECTION
 
-**Scenario: fail-closed derived index**
+**Scenario: 以失败关闭方式处理派生索引**
 
-- **WHEN** the JSON Manifest index is missing, malformed, structurally invalid, digest-inconsistent or concurrently updated
-- **THEN** it is never interpreted as an empty authoritative list
-- **AND** SQLite durable publication facts are the only authority and may rebuild the projection under a cross-process lock with temp-file flush/fsync and atomic replacement
-- **AND** if the projection cannot be rebuilt or persisted, public completion cannot report success
+- **WHEN** JSON Manifest 索引缺失、格式错误、结构无效、摘要不一致或被并发更新
+- **THEN** 绝不将其解释为空的权威列表
+- **AND** SQLite 持久发布事实是唯一权威，可以在跨进程锁下通过临时文件刷新/fsync 和原子替换重建投影
+- **AND** 如果无法重建或持久化投影，公开完成操作不能报告成功
 
 ### REQ-ARCHIVE-OWNERSHIP-CAS
 
-**Scenario: current claim shutdown and marker ownership**
+**Scenario: 当前认领关闭和标记所有权**
 
-- **WHEN** bounded shutdown or recovery handles a pending/running archive claim
-- **THEN** it re-reads current durable revision, deployment owner, worker owner token, attempt and fence, and performs bounded CAS only while the current claim remains owned and interruptible
-- **AND** revision races are retried or reported as unresolved, never silently ignored; transferred ownership and durable succeeded facts are not downgraded
-- **AND** staging markers serialize task, attempt, deployment, controlled root and random token; their fence binding is established by cross-checking the durable intent `fence_id` and current DB fence before deletion, and only the matching publisher deletes once after durable intent/fence and formal move; an already-deleted marker for the same publication is idempotent success
+- **WHEN** 有界关闭或恢复处理待处理/运行中的归档认领
+- **THEN** 它重新读取当前持久修订版、部署所有者、工作进程所有者令牌、尝试和围栏，并且只在当前认领仍有所有者且可中断时执行有界 CAS
+- **AND** 修订版竞态会重试或报告为未解决，绝不静默忽略；已转移的所有权和持久成功事实不会降级
+- **AND** 暂存标记序列化任务、尝试、部署、受控根目录和随机令牌；删除前通过交叉核对持久意图的 `fence_id` 与当前数据库围栏建立其围栏绑定，并且只有匹配的发布者才能在持久化意图/围栏及正式移动后删除一次；同一发布已删除的标记视为幂等成功

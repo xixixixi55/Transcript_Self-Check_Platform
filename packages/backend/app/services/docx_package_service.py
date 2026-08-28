@@ -1,4 +1,4 @@
-"""Safe DOCX package inspection and container-independent fingerprints."""
+"""安全 DOCX 包检查和容器无关指纹。"""
 
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ _MAX_U64 = (1 << 64) - 1
 
 
 class DocxPackageError(ValueError):
-    """Raised when a DOCX ZIP package is not safe to inspect."""
+    """DOCX ZIP 包无法安全检查时引发。"""
 
     code = "TEMPLATE_PACKAGE_INVALID"
 
 
 def compute_ooxml_package_fingerprint(path: str | Path) -> str:
-    """Hash sorted ZIP entry names and uncompressed bytes, ignoring ZIP metadata."""
+    """对排序后的 ZIP 条目名和未压缩字节计算哈希，忽略 ZIP 元数据。"""
     entries = _read_validated_entries(path)
     digest = hashlib.sha256()
     _update_frame(digest, _FINGERPRINT_MARKER)
@@ -34,12 +34,12 @@ def compute_ooxml_package_fingerprint(path: str | Path) -> str:
 
 
 def read_validated_docx_entries(path: str | Path) -> list[tuple[str, bytes]]:
-    """Read a DOCX after enforcing the same ZIP entry safety contract as hashing."""
+    """实施与哈希相同的 ZIP 条目安全契约后读取 DOCX。"""
     return _read_validated_entries(path)
 
 
 def raw_docx_sha256(path: str | Path) -> str:
-    """Return the raw DOCX hash for diagnostics only."""
+    """返回仅供诊断使用的原始 DOCX 哈希。"""
     digest = hashlib.sha256()
     with Path(path).open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):

@@ -1,4 +1,4 @@
-"""Validate real WinRAR volume output and run a first-volume integrity test."""
+"""验证真实 WinRAR 分卷输出并运行首卷完整性测试。"""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def validate_archive_parts(
     timeout_seconds: int | None = None,
     integrity_started_callback: Callable[[], None] | None = None,
 ) -> ArchiveValidationResult:
-    """Accept only numeric, continuous, non-empty `.partN.rar` output."""
+    """仅接受编号连续且非空的 `.partN.rar` 输出。"""
 
     root = Path(staging_dir)
     if not root.is_dir():

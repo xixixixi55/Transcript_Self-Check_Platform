@@ -1,25 +1,25 @@
-# Iteration: archive input authorization boundary
+# 迭代：归档输入授权边界
 
-- Date: 2026-07-19
-- Change: `extensible-report-template-platform`
-- Scope: fixed configured input roots, reserved exact-directory grants, opaque archive context lifecycle, path/link/output isolation, frontend stable diagnostics.
+- 日期：2026-07-19
+- 变更：`extensible-report-template-platform`
+- 范围：固定配置的输入根目录、预留的精确目录授权、不透明归档上下文生命周期、路径/链接/输出隔离，以及前端稳定诊断。
 
-## Problem → cause → feedback
+## 问题 → 原因 → 反馈
 
-- Problem: existing folder parsing trusted a client-supplied `report_dir`, while the business must support案件目录分散在不同磁盘和父目录。
-- Cause: there was no explicit authorization object between directory selection and archive execution; the runtime context also collapsed missing, expired, and busy states into one error.
-- Feedback: `UPLOAD_BASE` plus `BIJI_ALLOWED_INPUT_ROOTS` now authorizes only strict real subdirectories. A future trusted local bridge has a one-use short-lived exact-directory grant model, but no ordinary HTTP endpoint can mint one. `report_dir` is deprecated context creation input; all later stages use only `archive_context_id`.
+- 问题：现有文件夹解析信任客户端提供的 `report_dir`，而业务必须支持案件目录分散在不同磁盘和父目录。
+- 原因：目录选择与归档执行之间没有明确的授权对象；运行时上下文还将缺失、过期和忙碌状态折叠为一个错误。
+- 反馈：`UPLOAD_BASE` 与 `BIJI_ALLOWED_INPUT_ROOTS` 现在只授权严格的真实子目录。未来可信本地桥接器采用一次性短时精确目录授权模型，但普通 HTTP 端点不能签发该授权。`report_dir` 是已弃用的上下文创建输入；后续所有阶段只使用 `archive_context_id`。
 
-## Verification
+## 验证
 
-- Backend: `241 passed, 2 skipped`; archive security/execution precision set: `81 passed, 2 skipped`.
-- Frontend: `16 files, 87 passed`.
-- Architecture lint, typecheck, quick docs, strict docs and strict OpenSpec validation passed.
-- Real WinRAR smoke acceptance passed with installed `rar.exe` 5.90: two synthetic input files, single-volume `.part1.rar`, no residual `.rar`, first-volume integrity test, non-zero size, streaming MD5, manifest filename match and staging cleanup. Only sanitized facts were reported; existing output and real case directories were untouched.
+- 后端：`241 passed, 2 skipped`；归档安全/执行精度测试集：`81 passed, 2 skipped`。
+- 前端：`16 files, 87 passed`。
+- 架构检查、类型检查、快速文档检查、严格文档检查及严格 OpenSpec 验证均通过。
+- 使用已安装的 `rar.exe` 5.90 进行真实 WinRAR 冒烟验收并通过：两个合成输入文件、单卷 `.part1.rar`、无残留 `.rar`、首卷完整性测试、非零大小、流式 MD5、Manifest 文件名匹配及暂存区清理。仅报告脱敏事实；现有输出和真实案件目录均未改动。
 
-## Boundary retained for later work
+## 留待后续工作的边界
 
-- Contexts are intentionally in-memory for this iteration; service restart requires re-parse.
-- Fixed roots are production-usable; exact-directory grants remain a security model only until a trusted local picker/desktop bridge is connected. Ordinary HTTP paths outside configured roots remain rejected.
-- Expiring in-memory manifest metadata never deletes a published successful archive; final publication directories are independent of context cleanup.
-- No Word attachment consumption of `ArchiveManifest`, canonical cutover, Shadow end-to-end wiring, or OpenSpec archive was performed.
+- 本迭代有意将上下文保存在内存中；服务重启后需要重新解析。
+- 固定根目录可用于生产；在接入可信本地选择器/桌面桥接器之前，精确目录授权仍只是一种安全模型。配置根目录以外的普通 HTTP 路径仍会被拒绝。
+- 内存中的 Manifest 元数据过期绝不会删除已发布的成功归档；最终发布目录不依赖上下文清理。
+- 本次未实现 Word 附件消费 `ArchiveManifest`、Canonical 切换、Shadow 端到端接线或 OpenSpec 归档。

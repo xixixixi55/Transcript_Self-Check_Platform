@@ -1,12 +1,10 @@
-"""Timeout policy for WinRAR archive execution and integrity checks.
+"""WinRAR 归档执行和完整性检查的超时策略。
 
-Per-attempt execution timeout — each ``WinRarExecutor.execute()`` call gets
-a fresh timeout computed from total input bytes.  The replan loop in
-``execute_archive()`` is bounded by ``max_replan_attempts`` (≤ 3 attempts
-total); no separate total-task timeout is needed.
+每次尝试的执行超时：每次 ``WinRarExecutor.execute()`` 调用都会根据输入总字节数
+获得新的超时。``execute_archive()`` 中的重新规划循环受 ``max_replan_attempts``
+限制（总计不超过 3 次尝试），因此无需单独设置任务总超时。
 
-Configurable via ``BIJI_ARCHIVE_TIMEOUT_SECONDS`` (overrides *per-attempt*
-execution timeout).
+可通过 ``BIJI_ARCHIVE_TIMEOUT_SECONDS`` 配置（覆盖每次尝试的执行超时）。
 """
 
 from __future__ import annotations
@@ -19,34 +17,31 @@ import subprocess
 _logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Execution timeout — per-attempt WinRAR "a" process
+# 执行超时 — 每次尝试的 WinRAR "a" 进程
 #
-# A contended HDD deployment measured about 0.3 MB/s per task while several
-# disk-heavy jobs ran concurrently.  Budget at 0.1 MB/s so the timeout allows
-# three times that observed wall-clock duration without becoming unbounded.
+# 在多个磁盘密集任务并发运行的 HDD 竞争环境中，每个任务实测约 0.3 MB/s。
+# 按 0.1 MB/s 预算，使超时可容纳实测墙钟时间的三倍，同时保持有界。
 #
-# The default production policy can switch inputs above 225 GiB to an
-# unsplit RAR, so this timeout is an execution safety bound rather than an
-# archive-size admission limit. The finite 30-day bound covers the standard
-# 225 GiB threshold at the contended-disk budget.
+# 默认生产策略可将超过 225 GiB 的输入切换为不分卷 RAR，
+# 因此该超时是执行安全边界，而非归档大小准入限制。
+# 有限的 30 天边界可在竞争磁盘预算下覆盖标准的 225 GiB 阈值。
 # ---------------------------------------------------------------------------
 
 _DEFAULT_TIMEOUT_SECONDS = 300
-_MIN_THROUGHPUT_BYTES_PER_SEC = 100_000  # 0.1 MB/s contended-HDD floor
-_COMPLETION_GRACE_SECONDS = 600  # HDD/WinRAR volume finalization margin
+_MIN_THROUGHPUT_BYTES_PER_SEC = 100_000  # 竞争状态 HDD 的吞吐下限为 0.1 MB/s
+_COMPLETION_GRACE_SECONDS = 600  # HDD/WinRAR 分卷收尾余量
 _MAX_COMPUTED_TIMEOUT = 30 * 24 * 60 * 60
 _MAX_ENV_TIMEOUT = _MAX_COMPUTED_TIMEOUT
 
 _ENV_KEY = "BIJI_ARCHIVE_TIMEOUT_SECONDS"
 
 # ---------------------------------------------------------------------------
-# Integrity-check timeout — per "rar t" invocation against part1.rar
+# 完整性检查超时 — 每次针对 part1.rar 调用 "rar t"
 #
-# ``rar t part1.rar`` verifies every byte of the *entire* multi-volume set
-# (read + decompress + checksum).  Deployments predominantly use HDDs, where
-# old drives, fragmentation, antivirus and concurrent work can reduce the
-# effective rate far below nominal sequential-read specifications.  Use the
-# same 0.1 MB/s floor as archive execution plus a fixed completion margin.
+# ``rar t part1.rar`` 会验证整个多分卷集合的每个字节
+#（读取 + 解压 + 校验和）。部署环境主要使用 HDD，老旧磁盘、碎片、
+# 杀毒软件和并发工作会使实际速率远低于标称顺序读取规格。
+# 使用与归档执行相同的 0.1 MB/s 下限，并加上固定收尾余量。
 # ---------------------------------------------------------------------------
 
 _INTEGRITY_DEFAULT_TIMEOUT = 300
@@ -56,15 +51,15 @@ _INTEGRITY_MAX_TIMEOUT = 30 * 24 * 60 * 60
 
 
 def compute_timeout(input_bytes: int) -> int:
-    """Return a bounded per-attempt *execution* timeout in seconds.
+    """返回以秒为单位的有界单次尝试执行超时。
 
-    1. If ``BIJI_ARCHIVE_TIMEOUT_SECONDS`` is set to a positive integer
-       ≤ 2 592 000, use it verbatim (operator override).
-    2. Otherwise compute ``max(300, ceil(input_bytes / 0.1 MB/s) + 600)``
-       clamped to [300, 2 592 000].
+    1. 若 ``BIJI_ARCHIVE_TIMEOUT_SECONDS`` 是不超过 2 592 000 的正整数，
+       则直接采用该值（运维人员覆盖）。
+    2. 否则计算 ``max(300, ceil(input_bytes / 0.1 MB/s) + 600)``，
+       并限制在 [300, 2 592 000] 范围内。
 
-    Invalid or out-of-range env values trigger exactly one sanitised
-    warning per call and a safe fallback to the computed value.
+    无效或超出范围的环境变量值在每次调用中仅触发一次脱敏警告，
+    并安全回退到计算值。
     """
     env_raw = os.environ.get(_ENV_KEY, "").strip()
     if env_raw:
@@ -76,9 +71,9 @@ def compute_timeout(input_bytes: int) -> int:
                 "允许范围：1–%d 秒。",
                 _ENV_KEY, _MAX_ENV_TIMEOUT,
             )
-            env_val = None  # sentinel — already warned
+            env_val = None  # 哨兵值——已发出警告
         if env_val is None:
-            pass  # already logged
+            pass  # 已记录日志
         elif env_val == 0:
             _logger.warning(
                 "%s=0，已回退到默认计算。"
@@ -109,13 +104,13 @@ def compute_timeout(input_bytes: int) -> int:
 
 
 def compute_integrity_timeout(total_archive_bytes: int) -> int:
-    """Return a bounded integrity-check timeout.
+    """返回有界的完整性检查超时。
 
-    ``total_archive_bytes`` is the sum of all validated part sizes
-    (not just part1), because ``rar t part1.rar`` verifies the full set.
+    ``total_archive_bytes`` 是所有已验证分卷大小的总和，而非仅 part1，
+    因为 ``rar t part1.rar`` 会验证整个分卷集。
 
-    Formula: ``max(300, ceil(total_bytes / 0.1 MB/s) + 600)`` for non-empty
-    archives, clamped to [300, 2,592,000].
+    对非空归档使用公式 ``max(300, ceil(total_bytes / 0.1 MB/s) + 600)``，
+    并限制在 [300, 2,592,000] 范围内。
     """
     size_based = max(
         _INTEGRITY_DEFAULT_TIMEOUT,
@@ -126,17 +121,17 @@ def compute_integrity_timeout(total_archive_bytes: int) -> int:
 
 
 def timeout_bounds() -> tuple[int, int, int]:
-    """Return (default_min, computed_max, env_override_max) in seconds."""
+    """返回以秒为单位的 (default_min, computed_max, env_override_max)。"""
     return (_DEFAULT_TIMEOUT_SECONDS, _MAX_COMPUTED_TIMEOUT, _MAX_ENV_TIMEOUT)
 
 
 def integrity_bounds() -> tuple[int, int]:
-    """Return (default, max) for integrity-check timeout in seconds."""
+    """返回完整性检查超时的 (default, max)，单位为秒。"""
     return (_INTEGRITY_DEFAULT_TIMEOUT, _INTEGRITY_MAX_TIMEOUT)
 
 
 def _kill_process_tree_impl(pid: int) -> bool:
-    """Best-effort tree kill on Windows; returns True if successful."""
+    """在 Windows 上尽力终止进程树；成功时返回 True。"""
     if os.name != "nt":
         return True
     try:

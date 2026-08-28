@@ -1,4 +1,4 @@
-"""Phase 1A persistence tests using synthetic data and temporary databases."""
+"""使用合成数据与临时数据库的 Phase 1A 持久化测试。"""
 
 from __future__ import annotations
 
@@ -513,16 +513,15 @@ def test_corrupt_or_incompatible_database_fails_safe(tmp_path: Path) -> None:
 
 
 def test_archive_verified_transitions_to_exported(database: WorkbenchDatabase) -> None:
-    """REQ-031/MF-4: unified export migrates the shell to exported after success."""
+    """REQ-031/MF-4：统一导出成功后将外壳迁移为 exported。"""
     create_shell(database)
     repos = CaseShellRepository(database)
     repos.update_lifecycle(CASE_ID, "parsing", repos.get(CASE_ID)["revision"])
     CaseDraftRepository(database).save({
         "case_id": CASE_ID, "report": REPORT, "asset_refs": [], "field_states": {},
     })
-    # Draft save lands the shell on review_ready; archive verification moves it
-    # on through the archive lifecycle (covered elsewhere). Jump to the verified
-    # state to exercise the deferred-mapping/export migration in isolation.
+    # 保存草稿会使外壳进入 review_ready；归档验证会推动其经历归档生命周期
+    #（在其他位置覆盖）。直接跳到已验证状态，以独立测试延迟映射/导出迁移。
     with database.transaction() as connection:
         connection.execute(
             "UPDATE case_shells SET lifecycle='archive_verified', report_available=1 "
@@ -534,7 +533,7 @@ def test_archive_verified_transitions_to_exported(database: WorkbenchDatabase) -
         CASE_ID, "exported", repos.get(CASE_ID)["revision"],
     )
     assert exported["lifecycle"] == "exported"
-    # REQ-031 re-export: exported -> exported is allowed (self-loop).
+    # REQ-031 再次导出：允许 exported -> exported（自循环）。
     again = repos.update_lifecycle(
         CASE_ID, "exported", repos.get(CASE_ID)["revision"],
     )

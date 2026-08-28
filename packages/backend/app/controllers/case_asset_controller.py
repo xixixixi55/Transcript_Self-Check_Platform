@@ -1,4 +1,4 @@
-"""Layer 22: case-bound image asset HTTP endpoints."""
+"""第 22 层：案件绑定图片资产 HTTP 端点。"""
 
 from __future__ import annotations
 

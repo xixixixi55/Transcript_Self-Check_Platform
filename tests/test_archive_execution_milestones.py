@@ -1,4 +1,4 @@
-"""T014 integration of workflow milestones with the formal executor."""
+"""T014 工作流里程碑与正式执行器的集成测试。"""
 
 from __future__ import annotations
 

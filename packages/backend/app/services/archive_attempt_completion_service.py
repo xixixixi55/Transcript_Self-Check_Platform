@@ -1,4 +1,4 @@
-"""Shared trusted completion and restart reconciliation for archive attempts."""
+"""归档尝试共享的可信完成与重启协调。"""
 
 from __future__ import annotations
 
@@ -227,8 +227,8 @@ def complete_verified(
     try:
         service.cleanup_execution_input(attempt_id)
     except Exception:
-        # Durable success is already committed; leave the sealed row for a
-        # bounded cleanup/recovery pass rather than downgrading the result.
+        # 持久成功状态已经提交；保留密封行供有界清理/恢复流程处理，
+        # 不要降级结果。
         pass
     return result
 

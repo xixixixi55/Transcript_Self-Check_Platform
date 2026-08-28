@@ -1,4 +1,4 @@
-"""SYNTHETIC subprocess smoke tests for the frozen backend entry contract."""
+"""冻结后端入口契约的 SYNTHETIC 子进程冒烟测试。"""
 
 from __future__ import annotations
 

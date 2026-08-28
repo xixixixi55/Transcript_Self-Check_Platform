@@ -1,4 +1,4 @@
-"""Embedded Windows capture script for the native HashMyFiles window."""
+"""用于原生 HashMyFiles 窗口的嵌入式 Windows 捕获脚本。"""
 
 CAPTURE_SCRIPT = r'''param([string]$JsonPath, [string]$OutputPath, [string]$ResultPath)
 $ErrorActionPreference = 'Stop'

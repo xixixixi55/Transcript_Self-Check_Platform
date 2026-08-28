@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — one-shot Demo capability snapshot with safe fallback.
+// 第 10 层：FE_Hooks — 带安全回退的一次性演示能力快照。
 import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'

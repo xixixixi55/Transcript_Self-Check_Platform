@@ -34,7 +34,7 @@ def create_app(
     portable_web_root: str | Path | None = None,
     desktop_secret: str | None = None,
 ) -> FastAPI:
-    """Build the API without starting workers until FastAPI lifespan startup."""
+    """构建 API；在 FastAPI 生命周期启动前不启动工作进程。"""
     provider = service_provider or get_workbench_services
 
     @asynccontextmanager
@@ -62,8 +62,8 @@ def create_app(
         lifespan=lifespan,
     )
 
-    # Read the migration mode once per application instance. Controllers receive
-    # the same immutable settings object; parsers and renderers do not read env.
+    # 每个应用实例只读取一次迁移模式。控制器接收同一个不可变设置对象；
+    # 解析器和渲染器不读取环境变量。
     app.state.pipeline_settings = load_pipeline_settings()
 
     portable_mode = os.environ.get("BIJI_PORTABLE_MODE", "").strip() == "1"

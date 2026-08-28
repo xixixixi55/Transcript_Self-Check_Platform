@@ -1,4 +1,4 @@
-"""Layer 21: trusted Windows native folder selection for local deployments."""
+"""第 21 层：本地部署的可信 Windows 原生文件夹选择。"""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ PowerShellRunner = Callable[..., Any]
 SelectionValidator = Callable[[Path], Any]
 
 def _folder_picker_script(description: str, initial_directory: str | None = None) -> str:
-    """Build the native dialog script with direct HWND Z-order enforcement."""
+    """构建原生对话框脚本并直接实施 HWND Z 顺序。"""
     safe_description = description.replace("'", "''")
     safe_initial = (initial_directory or "").replace("'", "''")
     return f"""
@@ -175,7 +175,7 @@ _PICKER_TIMEOUT_SECONDS = 600
 
 
 class LocalDirectoryPickerService:
-    """Open a native picker without exposing or copying the selected path."""
+    """打开原生选择器，不暴露或复制所选路径。"""
 
     def __init__(
         self,

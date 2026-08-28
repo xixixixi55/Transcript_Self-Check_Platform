@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — useEditableState 测试
+// 第 10 层：FE_Hooks — useEditableState 测试
 import { describe, it, expect } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useEditableState } from './useEditableState'

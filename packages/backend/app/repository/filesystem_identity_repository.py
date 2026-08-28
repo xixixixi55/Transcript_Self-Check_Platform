@@ -1,4 +1,4 @@
-"""Stable, path-free identities for authorized local directories."""
+"""授权本地目录的稳定无路径标识。"""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from pathlib import Path
 
 
 class FilesystemIdentityError(ValueError):
-    """Safe filesystem identity diagnostics without exposing local paths."""
+    """不暴露本地路径的安全文件系统标识诊断。"""
 
 
 def resolve_directory(path: str | os.PathLike[str]) -> Path:
-    """Resolve an existing directory and reject links or reparse points."""
+    """解析现有目录并拒绝链接或重解析点。"""
     raw = os.fspath(path)
     candidate = Path(raw)
     raw_windows = raw.replace("/", "\\")
@@ -45,14 +45,14 @@ def resolve_directory(path: str | os.PathLike[str]) -> Path:
 
 
 def normalized_directory_key(path: str | os.PathLike[str]) -> str:
-    """Return a case-insensitive, separator-insensitive opaque directory key."""
+    """返回不区分大小写和分隔符的不透明目录键。"""
     resolved = resolve_directory(path)
     normalized = os.path.normcase(os.path.normpath(os.fspath(resolved))).casefold()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def directory_content_fingerprint(path: str | os.PathLike[str]) -> str:
-    """Hash relative entries and file bytes without storing their absolute path."""
+    """对相对条目和文件字节计算哈希，不存储绝对路径。"""
     root = resolve_directory(path)
     entries: list[tuple[str, str, Path]] = []
     pending = [root]
@@ -91,7 +91,7 @@ def directory_content_fingerprint(path: str | os.PathLike[str]) -> str:
 
 
 def stable_directory_content_fingerprint(path: str | os.PathLike[str]) -> str:
-    """Hash bytes and metadata with a stable source-directory sampling fence."""
+    """使用稳定的来源目录采样围栏对字节和元数据计算哈希。"""
     root = resolve_directory(path)
     entries = _directory_entries(root)
     digest = hashlib.sha256()
@@ -116,11 +116,10 @@ def directory_fingerprint_matches(path: str | os.PathLike[str], expected: str) -
 def selected_files_content_fingerprint(
     root: str | os.PathLike[str], relative_files: list[str],
 ) -> str:
-    """Hash a dynamically selected set of parser input files.
+    """对动态选择的一组解析器输入文件计算哈希。
 
-    Every request reads the selected bytes. Filesystems can preserve size and
-    timestamp metadata across rapid same-size rewrites, so metadata-only
-    caching could incorrectly reuse a stale content identity.
+    每个请求都会读取选定字节。文件系统可能在快速同大小重写时保留大小和时间戳元数据，
+    因此仅使用元数据的缓存可能错误复用过期的内容标识。
     """
     resolved_root = resolve_directory(root)
     entries: list[tuple[str, str, Path]] = []

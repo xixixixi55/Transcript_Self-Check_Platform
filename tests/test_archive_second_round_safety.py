@@ -1,4 +1,4 @@
-"""Deterministic second-round archive safety and fault-injection evidence."""
+"""确定性的第二轮归档安全与故障注入证据。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Single-active-case edit leases with heartbeat and expired takeover."""
+"""带心跳和过期接管的单活动案件编辑租约。"""
 
 from __future__ import annotations
 

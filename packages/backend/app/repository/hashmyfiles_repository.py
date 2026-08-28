@@ -1,4 +1,4 @@
-"""Run the real HashMyFiles.exe window and capture its three-column result."""
+"""运行真实 HashMyFiles.exe 窗口并捕获其三列结果。"""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ _FAILURE_MESSAGES = {
 
 
 class HashMyFilesError(RuntimeError):
-    """Stable, path-free diagnostic for HashMyFiles failures."""
+    """不含路径的稳定 HashMyFiles 失败诊断。"""
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -44,7 +44,7 @@ class HashMyFilesError(RuntimeError):
 
 
 def resolve_hashmyfiles() -> Path | None:
-    """Resolve HashMyFiles.exe; env override first, then the bundled default."""
+    """解析 HashMyFiles.exe；优先使用环境变量覆盖项，其次使用捆绑默认值。"""
     override = os.environ.get("BIJI_HASHMYFILES_PATH")
     if override:
         candidate = Path(override)
@@ -62,7 +62,7 @@ def run_hashmyfiles(
     timeout_seconds: int = 120,
     hash_algorithm: str = "md5",
 ) -> str:
-    """Produce a validated native-window PNG inside ``output_dir``."""
+    """在 ``output_dir`` 中生成已验证的原生窗口 PNG。"""
     output_dir.mkdir(parents=True, exist_ok=True)
     image_path = output_dir / _HASH_IMAGE_FILENAME
     legacy_html_path = output_dir / _LEGACY_HASH_HTML_FILENAME

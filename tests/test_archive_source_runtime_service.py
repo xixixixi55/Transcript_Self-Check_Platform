@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for preview-source and formal-context lifecycle separation."""
+"""预览源与正式上下文生命周期分离的 SYNTHETIC 测试。"""
 
 import os
 import sys

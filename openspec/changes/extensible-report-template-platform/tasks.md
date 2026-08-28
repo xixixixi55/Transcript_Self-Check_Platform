@@ -1,5 +1,5 @@
 
-# Implementation Tasks: extensible-report-template-platform
+# 实现任务：extensible-report-template-platform
 
 workflow_level: 3
 
@@ -84,7 +84,7 @@ Shadow 工作包的输出只能是隔离的规范化、规划和脱敏比较结�
 
 6.1 回归修复证据（2026-08-10）：附件摘要“检查人签名”下方日期不再读取系统当前日期；Legacy 输入复用 `attachments.burning_date`，正式 manifest 导出复用经验证的首张光盘日期，并保持 `YYYY年M月D日` 格式。定向测试覆盖两条生成链路。
 
-## 7. ArchivePlanner（Layer 2/21）
+## 7. 归档规划器（Layer 2/21）
 
 - [x] 7.1 实现纯函数 `ArchivePlanner`，生成只含预计方案的 `ArchivePlan`。输入：案件名、源目录逻辑大小和策略；输出：4GB/22GB/45GB 档位、预计卷数、十进制容量、`maxReplanAttempts=2`；验收：4GB最多2卷、22GB最多2卷、45GB最多3卷，超过135GB预先阻止。
 - [x] 7.1T 增加 8GB、8GB+1、44GB、44GB+1、135GB、135GB+1 边界测试；验收：不调用 WinRAR 即可验证档位和上限。

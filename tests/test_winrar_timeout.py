@@ -1,16 +1,16 @@
-"""Comprehensive tests for WinRAR timeout governance — v2 production closeout.
+"""WinRAR 超时治理综合测试——v2 生产收尾。
 
-Covers:
-  - Execution timeout (0.1 MB/s, 30-day cap) for contended HDD deployments
-  - HDD-oriented integrity timeout (0.1 MB/s + grace, 30-day cap)
-  - Process tree termination (always tree-kill on Windows)
-  - Set-based lock lifecycle (atomic claim/release)
-  - Published manifest immutability (deepcopy normalization)
-  - ARCHIVE_INTEGRITY_TIMEOUT full contract chain
-  - _positive_int strict validation
-  - record_controller Enum.value extraction
-  - Single warning per invalid env-var
-  - Staging cleanup gate
+覆盖：
+  - 争用 HDD 部署的执行超时（0.1 MB/s，上限 30 天）
+  - 面向 HDD 的完整性超时（0.1 MB/s + 余量，上限 30 天）
+  - 进程树终止（Windows 上始终终止整棵进程树）
+  - 基于集合的锁生命周期（原子认领与释放）
+  - 已发布 manifest 不可变性（deepcopy 规范化）
+  - ARCHIVE_INTEGRITY_TIMEOUT 完整契约链
+  - _positive_int 严格校验
+  - record_controller 的 Enum.value 提取
+  - 每个无效环境变量只警告一次
+  - 暂存区清理门控
 """
 
 import copy
@@ -68,7 +68,7 @@ def _run_ok(args, **kwargs):
 
 
 # ============================================================================
-# 1. Execution timeout (real-data-verified)
+# 1. 执行超时（真实数据验证）
 # ============================================================================
 
 
@@ -78,7 +78,7 @@ class TestExecutionTimeout:
 
     def test_4_5gb_uses_contended_hdd_budget(self):
         t = WinRarExecutor.compute_timeout(4_500_000_000)
-        assert t == 45_600  # 45,000 s size budget + 600 s finalization grace
+        assert t == 45_600  # 45,000 秒大小预算 + 600 秒收尾余量
         assert t >= 540
 
     def test_8_5gb_uses_contended_hdd_budget(self):
@@ -96,7 +96,7 @@ class TestExecutionTimeout:
 
 
 # ============================================================================
-# 2. Integrity timeout (total archive size, HDD-oriented 0.1 MB/s + grace)
+# 2. 完整性超时（归档总大小、面向 HDD 的 0.1 MB/s + 余量）
 # ============================================================================
 
 
@@ -105,7 +105,7 @@ class TestIntegrityTimeout:
         assert compute_integrity_timeout(0) == 300
 
     def test_45gb_plus_45gb_plus_45gb_uses_135gb(self):
-        """rar t part1.rar verifies the entire set — 3 × 45 GB = 135 GB."""
+        """rar t part1.rar 校验整个分卷集，即 3 × 45 GB = 135 GB。"""
         t = compute_integrity_timeout(135 * GB)
         assert t == 1_350_600
 
@@ -123,7 +123,7 @@ class TestIntegrityTimeout:
 
 
 class TestIntegrityTimeoutViaValidator:
-    """Tests that exercise validate_archive_parts(), not just the pure function."""
+    """测试 validate_archive_parts()，而不只测试纯函数。"""
 
     def test_total_size_used_not_just_part1(self, tmp_path):
         from app.repository.archive_validator_repository import validate_archive_parts
@@ -135,7 +135,7 @@ class TestIntegrityTimeoutViaValidator:
         seen_bytes = []
         def fake_timeout(total_bytes):
             seen_bytes.append(total_bytes)
-            return 99  # arbitrary non-default value
+            return 99  # 任意非默认值
 
         with mock.patch("app.repository.archive_validator_repository.compute_integrity_timeout", side_effect=fake_timeout):
             def ok_runner(*a, **kw):
@@ -143,7 +143,7 @@ class TestIntegrityTimeoutViaValidator:
             result = validate_archive_parts(tmp_path, plan, capability(), integrity_runner=ok_runner)
             assert result.valid
             assert len(seen_bytes) == 1
-            # Called with total = 15_000 (part1 + part2), not 10_000 (part1 only)
+            # 调用参数 total = 15_000（part1 + part2），而非 10_000（仅 part1）
             assert seen_bytes[0] == 15_000
             assert seen_bytes[0] != 10_000
 
@@ -164,7 +164,7 @@ class TestIntegrityTimeoutViaValidator:
 
 
 # ============================================================================
-# 3. Planner switches beyond the 225 GiB standard split threshold
+# 3. 超过 225 GiB 标准分卷阈值时规划器切换模式
 # ============================================================================
 
 
@@ -181,7 +181,7 @@ class TestPlannerUsesOversizedSingleVolume:
 
 
 # ============================================================================
-# 4. Env-var (single warning per invalid value)
+# 4. 环境变量（每个无效值只警告一次）
 # ============================================================================
 
 
@@ -202,7 +202,7 @@ class TestEnvTimeoutWarnings:
         assert result == 300
         assert caplog.text.count("BIJI_ARCHIVE_TIMEOUT_SECONDS") == 1
         assert "非数字" in caplog.text
-        assert "twelve" not in caplog.text  # raw value sanitised
+        assert "twelve" not in caplog.text  # 原始值已脱敏
 
     def test_zero_one_warning(self, monkeypatch, caplog):
         monkeypatch.setenv("BIJI_ARCHIVE_TIMEOUT_SECONDS", "0")
@@ -275,12 +275,12 @@ class TestArchiveIdleTimeoutConfiguration:
 
 
 # ============================================================================
-# 5. Process tree termination — always tree-kill on Windows
+# 5. 进程树终止 — 在 Windows 上始终终止整棵进程树
 # ============================================================================
 
 
 class FakePopen:
-    """A controllable Popen stub for testing termination sequences."""
+    """用于测试终止顺序的可控 Popen 桩。"""
 
     def __init__(self, *, kill_side_effect=None, wait_timeouts=0, poll_returns=None):
         self._kill = mock.MagicMock(side_effect=kill_side_effect)
@@ -310,20 +310,20 @@ class FakePopen:
 
 class TestProcessTermination:
     def test_tree_kill_first_on_windows(self):
-        """taskkill /T is called first, then direct kill as fallback."""
+        """先调用 taskkill /T，再以直接终止作为回退。"""
         with mock.patch(
             "app.repository.winrar_executor_repository._kill_process_tree_impl",
             return_value=True,
         ) as mock_tree:
             p = FakePopen(poll_returns=[0], wait_timeouts=0)
             assert _terminate_process(p, pid=99999) is True
-            # tree kill called with correct PID
+            # 使用正确 PID 调用进程树终止
             mock_tree.assert_called_once_with(99999)
-            # direct kill NOT called (tree kill succeeded)
+            # 不调用直接终止（进程树终止已成功）
             p._kill.assert_not_called()
 
     def test_tree_kill_fails_falls_back_to_direct_kill(self):
-        """taskkill fails → direct process.kill() as fallback."""
+        """taskkill 失败后，回退到直接调用 process.kill()。"""
         with mock.patch(
             "app.repository.winrar_executor_repository._kill_process_tree_impl",
             return_value=False,
@@ -333,7 +333,7 @@ class TestProcessTermination:
             p._kill.assert_called_once()
 
     def test_both_tree_and_direct_fail_returns_false(self):
-        """tree kill fails, direct kill succeeds but wait timeout → False."""
+        """进程树终止失败，直接终止成功但等待超时，此时返回 False。"""
         with mock.patch(
             "app.repository.winrar_executor_repository._kill_process_tree_impl",
             return_value=False,
@@ -342,18 +342,18 @@ class TestProcessTermination:
             assert _terminate_process(p, pid=99999) is False
 
     def test_parent_exited_not_equal_to_tree_confirmed(self):
-        """Even if parent poll returns exited, tree kill is ALWAYS attempted."""
+        """即使父进程轮询结果为已退出，也 ALWAYS 尝试终止进程树。"""
         with mock.patch(
             "app.repository.winrar_executor_repository._kill_process_tree_impl",
             return_value=True,
         ) as mock_tree:
-            p = FakePopen(poll_returns=[0])  # already "exited"
+            p = FakePopen(poll_returns=[0])  # 已“退出”
             assert _terminate_process(p, pid=99999) is True
-            # tree kill WAS called despite parent appearing dead
+            # 即使父进程看似已退出，仍调用了进程树终止
             mock_tree.assert_called_once_with(99999)
 
     def test_tree_kill_success_then_poll_exited(self):
-        """Happy path: tree kill OK → wait → poll returns exit code."""
+        """正常路径：进程树终止成功，然后等待，轮询返回退出码。"""
         with mock.patch(
             "app.repository.winrar_executor_repository._kill_process_tree_impl",
             return_value=True,
@@ -384,7 +384,7 @@ class TestTerminationPreventsCleanup:
 
 class TestOSErrorPath:
     def test_oserror_terminate_false_does_not_clean_staging(self, tmp_path):
-        """communicate OSError, termination fails → staging preserved."""
+        """communicate 发生 OSError 且终止失败时，保留暂存区。"""
         source = tmp_path / "source"
         source.mkdir()
         (source / "data.txt").write_text("x", encoding="utf-8")
@@ -406,7 +406,7 @@ class TestOSErrorPath:
             assert len(stagings) >= 1, "staging NOT cleaned when termination unconfirmed"
 
     def test_oserror_terminate_true_cleans_staging(self, tmp_path):
-        """communicate OSError, termination confirmed → staging cleaned."""
+        """communicate 发生 OSError 且确认终止后，清理暂存区。"""
         source = tmp_path / "source"
         source.mkdir()
         (source / "data.txt").write_text("x", encoding="utf-8")
@@ -429,7 +429,7 @@ class TestOSErrorPath:
 
 
 # ============================================================================
-# 6. Set-based lock lifecycle
+# 6. 基于集合的锁生命周期
 # ============================================================================
 
 
@@ -476,28 +476,28 @@ class TestLockLifecycle:
                 WinRarExecutor._active_plans.discard("concurrent-test")
 
     def test_different_plan_ids_run_concurrently(self, tmp_path):
-        """Two different plan_ids must be claimable sequentially."""
+        """两个不同的 plan_id 必须能够依次认领。"""
         executor = WinRarExecutor(tmp_path / "staging", process_runner=_run_ok)
         inventory = _inventory(tmp_path, 64)
         plan_a = _make_plan(plan_id="plan-A")
         executor.execute(plan_a, inventory.files, inventory.source_root, capability())
         plan_b = _make_plan(plan_id="plan-B")
         executor.execute(plan_b, inventory.files, inventory.source_root, capability())
-        # Both completed — no exception
+        # 两者都已完成 — 无异常
         with WinRarExecutor._active_guard:
             assert "plan-A" not in WinRarExecutor._active_plans
             assert "plan-B" not in WinRarExecutor._active_plans
 
 
 class TestLockRaceWindow:
-    """Multithreaded test: release-reclaim race must not allow overlap."""
+    """多线程测试：释放与重新认领的竞争不得产生重叠。"""
 
     def test_release_and_reclaim_race(self, tmp_path):
         events = {"entered": threading.Event(), "release": threading.Event()}
         results = []
 
         def blocking_execute():
-            # Simulate a long-running execute() that holds the claim
+            # 模拟持有认领权的长时间 execute() 调用
             WinRarExecutor._claim_plan("race-test")
             events["entered"].set()
             events["release"].wait()
@@ -508,7 +508,7 @@ class TestLockRaceWindow:
         t.start()
         events["entered"].wait()
 
-        # Try to claim same plan_id while first thread holds it
+        # 第一个线程持有 plan_id 时尝试认领同一 plan_id
         with pytest.raises(ArchiveExecutionError) as exc:
             WinRarExecutor._claim_plan("race-test")
         assert exc.value.code == "ARCHIVE_EXECUTION_IN_PROGRESS"
@@ -517,7 +517,7 @@ class TestLockRaceWindow:
         events["release"].set()
         t.join()
 
-        # Now it is free
+        # 现在已释放
         WinRarExecutor._claim_plan("race-test")
         WinRarExecutor._release_plan("race-test")
         results.append("third-ok")
@@ -529,7 +529,7 @@ class TestLockRaceWindow:
 
 
 # ============================================================================
-# 7. Published manifest immutability
+# 7. 已发布 manifest 的不可变性
 # ============================================================================
 
 
@@ -569,7 +569,7 @@ class TestManifestImmutability:
 
             err = validate_manifest_files(Rec())
             assert err is None
-            # Original manifest MUST be identical to before validation
+            # 原始 manifest 在验证前后必须完全一致
             assert manifest == original
         finally:
             shutil.rmtree(d, ignore_errors=True)
@@ -602,16 +602,16 @@ class TestGetValidManifestNormalizes:
 
         normalized = _normalized_manifest(manifest)
 
-        # Original unchanged
+        # 原始值未改变
         assert "disc_capacity_bytes" not in original["parts"][0]
-        # Normalized has it
+        # 规范化结果包含该值
         assert normalized["parts"][0]["disc_capacity_bytes"] == 22_000_000_000
-        # Original still has no disc_capacity_bytes
+        # 原始值仍不含 disc_capacity_bytes
         assert original["parts"][0].get("disc_capacity_bytes") is None
 
 
 # ============================================================================
-# 8. ARCHIVE_INTEGRITY_TIMEOUT contract chain
+# 8. ARCHIVE_INTEGRITY_TIMEOUT 契约链
 # ============================================================================
 
 
@@ -635,7 +635,7 @@ class TestIntegrityTimeoutContractChain:
 
 
 # ============================================================================
-# 9. record_controller Enum.value
+# 9. record_controller 的 Enum.value
 # ============================================================================
 
 
@@ -654,12 +654,12 @@ class TestRecordControllerEnum:
 
 
 # ============================================================================
-# Old manifest invalid value rejection
+# 拒绝旧版 manifest 的无效值
 # ============================================================================
 
 
 class TestOldManifestRejectsInvalidDiscCap:
-    """Key present but value invalid → reject.  Key absent → derive."""
+    """键存在但值无效时拒绝；键不存在时推导。"""
 
     def _valid_part(self):
         return {
@@ -688,7 +688,7 @@ class TestOldManifestRejectsInvalidDiscCap:
     def test_missing_key_ok(self, tmp_path):
         from app.services.archive_manifest_service import validate_manifest_files
         part = self._valid_part()
-        # key intentionally absent
+        # 有意不提供该键
         manifest = self._valid_manifest([part])
         (tmp_path / "case.part1.rar").write_bytes(b"\x00" * 1_000_000)
         class Rec:
@@ -765,7 +765,7 @@ class TestOldManifestRejectsInvalidDiscCap:
 
 
 # ============================================================================
-# 10. _positive_int strict validation
+# 10. _positive_int 严格验证
 # ============================================================================
 
 
@@ -819,7 +819,7 @@ class TestPositiveInt:
 
 
 # ============================================================================
-# 11. Normal execution (existing behaviour preserved)
+# 11. 正常执行（保留现有行为）
 # ============================================================================
 
 
@@ -857,7 +857,7 @@ class TestNormalExecution:
 
 
 # ============================================================================
-# 12. Timeout + OSError cleanup via process_runner path
+# 12. 通过 process_runner 路径清理超时 + OSError
 # ============================================================================
 
 
@@ -896,7 +896,7 @@ class TestTimeoutCleanup:
 
 
 # ============================================================================
-# 13. Non-zero exit + source-list cleanup
+# 13. 非零退出 + 来源列表清理
 # ============================================================================
 
 
@@ -924,7 +924,7 @@ class TestNonZeroExit:
 
 
 # ============================================================================
-# 14. Sanitised error messages
+# 14. 已净化的错误消息
 # ============================================================================
 
 

@@ -1,4 +1,4 @@
-"""Internal durable fences for the short formal-publish critical section."""
+"""正式发布短临界区的内部持久围栏。"""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def reject_if_active(connection: Any, *, case_id: str | None = None, source_id: 
 
 
 def invalidate_pending(connection: Any, *, case_id: str | None = None, source_id: str | None = None) -> None:
-    """Allow edits after restart while making the old evidence non-completable."""
+    """允许重启后编辑，同时使旧证据无法完成。"""
     clauses: list[str] = []
     values: list[str] = []
     if case_id is not None:
@@ -99,7 +99,7 @@ def set_status(
 
 
 def normalize_active_for_restart(database: WorkbenchDatabase) -> list[dict[str, Any]]:
-    """Turn stale runtime fences into evidence-pending fences, never running ones."""
+    """将过期运行时围栏转换为证据待定围栏，绝不转换为运行中围栏。"""
     with database.transaction() as connection:
         rows = connection.execute(
             "SELECT * FROM archive_publish_fences WHERE status = 'active' "

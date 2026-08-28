@@ -1,4 +1,4 @@
-"""DOCX XML regression tests for the accepted fixed-template structure."""
+"""已验收固定模板结构的 DOCX XML 回归测试。"""
 
 import base64
 import hashlib

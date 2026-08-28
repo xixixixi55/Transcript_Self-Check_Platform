@@ -1,4 +1,4 @@
-"""Build redacted archive facts without executing or rescanning the archive."""
+"""在不执行或重新扫描归档的情况下构建脱敏归档事实。"""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def _actual_archive_facts(snapshot: Any, manifest: Mapping[str, Any], plan: Any)
         archive_part_filenames=archive_filename_fingerprints(
             [item.get("filename") for item in actual_parts if isinstance(item, Mapping)]
         ),
-        # The published Manifest intentionally has no extracted-tree listing.
+        # 已发布的 Manifest 有意不包含解压目录树清单。
         archive_root_preserved=None,
         archive_relative_paths=None,
         archive_input_file_count=int_or_none(manifest.get("input_file_count")),
@@ -64,7 +64,7 @@ def _expected_archive_facts(
         archive_relative_paths=relative_paths,
         archive_input_file_count=file_count,
         archive_input_total_bytes=total_bytes,
-        # Compression output size is not knowable from an ArchivePlan.
+        # 无法从 ArchivePlan 得知压缩输出大小。
         archive_actual_bytes=None,
         archive_part_count=archive_plan.expected_part_count,
         archive_volume_tier_gb=archive_plan.volume_tier_gb,

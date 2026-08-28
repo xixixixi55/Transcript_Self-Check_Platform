@@ -19,7 +19,7 @@ def load_js_json(filepath: str) -> Any:
 
 
 def parse_js_json_content(content: str, filepath: str = "") -> Any:
-    """Parse already-read vendor JS JSON content without reopening its file."""
+    """解析已读取的厂商 JS JSON 内容，不重新打开文件。"""
     json_str = re.sub(r"^;\s*static\.mypico\.(?:json\.)?\w+\s*=\s*", "", content.strip())
     if not json_str:
         suffix = f": {filepath}" if filepath else ""

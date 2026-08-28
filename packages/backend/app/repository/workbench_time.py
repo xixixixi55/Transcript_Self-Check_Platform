@@ -1,4 +1,4 @@
-"""UTC timestamp helpers for legacy reads and canonical Phase 5 writes."""
+"""用于旧版读取和规范阶段 5 写入的 UTC 时间戳辅助函数。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ def utc_now() -> str:
 
 
 def utc_now_z() -> str:
-    """Return a new durable UTC timestamp in the canonical Z form."""
+    """返回规范 Z 格式的新持久 UTC 时间戳。"""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -33,7 +33,7 @@ def normalize_optional_utc(value: str | None) -> str | None:
 
 
 def normalize_utc_z(value: str | None) -> str:
-    """Normalize an aware timestamp to canonical UTC Z without rewriting history."""
+    """将带时区时间戳规范化为 UTC Z 格式，不重写历史。"""
     if value is None:
         return utc_now_z()
     try:

@@ -1,4 +1,4 @@
-// Layer 12: FE_Pages — 平台成果总览
+// 第 12 层：FE_Pages — 平台成果总览
 
 import { Typography } from 'antd'
 import {

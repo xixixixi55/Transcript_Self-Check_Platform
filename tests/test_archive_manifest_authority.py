@@ -1,4 +1,4 @@
-"""Manifest authority and legacy projection regression tests."""
+"""Manifest 权威来源与旧版投影的回归测试。"""
 
 import os
 import sys

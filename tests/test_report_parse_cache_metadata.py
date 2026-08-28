@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for metadata-first Parser cache validation."""
+"""元数据优先解析器缓存校验的 SYNTHETIC 测试。"""
 
 import os
 import sys

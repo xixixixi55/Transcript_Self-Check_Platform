@@ -2,38 +2,38 @@
 
 workflow_level: 2
 
-> Spec: `openspec/changes/case-workbench-delete/specs/electronic-inspection-record/spec.md`
+> 规格：`openspec/changes/case-workbench-delete/specs/electronic-inspection-record/spec.md`
 > 范围：为案件工作台补充用户确认后的真实删除能力；用户确认后允许删除任意案件状态及平台受控正式产物，外部原始资料目录仍不属于平台删除范围。
 
-## SharedTypes / SharedConstants（Layer 0–1）
+## 共享类型/共享常量（Layer 0–1）
 
 - [x] T001 更新工作台删除 API 契约和端点常量。
   - 文件：`packages/shared/types/workbench.ts`、`packages/shared/constants/index.ts`
   - 内容：定义删除成功结果，补充删除端点常量；保留现有删除预检契约。
   - 验证：Shared typecheck。
 
-## Frontend Hooks（Layer 10）
+## 前端 Hook（Layer 10）
 
 - [x] T002 在工作台 Hook 中接入真实删除请求。
   - 文件：`packages/frontend/src/hooks/useCaseWorkbench.ts`
   - 内容：新增 `deleteCase`，调用案件 DELETE API；请求失败沿用现有工作台错误解析。
   - 验证：Hook 定向测试覆盖成功请求和失败传播。
 
-## Frontend Components（Layer 11）
+## 前端组件（Layer 11）
 
 - [x] T003 将卡片删除预检入口调整为删除入口。
   - 文件：`packages/frontend/src/components/CaseCard.tsx`、`packages/frontend/src/components/CaseCard.test.tsx`、`packages/frontend/src/components/CaseCardDelete.test.tsx`
   - 内容：显示“删除”操作并将点击事件交给页面确认流程，不在组件内直接删除。
   - 验证：组件测试覆盖删除操作回调，既有归档操作回归通过。
 
-## Frontend Pages（Layer 12）
+## 前端页面（Layer 12）
 
 - [x] T004 在案件工作台增加确认弹窗和删除后刷新。
   - 文件：`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.test.tsx`
   - 内容：点击删除后显示“确认删除吗？”；“取消”不调用 API；“确认”调用真实删除并刷新列表。
   - 验证：页面测试覆盖确认、取消、删除成功和删除失败提示。
 
-## Backend Repository / Service / Controller（Layer 20–23）
+## 后端 Repository/Service/Controller（Layer 20–23）
 
 - [x] T005 实现事务内案件工作数据删除。
   - 文件：`packages/backend/app/repository/case_deletion_repository.py`、`packages/backend/app/repository/case_workflow_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/controllers/workbench_controller.py`

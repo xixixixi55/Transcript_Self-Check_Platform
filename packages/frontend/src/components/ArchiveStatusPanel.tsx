@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — compact, safe archive-task summary for a case card.
+// 第 11 层：FE_Components — 案件卡片中简洁、安全的归档任务摘要。
 import React, { useEffect, useState } from 'react'
 import type { ArchiveTaskCardSummary } from '@biji/shared/types'
 

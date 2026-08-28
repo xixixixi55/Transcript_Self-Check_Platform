@@ -16,21 +16,21 @@
 - 导出端点已接收完整 JSON，无需新增"保存编辑"端点
 - 手动测试发现的字段映射和 CLI 启动问题属于既有流程修复，详见 proposal.md 的 F3-F5、F9
 
-### AD-002: 全部 click-to-edit（与 Spec REQ-007 对齐）
+### AD-002：全部点击编辑（与规格 REQ-007 对齐）
 
-**决策**：预览页中的文本字段统一使用 click-to-edit 交互模式；检材、人员、软件工具与提取清单中的可编辑文本同样复用 `EditableField`。新增通用组件封装状态机。
+**决策**：预览页中的文本字段统一使用点击编辑交互模式；检材、人员、软件工具与提取清单中的可编辑文本同样复用 `EditableField`。新增通用组件封装状态机。
 
 **理由**：
 - Spec REQ-007 明确要求"点击字段进入编辑"，当前 always-Input 模式已偏离 Spec
 - 检查笔录是正式法律文书——纯文本展示更接近"审阅纸质笔录"的体验，满屏输入框边框是视觉噪音
 - 统一交互降低认知负担——民警只需学一种操作模式
-- `EditableField` 封装 click-to-edit 状态机（展示 → 编辑 → 保存/取消）后，15+ 字段只需一行组件声明
+- `EditableField` 封装点击编辑状态机（展示 → 编辑 → 保存/取消）后，15+ 字段只需一行组件声明
 - 组件签名：`<EditableField type="text|textarea|select" value={v} onChange={fn} options={[]} />`
 
 **备选方案**：使用 Ant Design `Typography.Paragraph` 的 `editable` 属性
 - 拒绝理由：不支持 Select 类型，失焦保存行为不可定制
 
-**备选方案**：混合模式（部分 always-Input，部分 click-to-edit）
+**备选方案**：混合模式（部分始终显示输入框，部分点击编辑）
 - 拒绝理由：交互不一致，增加认知负担
 
 **实现注记**：EditableField 使用内置 `useState` 管理编辑态，每个字段独立控制。`useEditableState` Hook 作为页面级协调预留（例如全局"保存全部"按钮），当前页面未使用——每个 EditableField 自管理编辑态更简洁，且允许多字段同时编辑。
@@ -59,7 +59,7 @@
 
 ```
 RecordGeneratePage (L12)
-├── EditableField × N       (L11, 新增) — click-to-edit 通用组件（内置独立编辑状态）
+├── EditableField × N       (L11, 新增) — 点击编辑通用组件（内置独立编辑状态）
 ├── EvidenceEditor           (L11, 已有) — (五) 检材情况
 ├── InspectorEditor          (L11, 已有) — (八) 检查人员
 ├── FileInfoCard             (L11, 已有) — 文件信息
@@ -164,7 +164,7 @@ MD5 的密码学事实值保持不变，不改写既有 Manifest 或持久化摘
 | 文件 | 层级 | 操作 | 说明 |
 |------|:----:|:----:|------|
 | `packages/frontend/src/hooks/useEditableState.ts` | L10 | **新增** | 页面级编辑协调 Hook（预留）；EditableField 使用内置 `useState` 管理各自编辑态 |
-| `packages/frontend/src/components/EditableField.tsx` | L11 | **新增** | click-to-edit 通用组件 |
+| `packages/frontend/src/components/EditableField.tsx` | L11 | **新增** | 点击编辑通用组件 |
 | `packages/frontend/src/components/RecordEditorForm.tsx` | L11 | 新增 | 审核编辑区编排与组件集成 |
 | `packages/frontend/src/components/InspectorEditor.tsx` | L11 | 修改 | 紧凑正方形卡片、加号添加入口和直接人员选择面板 |
 | `packages/frontend/src/reviewWorkspace.css` | L11 | 修改 | 紧凑卡片、三列/两列/一列响应式布局和人员选择面板样式 |

@@ -1,4 +1,4 @@
-"""Filesystem-only helpers for source metadata and fingerprint calculation."""
+"""仅依赖文件系统的来源元数据和指纹计算辅助函数。"""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from pathlib import Path
 
 
 class SourceFingerprintTransientError(OSError):
-    """The bounded source identity changed or became unavailable."""
+    """有界来源标识已改变或不可用。"""
 
 
 class SourceFingerprintCancelledError(Exception):
-    """The application is stopping and no source state should be changed."""
+    """应用正在停止，不应更改任何来源状态。"""
 
 
 _CORE_REPORT_FILES = (
@@ -43,10 +43,10 @@ def opaque_id(prefix: str) -> str:
 
 
 def fingerprint(path: Path, should_cancel: Callable[[], bool] | None = None) -> str:
-    """Bounded report identity: root/data/core-file metadata, no media walk.
+    """有界报告标识：根目录、data 和核心文件元数据，不遍历媒体。
 
-    Full media inventory belongs to the background archive worker. Source review
-    and archive-decision requests must stay independent of deep media-tree size.
+    完整媒体清单属于后台归档工作进程。来源审核和归档决策请求必须不受深层媒体树
+    大小影响。
     """
     return _fingerprint_entries(_stable_snapshot(path, should_cancel))
 
@@ -54,7 +54,7 @@ def fingerprint(path: Path, should_cancel: Callable[[], bool] | None = None) -> 
 def fingerprint_with_metadata(
     path: Path, should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[dict[str, str | int | float | bool], str]:
-    """Derive public root metadata and a stable bounded source identity."""
+    """推导公开根目录元数据和稳定的有界来源标识。"""
     entries = _stable_snapshot(path, should_cancel)
     metadata = {
         "display_name": path.name,
@@ -100,8 +100,8 @@ def _snapshot(
             *[(f"data/{name}", "file", data_dir / name) for name in _CORE_REPORT_FILES],
         ])
     else:
-        # Compatibility for non-production unit fixtures. Registered report
-        # directories always pass the fixed `data`/core-file branch above.
+        # 兼容非生产单元测试夹具。已注册的报告目录始终通过上方固定的
+        # `data`/核心文件分支。
         try:
             targets.extend(
                 (item.name, "directory" if item.is_dir(follow_symlinks=False) else "file", Path(item.path))

@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 附件1 提取固定清单编辑器
+// 第 11 层：FE_Components — 附件1 提取固定清单编辑器
 // REQ-017: 表格列可编辑，行可增删。默认标准表头
 import React from 'react'
 import { Button, Table } from 'antd'

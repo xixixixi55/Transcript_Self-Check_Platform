@@ -1,4 +1,4 @@
-// Layer 2: SharedUtils — archive completion state projection (pure).
+// 第 2 层：SharedUtils — 归档完成状态投影（纯函数）。
 
 import {
   UNIFIED_EXPORT_HDD_MIN_THROUGHPUT_BYTES_PER_SECOND,
@@ -9,8 +9,8 @@ import {
 import type { ArchiveCompletionStatus, CaseLifecycle } from '../types'
 
 /**
- * Project the card-level archive completion state from lifecycle plus whether
- * every RAR part carries a disc number. Not a lifecycle value itself.
+ * 根据生命周期以及每个 RAR 分卷是否带有光盘编号，
+ * 投影卡片级归档完成状态。其本身不是生命周期值。
  */
 export function resolveArchiveCompletionStatus(
   lifecycle: CaseLifecycle,
@@ -24,14 +24,14 @@ export function resolveArchiveCompletionStatus(
   return null
 }
 
-/** True when every part carries a non-empty disc number. */
+/** 每个分卷都带有非空光盘编号时返回 true。 */
 export function allPartsDiscMapped(
   parts: { disc_number?: string | null }[] | null | undefined,
 ): boolean {
   return !!parts && parts.length > 0 && parts.every(part => !!part.disc_number)
 }
 
-/** Sum verified part sizes, returning null when the evidence is incomplete. */
+/** 汇总已验证分卷大小；证据不完整时返回 null。 */
 export function archivePartsTotalBytes(
   parts: { size_bytes?: number | null }[] | null | undefined,
 ): number | null {
@@ -46,8 +46,8 @@ export function archivePartsTotalBytes(
 }
 
 /**
- * Bound the synchronous export request for one HDD staging-copy pass plus
- * orchestration grace. HashMyFiles is not part of inspection-record export.
+ * 将同步导出请求限制在一次 HDD 暂存复制加编排余量内。
+ * HashMyFiles 不属于检查笔录导出流程。
  */
 export function unifiedExportRequestTimeoutMs(
   totalArchiveBytes: number | null | undefined,

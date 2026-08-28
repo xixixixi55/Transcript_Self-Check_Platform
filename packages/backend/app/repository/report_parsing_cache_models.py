@@ -1,4 +1,4 @@
-"""Layer 20: validated in-memory models for Parser cache entries."""
+"""第 20 层：Parser 缓存条目的已验证内存模型。"""
 
 from __future__ import annotations
 

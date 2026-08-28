@@ -1,4 +1,4 @@
-"""Persistent archive Worker over the existing formal execution chain."""
+"""基于现有正式执行链的持久归档工作进程。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Read-only capability probes for the Demo readiness snapshot."""
+"""演示就绪快照的只读能力探测。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from .runtime_paths import get_runtime_paths
 
 
 def probe_archive_output(output_root: str) -> str:
-    """Return a safe state without creating or writing to the output root."""
+    """返回安全状态，不创建或写入输出根目录。"""
     try:
         root = Path(output_root)
         if not root.exists() or not root.is_dir():

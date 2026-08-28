@@ -1,4 +1,4 @@
-"""Bounded in-process execution for persistent case parsing tasks."""
+"""持久案件解析任务的有界进程内执行。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 
 
 class CaseParseDispatcher:
-    """Submit parsing after persistence without tying it to an HTTP response."""
+    """持久化后提交解析，不与 HTTP 响应绑定。"""
 
     def __init__(
         self,
@@ -62,7 +62,7 @@ class CaseParseDispatcher:
         source_revision: int | None = None,
         attempt: int = 1,
     ) -> None:
-        """Verify the bounded core-source identity after parsing."""
+        """解析后验证有界核心来源标识。"""
         key = ("source-verification", f"{source_id}:{source_revision or 0}", str(attempt))
         with self._lock:
             if self._shutdown:
@@ -182,7 +182,7 @@ class CaseParseDispatcher:
             self._active.discard(key)
 
     def shutdown(self, wait: bool = False) -> None:
-        """Release executor resources for tests or an explicit app shutdown."""
+        """为测试或显式应用关闭释放执行器资源。"""
         with self._lock:
             self._shutdown = True
             self._shutdown_event.set()

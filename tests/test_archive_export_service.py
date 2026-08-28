@@ -368,7 +368,7 @@ def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> Non
     api = _api(consume_ok=True)
     export_dir = tmp_path / "export-out"
     export_dir.mkdir(parents=True)
-    # Plan still has an unmapped slot.
+    # 计划中仍有未映射的槽位。
     api.plans.get_latest_for_case.return_value = {
         "volume_slots": [{"status": "active", "disc_mapping": None}],
     }

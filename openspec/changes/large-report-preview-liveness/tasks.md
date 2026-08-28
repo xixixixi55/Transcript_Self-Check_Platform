@@ -1,194 +1,194 @@
-# Tasks: Large Report Preview Liveness
+# 任务：大型报告预览活性
 
-> Change: `large-report-preview-liveness`
-> Level: 3
+> 变更：`large-report-preview-liveness`
+> Level：3
 workflow_level: 3
-> Status: `PROPOSED`; implementation and focused/full automated checks for the current repair are complete. Synthetic benchmark, post-repair manual acceptance, and final review gates remain open.
-> Scope: preview liveness, parser snapshot/cache identity, in-flight reuse, and deferred full ArchiveContext.
-> Explicitly out of scope: Shadow, Canonical, and complete Harness execution.
+> 状态：`PROPOSED`；当前修复的实现及定向/完整自动化检查已完成。合成基准、修复后人工验收和最终审查门控仍未完成。
+> 范围：预览活性、解析器快照/缓存身份、执行中复用，以及延后构建完整 ArchiveContext。
+> 明确排除：Shadow、Canonical 和完整 Harness 执行。
 
-## Objective and acceptance gates
+## 目标与验收门控
 
-The implementation is complete only when the requirements in `openspec/changes/large-report-preview-liveness/specs/electronic-inspection-record/spec.md` are covered and the following gates pass:
+只有覆盖 `openspec/changes/large-report-preview-liveness/specs/electronic-inspection-record/spec.md` 中的需求并通过以下门控，才算实施完成：
 
-- first preview of the representative external multi-material report is below 90 seconds with margin;
-- valid cache-hit preview is below 15 seconds;
-- preview does not build a full ArchiveContext or enumerate the complete input tree;
-- same-directory concurrent requests share one expensive parse task, including after a frontend Abort;
-- core JSON and actual Parser dependencies are not reopened for a separate fingerprint pass;
-- Legacy and New synthetic DTO parity tests pass;
-- formal archive preparation still performs complete inventory, readability, path/link, change, full content fingerprint, WinRAR, Manifest, RAR, download, and export validation;
-- real report path, case name, business data, generated output, and performance logs remain outside Git and repository documentation;
+- 代表性外部多检材报告的首次预览以合理余量低于 90 秒；
+- 有效缓存命中预览低于 15 秒；
+- 预览不构建完整 ArchiveContext，也不枚举完整输入树；
+- 同目录并发请求共享一个昂贵解析任务，包括前端 Abort 后的请求；
+- 不为单独计算指纹而重新打开核心 JSON 和实际 Parser 依赖；
+- Legacy 和 New 合成 DTO 等价测试通过；
+- 正式归档准备仍执行完整清单、可读性、路径/链接、变更、完整内容指纹、WinRAR、Manifest、RAR、下载和导出验证；
+- 真实报告路径、案件名称、业务数据、生成输出和性能日志均位于 Git 和仓库文档之外。
 
-## Implementation order
+## 实施顺序
 
-Tasks are ordered by architecture layer. Every implementation task is immediately followed by its verification task, as required by the Harness architecture rules.
+任务按架构层排序。依照 Harness 架构规则，每个实施任务后紧跟其验证任务。
 
-### Layer 0/1 — Shared contracts and constants
+### 第 0/1 层 — 共享契约和常量
 
-- [x] **T1 — Define explicit preview/archive readiness contracts**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-001, REQ-ARCHIVE-LIFECYCLE-001, REQ-FRONTEND-LIVENESS-003.
-  - Files: `packages/shared/types/archive.ts`, `packages/shared/types/index.ts`, `packages/shared/constants/index.ts`.
-  - Add a readiness status that distinguishes `not_prepared`, `preparing`, `ready`, and `failed`; define the nullable/explicit shell summary; preserve `InspectionReport`, `rar_info`, `ArchiveManifest`, and Legacy DTO fields.
-  - Add only the source-neutral archive-preparation endpoint constant if the Controller design selects a new route.
-  - Keep API names compatible with existing camelCase/snake_case boundary conventions.
+- [x] **T1 — 定义明确的预览/归档就绪契约**
+  - 需求：REQ-PREVIEW-SNAPSHOT-001、REQ-ARCHIVE-LIFECYCLE-001、REQ-FRONTEND-LIVENESS-003。
+  - 文件：`packages/shared/types/archive.ts`、`packages/shared/types/index.ts`、`packages/shared/constants/index.ts`。
+  - 增加区分 `not_prepared`、`preparing`、`ready` 和 `failed` 的就绪状态；定义可空/明确的外壳摘要；保留 `InspectionReport`、`rar_info`、`ArchiveManifest` 和 Legacy DTO 字段。
+  - 仅当 Controller 设计选择新路由时，增加与源无关的归档准备端点常量。
+  - API 名称与现有 camelCase/snake_case 边界约定保持兼容。
 
-- [x] **T2 — Verify shared contract compatibility**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-004, REQ-ARCHIVE-LIFECYCLE-001.
-  - Files: `packages/shared/types/*.ts` tests/typecheck coverage and any existing archive type tests.
-  - Verify existing consumers compile, formal `ArchiveManifest` is unchanged, and readiness cannot be represented only by `idle`.
-  - Run the targeted shared typecheck only; do not run the complete Harness gate in this phase.
+- [x] **T2 — 验证共享契约兼容性**
+  - 需求：REQ-PREVIEW-SNAPSHOT-004、REQ-ARCHIVE-LIFECYCLE-001。
+  - 文件：`packages/shared/types/*.ts` 测试/类型检查覆盖及现有归档类型测试。
+  - 验证现有消费者可编译、正式 `ArchiveManifest` 不变，且不能只用 `idle` 表示就绪。
+  - 只运行定向共享类型检查；本阶段不运行完整 Harness 门控。
 
-### Layer 10/11/12 — Frontend preview and archive lifecycle UI
+### 第 10/11/12 层 — 前端预览和归档生命周期界面
 
-- [x] **T3 — Make preview archive preparation passive**
-  - Requirements: REQ-FRONTEND-LIVENESS-001, REQ-FRONTEND-LIVENESS-002.
-  - Files: `packages/frontend/src/hooks/useArchivePreparation.ts`, `packages/frontend/src/hooks/useReportParser.ts`.
-  - Remove the effect-driven archive execution/polling side effect from report load and disc-number changes. Keep explicit preparation callable for a later user action, with independent loading, Abort, error, retry, and stale-attempt handling.
-  - Keep the existing preview timeout value; do not extend it.
+- [x] **T3 — 使预览归档准备变为被动操作**
+  - 需求：REQ-FRONTEND-LIVENESS-001、REQ-FRONTEND-LIVENESS-002。
+  - 文件：`packages/frontend/src/hooks/useArchivePreparation.ts`、`packages/frontend/src/hooks/useReportParser.ts`。
+  - 移除加载报告及光盘编号变化触发的归档执行/轮询副作用。保留后续用户操作可调用的显式准备，并使用独立的加载、Abort、错误、重试和过期尝试处理。
+  - 保留现有预览超时值；不得延长。
 
-- [x] **T4 — Test passive preview hook and retry cleanup**
-  - Requirements: REQ-FRONTEND-LIVENESS-001, REQ-FRONTEND-LIVENESS-002, REQ-PARSE-INFLIGHT-002.
-  - Files: `packages/frontend/src/hooks/useArchivePreparation.test.tsx`, `packages/frontend/src/hooks/useReportParser.test.ts`.
-  - Add tests proving report load does not call archive execution or create a polling loop, explicit preparation has separate loading/error cleanup, timeout/network cancellation ends preview loading, and stale responses cannot replace a newer attempt.
-  - Use mocked HTTP responses and synthetic report values only.
+- [x] **T4 — 测试被动预览 Hook 和重试清理**
+  - 需求：REQ-FRONTEND-LIVENESS-001、REQ-FRONTEND-LIVENESS-002、REQ-PARSE-INFLIGHT-002。
+  - 文件：`packages/frontend/src/hooks/useArchivePreparation.test.tsx`、`packages/frontend/src/hooks/useReportParser.test.ts`。
+  - 增加测试，证明加载报告不会调用归档执行或创建轮询循环；显式准备具有独立加载/错误清理；超时/网络取消会结束预览加载；过期响应不能替换更新的尝试。
+  - 仅使用模拟 HTTP 响应和合成报告值。
 
-- [x] **T5 — Display explicit archive-not-prepared state and preserve export gate**
-  - Requirements: REQ-ARCHIVE-LIFECYCLE-001, REQ-FRONTEND-LIVENESS-003.
-  - Files: `packages/frontend/src/pages/RecordGeneratePage.tsx`, existing archive status component(s), `packages/frontend/src/hooks/useRecordExport.ts` only if required by the contract.
-  - Show that review is available while archive preparation is not ready; do not show `idle` as a ready state. Keep formal export blocked until a ready context and validated Manifest exist.
+- [x] **T5 — 显示明确的归档未准备状态并保留导出门控**
+  - 需求：REQ-ARCHIVE-LIFECYCLE-001、REQ-FRONTEND-LIVENESS-003。
+  - 文件：`packages/frontend/src/pages/RecordGeneratePage.tsx`、现有归档状态组件，契约需要时包括 `packages/frontend/src/hooks/useRecordExport.ts`。
+  - 显示归档准备未就绪时仍可审核；不将 `idle` 显示为就绪状态。在上下文就绪且 Manifest 已验证前，保持正式导出阻塞。
 
-- [x] **T6 — Test review status and export boundary**
-  - Requirements: REQ-FRONTEND-LIVENESS-001, REQ-FRONTEND-LIVENESS-003, REQ-CHANGE-BOUNDARIES-001.
-  - Files: existing page/archive status tests, or new tests adjacent to the changed component.
-  - Verify report editing remains available, no archive request starts automatically, not-prepared status is visible, and export is blocked with an actionable message.
+- [x] **T6 — 测试审核状态和导出边界**
+  - 需求：REQ-FRONTEND-LIVENESS-001、REQ-FRONTEND-LIVENESS-003、REQ-CHANGE-BOUNDARIES-001。
+  - 文件：现有页面/归档状态测试，或与变更组件相邻的新测试。
+  - 验证报告仍可编辑、不自动启动归档请求、未准备状态可见，并以可操作消息阻止导出。
 
-### Layer 20 — Controlled filesystem and parser input repository
+### 第 20 层 — 受控文件系统和解析器输入存储库
 
-- [x] **T7 — Implement request input snapshot and dependency index**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-002, REQ-PREVIEW-SNAPSHOT-003, REQ-PARSE-CACHE-001.
-  - Files: new `packages/backend/app/repository/report_parse_input_repository.py`; existing `packages/backend/app/repository/html_parser.py` and `packages/backend/app/repository/filesystem_identity_repository.py` only where the snapshot boundary requires integration.
-  - Implement one-time core JSON loading, format result reuse, ordered device rows, evidence-directory mapping, explicit device metadata candidate selection, and dependency records that capture path metadata and content digest during the same read.
-  - Reject unsafe/absolute dependency paths. Do not recurse through media, attachment HTML, navigation payloads, or unrelated JSON. Do not expose absolute paths in returned/public data.
-  - Keep Legacy and New parser adapters compatible; do not silently introduce an unbounded fallback scan.
+- [x] **T7 — 实现请求输入快照和依赖索引**
+  - 需求：REQ-PREVIEW-SNAPSHOT-002、REQ-PREVIEW-SNAPSHOT-003、REQ-PARSE-CACHE-001。
+  - 文件：新增 `packages/backend/app/repository/report_parse_input_repository.py`；仅在快照边界集成需要时修改 `packages/backend/app/repository/html_parser.py` 和 `packages/backend/app/repository/filesystem_identity_repository.py`。
+  - 实现核心 JSON 单次加载、格式结果复用、有序设备行、证据目录映射、明确的设备元数据候选选择，以及同次读取中捕获路径元数据和内容摘要的依赖记录。
+  - 拒绝不安全/绝对依赖路径。不递归媒体、附件 HTML、导航载荷或无关 JSON。不在返回/公共数据中暴露绝对路径。
+  - 保持 Legacy 和 New 解析器适配器兼容；不得静默引入无界回退扫描。
 
-- [x] **T8 — Test snapshot reads and candidate/dependency scope**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-002, REQ-PREVIEW-SNAPSHOT-003, REQ-PREVIEW-SNAPSHOT-004.
-  - Files: new `tests/test_report_parse_input_repository.py`; focused additions to `tests/test_html_parser.py` and `tests/test_filesystem_identity_repository.py`.
-  - Use synthetic Legacy and New fixtures to assert each core JSON is loaded once, device directory resolution is reused, candidate files are bounded/explicit, media and unrelated JSON are not opened, dependency paths are relative, and captured metadata/digests are stable.
-  - Add DTO parity assertions against the existing parser behavior using synthetic fixtures.
+- [x] **T8 — 测试快照读取及候选/依赖范围**
+  - 需求：REQ-PREVIEW-SNAPSHOT-002、REQ-PREVIEW-SNAPSHOT-003、REQ-PREVIEW-SNAPSHOT-004。
+  - 文件：新增 `tests/test_report_parse_input_repository.py`；定向补充 `tests/test_html_parser.py` 和 `tests/test_filesystem_identity_repository.py`。
+  - 使用合成 Legacy 和 New 固件断言每个核心 JSON 只加载一次、复用设备目录解析、候选文件有界且明确、不打开媒体和无关 JSON、依赖路径为相对路径，并且捕获的元数据/摘要稳定。
+  - 使用合成固件增加与现有解析器行为的 DTO 等价断言。
 
-- [x] **T9 — Implement metadata-first dependency validation**
-  - Requirements: REQ-PARSE-CACHE-001, REQ-PARSE-CACHE-002, REQ-PARSE-CACHE-003.
-  - Files: `packages/backend/app/repository/report_parsing_cache_repository.py`, `packages/backend/app/services/report_parsing_cache_service.py`, and the snapshot/identity repository from T7 where needed.
-  - Store the dependency manifest with the existing cache payload/version/LRU record. Validate paths, size, mtime, and stable identity first; reuse unchanged digests; recalculate only changed/new dependencies; invalidate when candidate membership changes.
-  - Preserve atomic writes, corruption cleanup, LRU behavior, cache clear isolation, and opaque cache keys. Do not touch ArchiveManifest/RAR/Word outputs.
+- [x] **T9 — 实现元数据优先的依赖验证**
+  - 需求：REQ-PARSE-CACHE-001、REQ-PARSE-CACHE-002、REQ-PARSE-CACHE-003。
+  - 文件：`packages/backend/app/repository/report_parsing_cache_repository.py`、`packages/backend/app/services/report_parsing_cache_service.py`，以及按需使用 T7 的快照/身份存储库。
+  - 将依赖清单与现有缓存载荷/版本/LRU 记录共同存储。先验证路径、大小、mtime 和稳定身份；复用未变化摘要；只重新计算变化/新增依赖；候选成员变化时作废缓存。
+  - 保留原子写入、损坏清理、LRU 行为、缓存清除隔离和不透明缓存键。不得改动 ArchiveManifest/RAR/Word 输出。
 
-- [x] **T10 — Test cache invalidation and one-pass behavior**
-  - Requirements: REQ-PARSE-CACHE-001, REQ-PARSE-CACHE-002, REQ-PARSE-CACHE-003.
-  - Files: `tests/test_report_parsing_cache.py`, `tests/test_report_parser_service.py`, and repository tests adjacent to the changed modules.
-  - Assert first parse combines read/parse/digest work, cache hit does not reopen unchanged dependencies, changed dependency metadata/content invalidates, unrelated media/attachment changes do not, candidate additions invalidate, malformed/failed writes clean up, and cache clear does not touch archive lifecycle files.
-  - Add read counters to prove the old “fingerprint then Parser” duplicate pass is absent.
+- [x] **T10 — 测试缓存失效和单遍行为**
+  - 需求：REQ-PARSE-CACHE-001、REQ-PARSE-CACHE-002、REQ-PARSE-CACHE-003。
+  - 文件：`tests/test_report_parsing_cache.py`、`tests/test_report_parser_service.py` 及变更模块相邻的存储库测试。
+  - 断言首次解析合并读取/解析/摘要工作；缓存命中不重新打开未变化依赖；依赖元数据/内容变化会失效；无关媒体/附件变化不会失效；新增候选会失效；格式错误/失败写入会清理；清除缓存不改动归档生命周期文件。
+  - 增加读取计数器，证明旧有“先计算指纹再执行 Parser”的重复遍历已消失。
 
-### Layer 21 — Parser orchestration and runtime lifecycle
+### 第 21 层 — 解析器编排和运行时生命周期
 
-- [x] **T11 — Integrate snapshot parsing with report Parser and cache**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-001 through REQ-PREVIEW-SNAPSHOT-004, REQ-PARSE-CACHE-001.
-  - Files: `packages/backend/app/services/report_parser_service.py`, `packages/backend/app/repository/report_parse_input_repository.py`, and `packages/backend/app/services/report_parsing_cache_service.py`.
-  - Make the Parser accept one request snapshot, reuse core/config/device data, parse each actual dependency once, register the dependency manifest, and return the unchanged Legacy-compatible report result. Keep `compress` deprecated and non-operative for folder preview.
-  - Do not add ArchiveContext inventory or WinRAR work to the parser service.
+- [x] **T11 — 将快照解析与报告 Parser 和缓存集成**
+  - 需求：REQ-PREVIEW-SNAPSHOT-001 至 REQ-PREVIEW-SNAPSHOT-004、REQ-PARSE-CACHE-001。
+  - 文件：`packages/backend/app/services/report_parser_service.py`、`packages/backend/app/repository/report_parse_input_repository.py`、`packages/backend/app/services/report_parsing_cache_service.py`。
+  - 让 Parser 接受一个请求快照，复用核心/配置/设备数据，每项实际依赖只解析一次，登记依赖清单，并返回不变的 Legacy 兼容报告结果。`compress` 保持弃用，在文件夹预览中不起作用。
+  - 不向解析器服务增加 ArchiveContext 清单或 WinRAR 工作。
 
-- [x] **T12 — Test Parser phase reuse and DTO parity**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-001 through REQ-PREVIEW-SNAPSHOT-004.
-  - Files: `tests/test_report_parser_service.py`, new focused parser snapshot tests if needed.
-  - Assert public JSON read counts, per-device candidate read counts, no whole-report recursion, Legacy/New DTO parity, `rar_info` compatibility, failure safety, and no Shadow/Canonical calls.
+- [x] **T12 — 测试 Parser 阶段复用和 DTO 等价**
+  - 需求：REQ-PREVIEW-SNAPSHOT-001 至 REQ-PREVIEW-SNAPSHOT-004。
+  - 文件：`tests/test_report_parser_service.py`，必要时新增定向解析器快照测试。
+  - 断言公共 JSON 读取次数、每设备候选读取次数、不递归整个报告、Legacy/New DTO 等价、`rar_info` 兼容、失败安全，且不调用 Shadow/Canonical。
 
-- [x] **T13 — Implement bounded same-directory in-flight registry**
-  - Requirements: REQ-PARSE-INFLIGHT-001 through REQ-PARSE-INFLIGHT-003.
-  - Files: `packages/backend/app/services/report_parse_inflight_service.py` and `packages/backend/app/services/report_parser_service.py` integration.
-  - Acquire by normalized opaque directory identity before dependency discovery. Share a bounded future/task, detach cancelled waiters without cancelling the shared work, publish one result/error, enforce capacity and maximum lifetime, and remove completed/failed entries safely.
-  - Ensure the existing cache-store lock remains a consistency guard rather than the first expensive-work deduplicator. Do not log raw paths.
+- [x] **T13 — 实现有界同目录执行中注册表**
+  - 需求：REQ-PARSE-INFLIGHT-001 至 REQ-PARSE-INFLIGHT-003。
+  - 文件：`packages/backend/app/services/report_parse_inflight_service.py` 及其与 `packages/backend/app/services/report_parser_service.py` 的集成。
+  - 在依赖发现前按规范化不透明目录身份获取。共享有界 Future/任务，使取消的等待方脱离但不取消共享工作，发布一个结果/错误，强制容量和最大生存期，并安全移除完成/失败条目。
+  - 现有缓存存储锁继续作为一致性保护，而不是昂贵工作的首个去重边界。不得记录原始路径。
 
-- [x] **T14 — Test in-flight joining, cancellation, capacity, and failure cleanup**
-  - Requirements: REQ-PARSE-INFLIGHT-001 through REQ-PARSE-INFLIGHT-003.
-  - Files: new `tests/test_report_parse_inflight_service.py`, additions to `tests/test_report_parser_service.py`.
-  - Use barriers/fake builders and synthetic directories to assert two same-key requests run one builder, follower cancellation does not start a second builder, different keys are independent, capacity is bounded, failures are retryable, and no permanent entry remains.
+- [x] **T14 — 测试执行中加入、取消、容量和失败清理**
+  - 需求：REQ-PARSE-INFLIGHT-001 至 REQ-PARSE-INFLIGHT-003。
+  - 文件：新增 `tests/test_report_parse_inflight_service.py`，补充 `tests/test_report_parser_service.py`。
+  - 使用屏障/伪构造器和合成目录断言同键两个请求只运行一个构造器、跟随方取消不启动第二个构造器、不同键相互独立、容量有界、失败可重试且不残留永久条目。
 
-- [x] **T15 — Split context shell from full ArchiveContext materialization**
-  - Requirements: REQ-ARCHIVE-LIFECYCLE-001 through REQ-ARCHIVE-LIFECYCLE-003.
-  - Files: `packages/backend/app/services/archive_runtime_service.py` (including its co-located lifecycle records), `packages/backend/app/services/archive_source_runtime_service.py`, and `packages/backend/app/services/archive_execution_service.py`.
-  - Add an opaque, short-lived authorized shell with explicit readiness and no inventory; make preview use the shell only. Add an explicit source-neutral preparation operation that revalidates authorization, builds complete inventory, and upgrades/publishes a full context.
-  - Preserve formal `verify_input_inventory`, full input content fingerprint, WinRAR planning/execution, RAR integrity, Manifest, download, and export validation. A shell and parse cache must be rejected as formal evidence.
+- [x] **T15 — 将上下文外壳与完整 ArchiveContext 实体化分离**
+  - 需求：REQ-ARCHIVE-LIFECYCLE-001 至 REQ-ARCHIVE-LIFECYCLE-003。
+  - 文件：`packages/backend/app/services/archive_runtime_service.py`（包括同处的生命周期记录）、`packages/backend/app/services/archive_source_runtime_service.py`、`packages/backend/app/services/archive_execution_service.py`。
+  - 增加不透明、短期有效、已授权且有明确就绪状态但无清单的外壳；预览只使用外壳。增加与源无关的显式准备操作，重新验证授权、构建完整清单并升级/发布完整上下文。
+  - 保留正式 `verify_input_inventory`、完整输入内容指纹、WinRAR 规划/执行、RAR 完整性、Manifest、下载和导出验证。外壳和解析缓存必须被拒绝作为正式证据。
 
-- [x] **T16 — Test shell readiness and formal archive safety**
-  - Requirements: REQ-ARCHIVE-LIFECYCLE-001 through REQ-ARCHIVE-LIFECYCLE-003, REQ-CHANGE-BOUNDARIES-001, REQ-CHANGE-BOUNDARIES-002.
-  - Files: `tests/test_archive_runtime_service.py`, `tests/test_archive_source_runtime_service.py`, and `tests/test_archive_execution_service.py`.
-  - Assert preview shell creation does not call full inventory, shell execution is rejected, explicit preparation builds current inventory, source changes/links/unreadable files fail, and all formal archive/Manifest/RAR gates remain active. Assert no Shadow or Canonical behavior is introduced.
+- [x] **T16 — 测试外壳就绪和正式归档安全**
+  - 需求：REQ-ARCHIVE-LIFECYCLE-001 至 REQ-ARCHIVE-LIFECYCLE-003、REQ-CHANGE-BOUNDARIES-001、REQ-CHANGE-BOUNDARIES-002。
+  - 文件：`tests/test_archive_runtime_service.py`、`tests/test_archive_source_runtime_service.py`、`tests/test_archive_execution_service.py`。
+  - 断言创建预览外壳不调用完整清单、外壳执行被拒绝、显式准备构建当前清单、源变更/链接/不可读文件失败，且所有正式归档/Manifest/RAR 门控仍有效。断言未引入 Shadow 或 Canonical 行为。
 
-### Layer 22/23 — HTTP boundary
+### 第 22/23 层 — HTTP 边界
 
-- [x] **T17 — Return preview without full context and expose explicit preparation boundary**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-001, REQ-ARCHIVE-LIFECYCLE-001, REQ-ARCHIVE-LIFECYCLE-002.
-  - Files: `packages/backend/app/controllers/record_controller.py`, `packages/backend/app/controllers/archive_controller.py`, `packages/backend/app/routes/__init__.py` only if a dedicated preparation route is selected.
-  - Remove synchronous full `create_archive_context` from the preview endpoint. Return the report plus explicit readiness/shell state. Map shell-not-ready, capacity, timeout, and parser failures to safe stable errors without paths or report data.
-  - Add only the preparation request needed to materialize the full context from the authorized report-directory source.
+- [x] **T17 — 不含完整上下文地返回预览，并公开显式准备边界**
+  - 需求：REQ-PREVIEW-SNAPSHOT-001、REQ-ARCHIVE-LIFECYCLE-001、REQ-ARCHIVE-LIFECYCLE-002。
+  - 文件：`packages/backend/app/controllers/record_controller.py`、`packages/backend/app/controllers/archive_controller.py`，仅在选择专用准备路由时修改 `packages/backend/app/routes/__init__.py`。
+  - 从预览端点移除同步完整 `create_archive_context`。返回报告及明确就绪/外壳状态。将外壳未就绪、容量、超时和解析器失败映射为不含路径或报告数据的稳定安全错误。
+  - 只增加从已授权报告目录源实体化完整上下文所需的准备请求。
 
-- [x] **T18 — Test controller response and archive boundary**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-001, REQ-ARCHIVE-LIFECYCLE-001 through REQ-ARCHIVE-LIFECYCLE-003, REQ-FRONTEND-LIVENESS-003.
-  - Files: `tests/test_record_controller.py` and `tests/test_shadow_pipeline.py` (archive-controller integration cases).
-  - Assert preview response returns before inventory in mocked integration, explicit not-prepared state is not `idle`, old report-only fields remain compatible, shell cannot export, preparation creates a full context, and errors do not leak paths/content.
+- [x] **T18 — 测试控制器响应和归档边界**
+  - 需求：REQ-PREVIEW-SNAPSHOT-001、REQ-ARCHIVE-LIFECYCLE-001 至 REQ-ARCHIVE-LIFECYCLE-003、REQ-FRONTEND-LIVENESS-003。
+  - 文件：`tests/test_record_controller.py` 和 `tests/test_shadow_pipeline.py`（归档控制器集成用例）。
+  - 在模拟集成中断言预览响应先于清单返回、明确未准备状态不是 `idle`、旧仅报告字段保持兼容、外壳不能导出、准备会创建完整上下文且错误不泄露路径/内容。
 
-## Cross-layer verification and acceptance
+## 跨层验证和验收
 
-- [ ] **T19 — Add synthetic performance/read-count benchmark** [DEFERRED]
-  - Requirements: REQ-ACCEPTANCE-001, REQ-PARSE-CACHE-001, REQ-PARSE-INFLIGHT-001.
-  - Files: new synthetic benchmark/test adjacent to the backend test suite; no real report or generated output.
-  - Assert preview avoids full inventory, core JSON reads are one per task, same dependency is not read once for fingerprint and again for Parser, cache hit meets the synthetic budget, and same-key concurrency runs one expensive task.
-  - Status note: focused read-count, cache, and in-flight tests exist, but no single dedicated T19 benchmark record has been identified. Keep this task open until explicit synthetic benchmark evidence is available.
+- [ ] **T19 — 增加合成性能/读取次数基准** [DEFERRED]
+  - 需求：REQ-ACCEPTANCE-001、REQ-PARSE-CACHE-001、REQ-PARSE-INFLIGHT-001。
+  - 文件：后端测试套件相邻的新合成基准/测试；不使用真实报告或生成输出。
+  - 断言预览避免完整清单、每项核心 JSON 每任务只读取一次、同一依赖不会先用于指纹再用于 Parser、缓存命中满足合成预算、同键并发只运行一个昂贵任务。
+  - 状态说明：已有定向读取次数、缓存和执行中测试，但尚未发现单独的 T19 基准记录。在提供明确合成基准证据前保持任务未完成。
 
-- [x] **T20 — Run scoped verification and manual acceptance preparation**
-  - Requirements: all requirements above.
-  - Files: no production file; update this tasks file only as tasks complete.
-  - Run targeted backend/frontend tests, `lint:arch`, typecheck, `git diff --check`, and repository asset checks as appropriate. Prepare the human-only external report validation checklist without recording its path, case data, logs, or outputs. Do not run `verify:full` until implementation, manual acceptance, and independent review are complete and the user is asked whether they want to execute the full Harness gate.
+- [x] **T20 — 运行限定范围验证并准备人工验收**
+  - 需求：上述全部需求。
+  - 文件：无生产文件；仅在任务完成时更新本任务文件。
+  - 运行定向后端/前端测试、`lint:arch`、类型检查、`git diff --check` 和适用的仓库资产检查。准备仅供人工使用的外部报告验证清单，但不记录路径、案件数据、日志或输出。在实现、人工验收和独立审查完成并询问用户是否执行完整 Harness 门控前，不运行 `verify:full`。
 
-- [x] **T21 — Preserve all material numbers in Legacy process/result projection**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-004.
-  - Files: `packages/backend/app/services/report_parser_service.py`, `tests/test_report_parser_service.py`.
-  - Keep the existing Legacy DTO shape while projecting the ordered `evidence_list` into process-step and result strings. Add a synthetic multi-material regression test; retain single-material wording and do not alter archive, frontend, template, Shadow, or Canonical behavior.
+- [x] **T21 — 在 Legacy 流程/结果投影中保留全部检材编号**
+  - 需求：REQ-PREVIEW-SNAPSHOT-004。
+  - 文件：`packages/backend/app/services/report_parser_service.py`、`tests/test_report_parser_service.py`。
+  - 保持现有 Legacy DTO 结构，同时将有序 `evidence_list` 投影到流程步骤和结果字符串。增加合成多检材回归测试；保留单检材措辞，不改变归档、前端、模板、Shadow 或 Canonical 行为。
 
-- [x] **T22 — Allow report-only Word export without archive preparation**
-  - Requirements: REQ-FRONTEND-LIVENESS-003, REQ-ARCHIVE-LIFECYCLE-003.
-  - Files: `packages/backend/app/controllers/record_controller.py`, `packages/frontend/src/hooks/useRecordExport.ts`, `packages/frontend/src/pages/RecordGeneratePage.tsx`, `packages/frontend/src/components/ReviewActionBar.tsx`, and their focused tests.
-  - Decouple explicit Word report generation from archive preparation while preserving all report validation. Keep the existing complete inventory, Manifest, RAR, WinRAR, path/link, and change gates whenever formal archive identifiers are supplied. Partial archive identifiers fail safely; no archive or Shadow task is started by report-only export.
+- [x] **T22 — 允许在不准备归档时仅导出报告 Word**
+  - 需求：REQ-FRONTEND-LIVENESS-003、REQ-ARCHIVE-LIFECYCLE-003。
+  - 文件：`packages/backend/app/controllers/record_controller.py`、`packages/frontend/src/hooks/useRecordExport.ts`、`packages/frontend/src/pages/RecordGeneratePage.tsx`、`packages/frontend/src/components/ReviewActionBar.tsx` 及其定向测试。
+  - 将显式 Word 报告生成与归档准备解耦，同时保留全部报告验证。提供正式归档标识符时，保留现有完整清单、Manifest、RAR、WinRAR、路径/链接和变更门控。部分归档标识符安全失败；仅报告导出不启动归档或 Shadow 任务。
 
-- [x] **T23 — Preserve single-material device display names in the Legacy-compatible DTO**
-  - Requirements: REQ-PREVIEW-SNAPSHOT-004.
-  - Files: `packages/backend/app/services/report_parser_service.py`, `tests/test_report_parser_service.py`.
-  - Keep `device_name` as the normalized model display value, preserve `model` and `device_type` semantics, invalidate stale parse caches, and cover synthetic Legacy/New single-material projections without changing the shared DTO shape.
+- [x] **T23 — 在兼容 Legacy 的 DTO 中保留单检材设备显示名称**
+  - 需求：REQ-PREVIEW-SNAPSHOT-004。
+  - 文件：`packages/backend/app/services/report_parser_service.py`、`tests/test_report_parser_service.py`。
+  - 保持 `device_name` 为规范化型号显示值，保留 `model` 和 `device_type` 语义，作废过期解析缓存，并覆盖合成 Legacy/New 单检材投影，不改变共享 DTO 结构。
 
-- [x] **T24 — Part 1: Separate mutable revisions from archive ownership**
-  - Requirements: REQ-ARCHIVE-LIFECYCLE-004.
-  - Files: `packages/backend/app/services/archive_worker_service.py`, `packages/backend/app/services/archive_runtime_coordinator_service.py`.
-  - Treat `process_tree_id` plus the bound attempt ID as the ownership identity. Converge cancellation before worker start and in the coordinator fallback without allowing `cancelling` to be overwritten by `failed_retryable`.
+- [x] **T24 — 第 1 部分：将可变修订版与归档所有权分离**
+  - 需求：REQ-ARCHIVE-LIFECYCLE-004。
+  - 文件：`packages/backend/app/services/archive_worker_service.py`、`packages/backend/app/services/archive_runtime_coordinator_service.py`。
+  - 将 `process_tree_id` 加绑定尝试 ID 视为所有权身份。在工作进程启动前及协调器回退中收敛取消，且不允许用 `failed_retryable` 覆盖 `cancelling`。
 
-- [x] **T25 — Verify the preparation/cancellation race fix**
-  - Requirements: REQ-ARCHIVE-LIFECYCLE-004.
-  - Files: `tests/test_archive_worker_service.py`, `tests/test_archive_runtime_lifecycle.py`.
-  - Reproduce cancellation after claim and during blocked item preparation; assert task cancellation and `ARCHIVE_CANCELLED`. Replace the owner token separately and assert the stale worker still receives `ARCHIVE_TASK_OWNERSHIP_LOST`.
+- [x] **T25 — 验证准备/取消竞态修复**
+  - 需求：REQ-ARCHIVE-LIFECYCLE-004。
+  - 文件：`tests/test_archive_worker_service.py`、`tests/test_archive_runtime_lifecycle.py`。
+  - 复现认领后及条目准备阻塞期间的取消；断言任务取消和 `ARCHIVE_CANCELLED`。单独替换所有者令牌，并断言过期工作进程仍收到 `ARCHIVE_TASK_OWNERSHIP_LOST`。
 
-- [x] **T26 — Part 2: Expose and interrupt slow full-inventory preparation**
-  - Requirements: REQ-ARCHIVE-LIFECYCLE-002, REQ-ARCHIVE-LIFECYCLE-004.
-  - Files: archive runtime coordinator/source/context services and `packages/backend/app/repository/archive_input_repository.py`.
-  - Advance the claimed task to `inventory` before full traversal and propagate a cooperative cancellation callback through context preparation into directory enumeration. Preserve all formal archive gates and inventory publication rules.
+- [x] **T26 — 第 2 部分：公开并中断缓慢的完整清单准备**
+  - 需求：REQ-ARCHIVE-LIFECYCLE-002、REQ-ARCHIVE-LIFECYCLE-004。
+  - 文件：归档运行时协调器/源/上下文服务及 `packages/backend/app/repository/archive_input_repository.py`。
+  - 在完整遍历前将已认领任务推进到 `inventory`，并通过上下文准备向目录枚举传播协作取消回调。保留所有正式归档门控和清单发布规则。
 
-- [x] **T27 — Verify inventory visibility and cooperative cancellation**
-  - Requirements: REQ-ARCHIVE-LIFECYCLE-004, REQ-ACCEPTANCE-002.
-  - Files: `tests/test_archive_input_repository.py`, `tests/test_archive_runtime_lifecycle.py`, existing archive runtime/source/worker tests.
-  - Assert a blocked preparation is already at the inventory milestone, traversal stops at the cancellation boundary, and the focused archive lifecycle suite remains green.
+- [x] **T27 — 验证清单可见性和协作取消**
+  - 需求：REQ-ARCHIVE-LIFECYCLE-004、REQ-ACCEPTANCE-002。
+  - 文件：`tests/test_archive_input_repository.py`、`tests/test_archive_runtime_lifecycle.py` 及现有归档运行时/源/工作进程测试。
+  - 断言被阻塞的准备已处于清单里程碑、遍历在取消边界停止，且定向归档生命周期套件保持通过。
 
-## Post-implementation gates
+## 实施后门控
 
-- [x] Independent code review completed for Level 3. Independent review passed after the stale-owner/attempt-binding guard and integration regression were added.
-- [ ] Human manual acceptance completed against the external multi-material report without adding sensitive artifacts. The earlier evidence predates T24-T27; repeat the archive-stage/cancellation acceptance without recording sensitive paths, business data, generated output, or performance logs. [DEFERRED]
-- [ ] Full Harness execution completed and passed; the earlier run predates T24-T27 and must not be reused as current evidence. [DEFERRED]
-- [ ] No commit or push is performed unless separately requested. [N/A]
+- [x] Level 3 独立代码审查已完成。增加过期所有者/尝试绑定保护及集成回归后，独立审查通过。
+- [ ] 已针对外部多检材报告完成人工验收，且未增加敏感产物。早期证据早于 T24-T27；需重新执行归档阶段/取消验收，且不记录敏感路径、业务数据、生成输出或性能日志。[DEFERRED]
+- [ ] 完整 Harness 执行已完成并通过；早期运行早于 T24-T27，不得复用为当前证据。[DEFERRED]
+- [ ] 除非另有请求，否则不提交或推送。[N/A]

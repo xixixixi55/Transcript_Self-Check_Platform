@@ -1,8 +1,7 @@
-"""Unified export: latest Word plus all verified RAR parts.
+"""统一导出：最新 Word 文件及所有已验证的 RAR 分卷。
 
-The service writes the complete archive bundle into the user-chosen export path.
-Inputs are pre-resolved by the controller (report, validated manifest, physical
-part files, photos, template context) so the service stays testable.
+该服务将完整归档包写入用户选择的导出路径。输入由控制器预先解析（报告、
+已验证的 Manifest、物理分卷文件、照片和模板上下文），从而保持服务可测试。
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ _EXPORT_DIRECTORY_LOCKS_GUARD = threading.RLock()
 
 
 class UnifiedExportError(ValueError):
-    """Stable, path-free diagnostic for unified export failures."""
+    """不含路径的稳定统一导出失败诊断信息。"""
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -43,9 +42,9 @@ class UnifiedExportError(ValueError):
 def _require_disc_mapping(
     manifest: dict[str, Any], plan: dict[str, Any] | None = None,
 ) -> None:
-    # REQ-030: disc numbers live on the persisted plan slots (deferred mapping),
-    # so the gate checks the plan when it exists and falls back to manifest parts
-    # for callers without a plan (e.g. direct service tests).
+    # REQ-030：光盘编号位于持久化计划槽位中（延迟映射），
+    # 因此计划存在时门禁检查该计划；对于没有计划的调用方
+    #（例如直接服务测试），则回退到 manifest 分卷。
     if plan is not None:
         missing = [
             slot for slot in plan.get("volume_slots", [])
@@ -85,7 +84,7 @@ def unified_export(
     output_root: str | Path = OUTPUT_BASE,
     plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Write the archive bundle into ``export_path`` and return its projection."""
+    """将归档包写入 ``export_path`` 并返回其投影。"""
     _require_disc_mapping(manifest, plan)
     parts = manifest.get("parts") or []
     rar_paths = [final_dir / str(part["filename"]) for part in parts]
@@ -124,7 +123,7 @@ def unified_export(
 def _publish_staged_bundle(
     staging_path: Path, export_path: Path, filenames: list[str],
 ) -> None:
-    """Publish one complete bundle and restore the previous version on error."""
+    """发布一个完整包，并在出错时恢复上一版本。"""
     with _export_directory_lock(export_path):
         _publish_staged_bundle_unlocked(staging_path, export_path, filenames)
 
@@ -176,11 +175,10 @@ def _publish_staged_bundle_unlocked(
 def with_disc_mapping(
     manifest: dict[str, Any], plan: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Return a manifest copy with deferred disc numbers layered from the plan.
+    """返回一份 Manifest 副本，并在其上叠加计划中的延迟光盘编号。
 
-    The stored manifest stays immutable (empty disc metadata for a deferred
-    mapping). Both standalone Word export and unified export call this helper,
-    so their attachment plans receive identical disc metadata.
+    存储的 Manifest 保持不可变（延迟映射的光盘元数据为空）。独立 Word 导出和统一导出
+    都调用此辅助函数，因此其附件计划会收到一致的光盘元数据。
     """
     working = copy.deepcopy(manifest)
     if plan is None:

@@ -339,400 +339,124 @@ Manifest 的 parts 按实际文件系统结果排序，保存模式、文件名�
 `interface OpenExportDirectoryResult`、`type ArchiveCompletionStatus`。
 （盘号映射与统一导出契约：压缩允许先无盘号执行，压缩后输入首个盘号自动生成全序列并映射到 plan 槽位；统一导出把最新 Word + 全部 RAR 写入用户选择路径，导出路径由后端 native picker（`LocalDirectoryPickerService`）选择并返回，导出审计不保存绝对路径。`ExportDirectoryResult` 是 picker 的选择结果契约：`{ path, token }` 或 `{ cancelled }`。案件最后成功导出路径只由专用本地 Repository 按 `case_id` 保存；`OpenExportDirectoryResult` 只返回案件标识、打开成功标记和导出时间，不向前端回传路径。）
 
-### Additional migration support types
+### 其他迁移支持类型
 
-`PrimarySoftwareCandidate` stores an explicit report candidate pair. `DiscSequenceErrorCode` identifies first-disc parsing failures, and `DiscSequenceParseResult` stores the validation result, parsed sequence, and diagnostic code.
+`PrimarySoftwareCandidate` 保存显式报告候选对。`DiscSequenceErrorCode` 标识首盘编号解析失败，`DiscSequenceParseResult` 保存校验结果、解析后的序列和诊断码。
 
-Type index: `type PrimarySoftwareCandidate`, `type DiscSequenceErrorCode`, `interface DiscSequenceParseResult`.
+类型索引：`type PrimarySoftwareCandidate`、`type DiscSequenceErrorCode`、`interface DiscSequenceParseResult`。
 
-### Persistent case workbench foundation
+### 持久化案件工作台基础
 
-The persistent workbench uses `WorkbenchSchemaVersion` and `WorkbenchApiVersion` as
-version contracts while keeping the Legacy `InspectionReport` as the only formal
-report body. `CaseShell` is created before parsing and may represent a queued or
-failed parse without being reviewable. `CaseDraft` is created only after successful
-parsing and stores bounded business DTOs, `FieldState` values and opaque asset
-references; it does not store images, Base64, complete HTML or raw JSON collections.
+持久化工作台以 `WorkbenchSchemaVersion` 和 `WorkbenchApiVersion` 作为版本合同，同时保留 Legacy `InspectionReport` 作为唯一正式报告正文。`CaseShell` 在解析前创建，可表示排队或失败且不可审核的解析。`CaseDraft` 仅在解析成功后创建，保存有界业务 DTO、`FieldState` 值和不透明资产引用；不保存图片、Base64、完整 HTML 或原始 JSON 集合。
 
-`CaseLifecycle` separates shell, parsing, review, archive and cleanup states.
-`TaskKind`, `TaskStatus` and `TaskStage` describe durable task recovery, including
-`interrupted` tasks after restart. `SourceRecord` binds a case and task to an opaque
-source ID, an authorized root ID, metadata and fingerprint; internal locators are
-never part of the public DTO. A source may carry a stable
-`revalidation_error_code` while verification is pending or temporarily unavailable;
-this diagnostic does not expose a locator. `OpaqueAssetRef` identifies controlled
-large objects without embedding their content in SQLite.
+`CaseLifecycle` 区分外壳、解析、审核、归档和清理状态。`TaskKind`、`TaskStatus` 和 `TaskStage` 描述持久任务恢复，包括重启后的 `interrupted` 任务。`SourceRecord` 将案件和任务绑定到不透明来源 ID、授权根目录 ID、元数据和指纹；内部定位符绝不属于公共 DTO。验证待处理或暂时不可用时，来源可携带稳定的 `revalidation_error_code`，该诊断不暴露定位符。`OpaqueAssetRef` 标识受控大对象，而不在 SQLite 中嵌入其内容。
 
-`CasePhotoBindingRequest` is the field-level image binding command. It carries
-the desired opaque image references, the ordered image ID list last observed by
-the caller as a photo-domain compare-and-set baseline, and the active edit lease
-credentials. `CasePhotoBindingResult` returns the complete latest `CaseDraft`
-after that merge so the client can rebase pending non-photo edits onto its new
-revision. Neither contract contains binary image content or filesystem locators.
+`CasePhotoBindingRequest` 是字段级图片绑定命令，携带期望的不透明图片引用、调用方最后观察到的有序图片 ID 列表（作为图片域比较并设置基线）及有效编辑租约凭据。`CasePhotoBindingResult` 返回合并后的完整最新 `CaseDraft`，使客户端能将待处理的非图片编辑重新基于新修订应用。两项合同均不含图片二进制内容或文件系统定位符。
 
-`WordDownloadName` is the Phase 2 T007 shared DTO for a browser-facing download
-name only. It never contains a server physical artifact name. Its introduction
-is used by the current Phase 2 download-name dialog and Legacy export flow:
-each export asks for a validated client-facing name, cancellation creates no
-download artifact, and the server physical artifact name remains unique and
-independent. The current order, provenance and export interaction contract is
-recorded in the living electronic-inspection-record spec; this DTO still never
-contains a server locator or physical artifact name.
+`WordDownloadName` 是第二阶段 T007 的共享 DTO，只承载面向浏览器的下载名称，绝不包含服务器物理产物名称。当前第二阶段下载名称对话框和 Legacy 导出流程使用该类型：每次导出都询问并校验面向客户端的名称；取消时不创建下载产物；服务器物理产物名称保持唯一且相互独立。当前顺序、来源和导出交互合同记录在现行 electronic-inspection-record 规格中；该 DTO 仍绝不包含服务器定位符或物理产物名称。
 
-`WordDirectoryExportTarget` carries the Windows picker-selected directory and
-its one-use exact-directory authorization token from the frontend to the
-standalone Word export request. `WordDirectoryExportResult` returns only the
-final export directory and sanitized Word filename after the document has been
-atomically published there. Neither DTO grants reusable filesystem access;
-Legacy requests without a target retain the browser-download response.
+`WordDirectoryExportTarget` 将 Windows 选择器选定的目录及其一次性精确目录授权令牌从前端传给独立 Word 导出请求。文档原子发布到该位置后，`WordDirectoryExportResult` 只返回最终导出目录和净化后的 Word 文件名。两项 DTO 均不授予可复用文件系统访问权限；不含目标的 Legacy 请求继续返回浏览器下载响应。
 
-`WordExportWarning` carries a stable warning code and user-facing message for a
-successful standalone Word export that safely omitted an optional section. The
-current producer uses it when invalid or incomplete photos cause Attachment 2
-to be omitted; the warning does not turn the successful Word result into an
-export failure.
+`WordExportWarning` 为安全省略可选章节但成功完成的独立 Word 导出携带稳定警告码和用户可见消息。当前生成方在图片无效或不完整而省略附件 2 时使用该类型；警告不会将成功的 Word 结果变为导出失败。
 
-### Source authorization request types
+### 来源授权请求类型
 
-`SourceAuthorizationRequest` is the shared request fragment for the ordinary
-frontend source-directory switch. `source_authorization_enabled` is explicit:
-the persisted homepage preference controls the workbench and legacy directory
-parsing requests, while direct API callers retain strict authorization by
-default. `CaseSubmissionRequest` carries the initial workbench source path and
-optional case metadata; `SourceReplacementRequest` carries a replacement path
-and the expected source revision; `ParseReportDirectoryRequest` is the legacy
-directory parsing contract. All three request types may carry the optional
-`directory_grant_token`, but disabled authorization never removes the backend's
-basic local-path and output-separation safety checks.
+`SourceAuthorizationRequest` 是普通前端来源目录开关的共享请求片段。`source_authorization_enabled` 为显式字段：持久化的首页偏好控制工作台和 legacy 目录解析请求，而直接 API 调用方默认仍接受严格授权。`CaseSubmissionRequest` 携带初始工作台来源路径和可选案件元数据；`SourceReplacementRequest` 携带替换路径和预期来源修订；`ParseReportDirectoryRequest` 是 legacy 目录解析合同。三类请求均可携带可选的 `directory_grant_token`，但关闭授权绝不会移除后端基本的本地路径和输出隔离安全检查。
 
-`CaseDirectorySubmissionRequest` is the pathless workbench request used by the
-trusted local Windows folder-picker bridge. It carries optional case metadata
-and the persisted authorization preference; the browser never supplies the
-selected absolute path. The backend chooses the directory and immediately
-feeds the path into the same source registration and parse-submission chain.
+`CaseDirectorySubmissionRequest` 是受信任的本地 Windows 文件夹选择器桥接所使用的无路径工作台请求。它携带可选案件元数据和持久化授权偏好；浏览器绝不提供选定的绝对路径。后端选择目录后，立即将该路径送入同一来源登记和解析提交链路。
 
-Type index: `interface SourceAuthorizationRequest`,
+类型索引：`interface SourceAuthorizationRequest`、
 `interface CaseSubmissionRequest`, `interface SourceReplacementRequest`,
-`interface ParseReportDirectoryRequest`, `interface CaseDirectorySubmissionRequest`.
+`interface ParseReportDirectoryRequest`、`interface CaseDirectorySubmissionRequest`。
 
-Phase 1D recovery keeps parse and source verification state durable across process
-restart. Queued/running/cancelling parse tasks become retryable or interrupted
-according to their persisted state, pending source verification remains pending for
-later controlled rescheduling, and active edit leases from the previous deployment
-instance are expired. A case in `archive_queued` or `archiving` without a verified
-formal artifact becomes `archive_interrupted`; it remains viewable/editable and can
-leave only through an explicit deferred decision or a newly accepted immediate
-attempt. Recovery does not create a persistent archive worker, progress contract,
-automatic retry, or automatic WinRAR continuation.
+第 1D 阶段恢复使解析和来源验证状态跨进程重启保持持久。排队/运行/取消中的解析任务依其持久状态变为可重试或已中断；待定来源验证继续保持待定，以便后续受控重新调度；上一部署实例的有效编辑租约到期。没有已验证正式产物且处于 `archive_queued` 或 `archiving` 的案件变为 `archive_interrupted`；它仍可查看/编辑，只能通过显式延期决定或新接受的立即尝试离开该状态。恢复不会创建持久归档 Worker、进度合同、自动重试或自动继续 WinRAR。
 
-`ArchiveAttemptRecord` is the minimal public, path-free record around the existing
-Legacy explicit archive entry. Its status is `accepted | running | succeeded |
-failed | interrupted`, and its cleanup status is `not_required | pending | succeeded
-| failed | unknown`. Public fields contain only opaque IDs, revisions, stable error
-codes and timestamps; process IDs, command lines, staging locators and ownership
-markers remain backend-only. A succeeded attempt and verified formal artifacts are
-not rolled back by restart recovery. Workbench archive contexts are distinguished
-from Legacy contexts by an internal, one-way context hash bound to exactly one
-attempt and case; the executable context itself is not persisted or restored after
-restart. An attempt may also persist internal Manifest identity evidence
-(`manifest_source_key`, input fingerprint and archive fingerprint). The internal,
-path-free Manifest index also records the opaque workbench attempt ID before the
-database success transition, closing the crash window between index publication and
-attempt completion. Recovery accepts either side of that durable evidence only when
-the registered Manifest, case, attempt, source revision and physical RAR contents all
-validate; it then completes the same attempt atomically instead of publishing a
-second artifact. These internal binding and recovery fields are not exposed by the
-public DTO or public Manifest.
+`ArchiveAttemptRecord` 是围绕既有 Legacy 显式归档入口的最小无路径公共记录。状态为 `accepted | running | succeeded | failed | interrupted`，清理状态为 `not_required | pending | succeeded | failed | unknown`。公共字段只包含不透明 ID、修订、稳定错误码和时间戳；进程 ID、命令行、暂存定位符和所有权标记仅限后端。重启恢复不会回滚成功尝试和已验证正式产物。内部单向上下文哈希将恰好一次尝试和一个案件绑定，用于区分工作台归档上下文与 Legacy 上下文；可执行上下文本身不持久化，也不在重启后恢复。尝试还可持久化内部 Manifest 标识证据（`manifest_source_key`、输入指纹和归档指纹）。内部无路径 Manifest 索引在数据库成功转换前记录不透明工作台尝试 ID，以封闭索引发布与尝试完成之间的崩溃窗口。只有已登记 Manifest、案件、尝试、来源修订和物理 RAR 内容全部通过校验时，恢复才接受任一侧持久证据，并原子完成同一尝试而非发布第二份产物。这些内部绑定和恢复字段不向公共 DTO 或公共 Manifest 暴露。
 
-The durable workbench database is schema version 10. This is an internal
-persistence version, not a public API version. A deployment-scoped durable owner
-claims the SQLite database before workbench services start; a second deployment
-instance sharing that database is rejected. This owner is a local storage
-boundary and does not claim authenticated multi-user isolation.
+持久工作台数据库的模式版本为 10。这是内部持久化版本，不是公共 API 版本。工作台服务启动前，由部署范围内的持久所有者认领 SQLite 数据库；共享该数据库的第二个部署实例会被拒绝。该所有者是本地存储边界，并不宣称提供已认证多用户隔离。
 
-Before formal archive execution, each workbench task/attempt creates a bound
-input snapshot in the `copying` state and can use it only after the snapshot is
-sealed. The sealed snapshot is the execution input for inventory, WinRAR and
-Manifest generation; source locators, snapshot locators and binding evidence
-remain backend-only. A failed, cancelled or interrupted snapshot is not reused
-by a later attempt.
+正式归档执行前，每个工作台任务/尝试都创建处于 `copying` 状态的绑定输入快照，并且只能在快照封存后使用。封存快照是清单、WinRAR 和 Manifest 生成的执行输入；来源定位符、快照定位符和绑定证据仅限后端。失败、取消或中断的快照不得被后续尝试复用。
 
-An internal attempt binding stores `source_revision`, `draft_revision` and a
-canonical `report_fingerprint`; the public attempt projection continues to omit
-these internal evidence fields.
-The active workbench context binding additionally stores the opaque `source_id`,
-the same source/draft revisions and report fingerprint, `context_kind`, expiry
-and consumption timestamps. A workbench archive execution must re-read the
-server-side CaseDraft and SourceRecord and match all of these values before it
-can use the draft as formal archive input. A client `report_json` is therefore
-only a compatibility payload: for a workbench context it is rejected when its
-content fingerprint differs and is never the authoritative report. A true
-Legacy context continues to use the existing Legacy report contract.
+内部尝试绑定保存 `source_revision`、`draft_revision` 和规范 `report_fingerprint`；公共尝试投影继续省略这些内部证据字段。有效工作台上下文绑定还保存不透明 `source_id`、相同的来源/草稿修订与报告指纹、`context_kind`、到期时间和消费时间。工作台归档执行必须重新读取服务端 CaseDraft 和 SourceRecord 并匹配全部值，才能将草稿用作正式归档输入。因此客户端 `report_json` 只是兼容载荷：工作台上下文中其内容指纹不同时会被拒绝，且绝不是权威报告。真正的 Legacy 上下文继续使用既有 Legacy 报告合同。
 
-Schema version 10 also persists one immutable `archive_publish_intents` record
-per workbench attempt and binds it to a task-bound `publication_id` generation.
-It contains the case/attempt/source identities, source and draft revisions,
-report fingerprint, manifest/archive/input identities, safe relative
-final-directory identity and the public Manifest snapshot. Its phase is
-monotonic: `intent_persisted` → `published` → `indexed` → `verified`, with
-`conflict` as a terminal safety state. This is a durable recovery record, not a
-public worker queue, scheduler, progress record or automatic retry mechanism.
+模式版本 10 还为每次工作台尝试持久化一条不可变 `archive_publish_intents` 记录，并绑定到任务所属的 `publication_id` 代次。它包含案件/尝试/来源标识、来源和草稿修订、报告指纹、Manifest/归档/输入标识、安全相对最终目录标识和公共 Manifest 快照。阶段单调推进：`intent_persisted` → `published` → `indexed` → `verified`，`conflict` 为终止安全状态。这是持久恢复记录，不是公共工作队列、调度器、进度记录或自动重试机制。
 
-SQLite durable intent/publication records are the authoritative publication
-facts. The path-free JSON Manifest index is a derived projection: it must match
-the durable publication identity, digest and file set, may be rebuilt from
-trusted durable evidence, and fails closed when that evidence is missing or
-inconsistent. Public task/result projections expose only the approved opaque
-artifact metadata and never expose the generation, owner, fence or filesystem
-locator that binds the publication.
+SQLite 持久意图/发布记录是权威发布事实。无路径 JSON Manifest 索引是派生投影：必须匹配持久发布标识、摘要和文件集，可从受信任持久证据重建；证据缺失或不一致时安全失败。公共任务/结果投影只暴露获准的不透明产物元数据，绝不暴露绑定发布的代次、所有者、栅栏或文件系统定位符。
 
-The intent's context binding is the persistent workbench context hash; its
-relative final-directory identity is the formal runtime context plus the
-Manifest ID, because the Legacy executor may create a separate in-memory
-runtime context from the workbench context. Intent creation re-reads the
-server-side shell, SourceRecord, CaseDraft and active workbench binding in one
-database transaction. Before the filesystem move the service performs the same
-binding revalidation again. Trusted completion then re-reads SourceRecord,
-CaseShell and CaseDraft in its own write transaction and requires exactly one
-attempt, shell and draft update; a zero-row update rolls the transaction back.
-Normal execution and restart recovery call this same trusted completion service.
+意图的上下文绑定是持久工作台上下文哈希；其相对最终目录标识由正式运行时上下文和 Manifest ID 组成，因为 Legacy 执行器可能从工作台上下文创建独立的内存运行时上下文。创建意图时在同一数据库事务内重新读取服务端外壳、SourceRecord、CaseDraft 和有效工作台绑定；文件系统移动前再次执行相同绑定复验。受信任完成流程随后在自身写事务中重新读取 SourceRecord、CaseShell 和 CaseDraft，要求尝试、外壳和草稿各恰好更新一行；零行更新将回滚事务。正常执行和重启恢复调用同一受信任完成服务。
 
-Formal archive recovery uses the intent, the internal Manifest index and the
-physical final directory together:
+正式归档恢复会同时使用意图、内部 Manifest 索引和物理最终目录：
 
-| Durable evidence | Recovery result |
+| 持久证据 | 恢复结果 |
 |---|---|
-| No intent and no formal artifact | Mark an unfinished attempt `interrupted`; require explicit new preparation. |
-| Intent persisted, final directory absent | Safely interrupt the unfinished attempt; retain the durable intent, do not publish or resume automatically, and require explicit new preparation. |
-| Final directory exists while intent is still `intent_persisted` | Validate all bindings and Manifest/RAR, then advance only through `published` and `indexed`; never jump directly to `indexed` or republish. |
-| Final directory exists and matches a persisted intent, but the index is absent | Validate Manifest/RAR and register the same artifact, then complete the same attempt. |
-| Index and final directory both match the intent | Re-run the shared trusted completion validation and idempotently complete the same attempt; a crash before `verified` only finishes the phase marker and never rolls back success. |
-| Missing final directory, tampered/incomplete files, missing intent, or any identity conflict | Do not mark success, overwrite, delete or republish; preserve unknown formal output and require a new explicit attempt. Confirmed evidence conflict may enter `conflict`; temporary database/index/I/O errors retain the current phase for later explicit verification. |
+| 无意图且无正式产物 | 将未完成尝试标为 `interrupted`；要求显式重新准备。 |
+| 意图已持久化但最终目录不存在 | 安全中断未完成尝试；保留持久意图，不自动发布或恢复，并要求显式重新准备。 |
+| 最终目录存在但意图仍为 `intent_persisted` | 校验全部绑定和 Manifest/RAR，然后只能依次推进到 `published` 和 `indexed`；绝不直接跳到 `indexed` 或重新发布。 |
+| 最终目录存在且匹配持久意图，但索引不存在 | 校验 Manifest/RAR 并登记同一产物，然后完成同一尝试。 |
+| 索引和最终目录均匹配意图 | 重新运行共享受信任完成校验并幂等完成同一尝试；`verified` 前崩溃只补齐阶段标记，绝不回滚成功。 |
+| 最终目录缺失、文件被篡改/不完整、意图缺失或任何标识冲突 | 不标记成功、不覆盖、不删除、不重新发布；保留未知正式输出并要求新的显式尝试。确认的证据冲突可进入 `conflict`；临时数据库/索引/I/O 错误保留当前阶段以便后续显式验证。 |
 
-Only a validated completion evidence service may write `succeeded` and
-`archive_verified`; a caller-provided Manifest ID alone is not evidence.
+只有经过验证的完成证据服务可以写入 `succeeded` 和 `archive_verified`；调用方提供的 Manifest ID 本身不是证据。
 
-Schema version 10 adds the internal `archive_publish_fences` table. A fence binds
-one case and attempt to the source ID/revision, draft revision, report
-fingerprint, one-way context hash and shell revision. At most one fence for a
-case and one for an attempt may be `active`. The controlled publish-intent
-transaction creates the fence and intent together after re-reading the server
-facts. Active fences reject ordinary writes that could change those facts.
-After restart, an active fence becomes `pending_verification` only after the
-old runtime state and context binding have been invalidated. Pending evidence
-does not permanently block editing: a draft/source/shell edit atomically marks
-the old fence `invalidated`, so its formal artifact remains unknown and cannot
-be completed or reused. Successful trusted completion consumes the fence;
-release, invalidation and consumption are idempotent internal transitions.
+模式版本 10 增加内部 `archive_publish_fences` 表。栅栏将一个案件和尝试绑定到来源 ID/修订、草稿修订、报告指纹、单向上下文哈希和外壳修订。每个案件和每次尝试最多各有一个 `active` 栅栏。受控发布意图事务重新读取服务端事实后，同时创建栅栏和意图。有效栅栏会拒绝可能改变这些事实的普通写入。重启后，只有旧运行时状态和上下文绑定失效，有效栅栏才变为 `pending_verification`。待定证据不会永久阻止编辑：草稿/来源/外壳编辑会原子地将旧栅栏标为 `invalidated`，使其正式产物保持未知且无法完成或复用。成功的受信任完成流程消费栅栏；释放、失效和消费都是幂等内部转换。
 
-Reconciliation is driven by every non-terminal publish intent, including an
-attempt that was left `failed` after a publish-side infrastructure error. It
-first converts stale runtime states to `interrupted`, then validates the intent,
-fence, Manifest index and physical RAR. Temporary infrastructure failures keep
-the interrupted attempt, pending evidence and formal files without republish;
-only confirmed identity, target or integrity conflicts become `conflict`.
+每个非终止发布意图都会驱动核对，包括因发布侧基础设施错误而遗留为 `failed` 的尝试。流程先将过时运行时状态转为 `interrupted`，再校验意图、栅栏、Manifest 索引和物理 RAR。临时基础设施故障会保留已中断尝试、待定证据和正式文件而不重新发布；只有确认的标识、目标或完整性冲突才进入 `conflict`。
 
-Source trust is an archive-safety gate, not a Word-export prohibition. An
-`available` source exports normally; `pending` and `requires_reselection` remain
-viewable, editable, previewable and exportable after an explicit client-side risk
-confirmation based on the current server-returned source state. Cancelling that
-confirmation cancels only that export action. Archive preparation continues to
-require a trusted, current source revision.
+来源信任是归档安全门控，不是 Word 导出禁令。`available` 来源正常导出；基于服务端当前返回的来源状态进行显式客户端风险确认后，`pending` 和 `requires_reselection` 来源仍可查看、编辑、预览和导出。取消确认只取消本次导出操作。归档准备继续要求受信任且当前有效的来源修订。
 
-For workbench images, the opaque reference is bound to `case_id` by the backend
-asset registry. The binary lives in the controlled application asset workspace;
-the public record contains only the asset ID, kind, SHA-256 fingerprint and safe
-metadata. Uploads are validated and atomically finalized before a reference can
-enter a case draft. Missing or corrupt content is a recoverable error, and
-unreferenced temporary assets are removed after a grace period.
+对于工作台图片，后端资产注册表将不透明引用绑定到 `case_id`。二进制内容位于受控应用资产工作区；公共记录只包含资产 ID、种类、SHA-256 指纹和安全元数据。上传内容须先经过校验并原子完成，引用才能进入案件草稿。内容缺失或损坏属于可恢复错误；未引用临时资产会在宽限期后删除。
 
-`SharedDefaults` is backend-persisted and deployment-scoped for the current local
-operator; this scope does not provide or claim multi-user isolation. Its editable
-business values are limited to entrust-unit prefix, document-number template,
-inspection place, inspection method, hardware device, data summary, inspection
-requirement, ordered inspector snapshots and a `md5 | sha1 | sha256` hash algorithm.
-Legacy attachment-1 extraction-method values remain readable for persisted deployment
-compatibility, but the centralized settings page does not display or submit them and
-new-case initialization does not consume them.
-The legacy complete document number and disc-number prefix remain API-compatible
-persisted values but are not edited by the centralized settings page.
-The algorithm defaults to MD5, is snapshotted into each later new case, and never
-rewrites an existing case. A later new case also snapshots a non-empty shared data
-summary when the Parser value is missing, blank or the fixed system summary; a real
-Parser summary remains authoritative. A successful draft save may send a
-sparse patch containing only non-empty values that the user explicitly changed.
-Case fields follow user edit > non-empty Parser report value > non-empty shared
-default > system default or empty. Later cases use shared values only when the
-Parser value is missing, blank, whitespace or an empty array; existing cases are
-never rewritten, and Parser-derived values never create a shared-default patch. `localStorage`
-is not a workbench case or shared-default source of truth. `FieldSource`
-distinguishes `report`, `user` and `system_default`, while `FieldConfirmation`
-separately represents pending human confirmation. `ClientIdentity` is a local
-session identity, not an authenticated person. `EditLease` provides one active case
-lease with expiry and takeover metadata.
-`SaveStatus`, `SharedDefaultsSaveStatus` and `DualSaveResult` report draft and
-shared-default persistence independently. Shared-default writes use a supported-field
-patch; the explicit centralized settings request may clear values, while legacy sparse
-draft patches retain their non-empty semantics. `updated`, `unchanged`, `failed` and
-`revision_conflict` are distinct statuses. `RevisionConflictDto` describes optimistic
-concurrency failures.
-`WorkbenchApiEnvelope`, `CaseShellResponse`, `CaseDraftResponse`,
-`SourceRecordResponse`, `SharedDefaultsResponse` and `TaskRecordResponse` are the
-versioned API DTO envelopes and contain no absolute paths.
+`SharedDefaults` 由后端持久化，并以当前本地操作员所在部署为范围；该范围不提供也不宣称多用户隔离。可编辑业务值仅限委托单位前缀、文号模板、检查地点、检查方法、硬件设备、数据摘要、检查要求、有序检查人员快照及 `md5 | sha1 | sha256` 哈希算法。为兼容持久部署，Legacy 附件一提取方法值仍可读取，但集中设置页不显示或提交，新案件初始化也不使用。旧的完整文号和盘号前缀继续作为 API 兼容持久值，但集中设置页不编辑它们。
 
-`CaseListPage` carries opaque case-shell cards with offset/limit metadata;
-`CaseDetail` joins one shell with its optional draft, source summary and parse
-task; `CaseSubmission` is the immediate response after an authorized report
-directory is accepted and persisted. `ArchiveDecision` is `immediate` or
-`deferred`; `ArchiveDecisionResult` reports the persisted lifecycle and, for
-immediate decisions, the safe public summary of the newly queued archive task.
-It does not expose the internal Legacy context or archive-attempt binding.
-Deferred decisions remain visible after refresh as
-`archive_deferred`. `DeletePreflight` is a backward-compatible read-only
-confirmation preview and returns `allowed: true` with no blockers when the case
-exists; it does not delete records or artifacts. `CaseListResponse`,
-`CaseDetailResponse` and `CaseSubmissionResponse` are the corresponding
-versioned envelopes. `CaseSubmission` also exposes the current server-read
-shared defaults so a newly created case can show its prefill before parsing;
-the deployment instance remains server-authoritative.
-`DirectorySelectionCancelled` is the path-free `{ cancelled: true }` result
-returned when the native folder dialog is cancelled. `CaseDirectorySubmissionResult`
-is the union of that cancellation result and `CaseSubmission`, and
-`CaseDirectorySubmissionResponse` is its versioned envelope; none of these
-types expose the selected absolute path.
-`CaseDeletionResult` is the minimal successful response for a confirmed case
-deletion and contains only the opaque case ID plus `deleted: true`. The
-corresponding server operation removes the case's workbench records and
-platform-owned archive, Word and image files, while source directories supplied
-by the user remain outside the deletion boundary.
+算法默认为 MD5，并快照到之后每个新案件，绝不改写已有案件。当 Parser 值缺失、空白或等于固定系统摘要时，后续新案件还会快照非空共享数据摘要；真实 Parser 摘要保持权威。成功保存草稿时可发送稀疏补丁，只包含用户显式修改的非空值。案件字段优先级为：用户编辑 > 非空 Parser 报告值 > 非空共享默认值 > 系统默认值或空值。只有 Parser 值缺失、空白、仅含空格或为空数组时，后续案件才使用共享值；不改写已有案件，Parser 派生值也不创建共享默认值补丁。`localStorage` 不是工作台案件或共享默认值的事实源。`FieldSource` 区分 `report`、`user` 和 `system_default`，`FieldConfirmation` 单独表示待人工确认。`ClientIdentity` 是本地会话标识，不是已认证人员。`EditLease` 提供一份带到期和接管元数据的有效案件租约。
 
-`DemoReadiness` is a read-only Demo capability snapshot containing three fixed
-`DemoReadinessItem` entries: backend service, WinRAR and archive output.
-The homepage source authorization switch is a separate persisted frontend
-preference, not a readiness item. `DemoReadinessKey` fixes those identities and
-`DemoReadinessState` is limited to `ready`, `not_configured`, `unavailable` and
-`unknown`. Items expose only a safe label, stable error code and fixed guidance;
-they never contain configured roots, absolute paths, executable details,
-process data, environment values or exception text.
+`SaveStatus`、`SharedDefaultsSaveStatus` 和 `DualSaveResult` 分别报告草稿与共享默认值的持久化结果。共享默认值写入使用受支持字段补丁；显式集中设置请求可以清空值，而 legacy 稀疏草稿补丁保留非空语义。`updated`、`unchanged`、`failed` 和 `revision_conflict` 是不同状态；`RevisionConflictDto` 描述乐观并发失败。`WorkbenchApiEnvelope`、`CaseShellResponse`、`CaseDraftResponse`、`SourceRecordResponse`、`SharedDefaultsResponse` 和 `TaskRecordResponse` 是带版本的 API DTO 信封，均不含绝对路径。
 
-### Phase 3 archive task shared contract
+`CaseListPage` 携带带 offset/limit 元数据的不透明案件外壳卡片；`CaseDetail` 组合外壳、可选草稿、来源摘要和解析任务；`CaseSubmission` 是授权报告目录被接受并持久化后的即时响应。`ArchiveDecision` 为 `immediate` 或 `deferred`；`ArchiveDecisionResult` 报告持久生命周期，并在立即决定时返回新排队归档任务的安全公共摘要，但不暴露内部 Legacy 上下文或归档尝试绑定。延期决定刷新后仍以 `archive_deferred` 可见。`DeletePreflight` 是向后兼容的只读确认预览：案件存在时返回无阻塞项的 `allowed: true`，但不删除记录或产物。`CaseListResponse`、`CaseDetailResponse` 和 `CaseSubmissionResponse` 是对应的带版本信封。`CaseSubmission` 还暴露服务端当前读取的共享默认值，使新案件在解析前显示预填内容；部署实例仍是权威来源。
 
-T011 adds shared types and pure rules only; it does not yet wire a database,
-Worker, case-list API or card UI. `TaskRecord` keeps its existing `percent`,
-`finished_at`, `error_summary`, status and cancellation fields. Archive records
-may additionally carry `ArchiveProgressKind=workflow_milestone`, safe stage
-metadata, `updated_at`, heartbeat/output activity, `ArchiveWorkerState` and
-backend-authoritative `ArchiveTaskAction` values. Old task records may omit
-these optional fields.
+`DirectorySelectionCancelled` 是取消原生文件夹对话框时返回的无路径 `{ cancelled: true }` 结果。`CaseDirectorySubmissionResult` 是该取消结果与 `CaseSubmission` 的联合类型，`CaseDirectorySubmissionResponse` 是其带版本信封；这些类型均不暴露选定绝对路径。`CaseDeletionResult` 是确认删除案件后的最小成功响应，只包含不透明案件 ID 和 `deleted: true`。对应服务端操作删除案件工作台记录及平台所有的归档、Word 和图片文件；用户提供的来源目录不属于删除边界。
 
-`ArchiveWorkflowStage` and `ArchiveWorkflowMilestonePercent` define the fixed
-`0/10/20/30/75/85/90/95/100` workflow milestones. WinRAR remains at 30 while
-running; output bytes and volume count are activity evidence only and never a
-compression ratio. `ProgressSnapshot` is the complete shared milestone/activity
-snapshot. `ArchiveTaskCardSummary` is an explicit safe projection and cannot
-carry Worker IDs, leases, local paths, stacks, raw logs or internal diagnostics.
+`DemoReadiness` 是只读 Demo 能力快照，包含后端服务、WinRAR 和归档输出三项固定 `DemoReadinessItem`。首页来源授权开关是独立持久化的前端偏好，不是就绪项。`DemoReadinessKey` 固定这些标识，`DemoReadinessState` 仅限 `ready`、`not_configured`、`unavailable` 和 `unknown`。各项只暴露安全标签、稳定错误码和固定指引；绝不包含配置根目录、绝对路径、可执行文件详情、进程数据、环境值或异常文本。
 
-`VolumeSlot` has stable identity, plan revision, lineage, ordinal, planned bytes,
-status and optional `DiscMapping`; `PlannedVolumeSlot` is a replan input.
-`ArchivePlanSnapshot` stores the versioned slot plan. `ReconciledVolumeSlots`
-separates active and removed slots, while `VerifiedVolumeSlot` is the bounded
-Manifest convergence input. `LegacyArchiveCompatibilityStatus`,
-`ResourceAdmissionStatus`, `ArchiveResourceAdmission`,
-`ArchiveTaskCommandRequest` and `ArchiveTaskCommandResult` were introduced as
-shared contracts; T013–T015 now persist and expose them through the single
-archive-task lifecycle.
+### 第三阶段归档任务共享合同
 
-T015 adds public, path-free task projections on top of the same persistent
-record. `ArchiveTaskPublicDetail` extends the card summary with task revision,
-attempt ordinal, cancellation flag, safe error code and the current bounded
-archive-plan snapshot. `ArchiveTaskHistory` returns those public details in
-case history order without replacing prior attempts. `ArchiveTaskResult` is
-available only after both the task and its bound attempt succeeded and the
-persisted Manifest and physical parts revalidate; it exposes verified slot
-metadata, published asset metadata and path-free part download identities, but
-never locators, process ownership, commands, logs or raw diagnostics.
+T011 只增加共享类型和纯规则；尚未接入数据库、Worker、案件列表 API 或卡片 UI。`TaskRecord` 保留既有 `percent`、`finished_at`、`error_summary`、状态和取消字段。归档记录还可携带 `ArchiveProgressKind=workflow_milestone`、安全阶段元数据、`updated_at`、心跳/输出活动、`ArchiveWorkerState` 和以后端为权威的 `ArchiveTaskAction` 值。旧任务记录可以省略这些可选字段。
 
-### Phase 4 approved template shared contract
+`ArchiveWorkflowStage` 和 `ArchiveWorkflowMilestonePercent` 定义固定的 `0/10/20/30/75/85/90/95/100` 工作流里程碑。WinRAR 运行时保持在 30；输出字节数和分卷数只是活动证据，绝不代表压缩比例。`ProgressSnapshot` 是完整共享里程碑/活动快照。`ArchiveTaskCardSummary` 是显式安全投影，不得携带 Worker ID、租约、本地路径、堆栈、原始日志或内部诊断。
 
-T016 introduced the path-free shared contract. `TemplateVersionRef` stores only a `TemplateId` and semantic
-version in `CaseDraft`. The corresponding `TemplateVersion` binds that reference
-to an opaque asset ID, fingerprint, versioned validation-rule references and a
-`TemplateApprovalRecord`; it never contains a template path or DOCX content.
+`VolumeSlot` 包含稳定标识、计划修订、谱系、序号、计划字节数、状态和可选 `DiscMapping`；`PlannedVolumeSlot` 是重新规划输入。`ArchivePlanSnapshot` 保存带版本的槽位计划。`ReconciledVolumeSlots` 区分有效与已移除槽位，`VerifiedVolumeSlot` 是有界 Manifest 收敛输入。`LegacyArchiveCompatibilityStatus`、`ResourceAdmissionStatus`、`ArchiveResourceAdmission`、`ArchiveTaskCommandRequest` 和 `ArchiveTaskCommandResult` 作为共享合同引入；T013–T015 现已通过单一归档任务生命周期持久化并暴露它们。
 
-`TemplateValidationResult` distinguishes a validated version from stable unknown,
-unapproved, missing-asset, fingerprint-mismatch and rule-validation failures.
-`WordArtifactValidity` records whether a Word artifact remains valid or was
-invalidated by a template change. `TemplateSelectionImpact` fixes the Phase 4
-boundary: a template change invalidates Word while leaving archive planning,
-archive-task creation, the verified Manifest and disc mapping unchanged.
+T015 在同一持久记录之上增加无路径公共任务投影。`ArchiveTaskPublicDetail` 在卡片摘要基础上增加任务修订、尝试序号、取消标记、安全错误码和当前有界归档计划快照。`ArchiveTaskHistory` 按案件历史顺序返回这些公共详情，不替换先前尝试。只有任务及其绑定尝试均成功，且持久 Manifest 与物理分卷通过复验后，`ArchiveTaskResult` 才可用；它暴露已验证槽位元数据、已发布资产元数据和无路径分卷下载标识，但绝不暴露定位符、进程所有权、命令、日志或原始诊断。
 
-`TemplateManagementRecord` is the path-free management-page projection of a
-`TemplateVersion`, adding `is_default`, `can_delete`, `can_customize` and the
-allow-listed `TemplateCustomization` currently read from the DOCX. The corresponding
-`TemplateManagementResponse` returns the available records, the nullable
-`default_template_ref`, and the monotonic `defaults_revision` used by default
-template updates.
+### 第四阶段已批准模板共享合同
 
-`RenameTemplateRequest` carries only a trimmed `display_name`. Renaming updates
-presentation metadata for an approved template while preserving its ID, version,
-asset, fingerprint, validation rules, approval history, default state and case
-references.
+T016 引入无路径共享合同。`TemplateVersionRef` 在 `CaseDraft` 中只保存 `TemplateId` 和语义版本。对应 `TemplateVersion` 将该引用绑定到不透明资产 ID、指纹、带版本的校验规则引用和 `TemplateApprovalRecord`；绝不包含模板路径或 DOCX 内容。
 
-The controlled frontend customization contract uses `TemplateBodyFont` and
-`TemplateBodyFontSize` allow-lists. `TemplateCustomization` contains only the
-fixed document title, body font and body font size. `DeriveTemplateRequest`
-identifies an approved source version and a new immutable target version; it
-never carries a filesystem path, DOCX bytes, arbitrary OOXML or layout rules.
+`TemplateValidationResult` 区分已验证版本与稳定的未知、未批准、资产缺失、指纹不匹配和规则校验失败。`WordArtifactValidity` 记录 Word 产物是否仍有效或因模板变化失效。`TemplateSelectionImpact` 固定第四阶段边界：模板变化使 Word 失效，但不改变归档规划、归档任务创建、已验证 Manifest 和盘号映射。
 
-T017 adds the frontend registry client and review-page selector. The client
-filters for complete approved versions, displays only the template ID, version
-and safe acceptance summary, and submits only `TemplateVersionRef`, draft
-revision and edit-lease proof. It accepts a selection result only when the
-returned impact preserves archive, Manifest and disc-mapping facts.
+`TemplateManagementRecord` 是 `TemplateVersion` 的无路径管理页投影，增加 `is_default`、`can_delete`、`can_customize` 和当前从 DOCX 读取的白名单 `TemplateCustomization`。对应 `TemplateManagementResponse` 返回可用记录、可空 `default_template_ref` 及默认模板更新所用的单调 `defaults_revision`。
 
-T018 adds the persistent backend registry, immutable approval history and
-case-template reference update. Registered versions bind a controlled internal
-asset locator to their immutable ID, version, package fingerprint and validation
-rules; public projections remain path-free. Listing and formal generation both
-require the current approved status and revalidate the asset fingerprint and
-Word structure before use. Switching a case reference invalidates only the Word
-artifact and does not mutate archive planning, tasks, Manifest or disc mapping.
-Existing cases without a reference continue to use `current-template-v1`.
+`RenameTemplateRequest` 只携带去除首尾空格的 `display_name`。重命名更新已批准模板的展示元数据，同时保留其 ID、版本、资产、指纹、校验规则、批准历史、默认状态和案件引用。
 
-T019 exposes the approved, revalidated registry and case-selection operations
-under the existing workbench API. Selection uses the existing edit lease and
-draft revision contracts and persists only the template ID/version. Formal Word
-generation sends only opaque case identity and revision; the backend resolves
-the persisted reference and revalidates current approval, fingerprint, rules and
-structure through the T018 registry before the existing Legacy generator runs.
+受控前端定制合同使用 `TemplateBodyFont` 和 `TemplateBodyFontSize` 白名单。`TemplateCustomization` 只包含固定文档标题、正文字体和字号。`DeriveTemplateRequest` 标识已批准来源版本和新的不可变目标版本；绝不携带文件系统路径、DOCX 字节、任意 OOXML 或布局规则。
 
-### Phase 5A retention shared contract and v11 foundation
+T017 增加前端注册表客户端和审核页选择器。客户端筛选完整已批准版本，只显示模板 ID、版本和安全验收摘要，并且只提交 `TemplateVersionRef`、草稿修订和编辑租约证明。仅当返回的影响保留归档、Manifest 和盘号映射事实时才接受选择结果。
 
-Slice 5A-1 adds the public retention contract foundation and the SQLite persistence
-foundation only. These types and tables do not mean that cleanup execution,
-Coordinator scheduling, publication revalidation, formal Word file persistence,
-cleaned-case download routes, API/UI wiring, E2E or manual acceptance are
-implemented.
+T018 增加持久后端注册表、不可变批准历史和案件模板引用更新。已登记版本将受控内部资产定位符绑定到不可变 ID、版本、包指纹和校验规则；公共投影保持无路径。列表和正式生成都要求当前批准状态，并在使用前复验资产指纹和 Word 结构。切换案件引用只使 Word 产物失效，不改变归档规划、任务、Manifest 或盘号映射。没有引用的已有案件继续使用 `current-template-v1`。
 
-#### Retention public types
+T019 在既有工作台 API 下暴露已批准且通过复验的注册表和案件选择操作。选择沿用既有编辑租约和草稿修订合同，只持久化模板 ID/版本。正式 Word 生成只发送不透明案件标识和修订；后端解析持久引用，并通过 T018 注册表复验当前批准、指纹、规则和结构，然后才运行既有 Legacy 生成器。
 
-The following public types are exported from `packages/shared/types/retention.ts`
-and re-exported from the shared export index. They are safe contracts: they carry
-opaque case/publication/artifact identities, status, bounded summaries,
-revision/digest facts and timestamps, but never absolute paths, database table
-names, owner/claim tokens, leases, fences, internal attempt/context identities
-or client-controlled deletion file lists.
+### 第 5A 阶段保留策略共享合同与 v11 基础
 
-`RetentionPolicyMode` is `disabled | preview_only | enforce`.
-`RetentionEligibility` is `eligible | ineligible | unknown`.
-`RetentionStatus` is `unknown | not_expired | eligible | blocked | planned |
-processing | completed | failed`.
-`CleanupRunPhase` is `planned | claimed | preflighted | work_files_cleaned |
-records_cleaned | verified | succeeded | blocked | stale | cancel_requested |
-cancelled | interrupted | partial_failure | failed_retryable | failed_terminal`.
-`CleanupRunStatus` is `active | succeeded | cancelled | failed | blocked`.
+切片 5A-1 只增加公共保留策略合同基础和 SQLite 持久化基础。这些类型和表不代表清理执行、Coordinator 调度、发布复验、正式 Word 文件持久化、已清理案件下载路由、API/UI 接线、E2E 或人工验收已经实现。
 
-`RetentionBlockerCode` is the stable union:
+#### 保留策略公共类型
+
+下列公共类型从 `packages/shared/types/retention.ts` 导出，并由共享导出索引重新导出。它们是安全合同：携带不透明案件/发布/产物标识、状态、有界摘要、修订/摘要事实和时间戳，但绝不携带绝对路径、数据库表名、所有者/认领令牌、租约、栅栏、内部尝试/上下文标识或客户端控制的删除文件列表。
+
+`RetentionPolicyMode` 取 `disabled | preview_only | enforce`。`RetentionEligibility` 取 `eligible | ineligible | unknown`。`RetentionStatus` 取 `unknown | not_expired | eligible | blocked | planned | processing | completed | failed`。`CleanupRunPhase` 取 `planned | claimed | preflighted | work_files_cleaned | records_cleaned | verified | succeeded | blocked | stale | cancel_requested | cancelled | interrupted | partial_failure | failed_retryable | failed_terminal`。`CleanupRunStatus` 取 `active | succeeded | cancelled | failed | blocked`。
+
+`RetentionBlockerCode` 是下列稳定联合类型：
 `RETENTION_CASE_MUTATION_TIME_MISSING`, `RETENTION_PUBLICATION_MISSING`,
 `RETENTION_PUBLICATION_UNVERIFIED`, `RETENTION_PUBLICATION_TIME_MISSING`,
 `RETENTION_WORD_ARTIFACT_MISSING`, `RETENTION_WORD_ARTIFACT_UNVERIFIED`,
@@ -740,215 +464,89 @@ cancelled | interrupted | partial_failure | failed_retryable | failed_terminal`.
 `RETENTION_NOT_EXPIRED`, `RETENTION_ACTIVE_TASK`, `RETENTION_ACTIVE_LEASE`,
 `RETENTION_RECOVERY_IN_PROGRESS`, `RETENTION_OWNERSHIP_UNKNOWN`,
 `RETENTION_AUTHORITY_INCONSISTENT`, `RETENTION_SNAPSHOT_ACTIVE`,
-`RETENTION_SNAPSHOT_RECOVERY_REFERENCED` and
-`RETENTION_SNAPSHOT_OWNERSHIP_UNKNOWN`.
+`RETENTION_SNAPSHOT_RECOVERY_REFERENCED` 和
+`RETENTION_SNAPSHOT_OWNERSHIP_UNKNOWN`。
 
-`CleanupErrorCode` is the stable union:
+`CleanupErrorCode` 是下列稳定联合类型：
 `CLEANUP_PATH_OUTSIDE_ALLOWED_ROOT`, `CLEANUP_OWNERSHIP_UNKNOWN`,
 `CLEANUP_SYMLINK_OR_JUNCTION_REJECTED`, `CLEANUP_FILE_IN_USE`,
 `CLEANUP_ACCESS_DENIED`, `CLEANUP_FILE_CHANGED`,
 `CLEANUP_FILE_DELETE_FAILED`, `CLEANUP_SNAPSHOT_DELETE_FAILED`,
-`CLEANUP_STALE_REQUEST` and `CLEANUP_CONFLICT`.
+`CLEANUP_STALE_REQUEST` 和 `CLEANUP_CONFLICT`。
 
-`RetentionPolicyDto` contains `mode`, `retention_days`,
-`scan_interval_seconds`, `batch_size`, `policy_revision`, nullable
-`activated_at` and `updated_at`.
+`RetentionPolicyDto` 包含 `mode`、`retention_days`、`scan_interval_seconds`、`batch_size`、`policy_revision`、可空 `activated_at` 和 `updated_at`。
 
-`RetentionStatusDto` contains `case_id`, `status`, `eligibility`, nullable
-`retention_anchor_utc`, nullable `expires_at_utc`, nullable
-`blocker_code`, `policy_revision`, `case_revision` and `updated_at`.
+`RetentionStatusDto` 包含 `case_id`、`status`、`eligibility`、可空 `retention_anchor_utc`、可空 `expires_at_utc`、可空 `blocker_code`、`policy_revision`、`case_revision` 和 `updated_at`。
 
-`CleanupPreviewItemDto` contains `case_id`, `eligibility`, nullable
-`blocker_code`, public category names in `planned_data_categories`, public
-category names in `preserved_formal_artifact_categories`, nullable anchor and
-expiry timestamps, and the boolean summaries `has_running_task`,
-`has_edit_lease`, `has_recovery` and `has_conflict`.
-`CleanupPreviewDto` contains a `RetentionPolicyDto`, an `items` array and
-`generated_at`. The backend-only `CaseRetentionPreviewService` now builds this
-projection from the current deployment's durable case shells and the shared
-`CaseRetentionService` eligibility predicate. It sorts case IDs ascending,
-returns `candidate`, `skipped` or `blocked` state with stable blocker reasons,
-planned/preserved categories, anchor/expiry, policy/case revisions and boolean
-task/lease/recovery summaries. Each item and the complete result carry a
-canonical SHA-256 digest. The service is path-free, does not create cleanup
-runs, and does not delete or mutate case records; public route/API/UI wiring
-and Coordinator execution remain later capabilities.
+`CleanupPreviewItemDto` 包含 `case_id`、`eligibility`、可空 `blocker_code`、`planned_data_categories` 中的公共类别名、`preserved_formal_artifact_categories` 中的公共类别名、可空锚点与到期时间，以及 `has_running_task`、`has_edit_lease`、`has_recovery` 和 `has_conflict` 布尔摘要。`CleanupPreviewDto` 包含一个 `RetentionPolicyDto`、`items` 数组和 `generated_at`。仅限后端的 `CaseRetentionPreviewService` 现根据当前部署的持久案件外壳和共享 `CaseRetentionService` 资格谓词构建该投影。它按案件 ID 升序排列，返回 `candidate`、`skipped` 或 `blocked` 状态，以及稳定阻塞原因、计划/保留类别、锚点/到期时间、策略/案件修订和任务/租约/恢复布尔摘要。每项和完整结果都携带规范 SHA-256 摘要。该服务无路径，不创建清理运行，也不删除或改变案件记录；公共路由/API/UI 接线和 Coordinator 执行属于后续能力。
 
-`CleanupRunStatusDto` contains opaque `run_id`, `case_id`, `phase`, `status`,
-nullable `result_code`, nullable `error_code`, `updated_at` and nullable
-`completed_at`. Internal claim, lease and fence fields are not part of this
-projection.
+`CleanupRunStatusDto` 包含不透明 `run_id`、`case_id`、`phase`、`status`、可空 `result_code`、可空 `error_code`、`updated_at` 和可空 `completed_at`。内部认领、租约和栅栏字段不属于该投影。
 
-`FormalWordArtifactSafeProjection` contains `word_artifact_id`, `case_id`,
+`FormalWordArtifactSafeProjection` 包含 `word_artifact_id`、`case_id`、
 `publication_id`, `file_digest`, `file_size`, `source_manifest_digest`,
-`template_identity`, `template_version`, `generated_at`, nullable
-`verified_at` and `status` (`pending | verified | invalid`). The internal
-relative path is deliberately absent from this public projection.
+`template_identity`、`template_version`、`generated_at`、可空
+`verified_at` 和 `status`（`pending | verified | invalid`）。该公共投影特意省略内部相对路径。
 
-The backend-only `RetentionPolicyConfig` parser result is not a SharedTypes
-public model and is intentionally not included in the public export list. Its
-deployment inputs are `BIJI_CASE_RETENTION_MODE`,
-`BIJI_CASE_RETENTION_DAYS`, `BIJI_CASE_RETENTION_SCAN_INTERVAL_SECONDS` and
-`BIJI_CASE_RETENTION_BATCH_SIZE`, with defaults `disabled`, 30, 86400 and 20;
-the legacy days key is migration-only compatibility input and cannot enable
-retention work.
+仅限后端的 `RetentionPolicyConfig` 解析结果不是 SharedTypes 公共模型，特意不列入公共导出列表。其部署输入为 `BIJI_CASE_RETENTION_MODE`、
+`BIJI_CASE_RETENTION_DAYS`、`BIJI_CASE_RETENTION_SCAN_INTERVAL_SECONDS` 和
+`BIJI_CASE_RETENTION_BATCH_SIZE`，默认值依次为 `disabled`、30、86400 和 20；legacy 天数键只是迁移兼容输入，不能启用保留策略工作。
 
-#### v11 persistence foundation
+#### v11 持久化基础
 
-The SQLite persistence schema is now `WORKBENCH_DATABASE_SCHEMA_VERSION = 11`;
-the existing API envelope version remains v1. The v10→v11 migration is
-transactional, keeps `foreign_keys=ON`, validates `foreign_key_check`, preserves
-existing source/attempt/snapshot identities and rejects unsupported future
-versions. It does not delete records or files, backfill historical publication
-verification times, create cleanup runs, or enable `enforce`. New installations
-and upgrades initialize the durable policy in `disabled` mode.
+SQLite 持久化模式现为 `WORKBENCH_DATABASE_SCHEMA_VERSION = 11`；既有 API 信封版本仍为 v1。v10→v11 迁移在事务内执行，保持 `foreign_keys=ON`，校验 `foreign_key_check`，保留既有来源/尝试/快照标识，并拒绝不受支持的未来版本。迁移不删除记录或文件、不回填历史发布验证时间、不创建清理运行，也不启用 `enforce`。新安装和升级均以 `disabled` 模式初始化持久策略。
 
-The v11 foundation contains these new tables:
+v11 基础包含下列新表：
 
-| Table | Implemented durable fields and constraints |
+| 表 | 已实现的持久字段和约束 |
 |---|---|
-| `case_retention_policies` | deployment primary identity, `mode`, `retention_days` (1–3650), `scan_interval_seconds` (at least 3600), `batch_size` (1–1000), `policy_revision`, nullable `activated_at`, `created_at` and `updated_at`; deployment identity is unique. |
-| `case_retention_records` | `retention_record_id`, deployment/case identity, `eligibility`, `status`, nullable `last_meaningful_mutation_at`, `latest_verified_formal_publication_at`, `latest_successful_word_export_at`, `retention_anchor_utc`, `expires_at_utc`, `last_blocker_code`, policy/case/cleanup revisions and timestamps; `(deployment_instance_id, case_id)` is unique. |
-| `case_cleanup_runs` | run/case/deployment identity, policy and case revisions, owner/claim/lease/fence fields, current phase, retry/file/result/error fields and timestamps; a partial unique index permits at most one active run per deployment/case, with recovery, lease and deployment scan indexes. These internal claim fields are not public DTO fields. |
-| `formal_word_artifacts` | Word artifact/deployment/case/publication identity, controlled internal relative path, digest, size, source Manifest digest, template identity/version, generated/verified timestamps and status; Word identity and case/publication query indexes are present. This slice creates the durable row foundation but does not persist real Word files. |
+| `case_retention_policies` | 部署主标识、`mode`、`retention_days`（1–3650）、`scan_interval_seconds`（至少 3600）、`batch_size`（1–1000）、`policy_revision`、可空 `activated_at`、`created_at` 和 `updated_at`；部署标识唯一。 |
+| `case_retention_records` | `retention_record_id`、部署/案件标识、`eligibility`、`status`、可空 `last_meaningful_mutation_at`、`latest_verified_formal_publication_at`、`latest_successful_word_export_at`、`retention_anchor_utc`、`expires_at_utc`、`last_blocker_code`、策略/案件/清理修订和时间戳；`(deployment_instance_id, case_id)` 唯一。 |
+| `case_cleanup_runs` | 运行/案件/部署标识、策略和案件修订、所有者/认领/租约/栅栏字段、当前阶段、重试/文件/结果/错误字段和时间戳；部分唯一索引确保每个部署/案件最多一个有效运行，并提供恢复、租约和部署扫描索引。这些内部认领字段不是公共 DTO 字段。 |
+| `formal_word_artifacts` | Word 产物/部署/案件/发布标识、受控内部相对路径、摘要、大小、来源 Manifest 摘要、模板标识/版本、生成/验证时间戳和状态；包含 Word 标识及案件/发布查询索引。本切片创建持久行基础，但不持久化真实 Word 文件。 |
 
-The cleanup-run repository foundation now persists planned runs and performs
-deployment-scoped claim CAS against the planned policy/case revisions. A
-successful claim assigns an owner, opaque claim token, lease expiry and a
-monotonic fence epoch; a live claim conflicts, while an expired owned claim
-can be taken over with a new fence. Owned phase/result/retry/lease updates
-remain CAS-protected, and recovery listing is durable and restart-safe. The
-cleaned-case records boundary below is also internal: it can only be entered
-from a live deployment-scoped `work_files_cleaned` claim, while the public run
-projection excludes owner, token, lease and fence fields. Candidate scheduling,
-physical file deletion, source/snapshot cleanup and the public execution/API
-boundary remain later capabilities.
+清理运行 Repository 基础现持久化计划运行，并针对计划的策略/案件修订执行部署范围认领 CAS。成功认领会分配所有者、不透明认领令牌、租约到期时间和单调栅栏纪元；有效认领会冲突，已到期且有所有者的认领可用新栅栏接管。归属方的阶段/结果/重试/租约更新继续受 CAS 保护，恢复列表持久且重启安全。下述已清理案件记录边界也仅限内部：只能从部署范围内有效的 `work_files_cleaned` 认领进入，而公共运行投影排除所有者、令牌、租约和栅栏字段。候选调度、物理文件删除、来源/快照清理及公共执行/API 边界属于后续能力。
 
-The formal Word artifact repository persists only durable artifact metadata and
-does not store the complete `report_json`. It validates lower-case SHA-256
-file/Manifest digests, a non-negative JavaScript-safe file size, controlled
-relative paths, UTC-Z timestamps and the consistency of `status` with
-`verified_at`. Creation and reads require a current publication row bound to
-the same deployment and case; reads of a verified artifact additionally
-revalidate the existing publication's verified phase/status and non-null
-`publication_verified_at`. The safe projection omits the internal relative
-path. This is a durable metadata foundation: physical Word generation,
-file-content verification and cleaned-case download remain later capabilities.
+正式 Word 产物 Repository 只持久化产物元数据，不保存完整 `report_json`。它校验小写 SHA-256 文件/Manifest 摘要、非负且 JavaScript 安全的文件大小、受控相对路径、UTC-Z 时间戳，以及 `status` 与 `verified_at` 的一致性。创建和读取要求存在绑定到同一部署和案件的当前发布行；读取已验证产物时还会复验既有发布的已验证阶段/状态及非空 `publication_verified_at`。安全投影省略内部相对路径。这只是持久元数据基础；物理 Word 生成、文件内容验证和已清理案件下载属于后续能力。
 
-The cleaned-case tombstone repository now performs the records boundary only
-after rechecking the claimed cleanup run, current policy revision, case
-revision, durable retention anchor, verified publication set, verified formal
-Word artifact and absence of active task, edit lease or publication recovery.
-Within one SQLite transaction it consumes a path-free file-step receipt whose
-snapshot and temporary-asset IDs exactly match the durable rows already marked
-`cleaned`, then deletes snapshot rows, compacts formal attempt/task payloads,
-deletes inactive work contexts, orphan attempts/tasks, owned temporary assets,
-plans, drafts and work asset references, and deletes unreferenced source rows.
-Sources still referenced by formal attempts/intents/fences become minimum
-tombstones so the existing publication authority keeps its source FK. Formal
-intent/fence/attempt, publication, Word and published asset facts are retained;
-`PRAGMA foreign_key_check` is required before the surrounding transaction can
-commit. The shell then retains its deployment/case identity and safe summary,
-clears case number/source/task work references, marks `record_cleaned`,
-increments the tombstone/cleanup/case revisions, advances the cleanup run to
-`records_cleaned`, and updates the matching retention record to `completed`.
-The cleaned shell remains queryable, while draft save/lifecycle transitions
-are rejected with `CASE_RECORD_CLEANED`; formal Word/publication rows remain
-untouched and can still be read by durable identity. Physical path validation,
-file deletion, and public artifact listing/download remain later capabilities.
+已清理案件墓碑 Repository 只有在重新核对已认领清理运行、当前策略修订、案件修订、持久保留锚点、已验证发布集、已验证正式 Word 产物，并确认没有有效任务、编辑租约或发布恢复后，才执行记录边界。在同一 SQLite 事务内，它消费无路径文件步骤收据，其快照和临时资产 ID 必须精确匹配已标为 `cleaned` 的持久行；随后删除快照行、压缩正式尝试/任务载荷，删除无效工作上下文、孤立尝试/任务、自有临时资产、计划、草稿和工作资产引用，并删除未引用来源行。仍被正式尝试/意图/栅栏引用的来源变为最小墓碑，使既有发布权威保留来源外键。保留正式意图/栅栏/尝试、发布、Word 和已发布资产事实；外围事务提交前必须执行 `PRAGMA foreign_key_check`。随后外壳保留部署/案件标识和安全摘要，清除案件编号/来源/任务工作引用，标记 `record_cleaned`，增加墓碑/清理/案件修订，将清理运行推进到 `records_cleaned`，并把匹配保留记录更新为 `completed`。已清理外壳仍可查询，但草稿保存/生命周期转换以 `CASE_RECORD_CLEANED` 拒绝；正式 Word/发布行保持不变，仍可按持久标识读取。物理路径验证、文件删除和公共产物列表/下载属于后续能力。
 
-The 3.1 retention service now evaluates one case from those durable facts. It
-uses the retention record's meaningful-mutation time, the maximum verified time
-from every current publication intent, and the maximum verified time from the
-formal Word artifact rows; no shell `updated_at`, file mtime, download time or
-derived Manifest index time is substituted. The resulting anchor and continuous
-24-hour expiry are persisted through the deployment/case retention projection
-upsert, with `Z` timestamps and the current durable policy/case revisions.
+3.1 保留策略服务现根据这些持久事实评估单个案件。它使用保留记录的有效变更时间、每个当前发布意图的最大验证时间及正式 Word 产物行的最大验证时间；不得以外壳 `updated_at`、文件 mtime、下载时间或派生 Manifest 索引时间替代。所得锚点和连续 24 小时到期时间通过部署/案件保留投影 upsert 持久化，并携带 `Z` 时间戳和当前持久策略/案件修订。
 
-Historical publication intents with a null `publication_verified_at` remain
-unverified until a controlled internal revalidator proves the exact durable
-publication identity, file inventory, RAR/Manifest/MD5 checks, fence, ownership,
-deployment and case binding. Only then does the existing NULL-only publication
-CAS write the supplied trusted UTC verification time. Missing or failed
-revalidation leaves the field null; no timestamp is inferred and no new
-publication identity is created. The same service fails closed for malformed or
-future timestamps, incomplete publication/Word authority, active tasks or edit
-leases, publication/recovery/snapshot/context conflicts, active cleanup runs and
-non-terminal case state. It returns an internal `enforce_allowed` gate only when
-the durable policy mode is `enforce`; this slice does not add a scheduler,
-preview route or public cleanup execution API. The Word verifier boundary
-requires the durable artifact digest, size, Manifest digest and ownership to
-match; physical file resolution remains with the later cleanup/access work.
+`publication_verified_at` 为空的历史发布意图保持未验证，直到受控内部复验器证明精确持久发布标识、文件清单、RAR/Manifest/MD5 检查、栅栏、所有权、部署和案件绑定。只有此后，既有仅限 NULL 的发布 CAS 才写入所提供的受信任 UTC 验证时间。缺少复验或复验失败时字段保持为空；不推断时间戳，也不创建新发布标识。同一服务对格式错误或未来时间戳、不完整发布/Word 权威、有效任务或编辑租约、发布/恢复/快照/上下文冲突、有效清理运行及非终止案件状态安全失败。只有持久策略模式为 `enforce` 时才返回内部 `enforce_allowed` 门控；本切片不增加调度器、预览路由或公共清理执行 API。Word 验证器边界要求持久产物摘要、大小、Manifest 摘要和所有权匹配；物理文件解析留给后续清理/访问工作。
 
-#### v11 backup, recovery, and application rollback boundary
+#### v11 备份、恢复与应用回滚边界
 
-Phase 5 defines a controlled operational backup/recovery boundary but does not
-add a public backup or undelete API. A recoverable generation is a quiesced,
-cross-checked set containing the v11 SQLite database, formal RAR/Manifest/MD5
-publication files and durable authority, formal Word rows/files, approved
-template identity/version and files, owned work assets, retention policy and
-audit facts. The generation records deployment/schema identity, UTC-Z time,
-relative locators, sizes and digests; SQLite integrity/FK/schema validation and
-publication/Word authority checks are required before restore.
+第五阶段定义受控运维备份/恢复边界，但不增加公共备份或撤销删除 API。可恢复代次是经过静默和交叉核对的集合，包含 v11 SQLite 数据库、正式 RAR/Manifest/MD5 发布文件及持久权威、正式 Word 行/文件、已批准模板标识/版本和文件、自有工作资产、保留策略及审计事实。代次记录部署/模式标识、UTC-Z 时间、相对定位符、大小和摘要；恢复前必须执行 SQLite 完整性/外键/模式校验及发布/Word 权威检查。
 
-Restore is first performed in an isolated synthetic deployment with policy
-`disabled`; formal files are read by durable `publication_id` and
-`word_artifact_id`, and the derived Manifest index is rebuilt only from SQLite
-publication facts. Missing or mismatched groups, ownership uncertainty, FK
-errors, or a possible formal/source overwrite fail closed. Git/application
-rollback is not data rollback: a v10 application must reject a v11 database,
-and post-migration application rollback requires a matching v10 or v11 grouped
-backup rather than reverse SQL or manual deletion. The controlled rehearsal
-checklist is maintained in
+恢复首先在策略为 `disabled` 的隔离合成部署中执行；正式文件按持久 `publication_id` 和 `word_artifact_id` 读取，派生 Manifest 索引只根据 SQLite 发布事实重建。分组缺失或不匹配、所有权不确定、外键错误或可能覆盖正式文件/来源时安全失败。Git/应用回滚不是数据回滚：v10 应用必须拒绝 v11 数据库；迁移后的应用回滚要求匹配的 v10 或 v11 分组备份，而不是反向 SQL 或人工删除。受控演练清单维护于
 `[harness/retention-backup-recovery.md](../../harness/retention-backup-recovery.md)`.
 
-Existing v11 foundation fields are:
+现有 v11 基础字段如下：
 
 - `case_shells`: `deployment_instance_id`, `record_cleaned`,
-  `tombstone_revision`, `retention_state`, `cleanup_state`, nullable
+  `tombstone_revision`、`retention_state`、`cleanup_state`、可空
   `cleaned_at`, `last_meaningful_mutation_at`, `retention_anchor_utc`,
-  `safe_display_summary` and `cleanup_revision`; cleaned compaction clears
-  `case_number`, `source_id`, `parse_task_id` and `report_available` while
-  preserving the safe title/summary and durable formal rows.
-- `source_records`: `deployment_instance_id`, `tombstone_state`, nullable
-  `tombstoned_at` and `tombstone_revision`. Cleanup deletes rows without
-  formal references and compacts formally referenced rows to a minimum
-  tombstone while preserving the source identity required by publication FKs.
-- `task_records`: `deployment_instance_id`, nullable `publication_id`,
-  nullable `word_artifact_id` and nullable `formal_verified_at`.
-- `archive_publish_intents`: nullable `publication_verified_at`, which remains
-  part of the existing publication durable facts rather than a second
-  publication authority.
+  `safe_display_summary` 和 `cleanup_revision`；清理压缩会清除
+  `case_number`、`source_id`、`parse_task_id` 和 `report_available`，同时保留安全标题/摘要和持久正式行。
+- `source_records`：`deployment_instance_id`、`tombstone_state`、可空 `tombstoned_at` 和 `tombstone_revision`。清理删除没有正式引用的行，并将被正式引用的行压缩为最小墓碑，同时保留发布外键所需来源标识。
+- `task_records`：`deployment_instance_id`、可空 `publication_id`、可空 `word_artifact_id` 和可空 `formal_verified_at`。
+- `archive_publish_intents`：可空 `publication_verified_at`，它仍属于既有持久发布事实，而不是第二个发布权威。
 
-The new critical indexes include `source_deployment_state`,
+新的关键索引包括 `source_deployment_state`、
 `archive_publication_verified`, `case_retention_case`,
 `cleanup_run_active_case`, `cleanup_run_recoverable`, `cleanup_run_lease`,
-`cleanup_run_deployment_scan`, `formal_word_case` and
-`formal_word_publication`. No new table uses `CURRENT_TIMESTAMP`,
-`datetime('now')` or another SQLite-local time expression.
+`cleanup_run_deployment_scan`、`formal_word_case` 和
+`formal_word_publication`。任何新表都不使用 `CURRENT_TIMESTAMP`、`datetime('now')` 或其他 SQLite 本地时间表达式。
 
-#### Phase 5 durable time contract
+#### 第五阶段持久时间合同
 
-New Phase 5 durable timestamps are written as timezone-aware UTC ISO 8601 with
-the canonical `Z` suffix. Aware timestamps with another offset are converted to
-UTC before writing; naive timestamps are rejected. This applies to new policy,
-retention record, cleanup run, Word artifact and `publication_verified_at`
-writes. Existing v10 timestamps remain readable and are not rewritten merely
-to change their textual offset. API timestamp fields retain timezone information
-and `Asia/Shanghai` is display-only; it never changes UTC comparison,
-retention calculation or CAS facts.
+第五阶段新增持久时间戳以带时区的 UTC ISO 8601 写入，并使用规范 `Z` 后缀。带其他偏移的感知时间戳在写入前转换为 UTC；拒绝无时区时间戳。这适用于新策略、保留记录、清理运行、Word 产物和 `publication_verified_at` 写入。既有 v10 时间戳仍可读取，不会仅为改变文本偏移而重写。API 时间戳字段保留时区信息；`Asia/Shanghai` 只用于显示，绝不改变 UTC 比较、保留计算或 CAS 事实。
 
-#### Not yet a living capability
+#### 尚未成为现行能力
 
-The active Phase 5 delta still defines future behavior that is not delivered by
-the current foundation and 3.1/3.2 services: public preview route/API/UI
-wiring, Coordinator and enforce execution, work-record/file cleanup, physical
-publication/Word file revalidation integration, formal Word file generation and
-download, cleaned-case routes, API/UI behavior, Windows deletion, E2E and
-manual acceptance. Those behaviors remain in the active change until their
-implementation and verification tasks complete.
+有效的第五阶段 delta 仍定义当前基础和 3.1/3.2 服务尚未交付的未来行为：公共预览路由/API/UI 接线、Coordinator 与 enforce 执行、工作记录/文件清理、物理发布/Word 文件复验集成、正式 Word 文件生成与下载、已清理案件路由、API/UI 行为、Windows 删除、E2E 和人工验收。在实现与验证任务完成前，这些行为继续保留在活跃变更中。
 
-Type index: type WorkbenchSchemaVersion, type WorkbenchApiVersion, type CaseLifecycle,
+类型索引：type WorkbenchSchemaVersion、type WorkbenchApiVersion、type CaseLifecycle、
 type TaskKind, type TaskStatus, type TaskStage, type ArchiveProgressKind,
 type ArchiveWorkerState, type ArchiveTaskAction, type ArchiveWorkflowStage,
 type ArchiveWorkflowMilestonePercent, type VolumeSlotStatus, type DiscMappingSource,

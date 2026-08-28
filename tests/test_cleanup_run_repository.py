@@ -1,4 +1,4 @@
-"""Synthetic T022 tests for durable cleanup run claims and recovery."""
+"""持久清理运行认领与恢复的合成数据 T022 测试。"""
 
 from __future__ import annotations
 

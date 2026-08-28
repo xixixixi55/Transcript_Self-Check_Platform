@@ -1,4 +1,4 @@
-"""Immutable template approval history and current-status lookup."""
+"""不可变模板批准历史和当前状态查询。"""
 
 from __future__ import annotations
 

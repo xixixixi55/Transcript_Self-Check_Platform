@@ -1,4 +1,4 @@
-"""Phase 1B service tests using synthetic sources and Legacy DTOs."""
+"""使用合成来源与旧版 DTO 的 Phase 1B 服务测试。"""
 
 from __future__ import annotations
 

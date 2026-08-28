@@ -1,6 +1,6 @@
 # Design: 三算法同链与最终副本哈希闭环
 
-## Context
+## 背景
 
 当前 `ArchivePart` 同时保存固定 `md5` 和案件业务 `hash_algorithm/hash_value`。MD5 案件复用一次计算，SHA-1/SHA-256 案件则先计算 MD5、再额外读取文件计算业务摘要。归档完成后的多个安全门仍固定读取 `md5`；统一导出又对 RAR 重新计算 MD5、复制文件，再由 HashMyFiles 计算业务算法，但 HashMyFiles 行结果没有与 Manifest 摘要比较。
 

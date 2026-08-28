@@ -1,7 +1,7 @@
-"""Unified export orchestration over a succeeded archive task.
+"""基于成功归档任务的统一导出编排。
 
-Kept separate from ArchiveTaskApiService to respect the per-file size limit
-while reusing its repositories (drafts, results, shells, tasks, database).
+为遵守单文件大小限制而与 ArchiveTaskApiService 分离，同时复用其仓储
+（草稿、结果、外壳、任务和数据库）。
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def validate_export_directory(
     *,
     protected_roots: tuple[str | Path, ...] | None = None,
 ) -> Path:
-    """Resolve an export directory without allowing writes into app-owned roots."""
+    """解析导出目录，不允许写入应用拥有的根目录。"""
     candidate = Path(export_path)
     try:
         resolved = candidate.resolve(strict=True)
@@ -65,7 +65,7 @@ def open_latest_export_directory(
     *,
     opener: DirectoryOpener | None = None,
 ) -> dict[str, Any]:
-    """Open only the latest successful export directory bound to ``case_id``."""
+    """仅打开绑定到 ``case_id`` 的最近成功导出目录。"""
     api.shells.get(case_id)
     record = api.export_directories.latest(case_id)
     if not record or not record["export_path"]:
@@ -102,12 +102,10 @@ def _open_windows_directory(path: Path) -> None:
 
 
 def resolve_case_word_manifest(api: Any, case_id: str) -> dict[str, Any] | None:
-    """Resolve the same verified, mapped manifest used by unified export.
+    """解析统一导出所用的同一份已验证、已映射 Manifest。
 
-    A case without a successful archive keeps the report-only compatibility
-    path. Once a successful archive exists, standalone Word export must use its
-    manifest and attachment plan instead of rendering a different attachment
-    layout from the legacy extract-list table.
+    没有成功归档的案件保留仅报告兼容路径。一旦存在成功归档，独立 Word 导出必须
+    使用其 Manifest 和附件计划，而不能根据旧版提取清单表渲染不同附件布局。
     """
     task = next(
         (item for item in api.tasks.get_history(case_id) if item["status"] == "succeeded"),
@@ -123,7 +121,7 @@ def resolve_case_word_manifest(api: Any, case_id: str) -> dict[str, Any] | None:
 def _bound_manifest_plan(
     api: Any, case_id: str, manifest: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Resolve only the plan identity persisted into this exact Manifest."""
+    """仅解析持久化到此精确 Manifest 中的计划标识。"""
     plan_id = str(manifest.get("plan_id") or "")
     if not plan_id:
         return None
@@ -143,7 +141,7 @@ def export_bundle(
     word_filename: str | None = None,
     template_context: dict[str, object],
 ) -> dict[str, Any]:
-    """Write latest Word + all RAR parts + verification PNG into export_path."""
+    """将最新 Word、所有 RAR 分卷和验证 PNG 写入 export_path。"""
     shell = api.shells.get(case_id)
     if shell["revision"] != expected_revision:
         raise WorkbenchPersistenceError("REVISION_CONFLICT")
@@ -198,7 +196,7 @@ def export_bundle(
 def _resolve_photo_paths(
     api: Any, case_id: str, draft: dict[str, Any] | None = None,
 ) -> list[Path]:
-    """Resolve only draft-bound image assets, preserving ``asset_refs`` order."""
+    """仅解析草稿绑定的图片资产，保留 ``asset_refs`` 顺序。"""
     draft = draft or api.drafts.get(case_id)
     bound_refs = [
         reference for reference in draft.get("asset_refs", [])

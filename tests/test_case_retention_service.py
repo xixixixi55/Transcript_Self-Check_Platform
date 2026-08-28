@@ -1,4 +1,4 @@
-"""Synthetic retention-service contract tests for task 3.1."""
+"""任务 3.1 的合成数据保留服务契约测试。"""
 
 from __future__ import annotations
 

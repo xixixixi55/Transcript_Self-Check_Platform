@@ -1,4 +1,4 @@
-// T004: Shared 层工具函数测试
+// T004：共享层工具函数测试
 import { describe, it, expect } from 'vitest'
 import {
   fromDateInputValue,

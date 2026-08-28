@@ -1,4 +1,4 @@
-"""Properties of the versioned DOCX package fingerprint and ZIP safety gate."""
+"""版本化 DOCX 包指纹与 ZIP 安全门控的属性测试。"""
 
 import os
 import sys

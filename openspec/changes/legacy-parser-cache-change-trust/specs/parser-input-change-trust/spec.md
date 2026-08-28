@@ -1,83 +1,83 @@
 ## ADDED Requirements
 
-### Requirement: Unified file-change trust state
+### Requirement: 统一文件变化信任状态
 
-The parser SHALL evaluate every dependency through one internal file-change trust contract. The contract MUST distinguish `trusted_unchanged`, `changed`, and `untrusted`; only `trusted_unchanged` permits reuse of a stored digest. The public API, user-facing errors, and logs MUST expose only opaque identifiers and reason codes, never absolute paths.
+Parser SHALL 通过同一内部文件变化信任合同评估每个依赖。合同 MUST 区分 `trusted_unchanged`、`changed` 和 `untrusted`；只有 `trusted_unchanged` 允许复用已存摘要。公共 API、用户可见错误和日志 MUST 只暴露不透明标识符和原因码，绝不暴露绝对路径。
 
-#### Scenario: Trusted NTFS file is reused without content reread
+#### Scenario: 受信任 NTFS 文件无需重读内容即可复用
 
-- **WHEN** the source is a supported local NTFS file, the current volume and Journal identity are valid, the file identity and per-file USN token equal the stored token, and the directory membership is unchanged
-- **THEN** the system reuses the stored digest without rereading that file's content
-- **AND** the parser cache may reuse the corresponding `InspectionReport`
+- **WHEN** 来源为受支持的本地 NTFS 文件，当前卷和 Journal 标识有效，文件标识及逐文件 USN 令牌等于已存令牌，且目录成员关系未变化
+- **THEN** 系统复用已存摘要而不重新读取该文件内容
+- **AND** Parser 缓存可以复用对应 `InspectionReport`
 
-#### Scenario: Same-stat content replacement is detected
+#### Scenario: 检测到统计信息相同的内容替换
 
-- **WHEN** a file is overwritten in place with different content while its path, size, stat timestamps, and file identity remain unchanged
-- **THEN** the current per-file change token MUST differ or the provider MUST return `untrusted`
-- **AND** the old digest and old `InspectionReport` MUST NOT be returned
+- **WHEN** 文件在原位置被不同内容覆盖，但路径、大小、stat 时间戳和文件标识保持不变
+- **THEN** 当前逐文件变化令牌 MUST 不同，或者提供方 MUST 返回 `untrusted`
+- **AND** MUST NOT 返回旧摘要和旧 `InspectionReport`
 
-#### Scenario: Unsupported or uncertain source uses safe fallback
+#### Scenario: 不受支持或不确定的来源使用安全回退
 
-- **WHEN** the source is non-NTFS, a network/mobile/cloud source, permission-restricted, missing, or the USN/API/Journal state cannot prove unchanged content
-- **THEN** the system MUST perform a complete content digest verification for the affected dependencies
-- **AND** a successful fallback MUST still allow normal parsing
-- **AND** a failed fallback MUST fail parsing rather than return the old cache
+- **WHEN** 来源不是 NTFS、属于网络/移动/云来源、受权限限制、缺失，或 USN/API/Journal 状态无法证明内容未变化
+- **THEN** 系统 MUST 对受影响依赖执行完整内容摘要验证
+- **AND** 回退成功时 MUST 仍允许正常解析
+- **AND** 回退失败时 MUST 使解析失败，而不是返回旧缓存
 
-### Requirement: Directory membership trust
+### Requirement: 目录成员关系信任
 
-The system SHALL validate the sorted relative-path and entry-type membership of every candidate directory and selected dependency set. A membership change MUST invalidate the parser cache without requiring a full content read of unrelated files.
+系统 SHALL 校验每个候选目录和选定依赖集按序排列的相对路径及条目类型成员关系。成员关系变化 MUST 使 Parser 缓存失效，而无需完整读取无关文件内容。
 
-#### Scenario: Dependency file is added or removed
+#### Scenario: 增加或删除依赖文件
 
-- **WHEN** a selected dependency is added, deleted, or becomes unreadable
-- **THEN** the cached input MUST be marked changed or untrusted
-- **AND** the old parse result MUST NOT be returned
+- **WHEN** 选定依赖被增加、删除或变为不可读
+- **THEN** 缓存输入 MUST 标为已变化或不受信任
+- **AND** MUST NOT 返回旧解析结果
 
-#### Scenario: Dependency file is atomically replaced or recreated
+#### Scenario: 依赖文件被原子替换或重新创建
 
-- **WHEN** a selected path is replaced by another file or deleted and recreated
-- **THEN** the system MUST compare file identity and change token
-- **AND** it MUST invalidate or safely revalidate the cache before parsing
+- **WHEN** 选定路径被另一个文件替换，或删除后重新创建
+- **THEN** 系统 MUST 比较文件标识和变化令牌
+- **AND** 解析前 MUST 使缓存失效或安全地重新验证缓存
 
-### Requirement: Read consistency and TOCTOU handling
+### Requirement: 读取一致性和 TOCTOU 处理
 
-The system SHALL verify file state before and after content reads. It MUST NOT publish a digest, cache record, or parse result when the file identity, size, or change token differs across the read.
+系统 SHALL 在读取内容前后校验文件状态。如果读取前后文件标识、大小或变化令牌不同，MUST NOT 发布摘要、缓存记录或解析结果。
 
-#### Scenario: File changes during content verification
+#### Scenario: 内容验证期间文件变化
 
-- **WHEN** a dependency changes while its bytes are being read
-- **THEN** the system MUST discard the candidate digest and cached result
-- **AND** it MUST return an input-changed or equivalent retryable parse failure
-- **AND** it MUST NOT use sleep, random retry, or a stale result to hide the race
+- **WHEN** 读取依赖字节期间该依赖发生变化
+- **THEN** 系统 MUST 丢弃候选摘要和缓存结果
+- **AND** MUST 返回输入已变化或等价的可重试解析失败
+- **AND** MUST NOT 使用休眠、随机重试或过时结果掩盖竞争
 
-#### Scenario: Verification state cannot be confirmed before reuse
+#### Scenario: 复用前无法确认验证状态
 
-- **WHEN** the provider cannot complete the final token confirmation before a cache hit is returned
-- **THEN** the system MUST use complete content verification instead of returning the cached result
+- **WHEN** 提供方无法在返回缓存命中前完成最终令牌确认
+- **THEN** 系统 MUST 使用完整内容验证，而不是返回缓存结果
 
-### Requirement: Process and restart trust boundaries
+### Requirement: 进程和重启信任边界
 
-The system SHALL distinguish process-local digest memoization from disk-persisted parsed results. Process-local tokens MUST NOT be assumed after restart. A disk cache record without the current input-trust schema MUST require complete content verification before reuse.
+系统 SHALL 区分进程本地摘要记忆与磁盘持久化解析结果。重启后 MUST NOT 假定进程本地令牌仍有效。缺少当前输入信任模式的磁盘缓存记录在复用前 MUST 要求完整内容验证。
 
-#### Scenario: Service restarts before a cache hit
+#### Scenario: 缓存命中前服务重启
 
-- **WHEN** the service restarts and a disk parser cache record exists without a verifiable current-process token
-- **THEN** the first reuse attempt MUST perform complete content verification
-- **AND** only a successful verification may establish new process-local trust
+- **WHEN** 服务重启，且磁盘 Parser 缓存记录没有可验证的当前进程令牌
+- **THEN** 首次复用尝试 MUST 执行完整内容验证
+- **AND** 只有验证成功后才能建立新的进程本地信任
 
-#### Scenario: Legacy cache record is migrated
+#### Scenario: 迁移 Legacy 缓存记录
 
-- **WHEN** a syntactically valid old cache record lacks `input_trust_schema`
-- **THEN** the system MUST verify all required input content before reuse
-- **AND** it MAY rewrite the record with the current schema after successful verification
-- **AND** a malformed or invalid record MUST be treated as a cache miss
+- **WHEN** 语法有效的旧缓存记录缺少 `input_trust_schema`
+- **THEN** 系统在复用前 MUST 验证全部必需输入内容
+- **AND** 验证成功后 MAY 使用当前模式重写记录
+- **AND** 格式错误或无效的记录 MUST 视为缓存未命中
 
-### Requirement: Packaged Windows behavior
+### Requirement: 打包后的 Windows 行为
 
-The change-token adapter SHALL be lazily loaded in the backend and SHALL not require the customer to install an additional system component. The final packaged executable MUST preserve safe fallback behavior when Win32 calls fail.
+变化令牌适配器 SHALL 在后端延迟加载，且 SHALL 不要求客户安装额外系统组件。Win32 调用失败时，最终打包可执行文件 MUST 保留安全回退行为。
 
-#### Scenario: Packaged executable cannot access USN
+#### Scenario: 打包可执行文件无法访问 USN
 
-- **WHEN** the packaged executable runs under a supported account but the USN call returns an access or API error
-- **THEN** the parser MUST continue using complete content verification
-- **AND** diagnostics MUST use an opaque reason code without exposing the source path
+- **WHEN** 打包可执行文件以受支持账户运行，但 USN 调用返回访问或 API 错误
+- **THEN** Parser MUST 继续使用完整内容验证
+- **AND** 诊断 MUST 使用不透明原因码，不暴露来源路径

@@ -4,7 +4,7 @@ workflow_level: 2
 spec_sync_status: reconciled
 spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 共享默认值展示与保存状态; REQ-027 模板选择器
 
-> Spec: `openspec/changes/remove-audit-edit-template-and-defaults-display/specs/electronic-inspection-record/spec.md`
+> 规格：`openspec/changes/remove-audit-edit-template-and-defaults-display/specs/electronic-inspection-record/spec.md`
 > 范围：删除审核编辑界面（案件审核编辑页）的“案件 Word 模板”展示块与“共享默认值设置/保存状态”展示；**只移除前端展示，不改变共享默认值与模板后台功能**。
 
 ## 级别与范围
@@ -54,7 +54,7 @@ spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 
 
 ## 任务列表
 
-### Layer 11 FE_Components
+### Layer 11 前端组件
 
 - [x] 修改 `packages/frontend/src/components/RecordEditorForm.tsx`：删除 workbenchMode 的“共享默认值设置”信息块与“案件草稿/共享默认值”保存状态行、非 workbench 的“常用字段默认设置”块，以及“请谨慎修改文号；每次导出均会询问本次 Word 下载文件名。”警告；移除不再使用的 `draftSaveStatus`/`sharedDefaultsSaveStatus` props；保留 `defaultDiscPrefix`（附件区光盘编号字段仍使用）。
   - 验证：`pnpm --filter @biji/frontend exec vitest run src/components/RecordEditorForm.test.tsx` + typecheck。
@@ -63,7 +63,7 @@ spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-007 
 - [x] 更新 `packages/frontend/src/components/RecordEditorForm.test.tsx`：移除对“每次导出均会询问本次 Word 下载文件名”“保存范围：...”“只更新本轮明确修改的共享默认值”的断言；保留审核编辑区域、附件编辑器与数据摘要用例。
   - 验证：`pnpm --filter @biji/frontend exec vitest run src/components/RecordEditorForm.test.tsx`。
 
-### Layer 12 FE_Pages
+### Layer 12 前端页面
 
 - [x] 修改 `packages/frontend/src/pages/CaseRecordGeneratePage.tsx`：删除 `<TemplateSelector>` 展示块与 `useTemplateRegistry` 导入/接线（含 `templateRegistry` 相关 state）；删除 `<CaseSaveStatusPanel>` 展示与不再使用的 `loadServer`/`session.retrySave`/`sharedDefaultsSaveState`/`autosave.sharedState` 引用，以及传给 `RecordEditorForm` 的保存状态 props；保留导出询问文件名、模板引用导出校验与归档决策行为。
   - 验证：`pnpm --filter @biji/frontend exec vitest run src/pages/CaseRecordGeneratePage.test.tsx` + typecheck。

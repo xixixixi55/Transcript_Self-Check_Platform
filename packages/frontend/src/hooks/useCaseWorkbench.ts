@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — persistent case list/detail requests with stale-response guards.
+// 第 10 层：FE_Hooks — 带过期响应保护的持久化案件列表/详情请求。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'

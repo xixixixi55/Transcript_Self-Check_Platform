@@ -1,4 +1,4 @@
-# Phase 5 v11 备份、恢复与应用回滚边界
+# 阶段 5 v11 备份、恢复与应用回滚边界
 
 > 本文是 Phase 5 的受控运维演练计划，不新增公共备份、恢复、undelete 或
 > 正式产物删除 API。所有演练输入必须是 `SYNTHETIC/TEST/FIXTURE`，不得把
@@ -60,7 +60,7 @@
    保持原始相对层级；恢复路径必须是新的受控根，不能指向原始来源目录、正式
    output root 或共享父目录。
 3. 用 v11 应用只读打开恢复集合，确认 `PRAGMA foreign_keys=ON`、
-   `integrity_check`、`foreign_key_check`、schema validation、deployment owner、
+   `integrity_check`、`foreign_key_check`、模式验证、部署所有者、
    publication/Word identity 和文件摘要均通过。
 4. 从 SQLite durable publication facts 重建或验证 derived Manifest index；读取
    RAR、Manifest、MD5、Word 时必须分别经过 publication/Word authority 和摘要

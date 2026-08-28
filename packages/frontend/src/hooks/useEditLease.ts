@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — one active editor lease with explicit takeover.
+// 第 10 层：FE_Hooks — 单个活动编辑器租约，支持显式接管。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, EDIT_LEASE_HEARTBEAT_SECONDS } from '@biji/shared/constants'
@@ -58,7 +58,7 @@ export function useEditLease({ caseId, identity, enabled, onLeaseLost }: Options
         lease_token: value.lease_token, expected_revision: value.revision,
       })
     } catch {
-      // Losing the page must at least stop renewal; the backend expiry remains authoritative.
+      // 页面丢失时至少必须停止续租；到期时间仍以后端为准。
     }
   }, [])
 

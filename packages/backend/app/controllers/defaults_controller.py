@@ -1,4 +1,4 @@
-"""Layer 22: shared-defaults DTO mapping."""
+"""第 22 层：共享默认值 DTO 映射。"""
 
 from __future__ import annotations
 

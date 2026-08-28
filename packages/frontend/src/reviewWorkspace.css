@@ -1207,7 +1207,7 @@
   }
 }
 
-/* Guided review shell: history sits above the current task in one conversation scroll track. */
+/* 引导式审核外壳：历史记录位于当前任务上方，共用一条对话滚动轨道。 */
 .review-page--guided {
   width: 100%;
   height: 100%;

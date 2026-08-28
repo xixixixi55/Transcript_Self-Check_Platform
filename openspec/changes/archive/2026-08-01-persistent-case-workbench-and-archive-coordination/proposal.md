@@ -1,13 +1,13 @@
 # Proposal: 持久化案件工作台与归档任务协调
 
 > 变更包：`persistent-case-workbench-and-archive-coordination`
-> 状态：Phase 1–4 已完成；完整 Harness 和最终集成人工验收已通过；`1D-017R` 已于 2026-08-01 通过。Final Review 曾因四项有限问题判定为 `REJECT`，remediation 后于 2026-08-01 重新执行并判定为 `PASS`。Production Review 已按现有 Legacy-only、单 Windows 实例支持模型于 2026-08-01 判定为 `PASS`；当前已具备归档准备条件，现有 gate 的 `OpenSpec 归档阻断解除` 已记录为解除。Phase 5 和 OpenSpec archive 尚未开始，不得据此宣称已执行归档。部署、恢复、容量边界和风险接受详见同变更包 `design.md` 与 `tasks.md`。
+> 状态：Phase 1–4 已完成；完整 Harness 和最终集成人工验收已通过；`1D-017R` 已于 2026-08-01 通过。最终 Review 曾因四项有限问题判定为 `REJECT`，修复后于 2026-08-01 重新执行并判定为 `PASS`。生产 Review 已按现有 Legacy-only、单 Windows 实例支持模型于 2026-08-01 判定为 `PASS`；当前已具备归档准备条件，现有门控的 `OpenSpec 归档阻断解除` 已记录为解除。Phase 5 和 OpenSpec 归档尚未开始，不得据此宣称已执行归档。部署、恢复、容量边界和风险接受详见同变更包 `design.md` 与 `tasks.md`。
 > 日期：2026-07-26
 > 级别：Level 3
 
 ## 2026-07-31 独立 Review 加固范围与根因记录
 
-本轮只处理 `1D-017R` 独立 Level 3 Review 的 M-1 至 M-4 与关联低风险项 L-1；不重新执行 `1D-017R`，也不开始 Phase 5、Final Review、Production Review 或 OpenSpec archive。以下记录基于 Review 指向的实际调用链：
+本轮只处理 `1D-017R` 独立 Level 3 Review 的 M-1 至 M-4 与关联低风险项 L-1；不重新执行 `1D-017R`，也不开始 Phase 5、最终 Review、生产 Review 或 OpenSpec 归档。以下记录基于 Review 指向的实际调用链：
 
 | 项 | 当前状态转换/持久化顺序 | 身份、并发或外部变化窗口 | 失败后 durable/file 状态及影响 | 可复现故障模型 |
 |---|---|---|---|---|
@@ -19,11 +19,11 @@
 
 选定合同：发布 intent 的身份必须使用现有 Spec/数据模型中的完整不可变集合（case、attempt、source、source/draft revision、report fingerprint、source/input/archive fingerprint、Manifest/public Manifest、正式相对目录、context binding 与 fence），缺失或不一致一律 conflict，只有完整合法相同才幂等重入。shutdown 只收敛本实例且仍满足 owner、attempt、lease/revision/fence 的 claim；未完成只能进入现有 interrupted/可恢复状态，已经 durable verified 的状态不得降级。源材料在开始、执行完成后和正式发布前使用稳定字节证据复核；正式发布、索引和完成确认重新核对同一 intent、Manifest、文件集合、顺序、字节数和摘要。marker 仅在 durable intent/fence 已建立且正式移动完成后由明确发布所有者删除一次，恢复沿同一边界处理。
 
-## Why
+## 原因
 
-## 2026-08-01 第二轮独立 Review remediation
+## 2026-08-01 第二轮独立 Review 修复
 
-本轮独立 Level 3 Review 已确认上一轮 M-1 至 M-4 为阻断项，当前只实施这些阻断项及关联 L-1，不重新执行 `1D-017R`，不开始 Final Review、Production Review、Phase 5 或 OpenSpec archive。修复前置安全模型如下：外部来源目录只负责形成一次受授权的输入，任务在 WinRAR 前复制、逐文件验证并 durable seal 一个 task/attempt/deployment 绑定的不可变执行输入快照；WinRAR、inventory、RAR 和 Manifest 只读取该 sealed 快照。
+本轮独立 Level 3 Review 已确认上一轮 M-1 至 M-4 为阻断项，当前只实施这些阻断项及关联 L-1，不重新执行 `1D-017R`，不开始最终 Review、生产 Review、Phase 5 或 OpenSpec 归档。修复前置安全模型如下：外部来源目录只负责形成一次受授权的输入，任务在 WinRAR 前复制、逐文件验证并持久密封一个与任务/尝试/部署绑定的不可变执行输入快照；WinRAR、清单、RAR 和 Manifest 只读取该密封快照。
 
 正式发布使用任务绑定的 `publication_id` generation。SQLite 的 publish intent/fence/publication 记录是唯一 durable 事实源；正式目录通过同文件系统原子改名进入受保护 generation，JSON Manifest index 只是可重建投影。只有 sealed generation、完整 Manifest/index 投影、owner/fence 和当前 revision 在同一完成事务中一致时，attempt 与 task 才能进入 succeeded。旧的缺 task identity 或缺 publication identity 记录不自动补认，按冲突/恢复策略处理。
 
@@ -33,9 +33,9 @@
 
 甲方已经确认本轮需要把这些能力统一到多案件工作台中，同时继续保持最近完成的大型报告快速预览和“用户明确操作后才启动完整归档”的边界。若分别为排序、默认值、任务进度和模板选择增加局部状态，容易再次出现刷新丢失、Word 顺序不一致、replan 覆盖人工编号和正式产物被错误清理等问题，因此本变更包把案件草稿、共享默认值、后台任务、来源状态、归档计划和模板引用定义为一套版本化合同。
 
-## What
+## 内容
 
-### Capabilities
+### 能力
 
 | 编号 | 能力 | 类型 | 目标 |
 |---|---|---|---|
@@ -50,7 +50,7 @@
 | CAP-TEMPLATE | 已审核预置模板注册和选择 | ADDED | 模板有独立 ID、版本、指纹、规则和验收记录；切换模板不重新压缩，仅使旧 Word 结果失效 |
 | CAP-CLEANUP | 案件记录与正式产物独立清理 | ADDED | 成功导出案件记录默认保留 30 天；RAR、Manifest、Word 不因案件记录清理而自动删除 |
 
-### Phase 1C product convergence
+### 阶段 1C 产品收敛
 
 案件工作台是唯一主生产入口，是支持多案件、持久化和恢复的“生成笔录”，不是旧生成页面的
 简化替代品。案件详情复用 Legacy 的正式字段配置、InspectionReport 适配、校验、日期时间、
@@ -63,11 +63,11 @@
 CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩或稍后压缩。工作台预览不会自动
 启动归档。仅调用既有 `/records/*` 的兼容客户端继续遵循其 Legacy 请求/响应合同。
 
-### Persistent case image assets
+### 持久化案件图片资产
 
 工作台图片必须作为案件绑定的持久化资产处理：受控应用数据目录保存二进制，SQLite 只保存 opaque `asset_id`、SHA-256 指纹和安全元数据。上传接口仅接受 JPG/JPEG/PNG，并校验签名、扩展名、大小、案件数量和总容量；临时文件原子改名后才创建资产引用。草稿引用变化必须经过有效编辑租约和 revision 自动保存，替换失败保留旧引用，删除引用后清理不再使用的资产。图片恢复、预览和 Word 导出均通过案件资产接口读取，不依赖浏览器 `File` 对象；公共 DTO、日志和错误不得包含服务器绝对路径。
 
-## Scope
+## 范围
 
 - 新增一个部署实例级的案件元数据、来源记录和任务持久化边界，推荐使用 SQLite 保存业务 DTO、关系元数据和 opaque asset 引用，文件系统继续保存来源快照、缓存、临时文件和正式产物。SQLite 不保存 Base64 图片、完整 HTML、原始 JSON 集合或其他大对象。
 - 增加 `SourceRecord`（或等价内部模型），记录 opaque 来源 ID、后端内部路径及允许根授权、来源类型、案件/任务绑定、metadata/fingerprint 和重启后的访问复核结果；API、日志和前端不得暴露绝对路径。
@@ -77,7 +77,7 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 - 把完整 inventory、路径/链接/文件变化校验、WinRAR、完整性校验、MD5、Manifest 和 Word 安全门控置于后台任务恢复模型中，不能因为异步化而降级。
 - 建立已审核预置模板的注册、版本锁定、校验和复现边界；不允许任意未知 DOCX 上传。
 
-## Non-Goals
+## 非目标
 
 - 不启动或恢复 Shadow 真实样本差异治理；Shadow 仍保持暂停，不能成为本变更的验收依据或正式输出路径。
 - 不进入 Canonical 开发、Canonical 预览、编辑门控、候选输出或正式切换。
@@ -89,7 +89,7 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 - 不把浏览器 `localStorage` 默认值作为案件或共享默认值事实源；共享默认值只能通过后端
   `/workbench/defaults` 持久化并显示独立保存结果。
 
-## Invariants
+## 不变量
 
 1. Legacy 是唯一正式生产输出链路；`InspectionReport` 是案件草稿的报告主体，禁止以 Canonical 替代它。
 2. 正式归档必须由用户明确触发或确认“立即开始”，最终以验证后的 Manifest 为唯一正式依据。
@@ -99,7 +99,7 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 6. 案件记录、运行任务、临时文件和正式产物拥有独立生命周期与清理策略。
 7. 无登录环境中的接管、默认值迁移和共享默认值修改只能记录 client instance ID、session ID、可选本地显示名称、部署实例和时间，不得表述为认证人员身份。
 
-## Five implementation phases
+## 五个实施阶段
 
 1. **案件草稿、共享默认值、任务和工作台基础**：建立持久化合同、案件壳、解析任务、案件卡片、自动保存、恢复、租约、删除前置条件和任务状态壳；内部再经过 1A（SharedTypes/schema/repositories）、1B（services/API）、1C（工作台/自动保存/租约）、1D（刷新重启恢复/兼容回归/人工验收）四道小门控，先不改变正式归档安全门控。
 2. **审核顺序、人员卡片、字段来源和导出命名**：实现检材/人员稳定顺序、来源状态、默认值来源标识和逐次 Word 下载名称；顺序统一投影到 Legacy 正文与附件。
@@ -116,7 +116,7 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 
 仓库中已有的其他活跃变更包不在本轮自动删除、归档或降级。本包进入实施前，必须逐项标记与这些变更的关系（依赖、替代、暂停或无关），不得把已有 Canonical 任务或 Shadow 真实样本任务隐式带入本包。
 
-## Impact
+## 影响
 
 本变更跨越所有业务层；本轮 Windows 兼容修复只影响后端 Layer 21 资源采样/准入和合成测试，不改变公共 HTTP DTO、Legacy 正式输出门控或 Scheduler/Worker 的第二套实现。
 
@@ -135,7 +135,7 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 
 跨边界通信只通过 Layer 0 共享的 API 合同和 HTTP 调用；前端不得访问 SQLite、应用数据目录或人员库文件，后端不得依赖前端排序或 localStorage 作为正式输入。
 
-## Acceptance overview
+## 验收概览
 
 - 用户登记并验证授权报告目录后立即出现排队/解析中案件壳卡片；解析成功才写入完整 Legacy `InspectionReport`，解析失败保留失败任务卡片但不可审核、归档或导出。
 - 解析成功后必须询问“立即开始压缩”或“稍后压缩”；稍后压缩持久化为 `archive_deferred`，立即压缩进入现有受控 Legacy/Archive Runtime 入口，只报告真实 `workflow_milestone`，不伪造 WinRAR 内部连续进度。
@@ -152,14 +152,14 @@ CaseDraft；用户完成审核和草稿保存后，再显式选择立即压缩�
 - 模板切换不触发压缩或 Manifest 重建，只使旧 Word 结果失效；再次导出重新校验并使用案件锁定的模板版本。
 - Legacy 正式输出、完整归档门控、Manifest 校验、Word 安全门控和现有输出管理回归通过。
 
-## Risks and mitigations
+## 风险与缓解措施
 
 主要风险是从内存状态迁移到持久化状态时出现案件/共享默认值双写不一致、来源授权失效、旧草稿版本不兼容、重启后误接管 WinRAR、replan 错配人工编号、里程碑早于真实门控推进和清理误删正式产物。设计通过分别返回草稿/共享默认值结果、SourceRecord 复核、版本化迁移、任务 interrupted 状态与自有进程树回收、稳定槽位 ID、固定阶段转换、WinRAR pipe/ConPTY 失败证据、独立正式产物索引和删除白名单降低风险；具体决策见 `design.md`，实施顺序和验证证据见 `tasks.md`。
 
-## 2026-08-01 OpenSpec archive-readiness reconciliation
+## 2026-08-01 OpenSpec 归档就绪核对
 
-本轮仅收敛归档前文档状态，不执行 `openspec archive`。原有 30 个未勾选项已逐项分类：15 项甲方 Demo 清单由既有最终集成人工验收证据完成记录；T020–T025 及 Phase 5 gate 明确转为 `DEFERRED` follow-up，保留编号、目的和后续治理依赖，不代表已实现。
+本轮仅收敛归档前文档状态，不执行 `openspec archive`。原有 30 个未勾选项已逐项分类：15 项甲方演示清单由既有最终集成人工验收证据完成记录；T020–T025 及阶段 5 门控明确转为 `DEFERRED` 后续项，保留编号、目的和后续治理依赖，不代表已实现。
 
-当前 delta 的 25 个 requirement block 已按 OpenSpec 合并语义处理：REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束吸收重叠合同；新增 workbench、SourceRecord、Phase 1D recovery、Review consistency、ordering、runtime milestone、WinRAR 进度决策、template、audit、完整工作台及四个 `REQ-ARCHIVE-*` 进入 living spec；SQLite DTO/opaque asset 边界已由 living data model 覆盖；案件清理/保留期 block 因属于未开始的 Phase 5 follow-up，保留在 active delta 和 deferred 记录中，不提升为当前生产能力。
+当前增量的 25 个需求块已按 OpenSpec 合并语义处理：REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束吸收重叠合同；新增工作台、SourceRecord、阶段 1D 恢复、审查一致性、排序、运行时里程碑、WinRAR 进度决策、模板、审计、完整工作台及四个 `REQ-ARCHIVE-*` 进入现行规格；SQLite DTO/不透明资产边界已由现行数据模型覆盖；案件清理/保留期块因属于未开始的阶段 5 后续项，保留在活跃增量和延期记录中，不提升为当前生产能力。
 
-Phase 1–4、最终集成人工验收、`1D-017R`、Final Review 和 Production Review 结论不变；当前 archive-readiness reconciliation 已完成，Phase 5 尚未开始，OpenSpec archive 尚未执行，等待下一轮单独授权。
+Phase 1–4、最终集成人工验收、`1D-017R`、最终 Review 和生产 Review 结论不变；当前归档就绪核对已完成，Phase 5 尚未开始，OpenSpec 归档尚未执行，等待下一轮单独授权。

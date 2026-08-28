@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — preview-stage archive lifecycle.
+// 第 10 层：FE_Hooks — 预览阶段的归档生命周期。
 import {
   useCallback, useEffect, useRef, useState,
   type Dispatch, type SetStateAction,
@@ -110,7 +110,7 @@ export function useArchivePreparation(): ArchivePreparation {
         const next = lifecycleStatus(response.data?.data?.status)
         if (isCurrent() && next) setStatus(next === 'completed' ? 'ready' : next)
       } catch {
-        // The executing request owns the final stable error.
+        // 正在执行的请求负责记录最终的稳定错误。
       }
     }, 500)
     pollRef.current = poll

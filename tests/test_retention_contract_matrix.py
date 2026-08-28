@@ -1,4 +1,4 @@
-"""Synthetic contract matrix for retention authority and time safety."""
+"""保留权威来源与时间安全的合成数据契约矩阵。"""
 
 from __future__ import annotations
 

@@ -109,23 +109,23 @@ export interface SharedDefaults {
   deployment_instance_id: string
   revision: number
   entrust_unit_prefix: string
-  /** Legacy complete-value default retained for persisted deployment compatibility. */
+  /** 为兼容持久化部署而保留的旧版完整值默认项。 */
   document_number: string
-  /** Format snapshotted into later new cases; the sequence remains case-scoped. */
+  /** 快照到后续新案件中的格式；序号仍限定在案件范围内。 */
   document_number_template?: DocumentNumberTemplate
   inspection_place: string
   inspection_method: string
   hardware_device: string
   inspector_order: string[]
-  /** Defaults for later new cases; legacy deployments may omit it. */
+  /** 后续新案件的默认值；旧版部署可能省略。 */
   inspection_requirement?: string
-  /** Retained only for persisted deployment compatibility; the settings page no longer edits it. */
+  /** 仅为兼容持久化部署而保留；设置页面不再编辑。 */
   extraction_method?: string
-  /** Defaults for later new cases; legacy deployments may omit it. */
+  /** 后续新案件的默认值；旧版部署可能省略。 */
   data_summary?: string
-  /** Retained in the API for legacy migration compatibility; the settings page no longer edits it. */
+  /** 为兼容旧版迁移而保留在 API 中；设置页面不再编辑。 */
   disc_number_prefix: string
-  /** Defaults to MD5 when omitted by a legacy deployment. */
+  /** 旧版部署省略时默认为 MD5。 */
   hash_algorithm?: HashAlgorithm
   default_template_ref?: TemplateVersionRef | null
   migration_decision: 'pending' | 'imported' | 'ignored'

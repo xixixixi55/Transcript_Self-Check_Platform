@@ -1,4 +1,4 @@
-"""Layer 22: safe lifecycle controls for server-side caches."""
+"""第 22 层：服务器端缓存的安全生命周期控制。"""
 
 import os
 
@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.delete("/cache/report-parsing")
 async def clear_report_parsing_cache_endpoint():
-    """Clear only the configured report parsing cache; no client path is accepted."""
+    """仅清除已配置的报告解析缓存；不接受客户端路径。"""
     try:
         cleared_count = await run_in_threadpool(
             clear_report_parsing_cache, os.path.join(OUTPUT_BASE, "parsed"),

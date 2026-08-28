@@ -1,4 +1,4 @@
-"""Layer 22: HTTP management endpoints for the local inspector library."""
+"""第 22 层：本地检查人员库的 HTTP 管理端点。"""
 
 from __future__ import annotations
 

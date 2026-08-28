@@ -1,4 +1,4 @@
-// Layer 12: FE_Pages — 笔录模版管理页面。
+// 第 12 层：FE_Pages — 笔录模版管理页面。
 import { FileTextOutlined } from '@ant-design/icons'
 import { Typography } from 'antd'
 import TemplateManager from '../components/TemplateManager'

@@ -2,12 +2,12 @@
 
 workflow_level: 3
 
-> Spec: `openspec/changes/audit-edit-enhancement/specs/electronic-inspection-record/spec.md`
+> 规格：`openspec/changes/audit-edit-enhancement/specs/electronic-inspection-record/spec.md`
 > 按架构层级从低到高排列（Layer 2、10 → 12、21）；包含审核编辑增强与既有解析/导出缺陷修复。
 
 ---
 
-## 🔴 Phase 1: Frontend Hooks 层（Layer 10）
+## 🔴 阶段 1：前端 Hooks 层（第 10 层）
 
 - [x] T001 **新增 useEditableState Hook**
   - 文件：`packages/frontend/src/hooks/useEditableState.ts`（新建）
@@ -31,12 +31,12 @@ workflow_level: 3
 
 ---
 
-## 🟣 Phase 2: Frontend Components 层（Layer 11）
+## 🟣 阶段 2：前端组件层（第 11 层）
 
 - [x] T003 **新增 EditableField 组件**
   - 文件：`packages/frontend/src/components/EditableField.tsx`（新建）
   - 内容：
-    - Props: `type: 'text' | 'textarea' | 'select'`, `value: string`, `onChange: (val: string) => void`, `options?: {label, value}[]`, `placeholder?: string`
+    - 属性：`type: 'text' | 'textarea' | 'select'`, `value: string`, `onChange: (val: string) => void`, `options?: {label, value}[]`, `placeholder?: string`
     - 默认模式：纯文本 `<Text>` 展示，空值时显示占位符"点击编辑"
     - 点击切换为 `<Input>` / `<TextArea>` / `<Select>`（根据 type）
     - 失焦或 Enter → 保存，Escape → 取消
@@ -59,7 +59,7 @@ workflow_level: 3
 - [x] T005 **新增 ProcessStepsEditor 组件**
   - 文件：`packages/frontend/src/components/ProcessStepsEditor.tsx`（新建）
   - 内容：
-    - Props: `steps: ProcessStep[]`, `onChange: (steps: ProcessStep[]) => void`
+    - 属性：`steps: ProcessStep[]`, `onChange: (steps: ProcessStep[]) => void`
     - 展示 4 个步骤，步骤号固定不可编辑，内容用 EditableField 渲染
     - 简洁排版，每个步骤一行（步骤号 + 内容）
   - 覆盖 Spec：REQ-017
@@ -68,7 +68,7 @@ workflow_level: 3
 - [x] T006 **新增 SoftwareToolsList 组件**
   - 文件：`packages/frontend/src/components/SoftwareToolsList.tsx`（新建）
   - 内容：
-    - Props: `tools: SoftwareItem[]`, `onChange: (tools: SoftwareItem[]) => void`
+    - 属性：`tools: SoftwareItem[]`, `onChange: (tools: SoftwareItem[]) => void`
     - 列表展示，每个工具的版本号用 EditableField 渲染
     - 工具名称固定不可修改
   - 覆盖 Spec：REQ-017
@@ -77,7 +77,7 @@ workflow_level: 3
 - [x] T007 **新增 ExtractListEditor 组件**
   - 文件：`packages/frontend/src/components/ExtractListEditor.tsx`（新建）
   - 内容：
-    - Props: `tableData: TableData`, `onChange: (data: TableData) => void`
+    - 属性：`tableData: TableData`, `onChange: (data: TableData) => void`
     - 使用 Ant Design Table 组件，列可编辑，行可增删
     - 默认空表格（columns/rows 为空时展示占位提示）
   - 覆盖 Spec：REQ-017
@@ -85,7 +85,7 @@ workflow_level: 3
 
 ---
 
-## 🔵 Phase 3: Frontend Pages 层（Layer 12）
+## 🔵 阶段 3：前端页面层（第 12 层）
 
 - [x] T008 **修改 RecordGeneratePage — 补齐字段**
   - 文件：`packages/frontend/src/pages/RecordGeneratePage.tsx`（修改）
@@ -140,7 +140,7 @@ workflow_level: 3
 
 ## 🟠 Phase 4: 审查整改
 
-- [x] T011 **结构化编辑器统一 click-to-edit 交互**
+- [x] T011 **结构化编辑器统一点击编辑交互**
   - 文件：`packages/frontend/src/components/EvidenceEditor.tsx`、`InspectorEditor.tsx`、`ExtractListEditor.tsx`
   - 内容：将检材、人员和提取清单的文本编辑入口改为复用 `EditableField`，保持添加、删除和数据回调行为不变。
   - 覆盖 Spec：REQ-007、REQ-017、REQ-019

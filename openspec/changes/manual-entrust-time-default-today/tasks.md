@@ -1,8 +1,8 @@
 workflow_level: 2
 spec_sync_status: reconciled
-spec_sync_evidence: 2026-08-24 feedback delta synced to openspec/specs/electronic-inspection-record/spec.md REQ-002 after implementation reconciliation
+spec_sync_evidence: 2026-08-24 反馈差异在实现核对后已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-002
 
-# Tasks
+# 任务
 
 - [x] T001 停止从报告创建时间推导委托时间。
   - 文件：`packages/backend/app/services/report_parser_service.py`、`packages/backend/app/repository/html_parser.py`

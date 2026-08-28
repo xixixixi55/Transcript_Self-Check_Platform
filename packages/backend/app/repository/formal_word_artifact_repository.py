@@ -1,4 +1,4 @@
-"""Durable Word artifact identity and safe projection foundation."""
+"""持久 Word 工件标识和安全投影基础。"""
 
 from __future__ import annotations
 

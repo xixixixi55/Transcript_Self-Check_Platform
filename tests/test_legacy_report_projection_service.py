@@ -1,4 +1,4 @@
-"""SYNTHETIC T010 coverage for the single saved-order Legacy projection."""
+"""单一保存顺序旧版投影的 SYNTHETIC T010 覆盖测试。"""
 
 import os
 import sys

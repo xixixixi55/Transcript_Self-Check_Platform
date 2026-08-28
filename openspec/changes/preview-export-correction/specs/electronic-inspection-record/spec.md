@@ -1,4 +1,4 @@
-# Spec Delta：预览字段映射与 Word 导出修复
+# 规格增量：预览字段映射与 Word 导出修复
 
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 

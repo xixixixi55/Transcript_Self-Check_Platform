@@ -1,4 +1,4 @@
-"""Validate and package a portable Windows staging directory."""
+"""验证并打包便携式 Windows 暂存目录。"""
 
 from __future__ import annotations
 

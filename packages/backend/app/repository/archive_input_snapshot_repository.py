@@ -1,4 +1,4 @@
-"""Durable ownership and state for task-bound sealed execution inputs."""
+"""任务绑定密封执行输入的持久所有权和状态。"""
 
 from __future__ import annotations
 

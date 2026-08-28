@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for the private Node/OfficeCLI command boundary."""
+"""私有 Node/OfficeCLI 命令边界的 SYNTHETIC 测试。"""
 
 from __future__ import annotations
 

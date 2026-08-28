@@ -19,12 +19,12 @@ from _python_imports import extract_files  # noqa: E402
 
 
 def _extract(files: list[str]) -> dict:
-    """Directly exercise the AST and payload logic without a process startup."""
+    """不启动进程，直接测试 AST 与载荷逻辑。"""
     return extract_files(files)
 
 
 def _extract_cli(files: list[str]) -> dict:
-    """Keep one real CLI boundary test for argument and JSON output wiring."""
+    """保留一个真实 CLI 边界测试，验证参数与 JSON 输出接线。"""
     r = subprocess.run(
         [sys.executable, str(EXTRACTOR)] + files,
         capture_output=True, text=True, timeout=10,

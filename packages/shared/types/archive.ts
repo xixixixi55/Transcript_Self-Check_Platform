@@ -71,17 +71,17 @@ export interface ArchivePart {
   part_id: string
   part_number: number
   filename: string
-  /** WinRAR actual output file size. Standard parts must not exceed the tier limit. */
+  /** WinRAR 实际输出文件大小。标准分卷不得超过档位上限。 */
   size_bytes: number
   md5: string
-  /** Case-selected business digest; legacy manifests omit both fields and use md5. */
+  /** 案件选定的业务摘要；旧版 manifest 省略两个字段并使用 md5。 */
   hash_algorithm?: HashAlgorithm
   hash_value?: string
   disc_number: string
   disc_date: string
-  /** Smallest binary capacity tier for standard parts; absent for oversized single volumes. */
+  /** 标准分卷的最小二进制容量档位；超大单卷不含此值。 */
   disc_capacity_bytes?: number
-  /** WinRAR tier volume limit inherited from ArchiveManifest (compatibility). */
+  /** 从 ArchiveManifest 继承的 WinRAR 档位分卷上限（兼容）。 */
   volume_size_bytes: number | null
   continuity_check: 'passed'
 }
@@ -91,7 +91,7 @@ export interface ArchiveManifest {
   plan_id: string
   archive_base_name: string
   archive_mode: ArchiveMode
-  /** WinRAR tier volume limit in bytes (same value for all parts). */
+  /** 以字节表示的 WinRAR 档位分卷上限（所有分卷值相同）。 */
   volume_size_bytes: number | null
   volume_tier_gb: number | null
   max_part_count: number

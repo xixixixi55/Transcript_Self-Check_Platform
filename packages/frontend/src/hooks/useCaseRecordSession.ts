@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — case editor session, persistence, source and lease coordination.
+// 第 10 层：FE_Hooks — 协调案件编辑会话、持久化、来源与租约。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'

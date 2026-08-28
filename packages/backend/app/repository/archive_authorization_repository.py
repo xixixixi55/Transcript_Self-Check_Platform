@@ -1,4 +1,4 @@
-"""Authorize case directories without trusting client supplied paths."""
+"""在不信任客户端所提供路径的情况下授权案件目录。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ _REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
 
 class ArchiveAuthorizationError(ValueError):
-    """Safe authorization diagnostics; messages never contain local paths."""
+    """安全授权诊断；消息绝不包含本地路径。"""
 
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -101,7 +101,7 @@ def _resolve_directory(raw_path: str | os.PathLike[str]) -> Path:
 
 
 class ArchiveAuthorizationStore:
-    """In-memory root/grant registry for the current desktop process."""
+    """当前桌面进程的内存根目录和授权注册表。"""
 
     def __init__(
         self,
@@ -141,7 +141,7 @@ class ArchiveAuthorizationStore:
 
     @property
     def configuration_warnings(self) -> tuple[str, ...]:
-        """Safe startup diagnostics; no configured path is included."""
+        """安全启动诊断；不包含任何已配置路径。"""
         return tuple(self._configuration_warnings)
 
     @staticmethod
@@ -192,7 +192,7 @@ class ArchiveAuthorizationStore:
         )
 
     def issue_exact_directory_grant(self, selected_path: str | os.PathLike[str]) -> str:
-        """Issue a one-use token for a future trusted local directory picker."""
+        """为将来的可信本地目录选择器签发一次性令牌。"""
         resolved = _resolve_directory(selected_path)
         token = secrets.token_urlsafe(32)
         self._grants[hashlib.sha256(token.encode("ascii")).hexdigest()] = _ExactDirectoryGrant(
@@ -226,7 +226,7 @@ class ArchiveAuthorizationStore:
         *,
         output_roots: tuple[str | os.PathLike[str], ...] = (),
     ) -> AuthorizedInputRoot:
-        """Authorize an archive extracted by this server, never a client path."""
+        """授权由此服务器解压的归档，而非客户端路径。"""
         source = _resolve_directory(source_root)
         cleanup = _resolve_directory(cleanup_root)
         temp_root = Path(tempfile.gettempdir()).resolve(strict=False)

@@ -1,4 +1,4 @@
-"""Tests for allow-listed front-end template customization."""
+"""白名单前端模板自定义测试。"""
 
 from __future__ import annotations
 

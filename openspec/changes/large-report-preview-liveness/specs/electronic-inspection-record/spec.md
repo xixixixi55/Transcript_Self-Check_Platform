@@ -1,336 +1,336 @@
-# Spec: Large Report Preview Liveness
+# 规格：大型报告预览活性
 
-> Baseline Spec: `openspec/specs/electronic-inspection-record/spec.md`
-> Change: `large-report-preview-liveness`
-> Status: `PROPOSED`; this document describes intended behavior and is not current production behavior.
+> 基准规格：`openspec/specs/electronic-inspection-record/spec.md`
+> 变更：`large-report-preview-liveness`
+> 状态：`PROPOSED`；本文描述预期行为，不代表当前生产行为。
 
-## CAP-PREVIEW-SNAPSHOT: Preview uses one controlled parse task
+## CAP-PREVIEW-SNAPSHOT：预览使用单一受控解析任务
 
-### REQ-PREVIEW-SNAPSHOT-001: Folder preview ends after parsing
+### REQ-PREVIEW-SNAPSHOT-001：文件夹预览在解析后结束
 
-The folder-mode preview request MUST authorize the selected directory, parse the supported report, persist the parse result, and return the editable preview without creating a full ArchiveContext or scanning the complete report inventory.
+文件夹模式预览请求 MUST 授权所选目录、解析受支持的报告、持久化解析结果并返回可编辑预览，不得创建完整 ArchiveContext 或扫描完整报告清单。
 
-**Scenario: Multi-material folder preview succeeds**
+**Scenario: 多检材文件夹预览成功**
 
-- WHEN a user selects an authorized, supported Legacy or New report directory
-- THEN the backend returns a Legacy-compatible `InspectionReport` after parser cache persistence
-- AND the response does not wait for full input inventory, WinRAR execution, Manifest creation, or RAR validation
-- AND the response reports archive readiness as `not_prepared` or an equivalent explicit state
-- AND no field named `idle` is used to imply that a full ArchiveContext is ready
+- WHEN 用户选择已授权且受支持的 Legacy 或 New 报告目录
+- THEN 后端在持久化解析器缓存后返回兼容 Legacy 的 `InspectionReport`
+- AND 响应不等待完整输入清单、WinRAR 执行、Manifest 创建或 RAR 验证
+- AND 响应将归档就绪状态报告为 `not_prepared` 或等价的显式状态
+- AND 不使用名为 `idle` 的字段暗示完整 ArchiveContext 已就绪
 
-**Scenario: Authorization or format validation fails**
+**Scenario: 授权或格式验证失败**
 
-- WHEN the selected directory is outside the authorized scope, overlaps an output root, contains a forbidden link/reparse point, or has unsupported core structure
-- THEN the request fails before parser work or context-shell publication
-- AND the response contains a stable safe error without a local path, case data, or stack trace
+- WHEN 所选目录位于授权范围外、与输出根目录重叠、包含禁止的链接/重解析点或核心结构不受支持
+- THEN 请求在解析器工作或发布上下文外壳前失败
+- AND 响应包含稳定安全的错误，不含本地路径、案件数据或堆栈跟踪
 
-### REQ-PREVIEW-SNAPSHOT-002: Request-scoped core input reuse
+### REQ-PREVIEW-SNAPSHOT-002：请求范围内复用核心输入
 
-Within one parse task, the system MUST load and parse each core public JSON once, reuse the detected format and device rows, and reuse the evidence-directory index across dependency discovery, DTO construction, and cache persistence.
+在单个解析任务中，系统 MUST 只加载并解析每个核心公共 JSON 一次，在依赖发现、DTO 构造和缓存持久化之间复用检测到的格式、设备行和证据目录索引。
 
-**Scenario: Core JSON is reused**
+**Scenario: 复用核心 JSON**
 
-- WHEN a supported report is parsed
-- THEN `data_case_info.json`, `data_device_lists.json`, and `data_report_info.json` are not independently reloaded by format detection, dependency discovery, and DTO assembly
-- AND all consumers use the same request-scoped values
+- WHEN 解析受支持的报告
+- THEN 格式检测、依赖发现和 DTO 组装不会分别重新加载 `data_case_info.json`、`data_device_lists.json` 和 `data_report_info.json`
+- AND 所有消费者使用同一组请求范围值
 
-**Scenario: Multiple material records are parsed**
+**Scenario: 解析多条检材记录**
 
-- WHEN a report contains multiple device/material rows
-- THEN directory resolution and parser metadata are reused per evidence number
-- AND one material parser cannot trigger a fresh scan of the report root for every other material
+- WHEN 报告包含多条设备/检材记录
+- THEN 按证据编号复用目录解析和解析器元数据
+- AND 一个检材解析器不会为其他每项检材重新扫描报告根目录
 
-### REQ-PREVIEW-SNAPSHOT-003: Controlled dependency discovery
+### REQ-PREVIEW-SNAPSHOT-003：受控依赖发现
 
-The Parser MUST dynamically register the files it actually reads for business fields. It MUST NOT pre-read media, attachment HTML, navigation payloads, or unrelated JSON merely to calculate a parse-cache fingerprint.
+Parser MUST 动态登记它为业务字段实际读取的文件。MUST NOT 仅为计算解析缓存指纹而预读媒体、附件 HTML、导航载荷或无关 JSON。
 
-**Scenario: Parser reads a relevant dependency**
+**Scenario: Parser 读取相关依赖**
 
-- WHEN a device field is extracted from a JSON file
-- THEN that file is recorded with normalized relative path, size, modification time, and content digest during the same read
-- AND the dependency record is internal and contains no absolute path in public output or persistent cache keys
+- WHEN 从 JSON 文件提取设备字段
+- THEN 在同一次读取中记录该文件的规范化相对路径、大小、修改时间和内容摘要
+- AND 依赖记录仅供内部使用，公共输出或持久缓存键中不含绝对路径
 
-**Scenario: Unrelated source content changes**
+**Scenario: 无关源内容变化**
 
-- WHEN a media file, attachment HTML, or JSON not used by the business Parser changes
-- THEN the business parse cache remains eligible for reuse
-- AND the preview DTO remains unchanged unless an actual Parser dependency changed
+- WHEN 业务 Parser 未使用的媒体文件、附件 HTML 或 JSON 发生变化
+- THEN 业务解析缓存仍可复用
+- AND 除非实际 Parser 依赖发生变化，否则预览 DTO 保持不变
 
-### REQ-PREVIEW-SNAPSHOT-004: DTO compatibility
+### REQ-PREVIEW-SNAPSHOT-004：DTO 兼容性
 
-The optimized parser MUST preserve the existing Legacy DTO values and supported New DTO values for the same source inputs, including evidence ordering, device identifiers, software fields, `rar_info` compatibility semantics, and editable report defaults.
+对于相同源输入，优化后的解析器 MUST 保留现有 Legacy DTO 值和受支持的 New DTO 值，包括证据顺序、设备标识符、软件字段、`rar_info` 兼容语义及可编辑报告默认值。
 
-**Scenario: Legacy process and result include every material**
+**Scenario: Legacy 流程和结果包含每项检材**
 
-- WHEN a Legacy report contains multiple ordered evidence/material records
-- THEN the existing scalar `inspection.result.evidence_number` field contains the ordered material numbers joined with `、`
-- AND the existing `inspection.process_steps` strings mention every material number in the same order
-- AND the DTO shape and single-material wording remain compatible
+- WHEN Legacy 报告包含多条有序证据/检材记录
+- THEN 现有标量字段 `inspection.result.evidence_number` 包含用 `、` 连接的有序检材编号
+- AND 现有 `inspection.process_steps` 字符串以相同顺序提及每个检材编号
+- AND DTO 结构和单检材措辞保持兼容
 
-**Scenario: Device display name uses the effective model**
+**Scenario: 设备显示名称使用有效型号**
 
-- WHEN a Legacy or New report provides a generic device name and a concrete model
-- THEN `evidence_list[].device_name` uses the normalized brand/model display value
-- AND `evidence_list[].model` preserves the concrete model value
-- AND `evidence_list[].device_type` remains the explicit report type instead of the generic display name
+- WHEN Legacy 或 New 报告提供通用设备名称和具体型号
+- THEN `evidence_list[].device_name` 使用规范化品牌/型号显示值
+- AND `evidence_list[].model` 保留具体型号值
+- AND `evidence_list[].device_type` 保留明确的报告类型，而不是通用显示名称
 
-**Scenario: Legacy fixture parity**
+**Scenario: Legacy 固件等价**
 
-- WHEN the optimized parser and the pre-change parser process the same synthetic Legacy fixture
-- THEN their normalized `InspectionReport` values are equal except for explicitly documented cache/readiness metadata
-- AND no path, digest, or internal snapshot field appears in the report DTO
+- WHEN 优化后的解析器和变更前解析器处理同一合成 Legacy 固件
+- THEN 除明确记录的缓存/就绪元数据外，两者规范化后的 `InspectionReport` 值相等
+- AND 报告 DTO 中不出现路径、摘要或内部快照字段
 
-**Scenario: New fixture parity**
+**Scenario: New 固件等价**
 
-- WHEN the optimized parser processes a supported synthetic New fixture
-- THEN it preserves the existing New-format field mapping and does not route the report through a Legacy-only fallback that changes the DTO
+- WHEN 优化后的解析器处理受支持的合成 New 固件
+- THEN 保留现有 New 格式字段映射，不通过会改变 DTO 的 Legacy 专用回退处理报告
 
-## CAP-PARSE-CACHE: Dependency-aware cache identity
+## CAP-PARSE-CACHE：感知依赖的缓存身份
 
-### REQ-PARSE-CACHE-001: One-pass first parse
+### REQ-PARSE-CACHE-001：首次解析单遍完成
 
-On a cache miss, parsing and dependency digest registration MUST happen in one controlled read pass. The implementation MUST NOT first fully content-fingerprint the dependency set and then reopen the same files for the Parser.
+缓存未命中时，解析与依赖摘要登记 MUST 在单次受控读取中完成。实现 MUST NOT 先对依赖集完整计算内容指纹，再为 Parser 重新打开相同文件。
 
-**Scenario: Cache miss**
+**Scenario: 缓存未命中**
 
-- WHEN no valid parse cache exists for a normalized report directory
-- THEN the parser reads each actual dependency, extracts the needed fields, and records its path metadata and digest in the same pass
-- AND the cache write contains the dependency manifest needed for later validation
+- WHEN 规范化报告目录不存在有效解析缓存
+- THEN 解析器读取每项实际依赖、提取所需字段，并在同一遍处理中记录路径元数据和摘要
+- AND 缓存写入包含以后验证所需的依赖清单
 
-### REQ-PARSE-CACHE-002: Metadata-first cache hit
+### REQ-PARSE-CACHE-002：缓存命中时优先检查元数据
 
-On a cache lookup, the system MUST validate dependency paths, sizes, modification times, and stable file identity metadata before opening file contents. Unchanged dependencies reuse stored digests; only changed or newly discovered dependencies are rehashed.
+查询缓存时，系统 MUST 在打开文件内容前验证依赖路径、大小、修改时间和稳定文件身份元数据。未变化的依赖复用已存摘要；只重新计算已变化或新发现依赖的哈希。
 
-**Scenario: Cache hit with unchanged dependencies**
+**Scenario: 依赖未变化时缓存命中**
 
-- WHEN all recorded dependency paths exist with unchanged identity metadata and the cache version is current
-- THEN the system returns the cached report without reopening dependency contents
-- AND it updates last-access metadata without creating a duplicate cache entry
+- WHEN 所有已记录依赖路径都存在、身份元数据未变化且缓存版本为当前版本
+- THEN 系统不重新打开依赖内容，直接返回缓存报告
+- AND 更新最后访问元数据，不创建重复缓存条目
 
-**Scenario: One dependency changes**
+**Scenario: 一项依赖变化**
 
-- WHEN a recorded dependency is added, removed, resized, or has changed modification/identity metadata
-- THEN only the affected dependency set is rehashed before deciding cache validity
-- AND an actual content change causes a fresh parse and cache replacement
+- WHEN 已记录依赖被新增、移除、调整大小，或其修改/身份元数据发生变化
+- THEN 只重新计算受影响依赖集的哈希，再判断缓存有效性
+- AND 实际内容变化会触发重新解析和缓存替换
 
-**Scenario: Cache is damaged or stale**
+**Scenario: 缓存损坏或过期**
 
-- WHEN a cache file is malformed, its version is obsolete, its dependency manifest is incomplete, or its build failed before publication
-- THEN the record is ignored and cleaned according to existing cache lifecycle rules
-- AND no partial report or permanent in-flight entry is returned
+- WHEN 缓存文件格式错误、版本过期、依赖清单不完整或其构建在发布前失败
+- THEN 按现有缓存生命周期规则忽略并清理该记录
+- AND 不返回部分报告或永久执行中条目
 
-### REQ-PARSE-CACHE-003: Cache scope isolation
+### REQ-PARSE-CACHE-003：缓存范围隔离
 
-The parse cache MUST remain independent of original report directories, ArchiveContext inventory, RAR files, ArchiveManifest records, Word exports, Shadow state, and Canonical state.
+解析缓存 MUST 与原始报告目录、ArchiveContext 清单、RAR 文件、ArchiveManifest 记录、Word 导出、Shadow 状态和 Canonical 状态相互独立。
 
-**Scenario: Parse cache is cleared**
+**Scenario: 清除解析缓存**
 
-- WHEN the user clears report parse cache
-- THEN only parse-cache records are removed
-- AND no source handle, formal archive, Manifest, Word export, or user-provided source file is deleted or invalidated by path traversal
+- WHEN 用户清除报告解析缓存
+- THEN 只移除解析缓存记录
+- AND 不通过路径遍历删除或作废源句柄、正式归档、Manifest、Word 导出或用户提供的源文件
 
-## CAP-PARSE-INFLIGHT: Same-directory request reuse
+## CAP-PARSE-INFLIGHT：复用同目录请求
 
-### REQ-PARSE-INFLIGHT-001: Join before expensive work
+### REQ-PARSE-INFLIGHT-001：在昂贵工作前加入
 
-The in-flight registry MUST be keyed by the normalized opaque report-directory identity and MUST be acquired before dependency discovery, content fingerprinting, Parser execution, or parse-cache persistence.
+执行中注册表 MUST 以规范化的不透明报告目录身份为键，并 MUST 在依赖发现、内容指纹计算、Parser 执行或解析缓存持久化前获取。
 
-**Scenario: Concurrent same-directory requests**
+**Scenario: 同目录并发请求**
 
-- WHEN two or more requests arrive for the same normalized report directory
-- THEN one bounded task performs the expensive parse pipeline
-- AND later requests join that task and receive the same successful result or the same safe failure
-- AND the Parser and cache writer execute once for the shared task
+- WHEN 两个或更多请求指向同一规范化报告目录
+- THEN 由一个有界任务执行昂贵的解析管线
+- AND 后续请求加入该任务并收到相同成功结果或相同安全失败
+- AND 共享任务只执行一次 Parser 和缓存写入器
 
-**Scenario: Distinct directories**
+**Scenario: 不同目录**
 
-- WHEN requests target different normalized report directories
-- THEN they do not share results or dependency manifests
-- AND the registry enforces a configured capacity so unrelated reports cannot exhaust memory or worker capacity
+- WHEN 请求指向不同规范化报告目录
+- THEN 它们不共享结果或依赖清单
+- AND 注册表强制执行配置的容量，避免无关报告耗尽内存或工作进程容量
 
-### REQ-PARSE-INFLIGHT-002: Abort and failure lifecycle
+### REQ-PARSE-INFLIGHT-002：中止和失败生命周期
 
-Client cancellation MUST detach only the cancelled waiter from the shared task. It MUST NOT start a duplicate task for a retry while the first task is still running.
+客户端取消 MUST 只使被取消的等待方脱离共享任务。第一个任务仍在运行时，MUST NOT 为重试启动重复任务。
 
-**Scenario: Frontend Abort followed by retry**
+**Scenario: 前端中止后重试**
 
-- WHEN the first request reaches the frontend timeout or network cancellation and a user retries the same directory
-- THEN the retry joins the existing in-flight task or consumes its completed cache result
-- AND no second dependency discovery, Parser run, or cache write starts for that directory
+- WHEN 首个请求达到前端超时或网络取消，且用户重试同一目录
+- THEN 重试加入现有执行中任务或使用其已完成的缓存结果
+- AND 不会为该目录启动第二次依赖发现、Parser 运行或缓存写入
 
-**Scenario: Shared task fails**
+**Scenario: 共享任务失败**
 
-- WHEN the shared Parser task fails or is cancelled by a server-side lifecycle policy
-- THEN all current waiters receive a safe retryable error
-- AND the registry removes the failed entry after publishing the result
-- AND a later retry can start a fresh task
+- WHEN 共享 Parser 任务失败或被服务端生命周期策略取消
+- THEN 所有当前等待方收到安全且可重试的错误
+- AND 注册表发布结果后移除失败条目
+- AND 后续重试可以启动新任务
 
-### REQ-PARSE-INFLIGHT-003: Bounded lifecycle and safe observability
+### REQ-PARSE-INFLIGHT-003：有界生命周期和安全可观测性
 
-In-flight entries MUST have capacity, creation/last-observed timestamps, explicit completion state, and exception cleanup. Logs and metrics MUST use opaque keys or counters and MUST NOT include absolute paths, case data, or cache contents.
+执行中条目 MUST 具有容量、创建/最后观察时间戳、明确完成状态和异常清理。日志和指标 MUST 使用不透明键或计数器，且 MUST NOT 包含绝对路径、案件数据或缓存内容。
 
-## CAP-ARCHIVE-LIFECYCLE: Full inventory is explicit and deferred
+## CAP-ARCHIVE-LIFECYCLE：完整清单显式且延后生成
 
-### REQ-ARCHIVE-LIFECYCLE-001: Preview returns not-prepared state
+### REQ-ARCHIVE-LIFECYCLE-001：预览返回未准备状态
 
-Preview MAY publish a short-lived authorized context shell, but it MUST NOT publish it as a full inventory-bearing ArchiveContext. The response MUST distinguish `not_prepared`, `preparing`, `ready`, and `failed` states.
+预览 MAY 发布短期有效的授权上下文外壳，但 MUST NOT 将其作为包含完整清单的 ArchiveContext 发布。响应 MUST 区分 `not_prepared`、`preparing`、`ready` 和 `failed` 状态。
 
-**Scenario: Preview returns a context shell**
+**Scenario: 预览返回上下文外壳**
 
-- WHEN folder parsing succeeds and a later archive action needs a stable source reference
-- THEN the backend may return an opaque shell identifier bound to the authorization and short TTL
-- AND the shell has no full file count, total input size, or formal inventory claim
-- AND a shell cannot be used by formal archive execution or Manifest-bound formal export until materialized and validated
+- WHEN 文件夹解析成功，且后续归档操作需要稳定源引用
+- THEN 后端可以返回绑定授权和短 TTL 的不透明外壳标识符
+- AND 外壳不含完整文件数、输入总大小或正式清单声明
+- AND 外壳在实体化并验证前，不能用于正式归档执行或 Manifest 绑定的正式导出
 
-**Scenario: Preview response is consumed by an old report-only client**
+**Scenario: 旧版仅报告客户端消费预览响应**
 
-- WHEN a client only reads `report`, `parsed_files`, or compatibility `rar_info`
-- THEN it continues to function without requiring a ready ArchiveContext
-- AND clients that need archive execution receive a stable not-prepared error rather than a misleading `idle` success
+- WHEN 客户端只读取 `report`、`parsed_files` 或兼容字段 `rar_info`
+- THEN 无需就绪的 ArchiveContext 也能继续工作
+- AND 需要归档执行的客户端收到稳定的未准备错误，而不是误导性的 `idle` 成功
 
-### REQ-ARCHIVE-LIFECYCLE-002: Explicit preparation materializes full context
+### REQ-ARCHIVE-LIFECYCLE-002：显式准备实体化完整上下文
 
-The archive-preparation action MUST be separate from preview. It MUST resolve the authorized shell/source, build the complete inventory, and publish a ready ArchiveContext only after the inventory is complete.
+归档准备操作 MUST 与预览分离。它 MUST 解析已授权外壳/源、构建完整清单，并仅在清单完整后发布就绪的 ArchiveContext。
 
-**Scenario: User explicitly starts archive preparation**
+**Scenario: 用户显式开始归档准备**
 
-- WHEN the user explicitly starts archive preparation after preview
-- THEN the system creates or refreshes the full ArchiveContext and reports independent preparation loading/status
-- AND preview completion alone never starts WinRAR or full inventory
+- WHEN 用户在预览后显式开始归档准备
+- THEN 系统创建或刷新完整 ArchiveContext，并报告独立的准备加载/状态
+- AND 仅完成预览绝不会启动 WinRAR 或完整清单处理
 
-**Scenario: Preparation is repeated**
+**Scenario: 重复准备**
 
-- WHEN an existing shell or context is prepared again for the same authorized source
-- THEN the runtime applies bounded snapshot reuse where safe, but never skips required currentness checks
-- AND the resulting context status accurately reports whether full inventory is ready
+- WHEN 为同一授权源再次准备现有外壳或上下文
+- THEN 运行时在安全时应用有界快照复用，但绝不跳过必要的时效性检查
+- AND 结果上下文状态准确报告完整清单是否就绪
 
-### REQ-ARCHIVE-LIFECYCLE-003: Formal archive gates remain complete
+### REQ-ARCHIVE-LIFECYCLE-003：正式归档门控保持完整
 
-Moving inventory out of preview MUST NOT weaken formal archive safety. Before WinRAR execution or formal archive validation, the system MUST retain complete inventory, readability, path-boundary, link/reparse, add/remove/change, full input-content fingerprint, Manifest, RAR, and download/export checks required by the current archive contract.
+将清单移出预览 MUST NOT 削弱正式归档安全。在 WinRAR 执行或正式归档验证前，系统 MUST 保留当前归档契约要求的完整清单、可读性、路径边界、链接/重解析点、新增/移除/变更、完整输入内容指纹、Manifest、RAR 及下载/导出检查。
 
-**Scenario: Source changes after preview**
+**Scenario: 预览后源发生变化**
 
-- WHEN a file is added, removed, modified, unreadable, or replaced by a link/reparse point after preview but before archive preparation/execution
-- THEN preparation or formal execution fails with a safe input-changed/path error
-- AND preview cache or shell metadata is not treated as formal archive evidence
+- WHEN 预览后、归档准备/执行前，文件被新增、移除、修改、变得不可读或被链接/重解析点替换
+- THEN 准备或正式执行以安全的输入已变更/路径错误失败
+- AND 不将预览缓存或外壳元数据视为正式归档证据
 
-**Scenario: Archive preparation fails**
+**Scenario: 归档准备失败**
 
-- WHEN full inventory or a formal archive gate fails
-- THEN the context status becomes `failed` with a retryable safe error
-- AND no partial Manifest is published and no user-owned source is deleted
+- WHEN 完整清单或正式归档门控失败
+- THEN 上下文状态变为 `failed`，并附带安全可重试错误
+- AND 不发布部分 Manifest，也不删除用户拥有的源
 
-### REQ-ARCHIVE-LIFECYCLE-004: Claimed preparation is visible and cancellation-safe
+### REQ-ARCHIVE-LIFECYCLE-004：已认领准备可见且取消安全
 
-After an archive task is durably claimed, full inventory preparation MUST be represented by the `inventory` milestone and MUST observe cooperative cancellation. Ownership MUST be determined by the bound owner token and archive attempt identity, not by an immutable copy of the task revision.
+归档任务被持久认领后，完整清单准备 MUST 以 `inventory` 里程碑表示，并 MUST 遵循协作取消。所有权 MUST 由绑定的所有者令牌和归档尝试身份决定，而不是任务修订版的不可变副本。
 
-**Scenario: A large input tree takes time to enumerate**
+**Scenario: 枚举大型输入树需要时间**
 
-- WHEN a claimed archive task begins full inventory traversal
-- THEN the task advances from `queued` to `inventory` before the traversal starts
-- AND the UI no longer describes the active scan as waiting for admission
+- WHEN 已认领归档任务开始遍历完整清单
+- THEN 任务在遍历开始前从 `queued` 推进到 `inventory`
+- AND 界面不再将有效扫描描述为等待准入
 
-**Scenario: Cancellation changes the task revision during preparation**
+**Scenario: 取消在准备期间改变任务修订版**
 
-- WHEN the user cancels while the owner token and attempt binding remain unchanged
-- THEN traversal stops cooperatively and the task converges to `cancelled`
-- AND the attempt records `ARCHIVE_CANCELLED` rather than `ARCHIVE_TASK_OWNERSHIP_LOST`
-- AND an unhandled preparation error cannot overwrite `cancelling` with `failed_retryable`
+- WHEN 用户取消，而所有者令牌和尝试绑定保持不变
+- THEN 遍历以协作方式停止，任务收敛到 `cancelled`
+- AND 尝试记录 `ARCHIVE_CANCELLED`，而不是 `ARCHIVE_TASK_OWNERSHIP_LOST`
+- AND 未处理的准备错误不能用 `failed_retryable` 覆盖 `cancelling`
 
-**Scenario: A stale worker has actually lost ownership**
+**Scenario: 过期工作进程确实已失去所有权**
 
-- WHEN the durable owner token or attempt binding no longer matches the claim
-- THEN the stale worker is rejected with `ARCHIVE_TASK_OWNERSHIP_LOST`
-- AND it cannot advance progress or start archive execution
+- WHEN 持久所有者令牌或尝试绑定不再与认领匹配
+- THEN 以 `ARCHIVE_TASK_OWNERSHIP_LOST` 拒绝过期工作进程
+- AND 它不能推进进度或开始归档执行
 
-## CAP-FRONTEND-LIVENESS: Preview and archive preparation are independent
+## CAP-FRONTEND-LIVENESS：预览和归档准备相互独立
 
-### REQ-FRONTEND-LIVENESS-001: Preview does not auto-archive
+### REQ-FRONTEND-LIVENESS-001：预览不自动归档
 
-The preview UI MUST not call archive execution as a side effect of report load, a valid disc number, or ordinary report editing.
+预览界面 MUST NOT 因加载报告、光盘编号有效或普通报告编辑的副作用调用归档执行。
 
-**Scenario: Report enters review**
+**Scenario: 报告进入审核**
 
-- WHEN parsing succeeds and the review page opens
-- THEN the page displays the report preview and an explicit archive-not-prepared state
-- AND it does not start a WinRAR request, archive polling loop, or full inventory request
+- WHEN 解析成功并打开审核页面
+- THEN 页面显示报告预览和明确的归档未准备状态
+- AND 不启动 WinRAR 请求、归档轮询循环或完整清单请求
 
-**Scenario: User edits ordinary fields**
+**Scenario: 用户编辑普通字段**
 
-- WHEN the user edits report fields, disc metadata, or photos before selecting an archive action
-- THEN only local review state changes
-- AND no archive preparation request starts automatically
+- WHEN 用户在选择归档操作前编辑报告字段、光盘元数据或照片
+- THEN 只改变本地审核状态
+- AND 不自动启动归档准备请求
 
-### REQ-FRONTEND-LIVENESS-002: Loading and retry cleanup
+### REQ-FRONTEND-LIVENESS-002：加载和重试清理
 
-Preview and archive preparation MUST have separate loading, error, cancellation, and retry state. Every success, business error, service error, network failure, timeout, and cancellation MUST end the corresponding loading state.
+预览和归档准备 MUST 具有相互独立的加载、错误、取消和重试状态。每次成功、业务错误、服务错误、网络失败、超时和取消都 MUST 结束对应的加载状态。
 
-**Scenario: Preview timeout or network failure**
+**Scenario: 预览超时或网络失败**
 
-- WHEN preview fails, times out, or is cancelled
-- THEN preview loading ends and a retryable message is shown
-- AND a retry cannot create a second backend parse task for the same normalized directory
+- WHEN 预览失败、超时或被取消
+- THEN 预览加载结束并显示可重试消息
+- AND 重试不能为同一规范化目录创建第二个后端解析任务
 
-**Scenario: Archive preparation failure**
+**Scenario: 归档准备失败**
 
-- WHEN archive preparation fails after preview success
-- THEN preview data remains editable
-- AND only archive-preparation state becomes failed; Manifest-bound formal export remains blocked until a validated Manifest exists
+- WHEN 预览成功后归档准备失败
+- THEN 预览数据仍可编辑
+- AND 只有归档准备状态变为失败；在存在已验证 Manifest 前，Manifest 绑定的正式导出保持阻塞
 
-### REQ-FRONTEND-LIVENESS-003: Independent Word export and formal archive gate
+### REQ-FRONTEND-LIVENESS-003：独立 Word 导出和正式归档门控
 
-The UI and Controller MUST allow an explicit report-only Word export after a successful editable preview when no archive context or Manifest is supplied. This path MUST keep the existing report-field and document-rendering validation, MUST NOT start WinRAR, and MUST NOT claim archive or Manifest evidence. When an archive context or Manifest is supplied, the operation is formal and MUST reject an unready context or unvalidated Manifest.
+未提供归档上下文或 Manifest 时，界面和 Controller MUST 允许在可编辑预览成功后显式执行仅报告 Word 导出。该路径 MUST 保留现有报告字段和文档渲染验证，MUST NOT 启动 WinRAR，也 MUST NOT 声称具有归档或 Manifest 证据。提供归档上下文或 Manifest 时，操作属于正式操作，MUST 拒绝未就绪上下文或未验证 Manifest。
 
-**Scenario: Report-only Word export before archive preparation**
+**Scenario: 归档准备前仅导出报告 Word**
 
-- WHEN the user explicitly exports the editable report while archive status is `not_prepared`
-- THEN the system generates and downloads a Word report without creating a full ArchiveContext or executing WinRAR
-- AND the result does not claim a validated Manifest or formal archive evidence
+- WHEN 用户在归档状态为 `not_prepared` 时显式导出可编辑报告
+- THEN 系统生成并下载 Word 报告，不创建完整 ArchiveContext 或执行 WinRAR
+- AND 结果不声称具有已验证 Manifest 或正式归档证据
 
-**Scenario: Formal export still requires a validated Manifest**
+**Scenario: 正式导出仍要求已验证 Manifest**
 
-- WHEN the export request supplies an archive context or Manifest identifier
-- THEN the Controller requires a current ready context and validated Manifest before formal export
-- AND a missing, partial, stale, or invalid archive contract fails with a stable safe error
+- WHEN 导出请求提供归档上下文或 Manifest 标识符
+- THEN Controller 要求当前就绪上下文和已验证 Manifest，才可正式导出
+- AND 缺失、不完整、过期或无效的归档契约以稳定安全错误失败
 
-## CAP-CHANGE-BOUNDARIES: Archive source and output boundaries
+## CAP-CHANGE-BOUNDARIES：归档源和输出边界
 
-### REQ-CHANGE-BOUNDARIES-001: authorized report-directory source
+### REQ-CHANGE-BOUNDARIES-001：已授权报告目录源
 
-The archive-preparation boundary MUST use the authorized report-directory source record created by preview.
+归档准备边界 MUST 使用预览创建的已授权报告目录源记录。
 
-**Scenario: Explicit directory-backed archive preparation**
+**Scenario: 显式准备目录支持的归档**
 
-- WHEN the user explicitly starts archive preparation after preview
-- THEN the Controller resolves the authorized source record and revalidates the report directory
-- AND full inventory and formal archive safety gates run before any archive or Manifest-bound export
-- AND preview state, parse cache data, and source handles are not treated as formal archive evidence
+- WHEN 用户在预览后显式开始归档准备
+- THEN Controller 解析已授权源记录并重新验证报告目录
+- AND 在任何归档或 Manifest 绑定导出前运行完整清单和正式归档安全门控
+- AND 不将预览状态、解析缓存数据和源句柄视为正式归档证据
 
-### REQ-CHANGE-BOUNDARIES-002: Shadow and Canonical isolation
+### REQ-CHANGE-BOUNDARIES-002：Shadow 与 Canonical 隔离
 
-- WHEN this change is implemented or verified
-- THEN no Shadow or Canonical parsing, comparison, route, or output behavior is added
-- AND the formal Legacy DTO and Word/Manifest consumer contract remains the compatibility boundary
+- WHEN 实施或验证本变更
+- THEN 不增加 Shadow 或 Canonical 解析、比较、路由或输出行为
+- AND 正式 Legacy DTO 和 Word/Manifest 消费者契约仍是兼容边界
 
-## CAP-ACCEPTANCE: Performance and regression targets
+## CAP-ACCEPTANCE：性能和回归目标
 
-### REQ-ACCEPTANCE-001: Representative performance
+### REQ-ACCEPTANCE-001：代表性性能
 
-**Scenario: Real local manual validation**
+**Scenario: 真实本地人工验证**
 
-- WHEN a release candidate is manually run against the previously measured external multi-material report
-- THEN first preview is below 90 seconds with reasonable margin
-- AND a valid cache-hit preview is below 15 seconds
-- AND preview does not create full inventory or enumerate the complete input tree
-- AND the report path, case name, business content, and generated output remain outside repository assets, logs, tests, and Git
+- WHEN 在之前测量的外部多检材报告上人工运行发布候选
+- THEN 首次预览以合理余量低于 90 秒
+- AND 有效缓存命中预览低于 15 秒
+- AND 预览不创建完整清单或枚举完整输入树
+- AND 报告路径、案件名称、业务内容和生成输出保持在仓库资产、日志、测试和 Git 之外
 
-**Scenario: Synthetic automated benchmark**
+**Scenario: 合成自动化基准**
 
-- WHEN automated performance tests run
-- THEN they use only small synthetic fixtures marked `SYNTHETIC`, `TEST`, or `FIXTURE`
-- AND they assert read counts, dependency scope, in-flight sharing, and no full inventory during preview without requiring GB-scale files
+- WHEN 运行自动化性能测试
+- THEN 仅使用标记为 `SYNTHETIC`、`TEST` 或 `FIXTURE` 的小型合成固件
+- AND 断言读取次数、依赖范围、执行中共享及预览期间没有完整清单，不要求 GB 级文件
 
-### REQ-ACCEPTANCE-002: Formal archive regression
+### REQ-ACCEPTANCE-002：正式归档回归
 
-- WHEN the user explicitly prepares an archive after preview
-- THEN current generated-archive planning, WinRAR execution, full integrity validation, Manifest assembly, download validation, and Word export gates remain green
+- WHEN 用户在预览后显式准备归档
+- THEN 当前生成归档规划、WinRAR 执行、完整性验证、Manifest 组装、下载验证和 Word 导出门控保持通过

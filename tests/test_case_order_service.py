@@ -1,4 +1,4 @@
-"""SYNTHETIC T009 coverage for case-scoped evidence and inspector ordering."""
+"""案件范围证据与检查人员排序的 SYNTHETIC T009 覆盖测试。"""
 
 import os
 import sys

@@ -1,4 +1,4 @@
-"""Deterministic, path-free retention preview projection."""
+"""确定性无路径保留预览投影。"""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ _ACTIVE_TASKS = ("queued", "running", "cancelling", "interrupted", "failed_retry
 
 
 class CaseRetentionPreviewService:
-    """Build a stable dry-run projection without creating cleanup runs."""
+    """构建稳定试运行投影，不创建清理运行。"""
 
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database

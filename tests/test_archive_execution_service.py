@@ -109,7 +109,7 @@ def test_replans_upward_and_manifest_uses_final_plan(tmp_path):
 
 
 def test_archive_executes_without_first_disc_number(tmp_path):
-    """REQ-030: compression must not fail when the first disc number is empty."""
+    """REQ-030：首张光盘编号为空时，压缩不得失败。"""
     _, output, context_id = make_context(tmp_path)
     no_disc = valid_report()
     no_disc["attachments"]["disc_number"] = ""
@@ -493,8 +493,8 @@ def test_manifest_reuse_validates_output_without_rescanning_direct_source(tmp_pa
         capability=capability, executor=fake, integrity_runner=integrity_ok,
     )
 
-    # Disc numbers are mapped after compression and intentionally decoupled
-    # from the reuse fingerprint: changing them must not invalidate the manifest.
+    # 光盘编号在压缩后映射，并有意与复用指纹解耦：
+    # 更改编号不得使 manifest 失效。
     changed_disc = valid_report()
     changed_disc["attachments"]["disc_number"] = "GP2026071802-02"
     assert get_valid_manifest(context_id, first.manifest_id, changed_disc)
@@ -664,8 +664,8 @@ def test_reparse_reuses_manifest_within_confirmed_immutable_input_window(tmp_pat
         capability=capability, executor=second_fake, integrity_runner=integrity_ok,
     )
 
-    # Deep input mutation is deliberately outside the confirmed immutable-input
-    # contract; a repeated source scan must not be reintroduced here.
+    # 深层输入变更有意排除在已确认的不可变输入契约之外；
+    # 此处不得重新引入重复的来源扫描。
     assert outcome.reused is True
     assert second_fake.calls == []
 

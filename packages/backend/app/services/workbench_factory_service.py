@@ -1,4 +1,4 @@
-"""Composition root for the persistent workbench services."""
+"""持久工作台服务的组合根。"""
 
 from __future__ import annotations
 
@@ -305,7 +305,7 @@ def get_workbench_services() -> WorkbenchServices:
 
 
 def ensure_archive_task_api(services: WorkbenchServices) -> ArchiveTaskApiService | None:
-    """Build the public adapter for test/custom composition roots on first use."""
+    """首次使用时为测试或自定义组合根构建公开适配器。"""
     if services.archive_api is not None:
         return services.archive_api
     if services.archive_attempts is None:
@@ -325,7 +325,7 @@ def ensure_archive_task_api(services: WorkbenchServices) -> ArchiveTaskApiServic
 
 
 def reset_workbench_services() -> None:
-    """Test/support hook; production callers keep the deployment singleton."""
+    """测试和支持钩子；生产调用方保留部署单例。"""
     global _SERVICES
     if _SERVICES is not None:
         if _SERVICES.archive_runtime is not None:

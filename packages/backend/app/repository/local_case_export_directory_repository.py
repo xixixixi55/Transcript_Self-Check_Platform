@@ -1,4 +1,4 @@
-"""Layer 20: persist each case's latest successful unified-export directory."""
+"""第 20 层：持久化每个案件最近成功的统一导出目录。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ _WRITE_LOCK = threading.RLock()
 
 
 class LocalCaseExportDirectoryRepository:
-    """Store absolute export paths only in the dedicated local path registry."""
+    """仅在专用本地路径注册表中存储绝对导出路径。"""
 
     def __init__(self, file_path: str | os.PathLike[str]) -> None:
         self.file_path = Path(file_path)

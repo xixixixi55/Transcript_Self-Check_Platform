@@ -1,4 +1,4 @@
-"""Synthetic regression evidence for the Phase 3 WinRAR progress spike."""
+"""Phase 3 WinRAR 进度能力探查的合成数据回归证据。"""
 
 import os
 import sys

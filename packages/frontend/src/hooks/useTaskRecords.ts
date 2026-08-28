@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — task status polling scoped to the current workbench page.
+// 第 10 层：FE_Hooks — 仅限当前工作台页面的任务状态轮询。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'

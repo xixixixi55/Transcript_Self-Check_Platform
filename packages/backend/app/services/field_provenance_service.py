@@ -1,4 +1,4 @@
-"""Case-scoped field source and confirmation-state coordination."""
+"""案件级字段来源和确认状态协调。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _PERSISTED_CONTROL_FIELDS = {"introduction.evidence_list.completeness"}
 
 
 class FieldProvenanceService:
-    """Initialize and preserve field state without leaking it into Legacy DTO output."""
+    """初始化并保留字段状态，不泄露到旧版 DTO 输出。"""
 
     def initialize(
         self, report: Mapping[str, Any], initial_states: Mapping[str, Any] | None = None,

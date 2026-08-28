@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for the portable release allowlist and hashing."""
+"""便携发布白名单与哈希的 SYNTHETIC 测试。"""
 
 from __future__ import annotations
 

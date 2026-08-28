@@ -1,93 +1,93 @@
-# Proposal: Large Report Preview Liveness
+# 提案：大型报告预览活性
 
-> Change ID: `large-report-preview-liveness`
-> Status: `PROPOSED`
-> Level: 3
-> Date: 2026-07-24
-> Baseline: `master` / `origin/master` synchronized; repository clean
+> 变更 ID：`large-report-preview-liveness`
+> 状态：`PROPOSED`
+> 级别：3
+> 日期：2026-07-24
+> 基线：`master` / `origin/master` 已同步；仓库干净
 
-## Why
+## 原因
 
-Folder-mode preview currently performs three independent heavyweight operations before returning the editable report:
+目录模式预览目前会在返回可编辑报告前执行三项彼此独立的重量级操作：
 
-1. Parser dependency discovery and content fingerprinting enumerate and read the same device JSON files that the Parser later opens again.
-2. Each device Parser repeats the device-directory lookup and reopens overlapping JSON files instead of consuming one request-local input snapshot.
-3. The Controller synchronously creates a full `ArchiveContext` and metadata inventory before returning the preview.
+1. Parser 依赖发现和内容指纹会枚举并读取同一批设备 JSON 文件，随后 Parser 又会重新打开这些文件。
+2. 每个设备 Parser 都重复查找设备目录并重新打开相互重叠的 JSON 文件，没有复用请求本地的输入快照。
+3. Controller 在返回预览前同步创建完整 `ArchiveContext` 和元数据清单。
 
-Runtime measurement on a real, out-of-repository multi-material vendor report found 3 parsed material/device records and 141,209 files. The complete synchronous path took about 533 seconds: dependency fingerprinting about 118 seconds, device parsing about 299 seconds, and ArchiveContext inventory about 115 seconds. A frontend timeout increase would only hide the duplicate work and would leave retries unsafe.
+对仓库外真实多检材供应商报告的运行时测量发现，共解析 3 条检材/设备记录和 141,209 个文件。完整同步链路约耗时 533 秒：依赖指纹约 118 秒、设备解析约 299 秒、ArchiveContext 清单约 115 秒。仅提高前端超时只能掩盖重复工作，并会使重试仍不安全。
 
-The preview contract must therefore end after authorized parsing and cache persistence. Full archive inventory and archive evidence preparation belong to the explicit archive-preparation action that follows user confirmation.
+因此，预览合同应在授权解析和缓存持久化后结束。完整归档清单和归档证据准备应归属于用户确认后的显式归档准备操作。
 
-## Goals
+## 目标
 
-- Return a Legacy-compatible `InspectionReport` preview without waiting for full-report inventory.
-- Build a request-scoped, controlled parser input snapshot that reuses core JSON, format detection, device rows, directory indexes, and parsed dependency metadata.
-- Make the first parse read and digest each actual dependency in one controlled pass.
-- Make cache hits validate dependency metadata first and recalculate content digests only for changed dependencies.
-- Join same-directory in-flight requests before dependency discovery, fingerprinting, Parser execution, and cache persistence.
-- Return an explicit archive-not-prepared state; never use `idle` to imply that a full ArchiveContext exists.
-- Materialize a full ArchiveContext only after an explicit archive-preparation action, preserving all formal archive safety gates.
-- Allow an explicit report-only Word export after preview without requiring archive preparation; keep Manifest-bound formal archive export fully gated.
-- Make the preview UI passive with respect to WinRAR and give archive preparation its own state and loading lifecycle.
+- 返回兼容 Legacy 的 `InspectionReport` 预览，而无需等待完整报告清单。
+- 构建请求范围内的受控 Parser 输入快照，复用核心 JSON、格式检测、设备行、目录索引和已解析的依赖元数据。
+- 首次解析在一次受控遍历中读取并计算每个实际依赖的摘要。
+- 缓存命中时先校验依赖元数据，仅对发生变化的依赖重新计算内容摘要。
+- 在依赖发现、指纹计算、Parser 执行和缓存持久化前合并同目录的进行中请求。
+- 返回显式的归档未准备状态；绝不使用 `idle` 暗示完整 ArchiveContext 已存在。
+- 仅在显式归档准备操作后实体化完整 ArchiveContext，并保留全部正式归档安全门控。
+- 允许在预览后显式执行仅报告 Word 导出，而不要求归档准备；与 Manifest 绑定的正式归档导出继续受到完整门控。
+- 预览 UI 不主动触发 WinRAR，并为归档准备提供独立状态和加载生命周期。
 
-## Non-Goals
+## 非目标
 
-- Do not enter Shadow or Canonical implementation, comparison, routing, or output changes.
-- Do not change the formal WinRAR planner, executor, RAR/Manifest integrity rules, Word template, or Legacy DTO shape.
-- Do not solve the problem by increasing the frontend 120-second timeout.
-- Do not add real case paths, case names, personnel/device identifiers, real reports, generated output, or large binary fixtures to the repository.
+- 不进入 Shadow 或 Canonical 的实现、比较、路由或输出变更。
+- 不修改正式 WinRAR 规划器、执行器、RAR/Manifest 完整性规则、Word 模板或 Legacy DTO 结构。
+- 不通过提高前端 120 秒超时来解决问题。
+- 不向仓库加入真实案件路径、案件名称、人员/设备标识、真实报告、生成输出或大型二进制固定测试数据。
 
-## Capabilities
+## 能力
 
-### CAP-PREVIEW-SNAPSHOT-001: Request-scoped parser input snapshot
+### CAP-PREVIEW-SNAPSHOT-001：请求范围内的 Parser 输入快照
 
-Core public JSON, format detection, device rows, evidence-directory resolution, and the actual Parser dependency set are loaded once per parse task and reused by all downstream Parser stages.
+每个解析任务只加载一次核心公共 JSON、格式检测结果、设备行、检材目录解析结果和实际 Parser 依赖集，并由所有下游 Parser 阶段复用。
 
-### CAP-PREVIEW-CACHE-002: Dependency-aware parse cache
+### CAP-PREVIEW-CACHE-002：感知依赖的解析缓存
 
-The cache records only actual Parser dependencies. First-parse digest work is combined with parsing; cache hits perform metadata-first validation and only rehash dependencies whose identity metadata changed. Unrelated media, attachment HTML, and non-business JSON do not invalidate the business parse cache.
+缓存只记录实际 Parser 依赖。首次解析的摘要计算与解析合并进行；缓存命中时先校验元数据，仅重新哈希标识元数据已变化的依赖。无关媒体、附件 HTML 和非业务 JSON 不会使业务解析缓存失效。
 
-### CAP-PREVIEW-INFLIGHT-003: Same-directory in-flight reuse
+### CAP-PREVIEW-INFLIGHT-003：同目录进行中请求复用
 
-All requests for the same normalized report directory join one bounded, expiring in-flight task before any expensive filesystem work. A client Abort cancels only that request's waiter and cannot create a second parse task.
+同一规范化报告目录的所有请求在任何昂贵文件系统操作前加入同一个有界、会过期的进行中任务。客户端 Abort 只取消该请求的等待，不会创建第二个解析任务。
 
-### CAP-ARCHIVE-LIFECYCLE-004: Preview and full ArchiveContext separation
+### CAP-ARCHIVE-LIFECYCLE-004：预览与完整 ArchiveContext 分离
 
-Preview returns an explicit not-prepared archive state and, if needed, an opaque short-lived authorized context shell. Full inventory is created only by the later archive-preparation action and remains the sole input to formal archive execution.
+预览返回显式的未准备归档状态，并可按需返回不透明的短期授权上下文外壳。只有后续归档准备操作才创建完整清单，而该清单仍是正式归档执行的唯一输入。
 
-### CAP-FRONTEND-LIVENESS-005: Passive preview and independent archive preparation state
+### CAP-FRONTEND-LIVENESS-005：被动预览与独立归档准备状态
 
-Loading, errors, retry, and archive-preparation status are independent. Preview success does not start WinRAR; an archive context that is not prepared is represented accurately and cannot be consumed as a ready context.
+加载、错误、重试和归档准备状态彼此独立。预览成功不会启动 WinRAR；未准备完成的归档上下文须被准确表达，并且不能作为就绪上下文使用。
 
-## Impact
+## 影响
 
-| Layer | Impact | Expected scope |
+| 层级 | 影响 | 预期范围 |
 |---|---|---|
-| Layer 0 SharedTypes | Add explicit preview/archive-readiness status and optional shell summary fields while preserving `InspectionReport`, `ArchiveManifest`, and Legacy DTO fields | `packages/shared/types/archive.ts`, `packages/shared/types/index.ts` |
-| Layer 1 Constants | Add only the generic archive-preparation endpoint/status constants required by this lifecycle change | `packages/shared/constants/index.ts` |
-| Layer 2 SharedUtils | No mandatory change; add pure normalization helpers only if shared contract validation requires them | Existing shared utils, only if justified |
-| Layers 10-12 Frontend | Stop automatic archive preparation, display explicit not-prepared state, isolate archive-preparation loading/errors, allow report-only Word export, and keep Manifest-bound formal export gated | `useReportParser.ts`, `useArchivePreparation.ts`, archive status UI, `RecordGeneratePage.tsx` |
-| Layer 20 Backend Repository | Controlled input snapshot, dependency index, per-file metadata/digest reuse, and path-free identity handling | New snapshot/digest repository modules plus existing identity helpers |
-| Layer 21 Backend Services | Parser orchestration, cache integration, in-flight registry, context shell, and full-context materialization | `report_parser_service.py`, cache/runtime services, new lifecycle services |
-| Layer 22 Backend Controllers | Preview response assembly without full inventory and explicit archive-preparation boundary | `record_controller.py`, `archive_controller.py` |
-| Layer 23 Routes | Register only the generic preparation route if design review confirms it is required | Existing route registration |
+| Layer 0 SharedTypes | 增加显式预览/归档就绪状态和可选外壳摘要字段，同时保留 `InspectionReport`、`ArchiveManifest` 和 Legacy DTO 字段 | `packages/shared/types/archive.ts`、`packages/shared/types/index.ts` |
+| Layer 1 Constants | 只增加本次生命周期变更所需的通用归档准备端点/状态常量 | `packages/shared/constants/index.ts` |
+| Layer 2 SharedUtils | 无强制变更；仅在共享合同校验需要时增加纯规范化辅助函数 | 现有共享工具，仅在有充分理由时修改 |
+| Layer 10–12 前端 | 停止自动归档准备、显示显式未准备状态、隔离归档准备的加载/错误、允许仅报告 Word 导出，并继续门控 Manifest 绑定的正式导出 | `useReportParser.ts`、`useArchivePreparation.ts`、归档状态 UI、`RecordGeneratePage.tsx` |
+| Layer 20 后端 Repository | 受控输入快照、依赖索引、逐文件元数据/摘要复用和无路径标识处理 | 新快照/摘要 Repository 模块及现有标识辅助函数 |
+| Layer 21 后端 Service | Parser 编排、缓存集成、进行中任务注册表、上下文外壳和完整上下文实体化 | `report_parser_service.py`、缓存/运行时 Service、新生命周期 Service |
+| Layer 22 后端 Controller | 不创建完整清单的预览响应组装及显式归档准备边界 | `record_controller.py`、`archive_controller.py` |
+| Layer 23 Route | 仅在设计审查确认需要时注册通用准备路由 | 现有路由注册 |
 
-### Public contract strategy
+### 公共合同策略
 
-The parsed `InspectionReport`, `rar_info` compatibility field, and formal `ArchiveManifest` remain unchanged. The parse response gains an explicit archive-readiness field and may return an opaque context-shell identifier. A shell is not a full inventory and is not formal archive evidence. Existing consumers that only read the report continue to work. A report-only Word export may consume the editable report without a shell or Manifest; any archive execution or Manifest-bound formal export must reject a non-ready shell with a stable, actionable state.
+解析后的 `InspectionReport`、`rar_info` 兼容字段和正式 `ArchiveManifest` 保持不变。解析响应增加显式归档就绪字段，并可返回不透明的上下文外壳标识。外壳不是完整清单，也不是正式归档证据。只读取报告的现有调用方可继续工作。仅报告 Word 导出可使用可编辑报告，而无需外壳或 Manifest；任何归档执行或 Manifest 绑定的正式导出必须以稳定且可操作的状态拒绝未就绪外壳。
 
-The generic preparation boundary accepts only the authorized report-directory source record.
+通用准备边界只接受已授权的报告目录来源记录。
 
-## Level 3 rationale
+## Level 3 理由
 
-This change modifies a core data-conversion pipeline, persistent cache identity, request concurrency semantics, the preview response lifecycle, and the security boundary between an authorized source and a formal ArchiveContext. It may change shared API types and introduces a new lifecycle boundary used by explicit archive preparation. It therefore requires proposal, spec, design, tasks, implementation, verification, independent review, manual real-report acceptance, and archive in the Level 3 workflow.
+本变更会修改核心数据转换管道、持久缓存标识、请求并发语义、预览响应生命周期，以及授权来源与正式 ArchiveContext 之间的安全边界。它可能改变共享 API 类型，并引入供显式归档准备使用的新生命周期边界。因此须按照 Level 3 工作流完成提案、规格、设计、任务、实现、验证、独立审查、真实报告人工验收和归档。
 
-## Acceptance summary
+## 验收摘要
 
-- First preview of a representative multi-material report is below 90 seconds with margin; cache-hit preview is below 15 seconds.
-- Preview does not enumerate the complete report inventory or create a full ArchiveContext.
-- Core JSON is parsed once per task; each dependency is read/digested once on a cache miss; cache hits do not reread unchanged dependency contents.
-- Same-directory concurrent requests share one task, including after a client timeout.
-- Legacy and New report DTOs remain equivalent to the pre-change parser for supported fixtures.
-- Explicit archive preparation performs complete inventory, readability, path/link, change, full-content-fingerprint, WinRAR, Manifest, and RAR validation before formal output.
-- Report-only Word export remains available when archive preparation is not requested; it does not claim a validated archive or Manifest.
+- 代表性多检材报告的首次预览留有余量地低于 90 秒；缓存命中预览低于 15 秒。
+- 预览不枚举完整报告清单，也不创建完整 ArchiveContext。
+- 每个任务只解析一次核心 JSON；缓存未命中时每个依赖只读取/计算摘要一次；缓存命中时不重新读取未变化依赖的内容。
+- 同目录并发请求共享一个任务，包括客户端超时之后的请求。
+- 对支持的固定测试数据，Legacy 和 New 报告 DTO 与变更前 Parser 等价。
+- 显式归档准备在正式输出前执行完整清单、可读性、路径/链接、变化、完整内容指纹、WinRAR、Manifest 和 RAR 校验。
+- 未请求归档准备时，仍可执行仅报告 Word 导出；该导出不得声称存在已验证归档或 Manifest。

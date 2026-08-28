@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — validated preview archive facts and downloads.
+// 第 11 层：FE_Components — 已验证的预览归档信息与下载。
 import React from 'react'
 import { Alert, Button, Card, Descriptions, Space, Tag, Typography } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'

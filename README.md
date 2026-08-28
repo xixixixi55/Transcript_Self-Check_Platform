@@ -18,7 +18,7 @@
 
 - 🔄 **CanonicalInspectionCase**：统一内部模型（基础实现已完成，尚未生产接线）
 - 🔄 **pipeline_mode**：legacy/shadow/canonical 三模式（集中读取，当前默认 legacy；canonical 正式输出未启用）
-- 🔄 **Shadow comparison**：新旧管线脱敏比较（生产旁路已接线；真实样本差异治理尚未完成）
+- 🔄 **影子比较**：新旧管线脱敏比较（生产旁路已接线；真实样本差异治理尚未完成）
 - 🔄 **DocumentRenderPlan**：未来统一渲染合同（尚无生产类型、构造或消费）
 - 🔄 **ReportProfile / 通用 TemplateProfile**：后续扩展
 
@@ -118,8 +118,8 @@ pnpm check-docs           # → 文档检查（严格模式，11 项）
 
 ## 工作流程
 
-本项目使用 Harness Engineering + OpenSpec 方法论，详见 `AGENTS.md` 和 `harness/iteration-guide.md`。
+本项目使用 Harness 工程化 + OpenSpec 方法论，详见 `AGENTS.md` 和 `harness/iteration-guide.md`。
 
-## License
+## 许可证
 
 内部使用

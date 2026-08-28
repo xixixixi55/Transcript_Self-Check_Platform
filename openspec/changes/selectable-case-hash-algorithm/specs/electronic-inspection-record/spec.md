@@ -1,4 +1,4 @@
-# Spec Delta: 新案件可选择笔录哈希算法
+# 规格增量：新案件可选择笔录哈希算法
 
 > 基准 Spec: `openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED（REQ-007、REQ-009、REQ-015、REQ-019）

@@ -1,4 +1,4 @@
-# OpenSpec Delta: data-model
+# OpenSpec 差异：data-model
 
 ## ADDED Requirements
 

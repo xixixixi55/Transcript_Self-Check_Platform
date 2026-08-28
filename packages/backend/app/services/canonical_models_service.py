@@ -1,4 +1,4 @@
-"""Canonical inspection models at the report adapter boundary."""
+"""报告适配器边界上的规范检查模型。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Redacted, normalized comparisons for the Shadow migration mode."""
+"""Shadow 迁移模式的脱敏规范化比较。"""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ class ShadowComparisonResult:
         return "matched" if self.matched else "different"
 
     def to_public_dict(self) -> dict[str, object]:
-        """Return diagnostics only; comparable source values never leave memory."""
+        """仅返回诊断；可比较来源值绝不离开内存。"""
         return {
             "stage": self.stage,
             "status": self.status,

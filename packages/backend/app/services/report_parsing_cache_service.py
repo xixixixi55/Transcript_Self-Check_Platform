@@ -1,4 +1,4 @@
-"""LRU orchestration for persistent report parsing results."""
+"""持久化报告解析结果的 LRU 编排。"""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from ..repository.report_parse_input_models import ReportParseInputError, Report
 
 
 class ReportParsingCacheService:
-    """Coordinate cache reads, builds and cleanup without touching archive roots."""
+    """在不触及归档根目录的情况下协调缓存读取、构建和清理。"""
 
     def __init__(
         self,
@@ -56,9 +56,8 @@ class ReportParsingCacheService:
         snapshot_builder: Callable[[], ReportParseInputSnapshot] | None = None,
         generation_token: int | None = None,
     ) -> dict[str, object]:
-        # Capture the cache generation before any potentially slow fingerprint
-        # work. A clear that starts after this request must invalidate its
-        # eventual write, even if fingerprinting has not reached the key lock.
+        # 在执行任何可能较慢的指纹计算前捕获缓存代次。此请求开始后触发的清理
+        # 必须使其最终写入失效，即使指纹计算尚未到达键锁也一样。
         with self._lock:
             generation = self._generation if generation_token is None else generation_token
         cache_key = normalized_directory_key(source_dir)
@@ -186,9 +185,9 @@ REPORT_PARSING_CACHE_SERVICE = ReportParsingCacheService()
 
 
 def clear_report_parsing_cache(cache_dir: str) -> int:
-    """Clear report parse results without touching archive outputs."""
+    """清除报告解析结果，但不触及归档输出。"""
     cleared = REPORT_PARSING_CACHE_SERVICE.clear_all(cache_dir)
-    # Archive parse reuse is memory-only and has no RAR/Manifest ownership.
+    # 归档解析复用仅存在于内存中，不拥有 RAR 或 Manifest。
     from .archive_parse_runtime_service import clear_archive_parse_cache
 
     return cleared + clear_archive_parse_cache()

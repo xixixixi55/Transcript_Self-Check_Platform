@@ -1,4 +1,4 @@
-"""Report format detection and strict semantic compatibility helpers."""
+"""报告格式检测和严格语义兼容辅助函数。"""
 
 import os
 import re
@@ -50,11 +50,11 @@ class ReportFormat(str, Enum):
 
 
 class ReportFormatError(ValueError):
-    """Core files exist but their structure is not a supported report format."""
+    """核心文件存在，但其结构不是受支持的报告格式。"""
 
 
 def detect_report_format(data_dir: str) -> ReportFormat:
-    """Detect a report from core structure, never from a report filename."""
+    """根据核心结构检测报告，绝不根据报告文件名检测。"""
     required = ["data_case_info.json", "data_device_lists.json", "data_report_info.json"]
     missing = [name for name in required if not os.path.exists(os.path.join(data_dir, name))]
     if missing:
@@ -69,7 +69,7 @@ def detect_report_format(data_dir: str) -> ReportFormat:
 def detect_report_format_from_payloads(
     case_data: Any, device_data: Any, report_data: Any,
 ) -> ReportFormat:
-    """Detect format from one request's already-parsed core payloads."""
+    """根据一次请求中已解析的核心载荷检测格式。"""
     if (
         not isinstance(case_data, dict)
         or not isinstance(case_data.get("contents"), list)
@@ -145,7 +145,7 @@ def _normalise_key(value: Any) -> str:
 
 
 def extract_main_software_version(contents: Any) -> str:
-    """Extract only a reliably bound main-software name/version pair."""
+    """仅提取可靠绑定的主软件名称和版本对。"""
     if not isinstance(contents, list):
         return ""
     candidates: list[tuple[str, str]] = []
@@ -180,7 +180,7 @@ def extract_main_software_version(contents: Any) -> str:
 
 
 def extract_main_software_candidate(contents: Any) -> dict[str, Any]:
-    """Return a report-bound software candidate without using runtime defaults."""
+    """返回报告绑定的软件候选项，不使用运行时默认值。"""
     if not isinstance(contents, list):
         return {"name": "", "version": "", "status": "unconfirmed", "candidates": []}
 
@@ -228,7 +228,7 @@ def extract_main_software_candidate(contents: Any) -> dict[str, Any]:
 
 
 def _main_software_matches(value: str) -> list[re.Match[str]]:
-    """Prefer the explicit bracketed main-product segment over submodules."""
+    """优先使用明确加括号的主产品段，而非子模块。"""
     bracketed = list(_BRACKETED_REPORT_USES_SOFTWARE_RE.finditer(value))
     if bracketed:
         return bracketed
@@ -238,7 +238,7 @@ def _main_software_matches(value: str) -> list[re.Match[str]]:
 
 
 def normalize_main_software_name(value: Any) -> str:
-    """Keep the software identity while removing embedded hardware descriptors."""
+    """移除嵌入式硬件描述，同时保留软件标识。"""
     name = " ".join(str(value or "").split()).strip(" :：，,；;。")
 
     def keep_or_remove(match: re.Match[str]) -> str:

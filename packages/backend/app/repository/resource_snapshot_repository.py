@@ -1,4 +1,4 @@
-"""Controlled archive heartbeat/activity persistence without a Worker loop."""
+"""不使用工作进程循环的受控归档心跳和活动持久化。"""
 
 from __future__ import annotations
 

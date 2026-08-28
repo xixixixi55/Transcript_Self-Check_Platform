@@ -1,4 +1,4 @@
-"""Internal retention authority and timestamp helpers."""
+"""内部保留权威和时间戳辅助函数。"""
 
 from __future__ import annotations
 

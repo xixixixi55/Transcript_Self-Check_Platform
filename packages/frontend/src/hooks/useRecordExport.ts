@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — 笔录导出 Hook
+// 第 10 层：FE_Hooks — 笔录导出 Hook
 import { useState, useCallback } from 'react'
 import axios from 'axios'
 import { message } from 'antd'
@@ -96,7 +96,7 @@ async function resolveExportErrorMessage(error: any): Promise<string> {
       }
       if (typeof parsed.detail === 'string') return parsed.detail
     } catch {
-      // Fall through to the generic Axios error below.
+      // 继续交由下方的通用 Axios 错误处理。
     }
   }
   const detail = responseData?.detail

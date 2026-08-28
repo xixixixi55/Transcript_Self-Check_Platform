@@ -1,4 +1,4 @@
-"""Build and revalidate immutable public ArchiveManifest data."""
+"""构建并重新验证不可变的公开 ArchiveManifest 数据。"""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def _manifest_mode(manifest: dict) -> str:
 def capture_archive_file_identities(
     root: Path, filenames: set[str],
 ) -> dict[str, ArchiveFileIdentity]:
-    """Capture path-independent identities for already hashed, sealed parts."""
+    """为已计算哈希并密封的分卷捕获与路径无关的标识。"""
 
     resolved_root = root.resolve(strict=False)
     identities: dict[str, ArchiveFileIdentity] = {}
@@ -76,7 +76,7 @@ def assemble_archive_manifest(
         sequence = parsed_disc.sequence
         disc_date = sequence.date
         actual_disc_numbers = generate_disc_numbers(sequence, len(validation.parts))
-    else:  # REQ-030: empty first disc keeps part disc metadata empty until mapped
+    else:  # REQ-030：首张光盘为空时，分卷光盘元数据在映射前保持为空
         disc_date = ""
         actual_disc_numbers = [""] * len(validation.parts)
     archive_mode = getattr(plan, "archive_mode", _STANDARD_SPLIT_MODE)
@@ -141,7 +141,7 @@ def assemble_archive_manifest(
 
 
 def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None = None) -> bool:
-    """Re-check the same-run files before DOCX generation or retry."""
+    """在生成 DOCX 或重试前重新检查同次运行的文件。"""
 
     root = Path(record.final_dir).resolve(strict=False)
     if not root.is_dir():
@@ -215,7 +215,7 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         elif (mode == "legacy_standard_split" and isinstance(volume_size, int)
               and (size > volume_size or volume_size <= 0)):
             return False
-        # Disc capacity must be the smallest tier ≥ actual size
+        # 光盘容量必须是大于等于实际大小的最小档位
         try:
             expected_cap = _expected_disc_capacity(size, mode)
         except ValueError:
@@ -225,7 +225,7 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
                 return False
             actual_cap = None
         elif "disc_capacity_bytes" not in item:
-            # Old manifest — key absent, derive from trusted size_bytes
+            # 旧版 manifest — 键缺失，根据可信的 size_bytes 推导
             actual_cap = expected_cap
         else:
             actual_cap = item["disc_capacity_bytes"]
@@ -234,7 +234,7 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
                 return False
         if actual_cap != expected_cap:
             return False
-        # volume_size_bytes invariant: if present on both part and manifest, must match
+        # volume_size_bytes 不变量：若分卷和 manifest 中均存在，则必须一致
         part_vol = item.get("volume_size_bytes")
         if mode == _OVERSIZED_SINGLE_VOLUME_MODE and part_vol is not None:
             return False
@@ -272,7 +272,7 @@ def validate_manifest_files(
     record, *, verified_md5s: dict[str, str] | None = None,
     verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
 ) -> str | None:
-    """Return a stable integrity error code for the published manifest files."""
+    """为已发布的 Manifest 文件返回稳定的完整性错误码。"""
     manifest = record.public_manifest
     mode = _manifest_mode(manifest)
     if mode not in {
@@ -311,7 +311,7 @@ def validate_manifest_files(
                 return "ARCHIVE_MANIFEST_INVALID"
             disc_cap = None
         elif "disc_capacity_bytes" not in item:
-            # Old manifest — key absent, derive from trusted size_bytes
+            # 旧版 manifest — 键缺失，根据可信的 size_bytes 推导
             try:
                 disc_cap = _expected_disc_capacity(size_bytes, mode)
             except ValueError:
@@ -327,7 +327,7 @@ def validate_manifest_files(
             return "ARCHIVE_MANIFEST_INVALID"
         if disc_cap != expected_cap:
             return "ARCHIVE_MANIFEST_INVALID"
-        # volume_size_bytes invariant: if present on part, must match manifest level
+        # volume_size_bytes 不变量：若分卷中存在，则必须与 manifest 层级一致
         part_volume = item.get("volume_size_bytes")
         if mode == _OVERSIZED_SINGLE_VOLUME_MODE and part_volume is not None:
             return "ARCHIVE_MANIFEST_INVALID"
@@ -372,11 +372,10 @@ def validate_manifest_files(
 
 
 def validate_manifest_metadata(record) -> str | None:
-    """Validate authenticated Manifest identity and physical metadata without content I/O.
+    """验证已认证的 Manifest 标识和物理元数据，不执行内容 I/O。
 
-    Callers must first authenticate the Manifest and its MD5 values against the
-    durable publication digest.  Formal download/export/reuse paths continue to
-    call ``validate_manifest_files`` without trusted hashes.
+    调用方必须先根据持久发布摘要认证 Manifest 及其 MD5 值。正式下载、导出和复用
+    路径仍在不提供可信哈希的情况下调用 `validate_manifest_files`。
     """
 
     parts = record.public_manifest.get("parts")

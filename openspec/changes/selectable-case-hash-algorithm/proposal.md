@@ -1,12 +1,12 @@
 # Proposal: 统一案件所选哈希算法的归档与导出链路
 
-## Why
+## 原因
 
 现有实现把 MD5 作为固定的内部完整性算法，再把案件选择的 SHA-1 或 SHA-256 作为附加业务摘要。结果是 MD5 案件与 SHA 案件经过不同链路：SHA 案件会额外完整读取 RAR 计算 MD5，归档复用、恢复、下载和统一导出前安全门仍硬编码依赖 `ArchivePart.md5`。统一导出中的 HashMyFiles 结果又只校验格式、长度、文件名和大小，没有与 Manifest 的业务摘要逐项等值比较。
 
 正式需求是：用户选择 MD5、SHA-1 或 SHA-256 中任意一种后，三种算法必须经过相同的归档、持久化、复用、恢复、下载和统一导出链路；唯一差异只能是算法参数、摘要长度、显示名称和截图列宽。系统仍应在归档与最终副本两个信任边界独立计算，但不得为 SHA 案件额外计算固定 MD5。
 
-## What Changes
+## 变更内容
 
 - 将 `hash_algorithm + hash_value` 提升为新 `ArchivePart` 唯一正式文件哈希事实源；新 Manifest 不再要求或生成固定 `md5`。
 - MD5、SHA-1、SHA-256 共用同一套计算、校验、Manifest、复用、恢复、下载、发布和错误处理流程。
@@ -16,7 +16,7 @@
 - 更新遗留 `md5_hash` 兼容载体、进度文案和软件工具描述，禁止字段名或历史工具名称把用户可见语义固定为 MD5。
 - 保留报告缓存指纹、上下文绑定、发布记录、图片资产等非案件文件哈希使用的内部 SHA-256；它们不受案件算法选择影响。
 
-## Capabilities
+## 能力
 
 ### Modified: 受控案件哈希算法合同
 
@@ -35,7 +35,7 @@
 - 三种算法只改变 HashMyFiles 参数、摘要长度、标题和列宽，不改变导出编排。
 - 失败继续遵守 staging、回滚和“不产生混合包”的原子发布合同。
 
-## Impact
+## 影响
 
 - **Level**：Level 3。该变更修改持久化 Manifest 合同及归档复用、恢复、下载、发布安全边界，回滚风险高，需要完整 proposal/spec/design/tasks、独立 Review 与 scoped full gate。
 - **主关联**：重开 `selectable-case-hash-algorithm`。本需求直接推翻该未归档变更中“固定内部 MD5 + 可选业务哈希”的设计，属于冻结前反馈，不新建重复 change。
@@ -47,7 +47,7 @@
 - **Storage/API**：不做破坏性数据库迁移，不新增外部端点；存量 JSON 按读取时兼容。
 - **Dependencies**：不新增第三方依赖，继续使用 Python `hashlib`、WinRAR 和 HashMyFiles 2.51。
 
-## Non-Goals
+## 非目标
 
 - 不在解析报告阶段生成最终 RAR 哈希；正式哈希仍以 WinRAR 最终产物为对象。
 - 不用 HashMyFiles 替代后台归档的 `hashlib`；GUI 工具只负责待发布副本的独立复核和截图。

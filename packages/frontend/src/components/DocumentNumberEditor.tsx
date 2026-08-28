@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — case-scoped sequence input for a snapshotted document-number format.
+// 第 11 层：FE_Components — 按案件范围输入序号，采用已快照的文书编号格式。
 import { useEffect, useState } from 'react'
 import { Input } from 'antd'
 import type { DocumentNumberTemplate } from '@biji/shared/types'

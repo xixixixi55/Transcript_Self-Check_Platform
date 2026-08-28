@@ -1,4 +1,4 @@
-"""The only repository entry allowed to create a queued archive attempt."""
+"""唯一允许创建排队归档尝试的仓储入口。"""
 
 from __future__ import annotations
 

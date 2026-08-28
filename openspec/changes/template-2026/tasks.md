@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-007 and REQ-009, including multi-entrust-person separator normalization across parsing, review editing, and Word export
+spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-007 和 REQ-009，包括在解析、审核编辑和 Word 导出间统一多委托人分隔符
 
 ## 目标
 

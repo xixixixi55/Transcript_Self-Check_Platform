@@ -1,4 +1,4 @@
-"""Atomic persistence operations used by the Phase 1B workbench services."""
+"""阶段 1B 工作台服务使用的原子持久化操作。"""
 from __future__ import annotations
 import secrets
 import sqlite3
@@ -64,7 +64,7 @@ def insert_audit_event(
 
 
 class CaseWorkflowRepository:
-    """Keep cross-record case/task/source changes in one SQLite transaction."""
+    """将跨记录的案件、任务和来源变更保留在一个 SQLite 事务中。"""
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database
         self.archive_decisions = CaseArchiveDecisionRepository(database)

@@ -125,7 +125,7 @@ export interface ArchiveTaskResult {
   manifest_id: string
   archive_mode: ArchiveMode
   archive_medium: ArchiveMedium
-  /** Optimistic concurrency token for updates to the persisted archive plan. */
+  /** 更新持久化归档计划的乐观并发令牌。 */
   plan_row_revision: number | null
   verified_slots: VerifiedVolumeSlot[]
   assets: {

@@ -1,4 +1,4 @@
-"""Normalized, non-public facts used by Shadow comparisons."""
+"""Shadow 比较使用的规范化非公开事实。"""
 
 from __future__ import annotations
 
@@ -57,11 +57,10 @@ def archive_filename_fingerprints(filenames: Any) -> tuple[str, ...] | None:
 
 
 def _legacy_kind(item: Mapping[str, Any]) -> str | None:
-    """Read the kind already emitted by the formal Legacy DTO.
+    """读取正式旧版 DTO 已输出的类型。
 
-    This intentionally does not call the canonical material adapter. Shadow's
-    Legacy facts must observe the result that Legacy would render, even when
-    the canonical migration interprets the same input differently.
+    此处有意不调用规范检材适配器。Shadow 的旧版事实必须观察旧版将渲染的结果，
+    即使规范迁移以不同方式解释同一输入。
     """
     declared = normalize_business_text(item.get("material_type"))
     if declared in {"phone", "tablet", "unconfirmed"}:

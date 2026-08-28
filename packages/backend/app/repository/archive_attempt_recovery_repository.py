@@ -1,4 +1,4 @@
-"""Atomic persistence operations for archive completion and restart recovery."""
+"""归档完成和重启恢复的原子持久化操作。"""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def complete_attempt(
 def complete_verified_attempt(
     database: WorkbenchDatabase, evidence: dict[str, Any],
 ) -> dict[str, Any]:
-    """Commit only evidence already verified by the completion service."""
+    """仅提交已由完成服务验证的证据。"""
     attempt_id = validate_opaque_id(evidence.get("attempt_id"))
     manifest_id = validate_opaque_id(evidence.get("manifest_id"))
     required = (

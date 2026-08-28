@@ -1,4 +1,4 @@
-# Spec Delta: 案件工作台上传报告目录入口布局
+# 规格增量：案件工作台上传报告目录入口布局
 
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED（案件工作台上传报告目录入口布局与登记输入）

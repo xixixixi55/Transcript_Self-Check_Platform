@@ -1,4 +1,4 @@
-"""Validate attachment-two images and calculate deterministic contain geometry."""
+"""验证附件二图片并计算确定性的包含几何。"""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS = (
 SUPPORTED_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png"})
 
 class Attachment2ImageError(ValueError):
-    """Stable, path-free error for an image that cannot be rendered."""
+    """图片无法渲染时不含路径的稳定错误。"""
 
     code = "ATTACHMENT2_IMAGE_INVALID"
     safe_message = "附件图片无法读取、解码或格式不受支持。"
@@ -71,7 +71,7 @@ class Attachment2ImageGeometry:
 def validate_attachment2_photos(
     photo_paths: Sequence[str], source_image_ids: Sequence[str] = (),
 ) -> tuple[Attachment2PhotoAsset, ...]:
-    """Decode every uploaded image while retaining paths only in backend runtime state."""
+    """解码每张上传图片，路径仅保留在后端运行时状态中。"""
     assets: list[Attachment2PhotoAsset] = []
     used_ids: set[str] = set()
     for sequence_number, raw_path in enumerate(photo_paths, 1):
@@ -117,7 +117,7 @@ def calculate_fixed_geometry(
     slot_width_emu: int = ATTACHMENT2_SLOT_WIDTH_EMU,
     slot_height_emu: int = ATTACHMENT2_SLOT_HEIGHT_EMU,
 ) -> Attachment2ImageGeometry:
-    """Maximize an image inside the fixed slot without changing its ratio."""
+    """在不改变比例的情况下使图片在固定槽位内最大化。"""
     if (width_px <= 0 or height_px <= 0
             or slot_width_emu <= 0 or slot_height_emu <= 0):
         raise ValueError("image dimensions must be positive")

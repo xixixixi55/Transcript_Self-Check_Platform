@@ -1,4 +1,4 @@
-"""Trusted projection of verified archive parts into the Legacy report DTO."""
+"""将已验证归档分卷投影到旧版报告 DTO 的可信映射。"""
 
 from __future__ import annotations
 
@@ -20,13 +20,11 @@ def apply_verified_archive_result(
     report: Mapping[str, Any], manifest: Mapping[str, Any],
     attachment_projection: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return a report with verified archive metadata filled.
+    """返回已填入经验证归档元数据的报告。
 
-    The caller must have verified the manifest and its physical files.  This
-    helper only performs the stable Legacy DTO projection and never adds a
-    manifest identifier or filesystem detail to the report.  The optional
-    attachment projection is prepared by the Service layer and committed with
-    the same draft transaction.
+    调用方必须已验证 Manifest 及其物理文件。此辅助函数仅执行稳定的旧版 DTO 投影，
+    绝不向报告添加 Manifest 标识符或文件系统详情。可选附件投影由服务层准备，
+    并在同一草稿事务中提交。
     """
     fields = verified_archive_result_fields(manifest)
     result = copy.deepcopy(dict(report))
@@ -45,7 +43,7 @@ def apply_verified_archive_result(
 
 
 def verified_archive_result_fields(manifest: Mapping[str, Any]) -> dict[str, str]:
-    """Build the existing stable string contract from ordered manifest parts."""
+    """根据有序 Manifest 分卷构建现有稳定字符串契约。"""
     parts = manifest.get("parts")
     if not isinstance(parts, list) or not parts:
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_REQUIRED")
@@ -76,7 +74,7 @@ def verified_archive_result_fields(manifest: Mapping[str, Any]) -> dict[str, str
 def preserve_verified_archive_projection(
     report: Mapping[str, Any], verified_report: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Rebase an editor save without losing trusted archive completion fields."""
+    """重定基编辑器保存，同时不丢失可信归档完成字段。"""
     result = copy.deepcopy(dict(report))
     verified_inspection = verified_report.get("inspection")
     verified_result = (
@@ -113,7 +111,7 @@ def preserve_verified_archive_projection(
 def is_archive_completion_revision(
     database: WorkbenchDatabase, current: Mapping[str, Any], expected_revision: int,
 ) -> bool:
-    """Identify the single draft revision written by verified completion."""
+    """标识经验证完成操作写入的唯一草稿修订版。"""
     if (
         current.get("lifecycle") != "archive_verified"
         or int(current.get("revision", -1)) != expected_revision + 1

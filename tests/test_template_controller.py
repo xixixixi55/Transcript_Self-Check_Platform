@@ -1,4 +1,4 @@
-"""T019 public template API and formal generation integration tests."""
+"""T019 公共模板 API 与正式生成集成测试。"""
 
 from __future__ import annotations
 

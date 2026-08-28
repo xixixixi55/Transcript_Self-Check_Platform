@@ -179,7 +179,7 @@ def normalise_imei(value: Any) -> str:
 
 
 def vendor_device_name_from_row(fields: Any) -> str:
-    """Read a device row's explicit ``data/<device>/Base`` relationship."""
+    """读取设备行中明确的 ``data/<device>/Base`` 关系。"""
     if not isinstance(fields, list):
         return ""
     for field in fields:

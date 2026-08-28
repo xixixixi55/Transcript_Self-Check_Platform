@@ -1,4 +1,4 @@
-"""Durable publish-intent recovery without introducing a worker or queue."""
+"""不引入工作进程或队列的持久发布意图恢复。"""
 
 from __future__ import annotations
 
@@ -31,11 +31,11 @@ if TYPE_CHECKING:
 
 
 class _RecoveryTransientError(RuntimeError):
-    """The evidence may be valid, but an infrastructure read/write was temporary."""
+    """证据可能有效，但基础设施读写故障是暂时的。"""
 
 
 class _RecoveryConflictError(RuntimeError):
-    """Durable evidence proved that this intent cannot complete."""
+    """持久证据已证明此意图无法完成。"""
 
 
 def recover_after_restart(service: ArchiveAttemptService) -> list[str]:
@@ -49,9 +49,8 @@ def recover_after_restart(service: ArchiveAttemptService) -> list[str]:
             _cleanup_interrupted(service, record)
             interrupted.append(str(record["attempt_id"]))
 
-    # Publish intents, rather than attempt runtime status, are the durable
-    # reconciliation index.  This includes failed attempts left after a
-    # post-publish infrastructure error.
+    # 发布意图而非尝试运行时状态，才是持久化的协调索引。
+    # 其中包括发布后基础设施错误遗留的失败尝试。
     for intent in intents.list_unfinished():
         attempt_id = str(intent["attempt_id"])
         try:
@@ -61,8 +60,7 @@ def recover_after_restart(service: ArchiveAttemptService) -> list[str]:
         try:
             outcome = _recover_published_intent(service, attempt, intent, intents)
         except _RecoveryTransientError:
-            # Runtime state is already interrupted; preserve evidence and the
-            # pending fence for a later explicit verification.
+            # 运行时状态已中断；保留证据和待处理围栏，供稍后显式验证。
             continue
         except _RecoveryConflictError:
             current = intents.get_for_attempt(attempt_id)
@@ -91,12 +89,11 @@ def recover_after_restart(service: ArchiveAttemptService) -> list[str]:
 def cleanup_unfinished_snapshot(
     database: WorkbenchDatabase, output_root: str | Path, value: dict[str, Any],
 ) -> str:
-    """Remove only a durable row's exact task-owned copying/sealed paths.
+    """仅移除持久记录中由任务精确拥有的复制中或已密封路径。
 
-    A copying row is durable ownership evidence even when the marker was not
-    flushed before a process died.  The locator is still resolved below a
-    controlled legacy or short snapshot root and the only candidates are the
-    row's exact final name and its exact ``.copying`` sibling.
+    即使进程在标记落盘前终止，复制中记录仍是持久所有权证据。下方会在
+    受控的旧版或短快照根目录中解析定位符，候选项仅限记录中的精确最终名称
+    及其精确的 `.copying` 同级项。
     """
     if value.get("deployment_instance_id") != database.deployment_instance_id:
         raise WorkbenchPersistenceError("ARCHIVE_INPUT_SNAPSHOT_OWNER_MISMATCH")
@@ -121,7 +118,7 @@ def cleanup_unfinished_snapshot(
             str(value["marker_token"]),
         )
     elif status == "sealed":
-        # A sealed input must retain its owner marker until normal completion.
+        # 密封输入必须保留其所有者标记，直至正常完成。
         raise WorkbenchPersistenceError("ARCHIVE_INPUT_SNAPSHOT_OWNER_INVALID")
 
     for candidate in (copying, final):
@@ -140,7 +137,7 @@ def cleanup_unfinished_snapshot(
 def cleanup_unfinished_snapshots(
     database: WorkbenchDatabase, output_root: str | Path,
 ) -> list[str]:
-    """Best-effort cleanup, retaining durable diagnostics for unsafe rows."""
+    """尽力清理，同时为不安全记录保留持久诊断信息。"""
     repository = ArchiveInputSnapshotRepository(database)
     cleaned: list[str] = []
     for value in repository.list_unfinished():
@@ -148,8 +145,8 @@ def cleanup_unfinished_snapshots(
             if cleanup_unfinished_snapshot(database, output_root, value) == "succeeded":
                 cleaned.append(str(value["snapshot_id"]))
         except (OSError, ValueError, KeyError, WorkbenchPersistenceError):
-            # The row remains copying/invalidated/sealed and is retried by the
-            # next bounded recovery pass; never delete outside its owner root.
+            # 该行保持复制中/已失效/已密封状态，并由下一次有界恢复流程重试；
+            # 绝不删除其所有者根目录之外的内容。
             continue
     return cleaned
 
@@ -157,7 +154,7 @@ def cleanup_unfinished_snapshots(
 def _cleanup_unsealed_publication(
     service: ArchiveAttemptService, intent: dict[str, Any],
 ) -> None:
-    """Remove only a task-bound, never-sealed final candidate after recovery conflict."""
+    """恢复冲突后，仅移除任务绑定且从未密封的最终候选项。"""
     compressed_root = (service.output_root / "compressed").resolve(strict=False)
     candidate = (compressed_root / str(intent["relative_final_dir"])).resolve(strict=False)
     try:
@@ -169,8 +166,8 @@ def _cleanup_unsealed_publication(
     try:
         shutil.rmtree(candidate)
     except OSError:
-        # The durable conflict remains authoritative if cleanup is temporarily
-        # unavailable; recovery must never promote this candidate.
+        # 如果清理暂时不可用，持久冲突仍是权威状态；
+        # 恢复流程绝不能提升此候选项。
         return
 
 
@@ -250,9 +247,8 @@ def _recover_published_intent(
             or indexed.archive_fingerprint != intent["archive_fingerprint"]
         ):
             raise _RecoveryConflictError("indexed evidence mismatch")
-        # Always rewrite the derived projection from the durable intent.  This
-        # also repairs a missing/corrupt index after a crash without treating
-        # the JSON file as a second authority.
+        # 始终根据持久意图重写派生投影。这样也能在崩溃后修复缺失/损坏的索引，
+        # 而不会将 JSON 文件视为第二权威来源。
         registry.save(
             source_key=intent["source_key"], input_fingerprint=intent["input_fingerprint"],
             archive_fingerprint=intent["archive_fingerprint"], manifest_id=intent["manifest_id"],

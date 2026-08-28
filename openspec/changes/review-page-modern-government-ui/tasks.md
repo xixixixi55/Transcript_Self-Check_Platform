@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: existing scenarios plus primary-software single-display scenarios synchronized into openspec/specs/electronic-inspection-record/spec.md on 2026-08-25
+spec_sync_evidence: 现有场景及主软件单一显示场景已于 2026-08-25 同步到 openspec/specs/electronic-inspection-record/spec.md
 
 ## 目标
 

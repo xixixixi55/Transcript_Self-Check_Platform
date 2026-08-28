@@ -1,4 +1,4 @@
-"""Business hash selection and legacy-compatible projection helpers."""
+"""业务哈希选择和旧版兼容投影辅助函数。"""
 
 from __future__ import annotations
 

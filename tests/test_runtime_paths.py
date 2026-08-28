@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for portable resource and per-user data separation."""
+"""便携资源与每用户数据分离的 SYNTHETIC 测试。"""
 
 from __future__ import annotations
 

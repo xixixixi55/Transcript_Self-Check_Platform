@@ -1,4 +1,4 @@
-# Tasks: persistent-case-workbench-and-archive-coordination
+# 任务：persistent-case-workbench-and-archive-coordination
 
 > 本文件定义后续实现顺序；Phase 1–4 已实现完成，阶段自动验证、完整 Harness 和最终集成人工验收均已通过。2026-07-30 首次最终集成人工验收发现公共 HTTP 归档任务没有运行时调度/Worker 接管，仍保持 `queued/unassigned`；2026-07-31 完成 runtime 接线、Windows 缺少 `busy_time` 的兼容降级、staging ownership marker 发布时序和工作台 autosave/revision 协调四项修复，并在 D 盘隔离环境完成真实浏览器复验。`1D-017R`、Final Review 和 2026-08-01 Production Review 均已通过；Production Review 结论适用于现有 Legacy-only、单 Windows 实例支持模型，当前已具备归档准备条件，`OpenSpec 归档阻断解除` 已按现有 gate 记录为解除。Phase 5 和 OpenSpec archive 尚未开始。TD-1/TD-2 已关闭，TD-4/TD-5 保留为环境债务，TD-3/TD-6 保留为 Low 技术债。
 > 目标合同：`openspec/specs/electronic-inspection-record/spec.md`
@@ -25,33 +25,33 @@
 
 **阶段目标**：建立持久化基础和可恢复工作台，但不改变 Legacy 归档/Word 安全门控。
 
-### Layer 0 — SharedTypes
+### 第 0 层 — SharedTypes
 
 - [x] **T001** 在 `packages/shared/types/` 新增 `CaseShell`、`CaseDraft`、`SourceRecord`、`ClientIdentity`、`SharedDefaults`、`FieldState`、`EditLease`、`TaskRecord`、生命周期状态、双写结果和版本化 API DTO；保持 `InspectionReport` Legacy 主体。验证：共享类型编译，DTO 不包含绝对路径、大对象或敏感运行输出。
 - [x] **T001T** 为 T001 增加类型契约测试/fixture，覆盖案件壳/正式草稿边界、任务状态、租约状态、无认证身份、双写结果、opaque asset 引用、默认值迁移结果和旧 `InspectionReport` 投影。验证：TypeScript typecheck 和合成 DTO round-trip。
 
-### Layer 1/2 — SharedConstants and SharedUtils
+### 第 1/2 层 — SharedConstants 和 SharedUtils
 
 - [x] **T002** 在 `packages/shared/constants/` 定义案件壳/解析失败/interrupted 状态、错误码、默认保留期配置键、租约周期、任务阶段和 API 版本；在 `packages/shared/utils/` 定义解析值优先级、状态迁移、双写结果聚合、自动保存冲突、无认证身份和生命周期纯函数。验证：禁止组件或服务重复硬编码状态值。
 - [x] **T002T** 在对应 `*.test.ts` 覆盖合法/非法状态迁移、report > system_default > pending 优先级、双写状态聚合、版本冲突、ClientIdentity 和边界时间；使用 `SYNTHETIC/TEST` 数据。验证：Vitest。
 
-### Layer 10/11/12 — Frontend Workbench
+### 第 10/11/12 层 — 前端工作台
 
 - [x] **T003** 新增 `useCaseWorkbench.ts`、`useCaseDraftAutosave.ts`、`useEditLease.ts`、`useTaskRecords.ts` 和案件工作台/案件编辑页面；以 `case_id` 加载案件壳/草稿，显示排队、解析中和失败卡片。工作台来源使用授权报告目录路径登记，不接受压缩包上传；解析成功后提供立即/稍后压缩决策。草稿保存使用 revision，租约使用后端心跳、失效和强制接管合同；旧前端生成地址只保留兼容重定向，后端 `/records/*` 合同继续保留。
 - [x] **T003T** 新增工作台页面、自动保存、租约 Hook 和压缩决策的合成 Vitest/RTL 测试，覆盖提交即建壳卡片、每页 6 卡片、分页、目录路径提交、无上传控件、API 失败、保存冲突、网络失败保留输入、租约释放和只读占用。项目当前没有可执行 Playwright/E2E harness，因此快速切换/刷新恢复通过请求序列保护实现，并列入人工验收；测试数据均使用 `SYNTHETIC/TEST` 标记。
 - [x] **T003F** 完成统一生产入口融合：案件详情复用 Legacy `RecordEditorForm` 的完整字段、日期时间校验、附件编辑、预览和 Word 导出映射；工作台补齐自定义下载文件名、检查人员加载和后端共享默认值保存，并保留案件状态、来源、租约、自动保存和多案件 UI 优化。旧 `RecordGeneratePage.tsx` 与报告压缩包上传入口停用，旧前端地址重定向到工作台。
 
-### Layer 20 — Persistence Repositories
+### 第 20 层 — 持久化存储库
 
 - [x] **T004** 新增 `case_workbench_repository.py`、`task_record_repository.py`、`shared_defaults_repository.py`、`edit_lease_repository.py`、`source_record_repository.py`、`asset_reference_repository.py`、`audit_event_repository.py`、`workbench_database.py`、`workbench_serialization.py` 和持久化错误/辅助模块；SQLite 只保存业务 DTO/元数据/opaque 引用，提供事务、revision、原子更新和实例数据目录隔离。验证：不写 Git 工作区，不暴露原始路径，不写入 Base64/HTML/原始 JSON 集合。
 - [x] **T004T** 新增对应 repository 测试；覆盖案件壳与正式草稿约束、SourceRecord 绑定/复核、重启重载、事务回滚、幂等迁移、双写独立记录、唯一租约、过期租约、opaque asset 和大对象拒绝、损坏数据恢复。验证：pytest。
 
-### Layer 21 — Services
+### 第 21 层 — 服务
 
 - [x] **T005** 新增 `packages/backend/app/services/case_draft_service.py`、`shared_defaults_service.py`、`edit_lease_service.py`、`task_record_service.py`、`source_record_service.py` 和 `case_lifecycle_service.py`；实现目录来源授权/结构验证、提交即建壳、解析成功/失败/重试、report > system_default > pending 初始化、双写分别返回、15 秒续租、2 分钟接管前提、ClientIdentity 审计、重启 interrupted、来源重新选择、立即/稍后压缩决策和只清理本系统解析 staging 的服务边界。共享默认值以 `/workbench/defaults` 为正式持久化来源，工作台不使用 localStorage 作为案件或默认值事实源。
 - [x] **T005T** 新增对应 service 测试；覆盖解析失败不可审核、来源失效/重新选择、普通编辑互斥、强制接管、默认值双写部分失败、重启中断、活跃任务删除前阻止和 revision 冲突。非自有进程终止不在本阶段调用，后台归档执行仍未实现。
 
-### Layer 22/23 — Controllers and Routes
+### 第 22/23 层 — 控制器和路由
 
 - [x] **T006** 新增 `packages/backend/app/controllers/workbench_controller.py`、`defaults_controller.py`、`lease_controller.py`、`source_controller.py` 和 `packages/backend/app/routes/workbench_routes.py`；提供报告目录路径登记、案件分页/详情、草稿补丁、默认值迁移与读写、任务状态/取消、租约读写、来源复核/重新选择、压缩时机决策和删除前检查 API，保留现有 Legacy `/records/*` 上传边界。
 - [x] **T006T** 新增 controller/route 测试；用 httpx 合成请求验证目录授权/结构错误、提交即建壳、分页、版本冲突 409、双写状态、租约互斥、压缩决策、来源路径隔离、任务状态、删除阻止和错误响应不泄露路径。
@@ -62,7 +62,7 @@
 - [x] 工作台编辑器使用持久化图片 Hook，上传成功后才更新草稿引用；切换、刷新和后端重启后恢复，删除/替换遵循 revision，预览和正式 Word 导出读取资产接口。
 - [x] 增加后端资产 API/Service/Repository 与前端 Hook 测试，覆盖恢复、跨案件隔离、租约、revision、损坏/超限拒绝、清理和错误不泄露路径。
 
-### Phase 1 internal gates
+### 阶段 1 内部门控
 
 - [x] **1C-LIVENESS** 工作台登记只在 HTTP 请求内完成来源授权/结构门控和 CaseShell/parse Task 持久化；解析执行器复用 Legacy `parse_report`，按“快速来源门控 → Parser → 草稿落库 → `review_ready`”运行，完整 SourceRecord metadata/fingerprint 在 `review_ready` 后独立复核。提交响应和审核入口不得等待完整扫描，解析执行器异常必须落为 `failed_retryable`，来源复核失败只要求重新选择来源；同一 task 不得重复执行，保留重启后的 `interrupted`/可重试恢复合同。
 
@@ -79,7 +79,7 @@
 
 **既有变更包协调结果**：`large-report-preview-liveness`、`report-request-liveness-fix`、`report-parsing-cache-management`、`upload-compression-toggle-fix`、`preview-export-correction`、`docx-vml-pagination`、`template-2026` 和 `support-legacy-and-new-report-formats` 作为既有 Legacy/缓存/模板兼容能力和回归输入保留，不在 Phase 1D 重复实现；`extensible-report-template-platform` 的 Canonical、Shadow、模板平台和阶段二/三候选任务保持暂停或另行处理；审核编辑、政务工作台和导出控件变更包只作为 Phase 1C 已完成能力，不重新开范围。
 
-#### Phase 1D recovery matrix
+#### 阶段 1D 恢复矩阵
 
 | 对象/重启前状态 | 重启后状态 | 用户动作与门控 |
 |---|---|---|
@@ -133,7 +133,7 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 
 - [x] **1D-008T** 完成定向架构检查、类型检查、相关后端/前端测试和 `git diff --check`；2026-07-28 定向结果：后端 Phase 1D 文件 3 次稳定通过、单测 5 次稳定通过，独立 PowerShell 全量后端 `642 passed, 3 skipped, 8 warnings`；前端恢复/工作台/图片资产/审核编辑/导出定向 `36 passed`；架构、类型、严格文档、资产和 diff 检查通过。用户随后在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`；后端结果为 `642 passed, 3 skipped, 8 warnings`，前端 TypeScript 与生产构建通过，`verify:docs:strict` 通过。已知非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
 
-#### Phase 1D independent Review remediation
+#### 阶段 1D 独立审查修复
 
 首次独立 Level 3 Code Review 于 2026-07-28 未通过，报告 4 个 High、1 个 Medium 和 1 个 Low。H2 的“来源状态应由后端阻止 Word”结论经用户确认属于业务合同理解错误；正确合同是 Word 始终允许导出，`pending`/`requires_reselection` 仅要求用户在工作台明确确认风险。其余发现及 H2 风险确认体验在本节修复。原 Phase 1D 实现与验收历史保留，但 OpenSpec 归档继续阻断。
 
@@ -148,7 +148,7 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 - [x] **1D-016T** 运行各发现定向测试、Phase 1D、Legacy Parser/Word/Manifest/归档兼容、前端工作台与导出测试、后端全量、typecheck、lint:arch、严格文档、资产及 diff 检查；2026-07-28 用户在独立 PowerShell 执行 `npm.cmd run verify:full`，退出码为 `0`：后端 `650 passed, 3 skipped, 10 warnings`，前端 TypeScript 与生产构建通过，`verify:docs:strict` 通过，未出现 `KeyboardInterrupt`、测试失败或递归脚本失败。已知非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。
 - [x] **1D-017R** 完整 Harness 退出码为 0 后重新执行独立 Level 3 Code Review；无阻断性 Critical/High/Medium 后才恢复 OpenSpec 归档准备。2026-08-01 完整 `verify:full` 退出码为 `0`，随后独立 Level 3 Review 结论为 `PASS`（Critical/High/Medium/Low 阻断均为 0）；本项完成，但不等同于 Final Review、Production Review、Phase 5 或 OpenSpec archive 完成。
 
-#### Second independent Review remediation (2026-07-28)
+#### 第二次独立审查修复（2026-07-28）
 
 第二次独立 Level 3 Code Review 于 2026-07-28 未通过：Critical 0、High 4、Medium 1、Low 1。L1 staging 安全已通过；H2 Word 导出行为符合真实业务合同，仅提示文案仍需修复。H1、H3、H4、M1 重新打开；`1D-017R` 与 OpenSpec 归档解除 gate 保持未完成。本节追加修复任务，不删除首次 Review 的实现、验证和 `1D-016T` 历史；Phase 2–4 仍未开始。当时由于本轮将继续修改代码，新的完整 Harness gate 保持未完成；后续完成状态见本节及 Review gate。
 
@@ -168,7 +168,7 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 
 本轮本地定向、后端/前端全量、typecheck、build、lint:arch、严格文档、资产和 diff 检查均已完成；完整 Harness 子门控随后由用户在独立 PowerShell 完成，故本任务已完成。
 
-#### Third independent Review remediation (2026-07-28)
+#### 第三次独立审查修复（2026-07-28）
 
 第三次独立 Level 3 Code Review 于 2026-07-28 未通过：Critical 0、High 4、Medium 1。H1 通用入口封闭、H2 Word 风险确认合同、M1 revision conflict 重算方向及 L1 staging 安全保持完成；H3 可信完成/发布恢复和 H4 并发边界重新打开。此前实现、测试、`1D-016T` 历史结果及上一轮 Harness 结果均保留；新的完整 Harness gate、`1D-017R`、独立 Review gate、OpenSpec 归档解除 gate 继续未完成，Phase 2–4 未开始。
 
@@ -238,7 +238,7 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 - **证据边界与限制**：本轮新增证据均为自动化、`create_app + TestClient` 和纯合成临时目录；没有把服务/组件测试冒充新的浏览器人工验收，也未重复原生 Word 视觉检查。此前真实浏览器验收和原生 Word 视觉证据仍分别保留；小型合成输入只产生单卷 RAR，多分卷边界仍以既有 Harness/自动化证据为准。`ARCHIVE_CONFIGURED_ROOT_INVALID` 等既有环境/非阻断 warning 保留记录，不作为本轮安全门控通过依据。`1D-017R` 仍未勾选，等待本轮加固完成后的独立重审。
 - **完整门控证据**：第一次 `verify:full` 暴露 6 个 `ReportParsingCacheService` 缓存回归，原因是共享 fingerprint 被错误扩大为强一致二次枚举；修复为通用 fingerprint 保持原语义、归档执行单独使用稳定字节/metadata 采样后，第二次 `verify:full` 退出码为 `0`，架构检查、TypeScript 类型检查、前端 `44 files / 211 tests`、后端 `785 collected / 3 skipped / 无失败`、生产构建和 `verify:docs:strict` 均通过。随后独立 `compileall`、仓库资产检查（539 个跟踪文件）、strict 文档检查、`git diff --check` 均通过；隔离纯合成公共 HTTP 自动接管轻量冒烟 `2 passed`。前端 jsdom/React `act`、Ant Design 弃用、Vite chunk 大小及后端 `ARCHIVE_CONFIGURED_ROOT_INVALID` 仍为既有非阻断警告/环境限制，未被本轮扩大或隐藏。
 
-### Demo checkpoint 状态（2026-07-28）
+### 演示检查点状态（2026-07-28）
 
 本次独立 Review 结论接受为甲方 Demo checkpoint 判定：Phase 1D 为 **Demo-ready（有条件）**，不是 Production-ready；当前 `Production-ready = 否`。本结论不等同于独立 Level 3 Production Review 通过，不解除 OpenSpec 归档阻断，也不完成 `1D-017R`。历史 Demo 冒烟与阶段验收记录可以保留；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，但不得据此宣称本 Level 3 变更包已生产完成。允许在独立工作范围内继续甲方 Demo 后续功能。
 
@@ -333,7 +333,7 @@ Phase 1–4 最终集成人工验收，不代表 Production Review 或 OpenSpec 
 
 Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归档开始后不再编辑该案件；归档期间不修改来源目录；不重启前后端；不模拟 WinRAR 崩溃、文件锁、数据库锁、断电或极端并发；不得将 Demo 描述为生产级容灾版本。
 
-### Phase 1D Review gate
+### 阶段 1D 审查门控
 
 以下未完成 gate 按统一验收策略延后到 Phase 1–4 实现后的最终集成阶段；历史阶段 Review
 和 Harness 结果仅作为证据保留，不自动完成最终 Review 或解除归档阻断。
@@ -345,7 +345,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] 第四次 Review remediation 的新完整 Harness gate 已完成：用户于 2026-07-28 在独立 PowerShell 执行完整 Harness，退出码为 `0`；后端 `679 passed, 3 skipped, 12 warnings`，前端 TypeScript/生产构建及 `verify:docs:strict` 通过。非阻断 warning 为 `ARCHIVE_CONFIGURED_ROOT_INVALID` 和 Vite chunk 大于 500 kB。该记录不等同于独立 Level 3 Review 通过。
 - [x] 独立 Level 3 复审无阻断性 Critical、High 或 Medium；2026-08-01 复审结果为 Critical/High/Medium/Low 均为 0。
 
-#### 2026-08-01 Final Review 结果（remediation 后）
+#### 2026-08-01 最终 Review 结果（修复后）
 
 - **审查基线与范围**：基线为 `1ffd6ba7b4b24cb894a75263f64b54c27ddadf3c`，当前 `HEAD` 为 `de36694e0e84aaf83360db933cdba6ecdbf7ec1f1`；remediation diff 为 8 个预期文件、`+251/-92`，只复核前次四项阻断及其直接回归，不重新打开 `1D-017R`、M-1 至 M-4B/L-1，不扩大产品合同。
 - **retry 公共投影**：公共 retry 响应仅返回安全 `task` projection；代码和已通过的工作台、runtime/attempt/worker/persistence 回归确认不含 `archive_context_id`、`archive_attempt_id`、fence、lease、owner、内部路径或其他持久化绑定字段。请求模型继续拒绝内部绑定字段；新 attempt 创建、revision、lease、冲突/失败和 Runtime/Scheduler/Worker 接管合同保持不变，前端仍只消费 `data.task`。
@@ -354,7 +354,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **额外只读检查**：`npm.cmd run verify:docs:strict` 通过，`git diff --check` 通过。前次已提交的定向测试、授权环境 `verify:full` 和独立 remediation Review 证据与当前 HEAD 一致，本轮未重复执行测试、Harness、浏览器或 Word 视觉检查。
 - **非阻断说明**：既有 `ARCHIVE_CONFIGURED_ROOT_INVALID`、UI/Vite 警告以及 TD-3、TD-4、TD-5、TD-6 仍按已批准边界记录为非阻断技术债/环境债务；未发现 Critical、High 或阻断性 Medium，也未发现本次 remediation 直接引入的支持链路回归。
 
-#### 2026-08-01 Production Review 结果
+#### 2026-08-01 生产 Review 结果
 
 - **实际 gate 与基线**：当前 `tasks.md` 没有独立的 Production Review 任务编号；本轮使用既有 `Phase 1D Review gate`、其前置的 Phase 1–4/完整 Harness/最终集成人工验收/`1D-017R`/Final Review 证据，以及同 gate 的 `OpenSpec 归档阻断解除` checkbox。审查基线为 `HEAD=072cc50e5f14f0b8d8ffe5a55619b45dd75330a0`，只做部署准备、运行生命周期、资产边界、恢复升级和运维证据核对，不重新打开 M-1 至 M-4B/L-1，不开始 Phase 5 或 archive。
 - **支持部署模型**：单个 Windows 应用实例、单个 FastAPI 进程、单个前端和该实例拥有的 in-process Scheduler/Worker；每个 deployment 独占应用安装目录、SQLite 数据根、`packages/output`、`compressed/.staging` 和 `.inputs`。不支持共享 SQLite/输出根、多节点、远程数据库、共享 NAS、对象存储或管理员级篡改防御。
@@ -367,7 +367,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 - [x] OpenSpec 归档阻断解除。
 
-### Phase 1 gate
+### 阶段 1 门控
 
 - [x] 案件提交后立即显示案件壳卡片，解析失败卡片可重试但不可审核、归档或导出。
 - [x] 用户明确修改六项字段且当前草稿成功保存后，稀疏更新共享默认值；以后新案件仅在 Parser 对应字段为空时使用共享值，当前草稿和共享默认值保存状态分别可见。
@@ -383,27 +383,27 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 **阶段目标**：让案件数组成为所有审核、正文、附件和 Word 的共同顺序源，并把来源状态显式化。
 
-### Layer 0/2 — Contract and pure rules
+### 第 0/2 层 — 契约和纯规则
 
 - [x] **T007** 在 `packages/shared/types/` 扩展稳定 `evidence_id`、`InspectorSnapshot`、`FieldState`、来源/确认枚举和 Word 下载名称 DTO；在 `packages/shared/utils/` 新增 `naturalEvidenceOrder.ts`、`fieldProvenance.ts`、`downloadFileName.ts`。验证：旧 Legacy DTO 仍可投影。
 - [x] **T007T** 在 `packages/shared/utils/*.test.ts` 覆盖检材 2/10、重复/无法识别回退、用户修改来源迁移、待确认提示状态、非法 Windows 字符、空名和 `.docx` 补全。验证：Vitest。
 
-### Layer 10/11/12 — Review UI and export name
+### 第 10/11/12 层 — 审核界面和导出名称
 
 - [x] **T008** 改造 `packages/frontend/src/components/EvidenceEditor.tsx`、`InspectorEditor.tsx` 为拖拽/卡片交互；新增 `ReviewSourceLegend.tsx`、`WordDownloadNameDialog.tsx` 等 Phase 2 顺序/来源能力，不再创建独立的工作台字段、校验、附件或导出实现。
 - [x] **T008T** 为上述组件和 Hook 增加 RTL/E2E 测试；覆盖拖拽顺序持久化、姓名/单位/警号三字段人员卡片、来源颜色与文字提示、Word 每次弹窗、取消不导出和非法名称拒绝。
 
-### Layer 20/21 — Ordered snapshots and provenance persistence
+### 第 20/21 层 — 有序快照和来源持久化
 
 - [x] **T009** 新增 `packages/backend/app/services/case_order_service.py`、`field_provenance_service.py`，改造 `report_parse_input_repository.py` 和 `inspector_repository.py` 的案件快照投影；只在案件创建时初始化默认顺序，保存拖拽后的数组和来源状态。
 - [x] **T009T** 新增/修改 `tests/test_case_order_service.py`、`tests/test_field_provenance_service.py`、`tests/test_report_parse_input_repository.py`；覆盖报告原始顺序回退、重复编号、下游不得二次排序、人员库变化不改历史快照、图片组和人员项来源覆盖。
 
-### Layer 21 — Legacy projection
+### 第 21 层 — Legacy 投影
 
 - [x] **T010** 在 `packages/backend/app/services/legacy_report_projection_service.py` 或现有 Legacy builder 适配点统一生成正文、附件摘要、附件 1/2/3 和 Word 所需顺序投影；移除下游独立排序入口，但不改变 RAR 基础名规则。
 - [x] **T010T** 在 `tests/test_legacy_report_projection_service.py`、`tests/test_record_generator_service.py` 增加合成多检材/多人员回归；验证审核顺序与正文、附件和 Word 顺序一致，来源颜色未进入 DOCX。
 
-### Phase 2 gate
+### 阶段 2 门控
 
 - [x] 拖拽后的案件检材/人员顺序刷新后仍一致，所有 Legacy 投影和 Word 输出共用该顺序。
 - [x] 默认值、报告解析值和人工修改值可区分，待确认有文字提示并进入门控。
@@ -415,37 +415,37 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 **阶段目标**：在现有正式归档安全门控外包一层可恢复任务，以持久化 `workflow_milestone` 表达真实工作流阶段，并在案件工作台每张案件卡片直接展示当前或最近归档状态；不读取 WinRAR CLI 连续百分比，不以任务化为理由削弱任何检查。
 
-### Phase 3 prerequisite — WinRAR progress capability spike
+### 阶段 3 前置条件 — WinRAR 进度能力验证
 
 - [x] 在进入 Phase 3 实现和验收前，使用 `SYNTHETIC/TEST/FIXTURE` 输入验证当前正式 WinRAR 版本是否能稳定提供可解释的实际进度信号；记录信号来源、解析稳定性、失败行为和百分比一致性，不记录真实案件或产物。2026-07-30 结论：当前 RAR 5.90 的控制台百分比流包含无标签回退，`-inul` Legacy 路径无进度输出，spike 未通过；详见 `winrar-progress-capability-spike.md` 和 `tests/test_winrar_progress_capability_spike.py`。
 - [x] spike 未通过后的版本/适配决策已完成：2026-07-30 正式否决 RAR 5.90、RAR 7.23 x64 普通 pipe 和独立 ConPTY 的连续 CLI 百分比适配，采用固定、单调、可持久化、可恢复的 `workflow_milestone`；它只表示真实归档阶段，不表示 WinRAR 内部字节进度。禁止取最大值、钳制、平滑、过滤回退或按时间/文件/字节估算。WinRAR、RAR 分卷、Legacy 显式压缩及全部正式安全门控保持不变。该决策解除 T011 的前置阻塞，但不表示 T011–T015 已实现；实验依据见 `winrar-progress-capability-spike.md`。
 
-### Layer 0/1/2 — Archive contracts
+### 第 0/1/2 层 — 归档契约
 
 - [x] **T011**（依赖：Phase 3 版本/适配决策）在 `packages/shared/types/` 新增或复用 `VolumeSlot`、`DiscMapping`、`ArchivePlanSnapshot`、`ProgressSnapshot`、Legacy 压缩兼容状态、资源准入和任务取消/重试 DTO；扩展现有 `TaskRecord`，复用既有状态、阶段、`percent`、时间、错误和取消字段，补充阶段序号/总数、`progress_kind=workflow_milestone`、`updated_at`、心跳、输出分卷数/总字节、最近输出变化、Worker 持有/恢复状态和 `allowed_actions`。另定义 `ArchiveTaskCardSummary` 或等价安全投影，只含卡片需要的状态、阶段、里程碑、展示时间、紧凑活动、安全失败摘要和允许操作，不暴露全部内部字段。在 SharedConstants 固化 `0/10/20/30/75/85/90/95/100` 阶段表、Worker 状态与错误码；在 SharedUtils 实现稳定槽位 reconcile、唯一编号、合法里程碑/Worker 状态转换及卡片允许操作规则。
 - [x] **T011T**（依赖：T011）在共享测试中覆盖 stable slot/Manifest 收敛、固定里程碑、非法回退/跳门控拒绝、失败/取消最后阶段、Worker 持有/恢复转换、活动指标不得换算百分比、`allowed_actions`，以及卡片摘要不含 Worker ID、内部租约、路径、堆栈、技术日志或完整进程信息。验证：Vitest/typecheck。
 
-### Layer 10/11/12 — Archive status UI
+### 第 10/11/12 层 — 归档状态界面
 
 - [x] **T012**（依赖：T011）扩展现有 `CaseCard.tsx` 和 `useTaskRecords.ts`，按需新增 `ArchiveStatusPanel.tsx`、`ArchiveVolumeMappingTable.tsx`、`ArchiveStartDialog.tsx`；不复制轮询事实源。卡片定位为归档任务摘要，默认只组织案件信息、状态/阶段、最多两行活动或状态摘要和主要操作。WinRAR 阶段突出阶段文字和 indeterminate 活动态，30% 仅作次要说明；运行态显示易读的已运行时间、分卷数、输出大小和相对最后活动时间。未归档、等待/恢复、运行、失败、取消和完成使用状态化内容替换；详情承载完整时间线、逐卷/MD5、Manifest、历史、日志和诊断。实现窄屏裁剪、长文本/大数字布局、受控按钮数量、非颜色状态文字、减少动态效果兼容和动画文字替代。
 - [x] **T012T**（依赖：T012）增加 RTL/E2E 合成任务测试；至少覆盖运行中卡片四类信息和两行活动密度、大文件长期停留 WinRAR 阶段但心跳/活动摘要仍证明活跃、30% 不增长且仅为次要说明、失败/取消/恢复中/完成内容替换、未归档无空指标、刷新恢复、相对时间本地刷新不增加请求、长文号/长错误摘要/大数字、窄屏保留核心信息、减少动态效果、非颜色/非动画文字提示，以及默认卡片不泄露 Worker ID、本机路径、堆栈、日志或内部进程信息。组件测试场景对应 delta spec 的卡片主入口、状态替换、技术详情隔离和响应式/无障碍场景。
 
-### Layer 20 — Archive metadata and process repositories
+### 第 20 层 — 归档元数据和进程存储库
 
 - [x] **T013**（依赖：T011）新增 `packages/backend/app/repository/archive_plan_repository.py`、`archive_task_repository.py`、`archive_asset_repository.py`、`resource_snapshot_repository.py`；持久化计划/槽位/映射、阶段与里程碑、开始/更新/结束/心跳时间、输出总字节、分卷数、最近输出变化、Worker 持有/恢复、错误/取消、进程绑定、临时目录和正式产物索引。活动快照按受控节奏聚合写入，不为每个文件系统变化写数据库；内部诊断可比卡片摘要更完整，并提供当前/最近任务的安全投影查询。
 - [x] **T013T**（依赖：T013）新增对应 pytest；覆盖事务/版本冲突、真实阶段原子持久化、心跳与活动快照节流、输出暂不变化不自动失败/取消、失败/取消最后阶段、刷新/重启重载、Worker 恢复状态、当前/最近任务选择、内部诊断与卡片安全投影隔离、正式产物独立于案件删除和路径不泄露。
 
-### Layer 21 — Planner, scheduler and archive worker
+### 第 21 层 — 规划器、调度器和归档工作进程
 
 - [x] **T014**（依赖：T011、T013）改造 planner 并新增 mapping/progress/scheduler/worker/resource-admission services。Worker 按受控频率写心跳，观察当前 attempt 受控 staging 中匹配分卷数量和总字节，节流更新活动摘要但不推算百分比；只在真实安全边界推进 `workflow_milestone`，WinRAR 期间固定 30。准确持久化进程退出、失败、取消和 Worker 所有权/恢复状态；服务重启后未重新取得任务所有权前保持恢复中/等待接管，取得任务记录所有权不等于连接旧 WinRAR、复用半成品或续压。保留 inventory、路径/链接/变化、WinRAR、完整性、MD5、Manifest、发布和 Legacy 显式压缩门控。
 - [x] **T014T**（依赖：T014）新增 mapping/progress/scheduler/worker service 测试；覆盖并发/资源排队、真实门控推进、WinRAR 固定 30、心跳和分卷/字节活动更新、活动停滞不单独判失败或取消、节流、进程退出/失败/取消、重启恢复/等待接管/新 Worker 所有权、旧 WinRAR/半成品不接管、重试新 attempt、Legacy 兼容及全部正式安全门控。
 
-### Layer 22/23 — Task API
+### 第 22/23 层 — 任务 API
 
 - [x] **T015**（依赖：T011、T013、T014；对接 T012 卡片 DTO）改造 archive/record controllers 并新增 task controller/routes；提供归档决定、映射、取消/重试、任务详情/历史和进度查询。案件列表直接内嵌当前或最近归档任务的 `ArchiveTaskCardSummary`，供现有工作台轮询事实源展示阶段、里程碑、紧凑活动、展示时间、安全失败摘要和 `allowed_actions`；完整日志、历史、逐卷诊断和内部技术字段只由详情接口按安全投影返回。预览仍不创建完整 `ArchiveContext`。
 - [x] **T015T**（依赖：T015）新增 controller/route 集成测试；覆盖列表无需额外任务轮询即可取得卡片摘要、摘要信息密度和状态替换所需字段、刷新/重启恢复、取消/重试权限、安全失败投影、Manifest 未验证不显示 100/完成、列表不返回 Worker ID/租约/路径/堆栈/日志/进程信息、详情接口与列表摘要边界，以及 T012 Hook 与真实 API 对接。
 
-### Phase 3 gate
+### 阶段 3 门控
 
 - [x] 普通 pipe/ConPTY spike 已形成明确产品与技术决定：不读取 WinRAR CLI 连续百分比，采用 `workflow_milestone`；该项只关闭前置决策，不代表 T011–T015 或 Phase 3 验收完成。
 - [x] 归档任务最多 6 个运行，资源不足排队且显示原因；不得假装启动 6 个 WinRAR。
@@ -460,27 +460,27 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 **阶段目标**：增加受控模板选择和复现，不建设任意模板平台，不触发压缩或 Manifest 重建。
 
-### Layer 0/1/2 — Template contract
+### 第 0/1/2 层 — 模板契约
 
 - [x] **T016** 在 `packages/shared/types/` 定义 `TemplateId`、`TemplateVersionRef`、`TemplateApprovalRecord`、模板校验结果和 Word artifact validity；在 `packages/shared/constants/` 定义 approved 状态和模板错误码。
 - [x] **T016T** 在共享测试中覆盖版本指纹、未审核/未知模板拒绝、案件引用序列化、切换失效 Word 但不改变归档引用。验证：Vitest/typecheck。
 
-### Layer 10/11/12 — Template selection UI
+### 第 10/11/12 层 — 模板选择界面
 
 - [x] **T017** 新增 `useTemplateRegistry.ts`、`TemplateSelector.tsx`，改造审核页显示 approved 模板的 ID/版本/验收摘要，保存案件模板引用并提示旧 Word artifact 失效。
 - [x] **T017T** 增加 Hook、组件和 E2E 测试；覆盖只显示 approved 版本、选择/切换、旧 Word 失效和切换不触发压缩。仓库当前没有 Playwright 依赖或可执行 E2E harness，使用可执行的 Hook 单测、组件 RTL 和页面级 HTTP 流程集成测试覆盖同一场景；不以不可运行的伪 E2E 文件替代证据。
 
-### Layer 20/21 — Template registry and generator
+### 第 20/21 层 — 模板注册表和生成器
 
 - [x] **T018** 新增 `packages/backend/app/repository/template_registry_repository.py`、`template_approval_repository.py`；改造 `template_profile_service.py`、`record_generator_service.py` 按案件模板版本读取受控资产并重新校验。
 - [x] **T018T** 新增 `tests/test_template_registry_repository.py`、`tests/test_template_profile_service.py`、`tests/test_record_generator_service.py`；使用合成/已审核 fixture，覆盖指纹变化、规则校验、VML/分页/表格/附件安全门控和模板切换不启动压缩。
 
-### Layer 22/23 — Template API
+### 第 22/23 层 — 模板 API
 
 - [x] **T019** 新增模板列表/案件选择 controller，并接入现有 `packages/backend/app/routes/workbench_routes.py`，避免建立平行工作台路由事实源；只返回 approved 版本和安全摘要。
 - [x] **T019T** 增加 controller/route 集成测试；覆盖未知 DOCX、未审核版本拒绝、导出前重新校验、RAR/Manifest 不变和错误不泄露路径。
 
-### Phase 4 gate
+### 阶段 4 门控
 
 - [x] 每个模板有独立 ID、版本、指纹、规则和验收记录，案件可复现所选版本。
 - [x] 模板切换不重新压缩、不重建 Manifest；下一次导出重新校验并生成 Legacy Word。
@@ -497,7 +497,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - [x] 浏览器视觉及输出边界验收：2026-07-31 真实浏览器完成编辑光盘编号后立即压缩、快速连续点击、取消/重试、停止/重启和双会话 revision 冲突复验；页面不再出现要求刷新重试的 409，真实冲突仍安全拒绝且不创建归档任务。原生 Word 视觉检查作为独立证据已完成；本次小型纯合成输入只生成单卷 RAR，多分卷边界由 Harness/自动化覆盖，不冒充多分卷人工视觉验收。首次 Codex 浏览器不可用属于历史环境限制，不覆盖本次真实浏览器证据。
 - [x] 四项修复收口：运行时 coordinator 接入正式应用 lifespan；Windows 缺少 `busy_time` 时以 `io_busy_percent=None` 跳过可选 I/O 阈值而不伪造 `0%`；staging ownership marker 由发布层保持唯一删除所有者；工作台立即归档先等待 autosave、`PATCH → reload detail → archive decision` 使用最新 revision，并由 `archiveDecisionInFlight` 与服务端唯一活动任务门控防止重复计划/任务。
 
-### Windows Archive Runtime 兼容修复（2026-07-31）
+### Windows 归档运行时兼容修复（2026-07-31）
 
 - **发现现象**：真实 Windows 启动时，`psutil.disk_io_counters()` 返回合法的 `sdiskio`，但对象只有 `read_time`/`write_time` 等字段而没有 `busy_time`；`ArchiveRuntimeResourceProvider._io_busy_percent()` 无条件访问该字段，导致每次 Scheduler 迭代抛出 `AttributeError`。Coordinator 虽安全捕获并等待下一轮，但公共 HTTP 创建的任务无法被接管。
 - **合同核对**：现有 `ArchiveResourceSnapshot` 只有数值型 `io_busy_percent`，不能表达可选指标不可用；资源准入必须继续保护空间、CPU、输入规模、WinRAR 进程数、并发、租约和所有权等既有门控。
@@ -519,7 +519,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **真实并发冲突证据**：两个浏览器会话同时打开同一纯合成案件；第二会话保持只读并记录租约冲突，随后通过其公共 Draft API 将 revision 从 `1` 保存为 `2`。第一会话仍持有旧草稿，立即压缩时保存请求返回 HTTP 409；页面显示“案件版本发生冲突，当前输入未覆盖服务端新版本”，没有刷新提示、没有 archive-decision 请求、公共归档历史为 `0`，服务端 revision 和租约合同继续生效。
 - **状态保持**：本记录补充竞态缺陷、修复和最终复验证据；Phase 3/4 正式人工验收及 Phase 1–4 最终集成人工验收已于 2026-07-31 通过。`1D-017R`、Final Review、Production Review、OpenSpec archive 和 Phase 5 仍未完成。
 
-## Deferred follow-up work — Phase 5（未开始）
+## 延期后续工作 — Phase 5（未开始）
 
 以下工作不属于本次已完成并准备归档的 Phase 1–4 范围，未开始实现、验证或审查。它们保留原任务编号和目的，但不再以未完成 checkbox 伪装为当前归档阻断；后续实施必须创建新的 active change 或按适用治理流程处理。本轮不设计、不实现这些任务。
 
@@ -535,7 +535,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **DEFERRED T024T**：准备后续人工验收清单及真实大报告外部验证边界，不将真实输入、人员、路径或生成资产写入仓库。
 - **DEFERRED T025**：对后续综合范围进行新的 Level 3 独立 Code Review，重点覆盖清理白名单、迁移、并发/租约、恢复和 Shadow 边界。
 
-### Deferred Phase 5 gate（未开始）
+### 已延期的阶段 5 门控（未开始）
 
 - **DEFERRED**：五阶段合同的后续综合测试和人工验收闭合。
 - **DEFERRED**：案件记录清理与正式 RAR、Manifest、Word 的独立保留策略实现及验证。
@@ -546,7 +546,7 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 
 本轮基线为本地提交 `ac49518` 及其相对 `origin/codex/demo-next-stage` 的完整实现。第二次独立 Level 3 Review 结论为 `REJECT`：Critical 0、High 0、Medium 5（M-1、M-2、M-3、M-4A、M-4B）和 Low 1（L-1）。以下任务在实现阶段只修复这些阻断项及关联 marker owner；当时 `1D-017R` 保持未勾选，修复后另行独立重审。2026-08-01 门控后的独立重审已完成并通过，当前状态见下方最终记录。
 
-- [x] **1D-044** 在本变更包中固化“sealed execution input”和“durable publication generation”两个安全边界，明确 SQLite 事实源、派生 index、共享 deployment owner、磁盘快照成本和旧记录兼容策略；不以离散源目录扫描或完成前最后一次 MD5 作为完整证明。
+- [x] **1D-044** 在本变更包中固化“密封执行输入”和“持久发布代次”两个安全边界，明确 SQLite 事实源、派生索引、共享部署所有者、磁盘快照成本和旧记录兼容策略；不以离散源目录扫描或完成前最后一次 MD5 作为完整证明。
 - [x] **1D-045**（M-1）补齐 task-bound intent/fence/attempt/publication 身份链和 schema migration；服务层一次性绑定 task/attempt，公共 API 不接受内部绑定字段，跨 task/staging/intent/recovery 复用安全拒绝，缺 task 身份的旧记录按冲突/恢复策略处理。
 - [x] **1D-046**（M-2）让 bounded shutdown 基于当前 task revision、deployment owner、worker owner、attempt、lease/fence 做有界 CAS 收敛；revision 竞争重读重试，所有权转移和 durable succeeded 不降级，共享 SQLite recovery/active-fence normalization 只处理当前 deployment。
 - [x] **1D-047**（M-3）实现 task/attempt 所有的 copying→verified→sealed 输入快照；逐文件复制、链接/reparse 防护、完整集合/大小/摘要验证、取消/崩溃/失败清理和新 attempt 隔离；WinRAR 实际读取 sealed 快照而非外部源目录。
@@ -576,9 +576,9 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 - **文档澄清**：marker 序列化 payload 不直接存 `fence_id`；fence 绑定由 durable intent 的 `fence_id` 与当前 DB fence 在删除前交叉校验实现，不构成本轮阻断。此前技术债段落保留历史发现，以上述当前状态为准。
 - **剩余门控（`1D-017R` 完成时、Final Review remediation 前快照）**：`1D-017R` 完成；Final Review、Production Review、Phase 5、OpenSpec archive 和 `OpenSpec 归档阻断解除` 仍保持未完成。
 
-## 2026-08-01 Final Review 有限 remediation
+## 2026-08-01 最终 Review 有限修复
 
-本轮只处理 Final Review 明确的四项阻断：retry 公共响应安全投影、delta requirement 严格 Scenario、living specs 严格格式/schema v10 同步和 proposal 状态同步。不重新打开 `1D-017R`、M-1 至 M-4B/L-1，不修改 sealed-input/publication 架构，不开始 Production Review、Phase 5 或 OpenSpec archive。
+本轮只处理最终 Review 明确的四项阻断：重试公共响应安全投影、增量需求严格 Scenario、现行规格严格格式/模式 v10 同步和提案状态同步。不重新打开 `1D-017R`、M-1 至 M-4B/L-1，不修改密封输入/发布架构，不开始生产 Review、Phase 5 或 OpenSpec 归档。
 
 - [x] **1D-052** 将 retry 公共 HTTP 响应收敛为批准的安全 `task` projection；保持内部 `enqueue()`/attempt/context/runtime 绑定结构、任务创建、revision、lease、冲突/失败合同和 `TaskRetryRequest` 的内部字段拒绝不变。
 - [x] **1D-052T** 补充 retry API 回归：响应只含安全 `task`、不含 context/attempt/fence/lease/owner/路径等内部绑定字段；仍创建新 attempt，并由 Runtime/Scheduler/Worker 接管；覆盖 revision、lease、冲突和失败路径。定向集合通过：工作台 `5 passed`，runtime/attempt/worker/persistence `30 passed`，新 retry runtime 用例连续 5 次通过。
@@ -588,22 +588,22 @@ Demo 约束：单用户、单浏览器窗口、一次只归档一个案件；归
 #### 本轮状态
 
 - `1D-017R`：已于 2026-08-01 通过，保持完成，不重新审查。
-- Final Review：此前因上述四项问题为 `REJECT`；2026-08-01 remediation 后已重新执行并判定为 `PASS`，当前允许进入 Production Review。
-- Production Review：2026-08-01 已按 Legacy-only、单 Windows 实例支持模型审查并判定为 `PASS`。
+- 最终 Review：此前因上述四项问题为 `REJECT`；2026-08-01 修复后已重新执行并判定为 `PASS`，当前允许进入生产 Review。
+- 生产 Review：2026-08-01 已按 Legacy-only、单 Windows 实例支持模型审查并判定为 `PASS`。
 - Phase 5：未开始。
 - OpenSpec archive：未开始；本轮 archive-readiness reconciliation 完成后保持等待实际 archive 命令；`OpenSpec 归档阻断解除` 已按现有 gate 勾选。
 
-### Deferred Phase 5 gate（未开始）
+### 已延期的阶段 5 门控（未开始）
 
 - **DEFERRED**：五阶段合同的后续综合测试和人工验收闭合。
 - **DEFERRED**：案件记录清理与正式 RAR、Manifest、Word 的独立保留策略实现及验证。
 - **DEFERRED**：Legacy 唯一正式输出、Shadow 暂停和 Canonical 未进入正式链路的后续综合 gate。
 - **DEFERRED**：由人类确认的 Phase 5 verify/review/archive 前状态 gate；本轮仍不提交、不推送。
 
-## 2026-08-01 OpenSpec archive-readiness reconciliation（本轮未归档）
+## 2026-08-01 OpenSpec 归档就绪核对（本轮未归档）
 
-- [x] 逐项处理原有 30 个未勾选项：甲方 Demo 清单 15 项由 2026-07-31 最终集成人工验收和既有 `1D-008` 证据覆盖并完成记录；T020–T025 及 Phase 5 gate 转为明确的 `DEFERRED` follow-up，未虚假勾选。
+- [x] 逐项处理原有 30 个未勾选项：甲方演示清单 15 项由 2026-07-31 最终集成人工验收和既有 `1D-008` 证据覆盖并完成记录；T020–T025 及阶段 5 门控转为明确的 `DEFERRED` 后续项，未虚假勾选。
 - [x] 对当前 Phase 1–4、Final Review、Production Review 和 archive-readiness 范围逐项复核；没有发现仍属于当前范围且未完成的真实阻断任务。
-- [x] 按 OpenSpec delta 合并语义同步 living `electronic-inspection-record`：重叠合同并入 REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束；新增的 workbench、SourceRecord、Phase 1D recovery、review consistency、ordering、runtime milestone、template、audit、full workbench 及四个 `REQ-ARCHIVE-*` 保留为当前合同；未实现的案件清理/保留期合同继续只作为 deferred follow-up，不提升为当前生产能力。
+- [x] 按 OpenSpec 增量合并语义同步现行 `electronic-inspection-record`：重叠合同并入 REQ-007、REQ-008、REQ-009、REQ-012、REQ-018 和跨功能约束；新增的工作台、SourceRecord、阶段 1D 恢复、审查一致性、排序、运行时里程碑、模板、审计、完整工作台及四个 `REQ-ARCHIVE-*` 保留为当前合同；未实现的案件清理/保留期合同继续只作为已延期后续项，不提升为当前生产能力。
 - [x] 核对 living `data-model.md` 已准确记录 schema v10、deployment owner、task/attempt 绑定、sealed snapshot、publication generation、SQLite durable authority、JSON Manifest index 派生投影及兼容/fail-closed 语义；没有回退 Final Review 或 Production Review 合同。
 - [x] 本轮仅完成 archive-readiness reconciliation；没有执行 `openspec archive`，没有开始 Phase 5，没有修改产品代码、测试、模板或生成资产，不提交、不推送。

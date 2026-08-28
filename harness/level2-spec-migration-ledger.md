@@ -1,4 +1,4 @@
-# Level 2 Living Spec 迁移台账
+# Level 2 现行规格迁移台账
 
 本台账只记录历史活跃 Level 2 变更包的迁移状态，不改变已完成的分级结论。新建 Level 2 不得以本台账代替 delta spec。
 

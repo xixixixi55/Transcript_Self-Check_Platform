@@ -1,4 +1,4 @@
-"""Small OOXML helpers used by the fixed attachment renderer."""
+"""固定附件渲染器使用的小型 OOXML 辅助函数。"""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def set_cell_text(cell: Any, value: str) -> None:
 
 
 def allow_latin_character_wrap(element: Any) -> None:
-    """Allow Latin text to wrap between characters in every paragraph."""
+    """允许每个段落中的拉丁文本在字符间换行。"""
     paragraphs = (
         [element]
         if element.tag == qn(W_NS, "p")
@@ -93,7 +93,7 @@ def allow_latin_character_wrap(element: Any) -> None:
 
 
 def attachment1_source_lines(value: str) -> list[str]:
-    """Format material numbers as one explicit line each before the source suffix."""
+    """在来源后缀前将每个检材编号格式化为独立一行。"""
     suffix = "检材内提取"
     normalized = value.strip()
     if not normalized.endswith(suffix):
@@ -110,7 +110,7 @@ def attachment1_source_lines(value: str) -> list[str]:
 
 
 def set_element_font(element: Any, east_asia: str, size_half_points: int) -> None:
-    """Apply an explicit East Asia font and size to all runs in an OOXML element."""
+    """为 OOXML 元素中的所有文本段应用显式东亚字体和字号。"""
     for run in element.findall(".//%s" % qn(W_NS, "r")):
         r_pr = run.find("./%s" % qn(W_NS, "rPr"))
         if r_pr is None:
@@ -171,7 +171,7 @@ def set_cell_lines(cell: Any, lines: list[str]) -> None:
 
 
 def set_paragraph_alignment(element: Any, alignment: str) -> None:
-    """Set direct paragraph alignment on every paragraph in an OOXML region."""
+    """为 OOXML 区域中的每个段落设置直接对齐。"""
     for paragraph in element.findall(".//%s" % qn(W_NS, "p")):
         paragraph_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
         if paragraph_pr is None:
@@ -210,7 +210,7 @@ def clear_table_rows(table: Any) -> None:
 
 
 def trim_vml_line_vertical_span(region: Any, retained_rows: int, template_rows: int) -> None:
-    """Keep a copied blank-row diagonal inside the rows retained on the page."""
+    """使复制的空白行对角线保留在页面保留行内。"""
     if retained_rows <= 0 or template_rows <= 0:
         return
     ratio = min(retained_rows, template_rows) / template_rows

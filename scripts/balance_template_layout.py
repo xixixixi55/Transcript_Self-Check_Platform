@@ -1,4 +1,4 @@
-"""Center the current Word template without changing content widths or pagination."""
+"""在不改变内容宽度或分页的前提下，将当前 Word 模板居中。"""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ HORIZONTAL_RULE_PARTS = (
 
 
 def balance_template_layout(source_path: str | Path, output_path: str | Path) -> None:
-    """Balance direct body indents and center the fixed Attachment 1 table."""
+    """平衡正文的直接缩进，并将固定的附件 1 表格居中。"""
     parts = dict(read_validated_docx_entries(Path(source_path)))
     root = etree.fromstring(parts["word/document.xml"])
     body = root.find(f"{W}body")

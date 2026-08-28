@@ -1,4 +1,4 @@
-"""Adapters between report formats and the canonical inspection model."""
+"""报告格式与规范检查模型之间的适配器。"""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from .material_policy_service import material_from_legacy_item
 from .software_policy_service import migrate_legacy_software
 
 class ReportAdapter(Protocol):
-    """Future adapter contract for report structure discovery and parsing."""
+    """未来用于报告结构发现和解析的适配器契约。"""
 
     adapter_id: str
 
@@ -44,12 +44,12 @@ class LegacyMigrationResult:
 
 
 def _text(value: Any, default: str = "") -> str:
-    """Convert optional legacy values without manufacturing the text ``None``."""
+    """转换可选旧版值，不制造文本 ``None``。"""
     return default if value is None else str(value)
 
 
 def migrate_legacy_attachments(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Project legacy attachment fields into the validated disc structure."""
+    """将旧版附件字段投影到已验证光盘结构。"""
     raw = report.get("attachments") or {}
     if not isinstance(raw, Mapping):
         raw = {}
@@ -151,7 +151,7 @@ def _software_tools(case: CanonicalInspectionCase) -> list[dict[str, str]]:
     return tools
 
 def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, Any]:
-    """Create the existing public DTO projection without applying display rules."""
+    """创建现有公开 DTO 投影，不应用显示规则。"""
 
     intro = case.case_info.introduction
     evidence_list = [
@@ -246,7 +246,7 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
 def inspection_report_to_canonical(
     report: Mapping[str, Any],
 ) -> LegacyMigrationResult:
-    """Best-effort legacy migration; it intentionally does not promise losslessness."""
+    """尽力进行旧版迁移；有意不保证无损。"""
 
     introduction = report.get("introduction") or {}
     inspection = report.get("inspection") or {}

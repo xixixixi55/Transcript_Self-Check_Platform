@@ -1,4 +1,4 @@
-"""Archive task state, selection, restart projection, and safe card summaries."""
+"""归档任务状态、选择、重启投影及安全卡片摘要。"""
 
 from __future__ import annotations
 
@@ -234,7 +234,7 @@ class ArchiveTaskRepository:
         return [self.get(str(row[0])) for row in rows]
 
     def list_queued(self) -> list[dict[str, Any]]:
-        """Return the durable queue ordered by priority and creation time."""
+        """返回按优先级和创建时间排序的持久队列。"""
         with self.database.connect() as connection:
             rows = connection.execute(
                 "SELECT task_id,counters_json,created_at FROM task_records "
@@ -260,7 +260,7 @@ class ArchiveTaskRepository:
         expected_revision: int,
         max_running: int,
     ) -> dict[str, Any]:
-        """Atomically enforce the concurrency cap and bind one queued task."""
+        """以原子方式实施并发上限并绑定一个排队任务。"""
         task_id = validate_opaque_id(task_id)
         owner_token = validate_opaque_id(owner_token)
         attempt_id = validate_opaque_id(attempt_id)
@@ -325,9 +325,9 @@ class ArchiveTaskRepository:
                 raise RevisionConflictError(
                     "task", expected_revision, int(row["revision"]),
                 )
-            # The short context lease only protects an unclaimed queued task.
-            # Once this transaction establishes durable running ownership, a
-            # long WinRAR execution must not expire the publication binding.
+            # 短期上下文租约只保护尚未认领的排队任务。
+            # 此事务建立持久运行所有权后，长时间运行的 WinRAR
+            # 不得导致发布绑定过期。
             connection.execute(
                 "UPDATE archive_context_bindings SET expires_at=NULL "
                 "WHERE attempt_id=? AND active=1",

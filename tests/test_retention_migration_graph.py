@@ -1,4 +1,4 @@
-"""Non-empty v10 graph migration and rollback evidence for Slice 5A-1."""
+"""Slice 5A-1 非空 v10 图迁移与回滚证据。"""
 
 from __future__ import annotations
 

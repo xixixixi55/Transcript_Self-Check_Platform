@@ -1,4 +1,4 @@
-"""Phase 1D recovery and archive ownership tests using synthetic records."""
+"""使用合成记录的 Phase 1D 恢复与归档所有权测试。"""
 
 from __future__ import annotations
 

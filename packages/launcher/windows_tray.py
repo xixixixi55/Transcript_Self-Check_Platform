@@ -1,4 +1,4 @@
-"""Native Windows notification-area lifecycle for the portable launcher."""
+"""便携启动器的原生 Windows 通知区生命周期。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from ctypes import wintypes
 
 
 class TrayError(RuntimeError):
-    """Raised when Windows cannot create the notification-area icon."""
+    """当 Windows 无法创建通知区图标时抛出。"""
 
 
 WM_APP = 0x8000
@@ -66,7 +66,7 @@ class NotifyIconData(ctypes.Structure):
 
 
 class TrayController:
-    """Small testable state machine behind the native message loop."""
+    """原生消息循环背后的精简可测试状态机。"""
 
     def __init__(self, on_open: Callable[[], None], backend_alive: Callable[[], bool]) -> None:
         self.on_open = on_open
@@ -84,7 +84,7 @@ class TrayController:
 
 
 class WindowsTray:
-    """Own a hidden Win32 window and its notification-area icon."""
+    """管理隐藏的 Win32 窗口及其通知区图标。"""
 
     def __init__(self, controller: TrayController) -> None:
         if os.name != "nt":
@@ -262,7 +262,7 @@ class WindowsTray:
 def run_windows_tray(
     on_open: Callable[[], None], backend_alive: Callable[[], bool],
 ) -> str:
-    """Run until the user exits or the owned backend stops."""
+    """持续运行，直到用户退出或所属后端停止。"""
     return WindowsTray(TrayController(on_open, backend_alive)).run()
 
 

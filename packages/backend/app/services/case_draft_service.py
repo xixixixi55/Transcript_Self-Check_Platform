@@ -1,4 +1,4 @@
-"""Case submission, Legacy parse worker, draft initialization and retry."""
+"""案件提交、旧版解析工作进程、草稿初始化和重试。"""
 
 from __future__ import annotations
 
@@ -287,7 +287,7 @@ def _initialize_draft(
 
 
 def _parse_case_metadata(parsed: Mapping[str, Any], report: Mapping[str, Any]) -> dict[str, str]:
-    """Extract parser-only case metadata without adding fields to InspectionReport."""
+    """提取仅供解析器使用的案件元数据，不向 InspectionReport 添加字段。"""
     result: dict[str, str] = {}
     metadata = parsed.get("_case_metadata")
     if isinstance(metadata, Mapping):

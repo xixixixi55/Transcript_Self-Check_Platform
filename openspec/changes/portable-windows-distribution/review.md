@@ -14,7 +14,7 @@
 ## 最终工程门控
 
 - `npm run verify:quick`：通过
-- `npm run verify:docs:strict -- --change portable-windows-distribution`：13 checks passed
+- `npm run verify:docs:strict -- --change portable-windows-distribution`：13 项检查通过
 - `openspec validate portable-windows-distribution --strict`：通过
 - `npm run verify:full -- --change portable-windows-distribution`：通过（preflight、lint:arch、typecheck、governance、repository assets、全量测试、build、scoped strict docs）
 - 全量测试统计：前端 370 passed；后端 1201 passed、3 skipped

@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — approved, versioned template selection.
+// 第 11 层：FE_Components — 选择已批准且有版本的模板。
 import React, { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Card, Spin, Tag } from 'antd'
 import { TEMPLATE_APPROVAL_STATUS } from '@biji/shared/constants'

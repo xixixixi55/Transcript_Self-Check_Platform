@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for the one-pass report Parser input snapshot."""
+"""单次遍历报告解析器输入快照的 SYNTHETIC 测试。"""
 
 import json
 import os

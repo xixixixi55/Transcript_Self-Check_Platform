@@ -1,4 +1,4 @@
-"""Layer 21: deterministic, allow-listed patching of a validated DOCX."""
+"""第 21 层：对已验证 DOCX 进行确定性白名单修补。"""
 
 from __future__ import annotations
 

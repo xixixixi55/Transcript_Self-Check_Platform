@@ -1,4 +1,4 @@
-"""TaskRecord persistence with optimistic revisions and legacy defaults."""
+"""采用乐观修订和旧版默认值的 TaskRecord 持久化。"""
 from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any

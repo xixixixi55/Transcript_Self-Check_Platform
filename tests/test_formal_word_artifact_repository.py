@@ -1,4 +1,4 @@
-"""Synthetic durable formal Word artifact repository tests."""
+"""持久正式 Word 工件仓储的合成数据测试。"""
 
 from __future__ import annotations
 

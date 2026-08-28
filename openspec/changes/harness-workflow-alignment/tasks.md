@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: T023-T027 progressive context contract reconciled to openspec/specs/harness-workflow/spec.md; OpenSpec strict validation passed
+spec_sync_evidence: T023-T027 渐进式上下文契约已核对并同步到 openspec/specs/harness-workflow/spec.md；OpenSpec 严格验证已通过
 manual_acceptance: N/A（仅治理文档与确定性检查脚本变化，无 UI、Word/PDF、桌面环境或真实业务流程）
 
 ## 目标
@@ -44,7 +44,7 @@ manual_acceptance: N/A（仅治理文档与确定性检查脚本变化，无 UI�
 - [x] T025 以本次需求执行端到端流程审计，并静态核对 Level 1/2/3 三条路由实际会读取的资料和触发的门控。文件：`openspec/changes/harness-workflow-alignment/tasks.md`；验证：上下文行数对比、路由矩阵和实际命令记录。
   - 证据：窄化搜索命中本包 T018/T019/T023/T026，仅另有一个通用标题候选且业务范围不相关；本需求复用 `harness-workflow-alignment`、判定 Level 2，实际完成 tasks/delta、实现、治理定向测试、quick、sync 和 OpenSpec strict 路径。Level 1/2/3 读取与门控矩阵由四个高频入口及治理测试覆盖。
 - [x] T026 核对最终行为并将渐进式上下文合同同步到 living spec。文件：`openspec/changes/harness-workflow-alignment/specs/harness-workflow/spec.md`、`openspec/specs/harness-workflow/spec.md`；验证：OpenSpec strict validation。
-  - 证据：delta 与 living spec 已包含 Progressive Harness context routing 和 preserves quality gates；`openspec validate harness-workflow-alignment --type change --strict --no-interactive` 通过。
+  - 证据：增量与现行规格已包含“渐进式 Harness 上下文路由”和“保留质量门控”；`openspec validate harness-workflow-alignment --type change --strict --no-interactive` 通过。
 - [x] T027 运行 Level 2 正常收尾门控，并按用户要求额外执行一次 scoped full gate 质量审计；该额外全量审计不成为普通 Level 2 默认门控。文件：`package.json`、`openspec/changes/harness-workflow-alignment/tasks.md`；验证：`npm run verify:quick`、`npm run verify:docs:strict -- --change harness-workflow-alignment`、`npm run verify:full -- --change harness-workflow-alignment`、`git diff --check`。
   - 证据：`verify:quick` 通过；scoped strict docs 为 14 checks / 0 drifts；额外 scoped full gate 的 preflight、lint:arch、typecheck、governance、assets、全仓 test、build、scoped strict docs 全部 PASS（test 265.3s，build 22.9s）。沙箱内首次 preflight 因 `D:\harness-temp-root` 不可写而正确短路，在可写授权环境重跑通过；最终 OpenSpec 和 diff 检查见收尾命令。
 - [x] T028 建立现有测试基线并按重复覆盖、执行耗时和日志噪音筛选第一批治理候选。文件：`tests/`、`packages/frontend/src/`、`packages/shared/`；验证：前后端全量收集与耗时报告。

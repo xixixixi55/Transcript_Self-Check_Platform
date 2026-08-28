@@ -1,4 +1,4 @@
-"""Shared synthetic setup for case cleanup repository tests."""
+"""案件清理仓储测试共用的合成数据设置。"""
 
 from app.repository import (
     CaseDraftRepository,

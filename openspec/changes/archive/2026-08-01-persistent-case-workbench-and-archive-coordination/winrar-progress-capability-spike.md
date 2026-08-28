@@ -1,51 +1,40 @@
-# Phase 3 WinRAR progress capability spike
+# 阶段 3 WinRAR 进度能力验证
 
-> Initial spike: 2026-07-30, RAR 5.90
-> Version/adapter decision: 2026-07-30, RAR 7.23 x64
-> ConPTY adapter spike: 2026-07-30, RAR 7.23 x64
-> Input classification: `SYNTHETIC/TEST/FIXTURE`
-> Capability decision: **continuous WinRAR CLI percentage unsupported**
-> Product adaptation: **`workflow_milestone`; prerequisite complete, T011 unblocked but not started**
+> 初始验证：2026-07-30，RAR 5.90
+> 版本/适配器决策：2026-07-30，RAR 7.23 x64
+> ConPTY 适配器验证：2026-07-30，RAR 7.23 x64
+> 输入分类：`SYNTHETIC/TEST/FIXTURE`
+> 能力决策：**不支持连续 WinRAR CLI 百分比**
+> 产品调整：**`workflow_milestone`；前置条件已完成，T011 已解除阻塞但尚未开始**
 
-## Scope and isolation
+## 范围与隔离
 
-Both spikes used only generated synthetic files. The 7.23 Windows x64 package
-was downloaded from the official RARLAB download endpoint into a system
-temporary directory, verified, and unpacked as an SFX archive with the existing
-RAR CLI. The installer was not executed. No existing WinRAR file, file
-association, registry value, environment variable, application setting, or
-formal archive output was changed.
+两次验证均只使用生成的合成文件。RAR 7.23 Windows x64 软件包从 RARLAB 官方下载端点下载到系统临时目录，经过验证后使用现有 RAR CLI 将其作为 SFX 归档解包。未执行安装程序。现有 WinRAR 文件、文件关联、注册表值、环境变量、应用设置和正式归档输出均未改变。
 
-No installer, executable, raw console log, temporary RAR, real report, case
-data, machine path, or persistent configuration is stored in the repository.
+仓库中不保存安装程序、可执行文件、原始控制台日志、临时 RAR、真实报告、案件数据、机器路径或持久配置。
 
-## 7.23 executable evidence
+## 7.23 可执行文件证据
 
-| Item | Sanitized evidence |
+| 项目 | 脱敏证据 |
 |---|---|
-| Package | Official `winrar-x64-723.exe`, 3,775,056 bytes |
-| Package SHA-256 | `8ff0daf3ed564cc743c0e23ff2e253997ffc74460f9673f0b6dd037b2db4ce7b` |
-| Package signature | Valid, signer `win.rar GmbH` |
-| Executable | `Rar.exe` |
-| File/product version | `7.23.0` |
-| Architecture | PE machine `0x8664`, x64 |
-| Executable SHA-256 | `f561764bc3e9ed208744321a89a819b562edeaf06e203c02a06976121fda1991` |
-| Executable signature | Valid, signer `win.rar GmbH` |
+| 软件包 | 官方 `winrar-x64-723.exe`，3,775,056 字节 |
+| 软件包 SHA-256 | `8ff0daf3ed564cc743c0e23ff2e253997ffc74460f9673f0b6dd037b2db4ce7b` |
+| 软件包签名 | 有效，签名者 `win.rar GmbH` |
+| 可执行文件 | `Rar.exe` |
+| 文件/产品版本 | `7.23.0` |
+| 架构 | PE 机器类型 `0x8664`，x64 |
+| 可执行文件 SHA-256 | `f561764bc3e9ed208744321a89a819b562edeaf06e203c02a06976121fda1991` |
+| 可执行文件签名 | 有效，签名者 `win.rar GmbH` |
 
-## Ordinary-pipe capture and parser contract tested
+## 已测试的普通管道捕获与解析器契约
 
-- Capture method: ordinary binary stdout/stderr pipes, matching the current
-  production `subprocess.Popen(..., stdout=PIPE, stderr=PIPE)` shape.
-- PTY/ConPTY was not used. The spike therefore does not add a terminal
-  emulation dependency or infer state from rendered screen cells.
-- stdout and stderr were retained as raw bytes for in-memory analysis.
-  All 7.23 samples in this spike were ASCII; stderr was empty.
-- Candidate parser: raw byte regex `(?<!\d)(\d{1,3})%`.
-- The parser does not consume file names, localized messages, archive names,
-  or other prose. Raw logs are not persisted; sanitized byte counts, hashes,
-  percentage counts, regressions, terminal values, and return codes are kept.
+- 捕获方式：普通二进制 stdout/stderr 管道，与当前生产环境的 `subprocess.Popen(..., stdout=PIPE, stderr=PIPE)` 形式一致。
+- 未使用 PTY/ConPTY。因此，本次验证未增加终端模拟依赖，也未从渲染后的屏幕单元推断状态。
+- stdout 和 stderr 以原始字节保留在内存中供分析。本次验证中的所有 7.23 样本均为 ASCII；stderr 为空。
+- 候选解析器：原始字节正则表达式 `(?<!\d)(\d{1,3})%`。
+- 解析器不消费文件名、本地化消息、归档名称或其他自然语言文本。原始日志不持久化；只保留脱敏后的字节数、哈希、百分比计数、回退、终值和返回码。
 
-## Exact command shapes
+## 精确命令形式
 
 ```text
 Rar.exe a -r -y -idn <archive> <single-file>
@@ -56,112 +45,58 @@ Rar.exe a -r -y -idn -m5 <archive> SYNTHETIC_CANCEL_FIXTURE.bin
 Rar.exe a -r -y -inul <archive> <input-root>
 ```
 
-The normal multi-file input contained deterministic 1 MiB, 6 MiB, and 18 MiB
-files. The 8 MiB volume limit guaranteed multiple volumes. Every normal case
-was repeated twice with the same input bytes. Cancellation used a separate
-128 MiB synthetic file and `Popen.kill()` after 0.5 seconds.
+普通多文件输入包含确定性的 1 MiB、6 MiB 和 18 MiB 文件。8 MiB 分卷限制可保证生成多个分卷。每个正常用例都以相同输入字节重复两次。取消测试使用单独的 128 MiB 合成文件，并在 0.5 秒后调用 `Popen.kill()`。
 
-## 7.23 results
+## 7.23 结果
 
-| Scenario | Repeated raw percentage evidence | stdout/stderr | Result |
+| 场景 | 重复的原始百分比证据 | stdout/stderr | 结果 |
 |---|---|---|---|
-| Single file | 11 samples per run; `100 -> 22` in both runs; terminal 100 | 299/0 bytes per run, ASCII | Repeatable but not non-decreasing |
-| Multiple files | 16 samples per run; `28 -> 20` and `100 -> 44` in both runs; terminal 100 | 338/0 bytes per run, ASCII | Repeatable but not non-decreasing |
-| Multiple volumes | 11 samples per run; `28 -> 20` in both runs; terminal 100 | 480/0 bytes per run, ASCII | Repeatable but not non-decreasing |
-| Missing input | No percentage; return code 10 | 223/0 bytes, ASCII | Reliably failed; did not report 100 |
-| Forced cancellation | Terminal sample 7; return code 1 | 228/0 bytes, ASCII | Reliably interrupted; did not report 100 |
-| Legacy `-inul` | No percentage; return code 0 | 0/0 bytes | Successful and silent |
+| 单文件 | 每次运行 11 个样本；两次均为 `100 -> 22`；终值为 100 | 每次运行 299/0 字节，ASCII | 可重复，但并非非递减 |
+| 多文件 | 每次运行 16 个样本；两次均为 `28 -> 20` 和 `100 -> 44`；终值为 100 | 每次运行 338/0 字节，ASCII | 可重复，但并非非递减 |
+| 多分卷 | 每次运行 11 个样本；两次均为 `28 -> 20`；终值为 100 | 每次运行 480/0 字节，ASCII | 可重复，但并非非递减 |
+| 输入缺失 | 无百分比；返回码 10 | 223/0 字节，ASCII | 稳定失败；未报告 100 |
+| 强制取消 | 终值样本为 7；返回码 1 | 228/0 字节，ASCII | 稳定中断；未报告 100 |
+| 旧版 `-inul` | 无百分比；返回码 0 | 0/0 字节 | 成功且无输出 |
 
-Adding the documented `-qo-` switch to disable Quick Open information did not
-remove the repeatable regressions. Ordinary pipe delivery was sufficient to
-observe early samples and cancel the process, but it did not change the raw
-counter semantics.
+增加文档所述用于禁用快速打开信息的 `-qo-` 开关并未消除可重复的回退。普通管道足以观察早期样本并取消进程，但不会改变原始计数器语义。
 
-## ConPTY adapter spike
+## ConPTY 适配器验证
 
-The same signed, isolated RAR 7.23 x64 executable and deterministic synthetic
-input sizes were tested through a native Windows ConPTY host. The host uses
-anonymous synchronous input/output pipes, `CreatePseudoConsole`, and
-`PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE`. It creates the child suspended, assigns
-it to a Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, resumes it, drains
-ConPTY output on a separate reader thread, and uses `TerminateJobObject` for
-forced cancellation. No permanent runtime dependency or production integration
-was added.
+使用原先同一个已签名、隔离的 RAR 7.23 x64 可执行文件和确定性合成输入大小，通过原生 Windows ConPTY 宿主进行测试。宿主使用匿名同步输入/输出管道、`CreatePseudoConsole` 和 `PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE`。它以挂起状态创建子进程，将其分配到启用 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 的作业对象，恢复进程，在单独的读取线程中排空 ConPTY 输出，并使用 `TerminateJobObject` 强制取消。未增加永久运行时依赖或生产集成。
 
-ConPTY output was captured as raw bytes and decoded strictly as UTF-8 for this
-signed executable. The terminal model handles carriage return, line feed,
-backspace, CSI cursor-left/right/absolute-column and erase-to-end updates, plus
-OSC title records. Percent samples are taken from the line's current visible
-state when WinRAR writes `%`; file names and localized prose are not parsed.
-No historical maximum, clamping, smoothing, filtering, or estimation is used.
+ConPTY 输出以原始字节捕获，并针对该已签名可执行文件严格按 UTF-8 解码。终端模型处理回车、换行、退格、CSI 光标左移/右移/绝对列及擦除至行尾更新，以及 OSC 标题记录。百分比样本在 WinRAR 写入 `%` 时从当前可见行状态获取；不解析文件名和本地化自然语言文本。未使用历史最大值、截断、平滑、过滤或估算。
 
-The exact WinRAR command shapes were unchanged from the ordinary-pipe spike.
-ConPTY produced VT screen initialization/cursor sequences and an OSC title.
-WinRAR percentage updates used carriage-return line replacement, not an
-append-only record stream or backspace replacement. The observed normal-run
-control counts contained no backspaces:
+精确的 WinRAR 命令形式与普通管道验证保持不变。ConPTY 产生了 VT 屏幕初始化/光标序列和 OSC 标题。WinRAR 百分比更新使用回车替换整行，而非只追加的记录流或退格替换。观察到的正常运行控制字符计数不含退格：
 
-| Scenario | Sanitized terminal evidence per repeated run | Current-state result |
+| 场景 | 每次重复运行的脱敏终端证据 | 当前状态结果 |
 |---|---|---|
-| Single file | 400 bytes, UTF-8; CR 15, LF 8, CSI 8, OSC 1; 8 samples | `100 -> 22` in both runs; terminal 100 |
-| Multiple files | 420 bytes, UTF-8; CR 19, LF 8, CSI 8, OSC 1; 12 samples | `28 -> 20`, `100 -> 44` in both runs; terminal 100 |
-| Multiple volumes | 626 bytes, UTF-8; CR 21, LF 11, CSI 16, OSC 1; 10 samples | `28 -> 20` in both runs; terminal 100 |
-| Missing input | 384 bytes, UTF-8; return code 10; no percentage | Failed without reporting 100 |
-| Forced cancellation | 367 bytes, UTF-8; terminal 4; return code 1 | Job tree terminated; did not report 100 |
-| Legacy ordinary pipe `-inul` | 0/0 stdout/stderr bytes; return code 0 | Successful and silent |
+| 单文件 | 400 字节，UTF-8；CR 15、LF 8、CSI 8、OSC 1；8 个样本 | 两次均为 `100 -> 22`；终值为 100 |
+| 多文件 | 420 字节，UTF-8；CR 19、LF 8、CSI 8、OSC 1；12 个样本 | 两次均为 `28 -> 20`、`100 -> 44`；终值为 100 |
+| 多分卷 | 626 字节，UTF-8；CR 21、LF 11、CSI 16、OSC 1；10 个样本 | 两次均为 `28 -> 20`；终值为 100 |
+| 输入缺失 | 384 字节，UTF-8；返回码 10；无百分比 | 失败且未报告 100 |
+| 强制取消 | 367 字节，UTF-8；终值为 4；返回码 1 | 进程树已终止；未报告 100 |
+| 旧版普通管道 `-inul` | stdout/stderr 为 0/0 字节；返回码 0 | 成功且无输出 |
 
-Each normal case used the same input bytes twice. Percentage sequences,
-regression boundaries, byte counts, and terminal control counts were identical
-between repetitions. Raw-byte hashes differed because each run used a distinct
-synthetic output archive name; no raw terminal stream or generated archive was
-retained. Every successful run reached 100, while failure and forced
-cancellation did not. Exit codes and the Job Object cancellation boundary
-reliably distinguished success, failure, and interruption.
+每个正常用例都使用相同输入字节运行两次。两次运行的百分比序列、回退边界、字节数和终端控制字符计数完全一致。原始字节哈希不同，是因为每次运行使用不同的合成输出归档名称；未保留原始终端流或生成的归档。每次成功运行都达到 100，而失败和强制取消没有达到。退出码和作业对象取消边界能够可靠区分成功、失败和中断。
 
-`-idn` suppressed file-name display as documented, but the visible percentages
-cannot be classified as one total-progress counter: a completed-looking 100 is
-followed by a lower value in both single-file and multi-file runs. The spike
-therefore rejects the premise that every remaining percentage token represents
-only aggregate task progress.
+`-idn` 按文档说明抑制了文件名显示，但可见百分比不能归类为单个总进度计数器：在单文件和多文件运行中，看似已完成的 100 后面都会出现更低的值。因此，本次验证否定了“每个剩余百分比标记都只表示任务总进度”这一前提。
 
-## Decision
+## 决策
 
-RAR 7.23 x64 with `-idn` is rejected as the Phase 3 machine-progress adapter
-under both ordinary pipes and ConPTY. Parsing ConPTY's current visible terminal
-state preserves the same repeatable counter resets in single-file, multi-file,
-and multi-volume runs. The resets are therefore WinRAR terminal-state
-transitions, not an ordinary-pipe framing artifact. The signal does not satisfy
-the repository contract that normal task progress be non-decreasing.
+在普通管道和 ConPTY 下，均拒绝将带 `-idn` 的 RAR 7.23 x64 用作阶段 3 机器进度适配器。解析 ConPTY 当前可见终端状态时，仍会在单文件、多文件和多分卷运行中保留同样的可重复计数器重置。因此，这些重置是 WinRAR 终端状态转换，而不是普通管道分帧伪影。该信号不满足仓库要求正常任务进度非递减的契约。
 
-The implementation must not make this signal appear valid by taking the
-maximum, clamping, smoothing, dropping post-100 samples, selecting only a
-convenient pass, or deriving a replacement percentage from time, input bytes,
-file counts, or output size. Existing Legacy `-inul` execution remains
-unchanged and compatible.
+实现不得通过取最大值、截断、平滑、丢弃 100 之后的样本、只选择方便的某次运行，或根据时间、输入字节、文件数或输出大小推导替代百分比，使该信号看似有效。现有旧版 `-inul` 执行保持不变并继续兼容。
 
-The strict true-percentage contract is not implementable from the tested
-WinRAR CLI output on RAR 5.90 or signed RAR 7.23 x64 through either ordinary
-pipes or ConPTY.
+经测试，无法从 RAR 5.90 或已签名 RAR 7.23 x64 的 WinRAR CLI 输出中，通过普通管道或 ConPTY 实现严格的真实百分比契约。
 
-The subsequent Phase 3 product/architecture decision selects the stage-only
-alternative. Phase 3 uses fixed, persisted `workflow_milestone` values that
-advance only when real inventory, preflight, WinRAR, integrity, MD5, Manifest,
-and formal-completion boundaries are entered or passed. WinRAR execution stays
-at its fixed milestone with an indeterminate activity treatment; no continuous
-CLI percentage is parsed or inferred.
+后续阶段 3 产品/架构决策选择仅阶段值的替代方案。阶段 3 使用固定且持久化的 `workflow_milestone` 值，仅在进入或通过真实清单、预检、WinRAR、完整性、MD5、Manifest 和正式完成边界时推进。WinRAR 执行期间保持固定里程碑并采用不确定活动状态；不解析或推断连续 CLI 百分比。
 
-This closes the version/adapter prerequisite and unblocks T011 without marking
-T011 or later implementation tasks complete. A production ConPTY adapter is
-not adopted. WinRAR, RAR volume behavior, Legacy explicit compression, Manifest
-authority, and all archive safety gates remain unchanged.
+这会完成版本/适配器前置条件并解除 T011 的阻塞，但不会将 T011 或后续实施任务标记为完成。不采用生产 ConPTY 适配器。WinRAR、RAR 分卷行为、Legacy 显式压缩、Manifest 权威性和所有归档安全门控保持不变。
 
-## Reproduction
+## 复现
 
 ```powershell
-python scripts/probe_winrar_progress.py --executable "<isolated>\Rar.exe"
-python scripts/probe_winrar_conpty_progress.py --executable "<isolated>\Rar.exe"
-python -m pytest tests/test_winrar_progress_capability_spike.py -q
+python scripts/spike_winrar_progress.py
 ```
 
-The probe output is sanitized and never includes raw console output, absolute
-paths, external input names, or generated artifacts.
+验证脚本输出已经脱敏，绝不包含原始控制台输出、绝对路径、外部输入名称或生成产物。

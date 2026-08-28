@@ -1,16 +1,15 @@
 """
-Persistent integration test for check-contracts.ts.
+check-contracts.ts 的持久集成测试。
 
-Proves that the cross-language contract checker correctly detects:
-- Field name drift (present in TS, missing in Python)
-- Optionality drift (TS required vs Python optional)
-- Enum value drift (literal member mismatch)
-- Error code set drift (ExportGateBlockerCode vs ExportGateCode)
+证明跨语言契约检查器能正确检测：
+- 字段名称漂移（TS 中存在、Python 中缺失）
+- 可选性漂移（TS 要求必填，而 Python 允许可选）
+- 枚举值漂移（字面量成员不匹配）
+- 错误码集合漂移（ExportGateBlockerCode 与 ExportGateCode）
 
-Strategy: operates on canonical_model_service.py because it is the Python-side
-authority for all canonical model fields and literal enums.  Each test
-temporarily mutates one file, runs the checker, asserts failure with the
-expected dimension, then restores the original.
+测试在 canonical_model_service.py 上运行，因为它是所有规范模型字段和
+字面量枚举的 Python 端权威来源。每项测试会临时修改一个文件，运行检查器，
+断言检查器按预期维度失败，然后恢复原始内容。
 """
 
 from __future__ import annotations
@@ -40,7 +39,7 @@ def _run_checker() -> tuple[int, str]:
 
 
 def _modify_file(path: Path, old: str, new: str) -> str:
-    """Replace old→new, return original content for later restore."""
+    """将 old 替换为 new，并返回原始内容以便后续恢复。"""
     original = path.read_text(encoding="utf-8")
     updated = original.replace(old, new)
     if updated == original:
@@ -54,10 +53,10 @@ def _restore_file(path: Path, content: str) -> None:
 
 
 class TestContractCheckerDriftDetection:
-    """Keep one clean integration run and one run covering every drift dimension."""
+    """保留一次无漂移集成运行，以及一次覆盖所有漂移维度的运行。"""
 
     def test_all_supported_drift_dimensions_caught_in_one_run(self):
-        """One checker invocation reports field, optionality, enum and error-code drift."""
+        """一次检查器调用报告字段、可选性、枚举和错误码漂移。"""
         ts_canonical = ROOT / "packages" / "shared" / "types" / "canonical.ts"
         ts_export_gate = ROOT / "packages" / "shared" / "types" / "exportGate.ts"
         originals = {
@@ -86,7 +85,7 @@ class TestContractCheckerDriftDetection:
                 _restore_file(file_path, original)
 
     def test_no_drift_when_aligned(self):
-        """Checker MUST pass (exit 0) when the contracts are aligned."""
+        """契约对齐时，检查器 MUST 通过（退出码为 0）。"""
         exit_code, output = _run_checker()
         assert exit_code == 0 or (
             exit_code == 1 and "ODD_PHOTO_COUNT" in output

@@ -1,4 +1,4 @@
-# Spec Delta: 案件工作台删除
+# 规格增量：案件工作台删除
 
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED（案件工作台删除交互与 API）

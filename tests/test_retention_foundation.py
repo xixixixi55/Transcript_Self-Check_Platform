@@ -1,4 +1,4 @@
-"""Slice 5A-1 synthetic tests for shared contracts and v11 durable facts."""
+"""共享契约与 v11 持久事实的 Slice 5A-1 合成数据测试。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# Spec Delta: 归档路径元数据级指纹
+# 规格增量：归档路径元数据级指纹
 
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED（来源复核与归档输入使用元数据级指纹，归档输出侧完整性校验保留）
@@ -23,7 +23,7 @@
 - AND 暂时 I/O/权限失败保持 `pending` 并允许有界重试
 - AND 检查不得读取媒体文件内容或递归遍历深层媒体树
 
-### Requirement: REQ-ARCHIVE-IMMUTABLE-INPUT: 用户确认边界下的单次直接源 inventory
+### Requirement: REQ-ARCHIVE-IMMUTABLE-INPUT: 用户确认边界下的单次直接源清单
 
 用户明确确认压缩期间不会修改、移动、删除源目录或继续写入后，新归档尝试 MUST 直接读取已授权源目录。系统 MUST 只构建一次完整输入 inventory 供容量规划、Manifest 输入统计和 WinRAR 执行使用，不得复制全量快照，也不得在来源复核、归档提交、WinRAR 前后或 Manifest 读取阶段重复递归扫描同一目录。
 

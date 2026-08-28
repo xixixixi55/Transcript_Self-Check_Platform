@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 硬件设备管理组件
+// 第 11 层：FE_Components — 硬件设备管理组件
 import React, { useState, useEffect } from 'react'
 import { Table, Button, Modal, Form, Input, Space, Popconfirm, message } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'

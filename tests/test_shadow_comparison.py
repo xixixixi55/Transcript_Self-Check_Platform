@@ -1,4 +1,4 @@
-"""Synthetic tests for normalized, redacted Shadow comparison facts."""
+"""规范化、脱敏 Shadow 比较事实的合成数据测试。"""
 
 import json
 import os

@@ -1,4 +1,4 @@
-"""Ordered, review-safe Legacy DTO view for every document consumer."""
+"""供所有文档使用者使用的有序且审核安全的旧版 DTO 视图。"""
 
 from __future__ import annotations
 
@@ -14,10 +14,9 @@ _REVIEW_ONLY_FIELDS = {
 
 
 def project_ordered_legacy_report(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Make the saved CaseDraft array order the only Legacy document order.
+    """使已保存的 CaseDraft 数组顺序成为唯一的旧版文档顺序。
 
-    This intentionally never applies a natural-number sort.  The CaseDraft has
-    already stored either the one-time parser default or the user's drag order.
+    此处有意不应用自然数排序。CaseDraft 已存储一次性解析器默认顺序或用户拖动顺序。
     """
     result = copy.deepcopy(dict(report))
     result.pop("field_states", None)

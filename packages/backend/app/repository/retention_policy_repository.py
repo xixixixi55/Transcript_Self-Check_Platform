@@ -1,4 +1,4 @@
-"""Deployment-scoped durable retention policy foundation."""
+"""部署级持久保留策略基础。"""
 
 from __future__ import annotations
 
@@ -60,11 +60,10 @@ class RetentionPolicyRepository:
         return _policy_dict(row)
 
     def sync_from_environment(self, environ: Mapping[str, str]) -> dict[str, Any]:
-        """Apply explicit canonical deployment settings to the durable row.
+        """将显式的规范部署设置应用到持久记录。
 
-        This is the operator/bootstrap boundary. Once the row exists, legacy
-        settings are deliberately not passed to the parser and ordinary reads
-        never consult process environment state.
+        这是运维人员或引导程序的边界。记录一旦存在，旧版设置便不会传给解析器，
+        普通读取也绝不查询进程环境状态。
         """
         if not _has_canonical_input(environ):
             return self.get()
@@ -100,7 +99,7 @@ class RetentionPolicyRepository:
         return _policy_dict(refreshed)
 
     def create_for_test(self, value: Mapping[str, Any]) -> dict[str, Any]:
-        """Persist an already validated policy without running a coordinator."""
+        """持久化已验证策略，不运行协调器。"""
         mode = value.get("mode")
         if mode not in RETENTION_POLICY_MODES:
             raise WorkbenchPersistenceError("RETENTION_CONFIG_INVALID_MODE")

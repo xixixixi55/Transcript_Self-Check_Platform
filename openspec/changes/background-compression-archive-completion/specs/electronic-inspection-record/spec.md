@@ -1,4 +1,4 @@
-# Spec Delta: 后台压缩与归档完成统一导出
+# 规格增量：后台压缩与归档完成统一导出
 
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED + ADDED（案件打开后台压缩触发、每 RAR 实时回填、盘号后填映射、归档完成态、统一导出、已导出与删除案件）

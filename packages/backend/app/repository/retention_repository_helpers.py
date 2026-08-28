@@ -1,4 +1,4 @@
-"""Validation and safe projections shared by retention repositories."""
+"""保留仓储共享的验证和安全投影。"""
 
 from __future__ import annotations
 

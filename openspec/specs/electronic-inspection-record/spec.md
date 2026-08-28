@@ -1,15 +1,15 @@
 # Spec: 电子数据检查笔录自动生成
 
 > 能力：CAP-001 ~ CAP-011
-> 状态：MODIFIED（2026-08-01: Phase 1–4 workbench/archive contracts and archive-readiness reconciliation）
+> 状态：MODIFIED（2026-08-01：Phase 1–4 工作台/归档合同和归档就绪性核对）
 
-## Purpose
+## 目的
 
-> 本文件是 living spec，只描述当前生产已经具备的能力。已批准但尚未正式输出启用的 Canonical/`DocumentRenderPlan` 目标见 active change `openspec/changes/extensible-report-template-platform/spec.md`；Shadow 已作为不改变Legacy响应的脱敏旁路接线，当前实现与验收进度见其 `tasks.md`。代码和测试是实现证据，不自动覆盖已批准的业务合同。
+> 本文件是现行规格，只描述当前生产已经具备的能力。已批准但尚未正式输出启用的 Canonical/`DocumentRenderPlan` 目标见活跃变更 `openspec/changes/extensible-report-template-platform/spec.md`；Shadow 已作为不改变 Legacy 响应的脱敏旁路接线，当前实现与验收进度见其 `tasks.md`。代码和测试是实现证据，不自动覆盖已批准的业务合同。
 
 当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + 案件明确引用且当前重新校验通过的 approved TemplateProfile 渲染唯一正式 DOCX；没有模板引用的兼容案件继续使用 `current-template-v1`。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
 
-当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` metadata 使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整 inventory、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，Canonical 正式生产切换未启用，OpenSpec archive 尚未执行。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证；它仍限制 Canonical 成为默认唯一正式输出和未声明的大规模能力。本变更的 Production Review 已记录当前 Legacy-only 单 Windows 支持模型下的发布负责人风险接受，因此当前只进入 archive-readiness reconciliation，不把延期资源验收写成已完成能力。
+当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` 元数据使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整清单、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，Canonical 正式生产切换未启用，OpenSpec 归档尚未执行。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证；它仍限制 Canonical 成为默认唯一正式输出和未声明的大规模能力。本变更的生产审查已记录当前仅 Legacy、单 Windows 支持模型下的发布负责人风险接受，因此当前只进入归档就绪性核对，不把延期资源验收写成已完成能力。
 
 当前有两个必须区分的入口边界：持久化案件工作台是前端主生产入口，先持久化
 CaseShell、SourceRecord 和解析任务，解析成功后保存 CaseDraft；用户审核和保存草稿后，
@@ -58,7 +58,7 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 解析阶段不调用 WinRAR、不生成最终 `ArchiveManifest`
 - AND 该兼容合同不改变工作台先持久化案件壳、再由用户显式决定压缩时机的流程
 
-#### Scenario: deprecated compress 参数不控制解析归档
+#### Scenario: 已弃用的 compress 参数不控制解析归档
 - WHEN 兼容请求传入任意 `compress` 值
 - THEN 当前 UI 不暴露该参数，解析阶段无论其值为何均不调用 WinRAR
 - AND `compress` 不决定解析成功后是否创建 `ArchiveContext`
@@ -799,7 +799,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 
 **CAP-006: 废弃兼容参数边界**
 
-### Requirement: REQ-013: deprecated compress 请求参数
+### Requirement: REQ-013: 已弃用的 compress 请求参数
 
 系统 MUST 满足以下现有合同：
 #### Scenario: 当前 UI 不提供压缩开关
@@ -1041,7 +1041,7 @@ MD5 校验由 HashMyFiles.exe 执行，新解析案件和存量案件的运行�
 - WHEN 判断当前归档生产验收状态
 - THEN 4GB 双卷和 22GB 单卷已有部分脱敏真实证据，但不宣称全部档位验收完成
 - AND 22GB 双卷、45GB 真实执行和真实 replan 为延期，不是失败、取消或已完成
-- AND 正式模板当前没有独立展示 `disc_capacity_bytes` 的位置，living spec 更新不改变 Word 布局
+- AND 正式模板当前没有独立展示 `disc_capacity_bytes` 的位置，现行规格更新不改变 Word 布局
 - AND 4GB 双卷与 22GB 单卷只有部分脱敏真实证据，不宣称全部档位验收完成
 - AND 22GB 双卷、45GB 真实执行和真实向上 replan 继续延期，不是失败、取消或完成
 - AND 这些资源型验收不阻塞日常 Legacy/Shadow 功能开发、Shadow 真实样本差异治理或 Canonical 代码、只读预览、编辑门控、候选输出隔离和回滚演练
@@ -1765,7 +1765,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - THEN 前端保留当前图片输入并阻止离开案件，显示可区分的失败原因
 - AND 重试仍以最后一次成功绑定的图片列表为基线，不重复上传相同二进制
 
-### Requirement: REQ-ARCHIVE-IMMUTABLE-INPUT: 用户确认边界下的单次直接源 inventory
+### Requirement: REQ-ARCHIVE-IMMUTABLE-INPUT: 用户确认边界下的单次直接源清单
 
 用户明确确认压缩期间不会修改、移动、删除源目录或继续写入后，新归档尝试 MUST 直接读取已授权源目录。系统 MUST 只构建一次完整输入 inventory 供容量规划、Manifest 输入统计和 WinRAR 执行使用，不得复制全量快照，也不得在来源复核、归档提交、WinRAR 前后或 Manifest 读取阶段重复递归扫描同一目录。
 
@@ -1807,34 +1807,34 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 
 ### Requirement: REQ-ARCHIVE-PUBLICATION-GENERATION
 
-Formal publication MUST use a unique durable publication generation bound to the task, attempt, deployment, fence, Manifest and exact physical file set; partial or tampered generations MUST fail closed.
+正式发布 MUST 使用唯一的持久发布代次，并将其与任务、尝试、部署、栅栏、Manifest 及精确的物理文件集绑定；代次不完整或被篡改时 MUST 以安全失败方式处理。
 
-#### Scenario: durable publication generation
-- WHEN a validated staging set is published
-- THEN a unique `publication_id` and generation digest bind task, attempt, deployment, fence, Manifest, exact file set, sizes and MD5 values in the durable publish intent
-- AND the staging set is sealed before same-filesystem atomic rename, historical formal directories are never overwritten, and a partial/crashed generation remains pending or recoverable rather than succeeded
-- AND the completion transaction can set attempt and task to `succeeded` only when the sealed publication identity, intent/fence, current revisions, Manifest and index projection agree
-- AND download, reuse, recovery and Word export resolve the durable publication identity and re-run the existing physical integrity gate; post-completion tampering is rejected
+#### Scenario: 持久发布代次
+- WHEN 发布已验证的暂存文件集
+- THEN 持久发布意图中的唯一 `publication_id` 和代次摘要将任务、尝试、部署、栅栏、Manifest、精确文件集、文件大小及 MD5 值绑定
+- AND 在同一文件系统原子重命名前封存暂存文件集，绝不覆盖历史正式目录；部分完成或崩溃的代次保持待处理或可恢复状态，而不是成功状态
+- AND 仅当已封存的发布标识、意图/栅栏、当前修订、Manifest 和索引投影一致时，完成事务才能将尝试和任务设为 `succeeded`
+- AND 下载、复用、恢复和 Word 导出解析持久发布标识并重新执行既有物理完整性门控；拒绝完成后的篡改
 
 ### Requirement: REQ-ARCHIVE-MANIFEST-PROJECTION
 
-The JSON Manifest index MUST remain a rebuildable projection of SQLite durable publication facts and MUST NOT be treated as an independent success authority.
+JSON Manifest 索引 MUST 始终是 SQLite 持久发布事实的可重建投影，MUST NOT 将其视为独立的成功事实源。
 
-#### Scenario: fail-closed derived index
-- WHEN the JSON Manifest index is missing, malformed, structurally invalid, digest-inconsistent or concurrently updated
-- THEN it is never interpreted as an empty authoritative list
-- AND SQLite durable publication facts are the only authority and may rebuild the projection under a cross-process lock with temp-file flush/fsync and atomic replacement
-- AND if the projection cannot be rebuilt or persisted, public completion cannot report success
+#### Scenario: 派生索引安全失败
+- WHEN JSON Manifest 索引缺失、格式错误、结构无效、摘要不一致或被并发更新
+- THEN 绝不将其解释为空的权威列表
+- AND SQLite 持久发布事实是唯一事实源，并可在跨进程锁保护下通过临时文件刷新/fsync 和原子替换重建投影
+- AND 如果无法重建或持久化投影，公共完成结果不得报告成功
 
 ### Requirement: REQ-ARCHIVE-OWNERSHIP-CAS
 
-Shutdown and recovery MUST use bounded compare-and-set ownership checks for task revision, deployment owner, worker owner, attempt and fence before changing claims or deleting markers.
+关闭和恢复流程 MUST 在变更认领或删除标记前，对任务修订、部署所有者、工作线程所有者、尝试和栅栏执行有界比较并设置所有权检查。
 
-#### Scenario: current claim shutdown and marker ownership
-- WHEN bounded shutdown or recovery handles a pending/running archive claim
-- THEN it re-reads current durable revision, deployment owner, worker owner token, attempt and fence, and performs bounded CAS only while the current claim remains owned and interruptible
-- AND revision races are retried or reported as unresolved, never silently ignored; transferred ownership and durable succeeded facts are not downgraded
-- AND staging markers serialize task, attempt, deployment, controlled root and random token; their fence binding is established by cross-checking the durable intent `fence_id` and current DB fence before deletion, and only the matching publisher deletes once after durable intent/fence and formal move; an already-deleted marker for the same publication is idempotent success
+#### Scenario: 当前认领关闭与标记所有权
+- WHEN 有界关闭或恢复流程处理待处理/运行中的归档认领
+- THEN 重新读取当前持久修订、部署所有者、工作线程所有者令牌、尝试和栅栏，并且仅在当前认领仍归其所有且可中断时执行有界 CAS
+- AND 修订竞争要么重试，要么报告为未解决，绝不静默忽略；不得降级已转移的所有权和持久成功事实
+- AND 暂存标记序列化任务、尝试、部署、受控根目录和随机令牌；删除前通过交叉核对持久意图的 `fence_id` 与当前数据库栅栏来建立栅栏绑定，并且只有匹配的发布者可在持久意图/栅栏和正式移动完成后删除一次；同一发布的标记已经删除时视为幂等成功
 
 ---
 
@@ -1970,29 +1970,29 @@ Shutdown and recovery MUST use bounded compare-and-set ownership checks for task
 
 ### Requirement: REQ-ARCHIVE-STORAGE-SETTINGS
 
-The deployment MUST allow the user to move RAR staging and durable archive generations away from the default application-data volume while retaining controlled-path and same-filesystem publication guarantees.
+部署 MUST 允许用户将 RAR 暂存区和持久归档代次移出默认应用数据卷，同时保留受控路径和同一文件系统发布保证。
 
-#### Scenario: select a custom archive storage directory
-- **WHEN** the user opens archive storage settings from either expanded or collapsed platform navigation and selects an existing writable local directory
-- **THEN** the deployment persists the selection and shows its dedicated `文枢归档工作区` child as the restart-bound destination
-- **AND** after restart, new archive staging, verified RAR parts, Manifest projection, recovery and case cleanup use that configured archive root without moving completed parts back to the default system volume
-- **AND** ordinary case data, uploaded images, logs and Word exports remain in their existing application-data locations
+#### Scenario: 选择自定义归档存储目录
+- **WHEN** 用户从展开或折叠的平台导航中打开归档存储设置，并选择一个现有且可写的本地目录
+- **THEN** 部署持久化该选择，并将其专用子目录 `文枢归档工作区` 显示为重启后生效的目标目录
+- **AND** 重启后，新的归档暂存、已验证 RAR 分卷、Manifest 投影、恢复和案件清理均使用配置的归档根目录，不将已完成分卷移回默认系统卷
+- **AND** 普通案件数据、上传图片、日志和 Word 导出仍保留在既有应用数据位置
 
-#### Scenario: configured archive storage is unavailable or unsafe
-- **WHEN** the configured parent is missing, unwritable, or its dedicated workspace overlaps the packaged program resource root
-- **THEN** the application exposes a stable actionable settings error and refuses to begin a new archive there
-- **AND** it does not silently redirect that task to the default system volume
-- **AND** a write probe denied by permissions, read-only media, an offline drive, or another I/O error finishes within bounded attempts and cannot hang startup or continuously consume CPU through temporary-name retries
+#### Scenario: 配置的归档存储不可用或不安全
+- **WHEN** 配置的父目录缺失、不可写，或其专用工作区与打包程序资源根目录重叠
+- **THEN** 应用显示稳定且可操作的设置错误，并拒绝在该位置开始新归档
+- **AND** 不将该任务静默重定向到默认系统卷
+- **AND** 因权限、只读介质、离线驱动器或其他 I/O 错误而被拒绝的写入探测须在有界尝试内结束，不得因临时名称重试而挂起启动或持续占用 CPU
 
-#### Scenario: apply or reset a restart-bound setting
-- **WHEN** the user selects a different directory or restores the default
-- **THEN** the settings surface distinguishes the active directory from the directory that will apply after restart
-- **AND** no running archive is migrated, while verified archives under the previous/default root remain resolvable for result viewing, export and explicit case cleanup
+#### Scenario: 应用或重置重启后生效的设置
+- **WHEN** 用户选择其他目录或恢复默认设置
+- **THEN** 设置界面区分当前生效目录和重启后生效目录
+- **AND** 不迁移任何运行中的归档；先前/默认根目录下的已验证归档仍可用于结果查看、导出和显式案件清理
 
-#### Scenario: settings entry follows existing sidebar controls
-- **WHEN** the platform sidebar is expanded or collapsed
-- **THEN** the settings control uses the existing footer-button size, radius, shadow, hover and focus treatment
-- **AND** its collapsed form retains the accessible name and right-side tooltip `归档存储设置`
+#### Scenario: 设置入口遵循既有侧栏控件
+- **WHEN** 平台侧栏展开或折叠
+- **THEN** 设置控件沿用既有页脚按钮的尺寸、圆角、阴影、悬停和焦点样式
+- **AND** 折叠形态保留无障碍名称和右侧工具提示 `归档存储设置`
 
 | 用途 | 路径 |
 |------|------|

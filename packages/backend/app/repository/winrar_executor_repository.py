@@ -1,4 +1,4 @@
-"""Safe WinRAR process execution into an isolated staging directory."""
+"""在隔离暂存目录中安全执行 WinRAR 进程。"""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def _terminate_process(process: subprocess.Popen[str], pid: int) -> bool:
     return terminate_process_tree(process, pid, _kill_process_tree_impl)
 
 class WinRarExecutor:
-    """The only component that constructs and invokes the WinRAR argument array."""
+    """唯一负责构造并调用 WinRAR 参数数组的组件。"""
     _active_plans: set[str] = set()
     _active_guard = threading.Lock()
 
@@ -90,7 +90,7 @@ class WinRarExecutor:
 
     @classmethod
     def _claim_plan(cls, plan_id: str) -> None:
-        """Atomically check-and-insert *plan_id*; raise if already active."""
+        """以原子方式检查并插入 *plan_id*；若已处于活动状态则引发异常。"""
         with cls._active_guard:
             if plan_id in cls._active_plans:
                 raise ArchiveExecutionError(
@@ -160,13 +160,13 @@ class WinRarExecutor:
                         plan.plan_id, staging_dir, result.returncode, False,
                         "ARCHIVE_EXECUTION_FAILED", "WinRAR 返回非零退出码。")
                 return self._finalize_result(plan, staging_dir)
-            # Production path — Popen with verified termination
+            # 生产路径 — 使用经过验证的终止机制运行 Popen
             try:
                 process = subprocess.Popen(
                     args, cwd=str(source_root.parent),
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     text=True, shell=False)
-                win_pid = process.pid  # saved for tree kill even if parent exits
+                win_pid = process.pid  # 保存以便即使父进程退出也能终止进程树
                 if self._process_started_callback is not None:
                     try:
                         self._process_started_callback(win_pid)
@@ -250,8 +250,8 @@ class WinRarExecutor:
 
     @staticmethod
     def _finalize_result(plan: PlanLike, staging_dir: Path) -> WinRarExecutionResult:
-        # A single physical volume uses `base.rar`; multi-volume output keeps
-        # WinRAR's `base.partN.rar` names.
+        # 单个物理分卷使用 `base.rar`；多分卷输出保留
+        # WinRAR 的 `base.partN.rar` 命名。
         single_volume = staging_dir / f"{plan.archive_base_name}.rar"
         first_part = staging_dir / f"{plan.archive_base_name}.part1.rar"
         rar_outputs = [

@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — UI 组件
+// 第 11 层：FE_Components — UI 组件
 
 /**
  * 公共 UI 组件模板

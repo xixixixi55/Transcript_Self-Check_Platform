@@ -1,4 +1,4 @@
-"""Atomic deletion of workbench-owned case records."""
+"""以原子方式删除工作台拥有的案件记录。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from .workbench_serialization import validate_opaque_id
 
 
 class CaseDeletionRepository:
-    """Delete all workbench records for an explicitly confirmed case."""
+    """删除明确确认案件的所有工作台记录。"""
 
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database

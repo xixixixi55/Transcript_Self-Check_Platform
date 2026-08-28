@@ -1,4 +1,4 @@
-"""Synthetic UTC-Z contract tests for the Phase 5 foundation writes."""
+"""Phase 5 基础写入的合成数据 UTC-Z 契约测试。"""
 
 from __future__ import annotations
 

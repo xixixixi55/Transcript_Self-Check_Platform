@@ -1,4 +1,4 @@
-# OpenSpec Delta: case-record-retention
+# OpenSpec 差异：case-record-retention
 
 ## ADDED Requirements
 

@@ -1,4 +1,4 @@
-"""Validate path-free HashMyFiles row projections."""
+"""验证无路径 HashMyFiles 行投影。"""
 
 from __future__ import annotations
 

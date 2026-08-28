@@ -1,4 +1,4 @@
-"""Durable, fail-closed index projection and cross-process writer lock."""
+"""持久且失败关闭的索引投影和跨进程写入锁。"""
 
 from __future__ import annotations
 
@@ -20,13 +20,13 @@ _INDEX_LOCK = threading.RLock()
 
 
 class ArchiveManifestRepositoryError(RuntimeError):
-    """Safe registry diagnostics without local paths or report content."""
+    """不含本地路径或报告内容的安全注册表诊断。"""
 
 
 class ArchiveManifestIndexMixin:
     @contextmanager
     def _index_lock(self):
-        """Coordinate writers across processes as well as threads."""
+        """跨进程和线程协调写入者。"""
         with _INDEX_LOCK:
             self.compressed_root.mkdir(parents=True, exist_ok=True)
             lock_path = self.compressed_root / ".archive-manifest-index.lock"
@@ -59,7 +59,7 @@ class ArchiveManifestIndexMixin:
     def atomic_publish_generation(
         self, staging_dir: str | os.PathLike[str], final_dir: str | os.PathLike[str],
     ) -> None:
-        """Move one sealed generation while app writers hold the shared lock."""
+        """在应用写入者持有共享锁时移动一个密封代次。"""
         staging = Path(staging_dir).resolve(strict=False)
         final = Path(final_dir).resolve(strict=False)
         root = self.compressed_root.resolve(strict=False)
@@ -82,7 +82,7 @@ class ArchiveManifestIndexMixin:
     def remove_records(
         self, *, attempt_ids: set[str], relative_final_dirs: set[str],
     ) -> None:
-        """Remove the index projection for an explicitly deleted case."""
+        """移除明确删除案件的索引投影。"""
         if not self.index_path.is_file():
             return
         with self._index_lock():
@@ -134,7 +134,7 @@ class ArchiveManifestIndexMixin:
         return records
 
     def _read_index_records_for_mutation(self) -> list[PersistedArchiveManifest]:
-        """Read the existing projection without requiring live DB authority."""
+        """无需实时数据库权威即可读取现有投影。"""
         try:
             with self.index_path.open("r", encoding="utf-8") as stream:
                 payload = json.load(stream)

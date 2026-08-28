@@ -1,4 +1,4 @@
-"""Synthetic regression tests for the fourth independent Level 3 review."""
+"""第四次独立 Level 3 审查的合成数据回归测试。"""
 
 from __future__ import annotations
 
@@ -155,17 +155,17 @@ def test_source_fingerprint_is_bounded_and_detects_core_metadata_changes(tmp_pat
     original = item.stat()
     first = fingerprint(source)
 
-    # A same-size, timestamp-preserving in-place rewrite is outside the
-    # metadata-only gate's guarantee by design.
+    # 保持大小和时间戳不变的原地重写按设计不在
+    # 仅元数据门禁的保证范围内。
     item.write_bytes(b"SYNTHETIC-TWO")
     os.utime(item, ns=(original.st_atime_ns, original.st_mtime_ns))
     assert fingerprint(source) == first
 
-    # A size change is detected.
+    # 可检测到大小变化。
     item.write_bytes(b"SYNTHETIC-THREE-LONGER")
     assert fingerprint(source) != first
 
-    # A timestamp change is detected.
+    # 可检测到时间戳变化。
     item.write_bytes(b"SYNTHETIC-TWO")
     os.utime(item, ns=(original.st_atime_ns, original.st_mtime_ns + 1_000_000))
     assert fingerprint(source) != first

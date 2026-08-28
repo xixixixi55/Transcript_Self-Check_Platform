@@ -1,4 +1,4 @@
-"""Retention anchor, publication revalidation, and fail-closed eligibility."""
+"""保留锚点、发布重新验证和失败关闭资格。"""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ _UNKNOWN = {
 
 
 class CaseRetentionService:
-    """Read durable facts and persist a safe, recomputable retention projection."""
+    """读取持久事实并持久化安全且可重算的保留投影。"""
 
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database

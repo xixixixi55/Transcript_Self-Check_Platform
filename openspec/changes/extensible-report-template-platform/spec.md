@@ -1,4 +1,4 @@
-# Extensible Report and Template Platform Specification
+# 可扩展报告与模板平台规格
 
 本文件是本变更的规范合同。规范中的“系统”包括报告解析、业务规划、压缩、页面规划、模板渲染和现有兼容 API；阶段标记表示交付边界，不表示阶段二、三在阶段一中自动启用。
 
@@ -14,7 +14,7 @@
 
 ## ADDED Requirements
 
-### Requirement: Canonical case normalization
+### Requirement: Canonical 案件规范化
 
 当前 `pipeline_mode` 默认仍为 `legacy`，Shadow 旁路已由生产 Controller 接线但不参与正式结果决策；Canonical 模型、适配器和编排器尚未接入正式输出。本规范描述 Canonical 迁移目标的完整合同，但实际行为按 `pipeline_mode` 分阶段生效。
 
@@ -32,7 +32,7 @@
 - **WHEN** 核心文件缺失、结构签名不匹配或必需字段无法得到可靠候选
 - **THEN** 系统返回结构化的 `ParseIssue`，不生成可导出的半成品文书、不写入成功缓存，并保留用户可确认的字段候选（如有）
 
-### Requirement: Material identifiers and phone/tablet display policy
+### Requirement: 检材标识符和手机/平板显示策略
 
 阶段一的最终检材类型只允许 `phone` 或 `tablet`。`ReportAdapter` 可以返回候选类型；报告明确且可靠提供类型时可以自动选择，无法可靠判断时 MUST 保持待确认并由审核页面确认。系统不得仅根据是否存在 IMEI 推断类型；每个检材在最终导出前 MUST 完成类型确认。原始 identifiers MUST 保留在 `CanonicalInspectionCase` 中，显示规则只能控制模板可见性。
 
@@ -70,7 +70,7 @@
 - **AND** 统一导出门控返回检材类型阻断项
 - **AND** 最终正式导出被拒绝
 
-### Requirement: Inspector library and snapshots
+### Requirement: 检查人员库和快照
 
 当前模板中检查人员按一人一行渲染，默认单文本框格式为 `单位　姓名（警号）`；若人员较多，附件一页面计划可以增加整框高度或为附件一最后一页预留空间，但人员整框始终只出现在最后一页且不得拆页。
 
@@ -113,7 +113,7 @@
 - **AND** 所有检查人员仍按快照顺序一人一行
 - **AND** 整框保持在附件一最后一页且不跨页拆分
 
-### Requirement: Report-authoritative software tools
+### Requirement: 以报告为权威的软件工具
 
 正常情况下主取证软件由报告适配器自动识别；无法可靠识别时，报告 MUST 进入审核页面并将软件名称和版本标记为待确认，用户可以人工填写或修正。主软件确认前允许审核和编辑，但 MUST 阻止最终正式导出；不得使用历史固定软件、不得从普通组件猜测，也不得仅生成 WinRAR 和 Python hashlib 后将文书视为完整。
 
@@ -142,7 +142,7 @@
 - **THEN** 工具列表被标记为不完整
 - **AND** 系统允许继续审核编辑但禁止最终正式导出
 
-### Requirement: Review remains editable while final export is gated
+### Requirement: 最终导出受门控时审核仍可编辑
 
 系统 MUST 通过一个集中导出校验流程判断最终正式导出，而不是由 parser、service、renderer 各自维护阻断逻辑。存在阻断项时，上传、解析、审核、保存和中间编辑仍可用；只有当所有检材类型已确认、主取证软件名称和版本已确认、图片数量合法、首个光盘编号合法、WinRAR 可调用且需要的最终 `ArchiveManifest` 已验证时，才允许正式导出。校验结果 MUST 包含稳定诊断代码和可操作提示，并一次返回适用的阻断项；不得静默降级或掩盖错误。
 
@@ -153,7 +153,7 @@
 - **AND** 统一导出校验返回所有适用阻断项及修复提示
 - **AND** 最终正式导出被拒绝直到阻断项全部清除
 
-### Requirement: Disc sequence and date authority
+### Requirement: 盘号序列和日期权威
 
 系统 MUST 只要求用户填写首个光盘编号，格式为 `GPyyyyMMdd-序号`；系统 MUST 校验日期和序号，并按首个序号的位宽保留前导零生成后续编号。光盘编号日期 MUST 同时作为附件摘要检查日期和附件三刻录日期；正文检查起止时间 MUST 继续来自报告创建时间和报告时间，不得使用光盘日期。
 
@@ -167,7 +167,7 @@
 - **WHEN** 首编号不符合 `GPyyyyMMdd-序号`、日期无效或序号溢出
 - **THEN** 系统在规划前返回字段级错误，不执行压缩、不生成 DOCX
 
-### Requirement: Archive input paths use a persisted optional authorization mode
+### Requirement: 归档输入路径使用持久化的可选授权模式
 
 系统 MUST 保留 `UPLOAD_BASE`、`BIJI_ALLOWED_INPUT_ROOTS` 和精确目录授权令牌的既有校验实现，并支持按来源登记请求选择授权模式。请求未提供 `source_authorization_enabled` 时 MUST 默认为 `true`，保持直接 API 调用的既有安全行为；浏览器首页开关首次使用时默认为 `false`，并将用户选择持久化在浏览器本地。
 
@@ -227,7 +227,7 @@
 - **THEN** 请求返回不包含路径或内部异常的稳定错误码和可操作提示
 - **AND** 不创建案件、不复制报告目录、不绕过既有路径和来源安全校验
 
-### Requirement: Archive planning and WinRAR execution are separate
+### Requirement: 归档规划与 WinRAR 执行分离
 
 阶段一自动分卷只支持 WinRAR RAR 分卷。未检测到或无法调用 WinRAR 时，系统 MUST 允许上传、解析、审核和编辑报告，但 MUST 禁止自动压缩和最终正式导出；错误提示 MUST 说明需要安装并确保 WinRAR 可调用。系统不得降级生成 ZIP，不得生成虚假的或占位的 `ArchiveManifest`。现有 ZIP/RAR 上传解析能力保持不变，但不替代本次自动分卷产物。
 
@@ -260,7 +260,7 @@
 - **AND** 系统不生成 `ArchiveManifest`，不生成 ZIP 降级产物
 - **AND** 最终正式导出被拒绝并返回可操作的 WinRAR 可用性错误
 
-### Requirement: Archive re-planning uses one final manifest
+### Requirement: 归档重新规划使用单一最终 Manifest
 
 系统 MUST 将规划和实际执行结果区分保存。若实际结果不符合当前计划，执行器 MUST 在最多 `maxReplanAttempts` 次内丢弃 staging 结果、升级到下一档并重新执行；若重试仍失败、没有可用下一档或达到重试上限，则阻止导出并返回明确错误。重新规划完成后 MUST 生成新的不可变 `ArchiveManifest`，后续附件一、附件三、正文和 DOCX MUST 只引用该 manifest，不得使用预计文件名、预计大小、预计卷数，也不得重新扫描目录或重新计算第二份卷列表。最终 manifest 至少 MUST 包含每卷实际文件名、实际大小、MD5、分卷序号、**根据实际大小独立计算的光盘容量 (`disc_capacity_bytes`)**、WinRAR 分卷档位上限 (`volume_size_bytes`)、光盘编号、刻录日期和连续性校验结果。`disc_capacity_bytes` MUST 按 `size_bytes` 选择最小可容纳档位（≤4GB→4GB, ≤22GB→22GB, ≤45GB→45GB），超过 45GB 时返回验证失败；不得简单继承 manifest 级档位值。
 
@@ -279,7 +279,7 @@
 - **WHEN** 实际结果在最大重试次数内仍不符合计划，或 45GB 档仍超过三卷
 - **THEN** 系统返回明确的归档规划错误，不生成 Word、不创建附件页面计划、不提交新的最终归档
 
-### Requirement: ArchivePart disc capacity is independent of tier volume
+### Requirement: ArchivePart 光盘容量独立于分层卷容量
 
 系统 MUST 在生成最终 `ArchiveManifest` 时为每个 `ArchivePart` 独立计算 `disc_capacity_bytes`，不得使用 manifest 级 `volume_size_bytes`（WinRAR 分卷档位上限）替代。`disc_capacity_bytes` 只来源于该 part 的 `size_bytes`（WinRAR 实际输出文件大小），按最小可容纳档位规则计算：
 
@@ -315,16 +315,16 @@
 - **WHEN** 归档在 4GB 档执行失败后重规划到 22GB 档并产生新的实际 part
 - **THEN** 新 Manifest 中每个 part 的 `disc_capacity_bytes` 根据新 `size_bytes` 独立计算，不继承旧档位或旧 Manifest 的值
 
-### Requirement: Pipeline mode and shadow comparison are centralized
+### Requirement: 管道模式和 Shadow 比较集中管理
 
 系统 MUST 使用一个集中配置 `pipeline_mode = legacy | shadow | canonical` 控制迁移运行语义，不得在 parser、service 和 renderer 中散落互相矛盾的独立布尔开关。默认值 MUST 为 `legacy`，配置 MUST 在后端应用启动时从统一运行时配置读取并注入管线；模式切换 MUST 记录配置版本和时间。
 
-#### Scenario: Legacy mode
+#### Scenario: Legacy 模式
 
 - **WHEN** `pipeline_mode` 为 `legacy`
 - **THEN** 旧管线产生唯一正式输出；新 canonical/plan/renderer 不执行正式导出
 
-#### Scenario: Shadow mode
+#### Scenario: Shadow 模式
 
 - **WHEN** `pipeline_mode` 为 `shadow`
 - **THEN** 旧管线仍产生唯一正式输出；新管线只在后台旁路的隔离内存中生成规范化结果、规划和脱敏比较数据，并通过有容量/TTL的受限诊断Store提供查询，不产生第二份正式文书、不替换正式归档。比较至少覆盖案件编号、检材类型与实际业务字段、IMEI1/IMEI2或序列号、检查时间、主软件名称/版本、检查人员顺序、外部RAR命名、根目录保留、相对路径集合、输入文件数量/总字节、ArchiveManifest 和附件一/二/三页面数量
@@ -336,34 +336,34 @@
 - **AND** ArchiveManifest 比较使用既有正式结果与非执行性的计划/清单投影
 - **AND** 不产生第二份正式归档或可被正式导出的新 manifest
 
-#### Scenario: Shadow missing facts are not matched
+#### Scenario: Shadow 缺失事实不参与匹配
 
 - **WHEN** Legacy 或 Shadow 一侧缺少待比较字段，或两侧均缺少该字段
 - **THEN** 结果分别记录 `mismatch` 或 `not_comparable`，不得静默显示 `matched`
 
-#### Scenario: Shadow export observation point is explicit
+#### Scenario: Shadow 导出观察点明确
 
 - **WHEN** Legacy DOCX 已成功生成
 - **THEN** Shadow 只比较该次正式导出已经准备好的业务/附件输入，不宣称完整最终渲染输入比较，且不再次生成 DOCX
 - **WHEN** Legacy DOCX 生成失败
 - **THEN** Shadow 记录脱敏的 `LEGACY_DOCX_RENDER_FAILED` 失败诊断，不留下 `matched` 的导出结果，Legacy 错误仍按原合同返回
 
-#### Scenario: Shadow diagnostics protect sensitive data
+#### Scenario: Shadow 诊断保护敏感数据
 
 - **WHEN** Shadow 比较发现差异
 - **THEN** 日志只记录字段名称、是否一致、脱敏来源和诊断代码，不记录完整案件名称、人员姓名、警号、IMEI、序列号或原始 JSON
 
-#### Scenario: Canonical mode
+#### Scenario: Canonical 模式
 
 - **WHEN** `pipeline_mode` 为 `canonical`
 - **THEN** 新管线产生唯一正式输出；canonical 解析、规划、manifest 校验或 renderer 发生数据正确性错误时直接返回明确失败，不自动静默切回 legacy。人工运维可将集中配置改回 `legacy`
 
-#### Scenario: Mode-aware cache behavior
+#### Scenario: 感知模式的缓存行为
 
 - **WHEN** pipeline mode 发生切换
 - **THEN** 原始解析缓存按 source fingerprint、adapter/schema/profile 版本复用；规划、manifest、render 和正式输出缓存必须按模式/plan/template 版本隔离或失效，不能把 shadow 结果当成正式文书缓存
 
-### Requirement: Attachment one page plan
+### Requirement: 附件一页面计划
 
 系统 MUST 先生成 `Attachment1Plan` 再渲染附件一。数据行数 MUST 等于最终 `ArchiveManifest` 的卷数；每页最多四项；表头只在第一页出现且不得由 Word 自动重复；“附件1”只在第一页；来源框和提取方法框每个数据页分别生成合并框。数据页最多容纳四条分卷；总序号少于三条时，最后一个数据页可以按模板空白行补足视觉留白：一条分卷保留两条，二条分卷保留一条，三条及以上分卷不得保留斜线空白行。总序号达到三条后，即使最后一页只有一条或两条分卷，也不得再次添加斜线空白行。如果最后一个数据页恰好四条分卷，固定手写行 MUST 作为新的 `inspector_final` 页面，不得挤入四条数据所在页面。固定手写行和其页面 MUST 设置不可拆页/保持完整，不写入动态检查人员。
 
@@ -398,7 +398,7 @@
 - **WHEN** final manifest 尚未通过卷校验
 - **THEN** `Attachment1Plan` 不可创建，导出被阻止而不会产生缺少卷信息的空表
 
-### Requirement: Attachment two photo page plan
+### Requirement: 附件二图片页面计划
 
 系统 MUST 先生成 `PhotoPagePlan` 再渲染附件二。0 张图片允许导出且不生成附件二图片页；正数图片数量 MUST 为偶数，否则禁止导出；每页最多四张；四张使用 2×2，二张使用左右布局且在页面上下居中；支持任意偶数数量。图片 MUST 按当前 `current-template-v1` 附件二页面母版的统一图片区域等比例完整显示，不裁剪、不拉伸，并尽量填满该母版区域。页面母版 MUST 以包含“附件2”标题锚点的第一页为唯一版式基准，一次确定图片区域、列宽、行高和分页锚点间距；不得根据后续页没有标题文字而重新计算或放大。附件二多页时仅第一页显示“附件2”，后续页清空标题文字但保留同等高度的空白标题锚点，并保持相同图片区域和版式；没有附件二时附件三仍显示“附件3”，不重新编号。
 
@@ -434,7 +434,7 @@
 - **THEN** 只有第一页显示“附件2”
 - **AND** 后续页面不重复标题但保留同高的空白标题锚点，并保持相同分页间距、图片区域和版式
 
-### Requirement: Attachment three follows the final manifest
+### Requirement: 附件三遵循最终 Manifest
 
 系统 MUST 为每个最终归档卷生成一页 `Attachment3Plan`；只有第一页显示“附件3”，后续页结构一致但不显示该标题。每页元数据框 MUST 依次只显示检验单位、光盘编号、文件哈希和刻录时间，不显示文件名行；其中 MD5、光盘编号和刻录日期 MUST 使用 manifest 中对应归档卷的值，不得重新从目录或报告原始字段推导。正文检查结果仍 MUST 使用该 manifest 的全部有序分卷文件名、实际大小、MD5 和光盘编号，不得退回报告中单个旧分卷字段。
 
@@ -449,7 +449,7 @@
 - **WHEN** 归档执行发生升级重规划
 - **THEN** 附件一的行和附件三的页面都引用同一 `ArchiveManifest.parts[].part_id`，不会出现卷数、MD5、文件名或编号不一致
 
-### Requirement: Current template is a versioned profile
+### Requirement: 当前模板是带版本的配置档
 
 系统 MUST 将正式模板登记为固定的 `current-template-v1`，由固定 `TemplateProfile` 描述其资产哈希、占位符、表格、VML 文本框、当前受控重复区、图片区、分页和保持完整约束。阶段一 MUST 只支持该 Profile 和当前 DOCX Renderer 的受控扩展，并 MAY 允许用户在前端以已校验版本为源修改白名单内的文书固定标题、正文默认字体和字号。保存修改 MUST 发布新的不可变模板版本，重新计算包指纹并通过完整固定 Profile 结构校验；不得改写源版本或案件引用。通用模板设计器、通用重复块 DSL、任意 DOCX 自动绑定、自由拖拽排版和无标记模板识别均属于阶段三，阶段一不得实现或静默启用这些能力。
 
@@ -515,32 +515,32 @@
 - **AND** 首页文号下方及各页页脚上方的粗横线相对页面水平居中
 - **AND** 页数、分页、段落可用宽度、表格列宽、VML 文本框、页眉和页脚内容保持不变
 
-### Requirement: Preserve VML, page breaks, and black text
+### Requirement: 保留 VML、分页符和黑色文本
 
 系统 MUST 在模板渲染时保留当前模板的 VML 文本框、文本框宿主段落、图片关系、普通分页符、页眉页脚结构和表格边框。正文、动态段落、表格动态内容、页眉页脚和 VML 文本框内字体颜色 MUST 统一为黑色；不得用删除宿主段落、奇偶页分节符或重新生成整份模板来实现替换。
 
-#### Scenario: VML placeholder replacement
+#### Scenario: VML 占位符替换
 
 - **WHEN** `current-template-v1` 中 VML 文本框包含动态占位符
 - **THEN** 只替换文本框内部文本并保留 `w:pict`/`v:textbox`/`w:txbxContent` 结构，动态字体颜色为黑色
 
-#### Scenario: Attachment pagination regression
+#### Scenario: 附件分页回归
 
 - **WHEN** 生成包含任意偶数图片和多卷附件三的文档
 - **THEN** 当前生产分页只按 final Manifest 派生的 `AttachmentPlan` 和固定 TemplateProfile 中的确定性分页规则生效，不产生空白页、奇数页/偶数页分节符或被拆开的检查人员框
 
-#### Scenario: Attachment 1 Latin fields wrap within words
+#### Scenario: 附件一拉丁文字段在单词内换行
 
 - **WHEN** 附件1的“电子数据”、“提取方法”或“文件MD5哈希值”包含超出单元格当前行宽的连续西文字符
 - **THEN** 首页和续页的对应数据单元格都允许西文在单词中间换行，不将整个文件名、提取方法或 MD5 整体挪到下一行
 
-#### Scenario: Attachment 1 source uses one material number per line
+#### Scenario: 附件一来源每行使用一个检材编号
 
 - **WHEN** 附件1的“来源”包含一个或多个检材编号
 - **THEN** 每个检材编号使用显式换行单独占一行，除最后一个编号外均保留顿号
 - **AND** “检材内提取”在所有检材编号之后单独占一行
 
-### Requirement: InspectionReport compatibility boundary
+### Requirement: InspectionReport 兼容边界
 
 系统 MUST 保持现有 `InspectionReport` 作为兼容 DTO；主适配方向是 `ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端和导出`。现有前端解析、编辑和导出请求在迁移期间 MUST 继续可用。`InspectionReport → CanonicalInspectionCase` 只作为旧 DTO 输入和历史迁移的 best-effort 入口，不承担 canonical 的完整回填。兼容适配器 MUST 明确无法从旧 DTO 恢复的字段来源、通用 identifiers、`InspectorSnapshot[]`、`ArchiveManifest`、`TemplateProfile` 信息、规划状态和其他新模型字段；不能把 `InspectionReport` 继续作为新领域层的唯一事实来源。
 
@@ -555,7 +555,7 @@
 - **WHEN** canonical case 含有旧 DTO 无法表示的多卷、快照或模板配置数据
 - **THEN** 兼容投影明确标记不可表示字段，并以 canonical、manifest 和 render plan 为导出事实来源，不静默覆盖关键数据
 
-### Requirement: ReportProfile and provenance reservation
+### Requirement: ReportProfile 和来源信息预留
 
 阶段二 MUST 提供 `ReportProfile`、`ReportAdapter`、字段候选和 `FieldProvenance` 的版本化接口。每个确认字段 MUST 保存来源文件、JSON 路径、适配规则、候选/确认状态和置信信息；同类报告的自动复用 MUST 基于结构指纹和适配器版本，不得只按文件名或案件名称匹配。
 
@@ -569,7 +569,7 @@
 - **WHEN** 新报告与已确认 Profile 的结构指纹、厂商和版本约束匹配
 - **THEN** 系统自动使用该 Profile 生成候选 canonical case，并在摘要中显示命中的 Profile 版本和 provenance
 
-### Requirement: TemplateProfile visual configuration reservation
+### Requirement: TemplateProfile 可视化配置预留
 
 阶段三 MUST 允许用户对 DOCX 的段落、表格、单元格、内容控件和文本框建立标准字段绑定，并描述重复区、图片区、显示条件、分页和保持完整规则。对无占位符普通模板的推荐 MUST 产生带证据的草稿 Profile，用户确认/修正前不得用于导出。
 

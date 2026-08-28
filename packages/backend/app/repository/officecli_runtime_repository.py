@@ -1,4 +1,4 @@
-"""Resolve and execute the private OfficeCLI runtime without shell interpolation."""
+"""解析并执行私有 OfficeCLI 运行时，不进行 shell 插值。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .runtime_paths import RuntimePaths, get_runtime_paths
 
 
 class OfficeCliRuntimeError(RuntimeError):
-    """Stable failure raised when the configured OfficeCLI runtime is unavailable."""
+    """配置的 OfficeCLI 运行时不可用时引发的稳定错误。"""
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-"""Layer 22: case edit-lease DTO mapping."""
+"""第 22 层：案件编辑租约 DTO 映射。"""
 
 from __future__ import annotations
 

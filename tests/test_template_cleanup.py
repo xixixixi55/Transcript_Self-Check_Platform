@@ -1,4 +1,4 @@
-"""Synthetic structural tests for the versioned built-in template cleanup."""
+"""版本化内置模板清理的合成数据结构测试。"""
 
 from __future__ import annotations
 

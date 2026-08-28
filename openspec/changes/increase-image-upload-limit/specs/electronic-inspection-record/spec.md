@@ -1,4 +1,4 @@
-# Spec Delta: 单张图片上传上限提升至 100MB
+# 规格增量：单张图片上传上限提升至 100MB
 
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED（CAP-004 REQ-008 附件图片上传）

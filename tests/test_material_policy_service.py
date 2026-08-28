@@ -1,4 +1,4 @@
-"""Synthetic tests for stage-one material classification and export gating."""
+"""第一阶段材料分类与导出门控的合成数据测试。"""
 
 import os
 import sys

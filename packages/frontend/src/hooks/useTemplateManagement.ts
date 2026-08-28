@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — persistent template management actions.
+// 第 10 层：FE_Hooks — 持久化模板管理操作。
 import { useCallback, useEffect, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'

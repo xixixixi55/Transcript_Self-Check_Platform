@@ -42,8 +42,8 @@ export function normalizeExitStatus(status: number | null): number {
 }
 
 /**
- * Resolve npm to a directly executable Node entry point.
- * Windows npm.cmd is a shell shim and cannot be passed to spawnSync directly.
+ * 将 npm 解析为可直接执行的 Node 入口点。
+ * Windows npm.cmd 是 shell 包装器，不能直接传给 spawnSync。
  */
 export function resolveNpmInvocation(
   runtime: NpmRuntime = {

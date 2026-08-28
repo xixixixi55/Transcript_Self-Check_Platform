@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — deployment-scoped shared-default settings state.
+// 第 10 层：FE_Hooks — 部署范围的共享默认设置状态。
 import { useCallback, useEffect, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'

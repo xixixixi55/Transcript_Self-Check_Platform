@@ -255,7 +255,7 @@ def test_bundle_publish_serializes_concurrent_writes_to_same_directory(
 
 
 def test_unified_export_forwards_user_word_filename(database, tmp_path, monkeypatch) -> None:
-    """REQ-009: the unified export uses the user-chosen Word file name."""
+    """REQ-009：统一导出使用用户选择的 Word 文件名。"""
     final_dir = tmp_path / "SYNTHETIC-FINAL-5"
     final_dir.mkdir(parents=True)
     for name in ("SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"):
@@ -308,7 +308,7 @@ def test_unified_export_missing_part_fails(database, tmp_path) -> None:
 
 
 def test_unified_export_layers_deferred_discs_onto_word_manifest(database, tmp_path, monkeypatch) -> None:
-    """REQ-030/MF-3: after disc-mapping, Word gets the layered disc metadata."""
+    """REQ-030/MF-3：光盘映射后，Word 获得分层光盘元数据。"""
     final_dir = tmp_path / "SYNTHETIC-FINAL-4"
     final_dir.mkdir(parents=True)
     for name in ("SYNTHETIC-CASE.part1.rar", "SYNTHETIC-CASE.part2.rar"):

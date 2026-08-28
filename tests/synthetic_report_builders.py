@@ -1,4 +1,4 @@
-"""Shared synthetic builders for report/template tests."""
+"""报告与模板测试共用的合成数据构建器。"""
 
 import json
 from pathlib import Path

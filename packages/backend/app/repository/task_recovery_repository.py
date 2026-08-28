@@ -1,4 +1,4 @@
-"""Transactional parse/archive task normalization after process restart."""
+"""进程重启后以事务方式规范化解析和归档任务。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-// Layer 12: FE_Pages — centralized record-default settings page.
+// 第 12 层：FE_Pages — 集中的笔录默认设置页面。
 import { SettingOutlined } from '@ant-design/icons'
 import { Typography } from 'antd'
 import { SharedDefaultsSettingsForm } from '../components/SharedDefaultsSettingsForm'

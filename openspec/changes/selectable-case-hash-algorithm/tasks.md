@@ -4,7 +4,7 @@ workflow_level: 3
 spec_sync_status: pending
 spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内部 MD5 + 可选业务哈希”纠正为“三算法同链、只使用案件所选文件哈希”；delta 已更新，待实现、Review 与 living spec 同步
 
-> Specs:
+> 规格：
 > - `openspec/changes/selectable-case-hash-algorithm/specs/electronic-inspection-record/spec.md`
 > - `openspec/changes/selectable-case-hash-algorithm/specs/data-model/spec.md`
 > - `openspec/changes/selectable-case-hash-algorithm/proposal.md`

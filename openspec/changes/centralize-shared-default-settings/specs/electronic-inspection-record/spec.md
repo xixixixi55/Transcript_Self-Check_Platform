@@ -1,4 +1,4 @@
-# Spec Delta: 笔录默认设置集中管理
+# 规格增量：笔录默认设置集中管理
 
 > 基准 Spec: `openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED (CAP-003 REQ-007, CAP-010 REQ-017)

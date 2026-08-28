@@ -1,4 +1,4 @@
-"""SYNTHETIC integration tests for portable same-origin hosting and auth."""
+"""便携式同源托管与身份验证的 SYNTHETIC 集成测试。"""
 
 from __future__ import annotations
 

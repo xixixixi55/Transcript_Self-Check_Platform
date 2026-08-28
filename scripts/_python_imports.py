@@ -1,7 +1,8 @@
-"""Extract intra-package imports from Python files using AST.
+"""使用 AST 从 Python 文件中提取包内导入。
 
-Usage: python scripts/_python_imports.py <file1> <file2> ...
-Output: JSON map of {
+用法：python scripts/_python_imports.py <file1> <file2> ...
+输出：JSON 映射，格式如下：
+{
     normalized_path: [{line, level, module}],
     "__errors__": [{file, error}]   // 语法错误文件列表
 }
@@ -60,7 +61,7 @@ def extract_imports(filepath: str) -> tuple[list[dict], str | None]:
 
 
 def extract_files(files: list[str]) -> dict[str, object]:
-    """Extract every file into the same JSON-ready payload used by the CLI."""
+    """提取每个文件，生成与 CLI 使用的相同、可直接序列化为 JSON 的载荷。"""
     output = {}
     errors = []
 

@@ -1,4 +1,4 @@
-"""Directory-source authorization, opaque persistence and revalidation."""
+"""目录来源授权、不透明持久化和重新验证。"""
 
 from __future__ import annotations
 
@@ -165,7 +165,7 @@ class SourceRecordService:
         return result
 
     def require_parse_ready(self, source_id: str, *, verify_existing: bool = False) -> dict[str, Any]:
-        """Validate only the authorized report inputs needed by the Legacy Parser."""
+        """仅验证旧版 Parser 所需的授权报告输入。"""
         record = self.repository.get(source_id)
         if record["access_status"] in {"invalid", "requires_reselection"}:
             raise WorkbenchPersistenceError("SOURCE_RESELECTION_REQUIRED")
@@ -195,7 +195,7 @@ class SourceRecordService:
         expected_revision: int | None = None,
         cancellation_event: Any | None = None,
     ) -> dict[str, Any]:
-        """Run the deferred bounded core-source verification."""
+        """运行延迟的有界核心来源验证。"""
         current = self.repository.get(source_id)
         should_cancel = cancellation_event.is_set if cancellation_event is not None else None
         if should_cancel is not None and should_cancel():
@@ -246,7 +246,7 @@ class SourceRecordService:
     def mark_verification_pending(
         self, source_id: str, error_code: str, expected_revision: int,
     ) -> dict[str, Any]:
-        """Persist a dispatcher-level verification failure without exposing the repository."""
+        """持久化调度器级验证失败，不暴露仓储。"""
         return self.repository.mark_pending_revalidation(
             source_id, error_code, expected_revision=expected_revision,
         )
@@ -255,7 +255,7 @@ class SourceRecordService:
         return Path(self.repository.get_internal_locator(source_id)["internal_path"])
 
     def create_legacy_preview_source(self, case_id: str) -> str:
-        """Create only an opaque runtime handle for the existing Legacy archive entry."""
+        """仅为现有旧版归档入口创建不透明运行时句柄。"""
         from .archive_source_runtime_service import create_preview_source
 
         shell = CaseShellRepository(self.database).get(case_id)

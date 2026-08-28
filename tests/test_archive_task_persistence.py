@@ -1,4 +1,4 @@
-"""T013 task persistence tests with synthetic case data."""
+"""T013 使用合成案件数据的任务持久化测试。"""
 
 from __future__ import annotations
 

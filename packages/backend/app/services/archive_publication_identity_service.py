@@ -1,4 +1,4 @@
-"""Canonical publication-generation identities shared by publish and completion."""
+"""发布和完成共享的规范发布代次标识。"""
 
 from __future__ import annotations
 

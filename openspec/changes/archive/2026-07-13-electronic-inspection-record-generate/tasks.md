@@ -30,7 +30,7 @@
 
 ---
 
-## 🟢 Phase 2: Backend Repository 层（Layer 20）
+## 🟢 阶段 2：后端存储层（第 20 层）
 
 - [x] T005 [P] **美亚报告 JSON 解析器**
   - 文件：`packages/backend/app/repository/html_parser.py`（新建）
@@ -55,7 +55,7 @@
 
 ---
 
-## 🟡 Phase 3: Backend Services 层（Layer 21）
+## 🟡 阶段 3：后端服务层（第 21 层）
 
 - [x] T009 **报告解析编排服务**
   - 文件：`packages/backend/app/services/report_parser_service.py`（新建）
@@ -97,7 +97,7 @@
 
 ---
 
-## 🟠 Phase 4: Backend Controller + Routes 层（Layer 22-23）
+## 🟠 阶段 4：后端控制器与路由层（第 22–23 层）
 
 - [x] T014 **笔录 Controller**
   - 文件：`packages/backend/app/controllers/record_controller.py`（修改）
@@ -127,7 +127,7 @@
 
 ---
 
-## 🔴 Phase 5: Frontend Hooks 层（Layer 10）
+## 🔴 阶段 5：前端 Hooks 层（第 10 层）
 
 - [x] T018 [P] **报告解析 Hook**
   - 文件：`packages/frontend/src/hooks/useReportParser.ts`（新建）
@@ -146,7 +146,7 @@
 
 ---
 
-## 🟣 Phase 6: Frontend Components + Pages 层（Layer 11-12）
+## 🟣 阶段 6：前端组件与页面层（第 11–12 层）
 
 - [x] T021 [P] **报告上传组件**
   - 文件：`packages/frontend/src/components/ReportUploader.tsx`（新建）

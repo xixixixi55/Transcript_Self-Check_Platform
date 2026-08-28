@@ -1,4 +1,4 @@
-"""Layer 20: metadata-first validation for Parser input dependencies."""
+"""第 20 层：Parser 输入依赖的元数据优先验证。"""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def validate_cached_input_metadata(
     dependencies: tuple[DependencyRecord, ...],
     candidate_indexes: tuple[CandidateDirectoryIndex, ...],
 ) -> CachedInputValidation:
-    """Check metadata first and read only dependencies whose metadata changed."""
+    """先检查元数据，仅读取元数据发生变化的依赖。"""
     root = resolve_directory(data_root)
     current_indexes = tuple(
         _read_candidate_index(root, index) for index in candidate_indexes

@@ -1,4 +1,4 @@
-"""Protected filesystem locators for persistent report-directory sources."""
+"""持久报告目录来源的受保护文件系统定位符。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from .workbench_serialization import validate_opaque_id
 
 
 class SourceLocatorRepository:
-    """Keep local paths outside the public SQLite workbench records."""
+    """使本地路径不进入公开 SQLite 工作台记录。"""
 
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.root = database.database_path.parent / "source-locators"

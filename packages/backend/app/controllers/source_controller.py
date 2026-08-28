@@ -1,4 +1,4 @@
-"""Layer 22: opaque SourceRecord read and revalidation endpoints."""
+"""第 22 层：不透明 SourceRecord 读取和重新验证端点。"""
 
 from __future__ import annotations
 

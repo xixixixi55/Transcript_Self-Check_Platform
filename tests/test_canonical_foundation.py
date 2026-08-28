@@ -1,4 +1,4 @@
-"""Synthetic tests for the canonical model and compatibility projection."""
+"""规范模型与兼容性投影的合成数据测试。"""
 
 import os
 import sys

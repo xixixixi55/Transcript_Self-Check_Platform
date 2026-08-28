@@ -1,4 +1,4 @@
-"""Select private snapshot storage paths without changing source-relative paths."""
+"""选择私有快照存储路径，不更改来源相对路径。"""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def choose_snapshot_layout(
     file_paths: Iterable[str],
     directory_paths: Iterable[str] = (),
 ) -> SnapshotLayout:
-    """Choose a controlled root that can hold the source tree safely."""
+    """选择可安全容纳来源树的受控根目录。"""
     output = Path(output_root)
     files = tuple(file_paths)
     directories = tuple(directory_paths)
@@ -79,12 +79,11 @@ def _path_length(root: Path, relative_path: str) -> int:
 
 
 def private_snapshot_root() -> Path:
-    """External snapshot root, defaulting to the project drive; env-overridable.
+    """外部快照根目录，默认为项目所在驱动器；可由环境变量覆盖。
 
-    The old default (temp dir parent) landed on the system drive, which is
-    frequently full. Default to <project>/external-snapshots so deep reports
-    write to the output drive with space. `BIJI_ARCHIVE_EXTERNAL_ROOT` still
-    overrides for deployment.
+    旧默认值（临时目录的父目录）位于经常空间不足的系统盘。默认改为
+    <project>/external-snapshots，使深层报告写入有空间的输出盘。部署仍可通过
+    BIJI_ARCHIVE_EXTERNAL_ROOT 覆盖。
     """
     override = os.environ.get("BIJI_ARCHIVE_EXTERNAL_ROOT")
     if override:

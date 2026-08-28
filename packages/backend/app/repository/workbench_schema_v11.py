@@ -1,11 +1,11 @@
-"""SQLite statements for the v10 to v11 persistence foundation migration."""
+"""用于持久化基础从 v10 迁移到 v11 的 SQLite 语句。"""
 
 from __future__ import annotations
 
 
 V11_MIGRATION: tuple[str, ...] = (
-    # Rebuild the FK parents without disabling foreign_keys. Existing rows are
-    # copied before any legacy table is dropped; no cleanup occurs here.
+    # 在不禁用 foreign_keys 的情况下重建外键父表。删除任何旧表之前会复制现有行；
+    # 此处不执行清理。
     "ALTER TABLE case_shells RENAME TO case_shells_v10",
     "CREATE TABLE case_shells (case_id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL, case_number TEXT, case_name TEXT NOT NULL, case_summary TEXT NOT NULL, source_id TEXT, parse_task_id TEXT, lifecycle TEXT NOT NULL, report_available INTEGER NOT NULL CHECK(report_available IN (0, 1)), revision INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deployment_instance_id TEXT, record_cleaned INTEGER NOT NULL DEFAULT 0 CHECK(record_cleaned IN (0, 1)), tombstone_revision INTEGER NOT NULL DEFAULT 0, retention_state TEXT NOT NULL DEFAULT 'unknown', cleanup_state TEXT NOT NULL DEFAULT 'not_started', cleaned_at TEXT, last_meaningful_mutation_at TEXT, retention_anchor_utc TEXT, safe_display_summary TEXT, cleanup_revision INTEGER NOT NULL DEFAULT 0)",
     "INSERT INTO case_shells(case_id,schema_version,case_number,case_name,case_summary,source_id,parse_task_id,lifecycle,report_available,revision,created_at,updated_at,record_cleaned,tombstone_revision,retention_state,cleanup_state,cleaned_at,last_meaningful_mutation_at,retention_anchor_utc,safe_display_summary,cleanup_revision) SELECT case_id,schema_version,case_number,case_name,case_summary,source_id,parse_task_id,lifecycle,report_available,revision,created_at,updated_at,0,0,'unknown','not_started',NULL,NULL,NULL,NULL,0 FROM case_shells_v10",
@@ -42,8 +42,8 @@ V11_MIGRATION: tuple[str, ...] = (
     "ALTER TABLE archive_plans RENAME TO archive_plans_v10",
     "CREATE TABLE archive_plans (plan_id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL, case_id TEXT NOT NULL REFERENCES case_shells(case_id), plan_revision INTEGER NOT NULL, input_inventory_revision INTEGER NOT NULL, mapping_revision INTEGER NOT NULL, volume_slots_json TEXT NOT NULL, verified_slots_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL)",
     "INSERT INTO archive_plans SELECT * FROM archive_plans_v10",
-    # Drop only copied legacy tables after all dependent rows are safe in the
-    # replacement tables. Formal publication rows and files are untouched.
+    # 所有依赖行安全进入替代表后，只删除已复制的旧表。
+    # 正式发布行和文件均不受影响。
     "DROP TABLE archive_context_bindings_v10",
     "DROP TABLE archive_publish_intents_v10",
     "DROP TABLE archive_publish_fences_v10",

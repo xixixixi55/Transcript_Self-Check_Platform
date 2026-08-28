@@ -20,13 +20,13 @@
 
 `generate_docx` 在 `create` 与 `batch` 成功后显式调用 `officecli save` 将 resident 内容落盘，再检查文件存在且大小大于零；控制器继续以 `FileResponse` 返回。测试直接解压 docx 并检查 `word/document.xml` 至少包含标题、设备/检材内容和附件表头，避免只验证 HTTP 200。
 
-## Alternatives Rejected
+## 已拒绝的替代方案
 
 - 在前端根据字符串正则再次解析原始报告：会造成上传目录模式和压缩包模式行为分叉。
 - 仅增大 docx 文件或返回固定占位文本：无法证明预览内容已进入导出文档。
 - 删除附件表格：与 Word 模板和用户手测要求不符。
 
-## File Plan
+## 文件计划
 
 - `packages/backend/app/repository/html_parser.py`
 - `packages/backend/app/repository/json_loader.py`

@@ -1,14 +1,14 @@
 # Harness 工作流
 
-## Purpose
+## 目的
 
 定义变更关联与分级、风险相称验证、Level 2 固定工件、候选冻结、验证环境和日志输出，以及根规则预算与工具镜像一致性。
 
 ## Requirements
 
-### Requirement: Level 2 change artifact contract
+### Requirement: Level 2 变更工件合同
 
-局部低风险行为调整 MAY 作为 Level 1；只有正式 Requirement/Scenario 变化或中等范围能力进入 Level 2，并维护实现任务、delta 与 living spec 同步闭环。
+局部低风险行为调整 MAY 作为 Level 1；只有正式 Requirement/Scenario 变化或中等范围能力进入 Level 2，并维护实现任务、差异规格与现行规格同步闭环。
 
 #### Scenario: 局部低风险行为调整
 
@@ -30,7 +30,7 @@
 - **THEN** 需求按 Level 1 处理
 - **AND** 不创建 Level 2 变更包或使用 `Spec impact: N/A` 绕过 delta spec
 
-### Requirement: Scoped Level 2 documentation gate
+### Requirement: 限定范围的 Level 2 文档门控
 
 严格文档门控 MUST 使用 tasks.md 中持久化的 `workflow_level`，并将当前变更包范围与全局活跃变更包范围分开。
 
@@ -45,7 +45,7 @@
 - **WHEN** 执行 `verify:docs:strict:all`
 - **THEN** 检查全部活跃变更包，并排除 `openspec/changes/archive/`
 
-### Requirement: Mirrored agent workflow files
+### Requirement: Agent 工作流文件镜像
 
 Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.claude` 中保持对应内容一致；未纳入 Git 管理且已明确忽略的本机配置和 provider 专用安装产物不属于仓库镜像合同。
 
@@ -61,7 +61,7 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 - **THEN** 文档门控不把不同 provider 的路径、命令前缀或本机 Hook 配置报告为仓库镜像漂移
 - **AND** 已纳入仓库管理的 Harness、OpenSpec 及项目 Skill 镜像检查保持不变
 
-### Requirement: Candidate freeze follows applicable manual acceptance
+### Requirement: 候选冻结须在适用人工验收之后
 
 最终审查和完整门控 MUST 基于需求理解、实现与适用人工验收均已收敛的冻结候选。
 
@@ -90,7 +90,7 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 - **THEN** Level 3 统一执行一次最终 Review 和完整门控
 - **AND** 冻结后发生修改时先解冻并完成受影响验证，待再次收敛后统一重新冻结
 
-### Requirement: Active change association follows behavioral scope
+### Requirement: 活跃变更关联遵循行为范围
 
 未归档变更的关联 MUST 依据正式能力、用户结果、验收场景、核心调用链和反馈生命周期，不以关键词完全相同为前提。
 
@@ -106,7 +106,7 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 - **THEN** Agent 在结果中记录主要候选及排除理由
 - **AND** 不以无关键词命中或目录名称不同作为无关联的充分证据
 
-### Requirement: Proportionate verification evidence
+### Requirement: 风险相称的验证证据
 
 增量验证 MUST 由本次修改风险和现有覆盖缺口决定，不继承所在变更包 Level，也不以行为变化为由机械追加测试。
 
@@ -122,7 +122,7 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 - **THEN** Agent 增加与缺口相称的自动化回归
 - **AND** 避免在多个层重复验证同一实现细节
 
-### Requirement: AGENTS policy line budget
+### Requirement: AGENTS 策略文件行数预算
 
 根目录 `AGENTS.md` MUST 保持为紧凑决策入口，详细执行说明下沉到 Harness 专用文档。
 
@@ -132,7 +132,7 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 - **THEN** 文档检查失败并报告 `agents-md-line-budget`
 - **AND** 详细执行规则应下沉到现有 Harness 专用文档而不是继续扩充根规则入口
 
-### Requirement: Full verification environment preflight
+### Requirement: 完整验证环境预检
 
 完整门控 MUST 在工程检查前验证其临时目录运行条件，避免将环境故障误判为实现失败。
 
@@ -149,7 +149,7 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 - **AND** 预检按需创建该目录，并将子进程的 `TEMP`、`TMP` 与 npm cache 指向该目录
 - **AND** 显式设置 `HARNESS_TEMP_ROOT` 时仍优先使用配置值
 
-### Requirement: Compact full verification output
+### Requirement: 紧凑的完整验证输出
 
 完整门控 MUST 默认提供阶段级结果，并将详细输出留在可下钻日志中。
 
@@ -166,7 +166,7 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 - **AND** 将完整输出保存在独立日志文件并报告其路径
 - **AND** 停止后续阶段
 
-### Requirement: Progressive Harness context routing
+### Requirement: 渐进式 Harness 上下文路由
 
 高频 Harness 入口 MUST 先关联 change 和判断 Level，再按当前风险与阶段加载资料；不得以保证质量为由在普通需求入口无条件预读全部 Harness 或 OpenSpec 正文。
 
@@ -188,7 +188,7 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 - **THEN** 默认文档门控失败并报告 `harness-context-loading-regression`
 - **AND** `.agents` 与 `.claude` 镜像门控继续生效
 
-### Requirement: Progressive routing preserves quality gates
+### Requirement: 渐进式路由保留质量门控
 
 减少上下文加载 MUST NOT 删除风险判断、规格核对、受影响验证、同步或候选冻结门控。
 
@@ -202,4 +202,4 @@ Harness 和 OpenSpec 等仓库管理的工具入口 MUST 在 `.agents` 与 `.cla
 
 - **WHEN** 渐进式上下文路由首次落地
 - **THEN** 使用一个真实需求记录关联、Level、读取资料、实现和正常收尾门控
-- **AND** 可额外运行一次 scoped full gate 证明全仓库质量未退化，但该审计不改变普通 Level 2 的默认门控
+- **AND** 可额外运行一次限定范围完整门控证明全仓库质量未退化，但该审计不改变普通 Level 2 的默认门控

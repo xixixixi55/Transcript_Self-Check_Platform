@@ -1,4 +1,4 @@
-"""Synthetic tests for persisted native-picker directory history."""
+"""持久化原生选择器目录历史的合成数据测试。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-/** Safe comparison DTOs for shadow mode diagnostics. */
+/** 用于影子模式诊断的安全比较 DTO。 */
 
 export interface ShadowDifference {
   field_path: string

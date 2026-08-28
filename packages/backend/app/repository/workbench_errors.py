@@ -1,10 +1,10 @@
-"""Safe persistence errors without local paths or report content."""
+"""不含本地路径或报告内容的安全持久化错误。"""
 
 from __future__ import annotations
 
 
 class WorkbenchPersistenceError(RuntimeError):
-    """Base error whose text is safe to expose through a controller later."""
+    """其文本可由控制器安全暴露的基础错误。"""
 
     def __init__(self, code: str, message: str | None = None) -> None:
         self.code = code

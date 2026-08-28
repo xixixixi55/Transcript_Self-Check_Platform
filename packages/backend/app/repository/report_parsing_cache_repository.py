@@ -1,4 +1,4 @@
-"""Atomic, path-free persistence for report parsing cache entries."""
+"""报告解析缓存条目的原子无路径持久化。"""
 
 from __future__ import annotations
 
@@ -27,11 +27,11 @@ _TEMP_PREFIX = ".report-parsing-cache-"
 
 
 class ReportParsingCacheError(RuntimeError):
-    """Safe cache storage diagnostics without local paths or report data."""
+    """不含本地路径或报告数据的安全缓存存储诊断。"""
 
 
 class ReportParsingCacheRepository:
-    """Store only report-cache files; never reaches compressed or export roots."""
+    """仅存储报告缓存文件；绝不触及压缩或导出根目录。"""
 
     def __init__(self, cache_dir: str | os.PathLike[str], clock=time.time) -> None:
         self.cache_dir = Path(cache_dir)
@@ -163,7 +163,7 @@ class ReportParsingCacheRepository:
                 overflow -= 1
 
     def clear_all(self) -> int:
-        """Delete only cache entry JSON and abandoned cache temp files."""
+        """仅删除缓存条目 JSON 和废弃的缓存临时文件。"""
         with self._lock:
             if not self.cache_dir.exists():
                 return 0

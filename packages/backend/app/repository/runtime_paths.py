@@ -1,4 +1,4 @@
-"""Resolve immutable program resources separately from per-user application data."""
+"""分别解析不可变程序资源和逐用户应用数据。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Mapping
 
 
 class RuntimePathError(RuntimeError):
-    """Raised when a portable runtime cannot establish safe roots."""
+    """便携运行时无法建立安全根目录时引发。"""
 
 
 def _paths_overlap(left: Path, right: Path) -> bool:

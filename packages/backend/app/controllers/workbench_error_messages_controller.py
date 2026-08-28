@@ -1,4 +1,4 @@
-"""Safe public messages for workbench persistence errors."""
+"""工作台持久化错误的安全公开消息。"""
 
 from __future__ import annotations
 

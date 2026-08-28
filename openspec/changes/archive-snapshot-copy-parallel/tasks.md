@@ -2,10 +2,10 @@
 
 workflow_level: 2
 
-> Spec: `openspec/changes/archive-snapshot-copy-parallel/specs/electronic-inspection-record/spec.md`
+> 规格：`openspec/changes/archive-snapshot-copy-parallel/specs/electronic-inspection-record/spec.md`
 > 范围：将归档输入快照拷贝从「顺序 + 每文件 fsync」改为「受控并行 + OS 写回」，降低 758MB 级报告清单阶段的耗时；保留元数据校验、目录/所有权 marker/文件清单持久化与崩溃重试契约。基准结论：去掉每文件 fsync 单线程 3.6×；SSD 并行峰值 8 线程、16 变慢；机械盘寻道竞争预计 2~4。默认并行度取折中 4，可配置覆盖。
 
-## Backend Services（Layer 21）
+## 后端 Service（Layer 21）
 
 - [x] T001 copy_inventory 并行拷贝与目录遍历合并。
   - 文件：`packages/backend/app/services/archive_input_snapshot_copy_service.py`

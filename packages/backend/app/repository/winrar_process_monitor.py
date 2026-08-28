@@ -1,4 +1,4 @@
-"""Cooperative monitoring for one task-owned WinRAR process."""
+"""对一个任务拥有的 WinRAR 进程进行协作式监控。"""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ class OwnedProcessIdleTimeout(subprocess.TimeoutExpired):
 
 
 def archive_output_idle_timeout_seconds() -> int:
-    """Return the bounded no-growth timeout without logging raw env values."""
+    """返回有界的无增长超时，不记录原始环境变量值。"""
     raw = os.environ.get(_ARCHIVE_OUTPUT_IDLE_TIMEOUT_ENV, "").strip()
     if not raw:
         return ARCHIVE_OUTPUT_IDLE_TIMEOUT_SECONDS

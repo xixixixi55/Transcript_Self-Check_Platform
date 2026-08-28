@@ -2,31 +2,31 @@
 
 workflow_level: 3
 
-> Spec: `openspec/changes/direct-source-archive-and-root-name-fix/specs/electronic-inspection-record/spec.md`
-> Design: `openspec/changes/direct-source-archive-and-root-name-fix/design.md`
+> 规格：`openspec/changes/direct-source-archive-and-root-name-fix/specs/electronic-inspection-record/spec.md`
+> 设计：`openspec/changes/direct-source-archive-and-root-name-fix/design.md`
 
-## Frontend Components（Layer 11）
+## 前端组件（Layer 11）
 
 - [x] T001 增加开始压缩确认与运行期源文件提示。
   - 文件：`packages/frontend/src/components/ArchiveDecisionPanel.tsx`、`packages/frontend/src/components/ArchiveDecisionPanel.test.tsx`
   - 内容：立即压缩前显示不修改/移动/删除/继续写入源目录的确认；`archive_queued`/`archiving` 持续显示警告，不提供“不再提示”。
   - 验证：Vitest + RTL 覆盖确认提交、取消不提交和运行期提示场景。
 
-## Frontend Pages（Layer 12）
+## 前端页面（Layer 12）
 
 - [x] T002 将页面立即压缩动作接入确认交互。
   - 文件：`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx`
   - 内容：仅在确认后调用 `decideArchive('immediate')`，取消保持原 lifecycle 且不发送请求。
   - 验证：页面定向测试覆盖首次、deferred 和 interrupted 重试入口。
 
-## Backend Repository（Layer 20）
+## 后端 Repository（Layer 20）
 
 - [x] T003 修复 WinRAR 输入根目录参数。
   - 文件：`packages/backend/app/repository/winrar_executor_repository.py`、`tests/test_archive_executor_validator.py`、`tests/test_winrar_directory_structure_integration.py`
   - 内容：移除绝对快照路径分支；以源 parent 为 cwd、源 basename 为相对输入，真实 RAR listing/解压回归拒绝 `.i/s...` 和绝对路径泄漏。
   - 验证：执行器单元测试与本机真实 WinRAR 集成测试。
 
-## Backend Services（Layer 21）
+## 后端 Service（Layer 21）
 
 - [x] T004 将归档编排改为直接源 inventory 与 WinRAR 前后变化门控。
   - 文件：`packages/backend/app/services/archive_execution_service.py`、`packages/backend/app/repository/archive_input_repository.py`、`packages/backend/app/repository/archive_attempt_recovery_repository.py`、`packages/backend/app/repository/winrar_executor_repository.py`（执行模型现已收回唯一消费者）
@@ -52,7 +52,7 @@ workflow_level: 3
   - 文件：shared constants、前端归档完成 hook、工作台错误文案及对应测试。
   - 验证：Hook/Page 测试断言仅统一导出使用 30 分钟超时；后端错误文案覆盖目录授权、路径、归档结果与生命周期失败。
 
-## Candidate Review and Verification
+## 候选审查与验证
 
 - [x] T006 冻结候选版本并执行独立 Code Review。
   - 文件：本变更全部实现与测试差异。

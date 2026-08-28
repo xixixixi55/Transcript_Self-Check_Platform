@@ -1,4 +1,4 @@
-"""Synthetic tests for independent ArchiveManifest registration."""
+"""独立 ArchiveManifest 注册的合成数据测试。"""
 
 import json
 import os

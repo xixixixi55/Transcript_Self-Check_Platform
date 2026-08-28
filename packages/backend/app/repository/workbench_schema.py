@@ -1,4 +1,4 @@
-"""Layer 20: versioned SQLite schema declarations and integrity validation."""
+"""第 20 层：版本化 SQLite 架构声明和完整性验证。"""
 
 from __future__ import annotations
 

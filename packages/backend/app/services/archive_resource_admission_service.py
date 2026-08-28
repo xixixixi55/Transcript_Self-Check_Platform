@@ -1,4 +1,4 @@
-"""Versioned, deployment-owned resource admission for archive work."""
+"""版本化且由部署拥有的归档工作资源准入。"""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ class ArchiveAdmissionDecision:
 
 
 class ArchiveResourceAdmissionService:
-    """Evaluate supplied server facts; clients cannot override the policy."""
+    """评估提供的服务器事实；客户端不能覆盖策略。"""
 
     def __init__(self, config: ArchiveAdmissionConfig) -> None:
         self.config = config

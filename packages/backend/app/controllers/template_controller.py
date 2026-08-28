@@ -1,4 +1,4 @@
-"""Layer 22: approved template registry and case-selection HTTP boundary."""
+"""第 22 层：已批准模板注册表和案件选择 HTTP 边界。"""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ class TemplateRenameRequest(BaseModel):
 
 @router.get("/workbench/templates")
 def list_templates_endpoint() -> dict[str, Any]:
-    """Return only currently approved, revalidated, path-free versions."""
+    """仅返回当前已批准、已重新验证且不含路径的版本。"""
     try:
         templates = _template_service().list_available()
         return _envelope(templates)
@@ -147,7 +147,7 @@ def remove_template_endpoint(template_id: str, version: str) -> dict[str, Any]:
 def select_case_template_endpoint(
     case_id: str, body: TemplateSelectionRequest,
 ) -> dict[str, Any]:
-    """Persist only a selected ID/version under lease and revision protection."""
+    """在租约和修订保护下仅持久化选定的 ID/版本。"""
     try:
         services = get_workbench_services()
         services.leases.assert_active_for_case(

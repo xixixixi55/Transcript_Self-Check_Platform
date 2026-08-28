@@ -1,4 +1,4 @@
-"""Precise attachment-two image validation and fixed drawing geometry tests."""
+"""附件二图像精确校验与固定绘图几何测试。"""
 
 import os
 import base64

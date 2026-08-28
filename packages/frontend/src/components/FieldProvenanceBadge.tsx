@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — field source and pending state shown without exporting color to Word.
+// 第 11 层：FE_Components — 显示字段来源和待确认状态，不将颜色导出到 Word。
 import React from 'react'
 import { Space, Tag } from 'antd'
 import type { FieldState } from '@biji/shared/types'

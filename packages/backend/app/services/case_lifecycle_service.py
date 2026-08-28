@@ -1,4 +1,4 @@
-"""Case reads, revision-checked saves, lifecycle guards and delete checks."""
+"""案件读取、修订检查保存、生命周期防护和删除检查。"""
 
 from __future__ import annotations
 

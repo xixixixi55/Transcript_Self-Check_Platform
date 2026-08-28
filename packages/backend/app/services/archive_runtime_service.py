@@ -1,4 +1,4 @@
-"""In-process lifecycle store for opaque archive contexts and manifests."""
+"""不透明归档上下文与 Manifest 的进程内生命周期存储。"""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class ArchiveContextRecord:
 
 @dataclass(frozen=True)
 class ArchiveContextSnapshot:
-    """Immutable read view used outside the archive lifecycle lock."""
+    """在归档生命周期锁外使用的不可变读取视图。"""
 
     context_id: str
     case_display_name: str
@@ -156,8 +156,8 @@ class ArchiveRuntimeStore:
             authorized_root_id=authorized_input.authorized_root_id,
             authorized_scope=authorized_input.authorized_scope,
             source_key=source_key,
-            # The full input fingerprint is required only when archive
-            # execution starts; parsing must not hash multi-gigabyte media.
+            # 只有归档执行开始时才需要完整输入指纹；
+            # 解析过程不得对数 GB 的介质进行哈希计算。
             input_fingerprint="",
             created_at=now,
             expires_at=now + ARCHIVE_CONTEXT_TTL_SECONDS,
@@ -283,7 +283,7 @@ class ArchiveRuntimeStore:
             return record.public_summary()
 
     def get_context_snapshot(self, context_id: str) -> ArchiveContextSnapshot:
-        """Return a stable read view; never expose the mutable lifecycle record."""
+        """返回稳定的读取视图，绝不暴露可变生命周期记录。"""
 
         with self._lock:
             self.cleanup_expired()
@@ -315,8 +315,8 @@ class ArchiveRuntimeStore:
             key for key, item in self._manifests.items() if item.expires_at <= current
         ]
         for key in expired_manifests:
-            # Published successful archives are independent from in-memory
-            # metadata; expiry must never delete their final output.
+            # 已发布的成功归档与内存元数据无关；
+            # 到期处理绝不能删除其最终输出。
             self._manifests.pop(key)
 
 ARCHIVE_RUNTIME_STORE = ArchiveRuntimeStore()

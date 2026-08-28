@@ -1,4 +1,4 @@
-"""Validation, phase and CAS helpers for durable cleanup runs."""
+"""持久清理运行的验证、阶段和 CAS 辅助函数。"""
 
 from __future__ import annotations
 

@@ -1,10 +1,10 @@
-"""Benchmark archive snapshot copy parallelism on the current disk.
+"""测试当前磁盘上归档快照复制的并行度。
 
-Usage: python scripts/benchmark_snapshot_copy.py [files] [file_bytes]
+用法：python scripts/benchmark_snapshot_copy.py [files] [file_bytes]
 
-Creates a synthetic report-like tree (many small files + nested dirs), then
-copies it with 1/2/4/8/16 worker threads, with and without per-file fsync.
-Run it on BOTH a mechanical HDD and an SSD to decide the copy parallelism.
+创建一个合成的类报告目录树（大量小文件和嵌套目录），然后分别使用
+1/2/4/8/16 个工作线程复制，并分别启用或禁用逐文件 fsync。
+请同时在机械 HDD 和 SSD 上运行，以确定复制并行度。
 """
 
 from __future__ import annotations

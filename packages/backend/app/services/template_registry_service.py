@@ -1,4 +1,4 @@
-"""Approved template discovery, validation, and case-reference updates."""
+"""已批准模板发现、验证和案件引用更新。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Pure export eligibility checks for future pipeline integrations."""
+"""供未来流水线集成使用的纯导出资格检查。"""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ class ExportGateResult:
 
 @dataclass(frozen=True)
 class ExportGateInput:
-    """Validated facts supplied by later services; no detection is performed here."""
+    """由后续服务提供的已验证事实；此处不执行检测。"""
 
     material_types_confirmed: bool = True
     primary_software_confirmed: bool = True
@@ -94,7 +94,7 @@ def evaluate_export_gate(
     *,
     warnings: Iterable[ExportGateIssue] = (),
 ) -> ExportGateResult:
-    """Return stable blockers and warnings without filesystem side effects."""
+    """返回稳定阻断项和警告，不产生文件系统副作用。"""
 
     facts = facts or ExportGateInput()
     blockers: list[ExportGateIssue] = []

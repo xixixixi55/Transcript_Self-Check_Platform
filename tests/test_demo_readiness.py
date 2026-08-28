@@ -1,4 +1,4 @@
-"""Safe Demo readiness projections using only SYNTHETIC/TEST fixtures."""
+"""仅使用 SYNTHETIC/TEST fixture 的安全演示就绪状态投影。"""
 
 from __future__ import annotations
 

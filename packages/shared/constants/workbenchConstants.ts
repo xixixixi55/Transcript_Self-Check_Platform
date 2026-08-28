@@ -1,7 +1,7 @@
 import type { ArchiveAttemptStatus, ArchiveCleanupStatus, CaseLifecycle, TaskStage, TaskStatus } from '../types'
 
 export const WORKBENCH_SCHEMA_VERSION = 1 as const
-/** SQLite persistence schema; the API envelope remains schema version 1. */
+/** SQLite 持久化模式；API 信封仍使用模式版本 1。 */
 export const WORKBENCH_DATABASE_SCHEMA_VERSION = 11 as const
 export const WORKBENCH_PERSISTENCE_SCHEMA_VERSION = WORKBENCH_DATABASE_SCHEMA_VERSION
 export const WORKBENCH_API_VERSION = 'v1' as const
@@ -12,17 +12,17 @@ export const EDIT_LEASE_TIMEOUT_SECONDS = 120
 export const CASE_DRAFT_AUTOSAVE_DEBOUNCE_MS = 700
 export const CASE_TASK_POLL_INTERVAL_MS = 5000
 export const MAX_RUNNING_ARCHIVE_TASKS = 6
-/** Archive/delete mutation calls surface a safe timeout instead of spinning forever. */
+/** 归档/删除变更调用会返回安全超时，而不是无限等待。 */
 export const WORKBENCH_REQUEST_TIMEOUT_MS = 30000
-/** Minimum/fallback for unified export when verified archive size is unavailable. */
+/** 无法获得已验证归档大小时，统一导出使用的最小值/回退值。 */
 export const UNIFIED_EXPORT_REQUEST_TIMEOUT_MS = 30 * 60 * 1000
-/** Absolute client bound for the HDD staging copy and export orchestration. */
+/** HDD 暂存复制与导出编排的客户端绝对时限。 */
 export const UNIFIED_EXPORT_MAX_REQUEST_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000
 export const UNIFIED_EXPORT_HDD_MIN_THROUGHPUT_BYTES_PER_SECOND = 100_000
 export const UNIFIED_EXPORT_ORCHESTRATION_GRACE_MS = 10 * 60 * 1000
 /**
- * Native export-directory picker keeps the PowerShell dialog open up to
- * 600s on the backend, so the request must outlive that window.
+ * 原生导出目录选择器会使后端 PowerShell 对话框保持打开最多 600 秒，
+ * 因此请求的存活时间必须超过该窗口。
  */
 export const EXPORT_DIRECTORY_PICKER_TIMEOUT_MS = 620000
 

@@ -1,4 +1,4 @@
-"""Layer 21: bounded same-directory Parser task sharing."""
+"""第 21 层：有界同目录 Parser 任务共享。"""
 
 from __future__ import annotations
 
@@ -14,15 +14,15 @@ T = TypeVar("T")
 
 
 class ReportParseInFlightError(RuntimeError):
-    """Safe diagnostics for a shared Parser task lifecycle."""
+    """共享 Parser 任务生命周期的安全诊断。"""
 
 
 class ReportParseInFlightCapacityError(ReportParseInFlightError):
-    """The bounded registry cannot accept another distinct report task."""
+    """有界注册表无法接受另一个不同的报告任务。"""
 
 
 class ReportParseWaitTimeout(ReportParseInFlightError):
-    """A caller detached from a shared task while it continued in the backend."""
+    """调用方已脱离共享任务，而任务仍在后端继续。"""
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class _InFlightEntry:
 
 
 class ReportParseInFlightRegistry:
-    """Share one background task for each opaque parse identity."""
+    """每个不透明解析标识共享一个后台任务。"""
 
     def __init__(
         self,

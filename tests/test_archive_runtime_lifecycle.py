@@ -1,4 +1,4 @@
-"""Application-lifespan coverage for the persistent archive runtime."""
+"""持久归档运行时的应用生命周期覆盖测试。"""
 
 from __future__ import annotations
 
@@ -829,12 +829,10 @@ def test_runtime_timeout_persists_owned_claim_as_interrupted(
 def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
     tmp_path: Path,
 ) -> None:
-    """Unified export from a completed card must not be blocked by the
-    independent draft revision (REVISION_CONFLICT regression).
+    """从已完成卡片统一导出时，不得被独立草稿版本阻止。
 
-    The card sends the shell revision; the template-context resolver must not
-    require it to equal the draft revision, which legitimately diverges across
-    the archive lifecycle.
+    这是 REVISION_CONFLICT 回归测试。卡片发送外壳版本；模板上下文解析器
+    不得要求它与草稿版本相等，因为二者在归档生命周期中可以合理分离。
     """
     from app.controllers import record_template_context_controller
 

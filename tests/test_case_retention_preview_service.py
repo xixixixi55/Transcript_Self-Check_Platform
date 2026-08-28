@@ -1,4 +1,4 @@
-"""Synthetic deterministic and safe-projection tests for task 3.2."""
+"""任务 3.2 的合成数据确定性与安全投影测试。"""
 
 from __future__ import annotations
 

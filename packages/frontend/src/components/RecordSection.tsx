@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 笔录章节卡片组件
+// 第 11 层：FE_Components — 笔录章节卡片组件
 import React from 'react'
 import { Card, Typography } from 'antd'
 

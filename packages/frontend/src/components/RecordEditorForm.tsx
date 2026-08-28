@@ -1,4 +1,4 @@
-// Layer 11: FE_Components - 笔录审核编辑表单
+// 第 11 层：FE_Components - 笔录审核编辑表单
 import React from 'react'
 import { Button, Space, Typography } from 'antd'
 import type {
@@ -39,7 +39,7 @@ interface Props {
   onPhotoFilesChange: (files: UploadFile[]) => void
   fieldStates?: Record<string, FieldState>
   onEvidenceCompletenessChange?: (confirmed: boolean) => void
-  /** Deprecated UI compatibility props; defaults are updated by successful draft saves. */
+  /** 已弃用的 UI 兼容属性；默认值会在草稿保存成功后更新。 */
   hasReportDefaults?: boolean
   onSaveReportDefaults?: () => void
   onClearReportDefaults?: () => void

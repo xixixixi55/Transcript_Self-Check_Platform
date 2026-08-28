@@ -1,56 +1,56 @@
 ## MODIFIED Requirements
 
-### Requirement: REQ-011: 解析缓存
+### Requirement: REQ-011：解析缓存
 
-The system SHALL cache the complete Legacy parse result (`InspectionReport` plus compatibility `rar_info`) under an opaque key in `output/parsed/`. A cache record SHALL contain the source content fingerprint, `cache_version`, `input_trust_schema`, and `last_accessed_at`, and MUST NOT contain an absolute path for frontend display. The existing parser semantic `cache_version` remains `7`; the independent `input_trust_schema` identifies whether the source-change trust contract has been applied. At most five valid parse cache records SHALL be retained using deterministic LRU eviction. Parse-cache cleanup MUST remain separate from archive output cleanup.
+系统 SHALL 使用不透明键在 `output/parsed/` 中缓存完整 Legacy 解析结果（`InspectionReport` 加兼容 `rar_info`）。缓存记录 SHALL 包含来源内容指纹、`cache_version`、`input_trust_schema` 和 `last_accessed_at`，且 MUST NOT 包含用于前端展示的绝对路径。既有 Parser 语义 `cache_version` 保持为 `7`；独立 `input_trust_schema` 标识是否已应用来源变化信任合同。使用确定性 LRU 淘汰时，最多 SHALL 保留五条有效解析缓存记录。解析缓存清理 MUST 与归档输出清理保持分离。
 
-#### Scenario: First parse creates a versioned cache record
+#### Scenario: 首次解析创建带版本缓存记录
 
-- **WHEN** a report directory is parsed successfully
-- **THEN** the system stores the complete Legacy parse result as an opaque JSON cache record
-- **AND** the record contains the source fingerprint, `cache_version`, `input_trust_schema`, and `last_accessed_at`
-- **AND** the record contains no absolute source path for frontend display
-- **AND** parsing does not execute WinRAR or create a final `ArchiveManifest`
+- **WHEN** 成功解析报告目录
+- **THEN** 系统将完整 Legacy 解析结果保存为不透明 JSON 缓存记录
+- **AND** 记录包含来源指纹、`cache_version`、`input_trust_schema` 和 `last_accessed_at`
+- **AND** 记录不含用于前端展示的绝对来源路径
+- **AND** 解析不执行 WinRAR，也不创建最终 `ArchiveManifest`
 
-#### Scenario: Unchanged report reuses a trusted cache
+#### Scenario: 未变化报告复用受信任缓存
 
-- **WHEN** the same normalized report directory is parsed again with the same parser cache version
-- **AND** the selected dependency membership is unchanged
-- **AND** every dependency is confirmed `trusted_unchanged` by the unified file-change contract
-- **THEN** the system returns the cached Legacy `InspectionReport` without rereading all dependency contents or rerunning parsing
-- **AND** it updates `last_accessed_at` without creating a duplicate cache record
-- **AND** it does not execute or reuse WinRAR results
+- **WHEN** 使用相同 Parser 缓存版本再次解析同一规范化报告目录
+- **AND** 选定依赖成员关系未变化
+- **AND** 每个依赖都经统一文件变化合同确认为 `trusted_unchanged`
+- **THEN** 系统返回缓存的 Legacy `InspectionReport`，不重新读取全部依赖内容或再次运行解析
+- **AND** 更新 `last_accessed_at`，不创建重复缓存记录
+- **AND** 不执行或复用 WinRAR 结果
 
-#### Scenario: Changed report invalidates the cache
+#### Scenario: 报告变化使缓存失效
 
-- **WHEN** a dependency is overwritten in place, atomically replaced, deleted and recreated, added, deleted, or otherwise changes its content or identity
-- **THEN** the cache MUST be invalidated or completely revalidated
-- **AND** the system MUST rebuild the `InspectionReport` when the new input is readable
-- **AND** the old `InspectionReport` MUST NOT be returned
+- **WHEN** 依赖在原位置被覆盖、原子替换、删除后重建、新增、删除，或其内容/标识以其他方式变化
+- **THEN** 缓存 MUST 失效或经过完整复验
+- **AND** 新输入可读时，系统 MUST 重新构建 `InspectionReport`
+- **AND** MUST NOT 返回旧 `InspectionReport`
 
-#### Scenario: Untrusted source does not produce a false cache hit
+#### Scenario: 不受信任来源不会产生错误缓存命中
 
-- **WHEN** the source is non-NTFS, network/mobile/cloud-backed, permission-restricted, the Journal is rebuilt or unverifiable, the API fails, or verification cannot prove that content is unchanged
-- **THEN** the system MUST completely read and digest the required dependencies before reusing a cache record
-- **AND** a failed or changing read MUST fail parsing rather than return the old cache
+- **WHEN** 来源不是 NTFS、由网络/移动/云支撑、受权限限制、Journal 被重建或无法验证、API 失败，或验证无法证明内容未变化
+- **THEN** 系统在复用缓存记录前 MUST 完整读取必需依赖并计算摘要
+- **AND** 读取失败或读取期间发生变化时，MUST 使解析失败，而不是返回旧缓存
 
-#### Scenario: Old cache record is safely upgraded
+#### Scenario: 安全升级旧缓存记录
 
-- **WHEN** a valid old cache record lacks `input_trust_schema` or uses an older input-trust schema
-- **THEN** the system MUST perform complete content verification before reuse
-- **AND** it MAY rewrite the record using the current input-trust schema after successful verification
-- **AND** a corrupt, incomplete, or invalid record MUST be treated as a cache miss
+- **WHEN** 有效旧缓存记录缺少 `input_trust_schema` 或使用更旧的输入信任模式
+- **THEN** 系统在复用前 MUST 执行完整内容验证
+- **AND** 验证成功后 MAY 使用当前输入信任模式重写记录
+- **AND** 损坏、不完整或无效记录 MUST 视为缓存未命中
 
-#### Scenario: LRU eviction remains isolated
+#### Scenario: LRU 淘汰保持隔离
 
-- **WHEN** a sixth valid parse cache is created
-- **THEN** the record with the oldest deterministic `last_accessed_at` is removed
-- **AND** eviction MUST remove only parse cache records under `output/parsed/`
-- **AND** eviction MUST NOT delete RAR, `ArchiveManifest`, archive downloads, Word exports, source reports, defaults, or other outputs
+- **WHEN** 创建第六条有效解析缓存
+- **THEN** 删除具有最早确定性 `last_accessed_at` 的记录
+- **AND** 淘汰 MUST 只删除 `output/parsed/` 下的解析缓存记录
+- **AND** 淘汰 MUST NOT 删除 RAR、`ArchiveManifest`、归档下载、Word 导出、来源报告、默认值或其他输出
 
-#### Scenario: User clears parser cache
+#### Scenario: 用户清理 Parser 缓存
 
-- **WHEN** the user confirms the stage-one clear-parser-cache action
-- **THEN** the parser cache endpoint returns a clear result and the next parse rereads the source inputs
-- **AND** already loaded frontend report data does not need to disappear immediately
-- **AND** clearing parser cache MUST NOT delete RAR, `ArchiveManifest`, archive downloads, Word exports, source reports, defaults, or other outputs
+- **WHEN** 用户确认第一阶段清理 Parser 缓存操作
+- **THEN** Parser 缓存端点返回清理结果，下一次解析重新读取来源输入
+- **AND** 已加载的前端报告数据不需要立即消失
+- **AND** 清理 Parser 缓存 MUST NOT 删除 RAR、`ArchiveManifest`、归档下载、Word 导出、来源报告、默认值或其他输出

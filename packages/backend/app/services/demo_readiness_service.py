@@ -1,4 +1,4 @@
-"""Project internal capability facts to a fixed, path-free Demo DTO."""
+"""将内部能力事实投影到固定无路径演示 DTO。"""
 
 from __future__ import annotations
 

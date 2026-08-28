@@ -1,4 +1,4 @@
-"""Synthetic tests for archive parse serialization and short-lived reuse."""
+"""归档解析串行化与短期复用的合成数据测试。"""
 
 import os
 import sys

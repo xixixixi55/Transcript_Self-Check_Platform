@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — allow-listed customization of a validated template.
+// 第 11 层：FE_Components — 对已验证模板进行白名单范围内的定制。
 import { useEffect } from 'react'
 import { Alert, Form, Input, InputNumber, Modal, Select, Typography } from 'antd'
 import type {

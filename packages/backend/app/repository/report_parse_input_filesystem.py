@@ -1,4 +1,4 @@
-"""Layer 20: safe filesystem primitives for Parser input snapshots."""
+"""第 20 层：Parser 输入快照的安全文件系统原语。"""
 
 from __future__ import annotations
 

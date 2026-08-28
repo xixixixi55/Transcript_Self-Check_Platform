@@ -44,8 +44,8 @@ _WINDOWS_INVALID_FILE_NAME = re.compile(r'[<>:"/\\|?*]')
 
 
 def _sanitize_docx_filename(name: str) -> str:
-    """Keep a user-supplied Word file name safe for the local export directory."""
-    # Drop any drive/path prefix defensively; the frontend already rejects these.
+    """确保用户提供的 Word 文件名可安全用于本地导出目录。"""
+    # 防御性移除所有驱动器/路径前缀；前端已拒绝这些内容。
     base = ntpath.basename((name or "").replace("\\", "/"))
     base = _WINDOWS_INVALID_FILE_NAME.sub("", base).strip()
     base = base.rstrip(". ")
@@ -180,16 +180,16 @@ def _insert_photos(filepath: str, photo_paths: list[str]):
         new_rPr_set = etree.SubElement(new_rPr, '{' + w_ns + '}sz')
         new_rPr_set.set('{' + w_ns + '}val', '32')  # 16pt
 
-        new_run = doc.paragraphs[target_idx].add_run()  # Won't work for insertion
-        # Instead: add photo to a temporary paragraph, then move it
-        # Use a temp doc to create the image paragraph
+        new_run = doc.paragraphs[target_idx].add_run()  # 无法用于插入操作
+        # 替代方案：先将照片添加到临时段落，再移动该段落
+        # 使用临时文档创建图片段落
         from io import BytesIO
         temp_doc = Document()
         temp_para = temp_doc.add_paragraph()
         temp_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         temp_run = temp_para.add_run()
         temp_run.add_picture(photo_path, width=Inches(6.67), height=Inches(5.0))
-        # Move temp_para element to the main doc
+        # 将 temp_para 元素移动到主文档
         temp_para_element = temp_para._element
         body.insert(insert_idx + 1 + i, temp_para_element)
         print(f"[OK] Photo inserted: {os.path.basename(photo_path)}")

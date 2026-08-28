@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — explicit post-parse compression decision.
+// 第 11 层：FE_Components — 解析完成后的显式压缩决策。
 import React from 'react'
 import { Alert, Button, Space } from 'antd'
 import type { CaseLifecycle } from '@biji/shared/types'

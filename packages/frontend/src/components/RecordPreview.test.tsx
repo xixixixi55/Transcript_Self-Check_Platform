@@ -1,8 +1,8 @@
-// T030: Component test — verify component exports (REQ-007)
+// T030：组件测试 — 验证组件导出（REQ-007）
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 
-// Mock antd to avoid slow imports in test
+// 模拟 antd，避免测试中导入缓慢
 vi.mock('antd', () => ({
   Upload: () => null,
   Button: () => null,

@@ -1,4 +1,4 @@
-"""Persistent, case-bound image assets; paths never cross the HTTP boundary."""
+"""持久案件绑定图片资产；路径绝不跨越 HTTP 边界。"""
 
 from __future__ import annotations
 
@@ -110,7 +110,7 @@ class CaseAssetService:
                 continue
 
     def cleanup_orphans(self) -> int:
-        """Remove stale unreferenced rows/files after a grace period."""
+        """宽限期后移除过期未引用记录和文件。"""
         removed = 0
         for case_id in self.storage.case_ids():
             if not _is_opaque_case_id(case_id):
@@ -185,7 +185,7 @@ def _old_enough(created_at: str) -> bool:
 
 
 def within_asset_orphan_retention(created_at: str) -> bool:
-    """Whether an unbound asset remains eligible for draft recovery."""
+    """未绑定资产是否仍符合草稿恢复条件。"""
     return not _old_enough(created_at)
 
 

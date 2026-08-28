@@ -1,1 +1,1 @@
-"""Windows portable launcher package."""
+"""Windows 便携式启动器包。"""

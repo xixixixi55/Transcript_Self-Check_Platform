@@ -1,77 +1,77 @@
-# Repository Asset Policy
+# 仓库资产政策
 
-## Canonical Production Assets
+## 规范生产资产
 
-### Word Template
+### Word 模板
 
-| Asset | Status |
-|-------|--------|
-| `word_templates/template.docx` | **Tracked — sole current built-in template; do not modify casually** |
+| 资产 | 状态 |
+|---|---|
+| `word_templates/template.docx` | **已跟踪——当前唯一内置模板；不得随意修改** |
 
-- `template.docx` is the sole authoritative Word report template. Retired built-in versions are migrated to the current version and are not distributed as repository assets.
-- Identity verified by OOXML package fingerprint (SHA-256 of canonical blob).
-- Core/custom properties and WPS document variables must not contain user, workstation, or case identity metadata.
-- Must never be rewritten by a generation run.
-- Any modification requires independent acceptance testing.
+- `template.docx` 是唯一权威的 Word 报告模板。已停用的内置版本会迁移到当前版本，不再作为仓库资产分发。
+- 身份通过 OOXML 包指纹（规范二进制内容的 SHA-256）验证。
+- 核心/自定义属性和 WPS 文档变量不得包含用户、工作站或案件身份元数据。
+- 生成过程绝不能重写该文件。
+- 任何修改都必须经过独立验收测试。
 
-## Test Fixtures
+## 测试固件
 
-All test data must be **explicitly synthetic**:
+所有测试数据都必须**明确为合成数据**：
 
-- Use markers: `SYNTHETIC`, `TEST`, `FIXTURE`, or `脱敏示例`.
-- Never copy-paste from a real case report.
-- Never include real names, case numbers, file paths, or device identifiers.
-- Binary fixtures must document their purpose and generation method.
+- 使用清晰的 `SYNTHETIC` / `TEST` / `FIXTURE` 标记。
+- 绝不从真实案件报告中复制粘贴内容。
+- 绝不包含真实姓名、案件编号、文件路径或设备标识符。
+- 二进制固件必须说明用途和生成方法。
 
-If a fixture value *looks* real but you cannot confirm its origin, treat it as sensitive.
+如果某个固件值看起来像真实数据，但无法确认其来源，应将其视为敏感数据。
 
-## Locally Generated Assets
+## 本地生成资产
 
-These directories must **never** be tracked in Git:
+以下目录**绝不能**被 Git 跟踪：
 
 - `output/`
 - `packages/output/`
-- Any nested `output/` directory
+- 任意嵌套的 `output/` 目录
 
-Generated files that stay local-only:
+仅保留在本地的生成文件：
 
-- Exported DOCX
-- Parsed JSON/TXT
-- Archive volumes (`.rar`, `.zip`)
-- Acceptance screenshots and checklists
+- 导出的 DOCX
+- 解析后的 JSON/TXT
+- 归档分卷（`.rar`、`.zip`）
+- 验收截图和检查清单
 
-## Reference Assets
+## 参考资产
 
-Reference templates, client-supplied samples, and historical versions:
+参考模板、客户提供的样本和历史版本：
 
-- Default: **do not enter Git**.
-- Must be safety-reviewed before any exception.
-- Store in controlled local or private-asset locations when needed.
-- Never mix reference assets with the canonical production template.
+- 默认：**不得进入 Git**。
+- 任何例外都必须先经过安全审查。
+- 需要时存放在受控的本地位置或私有资产位置。
+- 绝不能将参考资产与规范生产模板混放。
 
-## Sensitive Data — Never Commit
+## 敏感数据——禁止提交
 
-- Real case names, numbers, or identifiers
-- Real person names or unit names
-- Device serial numbers, IMEI, or hardware identifiers
-- Local user paths or workstation names
-- Parsed report data
-- Archive hashes or disc numbers
-- Business-generated documents containing any of the above
+- 真实案件名称、编号或标识符
+- 真实人员姓名或单位名称
+- 设备序列号、IMEI 或硬件标识符
+- 本地用户路径或工作站名称
+- 解析后的报告数据
+- 归档哈希或光盘编号
+- 含有上述任一内容的业务生成文档
 
-## Post History-Rewrite Collaboration Rules
+## 重写历史后的协作规则
 
-1. **All collaborators must re-clone** from the rewritten remote.
-2. **Never push from an old clone** — it carries the old, sensitive history.
-3. **Never merge old branches** into the rewritten history.
-4. Old backup bundles and mirrors contain sensitive data — store securely, destroy when no longer needed.
+1. **所有协作者都必须从已重写的远程仓库重新克隆**。
+2. **绝不能从旧克隆推送**——旧克隆仍携带原有敏感历史。
+3. **绝不能将旧分支合并**到重写后的历史中。
+4. 旧备份包和镜像含有敏感数据——应安全存放，不再需要时销毁。
 
-## Hygiene Check
+## 卫生检查
 
-Run before committing:
+提交前运行：
 
 ```bash
 npx tsx scripts/check-repository-assets.ts
 ```
 
-This gate is also wired into `npm run verify:quick`.
+该门控也已接入 `npm run verify:quick`。

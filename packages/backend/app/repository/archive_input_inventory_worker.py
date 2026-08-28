@@ -1,4 +1,4 @@
-"""Parallel stat/open helpers for case-input inventory scanning."""
+"""用于案件输入清单扫描的并行 stat/open 辅助函数。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ _DEFAULT_WORKERS = 4
 
 
 def inventory_worker_count() -> int:
-    """Parallel stat/open workers; reuses the copy-worker override."""
+    """并行 stat/open 工作进程；复用复制工作进程覆盖项。"""
     raw = os.environ.get("BIJI_ARCHIVE_COPY_WORKERS")
     if raw is None:
         return _DEFAULT_WORKERS
@@ -22,7 +22,7 @@ def inventory_worker_count() -> int:
 
 
 def inspect_file(task: tuple[str, Path], check_readability: bool):
-    """stat a single file and optionally probe readability (worker-safe)."""
+    """对单个文件执行 stat，并可选探测可读性（工作进程安全）。"""
     from .archive_input_repository import (
         ArchiveInputError,
         InputFileSnapshot,

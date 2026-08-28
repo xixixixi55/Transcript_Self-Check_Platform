@@ -1,4 +1,4 @@
-"""Report-authoritative primary-software normalization and export facts."""
+"""以报告为权威的主软件规范化和导出事实。"""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def _normalize_legacy_process_step_four(
 
 
 def primary_software_facts(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Read the stable primary-software fields without guessing from tool order."""
+    """读取稳定主软件字段，不根据工具顺序猜测。"""
     inspection = report.get("inspection") or {}
     raw = inspection.get("primary_software")
     result = inspection.get("result") or {}
@@ -87,7 +87,7 @@ def is_primary_software_confirmed(report: Mapping[str, Any]) -> bool:
 def apply_device_company_prefix(
     report: Mapping[str, Any], company: object,
 ) -> dict[str, Any]:
-    """Prefix one report-confirmed primary tool without rewriting report evidence."""
+    """为一个报告确认的主工具添加前缀，不重写报告证据。"""
     normalized = copy.deepcopy(dict(report))
     company_value = _text(company)
     facts = primary_software_facts(normalized)
@@ -161,7 +161,7 @@ def apply_device_company_prefix(
 
 
 def normalize_runtime_software_tool_projection(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Show the active hash tool while continuing to accept legacy stored data."""
+    """显示活动哈希工具，同时继续接受旧版存储数据。"""
     normalized = copy.deepcopy(dict(report))
     inspection = normalized.setdefault("inspection", {})
     tools = inspection.get("software_tools") or []
@@ -206,7 +206,7 @@ def normalize_runtime_software_tool_projection(report: Mapping[str, Any]) -> dic
 
 
 def normalize_primary_software_projection(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Derive legacy result/tool fields from the one editable primary structure."""
+    """根据唯一可编辑主结构推导旧版结果和工具字段。"""
     normalized = normalize_runtime_software_tool_projection(report)
     inspection = normalized.setdefault("inspection", {})
     result = inspection.setdefault("result", {})

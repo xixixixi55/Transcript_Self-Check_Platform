@@ -102,7 +102,7 @@ def compute_md5(filepath: str) -> str:
 
 def create_rar(source_dir: str, output_dir: str, archive_name: str,
                force: bool = False, skip: bool = False) -> dict:
-    """Deprecated single-volume helper; never falls back to ZIP."""
+    """已弃用的单卷辅助函数；绝不回退到 ZIP。"""
     if skip:
         return {
             "filename": "",

@@ -1,4 +1,4 @@
-"""Layer 23: production SPA hosting and local desktop-session boundary."""
+"""第 23 层：生产环境 SPA 托管和本地桌面会话边界。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _RESERVED_PREFIXES = ("api/", "desktop/", "health")
 
 
 def configure_portable_web(app: FastAPI, web_root: Path, secret: str) -> None:
-    """Attach one-use browser bootstrap, API auth, and SPA file serving."""
+    """挂载一次性浏览器引导、API 认证和 SPA 文件服务。"""
     if len(secret) < 32:
         raise ValueError("desktop secret must contain at least 32 characters")
     index_path = web_root / "index.html"

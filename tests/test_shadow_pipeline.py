@@ -1,4 +1,4 @@
-"""Synthetic production-chain tests for the fail-open Shadow sidecar."""
+"""失败开放 Shadow 边车的合成数据生产链测试。"""
 
 import copy
 import json
@@ -88,7 +88,7 @@ def shadow_client():
 
 @pytest.fixture
 def synthetic_archive_source(tmp_path):
-    """Register and prepare a real synthetic preview source for controller tests."""
+    """为控制器测试注册并准备真实的合成预览源。"""
     source_root = tmp_path / "synthetic-source"
     source_root.mkdir()
     (source_root / "SYNTHETIC-input.bin").write_bytes(b"SYNTHETIC")

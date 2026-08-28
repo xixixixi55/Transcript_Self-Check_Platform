@@ -1,4 +1,4 @@
-"""Pure attachment planning from a validated ArchiveManifest."""
+"""根据已验证 ArchiveManifest 进行纯附件规划。"""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ _CONFIRMED_SOFTWARE = {"confirmed", "confirmed_by_report", "confirmed_by_user"}
 def build_attachment_plan(
     manifest: Mapping[str, Any], report: Mapping[str, Any],
 ) -> AttachmentPlan:
-    """Build all stage-one attachment pages without I/O or Word side effects."""
+    """构建所有阶段一附件页面，不产生 I/O 或 Word 副作用。"""
     report = project_ordered_legacy_report(report)
     manifest_id, parts = _validated_parts(manifest)
     hash_algorithm, _ = manifest_part_business_hash(parts[0])

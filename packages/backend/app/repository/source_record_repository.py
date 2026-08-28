@@ -1,4 +1,4 @@
-"""SourceRecord persistence and restart-time source revalidation."""
+"""SourceRecord 持久化和重启时来源重新验证。"""
 from __future__ import annotations
 import os
 import sqlite3
@@ -61,7 +61,7 @@ class SourceRecordRepository:
             raise WorkbenchPersistenceError("SOURCE_NOT_FOUND")
         return public_source_record(row)
     def get_internal_locator(self, source_id: str) -> dict[str, str]:
-        """Internal repository use only; controllers must not expose this result."""
+        """仅限仓储内部使用；控制器不得暴露此结果。"""
         source_id = validate_opaque_id(source_id)
         connection = self.database.connect()
         try:
@@ -80,7 +80,7 @@ class SourceRecordRepository:
     def activate_pending(
         self, source_id: str, metadata: Mapping[str, Any], fingerprint: str,
     ) -> dict[str, Any]:
-        """Commit the deferred source identity after the case shell exists."""
+        """案件外壳存在后提交延迟的来源标识。"""
         source_id = validate_opaque_id(source_id)
         if not isinstance(fingerprint, str) or not fingerprint:
             raise WorkbenchPersistenceError("INVALID_SOURCE_FINGERPRINT")
@@ -105,7 +105,7 @@ class SourceRecordRepository:
                 raise WorkbenchPersistenceError("SOURCE_REVISION_CONFLICT")
         return self.get(source_id)
     def revalidate(self, source_id: str, *, current_fingerprint: str | None = None) -> dict[str, Any]:
-        """Revalidate using a fingerprint freshly computed by the source adapter."""
+        """使用来源适配器新计算的指纹重新验证。"""
         source_id = validate_opaque_id(source_id)
         if current_fingerprint is not None and not isinstance(current_fingerprint, str):
             raise WorkbenchPersistenceError("INVALID_SOURCE_FINGERPRINT")

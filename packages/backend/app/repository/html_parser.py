@@ -62,7 +62,7 @@ def parse_case_info(data_dir: str) -> dict[str, str]:
 
 
 def parse_case_info_payload(data: Any) -> dict[str, str]:
-    """Map an already-loaded case payload without another filesystem read."""
+    """映射已加载的案件载荷，不再读取文件系统。"""
     contents = data.get("contents", [])
     return {
         "case_name": _find_value(contents, "案件名称"),
@@ -86,7 +86,7 @@ def parse_device_lists(data_dir: str) -> list[dict[str, str]]:
 def parse_device_lists_payload(
     data: Any, report_format: ReportFormat,
 ) -> list[dict[str, str]]:
-    """Map device rows using a previously detected report format."""
+    """使用先前检测到的报告格式映射设备行。"""
     contents = data.get("contents", []) if isinstance(data, dict) else data
     devices = []
     for item in contents or []:
@@ -109,7 +109,7 @@ def parse_device_lists_payload(
             or item.get("evidence_number", "")
             or item.get("evidence_name", "")
         ).strip()
-        # Legacy c1 is a device label; new c1 is only a row sequence.
+        # 旧版 c1 是设备标签；新版 c1 只是行序号。
         if report_format == ReportFormat.LEGACY:
             device_name = item.get("c1", "") or item.get("device_name", "") or item.get("device_type", "")
         else:
@@ -139,11 +139,10 @@ def _normalise_directory_name(value: str) -> str:
 
 
 def _resolve_evidence_directory(data_dir: str, evidence_number: str) -> str:
-    """Resolve only the explicitly named specimen directory.
+    """仅解析明确命名的检材目录。
 
-    A normalized match is allowed for harmless whitespace/full-width/case
-    differences, but no positional or arbitrary Base-directory fallback is
-    permitted.
+    对无害的空白、全角字符或大小写差异允许规范化匹配，
+    但不允许按位置或任意回退到 Base 目录。
     """
     if not evidence_number or not os.path.isdir(data_dir):
         return ""
@@ -224,7 +223,7 @@ def parse_report_info(data_dir: str) -> dict[str, str]:
 
 
 def parse_report_info_payload(data: Any) -> dict[str, str]:
-    """Map an already-loaded report-info payload without another read."""
+    """映射已加载的报告信息载荷，不再读取。"""
     contents = data.get("contents", [])
     versions = {}
     for item in contents:
@@ -338,8 +337,8 @@ def parse_device_base(data_dir: str, evidence_number: str) -> dict[str, str]:
             report_format, [(payload, "") for payload in payloads],
         )
 
-    # Keep the legacy explicit labels and text fallback. The fallback is
-    # bounded by known labels and never scans arbitrary 15-digit numbers.
+    # 保留旧版显式标签和文本回退。回退范围受已知标签限制，
+    # 绝不会扫描任意的 15 位数字。
     payloads = []
     for filepath in sorted(json_files):
         try:
@@ -356,7 +355,7 @@ def parse_device_base_payloads(
     report_format: ReportFormat,
     payloads: list[tuple[Any, str]],
 ) -> dict[str, str]:
-    """Extract device fields from one already-read candidate stream."""
+    """从一个已读取的候选流中提取设备字段。"""
     if report_format == ReportFormat.NEW:
         return select_best_device_candidate(
             [payload for payload, _ in payloads], allow_tt_ct=True,

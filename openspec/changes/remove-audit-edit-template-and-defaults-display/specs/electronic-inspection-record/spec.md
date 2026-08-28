@@ -1,4 +1,4 @@
-# Spec Delta: 审核编辑界面移除案件模板与共享默认值展示
+# 规格增量：审核编辑界面移除案件模板与共享默认值展示
 
 > 基准 Spec: `openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED (CAP-003 REQ-007, CAP-011 REQ-027)

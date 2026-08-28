@@ -1,4 +1,4 @@
-"""T018 registered-template fingerprint, rule, and structure validation tests."""
+"""T018 已注册模板指纹、规则与结构校验测试。"""
 
 from __future__ import annotations
 

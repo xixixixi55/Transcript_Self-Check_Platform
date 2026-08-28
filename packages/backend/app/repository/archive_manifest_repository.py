@@ -1,4 +1,4 @@
-"""Persistent ArchiveManifest registry independent from parsing cache files."""
+"""独立于解析缓存文件的持久 ArchiveManifest 注册表。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from .workbench_database import WorkbenchDatabase
 _INDEX_VERSION = 1
 
 class ArchiveManifestRepository(ArchiveManifestIndexMixin):
-    """Keep archive metadata addressable until an explicit case deletion."""
+    """在案件明确删除前保持归档元数据可寻址。"""
 
     def __init__(
         self, output_root: str | os.PathLike[str], clock=time.time,
@@ -112,7 +112,7 @@ class ArchiveManifestRepository(ArchiveManifestIndexMixin):
             ]
 
     def find_by_manifest_id(self, manifest_id: str) -> list[PersistedArchiveManifest]:
-        """Find validated records sharing an identity before any reuse/save operation."""
+        """在任何复用或保存操作前查找共享标识的已验证记录。"""
         with self._index_lock():
             return [
                 copy.deepcopy(item) for item in self._read_records()
@@ -147,7 +147,7 @@ class ArchiveManifestRepository(ArchiveManifestIndexMixin):
         input_fingerprint: str,
         archive_fingerprint: str,
     ) -> None:
-        """Retire older generations before a replacement archive is attempted."""
+        """尝试替换归档前停用较旧代次。"""
         with self._index_lock():
             records = self._read_records()
             changed = False

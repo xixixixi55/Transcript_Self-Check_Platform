@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — deferred disc mapping and unified export actions.
+// 第 10 层：FE_Hooks — 延迟光盘映射与统一导出操作。
 import { useCallback, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'

@@ -165,7 +165,7 @@ def _format_plan_date(value: str) -> str:
 
 
 def _update_attachment_summary(doc: Document, plan) -> None:
-    """Write the storage-medium summary from the validated manifest plan."""
+    """根据已验证的 Manifest 计划写入存储介质摘要。"""
     attachment1_summary = (
         f"附件：1、电子数据提取固定清单，共{len(plan.attachment1_pages)}页；"
     )
@@ -206,7 +206,7 @@ def _update_attachment_summary(doc: Document, plan) -> None:
 def _update_inspection_result(
     doc: Document, report: dict, flat: dict, plan=None,
 ) -> None:
-    """Render the reviewed materials and trusted manifest part details."""
+    """渲染已审核检材和可信 Manifest 分卷详情。"""
     evidence_numbers = _ordered_unique(
         item.get("evidence_number")
         for item in (report.get("introduction") or {}).get("evidence_list") or []
@@ -282,7 +282,7 @@ def _replace_paragraph_text(paragraph: Any, value: str) -> None:
 
 
 def _enable_dynamic_page_fields(doc: Document) -> None:
-    """Ask Word to refresh PAGE/NUMPAGES fields when opening or printing."""
+    """要求 Word 在打开或打印时刷新 PAGE/NUMPAGES 字段。"""
     w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
     settings = doc.settings.element
     update_fields = settings.find("./{%s}updateFields" % w_ns)
@@ -683,7 +683,7 @@ def _handle_photos(doc: Document, photo_paths: list[str], report: dict):
 def _handle_grouped_photos(
     doc: Document, photo_paths: list[str], report: dict,
 ) -> None:
-    """Render report-only exports with the same material-pair layout as formal exports."""
+    """使用与正式导出相同的检材配对布局渲染仅报告导出。"""
     source_image_ids = photo_values(report)
     groups = material_photo_groups(report)
     pages = build_attachment2_pages(groups)
@@ -877,9 +877,8 @@ def _cleanup_attachment_spacing(doc: Document):
                 and summary_start < attachment1_start):
             summary_block = paragraphs[summary_start:attachment1_start]
             first = summary_block[0]
-            # Replace the template's three 520-twip blank lines with paragraph
-            # spacing. Word keeps it mid-page and suppresses it at an automatic
-            # page top, so an independently paginated summary starts normally.
+            # 将模板中三行 520 twip 空白替换为段落间距。Word 会在页面中部保留该间距，
+            # 并在自动分页的页首抑制它，使独立分页的摘要正常开始。
             first.paragraph_format.space_before = Twips(_ATTACHMENT_SUMMARY_GAP_TWIPS)
             for br in list(first._p.findall('.//' + qn('w:br'))):
                 if br.get(qn('w:type')) == 'page':
@@ -936,7 +935,7 @@ def _clear_para(para):
 
 
 def _apply_required_heading_styles(doc: Document) -> None:
-    """Apply stable title formatting after template regions have been rendered."""
+    """模板区域渲染后应用稳定的标题格式。"""
     for index, paragraph in enumerate(doc.paragraphs):
         normalized = "".join(paragraph.text.split())
         if index == 0 and normalized:
@@ -949,7 +948,7 @@ def _apply_required_heading_styles(doc: Document) -> None:
 
 
 def _apply_required_attachment_table_styles(doc: Document) -> None:
-    """Apply stable Attachment 1 header and Latin wrapping rules."""
+    """应用稳定的附件 1 页眉和拉丁字符换行规则。"""
     if not doc.tables:
         return
     attachment_table = doc.tables[0]

@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: sync applied to openspec/specs/electronic-inspection-record/spec.md REQ-029, including page-level readiness display removal
+spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-029，包括移除页面级就绪状态展示
 
 ## 级别与范围
 

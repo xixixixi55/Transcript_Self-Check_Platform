@@ -1,4 +1,4 @@
-"""Unit tests for the local Windows native folder picker bridge."""
+"""本地 Windows 原生文件夹选择器桥接层的单元测试。"""
 
 from __future__ import annotations
 

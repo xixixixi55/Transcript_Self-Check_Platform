@@ -1,4 +1,4 @@
-"""Immutable models emitted by the pure attachment planning service."""
+"""纯附件规划服务输出的不可变模型。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ INSPECTOR_FINAL_PAGE_KIND = "inspector_final"
 
 
 class AttachmentPlanError(ValueError):
-    """Stable error raised when a final manifest cannot produce a plan."""
+    """最终 Manifest 无法生成计划时引发的稳定错误。"""
 
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -82,17 +82,17 @@ class Attachment2PagePlan:
 
     @property
     def evidence_numbers(self) -> tuple[str, ...]:
-        """Compatibility accessor for the page's planned material numbers."""
+        """页面规划检材编号的兼容访问器。"""
         return self.inspection_result_material_numbers
 
     @property
     def top_image(self) -> Attachment2ImagePlan:
-        """Compatibility accessor for the first image in the planned page."""
+        """规划页面中第一张图片的兼容访问器。"""
         return self.images[0]
 
     @property
     def bottom_image(self) -> Attachment2ImagePlan:
-        """Compatibility accessor for the second image in the planned page."""
+        """规划页面中第二张图片的兼容访问器。"""
         return self.images[1]
 
 

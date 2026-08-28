@@ -36,12 +36,12 @@ Bug/回归任务先按根目录 `AGENTS.md` §3 的规则检查是否属于已�
 ```markdown
 workflow_level: 2
 
-## Delta spec
+## 增量规格
 
 > `openspec/changes/<功能名>/specs/<能力>/spec.md`
 > 只记录最终行为的 ADDED/MODIFIED/REMOVED/RENAMED delta 和关键场景。
 
-## Phase N: USXX — 功能名称
+## 阶段 N：USXX — 功能名称
 
 > Spec: `openspec/specs/<能力>/spec.md`
 

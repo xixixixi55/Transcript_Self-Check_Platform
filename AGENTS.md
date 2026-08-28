@@ -28,7 +28,7 @@
 
 ## 3. 未归档变更关联
 
-在判断 Level 前扫描 `openspec/changes/`（排除 `archive/`）。先搜索变更名、`tasks.md` 和少量命中内容；候选不足时扩大到 delta spec，必要时再读 proposal/design，不得为找候选批量载入全部正文。
+在判断 Level 前扫描 `openspec/changes/`（排除 `archive/`）。先搜索变更名、`tasks.md` 和少量命中内容；候选不足时扩大到增量规格，必要时再读提案/设计，不得为找候选批量载入全部正文。
 
 以下任一项是强关联信号：同一正式能力或 Requirement/Scenario、同一用户结果或验收场景、同一核心调用链/设计决策、原实现引入的回归、候选冻结前反馈。文件、关键词和 capability 相同只用于发现候选，不单独决定归属。
 
@@ -46,11 +46,11 @@
 
 | 级别 | 适用范围 | 工件与流程 |
 |:--:|---|---|
-| Level 1 | 文案/样式/展示、内部重构、测试调整、恢复既有预期的 Bug，以及单一能力内部低风险调整；可有局部可观察变化，但不新增公共合同、持久化格式或安全边界 | 直接修改和定向验证；不创建 change、proposal/spec/design，不归档 |
-| Level 2 | 需要新增/修改正式 Requirement/Scenario，或引入中等范围能力；保持总体架构 | 复用匹配包；否则创建 `tasks.md` + 至少一个 delta spec，记录 `workflow_level: 2`；不自动增加 proposal/design/Review |
+| Level 1 | 文案/样式/展示、内部重构、测试调整、恢复既有预期的缺陷，以及单一能力内部低风险调整；可有局部可观察变化，但不新增公共合同、持久化格式或安全边界 | 直接修改和定向验证；不创建变更、提案、规格或设计，不归档 |
+| Level 2 | 需要新增/修改正式 Requirement/Scenario，或引入中等范围能力；保持总体架构 | 复用匹配包；否则创建 `tasks.md` + 至少一个增量规格，记录 `workflow_level: 2`；不自动增加提案/设计/审查 |
 | Level 3 | 重大架构或核心链路变化、大规模重构、框架/引擎/部署/安全模型重大迁移或高回滚风险 | proposal → spec → design → tasks → implementation → verify → review → archive |
 
-Level 2 delta 使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关键场景；不得以 `Spec impact: N/A` 绕过。收尾按 delta → 实现核对 → sync → living spec 检查，未同步不得正式归档。
+Level 2 增量使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关键场景；不得以 `Spec impact: N/A` 绕过。收尾按增量 → 实现核对 → 同步 → 现行规格检查，未同步不得正式归档。
 
 ## 5. 验证与测试
 
@@ -62,7 +62,7 @@ Level 2 delta 使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关�
 - Spec Scenario 不要求与测试用例一一对应；避免在多个层重复验证同一实现细节，替换行为时合并或删除失效/重复测试。
 - 人工验收独立于 Level，仅用于自动化不能可靠覆盖的 UI 视觉、真实 Word/PDF、桌面环境或真实业务流程；不适用时记录 `N/A`。
 
-增量任务先运行失败用例或最小定向检查。Level 3 开发和反馈阶段不因包级别立即运行最终 Review/full gate；待必选任务、适用人工验收和反馈全部收敛后冻结候选，统一 Review 并运行一次 `npm run verify:full -- --change <name>`。冻结后修改先解冻并做受影响验证，再于下一次收敛时统一冻结。细则见 `harness/verification-strategy.md`。
+增量任务先运行失败用例或最小定向检查。Level 3 开发和反馈阶段不因包级别立即运行最终审查/完整门控；待必选任务、适用人工验收和反馈全部收敛后冻结候选，统一审查并运行一次 `npm run verify:full -- --change <name>`。冻结后修改先解冻并做受影响验证，再于下一次收敛时统一冻结。细则见 `harness/verification-strategy.md`。
 
 | 级别 | 收尾自动化 |
 |:--:|---|
@@ -72,7 +72,7 @@ Level 2 delta 使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关�
 
 全局发布/集中归档才运行 `npm run verify:full:all`。`package.json` 是命令唯一来源；输出、环境预检和失败下钻见 `harness/verification-strategy.md`。
 
-## 6. Code Review
+## 6. 代码审查
 
 - Level 1 默认不启用；Level 2 仅在公共合同、核心数据、安全或高风险跨模块行为有明确审查价值时启用。
 - Level 3 在冻结候选后统一审查一次，不按 Task 启动。
@@ -93,8 +93,8 @@ Level 2 delta 使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关�
 ## 8. 完成标准
 
 - 适用的架构、类型检查和受影响验证通过；`git diff` 仅含预期变更。
-- Level 2：必选任务完成、delta 与实现核对并同步 living spec、scoped strict docs 通过。
-- Level 3：冻结候选的 Review 与 scoped full gate 通过；全局发布/集中归档另跑 global full gate。
+- Level 2：必选任务完成、增量与实现核对并同步现行规格、限定范围的严格文档检查通过。
+- Level 3：冻结候选的审查与限定范围的完整门控通过；全局发布/集中归档另跑全局完整门控。
 - 普通 checklist 默认必选；只有行末明确 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 可不勾选。
 
 ## 9. 禁止事项
@@ -114,4 +114,4 @@ Level 2 delta 使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关�
 | `harness/architecture.md` | 分层、依赖、文件与测试组织 |
 | `harness/code-review-agent.md` | Review 范围和复审 |
 | `harness/entropy-rules.md` | 归档与熵治理 |
-| `openspec/specs/` | living specs |
+| `openspec/specs/` | 现行规格 |

@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — approved template discovery and case selection.
+// 第 10 层：FE_Hooks — 已批准模板的发现与案件选择。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import {

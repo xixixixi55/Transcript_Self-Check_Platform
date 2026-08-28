@@ -1,4 +1,4 @@
-/** Canonical domain types shared by the report migration boundary. */
+/** 报告迁移边界共享的规范领域类型。 */
 
 import type { DiscSequence } from './discSequence'
 
@@ -52,7 +52,7 @@ export interface Material {
 }
 
 export interface InspectorSnapshot {
-  /** Case-scoped stable snapshot identity; Legacy projections may omit it. */
+  /** 案件范围的稳定快照标识；旧版投影可能省略。 */
   snapshot_id?: string
   inspector_id?: string | null
   name: string

@@ -1,4 +1,4 @@
-"""Inspector management and report snapshot compatibility services."""
+"""检查人员管理和报告快照兼容服务。"""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def legacy_to_snapshots(inspectors: Iterable[Mapping[str, Any]]) -> list[dict[st
 
 
 def apply_inspector_snapshot_compatibility(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Use snapshots as authority and regenerate the legacy renderer projection."""
+    """以快照为权威并重新生成旧版渲染器投影。"""
 
     result = copy.deepcopy(dict(report))
     introduction = result.setdefault("introduction", {})
@@ -78,7 +78,7 @@ def apply_inspector_snapshot_compatibility(report: Mapping[str, Any]) -> dict[st
 
 
 class InspectorService:
-    """Business facade over the local repository and snapshot generation."""
+    """本地仓储和快照生成之上的业务外观。"""
 
     def __init__(self, repository: InspectorRepository | None = None):
         self.repository = repository or InspectorRepository()

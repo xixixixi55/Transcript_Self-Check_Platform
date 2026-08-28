@@ -1,4 +1,4 @@
-"""Read deployment-owned resource facts for archive admission."""
+"""读取部署拥有的归档准入资源事实。"""
 
 from __future__ import annotations
 

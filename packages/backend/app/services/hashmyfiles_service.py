@@ -1,4 +1,4 @@
-"""Service facade for HashMyFiles verification screenshot generation."""
+"""HashMyFiles 验证截图生成的服务外观。"""
 
 from __future__ import annotations
 
@@ -29,11 +29,10 @@ def generate_verification_image(
     hash_algorithm: str = "md5",
     runner: Runner = _DEFAULT_RUNNER,
 ) -> str:
-    """Generate the HashMyFiles verification PNG for ``rar_paths``.
+    """为 `rar_paths` 生成 HashMyFiles 验证 PNG。
 
-    Returns the PNG file name written under ``output_dir``. Raises
-    :class:`HashMyFilesError` when the tool is unavailable or the run fails,
-    so the export fails explicitly instead of omitting the report.
+    返回写入 `output_dir` 的 PNG 文件名。工具不可用或运行失败时引发
+    :class:HashMyFilesError，使导出明确失败，而非省略报告。
     """
     if not rar_paths:
         raise HashMyFilesError("HASHMYFILES_NO_PARTS", "没有可校验的 RAR 文件。")

@@ -1,4 +1,4 @@
-"""Frozen backend entry point for the Windows portable distribution."""
+"""Windows 便携发行版的冻结后端入口。"""
 
 from __future__ import annotations
 

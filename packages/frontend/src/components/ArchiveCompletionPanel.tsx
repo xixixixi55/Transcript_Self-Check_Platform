@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — unified first-disc input, deferred mapping and export.
+// 第 11 层：FE_Components — 统一的首张光盘输入、延迟映射与导出。
 import React, { useEffect, useState } from 'react'
 import { Alert, Button, Input, Space, message } from 'antd'
 import type { ArchiveMedium, CaseLifecycle } from '@biji/shared/types'
@@ -76,8 +76,8 @@ export function ArchiveCompletionPanel({
   const confirmExportName = async (wordFileName: string) => {
     setNameDialogOpen(false)
     try {
-      // Directory grants are one-use and consumed by the export; always pick a
-      // fresh directory so re-export never reuses a spent token.
+      // 目录授权只能使用一次，并会在导出时消耗；应始终重新选择目录，
+      // 确保再次导出不会复用已消耗的令牌。
       const chosen = await archive.chooseDirectory()
       if ('cancelled' in chosen) return
       const result = await archive.exportBundle(

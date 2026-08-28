@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 检查过程编辑器
+// 第 11 层：FE_Components — 检查过程编辑器
 // REQ-017: 展示 4 个步骤，步骤号固定，内容可编辑
 import React from 'react'
 import { Typography, Space } from 'antd'

@@ -1,4 +1,4 @@
-"""Small real-WinRAR contract test for directory preservation."""
+"""目录保留的小型真实 WinRAR 契约测试。"""
 
 import hashlib
 import os

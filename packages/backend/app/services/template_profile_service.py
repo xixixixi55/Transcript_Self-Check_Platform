@@ -1,4 +1,4 @@
-"""Fixed current-template-v1 asset and semantic anchor checks."""
+"""固定 current-template-v1 资产和语义锚点检查。"""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def has_refined_visible_layout(
     page_width_twips: int,
     horizontal_margin_twips: int,
 ) -> bool:
-    """Return whether title, heading hierarchy, and fixed rules are centered."""
+    """返回标题、标题层级和固定规则是否居中。"""
     return (
         _has_centered_visible_title(body)
         and _has_structural_heading_hierarchy(body)
@@ -190,7 +190,7 @@ def _point_value(value: str) -> float:
 
 
 def is_historical_builtin_template_ref(template_ref: Any) -> bool:
-    """Return whether a reference is the read-only built-in export asset."""
+    """返回引用是否为只读内置导出资产。"""
     return isinstance(template_ref, Mapping) and (
         template_ref.get("template_id") == BUILTIN_TEMPLATE_ID
         and template_ref.get("version") in RETIRED_BUILTIN_TEMPLATE_VERSIONS
@@ -198,7 +198,7 @@ def is_historical_builtin_template_ref(template_ref: Any) -> bool:
 
 
 class TemplateProfileError(ValueError):
-    """Raised when the fixed template is missing or has drifted."""
+    """固定模板缺失或发生漂移时引发。"""
 
     def __init__(self, message: str, code: str = "TEMPLATE_PROFILE_MISMATCH"):
         super().__init__(message)
@@ -376,7 +376,7 @@ def require_registered_template(
     approvals: TemplateApprovalRepository,
     template_ref: Any,
 ) -> dict[str, Any]:
-    """Resolve an approved version and revalidate its immutable asset and profile."""
+    """解析已批准版本并重新验证其不可变资产和配置。"""
     try:
         template = registry.get_internal(template_ref)
         approvals.require_approved(template_ref)

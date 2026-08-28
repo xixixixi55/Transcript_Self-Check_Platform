@@ -43,26 +43,26 @@ spec_sync_evidence: `openspec/specs/electronic-inspection-record/spec.md` REQ-01
 
 任务按架构层级从低到高排列。
 
-### Layer 0 — SharedTypes
+### Layer 0——共享类型
 
 - [x] 在 `packages/shared/types/index.ts` 的 `HardwareDevice` 契约中增加必有字符串字段 `company`；设备列表 API 对旧持久化记录也返回规范化后的空字符串，避免前端出现不稳定的 `undefined` 分支。验证：运行 shared/frontend typecheck。
 
-### Layer 11 — FE Components
+### Layer 11——前端组件
 
 - [x] 在 `packages/frontend/src/components/DeviceManager.tsx` 增加“所属公司”表格列和新增/编辑表单项；新建或编辑提交时要求非空并保持现有 CRUD、错误提示和表单重置行为。验证：新增 `packages/frontend/src/components/DeviceManager.test.tsx`，覆盖列表展示、新增提交、编辑回填、旧记录待补充和空值校验（REQ-010 场景）。
 
-### Layer 20 — BE Repository
+### Layer 20——后端 Repository
 
 - [x] 在 `packages/backend/app/repository/device_config.py` 为默认设备和新增记录持久化 `company`，读取缺少该字段的旧 JSON 时规范化为 `company: ""`，并让更新操作区分“未提交公司字段”和“提交有效公司值”。验证：扩展 `tests/test_device_config.py` 覆盖旧记录兼容、创建、更新和其余字段不丢失。
 - [x] 在 `packages/backend/app/data/hardware_devices.json` 为默认 FL-901 设备补充 `company: "美亚柏科"`；保留工作区中已有的设备名称修改及其他用户配置，不回退或重写无关记录。验证：JSON 可解析、资产检查通过、`git diff` 仅含预期字段。
 
-### Layer 21 — BE Services
+### Layer 21——后端 Service
 
 - [x] 在 `packages/backend/app/services/device_config_service.py` 接收、清洗并验证公司字段，提供按规范化设备名称唯一解析所属公司的只读能力；名称匹配忽略大小写和空白差异，多个候选时返回未匹配而不是任取一条。验证：扩展 `tests/test_device_config.py` 覆盖空白、唯一匹配、未匹配和歧义边界。
 - [x] 在 `packages/backend/app/services/software_policy_service.py` 增加幂等的公司前缀投影：只修改报告可靠主软件及其派生字段，保持运行时工具、候选和 provenance 不变，并更新检查步骤 4 的主软件显示。验证：扩展 `tests/test_software_policy_service.py` 覆盖正常拼接、已带前缀、空公司、未确认主软件、运行时工具隔离及四处投影一致性（REQ-016 场景）。
 - [x] 在 `packages/backend/app/services/case_draft_service.py` 的新草稿初始化链中，先完成现有共享默认硬件选择，再解析该设备公司并调用软件前缀投影；既有草稿加载、Parser 缓存和重新保存不得触发追溯改写。验证：扩展 `tests/test_case_shared_defaults.py` 与 `tests/test_workbench_services.py`，覆盖共享默认设备优先、初始化一次、设备缺失/歧义降级及既有案件不变。
 
-### Layer 22 — BE Controllers
+### Layer 22——后端 Controller
 
 - [x] 在 `packages/backend/app/controllers/device_controller.py` 扩展设备新增/更新请求模型：新建设备要求非空公司，更新请求兼容未携带 `company` 的旧客户端，但显式空白公司不得覆盖有效值；响应始终返回规范化 `company`。验证：新增 `tests/test_device_controller.py` 的 pytest/httpx 集成测试，覆盖 2xx、422、旧更新请求和 404。
 

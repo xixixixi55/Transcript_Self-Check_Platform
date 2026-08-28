@@ -1,4 +1,4 @@
-"""Public archive-task orchestration and deliberately safe projections."""
+"""公开归档任务编排和审慎设计的安全投影。"""
 
 from __future__ import annotations
 
@@ -57,8 +57,8 @@ class ArchiveTaskApiService:
         active = self.tasks.get_current_or_recent(case_id)
         if active and active["status"] in {"queued", "running", "cancelling", "blocked"}:
             active = self._reconcile_or_reject_active(active)
-        # create_legacy_preview_source performs the bounded core-source check.
-        # Do not run the same source check twice in one archive-decision request.
+        # create_legacy_preview_source 会执行有界核心来源检查。
+        # 不要在一次归档决策请求中重复运行同一来源检查。
         context_id = self.sources.create_legacy_preview_source(case_id)
         task_id = f"archive-task-{secrets.token_hex(20)}"
         registered = False
@@ -78,9 +78,8 @@ class ArchiveTaskApiService:
                 "created_at": utc_now(),
             })
             task = self.tasks.bind_attempt(task_id, attempt["attempt_id"])
-            # The scheduler only claims process-local eligible IDs. Persist
-            # the context lease after the durable attempt binding exists, then
-            # expose the task through this coordinator's eligible set.
+            # 调度器只认领当前进程中符合条件的 ID。持久尝试绑定存在后，
+            # 再持久化上下文租约，随后通过此协调器的合格集合公开任务。
             if self.runtime is not None:
                 self.runtime.register(task_id, context_id)
                 registered = True
@@ -194,7 +193,7 @@ class ArchiveTaskApiService:
         expected_plan_row_revision: int,
         first_disc_number: str,
     ) -> dict[str, Any]:
-        """Generate the full sequence from the first disc number and persist it."""
+        """根据首个光盘编号生成完整序列并持久化。"""
         shell = self.shells.get(case_id)
         if shell["revision"] != expected_revision:
             raise WorkbenchPersistenceError("REVISION_CONFLICT")

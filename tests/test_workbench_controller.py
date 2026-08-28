@@ -1,4 +1,4 @@
-"""HTTP contract tests for directory-source workbench cases."""
+"""目录来源工作台案件的 HTTP 契约测试。"""
 
 from __future__ import annotations
 

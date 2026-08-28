@@ -1,4 +1,4 @@
-# 🔄 Harness Engineering + OpenSpec 迭代流程
+# 🔄 Harness 工程化 + OpenSpec 迭代流程
 
 > **适用范围**：本指南默认用于 **Level 3 重大变更**。
 > Level 1 和 Level 2 按仓库根目录 `AGENTS.md` 的轻量工作流执行。
@@ -32,7 +32,7 @@ Harness 入口先完成 change 关联与 Level 路由，再加载当前阶段资
 
 ## OpenSpec 命令参考（基于 1.5.0）
 
-### Core Profile（标准工作流）
+### 核心配置（标准工作流）
 
 | 命令 | 作用 | 对应步骤 |
 |------|------|---------|
@@ -41,7 +41,7 @@ Harness 入口先完成 change 关联与 Level 路由，再加载当前阶段资
 | `/opsx:apply` | 按 tasks.md 逐步执行代码实现 | ④ |
 | `/opsx:archive` | 归档变更（合并 specs + 移入 archive） | ⑥ |
 
-### Expanded Profile（按需使用）
+### 扩展配置（按需使用）
 
 | 命令 | 作用 | 使用时机 |
 |------|------|---------|
@@ -300,7 +300,7 @@ Agent 输出分析报告，人工快速审阅确认（详见 `harness/entropy-ru
 ⑥ Level 2 收尾先 sync 并检查 living spec；需要正式归档时必须先通过 sync；Level 3 执行 /harness:archive
 ```
 
-### 场景 C：修 Bug
+### 场景 C：修复缺陷
 
 **Level 1（局部 Bug 修复）**：
 ```

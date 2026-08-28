@@ -1,4 +1,4 @@
-/** Shared request fields for the optional local source authorization boundary. */
+/** 可选本地来源授权边界的共享请求字段。 */
 export interface SourceAuthorizationRequest {
   source_authorization_enabled: boolean
 }
@@ -14,7 +14,7 @@ export interface CaseSubmissionRequest extends SourceAuthorizationRequest {
   local_display_name?: string | null
 }
 
-/** Pathless request used by the trusted local Windows directory picker bridge. */
+/** 可信本地 Windows 目录选择器桥接使用的无路径请求。 */
 export interface CaseDirectorySubmissionRequest extends SourceAuthorizationRequest {
   case_name?: string
   case_summary?: string
@@ -30,7 +30,7 @@ export interface SourceReplacementRequest extends SourceAuthorizationRequest {
   directory_grant_token?: string
 }
 
-/** Legacy directory parsing requests must carry the same explicit mode field. */
+/** 旧版目录解析请求必须携带相同的显式模式字段。 */
 export interface ParseReportDirectoryRequest extends SourceAuthorizationRequest {
   report_dir: string
   compress?: boolean

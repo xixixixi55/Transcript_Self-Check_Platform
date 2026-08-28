@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 文件信息卡片
+// 第 11 层：FE_Components — 文件信息卡片
 // REQ-015: 上传后展示 MD5 哈希值和文件大小（MB）
 import React from 'react'
 import { Card, Descriptions, Typography } from 'antd'

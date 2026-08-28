@@ -1,4 +1,4 @@
-"""Synthetic persistence and HTTP tests for workbench image assets."""
+"""工作台图像资产的合成数据持久化与 HTTP 测试。"""
 
 from __future__ import annotations
 

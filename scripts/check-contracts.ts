@@ -1,18 +1,18 @@
 /**
- * check-contracts.ts — TS↔Python cross-language contract validator
+ * check-contracts.ts — TS↔Python 跨语言契约验证器
  *
- * Compares shared TypeScript type definitions against Python Pydantic models
- * and enum definitions to detect field-level drift before it reaches production.
+ * 比较共享 TypeScript 类型定义与 Python Pydantic 模型及枚举定义，
+ * 在字段级漂移进入生产环境前发现问题。
  *
- * Checked dimensions:
- * 1. Field presence — every TS field MUST have a Python counterpart (and vice versa)
- * 2. Required/optional — optionality markers MUST agree
- * 3. Enum values — literal union / enum member sets MUST be identical
- * 4. Error code membership — ExportGateBlockerCode MUST equal ExportGateCode values
+ * 检查维度：
+ * 1. 字段存在性 — 每个 TS 字段都必须有对应的 Python 字段（反之亦然）
+ * 2. 必选/可选 — 可选性标记必须一致
+ * 3. 枚举值 — 字面量联合/枚举成员集合必须完全相同
+ * 4. 错误码成员 — ExportGateBlockerCode 必须等于 ExportGateCode 的值
  *
- * Usage:
+ * 用法：
  *   npx tsx scripts/check-contracts.ts
- * Exit code: 0 = aligned, 1 = drift detected
+ * 退出码：0 = 一致，1 = 检测到漂移
  */
 
 import * as fs from 'node:fs'
@@ -20,15 +20,15 @@ import * as path from 'node:path'
 
 const ROOT = path.resolve(__dirname, '..')
 
-// ─── Contract pairs: TS source → Python source ──────────────────────────
+// ─── 契约对：TS 源码 → Python 源码 ─────────────────────────────────────
 
 interface ContractPair {
   label: string
   tsFile: string          // relative to ROOT
   pyFile: string          // relative to ROOT
-  /** TS type names whose fields MUST match Python class fields */
+  /** 字段必须与 Python 类字段匹配的 TS 类型名称 */
   modelPairs: { tsType: string; pyClass: string; tsFields?: { name: string; required: boolean }[] }[]
-  /** TS type name → Python Literal name for enum comparison */
+  /** 用于枚举比较的 TS 类型名称 → Python Literal 名称 */
   enumPairs: { tsType: string; pyLiteral: string }[]
 }
 
@@ -45,7 +45,7 @@ const CANONICAL_PAIRS: ContractPair = {
     { tsType: 'SoftwareTool', pyClass: 'SoftwareTool' },
     { tsType: 'PrimarySoftwareCandidate', pyClass: 'PrimarySoftwareCandidate' },
     { tsType: 'PrimarySoftware', pyClass: 'PrimarySoftware' },
-    // CanonicalCaseInfo: top-level TS fields only; nested introduction fields checked via CanonicalCaseIntroduction pair
+    // CanonicalCaseInfo：仅检查 TS 顶层字段；嵌套 introduction 字段通过 CanonicalCaseIntroduction 契约对检查
     {
       tsType: 'CanonicalCaseInfo',
       pyClass: 'CanonicalCaseInfo',
@@ -57,7 +57,7 @@ const CANONICAL_PAIRS: ContractPair = {
         { name: 'introduction', required: true },
       ],
     },
-    // CanonicalCaseIntroduction: TS definition is nested inside CanonicalCaseInfo
+    // CanonicalCaseIntroduction：TS 定义嵌套在 CanonicalCaseInfo 中
     {
       tsType: 'CanonicalCaseIntroduction',
       pyClass: 'CanonicalCaseIntroduction',
@@ -74,7 +74,7 @@ const CANONICAL_PAIRS: ContractPair = {
     { tsType: 'CanonicalInspectionPeriod', pyClass: 'CanonicalInspectionPeriod' },
     { tsType: 'CanonicalInspectionResult', pyClass: 'CanonicalInspectionResult' },
     { tsType: 'CanonicalInspectionDetails', pyClass: 'CanonicalInspectionDetails' },
-    // ProcessStep: TS is inline { step_number: number; content: string }, Python has named model
+    // ProcessStep：TS 使用内联结构，Python 使用命名模型
     {
       tsType: 'ProcessStep',
       pyClass: 'ProcessStep',
@@ -86,7 +86,7 @@ const CANONICAL_PAIRS: ContractPair = {
     { tsType: 'PhotoReference', pyClass: 'PhotoReference' },
     { tsType: 'ArchiveManifestSummary', pyClass: 'ArchiveManifestSummary' },
     { tsType: 'MaterialPhotoGroup', pyClass: 'MaterialPhotoGroup' },
-    // ExtractListColumn + ExtractListTable: TS is inline in CanonicalAttachmentInputs.extract_list
+    // ExtractListColumn + ExtractListTable：TS 内联在 CanonicalAttachmentInputs.extract_list 中
     {
       tsType: 'ExtractListColumn',
       pyClass: 'ExtractListColumn',
@@ -117,15 +117,14 @@ const CANONICAL_PAIRS: ContractPair = {
   ],
 }
 
-// These editable TS inputs may omit fields that the Python canonical serializer
-// always materializes with an empty-string default. The asymmetry is intentional;
-// all other required/optional mismatches remain contract drift.
+// 这些可编辑 TS 输入可以省略 Python 规范序列化器始终以空字符串默认值实体化的字段。
+// 这种不对称是有意设计；其他所有必选/可选不匹配仍属于契约漂移。
 const OPTIONALITY_EXCEPTIONS = new Set([
   'Material.unextractable_reason',
   'InspectorSnapshot.position',
 ])
 
-// ─── Drift reporting ────────────────────────────────────────────────────
+// ─── 漂移报告 ──────────────────────────────────────────────────────────
 
 interface Drift {
   contract: string
@@ -139,7 +138,7 @@ function drift(contract: string, dimension: Drift['dimension'], detail: string) 
   drifts.push({ contract, dimension, detail })
 }
 
-// ─── TS parser — regex-based structural extraction ─────────────────────
+// ─── TS 解析器 — 基于正则表达式的结构提取 ─────────────────────────────
 
 interface TsField {
   name: string
@@ -158,12 +157,12 @@ function parseTsSource(content: string): TsTypeInfo[] {
   const results: TsTypeInfo[] = []
   const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 
-  // Interfaces: match from "export interface Name {" to matching "}" (balanced)
+  // 接口：从 "export interface Name {" 匹配到配对的 "}"（保持平衡）
   const ifaceRe = /export\s+interface\s+(\w+)\s*\{/gs
   for (const m of normalized.matchAll(ifaceRe)) {
     const name = m[1]
     const startIdx = m.index! + m[0].length
-    // Find matching closing brace
+    // 查找配对的右花括号
     let depth = 1
     let endIdx = startIdx
     for (let i = startIdx; i < normalized.length && depth > 0; i++) {
@@ -173,7 +172,7 @@ function parseTsSource(content: string): TsTypeInfo[] {
     }
     const body = normalized.slice(startIdx, endIdx)
     const fields: TsField[] = []
-    // Match field lines: name?: type; or name: type;
+    // 匹配字段行：name?: type; 或 name: type;
     const fieldRe = /^\s*(?:\/\*\*.*?\*\/\s*)?(\w+)(\?)?:\s*(.+?)\s*;?\s*$/gm
     for (const fm of body.matchAll(fieldRe)) {
       fields.push({
@@ -185,22 +184,22 @@ function parseTsSource(content: string): TsTypeInfo[] {
     results.push({ name, kind: 'interface', fields, unionMembers: new Set() })
   }
 
-  // Type aliases (literal unions): handles both single and multi-line forms.
-  // Parsed line-by-line: starts at "export type Name =", ends before next "export" or blank-line+non-indented.
+  // 类型别名（字面量联合）：同时处理单行和多行形式。
+  // 逐行解析：从 "export type Name =" 开始，在下一个 "export" 或“空行 + 非缩进行”前结束。
   const typeStartRe = /export\s+type\s+(\w+)\s*=\s*(.*)/g
   for (const ms of normalized.matchAll(typeStartRe)) {
     const name = ms[1]
     if (results.some(r => r.name === name)) continue  // skip if already captured
     const firstLine = ms[2]
-    // Collect continuation lines (starting with whitespace and |)
+    // 收集续行（以空白和 | 开头）
     const startLineNum = normalized.slice(0, ms.index).split('\n').length
     const allLines = normalized.split('\n')
     let body = firstLine
     for (let j = startLineNum; j < allLines.length; j++) {
       const nextLine = allLines[j].trim()
-      // Stop at next export, comment, blank line followed by non-continuation, or non-whitespace-starting
+      // 遇到下一个 export、注释、后接非续行的空行或非空白开头的行时停止
       if (!nextLine) {
-        // blank line: check if next non-blank line starts with export or class
+        // 空行：检查下一非空行是否以 export 或 class 开头
         let peek = j + 1
         while (peek < allLines.length && !allLines[peek].trim()) peek++
         if (peek < allLines.length) {
@@ -210,7 +209,7 @@ function parseTsSource(content: string): TsTypeInfo[] {
         break
       }
       if (nextLine.startsWith('export ') || nextLine.startsWith('/**')) break
-      // If this is a continuation line (starts with | or is same type definition)
+      // 若当前行是续行（以 | 开头或属于同一类型定义）
       if (allLines[j].startsWith('    ') || allLines[j].startsWith('\t') || allLines[j].startsWith('  |') || allLines[j].startsWith('  ')) {
         body += '\n' + allLines[j]
       } else if (!allLines[j].startsWith(' ') && nextLine && !nextLine.startsWith('|')) {
@@ -227,7 +226,7 @@ function parseTsSource(content: string): TsTypeInfo[] {
     }
   }
 
-  // Enums
+  // 枚举
   const enumRe = /export\s+enum\s+(\w+)\s*\{([^}]*)\}/gs
   for (const m of normalized.matchAll(enumRe)) {
     const name = m[1]
@@ -243,7 +242,7 @@ function parseTsSource(content: string): TsTypeInfo[] {
   return results
 }
 
-// ─── Python parser — regex-based structural extraction ─────────────────
+// ─── Python 解析器 — 基于正则表达式的结构提取 ─────────────────────────
 
 interface PyField {
   name: string
@@ -266,7 +265,7 @@ function parsePySource(content: string): { classes: PyClassInfo[]; literals: PyL
   const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   const lines = normalized.split('\n')
 
-  // Collect class bodies by tracking indent level
+  // 通过跟踪缩进级别收集类体
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const classMatch = line.match(/^class\s+(\w+)\(.*(?:CanonicalBaseModel|BaseModel).*?\):/)
@@ -274,12 +273,12 @@ function parsePySource(content: string): { classes: PyClassInfo[]; literals: PyL
     const className = classMatch[1]
     const fields: PyField[] = []
 
-    // Collect all lines at 4-space indent until dedent or blank line resets
+    // 收集所有 4 空格缩进的行，直至缩进减少或空行重置
     for (let j = i + 1; j < lines.length; j++) {
       const fieldLine = lines[j]
-      // Stop at dedent (non-indented non-empty line)
+      // 缩进减少时停止（无缩进的非空行）
       if (fieldLine.trim() && !fieldLine.startsWith('    ') && !fieldLine.startsWith('\t')) break
-      // Skip blank lines within class body
+      // 跳过类体内的空行
       if (!fieldLine.trim()) continue
 
       const fieldMatch = fieldLine.match(/^\s{4}(\w+):\s*(.+)$/)
@@ -287,20 +286,20 @@ function parsePySource(content: string): { classes: PyClassInfo[]; literals: PyL
       const fieldName = fieldMatch[1]
       const rawAnnotation = fieldMatch[2].trim()
 
-      // Skip dunder/method lines
+      // 跳过双下划线/方法行
       if (fieldName.startsWith('_')) continue
       if (rawAnnotation.includes('def ') || rawAnnotation.includes('class ')) continue
 
-      // Split type from default
+      // 分离类型与默认值
       const eqIdx = rawAnnotation.lastIndexOf(' = ')
       const typeHint = eqIdx >= 0 ? rawAnnotation.slice(0, eqIdx).trim() : rawAnnotation.trim()
       const defaultExpr = eqIdx >= 0 ? rawAnnotation.slice(eqIdx + 3).trim() : ''
       const hasDefault = eqIdx >= 0
       const hasNoneInType = /\bNone\b/.test(typeHint)
-      // Truly optional: type includes None OR default is explicitly None
+      // 真正可选：类型包含 None，或默认值显式为 None
       const isTrulyOptional = hasNoneInType || defaultExpr === 'None'
-      // Required: no default AND type doesn't include None
-      // Also "required" when default is a non-None factory/list/empty-string (semantically present)
+      // 必选：无默认值且类型不含 None
+      // 默认值为非 None 的工厂/列表/空字符串时也视为“必选”（语义上存在）
       const required = !hasDefault || (!isTrulyOptional && defaultExpr !== 'None')
 
       fields.push({ name: fieldName, required, typeHint })
@@ -310,7 +309,7 @@ function parsePySource(content: string): { classes: PyClassInfo[]; literals: PyL
     }
   }
 
-  // Literal type aliases
+  // Literal 类型别名
   const literals: PyLiteralInfo[] = []
   const literalRe = /(\w+)\s*=\s*Literal\s*\[([^\]]+)\]/g
   for (const m of normalized.matchAll(literalRe)) {
@@ -327,7 +326,7 @@ function parsePySource(content: string): { classes: PyClassInfo[]; literals: PyL
   return { classes, literals }
 }
 
-// ─── Python str Enum parser ────────────────────────────────────────────
+// ─── Python str 枚举解析器 ─────────────────────────────────────────────
 
 interface PyEnumInfo {
   name: string
@@ -345,7 +344,7 @@ function parsePyEnum(content: string, className: string): PyEnumInfo | null {
   const memberRe = /^\s{4}(\w+)\s*=\s*(?:\w+\.\w+\s*=\s*)?["']([^"']+)["']/gm
   for (const em of body.matchAll(memberRe)) {
     if (em[1] !== em[2]) {
-      // Check if it's an alias (like ODD_PHOTO_COUNT = ATTACHMENT2_IMAGE_COUNT_ODD)
+      // 检查是否为别名（如 ODD_PHOTO_COUNT = ATTACHMENT2_IMAGE_COUNT_ODD）
       members.set(em[1], em[2])
     } else {
       members.set(em[1], em[1])
@@ -355,7 +354,7 @@ function parsePyEnum(content: string, className: string): PyEnumInfo | null {
   return { name: className, members, bareValues }
 }
 
-// ─── Contract comparison logic ──────────────────────────────────────────
+// ─── 契约比较逻辑 ──────────────────────────────────────────────────────
 
 function compareFieldPresence(
   label: string,
@@ -377,7 +376,7 @@ function compareFieldPresence(
     }
   }
 
-  // Required/optional
+  // 必选/可选
   const tsMap = new Map(tsFields.map(f => [f.name, f.required]))
   const pyMap = new Map(pyFields.map(f => [f.name, f.required]))
   for (const name of tsNames) {
@@ -405,7 +404,7 @@ function compareEnumValues(label: string, tsMembers: Set<string>, pyMembers: Set
   }
 }
 
-// ─── Error code set comparison ──────────────────────────────────────────
+// ─── 错误码集合比较 ────────────────────────────────────────────────────
 
 function compareErrorCodeSets() {
   const tsGatePath = path.join(ROOT, 'packages/shared/types/exportGate.ts')
@@ -416,16 +415,16 @@ function compareErrorCodeSets() {
   const tsContent = fs.readFileSync(tsGatePath, 'utf-8')
   const pyContent = fs.readFileSync(pyGatePath, 'utf-8')
 
-  // Extract TS ExportGateBlockerCode union members
+  // 提取 TS ExportGateBlockerCode 联合成员
   const tsTypes = parseTsSource(tsContent)
   const tsBlocker = tsTypes.find(t => t.name === 'ExportGateBlockerCode')
   const tsCodes = tsBlocker?.unionMembers ?? new Set<string>()
 
-  // Extract Python ExportGateCode enum values
+  // 提取 Python ExportGateCode 枚举值
   const pyEnum = parsePyEnum(pyContent, 'ExportGateCode')
   const pyCodes = pyEnum?.bareValues ?? new Set<string>()
 
-  // For TS, the ExportGateBlockerCode type has the canonical codes
+  // 在 TS 中，ExportGateBlockerCode 类型包含规范错误码
   for (const code of tsCodes) {
     if (!pyCodes.has(code)) {
       drift('error-codes', 'error-code-set', `ExportGateBlockerCode '${code}': in TS type, missing from Python ExportGateCode enum`)
@@ -438,7 +437,7 @@ function compareErrorCodeSets() {
   }
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────
+// ─── 主流程 ────────────────────────────────────────────────────────────
 
 function main() {
   const tsCanonicalPath = path.join(ROOT, CANONICAL_PAIRS.tsFile)
@@ -462,14 +461,14 @@ function main() {
   const pyClassMap = new Map(pyClasses.map(c => [c.name, c]))
   const pyLiteralMap = new Map(pyLiterals.map(l => [l.name, l]))
 
-  // Model pair comparison
+  // 模型对比较
   for (const pair of CANONICAL_PAIRS.modelPairs) {
     const pyClass = pyClassMap.get(pair.pyClass)
     if (!pyClass) {
       drift(CANONICAL_PAIRS.label, 'field-name', `${pair.pyClass}: not found in Python source`)
       continue
     }
-    // Use explicit tsFields override for nested TS interfaces
+    // 对嵌套 TS 接口使用显式 tsFields 覆盖值
     if (pair.tsFields) {
       const tsFieldSet = pair.tsFields
       const pyFieldMap = new Map(pyClass.fields.map(f => [f.name, f.required]))
@@ -481,7 +480,7 @@ function main() {
           drift(CANONICAL_PAIRS.label, 'optionality', `${pair.tsType}.${tsF.name}: TS ${tsF.required ? 'required' : 'optional'}, Python ${pyReq ? 'required' : 'optional'}`)
         }
       }
-      // Check for Python fields not in TS explicit list
+      // 检查未出现在 TS 显式列表中的 Python 字段
       const tsNameSet = new Set(pair.tsFields.map(f => f.name))
       for (const pyF of pyClass.fields) {
         if (!tsNameSet.has(pyF.name)) {
@@ -498,7 +497,7 @@ function main() {
     compareFieldPresence(CANONICAL_PAIRS.label, tsType.fields, pyClass.fields, pair.tsType)
   }
 
-  // Enum pair comparison
+  // 枚举对比较
   for (const pair of CANONICAL_PAIRS.enumPairs) {
     const tsType = tsTypeMap.get(pair.tsType)
     const pyLiteral = pyLiteralMap.get(pair.pyLiteral)
@@ -513,10 +512,10 @@ function main() {
     compareEnumValues(CANONICAL_PAIRS.label, tsType.unionMembers, pyLiteral.members, pair.tsType)
   }
 
-  // Error code cross-check
+  // 错误码交叉检查
   compareErrorCodeSets()
 
-  // Also check DiscSequence model (lives in both canonical_models_service.py and disc_sequence_service.py)
+  // 同时检查 DiscSequence 模型（同时存在于 canonical_models_service.py 和 disc_sequence_service.py）
   const tsDiscPath = path.join(ROOT, 'packages/shared/types/discSequence.ts')
   if (fs.existsSync(tsDiscPath)) {
     const tsDiscTypes = parseTsSource(fs.readFileSync(tsDiscPath, 'utf-8'))
@@ -527,7 +526,7 @@ function main() {
     }
   }
 
-  // Report
+  // 报告
   if (drifts.length === 0) {
     console.log('✅ TS↔Python contract check: no drift detected.\n')
     console.log(`   Checked: ${CANONICAL_PAIRS.modelPairs.length} model pairs, ${CANONICAL_PAIRS.enumPairs.length} enum pairs, error code sets`)

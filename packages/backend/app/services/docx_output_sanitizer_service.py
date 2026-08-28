@@ -1,4 +1,4 @@
-"""Remove template-only comments and metadata from generated DOCX copies."""
+"""从生成的 DOCX 副本中移除仅供模板使用的批注和元数据。"""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ _COLOR_ORDER = _RPR_CHILD_ORDER["color"]
 
 
 def sanitize_generated_docx(path: str | Path) -> None:
-    """Sanitize a saved output atomically, without changing the source template."""
+    """以原子方式清理已保存输出，不更改来源模板。"""
     source = Path(path)
     fd, temporary_name = tempfile.mkstemp(
         prefix=f".{source.stem}.", suffix=".sanitized.tmp", dir=source.parent
@@ -100,7 +100,7 @@ def _sanitize_xml_parts(parts: dict[str, bytes]) -> dict[str, bytes]:
 
 
 def _normalize_font_colors(root: etree._Element) -> None:
-    """Make visible WordprocessingML run colors black in the output copy."""
+    """将输出副本中可见 WordprocessingML 文本段颜色设为黑色。"""
     for rpr in root.iter(_RPR_QN):
         _set_black_color(rpr)
     for run in root.iter(_RUN_QN):

@@ -1,4 +1,4 @@
-"""Layer 22: safe Demo readiness endpoint."""
+"""第 22 层：安全的演示就绪端点。"""
 
 from __future__ import annotations
 

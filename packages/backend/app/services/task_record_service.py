@@ -1,4 +1,4 @@
-"""Task status queries and conservative cancellation/recovery controls."""
+"""任务状态查询和保守取消与恢复控制。"""
 
 from __future__ import annotations
 

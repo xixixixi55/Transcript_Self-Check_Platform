@@ -1,4 +1,4 @@
-"""Generate a Python integrity table that PyInstaller embeds in the launcher."""
+"""生成由 PyInstaller 嵌入启动器的 Python 完整性表。"""
 
 from __future__ import annotations
 

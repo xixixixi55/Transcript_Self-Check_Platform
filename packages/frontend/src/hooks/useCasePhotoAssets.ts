@@ -1,4 +1,4 @@
-// Layer 10: FE_Hooks — persistent case-bound photo upload and recovery.
+// 第 10 层：FE_Hooks — 持久化的案件绑定照片上传与恢复。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { API_ENDPOINTS } from '@biji/shared/constants'
@@ -210,9 +210,9 @@ export function useCasePhotoAssets(options: Options) {
         const completed = completedUploads.get(file.uid)
         return completed ? [completed] : refsRef.current.filter(ref => ref.asset_id === file.uid)
       })
-      // Ant Design can deliver an already queued callback after the upload
-      // promise has completed. If its local uid list resolves to the exact
-      // persisted refs currently shown, it is not a new user edit.
+      // Ant Design 可能会在上传 Promise 完成后送达已排队的回调。
+      // 如果其本地 uid 列表解析后与当前显示的持久化引用完全一致，
+      // 则这不是一次新的用户编辑。
       if (nextFiles.some(file => completedUploads.has(file.uid))
         && JSON.stringify(nextRefs) === JSON.stringify(refsRef.current)) return true
       const restored = nextFiles.map(file => {
@@ -258,8 +258,8 @@ export function useCasePhotoAssets(options: Options) {
       if (!await onAssetRefsChangeRef.current(nextRefs, previousRefs)) throw new Error('DRAFT_SAVE_FAILED')
       return true
     } catch (error) {
-      // The uploaded files remain available for retry, but the compare-and-set
-      // baseline must stay at the last successfully bound photo list.
+      // 已上传文件仍可用于重试，但比较并设置的基线必须保持为
+      // 上一次成功绑定的照片列表。
       refsRef.current = previousRefs
       setFiles(filesRef.current)
       setAssetError(errorMessage(error))

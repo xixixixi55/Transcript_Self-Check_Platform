@@ -25,7 +25,7 @@
 
 ---
 
-## 🟢 Phase 2: Backend Repository 层（Layer 20）
+## 🟢 阶段 2：后端存储层（第 20 层）
 
 - [x] T004 **新增解压函数 + WinRAR 版本检测**
   - 文件：`packages/backend/app/repository/file_storage.py`（修改）
@@ -50,7 +50,7 @@
   - 文件：`tests/test_file_storage.py`（修改）
   - 覆盖场景：
     - .zip 解压 → 文件结构正确
-    - .rar 解压 → 调用 WinRAR（skip if WinRAR not available）
+    - .rar 解压 → 调用 WinRAR（如 WinRAR 不可用则跳过）
     - 解压损坏文件 → 抛出 ValueError
     - create_rar skip=True → 返回空 rar_info
     - detect_winrar_version → 返回版本字符串或 None
@@ -59,7 +59,7 @@
 
 ---
 
-## 🟡 Phase 3: Backend Services 层（Layer 21）
+## 🟡 阶段 3：后端服务层（第 21 层）
 
 - [x] T007 **修改 report_parser_service — compress 参数 + 动态 software_tools**
   - 文件：`packages/backend/app/services/report_parser_service.py`（修改）
@@ -96,14 +96,14 @@
     - 文件夹 + compress=True → rar_info 非 null，software_tools 含 WinRAR，不含 Hash
     - 文件夹 + compress=False → rar_info 为 null，software_tools 不含 WinRAR
     - parse_from_archive(.zip) → 正确解析，rar_info 来自压缩包，software_tools 不含 WinRAR
-    - parse_from_archive(.rar) → 同上，software_tools 含 WinRAR（skip if WinRAR not available）
+    - parse_from_archive(.rar) → 同上，software_tools 含 WinRAR（如 WinRAR 不可用则跳过）
     - document_builder 输出不包含 "Hash" 工具
   - 依赖：T007, T007a
   - 验证：`python -m pytest tests/test_report_parser_service.py -v`
 
 ---
 
-## 🟠 Phase 4: Backend Controller 层（Layer 22）
+## 🟠 阶段 4：后端控制器层（第 22 层）
 
 - [x] T009 **修改 record_controller 解析端点**
   - 文件：`packages/backend/app/controllers/record_controller.py`（修改）
@@ -133,7 +133,7 @@
 
 ---
 
-## 🔴 Phase 5: Frontend Hooks 层（Layer 10）
+## 🔴 阶段 5：前端 Hooks 层（第 10 层）
 
 - [x] T011 **修改 useReportParser Hook**
   - 文件：`packages/frontend/src/hooks/useReportParser.ts`（修改）
@@ -148,19 +148,19 @@
   - 文件：`packages/frontend/src/hooks/useReportParser.test.ts`（修改）
   - 覆盖场景：
     - parseReport 默认 compress=true
-    - parseReport compress=false
+    - `parseReport` 的 `compress=false`
     - parseArchive 上传文件
   - 依赖：T011
   - 验证：`pnpm --filter @biji/frontend test`
 
 ---
 
-## 🟣 Phase 6: Frontend Components + Pages 层（Layer 11-12）
+## 🟣 阶段 6：前端组件与页面层（第 11–12 层）
 
 - [x] T013 [P] **新增 FileInfoCard 组件**
   - 文件：`packages/frontend/src/components/FileInfoCard.tsx`（新建）
   - 内容：
-    - Props: `rarInfo: RarInfo | null`
+    - 属性：`rarInfo: RarInfo | null`
     - rarInfo 不为 null：展示卡片，标题"文件信息"，内容为 MD5 + 文件大小
     - rarInfo 为 null：展示灰色文字"未生成压缩文件"
     - 文件大小自动格式化（≥1MB 显示 MB，<1MB 显示 KB）

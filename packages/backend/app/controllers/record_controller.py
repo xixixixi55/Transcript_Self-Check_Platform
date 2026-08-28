@@ -1,4 +1,4 @@
-"""Layer 22: report parse and DOCX export Controller."""
+"""第 22 层：报告解析和 DOCX 导出控制器。"""
 import os, shutil, tempfile
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
@@ -139,7 +139,7 @@ async def parse_report_endpoint(
     except HTTPException:
         raise
     except Exception as error:
-        # Keep local paths, case data, and parser stack details inside the server.
+        # 将本地路径、案件数据和解析器堆栈详情保留在服务器内部。
         raise report_parse_http_error(error) from error
 @router.post("/records/export")
 async def export_record_endpoint(
@@ -173,8 +173,8 @@ async def export_record_endpoint(
     attachments = report.setdefault("attachments", {})
     disc_mapping = resolve_case_disc_mapping(case_id)
     if disc_mapping.plan_exists:
-        # A persisted plan is authoritative.  Incomplete/pending mappings must
-        # clear the legacy client field so they cannot bypass the export gate.
+        # 持久化计划是权威来源。不完整/待处理的映射必须清除旧客户端字段，
+        # 以免绕过导出门禁。
         attachments["disc_number"] = disc_mapping.first_disc_number or ""
     disc_result = apply_disc_sequence_to_attachments(attachments)
     uploaded_photos = [photo for photo in photos if photo.filename]

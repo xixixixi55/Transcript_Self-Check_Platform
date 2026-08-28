@@ -1,4 +1,4 @@
-"""Layer 22: resolve the persisted case template for formal export."""
+"""第 22 层：为正式导出解析持久化案件模板。"""
 
 from __future__ import annotations
 
@@ -15,14 +15,12 @@ def resolve_case_template_context(
     allow_attachment2_revision_drift: bool = False,
     submitted_report: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    """Return generator dependencies without trusting client template metadata.
+    """返回生成器依赖，不信任客户端模板元数据。
 
-    ``require_current_revision`` only guards against exporting a stale draft
-    (the caller passes the draft revision the client last saw).  The unified
-    export flow keeps the optimistic concurrency check on the case shell inside
-    ``archive_export_service.export_bundle`` and must not also require the shell
-    revision to equal the independent draft revision, which legitimately
-    diverges across lifecycle transitions.
+    `require_current_revision` 仅用于防止导出过期草稿（调用方传入客户端最后看到的
+    草稿修订号）。统一导出流程在 `archive_export_service.export_bundle` 内保留案件外壳的
+    乐观并发检查，不能再要求外壳修订号等于独立的草稿修订号，因为二者会在生命周期
+    转换期间合理分离。
     """
     if not case_id:
         if case_revision is not None:
@@ -58,7 +56,7 @@ def resolve_case_template_context(
 
 
 def _differs_only_in_attachment2(current: object, submitted: object) -> bool:
-    """Allow a late photo binding without weakening ordinary draft CAS."""
+    """允许后期绑定照片，同时不削弱普通草稿 CAS。"""
     if not isinstance(current, dict) or not isinstance(submitted, dict):
         return False
 
@@ -84,7 +82,7 @@ def _differs_only_in_attachment2(current: object, submitted: object) -> bool:
 
 
 def resolve_case_disc_mapping(case_id: str) -> DiscMappingState:
-    """Resolve plan presence and its authoritative mapping for case export."""
+    """为案件导出解析计划是否存在及其权威映射。"""
     if not case_id:
         return DiscMappingState(plan_exists=False, first_disc_number=None)
     services = get_workbench_services()
@@ -92,7 +90,7 @@ def resolve_case_disc_mapping(case_id: str) -> DiscMappingState:
 
 
 def resolve_case_archive_manifest(case_id: str) -> dict[str, object] | None:
-    """Return the unified-export manifest projection for a persisted case."""
+    """返回持久化案件的统一导出 Manifest 投影。"""
     if not case_id:
         return None
     services = get_workbench_services()

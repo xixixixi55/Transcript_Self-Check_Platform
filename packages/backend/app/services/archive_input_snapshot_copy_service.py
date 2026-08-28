@@ -1,8 +1,7 @@
-"""Copy-and-seal checks for task-bound archive input snapshots.
+"""任务绑定归档输入快照的复制和密封检查。
 
-Input sealing uses metadata (path + size + mtime) identities only; the
-per-file content hashes formerly written into the snapshot manifest are no
-longer computed, so archiving never re-reads multi-gigabyte source content.
+输入密封仅使用元数据（路径、大小和 mtime）标识；不再计算过去写入快照 Manifest 的
+逐文件内容哈希，因此归档绝不会重新读取数 GB 的来源内容。
 """
 
 from __future__ import annotations
@@ -24,11 +23,11 @@ _DEFAULT_COPY_WORKERS = 4
 
 
 def copy_worker_count() -> int:
-    """Parallel snapshot copy workers.
+    """并行快照复制工作进程。
 
-    Benchmark (many small files): removing per-file fsync is ~3.6x single
-    thread; SSD peaks near 8 threads, HDD seek contention is expected around
-    2-4. The default 4 is the HDD/SSD compromise; deployments can override.
+    基准测试（许多小文件）：移除逐文件 fsync 后速度约为单线程的 3.6 倍；SSD 在约 8 个
+    线程时达到峰值，HDD 预计在 2 至 4 个线程时出现寻道竞争。默认值 4 是 HDD/SSD 的
+    折中方案；部署可以覆盖。
     """
     raw = os.environ.get("BIJI_ARCHIVE_COPY_WORKERS")
     if raw is None:
@@ -74,7 +73,7 @@ def copy_inventory(
 
 
 def _copy_one(item: InputFileSnapshot, temporary: Path) -> None:
-    """Copy a single inventory file and restore its modified time."""
+    """复制单个清单文件并恢复其修改时间。"""
     try:
         destination = safe_child(temporary, item.relative_path)
         copy_file(item.absolute_path, destination)
@@ -100,7 +99,7 @@ def copy_file(source: Path, destination: Path) -> None:
 
 
 def assert_source_matches(inventory: InputInventory, evidence: list[dict[str, Any]]) -> None:
-    """Close the copy-to-seal window before WinRAR may see the snapshot."""
+    """在 WinRAR 可能看到快照前关闭复制到密封窗口。"""
     current = build_input_inventory(
         inventory.source_root, output_root=inventory.output_root, check_readability=True,
     )

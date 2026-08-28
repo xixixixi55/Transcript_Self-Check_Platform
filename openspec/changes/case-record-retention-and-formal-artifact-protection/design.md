@@ -1,9 +1,9 @@
 # Design: 案件记录保留与正式产物保护
 
-## Planning Status
+## 规划状态
 
 - 状态：`Spec frozen / Planning Review passed`。
-- Review：`Phase 5 Final Spec Freeze Review`。
+- 审查：`第五阶段最终规格冻结审查`。
 - 基线：`8d6800417deec09003c0a304340b8ba8c7037a3f`。
 - 结果：`PASS`。C-01、C-02、C-03 及 H-01–H-05 全部关闭，无 Critical、High 或阻断性 Medium。
 - 审查范围：proposal、design、tasks、4 组 delta specs；v10 schema/source/snapshot/publication/Word 事实；living specs；相关 active changes 的直接冲突。
@@ -12,17 +12,17 @@
 - 规划结论：允许提交 Phase 5 立项包，Planning Review 到此终止。PASS 只批准规划基线，不表示实现完成；Phase 5A 开始前必须先执行 active change/schema overlap gate 和当前 v10 事实复核，不得绕过 tasks 批量实现。
 - 当前实施状态：Slice 5A-1 foundation 已完成并通过定向验证；后续 Phase 5B–5G 任务仍未开始，且本状态不改变已冻结的公共范围或 Review gate。
 
-## Phase 5A Pre-implementation Gate
+## 第 5A 阶段实现前门控
 
-### Gate record
+### 门控记录
 
-- Gate：`Phase 5A pre-implementation overlap gate and v10 fact verification`。
+- 门控：`第 5A 阶段实现前重叠门控和 v10 事实验证`。
 - 对应任务：现有 `1.1 T024`；本节不新增任务编号。
 - 审查基线：`3edcd2c41b732efbb8d264798e2c3d980be33e5a`。
 - 结果：`PASS`。active change/schema overlap、publication/Word authority overlap、retention policy overlap 和 v10 事实核对均完成；没有发现需要修改冻结公共合同的直接冲突。
 - 本 Gate 只允许进入 Slice 5A-1 的实现准备，不表示 v11 migration、publication revalidation、Word artifact、Coordinator、preview、清理、API/UI 或测试已经实现。
 
-### Active change overlap audit
+### 活跃变更重叠审计
 
 | Active change | 文件/合同交集 | 实际冲突结论 | 实施顺序/阻断 |
 |---|---|---|---|
@@ -35,7 +35,7 @@
 
 当前实际核对的其他 active change 包括 `audit-edit-enhancement`、`demo-readiness-and-source-guidance`、`docx-vml-pagination`、`export-name-and-datetime-controls`、`preview-export-correction`、`report-request-liveness-fix`、`review-page-modern-government-ui`、`support-legacy-and-new-report-formats`、`template-2026` 和 `upload-compression-toggle-fix`。没有任何一个明确占用 v11、定义另一套 retention policy durable authority、替换 `archive_publish_intents`，或要求 Canonical/Shadow 进入 Phase 5 正式输出链路。
 
-### v10 fact verification baseline
+### v10 事实验证基线
 
 | Area | 当前实现事实 | 对 Slice 5A-1 的含义 |
 |---|---|---|
@@ -48,7 +48,7 @@
 
 `normalize_utc()` 已要求 timezone-aware 输入并归一化为 UTC；当前 Word 文件名仍使用展示用途的本地 `datetime.now()`，它不作为 Phase 5 持久化或 retention 事实。v10 与冻结设计之间的缺口（v11 对象、`publication_verified_at`、Word durable artifact、snapshot row DELETE）均已有对应实现任务，不构成当前 foundation slice 的实质 migration 冲突。
 
-### Slice 5A-1 boundary
+### 切片 5A-1 边界
 
 允许的首批实现是共享合同与 schema v11 migration foundation：
 
@@ -59,13 +59,13 @@
 
 本轮不启动 Scheduler/Coordinator、enforce、preview 扫描、实际清理/删除、历史 publication 自动 verified、Word 生成或持久化、清理执行 API、公共 UI/API route、完整测试/Harness/构建或人工验收。Slice 5A-1 完成并定向验证后，才按 tasks 进入后续 Phase 5B/5C。
 
-### Slice 5A-1 implementation record
+### 切片 5A-1 实现记录
 
 - 已完成：SharedTypes/constants/UTC utility 与 retention 配置解析合同；v10→v11 单事务 migration；四个 Phase 5 durable 对象；`case_shells`、`source_records`、`task_records` 和 `archive_publish_intents.publication_verified_at` foundation 字段；source FK rebuild、索引/唯一约束、`foreign_key_check`；policy/retention/cleanup-run/formal-Word repository 的安全基础读写。
 - 已验证：fresh v11、v10 fixture upgrade、旧版本拒绝、重复初始化幂等、migration rollback/FK、历史 publication 验证时间保持 `NULL`、初始 policy `disabled`、active cleanup run 唯一约束与 claim CAS、公共 safe projection，以及既有 backend 回归。
 - 明确未实现：自动 revalidation、Word 文件持久化/下载、Coordinator/preview/enforce、任何 records/files cleanup、清理执行 API、工作台 UI、E2E/Harness/人工验收和后续 Review/archive。
 
-## Context
+## 背景
 
 Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢复的单机持久化模型。当前 SQLite schema 为 v10；案件包含 CaseShell、CaseDraft、SourceRecord、TaskRecord、编辑租约和 revision；归档包含 sealed input snapshot、ArchiveAttempt、ArchivePlan、publish intent/fence、publication generation、Manifest/index、RAR/分卷、Word 和安全下载/复用门控。现有 Scheduler/Worker/Coordinator 已具备 ownership、lease、CAS、取消、重试、启动恢复和有界停止。
 
@@ -73,9 +73,9 @@ Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢�
 
 本 design 冻结：清理案件工作数据不等于删除正式产物；正式 publication authority 不建立第二套竞争事实源；正式 Word 通过新增 durable artifact 事实独立保留；清理后的公共访问使用稳定的 `case_id`、`publication_id` 和 `word_artifact_id`。
 
-## Goals / Non-Goals
+## 目标/非目标
 
-### Goals
+### 目标
 
 - 只清理明确归属于目标案件、且不再被运行流程需要的工作数据。
 - 保持现有 publication durable facts 为 RAR/Manifest/MD5 的唯一权威。
@@ -83,14 +83,14 @@ Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢�
 - 把保留资格、清理阶段、claim、失败、恢复和审计写入 SQLite durable state。
 - 在 v10→v11 migration、Windows 文件系统和现有 archive/Word/autosave 并发边界上形成可执行合同。
 
-### Non-Goals
+### 非目标
 
 - 不提供由 retention 自动清理调用的正式 RAR、分卷、Manifest、MD5、Word、publication generation 或正式 publication authority 删除 API；显式工作台 DELETE 属于独立变更单。
 - 不删除原始授权来源目录，不使用目录名、文件名、索引缺失或路径相似性推断 ownership。
 - 不实现多实例共享 SQLite/输出根、多节点、高可用、远程数据库或自动 undelete。
 - 不让 Canonical 进入正式链路，不恢复 Shadow，不处理 TD-3 至 TD-6。
 
-## Decisions
+## 决策
 
 ### 1. 一个业务 change，按安全依赖分阶段
 
@@ -131,7 +131,7 @@ Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢�
 
 清理后的访问不得依赖 `archive_context_id`、进程内 runtime store、TTL context、已删除 `case_draft.report_json`、普通任务 payload、派生 JSON index 或客户端路径。现有 task/context 路径可以继续服务未清理案件的兼容行为，但不得成为 cleaned case 的唯一正式入口。
 
-#### 3.3 正式 Word durable artifact
+#### 3.3 正式 Word 持久产物
 
 成功 Word 导出必须在清理功能启用前完成以下 durable 链路：最终 Word 文件写入受控正式输出根，并在 SQLite 的 `formal_word_artifacts` 记录以下字段：
 
@@ -171,7 +171,7 @@ Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢�
 | `case_cleanup_runs` | `NEW` | run identity、deployment/case、policy/case revision、owner/claim token、lease expiry、fence epoch、phase、retry、file result、error/result、timestamps | 同一 deployment/case 最多一个 active run；claim 使用 SQLite CAS | file/DB 非原子步骤以 phase/result 表示；不能把 partial failure 写成 succeeded |
 | `formal_word_artifacts` | `NEW` | Word artifact identity、publication/case/deployment、relative path、digest、size、Manifest digest、template identity/version、generated/verified time、status | `word_artifact_id` 唯一；publication 必须是 verified authority | 成功导出后先持久化并验证；清理不触碰；下载再次验证物理文件和 publication |
 
-#### 4.1 v10 source reference/FK 与 source tombstone 决策
+#### 4.1 v10 来源引用/FK 与来源墓碑决策
 
 当前 v10 的 source reference/FK 清单必须完整覆盖以下关系：
 
@@ -206,7 +206,7 @@ Phase 1–4 已把案件工作台和正式归档从页面内存迁移到可恢�
 
 任一步数据库失败时整个 SQLite transaction 回滚；如果此前 snapshot/其他工作文件已经安全删除，cleanup run 保持 `work_files_cleaned` 或 `failed_retryable`，重启按 durable run facts 验证文件状态后恢复，不重新删除未知路径，也不触碰正式输出。
 
-### 5. Retention anchor 和资格
+### 5. 保留期锚点和资格
 
 #### 5.1 Anchor 的 durable 来源
 
@@ -244,7 +244,7 @@ v10→v11 migration 不安全回填 `publication_verified_at`，所有既有 pub
 
 默认保留 30 天，等于连续 720 小时；`expires_at_utc` 必须使用 UTC aware timestamp 加 `retention_days × 24 hours` 计算，不能按无时区本地文本比较。合法范围为 1–3650 天；禁用使用 policy mode，不使用 0、负数或其他魔法值。Cancelled、failed、interrupted、failed_retryable、从未成功正式输出或恢复中的案件默认不得由定时 Coordinator 自动删除。
 
-#### 5.2 Eligibility predicate
+#### 5.2 资格谓词
 
 自动候选必须同时满足：案件处于允许清理的终态；不存在 queued/running/cancel-requested/interrupted/retryable 或恢复中任务；不存在有效 edit lease；不存在未完成 publication；RAR/Manifest/MD5/Word 完整且验证通过；不属于未导出或导出失败待处理案件；retention 已到期；deployment/case/task/asset ownership 可证明；SQLite facts 与物理文件一致；没有 active cleanup run。状态不明、Manifest 不一致、authority/ownership 缺失或未来时间一律 fail-closed。
 
@@ -255,16 +255,16 @@ Preview/dry-run 使用版本化 policy predicate，稳定按 case ID 排序，�
 本期没有可靠的用户、角色或人员级认证授权模型，因此不提供 retention-specific 公共逐案件清理执行 API、没有实际身份基础的人员级执行合同或 force-delete。显式工作台 DELETE 由独立变更单负责确认和平台受控路径边界。公共 UI/API 只允许：
 
 - retention 状态、资格和 blocker 查询；
-- preview/dry-run；
+- 预览/试运行；
 - cleanup run 状态、进度、失败和恢复信息查询；
 - 清理后按 `case_id` 查询正式产物安全投影；
 - 按 `publication_id`/`word_artifact_id` 进入既有验证/下载门控。
 
 真正删除只由 deployment policy 为 `enforce` 的 Coordinator 执行。客户端不提交路径、表名、删除类别或文件列表。若未来出现人员级人工执行需求，必须另建 Level 3 change。
 
-### 7. Cleanup phase、claim 和并发
+### 7. 清理阶段、认领和并发
 
-#### 7.1 Durable run identity and state
+#### 7.1 持久运行标识和状态
 
 每个 `case_cleanup_runs` 至少绑定 `cleanup_run_id`、deployment/case、policy revision、plan/claim 时的 case revision、owner instance、claim token、lease expiry、fence epoch、current phase、retry count、file step result、result/error code 和 timestamps。同一 deployment/case 在任一时刻最多一个 active run，使用 SQLite partial unique index/CAS 保证。
 
@@ -287,7 +287,7 @@ cleanup active 时，autosave、新 parse/archive/cleanup task、archive retry�
 
 文件删除先于 SQLite 工作记录清理。若文件已删除而 DB 事务未提交，保留数据库工作事实，状态为 `work_files_cleaned`/`partial_failure`/`failed_retryable`，重启从 durable phase 恢复，不重新删除未知路径。取消只停止后续候选并记录已完成安全步骤；不能在有界收尾前标记成功。SQLite records 清理必须单事务整体提交或回滚，正式产物始终不受影响。
 
-### 8. Scheduler/Coordinator
+### 8. 调度器/协调器
 
 策略表固定为 `case_retention_policies`，模式固定为：
 
@@ -361,7 +361,7 @@ Legacy `/records/*` 仍是唯一正式输出兼容入口；未清理案件可保
 
 备份必须成组保存 deployment-scoped SQLite、正式 RAR/Manifest/MD5/Word、approved template、受控 assets、policy 和 authority/audit。恢复使用匹配 deployment/schema/output root/template，恢复后重建并复核派生 index，拒绝孤立文件自动变可信。cleanup log 只记录稳定阶段、原因、数量、摘要和诊断，不记录路径/token/完整 payload；容量统计按 deployment、工作数据类别和正式保留类别分开。
 
-## Active Change Dependency Matrix
+## 活跃变更依赖矩阵
 
 | Active change | 文件/合同交集 | 实施先后和 gate |
 |---|---|---|
@@ -374,7 +374,7 @@ Legacy `/records/*` 仍是唯一正式输出兼容入口；未清理案件可保
 
 潜在文件交集本身不自动拒绝；公共 authority、Word durable fact、schema version、Legacy/Canonical/Shadow 边界若发生冲突，必须先完成对应 gate。
 
-## Implementation Non-Negotiables
+## 实现不可妥协项
 
 以下是实现时可选的内部类名、repository 文件名和 route 具体路径，但不得重新打开已冻结的业务语义：
 

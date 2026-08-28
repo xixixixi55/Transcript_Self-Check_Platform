@@ -28,7 +28,7 @@ def client():
     from app.controllers import record_controller
     from app.services.archive_authorization_service import ArchiveAuthorizationService
 
-    # The test root is explicit configuration, mirroring BIJI_ALLOWED_INPUT_ROOTS.
+    # 测试根目录是显式配置，与 BIJI_ALLOWED_INPUT_ROOTS 对应。
     test_authorization = ArchiveAuthorizationService(
         tempfile.gettempdir(), record_controller.OUTPUT_BASE,
     )

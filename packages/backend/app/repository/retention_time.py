@@ -1,4 +1,4 @@
-"""Pure UTC and expiry rules shared by later retention services."""
+"""后续保留服务共享的纯 UTC 和到期规则。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .workbench_errors import WorkbenchPersistenceError
 
 
 def trusted_utc_timestamp(value: str, *, now: datetime | None = None) -> str:
-    """Normalize a timezone-aware UTC value and reject excessive future skew."""
+    """规范化带时区的 UTC 值，并拒绝过大的未来偏差。"""
     parsed = _parse_utc(value)
     reference = now or datetime.now(timezone.utc)
     if reference.tzinfo is None:
@@ -27,7 +27,7 @@ def trusted_utc_timestamp(value: str, *, now: datetime | None = None) -> str:
 def expires_at_utc(
     anchor: str, retention_days: int, *, now: datetime | None = None
 ) -> str:
-    """Calculate a continuous-hour expiry from an aware UTC anchor."""
+    """根据带时区的 UTC 锚点计算连续小时到期时间。"""
     if isinstance(retention_days, bool) or not isinstance(retention_days, int):
         raise WorkbenchPersistenceError("INVALID_RETENTION_DAYS")
     if not RETENTION_MIN_DAYS <= retention_days <= RETENTION_MAX_DAYS:

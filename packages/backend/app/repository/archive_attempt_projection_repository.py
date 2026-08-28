@@ -1,4 +1,4 @@
-"""Projection boundary that keeps private archive locators out of DTOs."""
+"""防止私有归档定位符进入 DTO 的投影边界。"""
 
 from __future__ import annotations
 

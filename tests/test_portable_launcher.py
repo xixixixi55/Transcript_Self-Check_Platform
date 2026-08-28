@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for the portable launcher lifecycle."""
+"""便携启动器生命周期的 SYNTHETIC 测试。"""
 
 from __future__ import annotations
 

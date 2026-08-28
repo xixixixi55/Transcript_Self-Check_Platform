@@ -1,4 +1,4 @@
-"""Database-backed archive scheduling without a second queue."""
+"""不使用第二队列的数据库支持归档调度。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ class ArchiveTaskClaim:
 
 
 class ArchiveSchedulerService:
-    """Claim eligible persisted tasks in priority/FIFO order."""
+    """按优先级和 FIFO 顺序认领合格的持久任务。"""
 
     def __init__(
         self,

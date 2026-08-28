@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// ─── PROJECT CONFIG (generated from harness.config.yaml) ─────────
+// ─── 项目配置（由 harness.config.yaml 生成） ─────────
 
 /** 源码根目录列表（Monorepo 结构） */
 const ROOT = path.resolve(__dirname, '..')
@@ -142,7 +142,7 @@ const PATH_ALIASES: Record<string, string> = {
   '@biji/shared/': 'packages/shared/',
 }
 
-// ─── END PROJECT CONFIG ──────────────────────────────────────────
+// ─── 项目配置结束 ───────────────────────────────────────────────
 
 interface Violation {
   file: string
@@ -250,7 +250,7 @@ function checkDependencyDirection(filePath: string, content: string, srcDir: str
   return violations
 }
 
-// ─── Python 依赖方向检查 (AST-based) ──────────────────
+// ─── Python 依赖方向检查（基于 AST）──────────────────
 
 /** Python 包名到架构层的映射 */
 const PYTHON_LAYER_FROM_MODULE: Record<string, string> = {

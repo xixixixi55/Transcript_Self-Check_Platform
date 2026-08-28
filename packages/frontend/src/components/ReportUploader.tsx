@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 报告上传组件 (REQ-001)
+// 第 11 层：FE_Components — 报告上传组件（REQ-001）
 import React, { useRef } from 'react'
 import { Button, Space, Typography } from 'antd'
 import { UploadOutlined, FolderOpenOutlined } from '@ant-design/icons'
@@ -40,7 +40,7 @@ export default function ReportUploader({ onUpload, loading }: Props) {
         <input
           ref={inputRef}
           type="file"
-          // @ts-ignore webkitdirectory is non-standard but supported by Chrome
+          // @ts-ignore webkitdirectory 并非标准属性，但 Chrome 支持该属性
           webkitdirectory=""
           directory=""
           style={{ display: 'none' }}

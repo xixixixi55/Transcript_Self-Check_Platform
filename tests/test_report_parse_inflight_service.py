@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for bounded same-directory Parser task sharing."""
+"""有界同目录解析器任务共享的 SYNTHETIC 测试。"""
 
 import os
 import sys

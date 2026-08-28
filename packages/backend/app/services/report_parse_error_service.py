@@ -1,4 +1,4 @@
-"""Safe HTTP error mapping for report parsing boundaries."""
+"""报告解析边界的安全 HTTP 错误映射。"""
 
 from __future__ import annotations
 

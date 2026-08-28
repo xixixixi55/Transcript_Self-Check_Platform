@@ -1,4 +1,4 @@
-# OpenSpec Delta: electronic-inspection-record
+# OpenSpec 差异：electronic-inspection-record
 
 ## MODIFIED Requirements
 
@@ -45,7 +45,7 @@
 #### Scenario: 缺少 durable authority 时 Legacy 也拒绝
 
 - **WHEN** cleaned case 的 publication facts、Manifest、formal Word artifact 或来源完整性事实不完整
-- **THEN** Legacy formal download/export/reuse gate fail closed
+- **THEN** Legacy 正式下载/导出/复用门控以安全失败方式处理
 - **AND** retention cleanup 不通过另一条链路补认或生成正式文件
 
 ### Requirement: REQ-EIR-RET-002: Canonical 和 Shadow 不参与 Phase 5 清理决策
@@ -86,12 +86,12 @@ Canonical MUST remain outside formal output, retention eligibility, cleanup auth
 
 #### Scenario: Legacy 客户端继续使用正式合同
 
-- **WHEN** existing Legacy client submits a supported parse/export request
-- **THEN** request continues to use its existing compatibility contract and Legacy formal chain
-- **AND** it does not create a second retention or formal output fact source
+- **WHEN** 现有 Legacy 客户端提交受支持的解析/导出请求
+- **THEN** 请求继续使用既有兼容合同和 Legacy 正式链路
+- **AND** 不创建第二个保留策略或正式输出事实源
 
 #### Scenario: Legacy 请求携带删除意图被拒绝
 
-- **WHEN** a Legacy request includes a path, cleanup category, formal artifact deletion flag, public execute intent or stale case revision
-- **THEN** backend rejects the unsupported or stale input
-- **AND** no cleanup or formal artifact deletion occurs
+- **WHEN** Legacy 请求包含路径、清理类别、正式产物删除标记、公共执行意图或过时案件修订
+- **THEN** 后端拒绝不受支持或过时的输入
+- **AND** 不发生清理或正式产物删除

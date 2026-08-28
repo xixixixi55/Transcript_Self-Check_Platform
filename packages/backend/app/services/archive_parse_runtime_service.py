@@ -1,4 +1,4 @@
-"""Serialize and briefly reuse uploaded archive parsing by content identity."""
+"""按内容标识串行化并短暂复用上传归档解析。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ MAX_CACHED_ARCHIVE_RESULTS = 8
 
 
 class ArchiveParseRuntime:
-    """Prevent duplicate archive parsing after a client-side timeout."""
+    """防止客户端超时后重复解析归档。"""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()

@@ -55,7 +55,7 @@
 - 只检查显式 checklist 状态，不根据任务标题、源码文件存在性或自然语言推断任务完成。
 - `--change <名称>` 只检查指定变更包；全局检查使用 `npm run verify:docs:strict:all`，不通过隐式缺省参数推断全局范围。
 
-### E-A8: workflow level 与 Level 2 delta（仅严格模式）
+### E-A8：工作流级别与 Level 2 增量（仅严格模式）
 - 活跃变更包的 `tasks.md` 必须显式记录 `workflow_level: 2` 或 `workflow_level: 3`；脚本不根据 proposal/design 是否存在反向猜测级别。
 - Level 2 必须有至少一个 `specs/<capability>/spec.md`，并通过 ADDED/MODIFIED/REMOVED/RENAMED、Requirement、Scenario、WHEN、THEN 的基本结构检查。
 - Level 2 不得使用 `Spec impact: N/A`；没有行为 delta 时应重新判断为 Level 1。

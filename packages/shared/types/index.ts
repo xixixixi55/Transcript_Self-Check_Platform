@@ -1,4 +1,4 @@
-// Layer 0: SharedTypes — 前后端共享的类型定义（实体、DTO、API 契约）
+// 第 0 层：SharedTypes — 前后端共享的类型定义（实体、DTO、API 契约）
 
 import type { InspectorSnapshot, MaterialClassificationStatus, MaterialPhotoGroup, PrimarySoftware } from './canonical'
 import type { HashAlgorithm } from './hash'
@@ -26,8 +26,8 @@ export enum RecordStatus {
 export interface EvidenceItem {
   id: string
   /**
-   * Case-scoped stable evidence identity. Legacy DTOs may omit this during
-   * migration; it is assigned once when a persistent case snapshot is made.
+   * 案件范围的稳定证据标识。迁移期间旧版 DTO 可能省略；
+   * 创建持久案件快照时会一次性分配。
    */
   evidence_id?: string
   device_type: string         // 报告明确的设备类型字段；具体型号单独放在 model
@@ -105,7 +105,7 @@ export interface InspectionResult {
   data_summary: string        // 检出数据分类摘要
   rar_filename: string
   md5_hash: string
-  /** Business hash algorithm. Missing legacy values are interpreted as MD5. */
+  /** 业务哈希算法。缺失的旧版值按 MD5 解释。 */
   hash_algorithm?: HashAlgorithm
   file_size: string
 }
@@ -125,7 +125,7 @@ export interface DocumentNumberTemplate {
 export interface InspectionReport {
   title: string                          // "电子数据检查笔录"
   document_number: string                // "xx电检〔2026〕xx号"
-  /** New-case snapshot used by the review editor; Word still consumes document_number. */
+  /** 审核编辑器使用的新案件快照；Word 仍使用 document_number。 */
   document_number_template?: DocumentNumberTemplate
   case_number?: string                   // 案件编号（从报告解析），用于生成文号
   introduction: {

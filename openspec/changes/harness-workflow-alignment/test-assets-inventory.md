@@ -15,9 +15,9 @@
 
 | 资产组 | 文件 | 收集项 | 测试代码行 | 当前门控 |
 |---|---:|---:|---:|---|
-| Frontend Vitest | 60 | 381 | 7,532 | `test:frontend`、`npm test`、`verify:full` |
+| 前端 Vitest | 60 | 381 | 7,532 | `test:frontend`、`npm test`、`verify:full` |
 | Shared Vitest | 4 | 12 | 185 | 未纳入；显式运行 4 文件/12 条通过 |
-| Backend pytest | 103 | 1,219 | 28,010 | `test:backend`、`npm test`、`verify:full` |
+| 后端 pytest | 103 | 1,219 | 28,010 | `test:backend`、`npm test`、`verify:full` |
 | Governance assertions | 1 | 40 个顶层 assert 调用 | 217 | `test:governance`、`verify:quick`、`verify:full` |
 | 合计 | 168 | 1,600 已门控 + 12 未门控 | 35,944 | 见上 |
 
@@ -34,9 +34,9 @@
 
 | 区域 | 生产源码行 | 测试代码行 | 测试/源码比 |
 |---|---:|---:|---:|
-| Frontend | 7,665 | 7,532 | 0.98 |
-| Shared | 3,146 | 185 | 0.06 |
-| Backend | 35,411 | 28,010 | 0.79 |
+| 前端 | 7,665 | 7,532 | 0.98 |
+| 共享 | 3,146 | 185 | 0.06 |
+| 后端 | 35,411 | 28,010 | 0.79 |
 | 全仓上述源码 | 46,222 | 35,944（含治理测试） | 0.78 |
 
 按物理行统计，168 个测试文件的中位数为 146 行；19 个超过 400 行，7 个超过 800 行，2 个超过 1,200 行。最大的维护热点为：
@@ -60,13 +60,13 @@
 
 | 资产域 | 文件 | 收集项 |
 |---|---:|---:|
-| Archive / compression | 29 | 374 |
-| Workbench / record / parsing | 20 | 271 |
-| Reference / policy / API | 19 | 216 |
-| Word / template / attachment | 11 | 199 |
-| Runtime / portable / filesystem | 10 | 63 |
-| Contracts / shadow / governance | 8 | 62 |
-| Retention / cleanup | 6 | 34 |
+| 归档/压缩 | 29 | 374 |
+| 工作台/笔录/解析 | 20 | 271 |
+| 引用/策略/API | 19 | 216 |
+| Word/模板/附件 | 11 | 199 |
+| 运行时/便携版/文件系统 | 10 | 63 |
+| 契约/影子模式/治理 | 8 | 62 |
+| 保留/清理 | 6 | 34 |
 
 基础设施特征：
 
@@ -112,9 +112,9 @@
 
 - Phase1D safety/recovery/remediation 测试链
 - Case cleanup → tombstone 测试 helper
-- Template controller/profile/customization/record generator → legacy report helper
-- Record generator → template filler manifest helper
-- Parse cache lifecycle → cache metadata helper
+- 模板控制器/配置/定制/笔录生成器 → 旧版报告辅助函数
+- 笔录生成器 → 模板填充 Manifest 辅助函数
+- 解析缓存生命周期 → 缓存元数据辅助函数
 
 删除或拆分 provider 测试文件会隐式影响其他测试资产。后续治理前应先把真正共享的数据 builder 与断言 helper 识别出来，避免以测试模块作为公共 API。
 
@@ -166,19 +166,19 @@ Frontend 全量仍为 60 文件/381 条通过；Backend 未受本次 TypeScript 
 
 ## 10. P1 Controller 测试合并记录
 
-### Cross-test import 依赖
+### 跨测试导入依赖
 
 静态核对确认共有 10 个 consumer 测试文件、7 个 provider 测试文件，形成 13 条导入边：
 
 | Provider | Consumer | 被当作公共资产的内容 |
 |---|---|---|
 | `test_phase1d_recovery.py` | `test_archive_second_round_safety.py`、`test_phase1d_fourth_review.py`、`test_phase1d_review_remediation.py` | case/source 常量、database fixture、ready/available helper |
-| `test_phase1d_review_remediation.py` | `test_archive_second_round_safety.py`、`test_phase1d_fourth_review.py` | trusted completion、valid manifest builder |
+| `test_phase1d_review_remediation.py` | `test_archive_second_round_safety.py`、`test_phase1d_fourth_review.py` | 可信完成、有效 Manifest 构造器 |
 | `test_case_tombstone_repository.py` | `test_case_record_cleanup_repository.py` | case/task/source 常量与 `_prepare` |
 | `test_workbench_persistence.py` | `test_phase1d_recovery.py` | `IDENTITY`、`REPORT` |
-| `test_legacy_report_projection_service.py` | `test_record_generator_service.py`、`test_template_customization_service.py`、`test_template_controller.py`、`test_template_profile_service.py` | report builder |
-| `test_template_filler_service.py` | `test_record_generator_service.py` | manifest builder |
-| `test_report_parse_cache_metadata.py` | `test_report_parse_cache_lifecycle.py` | report/cache-file builder |
+| `test_legacy_report_projection_service.py` | `test_record_generator_service.py`、`test_template_customization_service.py`、`test_template_controller.py`、`test_template_profile_service.py` | 报告构造器 |
+| `test_template_filler_service.py` | `test_record_generator_service.py` | Manifest 构造器 |
+| `test_report_parse_cache_metadata.py` | `test_report_parse_cache_lifecycle.py` | 报告/缓存文件构造器 |
 
 本批没有删除或重命名这些 provider，也没有为了整理目录新增测试。后续若治理对应 provider，必须先迁移共享资产，不能把测试模块继续当作隐式公共 API。
 
@@ -253,7 +253,7 @@ Python 架构测试由 9→4 条、真实进程启动由 9→1；与合同检查
 
 Backend 全量收集项由 1,197→1,196，正常权限下结果为 1,193 passed/3 skipped/37 warnings、196.29 秒；加上未变化的 Frontend 381 条，标准总收集项由 1,578→1,577。首次沙箱内全量因默认 LocalAppData SQLite 对沙箱账户只读而失败，同一命令在正常权限下通过，故不计为代码回归。`verify:quick`、scoped strict docs、OpenSpec strict 与 `git diff --check` 均通过。
 
-## 14. P5 Parse-cache 与 case cleanup 支持链合并记录
+## 14. P5 解析缓存与案件清理支持链合并记录
 
 4 个相关套件基线为 25 passed/5.93 秒，并包含 2 条测试模块间导入边。Parse-cache 的 tree builder 已迁入 `synthetic_report_builders.py`，tombstone 常量和完整 setup 已迁入 `case_cleanup_test_support.py`；两者均不参与 pytest 收集。本批相关 cross-test import 由 2→0，全仓由 8→6，剩余 6 条全部属于 Phase1D safety/recovery/remediation 链，本批不触碰。
 

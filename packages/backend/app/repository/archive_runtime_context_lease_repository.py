@@ -1,4 +1,4 @@
-"""Durable short leases for queued process-local archive contexts."""
+"""排队的进程本地归档上下文的持久短租约。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from .workbench_serialization import validate_opaque_id
 def lease_queued_runtime_context(
     database: WorkbenchDatabase, *, task_id: str, context_id: str, expires_at: str,
 ) -> bool:
-    """Renew a context binding without changing the public task revision."""
+    """续订上下文绑定，不更改公开任务修订号。"""
     task_id = validate_opaque_id(task_id)
     context_hash = context_binding_hash(validate_opaque_id(context_id))
     with database.transaction() as connection:
@@ -44,7 +44,7 @@ def interrupt_expired_queued_contexts(
     database: WorkbenchDatabase, *, observed_at: datetime | None = None,
     ownerless_grace_seconds: float = 30.0,
 ) -> list[str]:
-    """Converge expired or never-leased bound tasks after a short grace."""
+    """在短暂宽限期后收敛已过期或从未租用的绑定任务。"""
     observed = observed_at or datetime.now(timezone.utc)
     with database.connect() as connection:
         rows = connection.execute(
@@ -83,7 +83,7 @@ def interrupt_queued_runtime_context(
     expires_before: datetime | None = None,
     require_unleased: bool = False,
 ) -> bool:
-    """Atomically interrupt one unclaimed task after its context is lost."""
+    """上下文丢失后以原子方式中断一个未认领任务。"""
     task_id = validate_opaque_id(task_id)
     now = utc_now()
     with database.transaction() as connection:

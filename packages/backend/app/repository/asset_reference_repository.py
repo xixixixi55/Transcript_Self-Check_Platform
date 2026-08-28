@@ -1,4 +1,4 @@
-"""Opaque asset-reference registry; content remains outside SQLite."""
+"""不透明资产引用注册表；内容保留在 SQLite 之外。"""
 
 from __future__ import annotations
 

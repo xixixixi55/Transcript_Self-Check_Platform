@@ -1,4 +1,4 @@
-"""Internal archive asset records with deliberately safe public projections."""
+"""具有审慎安全公开投影的内部归档资产记录。"""
 
 from __future__ import annotations
 

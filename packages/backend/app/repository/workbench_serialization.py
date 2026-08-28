@@ -1,4 +1,4 @@
-"""Bounded JSON serialization for business DTOs and opaque asset references."""
+"""业务 DTO 和不透明资产引用的有界 JSON 序列化。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Deployment-instance shared defaults with explicit revision and migration state."""
+"""具有显式修订和迁移状态的部署实例共享默认值。"""
 
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ class SharedDefaultsRepository:
     def patch(
         self, values: Mapping[str, Any], expected_revision: int, *, allow_clear: bool = False
     ) -> dict[str, Any]:
-        """Merge explicitly supplied fields, including intentional clears."""
+        """合并明确提供的字段，包括有意清空。"""
         normalized = _normalize_patch(values, allow_clear=allow_clear)
         current = self.get_or_create()
         if not normalized:

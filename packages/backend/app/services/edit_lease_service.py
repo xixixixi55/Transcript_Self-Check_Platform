@@ -1,4 +1,4 @@
-"""Case edit lease orchestration and local-session takeover audit."""
+"""案件编辑租约编排和本地会话接管审计。"""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ class EditLeaseService:
         return self.repository.release(lease_id, lease_token, expected_revision)
 
     def recover_after_restart(self) -> list[str]:
-        """Invalidate leases from the previous process without changing takeover audit semantics."""
+        """使上一进程的租约失效，不改变接管审计语义。"""
         return self.repository.expire_active_after_restart()
 
     def _audit(self, event_type: str, identity: Mapping[str, Any], case_id: str, old_lease_id: str) -> None:

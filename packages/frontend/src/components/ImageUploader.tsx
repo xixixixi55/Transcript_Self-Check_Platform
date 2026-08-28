@@ -1,4 +1,4 @@
-// Layer 11: FE_Components — 附件图片上传组件
+// 第 11 层：FE_Components — 附件图片上传组件
 import React, { useState } from 'react'
 import { Button, Tooltip, Upload } from 'antd'
 import { DownOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'

@@ -1,4 +1,4 @@
-"""Synthetic tests for the persistent report parsing cache."""
+"""持久报告解析缓存的合成数据测试。"""
 
 import json
 import os
@@ -52,7 +52,7 @@ def test_five_entries_are_retained_and_sixth_evicts_oldest(tmp_path):
 
     assert len(list(cache_dir.glob("*.json"))) == 5
     assert parse_with(service, sources[0], cache_dir, calls)["report"]["source"] == "report-0"
-    assert len(calls) == 7  # five initial builds, sixth build, then a miss for evicted first
+    assert len(calls) == 7  # 前五次初始构建、第六次构建，再访问已淘汰的第一项时未命中
 
 
 def test_cache_hit_updates_lru_and_protects_recent_entry(tmp_path):
@@ -69,7 +69,7 @@ def test_cache_hit_updates_lru_and_protects_recent_entry(tmp_path):
     parse_with(service, sources[0], cache_dir, calls)
     before_second_lookup = len(calls)
     parse_with(service, sources[1], cache_dir, calls)
-    assert len(calls) == before_second_lookup + 1  # second entry, not first, was evicted
+    assert len(calls) == before_second_lookup + 1  # 被淘汰的是第二项，而不是第一项
 
 
 def test_same_directory_with_trailing_separator_is_one_entry(tmp_path):
@@ -180,8 +180,8 @@ def test_clear_during_inflight_build_invalidates_result_without_breaking_lock(tm
         release.set()
         assert first.result()["report"]["source"] == source.name
 
-    # Clear invalidates the in-flight result, but the next request owns the
-    # same per-directory lock and rebuilds exactly once after it is released.
+    # 清理操作使执行中的结果失效，但下一请求持有同一个目录级锁，
+    # 并在锁释放后只重建一次。
     assert not list(cache_dir.glob("*.json"))
     parse()
     assert calls == ["built", "built"]

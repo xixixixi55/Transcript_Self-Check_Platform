@@ -1,4 +1,4 @@
-"""Durable evidence binding for an archive attempt."""
+"""归档尝试的持久证据绑定。"""
 
 from __future__ import annotations
 

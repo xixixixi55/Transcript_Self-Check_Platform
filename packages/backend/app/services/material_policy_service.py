@@ -1,4 +1,4 @@
-"""Stage-one material classification and display policy."""
+"""阶段一检材分类和显示策略。"""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def _contains_word(value: str, word: str) -> bool:
 
 
 def classify_material_type(device_type: Any) -> MaterialClassification:
-    """Classify only an explicit report device_type field."""
+    """仅根据明确的报告 device_type 字段分类。"""
 
     value = _normalise_device_type(device_type)
     if not value:
@@ -122,7 +122,7 @@ def _classification_from_report_item(item: Mapping[str, Any]) -> tuple[str, Mate
 
 
 def material_from_legacy_item(item: Mapping[str, Any], index: int) -> Material:
-    """Build canonical material while retaining every source identifier."""
+    """构建规范检材，同时保留每个来源标识符。"""
 
     kind, classification = _classification_from_report_item(item)
     identifiers: list[MaterialIdentifier] = []
@@ -155,7 +155,7 @@ def material_from_legacy_item(item: Mapping[str, Any], index: int) -> Material:
 
 
 def select_display_identifiers(material: Material) -> tuple[MaterialIdentifier, ...]:
-    """Return only identifiers allowed by the already-confirmed material type."""
+    """仅返回已确认检材类型允许的标识符。"""
 
     if (
         material.classification.status not in _CONFIRMED_STATUSES
@@ -183,7 +183,7 @@ def select_display_identifiers(material: Material) -> tuple[MaterialIdentifier, 
 
 
 def reviewed_material_display_name(item: Mapping[str, Any], index: int = 0) -> str | None:
-    """Return a reviewed device name with its confirmed material type appended."""
+    """返回附加已确认检材类型的已审核设备名称。"""
 
     material = material_from_legacy_item(item, index)
     type_label = "手机" if material.type == "phone" else "平板" if material.type == "tablet" else ""
@@ -203,7 +203,7 @@ def reviewed_material_display_name(item: Mapping[str, Any], index: int = 0) -> s
 
 
 def unextractable_reason_text(item: Mapping[str, Any]) -> str:
-    """Return the reviewed Word reason with a legacy-safe fallback."""
+    """返回已审核的 Word 原因，并提供旧版安全回退。"""
 
     return _safe_text(item.get("unextractable_reason")) or "无法提取"
 
@@ -226,7 +226,7 @@ def _contains_material_type(value: str, material_type: str) -> bool:
 
 
 def enrich_report_material_types(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Add optional classification fields without changing legacy parser logic."""
+    """添加可选分类字段，不更改旧版解析器逻辑。"""
 
     enriched = copy.deepcopy(dict(report))
     introduction = enriched.setdefault("introduction", {})

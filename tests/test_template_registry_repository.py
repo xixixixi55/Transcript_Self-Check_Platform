@@ -1,4 +1,4 @@
-"""T018 immutable template registry and approval persistence tests."""
+"""T018 不可变模板注册表与审批持久化测试。"""
 
 from __future__ import annotations
 

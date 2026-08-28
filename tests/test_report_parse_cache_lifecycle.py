@@ -1,4 +1,4 @@
-"""SYNTHETIC tests for Parser cache lifecycle and safety boundaries."""
+"""解析器缓存生命周期与安全边界的 SYNTHETIC 测试。"""
 
 import json
 import os

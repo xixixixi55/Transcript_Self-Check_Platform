@@ -1,4 +1,4 @@
-"""Persistent archive plans with stable slots, replans, and Manifest convergence."""
+"""具有稳定槽位、重新规划和 Manifest 收敛的持久归档计划。"""
 
 from __future__ import annotations
 

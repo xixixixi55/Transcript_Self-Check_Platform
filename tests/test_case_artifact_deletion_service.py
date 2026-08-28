@@ -1,4 +1,4 @@
-"""Synthetic regression coverage for explicit deletion of owned artifacts."""
+"""显式删除自有工件的合成数据回归覆盖测试。"""
 
 from __future__ import annotations
 

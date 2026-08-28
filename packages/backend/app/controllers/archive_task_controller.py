@@ -1,4 +1,4 @@
-"""Layer 22: public archive task, mapping, history, and result endpoints."""
+"""第 22 层：公开归档任务、映射、历史和结果端点。"""
 
 from __future__ import annotations
 
@@ -170,7 +170,7 @@ async def update_archive_mapping_endpoint(case_id: str, body: MappingUpdateReque
 
 @router.post("/workbench/cases/{case_id}/disc-mapping")
 async def map_disc_numbers_endpoint(case_id: str, body: FirstDiscMappingRequest):
-    """Auto-generate the full disc sequence from the first number and map it."""
+    """根据首个编号自动生成完整光盘序列并映射。"""
     try:
         return _envelope(_archive_api().map_disc_numbers(
             case_id, body.expected_revision, body.expected_plan_row_revision,
@@ -182,12 +182,11 @@ async def map_disc_numbers_endpoint(case_id: str, body: FirstDiscMappingRequest)
 
 @router.post("/workbench/cases/{case_id}/export-bundle")
 def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
-    """Export latest Word plus all RAR parts to a picker-authorized path."""
+    """将最新 Word 及所有 RAR 分卷导出到选择器授权的路径。"""
     try:
-        # The unified export is guarded on the case shell revision inside
-        # export_bundle; the template context is resolved fresh so the client
-        # shell revision must not be compared against the independent draft
-        # revision (they legitimately diverge across lifecycle transitions).
+        # 统一导出在 export_bundle 内通过案件外壳版本保护；模板上下文会重新解析，
+        # 因此不得将客户端外壳版本与独立的草稿版本比较
+        #（两者会在生命周期转换过程中合理分离）。
         template_context = resolve_case_template_context(
             case_id, body.expected_revision, require_current_revision=False,
         )
@@ -203,7 +202,7 @@ def unified_export_endpoint(case_id: str, body: UnifiedExportRequest):
 
 @router.post("/workbench/cases/{case_id}/open-export-directory")
 def open_export_directory_endpoint(case_id: str):
-    """Open the case-bound latest successful export directory in Explorer."""
+    """在资源管理器中打开案件绑定的最新成功导出目录。"""
     try:
         return _envelope(_archive_api().open_export_directory(case_id))
     except Exception as error:

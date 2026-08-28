@@ -1,4 +1,4 @@
-"""SYNTHETIC T010 Word handoff regression coverage."""
+"""Word 交接的 SYNTHETIC T010 回归覆盖测试。"""
 
 import os
 import sys
@@ -66,7 +66,7 @@ def test_generator_uses_user_output_filename_when_provided(tmp_path: Path):
         )
     assert Path(generated).name == "用户命名.docx"
 
-    # Path separators and Windows-invalid characters are stripped; .docx ensured.
+    # 移除路径分隔符和 Windows 非法字符，并确保使用 .docx 扩展名。
     with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
         generated = generate_docx(
             build_ordered_report(), output_dir=str(tmp_path), output_filename=r"C:\SYNTHETIC\bad:name",

@@ -1,4 +1,4 @@
-"""Foundation tests for centralized pipeline mode and Export Gate facts."""
+"""集中式流水线模式与导出门控事实的基础测试。"""
 
 import os
 import sys

@@ -1,4 +1,4 @@
-"""Small repository helpers shared by the SQLite workbench repositories."""
+"""SQLite 工作台仓储共享的小型仓储辅助函数。"""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def now_or(value: str | None) -> str:
 def case_shell_values(
     shell: Mapping[str, Any], metadata: Mapping[str, Any] | None,
 ) -> tuple[Any, Any, Any]:
-    """Fill only blank shell labels from parser metadata."""
+    """仅使用解析器元数据填充空白外壳标签。"""
     values = [shell["case_number"], shell["case_name"], shell["case_summary"]]
     incoming = metadata if metadata is not None else {}
     if not isinstance(incoming, Mapping):

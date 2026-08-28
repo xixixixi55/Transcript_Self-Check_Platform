@@ -1,4 +1,4 @@
-# Spec Delta: 可选择哈希算法数据合同
+# 规格增量：可选择哈希算法数据合同
 
 > 基准 Spec: `openspec/specs/data-model.md`
 > 变更类型：MODIFIED

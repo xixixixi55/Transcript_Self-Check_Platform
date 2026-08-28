@@ -1,4 +1,4 @@
-"""SYNTHETIC/TEST coverage for cross-platform archive resource sampling."""
+"""跨平台归档资源采样的 SYNTHETIC/TEST 覆盖测试。"""
 
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ def test_unavailable_io_gate_is_skipped_but_other_admission_gates_remain() -> No
 
 
 def test_scheduler_can_claim_with_unavailable_optional_io_metric(database) -> None:
-    """The scheduler must not turn an optional metric gap into a permanent wait."""
+    """调度器不得因缺少可选指标而永久等待。"""
     from app.repository.archive_task_repository import ArchiveTaskRepository
     from app.services.archive_scheduler_service import ArchiveSchedulerService
 
