@@ -256,6 +256,14 @@
   white-space: nowrap;
 }
 
+.case-workbench-card__updated-at {
+  display: block;
+  margin-top: 8px;
+  color: var(--platform-preview-text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 .case-workbench-card__result {
   display: flex;
   flex-direction: column;
@@ -305,28 +313,6 @@
   color: var(--platform-preview-primary) !important;
   background: var(--platform-preview-primary-soft) !important;
   border-color: var(--platform-preview-primary-soft-strong) !important;
-}
-
-.case-workbench-page__pagination {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 24px;
-}
-
-.case-workbench-page__pagination .ant-pagination-item,
-.case-workbench-page__pagination .ant-pagination-prev,
-.case-workbench-page__pagination .ant-pagination-next {
-  background: var(--platform-preview-surface);
-  border-radius: var(--platform-preview-radius-control);
-  box-shadow: var(--case-workbench-shadow-control);
-}
-
-.case-workbench-page__pagination .ant-pagination-item-active {
-  border-color: var(--platform-preview-primary);
-}
-
-.case-workbench-page__pagination .ant-pagination-item-active a {
-  color: var(--platform-preview-primary);
 }
 
 @media (hover: hover) and (pointer: fine) {

@@ -1,6 +1,6 @@
 // 第 12 层：FE_Pages — 持久化多案件工作台入口。
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Col, Modal, Pagination, Row, Space, Spin, Tooltip, Typography, message } from 'antd'
+import { Alert, Button, Col, Modal, Row, Space, Spin, Tooltip, Typography, message } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import type {
   ArchiveCompletionStatus, ArchiveTaskAction, ArchiveTaskHistory,
@@ -57,10 +57,6 @@ export default function CaseWorkbenchPage() {
   const [exportNameCaseId, setExportNameCaseId] = useState<string | null>(null)
   const exportingCaseIdsRef = useRef(new Set<string>())
   const openingExportCaseIdsRef = useRef(new Set<string>())
-  const pageOffsetRef = useRef(workbench.page.offset)
-  useEffect(() => {
-    pageOffsetRef.current = workbench.page.offset
-  }, [workbench.page.offset])
 
   const reserveExport = (caseId: string): boolean => {
     if (exportingCaseIdsRef.current.has(caseId)) return false
@@ -108,11 +104,8 @@ export default function CaseWorkbenchPage() {
     setActionCaseId(requestedCaseId)
     try {
       await workbench.deleteCase(requestedCaseId)
-      const nextOffset = workbench.page.items.length === 1 && workbench.page.offset > 0
-        ? Math.max(0, workbench.page.offset - CASE_PAGE_SIZE)
-        : workbench.page.offset
       setDeleteCaseId(null)
-      await workbench.loadPage(nextOffset)
+      await workbench.loadPage(0)
       message.success('案件已删除。')
     } catch (error) {
       message.error(resolveWorkbenchError(error).message)
@@ -144,7 +137,7 @@ export default function CaseWorkbenchPage() {
       )
       setSuccessfulExportCaseIds(current => new Set(current).add(shell.case_id))
       message.success(`已导出至：${result.output.export_path}`)
-      await workbench.loadPage(pageOffsetRef.current)
+      await workbench.loadPage(0)
     } catch (error) {
       message.error(resolveWorkbenchError(error).message)
     } finally {
@@ -180,15 +173,7 @@ export default function CaseWorkbenchPage() {
     }
   }
 
-  const total = workbench.page.has_more
-    ? workbench.page.offset + workbench.page.items.length + 1
-    : workbench.page.offset + workbench.page.items.length
   const deleteShell = workbench.page.items.find(item => item.case_id === deleteCaseId)
-  const changePage = (pageNumber: number) => {
-    const nextOffset = (pageNumber - 1) * CASE_PAGE_SIZE
-    pageOffsetRef.current = nextOffset
-    void workbench.loadPage(nextOffset)
-  }
 
   const openExportDirectory = async (caseId: string) => {
     if (openingExportCaseIdsRef.current.has(caseId)) return
@@ -263,7 +248,6 @@ export default function CaseWorkbenchPage() {
           </Row>
         )}
 
-        {total > 0 && <div className="case-workbench-page__pagination"><Pagination current={workbench.page.offset / CASE_PAGE_SIZE + 1} pageSize={CASE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={changePage} /></div>}
       </div>
       <Modal
         open={Boolean(deleteCaseId)}

@@ -224,13 +224,9 @@ export function CaseCard({
       case 'parsing':
         return <div className="case-workbench-card__result"><strong>正在解析报告……</strong></div>
       case 'ready':
-        return (
-          <div className="case-workbench-card__result">
-            <strong>报告解析完成</strong>
-            <span>可以进入案件开始审核和编辑</span>
-            <Text type="secondary">更新于 {displayDate(shell.updated_at)}</Text>
-          </div>
-        )
+        return <Text type="secondary" className="case-workbench-card__updated-at">
+          更新于 {displayDate(shell.updated_at)}
+        </Text>
     }
   }
 
