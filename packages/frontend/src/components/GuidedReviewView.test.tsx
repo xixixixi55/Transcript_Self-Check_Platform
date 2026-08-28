@@ -84,7 +84,7 @@ describe('GuidedReviewView', () => {
     const fullEditorButton = screen.getByRole('button', { name: '完整审核编辑' })
     expect(fullEditorButton.querySelector('.anticon-edit')).toBeTruthy()
     expect(fullEditorButton.classList.contains('ant-btn-primary')).toBe(true)
-    expect(screen.getByRole('button', { name: '返回案件列表' }).querySelector('.anticon-arrow-left')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '返回案件工作台' }).querySelector('.anticon-home')).toBeTruthy()
     expect(pendingButton.getAttribute('aria-controls')).toBe('guided-review-pending-panel')
     expect(summaryButton.getAttribute('aria-controls')).toBe('guided-review-summary-panel')
     fireEvent.click(pendingButton)

@@ -28,6 +28,7 @@ vi.mock('@ant-design/icons', () => {
     LoadingOutlined: Icon,
     MenuFoldOutlined: Icon,
     MenuUnfoldOutlined: Icon,
+    RollbackOutlined: Icon,
     SaveOutlined: Icon,
     SafetyCertificateOutlined: Icon,
     WarningOutlined: Icon,
@@ -229,6 +230,19 @@ describe('review workspace components', () => {
     expect(screen.getByRole('button', { name: '保存当前修改' }).textContent).toBe('')
     expect(screen.getByRole('button', { name: '导出 Word' }).textContent).toBe('')
     expect(screen.getByText('存在未导出修改')).toBeTruthy()
+  })
+
+  it('在完整审核底栏区分返回引导与返回案件工作台', () => {
+    const onReturnToGuided = vi.fn()
+    const onBack = vi.fn()
+    render(<ReviewActionBar status="尚未修改" saveBusy={false} exporting={false}
+      backLabel="返回案件工作台" onReturnToGuided={onReturnToGuided}
+      onSave={vi.fn()} onBack={onBack} onExport={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '返回引导模式' }))
+    fireEvent.click(screen.getByRole('button', { name: '返回案件工作台' }))
+    expect(onReturnToGuided).toHaveBeenCalledOnce()
+    expect(onBack).toHaveBeenCalledOnce()
   })
 
   it('保存状态明确说明当前页面状态而非服务器保存', () => {

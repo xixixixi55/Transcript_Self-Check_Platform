@@ -2,7 +2,7 @@
 import React from 'react'
 import { Button, Card, Dropdown, Tag, Tooltip, Typography } from 'antd'
 import type { MenuProps } from 'antd'
-import { FileTextOutlined, FolderOpenOutlined, MoreOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, FolderOutlined, MoreOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import type {
   ArchiveCompletionStatus, ArchiveTaskAction, ArchiveTaskCardSummary, CaseShell, TaskRecord,
@@ -267,7 +267,7 @@ export function CaseCard({
       title={(
         <span className="case-workbench-card__title" title={shell.case_name}>
           <span className="case-workbench-card__title-icon" aria-hidden="true">
-            <FileTextOutlined />
+            <FolderOutlined />
           </span>
           <span className="case-workbench-card__title-text">{shell.case_name || '案件名称待解析'}</span>
         </span>

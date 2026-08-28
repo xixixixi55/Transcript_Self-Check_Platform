@@ -1,5 +1,5 @@
 import {
-  ArrowLeftOutlined, CheckCircleOutlined, EditOutlined, FileDoneOutlined,
+  CheckCircleOutlined, EditOutlined, FileDoneOutlined, HomeOutlined,
   SafetyCertificateOutlined, UnorderedListOutlined,
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
@@ -238,9 +238,9 @@ export function GuidedReviewView({
               <Button type="primary" shape="circle" size="large" className="guided-review-tools__icon-button" icon={<EditOutlined />}
                 aria-label="完整审核编辑" onClick={onOpenFullEditor} />
             </Tooltip>
-            <Tooltip title="返回案件列表">
-              <Button shape="circle" size="large" className="guided-review-tools__icon-button" icon={<ArrowLeftOutlined />}
-                aria-label="返回案件列表" onClick={onBackToWorkbench} />
+            <Tooltip title="返回案件工作台">
+              <Button shape="circle" size="large" className="guided-review-tools__icon-button" icon={<HomeOutlined />}
+                aria-label="返回案件工作台" onClick={onBackToWorkbench} />
             </Tooltip>
           </div>
           {openPanel === 'pending' && (

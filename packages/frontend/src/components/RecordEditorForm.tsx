@@ -31,6 +31,7 @@ interface Props {
   onExport: () => void
   exporting: boolean
   onBackToUpload: () => void
+  onReturnToGuided?: () => void
   deviceOptions: { label: string; value: string }[]
   availableInspectors?: InspectorLibraryRecord[]
   inspectorLoading?: boolean
@@ -65,6 +66,7 @@ export default function RecordEditorForm({
   onExport,
   exporting,
   onBackToUpload,
+  onReturnToGuided,
   deviceOptions,
   availableInspectors = [],
   inspectorLoading = false,
@@ -156,6 +158,7 @@ export default function RecordEditorForm({
         saveBusy={saveBusy}
         exporting={exporting}
         backLabel={workbenchMode ? '返回案件工作台' : undefined}
+        onReturnToGuided={onReturnToGuided}
         onSave={onSave}
         onBack={onBackToUpload}
         onExport={onExport}

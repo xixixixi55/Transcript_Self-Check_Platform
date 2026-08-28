@@ -1,13 +1,13 @@
 import React from 'react'
 import { Button, Space, Tooltip } from 'antd'
-import { FileWordOutlined, SaveOutlined } from '@ant-design/icons'
+import { FileWordOutlined, HomeOutlined, RollbackOutlined, SaveOutlined } from '@ant-design/icons'
 import type { ReviewPageStatus } from './reviewWorkspaceTypes'
 import { ReviewSaveStatus } from './ReviewSaveStatus'
 
 function RoundedBackIcon() {
   return (
     <svg
-      className="review-action-bar__back-icon"
+      className="rounded-back-icon"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -28,22 +28,36 @@ interface ReviewActionBarProps {
   saveBusy: boolean
   exporting: boolean
   backLabel?: string
+  onReturnToGuided?: () => void
   onSave: () => void
   onBack: () => void
   onExport: () => void
 }
 
-export function ReviewActionBar({ status, saveBusy, exporting, backLabel = '返回重新上传', onSave, onBack, onExport }: ReviewActionBarProps) {
+export function ReviewActionBar({
+  status, saveBusy, exporting, backLabel = '返回重新上传',
+  onReturnToGuided, onSave, onBack, onExport,
+}: ReviewActionBarProps) {
   return (
     <div className="review-action-bar">
       <ReviewSaveStatus status={status} />
       <Space className="review-action-bar__buttons">
+        {onReturnToGuided && <Tooltip title="返回引导模式">
+          <Button
+            shape="circle"
+            size="large"
+            aria-label="返回引导模式"
+            icon={<RoundedBackIcon />}
+            onClick={onReturnToGuided}
+            disabled={exporting}
+          />
+        </Tooltip>}
         <Tooltip title={backLabel}>
           <Button
             shape="circle"
             size="large"
             aria-label={backLabel}
-            icon={<RoundedBackIcon />}
+            icon={backLabel === '返回案件工作台' ? <HomeOutlined /> : <RollbackOutlined />}
             onClick={onBack}
             disabled={exporting}
           />

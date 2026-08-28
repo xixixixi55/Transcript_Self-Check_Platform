@@ -378,7 +378,7 @@ export default function CaseRecordGeneratePage() {
     <>
       <div className={`review-page${reviewMode === 'guided' ? ' review-page--guided' : ''}`}>
         {reviewMode === 'full' && (
-          <ReviewPageHeader report={session.report} status={reviewStatus} onPreview={() => setPreviewOpen(true)} />
+          <ReviewPageHeader report={session.report} onPreview={() => setPreviewOpen(true)} />
         )}
         {reviewMode === 'guided' && currentGuidedAction ? (
           <GuidedReviewView conversationKey={caseId} history={guidedReview.history} currentAction={currentGuidedAction}
@@ -397,16 +397,29 @@ export default function CaseRecordGeneratePage() {
               }}
               onOpenFullEditor={openFullEditor} />
           </GuidedReviewView>
-        ) : reviewMode === 'full' ? <>
-          <div className="review-mode-toolbar">
-            <Button onClick={returnToGuided}>返回引导模式</Button>
-          </div>
+        ) : reviewMode === 'full' ? <div className="review-full-workspace">
           <SourceReselectionPanel required={sourceInvalid} onReselect={session.replaceSource} />
           {sourcePending && <Alert className="case-workbench-page__toolbar" type="warning" showIcon message="报告来源待快速复核" description="可直接选择压缩时机；开始压缩前会快速核对授权路径、报告结构和核心报告文件。" />}
-          {!sourceInvalid && <>
-            <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy} onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
-            <div id={REVIEW_SECTION_IDS.archive} className="review-navigation-target" tabIndex={-1}>{archiveCompletionPanel}</div>
-          </>}
+          {!sourceInvalid && (
+            <section className="review-preflight" aria-labelledby="review-preflight-title">
+              <div className="review-preflight__heading">
+                <div>
+                  <h2 id="review-preflight-title">归档准备</h2>
+                  <p>确认压缩时机与介质编号，不影响下方笔录审核。</p>
+                </div>
+              </div>
+              <div className="review-preflight__items">
+                <div className="review-preflight__item">
+                  <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy}
+                    onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
+                </div>
+                <div id={REVIEW_SECTION_IDS.archive}
+                  className="review-preflight__item review-navigation-target" tabIndex={-1}>
+                  {archiveCompletionPanel}
+                </div>
+              </div>
+            </section>
+          )}
           {leaseMessage && <Alert className="case-workbench-page__toolbar"
             type={session.lease.phase === 'failed' ? 'error' : 'warning'} showIcon message={leaseMessage}
             action={session.lease.phase === 'read_only'
@@ -427,6 +440,7 @@ export default function CaseRecordGeneratePage() {
             onExport={requestExport}
             exporting={exporting || exportPreparing || exportDirectory.busy}
             onBackToUpload={() => { void handleBackToWorkbench() }}
+            onReturnToGuided={returnToGuided}
             deviceOptions={catalogs.deviceOptions}
             availableInspectors={catalogs.inspectors}
             inspectorLoading={catalogs.inspectorLoading}
@@ -447,7 +461,7 @@ export default function CaseRecordGeneratePage() {
             archiveContextId={null}
             archiveResult={session.completedArchive}
           />
-        </> : null}
+        </div> : null}
       </div>
       <WordDownloadNameDialog
         open={downloadNameDialogOpen}

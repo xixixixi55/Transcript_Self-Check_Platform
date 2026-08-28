@@ -29,8 +29,10 @@ vi.mock('@ant-design/icons', () => ({
   EditOutlined: () => null,
   ExclamationCircleOutlined: () => null,
   FileWordOutlined: () => null,
+  HomeOutlined: () => null,
   InfoCircleOutlined: () => null,
   LoadingOutlined: () => null,
+  RollbackOutlined: () => null,
   SaveOutlined: () => null,
   WarningOutlined: () => null,
 }))
