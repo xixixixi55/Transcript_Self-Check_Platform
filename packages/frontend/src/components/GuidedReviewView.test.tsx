@@ -20,6 +20,15 @@ const waitingAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-WAITING', kind: 'waiting', title: '请稍候，正在生成压缩分卷',
   description: '后台任务仍在运行，可继续处理其他待办。',
 }
+const evidenceCompletenessAction: GuidedReviewAction = {
+  id: 'SYNTHETIC-ACTION-EVIDENCE-COMPLETENESS', kind: 'pending_item', title: '请确认检材完整性',
+  description: '请确认检材是否完整。',
+  pendingItem: {
+    id: 'SYNTHETIC-PENDING-EVIDENCE-COMPLETENESS', sectionId: 'review-section-introduction',
+    targetId: 'review-target-evidence-completeness', sectionLabel: '一、绪论', fieldLabel: '检材完整性',
+    reason: '请确认检材是否完整。', severity: 'warning', kind: 'confirmation_required',
+  },
+}
 
 const report: InspectionReport = {
   title: '电子数据检查笔录', document_number: '',
@@ -36,6 +45,35 @@ const report: InspectionReport = {
 }
 
 describe('GuidedReviewView', () => {
+  it('uses icon actions for complete evidence and manual evidence supplementation', () => {
+    const onEvidenceCompletenessChange = vi.fn()
+    const onOpenFullEditor = vi.fn()
+    const updateReport = vi.fn()
+    render(<GuidedReviewCard action={evidenceCompletenessAction} report={report} updateReport={updateReport}
+      readOnly={false} onEvidenceCompletenessChange={onEvidenceCompletenessChange}
+      onOpenFullEditor={onOpenFullEditor} />)
+
+    const completeButton = screen.getByRole('button', { name: '确认检材信息完整' })
+    const incompleteButton = screen.getByRole('button', { name: '检材信息不完整，手工添加检材' })
+    expect(completeButton.querySelector('.anticon-check-circle')).toBeTruthy()
+    expect(incompleteButton.querySelector('.anticon-file-add')).toBeTruthy()
+    expect(completeButton.textContent).toBe('')
+    expect(incompleteButton.textContent).toBe('')
+
+    fireEvent.click(completeButton)
+    expect(onEvidenceCompletenessChange).toHaveBeenCalledWith(true)
+    fireEvent.click(incompleteButton)
+    expect(screen.getByRole('button', { name: '添加检材' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '完成检材补充并确认完整' }).querySelector('.anticon-check-circle')).toBeTruthy()
+    expect(onOpenFullEditor).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '添加检材' }))
+    expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [
+      expect.objectContaining({ evidence_number: '' }),
+    ])
+    expect(onEvidenceCompletenessChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('keeps full history above the current conversation while exposing global review controls', () => {
     const selectAction = vi.fn()
     const updateReport = vi.fn()

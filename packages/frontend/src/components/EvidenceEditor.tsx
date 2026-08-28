@@ -173,7 +173,7 @@ export default function EvidenceEditor({ items, fieldStates, onChange }: Props) 
         </Card>
         </div>
       ))}
-      <Button type="dashed" icon={<PlusOutlined />} onClick={addItem} block>添加检材</Button>
+      <Button type="dashed" icon={<PlusOutlined />} aria-label="添加检材" onClick={addItem} block>添加检材</Button>
     </div>
   )
 }

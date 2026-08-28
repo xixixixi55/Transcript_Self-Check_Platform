@@ -1,9 +1,12 @@
-import { Button, Input } from 'antd'
-import type { InspectionReport } from '@biji/shared/types'
+import { CheckCircleOutlined, FileAddOutlined } from '@ant-design/icons'
+import { Button, Input, Space, Tooltip } from 'antd'
+import { useEffect, useState } from 'react'
+import type { FieldState, InspectionReport } from '@biji/shared/types'
 import type { GuidedReviewAction } from '../hooks/useGuidedReviewCards'
 import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import { DateTimeField } from './DateTimeField'
 import { DocumentNumberEditor } from './DocumentNumberEditor'
+import EvidenceEditor from './EvidenceEditor'
 import { normalizeEntrustPersons } from './ReviewIntroductionSection'
 
 interface Props {
@@ -12,6 +15,7 @@ interface Props {
   updateReport: (path: string, value: unknown) => void
   readOnly: boolean
   specialContent?: React.ReactNode
+  fieldStates?: Record<string, FieldState>
   onEvidenceCompletenessChange?: (confirmed: boolean) => void
   onOpenFullEditor?: (targetId?: string) => void
 }
@@ -64,8 +68,11 @@ function textField(report: InspectionReport, targetId: string): TextField | null
 
 export function GuidedReviewCard({
   action, report, updateReport, readOnly, specialContent,
-  onEvidenceCompletenessChange, onOpenFullEditor,
+  fieldStates, onEvidenceCompletenessChange, onOpenFullEditor,
 }: Props) {
+  const [showEvidenceEditor, setShowEvidenceEditor] = useState(false)
+  useEffect(() => setShowEvidenceEditor(false), [action.id])
+
   if (specialContent) return <div className="guided-review-card__control">{specialContent}</div>
   const pending = action.pendingItem
   if (!pending) return null
@@ -95,9 +102,35 @@ export function GuidedReviewCard({
         onChange={value => updateReport('attachments.burning_date', value)} />
     </fieldset>
   )
+  if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && showEvidenceEditor) return (
+    <div className="guided-review-card__evidence-editor">
+      <fieldset disabled={readOnly} className="guided-review-card__fieldset">
+        <EvidenceEditor items={report.introduction.evidence_list || []} fieldStates={fieldStates}
+          onChange={items => {
+            updateReport('introduction.evidence_list', items)
+            onEvidenceCompletenessChange?.(false)
+          }} />
+      </fieldset>
+      <Tooltip title="完成检材补充并确认完整">
+        <Button type="primary" shape="circle" size="large" disabled={readOnly}
+          icon={<CheckCircleOutlined />} aria-label="完成检材补充并确认完整"
+          onClick={() => onEvidenceCompletenessChange?.(true)} />
+      </Tooltip>
+    </div>
+  )
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness) return (
-    <Button type="primary" disabled={readOnly}
-      onClick={() => onEvidenceCompletenessChange?.(true)}>确认检材信息完整</Button>
+    <Space role="group" aria-label="检材完整性选择" size="middle" className="guided-review-card__choice-actions">
+      <Tooltip title="完整">
+        <Button type="primary" shape="circle" size="large" disabled={readOnly}
+          icon={<CheckCircleOutlined />} aria-label="确认检材信息完整"
+          onClick={() => onEvidenceCompletenessChange?.(true)} />
+      </Tooltip>
+      <Tooltip title="不完整，手工添加检材">
+        <Button shape="circle" size="large" disabled={readOnly}
+          icon={<FileAddOutlined />} aria-label="检材信息不完整，手工添加检材"
+          onClick={() => setShowEvidenceEditor(true)} />
+      </Tooltip>
+    </Space>
   )
 
   const field = textField(report, targetId)

@@ -1779,6 +1779,23 @@
   border: 0;
 }
 
+.guided-review-card__choice-actions .ant-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.guided-review-card__evidence-editor {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.guided-review-card__evidence-editor > .ant-btn {
+  justify-self: end;
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .guided-review-card__field {
   display: grid;
   gap: 6px;

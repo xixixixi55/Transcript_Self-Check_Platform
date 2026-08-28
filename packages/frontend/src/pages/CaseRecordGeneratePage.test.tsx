@@ -164,6 +164,18 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_LEASE(caseId))).toHaveLength(1)
   }, 15000)
 
+  it('keeps the guided conversation open and reuses the manual evidence editor when evidence is incomplete', async () => {
+    renderPage()
+
+    const incompleteButton = await screen.findByRole('button', { name: '检材信息不完整，手工添加检材' })
+    expect(incompleteButton.querySelector('.anticon-file-add')).toBeTruthy()
+    fireEvent.click(incompleteButton)
+
+    expect(screen.getByRole('region', { name: '当前对话' })).toBeTruthy()
+    expect(document.querySelector('.review-editor-form')).toBeNull()
+    expect(screen.getByRole('button', { name: '添加检材' })).toBeTruthy()
+  }, 15000)
+
   it('keeps failed and conflicting edits in the guided shell and exposes the existing recovery operations', async () => {
     rejectSave = true
     const failedView = renderPage()

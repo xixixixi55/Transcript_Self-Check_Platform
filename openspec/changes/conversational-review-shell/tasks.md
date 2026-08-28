@@ -92,6 +92,8 @@ workflow_level: 2
   - 验证：先以组件失败用例区分历史/当前对话 DOM 顺序、默认锚点和两种新增历史位置策略；运行组件定向测试、前端页面测试、类型检查、生产构建、Impeccable 检测、桌面与 390px 实际页面检查、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
 - [x] 6.19 修复文本事项输入首个字符后自动切换的问题：字段继续实时写入现有报告草稿和自动保存，但当前文本事项仅在用户按下非输入法组合态的 Enter 后推进；多行文本保留 Shift+Enter 换行，日期、确认按钮和其他显式操作沿用既有完成语义。
   - 验证：先以 Hook/组件失败用例区分“输入单字符仍停留”“Enter 后推进”“输入法组合态 Enter 不推进”和“Shift+Enter 不推进”；再运行引导定向测试、类型检查、生产构建、Impeccable 检测、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+- [x] 6.20 根据检材完整性反馈提供图标化双向选择：引导卡片同时显示“完整”和“不完整”两个具名图标操作；选择完整继续复用现有确认回调，选择不完整则留在当前对话窗口内展开既有检材编辑器，使用户通过原有“添加检材”能力手工补充，不复制检材状态、保存或编辑逻辑。
+  - 验证：先以组件与页面失败用例区分两个图标、可访问名称、完整确认回调，以及不完整后仍保留当前对话并出现“添加检材”入口；实现后运行引导组件/页面定向测试、类型检查、Impeccable 检测、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
 
 ## 当前状态
 
@@ -203,3 +205,11 @@ workflow_level: 2
 - `text_enter_confirmation_tests: PASS`：`useGuidedReviewCards.test.ts` 9/9、`GuidedReviewView.test.tsx` 5/5、`CaseRecordGeneratePage.test.tsx` 19/19 通过；页面测试保留既有 jsdom `getComputedStyle` 与 React `act` 警告，不影响结果。
 - `text_enter_confirmation_manual_acceptance: N/A`：本次为键盘事件与会话投影状态修复，无新增布局或视觉合同；IME、Shift+Enter、单字符停留、Enter 推进和恢复事项优先级均由可区分的自动化用例覆盖。
 - `text_enter_confirmation_gates: PASS`：前端类型检查、生产构建、Impeccable 检测（0 项）、`npm run verify:quick`、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 全部通过；构建仅保留既有大包提示。
+
+## 2026-08-28 检材完整性双向选择证据
+
+- `evidence_completeness_interaction: PASS`：引导回复区同时提供具名的完整与不完整图标操作；选择不完整保持当前对话挂载并直接展开既有 `EvidenceEditor`，手工添加继续写入同一 `introduction.evidence_list` 并沿用现有完整性确认与自动保存链路。
+- `evidence_completeness_targeted_tests: PASS`：`GuidedReviewView.test.tsx`、`CaseRecordGeneratePage.test.tsx` 与 `StructuredEditors.test.tsx` 共 38/38 通过；新增用例覆盖图标、可访问名称、完整确认回调、不完整后留在当前对话、添加检材更新以及不打开完整审核表单。
+- `evidence_completeness_quality: PASS_WITH_EXISTING_FINDINGS`：TypeScript、`verify:quick`、OpenSpec change strict validate 与 `git diff --check` 通过；Impeccable 单次检测只报告 `reviewWorkspace.css` 中本次差异外的既有侧边强调线与 `width` 过渡告警。
+- `evidence_completeness_manual_acceptance: N/A`：本次图标、44px 操作目标、对话模式保持和内嵌编辑器呈现均由组件/页面 DOM 回归、类型检查与机械检测覆盖；未改变既有检材编辑器的布局或字段交互。
+- `evidence_completeness_browser_visual: N/A`：本地隔离启动时默认工作台数据库为只读，无法在不接触用户现有案件数据的前提下形成合成案件实页；已停止临时服务，不以读取或修改现有案件替代合成验收。

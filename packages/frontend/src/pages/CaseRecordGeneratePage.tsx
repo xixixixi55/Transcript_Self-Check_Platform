@@ -391,6 +391,7 @@ export default function CaseRecordGeneratePage() {
               updateReport={updateReport}
               readOnly={!session.editingEnabled || exportPreparing || exportDirectory.busy || exporting}
               specialContent={guidedSpecialContent}
+              fieldStates={session.draft?.field_states}
               onEvidenceCompletenessChange={confirmed => {
                 session.setEvidenceCompletenessConfirmed(confirmed)
                 if (session.editingEnabled) setReviewStatus('存在未导出修改')
