@@ -7,10 +7,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from .case_workbench_repository import CaseDraftRepository
-from .workbench_database import WorkbenchDatabase, utc_now
-from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
-from .workbench_repository_helpers import json_text
-from .workbench_serialization import validate_opaque_id
+from ..workbench_database import WorkbenchDatabase, utc_now
+from ..workbench_errors import RevisionConflictError, WorkbenchPersistenceError
+from ..workbench_repository_helpers import json_text
+from ..workbench_serialization import validate_opaque_id
 
 
 class CaseTemplateReferenceRepository:

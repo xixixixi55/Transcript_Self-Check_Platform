@@ -4,13 +4,13 @@ import secrets
 import sqlite3
 from collections.abc import Mapping
 from typing import Any
-from .workbench_constants import CASE_TRANSITIONS, TASK_TRANSITIONS
-from .workbench_database import WorkbenchDatabase, utc_now
-from .workbench_errors import WorkbenchPersistenceError
-from .task_recovery_repository import recover_tasks_after_restart
-from .workbench_legacy_report import validate_legacy_report
-from .workbench_repository_helpers import bool_int, case_shell_values, json_text, optional_safe
-from .workbench_serialization import (
+from ..workbench_constants import CASE_TRANSITIONS, TASK_TRANSITIONS
+from ..workbench_database import WorkbenchDatabase, utc_now
+from ..workbench_errors import WorkbenchPersistenceError
+from ..task_recovery_repository import recover_tasks_after_restart
+from ..workbench_legacy_report import validate_legacy_report
+from ..workbench_repository_helpers import bool_int, case_shell_values, json_text, optional_safe
+from ..workbench_serialization import (
     validate_field_states,
     validate_opaque_asset_refs,
     validate_opaque_id,
@@ -19,7 +19,7 @@ from .workbench_serialization import (
 from .case_archive_decision_repository import CaseArchiveDecisionRepository
 from .case_deletion_repository import CaseDeletionRepository
 from .case_workbench_repository import _validate_template_ref
-from .archive.archive_publish_fence_repository import reject_if_active
+from ..archive.archive_publish_fence_repository import reject_if_active
 
 
 def normalize_source_metadata(value: Any) -> dict[str, str | int | float | bool]:

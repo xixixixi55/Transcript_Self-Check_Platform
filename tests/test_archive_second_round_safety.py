@@ -21,7 +21,7 @@ from app.repository.archive.archive_input_repository import (  # noqa: E402
 from app.repository.archive.archive_input_snapshot_repository import (  # noqa: E402
     ArchiveInputSnapshotRepository,
 )
-from app.repository.case_workbench_repository import CaseDraftRepository  # noqa: E402
+from app.repository.case.case_workbench_repository import CaseDraftRepository  # noqa: E402
 from app.repository.archive.archive_manifest_repository import (  # noqa: E402
     ArchiveManifestRepository, ArchiveManifestRepositoryError,
 )

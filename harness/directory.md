@@ -61,7 +61,8 @@
 │   ├── backend/                           # ⚙️ 后端 (FastAPI) — Layer 20-23
 │       └── app/
 │           ├── repository/                # Layer 20: 数据访问
-│           │   └── archive/               #    归档计划、清单、输入快照与发布状态持久化
+│           │   ├── archive/               #    归档计划、清单、输入快照与发布状态持久化
+│           │   └── case/                  #    案件工作台、生命周期、留存与资源持久化
 │           ├── services/                  # Layer 21: 业务逻辑
 │           │   └── archive/               #    归档规划、执行、恢复、发布与运行时协调
 │           ├── controllers/               # Layer 22: 请求处理

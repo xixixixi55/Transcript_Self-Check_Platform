@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
-from ..repository.case_retention_repository import CaseRetentionRepository
+from ..repository.case.case_retention_repository import CaseRetentionRepository
 from ..repository.retention_policy_repository import RetentionPolicyRepository
 from ..repository.retention_time import expires_at_utc
 from ..repository.workbench_database import WorkbenchDatabase, normalize_utc_z

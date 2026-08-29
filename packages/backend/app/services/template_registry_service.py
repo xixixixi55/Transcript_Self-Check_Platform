@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ..repository.case_template_reference_repository import CaseTemplateReferenceRepository
+from ..repository.case.case_template_reference_repository import CaseTemplateReferenceRepository
 from ..repository.template_approval_repository import TemplateApprovalRepository
 from ..repository.template_registry_repository import TemplateRegistryRepository
 from ..repository.shared_defaults_repository import SharedDefaultsRepository

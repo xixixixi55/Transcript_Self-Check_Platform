@@ -16,7 +16,7 @@ from ..repository.local_inspection_environment_repository import LocalInspection
 from ..repository.resource_snapshot_repository import ResourceSnapshotRepository
 from ..repository.template_approval_repository import TemplateApprovalRepository
 from ..repository.template_registry_repository import TemplateRegistryRepository
-from ..repository.case_template_reference_repository import CaseTemplateReferenceRepository
+from ..repository.case.case_template_reference_repository import CaseTemplateReferenceRepository
 from ..repository.shared_defaults_repository import SharedDefaultsRepository
 from .archive.archive_authorization_service import ArchiveAuthorizationService
 from .archive.archive_attempt_service import ArchiveAttemptService

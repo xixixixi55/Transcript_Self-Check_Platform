@@ -13,9 +13,9 @@ from ..repository.archive.archive_report_metadata_repository import (
     is_archive_completion_revision,
     preserve_verified_archive_projection,
 )
-from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ..repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ..repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
-from ..repository.case_workflow_repository import CaseWorkflowRepository
+from ..repository.case.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import RevisionConflictError, WorkbenchPersistenceError

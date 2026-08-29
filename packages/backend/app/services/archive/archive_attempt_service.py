@@ -21,7 +21,7 @@ from ...repository.archive.archive_context_binding_repository import (
 )
 from ...repository.archive.archive_publish_fence_repository import get as get_fence
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
-from ...repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ...repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ...repository.source_record_repository import SourceRecordRepository
 from ...repository.workbench_database import WorkbenchDatabase, utc_now
 from ...repository.workbench_errors import WorkbenchPersistenceError

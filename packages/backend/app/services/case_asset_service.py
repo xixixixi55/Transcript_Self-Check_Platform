@@ -10,7 +10,7 @@ from pathlib import PureWindowsPath
 from typing import Any
 
 from ..repository.asset_reference_repository import AssetReferenceRepository
-from ..repository.case_asset_storage import CaseAssetStorage
+from ..repository.case.case_asset_storage import CaseAssetStorage
 from ..repository.workbench_constants import (
     ASSET_ORPHAN_RETENTION_SECONDS, MAX_CASE_IMAGE_BYTES, MAX_CASE_IMAGE_COUNT,
     MAX_CASE_IMAGE_TOTAL_BYTES,

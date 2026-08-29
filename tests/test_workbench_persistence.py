@@ -26,7 +26,7 @@ from app.repository import (  # noqa: E402
     database_path_for_deployment,
     default_workbench_data_root,
 )
-from app.repository.case_workflow_repository import CaseWorkflowRepository  # noqa: E402
+from app.repository.case.case_workflow_repository import CaseWorkflowRepository  # noqa: E402
 from app.repository.workbench_errors import (  # noqa: E402
     ForbiddenPayloadError,
     LeaseConflictError,

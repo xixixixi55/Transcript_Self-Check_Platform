@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from ...repository.archive.archive_asset_repository import ArchiveAssetRepository
 from ...repository.archive.archive_plan_repository import ArchivePlanRepository
 from ...repository.archive.archive_task_repository import ArchiveTaskRepository
-from ...repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ...repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ...repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ...repository.workbench_database import WorkbenchDatabase, utc_now
 from ...repository.workbench_errors import WorkbenchPersistenceError

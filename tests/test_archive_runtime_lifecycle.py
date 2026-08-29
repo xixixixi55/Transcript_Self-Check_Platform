@@ -30,7 +30,7 @@ from app.repository import (  # noqa: E402
 )
 from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository  # noqa: E402
+from app.repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository  # noqa: E402
 from app.repository.archive.archive_attempt_restart_repository import interrupt_owned_claim  # noqa: E402
 from app.repository.archive.archive_runtime_context_lease_repository import (  # noqa: E402
     interrupt_expired_queued_contexts,

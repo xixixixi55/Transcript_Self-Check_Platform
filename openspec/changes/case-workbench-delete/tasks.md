@@ -36,7 +36,7 @@ workflow_level: 2
 ## 后端 Repository/Service/Controller（Layer 20–23）
 
 - [x] T005 实现事务内案件工作数据删除。
-  - 文件：`packages/backend/app/repository/case_deletion_repository.py`、`packages/backend/app/repository/case_workflow_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/controllers/workbench_controller.py`
+  - 文件：`packages/backend/app/repository/case/case_deletion_repository.py`、`packages/backend/app/repository/case/case_workflow_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/controllers/workbench_controller.py`
   - 内容：新增 DELETE `/workbench/cases/{case_id}`；按外键依赖顺序删除案件工作台记录，不再以案件状态、任务、租约、清理流程或正式产物作为用户确认后的阻断条件。
   - 验证：Service/Controller 测试覆盖任意状态的真实删除和部署隔离。
 
@@ -50,7 +50,7 @@ workflow_level: 2
 ## 需求修订：确认后允许删除任意状态和正式产物
 
 - [x] T007 移除确认后的状态/任务/租约/清理/正式产物阻断。
-  - 文件：`packages/backend/app/repository/case_deletion_repository.py`、`packages/backend/app/controllers/workbench_controller.py`
+  - 文件：`packages/backend/app/repository/case/case_deletion_repository.py`、`packages/backend/app/controllers/workbench_controller.py`
   - 内容：删除预检始终返回允许；确认后的 DELETE 对归档完成、归档中断、解析失败、处理中和已清理状态均执行真实删除。
   - 验证：Service/Controller 状态回归。
 
