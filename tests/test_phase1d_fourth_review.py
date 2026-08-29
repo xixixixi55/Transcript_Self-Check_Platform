@@ -16,10 +16,10 @@ from app.repository import CaseDraftRepository
 from app.repository import CaseShellRepository, SourceRecordRepository
 from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository
 from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
-from app.repository.workbench_errors import WorkbenchPersistenceError
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError
 from app.services.archive.archive_attempt_service import ArchiveAttemptService
 from app.services.report.report_parse_inflight_service import ReportParseInFlightRegistry
-from app.services.source_record_fingerprint_service import fingerprint, fingerprint_with_metadata
+from app.services.source.source_record_fingerprint_service import fingerprint, fingerprint_with_metadata
 
 from test_phase1d_recovery import (  # noqa: E402
     CASE_ID,
@@ -177,7 +177,7 @@ def test_source_fingerprint_returns_transient_failure_for_snapshot_change(
     source, data = _core_source(tmp_path, "SYNTHETIC-SOURCE-CHANGE")
     item = data / "data_case_info.json"
     item.write_bytes(b"SYNTHETIC-ORIGINAL")
-    from app.services import source_record_fingerprint_service as fingerprint_module
+    from app.services.source import source_record_fingerprint_service as fingerprint_module
 
     original_snapshot = fingerprint_module._snapshot
     calls = 0
@@ -201,7 +201,7 @@ def test_initial_source_fingerprint_reuses_the_stable_snapshot_for_metadata(
     source, _ = _core_source(tmp_path, "SYNTHETIC-SOURCE-METADATA")
     (source / "deep" / "media").mkdir(parents=True)
     (source / "deep" / "media" / "item.bin").write_bytes(b"SYNTHETIC")
-    from app.services import source_record_fingerprint_service as fingerprint_module
+    from app.services.source import source_record_fingerprint_service as fingerprint_module
 
     original_snapshot = fingerprint_module._snapshot
     calls = 0
@@ -222,7 +222,7 @@ def test_initial_source_fingerprint_reuses_the_stable_snapshot_for_metadata(
 
 def test_source_fingerprint_traversal_honors_shutdown_cancellation(tmp_path: Path) -> None:
     source, _ = _core_source(tmp_path, "SYNTHETIC-SOURCE-CANCEL")
-    from app.services.source_record_fingerprint_service import SourceFingerprintCancelledError
+    from app.services.source.source_record_fingerprint_service import SourceFingerprintCancelledError
 
     checks = 0
 

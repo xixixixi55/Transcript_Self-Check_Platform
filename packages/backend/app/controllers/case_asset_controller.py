@@ -9,7 +9,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from ..services.workbench_factory_service import get_workbench_services
+from ..services.runtime.workbench_factory_service import get_workbench_services
 
 router = APIRouter()
 

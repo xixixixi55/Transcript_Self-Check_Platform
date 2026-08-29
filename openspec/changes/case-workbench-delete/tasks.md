@@ -55,7 +55,7 @@ workflow_level: 2
   - 验证：Service/Controller 状态回归。
 
 - [x] T008 清理平台自有正式产物和临时文件。
-  - 文件：`packages/backend/app/services/case/case_artifact_deletion_service.py`、`packages/backend/app/repository/archive/archive_manifest_repository.py`、`packages/backend/app/repository/archive/archive_manifest_index_repository.py`、`packages/backend/app/services/case/case_lifecycle_service.py`、`packages/backend/app/services/workbench_factory_service.py`
+  - 文件：`packages/backend/app/services/case/case_artifact_deletion_service.py`、`packages/backend/app/repository/archive/archive_manifest_repository.py`、`packages/backend/app/repository/archive/archive_manifest_index_repository.py`、`packages/backend/app/services/case/case_lifecycle_service.py`、`packages/backend/app/services/runtime/workbench_factory_service.py`
   - 内容：删除案件受控压缩目录及删除后留下的空案件上级目录、Word 产物、归档快照、临时文件和案件图片，并同步 Manifest 索引；拒绝越界路径，不删除外部来源目录。
   - 验证：正式 RAR/Manifest/Word、图片、来源目录保留和路径安全测试。
 

@@ -12,9 +12,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.repository.local_directory_history_repository import LocalDirectoryHistoryRepository  # noqa: E402
-from app.services.local_directory_picker_service import (  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.runtime.local_directory_history_repository import LocalDirectoryHistoryRepository  # noqa: E402
+from app.services.runtime.local_directory_picker_service import (  # noqa: E402
     LocalDirectoryPickerService,
     _folder_picker_script,
 )

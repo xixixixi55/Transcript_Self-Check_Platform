@@ -47,7 +47,7 @@ spec_sync_evidence: 检查要求替换提取方式的最终行为已同步到 el
 
 ### Layer 20 — 后端持久化
 
-- [x] 修改 `packages/backend/app/repository/shared_defaults_repository.py`，让七项用户可配置字段在显式默认值 PUT 中接受空字符串/空数组清除，同时保持未知字段拒绝、`default_template_ref` 独立和 revision CAS。
+- [x] 修改 `packages/backend/app/repository/case/shared_defaults_repository.py`，让七项用户可配置字段在显式默认值 PUT 中接受空字符串/空数组清除，同时保持未知字段拒绝、`default_template_ref` 独立和 revision CAS。
   - 验证：更新并运行 `tests/test_case_shared_defaults.py` 的稀疏更新、清空、未知字段和冲突用例。
 
 ### Layer 10 — 前端状态

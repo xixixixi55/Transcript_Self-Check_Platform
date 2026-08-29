@@ -23,9 +23,9 @@ from app.services.archive.archive_source_runtime_service import (
     create_preview_source,
     prepare_archive_source,
 )
-from app.services.pipeline_runtime_service import load_pipeline_settings
-from app.services.shadow_pipeline_service import run_shadow_archive, run_shadow_export, run_shadow_parse
-from app.services.shadow_runtime_service import SHADOW_RUNTIME_STORE
+from app.services.runtime.pipeline_runtime_service import load_pipeline_settings
+from app.services.shadow.shadow_pipeline_service import run_shadow_archive, run_shadow_export, run_shadow_parse
+from app.services.shadow.shadow_runtime_service import SHADOW_RUNTIME_STORE
 
 
 SYNTHETIC_REPORT = {
@@ -129,8 +129,8 @@ def test_shadow_service_runs_parse_archive_export_without_formal_execution():
     report = copy.deepcopy(SYNTHETIC_REPORT)
     settings = load_pipeline_settings({"BIJI_PIPELINE_MODE": "shadow"})
     with patch("app.services.archive.archive_execution_service.execute_archive") as execute, \
-         patch("app.services.record_generator_service.generate_docx") as render, \
-         patch("app.services.shadow_pipeline_service.ARCHIVE_RUNTIME_STORE.get_context_snapshot", return_value=_context()):
+         patch("app.services.document.record_generator_service.generate_docx") as render, \
+         patch("app.services.shadow.shadow_pipeline_service.ARCHIVE_RUNTIME_STORE.get_context_snapshot", return_value=_context()):
         parsed = run_shadow_parse(report, settings, "synthetic-context")
         archived = run_shadow_archive("synthetic-context", report, SYNTHETIC_MANIFEST, _context(), settings)
         exported = run_shadow_export("synthetic-context", report, SYNTHETIC_MANIFEST, settings)

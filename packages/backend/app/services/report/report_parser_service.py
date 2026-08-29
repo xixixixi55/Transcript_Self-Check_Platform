@@ -11,7 +11,7 @@ import re
 import shutil
 import tempfile
 from typing import Optional
-from ...repository.file_storage import (
+from ...repository.archive.file_storage import (
     is_cache_valid, save_json, read_json, ensure_dir,
     extract_archive, compute_md5, detect_winrar_version,
 )
@@ -23,7 +23,7 @@ from ...repository.report.html_parser import (
 )
 from ...repository.report.device_field_parser import is_generic_device_label
 from ...repository.report.report_format_adapter import require_supported_report_format
-from ...repository.filesystem_identity_repository import (
+from ...repository.source.filesystem_identity_repository import (
     normalized_directory_key,
     selected_files_content_fingerprint,
 )
@@ -31,7 +31,7 @@ from ...repository.report.report_parse_input_repository import (
     ReportParseInputSnapshot,
     build_report_parse_input_snapshot,
 )
-from ...repository.hashmyfiles_repository import HASHMYFILES_DISPLAY_VERSION
+from ...repository.integrity.hashmyfiles_repository import HASHMYFILES_DISPLAY_VERSION
 from .report_defaults_service import (
     DEFAULT_DATA_SUMMARY,
     DEFAULT_DOCUMENT_NUMBER,
@@ -40,10 +40,10 @@ from .report_defaults_service import (
     DEFAULT_INSPECTION_PLACE,
     DEFAULT_INSPECTION_REQUIREMENT,
 )
-from ..material_policy_service import material_from_legacy_item, select_display_identifiers
+from ..inspection.material_policy_service import material_from_legacy_item, select_display_identifiers
 from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
-from ..entrust_person_service import normalize_entrust_persons
+from ..inspection.entrust_person_service import normalize_entrust_persons
 # 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
 _CACHE_VERSION = 23  # v23：不再根据报告创建时间推导委托时间
 _TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")

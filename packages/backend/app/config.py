@@ -1,7 +1,7 @@
 """从进程运行时根目录一次性投影的应用设置。"""
 from pathlib import Path
 
-from .repository.runtime_paths import get_runtime_paths
+from .repository.runtime.runtime_paths import get_runtime_paths
 from .repository.archive.archive_storage_settings_repository import ArchiveStorageSettingsRepository
 
 RUNTIME_PATHS = get_runtime_paths()

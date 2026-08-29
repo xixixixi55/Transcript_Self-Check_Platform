@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository import TaskRecordRepository, WorkbenchDatabase  # noqa: E402
-from app.repository.workbench_schema import MIGRATIONS  # noqa: E402
+from app.repository.workbench.workbench_schema import MIGRATIONS  # noqa: E402
 
 
 def test_v5_archive_task_migrates_with_safe_restart_defaults(tmp_path: Path) -> None:

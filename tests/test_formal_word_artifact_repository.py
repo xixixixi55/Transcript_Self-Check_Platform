@@ -17,7 +17,7 @@ from app.repository import (  # noqa: E402
     TaskRecordRepository,
     WorkbenchDatabase,
 )
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 
 
 _TIME = "2026-08-01T00:00:00Z"

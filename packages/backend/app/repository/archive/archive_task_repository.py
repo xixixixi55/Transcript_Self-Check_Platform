@@ -6,12 +6,12 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from ..task_record_repository import TaskRecordRepository
-from ..workbench_constants import ARCHIVE_TASK_ACTIONS, ARCHIVE_WORKFLOW_MILESTONES
-from ..workbench_database import WorkbenchDatabase, utc_now
-from ..workbench_errors import RevisionConflictError, WorkbenchPersistenceError
-from ..workbench_repository_helpers import json_text, row_json
-from ..workbench_serialization import validate_opaque_id
+from ..case.task_record_repository import TaskRecordRepository
+from ..workbench.workbench_constants import ARCHIVE_TASK_ACTIONS, ARCHIVE_WORKFLOW_MILESTONES
+from ..workbench.workbench_database import WorkbenchDatabase, utc_now
+from ..workbench.workbench_errors import RevisionConflictError, WorkbenchPersistenceError
+from ..workbench.workbench_repository_helpers import json_text, row_json
+from ..workbench.workbench_serialization import validate_opaque_id
 
 _ACTIVE = ("queued", "running", "cancelling", "blocked")
 _ERROR_STATES = {"interrupted", "failed_retryable", "failed_terminal", "cancelled", "blocked"}

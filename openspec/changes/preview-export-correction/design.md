@@ -33,8 +33,8 @@
 - `packages/backend/app/repository/report/device_field_parser.py`
 - `packages/backend/app/repository/report/navigation_parser.py`
 - `packages/backend/app/services/report/report_parser_service.py`
-- `packages/backend/app/services/document_builder_service.py`
-- `packages/backend/app/services/record_generator_service.py`
+- `packages/backend/app/services/document/document_builder_service.py`
+- `packages/backend/app/services/document/record_generator_service.py`
 - `packages/frontend/src/components/EvidenceEditor.tsx`
 - `packages/frontend/src/components/ExtractListEditor.tsx`
 - `tests/test_html_parser.py`

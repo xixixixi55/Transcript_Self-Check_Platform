@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.field_provenance_service import FieldProvenanceService  # noqa: E402
+from app.services.case.field_provenance_service import FieldProvenanceService  # noqa: E402
 
 
 EVIDENCE_COMPLETENESS_FIELD_PATH = "introduction.evidence_list.completeness"

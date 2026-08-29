@@ -21,16 +21,16 @@ from app.repository.case.case_archive_decision_repository import CaseArchiveDeci
 from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
 from app.repository.archive.archive_manifest_repository import ArchiveManifestRepositoryError  # noqa: E402
 from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository  # noqa: E402
-from app.repository.source_record_repository import SourceRecordRepository  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.source.source_record_repository import SourceRecordRepository  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive import archive_attempt_completion_service as completion_module  # noqa: E402
 from app.services.archive.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
 from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
-from app.services.source_record_service import SourceRecordService  # noqa: E402
+from app.services.source.source_record_service import SourceRecordService  # noqa: E402
 from app.services.archive.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
 from app.services.archive.archive_publish_service import publish_staged_archive  # noqa: E402
-from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
+from app.services.runtime.workbench_factory_service import build_workbench_services  # noqa: E402
 
 from test_phase1d_recovery import (  # noqa: E402
     CASE_ID,
@@ -478,7 +478,7 @@ def test_conflict_after_real_source_change_requires_reselection(
     source_file = source_path / "report.txt"
     source_file.write_bytes(b"SYNTHETIC/TEST/ORIGINAL")
     ready_case(database)
-    from app.services import source_record_service as source_module
+    from app.services.source import source_record_service as source_module
     fingerprint = source_module._fingerprint(source_path)
     with database.transaction() as connection:
         connection.execute(
@@ -512,7 +512,7 @@ def test_source_conflict_retry_exhaustion_is_pending_and_bounded(
     source_path.mkdir()
     (source_path / "report.txt").write_bytes(b"SYNTHETIC/TEST/STABLE")
     ready_case(database)
-    from app.services import source_record_service as source_module
+    from app.services.source import source_record_service as source_module
     fingerprint = source_module._fingerprint(source_path)
     with database.transaction() as connection:
         connection.execute(
@@ -843,7 +843,7 @@ def test_revision_conflict_reuses_latest_source_without_false_reselection(
     source_path.mkdir()
     (source_path / "report.txt").write_bytes(b"SYNTHETIC/TEST/SOURCE")
     ready_case(database)
-    from app.services import source_record_service as source_module
+    from app.services.source import source_record_service as source_module
     fingerprint = source_module._fingerprint(source_path)
     with database.transaction() as connection:
         connection.execute(

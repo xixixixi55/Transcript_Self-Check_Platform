@@ -16,8 +16,8 @@ from app.repository import (  # noqa: E402
     WorkbenchDatabase,
     database_path_for_deployment,
 )
-from app.repository.workbench_errors import RevisionConflictError  # noqa: E402
-from app.services.disc_mapping_service import (  # noqa: E402
+from app.repository.workbench.workbench_errors import RevisionConflictError  # noqa: E402
+from app.services.disc.disc_mapping_service import (  # noqa: E402
     DiscMappingError,
     active_slots,
     apply_disc_mapping,

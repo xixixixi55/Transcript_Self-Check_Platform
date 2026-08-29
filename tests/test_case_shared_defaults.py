@@ -9,9 +9,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
-from app.repository.workbench_database import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.case.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
+from app.repository.workbench.workbench_database import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.case import case_draft_service  # noqa: E402
 from app.services.case.case_draft_service import (  # noqa: E402
     _initialize_draft,
@@ -25,8 +25,8 @@ from app.services.report.report_defaults_service import (  # noqa: E402
     DEFAULT_INSPECTION_PLACE,
     DEFAULT_INSPECTION_REQUIREMENT,
 )
-from app.services.inspection_environment_service import InspectionEnvironmentService  # noqa: E402
-from app.services.shared_defaults_service import SharedDefaultsService  # noqa: E402
+from app.services.inspection.inspection_environment_service import InspectionEnvironmentService  # noqa: E402
+from app.services.case.shared_defaults_service import SharedDefaultsService  # noqa: E402
 
 
 def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Path):

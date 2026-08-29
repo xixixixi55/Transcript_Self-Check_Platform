@@ -6,9 +6,9 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from ..workbench_database import WorkbenchDatabase, utc_now
-from ..workbench_errors import WorkbenchPersistenceError
-from ..workbench_serialization import validate_opaque_id
+from ..workbench.workbench_database import WorkbenchDatabase, utc_now
+from ..workbench.workbench_errors import WorkbenchPersistenceError
+from ..workbench.workbench_serialization import validate_opaque_id
 
 
 class ArchiveInputSnapshotRepository:

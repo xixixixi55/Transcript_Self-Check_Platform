@@ -29,7 +29,7 @@ spec_sync_evidence: T9 现行规格同步；openspec/specs/electronic-inspection
 ### Layer 0/1/2：共享配置与文件身份
 
 - [x] **T1 编写缓存与归档共用的规范化目录键/内容指纹辅助**
-  - 文件：`packages/backend/app/repository/filesystem_identity_repository.py`
+  - 文件：`packages/backend/app/repository/source/filesystem_identity_repository.py`
   - 验证：pytest 单元测试覆盖尾分隔符、大小写规范化、稳定内容指纹和目录变化。
 
 - [x] **T2 增加解析缓存上限配置和清理 API 类型/端点常量**

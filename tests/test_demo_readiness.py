@@ -12,9 +12,9 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).parents[1] / "packages" / "backend"))
 
 from app.main import app  # noqa: E402
-from app.repository.demo_readiness_repository import probe_archive_output  # noqa: E402
-from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
-from app.services.demo_readiness_service import build_demo_readiness  # noqa: E402
+from app.repository.runtime.demo_readiness_repository import probe_archive_output  # noqa: E402
+from app.repository.archive.winrar_discovery_repository import WinRarCapability  # noqa: E402
+from app.services.runtime.demo_readiness_service import build_demo_readiness  # noqa: E402
 
 
 def _capability(available: bool) -> WinRarCapability:

@@ -38,7 +38,7 @@
 
 ### v10 实现事实基线
 
-- `packages/backend/app/repository/workbench_schema.py` 的实际数据库 schema 为 v10，migration tuple 为 1–10。当前 `case_shells.source_id`、`parse_task_id` 和 `archive_context_bindings.source_id` 是逻辑引用而非完整 SQL FK；其余 source 相关 SQL FK、`NOT NULL`、索引和 cascade 以 design 的表级矩阵为实现输入，不在本 Gate 擅自改变。
+- `packages/backend/app/repository/workbench/workbench_schema.py` 的实际数据库 schema 为 v10，migration tuple 为 1–10。当前 `case_shells.source_id`、`parse_task_id` 和 `archive_context_bindings.source_id` 是逻辑引用而非完整 SQL FK；其余 source 相关 SQL FK、`NOT NULL`、索引和 cascade 以 design 的表级矩阵为实现输入，不在本 Gate 擅自改变。
 - `WorkbenchDatabase.connect()` 开启 `PRAGMA foreign_keys = ON`、busy timeout，并要求 delete journal；`initialize()` 在 `BEGIN IMMEDIATE` 中应用未完成 migration、写入 `schema_migrations`/`user_version`、运行 `validate_schema` 和 deployment owner 检查，成功后提交，异常整体 rollback；高于支持版本或 migration 集合不连续时拒绝打开。`normalize_utc()` 拒绝无时区输入并归一化到 UTC。
 - 当前 source repository 仍保存内部路径、allowed root、root identity、metadata 和 fingerprint，并通过 revision/发布 fence 保护 source 变更。当前 snapshot repository 创建/seal/恢复 work-only snapshot，并将物理 snapshot 清理后标记为 `cleaned`；v11 的 row DELETE、source tombstone 和 FK table rebuild 尚未实现，分别由后续 2.1/2.6/2.8 任务承担。`asset_references` 由 case/asset identity 管理工作引用，当前没有正式 RAR/Manifest/Word authority 语义。
 - 当前 `archive_publish_intents` 持久化 attempt/case/source、publication identity、Manifest JSON、publication digest、file set、status、phase、fence 和 `updated_at`；`seal_publication` 绑定 active fence，publication durable state 由 intent/fence/assets/Manifest 校验链恢复。v10 尚无 `publication_verified_at`，因此不得把现有 `updated_at` 当作 retention anchor；NULL-only CAS、历史 revalidation 和 enforce gate 仍是后续实现任务。

@@ -15,8 +15,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.template_filler_service import fill_template  # noqa: E402
-from app.services.attachment2_image_service import (  # noqa: E402
+from app.services.template.template_filler_service import fill_template  # noqa: E402
+from app.services.attachment.attachment2_image_service import (  # noqa: E402
     ATTACHMENT2_CAPTION_LINE_TWIPS,
     ATTACHMENT2_DUAL_GROUP_IMAGE_ROW_HEIGHT_TWIPS,
     ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU,
@@ -25,7 +25,7 @@ from app.services.attachment2_image_service import (  # noqa: E402
     ATTACHMENT2_SLOT_WIDTH_EMU,
     calculate_fixed_geometry,
 )
-from app.services.template_profile_service import (  # noqa: E402
+from app.services.template.template_profile_service import (  # noqa: E402
     TemplateProfileError,
     current_template_profile,
     validate_current_template_profile,

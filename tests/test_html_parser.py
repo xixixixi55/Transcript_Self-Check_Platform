@@ -29,7 +29,7 @@ from app.repository.report.report_format_adapter import (
     detect_report_format,
     extract_main_software_version,
 )
-from app.services.material_policy_service import enrich_report_material_types
+from app.services.inspection.material_policy_service import enrich_report_material_types
 
 
 def _write_json(path, payload):

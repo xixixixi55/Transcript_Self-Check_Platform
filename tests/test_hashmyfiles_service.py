@@ -9,13 +9,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository import hashmyfiles_repository  # noqa: E402
-from app.repository.hashmyfiles_repository import (  # noqa: E402
+from app.repository.integrity import hashmyfiles_repository  # noqa: E402
+from app.repository.integrity.hashmyfiles_repository import (  # noqa: E402
     HashMyFilesError,
     resolve_hashmyfiles,
     run_hashmyfiles,
 )
-from app.services.hashmyfiles_service import (  # noqa: E402
+from app.services.integrity.hashmyfiles_service import (  # noqa: E402
     _hash_timeout_seconds,
     generate_verification_image,
 )

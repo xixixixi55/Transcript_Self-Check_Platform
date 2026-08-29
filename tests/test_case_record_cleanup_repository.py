@@ -21,7 +21,7 @@ from app.repository import (  # noqa: E402
     WorkbenchDatabase,
     database_path_for_deployment,
 )
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from case_cleanup_test_support import (  # noqa: E402
     CASE_ID, CLAIM_TOKEN, OWNER_ID, PUBLICATION_ID, RUN_ID, SOURCE_ID, TASK_ID, TIME,
     prepare_tombstone_case,

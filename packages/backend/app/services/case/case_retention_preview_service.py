@@ -7,9 +7,9 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from ...repository.retention_policy_repository import RetentionPolicyRepository
-from ...repository.workbench_database import WorkbenchDatabase
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.retention.retention_policy_repository import RetentionPolicyRepository
+from ...repository.workbench.workbench_database import WorkbenchDatabase
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .case_retention_service import CaseRetentionService
 
 _PLANNED_CATEGORIES = (

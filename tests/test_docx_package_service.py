@@ -10,13 +10,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.docx_package_service import (  # noqa: E402
+from app.services.document.docx_package_service import (  # noqa: E402
     DocxPackageError,
     OOXML_PACKAGE_FINGERPRINT_ALGORITHM,
     _validate_entry_name,
     compute_ooxml_package_fingerprint,
 )
-from app.services.template_profile_service import (  # noqa: E402
+from app.services.template.template_profile_service import (  # noqa: E402
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     TemplateProfileError,
     current_template_profile,

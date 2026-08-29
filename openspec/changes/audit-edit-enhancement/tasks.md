@@ -216,7 +216,7 @@ workflow_level: 3
 ## 🟢 Phase 9: 审核提示与 Word 文案格式修正
 
 - [x] T021 **修正案件简要提示、MD5/来源/版本文案与 Word 标题格式**
-  - 文件：`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`ReviewInspectionSection.tsx`、`ExtractListEditor.tsx`、归档展示组件与相关测试；`packages/shared/utils/softwareProjectionUtils.ts`；`packages/backend/app/repository/archive/archive_report_metadata_repository.py`；`packages/backend/app/services/report/report_parser_service.py`、`attachment_plan_service.py`、`archive_manifest_projection_service.py`、`archive_task_result_service.py`、`document_builder_service.py`、`template_filler_service.py` 及相关测试。
+  - 文件：`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`ReviewInspectionSection.tsx`、`ExtractListEditor.tsx`、归档展示组件与相关测试；`packages/shared/utils/softwareProjectionUtils.ts`；`packages/backend/app/repository/archive/archive_report_metadata_repository.py`；`packages/backend/app/services/report/report_parser_service.py`、`packages/backend/app/services/attachment/attachment_plan_service.py`、`archive_manifest_projection_service.py`、`archive_task_result_service.py`、`packages/backend/app/services/document/document_builder_service.py`、`packages/backend/app/services/template/template_filler_service.py` 及相关测试。
   - 内容：案件简要始终提示报告解析可能不准确并需人工核对，尾部空格/换行时额外警告；用户可见及 Word 中的 MD5 统一大写；固定清单来源统一为“检材内提取”；步骤 4 只在“版本号为……”中展示具体版本；Word 主标题居中加粗，固定清单标题加粗。
   - 覆盖 Spec：REQ-032。
   - 验证：前端组件/投影定向 Vitest，后端解析/附件计划/模板填充定向 pytest，DOCX XML 与 officecli 校验、人工视觉检查，架构/类型检查及当前变更 scoped full gate。
@@ -227,7 +227,7 @@ workflow_level: 3
 ## 🟢 Phase 10: 委托单位共享前缀
 
 - [x] T022 **增加可清空的委托单位共享前缀并接入 Word 导出**
-  - 文件：`packages/shared/types/`；`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`packages/frontend/src/hooks/useCaseRecordSession.ts`；`packages/backend/app/repository/shared_defaults_repository.py`、`case_draft_service.py`、`canonical_*`、`template_filler_service.py`、`document_builder_service.py` 及相关测试。
+  - 文件：`packages/shared/types/`；`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`packages/frontend/src/hooks/useCaseRecordSession.ts`；`packages/backend/app/repository/case/shared_defaults_repository.py`、`case_draft_service.py`、`canonical_*`、`packages/backend/app/services/template/template_filler_service.py`、`packages/backend/app/services/document/document_builder_service.py` 及相关测试。
   - 内容：报告识别单位保持独立；前缀作为当前案件字段和共享默认值保存并允许清空；新案件从共享默认值预填；模板与 batch 回退导出均直接拼接前缀和识别单位。
   - 覆盖 Spec：REQ-ENTRUST-UNIT-PREFIX-001。
   - 验证：共享默认值/草稿初始化后端测试、审核编辑与稀疏 patch 前端测试、两条 Word 导出路径测试、架构/类型检查、独立 Review 与 scoped full gate。
@@ -238,7 +238,7 @@ workflow_level: 3
 ## 🟢 Phase 12: 附件摘要与附件一表头排版修复
 
 - [x] T025 **补齐附件摘要标识并收紧附件一短表头排版**
-  - 文件：`packages/backend/app/services/template_filler_service.py`、`document_builder_service.py`、`tests/test_template_filler_service.py`、`tests/test_attachment_docx_renderer.py`、`tests/test_document_builder_service.py`、本变更包 delta spec。
+  - 文件：`packages/backend/app/services/template/template_filler_service.py`、`packages/backend/app/services/document/document_builder_service.py`、`tests/test_template_filler_service.py`、`tests/test_attachment_docx_renderer.py`、`tests/test_document_builder_service.py`、本变更包 delta spec。
   - 内容：正式模板路径更新附件摘要时保留“附件：”前缀；“电子数据”“来源”表头统一为无异常缩进、字符间距或文字缩放的居中紧凑文本；officecli batch 兼容路径同步保持摘要前缀和表头居中。
   - 覆盖 Spec：REQ-032“Word 附件摘要保留附件标识”“附件一短表头使用紧凑格式”。
   - 验证：模板与 batch 两条 Word 路径定向 pytest、合成 DOCX XML 断言、officecli validate、人工视觉检查、架构/类型、`verify:quick` 和 scoped strict docs。
@@ -250,7 +250,7 @@ workflow_level: 3
 ## 🟡 Phase 13: 附件摘要条件分页
 
 - [x] T026 **按当前页剩余空间决定附件摘要是否独立分页**
-  - 文件：`packages/backend/app/services/template_filler_service.py`、`tests/test_template_filler_service.py`、本变更包 proposal/design/delta spec。
+  - 文件：`packages/backend/app/services/template/template_filler_service.py`、`tests/test_template_filler_service.py`、本变更包 proposal/design/delta spec。
   - 内容：移除附件摘要首段的无条件分页；在检查结果后保留三个空白行；将三条摘要、摘要后留白、检查人签名、双横线及日期约束为不可跨页拆分的连续块，使完整区域在剩余空间足够时留在当前页、空间不足时整体移到下一页；独立分页时保持变更前原始版式和纵向位置；附件一及后续附件保持既有分页规则。
   - 覆盖 Spec：REQ-032“Word 附件摘要按剩余空间条件分页”。
   - 验证：使用明确合成数据新增 OOXML 区分性断言，覆盖三行留白、无固定分页符、摘要连续不可拆分、签名/横线/日期结构不变及附件一分页不变；运行模板填充定向 pytest、`verify:quick`、当前变更 scoped strict docs；分别生成“同页可容纳”和“同页不可容纳”DOCX，经 Microsoft Word 导出 PDF 后人工检查实际分页。
@@ -262,7 +262,7 @@ workflow_level: 3
 ## 🟢 Phase 14: 附件一来源对齐修复
 
 - [x] T027 **将附件一来源正文改为两端对齐**
-  - 文件：`packages/backend/app/services/docx_attachment_xml_service.py`、`attachment_docx_renderer_service.py`、`template_filler_service.py`、`document_builder_service.py` 及相关测试、本变更包 delta spec。
+  - 文件：`packages/backend/app/services/attachment/docx_attachment_xml_service.py`、`packages/backend/app/services/attachment/attachment_docx_renderer_service.py`、`packages/backend/app/services/template/template_filler_service.py`、`packages/backend/app/services/document/document_builder_service.py` 及相关测试、本变更包 delta spec。
   - 内容：正式模板、无 Manifest 模板兼容路径和 officecli batch 回退统一将附件一数据行“来源”列设为两端对齐；表头保持居中，逐检材换行、垂直合并及其他列版式不变。
   - 覆盖 Spec：REQ-032“附件一来源正文使用两端对齐”。
   - 验证：两条 Word 路径定向 pytest、合成 DOCX OOXML 断言、officecli validate、架构与类型检查、`git diff --check`。
@@ -271,7 +271,7 @@ workflow_level: 3
 ## 🟡 Phase 15: 附件摘要独立页顶部留白回归
 
 - [x] T028 **独立成页时移除三个空行，同页时保留等效间隔**
-  - 文件：`packages/backend/app/services/template_filler_service.py`、`tests/test_template_filler_service.py`、本变更包 design/delta spec。
+  - 文件：`packages/backend/app/services/template/template_filler_service.py`、`tests/test_template_filler_service.py`、本变更包 design/delta spec。
   - 内容：将摘要前的三个固定空段落转换为摘要首段的等效段前距；摘要与检查结果同页时保留三行视觉间隔，摘要块自动移到新页时使用 Word 页首段落语义抑制该间距，不在独立页顶部留下三个空行；摘要、签名、双横线、日期和附件一分页结构保持不变。
   - 覆盖 Spec：REQ-032“Word 附件摘要按剩余空间条件分页”。
   - 验证：旧实现区分性失败、模板填充定向 pytest、OOXML 精确间距与连续块断言、合成 DOCX 的 Microsoft Word/PDF 同页与独立页实际分页检查、架构/类型、人工审查与当前变更 scoped full gate。
@@ -282,7 +282,7 @@ workflow_level: 3
 ## 🟡 Phase 16: 无法提取原因
 
 - [x] T030 **在审核编辑与 Word 检材情况中支持无法提取原因**
-  - 文件：`packages/shared/types/`、`packages/frontend/src/components/EvidenceEditor.tsx`、`packages/frontend/src/hooks/useReviewChecklist.ts`、`packages/backend/app/services/canonical_*`、`material_policy_service.py`、`document_builder_service.py`、`template_filler_service.py`、`packages/backend/app/repository/workbench_legacy_report.py` 及相关测试、本变更包 delta spec。
+  - 文件：`packages/shared/types/`、`packages/frontend/src/components/EvidenceEditor.tsx`、`packages/frontend/src/hooks/useReviewChecklist.ts`、`packages/backend/app/services/canonical_*`、`packages/backend/app/services/inspection/material_policy_service.py`、`packages/backend/app/services/document/document_builder_service.py`、`packages/backend/app/services/template/template_filler_service.py`、`packages/backend/app/repository/workbench/workbench_legacy_report.py` 及相关测试、本变更包 delta spec。
   - 内容：检材设为无法提取时显示原因输入框并保存到草稿；空原因进入待核对清单并阻止 Word 导出；检查过程步骤 1、正式模板和 officecli batch 兼容导出均使用原因替代 IMEI/序列号，存量空原因继续使用“无法提取”兜底。
   - 覆盖 Spec：REQ-034“用户填写无法提取原因”。
   - 验证：共享类型检查、审核编辑与待核对组件测试、Canonical/Legacy 持久化测试、两条 Word 生成路径定向 pytest、`verify:quick` 和 scoped strict docs。
@@ -292,7 +292,7 @@ workflow_level: 3
 ## 🟢 Phase 17: Word 主标题字重修正
 
 - [x] T031 **取消电子数据检查笔录主标题加粗**
-  - 文件：`packages/backend/app/services/document_builder_service.py`、`template_filler_service.py`、相关测试及本变更包 delta spec。
+  - 文件：`packages/backend/app/services/document/document_builder_service.py`、`packages/backend/app/services/template/template_filler_service.py`、相关测试及本变更包 delta spec。
   - 内容：正式模板与 officecli batch 兼容导出均保持主标题居中，但明确取消粗体；“电子数据提取固定清单”标题继续加粗。
   - 覆盖 Spec：REQ-032“Word 标题使用规定格式”。
   - 验证：两条 Word 生成路径定向 pytest、架构与类型检查、`git diff --check`。
@@ -329,7 +329,7 @@ workflow_level: 3
 ## 🟢 Phase 11: 软件名称净化与检材可提取状态
 
 - [x] T023 **规范软件工具名称并自动判断检材是否可提取**
-  - 文件：`packages/backend/app/repository/report/report_format_adapter.py`、`report_parser_service.py`、`material_policy_service.py`、`document_builder_service.py`、`template_filler_service.py`；`packages/shared/types/`、`packages/shared/utils/softwareProjectionUtils.ts`；`packages/frontend/src/components/EvidenceEditor.tsx` 及相关测试。
+  - 文件：`packages/backend/app/repository/report/report_format_adapter.py`、`report_parser_service.py`、`packages/backend/app/services/inspection/material_policy_service.py`、`packages/backend/app/services/document/document_builder_service.py`、`packages/backend/app/services/template/template_filler_service.py`；`packages/shared/types/`、`packages/shared/utils/softwareProjectionUtils.ts`；`packages/frontend/src/components/EvidenceEditor.tsx` 及相关测试。
   - 内容：主软件名称保留报告识别到的软件身份，通用移除取证塔、取证设备、取证工作站等硬件括号描述并保留版本；按 IMEI1、IMEI2、序列号任一非空自动生成 `extractable`，审核页展示且允许修正；无法提取时隐藏标识，并在检材情况和检查过程追加“（无法提取）”。
   - 覆盖 Spec：REQ-034。
   - 验证：软件适配、解析、Canonical/Legacy 投影、前端组件/共享投影、模板与 batch Word 两条路径定向测试；架构检查、类型检查、`verify:quick` 和 scoped strict docs。
@@ -338,7 +338,7 @@ workflow_level: 3
 ## 🟢 Phase 11: 审核检材类型 Word 投影
 
 - [x] T024 **将审核确认的检材类型追加到 Word 检材名称**
-  - 文件：`packages/backend/app/services/material_policy_service.py`、`document_builder_service.py`、`template_filler_service.py` 及相关测试。
+  - 文件：`packages/backend/app/services/inspection/material_policy_service.py`、`packages/backend/app/services/document/document_builder_service.py`、`packages/backend/app/services/template/template_filler_service.py` 及相关测试。
   - 内容：集中生成“设备品牌型号 + 手机/平板”的检材显示名称，供模板正式导出与 officecli batch 兼容导出共同使用；同一类型名称不重复追加。
   - 覆盖 Spec：REQ-035。
   - 验证：材料显示策略、模板填充和 batch 文书构建定向 pytest；架构、类型、`verify:quick` 和 scoped strict docs。
@@ -348,7 +348,7 @@ workflow_level: 3
   - final_gate: [PASS] 冻结候选执行 `npm run verify:full -- --change audit-edit-enhancement`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建和 scoped strict docs 全部通过。
 
 - [x] T029 **修复 iPhone/iPad 产品名误抑制中文检材类型**
-  - 文件：`packages/backend/app/services/material_policy_service.py`、`tests/test_material_policy_service.py`、`tests/test_document_builder_service.py`、`tests/test_template_filler_service.py`。
+  - 文件：`packages/backend/app/services/inspection/material_policy_service.py`、`tests/test_material_policy_service.py`、`tests/test_document_builder_service.py`、`tests/test_template_filler_service.py`。
   - 内容：产品系列名 `iPhone`/`iPad` 仍可用于检材分类，但不再视为显示名称中已有的“手机”/“平板”类型词；正式模板与 batch 兼容导出均稳定输出“产品名 + 中文检材类型 + 一部”。
   - 覆盖 Spec：REQ-035。
   - 验证：材料显示策略、模板填充和 batch 文书构建定向 pytest；架构检查、类型检查、`verify:quick` 和 scoped full gate。

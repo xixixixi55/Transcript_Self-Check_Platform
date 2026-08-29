@@ -29,7 +29,7 @@ from app.repository import (  # noqa: E402
     database_path_for_deployment,
 )
 from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository  # noqa: E402
 from app.repository.archive.archive_attempt_restart_repository import interrupt_owned_claim  # noqa: E402
 from app.repository.archive.archive_runtime_context_lease_repository import (  # noqa: E402
@@ -57,11 +57,11 @@ from app.services.archive.archive_scheduler_service import ArchiveSchedulerServi
 from app.services.archive.archive_task_api_service import ArchiveTaskApiService  # noqa: E402
 from app.services.case.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
-from app.services.edit_lease_service import EditLeaseService  # noqa: E402
-from app.services.shared_defaults_service import SharedDefaultsService  # noqa: E402
-from app.services.source_record_service import SourceRecordService  # noqa: E402
-from app.services.task_record_service import TaskRecordService  # noqa: E402
-from app.services.workbench_factory_service import WorkbenchServices  # noqa: E402
+from app.services.case.edit_lease_service import EditLeaseService  # noqa: E402
+from app.services.case.shared_defaults_service import SharedDefaultsService  # noqa: E402
+from app.services.source.source_record_service import SourceRecordService  # noqa: E402
+from app.services.case.task_record_service import TaskRecordService  # noqa: E402
+from app.services.runtime.workbench_factory_service import WorkbenchServices  # noqa: E402
 
 
 REPORT = {
@@ -865,7 +865,7 @@ def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
             return path
 
         with patch(
-            "app.services.unified_export_service.generate_docx",
+            "app.services.export.unified_export_service.generate_docx",
             side_effect=fake_docx,
         ):
             response = client.post(

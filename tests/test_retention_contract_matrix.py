@@ -18,9 +18,9 @@ from app.repository import (  # noqa: E402
     TaskRecordRepository,
     WorkbenchDatabase,
 )
-from app.repository.workbench_constants import RETENTION_BLOCKER_CODES  # noqa: E402
-from app.repository.retention_time import expires_at_utc, trusted_utc_timestamp  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_constants import RETENTION_BLOCKER_CODES  # noqa: E402
+from app.repository.retention.retention_time import expires_at_utc, trusted_utc_timestamp  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 
 
 def test_trusted_utc_time_has_fail_closed_future_boundary() -> None:

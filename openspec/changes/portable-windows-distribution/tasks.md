@@ -7,14 +7,14 @@ workflow_level: 3
 
 ## 2. Layer 20 — 运行时路径与工具解析
 
-- [x] 2.1 新增 `packages/backend/app/repository/runtime_paths.py`，统一解析开发/冻结资源根和 `%LOCALAPPDATA%\文枢` 下的数据、工作、日志、备份目录；修改 `packages/backend/app/config.py` 只投影该结果。验证：新增 `tests/test_runtime_paths.py` 覆盖源码态、发布态、环境覆盖、缺失LOCALAPPDATA和程序目录只读边界（数据分离 Requirement）。
-- [x] 2.2 修改 `packages/backend/app/repository/hashmyfiles_repository.py`、`workbench_database.py` 及相关文件资源Repository，改用注入或统一运行时路径，不再通过固定仓库层级定位发布资源。验证：定向pytest覆盖环境覆盖优先、包内默认和用户数据不落发布目录。
-- [x] 2.3 新增 `packages/backend/app/repository/officecli_runtime_repository.py`，以显式参数数组解析并调用包内`node.exe + officecli入口`，开发态兼容显式/全局入口，发布态禁止全局回退和联网。验证：Repository单元测试覆盖包内成功、缺失、非零退出、含空格中文路径及发布态不调用PATH（私有officecli Requirement）。
+- [x] 2.1 新增 `packages/backend/app/repository/runtime/runtime_paths.py`，统一解析开发/冻结资源根和 `%LOCALAPPDATA%\文枢` 下的数据、工作、日志、备份目录；修改 `packages/backend/app/config.py` 只投影该结果。验证：新增 `tests/test_runtime_paths.py` 覆盖源码态、发布态、环境覆盖、缺失LOCALAPPDATA和程序目录只读边界（数据分离 Requirement）。
+- [x] 2.2 修改 `packages/backend/app/repository/integrity/hashmyfiles_repository.py`、`packages/backend/app/repository/workbench/workbench_database.py` 及相关文件资源Repository，改用注入或统一运行时路径，不再通过固定仓库层级定位发布资源。验证：定向pytest覆盖环境覆盖优先、包内默认和用户数据不落发布目录。
+- [x] 2.3 新增 `packages/backend/app/repository/runtime/officecli_runtime_repository.py`，以显式参数数组解析并调用包内`node.exe + officecli入口`，开发态兼容显式/全局入口，发布态禁止全局回退和联网。验证：Repository单元测试覆盖包内成功、缺失、非零退出、含空格中文路径及发布态不调用PATH（私有officecli Requirement）。
 
 ## 3. Layer 21 — 组合根和文档生成接线
 
-- [x] 3.1 修改 `packages/backend/app/services/workbench_factory_service.py`、`record_generator_service.py` 及相关Service，把模板、上传、输出、HashMyFiles和officecli路径从统一RuntimePaths注入，保持正式模板与officecli回退语义。验证：现有模板/导出pytest加发布布局回归，临时破坏包内officecli解析时测试必须失败（私有officecli、数据分离 Requirements）。
-- [x] 3.2 扩展运行就绪服务以分别报告包内资源和外部WinRAR状态；WinRAR缺失不得阻止应用启动，但继续门控RAR相关能力。文件：`packages/backend/app/services/demo_readiness_service.py`及现有相关测试。验证：pytest覆盖WinRAR存在/缺失与非RAR能力不受影响（WinRAR Requirement）。
+- [x] 3.1 修改 `packages/backend/app/services/runtime/workbench_factory_service.py`、`packages/backend/app/services/document/record_generator_service.py` 及相关Service，把模板、上传、输出、HashMyFiles和officecli路径从统一RuntimePaths注入，保持正式模板与officecli回退语义。验证：现有模板/导出pytest加发布布局回归，临时破坏包内officecli解析时测试必须失败（私有officecli、数据分离 Requirements）。
+- [x] 3.2 扩展运行就绪服务以分别报告包内资源和外部WinRAR状态；WinRAR缺失不得阻止应用启动，但继续门控RAR相关能力。文件：`packages/backend/app/services/runtime/demo_readiness_service.py`及现有相关测试。验证：pytest覆盖WinRAR存在/缺失与非RAR能力不受影响（WinRAR Requirement）。
 
 ## 4. Layer 23 — 生产同源服务和会话边界
 
@@ -44,7 +44,7 @@ workflow_level: 3
 
 ## 8. 部署反馈：原生目录选择框前台归属
 
-- [x] 8.1 修改 `local_directory_picker_service.py`，捕获触发时的前台窗口并作为 `FolderBrowserDialog` owner；保留隐藏 owner/置顶兜底并记录前台确认状态。
+- [x] 8.1 修改 `packages/backend/app/services/runtime/local_directory_picker_service.py`，捕获触发时的前台窗口并作为 `FolderBrowserDialog` owner；保留隐藏 owner/置顶兜底并记录前台确认状态。
 - [x] 8.2 更新现有目录选择器测试，区分浏览器 owner、兜底 owner、持续提升和诊断日志合同；运行定向 pytest、真实 PowerShell 类型编译及工程增量门控。
 - [ ] 8.3 按 `manual-acceptance.md` 在部署电脑分别验证上传报告和统一导出的选择框始终位于浏览器之前。 [DEFERRED]
 

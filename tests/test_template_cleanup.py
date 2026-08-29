@@ -15,12 +15,12 @@ from lxml import etree
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, os.path.join(ROOT, "packages", "backend"))
 
-from app.services.docx_package_service import (  # noqa: E402
+from app.services.document.docx_package_service import (  # noqa: E402
     DocxPackageError,
     compute_ooxml_package_fingerprint,
     read_validated_docx_entries,
 )
-from app.services.template_profile_service import (  # noqa: E402
+from app.services.template.template_profile_service import (  # noqa: E402
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     validate_current_template_profile,
 )

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from ..workbench_constants import CASE_TRANSITIONS
-from ..workbench_database import WorkbenchDatabase, utc_now
-from ..workbench_errors import WorkbenchPersistenceError
+from ..workbench.workbench_constants import CASE_TRANSITIONS
+from ..workbench.workbench_database import WorkbenchDatabase, utc_now
+from ..workbench.workbench_errors import WorkbenchPersistenceError
 from ..archive.archive_publish_fence_repository import invalidate_pending, reject_if_active
 
 

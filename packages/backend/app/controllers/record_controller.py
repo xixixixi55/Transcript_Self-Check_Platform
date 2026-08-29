@@ -5,30 +5,30 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 from ..services.report.report_parser_service import parse_report
-from ..services.archive_parse_runtime_service import parse_archive_with_reuse as parse_from_archive
-from ..services.record_generator_service import generate_docx
-from ..services.export_gate_service import ExportGateInput, evaluate_export_gate
-from ..services.legacy_report_projection_service import project_ordered_legacy_report
-from ..services.material_policy_service import enrich_report_material_types, unconfirmed_material_fields
-from ..services.software_policy_service import (
+from ..services.archive.archive_parse_runtime_service import parse_archive_with_reuse as parse_from_archive
+from ..services.document.record_generator_service import generate_docx
+from ..services.export.export_gate_service import ExportGateInput, evaluate_export_gate
+from ..services.report.legacy_report_projection_service import project_ordered_legacy_report
+from ..services.inspection.material_policy_service import enrich_report_material_types, unconfirmed_material_fields
+from ..services.inspection.software_policy_service import (
     is_primary_software_confirmed,
     normalize_primary_software_projection,
 )
-from ..services.disc_sequence_service import apply_disc_sequence_to_attachments
+from ..services.disc.disc_sequence_service import apply_disc_sequence_to_attachments
 from ..services.archive.archive_execution_service import (
     ArchiveGateError,
     get_valid_manifest,
 )
 from ..services.archive.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
 from ..services.archive.archive_export_service import validate_export_directory
-from ..repository.workbench_errors import WorkbenchPersistenceError
-from ..services.attachment_plan_service import AttachmentPlanError
-from ..services.attachment2_plan_service import material_photo_groups
-from ..services.attachment2_image_service import (
+from ..repository.workbench.workbench_errors import WorkbenchPersistenceError
+from ..services.attachment.attachment_plan_service import AttachmentPlanError
+from ..services.attachment.attachment2_plan_service import material_photo_groups
+from ..services.attachment.attachment2_image_service import (
     Attachment2ImageError,
     validate_attachment2_photos,
 )
-from ..services.template_profile_service import TemplateProfileError
+from ..services.template.template_profile_service import TemplateProfileError
 from ..services.archive.archive_runtime_service import ArchiveRuntimeError
 from ..services.archive.archive_source_runtime_service import (
     create_preview_source,
@@ -48,7 +48,7 @@ from .record_template_context_controller import (
     resolve_case_disc_mapping,
     resolve_case_template_context,
 )
-from ..services.workbench_factory_service import get_workbench_services
+from ..services.runtime.workbench_factory_service import get_workbench_services
 from ..config import OUTPUT_BASE, UPLOAD_BASE, ARCHIVE_MAX_SIZE
 router = APIRouter()
 ARCHIVE_AUTHORIZATION_SERVICE = ArchiveAuthorizationService(UPLOAD_BASE, OUTPUT_BASE)

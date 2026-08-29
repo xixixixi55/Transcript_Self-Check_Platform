@@ -14,7 +14,7 @@ from ...repository.archive.archive_manifest_repository import ArchiveManifestRep
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.archive.archive_publish_fence_repository import get as get_fence
 from ...repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_manifest_service import ArchiveFileIdentity, validate_manifest_files
 from .archive_manifest_projection_service import (
     project_verified_manifest_to_legacy_attachments,

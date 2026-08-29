@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository import CaseShellRepository, CleanupRunRepository, WorkbenchDatabase  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 
 NOW = "2026-08-02T00:00:00Z"
 

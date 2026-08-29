@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.local_directory_history_repository import (  # noqa: E402
+from app.repository.runtime.local_directory_history_repository import (  # noqa: E402
     LocalDirectoryHistoryRepository,
 )
 

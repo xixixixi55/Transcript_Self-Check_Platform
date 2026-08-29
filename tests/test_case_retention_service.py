@@ -19,7 +19,7 @@ from app.repository import (  # noqa: E402
     TaskRecordRepository,
     WorkbenchDatabase,
 )
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_publication_identity_service import (  # noqa: E402
     publication_digest,
     publication_file_set,
@@ -141,7 +141,7 @@ def test_evaluate_computes_max_anchor_and_enforce_gate(tmp_path: Path) -> None:
     database = _database(tmp_path)
     _prepare(database)
     database_path = database.database_path
-    from app.repository.retention_policy_repository import RetentionPolicyRepository
+    from app.repository.retention.retention_policy_repository import RetentionPolicyRepository
     RetentionPolicyRepository(database).sync_from_environment({
         "BIJI_CASE_RETENTION_MODE": "enforce", "BIJI_CASE_RETENTION_DAYS": "30",
         "BIJI_CASE_RETENTION_SCAN_INTERVAL_SECONDS": "3600", "BIJI_CASE_RETENTION_BATCH_SIZE": "20",

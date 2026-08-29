@@ -6,9 +6,9 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from ..workbench_database import WorkbenchDatabase
-from ..workbench_errors import WorkbenchPersistenceError
-from ..retention_repository_helpers import identifier
+from ..workbench.workbench_database import WorkbenchDatabase
+from ..workbench.workbench_errors import WorkbenchPersistenceError
+from ..retention.retention_repository_helpers import identifier
 
 _RECOVERY_ATTEMPT_STATUSES = ("accepted", "running", "interrupted")
 

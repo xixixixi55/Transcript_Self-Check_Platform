@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from ..services.archive.archive_export_service import resolve_case_word_manifest
-from ..services.disc_mapping_service import DiscMappingState, resolve_disc_mapping_state
-from ..services.workbench_factory_service import get_workbench_services
+from ..services.disc.disc_mapping_service import DiscMappingState, resolve_disc_mapping_state
+from ..services.runtime.workbench_factory_service import get_workbench_services
 
 
 def resolve_case_template_context(

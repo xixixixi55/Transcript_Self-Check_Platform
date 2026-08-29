@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..services.workbench_factory_service import get_workbench_services
+from ..services.runtime.workbench_factory_service import get_workbench_services
 
 router = APIRouter()
 

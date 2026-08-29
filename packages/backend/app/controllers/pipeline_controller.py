@@ -8,12 +8,12 @@ from typing import Any, Mapping
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from ..services.archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
-from ..services.pipeline_runtime_service import PipelineMode, pipeline_settings_for_app
-from ..services.shadow_pipeline_service import (
+from ..services.runtime.pipeline_runtime_service import PipelineMode, pipeline_settings_for_app
+from ..services.shadow.shadow_pipeline_service import (
     begin_shadow_stage, record_shadow_failure, run_shadow_archive, run_shadow_export,
     run_shadow_parse,
 )
-from ..services.shadow_runtime_service import SHADOW_RUNTIME_STORE
+from ..services.shadow.shadow_runtime_service import SHADOW_RUNTIME_STORE
 
 
 router = APIRouter()

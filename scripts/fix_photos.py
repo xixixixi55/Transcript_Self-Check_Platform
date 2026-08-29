@@ -3,7 +3,7 @@
 import re, os
 
 path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    'packages', 'backend', 'app', 'services', 'template_filler_service.py')
+                    'packages', 'backend', 'app', 'services', 'template', 'template_filler_service.py')
 with open(path, 'r', encoding='utf-8') as f:
     content = f.read()
 

@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.filesystem_identity_repository import (  # noqa: E402
+from app.repository.source.filesystem_identity_repository import (  # noqa: E402
     directory_content_fingerprint,
     normalized_directory_key,
     selected_files_content_fingerprint,

@@ -10,7 +10,7 @@ from app.repository.archive.archive_storage_settings_repository import (  # noqa
     ArchiveStorageSettingsRepository,
 )
 from app.repository.archive import archive_storage_settings_repository as storage_repository  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_storage_settings_service import (  # noqa: E402
     ArchiveStorageSettingsService,
 )

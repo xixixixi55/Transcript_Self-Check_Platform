@@ -367,7 +367,7 @@ def test_standalone_word_export_rejects_unsafe_directory_before_consuming_grant(
     client, tmp_path,
 ):
     from app.controllers import record_controller
-    from app.repository.workbench_errors import WorkbenchPersistenceError
+    from app.repository.workbench.workbench_errors import WorkbenchPersistenceError
 
     services = MagicMock()
     with patch.object(record_controller, "get_workbench_services", return_value=services), \

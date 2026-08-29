@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...repository.archive.archive_storage_settings_repository import ArchiveStorageSettingsRepository
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 
 
 class ArchiveStorageSettingsService:

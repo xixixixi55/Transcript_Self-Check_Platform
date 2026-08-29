@@ -33,12 +33,12 @@ spec_sync_evidence: Windows 展示顺序已同步到 electronic-inspection-recor
 
 ### Layer 20——后端 Repository
 
-- [x] 新增 `packages/backend/app/repository/local_inspection_environment_repository.py`，通过可注入的 Windows 原生信息源读取系统版本/版本类型/位数，并从本机安装信息与可验证文件版本中识别火绒；非 Windows、键缺失、访问异常或值损坏均返回结构化未识别结果，不抛出原始路径或本机软件清单。验证：新增 `tests/test_local_inspection_environment_repository.py`，使用合成注册表/文件版本适配器覆盖 Windows 10/11、32/64 位、火绒已安装、版本未知、未安装和异常分支。
+- [x] 新增 `packages/backend/app/repository/inspection/local_inspection_environment_repository.py`，通过可注入的 Windows 原生信息源读取系统版本/版本类型/位数，并从本机安装信息与可验证文件版本中识别火绒；非 Windows、键缺失、访问异常或值损坏均返回结构化未识别结果，不抛出原始路径或本机软件清单。验证：新增 `tests/test_local_inspection_environment_repository.py`，使用合成注册表/文件版本适配器覆盖 Windows 10/11、32/64 位、火绒已安装、版本未知、未安装和异常分支。
 
 ### Layer 21——后端 Service
 
-- [x] 新增 `packages/backend/app/services/inspection_environment_service.py`，把 Repository 结果规范化为环境快照并生成步骤3；只使用检测事实和显式“待确认”文案，不启动安全软件或扫描。验证：新增 `tests/test_inspection_environment_service.py` 覆盖所有验收文案与无虚假“未发现病毒”边界。
-- [x] 修改 `packages/backend/app/services/case/case_draft_service.py` 及 `workbench_factory_service.py`，在新案件完成共享默认硬件选择后采集一次环境快照并覆盖 Parser 的步骤3占位内容；既有草稿加载/保存不重新探测。验证：扩展 `tests/test_case_shared_defaults.py` 与 `tests/test_workbench_services.py`，覆盖最终硬件优先、快照持久化、旧案件不重写和依赖注入。
+- [x] 新增 `packages/backend/app/services/inspection/inspection_environment_service.py`，把 Repository 结果规范化为环境快照并生成步骤3；只使用检测事实和显式“待确认”文案，不启动安全软件或扫描。验证：新增 `tests/test_inspection_environment_service.py` 覆盖所有验收文案与无虚假“未发现病毒”边界。
+- [x] 修改 `packages/backend/app/services/case/case_draft_service.py` 及 `packages/backend/app/services/runtime/workbench_factory_service.py`，在新案件完成共享默认硬件选择后采集一次环境快照并覆盖 Parser 的步骤3占位内容；既有草稿加载/保存不重新探测。验证：扩展 `tests/test_case_shared_defaults.py` 与 `tests/test_workbench_services.py`，覆盖最终硬件优先、快照持久化、旧案件不重写和依赖注入。
 - [x] 修改 `packages/backend/app/services/report/report_parser_service.py`，删除写死的步骤3环境事实，仅产生明确待初始化占位内容；新案件正式草稿必须由上述初始化链替换。验证：扩展解析服务定向测试，断言 Parser 输出不含 FL-901、Windows 10 或固定火绒版本，草稿初始化后使用合成环境快照。
 
 ## 验证方式

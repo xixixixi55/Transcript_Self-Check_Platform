@@ -14,16 +14,16 @@ from docx import Document
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.template_approval_repository import TemplateApprovalRepository  # noqa: E402
-from app.repository.template_registry_repository import TemplateRegistryRepository  # noqa: E402
-from app.repository.workbench_database import WorkbenchDatabase  # noqa: E402
-from app.services.docx_package_service import compute_ooxml_package_fingerprint  # noqa: E402
-from app.services.template_profile_service import (  # noqa: E402
+from app.repository.template.template_approval_repository import TemplateApprovalRepository  # noqa: E402
+from app.repository.template.template_registry_repository import TemplateRegistryRepository  # noqa: E402
+from app.repository.workbench.workbench_database import WorkbenchDatabase  # noqa: E402
+from app.services.document.docx_package_service import compute_ooxml_package_fingerprint  # noqa: E402
+from app.services.template.template_profile_service import (  # noqa: E402
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     CURRENT_TEMPLATE_VALIDATION_RULE,
     validate_registered_template,
 )
-from app.services.template_registry_service import TemplateRegistryService  # noqa: E402
+from app.services.template.template_registry_service import TemplateRegistryService  # noqa: E402
 from synthetic_report_builders import build_ordered_report  # noqa: E402
 
 ROOT = Path(__file__).parents[1]

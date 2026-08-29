@@ -23,10 +23,10 @@ from app.repository import (  # noqa: E402
     WorkbenchDatabase,
 )
 from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository  # noqa: E402
-from app.repository.retention_policy_config import parse_retention_environment  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.repository.workbench_constants import WORKBENCH_SCHEMA_VERSION  # noqa: E402
-from app.repository.workbench_schema import MIGRATIONS  # noqa: E402
+from app.repository.retention.retention_policy_config import parse_retention_environment  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_constants import WORKBENCH_SCHEMA_VERSION  # noqa: E402
+from app.repository.workbench.workbench_schema import MIGRATIONS  # noqa: E402
 
 
 def _database(tmp_path: Path) -> WorkbenchDatabase:

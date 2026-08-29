@@ -8,12 +8,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from ...repository.archive.archive_hash_repository import compute_md5_streaming
-from ...repository.hash_algorithm_repository import manifest_part_business_hash, normalize_hash_algorithm
+from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash, normalize_hash_algorithm
 from ...repository.archive.archive_validator_repository import ArchiveValidationResult
-from ...repository.winrar_discovery_repository import WinRarCapability
-from ..disc_sequence_service import generate_disc_numbers, parse_disc_sequence, validate_disc_mapping
+from ...repository.archive.winrar_discovery_repository import WinRarCapability
+from ..disc.disc_sequence_service import generate_disc_numbers, parse_disc_sequence, validate_disc_mapping
 from .archive_staging_security_service import OWNERSHIP_MARKER_NAME
-from ..hash_algorithm_service import archive_business_hash
+from ..integrity.hash_algorithm_service import archive_business_hash
 from .archive_manifest_output_security_service import (
     assert_safe_output_file as _assert_safe_output_file, compute_disc_capacity,
     compute_manifest_disc_capacity as _expected_disc_capacity,

@@ -16,7 +16,7 @@ from ...repository.archive.archive_runtime_context_lease_repository import (
     interrupt_queued_runtime_context,
     lease_queued_runtime_context,
 )
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_progress_service import ArchiveProgressService
 from .archive_resource_admission_service import ArchiveResourceSnapshot

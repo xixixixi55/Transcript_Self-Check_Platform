@@ -8,8 +8,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
 
-from app.repository import device_config as device_config_repository  # noqa: E402
-from app.services.device_config_service import (  # noqa: E402
+from app.repository.inspection import device_config as device_config_repository  # noqa: E402
+from app.services.inspection.device_config_service import (  # noqa: E402
     DeviceConfigError,
     add_device,
     company_for_device_name,

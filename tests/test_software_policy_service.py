@@ -5,8 +5,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository.report.report_format_adapter import extract_main_software_candidate
-from app.services.export_gate_service import ExportGateInput, evaluate_export_gate
-from app.services.software_policy_service import (
+from app.services.export.export_gate_service import ExportGateInput, evaluate_export_gate
+from app.services.inspection.software_policy_service import (
     apply_device_company_prefix,
     is_primary_software_confirmed,
     normalize_primary_software_projection,

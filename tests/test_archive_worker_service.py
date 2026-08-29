@@ -21,26 +21,26 @@ from app.repository import (  # noqa: E402
     WorkbenchDatabase,
     database_path_for_deployment,
 )
-from app.repository.winrar_process_monitor import (  # noqa: E402
+from app.repository.archive.winrar_process_monitor import (  # noqa: E402
     OwnedProcessCancelled,
     OwnedProcessIdleTimeout,
     monitor_owned_process,
 )
-from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
-from app.repository.winrar_executor_repository import (  # noqa: E402
+from app.repository.archive.winrar_discovery_repository import WinRarCapability  # noqa: E402
+from app.repository.archive.winrar_executor_repository import (  # noqa: E402
     ArchiveExecutionError, WinRarExecutor,
 )
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.repository.archive.archive_attempt_recovery_repository import (  # noqa: E402
     _verified_output_metrics,
 )
 from app.repository.archive.archive_manifest_index_repository import (  # noqa: E402
     ArchiveManifestRepositoryError,
 )
-from app.repository.runtime_paths import get_runtime_paths  # noqa: E402
+from app.repository.runtime.runtime_paths import get_runtime_paths  # noqa: E402
 from app.services.archive.archive_progress_service import ArchiveProgressService  # noqa: E402
 from app.services.archive.archive_manifest_access_service import ArchiveGateError  # noqa: E402
-from app.services.export_gate_service import ExportGateIssue  # noqa: E402
+from app.services.export.export_gate_service import ExportGateIssue  # noqa: E402
 from app.services.archive.archive_resource_admission_service import (  # noqa: E402
     ArchiveAdmissionConfig,
     ArchiveResourceAdmissionService,
@@ -51,7 +51,7 @@ from app.services.archive.archive_worker_service import (  # noqa: E402
     ArchiveWorkItem,
     ArchiveWorkerService,
 )
-from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
+from app.services.runtime.workbench_factory_service import build_workbench_services  # noqa: E402
 
 CASE_ID = "SYNTHETIC-T014-WORKER-CASE"
 
@@ -398,7 +398,7 @@ def test_monitor_allows_output_growth_until_hard_deadline(tmp_path: Path) -> Non
     output_sizes = iter([1, 1, 2, 3, 4])
     process = PollingProcess()
     with mock.patch(
-        "app.repository.winrar_process_monitor.time.monotonic",
+        "app.repository.archive.winrar_process_monitor.time.monotonic",
         side_effect=[0.0, 0.0, 0.5, 1.5, 2.5],
     ):
         with pytest.raises(subprocess.TimeoutExpired) as failure:
@@ -415,7 +415,7 @@ def test_monitor_allows_output_growth_until_hard_deadline(tmp_path: Path) -> Non
 def test_monitor_times_out_after_rar_output_stalls(tmp_path: Path) -> None:
     process = PollingProcess()
     with mock.patch(
-        "app.repository.winrar_process_monitor.time.monotonic",
+        "app.repository.archive.winrar_process_monitor.time.monotonic",
         side_effect=[0.0, 0.0, 1.0, 2.0],
     ):
         with pytest.raises(OwnedProcessIdleTimeout) as failure:
@@ -432,7 +432,7 @@ def test_monitor_does_not_treat_output_shrink_as_growth(tmp_path: Path) -> None:
     output_sizes = iter([10, 5, 5])
     process = PollingProcess()
     with mock.patch(
-        "app.repository.winrar_process_monitor.time.monotonic",
+        "app.repository.archive.winrar_process_monitor.time.monotonic",
         side_effect=[0.0, 0.0, 1.0, 2.0],
     ):
         with pytest.raises(OwnedProcessIdleTimeout):
@@ -451,7 +451,7 @@ def test_monitor_waits_for_hard_deadline_before_first_rar_output(
     output_sizes = iter([0, 0, 0])
     process = PollingProcess()
     with mock.patch(
-        "app.repository.winrar_process_monitor.time.monotonic",
+        "app.repository.archive.winrar_process_monitor.time.monotonic",
         side_effect=[0.0, 0.5, 2.0],
     ):
         with pytest.raises(subprocess.TimeoutExpired) as failure:
@@ -471,7 +471,7 @@ def test_monitor_hard_deadline_wins_when_deadlines_are_equal(
     output_sizes = iter([1, 1])
     process = PollingProcess()
     with mock.patch(
-        "app.repository.winrar_process_monitor.time.monotonic",
+        "app.repository.archive.winrar_process_monitor.time.monotonic",
         side_effect=[0.0, 0.0, 2.0],
     ):
         with pytest.raises(subprocess.TimeoutExpired) as failure:
@@ -493,7 +493,7 @@ def test_environment_hard_deadline_wins_when_poll_crosses_both(
     output_sizes = iter([1, 1])
     process = PollingProcess()
     with mock.patch(
-        "app.repository.winrar_process_monitor.time.monotonic",
+        "app.repository.archive.winrar_process_monitor.time.monotonic",
         side_effect=[0.0, 0.0, 3.0],
     ):
         with pytest.raises(subprocess.TimeoutExpired) as failure:
@@ -514,7 +514,7 @@ def test_monitor_starts_idle_clock_when_first_rar_output_appears(
     output_sizes = iter([0, 5, 5, 5])
     process = PollingProcess()
     with mock.patch(
-        "app.repository.winrar_process_monitor.time.monotonic",
+        "app.repository.archive.winrar_process_monitor.time.monotonic",
         side_effect=[0.0, 1.0, 2.9, 3.0],
     ):
         with pytest.raises(OwnedProcessIdleTimeout):
@@ -566,10 +566,10 @@ def test_executor_cancel_cleans_only_its_owned_staging(tmp_path: Path) -> None:
         True, "configured", "WinRAR.exe", "7.23", True,
     )
     with mock.patch(
-        "app.repository.winrar_executor_repository.subprocess.Popen",
+        "app.repository.archive.winrar_executor_repository.subprocess.Popen",
         return_value=process,
     ), mock.patch(
-        "app.repository.winrar_executor_repository._kill_process_tree_impl",
+        "app.repository.archive.winrar_executor_repository._kill_process_tree_impl",
         return_value=True,
     ) as tree_kill:
         with pytest.raises(ArchiveExecutionError) as captured:
@@ -607,13 +607,13 @@ def test_executor_idle_timeout_terminates_and_cleans_owned_staging(
         True, "configured", "WinRAR.exe", "7.23", True,
     )
     with mock.patch(
-        "app.repository.winrar_executor_repository.subprocess.Popen",
+        "app.repository.archive.winrar_executor_repository.subprocess.Popen",
         return_value=process,
     ), mock.patch(
-        "app.repository.winrar_executor_repository.monitor_owned_process",
+        "app.repository.archive.winrar_executor_repository.monitor_owned_process",
         side_effect=OwnedProcessIdleTimeout(["WinRAR.exe"], 600),
     ), mock.patch(
-        "app.repository.winrar_executor_repository._kill_process_tree_impl",
+        "app.repository.archive.winrar_executor_repository._kill_process_tree_impl",
         return_value=True,
     ) as tree_kill:
         with pytest.raises(ArchiveExecutionError) as captured:
@@ -651,13 +651,13 @@ def test_executor_idle_timeout_keeps_staging_when_termination_fails(
         True, "configured", "WinRAR.exe", "7.23", True,
     )
     with mock.patch(
-        "app.repository.winrar_executor_repository.subprocess.Popen",
+        "app.repository.archive.winrar_executor_repository.subprocess.Popen",
         return_value=process,
     ), mock.patch(
-        "app.repository.winrar_executor_repository.monitor_owned_process",
+        "app.repository.archive.winrar_executor_repository.monitor_owned_process",
         side_effect=OwnedProcessIdleTimeout(["WinRAR.exe"], 600),
     ), mock.patch(
-        "app.repository.winrar_executor_repository._terminate_process",
+        "app.repository.archive.winrar_executor_repository._terminate_process",
         return_value=False,
     ) as terminate:
         with pytest.raises(ArchiveExecutionError) as captured:

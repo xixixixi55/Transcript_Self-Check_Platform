@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from ..config import OUTPUT_BASE
-from ..services.demo_readiness_service import build_demo_readiness
+from ..services.runtime.demo_readiness_service import build_demo_readiness
 
 router = APIRouter()
 

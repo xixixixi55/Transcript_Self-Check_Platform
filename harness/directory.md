@@ -61,13 +61,31 @@
 │   ├── backend/                           # ⚙️ 后端 (FastAPI) — Layer 20-23
 │       └── app/
 │           ├── repository/                # Layer 20: 数据访问
-│           │   ├── archive/               #    归档计划、清单、输入快照与发布状态持久化
-│           │   ├── case/                  #    案件工作台、生命周期、留存与资源持久化
-│           │   └── report/                #    报告格式识别、内容解析与输入快照构建
+│           │   ├── archive/               #    归档计划、清单、快照、发布状态与 WinRAR 执行
+│           │   ├── case/                  #    案件记录、审计事件、编辑租约、任务与共享默认值
+│           │   ├── inspection/            #    检查设备、检查人员与本地检查环境
+│           │   ├── integrity/             #    哈希算法元数据与 HashMyFiles 采集结果
+│           │   ├── report/                #    报告格式识别、内容解析与输入快照构建
+│           │   ├── retention/             #    清理运行、留存策略与正式文书制品
+│           │   ├── runtime/               #    运行路径、OfficeCLI 环境与本地目录历史
+│           │   ├── source/                #    数据源身份、定位信息与来源记录
+│           │   ├── template/              #    模板注册与审批状态
+│           │   └── workbench/             #    工作台数据库、Schema、序列化与基础设施
 │           ├── services/                  # Layer 21: 业务逻辑
 │           │   ├── archive/               #    归档规划、执行、恢复、发布与运行时协调
-│           │   ├── case/                  #    案件草稿、生命周期、资源、提交与留存
-│           │   └── report/                #    报告解析、缓存、错误投影与请求协调
+│           │   ├── attachment/            #    附件规划、图片几何与 DOCX 渲染
+│           │   ├── case/                  #    案件草稿、生命周期、资源、租约、任务、默认值与留存
+│           │   ├── canonical/             #    规范检查模型与报告格式适配
+│           │   ├── disc/                  #    光盘编号规则与归档后映射
+│           │   ├── document/              #    DOCX 包安全、文档构建与记录生成
+│           │   ├── export/                #    导出资格检查与统一 Word/RAR 导出
+│           │   ├── inspection/            #    检查配置、人员、环境、检材与软件策略
+│           │   ├── integrity/             #    业务哈希算法与 HashMyFiles 能力
+│           │   ├── report/                #    报告解析、缓存、错误投影与请求协调
+│           │   ├── runtime/               #    运行配置、本地桥接、能力投影与组合根
+│           │   ├── shadow/                #    Shadow 迁移观测、脱敏比较与运行时留存
+│           │   ├── source/                #    来源记录、目录指纹、重验证与恢复
+│           │   └── template/              #    模板配置、校验、注册与填充
 │           ├── controllers/               # Layer 22: 请求处理
 │           └── routes/                    # Layer 23: 路由定义
 │   └── launcher/                          # 🪟 Windows 便携版启动器

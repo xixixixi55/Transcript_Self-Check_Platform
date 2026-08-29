@@ -6,7 +6,7 @@ import os
 import secrets
 from pathlib import Path
 
-from ..workbench_serialization import validate_opaque_id
+from ..workbench.workbench_serialization import validate_opaque_id
 
 
 class CaseAssetStorage:

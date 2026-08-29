@@ -7,8 +7,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.attachment_plan_service import AttachmentPlanError, build_attachment_plan  # noqa: E402
-from app.services.attachment2_plan_service import with_compatible_material_photo_groups  # noqa: E402
+from app.services.attachment.attachment_plan_service import AttachmentPlanError, build_attachment_plan  # noqa: E402
+from app.services.attachment.attachment2_plan_service import with_compatible_material_photo_groups  # noqa: E402
 
 
 def report(inspector_count=2, evidence_numbers=None, photo_ids=None, photo_groups=None):

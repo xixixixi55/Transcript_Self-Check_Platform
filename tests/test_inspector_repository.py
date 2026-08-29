@@ -14,14 +14,14 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.controllers import inspector_controller
-from app.repository.inspector_repository import (
+from app.repository.inspection.inspector_repository import (
     InspectorDataError,
     InspectorRepository,
     InspectorValidationError,
     project_case_inspector_snapshot,
     resolve_app_data_dir,
 )
-from app.services.inspector_service import InspectorService
+from app.services.inspection.inspector_service import InspectorService
 
 
 def test_first_create_writes_versioned_utf8_json_and_ignores_client_id(tmp_path: Path):
@@ -132,7 +132,7 @@ def test_atomic_replace_failure_keeps_original_and_cleans_temp_file(tmp_path: Pa
     repository = InspectorRepository(tmp_path)
     repository.create("原始姓名", "合成单位", "合成职位", "001")
     original = repository.file_path.read_bytes()
-    with patch("app.repository.inspector_repository.os.replace", side_effect=OSError("synthetic replace failure")):
+    with patch("app.repository.inspection.inspector_repository.os.replace", side_effect=OSError("synthetic replace failure")):
         with pytest.raises(InspectorDataError):
             repository.create("第二姓名", "合成单位", "合成职位", "002")
     assert repository.file_path.read_bytes() == original

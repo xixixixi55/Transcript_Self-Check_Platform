@@ -6,8 +6,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from ...repository.archive.archive_task_repository import ArchiveTaskRepository
-from ...repository.resource_snapshot_repository import ResourceSnapshotRepository
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.archive.resource_snapshot_repository import ResourceSnapshotRepository
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 
 _STAGES = (
     "queued", "inventory", "preflight_verified", "winrar", "integrity",

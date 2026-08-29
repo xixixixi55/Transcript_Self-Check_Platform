@@ -14,13 +14,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
-from app.repository.formal_word_artifact_repository import FormalWordArtifactRepository  # noqa: E402
+from app.repository.retention.formal_word_artifact_repository import FormalWordArtifactRepository  # noqa: E402
 from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.case.case_artifact_deletion_service import CaseArtifactDeletionService  # noqa: E402
 from app.services.case.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
-from app.services.source_record_service import SourceRecordService  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.services.source.source_record_service import SourceRecordService  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 
 REPORT = {
     "title": "SYNTHETIC/TEST/InspectionReport",

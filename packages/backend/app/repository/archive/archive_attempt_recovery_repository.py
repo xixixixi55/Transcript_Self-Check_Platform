@@ -9,11 +9,11 @@ from .archive_attempt_projection_repository import internal_attempt, public_atte
 from .archive_attempt_evidence_repository import bind_manifest_evidence
 from .archive_context_binding_repository import deactivate_bindings, report_fingerprint
 from .archive_report_metadata_repository import update_verified_draft
-from ..workbench_database import WorkbenchDatabase, utc_now
-from ..workbench_errors import WorkbenchPersistenceError
-from ..workbench_serialization import validate_opaque_id
-from ..workbench_repository_helpers import json_text
-from ..workbench_constants import ARCHIVE_TASK_ACTIONS
+from ..workbench.workbench_database import WorkbenchDatabase, utc_now
+from ..workbench.workbench_errors import WorkbenchPersistenceError
+from ..workbench.workbench_serialization import validate_opaque_id
+from ..workbench.workbench_repository_helpers import json_text
+from ..workbench.workbench_constants import ARCHIVE_TASK_ACTIONS
 
 
 def _row(database: WorkbenchDatabase, attempt_id: str) -> Any:

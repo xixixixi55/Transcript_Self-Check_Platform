@@ -15,16 +15,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.repository.archive.archive_authorization_repository import ArchiveAuthorizationError  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.case.case_draft_service import CaseDraftService, _initialize_draft  # noqa: E402
 from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
-from app.services.document_builder_service import build_record_document  # noqa: E402
-from app.services.edit_lease_service import EditLeaseService  # noqa: E402
-from app.services.inspection_environment_service import InspectionEnvironmentService  # noqa: E402
-from app.services.source_record_service import SourceRecordService  # noqa: E402
-from app.services.task_record_service import TaskRecordService  # noqa: E402
-from app.repository.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
+from app.services.document.document_builder_service import build_record_document  # noqa: E402
+from app.services.case.edit_lease_service import EditLeaseService  # noqa: E402
+from app.services.inspection.inspection_environment_service import InspectionEnvironmentService  # noqa: E402
+from app.services.source.source_record_service import SourceRecordService  # noqa: E402
+from app.services.case.task_record_service import TaskRecordService  # noqa: E402
+from app.repository.case.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
 
 REPORT = {
     "title": "SYNTHETIC/TEST/InspectionReport", "document_number": "SYNTHETIC-DOC-001",

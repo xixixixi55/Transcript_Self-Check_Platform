@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.export_gate_service import (  # noqa: E402
+from app.services.export.export_gate_service import (  # noqa: E402
     ExportGateCode,
     ExportGateInput,
     evaluate_export_gate,

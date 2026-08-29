@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 
-from ..services.inspector_service import (
+from ..services.inspection.inspector_service import (
     InspectorDataError,
     InspectorNotFoundError,
     InspectorService,

@@ -18,7 +18,7 @@ from .archive_manifest_service import (
 from ...repository.archive.archive_manifest_repository import ArchiveManifestRepository
 from ...repository.archive.archive_publish_fence_repository import assert_publishable
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_publication_identity_service import publication_digest
 
 

@@ -20,8 +20,8 @@ from app.repository import (  # noqa: E402
     TaskRecordRepository,
     WorkbenchDatabase,
 )
-from app.repository.workbench_database import normalize_utc_z, utc_now_z  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_database import normalize_utc_z, utc_now_z  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 
 
 def _database(tmp_path: Path) -> WorkbenchDatabase:

@@ -15,7 +15,7 @@ from lxml import etree
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packages" / "backend"))
 
-from app.services.docx_package_service import read_validated_docx_entries  # noqa: E402
+from app.services.document.docx_package_service import read_validated_docx_entries  # noqa: E402
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 V_NS = "urn:schemas-microsoft-com:vml"

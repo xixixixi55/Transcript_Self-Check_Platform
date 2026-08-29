@@ -2,7 +2,7 @@
 
 ## 原因
 
-当前系统把解析结果、业务规则、压缩执行和 DOCX 排版都直接耦合在 `InspectionReport`、`report_parser_service.py` 与 `template_filler_service.py` 中。甲方已经确认报告结构、检材展示、分卷压缩、三类附件和模板选择都将继续变化；如果继续在现有字段和唯一模板上叠加条件分支，将无法同时保护新旧报告兼容性和版式验收结果。
+当前系统把解析结果、业务规则、压缩执行和 DOCX 排版都直接耦合在 `InspectionReport`、`report_parser_service.py` 与 `packages/backend/app/services/template/template_filler_service.py` 中。甲方已经确认报告结构、检材展示、分卷压缩、三类附件和模板选择都将继续变化；如果继续在现有字段和唯一模板上叠加条件分支，将无法同时保护新旧报告兼容性和版式验收结果。
 
 本变更建立“报告适配 → 规范化案件 → 业务规划 → 文档渲染计划 → 模板 Profile → DOCX Renderer”的稳定边界。阶段一先完整实现当前报告与当前正式模板，阶段二、三只预留可落地的 Profile 和人工确认接口，不把未来能力伪装成当前自动化能力。
 

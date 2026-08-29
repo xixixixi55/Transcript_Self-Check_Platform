@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.archive_parse_runtime_service import ArchiveParseRuntime  # noqa: E402
+from app.services.archive.archive_parse_runtime_service import ArchiveParseRuntime  # noqa: E402
 
 
 def _result(filename: str = "sample.zip") -> dict[str, object]:
@@ -34,10 +34,10 @@ def test_same_archive_parse_is_serialized_and_reused_after_completion(tmp_path):
         return _result()
 
     with patch(
-        "app.services.archive_parse_runtime_service.compute_md5",
+        "app.services.archive.archive_parse_runtime_service.compute_md5",
         return_value="a" * 32,
     ), patch(
-        "app.services.archive_parse_runtime_service.parse_from_archive",
+        "app.services.archive.archive_parse_runtime_service.parse_from_archive",
         side_effect=parse,
     ):
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -66,8 +66,8 @@ def test_clear_during_archive_parse_invalidates_result_generation(tmp_path):
         assert release.wait(timeout=5)
         return _result()
 
-    with patch("app.services.archive_parse_runtime_service.compute_md5", return_value="a" * 32), \
-         patch("app.services.archive_parse_runtime_service.parse_from_archive", side_effect=parse):
+    with patch("app.services.archive.archive_parse_runtime_service.compute_md5", return_value="a" * 32), \
+         patch("app.services.archive.archive_parse_runtime_service.parse_from_archive", side_effect=parse):
         with ThreadPoolExecutor(max_workers=1) as pool:
             first = pool.submit(runtime.load_or_parse, str(archive), str(tmp_path), retain_source=False)
             assert started.wait(timeout=5)
@@ -86,9 +86,9 @@ def test_cached_archive_report_can_materialize_a_fresh_context_source(tmp_path):
     extracted = tmp_path / "extracted"
     extracted.mkdir()
 
-    with patch("app.services.archive_parse_runtime_service.compute_md5", return_value="a" * 32), \
-         patch("app.services.archive_parse_runtime_service.parse_from_archive", return_value=_result()) as parse, \
-         patch("app.services.archive_parse_runtime_service.extract_archive", return_value=str(extracted)) as extract:
+    with patch("app.services.archive.archive_parse_runtime_service.compute_md5", return_value="a" * 32), \
+         patch("app.services.archive.archive_parse_runtime_service.parse_from_archive", return_value=_result()) as parse, \
+         patch("app.services.archive.archive_parse_runtime_service.extract_archive", return_value=str(extracted)) as extract:
         runtime.load_or_parse(str(archive), str(tmp_path), retain_source=False)
         result = runtime.load_or_parse(str(archive), str(tmp_path), retain_source=True)
 

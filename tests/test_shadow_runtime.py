@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.pipeline_runtime_service import load_pipeline_settings
-from app.services.shadow_runtime_service import ShadowRuntimeStore, ShadowStageRecord
+from app.services.runtime.pipeline_runtime_service import load_pipeline_settings
+from app.services.shadow.shadow_runtime_service import ShadowRuntimeStore, ShadowStageRecord
 
 
 def test_shadow_store_starts_new_generation_and_has_capacity_eviction():

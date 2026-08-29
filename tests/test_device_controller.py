@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.controllers import device_controller  # noqa: E402
-from app.repository import device_config as device_config_repository  # noqa: E402
+from app.repository.inspection import device_config as device_config_repository  # noqa: E402
 
 
 @pytest.fixture()

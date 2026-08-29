@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ...repository.archive.archive_authorization_repository import AuthorizedInputRoot
-from ...repository.filesystem_identity_repository import directory_fingerprint_matches
+from ...repository.source.filesystem_identity_repository import directory_fingerprint_matches
 from ...repository.archive.archive_manifest_repository import (
     ArchiveManifestRepository, ArchiveManifestRepositoryError,
 )
 from ...repository.archive.archive_validator_repository import validate_archive_parts
-from ...repository.winrar_discovery_repository import WinRarCapability, discover_winrar
-from ...repository.winrar_executor_repository import ArchiveExecutionError, WinRarExecutor
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.archive.winrar_discovery_repository import WinRarCapability, discover_winrar
+from ...repository.archive.winrar_executor_repository import ArchiveExecutionError, WinRarExecutor
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_completion_service import record_attempt_completion
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_manifest_access_service import (
@@ -28,16 +28,16 @@ from .archive_planner_service import (
     ArchiveDiagnostic, ArchivePlan, ArchivePolicy, ArchiveSourceEntry,
     PRODUCTION_ARCHIVE_POLICY, plan_archive, replan_to_next_tier,
 )
-from ..disc_sequence_service import (
+from ..disc.disc_sequence_service import (
     generate_disc_numbers, parse_archive_medium_sequence, parse_disc_sequence,
 )
 from .archive_publish_service import publish_staged_archive
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord
-from ..export_gate_service import (
+from ..export.export_gate_service import (
     ExportGateCode, ExportGateInput, ExportGateIssue, ExportGateResult,
     evaluate_export_gate,
 )
-from ..hash_algorithm_service import report_hash_algorithm
+from ..integrity.hash_algorithm_service import report_hash_algorithm
 
 _PUBLICATION_EVIDENCE_RETRIES = 3
 

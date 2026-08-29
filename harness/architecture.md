@@ -78,7 +78,7 @@
 - >800 行的生产源码原则上禁止；必须沿自然职责边界拆分，或在 `FILE_SIZE_JUSTIFICATIONS` 中登记明确、可审查且带最大允许行数的豁免理由。
 - 高内聚模块允许合理超过 400 行。模块拆分必须由独立领域职责、不同变化原因、可独立测试的行为边界，或能够明显降低调用方认知复杂度驱动；禁止仅为了满足 LOC 限制拆分文件。
 - 新增 Service/Repository 必须具有可独立描述的领域职责；禁止创建仅承担行数拆分作用的 `support`、`helper`、`pass-through` Service 或 Repository。
-- `scripts/lint-arch.ts` 不对 ≤600 行文件报错；601–800 行要求登记评估说明；>800 行要求登记有界豁免，否则报错。当前唯一 >800 行豁免为 Legacy `template_filler_service.py`，其理由和增长上限由检查器集中记录。
+- `scripts/lint-arch.ts` 不对 ≤600 行文件报错；601–800 行要求登记评估说明；>800 行要求登记有界豁免，否则报错。当前唯一 >800 行豁免为 Legacy `packages/backend/app/services/template/template_filler_service.py`，其理由和增长上限由检查器集中记录。
 
 ### 分层含义
 

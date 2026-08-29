@@ -19,9 +19,9 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository import CaseDraftRepository, CaseShellRepository, WorkbenchDatabase, database_path_for_deployment  # noqa: E402
-from app.repository.workbench_constants import MAX_CASE_IMAGE_BYTES  # noqa: E402
-from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_constants import MAX_CASE_IMAGE_BYTES  # noqa: E402
+from app.services.runtime.workbench_factory_service import build_workbench_services  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_export_service import _resolve_photo_paths  # noqa: E402
 
 CASE_ID = "SYNTHETIC-ASSET-CASE"

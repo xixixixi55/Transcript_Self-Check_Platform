@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from ...repository.archive.archive_input_repository import MAX_SAFE_INTEGER
-from ..disc_sequence_service import (
+from ..disc.disc_sequence_service import (
     generate_disc_numbers, parse_archive_medium_sequence, parse_disc_sequence,
 )
 

@@ -23,7 +23,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 CHECKER = ROOT / "scripts" / "check-contracts.ts"
-CANONICAL_MODELS = ROOT / "packages" / "backend" / "app" / "services" / "canonical_models_service.py"
+CANONICAL_MODELS = ROOT / "packages" / "backend" / "app" / "services" / "canonical" / "canonical_models_service.py"
 
 
 def _run_checker() -> tuple[int, str]:

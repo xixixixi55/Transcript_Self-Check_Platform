@@ -22,9 +22,9 @@ from ...repository.archive.archive_context_binding_repository import (
 from ...repository.archive.archive_publish_fence_repository import get as get_fence
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
-from ...repository.source_record_repository import SourceRecordRepository
-from ...repository.workbench_database import WorkbenchDatabase, utc_now
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.source.source_record_repository import SourceRecordRepository
+from ...repository.workbench.workbench_database import WorkbenchDatabase, utc_now
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_manifest_service import validate_published_manifest
 from .archive_staging_security_service import (
     OWNERSHIP_MARKER_NAME,
@@ -37,7 +37,7 @@ from .archive_input_snapshot_service import (
     SealedInputSnapshot, assert_sealed_input, cleanup_sealed_input_snapshot,
     create_sealed_input_snapshot, load_sealed_input_snapshot,
 )
-from ...repository.workbench_serialization import validate_opaque_id
+from ...repository.workbench.workbench_serialization import validate_opaque_id
 
 if TYPE_CHECKING:
     from .archive_manifest_service import ArchiveFileIdentity

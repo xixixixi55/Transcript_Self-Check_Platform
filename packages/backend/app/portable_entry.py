@@ -22,7 +22,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 async def _serve(port: int, ready_file: Path) -> int:
-    from app.repository.runtime_paths import get_runtime_paths
+    from app.repository.runtime.runtime_paths import get_runtime_paths
 
     if os.environ.get("BIJI_PORTABLE_MODE") != "1":
         raise RuntimeError("PORTABLE_MODE_REQUIRED")

@@ -19,7 +19,7 @@ from app.services.case.case_draft_service import CaseDraftService, _parse_source
 from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.case.case_parse_dispatcher_service import CaseParseDispatcher  # noqa: E402
 from app.services.report.report_parser_service import parse_report  # noqa: E402
-from app.services.source_record_service import SourceRecordService  # noqa: E402
+from app.services.source.source_record_service import SourceRecordService  # noqa: E402
 
 
 def _write_legacy_fixture(root: Path) -> Path:
@@ -76,7 +76,7 @@ def test_same_synthetic_report_profiles_legacy_and_workbench_paths(profile_fixtu
     )
     identifiers = cases.submit(descriptor)
 
-    from app.services import source_record_service
+    from app.services.source import source_record_service
 
     original_fingerprint_with_metadata = source_record_service._fingerprint_with_metadata
     original_verify_after_parse = source_service.verify_after_parse

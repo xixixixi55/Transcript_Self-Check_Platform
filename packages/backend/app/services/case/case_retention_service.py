@@ -8,11 +8,11 @@ from typing import Any
 
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.case.case_retention_repository import CaseRetentionRepository
-from ...repository.retention_policy_repository import RetentionPolicyRepository
-from ...repository.retention_time import expires_at_utc
-from ...repository.workbench_database import WorkbenchDatabase, normalize_utc_z
-from ...repository.workbench_errors import WorkbenchPersistenceError
-from ...repository.workbench_serialization import validate_opaque_id
+from ...repository.retention.retention_policy_repository import RetentionPolicyRepository
+from ...repository.retention.retention_time import expires_at_utc
+from ...repository.workbench.workbench_database import WorkbenchDatabase, normalize_utc_z
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_serialization import validate_opaque_id
 from .case_retention_authority_service import (
     PublicationRevalidator, WordArtifactRevalidator, active_blocker, checked_time, latest_publication,
     latest_word, publication_payload, record_id, run_publication_revalidation,

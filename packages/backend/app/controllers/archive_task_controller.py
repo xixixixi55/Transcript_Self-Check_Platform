@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..services.workbench_factory_service import ensure_archive_task_api
+from ..services.runtime.workbench_factory_service import ensure_archive_task_api
 from . import workbench_controller
 from .record_template_context_controller import resolve_case_template_context
 from .workbench_controller import _envelope, _handle

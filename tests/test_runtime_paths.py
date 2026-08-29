@@ -10,14 +10,17 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.runtime_paths import (  # noqa: E402
+from app.repository.runtime.runtime_paths import (  # noqa: E402
     RuntimePathError,
     resolve_runtime_paths,
 )
 
 
 def test_source_layout_uses_repository_resources_and_local_app_data(tmp_path: Path) -> None:
-    module = tmp_path / "repo" / "packages" / "backend" / "app" / "repository" / "runtime_paths.py"
+    module = (
+        tmp_path / "repo" / "packages" / "backend" / "app" / "repository"
+        / "runtime" / "runtime_paths.py"
+    )
     paths = resolve_runtime_paths(
         {"LOCALAPPDATA": str(tmp_path / "local")},
         module_path=module,

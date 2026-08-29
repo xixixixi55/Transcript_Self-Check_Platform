@@ -14,15 +14,15 @@ from lxml import etree
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.docx_package_service import (  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.services.document.docx_package_service import (  # noqa: E402
     compute_ooxml_package_fingerprint, read_validated_docx_entries,
 )
-from app.services.template_customization_service import (  # noqa: E402
+from app.services.template.template_customization_service import (  # noqa: E402
     customize_template, read_template_customization,
 )
-from app.services.template_profile_service import validate_current_template_profile  # noqa: E402
-from app.services.template_filler_service import fill_template  # noqa: E402
+from app.services.template.template_profile_service import validate_current_template_profile  # noqa: E402
+from app.services.template.template_filler_service import fill_template  # noqa: E402
 from synthetic_report_builders import build_ordered_report  # noqa: E402
 
 

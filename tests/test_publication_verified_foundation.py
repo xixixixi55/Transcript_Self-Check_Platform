@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository import CaseShellRepository, SourceRecordRepository, TaskRecordRepository, WorkbenchDatabase  # noqa: E402
 from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 
 
 def _database(tmp_path: Path) -> WorkbenchDatabase:

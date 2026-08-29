@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
-from ..winrar_discovery_repository import WinRarCapability
-from ..winrar_timeout_policy import compute_integrity_timeout
+from .winrar_discovery_repository import WinRarCapability
+from .winrar_timeout_policy import compute_integrity_timeout
 
 
 class ValidatorPlan(Protocol):

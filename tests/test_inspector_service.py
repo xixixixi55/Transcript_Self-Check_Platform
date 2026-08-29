@@ -8,8 +8,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.inspector_repository import InspectorNotFoundError, InspectorRepository
-from app.services.inspector_service import (
+from app.repository.inspection.inspector_repository import InspectorNotFoundError, InspectorRepository
+from app.services.inspection.inspector_service import (
     InspectorService,
     apply_inspector_snapshot_compatibility,
 )

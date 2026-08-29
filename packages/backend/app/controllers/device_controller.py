@@ -4,7 +4,7 @@ Layer 22: BE_Controllers — 硬件设备管理 Controller
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..services.device_config_service import (
+from ..services.inspection.device_config_service import (
     list_devices, add_device, update_device, delete_device, DeviceConfigError,
 )
 

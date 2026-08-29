@@ -39,7 +39,7 @@ const PRINCIPLE_MAX_LINES = 800
  * 模块只做行数搬运。
  */
 const FILE_SIZE_JUSTIFICATIONS: Record<string, { maxLines: number; reason: string }> = {
-  'packages/backend/app/services/template_filler_service.py': {
+  'packages/backend/app/services/template/template_filler_service.py': {
     maxLines: 1100,
     reason: 'Existing Legacy template orchestration remains behavior-frozen until natural renderer and plan boundaries are implemented and verified.',
   },

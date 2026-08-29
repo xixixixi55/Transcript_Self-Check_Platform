@@ -21,17 +21,17 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
-from app.repository.workbench_database import utc_now  # noqa: E402
+from app.repository.workbench.workbench_database import utc_now  # noqa: E402
 from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.case.case_artifact_deletion_service import CaseArtifactDeletionService  # noqa: E402
 from app.services.case.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
-from app.services.edit_lease_service import EditLeaseService  # noqa: E402
-from app.services.shared_defaults_service import SharedDefaultsService  # noqa: E402
-from app.services.source_record_service import SourceRecordService  # noqa: E402
-from app.services.task_record_service import TaskRecordService  # noqa: E402
-from app.services.workbench_factory_service import WorkbenchServices  # noqa: E402
+from app.services.case.edit_lease_service import EditLeaseService  # noqa: E402
+from app.services.case.shared_defaults_service import SharedDefaultsService  # noqa: E402
+from app.services.source.source_record_service import SourceRecordService  # noqa: E402
+from app.services.case.task_record_service import TaskRecordService  # noqa: E402
+from app.services.runtime.workbench_factory_service import WorkbenchServices  # noqa: E402
 
 REPORT = {
     "title": "SYNTHETIC/TEST/InspectionReport", "document_number": "SYNTHETIC-DOC-001",
@@ -707,7 +707,7 @@ def test_wait_for_parse_times_out_with_last_state_diagnostics():
 def test_submit_returns_before_slow_source_fingerprint_finishes(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.services import source_record_service
+    from app.services.source import source_record_service
 
     original_fingerprint = source_record_service._fingerprint_with_metadata
     started_fingerprint = Event()
@@ -740,7 +740,7 @@ def test_submit_returns_before_slow_source_fingerprint_finishes(app_services):
 def test_post_parse_source_verification_failure_does_not_undo_review_ready(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.services import source_record_service
+    from app.services.source import source_record_service
 
     with patch.object(
         source_record_service,
@@ -768,7 +768,7 @@ def test_post_parse_source_verification_failure_does_not_undo_review_ready(app_s
 def test_deferred_decision_does_not_conflict_with_pending_source_verification(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.services import source_record_service
+    from app.services.source import source_record_service
 
     original_fingerprint = source_record_service._fingerprint_with_metadata
     verification_started = Event()
@@ -1416,7 +1416,7 @@ def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_no
 def test_interrupted_archive_stays_consistent_when_context_or_attempt_creation_fails(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.repository.workbench_errors import WorkbenchPersistenceError
+    from app.repository.workbench.workbench_errors import WorkbenchPersistenceError
     from app.services.archive.archive_source_runtime_service import (
         ARCHIVE_SOURCE_RUNTIME_STORE,
         ArchiveRuntimeError,

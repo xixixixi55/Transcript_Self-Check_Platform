@@ -11,8 +11,8 @@ from ...repository.archive.archive_manifest_index_repository import (
     ArchiveManifestRepositoryError,
 )
 from ...repository.archive.archive_task_repository import ArchiveTaskRepository
-from ...repository.workbench_database import utc_now
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_database import utc_now
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_execution_service import ArchiveGateError, execute_archive
 from .archive_planner_service import safe_archive_base_name

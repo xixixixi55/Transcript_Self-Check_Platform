@@ -10,9 +10,9 @@ from .archive_context_binding_repository import (
     context_binding_hash, report_fingerprint as calculate_report_fingerprint,
 )
 from .archive_publish_fence_repository import active_for_case
-from ..workbench_database import WorkbenchDatabase, normalize_utc_z, utc_now
-from ..workbench_errors import WorkbenchPersistenceError
-from ..workbench_serialization import validate_opaque_id
+from ..workbench.workbench_database import WorkbenchDatabase, normalize_utc_z, utc_now
+from ..workbench.workbench_errors import WorkbenchPersistenceError
+from ..workbench.workbench_serialization import validate_opaque_id
 
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 _PHASES = {"intent_persisted", "published", "indexed", "verified", "conflict"}

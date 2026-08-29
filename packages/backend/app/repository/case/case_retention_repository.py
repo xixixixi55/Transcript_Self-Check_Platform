@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ..retention_repository_helpers import identifier, optional_time, required_time
-from ..workbench_database import WorkbenchDatabase, utc_now_z
-from ..workbench_errors import WorkbenchPersistenceError
+from ..retention.retention_repository_helpers import identifier, optional_time, required_time
+from ..workbench.workbench_database import WorkbenchDatabase, utc_now_z
+from ..workbench.workbench_errors import WorkbenchPersistenceError
 
 _ELIGIBILITY = {"eligible", "ineligible", "unknown"}
 _STATUS = {"unknown", "not_expired", "eligible", "blocked", "planned", "processing", "completed", "failed"}

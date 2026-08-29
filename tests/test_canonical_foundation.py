@@ -5,11 +5,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.canonical_adapter_service import (
+from app.services.canonical.canonical_adapter_service import (
     canonical_to_inspection_report,
     inspection_report_to_canonical,
 )
-from app.services.canonical_models_service import (
+from app.services.canonical.canonical_models_service import (
     CanonicalCaseInfo,
     CanonicalInspectionCase,
     FieldProvenance,

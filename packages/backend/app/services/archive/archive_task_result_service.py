@@ -11,11 +11,11 @@ from ...repository.archive.archive_manifest_repository import ArchiveManifestRep
 from ...repository.archive.archive_plan_repository import ArchivePlanRepository
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.archive.archive_task_repository import ArchiveTaskRepository
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_manifest_service import validate_manifest_files, validate_manifest_metadata
 from .archive_publication_identity_service import assert_publication_identity
-from ..disc_sequence_service import archive_medium_for_mode
+from ..disc.disc_sequence_service import archive_medium_for_mode
 
 
 class ArchiveTaskResultService:

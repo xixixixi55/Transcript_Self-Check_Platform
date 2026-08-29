@@ -18,11 +18,11 @@ from app.services.archive.archive_export_service import (  # noqa: E402
     resolve_case_word_manifest,
     validate_export_directory,
 )
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_manifest_projection_service import (  # noqa: E402
     project_manifest_to_legacy_report_with_plan,
 )
-from app.services.unified_export_service import with_disc_mapping  # noqa: E402
+from app.services.export.unified_export_service import with_disc_mapping  # noqa: E402
 
 
 def _api(consume_ok: bool) -> MagicMock:
@@ -372,7 +372,7 @@ def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> Non
     api.plans.get_latest_for_case.return_value = {
         "volume_slots": [{"status": "active", "disc_mapping": None}],
     }
-    from app.services.unified_export_service import UnifiedExportError
+    from app.services.export.unified_export_service import UnifiedExportError
 
     with patch("app.services.archive.archive_export_service.unified_export", side_effect=UnifiedExportError(
         "DISC_MAPPING_INCOMPLETE", "光盘编号尚未全部补齐，无法导出。",
@@ -390,7 +390,7 @@ def test_export_bundle_projects_hash_screenshot_failure_without_marking_exported
     api = _api(consume_ok=True)
     export_dir = tmp_path / "export-out"
     export_dir.mkdir(parents=True)
-    from app.services.unified_export_service import UnifiedExportError
+    from app.services.export.unified_export_service import UnifiedExportError
 
     with patch("app.services.archive.archive_export_service.unified_export", side_effect=UnifiedExportError(
         "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",

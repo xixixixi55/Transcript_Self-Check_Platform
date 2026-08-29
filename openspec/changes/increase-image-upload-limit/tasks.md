@@ -24,7 +24,7 @@ spec_sync_evidence: openspec/specs/electronic-inspection-record/spec.md REQ-008 
 ## 后端 Repository/Service/Controller（Layer 20–22）
 
 - [x] T003 将后端单张图片硬限制和错误提示同步为 100MB。
-  - 文件：`packages/backend/app/repository/workbench_constants.py`、`packages/backend/app/controllers/case_asset_controller.py`、`tests/test_workbench_case_assets.py`
+  - 文件：`packages/backend/app/repository/workbench/workbench_constants.py`、`packages/backend/app/controllers/case_asset_controller.py`、`tests/test_workbench_case_assets.py`
   - 内容：后端继续执行不可绕过的单文件大小校验，100MB 为允许的边界，超过后返回 `ASSET_IMAGE_TOO_LARGE`。
   - 验证：定向 pytest 覆盖常量值、允许边界与拒绝边界。
 

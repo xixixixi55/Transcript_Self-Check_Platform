@@ -51,7 +51,7 @@
 **理由**：
 - 拼接字符串中各字段不可单独编辑
 - 独立字段更符合审核场景（民警只需修改某个子字段）
-- 导出时 `document_builder_service.py` 仍从 `report.inspection.result` 取各字段值生成最终文本
+- 导出时 `packages/backend/app/services/document/document_builder_service.py` 仍从 `report.inspection.result` 取各字段值生成最终文本
 
 ---
 
@@ -176,8 +176,8 @@ MD5 的密码学事实值保持不变，不改写既有 Manifest 或持久化摘
 | `packages/shared/types/` | L0 | — | 无变更 |
 | `packages/shared/constants/` | L1 | — | 无变更 |
 | `packages/backend/app/services/report/report_parser_service.py` | L21 | 修改 | 数据字段映射与默认检查地点修正 |
-| `packages/backend/app/services/record_generator_service.py` | L21 | 修改 | officecli 跨环境调用兼容 |
-| `packages/backend/app/services/template_filler_service.py` | L21 | 修改 | 附件摘要三行留白、不可拆分段落约束及条件分页 |
+| `packages/backend/app/services/document/record_generator_service.py` | L21 | 修改 | officecli 跨环境调用兼容 |
+| `packages/backend/app/services/template/template_filler_service.py` | L21 | 修改 | 附件摘要三行留白、不可拆分段落约束及条件分页 |
 | `tests/test_template_filler_service.py` | 测试 | 修改 | 条件分页 OOXML 回归及可容纳/不可容纳场景 |
 | `packages/backend/package.json` | 工程配置 | 修改 | 后端 pytest 测试目录指向项目根目录 `tests/` |
 | `scripts/check-docs.ts` | 工程验证 | 修改 | 目录漂移扫描忽略 pytest 运行时缓存 |

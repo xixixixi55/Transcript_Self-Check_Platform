@@ -17,7 +17,7 @@ workflow_level: 3
 ## 后端 Repository（Layer 20）
 
 - [x] T002 持久化盘号映射与每 part 元数据。
-  - 文件：`packages/backend/app/repository/workbench_schema.py`、`packages/backend/app/repository/archive/archive_plan_repository.py`
+  - 文件：`packages/backend/app/repository/workbench/workbench_schema.py`、`packages/backend/app/repository/archive/archive_plan_repository.py`
   - 内容：`archive_plans` 表持久化 `mapping_revision`/`volume_slots_json`/`verified_slots_json`，`archive_plan_repository.update_mappings` 以 mapping_revision + 1 与 CAS 防并发持久化 part→盘号映射；每 part 文件名/大小/MD5 落在归档结果 parts 记录；导出记录经 `AuditEventRepository`（unified_export 事件）。遵守既有 revision/CAS 与迁移约束（含 v11 schema 同步）。
   - 验证：`tests/test_disc_mapping_service.py` 4 passed（含持久化与过期 revision）+ 归档结果/导出审计相关测试回归。
 
@@ -29,7 +29,7 @@ workflow_level: 3
   - 验证：归档相关测试回归（`tests/test_archive_execution_service.py` 等）。
 
 - [x] T004 盘号映射服务。
-  - 文件：新增 `packages/backend/app/services/disc_mapping_service.py`
+  - 文件：新增 `packages/backend/app/services/disc/disc_mapping_service.py`
   - 内容：`build_disc_mappings` 按序生成全序列；`apply_disc_mapping` 加载最新 plan，经 `archive_plan_repository.update_mappings` 持久化（mapping_revision + 1、CAS 防并发）。
   - 验证：`tests/test_disc_mapping_service.py` 4 passed（序列顺序/非法盘号/持久化/过期 revision）。
 
@@ -44,13 +44,13 @@ workflow_level: 3
   - 验证：`tests/test_archive_runtime_lifecycle.py` 断言草稿 inspection.result 与 extract_list 已回填（rar_filename/md5/file_size）。
 
 - [x] T007 HashMyFiles 校验结果生成（原 HTML 接口，发布产物由 T022 替换为 PNG）。
-  - 文件：新增 `packages/backend/app/repository/hashmyfiles_repository.py`、新增 `packages/backend/app/services/hashmyfiles_service.py`
+  - 文件：新增 `packages/backend/app/repository/integrity/hashmyfiles_repository.py`、新增 `packages/backend/app/services/integrity/hashmyfiles_service.py`
   - 内容：受控接口 + `BIJI_HASHMYFILES_PATH` 配置；缺失工具明确失败（HASHMYFILES_UNAVAILABLE）。
   - 实测（2026-08-06，本机 HashMyFiles v2.51）：`/files <多个路径>` + `/MD5 1 /SHA1 0 /CRC32 0 /SHA256 0 /SHA512 0 /SHA384 0` + `/shtml <输出路径>` 生成水平 HTML（UTF-16，含 Filename/MD5/Full Path 等列），保存后进程自动退出（returncode 0）；只开 MD5 时其余 hash 列头仍输出但值为空。`run_hashmyfiles` 据此实现，输出固定名 `hash-verification.html`（可重复导出覆盖），运行失败/输出缺失分别抛 HASHMYFILES_RUN_FAILED / HASHMYFILES_OUTPUT_MISSING（无路径泄漏）。
   - 验证：`tests/test_hashmyfiles_service.py` 8 passed（resolve/不可用/runner 调用/无 parts/参数构造/失败路径）+ 端到端真实 exe 生成验证。
 
 - [x] T008 统一导出编排。
-  - 文件：新增 `packages/backend/app/services/unified_export_service.py`
+  - 文件：新增 `packages/backend/app/services/export/unified_export_service.py`
   - 内容：盘号补齐校验（DISC_MAPPING_INCOMPLETE）+ 最新 Word（`generate_docx`）+ 复制全部 RAR + HashMyFiles 校验产物写入导出路径；T022 将产物更新为 PNG 截图；导出审计经 `AuditEventRepository`（不含绝对路径，符合资产策略）。
   - 验证：`tests/test_unified_export_service.py` 3 passed（成功包/盘号未补齐失败/分卷缺失失败）。
 
@@ -87,7 +87,7 @@ workflow_level: 3
   - 后续修订：T038 已将 `archive_complete` 的 UI 文案收敛为「待导出」，并将已导出阶段的推荐操作调整为「删除案件」；本任务保留为历史实现证据，不再代表当前入口权重。
 
 - [x] T014 案件打开页「立即/稍后」选择与补盘号入口。
-  - 文件：`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、新增 `packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/backend/app/controllers/workbench_controller.py`（新增 `POST /workbench/select-export-directory`）、`packages/backend/app/services/local_directory_picker_service.py`（select 支持描述）、`packages/frontend/src/hooks/useArchiveCompletion.ts`（chooseDirectory）、`packages/shared/types/archiveCompletion.ts`（ExportDirectoryResult）、`packages/shared/constants/index.ts`
+  - 文件：`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、新增 `packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/backend/app/controllers/workbench_controller.py`（新增 `POST /workbench/select-export-directory`）、`packages/backend/app/services/runtime/local_directory_picker_service.py`（select 支持描述）、`packages/frontend/src/hooks/useArchiveCompletion.ts`（chooseDirectory）、`packages/shared/types/archiveCompletion.ts`（ExportDirectoryResult）、`packages/shared/constants/index.ts`
   - 内容：案件打开呈现「立即/稍后」选择（替换审核页手动 prepare 主路径）；「待补盘号」补填入口（输入首个盘号 → disc-mapping）。统一导出触发已移至工作台卡片（T013）；打开页保留补盘号与立即/稍后主路径。
   - 验证：`CaseRecordGeneratePage.test.tsx` 9 passed（含补填映射、导出触发、exported 再次导出）+ `useArchiveCompletion.test.tsx` 5 passed + `test_workbench_controller.py` 34 passed（含 select-export-directory 3 个新用例）。
 
@@ -121,14 +121,14 @@ workflow_level: 3
 - [x] T017 软件工具条目 python hashlib → HashMyFiles 2.51（人工验收反馈）。
   - 现象：审核编辑界面的「软件工具」仍显示 Python hashlib；MD5 校验实际已改用 HashMyFiles.exe。
   - 决策：新解析案件显示 "HashMyFiles 2.51"（带版本）；存量案件保留旧值，识别逻辑新旧兼容；只影响新案件。
-  - 修复：`report_parser_service._build_software_tools` 注入条目改为 `category=hashmyfiles / name=HashMyFiles / version=2.51`（版本常量 `HASHMYFILES_DISPLAY_VERSION` 定义于 `hashmyfiles_repository.py`）；识别点全部新旧兼容：`software_policy_service`（`_RUNTIME_TOOL_NAMES` + category 映射）、`attachment_plan_service`（归档工具来源查询）、`canonical_models_service`（SoftwareCategory Literal 增 `hashmyfiles`）、`canonical_adapter_service`（投影过滤）、`canonical.ts`、`softwareProjectionUtils.ts`（前端运行时工具过滤）。`report_parser_service` 移除不再使用的 `sys` import。
-  - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、`packages/backend/app/services/report/report_parser_service.py`、`software_policy_service.py`、`attachment_plan_service.py`、`canonical_models_service.py`、`canonical_adapter_service.py`、`packages/shared/types/canonical.ts`、`packages/shared/utils/softwareProjectionUtils.ts` + 对应测试与 living spec（`openspec/specs/electronic-inspection-record/spec.md`、`openspec/specs/data-model.md`）。
+  - 修复：`report_parser_service._build_software_tools` 注入条目改为 `category=hashmyfiles / name=HashMyFiles / version=2.51`（版本常量 `HASHMYFILES_DISPLAY_VERSION` 定义于 `packages/backend/app/repository/integrity/hashmyfiles_repository.py`）；识别点全部新旧兼容：`software_policy_service`（`_RUNTIME_TOOL_NAMES` + category 映射）、`attachment_plan_service`（归档工具来源查询）、`canonical/canonical_models_service`（SoftwareCategory Literal 增 `hashmyfiles`）、`canonical/canonical_adapter_service`（投影过滤）、`canonical.ts`、`softwareProjectionUtils.ts`（前端运行时工具过滤）。`report_parser_service` 移除不再使用的 `sys` import。
+  - 文件：`packages/backend/app/repository/integrity/hashmyfiles_repository.py`、`packages/backend/app/services/report/report_parser_service.py`、`packages/backend/app/services/inspection/software_policy_service.py`、`packages/backend/app/services/attachment/attachment_plan_service.py`、`packages/backend/app/services/canonical/canonical_models_service.py`、`packages/backend/app/services/canonical/canonical_adapter_service.py`、`packages/shared/types/canonical.ts`、`packages/shared/utils/softwareProjectionUtils.ts` + 对应测试与 living spec（`openspec/specs/electronic-inspection-record/spec.md`、`openspec/specs/data-model.md`）。
   - 测试：`test_report_parser_service`（HashMyFiles/2.51 断言）、`test_software_policy_service`（新增 HashMyFiles runtime tool 投影）、`test_attachment_plan_service`（HashMyFiles 满足归档工具来源）、前端 `softwareProjectionUtils.test`（HashMyFiles 保留为 runtime tool）。验证：后端相关 162 passed、前端相关通过。
 
 - [x] T021 存量案件软件工具展示统一为 HashMyFiles 2.51（人工验收反馈）。
   - 现象：T017 仅修改新解析案件，已有草稿仍在审核编辑界面显示 `Python hashlib 3.11.0`，与当前实际校验工具不一致。
   - 决策：案件详情与正式导出均把旧条目投影为 `HashMyFiles 2.51`；底层迁移识别继续兼容 `python hashlib` / `python_hashlib`，无需批量改写数据库。
-  - 文件：`packages/backend/app/services/software_policy_service.py`、`case_lifecycle_service.py`、`archive_export_service.py`、`tests/test_software_policy_service.py`、`tests/test_workbench_controller.py`、`tests/test_archive_export_service.py`、delta spec 与 living spec。
+  - 文件：`packages/backend/app/services/inspection/software_policy_service.py`、`case_lifecycle_service.py`、`archive_export_service.py`、`tests/test_software_policy_service.py`、`tests/test_workbench_controller.py`、`tests/test_archive_export_service.py`、delta spec 与 living spec。
   - 测试：`test_legacy_hashlib_runtime_tool_is_projected_as_hashmyfiles` 锁定规范化规则；`test_case_detail_projects_legacy_hashlib_as_hashmyfiles` 锁定存量案件详情展示接线；`test_export_bundle_marks_shell_exported_after_success` 锁定正式导出投影。
 
 - [x] T018 统一导出先填 Word 文件名再选导出目录（人工验收反馈）。
@@ -136,7 +136,7 @@ workflow_level: 3
   - 决策：点「统一导出」→ 先弹 Word 文件名输入框（默认案件名称，每次导出都询问）→ 再选导出目录 → 导出用该文件名；审核页 `ArchiveCompletionPanel` 的「开始导出/再次导出」同步走文件名→目录流程（默认文号）。
   - 修复（后端）：`UnifiedExportRequest`（shared + Pydantic）增必填 `word_filename`；`export_bundle`/`unified_export`/`_export_word` 透传；`record_generator_service.generate_docx` 增可选 `output_filename`（`_sanitize_docx_filename` 剥离路径前缀/非法字符、补 `.docx`），未传时保持原有文号+时间戳自动命名（Legacy `/records/export` 不变）。
   - 修复（前端）：`CaseWorkbenchPage` 点「统一导出」先开 `WordDownloadNameDialog`（默认案件名称），确认后走目录选择器→exportBundle；`useArchiveCompletion.exportBundle` 增 `word_filename` 参数；`ArchiveCompletionPanel` 增 `defaultWordName` 并让导出先问文件名（未选目录时自动补选）。
-  - 文件：`packages/shared/types/archiveCompletion.ts`、`packages/backend/app/controllers/archive_task_controller.py`、`services/archive_task_api_service.py`、`archive_export_service.py`、`unified_export_service.py`、`record_generator_service.py`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`pages/CaseWorkbenchPage.tsx`、`pages/CaseRecordGeneratePage.tsx`、`components/ArchiveCompletionPanel.tsx` + 对应测试。
+  - 文件：`packages/shared/types/archiveCompletion.ts`、`packages/backend/app/controllers/archive_task_controller.py`、`services/archive_task_api_service.py`、`archive_export_service.py`、`packages/backend/app/services/export/unified_export_service.py`、`packages/backend/app/services/document/record_generator_service.py`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`pages/CaseWorkbenchPage.tsx`、`pages/CaseRecordGeneratePage.tsx`、`components/ArchiveCompletionPanel.tsx` + 对应测试。
   - 测试：`test_unified_export_service`（word_filename 透传 + 落盘）、`test_archive_export_service`（export_bundle 传 word_filename）、`test_record_generator_service`（output_filename 生效/清洗）、`test_archive_runtime_lifecycle` 端到端（export-bundle 带 word_filename 200 且输出文件名正确）、前端 `CaseWorkbenchPage`/`CaseRecordGeneratePage`/`useArchiveCompletion` 均按新流程断言。验证：后端相关 23 passed、前端相关 31 passed、typecheck ✅。
 
 - [x] T019 修复已导出案件再次导出 422 EXPORT_PATH_NOT_AUTHORIZED（回归）。
@@ -150,39 +150,39 @@ workflow_level: 3
   - 现象：「上传报告目录」「统一导出」的 Windows 原生目录选择器（PowerShell `FolderBrowserDialog`）概率性出现在浏览器窗口后面而不可见。
   - 根因：对话框由后台服务进程弹出，未获得前台焦点/置顶，Windows 前台锁使对话框 Z 序可能落在浏览器之下。
   - 修复：`local_directory_picker_service._folder_picker_script` 为 `FolderBrowserDialog` 挂一个隐藏的 TopMost 所有者窗体（`$owner.TopMost = $true; ShowInTaskbar=$false; Opacity=0`），以 `ShowDialog($owner)` 展示——TopMost 使对话框 Z 序恒高于浏览器等非 TopMost 窗口，保证可见可点。
-  - 文件：`packages/backend/app/services/local_directory_picker_service.py`、`tests/test_local_directory_picker_service.py`（断言含 TopMost owner + ShowDialog($owner)）。
+  - 文件：`packages/backend/app/services/runtime/local_directory_picker_service.py`、`tests/test_local_directory_picker_service.py`（断言含 TopMost owner + ShowDialog($owner)）。
   - 验证：本机 PowerShell 冒烟（对话框成功打开阻塞、无语法错误）；`test_local_directory_picker_service` 5 passed；后端全量 946 passed；`verify:quick` ✅。
 
 - [x] T022 HashMyFiles 校验 HTML 替换为三列 PNG 界面截图（人工验收反馈）。
   - 需求：统一导出不再发布 HTML，改为 HashMyFiles 风格 PNG 截图；每个 RAR 一行，只显示 Filename、MD5、File Size (Bytes)。
   - 决策：HashMyFiles.exe 仍是 MD5 事实来源；调用其 `/shtml` 生成仅供进程内解析的临时结果，校验文件名/MD5/字节大小完整性后，用受控 PowerShell `System.Drawing` 离屏渲染 PNG。临时 HTML、JSON、脚本均不进入导出包并在结束时清理，避免依赖交互式桌面会话截图。
-  - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、`services/hashmyfiles_service.py`、`unified_export_service.py`、`archive_export_service.py`、`controllers/archive_task_controller.py`、`packages/shared/types/archiveCompletion.ts`、`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、相关测试与 OpenSpec 文档。
+  - 文件：`packages/backend/app/repository/integrity/hashmyfiles_repository.py`、`services/integrity/hashmyfiles_service.py`、`packages/backend/app/services/export/unified_export_service.py`、`archive_export_service.py`、`controllers/archive_task_controller.py`、`packages/shared/types/archiveCompletion.ts`、`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、相关测试与 OpenSpec 文档。
   - 验证：后端受影响测试 48 passed，前端受影响测试 34 passed；导出端点覆盖结果缺失、结果不完整与截图失败的具体错误提示且均不进入 exported；失败发布保留旧截图并清理临时文件；关键数据转换突变验证有效；`verify:quick` 通过。本机真实 HashMyFiles 对中文文件名、多分卷及带千位分隔的字节大小生成 PNG 成功，视觉确认仅含 Filename、MD5、File Size (Bytes)，导出目录无 HTML/JSON/脚本残留。
 
 - [x] T023 校验 PNG 改为真实 HashMyFiles.exe 窗口截图（人工验收反馈）。
   - 现象：T022 的离屏仿制界面使用替代图标，标题栏、工具栏颜色和控件样式与用户实际打开的 HashMyFiles 不一致。
   - 决策：移除仿制窗口绘制；用独立临时 `/cfg` 启动真实 HashMyFiles，读取原生 ListView 并核对待发布 RAR 的文件名、完整 32 位 MD5 与字节大小，通过 Windows 消息只保留 Filename、MD5、File Size 三个可见列并清除选中高亮，再用 `PrintWindow` 捕获真实窗口。进程纳入 KILL_ON_JOB_CLOSE Job Object，临时配置不修改用户个人设置，超时或完成后均清理。完整导出改为同卷暂存并带回滚发布，截图失败保留上一版完整包。
-  - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、`packages/backend/app/services/unified_export_service.py`、`tests/test_hashmyfiles_service.py`、`tests/test_unified_export_service.py`、变更包 design/delta spec 与 living spec。
+  - 文件：`packages/backend/app/repository/integrity/hashmyfiles_repository.py`、`packages/backend/app/services/export/unified_export_service.py`、`tests/test_hashmyfiles_service.py`、`tests/test_unified_export_service.py`、变更包 design/delta spec 与 living spec。
   - 验证：真实 HashMyFiles v2.51 对两个中文合成 RAR 截图成功，原生彩色工具栏、完整 32 位 MD5、字节大小和三列布局均经视觉确认，截图后 HashMyFiles 进程残留为 0；受影响目标测试 42 passed，独立 Code Review PASS，`verify:quick` 与 `git diff --check` 通过。
 
 - [x] T024 修复目录选择器置顶误判 422，并让上传报告与统一导出分别记忆目录（人工验收回归）。
   - 现象：T020 的隐藏 TopMost owner 仍可能被浏览器覆盖；首轮 T024 使用 PowerShell WinForms Timer + `GetLastActivePopup` 检测置顶，但真实环境在用户成功选择后仍因状态未回写而退出 21，前端收到 422「本机文件夹选择未完成」。上传报告目录也未记忆上次选择。
   - 内容：把窗口枚举与 TopMost 重试移入独立 C# 后台线程，避免依赖 PowerShell 模态调用期间的 Timer 回调；不再把合法选择事后降级为 422。上传报告与统一导出使用独立历史键，分别默认定位到各自上次成功选择的有效目录；取消、失效和损坏安全回退。
-  - 文件：`packages/backend/app/repository/local_directory_history_repository.py`、`packages/backend/app/services/local_directory_picker_service.py`、`packages/backend/app/services/workbench_factory_service.py`、`packages/backend/app/controllers/workbench_controller.py`、对应后端测试与本变更包文档。
+  - 文件：`packages/backend/app/repository/runtime/local_directory_history_repository.py`、`packages/backend/app/services/runtime/local_directory_picker_service.py`、`packages/backend/app/services/runtime/workbench_factory_service.py`、`packages/backend/app/controllers/workbench_controller.py`、对应后端测试与本变更包文档。
   - 验证：目录历史与 picker/controller 定向 pytest、PowerShell 脚本解析及内嵌 C# 编译、架构检查、类型检查、独立 Code Review 与当前变更 scoped full gate；真实浏览器前台下分别验收上传报告和统一导出的窗口 Z 序及再次打开默认目录。
   - 证据：窗口提升改由嵌入 C# 后台线程按独立 PowerShell PID 枚举可见窗口并持续重试 TopMost；未确认置顶只记录安全 warning，不再把合法选择降级为 422。report/export 双历史使用进程级写锁、同目录临时文件与原子替换，兼容首轮 T024 的旧 export 偏好。定向 pytest 51 passed，PowerShell 脚本解析与内嵌 C# 编译、架构及类型检查通过；独立 Code Review 与复审均 PASS（无 MUST FIX）；`npm run verify:full -- --change background-compression-archive-completion` 的预检、架构、类型、治理、资产、全仓库测试、构建与严格文档检查全部 PASS。用户已完成人工验收，确认上传报告目录与统一导出的 Windows 选择器位于浏览器前方、操作正常，且两个入口能够分别记忆上次成功选择的目录。
 
 - [x] T025 修复附件1提取方式展示、盘号持续可编辑与单独 Word 导出盘号误判（人工验收回归）。
   - 现象：审核编辑附件1的提取方式为空但 Word 有值；归档完成后首盘号输入消失；分卷映射已存在时单独导出 Word 仍报 `FIRST_DISC_NUMBER_MISSING`。
   - 内容：附件投影兜底路径与前端历史空值展示按 Word 的硬件语义补齐提取方式，展示兜底不因其他列编辑而写回；归档完成/已导出状态保留首盘号编辑并用 plan 行 revision 做 CAS 后整体重映射，成功后显式重读归档结果刷新完成态与分卷；`/records/export` 携带 `case_id` 时以当前 plan 为事实源，只有全部 active slot 均 confirmed 才叠加首盘号，存在 pending/部分映射时清空客户端兼容字段并由门控拒绝。
-  - 文件：`packages/shared/types/archiveTask.ts`、`archiveCompletion.ts`；`packages/backend/app/services/archive/archive_manifest_projection_service.py`、`disc_mapping_service.py`、`archive_task_api_service.py`、`archive_task_result_service.py`、`unified_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`record_controller.py`、`record_template_context_controller.py`；`packages/frontend/src/components/ExtractListEditor.tsx`、`ReviewAttachmentsSection.tsx`、`ArchiveCompletionPanel.tsx`、`RecordEditorForm.tsx`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`useCompletedArchiveResult.ts`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及对应测试。
+  - 文件：`packages/shared/types/archiveTask.ts`、`archiveCompletion.ts`；`packages/backend/app/services/archive/archive_manifest_projection_service.py`、`packages/backend/app/services/disc/disc_mapping_service.py`、`archive_task_api_service.py`、`archive_task_result_service.py`、`packages/backend/app/services/export/unified_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`record_controller.py`、`record_template_context_controller.py`；`packages/frontend/src/components/ExtractListEditor.tsx`、`ReviewAttachmentsSection.tsx`、`ArchiveCompletionPanel.tsx`、`RecordEditorForm.tsx`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`useCompletedArchiveResult.ts`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及对应测试。
   - 验证：附件投影、盘号映射、单独/统一导出后端定向测试通过（相关组合 12 passed、14 passed，最终复审修正组合 8 passed）；附件编辑器、盘号组件与页面前端测试通过（最终组合 2 files / 19 passed）；TypeScript 类型检查与 `git diff --check` 通过。独立 Code Review 两轮发现的 MUST FIX（plan revision CAS、展示兜底不写回、confirmed 约束、pending 客户端字段旁路、映射后结果刷新）均修复，最终复审 **PASS**、无 MUST FIX。`npm run verify:full -- --change background-compression-archive-completion` 的预检、架构、类型、治理、资产、全仓测试、构建与严格文档检查全部 PASS。
 
 - [x] T026 修复压缩期间上传图片后统一导出 422（人工验收回归）。
   - 现象：启动“立即压缩”后上传两张图片，压缩完成再统一导出返回 422，界面只显示“工作台请求未完成，请稍后重试”。
   - 根因：图片二进制先持久化，但压缩中草稿编辑保护拒绝 `photo_ids/photo_groups` 保存，且上传后的草稿保存依赖 debounce；统一导出又扫描案件资产目录，把未绑定图片送入缺失映射的附件2计划，底层错误被统一包装为 `WORD_RENDER_FAILED` 且没有安全文案映射。
   - 内容：归档发布临界区允许审核草稿另行保存，完成事务以独立的最新草稿 CAS 合并 Manifest 结果；图片上传完成立即触发草稿保存并在内部离页前强制刷盘，审核页恢复仍在孤儿保留期内的未绑定上传；图片组在前后端按检材/图片顺序确定性生成；统一导出只消费最新草稿绑定图片，未绑定上传或附件2映射错误返回明确提示。
-  - 文件：`case_workbench_repository.py`、`archive_attempt_completion_service.py`、`archive_attempt_recovery_repository.py`、`archive_export_service.py`、`case_asset_service.py`、`unified_export_service.py`、`workbench_error_messages_controller.py`；`useCaseRecordSession.ts`、`useCasePhotoAssets.ts`、`CaseRecordGeneratePage.tsx`、`main.tsx`、共享图片组工具及对应测试与变更包文档。
+  - 文件：`case_workbench_repository.py`、`archive_attempt_completion_service.py`、`archive_attempt_recovery_repository.py`、`archive_export_service.py`、`case_asset_service.py`、`packages/backend/app/services/export/unified_export_service.py`、`workbench_error_messages_controller.py`；`useCaseRecordSession.ts`、`useCasePhotoAssets.ts`、`CaseRecordGeneratePage.tsx`、`main.tsx`、共享图片组工具及对应测试与变更包文档。
   - 验证：后端归档并发、图片资产、统一导出、附件2与错误文案定向组合 106 passed；前端图片上传/即时保存、确定性分组、单独导出与页面导航阻断组合 4 files / 38 passed；共享分组工具 1 passed；`lint:arch`、TypeScript 类型检查、`verify:quick` 与 `git diff --check` 通过。临时禁用“未绑定图片阻止导出”判断时对应回归明确失败，恢复后通过，断言有效。独立 Code Review 首轮发现 2 个 MUST FIX 与 2 个 SHOULD，已补 Data Router 导航阻断与失败态保护、孤儿保留期边界、`ATTACHMENT2_IMAGE_INVALID` 文案、真实草稿写竞争 CAS 测试；聚焦复审最终 **PASS**，无 remaining findings。
   - 最终门控：`npm run verify:full -- --change background-compression-archive-completion` 的预检、架构、类型、治理、资产检查、全仓测试、构建与严格文档检查全部 **PASS**。首轮全仓测试仅有一个无关的 1 秒动态导入用例在并发负载下超时，隔离重跑 4 passed；未修改该测试，原 scoped full gate 第二轮完整通过。
   - manual_acceptance: N/A（本轮以合成资产和自动化路由/导出回归覆盖该 422 链路，不涉及新增 Word 视觉版式或桌面交互）。
@@ -199,13 +199,13 @@ workflow_level: 3
   - 现象：T024 后两个入口的 Windows 原生目录选择器仍有概率在首次成功置顶后被浏览器重新覆盖。
   - 根因：后台提升线程在第一次 `SetWindowPos` 成功后立即退出；对话框初始化期间若句柄重建或浏览器点击/重绘重新改变 Z 序，后续没有持续校正。枚举逻辑还会选择同一 PowerShell 进程的任意可见窗口，存在命中非目录对话框的竞态。
   - 内容：优先选择隐藏 owner 直接拥有的窗口，再回退到标准 `#32770` 对话框；在 `ShowDialog` 整个存续期间每 100ms 以 `SWP_NOACTIVATE` 重申 TopMost，首次前台激活失败继续重试，候选句柄变化时重新激活，关闭时等待提升线程结束后再释放窗口，持续置顶但不循环抢焦点。
-  - 文件：`packages/backend/app/services/local_directory_picker_service.py`、`tests/test_local_directory_picker_service.py`、本变更包 `design.md` 与 `tasks.md`。
+  - 文件：`packages/backend/app/services/runtime/local_directory_picker_service.py`、`tests/test_local_directory_picker_service.py`、本变更包 `design.md` 与 `tasks.md`。
   - 验证：`test_local_directory_picker_service` 11 passed；内嵌 C# `PickerWindow` 独立编译通过；结构性回归断言锁定提升循环不得提前退出、句柄变化重新激活、owner 优先、`SWP_NOACTIVATE` 与线程 Join；`npm run verify:quick`、`npx tsx scripts/check-docs.ts --strict --change background-compression-archive-completion`、前端生产构建和独立复审均 PASS。scoped full gate 的前端 288/288、后端 1009/1009（3 skipped）通过，门控仅被无关的长路径环境边界测试 `test_long_snapshot_paths_use_short_private_root_without_changing_source_tree` 在全仓并发下间歇性 `middle_length=14 < 16` 阻断；该用例隔离重跑 1 passed（此前与另一个无关性能用例组合隔离重跑 2 passed）。Windows 浏览器前台人工验收待用户执行。
 
 - [x] T029 修复多分卷已生成但 WinRAR 仍在收尾时被固定 deadline 终止（用户实测回归）。
   - 现象：机械盘约 15 分钟已显示写出 3.9GB、检测到 2 个分卷，之后输出约 4 分钟无增长并最终报告归档超时。
   - 内容：执行超时在环境覆盖与最大上限约束下增加固定收尾余量；监控器区分硬上限与 RAR 输出无增长空闲超时，仅在输出总大小严格增长时刷新活动计时，首个非零 RAR 出现前不启动 idle timeout；前端明确“已生成 N 个分卷（仍在压缩）”是中间进度而非完成态。
-  - 文件：`packages/backend/app/repository/winrar_timeout_policy.py`、`packages/backend/app/repository/winrar_process_monitor.py`、`packages/backend/app/repository/winrar_executor_repository.py`、`packages/frontend/src/components/ArchiveStatusPanel.tsx`、对应后端/前端测试与本变更包 `design.md`、delta spec。
+  - 文件：`packages/backend/app/repository/archive/winrar_timeout_policy.py`、`packages/backend/app/repository/archive/winrar_process_monitor.py`、`packages/backend/app/repository/archive/winrar_executor_repository.py`、`packages/frontend/src/components/ArchiveStatusPanel.tsx`、对应后端/前端测试与本变更包 `design.md`、delta spec。
   - 验证：后端超时/执行器/Worker 定向 pytest 96 passed、1 个既有配置 warning（含增长、缩小、停滞、首个输出前硬上限、`0→非零→停滞`、环境覆盖、hard/idle 同时及跨界、executor 终止成功/失败的 staging 语义）；前端状态组件 Vitest 12 passed；架构检查与 TypeScript 类型检查通过。临时把“严格增长”退回“任意变化”、把“相等时 hard 优先”退回 idle 优先后，对应边界测试均按预期失败；恢复实现后单测与定向组合重新通过。修复后 `npm run verify:quick` PASS、当前变更 scoped strict docs 13 checks/0 drift、`git diff --check` PASS。
   - code_review: [PASS] 首轮独立审查发现 3 项 MUST FIX：hard/idle 同时或一次跨过两个 deadline 时须按绝对 deadline 选择最早者且相等时 hard 优先；环境覆盖与 `0→非零→停滞` 边界需要区分性断言；idle timeout 终止失败时不得清理 staging。三项均已修复，独立复审确认全部 CLOSED、无新 MUST FIX。遗留 SHOULD：后续可为真实 `_rar_output_size` 增加多分卷文件系统测试，不阻塞本轮。T027 的历史 deferred 记录不作为 T029 审查证据。
   - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、全仓测试、前端构建与 scoped strict docs 全部通过。首次运行仅因系统临时盘可用空间 285 MB 低于 1024 MB 预检门槛而在测试前停止，切换到 D 盘短临时目录后原门控通过。
@@ -233,7 +233,7 @@ workflow_level: 3
 - [x] T032 统一机械盘基线下的完整性、HashMyFiles 与统一导出请求预算（用户环境反馈）。
   - 现象：大多数部署使用机械盘；`rar t` 仍按 50 MB/s 且无固定余量估算，HashMyFiles 内部允许长任务，但统一导出前端仍固定 30 分钟，可能在后端正常复制或校验时先报告超时。
   - 内容：完整性与 HashMyFiles 按全部 RAR 字节数使用机械盘保守吞吐和固定余量动态计算有界超时；SharedUtils 按机械盘复制预算 + HashMyFiles 最大有效内部预算计算统一导出请求上限，两个前端入口都把当前已验证 parts 交给 Hook 汇总；普通请求超时保持不变。
-  - 文件：`packages/backend/app/repository/winrar_timeout_policy.py`、`packages/backend/app/services/hashmyfiles_service.py`、`packages/shared/constants/workbenchConstants.ts`、`packages/shared/utils/archiveCompletionRules.ts`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`packages/frontend/src/hooks/useArchiveCompletionStatuses.ts`、`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、对应后端/前端测试与本变更包 `design.md`、delta spec。
+  - 文件：`packages/backend/app/repository/archive/winrar_timeout_policy.py`、`packages/backend/app/services/integrity/hashmyfiles_service.py`、`packages/shared/constants/workbenchConstants.ts`、`packages/shared/utils/archiveCompletionRules.ts`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`packages/frontend/src/hooks/useArchiveCompletionStatuses.ts`、`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、对应后端/前端测试与本变更包 `design.md`、delta spec。
   - 验证：定向后端 pytest 89 passed，覆盖小体积、23 GB、135 GB、上限及 HashMyFiles 环境覆盖；前端 6 files / 54 tests passed，覆盖非法大小、最小值、机械盘动态增长、最大值、两个入口传递真实 parts、exported 自动加载与同案件 task 切换；架构检查、类型检查与 `git diff --check` 通过。临时把完整性吞吐退回 50 MB/s、HashMyFiles 吞吐退回 10 MiB/s、统一导出漏传 parts 后，对应回归用例均按预期失败，恢复后通过。
   - code_review: [PASS] 首轮独立审查发现外层预算未覆盖 HashMyFiles 环境上限、工作台事实源不准确、组件跨层依赖、设计参数漂移及非法大小边界 5 项 MUST FIX；二轮又发现同案件新 task 可能复用旧 parts。修复为按 `case_id + task_id` 绑定结果、导出前二次校验当前 task、组件经 Layer 10 派生状态并补 task 切换区分性测试；第三轮复审确认全部 CLOSED，无新 MUST FIX。
   - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、资产、全仓测试、生产构建与 scoped strict docs 全部通过。首次运行仅有既有工作台删除测试在全仓并发下触发 5 秒超时（56/57 files、296/297 tests 已通过）；该文件隔离重跑 15/15（目标用例 2.42 秒），未修改实现或测试，原门控重跑通过。
@@ -241,7 +241,7 @@ workflow_level: 3
 
 - [x] T033 调整统一导出产物目录规则（用户需求）。
   - 内容：用户选择导出文件夹后，Word 与 HashMyFiles 校验 PNG 导出到所选文件夹，RAR 分卷导出到其上级文件夹；所选文件夹为文件系统根时，RAR 回退到所选文件夹。跨两个目录发布仍保持整体回滚语义，并事务性清理旧规则遗留在所选文件夹中的同名 RAR。
-  - 文件：`packages/backend/app/services/unified_export_service.py`、`tests/test_unified_export_service.py`、本变更包 `design.md`、delta spec 与 living spec。
+  - 文件：`packages/backend/app/services/export/unified_export_service.py`、`tests/test_unified_export_service.py`、本变更包 `design.md`、delta spec 与 living spec。
   - 验证：统一导出定向 pytest 10 passed，覆盖常规父目录分流、根目录回退及跨目录发布失败回滚；`npm run verify:quick` PASS；当前变更 scoped strict docs 13 checks/0 drift；`git diff --check` PASS。
   - code_review: [PASS] 首轮独立审查发现旧规则遗留在所选目录的同名 RAR 未纳入迁移清理，可能与父目录新 RAR 形成混合布局；已将旧 RAR 与历史 HTML 纳入同一可回滚事务并补成功清理、失败恢复测试。复审确认 MUST FIX CLOSED、无 remaining MUST FIX；遗留 SHOULD 为后续增强回滚动作自身再次发生 I/O 错误时的全量恢复与专门诊断。
   - manual_acceptance: N/A（目录分流及根目录边界由合成路径自动化覆盖，不改变 Word/PNG 内容或目录选择器交互。）
@@ -331,7 +331,7 @@ workflow_level: 3
 
 - [x] T043 将统一导出压缩包归位到所选文件夹（用户需求）。
   - 内容：统一导出时 Word、HashMyFiles 校验 PNG 与全部 RAR 分卷均写入用户选择的文件夹；发布阶段不访问所选文件夹上级目录，保留目录授权边界。
-  - 文件：`packages/backend/app/services/unified_export_service.py`、`tests/test_unified_export_service.py`、本变更包 `design.md`、delta spec 与 living spec。
+  - 文件：`packages/backend/app/services/export/unified_export_service.py`、`tests/test_unified_export_service.py`、本变更包 `design.md`、delta spec 与 living spec。
   - 验证：统一导出与调用链后端定向 pytest 52 passed、2 个既有 `ARCHIVE_CONFIGURED_ROOT_INVALID` warnings；架构检查、TypeScript 类型检查、`npm run verify:quick` 与 `git diff --check` 通过；当前变更 scoped strict docs 13 checks/0 drift。
   - final_gate: [ENVIRONMENT-BLOCKED] scoped full gate 的全量测试在默认数据根因只读数据库失败；切换可写数据根后相关失败用例 10 passed，但全量运行又命中既有 `TEMPLATE_VERSION_IMMUTABLE` 测试隔离冲突（1205 passed、3 failed、7 errors）。
   - code_review: [N/A] 用户明确要求本轮不执行独立审查。
@@ -354,7 +354,7 @@ workflow_level: 3
   - 规则：继续按压缩前归档输入总量选择现有模式；不超过 `225 × 1024³` 字节保持标准光盘分卷，超过阈值保持一个不分卷的大 RAR。`standard_split` 对应光盘，`oversized_single_volume` 对应硬盘；恰好 225GB 仍属于光盘。
   - 编号：编号由用户在审核编辑界面填写。该任务实施时标准分卷使用 `GPyyyyMMdd-序号`、超大单卷使用 `YPyyyyMMdd-序号`；后续 T049 在日期后增加两位用户标识并保留历史格式兼容。压缩可在编号为空时继续，错误介质前缀不得成为已完成映射。
   - Word：光盘正文、附件摘要和附件3保持“封盘/刻录/光盘”语义并在摘要列出全部编号；硬盘正文改为“结果以拷贝的方式保存在编号为……的硬盘中”，附件摘要改为“本鉴定中心拷贝的编号为……的硬盘1块，共1页”，附件3显示“硬盘编号”及“本鉴定中心拷贝的……号硬盘”。
-  - 文件：`packages/shared/types/archive.ts`、`archiveCompletion.ts`、`archiveTask.ts`；`packages/backend/app/services/disc_sequence_service.py`、`archive_execution_service.py`、`archive_task_api_service.py`、`archive_task_result_service.py`、`disc_mapping_service.py`、`attachment_plan_models_service.py`、`attachment_plan_service.py`、`attachment_docx_renderer_service.py`、`template_filler_service.py`；`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`；相关现有测试、delta/design 与 living spec。
+  - 文件：`packages/shared/types/archive.ts`、`archiveCompletion.ts`、`archiveTask.ts`；`packages/backend/app/services/disc/disc_sequence_service.py`、`archive_execution_service.py`、`archive_task_api_service.py`、`archive_task_result_service.py`、`packages/backend/app/services/disc/disc_mapping_service.py`、`packages/backend/app/services/attachment/attachment_plan_models_service.py`、`packages/backend/app/services/attachment/attachment_plan_service.py`、`packages/backend/app/services/attachment/attachment_docx_renderer_service.py`、`packages/backend/app/services/template/template_filler_service.py`；`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`；相关现有测试、delta/design 与 living spec。
   - 验证：盘号/硬盘号解析映射、归档结果投影、AttachmentPlan 和真实 DOCX XML 定向 pytest；`ArchiveCompletionPanel` 定向 Vitest；`npm run lint:arch`、`npm run typecheck`、scoped strict docs 与 `git diff --check`。核心介质映射与 Word 文案断言需验证区分度。
   - 自动化证据：后端归档规划、介质映射、AttachmentPlan、DOCX renderer 与统一导出定向 pytest 121 passed；归档结果 HTTP 投影 1 passed；前端介质输入、状态卡、审核附件、待办校验与页面接线 54 tests passed；officecli 硬盘版合成 DOCX validate PASS，document builder 14 passed；`npm run pre-commit`、架构、类型、治理、quick docs、仓库资产与 `git diff --check` PASS。
   - 区分度证据：临时把超大单卷前缀由 `YP` 错设为 `GP` 后，硬盘映射回归 3 failed；恢复后映射套件 9 passed。临时把硬盘附件摘要“拷贝”改回“刻制”后，硬盘 Word 精确文案用例按预期失败；恢复后 DOCX renderer 32 passed。
@@ -375,7 +375,7 @@ workflow_level: 3
 - [x] T047 阻止统一导出污染便携版程序目录（用户实测回归）。
   - 现象：统一导出允许选择文枢便携包程序目录，Word、RAR 和 HashMyFiles PNG 会成为完整性清单之外的未知文件；下次启动时启动器提示“程序文件不完整或包含未知文件”。取消另一个归档任务后立即删除只产生已安全忽略的 stale-owner 收敛日志，不是该启动提示的来源。
   - 修复：导出目录选择器在记忆偏好前校验目录；控制器在签发一次性授权前复核；统一导出与审核页单独 Word 落盘前再次复核。程序资源根、用户数据根及其子目录统一返回稳定 `EXPORT_DIRECTORY_UNSAFE`，不消费授权、不写文件、不覆盖上次有效目录偏好。
-  - 文件：`packages/backend/app/services/archive/archive_export_service.py`、`local_directory_picker_service.py`、`packages/backend/app/controllers/workbench_controller.py`、`record_controller.py`、`workbench_error_messages_controller.py`、对应后端测试、delta spec 与 living spec。
+  - 文件：`packages/backend/app/services/archive/archive_export_service.py`、`packages/backend/app/services/runtime/local_directory_picker_service.py`、`packages/backend/app/controllers/workbench_controller.py`、`record_controller.py`、`workbench_error_messages_controller.py`、对应后端测试、delta spec 与 living spec。
   - 验证：导出服务、目录选择器、统一/单独 Word 控制器定向 pytest；`npm run verify:quick`、scoped strict docs 与 `git diff --check`。本反馈不冻结仍含人工验收待办的 Level 3 候选，不重复最终 Review/full gate。
   - 自动化证据：统一导出服务、授权服务、目录选择器与统一/单独 Word 控制器定向 39 passed；`npm run verify:quick` PASS（架构、类型、治理、quick docs、仓库资产）；程序目录与用户数据目录拒绝、拒绝时不消费 grant、不覆盖有效目录历史及正常目录导出均有区分断言。首次扩大运行 `test_record_controller.py` 的 2 个无关 archive endpoint 用例因默认 SQLite 只读失败，受影响用例隔离重跑全部通过。
   - 追加修复：2026-08-23 审计发现选择器返回路径在控制器复核后仍以原始表示签发授权，而统一导出按规范路径消费授权；控制器现统一用校验返回的规范路径响应并签发授权，避免 junction、别名或含 `..` 的等价路径产生授权不匹配。补充统一导出拒绝程序根时不消费 grant、不中转到 renderer，以及控制器只为规范路径签发授权的回归断言。受影响回归 32 passed，扩大后端套件 100 passed；2 个既有 archive endpoint 用例仍因默认 SQLite 只读失败，换全新合成数据根隔离重跑 2/2 passed；架构与类型检查 PASS。
@@ -384,7 +384,7 @@ workflow_level: 3
   - 现象：统一导出到正在进行电子取证的 F 盘时，HashMyFiles 在 120 秒内运行到 99% 后退出，前端提示截图生成失败；导出到空闲 G 盘正常。
   - 根因：真实窗口捕获脚本开启 `LiveHashes` 并每 100ms 读取全部列表行，任一 `SendMessageTimeout` 超过 2 秒就终止进程；外层又把所有 PowerShell 非零退出统一包装成截图失败，丢失校验超时、窗口无响应、结果不完整与真实截图失败的差异。
   - 内容：关闭实时摘要；单次窗口消息容忍调整为 5 秒，计算阶段短暂无响应按 500ms 低频重试并受既有动态总期限约束；摘要完整后再读取最终行和执行带独立宽限的窗口整理/截图；PowerShell 通过无路径结构化结果返回启动、校验总超时、窗口持续无响应、结果无效与截图失败，后端和前端安全文案保持区分。
-  - 文件：`packages/backend/app/repository/hashmyfiles_repository.py`、新增同层捕获脚本模块、`packages/backend/app/controllers/workbench_error_messages_controller.py`、`packages/shared/constants/workbenchConstants.ts`、相关后端测试、本变更包 delta/design 与 living spec。
+  - 文件：`packages/backend/app/repository/integrity/hashmyfiles_repository.py`、新增同层捕获脚本模块、`packages/backend/app/controllers/workbench_error_messages_controller.py`、`packages/shared/constants/workbenchConstants.ts`、相关后端测试、本变更包 delta/design 与 living spec。
   - 验证：HashMyFiles Repository、统一导出错误传播与 Controller 文案定向 pytest；`npm run lint:arch`、`npm run typecheck`、`npm run verify:quick`、scoped strict docs 与 `git diff --check`。使用 SYNTHETIC RAR 在繁忙机械盘上的真实窗口复验作为人工验收。
   - 自动化证据：Repository、统一导出原子回滚、API 错误传播与公共文案定向 pytest 45 passed；内嵌 PowerShell 解析、C# 编译及真实 PowerShell 启动失败结构化结果通过；随包 HashMyFiles 对临时 SYNTHETIC 小文件的真实窗口 PNG 冒烟验证 PASS；`npm run verify:quick`、架构、类型与 `git diff --check` PASS。临时恢复 `LiveHashes=1` 和 2 秒窗口阈值后核心回归按预期失败，恢复正式实现后通过。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044 真实 Word 人工验收待完成，候选尚未冻结；本反馈只运行增量门控，不重复最终 Review/full gate。
@@ -402,7 +402,7 @@ workflow_level: 3
 - [x] T050 检查笔录统一导出停用 HashMyFiles 截图并保留底层能力（用户需求）。
   - 决策：统一导出只发布最新 Word 与全部已验证 RAR，不启动 HashMyFiles、不生成截图；`hashmyfiles_repository`、`hashmyfiles_service` 与截图脚本保持可用，供后续鉴定文书流程复用。
   - 兼容：统一导出结果与新审计记录不再声明 `hash_verification_image`；历史导出记录的 PNG/HTML 字段继续兼容读取。再次导出到同一目录成功时移除旧固定名截图/HTML，发布失败时与旧 Word/RAR 一并回滚恢复。
-  - 文件：`packages/backend/app/services/unified_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/shared/types/archiveCompletion.ts`、统一导出超时规则、现有后端/前端测试、本变更 delta/design 与 living spec。
+  - 文件：`packages/backend/app/services/export/unified_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/shared/types/archiveCompletion.ts`、统一导出超时规则、现有后端/前端测试、本变更 delta/design 与 living spec。
   - 验证：统一导出定向 pytest、Shared/前端相关 Vitest、`npm run lint:arch`、`npm run typecheck`、scoped strict docs 与 `git diff --check`；核心“不调用截图机制”断言需验证区分度。
   - 自动化证据：统一导出与导出编排后端 22 passed；Shared 超时、导出 Hook 与两个入口页面 4 files / 49 tests passed；`npm run verify:quick`、scoped strict docs、架构、类型、治理、仓库资产与 `git diff --check` PASS。临时恢复统一导出截图调用后核心“不调用 HashMyFiles”回归按预期失败，恢复正式实现后定向套件通过。后续回归修复移除生命周期测试中已失效的截图错误 mock，恢复“revision 分离时仍可导出”的单一职责，并断言不生成 PNG/HTML；统一导出、归档导出、生命周期与保留的 HashMyFiles 能力相关测试 71 passed。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有 T044 人工验收开放项，候选尚未冻结；本反馈只运行增量门控，不重复最终 Review/full gate。
@@ -412,8 +412,8 @@ workflow_level: 3
   - 现象：同事电脑使用机械盘并同时运行大量磁盘密集型任务时，单任务有效吞吐约为 0.3 MB/s；现有 5 MB/s 预算、WinRAR/完整性/HashMyFiles 10 小时上限及统一导出 24 小时上限会提前终止仍在正常工作的任务。
   - 决策：磁盘密集型体积预算统一按 0.1 MB/s 计算，为实测 0.3 MB/s 提供三倍耗时预算；WinRAR 执行、`rar t` 完整性、保留的 HashMyFiles 能力和统一导出客户端最大上限统一为 30 天。WinRAR 输出无增长阈值默认由 600 秒提高到 1800 秒并提供受边界约束的独立环境配置。普通工作台 30 秒请求、目录选择器、编辑租约、SQLite 锁等待及报告解析等待不变。
   - Layer 1–2：修改 `packages/shared/constants/workbenchConstants.ts`、`packages/shared/utils/archiveCompletionRules.ts`，把统一导出的复制吞吐基线和最大请求上限改为新合同；复用 `archiveCompletionRules.test.ts` 覆盖 0.3 MB/s 场景、最小值、非法大小、30 天上限和超上限钳制。
-  - Layer 20：修改 `packages/backend/app/repository/winrar_timeout_policy.py`、`winrar_process_monitor.py`，统一 WinRAR 执行与完整性预算，新增受控 idle timeout 配置解析；扩展 `tests/test_winrar_timeout.py`，覆盖低吞吐大体积、增长不误杀、1800 秒停滞、环境覆盖、非法配置回退、30 天上限及稳定错误码。
-  - Layer 21：修改 `packages/backend/app/services/hashmyfiles_service.py`，同步保留能力的体积预算和环境覆盖边界；复用 `tests/test_hashmyfiles_service.py` 覆盖 0.3 MB/s 体积、30 天上限与非法覆盖回退。检查笔录统一导出仍不得启动 HashMyFiles。
+  - Layer 20：修改 `packages/backend/app/repository/archive/winrar_timeout_policy.py`、`packages/backend/app/repository/archive/winrar_process_monitor.py`，统一 WinRAR 执行与完整性预算，新增受控 idle timeout 配置解析；扩展 `tests/test_winrar_timeout.py`，覆盖低吞吐大体积、增长不误杀、1800 秒停滞、环境覆盖、非法配置回退、30 天上限及稳定错误码。
+  - Layer 21：修改 `packages/backend/app/services/integrity/hashmyfiles_service.py`，同步保留能力的体积预算和环境覆盖边界；复用 `tests/test_hashmyfiles_service.py` 覆盖 0.3 MB/s 体积、30 天上限与非法覆盖回退。检查笔录统一导出仍不得启动 HashMyFiles。
   - 一致性与验证：核对 delta/design 与实现后同步 living spec；先运行 WinRAR、HashMyFiles、统一导出超时的定向失败用例，再运行受影响测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change background-compression-archive-completion` 与 `git diff --check`。使用 SYNTHETIC 体积和可注入时钟验证，不创建大体积仓库资产。
   - code_review/final_gate：该任务修改核心归档执行与外部进程终止边界，有独立审查价值；与本 Level 3 包其余开放项收敛后统一冻结、Review 并运行一次 scoped full gate，不在本任务实施后提前重复最终门控。
   - implementation: [x] 统一导出复制、WinRAR 执行、`rar t` 完整性与 HashMyFiles 保留能力均已改为 0.1 MB/s 预算及 30 天上限；WinRAR idle 默认值已改为 1800 秒，并新增 `BIJI_ARCHIVE_IDLE_TIMEOUT_SECONDS` 的正整数/30 天边界解析与非法值安全回退。delta、design 与 living spec 已同步最终数值。
@@ -431,7 +431,7 @@ workflow_level: 3
   - 行为：统一导出成功后，案件卡片显示带“打开导出文件夹”悬浮提示和无障碍名称的文件夹图标按钮；点击后由后端从该案件最后一条成功统一导出记录解析目录并打开 Windows 文件资源管理器，前端不提交任意本机路径。
   - 安全与恢复：专用本地 Repository 按案件持久化规范绝对路径，不绕过通用审计 JSON 的绝对路径禁令；无成功记录、目录已移动/删除或系统无法打开时返回稳定可操作错误，不启动 shell 命令解析，不泄露其他案件路径。
   - 并发：案件 A 的统一导出未完成时可启动案件 B 导出；无论 A/B 完成顺序如何，每张卡片的 loading、成功标记和打开目录动作只绑定自身 `case_id`，不得被全局“最后完成”路径覆盖。
-  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/types/archiveCompletion.ts`、`packages/shared/constants/index.ts`、新增 `packages/backend/app/repository/local_case_export_directory_repository.py`、`packages/backend/app/services/archive/archive_export_service.py`、`archive_task_api_service.py`、`case_lifecycle_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`components/CaseCard.tsx`、`pages/CaseWorkbenchPage.tsx` 及现有测试。
+  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/types/archiveCompletion.ts`、`packages/shared/constants/index.ts`、新增 `packages/backend/app/repository/case/local_case_export_directory_repository.py`、`packages/backend/app/services/archive/archive_export_service.py`、`archive_task_api_service.py`、`case_lifecycle_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`components/CaseCard.tsx`、`pages/CaseWorkbenchPage.tsx` 及现有测试。
   - 验证：复用统一导出审计、导出编排和工作台页面测试，覆盖路径持久化、按案件查询最新成功记录、目录不存在、无 shell 解析启动，以及 A/B 导出反序完成后两个图标分别请求自身案件端点；运行 `npm run verify:quick`、scoped strict docs、Impeccable detector 与 `git diff --check`。
   - 自动化证据：后端导出目录 Repository、统一导出、导出编排及工作台持久化 52/52 通过；案件卡片 10/10、归档完成 Hook 7/7，通过案件页 A/B 反序完成定向回归 1/1；前端生产构建、`npm run verify:quick`、scoped strict docs（14 checks / 0 drift）与 `git diff --check` 通过。Impeccable detector 仅报告 `platformShell.css:67` 既有 `margin-left` 布局动画，本任务新增样式无新告警。
   - code_review: [DEFERRED] 本任务复用当前未冻结 Level 3 变更包，按包级节奏待全部反馈收敛后统一独立审查，不为单项反馈提前冻结候选。

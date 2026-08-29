@@ -6,11 +6,11 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.local_case_export_directory_repository import (  # noqa: E402
+from app.repository.case.local_case_export_directory_repository import (  # noqa: E402
     LocalCaseExportDirectoryRepository,
 )
 from app.repository.case.case_workbench_repository import CaseShellRepository  # noqa: E402
-from app.repository.workbench_database import (  # noqa: E402
+from app.repository.workbench.workbench_database import (  # noqa: E402
     WorkbenchDatabase,
     database_path_for_deployment,
 )

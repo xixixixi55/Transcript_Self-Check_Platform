@@ -18,7 +18,7 @@ from .archive_manifest_record_repository import (
 from .archive_manifest_index_repository import (
     ArchiveManifestIndexMixin, ArchiveManifestRepositoryError, _INDEX_FILENAME,
 )
-from ..workbench_database import WorkbenchDatabase
+from ..workbench.workbench_database import WorkbenchDatabase
 
 _INDEX_VERSION = 1
 

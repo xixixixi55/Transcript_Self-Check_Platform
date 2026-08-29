@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
 
-from app.repository.local_inspection_environment_repository import LocalInspectionEnvironmentRepository
+from app.repository.inspection.local_inspection_environment_repository import LocalInspectionEnvironmentRepository
 
 
 def test_reads_synthetic_windows_and_huorong_registry_facts():

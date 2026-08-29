@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.attachment2_image_service import (  # noqa: E402
+from app.services.attachment.attachment2_image_service import (  # noqa: E402
     ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU,
     ATTACHMENT2_PAGE_BREAK_AFTER_TWIPS,
     ATTACHMENT2_SLOT_HEIGHT_EMU,

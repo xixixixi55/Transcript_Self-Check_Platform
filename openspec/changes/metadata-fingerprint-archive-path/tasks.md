@@ -8,7 +8,7 @@ workflow_level: 2
 ## 后端 Service（Layer 21）
 
 - [x] T001 来源复核指纹改为元数据级。
-  - 文件：`packages/backend/app/services/source_record_fingerprint_service.py`、`tests/test_phase1d_fourth_review.py`
+  - 文件：`packages/backend/app/services/source/source_record_fingerprint_service.py`、`tests/test_phase1d_fourth_review.py`
   - 内容：`fingerprint()` 以 path+type+size+mtime 计算，不读取文件内容；保留前后快照对比与符号链接/OSError 语义；删除 `_file_digest`/`_read_file_digest`。
   - 验证：来源指纹定向测试覆盖元数据变更检测与快照期间变更的瞬态失败。
 
@@ -18,7 +18,7 @@ workflow_level: 2
   - 验证：归档输入/执行相关后端测试回归。
 
 - [x] T005 修复大目录来源复核重复扫描与 pending 无重试闭环。
-  - 文件：`packages/backend/app/repository/source_record_repository.py`、`packages/backend/app/services/source_record_fingerprint_service.py`、`source_record_service.py`、`case_parse_dispatcher_service.py`、`workbench_factory_service.py`、`packages/backend/app/main.py`、`tests/test_phase1d_fourth_review.py`、`tests/test_phase1d_recovery.py`
+  - 文件：`packages/backend/app/repository/source/source_record_repository.py`、`packages/backend/app/services/source/source_record_fingerprint_service.py`、`packages/backend/app/services/source/source_record_service.py`、`case_parse_dispatcher_service.py`、`packages/backend/app/services/runtime/workbench_factory_service.py`、`packages/backend/app/main.py`、`tests/test_phase1d_fourth_review.py`、`tests/test_phase1d_recovery.py`
   - 内容：从同一稳定快照派生初次复核 metadata/fingerprint，来源复核使用独立有界执行池；瞬态失败后有限退避重试，耗尽时持久化稳定诊断码，归档安全门保持不变。
   - 验证：定向测试覆盖两次而非三次目录扫描、解析与来源复核资源隔离、瞬态失败后自动恢复、重试耗尽和异常 Future 收敛。
 
@@ -40,7 +40,7 @@ workflow_level: 2
   - 验证：`npm run verify:quick`、受影响后端测试、`npx tsx scripts/check-docs.ts --strict --change metadata-fingerprint-archive-path`、`git diff --check`。
 
 - [x] T007 修复大目录复核导致 Uvicorn 重载/退出不收敛。
-  - 文件：`packages/backend/app/services/source_record_fingerprint_service.py`、`source_record_service.py`、`case_parse_dispatcher_service.py`、`packages/backend/app/main.py`、`tests/test_phase1d_fourth_review.py`、`tests/test_phase1d_recovery.py`、`tests/test_archive_runtime_lifecycle.py`
+  - 文件：`packages/backend/app/services/source/source_record_fingerprint_service.py`、`packages/backend/app/services/source/source_record_service.py`、`case_parse_dispatcher_service.py`、`packages/backend/app/main.py`、`tests/test_phase1d_fourth_review.py`、`tests/test_phase1d_recovery.py`、`tests/test_archive_runtime_lifecycle.py`
   - 内容：将 dispatcher shutdown 信号传入目录快照遍历；取消时保持现有来源状态且不重试，使生命周期关闭能够终止已运行复核任务并释放后端端口。
   - 验证：定向测试覆盖遍历取消、来源状态不误写、dispatcher shutdown 收敛和 FastAPI lifespan 关闭。
 
@@ -49,7 +49,7 @@ workflow_level: 2
   - 验证：`npm run verify:quick`、受影响后端测试、`npx tsx scripts/check-docs.ts --strict --change metadata-fingerprint-archive-path`、`git diff --check`。
 
 - [x] T009 消除大目录审核入口与归档执行的重复全量扫描。
-  - 文件：`packages/backend/app/services/source_record_fingerprint_service.py`、`packages/backend/app/services/source_record_service.py`、`packages/backend/app/services/archive/archive_task_api_service.py`、`packages/backend/app/services/archive/archive_runtime_service.py`、`packages/backend/app/services/archive/archive_execution_service.py`、`packages/backend/app/services/archive/archive_manifest_access_service.py`、`packages/backend/app/repository/archive/archive_input_repository.py`、`packages/backend/app/controllers/workbench_controller.py` 及对应测试。
+  - 文件：`packages/backend/app/services/source/source_record_fingerprint_service.py`、`packages/backend/app/services/source/source_record_service.py`、`packages/backend/app/services/archive/archive_task_api_service.py`、`packages/backend/app/services/archive/archive_runtime_service.py`、`packages/backend/app/services/archive/archive_execution_service.py`、`packages/backend/app/services/archive/archive_manifest_access_service.py`、`packages/backend/app/repository/archive/archive_input_repository.py`、`packages/backend/app/controllers/workbench_controller.py` 及对应测试。
   - 内容：按产品确认的短生命周期案件边界，将来源复核收敛为授权路径、报告结构与核心报告文件身份检查；解析完成后不再递归扫描全部媒体文件。归档提交快速进入后台，直接源归档只构建一次完整输入 inventory，随后依赖 WinRAR 完整性、RAR MD5 与 Manifest 校验，不再执行独立来源复核和压缩前后重复 inventory。
   - 验证：SYNTHETIC 回归覆盖核心报告变化、深层媒体不触发审核入口递归扫描、归档提交仅复核一次、归档执行不重复扫描、工作台请求并发可用和输出完整性门；定向后端 79 passed，前端 20 passed，inventory/历史快照兼容 23 passed/2 skipped。用户指定目录只读基准确认来源复核收敛为毫秒级、后台唯一 inventory 较旧实现明显缩短；真实样本路径、名称、内容和统计未写入仓库。
 

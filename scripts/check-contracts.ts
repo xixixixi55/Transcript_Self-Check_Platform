@@ -35,7 +35,7 @@ interface ContractPair {
 const CANONICAL_PAIRS: ContractPair = {
   label: 'canonical',
   tsFile: 'packages/shared/types/canonical.ts',
-  pyFile: 'packages/backend/app/services/canonical_models_service.py',
+  pyFile: 'packages/backend/app/services/canonical/canonical_models_service.py',
   modelPairs: [
     { tsType: 'FieldProvenance', pyClass: 'FieldProvenance' },
     { tsType: 'MaterialIdentifier', pyClass: 'MaterialIdentifier' },
@@ -408,7 +408,7 @@ function compareEnumValues(label: string, tsMembers: Set<string>, pyMembers: Set
 
 function compareErrorCodeSets() {
   const tsGatePath = path.join(ROOT, 'packages/shared/types/exportGate.ts')
-  const pyGatePath = path.join(ROOT, 'packages/backend/app/services/export_gate_service.py')
+  const pyGatePath = path.join(ROOT, 'packages/backend/app/services/export/export_gate_service.py')
 
   if (!fs.existsSync(tsGatePath) || !fs.existsSync(pyGatePath)) return
 

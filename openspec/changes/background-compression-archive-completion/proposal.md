@@ -46,7 +46,7 @@
 | 层 | 预计文件 | 影响 |
 |----|---------|------|
 | SharedTypes/Constants/Utils (0–2) | `packages/shared/types/*`、`workbenchConstants.ts`、`constants/index.ts`、`materialPhotoGroups.ts` | 统一导出、单独 Word 路径导出、盘号映射、案件状态、HashMyFiles PNG 产物契约与图片文件名自然排序 |
-| BE Repository (20) | `workbench_schema.py`、归档/案件 repository | 持久化每 part 元数据与盘号映射、导出记录、已导出标记 |
+| BE Repository (20) | `packages/backend/app/repository/workbench/workbench_schema.py`、归档/案件 repository | 持久化每 part 元数据与盘号映射、导出记录、已导出标记 |
 | BE Services (21) | `archive_execution_service.py`、`archive_planner_service.py`、`archive_manifest_service.py`、新增盘号映射/HashMyFiles/统一导出服务 | 盘号后填（plan 不要求盘号）、每 RAR 回填回调、HashMyFiles.exe 调用、统一导出编排 |
 | BE Controllers/Routes (22–23) | `archive_controller.py`、`record_controller.py`、导出相关路由 | 后台压缩触发与状态、盘号映射、统一/单独 Word 路径导出、图片容错与导出记录 |
 | FE Hooks (10) | `useArchivePreparation.ts`、`usePreviewArchive.ts`、案件完成/统一导出 hooks、`useBatchImageImport.ts`、`useRecordExport.ts`、`useCasePhotoAssets.ts` | 案件打开立即/稍后选择、盘号后填与映射、复用原生导出目录选择、批量图片原子校验及有界上传/读取、单独 Word 图片容错、已导出状态 |

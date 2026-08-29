@@ -18,12 +18,12 @@ from app.repository import (  # noqa: E402
     WorkbenchDatabase,
     database_path_for_deployment,
 )
-from app.services import unified_export_service  # noqa: E402
-from app.services.unified_export_service import (  # noqa: E402
+from app.services.export import unified_export_service  # noqa: E402
+from app.services.export.unified_export_service import (  # noqa: E402
     UnifiedExportError,
     unified_export,
 )
-from app.services.attachment_plan_models_service import AttachmentPlanError  # noqa: E402
+from app.services.attachment.attachment_plan_models_service import AttachmentPlanError  # noqa: E402
 
 CASE_ID = "SYNTHETIC-UNIFIED-EXPORT-CASE"
 

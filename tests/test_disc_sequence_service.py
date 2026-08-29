@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.disc_sequence_service import generate_disc_numbers, parse_disc_sequence
+from app.services.disc.disc_sequence_service import generate_disc_numbers, parse_disc_sequence
 
 
 def test_disc_sequence_parses_and_generates_with_width():
@@ -34,7 +34,7 @@ def test_disc_sequence_preserves_legacy_number_without_rewriting():
 
 
 def test_archive_mapping_accepts_gp_and_yp_with_or_without_user_identifier():
-    from app.services.disc_sequence_service import parse_archive_medium_sequence
+    from app.services.disc.disc_sequence_service import parse_archive_medium_sequence
 
     assert parse_archive_medium_sequence("GP20260718-01", "standard_split").valid
     assert parse_archive_medium_sequence("YP20260718-01", "oversized_single_volume").valid

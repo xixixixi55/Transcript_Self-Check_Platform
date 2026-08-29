@@ -7,7 +7,7 @@
 - `packages/backend/app/repository/report/report_format_adapter.py`、`packages/backend/app/repository/report/html_parser.py` 和 `packages/backend/app/repository/report/device_field_parser.py` 已经积累了旧/新报告识别、字段候选和回归保护。
 - `report_parser_service.py` 仍组装 legacy DTO 和解析缓存；解析阶段只建立 `ArchiveContext`，真实压缩由独立归档执行入口触发。解析/清缓存请求已具备存活性边界，解析缓存只覆盖解析器实际依赖的数据。
 - `ArchivePlanner`、WinRAR executor/validator、有限向上 replan 和最终 `ArchiveManifest` 已进入归档生产能力；D1 容量合同与 D2.1 七项超时、完整性、进程终止、Manifest 兼容、锁生命周期、环境变量 warning 和 Export Gate 序列化治理已经完成，剩余真实大容量与人工验收边界见 `tasks.md`。
-- `record_controller.py` 仍接收 `InspectionReport`，校验最终 Manifest、投影 legacy 字段并调用 `template_filler_service.py`；`document_builder_service.py` 只保留为无 Manifest 场景的 officecli batch 回退，带 Manifest 的正式导出失败不会静默回退。
+- `record_controller.py` 仍接收 `InspectionReport`，校验最终 Manifest、投影 legacy 字段并调用 `packages/backend/app/services/template/template_filler_service.py`；`packages/backend/app/services/document/document_builder_service.py` 只保留为无 Manifest 场景的 officecli batch 回退，带 Manifest 的正式导出失败不会静默回退。
 - Canonical 模型、双向兼容适配器、`PipelineOrchestrator` 和 Shadow 比较器已有实现；Shadow 已接入真实生产 Controller 的旁路观测，canonical 分支仍显式保持未启用。
 - `AttachmentPlan` 与固定 `current-template-v1` TemplateProfile 已被当前 renderer 消费；`DocumentRenderPlan` 尚无生产类型、构造器或消费方。
 - `word_templates/template.docx` 是当前运行时模板，已有 VML 文本框、普通分页符、表格和动态占位符；`template-2026` 与 `docx-vml-pagination` 记录了其资产来源和回归约束。
@@ -410,7 +410,7 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 
 ## 风险/权衡
 
-- [风险] 现有 `template_filler_service.py` 超过 800 行且承担多种职责。→ [缓解] 后续只按独立领域职责、变化原因和可测试行为边界评估 Repository/Service/Renderer/Plan 拆分；阶段 0 保留有界豁免，不以 LOC 单独驱动拆分，旧文件仅在自然边界明确时逐步削薄。
+- [风险] 现有 `packages/backend/app/services/template/template_filler_service.py` 超过 800 行且承担多种职责。→ [缓解] 后续只按独立领域职责、变化原因和可测试行为边界评估 Repository/Service/Renderer/Plan 拆分；阶段 0 保留有界豁免，不以 LOC 单独驱动拆分，旧文件仅在自然边界明确时逐步削薄。
 - [风险] WinRAR 输出命名、分卷边界和压缩比受版本/参数影响。→ [缓解] staging、精确字节参数、真实卷验证、升级重试和合成大文件测试；不以源字节数冒充最终卷大小。
 - [风险] VML/页眉/普通分页的 OOXML 被 python-docx 改写。→ [缓解] 资产哈希、ZIP/XML 回归、保留宿主段落、固定 renderer 版本和 Word 人工验收。
 - [风险] “手机/平板”分类在部分报告中不明确。→ [缓解] provenance + confidence；低置信时阻止导出并要求确认，不在模板层猜测。

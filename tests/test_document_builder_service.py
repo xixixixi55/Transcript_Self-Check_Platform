@@ -10,9 +10,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.document_builder_service import build_record_document
+from app.services.document.document_builder_service import build_record_document
 from app.services.report.report_parser_service import parse_report
-from app.services.record_generator_service import generate_docx
+from app.services.document.record_generator_service import generate_docx
 
 
 def _report():
@@ -351,15 +351,15 @@ def test_generate_docx_rejects_empty_output(tmp_path: Path):
         return CompletedProcess(args, 0, "", "")
 
     # 使用不存在的模板路径，强制回退到 batch 模式
-    with patch("app.services.record_generator_service._TEMPLATE_PATH", "/nonexistent/template.docx"), \
-         patch("app.services.record_generator_service._run_officecli", side_effect=fake_run):
+    with patch("app.services.document.record_generator_service._TEMPLATE_PATH", "/nonexistent/template.docx"), \
+         patch("app.services.document.record_generator_service._run_officecli", side_effect=fake_run):
         with pytest.raises(RuntimeError, match="为空"):
             generate_docx(_report(), output_dir=str(tmp_path))
 
 
 def test_manifest_render_failure_does_not_fallback_to_legacy(tmp_path: Path):
-    with patch("app.services.record_generator_service.fill_template", side_effect=ValueError("render failed")), \
-         patch("app.services.record_generator_service._generate_via_batch", side_effect=AssertionError("legacy fallback")):
+    with patch("app.services.document.record_generator_service.fill_template", side_effect=ValueError("render failed")), \
+         patch("app.services.document.record_generator_service._generate_via_batch", side_effect=AssertionError("legacy fallback")):
         with pytest.raises(ValueError, match="render failed"):
             generate_docx(_report(), output_dir=str(tmp_path), archive_manifest={})
 
@@ -406,6 +406,6 @@ def test_legacy_parsed_model_feeds_word_builder_and_export(tmp_path: Path):
     def fake_fill_template(_report, _template, filepath, _photos):
         Path(filepath).write_bytes(b"synthetic-docx")
 
-    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill_template):
+    with patch("app.services.document.record_generator_service.fill_template", side_effect=fake_fill_template):
         output = generate_docx(parsed, output_dir=str(tmp_path / "exports"))
     assert Path(output).is_file()

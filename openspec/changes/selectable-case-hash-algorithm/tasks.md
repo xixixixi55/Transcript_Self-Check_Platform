@@ -49,9 +49,9 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 
 ### Layer 20 — 持久化与 HashMyFiles
 
-- [x] 修改 `packages/backend/app/repository/shared_defaults_repository.py`：默认 `md5`，只接受 `md5`/`sha1`/`sha256`，显式设置不得清空。
+- [x] 修改 `packages/backend/app/repository/case/shared_defaults_repository.py`：默认 `md5`，只接受 `md5`/`sha1`/`sha256`，显式设置不得清空。
   - 验证：扩展 `tests/test_case_shared_defaults.py` 的默认值、合法更新和非法值拒绝。
-- [x] 修改 `packages/backend/app/repository/archive/archive_hash_repository.py` 与 `hashmyfiles_repository.py`：提供受控业务摘要计算；按算法生成 HashMyFiles 参数、列索引、摘要校验和三列截图。
+- [x] 修改 `packages/backend/app/repository/archive/archive_hash_repository.py` 与 `packages/backend/app/repository/integrity/hashmyfiles_repository.py`：提供受控业务摘要计算；按算法生成 HashMyFiles 参数、列索引、摘要校验和三列截图。
   - 验证：扩展 `tests/test_hashmyfiles_service.py`，覆盖三种算法、错误长度、参数与列选择。
 
 ### Layer 21 — 案件、归档与文书投影
@@ -62,7 +62,7 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
   - 验证：扩展归档 Manifest、执行与完成投影测试，断言 MD5 安全门不变且 SHA 摘要正确。
 - [x] 修改附件计划、审核投影和 Word 生成相关服务：动态输出算法名称和值，legacy `md5_hash` 键只作为兼容载体。
   - 验证：复用附件计划、document builder、template filler 和 Word 定向测试，覆盖 SHA-1/SHA-256 文案与值。
-- [x] 修改 `hashmyfiles_service.py`、`unified_export_service.py` 及导出接线：从案件快照传递算法，生成匹配截图且维持原子发布。
+- [x] 修改 `packages/backend/app/services/integrity/hashmyfiles_service.py`、`packages/backend/app/services/export/unified_export_service.py` 及导出接线：从案件快照传递算法，生成匹配截图且维持原子发布。
   - 验证：扩展 HashMyFiles 与统一导出测试，覆盖三算法和失败回滚。
 
 ### Layer 10/11 — 设置与审核界面
@@ -113,9 +113,9 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 
 ### Layer 20 — 规范哈希、存量兼容与 HashMyFiles 结果
 
-- [ ] 修改 `packages/backend/app/repository/hash_algorithm_repository.py` 与 `archive_hash_repository.py`：提供唯一的 part 哈希规范化、legacy MD5 单向投影、算法/长度校验和受控路径流式计算；删除新链路对固定 `md5`、32 位正则和 `verified_md5s` 的依赖。
+- [ ] 修改 `packages/backend/app/repository/integrity/hash_algorithm_repository.py` 与 `archive_hash_repository.py`：提供唯一的 part 哈希规范化、legacy MD5 单向投影、算法/长度校验和受控路径流式计算；删除新链路对固定 `md5`、32 位正则和 `verified_md5s` 的依赖。
   - 验证：扩展现有 Repository/Manifest 测试，参数化覆盖 MD5/SHA-1/SHA-256、无效长度、混用算法、新字段无效不得回退、旧 MD5 可兼容；通过可注入 reader/hasher 证明 SHA 案件只计算所选算法。
-- [ ] 修改 `packages/backend/app/repository/hashmyfiles_result_repository.py`、`hashmyfiles_repository.py` 与 `hashmyfiles_capture_script.py`：保留 path-free rows，返回算法、文件名、精确字节数和完整摘要；按文件名拒绝缺失、重复、多出或错误算法列。
+- [ ] 修改 `packages/backend/app/repository/integrity/hashmyfiles_result_repository.py`、`packages/backend/app/repository/integrity/hashmyfiles_repository.py` 与 `packages/backend/app/repository/integrity/hashmyfiles_capture_script.py`：保留 path-free rows，返回算法、文件名、精确字节数和完整摘要；按文件名拒绝缺失、重复、多出或错误算法列。
   - 验证：扩展 `tests/test_hashmyfiles_service.py`，覆盖三算法结构化结果、32/40/64 位摘要、重复行和列错误；测试数据全部标记 SYNTHETIC/TEST。
 - [ ] 修改 `packages/backend/app/repository/archive/archive_report_metadata_repository.py` 及直接读取 Manifest 哈希的 Repository：统一通过规范 part 哈希投影 legacy `md5_hash`，禁止从兼容键名推断算法。
   - 验证：复用归档完成草稿回填测试，覆盖新 SHA Manifest、旧 MD5 Manifest 和混合算法拒绝。
@@ -126,11 +126,11 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
   - 验证：扩展 `tests/test_archive_execution_service.py`、`tests/test_archive_execution_milestones.py` 与 Manifest 测试，三算法使用同一状态序列和结构；SHA-1/SHA-256 不调用 MD5；发布重试不重复读取。
 - [ ] 修改 `packages/backend/app/services/archive/archive_manifest_access_service.py`、`archive_task_result_service.py`、`archive_manifest_reuse_service.py`、`archive_attempt_completion_service.py`、`archive_publish_service.py` 及其持久化恢复调用链：复用、恢复、结果授权、下载和发布全部按规范 `hash_algorithm/hash_value` 校验；归档复用指纹显式绑定算法。
   - 验证：扩展 `tests/test_archive_manifest_authority.py`、`tests/test_archive_manifest_repository.py` 及现有恢复/下载测试，三算法均拒绝同名同大小内容篡改，旧 MD5 Manifest 继续可用，算法改变不得复用。
-- [ ] 修改 `packages/backend/app/services/hashmyfiles_service.py` 与 `unified_export_service.py`：统一导出复制前只执行发布身份、受控路径、普通文件、集合、顺序和精确大小门控；HashMyFiles 对 staging 副本计算所选算法后，与 Manifest 按文件名逐项比较摘要和大小，再进入原子发布。
+- [ ] 修改 `packages/backend/app/services/integrity/hashmyfiles_service.py` 与 `packages/backend/app/services/export/unified_export_service.py`：统一导出复制前只执行发布身份、受控路径、普通文件、集合、顺序和精确大小门控；HashMyFiles 对 staging 副本计算所选算法后，与 Manifest 按文件名逐项比较摘要和大小，再进入原子发布。
   - 验证：扩展 `tests/test_unified_export_service.py` 与 `tests/test_hashmyfiles_service.py`，覆盖三算法成功、格式合法但摘要不同、行缺失/重复、复制期间源变化、工具失败和上一版回滚；断言统一导出不再触发固定 MD5 内容复核。
 - [ ] 修改单独 Word、归档下载和其他不运行 HashMyFiles 的正式访问编排，确保它们仍在自身授权边界使用所选算法完成内容验证，不因统一导出优化而降级为仅检查大小。
   - 验证：复用对应 Word、下载、恢复测试，区分统一导出最终副本门控和非统一导出的内容授权门控。
-- [ ] 修改 `packages/backend/app/services/software_policy_service.py`、归档进度模型及错误映射：把残留“固定 MD5 校验”语义改为所选文件哈希；新增稳定的 HashMyFiles 与 Manifest 摘要不一致错误，审计不记录绝对路径或摘要正文。
+- [ ] 修改 `packages/backend/app/services/inspection/software_policy_service.py`、归档进度模型及错误映射：把残留“固定 MD5 校验”语义改为所选文件哈希；新增稳定的 HashMyFiles 与 Manifest 摘要不一致错误，审计不记录绝对路径或摘要正文。
   - 验证：复用软件工具投影、归档任务状态和统一导出错误映射测试。
 
 ### Layer 10/11 — 状态和展示语义核对

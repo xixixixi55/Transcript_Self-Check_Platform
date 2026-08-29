@@ -21,15 +21,15 @@ from ..services.archive.archive_source_runtime_service import (
 )
 from ..services.archive.archive_manifest_access_service import get_manifest_part_download
 from ..services.archive.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
-from ..services.attachment_plan_models_service import AttachmentPlanError
-from ..services.software_policy_service import normalize_primary_software_projection
+from ..services.attachment.attachment_plan_models_service import AttachmentPlanError
+from ..services.inspection.software_policy_service import normalize_primary_software_projection
 from .pipeline_controller import (
     observe_shadow_archive,
     pipeline_settings_for_request,
 )
 from ..config import OUTPUT_BASE
-from ..repository.workbench_errors import WorkbenchPersistenceError
-from ..services.workbench_factory_service import get_workbench_services
+from ..repository.workbench.workbench_errors import WorkbenchPersistenceError
+from ..services.runtime.workbench_factory_service import get_workbench_services
 
 
 router = APIRouter()

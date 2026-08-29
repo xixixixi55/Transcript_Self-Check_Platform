@@ -12,7 +12,7 @@ from typing import Any
 
 from ...repository.archive.archive_input_repository import ArchiveInputError, InputInventory, build_input_inventory
 from ...repository.archive.archive_input_snapshot_repository import ArchiveInputSnapshotRepository
-from ...repository.workbench_database import WorkbenchDatabase
+from ...repository.workbench.workbench_database import WorkbenchDatabase
 from .archive_input_snapshot_copy_service import (
     assert_source_matches as _assert_source_matches, copy_inventory, source_evidence,
 )

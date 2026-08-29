@@ -10,9 +10,9 @@ from datetime import datetime
 from typing import Any
 
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
-from ...repository.workbench_database import WorkbenchDatabase
-from ...repository.workbench_errors import WorkbenchPersistenceError
-from ...repository.retention_time import trusted_utc_timestamp
+from ...repository.workbench.workbench_database import WorkbenchDatabase
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
+from ...repository.retention.retention_time import trusted_utc_timestamp
 from ..archive.archive_publication_identity_service import publication_digest
 
 PublicationRevalidator = Callable[[Mapping[str, Any]], Mapping[str, Any] | None]

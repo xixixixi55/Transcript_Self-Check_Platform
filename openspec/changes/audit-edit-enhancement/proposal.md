@@ -90,7 +90,7 @@
 | Layer 12: FE_Pages | `packages/frontend/src/pages/` | 修改 | `RecordGeneratePage` 重构为轻薄编排层 |
 | Layer 21: BE_Services | `packages/backend/app/services/` | 修改 | 数据映射修正；Word 模板填充边界增加附件摘要三行留白与不可拆分条件分页 |
 | Layer 20~23 | `packages/backend/` | 修改 | 数据映射修正（委托单位/人 → 采集单位/人） |
-| Layer 20: BE_Repository | `file_storage.py` | — | 无新增变更 |
+| Layer 20: BE_Repository | `packages/backend/app/repository/archive/file_storage.py` | — | 无新增变更 |
 | Layer 21: BE_Services | `report_parser_service.py` | 修改 | 数据字段映射、默认值修正 |
 | Layer 22: BE_Controllers | `record_controller.py` | — | 无变更 |
 | Layer 23: BE_Routes | `routes/` | — | 无变更 |
@@ -146,7 +146,7 @@
 **根因**：
 1. `subprocess.run(["officecli", ...])` 在 uvicorn 子进程环境中找不到 `officecli.cmd`——npm 全局目录不在 uvicorn 的 PATH 中
 2. `shell=True` 同样失败——`cmd.exe` 也未在 uvicorn 的 PATH 中（COMSPEC 不可用）
-**修复**（`record_generator_service.py`）：
+**修复**（`packages/backend/app/services/document/record_generator_service.py`）：
 - `shutil.which("officecli")` 查找 officecli 绝对路径（含 `.CMD` 扩展名）
 - `C:\Windows\System32\cmd.exe` 绝对路径替代 `shell=True` / `cmd.exe` 短名
 - 新增 `_run_officecli(*args)` 封装，Windows 路径下用 `[cmd.exe绝对路径, "/d", "/c", cmd_str]` 调用

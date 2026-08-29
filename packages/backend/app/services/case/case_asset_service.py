@@ -9,16 +9,16 @@ from collections.abc import Mapping, Sequence
 from pathlib import PureWindowsPath
 from typing import Any
 
-from ...repository.asset_reference_repository import AssetReferenceRepository
+from ...repository.case.asset_reference_repository import AssetReferenceRepository
 from ...repository.case.case_asset_storage import CaseAssetStorage
-from ...repository.workbench_constants import (
+from ...repository.workbench.workbench_constants import (
     ASSET_ORPHAN_RETENTION_SECONDS, MAX_CASE_IMAGE_BYTES, MAX_CASE_IMAGE_COUNT,
     MAX_CASE_IMAGE_TOTAL_BYTES,
 )
-from ...repository.workbench_database import WorkbenchDatabase
-from ...repository.workbench_errors import WorkbenchPersistenceError
-from ...repository.workbench_serialization import validate_opaque_id
-from ..attachment2_image_service import Attachment2ImageError, validate_attachment2_photos
+from ...repository.workbench.workbench_database import WorkbenchDatabase
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_serialization import validate_opaque_id
+from ..attachment.attachment2_image_service import Attachment2ImageError, validate_attachment2_photos
 
 _SUFFIXES = {".jpg", ".jpeg", ".png"}
 

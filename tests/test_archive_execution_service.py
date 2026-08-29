@@ -8,13 +8,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
-from app.repository.winrar_executor_repository import (  # noqa: E402
+from app.repository.archive.winrar_discovery_repository import WinRarCapability  # noqa: E402
+from app.repository.archive.winrar_executor_repository import (  # noqa: E402
     ArchiveExecutionError,
     WinRarExecutionResult,
 )
 from app.repository.archive.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_execution_service import (  # noqa: E402
     ArchiveGateError,
     create_archive_context,

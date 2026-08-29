@@ -15,7 +15,7 @@ from .report_parse_input_models import (
     ReportParseInputError,
 )
 from .report_parse_input_filesystem import file_entries, stable_identity
-from ..filesystem_identity_repository import resolve_directory
+from ..source.filesystem_identity_repository import resolve_directory
 from .report_parse_input_selection_repository import is_device_metadata_name, is_json
 
 

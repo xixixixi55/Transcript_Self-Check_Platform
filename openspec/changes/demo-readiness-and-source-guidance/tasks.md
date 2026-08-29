@@ -38,7 +38,7 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 
 ### Layer 20–23：后端安全快照
 
-- [x] 在 `packages/backend/app/repository/demo_readiness_repository.py`、`packages/backend/app/services/demo_readiness_service.py`、`packages/backend/app/controllers/demo_readiness_controller.py` 和路由聚合中实现同步只读的安全快照。
+- [x] 在 `packages/backend/app/repository/runtime/demo_readiness_repository.py`、`packages/backend/app/services/runtime/demo_readiness_service.py`、`packages/backend/app/controllers/demo_readiness_controller.py` 和路由聚合中实现同步只读的安全快照。
 - [x] 在 `tests/test_demo_readiness.py` 覆盖三项状态、异常降级、稳定错误码及路径/配置/进程信息不泄露。
 - [x] 在来源控制器安全错误映射中区分未授权、不可访问和结构不支持（来源校验开启时）。
 - [x] 扩展 `tests/test_workbench_controller.py` 的来源登记/重新登记错误响应断言，验证稳定且不回显路径。

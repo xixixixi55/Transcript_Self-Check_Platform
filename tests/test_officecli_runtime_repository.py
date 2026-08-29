@@ -11,12 +11,12 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.officecli_runtime_repository import (  # noqa: E402
+from app.repository.runtime.officecli_runtime_repository import (  # noqa: E402
     OfficeCliRuntimeError,
     resolve_officecli_command,
     run_officecli,
 )
-from app.repository.runtime_paths import resolve_runtime_paths  # noqa: E402
+from app.repository.runtime.runtime_paths import resolve_runtime_paths  # noqa: E402
 
 
 def portable_paths(tmp_path: Path):

@@ -17,12 +17,12 @@ from docx import Document
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.workbench_database import WorkbenchDatabase  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.repository.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
-from app.repository.template_approval_repository import TemplateApprovalRepository  # noqa: E402
-from app.repository.template_registry_repository import TemplateRegistryRepository  # noqa: E402
-from app.services.template_profile_service import (  # noqa: E402
+from app.repository.workbench.workbench_database import WorkbenchDatabase  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.case.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
+from app.repository.template.template_approval_repository import TemplateApprovalRepository  # noqa: E402
+from app.repository.template.template_registry_repository import TemplateRegistryRepository  # noqa: E402
+from app.services.template.template_profile_service import (  # noqa: E402
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     CURRENT_TEMPLATE_VERSION,
     CURRENT_TEMPLATE_VALIDATION_RULE,
@@ -32,9 +32,9 @@ from app.services.template_profile_service import (  # noqa: E402
     PREVIOUS_TEMPLATE_VERSION,
     TemplateProfileError,
 )
-from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
-from app.services import template_registry_service  # noqa: E402
-from app.services.docx_package_service import compute_ooxml_package_fingerprint  # noqa: E402
+from app.services.runtime.workbench_factory_service import build_workbench_services  # noqa: E402
+from app.services.template import template_registry_service  # noqa: E402
+from app.services.document.docx_package_service import compute_ooxml_package_fingerprint  # noqa: E402
 from synthetic_report_builders import build_ordered_report  # noqa: E402
 
 CASE_ID = "case-SYNTHETIC-template-api"

@@ -12,17 +12,17 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 sys.path.insert(0, os.path.dirname(__file__))
 
-from app.services.record_generator_service import generate_docx  # noqa: E402
-from app.repository.template_approval_repository import TemplateApprovalRepository  # noqa: E402
-from app.repository.template_registry_repository import TemplateRegistryRepository  # noqa: E402
-from app.repository.workbench_database import WorkbenchDatabase  # noqa: E402
-from app.services.docx_package_service import compute_ooxml_package_fingerprint  # noqa: E402
-from app.services.template_profile_service import (  # noqa: E402
+from app.services.document.record_generator_service import generate_docx  # noqa: E402
+from app.repository.template.template_approval_repository import TemplateApprovalRepository  # noqa: E402
+from app.repository.template.template_registry_repository import TemplateRegistryRepository  # noqa: E402
+from app.repository.workbench.workbench_database import WorkbenchDatabase  # noqa: E402
+from app.services.document.docx_package_service import compute_ooxml_package_fingerprint  # noqa: E402
+from app.services.template.template_profile_service import (  # noqa: E402
     CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
     CURRENT_TEMPLATE_VALIDATION_RULE,
     TemplateProfileError,
 )
-from app.services.template_filler_service import fill_template  # noqa: E402
+from app.services.template.template_filler_service import fill_template  # noqa: E402
 from synthetic_report_builders import build_archive_manifest, build_ordered_report  # noqa: E402
 
 
@@ -42,7 +42,7 @@ def test_generator_passes_normalized_saved_order_projection_to_word_renderer(tmp
         received["report"] = report
         Path(output).write_bytes(b"SYNTHETIC-DOCX")
 
-    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+    with patch("app.services.document.record_generator_service.fill_template", side_effect=fake_fill):
         generate_docx(source_report, output_dir=str(tmp_path))
 
     report = received["report"]
@@ -60,20 +60,20 @@ def test_generator_uses_user_output_filename_when_provided(tmp_path: Path):
     def fake_fill(report, _template, output, _photos):
         Path(output).write_bytes(b"SYNTHETIC-DOCX")
 
-    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+    with patch("app.services.document.record_generator_service.fill_template", side_effect=fake_fill):
         generated = generate_docx(
             build_ordered_report(), output_dir=str(tmp_path), output_filename="用户命名.docx",
         )
     assert Path(generated).name == "用户命名.docx"
 
     # 移除路径分隔符和 Windows 非法字符，并确保使用 .docx 扩展名。
-    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+    with patch("app.services.document.record_generator_service.fill_template", side_effect=fake_fill):
         generated = generate_docx(
             build_ordered_report(), output_dir=str(tmp_path), output_filename=r"C:\SYNTHETIC\bad:name",
         )
     assert Path(generated).name == "badname.docx"
 
-    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+    with patch("app.services.document.record_generator_service.fill_template", side_effect=fake_fill):
         generated = generate_docx(
             build_ordered_report(), output_dir=str(tmp_path), output_filename="no-extension",
         )
@@ -128,7 +128,7 @@ def test_generator_uses_revalidated_case_template_without_archive_side_effect(tm
         assert template_ref == reference
         Path(generated_path).write_bytes(b"SYNTHETIC-DOCX")
 
-    with patch("app.services.record_generator_service.fill_template", side_effect=fake_fill):
+    with patch("app.services.document.record_generator_service.fill_template", side_effect=fake_fill):
         generated = generate_docx(
             build_ordered_report(), output_dir=str(output.parent), template_ref=reference,
             template_registry=registry, template_approvals=approvals,
@@ -141,7 +141,7 @@ def test_generator_uses_revalidated_case_template_without_archive_side_effect(tm
 
 def test_generator_rejects_unapproved_case_template_without_fallback(tmp_path: Path):
     registry, approvals, reference = _registered_template(tmp_path, status="pending")
-    with patch("app.services.record_generator_service.fill_template") as fill:
+    with patch("app.services.document.record_generator_service.fill_template") as fill:
         with pytest.raises(TemplateProfileError) as error:
             generate_docx(
                 build_ordered_report(), output_dir=str(tmp_path / "exports"), template_ref=reference,

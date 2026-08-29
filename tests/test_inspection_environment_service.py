@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
 
-from app.services.inspection_environment_service import InspectionEnvironmentService
+from app.services.inspection.inspection_environment_service import InspectionEnvironmentService
 
 
 class SyntheticRepository:

@@ -12,20 +12,20 @@
 - 两个脚本都不会在每次导出时自动执行；正常导出直接读取 `word_templates/template.docx`。
 
 ### 模板填充方式
-- 文件：`packages/backend/app/services/template_filler_service.py`
+- 文件：`packages/backend/app/services/template/template_filler_service.py`
 - 策略：python-docx 读取模板 → 列表展开 → 表格填充 → 占位符替换 → VML替换 → 照片处理 → 导出
-- 回退：模板不存在时使用 `document_builder_service.py` + officecli batch
+- 回退：模板不存在时使用 `packages/backend/app/services/document/document_builder_service.py` + officecli batch
 
 ### 分页设计
 
 - `create_template_v2.py` 在签名摘要和附件标题段落前使用普通 `w:br w:type="page"` 分页符，并移除这些段落上的 `w:pageBreakBefore`。
-- `template_filler_service.py` 在填充后清理附件之间的无意义空段落，同时保留图片和分页符。
+- `packages/backend/app/services/template/template_filler_service.py` 在填充后清理附件之间的无意义空段落，同时保留图片和分页符。
 - 具体页数和分页效果取决于 Word 渲染，自动化检查不等同于最终 DOCX 的人工版式验收。
 
 ### 当前已实现内容
 
 - 模板优先的 DOCX 生成、列表展开、附件1表格填充、照片处理和 VML 占位符替换。
-- 模板缺失或填充失败时，回退到 `document_builder_service.py` + officecli batch。
+- 模板缺失或填充失败时，回退到 `packages/backend/app/services/document/document_builder_service.py` + officecli batch。
 - 旧 v1 模板脚本保留作历史参考，不代表当前运行时流程。
 
 ---
@@ -70,23 +70,23 @@
 | 1 | `entrust_person` → `entrust_persons` 类型升级 | L1 | shared/types, report_parser, doc_builder, RecordEditorForm, tests | string → string[] |
 | 2 | 委托人字段映射错误（collector→submit_person） | L1 | `report_parser_service.py` | `submit_unit`/`submit_person` 替代 `collect_unit`/`collector` |
 | 3 | 字体颜色全部改黑色 | L1 | `create_template_v2.py` | `_normalize_colors()` 删除显式颜色属性 |
-| 4 | 页眉文号硬编码 | L1 | `create_template_v2.py` + `template_filler_service.py` | 页眉占位符 + `_replace_header_footer()` |
-| 5 | VML 文本框硬编码值未替换 | L1 | `template_filler_service.py` | `_replace_vml_textbox_placeholders()` |
-| 6 | VML 容器段落泄漏正文 | L1 | `template_filler_service.py` | `_remove_vml_container_paragraphs()` |
+| 4 | 页眉文号硬编码 | L1 | `create_template_v2.py` + `packages/backend/app/services/template/template_filler_service.py` | 页眉占位符 + `_replace_header_footer()` |
+| 5 | VML 文本框硬编码值未替换 | L1 | `packages/backend/app/services/template/template_filler_service.py` | `_replace_vml_textbox_placeholders()` |
+| 6 | VML 容器段落泄漏正文 | L1 | `packages/backend/app/services/template/template_filler_service.py` | `_remove_vml_container_paragraphs()` |
 | 7 | 附件3新增 `burning_date` | L2 | shared/types, report_parser, template, filler, RecordEditorForm | 新增字段 + 前端输入框 |
-| 8 | 列表重复展开（steps×4, evidence×2） | L2 | `template_filler_service.py` | `expanded_names` set 去重 |
-| 9 | 附件1空表格显示占位符 | L1 | `template_filler_service.py` | 空数据时画对角线 + 清除占位符 |
-| 10 | 附件2模板图片残留 | L1 | `create_template_v2.py` + `template_filler_service.py` | `_remove_sample_images()` + `_handle_photos()` |
+| 8 | 列表重复展开（steps×4, evidence×2） | L2 | `packages/backend/app/services/template/template_filler_service.py` | `expanded_names` set 去重 |
+| 9 | 附件1空表格显示占位符 | L1 | `packages/backend/app/services/template/template_filler_service.py` | 空数据时画对角线 + 清除占位符 |
+| 10 | 附件2模板图片残留 | L1 | `create_template_v2.py` + `packages/backend/app/services/template/template_filler_service.py` | `_remove_sample_images()` + `_handle_photos()` |
 | 11 | "案案"双后缀 | L1 | `report_parser_service.py` | `_format_case_summary()` 判断已有"案"不追加 |
-| 12 | 日期前导零 "07月" | L2 | `template_filler_service.py` | `.replace("年0","年").replace("月0","月")` |
+| 12 | 日期前导零 "07月" | L2 | `packages/backend/app/services/template/template_filler_service.py` | `.replace("年0","年").replace("月0","月")` |
 | 13 | 时间格式转中文 | L1 | `html_parser.py` | `format_time_range_chinese()` |
 | 14 | file_size 双"字节" | L1 | `report_parser_service.py` | 去掉数据源中"字节"后缀 |
-| 15 | 批注残留 | L1 | `create_template_v2.py` + `template_filler_service.py` | 模板创建 + 填充时双重删除 commentRange |
+| 15 | 批注残留 | L1 | `create_template_v2.py` + `packages/backend/app/services/template/template_filler_service.py` | 模板创建 + 填充时双重删除 commentRange |
 | 16 | 前端无条件覆盖文号 | L1 | `RecordGeneratePage.tsx` | 后端有默认值时保留 |
-| 17 | 照片1张时不显示 | L1 | `template_filler_service.py` | `Inches` 导入 + `_cleanup` 跳过 drawing 段落 |
-| 18 | 照片布局自适应 | L2 | `template_filler_service.py` | 1张居中段落，≥2张2列表格 |
+| 17 | 照片1张时不显示 | L1 | `packages/backend/app/services/template/template_filler_service.py` | `Inches` 导入 + `_cleanup` 跳过 drawing 段落 |
+| 18 | 照片布局自适应 | L2 | `packages/backend/app/services/template/template_filler_service.py` | 1张居中段落，≥2张2列表格 |
 | 19 | 缓存失效（字段映射变更后旧缓存仍使用） | L1 | `report_parser_service.py` | `_CACHE_VERSION = 4` + 版本校验 |
-| 20 | 附件页空白页 | L1 | `create_template_v2.py` + `template_filler_service.py` | 普通分页符 + 填充后清理无意义空段落 |
+| 20 | 附件页空白页 | L1 | `create_template_v2.py` + `packages/backend/app/services/template/template_filler_service.py` | 普通分页符 + 填充后清理无意义空段落 |
 
 ---
 
@@ -111,10 +111,10 @@
 | 文件 | 用途 |
 |------|------|
 | `word_templates/template.docx` | 唯一内置 Word 模板；隐藏身份元数据已净化 |
-| `packages/backend/app/services/template_filler_service.py` | 模板填充核心服务 |
+| `packages/backend/app/services/template/template_filler_service.py` | 模板填充核心服务 |
 | `packages/backend/app/services/report/report_parser_service.py` | 报告解析 + 默认值 |
-| `packages/backend/app/services/record_generator_service.py` | 文档生成入口（模板优先） |
-| `packages/backend/app/services/document_builder_service.py` | 旧方案（officecli batch，回退用） |
+| `packages/backend/app/services/document/record_generator_service.py` | 文档生成入口（模板优先） |
+| `packages/backend/app/services/document/document_builder_service.py` | 旧方案（officecli batch，回退用） |
 | `packages/backend/app/repository/report/html_parser.py` | HTML 解析 + 时间格式化 |
 | `packages/shared/types/index.ts` | InspectionReport 类型定义 |
 | `packages/frontend/src/components/RecordEditorForm.tsx` | 前端编辑表单 |

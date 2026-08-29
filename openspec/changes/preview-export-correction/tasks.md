@@ -14,8 +14,8 @@ workflow_level: 3
 
 ## Phase 3 — Word 构建（Layer 21/22）
 
-- [x] T005 [P0] 在 `document_builder_service.py` 写入附件 1 表头、数据单元格和完整设备字段；验证：新增 `tests/test_document_builder_service.py`。
-- [x] T006 [P0] 在 `record_generator_service.py` 对生成文件做非空校验，并确保 batch 错误向上抛出；验证：导出服务测试和 docx XML 检查。
+- [x] T005 [P0] 在 `packages/backend/app/services/document/document_builder_service.py` 写入附件 1 表头、数据单元格和完整设备字段；验证：新增 `tests/test_document_builder_service.py`。
+- [x] T006 [P0] 在 `packages/backend/app/services/document/record_generator_service.py` 对生成文件做非空校验，并确保 batch 错误向上抛出；验证：导出服务测试和 docx XML 检查。
 
 ## Phase 4 — 综合验证
 

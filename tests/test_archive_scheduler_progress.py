@@ -19,7 +19,7 @@ from app.repository import (  # noqa: E402
     WorkbenchDatabase,
     database_path_for_deployment,
 )
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_mapping_service import ArchiveMappingService  # noqa: E402
 from app.services.archive.archive_progress_service import ArchiveProgressService  # noqa: E402
 from app.services.archive.archive_resource_admission_service import (  # noqa: E402

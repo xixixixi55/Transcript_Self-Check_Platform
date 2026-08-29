@@ -29,7 +29,7 @@ from app.repository.archive.archive_publish_intent_repository import (  # noqa: 
     ArchivePublishIntentRepository,
 )
 from app.repository.archive.archive_task_repository import ArchiveTaskRepository  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive.archive_input_snapshot_service import (  # noqa: E402
     assert_sealed_input, cleanup_ephemeral_input_snapshot,
@@ -145,7 +145,7 @@ def test_missing_task_identity_in_old_intent_is_not_a_match(database, tmp_path: 
             "UPDATE archive_publish_intents SET task_id=NULL WHERE attempt_id=?",
             (attempt["attempt_id"],),
         )
-    from app.repository.workbench_database import WorkbenchDatabase
+    from app.repository.workbench.workbench_database import WorkbenchDatabase
     WorkbenchDatabase(database.database_path, database.deployment_instance_id)
     migrated = ArchivePublishIntentRepository(database).get_for_attempt(
         attempt["attempt_id"],

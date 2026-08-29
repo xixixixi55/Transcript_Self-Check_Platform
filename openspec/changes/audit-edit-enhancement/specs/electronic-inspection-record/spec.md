@@ -273,7 +273,7 @@
 
 ### REQ-026: officecli 跨环境调用兼容
 
-`record_generator_service.py` 调用 officecli 时 MUST 兼容不同执行环境（bash 终端 vs uvicorn 子进程）。
+`packages/backend/app/services/document/record_generator_service.py` 调用 officecli 时 MUST 兼容不同执行环境（bash 终端 vs uvicorn 子进程）。
 
 **Scenario: uvicorn 环境下 PATH 不完整**
 - WHEN 后端通过 `uvicorn` 启动（`npm run dev`）

@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packages" / "backend"))
-from app.repository.winrar_discovery_repository import discover_winrar  # noqa: E402
+from app.repository.archive.winrar_discovery_repository import discover_winrar  # noqa: E402
 PERCENT_PATTERN = re.compile(rb"(?<!\d)(\d{1,3})%")
 NORMAL_FILE_SIZES_MIB = (1, 6, 18)
 

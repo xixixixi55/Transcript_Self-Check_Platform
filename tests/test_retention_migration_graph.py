@@ -12,10 +12,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-import app.repository.workbench_database as database_module  # noqa: E402
+import app.repository.workbench.workbench_database as database_module  # noqa: E402
 from app.repository import WorkbenchDatabase  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.repository.workbench_schema import MIGRATIONS  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_schema import MIGRATIONS  # noqa: E402
 
 _DEPLOYMENT = "SYNTHETIC-MIGRATION-GRAPH"
 _CASE = "SYNTHETIC-CASE-MIGRATION"

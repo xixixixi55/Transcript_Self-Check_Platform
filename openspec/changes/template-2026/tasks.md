@@ -16,8 +16,8 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 - [x] 参考文档所有样式（字体、字号、行距、页边距、表格格式）完整保留
 - [x] 列表字段（检材、检查人员、检查过程、提取清单）使用 `{{#list}}...{{/list}}` 标记
 - [x] 软件工具保持原文档合并格式（单段落 `{{software_tools_text}}`）
-- [x] `template_filler_service.py` 实现模板填充：简单占位符替换 + 列表块展开 + 表格填充
-- [x] `record_generator_service.py` 优先使用模板填充，模板不存在时回退 batch 方案
+- [x] `packages/backend/app/services/template/template_filler_service.py` 实现模板填充：简单占位符替换 + 列表块展开 + 表格填充
+- [x] `packages/backend/app/services/document/record_generator_service.py` 优先使用模板填充，模板不存在时回退 batch 方案
 - [x] lint:arch ✅ / typecheck ✅ / 前端测试 28 passed ✅ / 后端测试 35 passed ✅
 
 ## 修复记录 (2026-07-15)
@@ -26,10 +26,10 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 |---|-----|:--:|------|
 | 1 | 委托单位/委托人映射到 submit_unit/submit_person | L1 | `report_parser_service.py:205-206` |
 | 2 | 模板字体颜色全部改为黑色 | L1 | `create_template.py`: `_normalize_colors()` |
-| 3 | 页眉硬编码文号 → 动态 `{{document_number}}` | L1 | `create_template.py`: `_replace_header()` + `template_filler_service.py`: `_replace_header_footer()` |
+| 3 | 页眉硬编码文号 → 动态 `{{document_number}}` | L1 | `create_template.py`: `_replace_header()` + `packages/backend/app/services/template/template_filler_service.py`: `_replace_header_footer()` |
 | 4 | 附件3新增 `burning_date` 刻录时间字段 | L2 | shared types / report_parser / template / filler / 前端输入框 |
-| 5 | 附件2无照片时删除模板示例图片 | L1 | `template_filler_service.py`: `_handle_photos()` |
-| 6 | 附件1空表格清除占位符 + 左下→右上对角线 | L1 | `template_filler_service.py`: `_clear_row_and_draw_diagonal()` |
+| 5 | 附件2无照片时删除模板示例图片 | L1 | `packages/backend/app/services/template/template_filler_service.py`: `_handle_photos()` |
+| 6 | 附件1空表格清除占位符 + 左下→右上对角线 | L1 | `packages/backend/app/services/template/template_filler_service.py`: `_clear_row_and_draw_diagonal()` |
 
 ## 任务列表
 
@@ -37,14 +37,14 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 |---|------|:---:|
 | 1 | Phase 1: `entrust_person: string` → `entrust_persons: string[]` 类型升级 | ✅ |
 | 2 | Phase 2: 基于参考文档创建 `template.docx` | ✅ |
-| 3 | Phase 3: 创建 `template_filler_service.py` + 更新生成器集成 | ✅ |
+| 3 | Phase 3: 创建 `packages/backend/app/services/template/template_filler_service.py` + 更新生成器集成 | ✅ |
 | 4 | Phase 4: 验证（lint:arch + typecheck + 测试） | ✅ |
 | 5 | Phase 5: 委托人常见分隔符规范化，并统一审核编辑与 Word 展示 | ✅ |
 
 ## Phase 5：委托人分隔符规范化（2026-08-13）
 
 - [x] T005 **解析与 Word 导出统一委托人分隔符**
-  - 文件：`packages/backend/app/services/entrust_person_service.py`、`report_parser_service.py`、`document_builder_service.py`、`template_filler_service.py`
+  - 文件：`packages/backend/app/services/inspection/entrust_person_service.py`、`report_parser_service.py`、`packages/backend/app/services/document/document_builder_service.py`、`packages/backend/app/services/template/template_filler_service.py`
   - 内容：将顿号、中英文逗号/分号、斜杠、竖线和换行识别为多委托人分隔符，过滤空项；正式模板与兼容 Word 路径统一以顿号连接。
   - 覆盖 Spec：REQ-007、REQ-009
   - 验证：`python -m pytest tests/test_report_parser_service.py tests/test_document_builder_service.py tests/test_template_filler_service.py -q --tb=short`
@@ -67,9 +67,9 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 |------|---------|
 | `packages/shared/types/index.ts` | 修改：entrust_persons 类型 |
 | `packages/backend/app/services/report/report_parser_service.py` | 修改：split 委托人 + _split_persons |
-| `packages/backend/app/services/document_builder_service.py` | 修改：join 委托人 |
-| `packages/backend/app/services/template_filler_service.py` | **新增**：模板填充服务 |
-| `packages/backend/app/services/record_generator_service.py` | 修改：模板优先 + 回退 |
+| `packages/backend/app/services/document/document_builder_service.py` | 修改：join 委托人 |
+| `packages/backend/app/services/template/template_filler_service.py` | **新增**：模板填充服务 |
+| `packages/backend/app/services/document/record_generator_service.py` | 修改：模板优先 + 回退 |
 | `packages/frontend/src/components/RecordEditorForm.tsx` | 修改：entrust_persons 输入 |
 | `word_templates/template.docx` | **新增**：Word 模板 |
 | `scripts/create_template.py` | **新增**：模板生成脚本（一次性） |

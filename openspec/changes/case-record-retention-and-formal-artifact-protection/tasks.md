@@ -97,7 +97,7 @@ workflow_level: 3
 - [x] 1.1 **T024** 审计 `openspec/changes/` 下所有 active change，更新 `design.md` 依赖矩阵，逐项记录 shared/API/schema/正式产物/Legacy/Canonical/Shadow 边界；完成条件：覆盖 `case-shared-defaults`、`extensible-report-template-platform`、`report-parsing-cache-management`、`large-report-preview-liveness` 及其他当前 active change，未修改其他 change；验证：active change status 和 Git 审计；证据：本 change `design.md`。
   - Phase 5A pre-implementation gate：`PASS`；审查基线 `3edcd2c41b732efbb8d264798e2c3d980be33e5a`。
   - overlap 结论：未发现其他 active change 明确占用 schema v11、替换 `archive_publish_intents` authority、定义冲突的 Word identity 或 retention policy durable authority；已登记的潜在文件交集不阻断。
-  - v10 事实证据：`workbench_schema.py`/`workbench_database.py`、source/snapshot/reference、publication/fence/asset、Word/controller、lease/revision/recovery/runtime 代码已核对；具体结果记录于本 change `design.md` 的 Phase 5A Gate section。
+  - v10 事实证据：`packages/backend/app/repository/workbench/workbench_schema.py`/`packages/backend/app/repository/workbench/workbench_database.py`、source/snapshot/reference、publication/fence/asset、Word/controller、lease/revision/recovery/runtime 代码已核对；具体结果记录于本 change `design.md` 的 Phase 5A Gate section。
   - 首批切片确认：仅允许进入 Slice 5A-1 共享合同与 v11 migration foundation；本任务未执行 migration、清理、Coordinator、API/UI 或测试实现。
 
 ### 阶段 5A 首个实现切片确认（记录，不新增任务编号）
@@ -110,7 +110,7 @@ workflow_level: 3
 - [x] 1.3 **T020** 将 v10 的 `case_shells`、`case_drafts`、source/work projections、`asset_references`、task、lease/revision、`archive_input_snapshots`/binding/plan、attempt、intent、fence、asset、Manifest index、audit 和 global control tables 逐项映射为 `KEEP`、`COMPACT`、`DELETE`、`DERIVED/REBUILDABLE` 或 `NEW`；完成条件：每行都有字段、资格、引用、顺序、失败恢复和清理后验证，明确 `archive_input_snapshots.source_id` 为 work-only DELETE、source row 删除前必须删除 snapshot row、source tombstone/FK 方案；验证：SQLite `foreign_key_list`/schema introspection fixture；证据：design 矩阵和 migration fixture。
   - Slice 5A-1 evidence：v11 migration 保留 source identity、重建所有 source FK 相关表、保持 snapshot `source_id` 非空 FK，提交前执行 `foreign_key_check`；migration fixture 和 targeted foundation tests 通过。
 - [x] 1.4 **T020** 冻结 30 天 deployment policy、`disabled/preview_only/enforce`、anchor 三个 durable 来源、`publication_verified_at` 的 NULL-only CAS/v10 revalidation/enforce gate、UTC timezone-aware 时间、`expires_at_utc = anchor_utc + retention_days × 24 hours`、API ISO 8601、Asia/Shanghai 展示、5 分钟未来时间阈值、缺失 blocker code 和 required Word/publication set；完成条件：不使用创建时间/首次导出时间/普通 `updated_at` 单独计算；验证：shared/backend contract tests；证据：retention delta 和配置测试。
-  - 实现证据：`packages/shared/utils/retentionRules.ts` 增加 UTC-aware/可信时钟边界，`packages/backend/app/repository/retention_time.py` 固化 UTC-Z、5 分钟未来阈值和连续 24 小时 expiry；`RETENTION_DISPLAY_TIME_ZONE`、默认值和稳定 blocker/error constants 已存在。
+  - 实现证据：`packages/shared/utils/retentionRules.ts` 增加 UTC-aware/可信时钟边界，`packages/backend/app/repository/retention/retention_time.py` 固化 UTC-Z、5 分钟未来阈值和连续 24 小时 expiry；`RETENTION_DISPLAY_TIME_ZONE`、默认值和稳定 blocker/error constants 已存在。
   - 验证：`tests/test_retention_contract_matrix.py`、`tests/test_retention_utc_z.py`、`packages/frontend/src/__tests__/retentionRules.test.ts`；后端 32 passed、前端 retention 3 passed、lint/typecheck 通过。未把创建时间、首次导出时间或普通 `updated_at` 用作 anchor。
   - 提交/推送：实现证据已包含于 `1562948`（`feat(retention): add durable policy authority contracts`），已推送 `origin/codex/demo-next-stage`。
 - [x] 1.5 **T020** 冻结现有 `archive_publish_intents` 为 RAR/Manifest/MD5 唯一 authority、fence/asset/index 边界、durable Word artifact 和 cleaned case 稳定访问身份；完成条件：不创建竞争性 `formal_artifact_authority` 表、不提供 retention-specific 正式产物删除 API；显式工作台删除由 `case-workbench-delete` 变更单单独定义；验证：authority delta 和 Legacy gate 审查；证据：formal-artifact-authority/electronic-inspection-record specs。
@@ -123,7 +123,7 @@ workflow_level: 3
 
 ## 2. Phase 5B — 数据模型与迁移（T022、T022T）
 
-- [x] 2.1 **T022** 在 `workbench_schema.py`/`workbench_database.py` 实现规划中冻结的 v10→v11 事务 migration；完成条件：版本正式为 11，新增 policy/retention/run/Word artifact、`publication_verified_at`、source tombstone、nullable shell references、`archive_input_snapshots.source_id` work-only NOT NULL FK/DELETE 边界、`asset_references` 清理边界和 shell/task 最小字段，未新增 RAR/Manifest 平行 authority；验证：迁移前后 schema、所有 source FK/check、旧版本拒绝、重复启动幂等、revalidation NULL 初始状态和回滚测试；证据：migration tests。
+- [x] 2.1 **T022** 在 `packages/backend/app/repository/workbench/workbench_schema.py`/`packages/backend/app/repository/workbench/workbench_database.py` 实现规划中冻结的 v10→v11 事务 migration；完成条件：版本正式为 11，新增 policy/retention/run/Word artifact、`publication_verified_at`、source tombstone、nullable shell references、`archive_input_snapshots.source_id` work-only NOT NULL FK/DELETE 边界、`asset_references` 清理边界和 shell/task 最小字段，未新增 RAR/Manifest 平行 authority；验证：迁移前后 schema、所有 source FK/check、旧版本拒绝、重复启动幂等、revalidation NULL 初始状态和回滚测试；证据：migration tests。
   - Slice 5A-1 evidence：`python -m pytest tests/test_retention_foundation.py tests/test_publication_verified_foundation.py tests/test_workbench_persistence.py tests/test_archive_schema_migration.py tests/test_template_controller.py tests/test_template_profile_service.py -q` 通过；v10 fixture、v11 fresh schema、FK check、NULL publication time、初始 disabled policy、幂等和现有回归均有断言。
 
 ### 切片 5A-1 验证记录
@@ -158,7 +158,7 @@ workflow_level: 3
 
 - 首次 living data-model reconciliation 判定为 `BLOCKED`：除 13 个真实公共 SharedTypes type-drift 外，部分新 v11 repository 通过 `utc_now()`/`normalize_utc()` 写入 `+00:00`，不符合 Phase 5 durable SQLite UTC `Z` 合同。
 - 根因已核实：旧 helper 仍服务既有 v10/Phase 1–4 读取和持久化路径；新 v11 policy、retention record、cleanup run、formal Word artifact 写入路径需要显式的 canonical UTC-Z helper。
-- 修复方式：新增集中式 `workbench_time.py` 的 `utc_now_z()`/`normalize_utc_z()`；保留 `utc_now()`/`normalize_utc()` 的历史读取兼容；新 v11 repository 和 retention 时间 helper 全部切换到 UTC `Z`；不重写历史时间、不回填 `publication_verified_at`、不启动 revalidation/cleanup。
+- 修复方式：新增集中式 `packages/backend/app/repository/workbench/workbench_time.py` 的 `utc_now_z()`/`normalize_utc_z()`；保留 `utc_now()`/`normalize_utc()` 的历史读取兼容；新 v11 repository 和 retention 时间 helper 全部切换到 UTC `Z`；不重写历史时间、不回填 `publication_verified_at`、不启动 revalidation/cleanup。
 - UTC-Z 定向证据：`python -m pytest tests/test_retention_utc_z.py tests/test_retention_foundation.py tests/test_publication_verified_foundation.py tests/test_check_contracts.py -q`：12 passed；覆盖 aware offset 转换、naive 拒绝、policy/retention/run/Word durable 写入、NULL-only publication 时间和无 SQL 本地时间默认值。
 - living data-model 已同步实际的 13 个公共 SharedTypes、schema v11 foundation、FK/唯一约束/索引、UTC `Z` 写入及安全投影边界；后续 cleanup、Coordinator、preview/enforce、历史 publication revalidation、Word 文件持久化、cleaned-case routes、API/UI、Windows 删除和 E2E 仍仅保留在 active delta/tasks。
 - 最终门控证据：`npm.cmd run verify:docs:strict`、`npm.cmd run verify:quick`、change/living OpenSpec strict 和 `git diff --check` 全部通过；本次同步未修改 delta specs、proposal/design 或后续实现任务。
@@ -167,7 +167,7 @@ workflow_level: 3
   - 验证：`tests/test_retention_foundation.py` policy sync/非法配置/旧键停读断言，`tests/test_retention_migration_graph.py` v10→v11 默认 disabled/identity preservation，`tests/test_retention_utc_z.py` durable UTC-Z；最终 `npm.cmd run verify:backend`：831 passed、3 skipped、16 warnings，`npm.cmd run verify:quick` 退出码 0；第二轮独立只读实施复审 `PASS`。
   - 提交/推送：实现证据已包含于 `1562948`，已推送 `origin/codex/demo-next-stage`；当前任务证据文档随后单独提交。
 - [x] 2.3 **T022** 新增 cleanup run/claim repository；完成条件：run identity、owner、claim token、lease expiry、fence epoch、policy/case revision、phase、retry、file result 和 error/result durable，同一 deployment/case 只有一个 active run；验证：唯一约束/CAS/owner takeover 测试；证据：cleanup repository tests。
-  - 实现范围：`CleanupRunRepository`/`cleanup_run_helpers.py` 持久化 planned run、policy/case snapshot，并在 SQLite transaction 内执行当前 durable policy/case revision CAS；claim 分配 owner/token、UTC-Z lease、单调 fence epoch，活动 lease 冲突，过期 lease 可 owner takeover；phase/result/retry/lease renewal 受 owner/token/fence/case/policy CAS 保护；recovery listing 仅限当前 deployment，public projection 不暴露内部 claim/lease/fence。
+  - 实现范围：`CleanupRunRepository`/`packages/backend/app/repository/retention/cleanup_run_helpers.py` 持久化 planned run、policy/case snapshot，并在 SQLite transaction 内执行当前 durable policy/case revision CAS；claim 分配 owner/token、UTC-Z lease、单调 fence epoch，活动 lease 冲突，过期 lease 可 owner takeover；phase/result/retry/lease renewal 受 owner/token/fence/case/policy CAS 保护；recovery listing 仅限当前 deployment，public projection 不暴露内部 claim/lease/fence。
   - 测试：`tests/test_cleanup_run_repository.py` 覆盖 5 个合成场景（revision 变化 fail-closed、live conflict、expired takeover/new fence、old owner stale、renewal/过期 lease、active unique、terminal 后新 run、partial recovery/idempotency）；与现有 retention foundation/UTC-Z/phase/contract matrix 合计 31 passed；最终 `npm.cmd run verify:backend`：836 passed、3 skipped、16 warnings，`npm.cmd run verify:quick` 单独重跑退出码 0。
   - Review/remediation：独立只读复审先发现当前 revision CAS 和过期新 lease 两个阻断 Medium；已修复并补负向测试/突变验证（突变均按预期失败）；最终独立复审 `PASS`，无 Critical/High/阻断 Medium。`verify:docs:strict`、change strict、living specs strict 均通过。
   - 提交/推送：实现与 living spec 已包含于 `f67ae7e`（`feat(retention): add durable cleanup run claims`），已推送 `origin/codex/demo-next-stage`；当前 tasks 证据随后单独提交。

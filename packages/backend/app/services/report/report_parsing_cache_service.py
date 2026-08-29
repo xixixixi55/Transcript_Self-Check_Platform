@@ -11,7 +11,7 @@ from pathlib import Path
 import weakref
 
 from ...config import REPORT_PARSING_CACHE_LIMIT
-from ...repository.filesystem_identity_repository import (
+from ...repository.source.filesystem_identity_repository import (
     directory_content_fingerprint,
     normalized_directory_key,
 )
@@ -188,7 +188,7 @@ def clear_report_parsing_cache(cache_dir: str) -> int:
     """清除报告解析结果，但不触及归档输出。"""
     cleared = REPORT_PARSING_CACHE_SERVICE.clear_all(cache_dir)
     # 归档解析复用仅存在于内存中，不拥有 RAR 或 Manifest。
-    from .archive_parse_runtime_service import clear_archive_parse_cache
+    from ..archive.archive_parse_runtime_service import clear_archive_parse_cache
 
     return cleared + clear_archive_parse_cache()
 

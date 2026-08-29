@@ -105,9 +105,9 @@ def test_app_root_relative_imports_are_extracted(tmp_path):
     fp = _write_py(
         str(tmp_path), "main.py",
         "from .routes import router\n"
-        "from .services.pipeline_runtime_service import load_pipeline_settings\n",
+        "from .services.runtime.pipeline_runtime_service import load_pipeline_settings\n",
     )
     imports = _extract([fp])[fp.replace("\\", "/")]
     assert [(item["level"], item["module"]) for item in imports] == [
-        (1, "routes"), (1, "services.pipeline_runtime_service"),
+        (1, "routes"), (1, "services.runtime.pipeline_runtime_service"),
     ]

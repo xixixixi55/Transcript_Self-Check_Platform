@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..workbench_database import WorkbenchDatabase
-from ..workbench_errors import WorkbenchPersistenceError
-from ..workbench_serialization import validate_opaque_id
+from ..workbench.workbench_database import WorkbenchDatabase
+from ..workbench.workbench_errors import WorkbenchPersistenceError
+from ..workbench.workbench_serialization import validate_opaque_id
 
 
 class CaseDeletionRepository:

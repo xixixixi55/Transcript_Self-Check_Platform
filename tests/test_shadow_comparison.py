@@ -7,8 +7,8 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.canonical_adapter_service import inspection_report_to_canonical
-from app.services.shadow_comparison_service import (
+from app.services.canonical.canonical_adapter_service import inspection_report_to_canonical
+from app.services.shadow.shadow_comparison_service import (
     compare_shadow_snapshots, snapshot_from_canonical, snapshot_from_legacy_report,
 )
 

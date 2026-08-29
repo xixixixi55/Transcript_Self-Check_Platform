@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from ..hash_algorithm_repository import normalize_hash_algorithm
+from ..integrity.hash_algorithm_repository import normalize_hash_algorithm
 
 
 def _within(path: Path, root: Path) -> bool:

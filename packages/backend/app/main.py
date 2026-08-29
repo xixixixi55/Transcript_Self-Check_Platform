@@ -18,8 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .routes import router as api_router
 from .routes.portable_web import configure_portable_web
-from .services.pipeline_runtime_service import load_pipeline_settings
-from .services.workbench_factory_service import (
+from .services.runtime.pipeline_runtime_service import load_pipeline_settings
+from .services.runtime.workbench_factory_service import (
     WorkbenchServices,
     get_workbench_services,
 )

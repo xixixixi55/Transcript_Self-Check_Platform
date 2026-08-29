@@ -10,8 +10,8 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..config import TEMPLATE_MAX_UPLOAD_SIZE
-from ..repository.workbench_errors import WorkbenchPersistenceError
-from ..services.workbench_factory_service import get_workbench_services
+from ..repository.workbench.workbench_errors import WorkbenchPersistenceError
+from ..services.runtime.workbench_factory_service import get_workbench_services
 
 router = APIRouter()
 

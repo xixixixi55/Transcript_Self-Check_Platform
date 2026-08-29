@@ -22,7 +22,7 @@ from app.repository import (  # noqa: E402
     database_path_for_deployment,
 )
 from app.repository.case.case_workflow_repository import CaseWorkflowRepository  # noqa: E402
-from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
 from app.services.case.case_parse_dispatcher_service import CaseParseDispatcher  # noqa: E402
@@ -245,7 +245,7 @@ def test_restart_expires_old_lease_and_allows_new_session(database: WorkbenchDat
 
 def test_pending_source_is_rescheduled_and_dispatch_failure_stays_pending(database: WorkbenchDatabase) -> None:
     ready_case(database)
-    service = __import__("app.services.source_record_service", fromlist=["SourceRecordService"]).SourceRecordService(database)
+    service = __import__("app.services.source.source_record_service", fromlist=["SourceRecordService"]).SourceRecordService(database)
 
     class Dispatcher:
         def __init__(self, fail: bool = False) -> None:
@@ -453,7 +453,7 @@ def test_temporary_source_failure_stays_pending_but_changed_fingerprint_requires
             "UPDATE source_records SET source_type = 'other', internal_path = ?, allowed_root = ?, metadata_json = ?, fingerprint_json = ?, access_status = 'available' WHERE source_id = ?",
             (str(path), str(tmp_path), json.dumps({}), json.dumps({"value": "SYNTHETIC-ORIGINAL"}), SOURCE_ID),
         )
-    from app.services import source_record_service as source_module
+    from app.services.source import source_record_service as source_module
 
     def unavailable(_path: Path, _should_cancel=None) -> str:
         raise PermissionError("SYNTHETIC-TEMPORARY")
@@ -483,8 +483,8 @@ def test_shutdown_cancellation_preserves_the_current_source_state(
                 json.dumps({"value": "SYNTHETIC-ORIGINAL"}), SOURCE_ID,
             ),
         )
-    from app.services import source_record_service as source_module
-    from app.services.source_record_fingerprint_service import SourceFingerprintCancelledError
+    from app.services.source import source_record_service as source_module
+    from app.services.source.source_record_fingerprint_service import SourceFingerprintCancelledError
 
     def cancelled(_path: Path, _should_cancel=None) -> str:
         raise SourceFingerprintCancelledError("SYNTHETIC/TEST/CANCELLED")

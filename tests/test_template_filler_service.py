@@ -16,14 +16,14 @@ from docx.oxml.ns import qn
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.template_filler_service import _flatten_report, fill_template
-from app.services.docx_package_service import compute_ooxml_package_fingerprint
-from app.services.attachment2_image_service import (
+from app.services.template.template_filler_service import _flatten_report, fill_template
+from app.services.document.docx_package_service import compute_ooxml_package_fingerprint
+from app.services.attachment.attachment2_image_service import (
     ATTACHMENT2_DUAL_GROUP_SLOT_HEIGHT_EMU,
     ATTACHMENT2_SLOT_HEIGHT_EMU,
     calculate_fixed_geometry,
 )
-from app.services.template_profile_service import current_template_profile
+from app.services.template.template_profile_service import current_template_profile
 from synthetic_report_builders import build_archive_manifest
 
 

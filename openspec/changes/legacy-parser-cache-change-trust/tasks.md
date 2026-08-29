@@ -1,7 +1,9 @@
+workflow_level: 3
+
 ## 1. 合同和可观测性基础
 
 - [ ] 1.1 在 `packages/backend/app/repository/` 中增加内部文件变化信任状态、不透明原因码、令牌模式版本和指标 DTO，不暴露绝对路径；验证导入和架构层检查。
-- [ ] 1.2 定义由 `packages/backend/app/repository/filesystem_identity_repository.py` 和 `packages/backend/app/repository/report/report_parse_input_metadata_repository.py` 共同使用的提供方边界；验证假提供方可以表达受信任、已变化和不受信任结果。
+- [ ] 1.2 定义由 `packages/backend/app/repository/source/filesystem_identity_repository.py` 和 `packages/backend/app/repository/report/report_parse_input_metadata_repository.py` 共同使用的提供方边界；验证假提供方可以表达受信任、已变化和不受信任结果。
 - [ ] 1.3 在 `tests/test_filesystem_identity_repository.py` 和 `tests/test_report_parse_input_repository.py` 增加确定性合成测试，覆盖大小/stat 相同的替换、文件标识替换、删除后重建、读取失败和成员关系变化。
 
 ## 2. Windows NTFS 变化令牌适配器
@@ -13,7 +15,7 @@
 
 ## 3. TOCTOU 安全的内容验证
 
-- [ ] 3.1 更新 `packages/backend/app/repository/filesystem_identity_repository.py` 中的内容摘要路径，以捕获并比较读取前/后的标识和变化令牌；验证变化中的文件绝不发布摘要。
+- [ ] 3.1 更新 `packages/backend/app/repository/source/filesystem_identity_repository.py` 中的内容摘要路径，以捕获并比较读取前/后的标识和变化令牌；验证变化中的文件绝不发布摘要。
 - [ ] 3.2 在 Parser 缓存边界为 `input_changed_during_read` 和读取错误增加有界失败语义；验证绝不返回过时缓存的 `InspectionReport` 数据。
 - [ ] 3.3 在 `packages/backend/app/repository/report/report_parse_input_metadata_repository.py` 增加候选和选定依赖集的目录成员关系校验；验证新增、删除、类型变化和目录缺失会安全失效。
 

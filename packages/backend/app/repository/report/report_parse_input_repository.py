@@ -7,7 +7,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-from ..filesystem_identity_repository import normalized_directory_key, resolve_directory
+from ..source.filesystem_identity_repository import normalized_directory_key, resolve_directory
 from .html_parser import (
     parse_case_info_payload,
     parse_device_base_payloads,

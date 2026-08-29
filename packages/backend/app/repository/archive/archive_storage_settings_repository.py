@@ -10,7 +10,7 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..runtime_paths import get_runtime_paths
+from ..runtime.runtime_paths import get_runtime_paths
 
 _SCHEMA_VERSION = 1
 _WORKSPACE_NAME = "文枢归档工作区"

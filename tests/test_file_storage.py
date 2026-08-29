@@ -5,7 +5,7 @@ import zipfile
 import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
 
-from app.repository.file_storage import (
+from app.repository.archive.file_storage import (
     ensure_dir, save_json, read_json, compute_md5,
     create_rar, extract_archive, detect_winrar_version,
 )

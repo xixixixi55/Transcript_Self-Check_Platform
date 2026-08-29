@@ -7,7 +7,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from ...repository.archive.archive_plan_repository import ArchivePlanRepository
-from ...repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 
 
 class ArchiveMappingService:

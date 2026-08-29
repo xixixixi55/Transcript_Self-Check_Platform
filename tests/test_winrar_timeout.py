@@ -27,17 +27,17 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository.archive.archive_input_repository import build_input_inventory  # noqa: E402
-from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
-from app.repository.winrar_executor_repository import (  # noqa: E402
+from app.repository.archive.winrar_discovery_repository import WinRarCapability  # noqa: E402
+from app.repository.archive.winrar_executor_repository import (  # noqa: E402
     ArchiveExecutionError,
     WinRarExecutor,
     _terminate_process,
 )
-from app.repository.winrar_timeout_policy import (  # noqa: E402
+from app.repository.archive.winrar_timeout_policy import (  # noqa: E402
     compute_integrity_timeout,
     integrity_bounds,
 )
-from app.repository.winrar_process_monitor import (  # noqa: E402
+from app.repository.archive.winrar_process_monitor import (  # noqa: E402
     OwnedProcessIdleTimeout,
     archive_output_idle_timeout_seconds,
     monitor_owned_process,
@@ -258,10 +258,10 @@ class TestArchiveIdleTimeoutConfiguration:
                 return ("", "")
 
         with mock.patch(
-            "app.repository.winrar_process_monitor.archive_output_idle_timeout_seconds",
+            "app.repository.archive.winrar_process_monitor.archive_output_idle_timeout_seconds",
             return_value=2,
         ), mock.patch(
-            "app.repository.winrar_process_monitor.time.monotonic",
+            "app.repository.archive.winrar_process_monitor.time.monotonic",
             side_effect=[0.0, 0.0, 2.0],
         ):
             with pytest.raises(OwnedProcessIdleTimeout) as failure:
@@ -312,7 +312,7 @@ class TestProcessTermination:
     def test_tree_kill_first_on_windows(self):
         """先调用 taskkill /T，再以直接终止作为回退。"""
         with mock.patch(
-            "app.repository.winrar_executor_repository._kill_process_tree_impl",
+            "app.repository.archive.winrar_executor_repository._kill_process_tree_impl",
             return_value=True,
         ) as mock_tree:
             p = FakePopen(poll_returns=[0], wait_timeouts=0)
@@ -325,7 +325,7 @@ class TestProcessTermination:
     def test_tree_kill_fails_falls_back_to_direct_kill(self):
         """taskkill 失败后，回退到直接调用 process.kill()。"""
         with mock.patch(
-            "app.repository.winrar_executor_repository._kill_process_tree_impl",
+            "app.repository.archive.winrar_executor_repository._kill_process_tree_impl",
             return_value=False,
         ):
             p = FakePopen(poll_returns=[0], wait_timeouts=0)
@@ -335,7 +335,7 @@ class TestProcessTermination:
     def test_both_tree_and_direct_fail_returns_false(self):
         """进程树终止失败，直接终止成功但等待超时，此时返回 False。"""
         with mock.patch(
-            "app.repository.winrar_executor_repository._kill_process_tree_impl",
+            "app.repository.archive.winrar_executor_repository._kill_process_tree_impl",
             return_value=False,
         ):
             p = FakePopen(poll_returns=[None, None], wait_timeouts=1)
@@ -344,7 +344,7 @@ class TestProcessTermination:
     def test_parent_exited_not_equal_to_tree_confirmed(self):
         """即使父进程轮询结果为已退出，也 ALWAYS 尝试终止进程树。"""
         with mock.patch(
-            "app.repository.winrar_executor_repository._kill_process_tree_impl",
+            "app.repository.archive.winrar_executor_repository._kill_process_tree_impl",
             return_value=True,
         ) as mock_tree:
             p = FakePopen(poll_returns=[0])  # 已“退出”
@@ -355,7 +355,7 @@ class TestProcessTermination:
     def test_tree_kill_success_then_poll_exited(self):
         """正常路径：进程树终止成功，然后等待，轮询返回退出码。"""
         with mock.patch(
-            "app.repository.winrar_executor_repository._kill_process_tree_impl",
+            "app.repository.archive.winrar_executor_repository._kill_process_tree_impl",
             return_value=True,
         ):
             p = FakePopen(poll_returns=[None, 0], wait_timeouts=0)
@@ -374,7 +374,7 @@ class TestTerminationPreventsCleanup:
         fake = FakePopen(poll_returns=[None, None], wait_timeouts=0)
         fake.pid = 99999
         with mock.patch("subprocess.Popen", return_value=fake), \
-             mock.patch("app.repository.winrar_executor_repository._kill_process_tree_impl", return_value=False):
+             mock.patch("app.repository.archive.winrar_executor_repository._kill_process_tree_impl", return_value=False):
             with pytest.raises(ArchiveExecutionError) as exc:
                 executor.execute(plan, inventory.files, inventory.source_root, capability())
             assert exc.value.code == "ARCHIVE_EXECUTION_FAILED"
@@ -397,7 +397,7 @@ class TestOSErrorPath:
         fake.communicate = mock.MagicMock(side_effect=OSError("broken pipe"))
 
         with mock.patch("subprocess.Popen", return_value=fake), \
-             mock.patch("app.repository.winrar_executor_repository._kill_process_tree_impl", return_value=False):
+             mock.patch("app.repository.archive.winrar_executor_repository._kill_process_tree_impl", return_value=False):
             with pytest.raises(ArchiveExecutionError) as exc:
                 executor.execute(plan, inventory.files, inventory.source_root, capability())
             assert exc.value.code == "ARCHIVE_EXECUTION_FAILED"
@@ -419,7 +419,7 @@ class TestOSErrorPath:
         fake.communicate = mock.MagicMock(side_effect=OSError("broken pipe"))
 
         with mock.patch("subprocess.Popen", return_value=fake), \
-             mock.patch("app.repository.winrar_executor_repository._kill_process_tree_impl", return_value=True):
+             mock.patch("app.repository.archive.winrar_executor_repository._kill_process_tree_impl", return_value=True):
             with pytest.raises(ArchiveExecutionError) as exc:
                 executor.execute(plan, inventory.files, inventory.source_root, capability())
             assert exc.value.code == "ARCHIVE_EXECUTION_FAILED"
@@ -617,12 +617,12 @@ class TestGetValidManifestNormalizes:
 
 class TestIntegrityTimeoutContractChain:
     def test_in_python_export_gate_enum(self):
-        from app.services.export_gate_service import ExportGateCode
+        from app.services.export.export_gate_service import ExportGateCode
         assert hasattr(ExportGateCode, "ARCHIVE_INTEGRITY_TIMEOUT")
         assert ExportGateCode.ARCHIVE_INTEGRITY_TIMEOUT.value == "ARCHIVE_INTEGRITY_TIMEOUT"
 
     def test_in_archive_message(self):
-        from app.services.export_gate_service import _archive_message
+        from app.services.export.export_gate_service import _archive_message
         msg = _archive_message("ARCHIVE_INTEGRITY_TIMEOUT")
         assert "完整性校验" in msg
 
@@ -641,7 +641,7 @@ class TestIntegrityTimeoutContractChain:
 
 class TestRecordControllerEnum:
     def test_extracts_value_not_Enum_repr(self):
-        from app.services.export_gate_service import ExportGateCode
+        from app.services.export.export_gate_service import ExportGateCode
         code = ExportGateCode.ARCHIVE_MANIFEST_CONTEXT_MISMATCH
         extracted = code.value if hasattr(code, "value") else str(code)
         assert extracted == "ARCHIVE_MANIFEST_CONTEXT_MISMATCH"
@@ -771,48 +771,48 @@ class TestOldManifestRejectsInvalidDiscCap:
 
 class TestPositiveInt:
     def test_positive_ok(self):
-        from app.services.attachment_plan_service import _positive_int
+        from app.services.attachment.attachment_plan_service import _positive_int
         assert _positive_int(4_000_000_000) == 4_000_000_000
         assert _positive_int(1) == 1
 
     def test_none_raises(self):
-        from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_models_service import AttachmentPlanError
+        from app.services.attachment.attachment_plan_service import _positive_int
+        from app.services.attachment.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(None)
         assert "缺少" in exc.value.safe_message
 
     def test_zero_raises(self):
-        from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_models_service import AttachmentPlanError
+        from app.services.attachment.attachment_plan_service import _positive_int
+        from app.services.attachment.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(0)
         assert "正整" in exc.value.safe_message
 
     def test_negative_raises(self):
-        from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_models_service import AttachmentPlanError
+        from app.services.attachment.attachment_plan_service import _positive_int
+        from app.services.attachment.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(-1)
         assert exc.value.code == "ATTACHMENT_PLAN_INVALID"
 
     def test_bool_raises(self):
-        from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_models_service import AttachmentPlanError
+        from app.services.attachment.attachment_plan_service import _positive_int
+        from app.services.attachment.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(True)
         assert "类型无效" in exc.value.safe_message
 
     def test_float_raises(self):
-        from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_models_service import AttachmentPlanError
+        from app.services.attachment.attachment_plan_service import _positive_int
+        from app.services.attachment.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int(4.0)
         assert "类型无效" in exc.value.safe_message
 
     def test_string_raises(self):
-        from app.services.attachment_plan_service import _positive_int
-        from app.services.attachment_plan_models_service import AttachmentPlanError
+        from app.services.attachment.attachment_plan_service import _positive_int
+        from app.services.attachment.attachment_plan_models_service import AttachmentPlanError
         with pytest.raises(AttachmentPlanError) as exc:
             _positive_int("4000000000")
         assert "类型无效" in exc.value.safe_message
@@ -956,7 +956,7 @@ class TestSanitisedMessages:
 
         fake = FakePopen(poll_returns=[None, None], wait_timeouts=0)
         with mock.patch("subprocess.Popen", return_value=fake), \
-             mock.patch("app.repository.winrar_executor_repository._kill_process_tree_impl", return_value=False):
+             mock.patch("app.repository.archive.winrar_executor_repository._kill_process_tree_impl", return_value=False):
             with pytest.raises(ArchiveExecutionError) as exc:
                 executor.execute(plan, inventory.files, inventory.source_root, capability())
             msg = exc.value.safe_message
