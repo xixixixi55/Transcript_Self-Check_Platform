@@ -34,8 +34,8 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 
 ### 格式检测和归一化
 
-- [x] 在 `packages/backend/app/repository/report_format_adapter.py` 集中定义格式枚举、核心结构检测、旧/新/混合格式确定行为和受控字段归一化入口。
-- [x] 在 `packages/backend/app/repository/html_parser.py` 接入新格式的 `tb2`、`tt/ct` 和设备信息表解析，同时保持 `Base/`、`Phone/` 旧路径行为。
+- [x] 在 `packages/backend/app/repository/report/report_format_adapter.py` 集中定义格式枚举、核心结构检测、旧/新/混合格式确定行为和受控字段归一化入口。
+- [x] 在 `packages/backend/app/repository/report/html_parser.py` 接入新格式的 `tb2`、`tt/ct` 和设备信息表解析，同时保持 `Base/`、`Phone/` 旧路径行为。
 - [x] 在 `tests/test_html_parser.py` 使用脱敏合成 fixture 覆盖旧格式、新格式、混合格式、不支持格式和旧字段回归。
 
 ### 标准字段来源和优先级
@@ -52,9 +52,9 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 
 ### 兼容解析正确性加固
 
-- [x] 在 `packages/backend/app/repository/report_format_adapter.py` 收紧有效 `tb2`/`c3` 检测、缺失核心文件错误和主软件名称-版本绑定。
+- [x] 在 `packages/backend/app/repository/report/report_format_adapter.py` 收紧有效 `tb2`/`c3` 检测、缺失核心文件错误和主软件名称-版本绑定。
 - [x] 在 `tests/test_html_parser.py` 覆盖空/错误 `tb2`、陌生键值结构、日期有效性、软件候选歧义和设备候选评分边界。
-- [x] 在 `packages/backend/app/repository/device_field_parser.py` 与 `packages/backend/app/repository/html_parser.py` 实现单一最佳设备表候选、合法 IMEI 和稳定冲突处理。
+- [x] 在 `packages/backend/app/repository/report/device_field_parser.py` 与 `packages/backend/app/repository/report/html_parser.py` 实现单一最佳设备表候选、合法 IMEI 和稳定冲突处理。
 - [x] 在 `tests/test_html_parser.py` 覆盖跨文件不拼接、同分冲突、遍历顺序、IMEI 备用值和多检材目录隔离。
 - [x] 在 `packages/backend/app/services/report_parser_service.py` 删除不安全的单检材目录回退，并保持多检材主设备限制明确。
 - [x] 在 `tests/test_report_parser_service.py` 覆盖目录不匹配、旧格式完整标准模型、缓存边界和日期反向范围。
@@ -70,7 +70,7 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 
 ### 新格式检材与设备目录绑定修复
 
-- [x] 在 `packages/backend/app/repository/html_parser.py` 与 `packages/backend/app/repository/report_parse_input_repository.py` 使用每个 `tb2` 行内明确的 `data/<设备目录>/Base/` 路径绑定检材编号和设备型号，避免分别排序后按下标错配；无明确路径的兼容变体继续使用一对一保守回退。
+- [x] 在 `packages/backend/app/repository/report/html_parser.py` 与 `packages/backend/app/repository/report/report_parse_input_repository.py` 使用每个 `tb2` 行内明确的 `data/<设备目录>/Base/` 路径绑定检材编号和设备型号，避免分别排序后按下标错配；无明确路径的兼容变体继续使用一对一保守回退。
 - [x] 在 `tests/test_report_parse_input_repository.py` 使用显式合成数据覆盖检材行顺序、设备目录字母序不一致时仍保持编号—型号对应关系，并运行解析仓库与报告解析定向测试（73 passed）及完整后端回归（1048 passed、3 skipped）。
 - [x] 将解析缓存版本递增，使用用户提供的实际报告只核对检材编号—设备型号映射，并通过 `verify:quick`、受影响后端测试与 scoped strict docs（13 checks、0 drift）。
 - [x] 在 `packages/backend/app/services/report_parser_service.py` 对完整检材记录执行自然升序，再由该数组生成检查过程、检查结果和审核/Word 共用数据；脱敏样例验证为 `SYN-JC0001 → SYNTHETIC DEVICE A`、`SYN-JC0002 → SYNTHETIC DEVICE B`，定向测试 45 passed，`verify:quick` 通过。

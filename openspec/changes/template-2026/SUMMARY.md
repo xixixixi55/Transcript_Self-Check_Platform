@@ -115,7 +115,7 @@
 | `packages/backend/app/services/report_parser_service.py` | 报告解析 + 默认值 |
 | `packages/backend/app/services/record_generator_service.py` | 文档生成入口（模板优先） |
 | `packages/backend/app/services/document_builder_service.py` | 旧方案（officecli batch，回退用） |
-| `packages/backend/app/repository/html_parser.py` | HTML 解析 + 时间格式化 |
+| `packages/backend/app/repository/report/html_parser.py` | HTML 解析 + 时间格式化 |
 | `packages/shared/types/index.ts` | InspectionReport 类型定义 |
 | `packages/frontend/src/components/RecordEditorForm.tsx` | 前端编辑表单 |
 | `packages/frontend/src/pages/RecordGeneratePage.tsx` | 前端报告生成页（文号逻辑） |

@@ -67,7 +67,7 @@ workflow_level: 3
 
 - [x] **T7 — 实现请求输入快照和依赖索引**
   - 需求：REQ-PREVIEW-SNAPSHOT-002、REQ-PREVIEW-SNAPSHOT-003、REQ-PARSE-CACHE-001。
-  - 文件：新增 `packages/backend/app/repository/report_parse_input_repository.py`；仅在快照边界集成需要时修改 `packages/backend/app/repository/html_parser.py` 和 `packages/backend/app/repository/filesystem_identity_repository.py`。
+  - 文件：新增 `packages/backend/app/repository/report/report_parse_input_repository.py`；仅在快照边界集成需要时修改 `packages/backend/app/repository/report/html_parser.py` 和 `packages/backend/app/repository/filesystem_identity_repository.py`。
   - 实现核心 JSON 单次加载、格式结果复用、有序设备行、证据目录映射、明确的设备元数据候选选择，以及同次读取中捕获路径元数据和内容摘要的依赖记录。
   - 拒绝不安全/绝对依赖路径。不递归媒体、附件 HTML、导航载荷或无关 JSON。不在返回/公共数据中暴露绝对路径。
   - 保持 Legacy 和 New 解析器适配器兼容；不得静默引入无界回退扫描。
@@ -94,7 +94,7 @@ workflow_level: 3
 
 - [x] **T11 — 将快照解析与报告 Parser 和缓存集成**
   - 需求：REQ-PREVIEW-SNAPSHOT-001 至 REQ-PREVIEW-SNAPSHOT-004、REQ-PARSE-CACHE-001。
-  - 文件：`packages/backend/app/services/report_parser_service.py`、`packages/backend/app/repository/report_parse_input_repository.py`、`packages/backend/app/services/report_parsing_cache_service.py`。
+  - 文件：`packages/backend/app/services/report_parser_service.py`、`packages/backend/app/repository/report/report_parse_input_repository.py`、`packages/backend/app/services/report_parsing_cache_service.py`。
   - 让 Parser 接受一个请求快照，复用核心/配置/设备数据，每项实际依赖只解析一次，登记依赖清单，并返回不变的 Legacy 兼容报告结果。`compress` 保持弃用，在文件夹预览中不起作用。
   - 不向解析器服务增加 ArchiveContext 清单或 WinRAR 工作。
 

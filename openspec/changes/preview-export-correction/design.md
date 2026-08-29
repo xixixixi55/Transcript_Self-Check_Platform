@@ -28,10 +28,10 @@
 
 ## 文件计划
 
-- `packages/backend/app/repository/html_parser.py`
-- `packages/backend/app/repository/json_loader.py`
-- `packages/backend/app/repository/device_field_parser.py`
-- `packages/backend/app/repository/navigation_parser.py`
+- `packages/backend/app/repository/report/html_parser.py`
+- `packages/backend/app/repository/report/json_loader.py`
+- `packages/backend/app/repository/report/device_field_parser.py`
+- `packages/backend/app/repository/report/navigation_parser.py`
 - `packages/backend/app/services/report_parser_service.py`
 - `packages/backend/app/services/document_builder_service.py`
 - `packages/backend/app/services/record_generator_service.py`

@@ -4,7 +4,7 @@
 
 当前生产仍以“HTML/JSON 解析 → `InspectionReport` legacy DTO → 最终 Manifest 投影/附件计划 → 填充 `template.docx`”为正式输出主链：
 
-- `packages/backend/app/repository/report_format_adapter.py`、`html_parser.py` 和 `device_field_parser.py` 已经积累了旧/新报告识别、字段候选和回归保护。
+- `packages/backend/app/repository/report/report_format_adapter.py`、`packages/backend/app/repository/report/html_parser.py` 和 `packages/backend/app/repository/report/device_field_parser.py` 已经积累了旧/新报告识别、字段候选和回归保护。
 - `report_parser_service.py` 仍组装 legacy DTO 和解析缓存；解析阶段只建立 `ArchiveContext`，真实压缩由独立归档执行入口触发。解析/清缓存请求已具备存活性边界，解析缓存只覆盖解析器实际依赖的数据。
 - `ArchivePlanner`、WinRAR executor/validator、有限向上 replan 和最终 `ArchiveManifest` 已进入归档生产能力；D1 容量合同与 D2.1 七项超时、完整性、进程终止、Manifest 兼容、锁生命周期、环境变量 warning 和 Export Gate 序列化治理已经完成，剩余真实大容量与人工验收边界见 `tasks.md`。
 - `record_controller.py` 仍接收 `InspectionReport`，校验最终 Manifest、投影 legacy 字段并调用 `template_filler_service.py`；`document_builder_service.py` 只保留为无 Manifest 场景的 officecli batch 回退，带 Manifest 的正式导出失败不会静默回退。

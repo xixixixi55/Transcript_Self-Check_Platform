@@ -1,4 +1,4 @@
-"""Layer 20: Base 目录设备字段兼容解析。"""
+"""Layer 20: 报告 Base 目录设备字段兼容解析。"""
 
 import json
 import re

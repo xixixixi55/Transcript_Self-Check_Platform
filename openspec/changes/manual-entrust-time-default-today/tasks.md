@@ -5,7 +5,7 @@ spec_sync_evidence: 2026-08-24 反馈差异在实现核对后已同步到 opensp
 # 任务
 
 - [x] T001 停止从报告创建时间推导委托时间。
-  - 文件：`packages/backend/app/services/report_parser_service.py`、`packages/backend/app/repository/html_parser.py`
+  - 文件：`packages/backend/app/services/report_parser_service.py`、`packages/backend/app/repository/report/html_parser.py`
   - 内容：报告解析结果中的 `introduction.entrust_time` 保持为空；“创建时间”继续只参与检查起止时间，不再作为委托时间来源；递增解析缓存版本以淘汰旧映射结果。
   - 验证：`pytest tests/test_report_parser_service.py -q --tb=short`
   - 证据：报告解析与工作台组合定向测试共 77 passed；解析结果断言委托时间为空、检查起止时间仍来自创建/报告时间，缓存版本更新为 23。

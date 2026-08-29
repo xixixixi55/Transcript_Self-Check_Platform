@@ -8,13 +8,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.device_field_parser import (
+from app.repository.report.device_field_parser import (
     extract_device_fields,
     extract_strong_device_fields,
     normalise_imei,
 )
-from app.repository.device_candidate_parser import select_best_device_candidate
-from app.repository.html_parser import (
+from app.repository.report.device_candidate_parser import select_best_device_candidate
+from app.repository.report.html_parser import (
     format_inspection_time_range,
     parse_case_info,
     parse_device_base,
@@ -22,8 +22,8 @@ from app.repository.html_parser import (
     parse_navigation,
     parse_report_info,
 )
-from app.repository.report_parse_input_repository import build_report_parse_input_snapshot
-from app.repository.report_format_adapter import (
+from app.repository.report.report_parse_input_repository import build_report_parse_input_snapshot
+from app.repository.report.report_format_adapter import (
     ReportFormat,
     ReportFormatError,
     detect_report_format,

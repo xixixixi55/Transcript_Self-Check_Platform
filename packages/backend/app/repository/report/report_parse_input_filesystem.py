@@ -1,4 +1,4 @@
-"""第 20 层：Parser 输入快照的安全文件系统原语。"""
+"""第 20 层报告子包：Parser 输入快照的安全文件系统原语。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import os
 import stat
 from pathlib import Path
 
-from .report_parse_input_models import ReportParseInputError
+from ..report_parse_input_models import ReportParseInputError
 
 
 def directory_entries(root: Path) -> list[os.DirEntry[str]]:

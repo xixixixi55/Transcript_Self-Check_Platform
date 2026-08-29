@@ -7,7 +7,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-from .filesystem_identity_repository import normalized_directory_key, resolve_directory
+from ..filesystem_identity_repository import normalized_directory_key, resolve_directory
 from .html_parser import (
     parse_case_info_payload,
     parse_device_base_payloads,
@@ -20,7 +20,7 @@ from .report_format_adapter import (
     detect_report_format_from_payloads,
 )
 from .device_field_parser import is_generic_device_label, try_parse_json
-from .report_parse_input_models import (
+from ..report_parse_input_models import (
     DependencyRecord,
     ReportParseInputError,
     ReportParseInputSnapshot,

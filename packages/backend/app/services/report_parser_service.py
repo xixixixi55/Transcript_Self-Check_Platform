@@ -15,19 +15,19 @@ from ..repository.file_storage import (
     is_cache_valid, save_json, read_json, ensure_dir,
     extract_archive, compute_md5, detect_winrar_version,
 )
-from ..repository.html_parser import (
+from ..repository.report.html_parser import (
     _resolve_evidence_directory,
     parse_case_info, parse_device_lists, parse_report_info,
     parse_device_base,
     format_inspection_time_range,
 )
-from ..repository.device_field_parser import is_generic_device_label
-from ..repository.report_format_adapter import require_supported_report_format
+from ..repository.report.device_field_parser import is_generic_device_label
+from ..repository.report.report_format_adapter import require_supported_report_format
 from ..repository.filesystem_identity_repository import (
     normalized_directory_key,
     selected_files_content_fingerprint,
 )
-from ..repository.report_parse_input_repository import (
+from ..repository.report.report_parse_input_repository import (
     ReportParseInputSnapshot,
     build_report_parse_input_snapshot,
 )

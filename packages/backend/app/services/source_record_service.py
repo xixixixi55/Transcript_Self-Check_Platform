@@ -14,7 +14,7 @@ from ..repository.source_locator_repository import SourceLocatorRepository
 from ..repository.source_record_repository import SourceRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
-from ..repository.report_format_adapter import ReportFormatError, require_supported_report_format
+from ..repository.report.report_format_adapter import ReportFormatError, require_supported_report_format
 from .archive.archive_authorization_service import ArchiveAuthorizationService
 from .source_record_fingerprint_service import (
     directory_summary,

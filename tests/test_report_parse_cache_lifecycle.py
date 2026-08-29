@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from synthetic_report_builders import build_parse_cache_report_tree  # noqa: E402
 from app.repository.report_parse_input_metadata_repository import validate_cached_input_metadata  # noqa: E402
 from app.repository.report_parse_input_models import DependencyRecord, ReportParseInputError  # noqa: E402
-from app.repository.report_parse_input_repository import build_report_parse_input_snapshot  # noqa: E402
+from app.repository.report.report_parse_input_repository import build_report_parse_input_snapshot  # noqa: E402
 from app.services.report_parser_service import _build_report, parse_report  # noqa: E402
 from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 

@@ -9,13 +9,13 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.html_parser import (  # noqa: E402
+from app.repository.report.html_parser import (  # noqa: E402
     parse_case_info,
     parse_device_base,
     parse_device_lists,
     parse_report_info,
 )
-from app.repository.report_parse_input_repository import (  # noqa: E402
+from app.repository.report.report_parse_input_repository import (  # noqa: E402
     build_report_parse_input_snapshot,
 )
 from app.services.report_parser_service import _build_report, parse_report  # noqa: E402
@@ -272,7 +272,7 @@ def test_snapshot_directory_index_does_not_scan_unrelated_report_root(tmp_path):
         scanned.append(os.path.normcase(os.fspath(path)))
         return original_scandir(path)
 
-    with patch("app.repository.report_parse_input_filesystem.os.scandir", new=counted_scandir):
+    with patch("app.repository.report.report_parse_input_filesystem.os.scandir", new=counted_scandir):
         build_report_parse_input_snapshot(str(tmp_path))
 
     assert not any("UNRELATED-SYNTHETIC" in path for path in scanned)

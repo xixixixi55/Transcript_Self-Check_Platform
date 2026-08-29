@@ -15,7 +15,7 @@ from app.services.report_parser_service import (
     parse_report,
 )
 from app.services.report_defaults_service import DEFAULT_DATA_SUMMARY, normalize_data_summary
-from app.repository.report_format_adapter import ReportFormat
+from app.repository.report.report_format_adapter import ReportFormat
 
 
 @pytest.mark.parametrize("value", [None, "", "   ", "\t\n"])

@@ -20,7 +20,7 @@
 ## 4. 集成两条 Parser 缓存路径
 
 - [ ] 4.1 将信任提供方集成到 `packages/backend/app/services/report_parser_service.py` 使用的 Legacy 动态依赖路径；验证未变化的受信任依赖避免完整内容重读。
-- [ ] 4.2 将同一合同集成到 `packages/backend/app/repository/report_parse_input_metadata_repository.py` 和 `packages/backend/app/repository/report_parse_input_repository.py`；验证两条路径产生相同的已变化/不受信任语义。
+- [ ] 4.2 将同一合同集成到 `packages/backend/app/repository/report_parse_input_metadata_repository.py` 和 `packages/backend/app/repository/report/report_parse_input_repository.py`；验证两条路径产生相同的已变化/不受信任语义。
 - [ ] 4.3 保持 `packages/backend/app/services/report_parsing_cache_service.py` 与 Archive/Manifest Repository 分离；验证 Parser 缓存命中绝不执行 WinRAR 或提供归档证据。
 - [ ] 4.4 在 `tests/test_report_parsing_cache.py`、`tests/test_report_parse_cache_metadata.py`、`tests/test_report_parse_cache_lifecycle.py` 和 `tests/test_report_parser_service.py` 增加端到端 Parser 缓存测试；验证来源替换后旧字段无法保留。
 
