@@ -55,8 +55,8 @@ from app.services.archive.archive_runtime_resource_service import (  # noqa: E40
 from app.services.archive.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
 from app.services.archive.archive_scheduler_service import ArchiveSchedulerService  # noqa: E402
 from app.services.archive.archive_task_api_service import ArchiveTaskApiService  # noqa: E402
-from app.services.case_draft_service import CaseDraftService  # noqa: E402
-from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
+from app.services.case.case_draft_service import CaseDraftService  # noqa: E402
+from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
 from app.services.shared_defaults_service import SharedDefaultsService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402

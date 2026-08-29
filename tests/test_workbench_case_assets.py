@@ -112,7 +112,7 @@ def test_signature_extension_and_size_limits_are_enforced(asset_context):
     args = (CASE_ID, lease["lease_id"], lease["lease_token"])
     content = png_bytes()
     assert MAX_CASE_IMAGE_BYTES == 100 * 1024 * 1024
-    with patch("app.services.case_asset_service.MAX_CASE_IMAGE_BYTES", len(content)):
+    with patch("app.services.case.case_asset_service.MAX_CASE_IMAGE_BYTES", len(content)):
         boundary = services.assets.upload_image(
             args[0], "SYNTHETIC-boundary.png", content, args[1], args[2]
         )
@@ -123,7 +123,7 @@ def test_signature_extension_and_size_limits_are_enforced(asset_context):
     with pytest.raises(WorkbenchPersistenceError) as format_error:
         services.assets.upload_image(args[0], "SYNTHETIC-file.txt", b"SYNTHETIC", args[1], args[2])
     assert format_error.value.code == "ASSET_IMAGE_FORMAT_INVALID"
-    with patch("app.services.case_asset_service.MAX_CASE_IMAGE_BYTES", len(content) - 1), pytest.raises(WorkbenchPersistenceError) as too_large:
+    with patch("app.services.case.case_asset_service.MAX_CASE_IMAGE_BYTES", len(content) - 1), pytest.raises(WorkbenchPersistenceError) as too_large:
         services.assets.upload_image(args[0], "SYNTHETIC-large.png", content, args[1], args[2])
     assert too_large.value.code == "ASSET_IMAGE_TOO_LARGE"
 

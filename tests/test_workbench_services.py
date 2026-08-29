@@ -17,8 +17,8 @@ from app.repository import WorkbenchDatabase, database_path_for_deployment  # no
 from app.repository.archive.archive_authorization_repository import ArchiveAuthorizationError  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
-from app.services.case_draft_service import CaseDraftService, _initialize_draft  # noqa: E402
-from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
+from app.services.case.case_draft_service import CaseDraftService, _initialize_draft  # noqa: E402
+from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.document_builder_service import build_record_document  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
 from app.services.inspection_environment_service import InspectionEnvironmentService  # noqa: E402
@@ -111,7 +111,7 @@ def source_descriptor(source_service: SourceRecordService, tmp_path: Path, name:
 
 def test_submit_persists_shell_and_task_before_parse(database, tmp_path, monkeypatch):
     monkeypatch.setattr(
-        "app.services.case_draft_service.utc_now",
+        "app.services.case.case_draft_service.utc_now",
         lambda: "2026-08-22T16:30:00+00:00",
     )
     calls = []
@@ -260,7 +260,7 @@ def test_parse_task_prefixes_new_draft_software_once_without_rewriting_saved_cas
         "software_name": "SYNTHETIC手机大师NEXT", "software_version": "V1.2.3",
     })
     monkeypatch.setattr(
-        "app.services.case_draft_service.company_for_device_name",
+        "app.services.case.case_draft_service.company_for_device_name",
         lambda device_name: "TEST美亚柏科" if device_name == "SYNTHETIC DEVICE" else "",
     )
     source_service = make_source_service(database, tmp_path)
@@ -290,7 +290,7 @@ def test_parse_task_prefixes_new_draft_software_once_without_rewriting_saved_cas
     assert "TEST美亚柏科HashMyFiles" not in word_text
 
     monkeypatch.setattr(
-        "app.services.case_draft_service.company_for_device_name", lambda _device_name: "TEST另一公司",
+        "app.services.case.case_draft_service.company_for_device_name", lambda _device_name: "TEST另一公司",
     )
     persisted = lifecycle.detail(identifiers["case_id"])["draft"]["report"]
     assert persisted == report

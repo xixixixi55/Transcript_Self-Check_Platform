@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository import CaseShellRepository, TaskRecordRepository, WorkbenchDatabase  # noqa: E402
-from app.services.case_retention_preview_service import CaseRetentionPreviewService  # noqa: E402
+from app.services.case.case_retention_preview_service import CaseRetentionPreviewService  # noqa: E402
 
 
 def _database(tmp_path: Path) -> WorkbenchDatabase:

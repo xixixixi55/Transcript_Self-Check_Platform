@@ -24,7 +24,7 @@ from app.services.archive.archive_publication_identity_service import (  # noqa:
     publication_digest,
     publication_file_set,
 )
-from app.services.case_retention_service import CaseRetentionService  # noqa: E402
+from app.services.case.case_retention_service import CaseRetentionService  # noqa: E402
 
 CASE_ID = "SYNTHETIC-RETENTION-SERVICE-CASE"
 SOURCE_ID = "SYNTHETIC-RETENTION-SERVICE-SOURCE"

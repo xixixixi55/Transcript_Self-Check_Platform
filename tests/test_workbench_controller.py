@@ -24,9 +24,9 @@ from app.repository import WorkbenchDatabase, database_path_for_deployment  # no
 from app.repository.workbench_database import utc_now  # noqa: E402
 from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
-from app.services.case_artifact_deletion_service import CaseArtifactDeletionService  # noqa: E402
-from app.services.case_draft_service import CaseDraftService  # noqa: E402
-from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
+from app.services.case.case_artifact_deletion_service import CaseArtifactDeletionService  # noqa: E402
+from app.services.case.case_draft_service import CaseDraftService  # noqa: E402
+from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
 from app.services.shared_defaults_service import SharedDefaultsService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
@@ -263,7 +263,7 @@ def test_submit_accepts_external_report_directory_when_authorization_is_disabled
 def test_two_synthetic_cases_reload_independently_after_draft_edit(app_services):
     from app.main import create_app
     from app.controllers import workbench_controller
-    from app.services.case_lifecycle_service import CaseLifecycleService
+    from app.services.case.case_lifecycle_service import CaseLifecycleService
 
     app = create_app(service_provider=lambda: app_services, enable_archive_runtime=False)
     second_report_dir = app_services.synthetic_report_dir.parent / "SYNTHETIC-SECOND-REPORT"

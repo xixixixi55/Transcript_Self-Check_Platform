@@ -60,7 +60,7 @@ spec_sync_evidence: `openspec/specs/electronic-inspection-record/spec.md` REQ-01
 
 - [x] 在 `packages/backend/app/services/device_config_service.py` 接收、清洗并验证公司字段，提供按规范化设备名称唯一解析所属公司的只读能力；名称匹配忽略大小写和空白差异，多个候选时返回未匹配而不是任取一条。验证：扩展 `tests/test_device_config.py` 覆盖空白、唯一匹配、未匹配和歧义边界。
 - [x] 在 `packages/backend/app/services/software_policy_service.py` 增加幂等的公司前缀投影：只修改报告可靠主软件及其派生字段，保持运行时工具、候选和 provenance 不变，并更新检查步骤 4 的主软件显示。验证：扩展 `tests/test_software_policy_service.py` 覆盖正常拼接、已带前缀、空公司、未确认主软件、运行时工具隔离及四处投影一致性（REQ-016 场景）。
-- [x] 在 `packages/backend/app/services/case_draft_service.py` 的新草稿初始化链中，先完成现有共享默认硬件选择，再解析该设备公司并调用软件前缀投影；既有草稿加载、Parser 缓存和重新保存不得触发追溯改写。验证：扩展 `tests/test_case_shared_defaults.py` 与 `tests/test_workbench_services.py`，覆盖共享默认设备优先、初始化一次、设备缺失/歧义降级及既有案件不变。
+- [x] 在 `packages/backend/app/services/case/case_draft_service.py` 的新草稿初始化链中，先完成现有共享默认硬件选择，再解析该设备公司并调用软件前缀投影；既有草稿加载、Parser 缓存和重新保存不得触发追溯改写。验证：扩展 `tests/test_case_shared_defaults.py` 与 `tests/test_workbench_services.py`，覆盖共享默认设备优先、初始化一次、设备缺失/歧义降级及既有案件不变。
 
 ### Layer 22——后端 Controller
 

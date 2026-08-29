@@ -9,12 +9,12 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ..repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
-from ..repository.case.case_workflow_repository import CaseWorkflowRepository
-from ..repository.task_record_repository import TaskRecordRepository
-from ..repository.workbench_database import WorkbenchDatabase, utc_now
-from ..repository.workbench_errors import WorkbenchPersistenceError
-from .report.report_defaults_service import (
+from ...repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ...repository.case.case_workflow_repository import CaseWorkflowRepository
+from ...repository.task_record_repository import TaskRecordRepository
+from ...repository.workbench_database import WorkbenchDatabase, utc_now
+from ...repository.workbench_errors import WorkbenchPersistenceError
+from ..report.report_defaults_service import (
     DEFAULT_DATA_SUMMARY,
     DEFAULT_DOCUMENT_NUMBER,
     DEFAULT_HARDWARE_DEVICE,
@@ -22,18 +22,18 @@ from .report.report_defaults_service import (
     DEFAULT_INSPECTION_PLACE,
     DEFAULT_INSPECTION_REQUIREMENT,
 )
-from .disc_sequence_service import apply_disc_sequence_to_attachments
+from ..disc_sequence_service import apply_disc_sequence_to_attachments
 from .case_order_service import CaseOrderService
-from .field_provenance_service import FieldProvenanceService
-from .inspection_environment_service import InspectionEnvironmentService
-from .material_policy_service import enrich_report_material_types
-from .device_config_service import company_for_device_name
-from .shared_defaults_service import SharedDefaultsService
-from .software_policy_service import apply_device_company_prefix
-from ..repository.hash_algorithm_repository import normalize_hash_algorithm
+from ..field_provenance_service import FieldProvenanceService
+from ..inspection_environment_service import InspectionEnvironmentService
+from ..material_policy_service import enrich_report_material_types
+from ..device_config_service import company_for_device_name
+from ..shared_defaults_service import SharedDefaultsService
+from ..software_policy_service import apply_device_company_prefix
+from ...repository.hash_algorithm_repository import normalize_hash_algorithm
 
 if TYPE_CHECKING:
-    from .source_record_service import SourceRecordService
+    from ..source_record_service import SourceRecordService
 
 Parser = Callable[[Path, Path], Mapping[str, Any]]
 Dispatch = Callable[[str, str], None]
@@ -51,7 +51,7 @@ class CaseDraftService:
         self.drafts = CaseDraftRepository(database)
         self.tasks = TaskRecordRepository(database)
         if source_service is None:
-            from .source_record_service import SourceRecordService
+            from ..source_record_service import SourceRecordService
 
             self.sources = SourceRecordService(database)
         else:
@@ -148,7 +148,7 @@ class CaseDraftService:
 
 
 def _parse_source(path: Path, output: Path) -> Mapping[str, Any]:
-    from .report.report_parser_service import parse_report
+    from ..report.report_parser_service import parse_report
 
     output.mkdir(parents=True, exist_ok=True)
     return parse_report(str(path), str(output), compress=False)

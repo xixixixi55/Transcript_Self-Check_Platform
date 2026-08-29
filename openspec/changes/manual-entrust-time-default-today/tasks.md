@@ -10,7 +10,7 @@ spec_sync_evidence: 2026-08-24 反馈差异在实现核对后已同步到 opensp
   - 验证：`pytest tests/test_report_parser_service.py -q --tb=short`
   - 证据：报告解析与工作台组合定向测试共 77 passed；解析结果断言委托时间为空、检查起止时间仍来自创建/报告时间，缓存版本更新为 23。
 - [x] T002 新案件草稿按当天日期预填可编辑的委托时间。
-  - 文件：`packages/backend/app/services/case_draft_service.py`、`tests/test_workbench_services.py`、`tests/test_report_parser_service.py`
+  - 文件：`packages/backend/app/services/case/case_draft_service.py`、`tests/test_workbench_services.py`、`tests/test_report_parser_service.py`
   - 内容：在新案件草稿初始化时，按 `Asia/Shanghai` 当天日期写入中文纯日期；覆盖报告携带的旧委托时间种子，保留现有审核页日期控件的人工修改和保存行为，不改写已保存案件。
   - 验证：`pytest tests/test_workbench_services.py tests/test_report_parser_service.py -q --tb=short`
   - 证据：固定 UTC 时刻跨上海自然日的初始化回归通过；旧报告日期被当天日期覆盖，输入报告未被原地修改，字段来源为 `system_default`。

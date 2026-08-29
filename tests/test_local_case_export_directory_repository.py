@@ -14,7 +14,7 @@ from app.repository.workbench_database import (  # noqa: E402
     WorkbenchDatabase,
     database_path_for_deployment,
 )
-from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
+from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 
 
 def test_latest_export_directory_is_persisted_and_isolated_by_case(tmp_path: Path) -> None:

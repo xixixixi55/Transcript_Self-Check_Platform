@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.case_order_service import CaseOrderService  # noqa: E402
+from app.services.case.case_order_service import CaseOrderService  # noqa: E402
 
 
 def _service() -> CaseOrderService:

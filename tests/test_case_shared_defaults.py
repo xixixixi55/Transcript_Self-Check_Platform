@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository.shared_defaults_repository import SharedDefaultsRepository  # noqa: E402
 from app.repository.workbench_database import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services import case_draft_service  # noqa: E402
-from app.services.case_draft_service import (  # noqa: E402
+from app.services.case import case_draft_service  # noqa: E402
+from app.services.case.case_draft_service import (  # noqa: E402
     _initialize_draft,
     _prefix_report_software_for_selected_device,
 )

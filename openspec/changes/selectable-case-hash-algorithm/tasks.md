@@ -56,7 +56,7 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 
 ### Layer 21 — 案件、归档与文书投影
 
-- [x] 修改 `packages/backend/app/services/case_draft_service.py` 和 legacy 规范化链路：新案件写入默认算法快照，存量案件缺失时投影为 MD5。
+- [x] 修改 `packages/backend/app/services/case/case_draft_service.py` 和 legacy 规范化链路：新案件写入默认算法快照，存量案件缺失时投影为 MD5。
   - 验证：扩展 `tests/test_case_shared_defaults.py` 与工作台详情测试，区分新案快照和旧案兼容。
 - [x] 修改 `archive_manifest_service.py`、`archive_execution_service.py` 及 Manifest 校验/投影：保留内部 MD5，生成并消费所选业务哈希。
   - 验证：扩展归档 Manifest、执行与完成投影测试，断言 MD5 安全门不变且 SHA 摘要正确。

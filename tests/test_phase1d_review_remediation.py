@@ -26,7 +26,7 @@ from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E
 from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive import archive_attempt_completion_service as completion_module  # noqa: E402
 from app.services.archive.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
-from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
+from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
 from app.services.archive.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
 from app.services.archive.archive_publish_service import publish_staged_archive  # noqa: E402

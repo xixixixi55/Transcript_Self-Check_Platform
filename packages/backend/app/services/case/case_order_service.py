@@ -8,7 +8,7 @@ import secrets
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from ..repository.inspector_repository import project_case_inspector_snapshot
+from ...repository.inspector_repository import project_case_inspector_snapshot
 
 _MAX_SAFE_INTEGER = 9_007_199_254_740_991
 

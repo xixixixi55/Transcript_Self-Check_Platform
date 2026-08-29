@@ -33,11 +33,11 @@ from .archive.archive_source_runtime_service import prepare_archive_source
 from .archive.archive_storage_settings_service import ArchiveStorageSettingsService
 from .archive.archive_task_api_service import ArchiveTaskApiService
 from .archive.archive_worker_service import ArchiveWorkItem, ArchiveWorkerService
-from .case_asset_service import CaseAssetService
-from .case_artifact_deletion_service import CaseArtifactDeletionService
-from .case_draft_service import CaseDraftService
-from .case_parse_dispatcher_service import CaseParseDispatcher
-from .case_lifecycle_service import CaseLifecycleService
+from .case.case_asset_service import CaseAssetService
+from .case.case_artifact_deletion_service import CaseArtifactDeletionService
+from .case.case_draft_service import CaseDraftService
+from .case.case_parse_dispatcher_service import CaseParseDispatcher
+from .case.case_lifecycle_service import CaseLifecycleService
 from .edit_lease_service import EditLeaseService
 from .local_directory_picker_service import LocalDirectoryPickerService
 from .inspection_environment_service import InspectionEnvironmentService

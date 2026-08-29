@@ -36,7 +36,7 @@ workflow_level: 2
 ## 后端 Repository/Service/Controller（Layer 20–23）
 
 - [x] T005 实现事务内案件工作数据删除。
-  - 文件：`packages/backend/app/repository/case/case_deletion_repository.py`、`packages/backend/app/repository/case/case_workflow_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/controllers/workbench_controller.py`
+  - 文件：`packages/backend/app/repository/case/case_deletion_repository.py`、`packages/backend/app/repository/case/case_workflow_repository.py`、`packages/backend/app/services/case/case_lifecycle_service.py`、`packages/backend/app/controllers/workbench_controller.py`
   - 内容：新增 DELETE `/workbench/cases/{case_id}`；按外键依赖顺序删除案件工作台记录，不再以案件状态、任务、租约、清理流程或正式产物作为用户确认后的阻断条件。
   - 验证：Service/Controller 测试覆盖任意状态的真实删除和部署隔离。
 
@@ -55,7 +55,7 @@ workflow_level: 2
   - 验证：Service/Controller 状态回归。
 
 - [x] T008 清理平台自有正式产物和临时文件。
-  - 文件：`packages/backend/app/services/case_artifact_deletion_service.py`、`packages/backend/app/repository/archive/archive_manifest_repository.py`、`packages/backend/app/repository/archive/archive_manifest_index_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/services/workbench_factory_service.py`
+  - 文件：`packages/backend/app/services/case/case_artifact_deletion_service.py`、`packages/backend/app/repository/archive/archive_manifest_repository.py`、`packages/backend/app/repository/archive/archive_manifest_index_repository.py`、`packages/backend/app/services/case/case_lifecycle_service.py`、`packages/backend/app/services/workbench_factory_service.py`
   - 内容：删除案件受控压缩目录及删除后留下的空案件上级目录、Word 产物、归档快照、临时文件和案件图片，并同步 Manifest 索引；拒绝越界路径，不删除外部来源目录。
   - 验证：正式 RAR/Manifest/Word、图片、来源目录保留和路径安全测试。
 
@@ -85,7 +85,7 @@ workflow_level: 2
   - 后续修订：T016 保留统一删除能力，但将已导出设为直接推荐操作、其他状态收纳到更多菜单。
 
 - [x] T014 清理案件关联的短路径归档快照及其辅助文件。
-  - 文件：`packages/backend/app/services/case_artifact_deletion_service.py`、`tests/test_case_artifact_deletion_service.py`
+  - 文件：`packages/backend/app/services/case/case_artifact_deletion_service.py`、`tests/test_case_artifact_deletion_service.py`
   - 内容：按数据库中案件绑定的快照定位清理 `.inputs`、`.i`、`.t` 受控目录中的最终快照、`.copying` 临时目录和 owner marker；不删除其他案件快照或共享根目录，并继续拒绝越界定位。
   - 验证：后端定向测试覆盖标准相对 locator、`.i` locator、marker/临时目录清理和来源目录保留。
 

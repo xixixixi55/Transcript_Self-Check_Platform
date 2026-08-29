@@ -7,21 +7,21 @@ import secrets
 from collections.abc import Mapping
 from typing import Any
 
-from ..repository.audit_event_repository import AuditEventRepository
-from ..repository.archive.archive_task_repository import ArchiveTaskRepository
-from ..repository.archive.archive_report_metadata_repository import (
+from ...repository.audit_event_repository import AuditEventRepository
+from ...repository.archive.archive_task_repository import ArchiveTaskRepository
+from ...repository.archive.archive_report_metadata_repository import (
     is_archive_completion_revision,
     preserve_verified_archive_projection,
 )
-from ..repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
-from ..repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
-from ..repository.case.case_workflow_repository import CaseWorkflowRepository
-from ..repository.task_record_repository import TaskRecordRepository
-from ..repository.workbench_database import WorkbenchDatabase, utc_now
-from ..repository.workbench_errors import RevisionConflictError, WorkbenchPersistenceError
+from ...repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ...repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
+from ...repository.case.case_workflow_repository import CaseWorkflowRepository
+from ...repository.task_record_repository import TaskRecordRepository
+from ...repository.workbench_database import WorkbenchDatabase, utc_now
+from ...repository.workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .case_order_service import CaseOrderService
-from .field_provenance_service import FieldProvenanceService
-from .software_policy_service import normalize_runtime_software_tool_projection
+from ..field_provenance_service import FieldProvenanceService
+from ..software_policy_service import normalize_runtime_software_tool_projection
 
 
 class CaseLifecycleService:
@@ -147,7 +147,7 @@ class CaseLifecycleService:
             defaults_status = {"status": "failed", "error_code": "REVISION_REQUIRED"}
         else:
             try:
-                from .shared_defaults_service import SharedDefaultsService
+                from ..shared_defaults_service import SharedDefaultsService
                 result = SharedDefaultsService(self._database()).patch(shared_values, shared_revision, identity or {})
                 defaults_status = {
                     "status": result["status"],
@@ -287,11 +287,11 @@ class CaseLifecycleService:
             source_id = row.execute("SELECT source_id FROM case_shells WHERE case_id = ?", (case_id,)).fetchone()[0]
         finally:
             row.close()
-        from ..repository.source_record_repository import SourceRecordRepository
+        from ...repository.source_record_repository import SourceRecordRepository
         return SourceRecordRepository(self.shells.database).get(source_id)
 
     def _defaults_revision(self) -> int:
-        from ..repository.shared_defaults_repository import SharedDefaultsRepository
+        from ...repository.shared_defaults_repository import SharedDefaultsRepository
         return SharedDefaultsRepository(self.shells.database).get()["revision"]
 
     def _database(self) -> WorkbenchDatabase:

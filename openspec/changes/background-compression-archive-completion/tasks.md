@@ -191,7 +191,7 @@ workflow_level: 3
   - 现象：点击“立即压缩”后在审核编辑界面上传图片，草稿 PATCH 返回 409，归档任务在发布前因草稿内容变化中断。
   - 根因：发布前校验把开始执行时的报告与当前草稿做归档稳定指纹比较，图片引用变化被误判为归档绑定失效；归档完成回填又会推进草稿 revision，与同一时刻的图片引用保存形成一次合法竞争。
   - 内容：归档发布继续校验密封输入快照、来源、attempt/binding/fence 与当前绑定一致性，但不再要求审核报告内容保持不变；发布采用校验时刻的最新草稿元数据，RAR 仍只消费密封快照。草稿保存遇到仅由归档完成产生的单次 revision 推进时，在后端保留可信 RAR/MD5/附件1投影并自动重试一次，其他真实并发冲突仍返回 409。
-  - 文件：`packages/backend/app/services/archive/archive_attempt_service.py`（现已合并原 validation 内部实现）、`packages/backend/app/repository/archive/archive_context_binding_repository.py`、`packages/backend/app/repository/archive/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
+  - 文件：`packages/backend/app/services/archive/archive_attempt_service.py`（现已合并原 validation 内部实现）、`packages/backend/app/repository/archive/archive_context_binding_repository.py`、`packages/backend/app/repository/archive/archive_report_metadata_repository.py`、`packages/backend/app/services/case/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
   - 验证：归档发布前任意审核编辑不再中断任务；归档完成与图片绑定保存竞争时保存成功且最终同时保留图片引用和可信归档字段；普通过期 revision 冲突仍被拒绝；执行后端定向 pytest、`npm run verify:quick`、当前变更 scoped strict docs 与 `git diff --check`。
   - code_review: [DEFERRED] 独立审查两次因模型容量/长时间无响应未能产出结论；按用户 2026-08-09 指示先提交并推送，后续可在新候选版本上补做独立审查。
 
@@ -250,7 +250,7 @@ workflow_level: 3
   - 现象：立即压缩后连续草稿保存先出现多次 200，随后首次 409；案件轮询 GET 与编辑租约 heartbeat 均保持 200，但草稿 PATCH 持续 409。图片二进制 `POST /assets` 成功后，图片引用仍因复用整草稿 PATCH 而 409，页面持续阻止离开。
   - 根因：图片二进制与草稿引用是两阶段写入，第二阶段复用整草稿 revision；首次冲突后本地存在未保存修改，后台 GET 不覆盖本地草稿，autosave 又持续携带旧 revision，形成永久冲突循环。T027 只覆盖归档完成恰好推进一次 revision，不能覆盖多次 revision 推进或冲突后继续编辑。
   - 内容：新增案件图片引用字段级绑定接口，以调用方最后观察到的图片 ID 列表作为图片域 CAS 基线；后端在最新草稿上原子合并 `asset_refs`、`photo_ids` 与确定性 `photo_groups`，非图片字段并发推进只触发有界重试，同一图片域被另一会话修改仍返回 409。前端图片上传/恢复改用该接口，并用返回的最新草稿 revision 重基已有本地未保存修改，终止旧 revision 重试循环。
-  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/constants/index.ts`、`packages/backend/app/services/case_lifecycle_service.py`、`packages/backend/app/controllers/case_asset_controller.py`、`packages/frontend/src/hooks/useCaseDraftAutosave.ts`、`useCaseRecordSession.ts`、相关前后端回归测试及本变更包文档。
+  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/constants/index.ts`、`packages/backend/app/services/case/case_lifecycle_service.py`、`packages/backend/app/controllers/case_asset_controller.py`、`packages/frontend/src/hooks/useCaseDraftAutosave.ts`、`useCaseRecordSession.ts`、相关前后端回归测试及本变更包文档。
   - 验证：后端图片资产定向 pytest 11 passed，覆盖非图片多次 revision 推进后绑定、真实图片域冲突及 HTTP 409 契约；前端 3 files / 37 tests passed，覆盖 autosave 重基、上传绑定失败后不重复上传的原地重试，以及页面离开保护；`npm run verify:quick` PASS，架构、类型、治理、quick docs 与仓库资产门控通过；`git diff --check` PASS。将图片域比较临时失效后，真实冲突用例按预期失败，恢复实现后通过。
   - code_review: [PASS] 对字段级 CAS、租约校验、最新草稿合并、并发重试、前端未保存编辑重放与失败重试基线完成实现自审；修正了首次绑定失败后错误采用未持久化图片列表作为下一次 CAS 基线的问题，复核无 remaining MUST FIX。
   - final_gate: [PASS] `HARNESS_TEMP_ROOT=D:\harness-temp` 下执行 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过。
