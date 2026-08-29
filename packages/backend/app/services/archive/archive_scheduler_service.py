@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import uuid4
 
-from ...repository.archive_task_repository import ArchiveTaskRepository
+from ...repository.archive.archive_task_repository import ArchiveTaskRepository
 from ...repository.workbench_constants import MAX_RUNNING_ARCHIVE_TASKS
 from ...repository.workbench_errors import WorkbenchPersistenceError
 from .archive_resource_admission_service import (

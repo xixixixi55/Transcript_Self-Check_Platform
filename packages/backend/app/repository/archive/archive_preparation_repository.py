@@ -8,9 +8,9 @@ from typing import Any
 from .archive_context_binding_repository import replace_active_binding
 from .archive_publish_fence_repository import invalidate_pending, reject_if_active
 from .archive_attempt_projection_repository import public_attempt
-from .workbench_database import WorkbenchDatabase, utc_now
-from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
-from .workbench_serialization import validate_opaque_id
+from ..workbench_database import WorkbenchDatabase, utc_now
+from ..workbench_errors import RevisionConflictError, WorkbenchPersistenceError
+from ..workbench_serialization import validate_opaque_id
 
 
 class ArchivePreparationRepository:

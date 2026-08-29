@@ -7,12 +7,12 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
 
-from ...repository.archive_authorization_repository import AuthorizedInputRoot
+from ...repository.archive.archive_authorization_repository import AuthorizedInputRoot
 from ...repository.filesystem_identity_repository import directory_fingerprint_matches
-from ...repository.archive_manifest_repository import (
+from ...repository.archive.archive_manifest_repository import (
     ArchiveManifestRepository, ArchiveManifestRepositoryError,
 )
-from ...repository.archive_validator_repository import validate_archive_parts
+from ...repository.archive.archive_validator_repository import validate_archive_parts
 from ...repository.winrar_discovery_repository import WinRarCapability, discover_winrar
 from ...repository.winrar_executor_repository import ArchiveExecutionError, WinRarExecutor
 from ...repository.workbench_errors import WorkbenchPersistenceError

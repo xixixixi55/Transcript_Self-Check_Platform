@@ -17,7 +17,7 @@ workflow_level: 3
 ## 后端 Repository（Layer 20）
 
 - [x] T002 持久化盘号映射与每 part 元数据。
-  - 文件：`packages/backend/app/repository/workbench_schema.py`、`packages/backend/app/repository/archive_plan_repository.py`
+  - 文件：`packages/backend/app/repository/workbench_schema.py`、`packages/backend/app/repository/archive/archive_plan_repository.py`
   - 内容：`archive_plans` 表持久化 `mapping_revision`/`volume_slots_json`/`verified_slots_json`，`archive_plan_repository.update_mappings` 以 mapping_revision + 1 与 CAS 防并发持久化 part→盘号映射；每 part 文件名/大小/MD5 落在归档结果 parts 记录；导出记录经 `AuditEventRepository`（unified_export 事件）。遵守既有 revision/CAS 与迁移约束（含 v11 schema 同步）。
   - 验证：`tests/test_disc_mapping_service.py` 4 passed（含持久化与过期 revision）+ 归档结果/导出审计相关测试回归。
 
@@ -39,7 +39,7 @@ workflow_level: 3
   - 验证：更新 `test_manifest_reuse_rechecks_input_snapshot_and_tolerates_disc_change`（盘号变化容忍、输入变化仍失败）；`tests/test_archive_execution_service.py` 20 passed。
 
 - [x] T006 检查结果/附件1 回填（接线确认 + 死代码清理）。
-  - 文件：`packages/backend/app/services/archive/archive_attempt_completion_service.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`
+  - 文件：`packages/backend/app/services/archive/archive_attempt_completion_service.py`、`packages/backend/app/repository/archive/archive_report_metadata_repository.py`
   - 内容：回填在归档 attempt 完成时经 `complete_verified` → `update_verified_draft` 接线：`verified_archive_result_fields` 以 manifest parts 覆盖填写检查结果 `result`（rar_filename/md5_hash/file_size），`attachment_projection` 投影附件1 extract_list，并更新草稿 lifecycle 为 `archive_verified`（revision CAS 保护）。WinRAR 分卷为批量产出、无逐卷事件，回填点在 attempt 完成（早于导出）。Review（T015）发现独立 `attachment_backfill_service.backfill_from_manifest` 是重复死代码，已删除。
   - 验证：`tests/test_archive_runtime_lifecycle.py` 断言草稿 inspection.result 与 extract_list 已回填（rar_filename/md5/file_size）。
 
@@ -191,7 +191,7 @@ workflow_level: 3
   - 现象：点击“立即压缩”后在审核编辑界面上传图片，草稿 PATCH 返回 409，归档任务在发布前因草稿内容变化中断。
   - 根因：发布前校验把开始执行时的报告与当前草稿做归档稳定指纹比较，图片引用变化被误判为归档绑定失效；归档完成回填又会推进草稿 revision，与同一时刻的图片引用保存形成一次合法竞争。
   - 内容：归档发布继续校验密封输入快照、来源、attempt/binding/fence 与当前绑定一致性，但不再要求审核报告内容保持不变；发布采用校验时刻的最新草稿元数据，RAR 仍只消费密封快照。草稿保存遇到仅由归档完成产生的单次 revision 推进时，在后端保留可信 RAR/MD5/附件1投影并自动重试一次，其他真实并发冲突仍返回 409。
-  - 文件：`packages/backend/app/services/archive/archive_attempt_service.py`（现已合并原 validation 内部实现）、`packages/backend/app/repository/archive_context_binding_repository.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
+  - 文件：`packages/backend/app/services/archive/archive_attempt_service.py`（现已合并原 validation 内部实现）、`packages/backend/app/repository/archive/archive_context_binding_repository.py`、`packages/backend/app/repository/archive/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
   - 验证：归档发布前任意审核编辑不再中断任务；归档完成与图片绑定保存竞争时保存成功且最终同时保留图片引用和可信归档字段；普通过期 revision 冲突仍被拒绝；执行后端定向 pytest、`npm run verify:quick`、当前变更 scoped strict docs 与 `git diff --check`。
   - code_review: [DEFERRED] 独立审查两次因模型容量/长时间无响应未能产出结论；按用户 2026-08-09 指示先提交并推送，后续可在新候选版本上补做独立审查。
 

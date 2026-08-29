@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Iterable
 
-from ...repository.archive_input_repository import ArchiveInputError
+from ...repository.archive.archive_input_repository import ArchiveInputError
 
 
 _WINDOWS_FILE_PATH_LIMIT = 260

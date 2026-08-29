@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository import CaseDraftRepository
 from app.repository import CaseShellRepository, SourceRecordRepository
-from app.repository.archive_manifest_repository import ArchiveManifestRepository
-from app.repository.archive_publish_intent_repository import ArchivePublishIntentRepository
+from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository
+from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from app.repository.workbench_errors import WorkbenchPersistenceError
 from app.services.archive.archive_attempt_service import ArchiveAttemptService
 from app.services.report_parse_inflight_service import ReportParseInFlightRegistry

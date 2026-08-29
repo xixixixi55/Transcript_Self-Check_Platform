@@ -5,7 +5,7 @@ from __future__ import annotations
 from .workbench_constants import CASE_TRANSITIONS
 from .workbench_database import WorkbenchDatabase, utc_now
 from .workbench_errors import WorkbenchPersistenceError
-from .archive_publish_fence_repository import invalidate_pending, reject_if_active
+from .archive.archive_publish_fence_repository import invalidate_pending, reject_if_active
 
 
 class CaseArchiveDecisionRepository:

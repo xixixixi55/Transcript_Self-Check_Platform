@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import OUTPUT_BASE, UPLOAD_BASE
-from ..repository.archive_authorization_repository import AuthorizedInputRoot
+from ..repository.archive.archive_authorization_repository import AuthorizedInputRoot
 from ..repository.case_workbench_repository import CaseShellRepository
 from ..repository.source_locator_repository import SourceLocatorRepository
 from ..repository.source_record_repository import SourceRecordRepository

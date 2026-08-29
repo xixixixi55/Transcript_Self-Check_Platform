@@ -6,10 +6,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_storage_settings_repository import (  # noqa: E402
+from app.repository.archive.archive_storage_settings_repository import (  # noqa: E402
     ArchiveStorageSettingsRepository,
 )
-from app.repository import archive_storage_settings_repository as storage_repository  # noqa: E402
+from app.repository.archive import archive_storage_settings_repository as storage_repository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_storage_settings_service import (  # noqa: E402
     ArchiveStorageSettingsService,

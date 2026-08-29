@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from .workbench_constants import ARCHIVE_ATTEMPT_STATUSES, ARCHIVE_CLEANUP_STATUSES
-from .workbench_database import WorkbenchDatabase, utc_now
-from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
+from ..workbench_constants import ARCHIVE_ATTEMPT_STATUSES, ARCHIVE_CLEANUP_STATUSES
+from ..workbench_database import WorkbenchDatabase, utc_now
+from ..workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .archive_attempt_projection_repository import internal_attempt, public_attempt
 from .archive_context_binding_repository import deactivate_bindings
-from .workbench_serialization import validate_opaque_id, validate_safe_string
+from ..workbench_serialization import validate_opaque_id, validate_safe_string
 
 
 class ArchiveAttemptRepository:

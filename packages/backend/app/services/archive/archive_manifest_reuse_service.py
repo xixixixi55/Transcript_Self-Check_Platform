@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from ...repository.archive_publish_intent_repository import ArchivePublishIntentRepository
+from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import (
     ARCHIVE_MANIFEST_TTL_SECONDS,

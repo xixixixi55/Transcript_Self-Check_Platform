@@ -1,10 +1,10 @@
 """第 20 层仓储导出；业务编排保留在服务层。"""
 
 from .asset_reference_repository import AssetReferenceRepository
-from .archive_attempt_repository import ArchiveAttemptRepository
-from .archive_asset_repository import ArchiveAssetRepository
-from .archive_plan_repository import ArchivePlanRepository
-from .archive_task_repository import ArchiveTaskRepository
+from .archive.archive_attempt_repository import ArchiveAttemptRepository
+from .archive.archive_asset_repository import ArchiveAssetRepository
+from .archive.archive_plan_repository import ArchivePlanRepository
+from .archive.archive_task_repository import ArchiveTaskRepository
 from .case_asset_storage import CaseAssetStorage
 from .case_archive_decision_repository import CaseArchiveDecisionRepository
 from .audit_event_repository import AuditEventRepository

@@ -178,7 +178,7 @@ workflow_level: 3
 
 - [x] **T26 — 第 2 部分：公开并中断缓慢的完整清单准备**
   - 需求：REQ-ARCHIVE-LIFECYCLE-002、REQ-ARCHIVE-LIFECYCLE-004。
-  - 文件：归档运行时协调器/源/上下文服务及 `packages/backend/app/repository/archive_input_repository.py`。
+  - 文件：归档运行时协调器/源/上下文服务及 `packages/backend/app/repository/archive/archive_input_repository.py`。
   - 在完整遍历前将已认领任务推进到 `inventory`，并通过上下文准备向目录枚举传播协作取消回调。保留所有正式归档门控和清单发布规则。
 
 - [x] **T27 — 验证清单可见性和协作取消**

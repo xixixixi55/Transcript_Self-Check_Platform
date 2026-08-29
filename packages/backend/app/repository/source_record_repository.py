@@ -11,7 +11,7 @@ from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_repository_helpers import bool_int, json_text, public_source_record, row_json
 from .workbench_serialization import validate_opaque_id
 from .source_locator_repository import SourceLocatorRepository
-from .archive_publish_fence_repository import invalidate_pending, reject_if_active
+from .archive.archive_publish_fence_repository import invalidate_pending, reject_if_active
 class SourceRecordRepository:
     def __init__(self, database: WorkbenchDatabase) -> None:
         self.database = database

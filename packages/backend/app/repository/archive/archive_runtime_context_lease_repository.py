@@ -8,11 +8,11 @@ from typing import Any
 
 from .archive_attempt_restart_repository import _interrupt_attempt_in_transaction
 from .archive_context_binding_repository import context_binding_hash
-from .workbench_constants import ARCHIVE_TASK_ACTIONS
-from .workbench_database import WorkbenchDatabase, utc_now
-from .workbench_errors import WorkbenchPersistenceError
-from .workbench_repository_helpers import json_text
-from .workbench_serialization import validate_opaque_id
+from ..workbench_constants import ARCHIVE_TASK_ACTIONS
+from ..workbench_database import WorkbenchDatabase, utc_now
+from ..workbench_errors import WorkbenchPersistenceError
+from ..workbench_repository_helpers import json_text
+from ..workbench_serialization import validate_opaque_id
 
 
 def lease_queued_runtime_context(

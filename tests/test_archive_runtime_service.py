@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
-from app.repository.archive_input_repository import ArchiveInputError, build_input_inventory  # noqa: E402
+from app.repository.archive.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
+from app.repository.archive.archive_input_repository import ArchiveInputError, build_input_inventory  # noqa: E402
 from app.services.archive.archive_inventory_snapshot_service import ArchiveInventorySnapshotStore  # noqa: E402
 from app.services.archive.archive_runtime_service import (  # noqa: E402
     ArchiveRuntimeError,
@@ -112,7 +112,7 @@ def test_context_reuses_inventory_without_recursive_currentness_scan(tmp_path):
         assert build_inventory.call_count == 1
         assert refreshed.inventory is first.inventory
 
-    from app.repository.archive_input_repository import verify_input_inventory
+    from app.repository.archive.archive_input_repository import verify_input_inventory
 
     with pytest.raises(ArchiveInputError) as error:
         verify_input_inventory(first.inventory)

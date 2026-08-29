@@ -9,7 +9,7 @@ from app.services.archive.archive_manifest_projection_service import (  # noqa: 
     project_manifest_to_legacy_report,
     project_verified_manifest_to_legacy_attachments,
 )
-from app.repository.archive_report_metadata_repository import (  # noqa: E402
+from app.repository.archive.archive_report_metadata_repository import (  # noqa: E402
     apply_verified_archive_result,
 )
 

@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any, Callable
 from uuid import uuid4
 
-from ...repository.archive_plan_repository import ArchivePlanRepository
+from ...repository.archive.archive_plan_repository import ArchivePlanRepository
 from ...repository.workbench_errors import WorkbenchPersistenceError
 
 
@@ -154,7 +154,7 @@ def persist_archive_plan_for_attempt(
     """根据已完成尝试的 Manifest 分卷尽力投影计划。"""
     if attempt_service is None or attempt_id is None:
         return
-    from ...repository.archive_plan_repository import ArchivePlanRepository
+    from ...repository.archive.archive_plan_repository import ArchivePlanRepository
 
     case_id = str(attempt_service.repository.get_internal(attempt_id).get("case_id") or "")
     if not case_id:

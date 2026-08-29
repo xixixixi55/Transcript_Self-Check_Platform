@@ -19,7 +19,7 @@ from .workbench_serialization import (
 from .case_archive_decision_repository import CaseArchiveDecisionRepository
 from .case_deletion_repository import CaseDeletionRepository
 from .case_workbench_repository import _validate_template_ref
-from .archive_publish_fence_repository import reject_if_active
+from .archive.archive_publish_fence_repository import reject_if_active
 
 
 def normalize_source_metadata(value: Any) -> dict[str, str | int | float | bool]:

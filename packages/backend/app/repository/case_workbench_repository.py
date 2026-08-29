@@ -11,8 +11,8 @@ from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from .workbench_legacy_report import validate_legacy_report
 from .workbench_repository_helpers import bool_int, json_text, row_json
 from .workbench_serialization import validate_field_states, validate_opaque_asset_refs, validate_opaque_id, validate_safe_string
-from .archive_publish_fence_repository import active_for_case, invalidate_pending, reject_if_active
-from .archive_context_binding_repository import (
+from .archive.archive_publish_fence_repository import active_for_case, invalidate_pending, reject_if_active
+from .archive.archive_context_binding_repository import (
     report_fingerprint,
 )
 from .case_tombstone_repository import shell_tombstone_projection

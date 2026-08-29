@@ -51,7 +51,7 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 
 - [x] 修改 `packages/backend/app/repository/shared_defaults_repository.py`：默认 `md5`，只接受 `md5`/`sha1`/`sha256`，显式设置不得清空。
   - 验证：扩展 `tests/test_case_shared_defaults.py` 的默认值、合法更新和非法值拒绝。
-- [x] 修改 `packages/backend/app/repository/archive_hash_repository.py` 与 `hashmyfiles_repository.py`：提供受控业务摘要计算；按算法生成 HashMyFiles 参数、列索引、摘要校验和三列截图。
+- [x] 修改 `packages/backend/app/repository/archive/archive_hash_repository.py` 与 `hashmyfiles_repository.py`：提供受控业务摘要计算；按算法生成 HashMyFiles 参数、列索引、摘要校验和三列截图。
   - 验证：扩展 `tests/test_hashmyfiles_service.py`，覆盖三种算法、错误长度、参数与列选择。
 
 ### Layer 21 — 案件、归档与文书投影
@@ -117,7 +117,7 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
   - 验证：扩展现有 Repository/Manifest 测试，参数化覆盖 MD5/SHA-1/SHA-256、无效长度、混用算法、新字段无效不得回退、旧 MD5 可兼容；通过可注入 reader/hasher 证明 SHA 案件只计算所选算法。
 - [ ] 修改 `packages/backend/app/repository/hashmyfiles_result_repository.py`、`hashmyfiles_repository.py` 与 `hashmyfiles_capture_script.py`：保留 path-free rows，返回算法、文件名、精确字节数和完整摘要；按文件名拒绝缺失、重复、多出或错误算法列。
   - 验证：扩展 `tests/test_hashmyfiles_service.py`，覆盖三算法结构化结果、32/40/64 位摘要、重复行和列错误；测试数据全部标记 SYNTHETIC/TEST。
-- [ ] 修改 `packages/backend/app/repository/archive_report_metadata_repository.py` 及直接读取 Manifest 哈希的 Repository：统一通过规范 part 哈希投影 legacy `md5_hash`，禁止从兼容键名推断算法。
+- [ ] 修改 `packages/backend/app/repository/archive/archive_report_metadata_repository.py` 及直接读取 Manifest 哈希的 Repository：统一通过规范 part 哈希投影 legacy `md5_hash`，禁止从兼容键名推断算法。
   - 验证：复用归档完成草稿回填测试，覆盖新 SHA Manifest、旧 MD5 Manifest 和混合算法拒绝。
 
 ### Layer 21 — 归档、所有安全门与统一导出

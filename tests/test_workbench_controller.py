@@ -470,7 +470,7 @@ def test_http_draft_save_reports_shared_defaults_partial_success_and_current_rev
 def test_http_saved_disc_number_precedes_immediate_archive_decision(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.repository.archive_task_repository import ArchiveTaskRepository
+    from app.repository.archive.archive_task_repository import ArchiveTaskRepository
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
@@ -983,7 +983,7 @@ def test_archive_decision_endpoint_persists_deferred_and_returns_safe_queued_tas
 def test_archive_task_list_actions_history_and_safe_projection(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.repository.archive_task_repository import ArchiveTaskRepository
+    from app.repository.archive.archive_task_repository import ArchiveTaskRepository
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
@@ -1091,7 +1091,7 @@ def test_archive_task_list_actions_history_and_safe_projection(app_services):
 def test_unverified_manifest_never_projects_completed_or_result(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.repository.archive_task_repository import ArchiveTaskRepository
+    from app.repository.archive.archive_task_repository import ArchiveTaskRepository
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
@@ -1127,7 +1127,7 @@ def test_unverified_manifest_never_projects_completed_or_result(app_services):
 def test_archive_failure_detail_is_safe_and_stale_commands_conflict(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.repository.archive_task_repository import ArchiveTaskRepository
+    from app.repository.archive.archive_task_repository import ArchiveTaskRepository
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
@@ -1169,10 +1169,10 @@ def test_archive_failure_detail_is_safe_and_stale_commands_conflict(app_services
 def test_archive_mapping_and_verified_result_routes(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.repository.archive_manifest_repository import ArchiveManifestRepository
-    from app.repository.archive_plan_repository import ArchivePlanRepository
-    from app.repository.archive_publish_intent_repository import ArchivePublishIntentRepository
-    from app.repository.archive_task_repository import ArchiveTaskRepository
+    from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository
+    from app.repository.archive.archive_plan_repository import ArchivePlanRepository
+    from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
+    from app.repository.archive.archive_task_repository import ArchiveTaskRepository
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)

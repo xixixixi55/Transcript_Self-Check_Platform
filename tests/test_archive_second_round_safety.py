@@ -15,20 +15,20 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_input_repository import (  # noqa: E402
+from app.repository.archive.archive_input_repository import (  # noqa: E402
     ArchiveInputError, build_input_inventory,
 )
-from app.repository.archive_input_snapshot_repository import (  # noqa: E402
+from app.repository.archive.archive_input_snapshot_repository import (  # noqa: E402
     ArchiveInputSnapshotRepository,
 )
 from app.repository.case_workbench_repository import CaseDraftRepository  # noqa: E402
-from app.repository.archive_manifest_repository import (  # noqa: E402
+from app.repository.archive.archive_manifest_repository import (  # noqa: E402
     ArchiveManifestRepository, ArchiveManifestRepositoryError,
 )
-from app.repository.archive_publish_intent_repository import (  # noqa: E402
+from app.repository.archive.archive_publish_intent_repository import (  # noqa: E402
     ArchivePublishIntentRepository,
 )
-from app.repository.archive_task_repository import ArchiveTaskRepository  # noqa: E402
+from app.repository.archive.archive_task_repository import ArchiveTaskRepository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.archive.archive_input_snapshot_service import (  # noqa: E402
@@ -46,7 +46,7 @@ from app.services.archive.archive_publish_service import publish_staged_archive 
 from app.services.archive.archive_publication_identity_service import publication_digest  # noqa: E402
 from app.services.archive.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
 from app.services.archive.archive_task_api_service import ArchiveTaskApiService  # noqa: E402
-from app.repository.archive_attempt_restart_repository import interrupt_owned_claim  # noqa: E402
+from app.repository.archive.archive_attempt_restart_repository import interrupt_owned_claim  # noqa: E402
 
 from test_phase1d_recovery import (  # noqa: E402
     CASE_ID, SOURCE_ID, database, mark_source_available, ready_case,

@@ -7,10 +7,10 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from .workbench_errors import WorkbenchPersistenceError
-from .workbench_database import WorkbenchDatabase
-from .workbench_repository_helpers import json_text
-from .hash_algorithm_repository import manifest_part_business_hash
+from ..workbench_errors import WorkbenchPersistenceError
+from ..workbench_database import WorkbenchDatabase
+from ..workbench_repository_helpers import json_text
+from ..hash_algorithm_repository import manifest_part_business_hash
 
 
 _VERIFIED_RESULT_KEYS = ("rar_filename", "md5_hash", "file_size", "hash_algorithm")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...repository.archive_authorization_repository import (
+from ...repository.archive.archive_authorization_repository import (
     ArchiveAuthorizationError,
     ArchiveAuthorizationStore,
     AuthorizedInputRoot,

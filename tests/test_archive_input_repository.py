@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_input_repository import (  # noqa: E402
+from app.repository.archive.archive_input_repository import (  # noqa: E402
     ArchiveInputError,
     build_input_inventory,
     verify_input_inventory,
@@ -96,7 +96,7 @@ def test_injected_special_path_boundary_rejects_synthetic_link_or_reparse(tmp_pa
     source.mkdir()
     synthetic = source / "synthetic-link.bin"
     synthetic.write_bytes(b"x")
-    from app.repository import archive_input_repository as repository
+    from app.repository.archive import archive_input_repository as repository
 
     monkeypatch.setattr(
         repository,

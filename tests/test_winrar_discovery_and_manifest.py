@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_validator_repository import validate_archive_parts  # noqa: E402
+from app.repository.archive.archive_validator_repository import validate_archive_parts  # noqa: E402
 from app.repository.winrar_discovery_repository import (  # noqa: E402
     WinRarCapability,
     discover_winrar,
@@ -448,7 +448,7 @@ class TestDiscCapacityInManifest:
 
     def test_manifest_parts_receive_independent_capacity(self, tmp_path):
         """每个分卷获得自身的光盘容量，而不是档位值。"""
-        from app.repository.archive_validator_repository import (
+        from app.repository.archive.archive_validator_repository import (
             ValidatedArchivePart,
             ArchiveValidationResult,
         )
@@ -511,7 +511,7 @@ class TestDiscCapacityInManifest:
     def test_oversized_single_manifest_has_explicit_mode_without_disc_capacity(
         self, tmp_path,
     ):
-        from app.repository.archive_validator_repository import (
+        from app.repository.archive.archive_validator_repository import (
             ArchiveValidationResult,
             ValidatedArchivePart,
         )
@@ -646,7 +646,7 @@ class TestDiscCapacityInManifest:
         part2 = tmp_path / "case.part2.rar"
         part1.write_bytes(b"X" * 100)
         part2.write_bytes(b"Y" * 50)
-        from app.repository.archive_validator_repository import (
+        from app.repository.archive.archive_validator_repository import (
             ValidatedArchivePart, ArchiveValidationResult,
         )
         from app.repository.winrar_discovery_repository import WinRarCapability
@@ -697,7 +697,7 @@ class TestDiscCapacityInManifest:
         part2 = tmp_path / "case.part2.rar"
         part1.write_bytes(b"A" * 200)
         part2.write_bytes(b"B" * 100)
-        from app.repository.archive_validator_repository import (
+        from app.repository.archive.archive_validator_repository import (
             ValidatedArchivePart, ArchiveValidationResult,
         )
         from app.repository.winrar_discovery_repository import WinRarCapability

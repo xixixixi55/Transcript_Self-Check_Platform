@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from ...repository.archive_hash_repository import compute_md5_streaming
+from ...repository.archive.archive_hash_repository import compute_md5_streaming
 from ...repository.hash_algorithm_repository import manifest_part_business_hash, normalize_hash_algorithm
-from ...repository.archive_validator_repository import ArchiveValidationResult
+from ...repository.archive.archive_validator_repository import ArchiveValidationResult
 from ...repository.winrar_discovery_repository import WinRarCapability
 from ..disc_sequence_service import generate_disc_numbers, parse_disc_sequence, validate_disc_mapping
 from .archive_staging_security_service import OWNERSHIP_MARKER_NAME

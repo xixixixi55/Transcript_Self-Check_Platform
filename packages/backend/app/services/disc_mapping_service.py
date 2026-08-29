@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ..repository.archive_plan_repository import ArchivePlanRepository
+from ..repository.archive.archive_plan_repository import ArchivePlanRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from .disc_sequence_service import (
     archive_medium_for_mode, generate_disc_numbers, parse_archive_medium_sequence,

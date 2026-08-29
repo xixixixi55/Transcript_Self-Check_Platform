@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
-from .archive_task_repository import ArchiveTaskRepository
+from .archive.archive_task_repository import ArchiveTaskRepository
 from .workbench_constants import ARCHIVE_ACTIVITY_PERSIST_INTERVAL_SECONDS
 from .workbench_database import WorkbenchDatabase, normalize_utc
 from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError

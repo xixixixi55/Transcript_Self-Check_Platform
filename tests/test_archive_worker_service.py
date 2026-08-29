@@ -31,10 +31,10 @@ from app.repository.winrar_executor_repository import (  # noqa: E402
     ArchiveExecutionError, WinRarExecutor,
 )
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.repository.archive_attempt_recovery_repository import (  # noqa: E402
+from app.repository.archive.archive_attempt_recovery_repository import (  # noqa: E402
     _verified_output_metrics,
 )
-from app.repository.archive_manifest_index_repository import (  # noqa: E402
+from app.repository.archive.archive_manifest_index_repository import (  # noqa: E402
     ArchiveManifestRepositoryError,
 )
 from app.repository.runtime_paths import get_runtime_paths  # noqa: E402

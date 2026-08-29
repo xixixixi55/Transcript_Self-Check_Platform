@@ -13,7 +13,7 @@ from app.repository.winrar_executor_repository import (  # noqa: E402
     ArchiveExecutionError,
     WinRarExecutionResult,
 )
-from app.repository.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
+from app.repository.archive.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_execution_service import (  # noqa: E402
     ArchiveGateError,
@@ -226,7 +226,7 @@ def test_direct_source_execution_does_not_repeat_inventory_scan(tmp_path, monkey
 
     fake = MutatingExecutor(tmp_path / "fake-staging", lambda tier: 1)
     monkeypatch.setattr(
-        "app.repository.archive_input_repository.verify_input_inventory",
+        "app.repository.archive.archive_input_repository.verify_input_inventory",
         lambda *_args, **_kwargs: pytest.fail("archive execution repeated the input scan"),
     )
     outcome = execute_archive(

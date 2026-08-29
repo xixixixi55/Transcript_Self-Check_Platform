@@ -12,7 +12,7 @@ from ..repository.hash_algorithm_repository import (
     manifest_part_business_hash,
     normalize_hash_algorithm,
 )
-from ..repository.archive_hash_repository import compute_hash_streaming
+from ..repository.archive.archive_hash_repository import compute_hash_streaming
 
 
 def report_hash_algorithm(report: Mapping[str, Any]) -> str:

@@ -6,8 +6,8 @@ import hashlib
 import json
 from typing import Any
 
-from .workbench_database import WorkbenchDatabase, utc_now
-from .workbench_serialization import validate_opaque_id
+from ..workbench_database import WorkbenchDatabase, utc_now
+from ..workbench_serialization import validate_opaque_id
 
 
 def context_binding_hash(context_id: str) -> str:

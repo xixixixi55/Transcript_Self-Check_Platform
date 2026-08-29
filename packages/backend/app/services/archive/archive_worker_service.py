@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from ...repository.archive_manifest_index_repository import (
+from ...repository.archive.archive_manifest_index_repository import (
     ArchiveManifestRepositoryError,
 )
-from ...repository.archive_task_repository import ArchiveTaskRepository
+from ...repository.archive.archive_task_repository import ArchiveTaskRepository
 from ...repository.workbench_database import utc_now
 from ...repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
@@ -107,7 +107,7 @@ class ArchiveWorkerService:
         claim: ArchiveTaskClaim,
         attempt_service: ArchiveAttemptService,
     ) -> dict[str, Any]:
-        from ...repository.archive_attempt_restart_repository import interrupt_owned_claim
+        from ...repository.archive.archive_attempt_restart_repository import interrupt_owned_claim
 
         try:
             result = interrupt_owned_claim(

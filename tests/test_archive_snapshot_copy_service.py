@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_input_repository import (  # noqa: E402
+from app.repository.archive.archive_input_repository import (  # noqa: E402
     build_input_inventory,
 )
 from app.services.archive.archive_input_snapshot_copy_service import (  # noqa: E402

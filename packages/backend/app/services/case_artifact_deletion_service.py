@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..repository.archive_manifest_repository import ArchiveManifestRepository
+from ..repository.archive.archive_manifest_repository import ArchiveManifestRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.workbench_serialization import validate_opaque_id

@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .workbench_database import WorkbenchDatabase, normalize_utc, utc_now
-from .workbench_errors import RevisionConflictError, WorkbenchPersistenceError
-from .workbench_repository_helpers import json_text, row_json
-from .workbench_serialization import validate_opaque_id
+from ..workbench_database import WorkbenchDatabase, normalize_utc, utc_now
+from ..workbench_errors import RevisionConflictError, WorkbenchPersistenceError
+from ..workbench_repository_helpers import json_text, row_json
+from ..workbench_serialization import validate_opaque_id
 
 _KINDS = {"staging", "rar_volume", "manifest"}
 _STATUSES = {"temporary", "published", "verified", "invalid"}

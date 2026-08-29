@@ -216,7 +216,7 @@ workflow_level: 3
 ## 🟢 Phase 9: 审核提示与 Word 文案格式修正
 
 - [x] T021 **修正案件简要提示、MD5/来源/版本文案与 Word 标题格式**
-  - 文件：`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`ReviewInspectionSection.tsx`、`ExtractListEditor.tsx`、归档展示组件与相关测试；`packages/shared/utils/softwareProjectionUtils.ts`；`packages/backend/app/repository/archive_report_metadata_repository.py`；`packages/backend/app/services/report_parser_service.py`、`attachment_plan_service.py`、`archive_manifest_projection_service.py`、`archive_task_result_service.py`、`document_builder_service.py`、`template_filler_service.py` 及相关测试。
+  - 文件：`packages/frontend/src/components/ReviewIntroductionSection.tsx`、`ReviewInspectionSection.tsx`、`ExtractListEditor.tsx`、归档展示组件与相关测试；`packages/shared/utils/softwareProjectionUtils.ts`；`packages/backend/app/repository/archive/archive_report_metadata_repository.py`；`packages/backend/app/services/report_parser_service.py`、`attachment_plan_service.py`、`archive_manifest_projection_service.py`、`archive_task_result_service.py`、`document_builder_service.py`、`template_filler_service.py` 及相关测试。
   - 内容：案件简要始终提示报告解析可能不准确并需人工核对，尾部空格/换行时额外警告；用户可见及 Word 中的 MD5 统一大写；固定清单来源统一为“检材内提取”；步骤 4 只在“版本号为……”中展示具体版本；Word 主标题居中加粗，固定清单标题加粗。
   - 覆盖 Spec：REQ-032。
   - 验证：前端组件/投影定向 Vitest，后端解析/附件计划/模板填充定向 pytest，DOCX XML 与 officecli 校验、人工视觉检查，架构/类型检查及当前变更 scoped full gate。

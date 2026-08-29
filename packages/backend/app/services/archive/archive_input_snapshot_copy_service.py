@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from ...repository.archive_input_repository import (
+from ...repository.archive.archive_input_repository import (
     ArchiveInputError, InputFileSnapshot, InputInventory, build_input_inventory, verify_input_inventory,
 )
 from .archive_input_snapshot_files_service import assert_matches, assert_regular, safe_child

@@ -26,7 +26,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_input_repository import build_input_inventory  # noqa: E402
+from app.repository.archive.archive_input_repository import build_input_inventory  # noqa: E402
 from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
 from app.repository.winrar_executor_repository import (  # noqa: E402
     ArchiveExecutionError,
@@ -126,7 +126,7 @@ class TestIntegrityTimeoutViaValidator:
     """测试 validate_archive_parts()，而不只测试纯函数。"""
 
     def test_total_size_used_not_just_part1(self, tmp_path):
-        from app.repository.archive_validator_repository import validate_archive_parts
+        from app.repository.archive.archive_validator_repository import validate_archive_parts
 
         (tmp_path / "case.part1.rar").write_bytes(b"a" * 10_000)
         (tmp_path / "case.part2.rar").write_bytes(b"b" * 5_000)
@@ -137,7 +137,7 @@ class TestIntegrityTimeoutViaValidator:
             seen_bytes.append(total_bytes)
             return 99  # 任意非默认值
 
-        with mock.patch("app.repository.archive_validator_repository.compute_integrity_timeout", side_effect=fake_timeout):
+        with mock.patch("app.repository.archive.archive_validator_repository.compute_integrity_timeout", side_effect=fake_timeout):
             def ok_runner(*a, **kw):
                 return subprocess.CompletedProcess(a if a else ["t"], 0, "", "")
             result = validate_archive_parts(tmp_path, plan, capability(), integrity_runner=ok_runner)
@@ -148,7 +148,7 @@ class TestIntegrityTimeoutViaValidator:
             assert seen_bytes[0] != 10_000
 
     def test_integrity_timeout_returns_distinct_code(self, tmp_path):
-        from app.repository.archive_validator_repository import validate_archive_parts
+        from app.repository.archive.archive_validator_repository import validate_archive_parts
 
         (tmp_path / "case.part1.rar").write_bytes(b"x" * 100)
         plan = SimpleNamespace(archive_base_name="case", volume_size_bytes=4_000_000_000, max_part_count=1)
@@ -627,7 +627,7 @@ class TestIntegrityTimeoutContractChain:
         assert "完整性校验" in msg
 
     def test_not_confused_with_corruption(self):
-        from app.repository.archive_validator_repository import _invalid
+        from app.repository.archive.archive_validator_repository import _invalid
         t = _invalid("ARCHIVE_INTEGRITY_TIMEOUT", "超时")
         c = _invalid("ARCHIVE_PARTS_INVALID", "损坏")
         assert t.diagnostic_code != c.diagnostic_code

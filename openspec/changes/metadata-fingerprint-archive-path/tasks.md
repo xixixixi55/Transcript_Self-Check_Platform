@@ -49,7 +49,7 @@ workflow_level: 2
   - 验证：`npm run verify:quick`、受影响后端测试、`npx tsx scripts/check-docs.ts --strict --change metadata-fingerprint-archive-path`、`git diff --check`。
 
 - [x] T009 消除大目录审核入口与归档执行的重复全量扫描。
-  - 文件：`packages/backend/app/services/source_record_fingerprint_service.py`、`packages/backend/app/services/source_record_service.py`、`packages/backend/app/services/archive/archive_task_api_service.py`、`packages/backend/app/services/archive/archive_runtime_service.py`、`packages/backend/app/services/archive/archive_execution_service.py`、`packages/backend/app/services/archive/archive_manifest_access_service.py`、`packages/backend/app/repository/archive_input_repository.py`、`packages/backend/app/controllers/workbench_controller.py` 及对应测试。
+  - 文件：`packages/backend/app/services/source_record_fingerprint_service.py`、`packages/backend/app/services/source_record_service.py`、`packages/backend/app/services/archive/archive_task_api_service.py`、`packages/backend/app/services/archive/archive_runtime_service.py`、`packages/backend/app/services/archive/archive_execution_service.py`、`packages/backend/app/services/archive/archive_manifest_access_service.py`、`packages/backend/app/repository/archive/archive_input_repository.py`、`packages/backend/app/controllers/workbench_controller.py` 及对应测试。
   - 内容：按产品确认的短生命周期案件边界，将来源复核收敛为授权路径、报告结构与核心报告文件身份检查；解析完成后不再递归扫描全部媒体文件。归档提交快速进入后台，直接源归档只构建一次完整输入 inventory，随后依赖 WinRAR 完整性、RAR MD5 与 Manifest 校验，不再执行独立来源复核和压缩前后重复 inventory。
   - 验证：SYNTHETIC 回归覆盖核心报告变化、深层媒体不触发审核入口递归扫描、归档提交仅复核一次、归档执行不重复扫描、工作台请求并发可用和输出完整性门；定向后端 79 passed，前端 20 passed，inventory/历史快照兼容 23 passed/2 skipped。用户指定目录只读基准确认来源复核收敛为毫秒级、后台唯一 inventory 较旧实现明显缩短；真实样本路径、名称、内容和统计未写入仓库。
 

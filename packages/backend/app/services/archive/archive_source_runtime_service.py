@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Callable
 from uuid import uuid4
 
-from ...repository.archive_authorization_repository import AuthorizedInputRoot
+from ...repository.archive.archive_authorization_repository import AuthorizedInputRoot
 from ...repository.filesystem_identity_repository import normalized_directory_key
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
 

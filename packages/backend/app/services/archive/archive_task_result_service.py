@@ -6,11 +6,11 @@ from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
 
-from ...repository.archive_asset_repository import ArchiveAssetRepository
-from ...repository.archive_manifest_repository import ArchiveManifestRepository
-from ...repository.archive_plan_repository import ArchivePlanRepository
-from ...repository.archive_publish_intent_repository import ArchivePublishIntentRepository
-from ...repository.archive_task_repository import ArchiveTaskRepository
+from ...repository.archive.archive_asset_repository import ArchiveAssetRepository
+from ...repository.archive.archive_manifest_repository import ArchiveManifestRepository
+from ...repository.archive.archive_plan_repository import ArchivePlanRepository
+from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
+from ...repository.archive.archive_task_repository import ArchiveTaskRepository
 from ...repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_manifest_service import validate_manifest_files, validate_manifest_metadata

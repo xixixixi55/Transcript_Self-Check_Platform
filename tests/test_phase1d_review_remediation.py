@@ -18,9 +18,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository import AssetReferenceRepository, CaseDraftRepository, CaseShellRepository  # noqa: E402
 from app.repository.case_archive_decision_repository import CaseArchiveDecisionRepository  # noqa: E402
-from app.repository.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
-from app.repository.archive_manifest_repository import ArchiveManifestRepositoryError  # noqa: E402
-from app.repository.archive_publish_intent_repository import ArchivePublishIntentRepository  # noqa: E402
+from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
+from app.repository.archive.archive_manifest_repository import ArchiveManifestRepositoryError  # noqa: E402
+from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository  # noqa: E402
 from app.repository.source_record_repository import SourceRecordRepository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402

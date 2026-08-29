@@ -11,16 +11,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
-from ...repository.archive_attempt_repository import ArchiveAttemptRepository
-from ...repository.archive_attempt_restart_repository import interrupt_attempt
-from ...repository.archive_preparation_repository import ArchivePreparationRepository
-from ...repository.archive_context_binding_repository import (
+from ...repository.archive.archive_attempt_repository import ArchiveAttemptRepository
+from ...repository.archive.archive_attempt_restart_repository import interrupt_attempt
+from ...repository.archive.archive_preparation_repository import ArchivePreparationRepository
+from ...repository.archive.archive_context_binding_repository import (
     find_active_binding_for_attempt,
     find_binding,
     report_fingerprint,
 )
-from ...repository.archive_publish_fence_repository import get as get_fence
-from ...repository.archive_publish_intent_repository import ArchivePublishIntentRepository
+from ...repository.archive.archive_publish_fence_repository import get as get_fence
+from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ...repository.source_record_repository import SourceRecordRepository
 from ...repository.workbench_database import WorkbenchDatabase, utc_now
@@ -354,7 +354,7 @@ class ArchiveAttemptService:
             pass
 
     def _publish_intent(self, attempt_id: str) -> dict[str, Any] | None:
-        from ...repository.archive_publish_intent_repository import ArchivePublishIntentRepository
+        from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
         return ArchivePublishIntentRepository(self.database).get_for_attempt(attempt_id)
 
     def _attempt_for_final_dir(self, final_dir: Path) -> str | None:

@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_authorization_repository import (  # noqa: E402
+from app.repository.archive.archive_authorization_repository import (  # noqa: E402
     ArchiveAuthorizationError,
     ArchiveAuthorizationStore,
 )
@@ -154,7 +154,7 @@ def test_reparse_point_is_rejected_at_any_path_level(tmp_path, monkeypatch, sour
     store, upload = make_store(tmp_path)
     case = upload / "case"
     case.mkdir()
-    from app.repository import archive_authorization_repository as repository
+    from app.repository.archive import archive_authorization_repository as repository
 
     monkeypatch.setattr(repository, "_is_reparse_point", lambda path: path == case)
     with pytest.raises(ArchiveAuthorizationError) as error:
@@ -167,7 +167,7 @@ def test_injected_symlink_boundary_is_rejected_without_os_link_creation(tmp_path
     store, upload = make_store(tmp_path)
     case = upload / "case"
     case.mkdir()
-    from app.repository import archive_authorization_repository as repository
+    from app.repository.archive import archive_authorization_repository as repository
 
     monkeypatch.setattr(repository, "_is_unsafe_special_path", lambda path: path == case)
     with pytest.raises(ArchiveAuthorizationError) as error:

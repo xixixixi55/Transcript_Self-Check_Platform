@@ -8,8 +8,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..repository.audit_event_repository import AuditEventRepository
-from ..repository.archive_task_repository import ArchiveTaskRepository
-from ..repository.archive_report_metadata_repository import (
+from ..repository.archive.archive_task_repository import ArchiveTaskRepository
+from ..repository.archive.archive_report_metadata_repository import (
     is_archive_completion_revision,
     preserve_verified_archive_projection,
 )

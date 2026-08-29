@@ -22,7 +22,7 @@ from app.repository import (  # noqa: E402
     TaskRecordRepository,
     WorkbenchDatabase,
 )
-from app.repository.archive_publish_intent_repository import ArchivePublishIntentRepository  # noqa: E402
+from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository  # noqa: E402
 from app.repository.retention_policy_config import parse_retention_environment  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 from app.repository.workbench_constants import WORKBENCH_SCHEMA_VERSION  # noqa: E402

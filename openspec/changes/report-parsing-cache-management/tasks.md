@@ -43,7 +43,7 @@ spec_sync_evidence: T9 现行规格同步；openspec/specs/electronic-inspection
   - 验证：pytest 覆盖原子写入、损坏/旧版本清理、稳定 LRU、并发写保护、清空只删除 `parsed` 内容。
 
 - [x] **T4 实现独立 ArchiveManifest/RAR 登记仓储**
-  - 文件：`packages/backend/app/repository/archive_manifest_repository.py`
+  - 文件：`packages/backend/app/repository/archive/archive_manifest_repository.py`
   - 验证：pytest 覆盖登记持久化、按目录/输入/归档指纹查找、RAR/Manifest 文件保留及旧登记失效标记，不删除归档文件。
 
 ### Layer 21：业务服务与阶段 1 解析/归档接入

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ...repository.archive_task_repository import ArchiveTaskRepository
+from ...repository.archive.archive_task_repository import ArchiveTaskRepository
 from ...repository.resource_snapshot_repository import ResourceSnapshotRepository
 from ...repository.workbench_errors import WorkbenchPersistenceError
 

@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.main import app
 from app.config import OUTPUT_BASE
-from app.repository.archive_authorization_repository import ArchiveAuthorizationStore
+from app.repository.archive.archive_authorization_repository import ArchiveAuthorizationStore
 from app.services.archive.archive_execution_service import ArchiveExecutionOutcome
 from app.services.archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
 from app.services.archive import archive_source_runtime_service

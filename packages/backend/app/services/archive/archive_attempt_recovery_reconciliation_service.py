@@ -8,13 +8,13 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ...repository.archive_input_snapshot_repository import ArchiveInputSnapshotRepository
-from ...repository.archive_attempt_restart_repository import normalize_runtime_after_restart
-from ...repository.archive_manifest_repository import (
+from ...repository.archive.archive_input_snapshot_repository import ArchiveInputSnapshotRepository
+from ...repository.archive.archive_attempt_restart_repository import normalize_runtime_after_restart
+from ...repository.archive.archive_manifest_repository import (
     ArchiveManifestRepository, ArchiveManifestRepositoryError,
 )
-from ...repository.archive_publish_intent_repository import ArchivePublishIntentRepository
-from ...repository.archive_publish_fence_repository import normalize_active_for_restart, set_status
+from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
+from ...repository.archive.archive_publish_fence_repository import normalize_active_for_restart, set_status
 from ...repository.workbench_database import WorkbenchDatabase
 from ...repository.workbench_errors import WorkbenchPersistenceError
 from .archive_input_snapshot_files_service import (

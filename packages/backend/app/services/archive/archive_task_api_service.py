@@ -6,9 +6,9 @@ import secrets
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ...repository.archive_asset_repository import ArchiveAssetRepository
-from ...repository.archive_plan_repository import ArchivePlanRepository
-from ...repository.archive_task_repository import ArchiveTaskRepository
+from ...repository.archive.archive_asset_repository import ArchiveAssetRepository
+from ...repository.archive.archive_plan_repository import ArchivePlanRepository
+from ...repository.archive.archive_task_repository import ArchiveTaskRepository
 from ...repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ...repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ...repository.workbench_database import WorkbenchDatabase, utc_now
@@ -88,7 +88,7 @@ class ArchiveTaskApiService:
                 self.runtime.unregister(task_id)
             if "task" in locals() and "attempt" in locals():
                 try:
-                    from ...repository.archive_runtime_context_lease_repository import (
+                    from ...repository.archive.archive_runtime_context_lease_repository import (
                         interrupt_queued_runtime_context,
                     )
                     interrupt_queued_runtime_context(

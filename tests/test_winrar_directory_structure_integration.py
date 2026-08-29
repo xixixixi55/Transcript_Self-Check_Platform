@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.repository.archive_input_repository import build_input_inventory  # noqa: E402
+from app.repository.archive.archive_input_repository import build_input_inventory  # noqa: E402
 from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
 from app.repository.winrar_executor_repository import WinRarExecutor  # noqa: E402
 

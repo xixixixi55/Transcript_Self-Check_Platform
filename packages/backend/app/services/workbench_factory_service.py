@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Callable
 
 from ..config import ARCHIVE_OUTPUT_BASE, OUTPUT_BASE, UPLOAD_BASE
-from ..repository.archive_storage_settings_repository import ArchiveStorageSettingsRepository
+from ..repository.archive.archive_storage_settings_repository import ArchiveStorageSettingsRepository
 from ..repository.workbench_database import WorkbenchDatabase, database_path_for_deployment
-from ..repository.archive_task_repository import ArchiveTaskRepository
+from ..repository.archive.archive_task_repository import ArchiveTaskRepository
 from ..repository.local_directory_history_repository import LocalDirectoryHistoryRepository
 from ..repository.local_inspection_environment_repository import LocalInspectionEnvironmentRepository
 from ..repository.resource_snapshot_repository import ResourceSnapshotRepository

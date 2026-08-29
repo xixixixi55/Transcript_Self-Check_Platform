@@ -139,7 +139,7 @@ def test_unavailable_io_gate_is_skipped_but_other_admission_gates_remain() -> No
 
 def test_scheduler_can_claim_with_unavailable_optional_io_metric(database) -> None:
     """调度器不得因缺少可选指标而永久等待。"""
-    from app.repository.archive_task_repository import ArchiveTaskRepository
+    from app.repository.archive.archive_task_repository import ArchiveTaskRepository
     from app.services.archive.archive_scheduler_service import ArchiveSchedulerService
 
     tasks = ArchiveTaskRepository(database)
