@@ -313,6 +313,8 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const [history, setHistory] = useState(projection.history)
   const [historyCaseId, setHistoryCaseId] = useState(input.caseId)
   const [selectedActionId, setSelectedActionId] = useState(projection.allActions[0]?.id || '')
+  const [previousAction, setPreviousAction] = useState<GuidedReviewAction | null>(null)
+  const [revisitedAction, setRevisitedAction] = useState<GuidedReviewAction | null>(null)
   const retainedAction = useRef({
     caseId: input.caseId,
     action: projection.allActions[0] || null as GuidedReviewAction | null,
@@ -329,11 +331,13 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const projectedSelectedAction = projection.allActions.find(action => action.id === selectedActionId)
   const retainedForCase = retainedAction.current.caseId === input.caseId
     ? retainedAction.current.action : null
-  const currentAction = !projectedSelectedAction
+  const baseCurrentAction = !projectedSelectedAction
     && retainedForCase?.id === selectedActionId
     && retainedForCase.advanceOnEnter
     ? retainedForCase
     : projectedSelectedAction || projection.allActions[0] || null
+  const currentAction = revisitedAction || baseCurrentAction
+  const previousBaseAction = useRef({ caseId: input.caseId, action: baseCurrentAction })
   const selectedPendingId = currentAction?.advanceOnEnter ? currentAction.pendingItem?.id : undefined
   const appendCompletedHistory = useCallback((items: ReviewPendingItem[]) => {
     if (!items.length) return
@@ -348,14 +352,32 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   }, [])
 
   useEffect(() => {
-    retainedAction.current = { caseId: input.caseId, action: currentAction }
-  }, [currentAction, input.caseId])
+    retainedAction.current = { caseId: input.caseId, action: baseCurrentAction }
+  }, [baseCurrentAction, input.caseId])
+
+  useEffect(() => {
+    const previous = previousBaseAction.current
+    if (previous.caseId !== input.caseId) {
+      previousBaseAction.current = { caseId: input.caseId, action: baseCurrentAction }
+      setPreviousAction(null)
+      setRevisitedAction(null)
+      return
+    }
+    if (previous.action?.kind === 'pending_item'
+      && previous.action.id !== baseCurrentAction?.id
+      && !projection.allActions.some(action => action.id === previous.action?.id)) {
+      setPreviousAction(previous.action)
+    }
+    previousBaseAction.current = { caseId: input.caseId, action: baseCurrentAction }
+  }, [baseCurrentAction, input.caseId, projection.allActions])
 
   useEffect(() => {
     if (historyCaseId !== input.caseId) {
       setHistoryCaseId(input.caseId)
       setHistory(projection.history)
       setSelectedActionId(projection.allActions[0]?.id || '')
+      setPreviousAction(null)
+      setRevisitedAction(null)
       return
     }
     setHistory(current => {
@@ -425,10 +447,10 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     }
   }, [input.caseId, input.leaseState, input.photoState, input.saveState])
 
-  const allActions = useMemo(() => currentAction?.advanceOnEnter
-    && !projection.allActions.some(action => action.id === currentAction.id)
-    ? [currentAction, ...projection.allActions]
-    : projection.allActions, [currentAction, projection.allActions])
+  const allActions = useMemo(() => baseCurrentAction?.advanceOnEnter
+    && !projection.allActions.some(action => action.id === baseCurrentAction.id)
+    ? [baseCurrentAction, ...projection.allActions]
+    : projection.allActions, [baseCurrentAction, projection.allActions])
   const finalizeRetainedAction = useCallback(() => {
     if (!currentAction?.advanceOnEnter) return
     if (projection.allActions.some(action => action.id === currentAction.id)) return
@@ -437,15 +459,33 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const selectAction = useCallback((actionId: string) => {
     const action = allActions.find(candidate => candidate.id === actionId)
     if (!action) return
-    if (action.id !== currentAction?.id) finalizeRetainedAction()
+    if (action.id !== currentAction?.id) {
+      if (currentAction?.kind === 'pending_item') setPreviousAction(currentAction)
+      finalizeRetainedAction()
+    }
+    setRevisitedAction(null)
     setSelectedActionId(action.id)
   }, [allActions, currentAction?.id, finalizeRetainedAction])
   const confirmCurrentAction = useCallback(() => {
     if (!currentAction?.advanceOnEnter) return
+    if (revisitedAction) {
+      setRevisitedAction(null)
+      setSelectedActionId(projection.allActions[0]?.id || '')
+      return
+    }
     if (projection.allActions.some(action => action.id === currentAction.id)) return
     finalizeRetainedAction()
     setSelectedActionId(projection.allActions[0]?.id || '')
-  }, [currentAction, finalizeRetainedAction, projection.allActions])
+  }, [currentAction, finalizeRetainedAction, projection.allActions, revisitedAction])
 
-  return { ...projection, allActions, history, currentAction, selectAction, confirmCurrentAction }
+  const returnToPreviousAction = useCallback(() => {
+    if (previousAction) setRevisitedAction(previousAction)
+  }, [previousAction])
+  const returnToCurrentAction = useCallback(() => setRevisitedAction(null), [])
+
+  return {
+    ...projection, allActions, history, currentAction, previousAction,
+    isReviewingPrevious: Boolean(revisitedAction), selectAction, confirmCurrentAction,
+    returnToPreviousAction, returnToCurrentAction,
+  }
 }

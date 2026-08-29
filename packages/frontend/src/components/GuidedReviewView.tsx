@@ -1,6 +1,6 @@
 import {
-  CheckCircleOutlined, EditOutlined, FileDoneOutlined, HomeOutlined,
-  SafetyCertificateOutlined, UnorderedListOutlined,
+  ArrowLeftOutlined, ArrowRightOutlined, CheckCircleOutlined, EditOutlined, FileDoneOutlined, HomeOutlined,
+  SafetyCertificateOutlined, SwapOutlined, UnorderedListOutlined,
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -19,6 +19,10 @@ interface Props {
   hasResponse: boolean
   onSelectAction: (actionId: string) => void
   onConfirmCurrentAction?: () => void
+  canReturnToPrevious?: boolean
+  isReviewingPrevious?: boolean
+  onReturnToPreviousAction?: () => void
+  onReturnToCurrentAction?: () => void
   summary: React.ReactNode
   onOpenFullEditor: () => void
   onBackToWorkbench: () => void
@@ -28,6 +32,11 @@ interface Props {
 interface CompletedTurn {
   actionId: string
   reply: string
+}
+
+interface SwitchedTurn {
+  from: string
+  to: string
 }
 
 type ActionStatusTone = 'current' | 'pending' | 'warning' | 'system' | 'success'
@@ -76,6 +85,12 @@ function completedReply(action: GuidedReviewAction): string | null {
   return null
 }
 
+function actionConversationLabel(action: GuidedReviewAction): string {
+  if (action.kind === 'pending_item') return action.pendingItem?.fieldLabel || action.title
+  if (action.kind === 'archive_decision') return '压缩时机'
+  return action.title.replace(/^请(?:先)?/, '').replace(/[。！？!?]$/, '')
+}
+
 function assistantHandoff(reply: string, nextAction: GuidedReviewAction | null): string {
   if (!nextAction) return `已确认：${reply}。当前需要办理的事项已经处理完毕。`
   if (nextAction.kind === 'waiting') return `已确认：${reply}。后台任务还在继续，我会在这里同步进展。`
@@ -85,13 +100,19 @@ function assistantHandoff(reply: string, nextAction: GuidedReviewAction | null):
 
 export function GuidedReviewView({
   conversationKey, history, currentAction, allActions, hasResponse, onSelectAction, summary,
-  onConfirmCurrentAction, onOpenFullEditor, onBackToWorkbench, children,
+  onConfirmCurrentAction, canReturnToPrevious = false, isReviewingPrevious = false,
+  onReturnToPreviousAction, onReturnToCurrentAction, onOpenFullEditor, onBackToWorkbench, children,
 }: Props) {
   const [openPanel, setOpenPanel] = useState<'pending' | 'summary' | null>(null)
   const [avatarUnavailable, setAvatarUnavailable] = useState(false)
   const [completedTurn, setCompletedTurn] = useState<CompletedTurn | null>(null)
+  const [switchedTurn, setSwitchedTurn] = useState<SwitchedTurn | null>(null)
+  const [mascotMotionActive, setMascotMotionActive] = useState(() => (
+    typeof document === 'undefined' || document.visibilityState !== 'hidden'
+  ))
   const previousActionRef = useRef<GuidedReviewAction | null>(currentAction)
   const previousConversationKeyRef = useRef(conversationKey)
+  const mascotRef = useRef<HTMLDivElement>(null)
   const scrollRegionRef = useRef<HTMLDivElement>(null)
   const conversationRef = useRef<HTMLElement>(null)
   const positionedConversationKeyRef = useRef<string | null>(null)
@@ -107,17 +128,51 @@ export function GuidedReviewView({
       previousConversationKeyRef.current = conversationKey
       previousActionRef.current = currentAction
       setCompletedTurn(null)
+      setSwitchedTurn(null)
       return
     }
 
     const previousAction = previousActionRef.current
     if (previousAction && previousAction.id !== currentAction?.id) {
       const previousStillPending = allActions.some(action => action.id === previousAction.id)
-      const reply = previousStillPending ? null : completedReply(previousAction)
-      setCompletedTurn(reply ? { actionId: previousAction.id, reply } : null)
+      const switchedToAction = previousStillPending && currentAction
+        && !['waiting', 'ready'].includes(currentAction.kind)
+      if (switchedToAction) {
+        setCompletedTurn(null)
+        setSwitchedTurn({
+          from: actionConversationLabel(previousAction),
+          to: actionConversationLabel(currentAction),
+        })
+      } else {
+        const reply = previousStillPending ? null : completedReply(previousAction)
+        setSwitchedTurn(null)
+        setCompletedTurn(reply ? { actionId: previousAction.id, reply } : null)
+      }
     }
     previousActionRef.current = currentAction
   }, [allActions, conversationKey, currentAction])
+
+  useEffect(() => {
+    const mascot = mascotRef.current
+    if (!mascot) return
+
+    let inViewport = true
+    const syncMotionState = () => {
+      setMascotMotionActive(document.visibilityState !== 'hidden' && inViewport)
+    }
+    const observer = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([entry]) => {
+      inViewport = entry?.isIntersecting ?? true
+      syncMotionState()
+    }, { threshold: 0.05 })
+
+    observer?.observe(mascot)
+    document.addEventListener('visibilitychange', syncMotionState)
+    syncMotionState()
+    return () => {
+      observer?.disconnect()
+      document.removeEventListener('visibilitychange', syncMotionState)
+    }
+  }, [])
 
   useLayoutEffect(() => {
     const scrollRegion = scrollRegionRef.current
@@ -168,11 +223,16 @@ export function GuidedReviewView({
         <GuidedReviewHistory items={history} />
         <section ref={conversationRef} className="guided-review-conversation" role="region" aria-label="当前对话">
         <div className="guided-review-conversation__body">
-          <div className="guided-review-conversation__mascot" aria-hidden>
-            {avatarUnavailable ? <SafetyCertificateOutlined /> : (
-              <img src={xiezhiAssistantImage} alt="" width={256} height={256}
-                draggable={false} onError={() => setAvatarUnavailable(true)} />
-            )}
+          <div ref={mascotRef}
+            className={`guided-review-conversation__mascot${mascotMotionActive ? ' is-motion-active' : ''}`}
+            data-motion-state={mascotMotionActive ? 'active' : 'paused'} aria-hidden>
+            <span key={currentAction?.id || 'guided-review-empty'}
+              className="guided-review-conversation__mascot-figure" data-action-id={currentAction?.id}>
+              {avatarUnavailable ? <SafetyCertificateOutlined /> : (
+                <img src={xiezhiAssistantImage} alt="" width={256} height={256}
+                  draggable={false} onError={() => setAvatarUnavailable(true)} />
+              )}
+            </span>
           </div>
           <div className="guided-review-conversation__content">
             <article className="guided-review-card">
@@ -199,6 +259,13 @@ export function GuidedReviewView({
                       <span>{assistantHandoff(completedTurn.reply, currentAction)}</span>
                     </p>
                   )}
+                  {switchedTurn && (
+                    <p className="guided-review-turn__acknowledgement guided-review-turn__acknowledgement--switch"
+                      aria-label="事项切换说明">
+                      <SwapOutlined aria-hidden />
+                      <span>{`好的，先处理“${switchedTurn.to}”。“${switchedTurn.from}”仍保留在待办中，之后可以继续。`}</span>
+                    </p>
+                  )}
                   <div key={currentAction?.id || 'guided-review-empty'} className="guided-review-card__message" role="status"
                     aria-label="獬豸助手提示" aria-atomic="true">
                     <h3>{currentAction?.title || '请稍候，正在整理下一步'}</h3>
@@ -206,8 +273,24 @@ export function GuidedReviewView({
                   </div>
                 </div>
               </div>
+              {(canReturnToPrevious || isReviewingPrevious) && (
+                <div className="guided-review-step-navigation" aria-label="步骤导航">
+                  {isReviewingPrevious ? (
+                    <Button type="text" icon={<ArrowRightOutlined />} aria-label="返回当前步骤"
+                      onClick={onReturnToCurrentAction}>
+                      返回当前步骤
+                    </Button>
+                  ) : (
+                    <Button type="text" icon={<ArrowLeftOutlined />} aria-label="返回上一步"
+                      onClick={onReturnToPreviousAction}>
+                      返回上一步
+                    </Button>
+                  )}
+                </div>
+              )}
               {hasResponse && (
-                <div className="guided-review-card__response" role="group" aria-label={responseLabel}
+                <div key={`response-${currentAction?.id || 'empty'}`} data-action-id={currentAction?.id}
+                  className="guided-review-card__response" role="group" aria-label={responseLabel}
                   onFocusCapture={() => {
                     if (currentAction?.advanceOnEnter) onSelectAction(currentAction.id)
                   }}

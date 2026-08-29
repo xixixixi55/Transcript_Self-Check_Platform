@@ -135,6 +135,14 @@ describe('guided review projection', () => {
 
     act(() => result.current.selectAction('source-recovery'))
     expect(result.current.currentAction?.kind).toBe('source_recovery')
+    expect(result.current.previousAction?.pendingItem?.fieldLabel).toBe('文号')
+
+    act(() => result.current.returnToPreviousAction())
+    expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('文号')
+    expect(result.current.isReviewingPrevious).toBe(true)
+
+    act(() => result.current.returnToCurrentAction())
+    expect(result.current.currentAction?.kind).toBe('source_recovery')
 
     rerender({ input: buildInput() })
     expect(result.current.history.some(item => item.title === '文号已完成')).toBe(true)
@@ -158,6 +166,51 @@ describe('guided review projection', () => {
     expect(result.current.currentAction?.id).not.toBe(documentActionId)
     expect(result.current.allActions.some(action => action.id === documentActionId)).toBe(false)
     expect(result.current.history.some(item => item.title === '文号已完成')).toBe(true)
+  })
+
+  it('returns to the prior pending field after switching to the photo action', () => {
+    const report = {
+      ...syntheticReport,
+      document_number: '',
+      attachments: { ...syntheticReport.attachments, photo_ids: [] },
+    }
+    const { result } = renderHook(() => useGuidedReviewCards(buildInput(report)))
+    const photoAction = result.current.allActions.find(
+      action => action.pendingItem?.targetId === REVIEW_TARGET_IDS.photos,
+    )
+    expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('文号')
+    expect(photoAction).toBeTruthy()
+
+    act(() => result.current.selectAction(photoAction!.id))
+    expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('检材照片')
+    expect(result.current.previousAction?.pendingItem?.fieldLabel).toBe('文号')
+
+    act(() => result.current.returnToPreviousAction())
+    expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('文号')
+  })
+
+  it('keeps the previous completed action available for session-only step navigation', () => {
+    const initial = buildInput({ ...syntheticReport, document_number: '' })
+    const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
+      initialProps: { input: initial },
+    })
+    const documentActionId = result.current.currentAction?.id
+
+    rerender({ input: buildInput({ ...syntheticReport, document_number: 'SYN-TEST〔2026〕009号' }) })
+    act(() => result.current.confirmCurrentAction())
+
+    const nextActionId = result.current.currentAction?.id
+    expect(nextActionId).not.toBe(documentActionId)
+    expect(result.current.previousAction?.id).toBe(documentActionId)
+
+    act(() => result.current.returnToPreviousAction())
+    expect(result.current.currentAction?.id).toBe(documentActionId)
+    expect(result.current.isReviewingPrevious).toBe(true)
+    expect(result.current.allActions.some(action => action.id === documentActionId)).toBe(false)
+
+    act(() => result.current.returnToCurrentAction())
+    expect(result.current.currentAction?.id).toBe(nextActionId)
+    expect(result.current.isReviewingPrevious).toBe(false)
   })
 
   it('phrases every current action as an explicit assistant prompt', () => {

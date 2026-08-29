@@ -94,6 +94,14 @@ workflow_level: 2
   - 验证：先以 Hook/组件失败用例区分“输入单字符仍停留”“Enter 后推进”“输入法组合态 Enter 不推进”和“Shift+Enter 不推进”；再运行引导定向测试、类型检查、生产构建、Impeccable 检测、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
 - [x] 6.20 根据检材完整性反馈提供图标化双向选择：引导卡片同时显示“完整”和“不完整”两个具名图标操作；选择完整继续复用现有确认回调，选择不完整则留在当前对话窗口内展开既有检材编辑器，使用户通过原有“添加检材”能力手工补充，不复制检材状态、保存或编辑逻辑。
   - 验证：先以组件与页面失败用例区分两个图标、可访问名称、完整确认回调，以及不完整后仍保留当前对话并出现“添加检材”入口；实现后运行引导组件/页面定向测试、类型检查、Impeccable 检测、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+- [x] 6.21 根据步骤导航反馈为獬豸助手补充“返回上一步”：当前结构化事项完成并推进后，在本次页面会话保留上一轮动作快照；用户可返回原控件核对或修改，并可返回最新当前步骤。该导航不得回滚已保存草稿、把已完成项重新计入待处理数、持久化会话轨迹或复制字段校验。
+  - 验证：先以 Hook/组件失败用例区分完成后无入口、返回上一轮动作和恢复当前步骤；再运行引导 Hook/组件/页面定向测试、类型检查、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+- [x] 6.21a 修复“全部当前事项”切换后仍缺少返回入口并提高可发现性：从一个结构化事项进入另一个当前事项时同样记录来源步骤，不要求来源项先完成或消失；步骤按钮移动到助手提示与回复控件之间，图片上传等高内容不得把它推到回复区之后。
+
+- [x] 6.22 根据“对话过程僵硬”反馈增加真实的事项切换承接和克制的方向动效：用户主动切换仍待处理事项时，獬豸助手说明当前先处理项和仍保留的来源项；助手消息与回复控件使用相反方向的短暂进入动效，不伪造输入、思考或等待。
+  - 验证：以用户截图对应的“多个待办中切换到检材照片”路径补 Hook/组件失败用例，断言仍待处理的来源项可返回、可恢复最新当前项，且按钮在回复控件之前；运行引导定向测试、页面回归、类型检查、Impeccable 检测及 Level 2 门控。
+- [x] 6.23 为獬豸助手形象增加克制的生命感：角色可见时以长间隔、低幅度呼吸，当前事项变化时点头一次；页面隐藏、角色离开视口或用户选择减少动态效果时停止非必要运动，不改变布局和业务状态。
+  - 验证：先以组件失败用例区分事项变化前后的角色动作身份；实施后运行引导组件定向测试、前端类型检查、Impeccable 检测及 Level 2 门控。
 
 ## 当前状态
 
@@ -213,3 +221,29 @@ workflow_level: 2
 - `evidence_completeness_quality: PASS_WITH_EXISTING_FINDINGS`：TypeScript、`verify:quick`、OpenSpec change strict validate 与 `git diff --check` 通过；Impeccable 单次检测只报告 `reviewWorkspace.css` 中本次差异外的既有侧边强调线与 `width` 过渡告警。
 - `evidence_completeness_manual_acceptance: N/A`：本次图标、44px 操作目标、对话模式保持和内嵌编辑器呈现均由组件/页面 DOM 回归、类型检查与机械检测覆盖；未改变既有检材编辑器的布局或字段交互。
 - `evidence_completeness_browser_visual: N/A`：本地隔离启动时默认工作台数据库为只读，无法在不接触用户现有案件数据的前提下形成合成案件实页；已停止临时服务，不以读取或修改现有案件替代合成验收。
+
+## 2026-08-29 返回上一步证据
+
+- `previous_step_contract: PASS`：结构化事项完成推进后只在当前页面会话保留上一轮动作快照；“返回上一步”复用原 `GuidedReviewCard` 和报告更新链路，“返回当前步骤”恢复最新动态动作，已完成动作不重新进入待处理列表或数量。
+- `previous_step_targeted_tests: PASS`：先得到缺少会话导航与按钮的失败证据；实施后 `useGuidedReviewCards.test.ts` 11/11、`GuidedReviewView.test.tsx` 6/6、`CaseRecordGeneratePage.test.tsx` 20/20 通过，覆盖返回上一轮、恢复当前步骤、案件切换清理和待处理数量不回退。
+- `previous_step_visibility_regression: PASS`：针对用户截图对应的“文号仍待处理时从全部事项切换到检材照片”补充区分用例，证明来源项不必先完成即可返回；组件 DOM 断言按钮位于助手提示之后、回复控件之前，不再被高图片上传内容推到回复区末尾。
+- `previous_step_accessibility: PASS_WITH_EXISTING_FINDINGS`：两个导航按钮具有稳定中文可访问名称和 44px 最小高度；Impeccable 单次检测仅报告 `reviewWorkspace.css` 第 167、314 行两处本次范围外既有告警。
+- `previous_step_manual_acceptance: N/A`：本次沿用既有对话容器和 Ant Design 文本按钮，仅增加单行自适应导航；桌面/窄屏可达性、按钮名称、触控高度与往返行为均由组件 DOM、页面集成和机械检测覆盖。
+- `previous_step_gates: PASS`：前端类型检查、`npm run verify:quick`、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 全部通过；页面测试仅保留既有 jsdom `getComputedStyle` 与 React `act` 警告。
+- `previous_step_visibility_gates: PASS_WITH_EXISTING_FINDINGS`：截图回归修复后再次通过 `verify:quick`、scoped strict docs、OpenSpec change strict validate 与定向页面回归；Impeccable 仍仅命中 `reviewWorkspace.css` 第 167、314 行两处本次范围外既有告警。
+
+## 2026-08-29 对话灵动性证据
+
+- `conversation_switch_handoff: PASS`：用户从一个仍待处理事项切换到另一个时，助手使用两项的业务标签说明“先处理当前项、来源项仍保留”，不生成完成回执、不复制用户输入，也不新增持久化对话事实。
+- `conversation_directional_motion: PASS`：事项切换时助手提示从左侧 6px、回复控件从右侧 8px 短暂进入，仅使用 `transform`、`opacity` 和轻微模糊；无循环、随机文案、假输入、假思考或人为等待，系统启用减少动态效果时动画时长降至 0.01ms。
+- `conversation_delight_tests: PASS`：先得到缺少“事项切换说明”的失败证据，实施后 `GuidedReviewView.test.tsx` 7/7；引导 Hook、组件和页面联合回归 38/38 通过。页面测试只保留既有 jsdom `getComputedStyle` 与 React `act` 警告。
+- `conversation_delight_quality: PASS_WITH_EXISTING_FINDINGS`：`npm run verify:quick`、OpenSpec change strict validate 与 `git diff --check` 通过；Impeccable 单次检测仅命中 `reviewWorkspace.css` 第 167、314 行两处本次范围外既有告警。
+- `conversation_delight_manual_acceptance: N/A`：新增承接语、动作身份、左右分期和减少动态效果降级均由组件 DOM、定向回归、类型检查及机械检测覆盖；未引入需真实案件或桌面环境才能验证的业务行为。
+
+## 2026-08-29 獬豸形象动效证据
+
+- `mascot_motion_contract: PASS`：獬豸图片在独立动作层内以 7.2 秒周期执行一次 2px/1.2% 的低幅度呼吸；当前事项身份变化会替换动作层并触发一次 420ms 点头，不修改外层布局、业务状态或交互时序。
+- `mascot_motion_lifecycle: PASS`：`IntersectionObserver` 与页面可见性共同控制非必要循环，角色离开视口或页面隐藏时暂停；无观察器环境保持静态内容可用，减少动态效果媒体查询直接取消角色空间运动。
+- `mascot_motion_tests: PASS`：先得到事项变化后缺少角色动作身份的失败证据，实施后 `GuidedReviewView.test.tsx` 7/7 和前端 TypeScript 检查通过。
+- `mascot_motion_quality: PASS_WITH_EXISTING_FINDINGS`：`npm run verify:quick`、OpenSpec change strict validate 与 `git diff --check` 通过；Impeccable 单次检测仍仅命中 `reviewWorkspace.css` 第 167、314 行两处本次范围外既有告警。
+- `mascot_motion_manual_acceptance: N/A`：动效幅度、触发身份、可见性暂停与减少动态效果降级由组件回归、类型检查和机械检测覆盖；本次不改变角色资产尺寸、布局占位或业务操作。

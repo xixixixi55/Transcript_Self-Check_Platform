@@ -30,6 +30,16 @@ const evidenceCompletenessAction: GuidedReviewAction = {
   },
 }
 
+const photoAction: GuidedReviewAction = {
+  id: 'SYNTHETIC-ACTION-PHOTOS', kind: 'pending_item', title: '请上传检材照片',
+  description: '还需上传 2 张图片（每个检材需 2 张）。',
+  pendingItem: {
+    id: 'SYNTHETIC-PENDING-PHOTOS', sectionId: 'review-section-attachments',
+    targetId: 'review-target-material-photos', sectionLabel: '附件', fieldLabel: '检材照片',
+    reason: '还需上传 2 张图片（每个检材需 2 张）。', severity: 'warning', kind: 'required_missing',
+  },
+}
+
 const report: InspectionReport = {
   title: '电子数据检查笔录', document_number: '',
   introduction: {
@@ -187,6 +197,8 @@ describe('GuidedReviewView', () => {
   })
 
   it('shows a session-only user reply and assistant handoff after an action is completed', async () => {
+    const returnToPreviousAction = vi.fn()
+    const returnToCurrentAction = vi.fn()
     const view = render(<GuidedReviewView
       conversationKey="SYNTHETIC-CASE"
       history={history}
@@ -194,10 +206,17 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction, waitingAction]}
       hasResponse
       onSelectAction={vi.fn()}
+      canReturnToPrevious
+      onReturnToPreviousAction={returnToPreviousAction}
       summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+
+    const initialStepNavigation = screen.getByRole('button', { name: '返回上一步' })
+    const initialReplyGroup = screen.getByRole('group', { name: '你的回复' })
+    expect(initialStepNavigation.compareDocumentPosition(initialReplyGroup)
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     view.rerender(<GuidedReviewView
       conversationKey="SYNTHETIC-CASE"
@@ -206,6 +225,8 @@ describe('GuidedReviewView', () => {
       allActions={[waitingAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
+      canReturnToPrevious
+      onReturnToPreviousAction={returnToPreviousAction}
       summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
@@ -215,6 +236,26 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('文号已填写')).toBeTruthy()
     expect(screen.getByText('已确认：文号已填写。后台任务还在继续，我会在这里同步进展。')).toBeTruthy()
     expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent).toContain('请稍候，正在生成压缩分卷')
+    fireEvent.click(screen.getByRole('button', { name: '返回上一步' }))
+    expect(returnToPreviousAction).toHaveBeenCalledTimes(1)
+
+    view.rerender(<GuidedReviewView
+      conversationKey="SYNTHETIC-CASE"
+      history={history}
+      currentAction={documentAction}
+      allActions={[waitingAction]}
+      hasResponse
+      onSelectAction={vi.fn()}
+      canReturnToPrevious
+      isReviewingPrevious
+      onReturnToPreviousAction={returnToPreviousAction}
+      onReturnToCurrentAction={returnToCurrentAction}
+      summary={null}
+      onOpenFullEditor={vi.fn()}
+      onBackToWorkbench={vi.fn()}
+    ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+    fireEvent.click(screen.getByRole('button', { name: '返回当前步骤' }))
+    expect(returnToCurrentAction).toHaveBeenCalledTimes(1)
 
     view.rerender(<GuidedReviewView
       conversationKey="SYNTHETIC-OTHER-CASE"
@@ -223,11 +264,51 @@ describe('GuidedReviewView', () => {
       allActions={[waitingAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
+      canReturnToPrevious={false}
+      onReturnToPreviousAction={returnToPreviousAction}
       summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
     await waitFor(() => expect(screen.queryByLabelText('上一轮办理结果')).toBeNull())
+  })
+
+  it('acknowledges a manual action switch and stages the next response as a conversational turn', async () => {
+    const view = render(<GuidedReviewView
+      conversationKey="SYNTHETIC-CASE"
+      history={history}
+      currentAction={documentAction}
+      allActions={[documentAction, photoAction]}
+      hasResponse
+      onSelectAction={vi.fn()}
+      summary={null}
+      onOpenFullEditor={vi.fn()}
+      onBackToWorkbench={vi.fn()}
+    ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+    const initialMascotFigure = view.container.querySelector('.guided-review-conversation__mascot-figure')
+
+    view.rerender(<GuidedReviewView
+      conversationKey="SYNTHETIC-CASE"
+      history={history}
+      currentAction={photoAction}
+      allActions={[documentAction, photoAction]}
+      hasResponse
+      onSelectAction={vi.fn()}
+      canReturnToPrevious
+      summary={null}
+      onOpenFullEditor={vi.fn()}
+      onBackToWorkbench={vi.fn()}
+    ><GuidedReviewCard action={photoAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+
+    await waitFor(() => expect(screen.getByLabelText('事项切换说明')).toBeTruthy())
+    expect(screen.getByLabelText('事项切换说明').textContent)
+      .toContain('好的，先处理“检材照片”。“文号”仍保留在待办中，之后可以继续。')
+    expect(screen.queryByLabelText('上一轮办理结果')).toBeNull()
+    expect(screen.getByRole('group', { name: '你的回复' }).getAttribute('data-action-id'))
+      .toBe(photoAction.id)
+    const nextMascotFigure = view.container.querySelector('.guided-review-conversation__mascot-figure')
+    expect(nextMascotFigure?.getAttribute('data-action-id')).toBe(photoAction.id)
+    expect(nextMascotFigure).not.toBe(initialMascotFigure)
   })
 
   it('anchors the current conversation by default and preserves history reading when records append', () => {
