@@ -1,3 +1,5 @@
+> **SUPERSEDED（2026-08-29）**：报告解析持久化缓存已由 `report-parsing-cache-management` 的新决策移除，本增量不得同步到 living spec。
+
 ## MODIFIED Requirements
 
 ### Requirement: REQ-011：解析缓存

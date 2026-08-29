@@ -18,7 +18,6 @@ export const API_PREFIX = '/api/v1'
 /** API 端点 */
 export const API_ENDPOINTS = {
   PARSE_REPORT: `${API_PREFIX}/reports/parse`,
-  CLEAR_REPORT_PARSING_CACHE: `${API_PREFIX}/cache/report-parsing`,
   EXECUTE_ARCHIVE: `${API_PREFIX}/records/archive`,
   ARCHIVE_STATUS: (contextId: string) =>
     `${API_PREFIX}/records/archive/${encodeURIComponent(contextId)}/status`,

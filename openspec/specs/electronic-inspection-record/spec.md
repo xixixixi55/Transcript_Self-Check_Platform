@@ -9,7 +9,7 @@
 
 当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + 案件明确引用且当前重新校验通过的 approved TemplateProfile 渲染唯一正式 DOCX；没有模板引用的兼容案件继续使用 `current-template-v1`。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
 
-当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；解析和清缓存请求均有存活性治理；解析缓存只覆盖解析器实际依赖的数据；`ArchiveContext` 元数据使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整清单、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，缓存和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，Canonical 正式生产切换未启用，OpenSpec 归档尚未执行。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证；它仍限制 Canonical 成为默认唯一正式输出和未声明的大规模能力。本变更的生产审查已记录当前仅 Legacy、单 Windows 支持模型下的发布负责人风险接受，因此当前只进入归档就绪性核对，不把延期资源验收写成已完成能力。
+当前生产事实：旧版报告与同厂商新版报告均识别后继续输出 Legacy DTO；每次顺序解析请求读取当前来源，不持久化或复用解析结果，同一来源同时进行的请求可共享在途任务；`ArchiveContext` 元数据使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整清单、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，在途任务共享和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，Canonical 正式生产切换未启用，OpenSpec 归档尚未执行。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证；它仍限制 Canonical 成为默认唯一正式输出和未声明的大规模能力。本变更的生产审查已记录当前仅 Legacy、单 Windows 支持模型下的发布负责人风险接受，因此当前只进入归档就绪性核对，不把延期资源验收写成已完成能力。
 
 当前有两个必须区分的入口边界：持久化案件工作台是前端主生产入口，先持久化
 CaseShell、SourceRecord 和解析任务，解析成功后保存 CaseDraft；用户审核和保存草稿后，
@@ -666,51 +666,36 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 
 ---
 
-### Requirement: REQ-011: 解析缓存
+### Requirement: REQ-011: 无持久化解析结果缓存
 
 系统 MUST 满足以下现有合同：
-#### Scenario: 首次解析后缓存
-- WHEN 首次解析某个报告目录成功
-- THEN 将完整解析结果（InspectionReport + rar_info）保存为 JSON 缓存文件
-- AND 缓存键由现有 Windows 路径规范化后的具体报告目录生成，同一目录不因大小写、尾部分隔符或 deprecated `compress` 参数产生重复记录
-- AND 缓存文件使用不透明键保存于 `output/parsed/`，记录包含源内容指纹、`cache_version` 和 `last_accessed_at`，不保存供前端展示的绝对路径
-- AND 缓存载荷中的 `cache_version` 当前为 `7`，用于隔离主软件及逐检材设备名称新解析语义
-- AND 有效解析缓存最多保留 5 条，按 LRU 规则淘汰最久未使用记录，淘汰顺序在访问时间相同或并发写入时保持稳定
+#### Scenario: 顺序请求读取当前来源
+- WHEN 某次报告解析任务已经完成后再次请求解析同一来源
+- THEN 系统重新读取当前报告输入并重新运行 Parser
+- AND 不从磁盘或进程内复用已完成的 `InspectionReport`
+- AND 不创建 `output/parsed/`、缓存版本、LRU 记录或其他持久化解析结果
+- AND 解析响应不包含 `cache_version`
 
-#### Scenario: 重复解析时复用缓存
-- WHEN 再次请求解析相同的报告目录
-- AND 规范化目录键相同、缓存版本相同且源内容指纹未变化
-- THEN 直接返回缓存中的解析结果，跳过原始报告文件读取与解析
-- AND 命中时更新该记录的 `last_accessed_at`，不新增重复记录
-- AND 解析缓存与最终归档/Manifest 缓存彼此分离
-- AND 缓存命中不会在解析阶段执行 WinRAR，也不会复用或伪造 WinRAR 结果
+#### Scenario: 同一来源的并发请求共享在途任务
+- WHEN 同一规范化来源已有解析任务正在执行
+- AND 在该任务结束前收到另一个相同来源的解析请求
+- THEN 两个请求可以共享同一个在途输入快照与 Parser 任务
+- AND 任务结束后释放注册项，后续请求重新读取并解析来源
 
-#### Scenario: 缓存失效
-- WHEN 报告目录的源内容指纹变化、缓存损坏或缓存版本过期
-- THEN 重新解析并更新缓存
-- AND 无效记录在读取或淘汰时清除，不占用有效缓存上限
-
-#### Scenario: LRU 淘汰
-- WHEN 新建第 6 个不同报告目录的有效解析缓存
-- THEN 删除 `last_accessed_at` 最早的一条记录，并保留最近使用的 5 条
-- AND 淘汰只删除 `output/parsed/` 中的解析缓存文件，不调用归档文件删除逻辑
-
-#### Scenario: 用户一键清空解析缓存
-- WHEN 用户在阶段 1 主流程点击“清空解析缓存”并确认
-- THEN 调用 `DELETE /api/v1/cache/report-parsing`，返回 `cleared_count`
-- AND 清理中按钮禁止重复提交，成功、空缓存和失败均显示明确结果
-- AND 清空后下次解析报告必须重新读取原始目录；当前页面已加载到前端内存的报告和编辑内容不要求立即清除
-- AND 清空不删除 RAR、ArchiveManifest、归档下载文件、Word 导出、原始报告目录、默认设置或其他输出
+#### Scenario: 不提供解析缓存清理入口
+- WHEN 客户端使用阶段 1 报告解析流程
+- THEN 系统不提供 `DELETE /api/v1/cache/report-parsing` 或对应共享响应类型和前端操作
+- AND ArchiveManifest/RAR 的独立登记、复用与清理生命周期保持不变
 
 #### Scenario: 同步文件操作不阻塞请求
-- **WHEN** 用户发起报告解析或清空解析缓存请求
+- **WHEN** 用户发起报告解析请求
 - **THEN** 同步文件系统工作在线程池或等价受控边界执行，不阻塞 FastAPI 事件循环
 - **AND** 成功、业务错误和服务错误均结束请求并返回可处理结果
 
 #### Scenario: 请求超时或 Abort 后恢复交互
-- **WHEN** 解析或清缓存请求发生网络失败、超时或前端 Abort
+- **WHEN** 解析请求发生网络失败、超时或前端 Abort
 - **THEN** 请求状态、按钮状态和错误提示恢复到可重试状态
-- **AND** 不重复提交、不伪造清理数量，并保持解析缓存与归档生命周期隔离
+- **AND** 不重复提交，也不把 ArchiveManifest/RAR 复用误当作解析结果缓存
 
 ### Requirement: REQ-012: 解析与最终归档分离
 
@@ -2007,7 +1992,7 @@ JSON Manifest 索引 MUST 始终是 SQLite 持久发布事实的可重建投影�
 
 | 用途 | 路径 |
 |------|------|
-| 解析缓存 | `output/parsed/`（本地，不得进入 Git） |
+| 报告解析结果 | 不持久化；同一规范化来源仅共享当前在途任务 |
 | 归档文件 | 默认 `output/compressed/`；配置后为所选目录下 `文枢归档工作区/compressed/`（本地，不得进入 Git） |
 | 归档登记索引 | 与归档文件同根的 `compressed/.archive-manifest-index.json`（本地，不得进入 Git；与解析缓存独立） |
 | 导出 .docx | `output/exports/`（本地，不得进入 Git） |
@@ -2028,4 +2013,4 @@ JSON Manifest 索引 MUST 始终是 SQLite 持久发布事实的可重建投影�
 - **MUST**: 设备解析时优先结构化 JSON，再正则回退；按检材分别读取手机品牌及手机型号/设备型号，以单个空格生成设备名称，型号已含品牌时不重复；“手机”只作为检材类型，品牌和型号均缺失时才参与兜底
 - **MUST**: 当前模板附件2中同一检材的两张照片固定在同一表格行的左右两个槽位，单元格边距为零并分别向中间对齐；保持图片比例；模板卫生修改必须发布不可变新版本，退役内置引用按当前迁移合同收敛
 - **MUST**: DOCX 生成格式遵循项目模板/构建器定义的标准结构；自动化验证不替代人工视觉验收
-- **MUST**: SQLite 只保存案件业务 DTO、任务/租约/revision/索引元数据、SourceRecord 和 opaque 资产引用；图片、来源快照、缓存、临时文件和正式产物保存在受控文件系统资产中，不写入 Base64、完整 HTML、原始 JSON 集合或不可控二进制
+- **MUST**: SQLite 只保存案件业务 DTO、任务/租约/revision/索引元数据、SourceRecord 和 opaque 资产引用；图片、来源快照、归档工作缓存、临时文件和正式产物保存在受控文件系统资产中，不写入 Base64、完整 HTML、原始 JSON 集合或不可控二进制；报告解析完成结果不持久化

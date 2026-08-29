@@ -29,7 +29,7 @@
 | `case-shared-defaults` | SharedTypes/constants、deployment defaults、`shared_defaults` | 只维护既有共享默认值；没有 v11、retention mode/days/interval/batch 或 publication authority 合同 | retention policy 保持独立 durable row；未来同时迁移时合并事务，当前不阻断 |
 | `extensible-report-template-platform` | template identity、Manifest/Word renderer、Legacy/Canonical/Shadow | 当前明确 Legacy 是正式链路，Canonical 未启用、Shadow 不是正式输出；没有 v11 或第二 publication authority | Phase 5 只记录模板 identity/version，继续 Legacy-only；不阻断 |
 | `large-report-preview-liveness` | preview、runtime context、cache、`/records/*` | runtime context 是未清理兼容事实，不是 cleaned-case formal authority；没有 v11/policy/Word identity 冲突 | 先实施本 change 的 stable identity 访问；不阻断 |
-| `report-parsing-cache-management` | `output/parsed` 等 parsing cache | 只允许 work cache，不触碰 RAR/Manifest/Word/原始来源，也不提供 durable authority | 不纳入 retention authority/资格；不阻断 |
+| `report-parsing-cache-management` | 已移除持久化 parsing cache；仅保留同源在途任务共享 | 在途结果不提供 durable authority；不触碰 RAR/Manifest/Word/原始来源 | 不纳入 retention authority/资格；不阻断 |
 | Word/template changes | template、分页、渲染和导出文件名 | 没有第二 Word identity；template identity/version 可被 `formal_word_artifacts` 记录，模板合同不变 | Word artifact implementation 后于 Slice 5A-1；不阻断 |
 | 其他 active changes | parser、UI、上传、demo、请求存活性和历史兼容 | 未发现引用 workbench migration、schema v11、publication authority 或 retention policy 的直接相反设计 | 仅保留依赖登记；潜在文件交集不阻断 |
 
@@ -367,7 +367,7 @@ Legacy `/records/*` 仍是唯一正式输出兼容入口；未清理案件可保
 |---|---|---|
 | `case-shared-defaults` | SharedTypes/constants、`shared_defaults`、defaults API | retention policy 不混入六字段 defaults；若同时 migration 合并事务；Phase 5A 后才能实现 |
 | `extensible-report-template-platform` | template、Manifest、Word、Legacy/Canonical/Shadow | Word artifact 记录模板 identity/version；保持 Legacy-only、Canonical 未启用、Shadow 暂停 |
-| `report-parsing-cache-management` | parsing cache 和 cache cleanup | cache 只能是 work cache，不能成为 authority/资格；不得删除正式 output root |
+| `report-parsing-cache-management` | 已移除 parsing cache 和 cleanup API | 在途解析任务不能成为 authority/资格；正式 output root 生命周期不变 |
 | `large-report-preview-liveness` | archive context、preview、controller/routes | cleaned access 必须走 case/publication/word identity；runtime context 只作未清理兼容 |
 | Word/template active changes | Word 输出和模板版本事实 | formal Word artifact durable record 是 `enforce` 前置条件；不修改模板合同 |
 | 其他 active changes | parser、Legacy、上传、UI 局部文件 | 只登记依赖，不修改其他 change；发现 schema/API 直接冲突时阻止 5B/5D |

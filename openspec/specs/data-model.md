@@ -4,7 +4,7 @@
 > 新增 type/interface 后 MUST 同步更新本文档。
 > 一致性由 npx tsx scripts/check-docs.ts 自动检查。
 >
-> 本文件同时区分“类型已存在”和“生产已接线”：类型定义及单元测试只能证明基础实现存在，不能证明生产 Controller 已启用该管线。当前正式输出仍使用 `InspectionReport` legacy DTO；Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路并只提供脱敏诊断，Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产类型、构造和消费。解析缓存、`ArchiveContext` metadata 快照和请求存活性治理属于已接入的运行时能力，但不改变正式归档的全量安全校验。Phase 1–4 最终集成人工验收已于 2026-07-31 通过；延期资源验收不阻塞 Canonical 类型、适配器、只读预览、编辑门控、候选输出隔离或回滚演练的开发/验证，但仍阻塞 Canonical 成为默认唯一正式输出以及 OpenSpec 归档，除非补测通过或发布负责人接受风险。真实浏览器小型纯合成输入仅产生单卷 RAR，多分卷边界由 Harness/自动化覆盖。
+> 本文件同时区分“类型已存在”和“生产已接线”：类型定义及单元测试只能证明基础实现存在，不能证明生产 Controller 已启用该管线。当前正式输出仍使用 `InspectionReport` legacy DTO；Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路并只提供脱敏诊断，Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产类型、构造和消费。报告解析不持久化完成结果，仅共享同一来源的在途任务；`ArchiveContext` metadata 快照和请求存活性治理属于已接入的运行时能力，但不改变正式归档的全量安全校验。Phase 1–4 最终集成人工验收已于 2026-07-31 通过；延期资源验收不阻塞 Canonical 类型、适配器、只读预览、编辑门控、候选输出隔离或回滚演练的开发/验证，但仍阻塞 Canonical 成为默认唯一正式输出以及 OpenSpec 归档，除非补测通过或发布负责人接受风险。真实浏览器小型纯合成输入仅产生单卷 RAR，多分卷边界由 Harness/自动化覆盖。
 
 ## 实体定义
 
@@ -203,12 +203,6 @@
 | archive_context | `ArchiveContextSummary` \| null | 仅含上下文标识、文件数、总字节数、状态、创建时间和过期时间；不含案件目录、允许根目录或安装路径 |
 | archive_status | ArchiveExecutionStatus \| null | 归档执行阶段 |
 
-### API 响应（ClearReportParsingCacheResponse）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| cleared_count | number | 本次删除的持久化报告解析缓存条数；空缓存时为 0 |
-
 ### API 请求（ExportRecordRequest）
 
 | 字段 | 类型 | 说明 |
@@ -297,10 +291,9 @@
 
 ### 归档规划与最终清单
 
-归档输入授权采用配置根目录与未来受控本机精确目录授权双轨模型。`report_dir` 仅是 deprecated 的一次性上下文创建参数；根目录外普通提交不得自动信任，后续接口只接受 `archive_context_id`。当前上下文只在进程内存中保存，服务重启后按 `ARCHIVE_CONTEXT_NOT_FOUND` 处理；过期/忙碌分别返回稳定错误，清理只删除系统元数据和系统临时产物。已验证的 ArchiveManifest/RAR 另有 `output/compressed/.archive-manifest-index.json` 登记，保存不透明目录键、输入/归档指纹和相对归档目录，不保存供前端展示的绝对路径；该登记与解析缓存独立，供后续独立归档清理策略识别未引用产物。
+归档输入授权采用配置根目录与未来受控本机精确目录授权双轨模型。`report_dir` 仅是 deprecated 的一次性上下文创建参数；根目录外普通提交不得自动信任，后续接口只接受 `archive_context_id`。当前上下文只在进程内存中保存，服务重启后按 `ARCHIVE_CONTEXT_NOT_FOUND` 处理；过期/忙碌分别返回稳定错误，清理只删除系统元数据和系统临时产物。已验证的 ArchiveManifest/RAR 另有 `output/compressed/.archive-manifest-index.json` 登记，保存不透明目录键、输入/归档指纹和相对归档目录，不保存供前端展示的绝对路径；该登记属于归档生命周期，供后续独立归档清理策略识别未引用产物。
 
-解析阶段只建立 `archive_context_id` 和后端输入快照，不执行压缩。报告解析缓存保存在
-`output/parsed/`，按规范化目录不透明键区分，记录源内容指纹和 `last_accessed_at`，有效记录最多 5 条并按 LRU 淘汰；其清理不触碰 `output/compressed/`。审核完成并通过执行前门禁后，`ArchivePlan` 记录案件展示名、安全归档基础名、相对输入文件清单、
+解析阶段只建立 `archive_context_id` 和后端输入快照，不执行压缩。每个顺序解析请求重新读取当前来源并运行 Parser，不保存可供后续请求复用的解析结果；同一规范化来源同时进行的请求可以共享在途任务。审核完成并通过执行前门禁后，`ArchivePlan` 记录案件展示名、安全归档基础名、相对输入文件清单、
 二进制字节总量、归档模式、固定分卷档位、预计与最大卷数、首个光盘编号、重规划上限和诊断。
 生产档位为 4GB、22GB、45GB，容量单位满足 `1GB = 1024³` 字节；计划模型不保存输入绝对路径。
 

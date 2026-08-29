@@ -1,9 +1,9 @@
 """
 Layer 21: BE_Services — 报告解析编排服务。
-REQ-011 缓存 / REQ-013 兼容压缩开关 / REQ-014 压缩包上传 / REQ-016 动态 software_tools。
+REQ-013 兼容压缩开关 / REQ-014 压缩包上传 / REQ-016 动态 software_tools。
 
 > 本文件处于 400–600 行高内聚允许区间，是报告解析的核心编排入口，包含 _build_report（组装完整
-  InspectionReport）、_build_software_tools（动态软件工具列表）、缓存判断、RAR 压缩编排、
+  InspectionReport）、_build_software_tools（动态软件工具列表）、RAR 压缩编排、
   附件自动填充等多个紧密耦合的子流程。拆分会导致参数传递链过长，降低可维护性。
 """
 import os
@@ -12,7 +12,6 @@ import shutil
 import tempfile
 from typing import Optional
 from ...repository.archive.file_storage import (
-    is_cache_valid, save_json, read_json, ensure_dir,
     extract_archive, compute_md5, detect_winrar_version,
 )
 from ...repository.report.html_parser import (
@@ -25,7 +24,6 @@ from ...repository.report.device_field_parser import is_generic_device_label
 from ...repository.report.report_format_adapter import require_supported_report_format
 from ...repository.source.filesystem_identity_repository import (
     normalized_directory_key,
-    selected_files_content_fingerprint,
 )
 from ...repository.report.report_parse_input_repository import (
     ReportParseInputSnapshot,
@@ -41,30 +39,23 @@ from .report_defaults_service import (
     DEFAULT_INSPECTION_REQUIREMENT,
 )
 from ..inspection.material_policy_service import material_from_legacy_item, select_display_identifiers
-from .report_parsing_cache_service import REPORT_PARSING_CACHE_SERVICE
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from ..inspection.entrust_person_service import normalize_entrust_persons
-# 缓存版本号：解析逻辑变更时递增，自动淘汰旧缓存
-_CACHE_VERSION = 23  # v23：不再根据报告创建时间推导委托时间
 _TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
-    """解析报告目录；compress 仅为兼容参数，解析阶段不执行压缩。"""
+    """每次读取并解析报告目录；compress 仅为兼容参数。"""
     source_key = normalized_directory_key(source_dir)
-    generation = REPORT_PARSING_CACHE_SERVICE.current_generation()
-    operation_key = f"{source_key}:{_CACHE_VERSION}:{generation}"
     return REPORT_PARSE_INFLIGHT_REGISTRY.run(
-        operation_key,
-        lambda: _parse_report_task(
-            source_dir, output_dir, compress, generation,
-        ),
+        source_key,
+        lambda: _parse_report_task(source_dir, output_dir, compress),
     )
 
 
 def _parse_report_task(
-    source_dir: str, output_dir: str, compress: bool, generation: int,
+    source_dir: str, output_dir: str, compress: bool,
 ) -> dict:
-    """在同一个共享任务中运行缓存验证和 Parser 工作。"""
+    """在同一个共享任务中读取当前输入并运行 Parser。"""
     data_dir = os.path.join(source_dir, "data")
     has_core_files = all(
         os.path.isfile(os.path.join(data_dir, name))
@@ -72,75 +63,19 @@ def _parse_report_task(
             "data_case_info.json", "data_device_lists.json", "data_report_info.json",
         )
     )
-    snapshot: ReportParseInputSnapshot | None = None
-
-    def get_snapshot() -> ReportParseInputSnapshot:
-        nonlocal snapshot
-        if snapshot is None:
-            snapshot = build_report_parse_input_snapshot(source_dir)
-        return snapshot
-
-    fingerprint = (
-        (lambda _data_dir: get_snapshot().dependency_fingerprint)
-        if has_core_files else _report_parser_dependency_fingerprint
-    )
-    return REPORT_PARSING_CACHE_SERVICE.load_or_build(
-        source_dir,
-        os.path.join(output_dir, "parsed"),
-        _CACHE_VERSION,
-        lambda: _build_parse_result(
-            source_dir, output_dir, compress,
-            input_snapshot=get_snapshot() if has_core_files else None,
+    return _build_parse_result(
+        source_dir, output_dir, compress,
+        input_snapshot=(
+            build_report_parse_input_snapshot(source_dir) if has_core_files else None
         ),
-        fingerprint_dir=data_dir if os.path.isdir(data_dir) else source_dir,
-        fingerprint=fingerprint,
-        snapshot_builder=get_snapshot if has_core_files else None,
-        generation_token=generation,
     )
-
-
-def _report_parser_dependency_fingerprint(data_dir: str) -> str:
-    """为当前旧版解析器访问的 JSON 路径计算指纹。
-
-    核心报告文件始终会读取。设备 Base JSON 路径从报告设备行中发现，匹配
-    `parse_device_base` 的行为，而不对无关附件和媒体 JSON 文件计算哈希。
-    """
-    dependency_files = [
-        "data_case_info.json",
-        "data_device_lists.json",
-        "data_report_info.json",
-    ]
-    existing_core_files = [
-        name for name in dependency_files
-        if os.path.isfile(os.path.join(data_dir, name))
-    ]
-    if len(existing_core_files) != len(dependency_files):
-        return selected_files_content_fingerprint(data_dir, existing_core_files)
-    for device in parse_device_lists(data_dir):
-        resolved_dir = _resolve_evidence_directory(
-            data_dir, device.get("evidence_number", ""),
-        )
-        if not resolved_dir:
-            continue
-        for name in sorted(os.listdir(resolved_dir)):
-            sub_dir = os.path.join(resolved_dir, name)
-            if not os.path.isdir(sub_dir):
-                continue
-            for filename in sorted(os.listdir(sub_dir)):
-                if filename.casefold().endswith(".json"):
-                    dependency_files.append(
-                        os.path.relpath(
-                            os.path.join(sub_dir, filename), data_dir,
-                        ),
-                    )
-    return selected_files_content_fingerprint(data_dir, dependency_files)
 
 
 def _build_parse_result(
     source_dir: str, output_dir: str, compress: bool,
     *, input_snapshot: ReportParseInputSnapshot | None = None,
 ) -> dict:
-    """构建一个未缓存的解析结果；缓存元数据保留在载荷之外。"""
+    """构建当前来源目录的解析结果。"""
     data_dir = os.path.join(source_dir, "data")
     report = _build_report(
         data_dir, source_dir, output_dir, compress=compress,
@@ -149,7 +84,6 @@ def _build_parse_result(
     return {
         "report": report,
         "_case_metadata": _case_metadata(data_dir, input_snapshot, report),
-        "cache_version": _CACHE_VERSION,
         "parsed_files": [
             "data_case_info.json", "data_device_lists.json",
             "data_report_info.json", "data_navigation.json",

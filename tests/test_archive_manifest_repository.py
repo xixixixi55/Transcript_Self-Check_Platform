@@ -10,7 +10,6 @@ from app.repository.archive.archive_manifest_repository import (  # noqa: E402
     ArchiveManifestRepository,
     ArchiveManifestRepositoryError,
 )
-from app.services.report.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 
 
 def manifest():
@@ -113,24 +112,4 @@ def test_mark_invalid_keeps_manifest_directory_and_rar(tmp_path):
     repository.mark_invalid("manifest")
 
     assert not repository.find_reusable("1" * 64, "2" * 64, "3" * 64)
-    assert rar.is_file()
-
-
-def test_parsing_cache_clear_does_not_touch_manifest_registry(tmp_path):
-    output = tmp_path / "output"
-    final_dir = output / "compressed" / "context" / "manifest"
-    final_dir.mkdir(parents=True)
-    rar = final_dir / "SYNTHETIC.rar"
-    rar.write_bytes(b"synthetic-rar")
-    repository = ArchiveManifestRepository(output)
-    repository.save(
-        source_key="1" * 64, input_fingerprint="2" * 64, archive_fingerprint="3" * 64,
-        manifest_id="manifest", final_dir=final_dir, public_manifest=manifest(),
-    )
-    cache_dir = output / "parsed"
-    cache_dir.mkdir()
-    (cache_dir / "cache.json").write_text("{}", encoding="utf-8")
-
-    assert ReportParsingCacheService().clear_all(str(cache_dir)) == 1
-    assert (output / "compressed" / ".archive-manifest-index.json").is_file()
     assert rar.is_file()

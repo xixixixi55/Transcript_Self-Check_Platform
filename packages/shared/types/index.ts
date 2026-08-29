@@ -183,11 +183,6 @@ export interface ParseReportResponse {
   archive_status?: import('./archive').ArchiveExecutionStatus | import('./archive').ArchivePreparationStatus
 }
 
-/** 一键清空报告解析缓存的结果。 */
-export interface ClearReportParsingCacheResponse {
-  cleared_count: number
-}
-
 /** 导出笔录请求 */
 export interface ExportRecordRequest {
   report: InspectionReport

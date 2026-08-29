@@ -1,3 +1,5 @@
+> **SUPERSEDED（2026-08-29）**：报告解析持久化缓存已由 `report-parsing-cache-management` 的新决策移除，本新增能力不再实施。
+
 ## ADDED Requirements
 
 ### Requirement: 统一文件变化信任状态

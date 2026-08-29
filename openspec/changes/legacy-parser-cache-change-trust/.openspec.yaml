@@ -1,2 +1,4 @@
 schema: spec-driven
 created: 2026-07-26
+status: superseded
+superseded_by: report-parsing-cache-management

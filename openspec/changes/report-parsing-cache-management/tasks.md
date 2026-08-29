@@ -1,30 +1,49 @@
-# Level 2 任务：阶段 1 报告解析缓存管理
+# Level 2 任务：移除报告解析持久化缓存
 
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: T9 现行规格同步；openspec/specs/electronic-inspection-record/spec.md REQ-011/REQ-012
+spec_sync_evidence: T14 已将无持久化解析结果、仅共享在途任务及移除清理 API 的最终行为同步到 living spec/data model，并更新冲突活跃变更状态
 
-> 范围：阶段 1 主流程的报告解析缓存，以及与 RAR/ArchiveManifest 独立生命周期所需的安全复用登记。
+> 2026-08-29 产品决策：项目不再需要报告解析持久化缓存。本包从 complete 状态重开，撤销磁盘缓存、LRU 和清理入口；原实施记录保留为历史证据。
+>
+> 范围：阶段 1 报告解析结果的磁盘持久化、复用和清理入口。
 > 非范围：Canonical、Shadow、阶段 2、阶段 3、LLM，以及独立的归档文件清理 UI。
 
 ## 目标
 
-为每个规范化后的报告目录维护一条持久化解析缓存，按 LRU 最多保留 5 条；解析命中更新最后访问时间，源内容指纹变化时重新解析；前端提供确认后的一键清空入口。解析缓存的清理和 LRU 淘汰只能删除 `output/parsed/` 中的解析缓存文件，不得触碰 `output/compressed/`、RAR、ArchiveManifest、Word 导出、原始报告目录、默认设置或当前页面内存状态。
+每次顺序解析请求都读取当前报告源并重新构建解析结果，不在 `output/parsed/` 或其他位置保存可供后续请求复用的 `InspectionReport`。移除缓存版本、LRU、缓存仓储/服务以及 `DELETE /api/v1/cache/report-parsing` 公共合同。
 
-再次解析同一目录时，若原始输入内容指纹、归档审核指纹均未变化且已登记的 Manifest/RAR 通过存在性、大小和 MD5 校验，则允许复用已有归档；否则新建归档并保留旧归档文件，由独立归档生命周期策略处理后续清理。
+同一规范化来源的并发请求可以共享仍在执行的 Parser 任务；任务完成后不保留结果，后续请求重新解析。已验证 ArchiveManifest/RAR 的独立登记与复用不属于报告解析缓存，继续保留原有校验与生命周期。
 
 ## 验收标准
 
-- [x] 同一规范化目录（含大小写、尾部分隔符差异）只产生一条缓存记录，命中更新 `last_accessed_at`。
-- [x] 缓存可持久化重启读取，最多保留 5 条；第 6 条按最早访问时间、再按稳定键顺序淘汰。
-- [x] 源内容指纹变化、缓存损坏或缓存版本过期时不会命中，并且无效记录不占用 5 条额度。
-- [x] `DELETE /api/v1/cache/report-parsing` 幂等返回 `cleared_count`；失败返回错误而非伪造成功；响应和日志不包含本地绝对路径或报告内容。
-- [x] 清空缓存后 RAR、Manifest 登记、归档下载和 Word 导出所需的运行时记录仍可用；原始目录、默认设置和表单内存状态不受影响。
-- [x] 同一目录重新解析后，输入和归档校验有效时复用 RAR/Manifest；输入变化、RAR 缺失、大小变化或 MD5 不一致时不复用并重新生成。
-- [x] 前端一键清空包含确认提示、明确的重新解析说明、重复提交保护、成功/空缓存提示和失败重试入口。
+- [x] 顺序重复解析同一来源时重新运行 Parser，不读取或写入持久化解析结果。
+- [x] 后端不再创建 `output/parsed/`，解析响应不包含 `cache_version`。
+- [x] 移除缓存配置、仓储、服务、Controller、路由以及共享 API 类型/端点常量。
+- [x] 同一来源的并发请求仍可共享进行中的任务；任务结束后后续请求重新解析。
+- [x] ArchiveManifest/RAR 的独立登记、复用和完整性校验保持不变。
 
-## 实施任务
+## 本次撤销任务
+
+- [x] **T10 移除报告解析缓存持久化实现与清理 API**
+  - 删除缓存 Repository、Service、Controller、配置和共享合同；Parser 不再读写 `output/parsed/`。
+
+- [x] **T11 保留并发任务复用，改为顺序请求始终重新解析**
+  - `ReportParseInFlightRegistry` 只共享当前执行中的任务，完成结果不跨请求保留。
+
+- [x] **T12 清理缓存专用测试并保留行为回归证据**
+  - 删除 LRU、版本、失效、清理接口测试；覆盖顺序请求重建、无磁盘写入和并发共享。
+
+- [x] **T13 处置冲突的未完成变更**
+  - `legacy-parser-cache-change-trust` 因产品决策失去实施对象，标记为 superseded，未完成任务记为 `[N/A]`。
+
+- [x] **T14 同步现行规格并运行 Level 2 门控**
+  - 更新 living spec 与相关活跃变更文档；运行定向测试、`verify:quick`、后端全量及限定范围严格文档检查。
+  - 证据：解析/并发/归档/Controller 定向集合 `120 passed`；默认业务 SQLite 导致的 2 个 Controller 环境失败在隔离 SYNTHETIC 工作台数据根后 `2 passed`；`npm.cmd run verify:quick` 通过；隔离 SYNTHETIC 工作台数据根执行 `npm.cmd run verify:backend` 为 `1252 passed, 3 skipped`；`npm.cmd run verify:docs:strict -- --change report-parsing-cache-management` 为 14 checks、0 drift。
+  - manual_acceptance: [N/A] 本变更删除后端持久化与公共合同，无新增 UI、Word/PDF 或桌面工具交互；自动化已覆盖顺序重建、无磁盘写入、并发共享及归档独立性。
+
+## 历史实施记录（已由 T10–T14 撤销）
 
 ### Layer 0/1/2：共享配置与文件身份
 

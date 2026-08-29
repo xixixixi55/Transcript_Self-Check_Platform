@@ -1,5 +1,4 @@
 """T008: report_parser_service 测试 — compress 参数 + 动态 software_tools"""
-import copy
 import os
 import shutil
 import sys
@@ -10,7 +9,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
 
 from app.services.report.report_parser_service import (
-    _CACHE_VERSION, _build_report, _build_software_tools, _device_display_name,
+    _build_report, _build_software_tools, _device_display_name,
     _format_case_summary, _normalize_case_name, _split_persons, parse_from_archive,
     parse_report,
 )
@@ -222,9 +221,7 @@ def test_parse_report_compress_true():
         os.makedirs(data_dir)
         output_dir = os.path.join(tmpdir, "output")
 
-        with patch("app.services.report.report_parser_service.is_cache_valid", return_value=False), \
-             patch("app.services.report.report_parser_service._build_report") as mock_build, \
-             patch("app.services.report.report_parser_service.save_json"):
+        with patch("app.services.report.report_parser_service._build_report") as mock_build:
             mock_build.return_value = _MOCK_REPORT
             result = parse_report(tmpdir, output_dir, compress=True)
 
@@ -240,9 +237,7 @@ def test_parse_report_compress_false():
         os.makedirs(data_dir)
         output_dir = os.path.join(tmpdir, "output")
 
-        with patch("app.services.report.report_parser_service.is_cache_valid", return_value=False), \
-             patch("app.services.report.report_parser_service._build_report") as mock_build, \
-             patch("app.services.report.report_parser_service.save_json"):
+        with patch("app.services.report.report_parser_service._build_report") as mock_build:
             mock_build.return_value = _MOCK_REPORT
             result = parse_report(tmpdir, output_dir, compress=False)
 
@@ -252,15 +247,15 @@ def test_parse_report_compress_false():
         assert result["rar_info"] is None
 
 
-def test_parse_report_cache_is_one_entry_per_directory_not_compress_mode():
-    """deprecated compress 参数不能把同一报告拆成两条缓存。"""
+def test_parse_report_rebuilds_each_sequential_request_without_persistent_cache():
+    """完成的解析结果不会被后续请求复用或写入磁盘。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         data_dir = os.path.join(tmpdir, "data")
         os.makedirs(data_dir)
         output_dir = os.path.join(tmpdir, "output")
 
         def build_report(*_args, **kwargs):
-            report = copy.deepcopy(_MOCK_REPORT)
+            report = __import__("copy").deepcopy(_MOCK_REPORT)
             if kwargs["compress"]:
                 report["inspection"]["result"].update({
                     "rar_filename": "case.rar",
@@ -274,12 +269,10 @@ def test_parse_report_cache_is_one_entry_per_directory_not_compress_mode():
             compressed = parse_report(tmpdir, output_dir, compress=True)
             uncompressed = parse_report(tmpdir, output_dir, compress=False)
 
-            assert mock_build.call_count == 1
+            assert mock_build.call_count == 2
             assert compressed["rar_info"] is not None
-            assert uncompressed == compressed
-            cache_files = {name for name in os.listdir(os.path.join(output_dir, "parsed"))}
-            assert len(cache_files) == 1
-            assert next(iter(cache_files)).endswith(".json")
+            assert uncompressed["rar_info"] is None
+            assert not os.path.exists(os.path.join(output_dir, "parsed"))
 
 
 def _write_service_fixture(root, *, known_software=True):
@@ -370,7 +363,6 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
-    assert result["cache_version"] == 23
     assert result["_case_metadata"] == {
         "case_name": "合成案件", "case_number": "CASE-SYNTH-001", "case_summary": "合成案件",
     }
@@ -438,7 +430,7 @@ def test_new_report_cleans_trailing_case_name_marker_for_metadata_and_summary(tm
     assert result["report"]["introduction"]["case_summary"] == "SYNTHETIC-REPORT案"
 
 
-def test_parser_cache_tracks_all_json_inputs_but_ignores_attachment_html(tmp_path):
+def test_parser_reads_current_inputs_on_every_sequential_request(tmp_path):
     _write_service_fixture(str(tmp_path))
     media = tmp_path / "data" / "JC01" / "Base" / "attachment.html"
     media.write_text("SYNTHETIC-HTML-ONE", encoding="utf-8")
@@ -448,7 +440,7 @@ def test_parser_cache_tracks_all_json_inputs_but_ignores_attachment_html(tmp_pat
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
         media.write_text("SYNTHETIC-HTML-TWO", encoding="utf-8")
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-        assert build.call_count == 1
+        assert build.call_count == 2
 
         device_file = tmp_path / "data" / "JC01" / "Base" / "device_table.json"
         device_file.write_text(
@@ -459,10 +451,10 @@ def test_parser_cache_tracks_all_json_inputs_but_ignores_attachment_html(tmp_pat
         )
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
 
-    assert build.call_count == 2
+    assert build.call_count == 3
 
 
-def test_parser_cache_ignores_json_outside_selected_evidence(tmp_path):
+def test_parser_does_not_persist_results_for_unrelated_input_changes(tmp_path):
     _write_service_fixture(str(tmp_path))
     unrelated = tmp_path / "data" / "JC99" / "Base"
     unrelated.mkdir(parents=True)
@@ -474,19 +466,8 @@ def test_parser_cache_ignores_json_outside_selected_evidence(tmp_path):
         noise.write_text('{"value":"SYNTHETIC-TWO"}', encoding="utf-8")
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
 
-    assert build.call_count == 1
-
-
-def test_current_cache_version_does_not_reuse_old_payload(tmp_path):
-    old_cache = {"report": _MOCK_REPORT, "cache_version": 4}
-    with patch("app.services.report.report_parser_service.is_cache_valid", return_value=True), \
-         patch("app.services.report.report_parser_service.read_json", return_value=old_cache), \
-         patch("app.services.report.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
-         patch("app.services.report.report_parser_service.save_json"):
-        result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
-    assert _CACHE_VERSION == 23
-    assert result["cache_version"] == 23
-    mock_build.assert_called_once()
+    assert build.call_count == 2
+    assert not (tmp_path / "output" / "parsed").exists()
 
 
 def test_parse_from_archive_zip():

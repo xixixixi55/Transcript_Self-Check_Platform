@@ -979,46 +979,6 @@ def test_parse_rejects_missing_or_invalid_archive_input(client):
     assert "仅支持 .rar 和 .zip" in invalid.json()["detail"]
 
 
-def test_clear_report_parsing_cache_returns_count_and_ignores_client_path(client):
-    from app.controllers import cache_controller
-
-    async def run_sync(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    with patch.object(cache_controller, "clear_report_parsing_cache", return_value=3) as clear, \
-         patch.object(cache_controller, "run_in_threadpool", new=AsyncMock(side_effect=run_sync)) as offload:
-        response = client.delete(
-            "/api/v1/cache/report-parsing",
-            params={"path": r"C:\sensitive\case"},
-        )
-
-    assert response.status_code == 200
-    assert response.json() == {"success": True, "data": {"cleared_count": 3}}
-    assert r"C:\sensitive\case" not in response.text
-    clear.assert_called_once_with(os.path.join(cache_controller.OUTPUT_BASE, "parsed"))
-    offload.assert_awaited_once()
-    assert offload.await_args.args[0] is clear
-
-
-def test_clear_report_parsing_cache_failure_is_not_reported_as_success(client):
-    from app.controllers import cache_controller
-    from app.services.report.report_parsing_cache_service import ReportParsingCacheError
-
-    with patch.object(
-        cache_controller,
-        "clear_report_parsing_cache",
-        side_effect=ReportParsingCacheError("private storage detail"),
-    ):
-        response = client.delete("/api/v1/cache/report-parsing")
-
-    assert response.status_code == 500
-    assert response.json()["detail"] == {
-        "code": "REPORT_PARSING_CACHE_CLEAR_FAILED",
-        "message": "解析缓存清理失败，请稍后重试。",
-    }
-    assert "private storage detail" not in response.text
-
-
 def test_parse_structure_error_returns_safe_422(client):
     with tempfile.TemporaryDirectory() as tmpdir:
         error_path = os.path.join(tmpdir, "data_case_info.json")

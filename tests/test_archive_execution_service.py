@@ -25,7 +25,6 @@ from app.services.archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE  
 from app.services.archive.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchivePublicationSnapshot  # noqa: E402
 from app.services.archive.archive_manifest_access_service import get_manifest_part_download  # noqa: E402
-from app.services.report.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 from app.services.archive.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
 
 
@@ -612,7 +611,7 @@ def test_download_resolves_only_current_opaque_part_and_revalidates_file(tmp_pat
     assert changed.value.blockers[0].code == "ARCHIVE_MANIFEST_PART_CHANGED"
 
 
-def test_reparse_same_input_reuses_persisted_manifest_after_cache_clear(tmp_path):
+def test_reparse_same_input_reuses_persisted_manifest(tmp_path):
     source, output, context_id = make_context(tmp_path)
     first_fake = FakeExecutor(tmp_path / "fake-staging-first", lambda tier: 1)
     capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
@@ -620,12 +619,8 @@ def test_reparse_same_input_reuses_persisted_manifest_after_cache_clear(tmp_path
         context_id, valid_report(), output_root=str(output), policy=policy(4),
         capability=capability, executor=first_fake, integrity_runner=integrity_ok,
     )
-    parsed = output / "parsed"
-    parsed.mkdir()
-    (parsed / "cache.json").write_text("{}", encoding="utf-8")
     part = ARCHIVE_RUNTIME_STORE.get_manifest(first.manifest_id).public_manifest["parts"][0]
 
-    assert ReportParsingCacheService().clear_all(str(parsed)) == 1
     second_context = create_archive_context(
         AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "test-root"),
         valid_report(), output_root=str(output),
