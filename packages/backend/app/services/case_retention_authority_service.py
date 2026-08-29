@@ -13,7 +13,7 @@ from ..repository.archive_publish_intent_repository import ArchivePublishIntentR
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.retention_time import trusted_utc_timestamp
-from .archive_publication_identity_service import publication_digest
+from .archive.archive_publication_identity_service import publication_digest
 
 PublicationRevalidator = Callable[[Mapping[str, Any]], Mapping[str, Any] | None]
 WordArtifactRevalidator = Callable[[Mapping[str, Any]], Mapping[str, Any] | None]

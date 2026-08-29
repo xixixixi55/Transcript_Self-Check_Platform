@@ -11,20 +11,20 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
-from ..repository.archive_attempt_repository import ArchiveAttemptRepository
-from ..repository.archive_attempt_restart_repository import interrupt_attempt
-from ..repository.archive_preparation_repository import ArchivePreparationRepository
-from ..repository.archive_context_binding_repository import (
+from ...repository.archive_attempt_repository import ArchiveAttemptRepository
+from ...repository.archive_attempt_restart_repository import interrupt_attempt
+from ...repository.archive_preparation_repository import ArchivePreparationRepository
+from ...repository.archive_context_binding_repository import (
     find_active_binding_for_attempt,
     find_binding,
     report_fingerprint,
 )
-from ..repository.archive_publish_fence_repository import get as get_fence
-from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
-from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
-from ..repository.source_record_repository import SourceRecordRepository
-from ..repository.workbench_database import WorkbenchDatabase, utc_now
-from ..repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.archive_publish_fence_repository import get as get_fence
+from ...repository.archive_publish_intent_repository import ArchivePublishIntentRepository
+from ...repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ...repository.source_record_repository import SourceRecordRepository
+from ...repository.workbench_database import WorkbenchDatabase, utc_now
+from ...repository.workbench_errors import WorkbenchPersistenceError
 from .archive_manifest_service import validate_published_manifest
 from .archive_staging_security_service import (
     OWNERSHIP_MARKER_NAME,
@@ -37,7 +37,7 @@ from .archive_input_snapshot_service import (
     SealedInputSnapshot, assert_sealed_input, cleanup_sealed_input_snapshot,
     create_sealed_input_snapshot, load_sealed_input_snapshot,
 )
-from ..repository.workbench_serialization import validate_opaque_id
+from ...repository.workbench_serialization import validate_opaque_id
 
 if TYPE_CHECKING:
     from .archive_manifest_service import ArchiveFileIdentity
@@ -354,7 +354,7 @@ class ArchiveAttemptService:
             pass
 
     def _publish_intent(self, attempt_id: str) -> dict[str, Any] | None:
-        from ..repository.archive_publish_intent_repository import ArchivePublishIntentRepository
+        from ...repository.archive_publish_intent_repository import ArchivePublishIntentRepository
         return ArchivePublishIntentRepository(self.database).get_for_attempt(attempt_id)
 
     def _attempt_for_final_dir(self, final_dir: Path) -> str | None:

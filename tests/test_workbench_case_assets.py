@@ -22,7 +22,7 @@ from app.repository import CaseDraftRepository, CaseShellRepository, WorkbenchDa
 from app.repository.workbench_constants import MAX_CASE_IMAGE_BYTES  # noqa: E402
 from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.archive_export_service import _resolve_photo_paths  # noqa: E402
+from app.services.archive.archive_export_service import _resolve_photo_paths  # noqa: E402
 
 CASE_ID = "SYNTHETIC-ASSET-CASE"
 IDENTITY = {

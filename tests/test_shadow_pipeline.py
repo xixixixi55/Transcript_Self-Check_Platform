@@ -15,10 +15,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.main import app
 from app.config import OUTPUT_BASE
 from app.repository.archive_authorization_repository import ArchiveAuthorizationStore
-from app.services.archive_execution_service import ArchiveExecutionOutcome
-from app.services.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
-from app.services import archive_source_runtime_service
-from app.services.archive_source_runtime_service import (
+from app.services.archive.archive_execution_service import ArchiveExecutionOutcome
+from app.services.archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
+from app.services.archive import archive_source_runtime_service
+from app.services.archive.archive_source_runtime_service import (
     ArchiveSourceRuntimeStore,
     create_preview_source,
     prepare_archive_source,
@@ -128,7 +128,7 @@ def _pipeline(client, context_id):
 def test_shadow_service_runs_parse_archive_export_without_formal_execution():
     report = copy.deepcopy(SYNTHETIC_REPORT)
     settings = load_pipeline_settings({"BIJI_PIPELINE_MODE": "shadow"})
-    with patch("app.services.archive_execution_service.execute_archive") as execute, \
+    with patch("app.services.archive.archive_execution_service.execute_archive") as execute, \
          patch("app.services.record_generator_service.generate_docx") as render, \
          patch("app.services.shadow_pipeline_service.ARCHIVE_RUNTIME_STORE.get_context_snapshot", return_value=_context()):
         parsed = run_shadow_parse(report, settings, "synthetic-context")
@@ -291,7 +291,7 @@ def test_shadow_archive_stops_when_archive_context_expires():
 
 def test_shadow_parser_failure_is_queryable_and_does_not_change_legacy_response(shadow_client, tmp_path):
     from app.controllers import pipeline_controller, record_controller
-    from app.services.archive_authorization_service import ArchiveAuthorizationService
+    from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
     case_dir = tmp_path / "synthetic-case"
     case_dir.mkdir()
@@ -390,7 +390,7 @@ def test_canonical_controller_mode_is_explicitly_rejected_without_legacy_fallbac
 
 def test_shadow_diagnostics_query_rejects_invalid_archive_context_and_hides_run_id(shadow_client):
     from app.controllers import pipeline_controller
-    from app.services.archive_runtime_service import ArchiveRuntimeError
+    from app.services.archive.archive_runtime_service import ArchiveRuntimeError
 
     handle = run_shadow_parse(
         copy.deepcopy(SYNTHETIC_REPORT),

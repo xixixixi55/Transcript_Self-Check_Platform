@@ -38,16 +38,16 @@ from app.repository.archive_manifest_index_repository import (  # noqa: E402
     ArchiveManifestRepositoryError,
 )
 from app.repository.runtime_paths import get_runtime_paths  # noqa: E402
-from app.services.archive_progress_service import ArchiveProgressService  # noqa: E402
-from app.services.archive_manifest_access_service import ArchiveGateError  # noqa: E402
+from app.services.archive.archive_progress_service import ArchiveProgressService  # noqa: E402
+from app.services.archive.archive_manifest_access_service import ArchiveGateError  # noqa: E402
 from app.services.export_gate_service import ExportGateIssue  # noqa: E402
-from app.services.archive_resource_admission_service import (  # noqa: E402
+from app.services.archive.archive_resource_admission_service import (  # noqa: E402
     ArchiveAdmissionConfig,
     ArchiveResourceAdmissionService,
     ArchiveResourceSnapshot,
 )
-from app.services.archive_scheduler_service import ArchiveSchedulerService  # noqa: E402
-from app.services.archive_worker_service import (  # noqa: E402
+from app.services.archive.archive_scheduler_service import ArchiveSchedulerService  # noqa: E402
+from app.services.archive.archive_worker_service import (  # noqa: E402
     ArchiveWorkItem,
     ArchiveWorkerService,
 )
@@ -148,7 +148,7 @@ def test_worker_drives_exact_gates_and_activity(setup, monkeypatch) -> None:
                 assert kwargs["cancellation_check"]() is False
         return SimpleNamespace(reused=False, manifest_id="SYNTHETIC-MANIFEST")
 
-    monkeypatch.setattr("app.services.archive_worker_service.execute_archive", execute)
+    monkeypatch.setattr("app.services.archive.archive_worker_service.execute_archive", execute)
     result = ArchiveWorkerService(tasks, progress).run(
         owned, work_item(tmp_path, attempts),
     )
@@ -199,7 +199,7 @@ def test_cancel_wins_before_completion_and_stale_worker_cannot_write(
         assert kwargs["cancellation_check"]() is True
         raise RuntimeError("SYNTHETIC cancellation race")
 
-    monkeypatch.setattr("app.services.archive_worker_service.execute_archive", execute)
+    monkeypatch.setattr("app.services.archive.archive_worker_service.execute_archive", execute)
     result = ArchiveWorkerService(tasks, progress).run(
         owned, work_item(tmp_path, attempts),
     )
@@ -225,7 +225,7 @@ def test_cancel_between_claim_and_worker_start_is_not_ownership_loss(
     )
 
     monkeypatch.setattr(
-        "app.services.archive_worker_service.execute_archive",
+        "app.services.archive.archive_worker_service.execute_archive",
         lambda *_args, **_kwargs: pytest.fail(
             "cancelled preparation must not start archive execution"
         ),
@@ -255,7 +255,7 @@ def test_replaced_owner_token_is_still_ownership_loss(setup, monkeypatch) -> Non
         },
     }, current["revision"])
     monkeypatch.setattr(
-        "app.services.archive_worker_service.execute_archive",
+        "app.services.archive.archive_worker_service.execute_archive",
         lambda *_args, **_kwargs: pytest.fail("stale owner must not execute"),
     )
 
@@ -283,7 +283,7 @@ def test_worker_failure_preserves_last_real_milestone(setup, monkeypatch) -> Non
             "Synthetic archive execution failed.",
         ),))
 
-    monkeypatch.setattr("app.services.archive_worker_service.execute_archive", execute)
+    monkeypatch.setattr("app.services.archive.archive_worker_service.execute_archive", execute)
     result = ArchiveWorkerService(tasks, progress).run(
         owned, work_item(tmp_path, attempts),
     )
@@ -303,7 +303,7 @@ def test_worker_reports_untrusted_archive_directory_actionably(setup, monkeypatc
     attempts = FakeAttemptService()
 
     monkeypatch.setattr(
-        "app.services.archive_worker_service.execute_archive",
+        "app.services.archive.archive_worker_service.execute_archive",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             ArchiveManifestRepositoryError("ARCHIVE_INDEX_UNTRUSTED")
         ),

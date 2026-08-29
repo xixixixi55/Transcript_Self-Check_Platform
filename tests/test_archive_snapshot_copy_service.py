@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository.archive_input_repository import (  # noqa: E402
     build_input_inventory,
 )
-from app.services.archive_input_snapshot_copy_service import (  # noqa: E402
+from app.services.archive.archive_input_snapshot_copy_service import (  # noqa: E402
     copy_inventory,
     copy_worker_count,
     source_evidence,

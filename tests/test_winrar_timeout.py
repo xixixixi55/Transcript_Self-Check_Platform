@@ -170,7 +170,7 @@ class TestIntegrityTimeoutViaValidator:
 
 class TestPlannerUsesOversizedSingleVolume:
     def test_225gib_plus_1_uses_unsplit_rar(self):
-        from app.services.archive_planner_service import (ArchiveSourceEntry, PRODUCTION_ARCHIVE_POLICY, plan_archive)
+        from app.services.archive.archive_planner_service import (ArchiveSourceEntry, PRODUCTION_ARCHIVE_POLICY, plan_archive)
         over = 225 * 1024**3 + 1
         entries = (ArchiveSourceEntry("big.bin", over, 0),)
         plan = plan_archive("huge", entries, policy=PRODUCTION_ARCHIVE_POLICY)
@@ -536,7 +536,7 @@ class TestLockRaceWindow:
 class TestManifestImmutability:
     def test_original_manifest_unchanged_after_validation(self, tmp_path):
         import tempfile, shutil
-        from app.services.archive_manifest_service import validate_manifest_files
+        from app.services.archive.archive_manifest_service import validate_manifest_files
 
         manifest = {
             "manifest_id": "immutable-test",
@@ -577,7 +577,7 @@ class TestManifestImmutability:
 
 class TestGetValidManifestNormalizes:
     def test_legacy_normalized_copy_uses_decimal_disc_capacity(self):
-        from app.services.archive_manifest_access_service import _normalized_manifest
+        from app.services.archive.archive_manifest_access_service import _normalized_manifest
 
         manifest = {
             "manifest_id": "norm-test",
@@ -686,7 +686,7 @@ class TestOldManifestRejectsInvalidDiscCap:
         }
 
     def test_missing_key_ok(self, tmp_path):
-        from app.services.archive_manifest_service import validate_manifest_files
+        from app.services.archive.archive_manifest_service import validate_manifest_files
         part = self._valid_part()
         # 有意不提供该键
         manifest = self._valid_manifest([part])
@@ -699,7 +699,7 @@ class TestOldManifestRejectsInvalidDiscCap:
         assert err is None
 
     def test_null_rejected(self, tmp_path):
-        from app.services.archive_manifest_service import validate_manifest_files
+        from app.services.archive.archive_manifest_service import validate_manifest_files
         part = self._valid_part()
         part["disc_capacity_bytes"] = None
         manifest = self._valid_manifest([part])
@@ -712,7 +712,7 @@ class TestOldManifestRejectsInvalidDiscCap:
         assert err == "ARCHIVE_MANIFEST_INVALID"
 
     def test_string_rejected(self, tmp_path):
-        from app.services.archive_manifest_service import validate_manifest_files
+        from app.services.archive.archive_manifest_service import validate_manifest_files
         part = self._valid_part()
         part["disc_capacity_bytes"] = "4GB"
         manifest = self._valid_manifest([part])
@@ -725,7 +725,7 @@ class TestOldManifestRejectsInvalidDiscCap:
         assert err == "ARCHIVE_MANIFEST_INVALID"
 
     def test_bool_rejected(self, tmp_path):
-        from app.services.archive_manifest_service import validate_manifest_files
+        from app.services.archive.archive_manifest_service import validate_manifest_files
         part = self._valid_part()
         part["disc_capacity_bytes"] = True
         manifest = self._valid_manifest([part])
@@ -738,7 +738,7 @@ class TestOldManifestRejectsInvalidDiscCap:
         assert err == "ARCHIVE_MANIFEST_INVALID"
 
     def test_zero_rejected(self, tmp_path):
-        from app.services.archive_manifest_service import validate_manifest_files
+        from app.services.archive.archive_manifest_service import validate_manifest_files
         part = self._valid_part()
         part["disc_capacity_bytes"] = 0
         manifest = self._valid_manifest([part])
@@ -751,7 +751,7 @@ class TestOldManifestRejectsInvalidDiscCap:
         assert err == "ARCHIVE_MANIFEST_INVALID"
 
     def test_negative_rejected(self, tmp_path):
-        from app.services.archive_manifest_service import validate_manifest_files
+        from app.services.archive.archive_manifest_service import validate_manifest_files
         part = self._valid_part()
         part["disc_capacity_bytes"] = -1
         manifest = self._valid_manifest([part])

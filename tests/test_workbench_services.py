@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.repository.archive_authorization_repository import ArchiveAuthorizationError  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
+from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.case_draft_service import CaseDraftService, _initialize_draft  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.document_builder_service import build_record_document  # noqa: E402

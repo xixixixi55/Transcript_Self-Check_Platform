@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..repository.workbench_errors import WorkbenchPersistenceError
-from ..services.archive_export_service import validate_export_directory
+from ..services.archive.archive_export_service import validate_export_directory
 from ..services.case_submission_service import submit_case
 from ..services.workbench_factory_service import ensure_archive_task_api, get_workbench_services
 from .workbench_error_messages_controller import message_for_workbench_error as _message

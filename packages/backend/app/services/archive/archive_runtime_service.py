@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Callable
 from uuid import uuid4
 
-from ..repository.archive_authorization_repository import AuthorizedInputRoot
-from ..repository.archive_input_repository import InputInventory, build_input_inventory
-from ..repository.filesystem_identity_repository import (
+from ...repository.archive_authorization_repository import AuthorizedInputRoot
+from ...repository.archive_input_repository import InputInventory, build_input_inventory
+from ...repository.filesystem_identity_repository import (
     normalized_directory_key,
 )
 from .archive_inventory_snapshot_service import ArchiveInventorySnapshotStore

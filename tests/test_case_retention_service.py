@@ -20,7 +20,7 @@ from app.repository import (  # noqa: E402
     WorkbenchDatabase,
 )
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.archive_publication_identity_service import (  # noqa: E402
+from app.services.archive.archive_publication_identity_service import (  # noqa: E402
     publication_digest,
     publication_file_set,
 )

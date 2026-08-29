@@ -15,7 +15,7 @@ from ..repository.source_record_repository import SourceRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.report_format_adapter import ReportFormatError, require_supported_report_format
-from .archive_authorization_service import ArchiveAuthorizationService
+from .archive.archive_authorization_service import ArchiveAuthorizationService
 from .source_record_fingerprint_service import (
     directory_summary,
     fingerprint as _fingerprint,
@@ -256,7 +256,7 @@ class SourceRecordService:
 
     def create_legacy_preview_source(self, case_id: str) -> str:
         """仅为现有旧版归档入口创建不透明运行时句柄。"""
-        from .archive_source_runtime_service import create_preview_source
+        from .archive.archive_source_runtime_service import create_preview_source
 
         shell = CaseShellRepository(self.database).get(case_id)
         source = self.require_available(shell["source_id"])

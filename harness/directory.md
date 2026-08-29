@@ -62,6 +62,7 @@
 │       └── app/
 │           ├── repository/                # Layer 20: 数据访问
 │           ├── services/                  # Layer 21: 业务逻辑
+│           │   └── archive/               #    归档规划、执行、恢复、发布与运行时协调
 │           ├── controllers/               # Layer 22: 请求处理
 │           └── routes/                    # Layer 23: 路由定义
 │   └── launcher/                          # 🪟 Windows 便携版启动器

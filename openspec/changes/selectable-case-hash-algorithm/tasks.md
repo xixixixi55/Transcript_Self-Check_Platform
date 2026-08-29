@@ -122,9 +122,9 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 
 ### Layer 21 — 归档、所有安全门与统一导出
 
-- [ ] 修改 `packages/backend/app/services/archive_manifest_service.py`、`archive_execution_service.py`：WinRAR 完整性通过后，每个 RAR 只流式计算案件所选算法并写入 `hash_algorithm/hash_value`；发布 CAS 重试复用已计算摘要，新 Manifest 不再写固定 `md5`。
+- [ ] 修改 `packages/backend/app/services/archive/archive_manifest_service.py`、`archive_execution_service.py`：WinRAR 完整性通过后，每个 RAR 只流式计算案件所选算法并写入 `hash_algorithm/hash_value`；发布 CAS 重试复用已计算摘要，新 Manifest 不再写固定 `md5`。
   - 验证：扩展 `tests/test_archive_execution_service.py`、`tests/test_archive_execution_milestones.py` 与 Manifest 测试，三算法使用同一状态序列和结构；SHA-1/SHA-256 不调用 MD5；发布重试不重复读取。
-- [ ] 修改 `packages/backend/app/services/archive_manifest_access_service.py`、`archive_task_result_service.py`、`archive_manifest_reuse_service.py`、`archive_attempt_completion_service.py`、`archive_publish_service.py` 及其持久化恢复调用链：复用、恢复、结果授权、下载和发布全部按规范 `hash_algorithm/hash_value` 校验；归档复用指纹显式绑定算法。
+- [ ] 修改 `packages/backend/app/services/archive/archive_manifest_access_service.py`、`archive_task_result_service.py`、`archive_manifest_reuse_service.py`、`archive_attempt_completion_service.py`、`archive_publish_service.py` 及其持久化恢复调用链：复用、恢复、结果授权、下载和发布全部按规范 `hash_algorithm/hash_value` 校验；归档复用指纹显式绑定算法。
   - 验证：扩展 `tests/test_archive_manifest_authority.py`、`tests/test_archive_manifest_repository.py` 及现有恢复/下载测试，三算法均拒绝同名同大小内容篡改，旧 MD5 Manifest 继续可用，算法改变不得复用。
 - [ ] 修改 `packages/backend/app/services/hashmyfiles_service.py` 与 `unified_export_service.py`：统一导出复制前只执行发布身份、受控路径、普通文件、集合、顺序和精确大小门控；HashMyFiles 对 staging 副本计算所选算法后，与 Manifest 按文件名逐项比较摘要和大小，再进入原子发布。
   - 验证：扩展 `tests/test_unified_export_service.py` 与 `tests/test_hashmyfiles_service.py`，覆盖三算法成功、格式合法但摘要不同、行缺失/重复、复制期间源变化、工具失败和上一版回滚；断言统一导出不再触发固定 MD5 内容复核。

@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.archive_manifest_projection_service import (  # noqa: E402
+from app.services.archive.archive_manifest_projection_service import (  # noqa: E402
     project_manifest_to_legacy_report,
     project_verified_manifest_to_legacy_attachments,
 )

@@ -14,7 +14,7 @@ from app.repository.winrar_discovery_repository import (  # noqa: E402
     WinRarCapability,
     discover_winrar,
 )
-from app.services.archive_manifest_service import (  # noqa: E402
+from app.services.archive.archive_manifest_service import (  # noqa: E402
     assemble_archive_manifest,
     capture_archive_file_identities,
     compute_disc_capacity,
@@ -317,7 +317,7 @@ def test_manifest_file_validation_hashes_each_part_once(monkeypatch, tmp_path):
         calls.append(path.name)
         return hashlib.md5(path.read_bytes()).hexdigest()
 
-    monkeypatch.setattr("app.services.archive_manifest_service.compute_md5_streaming", counted_md5)
+    monkeypatch.setattr("app.services.archive.archive_manifest_service.compute_md5_streaming", counted_md5)
     assert validate_manifest_files(record) is None
     assert calls == [first.name, second.name]
 
@@ -345,7 +345,7 @@ def test_authenticated_manifest_metadata_does_not_read_part_content(monkeypatch,
         manifest_id="manifest-metadata", final_dir=tmp_path, public_manifest=manifest,
     )
     monkeypatch.setattr(
-        "app.services.archive_manifest_service.compute_md5_streaming",
+        "app.services.archive.archive_manifest_service.compute_md5_streaming",
         lambda *_args, **_kwargs: pytest.fail("metadata projection read RAR content"),
     )
 
@@ -379,7 +379,7 @@ def test_same_run_identity_detects_equal_size_change_without_rehash(monkeypatch,
     trusted_md5s = {part.name: manifest["parts"][0]["md5"]}
     identities = capture_archive_file_identities(tmp_path, {part.name})
     monkeypatch.setattr(
-        "app.services.archive_manifest_service.compute_md5_streaming",
+        "app.services.archive.archive_manifest_service.compute_md5_streaming",
         lambda *_args, **_kwargs: pytest.fail("same-run validation rehashed content"),
     )
 
@@ -453,7 +453,7 @@ class TestDiscCapacityInManifest:
             ArchiveValidationResult,
         )
         from app.repository.winrar_discovery_repository import WinRarCapability
-        from app.services.archive_planner_service import (
+        from app.services.archive.archive_planner_service import (
             ArchiveDiagnostic,
             ArchivePlan,
             ArchiveSourceEntry,
@@ -650,7 +650,7 @@ class TestDiscCapacityInManifest:
             ValidatedArchivePart, ArchiveValidationResult,
         )
         from app.repository.winrar_discovery_repository import WinRarCapability
-        from app.services.archive_planner_service import (
+        from app.services.archive.archive_planner_service import (
             ArchiveDiagnostic, ArchivePlan, ArchiveSourceEntry,
         )
         plan = ArchivePlan(
@@ -701,7 +701,7 @@ class TestDiscCapacityInManifest:
             ValidatedArchivePart, ArchiveValidationResult,
         )
         from app.repository.winrar_discovery_repository import WinRarCapability
-        from app.services.archive_planner_service import (
+        from app.services.archive.archive_planner_service import (
             ArchiveDiagnostic, ArchivePlan, ArchiveSourceEntry,
         )
         plan = ArchivePlan(

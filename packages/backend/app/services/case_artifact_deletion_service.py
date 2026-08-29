@@ -13,8 +13,8 @@ from ..repository.archive_manifest_repository import ArchiveManifestRepository
 from ..repository.workbench_database import WorkbenchDatabase
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..repository.workbench_serialization import validate_opaque_id
-from .archive_input_snapshot_files_service import marker_path
-from .archive_input_snapshot_layout_service import private_snapshot_root
+from .archive.archive_input_snapshot_files_service import marker_path
+from .archive.archive_input_snapshot_layout_service import private_snapshot_root
 
 _INDEX_NAMES = {".archive-manifest-index.json", ".archive-manifest-index.lock"}
 

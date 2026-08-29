@@ -23,13 +23,13 @@ from app.repository.archive_manifest_repository import ArchiveManifestRepository
 from app.repository.archive_publish_intent_repository import ArchivePublishIntentRepository  # noqa: E402
 from app.repository.source_record_repository import SourceRecordRepository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
-from app.services import archive_attempt_completion_service as completion_module  # noqa: E402
-from app.services.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
+from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
+from app.services.archive import archive_attempt_completion_service as completion_module  # noqa: E402
+from app.services.archive.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
-from app.services.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
-from app.services.archive_publish_service import publish_staged_archive  # noqa: E402
+from app.services.archive.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
+from app.services.archive.archive_publish_service import publish_staged_archive  # noqa: E402
 from app.services.workbench_factory_service import build_workbench_services  # noqa: E402
 
 from test_phase1d_recovery import (  # noqa: E402

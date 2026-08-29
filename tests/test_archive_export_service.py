@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.archive_export_service import (  # noqa: E402
+from app.services.archive.archive_export_service import (  # noqa: E402
     _open_windows_directory,
     export_bundle,
     open_latest_export_directory,
@@ -19,7 +19,7 @@ from app.services.archive_export_service import (  # noqa: E402
     validate_export_directory,
 )
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.archive_manifest_projection_service import (  # noqa: E402
+from app.services.archive.archive_manifest_projection_service import (  # noqa: E402
     project_manifest_to_legacy_report_with_plan,
 )
 from app.services.unified_export_service import with_disc_mapping  # noqa: E402
@@ -71,7 +71,7 @@ def _api(consume_ok: bool) -> MagicMock:
 
 @pytest.fixture(autouse=True)
 def _no_photo_side_effects():
-    with patch("app.services.archive_export_service._resolve_photo_paths", return_value=[]):
+    with patch("app.services.archive.archive_export_service._resolve_photo_paths", return_value=[]):
         yield
 
 
@@ -117,8 +117,8 @@ def test_open_latest_export_directory_rejects_missing_directory(tmp_path: Path) 
 def test_windows_directory_open_uses_argument_list_without_shell(tmp_path: Path) -> None:
     export_dir = tmp_path / "SYNTHETIC OPEN DIRECTORY"
     export_dir.mkdir()
-    with patch("app.services.archive_export_service.os.name", "nt"), patch(
-        "app.services.archive_export_service.subprocess.Popen",
+    with patch("app.services.archive.archive_export_service.os.name", "nt"), patch(
+        "app.services.archive.archive_export_service.subprocess.Popen",
     ) as popen:
         _open_windows_directory(export_dir)
 
@@ -161,7 +161,7 @@ def test_export_bundle_rejects_program_root_before_consuming_grant_or_exporting(
     from app.config import RUNTIME_PATHS
 
     api = _api(consume_ok=True)
-    with patch("app.services.archive_export_service.unified_export") as render:
+    with patch("app.services.archive.archive_export_service.unified_export") as render:
         with pytest.raises(WorkbenchPersistenceError) as error:
             export_bundle(
                 api, "case-synthetic", 3, str(RUNTIME_PATHS.resource_root),
@@ -286,7 +286,7 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
     export_dir.mkdir(parents=True)
     api.sources.authorization.consume_exact_directory_grant.return_value = True
 
-    with patch("app.services.archive_export_service.unified_export") as unified:
+    with patch("app.services.archive.archive_export_service.unified_export") as unified:
         unified.return_value = {
             "export_path": str(export_dir), "word_filename": "用户命名.docx",
             "rar_filenames": ["case.part1.rar"],
@@ -341,7 +341,7 @@ def test_export_bundle_uses_asset_ref_order_and_rebuilds_missing_photo_groups(
         },
     }
 
-    with patch("app.services.archive_export_service.unified_export") as unified:
+    with patch("app.services.archive.archive_export_service.unified_export") as unified:
         unified.return_value = {
             "export_path": str(export_dir), "word_filename": "SYNTHETIC.docx",
             "rar_filenames": ["case.part1.rar"],
@@ -374,7 +374,7 @@ def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> Non
     }
     from app.services.unified_export_service import UnifiedExportError
 
-    with patch("app.services.archive_export_service.unified_export", side_effect=UnifiedExportError(
+    with patch("app.services.archive.archive_export_service.unified_export", side_effect=UnifiedExportError(
         "DISC_MAPPING_INCOMPLETE", "光盘编号尚未全部补齐，无法导出。",
     )):
         with pytest.raises(WorkbenchPersistenceError) as error:
@@ -392,7 +392,7 @@ def test_export_bundle_projects_hash_screenshot_failure_without_marking_exported
     export_dir.mkdir(parents=True)
     from app.services.unified_export_service import UnifiedExportError
 
-    with patch("app.services.archive_export_service.unified_export", side_effect=UnifiedExportError(
+    with patch("app.services.archive.archive_export_service.unified_export", side_effect=UnifiedExportError(
         "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
     )):
         with pytest.raises(WorkbenchPersistenceError) as error:

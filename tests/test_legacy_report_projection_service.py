@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.attachment_plan_service import build_attachment_plan  # noqa: E402
-from app.services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan  # noqa: E402
+from app.services.archive.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan  # noqa: E402
 from app.services.document_builder_service import build_record_document  # noqa: E402
 from app.services.legacy_report_projection_service import project_ordered_legacy_report  # noqa: E402
 from synthetic_report_builders import build_ordered_report  # noqa: E402

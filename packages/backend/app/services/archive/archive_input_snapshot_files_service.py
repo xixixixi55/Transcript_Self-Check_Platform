@@ -11,7 +11,7 @@ import stat
 from pathlib import Path
 from typing import Any
 
-from ..repository.archive_input_repository import ArchiveInputError, InputInventory
+from ...repository.archive_input_repository import ArchiveInputError, InputInventory
 from .archive_input_snapshot_layout_service import (
     EXTERNAL_SNAPSHOT_ROOT as _EXTERNAL_SNAPSHOT_ROOT,
     SHORT_SNAPSHOT_ROOT as _SHORT_SNAPSHOT_ROOT,

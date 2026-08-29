@@ -133,7 +133,7 @@ def test_archive_asset_internal_locator_never_enters_public_projection(
 
 
 def test_persist_archive_plan_projects_manifest_parts_to_slots(database: WorkbenchDatabase) -> None:
-    from app.services.archive_mapping_service import persist_archive_plan
+    from app.services.archive.archive_mapping_service import persist_archive_plan
 
     repository = ArchivePlanRepository(database)
     plan = persist_archive_plan(
@@ -169,7 +169,7 @@ def test_persist_archive_plan_projects_manifest_parts_to_slots(database: Workben
 def test_persist_archive_plan_for_attempt_projects_two_manifest_parts(
     database: WorkbenchDatabase,
 ) -> None:
-    from app.services.archive_mapping_service import persist_archive_plan_for_attempt
+    from app.services.archive.archive_mapping_service import persist_archive_plan_for_attempt
 
     class Attempts:
         def __init__(self) -> None:

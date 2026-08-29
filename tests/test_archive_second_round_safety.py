@@ -30,22 +30,22 @@ from app.repository.archive_publish_intent_repository import (  # noqa: E402
 )
 from app.repository.archive_task_repository import ArchiveTaskRepository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
-from app.services.archive_input_snapshot_service import (  # noqa: E402
+from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
+from app.services.archive.archive_input_snapshot_service import (  # noqa: E402
     assert_sealed_input, cleanup_ephemeral_input_snapshot,
     create_ephemeral_sealed_input_snapshot,
 )
-from app.services.archive_input_snapshot_files_service import (  # noqa: E402
+from app.services.archive.archive_input_snapshot_files_service import (  # noqa: E402
     resolve_snapshot_dir,
 )
-from app.services.archive_input_snapshot_layout_service import (  # noqa: E402
+from app.services.archive.archive_input_snapshot_layout_service import (  # noqa: E402
     EXTERNAL_SNAPSHOT_ROOT, choose_snapshot_layout,
 )
-from app.services.archive_manifest_service import validate_manifest_files  # noqa: E402
-from app.services.archive_publish_service import publish_staged_archive  # noqa: E402
-from app.services.archive_publication_identity_service import publication_digest  # noqa: E402
-from app.services.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
-from app.services.archive_task_api_service import ArchiveTaskApiService  # noqa: E402
+from app.services.archive.archive_manifest_service import validate_manifest_files  # noqa: E402
+from app.services.archive.archive_publish_service import publish_staged_archive  # noqa: E402
+from app.services.archive.archive_publication_identity_service import publication_digest  # noqa: E402
+from app.services.archive.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
+from app.services.archive.archive_task_api_service import ArchiveTaskApiService  # noqa: E402
 from app.repository.archive_attempt_restart_repository import interrupt_owned_claim  # noqa: E402
 
 from test_phase1d_recovery import (  # noqa: E402
@@ -241,7 +241,7 @@ def test_snapshot_change_before_seal_invalidates_input_and_never_executes(
     output = tmp_path / "SYNTHETIC-OUTPUT-M3"
     inventory = build_input_inventory(source, output_root=output)
 
-    import app.services.archive_input_snapshot_service as snapshot_module
+    import app.services.archive.archive_input_snapshot_service as snapshot_module
 
     original_assert = snapshot_module._assert_source_matches
     mutated = False
@@ -390,7 +390,7 @@ def test_publication_cutpoint_tamper_never_becomes_durable_success(
     context = SimpleNamespace(
         context_id=context_id, source_key="8" * 64, input_fingerprint="9" * 64,
     )
-    import app.services.archive_publish_service as publish_module
+    import app.services.archive.archive_publish_service as publish_module
 
     original_validate = publish_module.validate_published_manifest
     tampered = False

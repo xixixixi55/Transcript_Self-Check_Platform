@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.archive_planner_service import (  # noqa: E402
+from app.services.archive.archive_planner_service import (  # noqa: E402
     ArchivePolicy,
     ArchiveSourceEntry,
     ArchiveTier,

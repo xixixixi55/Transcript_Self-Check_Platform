@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .archive_planner_service import ArchiveSourceEntry, plan_archive
+from .archive.archive_planner_service import ArchiveSourceEntry, plan_archive
 from .attachment_plan_service import build_attachment_plan
 from .canonical_adapter_service import canonical_to_inspection_report, inspection_report_to_canonical
-from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
+from .archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveRuntimeError
 from .pipeline_runtime_service import PipelineSettings
 from .shadow_comparison_service import compare_shadow_snapshots, snapshot_from_canonical, snapshot_from_legacy_report
 from .shadow_archive_facts_service import validated_manifest, with_archive_facts

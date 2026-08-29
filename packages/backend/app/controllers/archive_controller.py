@@ -8,19 +8,19 @@ from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
-from ..services.archive_execution_service import (
+from ..services.archive.archive_execution_service import (
     ArchiveGateError,
     execute_archive,
 )
-from ..services.archive_runtime_service import ArchiveRuntimeError
-from ..services.archive_runtime_service import ARCHIVE_RUNTIME_STORE
-from ..services.archive_source_runtime_service import (
+from ..services.archive.archive_runtime_service import ArchiveRuntimeError
+from ..services.archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE
+from ..services.archive.archive_source_runtime_service import (
     get_preview_source_summary,
     prepare_archive_source,
     resolve_archive_context_id,
 )
-from ..services.archive_manifest_access_service import get_manifest_part_download
-from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
+from ..services.archive.archive_manifest_access_service import get_manifest_part_download
+from ..services.archive.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
 from ..services.attachment_plan_models_service import AttachmentPlanError
 from ..services.software_policy_service import normalize_primary_software_projection
 from .pipeline_controller import (

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from .archive_runtime_service import ArchiveRuntimeError
-from .archive_authorization_service import ArchiveAuthorizationError
+from .archive.archive_runtime_service import ArchiveRuntimeError
+from .archive.archive_authorization_service import ArchiveAuthorizationError
 from .report_parse_inflight_service import (
     ReportParseInFlightCapacityError,
     ReportParseInFlightError,

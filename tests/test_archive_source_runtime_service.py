@@ -13,13 +13,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
 from app.repository.archive_input_repository import build_input_inventory  # noqa: E402
-from app.services.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
-from app.services.archive_source_runtime_service import (  # noqa: E402
+from app.services.archive.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
+from app.services.archive.archive_source_runtime_service import (  # noqa: E402
     ArchiveSourceRuntimeStore,
     prepare_archive_source,
     resolve_archive_context_id,
 )
-from app.services import archive_source_runtime_service  # noqa: E402
+from app.services.archive import archive_source_runtime_service  # noqa: E402
 
 
 def _authorized(root: Path) -> AuthorizedInputRoot:
@@ -35,7 +35,7 @@ def test_preview_source_does_not_build_inventory_and_has_explicit_state(tmp_path
     source.mkdir()
     store = ArchiveSourceRuntimeStore()
     with patch(
-        "app.services.archive_runtime_service.build_input_inventory",
+        "app.services.archive.archive_runtime_service.build_input_inventory",
         side_effect=AssertionError("preview must not inventory"),
     ):
         source_id = store.create(_authorized(source))
@@ -113,7 +113,7 @@ def test_unprepared_source_cannot_resolve_formal_context(tmp_path):
     source_id = store.create(_authorized(source))
 
     with patch(
-        "app.services.archive_source_runtime_service.ARCHIVE_SOURCE_RUNTIME_STORE",
+        "app.services.archive.archive_source_runtime_service.ARCHIVE_SOURCE_RUNTIME_STORE",
         store,
     ), pytest.raises(ArchiveRuntimeError) as error:
         resolve_archive_context_id(source_id)
@@ -151,11 +151,11 @@ def test_explicit_preparation_uses_full_inventory_and_context_gates(tmp_path):
     source = tmp_path / "case"
     source.mkdir()
     (source / "input.bin").write_bytes(b"SYNTHETIC")
-    from app.services.archive_source_runtime_service import create_preview_source
+    from app.services.archive.archive_source_runtime_service import create_preview_source
 
     source_id = create_preview_source(_authorized(source))
     with patch(
-        "app.services.archive_runtime_service.build_input_inventory",
+        "app.services.archive.archive_runtime_service.build_input_inventory",
         wraps=build_input_inventory,
     ) as build_inventory:
         context_id = prepare_archive_source(source_id, _report(), output_root=str(tmp_path / "output"))

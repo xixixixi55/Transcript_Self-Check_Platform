@@ -15,18 +15,18 @@ from app.repository.winrar_executor_repository import (  # noqa: E402
 )
 from app.repository.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.archive_execution_service import (  # noqa: E402
+from app.services.archive.archive_execution_service import (  # noqa: E402
     ArchiveGateError,
     create_archive_context,
     execute_archive,
     get_valid_manifest,
 )
-from app.services.archive_runtime_service import ARCHIVE_RUNTIME_STORE  # noqa: E402
-from app.services.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
-from app.services.archive_attempt_service import ArchivePublicationSnapshot  # noqa: E402
-from app.services.archive_manifest_access_service import get_manifest_part_download  # noqa: E402
+from app.services.archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE  # noqa: E402
+from app.services.archive.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
+from app.services.archive.archive_attempt_service import ArchivePublicationSnapshot  # noqa: E402
+from app.services.archive.archive_manifest_access_service import get_manifest_part_download  # noqa: E402
 from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
-from app.services.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
+from app.services.archive.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
 
 
 def valid_report():
@@ -137,7 +137,7 @@ def test_archive_publishes_two_parts_with_supported_disc_prefix(
     fake = FakeExecutor(tmp_path / "fake-staging", lambda _tier: 2)
     projected_parts: list[dict] = []
     monkeypatch.setattr(
-        "app.services.archive_execution_service.persist_archive_plan_for_attempt",
+        "app.services.archive.archive_execution_service.persist_archive_plan_for_attempt",
         lambda _service, _attempt_id, _plan, manifest: projected_parts.extend(
             manifest["parts"],
         ),
@@ -201,7 +201,7 @@ def test_new_archive_hashes_each_generated_part_once(tmp_path, monkeypatch):
         return __import__("hashlib").md5(path.read_bytes()).hexdigest()
 
     monkeypatch.setattr(
-        "app.services.archive_manifest_service.compute_md5_streaming", counted_md5,
+        "app.services.archive.archive_manifest_service.compute_md5_streaming", counted_md5,
     )
     outcome = execute_archive(
         context_id, valid_report(), output_root=str(output), policy=policy(4),
@@ -327,14 +327,14 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
         return __import__("hashlib").md5(path.read_bytes()).hexdigest()
 
     monkeypatch.setattr(
-        "app.services.archive_manifest_service.compute_md5_streaming", counted_md5,
+        "app.services.archive.archive_manifest_service.compute_md5_streaming", counted_md5,
     )
     monkeypatch.setattr(
-        "app.services.archive_execution_service.WinRarExecutor",
+        "app.services.archive.archive_execution_service.WinRarExecutor",
         lambda *_args, **_kwargs: fake,
     )
     monkeypatch.setattr(
-        "app.services.archive_execution_service.record_attempt_completion",
+        "app.services.archive.archive_execution_service.record_attempt_completion",
         lambda *_args, **kwargs: completion_kwargs.update(kwargs),
     )
 
@@ -355,7 +355,7 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
         return {"合成案件.rar": (1, 2, 3, 4, 5)}
 
     monkeypatch.setattr(
-        "app.services.archive_execution_service.publish_staged_archive", publish,
+        "app.services.archive.archive_execution_service.publish_staged_archive", publish,
     )
 
     outcome = execute_archive(
@@ -414,7 +414,7 @@ def test_publish_revalidation_rejects_latest_invalid_disc_sequence(
             return ArchivePublicationSnapshot(latest, 8, "a" * 64)
 
     monkeypatch.setattr(
-        "app.services.archive_execution_service.WinRarExecutor",
+        "app.services.archive.archive_execution_service.WinRarExecutor",
         lambda *_args, **_kwargs: fake,
     )
 
@@ -449,7 +449,7 @@ def test_publish_binding_error_is_not_misreported_as_invalid_rar(tmp_path, monke
             raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_BINDING_STALE")
 
     monkeypatch.setattr(
-        "app.services.archive_execution_service.WinRarExecutor",
+        "app.services.archive.archive_execution_service.WinRarExecutor",
         lambda *_args, **_kwargs: fake,
     )
     with pytest.raises(ArchiveGateError) as error:

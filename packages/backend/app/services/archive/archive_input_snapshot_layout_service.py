@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Iterable
 
-from ..repository.archive_input_repository import ArchiveInputError
+from ...repository.archive_input_repository import ArchiveInputError
 
 
 _WINDOWS_FILE_PATH_LIMIT = 260
@@ -88,7 +88,7 @@ def private_snapshot_root() -> Path:
     override = os.environ.get("BIJI_ARCHIVE_EXTERNAL_ROOT")
     if override:
         return Path(override)
-    from ..config import OUTPUT_BASE
+    from ...config import OUTPUT_BASE
 
     return Path(OUTPUT_BASE).parent.parent / "external-snapshots"
 

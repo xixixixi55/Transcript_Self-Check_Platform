@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
 from app.repository.archive_input_repository import ArchiveInputError, build_input_inventory  # noqa: E402
-from app.services.archive_inventory_snapshot_service import ArchiveInventorySnapshotStore  # noqa: E402
-from app.services.archive_runtime_service import (  # noqa: E402
+from app.services.archive.archive_inventory_snapshot_service import ArchiveInventorySnapshotStore  # noqa: E402
+from app.services.archive.archive_runtime_service import (  # noqa: E402
     ArchiveRuntimeError,
     ArchiveRuntimeStore,
 )
@@ -97,7 +97,7 @@ def test_context_reuses_inventory_without_recursive_currentness_scan(tmp_path):
     )
 
     with patch(
-        "app.services.archive_runtime_service.build_input_inventory",
+        "app.services.archive.archive_runtime_service.build_input_inventory",
         wraps=build_input_inventory,
     ) as build_inventory:
         first = store.create_context(authorized, "Synthetic case", output_root=str(output))
@@ -130,7 +130,7 @@ def test_concurrent_context_creation_builds_one_snapshot(tmp_path):
     )
 
     with patch(
-        "app.services.archive_runtime_service.build_input_inventory",
+        "app.services.archive.archive_runtime_service.build_input_inventory",
         wraps=build_input_inventory,
     ) as build_inventory, ThreadPoolExecutor(max_workers=4) as pool:
         records = list(pool.map(
@@ -157,7 +157,7 @@ def test_expiring_manifest_metadata_never_deletes_published_output(tmp_path):
     final_dir = tmp_path / "published" / "manifest-1"
     final_dir.mkdir(parents=True)
     (final_dir / "case.part1.rar").write_bytes(b"archive")
-    from app.services.archive_runtime_service import ArchiveManifestRecord
+    from app.services.archive.archive_runtime_service import ArchiveManifestRecord
 
     store._manifests["manifest-1"] = ArchiveManifestRecord(
         "manifest-1", "context-1", "fingerprint", {}, Path(final_dir), 0, 0,

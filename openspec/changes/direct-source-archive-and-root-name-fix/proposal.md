@@ -30,7 +30,7 @@
 | FE Components (11) | `packages/frontend/src/components/ArchiveDecisionPanel.tsx` | 增加开始前确认与执行期风险提示 |
 | FE Pages (12) | `packages/frontend/src/pages/CaseRecordGeneratePage.tsx` | 将立即压缩动作接入确认交互 |
 | BE Repository (20) | `packages/backend/app/repository/winrar_executor_repository.py` | 始终以相对原始目录名调用 WinRAR，保留正确内部根目录 |
-| BE Services (21) | `packages/backend/app/services/archive_execution_service.py` 及 attempt 验证/完成服务 | 改为直接源 inventory，在 WinRAR 前后做变化门控，移除新尝试对 sealed snapshot 证据的依赖 |
+| BE Services (21) | `packages/backend/app/services/archive/archive_execution_service.py` 及 attempt 验证/完成服务 | 改为直接源 inventory，在 WinRAR 前后做变化门控，移除新尝试对 sealed snapshot 证据的依赖 |
 | Tests | `tests/test_archive_execution_service.py`、`tests/test_archive_executor_validator.py`、`tests/test_winrar_directory_structure_integration.py`、前端组件/页面测试 | 锁定直接源路径、前后变化失败、原始根名和用户提示 |
 
 ## 风险

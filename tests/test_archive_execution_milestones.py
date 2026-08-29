@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository.archive_authorization_repository import AuthorizedInputRoot  # noqa: E402
 from app.repository.winrar_discovery_repository import WinRarCapability  # noqa: E402
 from app.repository.winrar_executor_repository import WinRarExecutionResult  # noqa: E402
-from app.services.archive_execution_service import create_archive_context, execute_archive  # noqa: E402
-from app.services.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
+from app.services.archive.archive_execution_service import create_archive_context, execute_archive  # noqa: E402
+from app.services.archive.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
 
 
 def report() -> dict:

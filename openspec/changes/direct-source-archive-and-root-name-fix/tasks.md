@@ -29,12 +29,12 @@ workflow_level: 3
 ## 后端 Service（Layer 21）
 
 - [x] T004 将归档编排改为直接源 inventory 与 WinRAR 前后变化门控。
-  - 文件：`packages/backend/app/services/archive_execution_service.py`、`packages/backend/app/repository/archive_input_repository.py`、`packages/backend/app/repository/archive_attempt_recovery_repository.py`、`packages/backend/app/repository/winrar_executor_repository.py`（执行模型现已收回唯一消费者）
+  - 文件：`packages/backend/app/services/archive/archive_execution_service.py`、`packages/backend/app/repository/archive_input_repository.py`、`packages/backend/app/repository/archive_attempt_recovery_repository.py`、`packages/backend/app/repository/winrar_executor_repository.py`（执行模型现已收回唯一消费者）
   - 内容：新 attempt 不建立 sealed snapshot；WinRAR 直接使用 context inventory；成功返回后再校验 inventory，变化时清理 staging 并中止完整性/MD5/Manifest/发布。
   - 验证：`tests/test_archive_execution_service.py`、`tests/test_archive_runtime_lifecycle.py`、attempt 安全/恢复相关定向 pytest；核心分支执行断言有效性验证。
 
 - [x] T005 保留历史 snapshot 恢复与清理兼容。
-  - 文件：`packages/backend/app/services/archive_attempt_recovery_reconciliation_service.py`（现已合并原 input snapshot recovery 内部实现）、案件删除相关测试
+  - 文件：`packages/backend/app/services/archive/archive_attempt_recovery_reconciliation_service.py`（现已合并原 input snapshot recovery 内部实现）、案件删除相关测试
   - 内容：新 attempt 无 snapshot 时可完成/恢复；历史有 snapshot 记录仍仅由所有权验证路径清理，绝不删除外部源目录。
   - 验证：本轮不需修改历史快照清理代码；快照恢复、失败清理与案件删除定向 pytest 纳入 82 项后端定向回归并通过。
 

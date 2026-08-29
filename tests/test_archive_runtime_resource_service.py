@@ -13,18 +13,18 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services import archive_runtime_resource_service as resource_module  # noqa: E402
+from app.services.archive import archive_runtime_resource_service as resource_module  # noqa: E402
 from app.repository import (  # noqa: E402
     CaseShellRepository,
     WorkbenchDatabase,
     database_path_for_deployment,
 )
-from app.services.archive_resource_admission_service import (  # noqa: E402
+from app.services.archive.archive_resource_admission_service import (  # noqa: E402
     ArchiveAdmissionConfig,
     ArchiveResourceAdmissionService,
     ArchiveResourceSnapshot,
 )
-from app.services.archive_runtime_resource_service import (  # noqa: E402
+from app.services.archive.archive_runtime_resource_service import (  # noqa: E402
     ArchiveRuntimeResourceProvider, build_archive_admission_config,
 )
 
@@ -140,7 +140,7 @@ def test_unavailable_io_gate_is_skipped_but_other_admission_gates_remain() -> No
 def test_scheduler_can_claim_with_unavailable_optional_io_metric(database) -> None:
     """调度器不得因缺少可选指标而永久等待。"""
     from app.repository.archive_task_repository import ArchiveTaskRepository
-    from app.services.archive_scheduler_service import ArchiveSchedulerService
+    from app.services.archive.archive_scheduler_service import ArchiveSchedulerService
 
     tasks = ArchiveTaskRepository(database)
     task = tasks.create({

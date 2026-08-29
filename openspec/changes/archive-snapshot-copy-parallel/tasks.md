@@ -8,12 +8,12 @@ workflow_level: 2
 ## 后端 Service（Layer 21）
 
 - [x] T001 copy_inventory 并行拷贝与目录遍历合并。
-  - 文件：`packages/backend/app/services/archive_input_snapshot_copy_service.py`
+  - 文件：`packages/backend/app/services/archive/archive_input_snapshot_copy_service.py`
   - 内容：先单遍创建所有目录（去除拷贝循环内逐文件 `parent.mkdir`），再用 `ThreadPoolExecutor` 并行拷贝文件，默认 4 工作线程、`BIJI_ARCHIVE_COPY_WORKERS` 可配置覆盖；worker 内完成拷贝与 mtime 恢复；任一失败记录日志并按原契约抛 `ArchiveInputError`。
   - 验证：受影响后端测试回归（归档输入快照相关）。
 
 - [x] T002 copy_file 去掉每文件 fsync。
-  - 文件：`packages/backend/app/services/archive_input_snapshot_copy_service.py`
+  - 文件：`packages/backend/app/services/archive/archive_input_snapshot_copy_service.py`
   - 内容：`copy_file` 保留 `flush()` 与 `assert_regular`，移除每文件 `os.fsync`；快照目录 rename 后 `fsync_dir`、所有权 marker、文件清单元数据持久化均保留。
   - 验证：受影响后端测试回归。
 

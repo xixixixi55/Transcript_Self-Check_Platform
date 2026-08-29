@@ -22,8 +22,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.repository.workbench_database import utc_now  # noqa: E402
-from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
-from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
+from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
+from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
 from app.services.case_artifact_deletion_service import CaseArtifactDeletionService  # noqa: E402
 from app.services.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
@@ -44,7 +44,7 @@ IDENTITY = {"identity_kind": "local_session", "client_instance_id": "SYNTHETIC-C
 
 @pytest.fixture()
 def app_services(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    from app.services import archive_source_runtime_service
+    from app.services.archive import archive_source_runtime_service
 
     monkeypatch.setattr(
         archive_source_runtime_service,
@@ -520,7 +520,7 @@ def test_http_saved_disc_number_precedes_immediate_archive_decision(app_services
 def test_archive_decision_preparation_does_not_block_workbench_requests(app_services):
     from app.main import app
     from app.controllers import workbench_controller
-    from app.services.archive_source_runtime_service import discard_preview_source
+    from app.services.archive.archive_source_runtime_service import discard_preview_source
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
@@ -1311,7 +1311,7 @@ def test_archive_mapping_and_verified_result_routes(app_services):
         assert case_shell["archive_task_summary"]["task_id"] == done["task_id"]
         assert case_shell["archive_task_summary"]["status"] == "succeeded"
         with patch(
-            "app.services.archive_manifest_service.compute_md5_streaming",
+            "app.services.archive.archive_manifest_service.compute_md5_streaming",
             side_effect=lambda path, _root: hashlib.md5(path.read_bytes()).hexdigest(),
         ) as compute_md5:
             result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
@@ -1334,7 +1334,7 @@ def test_archive_mapping_and_verified_result_routes(app_services):
 def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_not(app_services):
     from app.main import app
     from app.controllers import archive_controller, workbench_controller
-    from app.services.archive_execution_service import ArchiveExecutionOutcome
+    from app.services.archive.archive_execution_service import ArchiveExecutionOutcome
 
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), \
          patch.object(archive_controller, "get_workbench_services", return_value=app_services):
@@ -1417,7 +1417,7 @@ def test_interrupted_archive_stays_consistent_when_context_or_attempt_creation_f
     from app.main import app
     from app.controllers import workbench_controller
     from app.repository.workbench_errors import WorkbenchPersistenceError
-    from app.services.archive_source_runtime_service import (
+    from app.services.archive.archive_source_runtime_service import (
         ARCHIVE_SOURCE_RUNTIME_STORE,
         ArchiveRuntimeError,
     )

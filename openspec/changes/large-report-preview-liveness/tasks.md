@@ -116,7 +116,7 @@ workflow_level: 3
 
 - [x] **T15 — 将上下文外壳与完整 ArchiveContext 实体化分离**
   - 需求：REQ-ARCHIVE-LIFECYCLE-001 至 REQ-ARCHIVE-LIFECYCLE-003。
-  - 文件：`packages/backend/app/services/archive_runtime_service.py`（包括同处的生命周期记录）、`packages/backend/app/services/archive_source_runtime_service.py`、`packages/backend/app/services/archive_execution_service.py`。
+  - 文件：`packages/backend/app/services/archive/archive_runtime_service.py`（包括同处的生命周期记录）、`packages/backend/app/services/archive/archive_source_runtime_service.py`、`packages/backend/app/services/archive/archive_execution_service.py`。
   - 增加不透明、短期有效、已授权且有明确就绪状态但无清单的外壳；预览只使用外壳。增加与源无关的显式准备操作，重新验证授权、构建完整清单并升级/发布完整上下文。
   - 保留正式 `verify_input_inventory`、完整输入内容指纹、WinRAR 规划/执行、RAR 完整性、Manifest、下载和导出验证。外壳和解析缓存必须被拒绝作为正式证据。
 
@@ -168,7 +168,7 @@ workflow_level: 3
 
 - [x] **T24 — 第 1 部分：将可变修订版与归档所有权分离**
   - 需求：REQ-ARCHIVE-LIFECYCLE-004。
-  - 文件：`packages/backend/app/services/archive_worker_service.py`、`packages/backend/app/services/archive_runtime_coordinator_service.py`。
+  - 文件：`packages/backend/app/services/archive/archive_worker_service.py`、`packages/backend/app/services/archive/archive_runtime_coordinator_service.py`。
   - 将 `process_tree_id` 加绑定尝试 ID 视为所有权身份。在工作进程启动前及协调器回退中收敛取消，且不允许用 `failed_retryable` 覆盖 `cancelling`。
 
 - [x] **T25 — 验证准备/取消竞态修复**

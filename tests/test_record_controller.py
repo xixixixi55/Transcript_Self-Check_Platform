@@ -26,7 +26,7 @@ _MOCK_RESPONSE = {
 def client():
     from app.main import app
     from app.controllers import record_controller
-    from app.services.archive_authorization_service import ArchiveAuthorizationService
+    from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
     # 测试根目录是显式配置，与 BIJI_ALLOWED_INPUT_ROOTS 对应。
     test_authorization = ArchiveAuthorizationService(
@@ -213,7 +213,7 @@ def test_word_export_does_not_misclassify_invalid_revision_as_late_photo_binding
 
 def test_standalone_word_export_writes_to_picker_authorized_directory(client, tmp_path):
     from app.controllers import record_controller
-    from app.services.archive_authorization_service import ArchiveAuthorizationService
+    from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
     authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
     token = authorization.issue_exact_directory_grant(str(tmp_path))
@@ -249,7 +249,7 @@ def test_standalone_word_export_writes_to_picker_authorized_directory(client, tm
 
 def test_case_standalone_word_export_reuses_unified_export_manifest(client, tmp_path):
     from app.controllers import record_controller
-    from app.services.archive_authorization_service import ArchiveAuthorizationService
+    from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
     authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
     token = authorization.issue_exact_directory_grant(str(tmp_path))
@@ -319,7 +319,7 @@ def test_case_standalone_word_export_reuses_unified_export_manifest(client, tmp_
 
 def test_standalone_word_export_rejects_reused_or_mismatched_directory_grant(client, tmp_path):
     from app.controllers import record_controller
-    from app.services.archive_authorization_service import ArchiveAuthorizationService
+    from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
     selected = tmp_path / "selected"
     mismatch = tmp_path / "mismatch"
@@ -396,7 +396,7 @@ def test_standalone_word_export_rejects_unsafe_directory_before_consuming_grant(
 
 def test_standalone_word_export_failure_preserves_existing_file(client, tmp_path):
     from app.controllers import record_controller
-    from app.services.archive_authorization_service import ArchiveAuthorizationService
+    from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
     authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
     token = authorization.issue_exact_directory_grant(str(tmp_path))
@@ -557,7 +557,7 @@ def test_case_word_export_rejects_pending_plan_despite_client_disc_number(client
 
 def test_directory_word_export_omits_odd_attachment2_images_without_blocking(client, tmp_path):
     from app.controllers import record_controller
-    from app.services.archive_authorization_service import ArchiveAuthorizationService
+    from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
     report = {
         "attachments": {"disc_number": "GP20260720-01", "photo_ids": []},
@@ -813,7 +813,7 @@ def test_parse_folder_returns_path_free_context_summary(client):
 
 def test_preview_parse_does_not_build_full_inventory(client):
     with tempfile.TemporaryDirectory() as tmpdir, patch(
-        "app.services.archive_runtime_service.build_input_inventory",
+        "app.services.archive.archive_runtime_service.build_input_inventory",
         side_effect=AssertionError("preview must not build inventory"),
     ):
         os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
@@ -824,7 +824,7 @@ def test_preview_parse_does_not_build_full_inventory(client):
 
 
 def test_preview_source_capacity_error_has_stable_code(client):
-    from app.services.archive_runtime_service import ArchiveRuntimeError
+    from app.services.archive.archive_runtime_service import ArchiveRuntimeError
 
     with tempfile.TemporaryDirectory() as tmpdir, patch(
         "app.controllers.record_controller.create_preview_source",
@@ -875,7 +875,7 @@ def test_archive_endpoint_requires_opaque_context_and_does_not_accept_client_pat
 
 
 def test_archive_endpoint_returns_manifest_derived_attachment1_preview(client):
-    from app.services.archive_execution_service import ArchiveExecutionOutcome
+    from app.services.archive.archive_execution_service import ArchiveExecutionOutcome
 
     manifest = {"manifest_id": "manifest-1", "parts": []}
     preview = {"columns": [{"key": "electronic_data", "title": "电子数据"}],
@@ -898,7 +898,7 @@ def test_archive_endpoint_returns_manifest_derived_attachment1_preview(client):
 
 
 def test_archive_inventory_failure_blocks_execution(client):
-    from app.services.archive_runtime_service import ArchiveRuntimeError
+    from app.services.archive.archive_runtime_service import ArchiveRuntimeError
 
     with patch(
         "app.controllers.archive_controller.prepare_archive_source",
@@ -932,7 +932,7 @@ def test_archive_status_returns_only_public_context_fields(client):
 
 
 def test_archive_part_download_uses_opaque_ids_and_manifest_filename(client, tmp_path):
-    from app.services.archive_manifest_access_service import ArchiveDownload
+    from app.services.archive.archive_manifest_access_service import ArchiveDownload
 
     part = tmp_path / "合成案件.rar"
     payload = b"synthetic-rar"

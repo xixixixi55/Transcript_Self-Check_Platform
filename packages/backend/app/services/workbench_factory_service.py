@@ -18,21 +18,21 @@ from ..repository.template_approval_repository import TemplateApprovalRepository
 from ..repository.template_registry_repository import TemplateRegistryRepository
 from ..repository.case_template_reference_repository import CaseTemplateReferenceRepository
 from ..repository.shared_defaults_repository import SharedDefaultsRepository
-from .archive_authorization_service import ArchiveAuthorizationService
-from .archive_attempt_service import ArchiveAttemptService
-from .archive_progress_service import ArchiveProgressService
-from .archive_resource_admission_service import ArchiveAdmissionConfig, ArchiveResourceAdmissionService
-from .archive_runtime_coordinator_service import ArchiveRuntimeCoordinator
-from .archive_runtime_resource_service import (
+from .archive.archive_authorization_service import ArchiveAuthorizationService
+from .archive.archive_attempt_service import ArchiveAttemptService
+from .archive.archive_progress_service import ArchiveProgressService
+from .archive.archive_resource_admission_service import ArchiveAdmissionConfig, ArchiveResourceAdmissionService
+from .archive.archive_runtime_coordinator_service import ArchiveRuntimeCoordinator
+from .archive.archive_runtime_resource_service import (
     ArchiveRuntimeResourceProvider,
     build_archive_admission_config,
     positive_float_env,
 )
-from .archive_scheduler_service import ArchiveSchedulerService
-from .archive_source_runtime_service import prepare_archive_source
-from .archive_storage_settings_service import ArchiveStorageSettingsService
-from .archive_task_api_service import ArchiveTaskApiService
-from .archive_worker_service import ArchiveWorkItem, ArchiveWorkerService
+from .archive.archive_scheduler_service import ArchiveSchedulerService
+from .archive.archive_source_runtime_service import prepare_archive_source
+from .archive.archive_storage_settings_service import ArchiveStorageSettingsService
+from .archive.archive_task_api_service import ArchiveTaskApiService
+from .archive.archive_worker_service import ArchiveWorkItem, ArchiveWorkerService
 from .case_asset_service import CaseAssetService
 from .case_artifact_deletion_service import CaseArtifactDeletionService
 from .case_draft_service import CaseDraftService

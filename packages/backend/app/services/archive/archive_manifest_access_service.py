@@ -8,11 +8,11 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..repository.filesystem_identity_repository import directory_content_fingerprint
+from ...repository.filesystem_identity_repository import directory_content_fingerprint
 from .archive_manifest_output_security_service import compute_manifest_disc_capacity
 from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord, ArchiveRuntimeError
-from .export_gate_service import ExportGateCode, ExportGateIssue
+from ..export_gate_service import ExportGateCode, ExportGateIssue
 
 
 class ArchiveGateError(ArchiveRuntimeError):

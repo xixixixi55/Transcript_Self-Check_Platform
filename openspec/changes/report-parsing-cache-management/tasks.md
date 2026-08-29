@@ -53,7 +53,7 @@ spec_sync_evidence: T9 现行规格同步；openspec/specs/electronic-inspection
   - 验证：pytest 覆盖 5/6 条、命中更新时间、重复目录、大小写/尾分隔符、指纹变化、清空后重新解析及重启上限。
 
 - [x] **T6 接入跨重解析的已验证归档复用，并保持归档生命周期独立**
-  - 文件：`packages/backend/app/services/archive_runtime_service.py`（含同置的生命周期记录模型）、`packages/backend/app/services/archive_execution_service.py`、`packages/backend/app/services/archive_manifest_access_service.py`、`packages/backend/app/services/archive_manifest_reuse_service.py`
+  - 文件：`packages/backend/app/services/archive/archive_runtime_service.py`（含同置的生命周期记录模型）、`packages/backend/app/services/archive/archive_execution_service.py`、`packages/backend/app/services/archive/archive_manifest_access_service.py`、`packages/backend/app/services/archive/archive_manifest_reuse_service.py`
   - 验证：pytest 覆盖清空解析缓存后 RAR/Manifest/下载/导出仍可用；同目录未变化复用；目录变化、大小变化、MD5 变化拒绝复用并生成新归档。
 
 ### Layer 22/23：HTTP 接口

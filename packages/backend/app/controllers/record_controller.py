@@ -15,12 +15,12 @@ from ..services.software_policy_service import (
     normalize_primary_software_projection,
 )
 from ..services.disc_sequence_service import apply_disc_sequence_to_attachments
-from ..services.archive_execution_service import (
+from ..services.archive.archive_execution_service import (
     ArchiveGateError,
     get_valid_manifest,
 )
-from ..services.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
-from ..services.archive_export_service import validate_export_directory
+from ..services.archive.archive_manifest_projection_service import project_manifest_to_legacy_report_with_plan
+from ..services.archive.archive_export_service import validate_export_directory
 from ..repository.workbench_errors import WorkbenchPersistenceError
 from ..services.attachment_plan_service import AttachmentPlanError
 from ..services.attachment2_plan_service import material_photo_groups
@@ -29,13 +29,13 @@ from ..services.attachment2_image_service import (
     validate_attachment2_photos,
 )
 from ..services.template_profile_service import TemplateProfileError
-from ..services.archive_runtime_service import ArchiveRuntimeError
-from ..services.archive_source_runtime_service import (
+from ..services.archive.archive_runtime_service import ArchiveRuntimeError
+from ..services.archive.archive_source_runtime_service import (
     create_preview_source,
     get_preview_source_summary,
     resolve_archive_context_id,
 )
-from ..services.archive_authorization_service import ArchiveAuthorizationService
+from ..services.archive.archive_authorization_service import ArchiveAuthorizationService
 from ..services.report_parse_error_service import report_parse_http_error
 from .pipeline_controller import (
     record_shadow_export_failure_at_controller,

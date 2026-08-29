@@ -6,18 +6,18 @@ import secrets
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ..repository.archive_asset_repository import ArchiveAssetRepository
-from ..repository.archive_plan_repository import ArchivePlanRepository
-from ..repository.archive_task_repository import ArchiveTaskRepository
-from ..repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
-from ..repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
-from ..repository.workbench_database import WorkbenchDatabase, utc_now
-from ..repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.archive_asset_repository import ArchiveAssetRepository
+from ...repository.archive_plan_repository import ArchivePlanRepository
+from ...repository.archive_task_repository import ArchiveTaskRepository
+from ...repository.case_workbench_repository import CaseDraftRepository, CaseShellRepository
+from ...repository.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
+from ...repository.workbench_database import WorkbenchDatabase, utc_now
+from ...repository.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_progress_service import ArchiveProgressService
 from .archive_source_runtime_service import discard_preview_source
 from .archive_task_result_service import ArchiveTaskResultService
-from .source_record_service import SourceRecordService
+from ..source_record_service import SourceRecordService
 
 if TYPE_CHECKING:
     from .archive_runtime_coordinator_service import ArchiveRuntimeCoordinator
@@ -88,7 +88,7 @@ class ArchiveTaskApiService:
                 self.runtime.unregister(task_id)
             if "task" in locals() and "attempt" in locals():
                 try:
-                    from ..repository.archive_runtime_context_lease_repository import (
+                    from ...repository.archive_runtime_context_lease_repository import (
                         interrupt_queued_runtime_context,
                     )
                     interrupt_queued_runtime_context(
@@ -200,7 +200,7 @@ class ArchiveTaskApiService:
         current = self.tasks.get_current_or_recent(case_id)
         if current and current["status"] in {"queued", "running", "cancelling", "blocked"}:
             raise WorkbenchPersistenceError("ARCHIVE_MAPPING_LOCKED")
-        from .disc_mapping_service import DiscMappingError, apply_disc_mapping
+        from ..disc_mapping_service import DiscMappingError, apply_disc_mapping
 
         try:
             archive_mode = "standard_split"

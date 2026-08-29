@@ -37,24 +37,24 @@ from app.repository.archive_runtime_context_lease_repository import (  # noqa: E
     interrupt_queued_runtime_context,
     lease_queued_runtime_context,
 )
-from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
-from app.services.archive_attempt_completion_service import record_attempt_completion  # noqa: E402
-from app.services.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
-from app.services.archive_progress_service import ArchiveProgressService  # noqa: E402
-from app.services.archive_resource_admission_service import (  # noqa: E402
+from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
+from app.services.archive.archive_attempt_completion_service import record_attempt_completion  # noqa: E402
+from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
+from app.services.archive.archive_progress_service import ArchiveProgressService  # noqa: E402
+from app.services.archive.archive_resource_admission_service import (  # noqa: E402
     ArchiveAdmissionConfig,
     ArchiveResourceAdmissionService,
     ArchiveResourceSnapshot,
 )
-from app.services.archive_runtime_coordinator_service import (  # noqa: E402
+from app.services.archive.archive_runtime_coordinator_service import (  # noqa: E402
     ArchiveRuntimeCoordinator,
 )
-from app.services.archive_runtime_resource_service import (  # noqa: E402
+from app.services.archive.archive_runtime_resource_service import (  # noqa: E402
     ArchiveRuntimeResourceProvider,
 )
-from app.services.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
-from app.services.archive_scheduler_service import ArchiveSchedulerService  # noqa: E402
-from app.services.archive_task_api_service import ArchiveTaskApiService  # noqa: E402
+from app.services.archive.archive_runtime_service import ArchiveManifestRecord  # noqa: E402
+from app.services.archive.archive_scheduler_service import ArchiveSchedulerService  # noqa: E402
+from app.services.archive.archive_task_api_service import ArchiveTaskApiService  # noqa: E402
 from app.services.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.edit_lease_service import EditLeaseService  # noqa: E402
@@ -446,11 +446,11 @@ def test_public_http_task_is_claimed_with_windows_style_resource_snapshot(
         },
     )()
     with patch(
-        "app.services.archive_runtime_resource_service.psutil.disk_io_counters",
+        "app.services.archive.archive_runtime_resource_service.psutil.disk_io_counters",
         return_value=windows_counters,
     ), caplog.at_level(
         logging.WARNING,
-        logger="app.services.archive_runtime_resource_service",
+        logger="app.services.archive.archive_runtime_resource_service",
     ), _controller_patches(services), TestClient(
         create_app(service_provider=lambda: services)
     ) as client:

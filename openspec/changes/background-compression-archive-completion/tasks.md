@@ -24,7 +24,7 @@ workflow_level: 3
 ## 后端 Service（Layer 21）
 
 - [x] T003 允许无盘号执行压缩。
-  - 文件：`packages/backend/app/services/archive_execution_service.py`（现已合并原 archive gate policy 内部实现）
+  - 文件：`packages/backend/app/services/archive/archive_execution_service.py`（现已合并原 archive gate policy 内部实现）
   - 内容：`pre_archive_gate` 对空盘号放行（非空仍校验）；`execute_archive` 空盘号传 `None` 给 plan（`plan_archive` 已支持 None，仅按体积计算 part）。导出 gate 仍要求盘号（归档完成前必须补齐）。
   - 验证：归档相关测试回归（`tests/test_archive_execution_service.py` 等）。
 
@@ -34,12 +34,12 @@ workflow_level: 3
   - 验证：`tests/test_disc_mapping_service.py` 4 passed（序列顺序/非法盘号/持久化/过期 revision）。
 
 - [x] T005 复用指纹与盘号解耦。
-  - 文件：`packages/backend/app/services/archive_manifest_access_service.py`、`packages/backend/app/services/archive_execution_service.py`
+  - 文件：`packages/backend/app/services/archive/archive_manifest_access_service.py`、`packages/backend/app/services/archive/archive_execution_service.py`
   - 内容：`archive_report_fingerprint` payload 剔除 `first_disc_number`，两处调用同步；盘号后填/修改不破坏 Manifest 复用。
   - 验证：更新 `test_manifest_reuse_rechecks_input_snapshot_and_tolerates_disc_change`（盘号变化容忍、输入变化仍失败）；`tests/test_archive_execution_service.py` 20 passed。
 
 - [x] T006 检查结果/附件1 回填（接线确认 + 死代码清理）。
-  - 文件：`packages/backend/app/services/archive_attempt_completion_service.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`
+  - 文件：`packages/backend/app/services/archive/archive_attempt_completion_service.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`
   - 内容：回填在归档 attempt 完成时经 `complete_verified` → `update_verified_draft` 接线：`verified_archive_result_fields` 以 manifest parts 覆盖填写检查结果 `result`（rar_filename/md5_hash/file_size），`attachment_projection` 投影附件1 extract_list，并更新草稿 lifecycle 为 `archive_verified`（revision CAS 保护）。WinRAR 分卷为批量产出、无逐卷事件，回填点在 attempt 完成（早于导出）。Review（T015）发现独立 `attachment_backfill_service.backfill_from_manifest` 是重复死代码，已删除。
   - 验证：`tests/test_archive_runtime_lifecycle.py` 断言草稿 inspection.result 与 extract_list 已回填（rar_filename/md5/file_size）。
 
@@ -57,17 +57,17 @@ workflow_level: 3
 ## 后端 Controller/Route（Layer 22–23）
 
 - [x] T009 后台压缩触发与状态路由（既有能力确认）。
-  - 文件：`packages/backend/app/services/archive_task_api_service.py`
+  - 文件：`packages/backend/app/services/archive/archive_task_api_service.py`
   - 内容：「立即压缩」触发经既有 `WORKBENCH_ARCHIVE_DECISION` + 后台任务创建路径（enqueue）已存在；「待补盘号/归档完成/已导出」为 `ArchiveCompletionStatus` 派生投影，由前端按 lifecycle + 盘号补齐标志呈现。
   - 验证：`tests/test_workbench_controller.py`、`tests/test_archive_task*.py` 回归。
 
 - [x] T010 盘号映射端点。
-  - 文件：`packages/backend/app/services/archive_task_api_service.py`（map_disc_numbers）、`packages/backend/app/controllers/archive_task_controller.py`
+  - 文件：`packages/backend/app/services/archive/archive_task_api_service.py`（map_disc_numbers）、`packages/backend/app/controllers/archive_task_controller.py`
   - 内容：`POST /workbench/cases/{id}/disc-mapping` 接收首个盘号，调用 `disc_mapping_service.apply_disc_mapping` 自动生成全序列并持久化；非法盘号/任务锁定映射返回稳定错误。
   - 验证：`tests/test_disc_mapping_service.py` 4 passed + `tests/test_workbench_controller.py` 回归。
 
 - [x] T011 统一导出端点。
-  - 文件：新增 `packages/backend/app/services/archive_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`
+  - 文件：新增 `packages/backend/app/services/archive/archive_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`
   - 内容：`POST /workbench/cases/{id}/export-bundle` 解析 succeeded 任务 manifest/final_dir + 最新草稿报告 + 照片，调用 `unified_export_service` 写入导出路径；模板上下文由 Controller 解析传入（分层约束）；导出路径须绝对且存在。
   - 验证：`tests/test_unified_export_service.py` 3 passed + `tests/test_archive_task*.py`/`test_workbench_controller.py` 回归。
 
@@ -115,7 +115,7 @@ workflow_level: 3
   - 根因 1：`POST /workbench/cases/{id}/export-bundle` 把卡片持有的 **shell revision**（`expected_revision`）传给 `resolve_case_template_context`，后者按 **draft revision** 校验；shell 与 draft 是各自独立的乐观并发计数器，经归档生命周期合法分叉（`prepare` 置 `archive_queued` 时 shell +1 而 draft 不变，`complete_verified_attempt` 再各自 +1），实测归档完成后 shell=4、draft=2，故导出恒被拒。
   - 根因 2（被根因 1 掩盖的潜在 bug）：`archive_export_service.export_bundle` 与 `_resolve_photo_paths` 读 `draft["report_json"]`，但 `CaseDraftRepository.get` 返回投影 `report`（无 `report_json`），真实仓库下必然 KeyError；既有 `test_archive_export_service` 用 mock 遮蔽了该错位。
   - 修复：`resolve_case_template_context` 增 `require_current_revision: bool = True` 参数；`export-bundle` 端点传 `False`（导出并发守卫由 `export_bundle` 内 shell revision CAS 承担，模板上下文仍按最新草稿解析）；`archive_export_service` 两处改读 `draft["report"]` 并移除无用 `json` import。Legacy `/records/export` 仍传 draft revision，`require_current_revision` 默认保持原校验，行为不变。
-  - 文件：`packages/backend/app/controllers/record_template_context_controller.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/backend/app/services/archive_export_service.py`、`tests/test_archive_export_service.py`（mock 更新）、`tests/test_archive_runtime_lifecycle.py`（新增端到端回归）。
+  - 文件：`packages/backend/app/controllers/record_template_context_controller.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/backend/app/services/archive/archive_export_service.py`、`tests/test_archive_export_service.py`（mock 更新）、`tests/test_archive_runtime_lifecycle.py`（新增端到端回归）。
   - 测试：新增 `test_export_bundle_succeeds_after_archive_completion_when_revisions_differ` 走真实运行时链路（案件→归档完成→export-bundle 200 且 lifecycle=exported，并断言 `shell.revision != draft.revision`）。验证：后端全量 942 passed、前端相关 36 passed、`npm run verify:quick` ✅、`npx tsx scripts/check-docs.ts --strict --change background-compression-archive-completion` ✅（0 drift）。
 
 - [x] T017 软件工具条目 python hashlib → HashMyFiles 2.51（人工验收反馈）。
@@ -175,7 +175,7 @@ workflow_level: 3
 - [x] T025 修复附件1提取方式展示、盘号持续可编辑与单独 Word 导出盘号误判（人工验收回归）。
   - 现象：审核编辑附件1的提取方式为空但 Word 有值；归档完成后首盘号输入消失；分卷映射已存在时单独导出 Word 仍报 `FIRST_DISC_NUMBER_MISSING`。
   - 内容：附件投影兜底路径与前端历史空值展示按 Word 的硬件语义补齐提取方式，展示兜底不因其他列编辑而写回；归档完成/已导出状态保留首盘号编辑并用 plan 行 revision 做 CAS 后整体重映射，成功后显式重读归档结果刷新完成态与分卷；`/records/export` 携带 `case_id` 时以当前 plan 为事实源，只有全部 active slot 均 confirmed 才叠加首盘号，存在 pending/部分映射时清空客户端兼容字段并由门控拒绝。
-  - 文件：`packages/shared/types/archiveTask.ts`、`archiveCompletion.ts`；`packages/backend/app/services/archive_manifest_projection_service.py`、`disc_mapping_service.py`、`archive_task_api_service.py`、`archive_task_result_service.py`、`unified_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`record_controller.py`、`record_template_context_controller.py`；`packages/frontend/src/components/ExtractListEditor.tsx`、`ReviewAttachmentsSection.tsx`、`ArchiveCompletionPanel.tsx`、`RecordEditorForm.tsx`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`useCompletedArchiveResult.ts`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及对应测试。
+  - 文件：`packages/shared/types/archiveTask.ts`、`archiveCompletion.ts`；`packages/backend/app/services/archive/archive_manifest_projection_service.py`、`disc_mapping_service.py`、`archive_task_api_service.py`、`archive_task_result_service.py`、`unified_export_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`record_controller.py`、`record_template_context_controller.py`；`packages/frontend/src/components/ExtractListEditor.tsx`、`ReviewAttachmentsSection.tsx`、`ArchiveCompletionPanel.tsx`、`RecordEditorForm.tsx`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`useCompletedArchiveResult.ts`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及对应测试。
   - 验证：附件投影、盘号映射、单独/统一导出后端定向测试通过（相关组合 12 passed、14 passed，最终复审修正组合 8 passed）；附件编辑器、盘号组件与页面前端测试通过（最终组合 2 files / 19 passed）；TypeScript 类型检查与 `git diff --check` 通过。独立 Code Review 两轮发现的 MUST FIX（plan revision CAS、展示兜底不写回、confirmed 约束、pending 客户端字段旁路、映射后结果刷新）均修复，最终复审 **PASS**、无 MUST FIX。`npm run verify:full -- --change background-compression-archive-completion` 的预检、架构、类型、治理、资产、全仓测试、构建与严格文档检查全部 PASS。
 
 - [x] T026 修复压缩期间上传图片后统一导出 422（人工验收回归）。
@@ -191,7 +191,7 @@ workflow_level: 3
   - 现象：点击“立即压缩”后在审核编辑界面上传图片，草稿 PATCH 返回 409，归档任务在发布前因草稿内容变化中断。
   - 根因：发布前校验把开始执行时的报告与当前草稿做归档稳定指纹比较，图片引用变化被误判为归档绑定失效；归档完成回填又会推进草稿 revision，与同一时刻的图片引用保存形成一次合法竞争。
   - 内容：归档发布继续校验密封输入快照、来源、attempt/binding/fence 与当前绑定一致性，但不再要求审核报告内容保持不变；发布采用校验时刻的最新草稿元数据，RAR 仍只消费密封快照。草稿保存遇到仅由归档完成产生的单次 revision 推进时，在后端保留可信 RAR/MD5/附件1投影并自动重试一次，其他真实并发冲突仍返回 409。
-  - 文件：`packages/backend/app/services/archive_attempt_service.py`（现已合并原 validation 内部实现）、`packages/backend/app/repository/archive_context_binding_repository.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
+  - 文件：`packages/backend/app/services/archive/archive_attempt_service.py`（现已合并原 validation 内部实现）、`packages/backend/app/repository/archive_context_binding_repository.py`、`packages/backend/app/repository/archive_report_metadata_repository.py`、`packages/backend/app/services/case_lifecycle_service.py`、对应后端回归测试及本变更包文档。
   - 验证：归档发布前任意审核编辑不再中断任务；归档完成与图片绑定保存竞争时保存成功且最终同时保留图片引用和可信归档字段；普通过期 revision 冲突仍被拒绝；执行后端定向 pytest、`npm run verify:quick`、当前变更 scoped strict docs 与 `git diff --check`。
   - code_review: [DEFERRED] 独立审查两次因模型容量/长时间无响应未能产出结论；按用户 2026-08-09 指示先提交并推送，后续可在新候选版本上补做独立审查。
 
@@ -278,7 +278,7 @@ workflow_level: 3
 - [x] T037 修复可变长度光盘编号前缀导致归档发布失败（用户实测回归）。
   - 现象：首盘号前缀不是恰好 2 个字符时，两个 RAR 分卷及 MD5 已生成，但 Manifest `disc_date` 被固定下标截错；发布前复核返回 `ARCHIVE_PARTS_INVALID`，任务进入 `failed_retryable` 且 staging 被清理。
   - 内容：Manifest 组装统一使用 `parse_disc_sequence` 的结构化结果，并以同一个 sequence 提供日期及连续盘号；覆盖 1、2、3、20 字符中英文前缀、两分卷发布与非法盘号既有拒绝语义。
-  - 文件：`packages/backend/app/services/archive_manifest_service.py`、相关归档测试及本变更包文档。
+  - 文件：`packages/backend/app/services/archive/archive_manifest_service.py`、相关归档测试及本变更包文档。
   - 验证：盘号解析、Manifest、归档执行、计划投影、任务重试/生命周期、Worker 与发布 fence 定向 pytest 125 passed；架构检查、TypeScript 类型检查、仓库资产检查与 `git diff --check` 通过。临时恢复固定下标日期截取后，可变前缀单元/发布回归 4 failed，恢复实现后 5 passed，证明断言可区分旧缺陷。
   - code_review: [PASS] 首轮独立审查发现发布前最新非法盘号被静默降级、通用假 Worker 手工制造计划导致假阳性、缺少 21 字符拒绝边界 3 项 MUST FIX；修复为发布前对最新草稿重跑盘号门控，撤销假 Worker 计划注入，并分层覆盖生产投影接线、两槽位持久化、20 字符中英文合法上界及 21 字符/非法日期/非法序号稳定错误。独立复审确认全部 CLOSED，无新 MUST FIX。
   - final_gate: [PASS] 首次 scoped full gate 唯一失败为 `b4734ab` 中模板版本测试把 HEAD 当前 1.0.1 资产误作历史 1.0.0；该回归已在 `extensible-report-template-platform` 原任务内修复，模板定向 41 passed/1 skipped、独立复审 PASS，且两个 DOCX 资产无变化。随后在 `HARNESS_TEMP_ROOT=D:\harness-temp` 下重跑 `npm run verify:full -- --change background-compression-archive-completion`，预检、架构、类型、治理、仓库资产、全仓测试、生产构建与 scoped strict docs 全部通过。
@@ -375,7 +375,7 @@ workflow_level: 3
 - [x] T047 阻止统一导出污染便携版程序目录（用户实测回归）。
   - 现象：统一导出允许选择文枢便携包程序目录，Word、RAR 和 HashMyFiles PNG 会成为完整性清单之外的未知文件；下次启动时启动器提示“程序文件不完整或包含未知文件”。取消另一个归档任务后立即删除只产生已安全忽略的 stale-owner 收敛日志，不是该启动提示的来源。
   - 修复：导出目录选择器在记忆偏好前校验目录；控制器在签发一次性授权前复核；统一导出与审核页单独 Word 落盘前再次复核。程序资源根、用户数据根及其子目录统一返回稳定 `EXPORT_DIRECTORY_UNSAFE`，不消费授权、不写文件、不覆盖上次有效目录偏好。
-  - 文件：`packages/backend/app/services/archive_export_service.py`、`local_directory_picker_service.py`、`packages/backend/app/controllers/workbench_controller.py`、`record_controller.py`、`workbench_error_messages_controller.py`、对应后端测试、delta spec 与 living spec。
+  - 文件：`packages/backend/app/services/archive/archive_export_service.py`、`local_directory_picker_service.py`、`packages/backend/app/controllers/workbench_controller.py`、`record_controller.py`、`workbench_error_messages_controller.py`、对应后端测试、delta spec 与 living spec。
   - 验证：导出服务、目录选择器、统一/单独 Word 控制器定向 pytest；`npm run verify:quick`、scoped strict docs 与 `git diff --check`。本反馈不冻结仍含人工验收待办的 Level 3 候选，不重复最终 Review/full gate。
   - 自动化证据：统一导出服务、授权服务、目录选择器与统一/单独 Word 控制器定向 39 passed；`npm run verify:quick` PASS（架构、类型、治理、quick docs、仓库资产）；程序目录与用户数据目录拒绝、拒绝时不消费 grant、不覆盖有效目录历史及正常目录导出均有区分断言。首次扩大运行 `test_record_controller.py` 的 2 个无关 archive endpoint 用例因默认 SQLite 只读失败，受影响用例隔离重跑全部通过。
   - 追加修复：2026-08-23 审计发现选择器返回路径在控制器复核后仍以原始表示签发授权，而统一导出按规范路径消费授权；控制器现统一用校验返回的规范路径响应并签发授权，避免 junction、别名或含 `..` 的等价路径产生授权不匹配。补充统一导出拒绝程序根时不消费 grant、不中转到 renderer，以及控制器只为规范路径签发授权的回归断言。受影响回归 32 passed，扩大后端套件 100 passed；2 个既有 archive endpoint 用例仍因默认 SQLite 只读失败，换全新合成数据根隔离重跑 2/2 passed；架构与类型检查 PASS。
@@ -431,7 +431,7 @@ workflow_level: 3
   - 行为：统一导出成功后，案件卡片显示带“打开导出文件夹”悬浮提示和无障碍名称的文件夹图标按钮；点击后由后端从该案件最后一条成功统一导出记录解析目录并打开 Windows 文件资源管理器，前端不提交任意本机路径。
   - 安全与恢复：专用本地 Repository 按案件持久化规范绝对路径，不绕过通用审计 JSON 的绝对路径禁令；无成功记录、目录已移动/删除或系统无法打开时返回稳定可操作错误，不启动 shell 命令解析，不泄露其他案件路径。
   - 并发：案件 A 的统一导出未完成时可启动案件 B 导出；无论 A/B 完成顺序如何，每张卡片的 loading、成功标记和打开目录动作只绑定自身 `case_id`，不得被全局“最后完成”路径覆盖。
-  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/types/archiveCompletion.ts`、`packages/shared/constants/index.ts`、新增 `packages/backend/app/repository/local_case_export_directory_repository.py`、`packages/backend/app/services/archive_export_service.py`、`archive_task_api_service.py`、`case_lifecycle_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`components/CaseCard.tsx`、`pages/CaseWorkbenchPage.tsx` 及现有测试。
+  - 文件：`packages/shared/types/workbench.ts`、`packages/shared/types/archiveCompletion.ts`、`packages/shared/constants/index.ts`、新增 `packages/backend/app/repository/local_case_export_directory_repository.py`、`packages/backend/app/services/archive/archive_export_service.py`、`archive_task_api_service.py`、`case_lifecycle_service.py`、`packages/backend/app/controllers/archive_task_controller.py`、`packages/frontend/src/hooks/useArchiveCompletion.ts`、`components/CaseCard.tsx`、`pages/CaseWorkbenchPage.tsx` 及现有测试。
   - 验证：复用统一导出审计、导出编排和工作台页面测试，覆盖路径持久化、按案件查询最新成功记录、目录不存在、无 shell 解析启动，以及 A/B 导出反序完成后两个图标分别请求自身案件端点；运行 `npm run verify:quick`、scoped strict docs、Impeccable detector 与 `git diff --check`。
   - 自动化证据：后端导出目录 Repository、统一导出、导出编排及工作台持久化 52/52 通过；案件卡片 10/10、归档完成 Hook 7/7，通过案件页 A/B 反序完成定向回归 1/1；前端生产构建、`npm run verify:quick`、scoped strict docs（14 checks / 0 drift）与 `git diff --check` 通过。Impeccable detector 仅报告 `platformShell.css:67` 既有 `margin-left` 布局动画，本任务新增样式无新告警。
   - code_review: [DEFERRED] 本任务复用当前未冻结 Level 3 变更包，按包级节奏待全部反馈收敛后统一独立审查，不为单项反馈提前冻结候选。

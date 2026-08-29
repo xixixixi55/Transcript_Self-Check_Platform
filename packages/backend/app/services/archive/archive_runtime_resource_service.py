@@ -11,7 +11,7 @@ from pathlib import Path
 
 import psutil
 
-from ..repository.archive_input_repository import MAX_SAFE_INTEGER
+from ...repository.archive_input_repository import MAX_SAFE_INTEGER
 from .archive_resource_admission_service import (
     ArchiveAdmissionConfig,
     ArchiveResourceSnapshot,

@@ -23,8 +23,8 @@ from app.repository import (  # noqa: E402
 )
 from app.repository.case_workflow_repository import CaseWorkflowRepository  # noqa: E402
 from app.repository.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.services.archive_attempt_service import ArchiveAttemptService  # noqa: E402
-from app.services.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
+from app.services.archive.archive_attempt_service import ArchiveAttemptService  # noqa: E402
+from app.services.archive.archive_staging_security_service import cleanup_owned_staging  # noqa: E402
 from app.services.case_parse_dispatcher_service import CaseParseDispatcher  # noqa: E402
 
 from test_workbench_persistence import IDENTITY, REPORT  # noqa: E402

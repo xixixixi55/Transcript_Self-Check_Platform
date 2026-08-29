@@ -7,7 +7,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from ..repository.workbench_errors import WorkbenchPersistenceError
+from ...repository.workbench_errors import WorkbenchPersistenceError
 
 
 def publication_id(attempt_id: str, manifest_id: str) -> str:
