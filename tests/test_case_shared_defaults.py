@@ -17,7 +17,7 @@ from app.services.case_draft_service import (  # noqa: E402
     _initialize_draft,
     _prefix_report_software_for_selected_device,
 )
-from app.services.report_defaults_service import (  # noqa: E402
+from app.services.report.report_defaults_service import (  # noqa: E402
     DEFAULT_DATA_SUMMARY,
     DEFAULT_DOCUMENT_NUMBER,
     DEFAULT_HARDWARE_DEVICE,

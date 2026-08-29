@@ -39,7 +39,7 @@ spec_sync_evidence: T9 现行规格同步；openspec/specs/electronic-inspection
 ### Layer 20：解析缓存和独立归档登记持久化
 
 - [x] **T3 实现持久化解析缓存仓储**
-  - 文件：`packages/backend/app/repository/report_parsing_cache_repository.py`
+  - 文件：`packages/backend/app/repository/report/report_parsing_cache_repository.py`
   - 验证：pytest 覆盖原子写入、损坏/旧版本清理、稳定 LRU、并发写保护、清空只删除 `parsed` 内容。
 
 - [x] **T4 实现独立 ArchiveManifest/RAR 登记仓储**
@@ -49,7 +49,7 @@ spec_sync_evidence: T9 现行规格同步；openspec/specs/electronic-inspection
 ### Layer 21：业务服务与阶段 1 解析/归档接入
 
 - [x] **T5 接入解析缓存服务、指纹校验、LRU 和一键清理**
-  - 文件：`packages/backend/app/services/report_parsing_cache_service.py`、`packages/backend/app/services/report_parser_service.py`
+  - 文件：`packages/backend/app/services/report/report_parsing_cache_service.py`、`packages/backend/app/services/report/report_parser_service.py`
   - 验证：pytest 覆盖 5/6 条、命中更新时间、重复目录、大小写/尾分隔符、指纹变化、清空后重新解析及重启上限。
 
 - [x] **T6 接入跨重解析的已验证归档复用，并保持归档生命周期独立**

@@ -32,9 +32,9 @@ def client():
     test_authorization = ArchiveAuthorizationService(
         tempfile.gettempdir(), record_controller.OUTPUT_BASE,
     )
-    with patch("app.services.report_parser_service.parse_report",
+    with patch("app.services.report.report_parser_service.parse_report",
                return_value=_MOCK_RESPONSE), \
-         patch("app.services.report_parser_service.parse_from_archive",
+         patch("app.services.report.report_parser_service.parse_from_archive",
                return_value=_MOCK_RESPONSE), \
          patch.object(record_controller, "parse_report", return_value=_MOCK_RESPONSE), \
          patch.object(record_controller, "parse_from_archive", return_value=_MOCK_RESPONSE), \
@@ -1002,7 +1002,7 @@ def test_clear_report_parsing_cache_returns_count_and_ignores_client_path(client
 
 def test_clear_report_parsing_cache_failure_is_not_reported_as_success(client):
     from app.controllers import cache_controller
-    from app.services.report_parsing_cache_service import ReportParsingCacheError
+    from app.services.report.report_parsing_cache_service import ReportParsingCacheError
 
     with patch.object(
         cache_controller,

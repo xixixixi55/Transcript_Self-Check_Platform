@@ -112,7 +112,7 @@
 |------|------|
 | `word_templates/template.docx` | 唯一内置 Word 模板；隐藏身份元数据已净化 |
 | `packages/backend/app/services/template_filler_service.py` | 模板填充核心服务 |
-| `packages/backend/app/services/report_parser_service.py` | 报告解析 + 默认值 |
+| `packages/backend/app/services/report/report_parser_service.py` | 报告解析 + 默认值 |
 | `packages/backend/app/services/record_generator_service.py` | 文档生成入口（模板优先） |
 | `packages/backend/app/services/document_builder_service.py` | 旧方案（officecli batch，回退用） |
 | `packages/backend/app/repository/report/html_parser.py` | HTML 解析 + 时间格式化 |

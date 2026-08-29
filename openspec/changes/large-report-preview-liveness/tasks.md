@@ -80,7 +80,7 @@ workflow_level: 3
 
 - [x] **T9 — 实现元数据优先的依赖验证**
   - 需求：REQ-PARSE-CACHE-001、REQ-PARSE-CACHE-002、REQ-PARSE-CACHE-003。
-  - 文件：`packages/backend/app/repository/report_parsing_cache_repository.py`、`packages/backend/app/services/report_parsing_cache_service.py`，以及按需使用 T7 的快照/身份存储库。
+  - 文件：`packages/backend/app/repository/report/report_parsing_cache_repository.py`、`packages/backend/app/services/report/report_parsing_cache_service.py`，以及按需使用 T7 的快照/身份存储库。
   - 将依赖清单与现有缓存载荷/版本/LRU 记录共同存储。先验证路径、大小、mtime 和稳定身份；复用未变化摘要；只重新计算变化/新增依赖；候选成员变化时作废缓存。
   - 保留原子写入、损坏清理、LRU 行为、缓存清除隔离和不透明缓存键。不得改动 ArchiveManifest/RAR/Word 输出。
 
@@ -94,7 +94,7 @@ workflow_level: 3
 
 - [x] **T11 — 将快照解析与报告 Parser 和缓存集成**
   - 需求：REQ-PREVIEW-SNAPSHOT-001 至 REQ-PREVIEW-SNAPSHOT-004、REQ-PARSE-CACHE-001。
-  - 文件：`packages/backend/app/services/report_parser_service.py`、`packages/backend/app/repository/report/report_parse_input_repository.py`、`packages/backend/app/services/report_parsing_cache_service.py`。
+  - 文件：`packages/backend/app/services/report/report_parser_service.py`、`packages/backend/app/repository/report/report_parse_input_repository.py`、`packages/backend/app/services/report/report_parsing_cache_service.py`。
   - 让 Parser 接受一个请求快照，复用核心/配置/设备数据，每项实际依赖只解析一次，登记依赖清单，并返回不变的 Legacy 兼容报告结果。`compress` 保持弃用，在文件夹预览中不起作用。
   - 不向解析器服务增加 ArchiveContext 清单或 WinRAR 工作。
 
@@ -105,7 +105,7 @@ workflow_level: 3
 
 - [x] **T13 — 实现有界同目录执行中注册表**
   - 需求：REQ-PARSE-INFLIGHT-001 至 REQ-PARSE-INFLIGHT-003。
-  - 文件：`packages/backend/app/services/report_parse_inflight_service.py` 及其与 `packages/backend/app/services/report_parser_service.py` 的集成。
+  - 文件：`packages/backend/app/services/report/report_parse_inflight_service.py` 及其与 `packages/backend/app/services/report/report_parser_service.py` 的集成。
   - 在依赖发现前按规范化不透明目录身份获取。共享有界 Future/任务，使取消的等待方脱离但不取消共享工作，发布一个结果/错误，强制容量和最大生存期，并安全移除完成/失败条目。
   - 现有缓存存储锁继续作为一致性保护，而不是昂贵工作的首个去重边界。不得记录原始路径。
 
@@ -153,7 +153,7 @@ workflow_level: 3
 
 - [x] **T21 — 在 Legacy 流程/结果投影中保留全部检材编号**
   - 需求：REQ-PREVIEW-SNAPSHOT-004。
-  - 文件：`packages/backend/app/services/report_parser_service.py`、`tests/test_report_parser_service.py`。
+  - 文件：`packages/backend/app/services/report/report_parser_service.py`、`tests/test_report_parser_service.py`。
   - 保持现有 Legacy DTO 结构，同时将有序 `evidence_list` 投影到流程步骤和结果字符串。增加合成多检材回归测试；保留单检材措辞，不改变归档、前端、模板、Shadow 或 Canonical 行为。
 
 - [x] **T22 — 允许在不准备归档时仅导出报告 Word**
@@ -163,7 +163,7 @@ workflow_level: 3
 
 - [x] **T23 — 在兼容 Legacy 的 DTO 中保留单检材设备显示名称**
   - 需求：REQ-PREVIEW-SNAPSHOT-004。
-  - 文件：`packages/backend/app/services/report_parser_service.py`、`tests/test_report_parser_service.py`。
+  - 文件：`packages/backend/app/services/report/report_parser_service.py`、`tests/test_report_parser_service.py`。
   - 保持 `device_name` 为规范化型号显示值，保留 `model` 和 `device_type` 语义，作废过期解析缓存，并覆盖合成 Legacy/New 单检材投影，不改变共享 DTO 结构。
 
 - [x] **T24 — 第 1 部分：将可变修订版与归档所有权分离**

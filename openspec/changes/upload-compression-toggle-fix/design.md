@@ -16,5 +16,5 @@
 
 ## 影响范围
 
-- `packages/backend/app/services/report_parser_service.py`
+- `packages/backend/app/services/report/report_parser_service.py`
 - `tests/test_report_parser_service.py`

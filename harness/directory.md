@@ -65,7 +65,8 @@
 │           │   ├── case/                  #    案件工作台、生命周期、留存与资源持久化
 │           │   └── report/                #    报告格式识别、内容解析与输入快照构建
 │           ├── services/                  # Layer 21: 业务逻辑
-│           │   └── archive/               #    归档规划、执行、恢复、发布与运行时协调
+│           │   ├── archive/               #    归档规划、执行、恢复、发布与运行时协调
+│           │   └── report/                #    报告解析、缓存、错误投影与请求协调
 │           ├── controllers/               # Layer 22: 请求处理
 │           └── routes/                    # Layer 23: 路由定义
 │   └── launcher/                          # 🪟 Windows 便携版启动器

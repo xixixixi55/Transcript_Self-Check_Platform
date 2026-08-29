@@ -1,4 +1,4 @@
-"""第 20 层：Parser 依赖 Manifest 的已验证序列化。"""
+"""第 20 层报告子包：Parser 依赖 Manifest 的已验证序列化。"""
 
 from __future__ import annotations
 

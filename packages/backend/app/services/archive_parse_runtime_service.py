@@ -11,7 +11,7 @@ from collections import OrderedDict
 import weakref
 
 from ..repository.file_storage import compute_md5, extract_archive
-from .report_parser_service import parse_from_archive
+from .report.report_parser_service import parse_from_archive
 
 
 MAX_CACHED_ARCHIVE_RESULTS = 8

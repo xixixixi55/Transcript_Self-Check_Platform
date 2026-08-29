@@ -3,7 +3,7 @@ workflow_level: 2
 # 任务
 
 - [x] T001 更新报告案件名称解析行为。
-  - 文件：`packages/backend/app/services/report_parser_service.py`
+  - 文件：`packages/backend/app/services/report/report_parser_service.py`
   - 内容：清理报告识别案件名称末尾 `案（...）` / `案(...)` 标记，并移除案件简要情况自动补“案”的逻辑；递增解析缓存版本。
   - 验证：`pytest tests/test_report_parser_service.py -q --tb=short`
 - [x] T002 补充案件名称归一化回归测试。

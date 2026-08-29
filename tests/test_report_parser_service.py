@@ -9,12 +9,12 @@ from unittest.mock import patch, MagicMock
 import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'backend'))
 
-from app.services.report_parser_service import (
+from app.services.report.report_parser_service import (
     _CACHE_VERSION, _build_report, _build_software_tools, _device_display_name,
     _format_case_summary, _normalize_case_name, _split_persons, parse_from_archive,
     parse_report,
 )
-from app.services.report_defaults_service import DEFAULT_DATA_SUMMARY, normalize_data_summary
+from app.services.report.report_defaults_service import DEFAULT_DATA_SUMMARY, normalize_data_summary
 from app.repository.report.report_format_adapter import ReportFormat
 
 
@@ -74,15 +74,15 @@ def test_split_persons_filters_repeated_separators_and_blank_items():
 
 def test_parser_default_is_not_built_from_navigation_categories():
     """导航分类（如录音/微信/抖音）不能覆盖报告摘要默认值。"""
-    with patch("app.services.report_parser_service.parse_case_info", return_value={
+    with patch("app.services.report.report_parser_service.parse_case_info", return_value={
         "case_name": "测试", "case_number": "", "submit_unit": "", "submit_person": "", "create_time": "",
-    }), patch("app.services.report_parser_service.parse_device_lists", return_value=[{
+    }), patch("app.services.report.report_parser_service.parse_device_lists", return_value=[{
         "evidence_number": "JC01", "device_name": "测试手机", "time_range": "",
-    }]), patch("app.services.report_parser_service.parse_report_info", return_value={}), \
-        patch("app.services.report_parser_service.parse_device_base", return_value={}), \
-        patch("app.services.report_parser_service.require_supported_report_format", return_value=ReportFormat.LEGACY), \
-        patch("app.services.report_parser_service._build_software_tools", return_value=[]), \
-        patch("app.services.report_parser_service._build_rar_info_from_compress", return_value={
+    }]), patch("app.services.report.report_parser_service.parse_report_info", return_value={}), \
+        patch("app.services.report.report_parser_service.parse_device_base", return_value={}), \
+        patch("app.services.report.report_parser_service.require_supported_report_format", return_value=ReportFormat.LEGACY), \
+        patch("app.services.report.report_parser_service._build_software_tools", return_value=[]), \
+        patch("app.services.report.report_parser_service._build_rar_info_from_compress", return_value={
             "filename": "", "md5": "", "size_bytes": 0,
         }):
         report = _build_report("data", "source", "output", compress=False)
@@ -91,15 +91,15 @@ def test_parser_default_is_not_built_from_navigation_categories():
 
 
 def test_parser_does_not_promote_device_name_or_model_to_device_type():
-    with patch("app.services.report_parser_service.parse_case_info", return_value={}), \
-        patch("app.services.report_parser_service.parse_device_lists", return_value=[{
+    with patch("app.services.report.report_parser_service.parse_case_info", return_value={}), \
+        patch("app.services.report.report_parser_service.parse_device_lists", return_value=[{
             "evidence_number": "JC01", "device_name": "iPhone 15", "time_range": "",
-        }]), patch("app.services.report_parser_service.parse_report_info", return_value={}), \
-        patch("app.services.report_parser_service.parse_device_base", return_value={
+        }]), patch("app.services.report.report_parser_service.parse_report_info", return_value={}), \
+        patch("app.services.report.report_parser_service.parse_device_base", return_value={
             "device_name": "iPhone 15", "model": "iPhone 15",
-        }), patch("app.services.report_parser_service.require_supported_report_format", return_value=ReportFormat.LEGACY), \
-        patch("app.services.report_parser_service._build_software_tools", return_value=[]), \
-        patch("app.services.report_parser_service._build_rar_info_from_compress", return_value={
+        }), patch("app.services.report.report_parser_service.require_supported_report_format", return_value=ReportFormat.LEGACY), \
+        patch("app.services.report.report_parser_service._build_software_tools", return_value=[]), \
+        patch("app.services.report.report_parser_service._build_rar_info_from_compress", return_value={
             "filename": "", "md5": "", "size_bytes": 0,
         }):
         report = _build_report("data", "source", "output", compress=False)
@@ -110,16 +110,16 @@ def test_parser_does_not_promote_device_name_or_model_to_device_type():
 
 
 def test_parser_device_name_is_brand_plus_concrete_model():
-    with patch("app.services.report_parser_service.parse_case_info", return_value={}), \
-        patch("app.services.report_parser_service.parse_device_lists", return_value=[{
+    with patch("app.services.report.report_parser_service.parse_case_info", return_value={}), \
+        patch("app.services.report.report_parser_service.parse_device_lists", return_value=[{
             "evidence_number": "JC01", "device_name": "手机", "time_range": "",
-        }]), patch("app.services.report_parser_service.parse_report_info", return_value={}), \
-        patch("app.services.report_parser_service.parse_device_base", return_value={
+        }]), patch("app.services.report.report_parser_service.parse_report_info", return_value={}), \
+        patch("app.services.report.report_parser_service.parse_device_base", return_value={
             "device_type": "手机", "device_name": "手机", "brand": "HUAWEI",
             "model": "HBN-AL00",
-        }), patch("app.services.report_parser_service.require_supported_report_format", return_value=ReportFormat.LEGACY), \
-        patch("app.services.report_parser_service._build_software_tools", return_value=[]), \
-        patch("app.services.report_parser_service._build_rar_info_from_compress", return_value={
+        }), patch("app.services.report.report_parser_service.require_supported_report_format", return_value=ReportFormat.LEGACY), \
+        patch("app.services.report.report_parser_service._build_software_tools", return_value=[]), \
+        patch("app.services.report.report_parser_service._build_rar_info_from_compress", return_value={
             "filename": "", "md5": "", "size_bytes": 0,
         }):
         report = _build_report("data", "source", "output", compress=False)
@@ -222,9 +222,9 @@ def test_parse_report_compress_true():
         os.makedirs(data_dir)
         output_dir = os.path.join(tmpdir, "output")
 
-        with patch("app.services.report_parser_service.is_cache_valid", return_value=False), \
-             patch("app.services.report_parser_service._build_report") as mock_build, \
-             patch("app.services.report_parser_service.save_json"):
+        with patch("app.services.report.report_parser_service.is_cache_valid", return_value=False), \
+             patch("app.services.report.report_parser_service._build_report") as mock_build, \
+             patch("app.services.report.report_parser_service.save_json"):
             mock_build.return_value = _MOCK_REPORT
             result = parse_report(tmpdir, output_dir, compress=True)
 
@@ -240,9 +240,9 @@ def test_parse_report_compress_false():
         os.makedirs(data_dir)
         output_dir = os.path.join(tmpdir, "output")
 
-        with patch("app.services.report_parser_service.is_cache_valid", return_value=False), \
-             patch("app.services.report_parser_service._build_report") as mock_build, \
-             patch("app.services.report_parser_service.save_json"):
+        with patch("app.services.report.report_parser_service.is_cache_valid", return_value=False), \
+             patch("app.services.report.report_parser_service._build_report") as mock_build, \
+             patch("app.services.report.report_parser_service.save_json"):
             mock_build.return_value = _MOCK_REPORT
             result = parse_report(tmpdir, output_dir, compress=False)
 
@@ -269,7 +269,7 @@ def test_parse_report_cache_is_one_entry_per_directory_not_compress_mode():
                 })
             return report
 
-        with patch("app.services.report_parser_service._build_report",
+        with patch("app.services.report.report_parser_service._build_report",
                    side_effect=build_report) as mock_build:
             compressed = parse_report(tmpdir, output_dir, compress=True)
             uncompressed = parse_report(tmpdir, output_dir, compress=False)
@@ -342,7 +342,7 @@ def test_multiple_devices_keep_tb2_and_base_fields_matched(tmp_path):
         {"c1": "序列号", "c2": "SN-SECOND"},
     ]}, ensure_ascii=False), encoding="utf-8")
 
-    with patch("app.services.report_parser_service._build_rar_info_from_compress", return_value={
+    with patch("app.services.report.report_parser_service._build_rar_info_from_compress", return_value={
         "filename": "SYNTHETIC-output.rar", "md5": "a" * 32, "size_bytes": 1,
     }):
         report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
@@ -443,7 +443,7 @@ def test_parser_cache_tracks_all_json_inputs_but_ignores_attachment_html(tmp_pat
     media = tmp_path / "data" / "JC01" / "Base" / "attachment.html"
     media.write_text("SYNTHETIC-HTML-ONE", encoding="utf-8")
 
-    with patch("app.services.report_parser_service._build_report",
+    with patch("app.services.report.report_parser_service._build_report",
                wraps=_build_report) as build:
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
         media.write_text("SYNTHETIC-HTML-TWO", encoding="utf-8")
@@ -469,7 +469,7 @@ def test_parser_cache_ignores_json_outside_selected_evidence(tmp_path):
     noise = unrelated / "unrelated.json"
     noise.write_text('{"value":"SYNTHETIC-ONE"}', encoding="utf-8")
 
-    with patch("app.services.report_parser_service._build_report", wraps=_build_report) as build:
+    with patch("app.services.report.report_parser_service._build_report", wraps=_build_report) as build:
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
         noise.write_text('{"value":"SYNTHETIC-TWO"}', encoding="utf-8")
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
@@ -479,10 +479,10 @@ def test_parser_cache_ignores_json_outside_selected_evidence(tmp_path):
 
 def test_current_cache_version_does_not_reuse_old_payload(tmp_path):
     old_cache = {"report": _MOCK_REPORT, "cache_version": 4}
-    with patch("app.services.report_parser_service.is_cache_valid", return_value=True), \
-         patch("app.services.report_parser_service.read_json", return_value=old_cache), \
-         patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
-         patch("app.services.report_parser_service.save_json"):
+    with patch("app.services.report.report_parser_service.is_cache_valid", return_value=True), \
+         patch("app.services.report.report_parser_service.read_json", return_value=old_cache), \
+         patch("app.services.report.report_parser_service._build_report", return_value=_MOCK_REPORT) as mock_build, \
+         patch("app.services.report.report_parser_service.save_json"):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     assert _CACHE_VERSION == 23
     assert result["cache_version"] == 23
@@ -498,8 +498,8 @@ def test_parse_from_archive_zip():
 
         output_dir = os.path.join(tmpdir, "output")
 
-        with patch("app.services.report_parser_service.extract_archive") as mock_extract, \
-             patch("app.services.report_parser_service._build_report") as mock_build:
+        with patch("app.services.report.report_parser_service.extract_archive") as mock_extract, \
+             patch("app.services.report.report_parser_service._build_report") as mock_build:
             mock_extract.return_value = tmpdir
             mock_build.return_value = _MOCK_REPORT
 
@@ -516,8 +516,8 @@ def test_parse_from_archive_can_retain_private_source_for_archive_context():
         zip_path = os.path.join(tmpdir, "test.zip")
         with zipfile.ZipFile(zip_path, "w") as zf:
             zf.writestr("dummy.txt", "test")
-        with patch("app.services.report_parser_service.extract_archive", return_value=tmpdir), \
-             patch("app.services.report_parser_service._build_report", return_value=_MOCK_REPORT):
+        with patch("app.services.report.report_parser_service.extract_archive", return_value=tmpdir), \
+             patch("app.services.report.report_parser_service._build_report", return_value=_MOCK_REPORT):
             result = parse_from_archive(zip_path, os.path.join(tmpdir, "output"), retain_source=True)
         cleanup_root = result["_archive_source_cleanup_root"]
         assert result["_archive_source_root"] == tmpdir
@@ -559,7 +559,7 @@ def _write_legacy_service_fixture(root):
 
 def test_legacy_full_standard_model_regression(tmp_path):
     data_dir = _write_legacy_service_fixture(tmp_path)
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     report = result["report"]
     evidence = report["introduction"]["evidence_list"][0]
@@ -592,7 +592,7 @@ def test_mismatched_evidence_directory_cannot_fall_back_to_unrelated_base(tmp_pa
     with open(os.path.join(unrelated, "device.json"), "w", encoding="utf-8") as file:
         json.dump({"\u8bbe\u5907\u578b\u53f7": "WRONG-MODEL", "\u5e8f\u5217\u53f7": "WRONG-SN"}, file, ensure_ascii=False)
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
     evidence = report["introduction"]["evidence_list"][0]
     assert evidence["evidence_number"] == "MISSING"
@@ -610,7 +610,7 @@ def test_invalid_or_reverse_case_times_degrade_to_blank(tmp_path):
     case["contents"][2]["ct"] = "2026-02-30 11:55:19"
     case["contents"][3]["ct"] = "2026-07-13 10:00:00"
     case_file.write_text(json.dumps(case, ensure_ascii=False), encoding="utf-8")
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
     assert report["introduction"]["inspection_time_range"] == ""
 
@@ -628,6 +628,6 @@ def test_invalid_fixed_imei_allows_valid_structured_base_fallback(tmp_path):
     base["rows"].append({"c1": "IMEI1", "c2": "777777777777777"})
     base_file.write_text(json.dumps(base, ensure_ascii=False), encoding="utf-8")
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
     assert report["introduction"]["evidence_list"][0]["imei1"] == "777777777777777"

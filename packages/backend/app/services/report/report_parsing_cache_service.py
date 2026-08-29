@@ -10,21 +10,21 @@ from collections.abc import Callable
 from pathlib import Path
 import weakref
 
-from ..config import REPORT_PARSING_CACHE_LIMIT
-from ..repository.filesystem_identity_repository import (
+from ...config import REPORT_PARSING_CACHE_LIMIT
+from ...repository.filesystem_identity_repository import (
     directory_content_fingerprint,
     normalized_directory_key,
 )
-from ..repository.report_parsing_cache_repository import (
+from ...repository.report.report_parsing_cache_repository import (
     ReportCacheEntry,
     ReportParsingCacheError,
     ReportParsingCacheRepository,
 )
-from ..repository.report_parse_input_metadata_repository import (
+from ...repository.report.report_parse_input_metadata_repository import (
     dependency_fingerprint,
     validate_cached_input_metadata,
 )
-from ..repository.report_parse_input_models import ReportParseInputError, ReportParseInputSnapshot
+from ...repository.report.report_parse_input_models import ReportParseInputError, ReportParseInputSnapshot
 
 
 class ReportParsingCacheService:

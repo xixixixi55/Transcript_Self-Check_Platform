@@ -8,7 +8,7 @@ from pathlib import Path
 from .device_field_parser import is_generic_device_label
 from .report_format_adapter import ReportFormat
 from .report_parse_input_filesystem import directory_entries, file_entries, stable_identity
-from ..report_parse_input_models import (
+from .report_parse_input_models import (
     CandidateDirectoryIndex,
     CandidateFileRecord,
     ReportParseInputError,

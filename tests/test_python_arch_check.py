@@ -68,7 +68,7 @@ def test_cli_batches_relative_import_shapes(tmp_path):
 def test_absolute_imports_include_only_app_modules(tmp_path):
     internal = _write_py(
         str(tmp_path), "controllers/absolute.py",
-        "from app.services.report_parser_service import parse_report\n",
+        "from app.services.report.report_parser_service import parse_report\n",
     )
     external = _write_py(
         str(tmp_path), "controllers/external.py",
@@ -81,7 +81,7 @@ def test_absolute_imports_include_only_app_modules(tmp_path):
     assert len(imports) == 1
     assert imports[0]["level"] == 0
     assert imports[0]["absolute"] is True
-    assert imports[0]["module"] == "services.report_parser_service"
+    assert imports[0]["module"] == "services.report.report_parser_service"
 
 
 def test_syntax_errors_are_reported_without_affecting_valid_files(tmp_path):

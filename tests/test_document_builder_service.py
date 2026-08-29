@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.document_builder_service import build_record_document
-from app.services.report_parser_service import parse_report
+from app.services.report.report_parser_service import parse_report
 from app.services.record_generator_service import generate_docx
 
 
@@ -391,7 +391,7 @@ def test_legacy_parsed_model_feeds_word_builder_and_export(tmp_path: Path):
         "IMEI1": "123456789012345", "\u5e8f\u5217\u53f7": "OLD-SN",
     })
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         parsed = parse_report(str(data_dir.parent), str(tmp_path / "parsed"), compress=False)["report"]
     commands = build_record_document(parsed)
     paragraph_text = "\n".join(

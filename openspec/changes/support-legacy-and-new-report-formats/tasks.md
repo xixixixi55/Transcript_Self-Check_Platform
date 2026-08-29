@@ -40,8 +40,8 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 
 ### 标准字段来源和优先级
 
-- [x] 在 `packages/backend/app/services/report_parser_service.py` 使用案件 JSON 的创建/报告时间生成标准检查时间，应用 IMEI 优先级、设备表字段和软件工具规则。
-- [x] 将 `packages/backend/app/services/report_parser_service.py` 的解析缓存版本从 4 提升到 5，并覆盖旧缓存失效及 `compress/nocompress` 隔离。
+- [x] 在 `packages/backend/app/services/report/report_parser_service.py` 使用案件 JSON 的创建/报告时间生成标准检查时间，应用 IMEI 优先级、设备表字段和软件工具规则。
+- [x] 将 `packages/backend/app/services/report/report_parser_service.py` 的解析缓存版本从 4 提升到 5，并覆盖旧缓存失效及 `compress/nocompress` 隔离。
 - [x] 在 `tests/test_report_parser_service.py` 覆盖时间、IMEI 冲突、序列号、软件版本可靠性、工具列表和缓存行为。
 
 ### 验证和真实样例核对
@@ -56,7 +56,7 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 - [x] 在 `tests/test_html_parser.py` 覆盖空/错误 `tb2`、陌生键值结构、日期有效性、软件候选歧义和设备候选评分边界。
 - [x] 在 `packages/backend/app/repository/report/device_field_parser.py` 与 `packages/backend/app/repository/report/html_parser.py` 实现单一最佳设备表候选、合法 IMEI 和稳定冲突处理。
 - [x] 在 `tests/test_html_parser.py` 覆盖跨文件不拼接、同分冲突、遍历顺序、IMEI 备用值和多检材目录隔离。
-- [x] 在 `packages/backend/app/services/report_parser_service.py` 删除不安全的单检材目录回退，并保持多检材主设备限制明确。
+- [x] 在 `packages/backend/app/services/report/report_parser_service.py` 删除不安全的单检材目录回退，并保持多检材主设备限制明确。
 - [x] 在 `tests/test_report_parser_service.py` 覆盖目录不匹配、旧格式完整标准模型、缓存边界和日期反向范围。
 - [x] 在 `packages/backend/app/controllers/record_controller.py` 增加结构错误的 HTTP 422 集成测试，不改变 Controller 业务范围。
 - [x] 在 `tests/test_document_builder_service.py` 增加旧格式合成标准模型进入 Word 导出的最小回归测试，不修改模板。
@@ -73,7 +73,7 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 - [x] 在 `packages/backend/app/repository/report/html_parser.py` 与 `packages/backend/app/repository/report/report_parse_input_repository.py` 使用每个 `tb2` 行内明确的 `data/<设备目录>/Base/` 路径绑定检材编号和设备型号，避免分别排序后按下标错配；无明确路径的兼容变体继续使用一对一保守回退。
 - [x] 在 `tests/test_report_parse_input_repository.py` 使用显式合成数据覆盖检材行顺序、设备目录字母序不一致时仍保持编号—型号对应关系，并运行解析仓库与报告解析定向测试（73 passed）及完整后端回归（1048 passed、3 skipped）。
 - [x] 将解析缓存版本递增，使用用户提供的实际报告只核对检材编号—设备型号映射，并通过 `verify:quick`、受影响后端测试与 scoped strict docs（13 checks、0 drift）。
-- [x] 在 `packages/backend/app/services/report_parser_service.py` 对完整检材记录执行自然升序，再由该数组生成检查过程、检查结果和审核/Word 共用数据；脱敏样例验证为 `SYN-JC0001 → SYNTHETIC DEVICE A`、`SYN-JC0002 → SYNTHETIC DEVICE B`，定向测试 45 passed，`verify:quick` 通过。
+- [x] 在 `packages/backend/app/services/report/report_parser_service.py` 对完整检材记录执行自然升序，再由该数组生成检查过程、检查结果和审核/Word 共用数据；脱敏样例验证为 `SYN-JC0001 → SYNTHETIC DEVICE A`、`SYN-JC0002 → SYNTHETIC DEVICE B`，定向测试 45 passed，`verify:quick` 通过。
 
 ## 验收
 

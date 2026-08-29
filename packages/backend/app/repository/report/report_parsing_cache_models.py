@@ -1,4 +1,4 @@
-"""第 20 层：Parser 缓存条目的已验证内存模型。"""
+"""第 20 层报告子包：Parser 缓存条目的已验证内存模型。"""
 
 from __future__ import annotations
 

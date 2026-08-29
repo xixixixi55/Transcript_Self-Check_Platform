@@ -1,4 +1,4 @@
-"""第 21 层：有界同目录 Parser 任务共享。"""
+"""第 21 层报告服务子包：有界同目录 Parser 任务共享。"""
 
 from __future__ import annotations
 

@@ -13,11 +13,11 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from synthetic_report_builders import build_parse_cache_report_tree  # noqa: E402
-from app.repository.report_parse_input_metadata_repository import validate_cached_input_metadata  # noqa: E402
-from app.repository.report_parse_input_models import DependencyRecord, ReportParseInputError  # noqa: E402
+from app.repository.report.report_parse_input_metadata_repository import validate_cached_input_metadata  # noqa: E402
+from app.repository.report.report_parse_input_models import DependencyRecord, ReportParseInputError  # noqa: E402
 from app.repository.report.report_parse_input_repository import build_report_parse_input_snapshot  # noqa: E402
-from app.services.report_parser_service import _build_report, parse_report  # noqa: E402
-from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
+from app.services.report.report_parser_service import _build_report, parse_report  # noqa: E402
+from app.services.report.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 
 
 def test_deleted_selected_candidate_invalidates_cache(tmp_path):
@@ -25,8 +25,8 @@ def test_deleted_selected_candidate_invalidates_cache(tmp_path):
     parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     candidate.unlink()
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None), \
-         patch("app.services.report_parser_service._build_report", wraps=_build_report) as build:
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None), \
+         patch("app.services.report.report_parser_service._build_report", wraps=_build_report) as build:
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
 
     assert build.call_count == 1
@@ -38,8 +38,8 @@ def test_deleted_core_file_fails_safely_and_does_not_reuse_old_cache(tmp_path):
     parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
     (data_root / "data_case_info.json").unlink()
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None), \
-         patch("app.services.report_parser_service._build_report", wraps=_build_report):
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None), \
+         patch("app.services.report.report_parser_service._build_report", wraps=_build_report):
         try:
             parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
         except Exception as error:
@@ -62,7 +62,7 @@ def test_old_cache_without_dependency_manifest_is_safely_rebuilt(tmp_path):
         "result": {"report": {"old": True}},
     }), encoding="utf-8")
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
 
     assert result["report"]["case_number"] == "SYNTHETIC-CACHE-001"
@@ -74,7 +74,7 @@ def test_same_directory_requests_share_snapshot_and_parser(tmp_path):
     release = Event()
     snapshot_calls = []
 
-    from app.services import report_parser_service as parser_service
+    from app.services.report import report_parser_service as parser_service
     original_snapshot = parser_service.build_report_parse_input_snapshot
 
     def slow_snapshot(source_dir):
@@ -191,7 +191,7 @@ def test_same_directory_retry_joins_during_metadata_validation(tmp_path):
     started = Event()
     release = Event()
 
-    from app.services import report_parsing_cache_service as cache_service
+    from app.services.report import report_parsing_cache_service as cache_service
     original_validate = cache_service.validate_cached_input_metadata
 
     def delayed_validate(*args, **kwargs):
@@ -200,8 +200,8 @@ def test_same_directory_retry_joins_during_metadata_validation(tmp_path):
         return original_validate(*args, **kwargs)
 
     with patch.object(cache_service, "validate_cached_input_metadata", side_effect=delayed_validate) as validate, \
-         patch("app.services.report_parser_service._build_report", wraps=_build_report) as build, \
-         patch("app.services.report_parser_service.detect_winrar_version", return_value=None), \
+         patch("app.services.report.report_parser_service._build_report", wraps=_build_report) as build, \
+         patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None), \
          ThreadPoolExecutor(max_workers=2) as pool:
         first = pool.submit(parse_report, str(tmp_path), str(tmp_path / "output"), False)
         assert started.wait(timeout=5)

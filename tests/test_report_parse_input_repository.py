@@ -18,7 +18,7 @@ from app.repository.report.html_parser import (  # noqa: E402
 from app.repository.report.report_parse_input_repository import (  # noqa: E402
     build_report_parse_input_snapshot,
 )
-from app.services.report_parser_service import _build_report, parse_report  # noqa: E402
+from app.services.report.report_parser_service import _build_report, parse_report  # noqa: E402
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -281,11 +281,11 @@ def test_snapshot_directory_index_does_not_scan_unrelated_report_root(tmp_path):
 
 def test_parser_uses_snapshot_dto_without_reopening_legacy_readers(tmp_path):
     _write_snapshot_fixture(tmp_path, legacy=True)
-    with patch("app.services.report_parser_service.parse_case_info", side_effect=AssertionError), \
-         patch("app.services.report_parser_service.parse_device_lists", side_effect=AssertionError), \
-         patch("app.services.report_parser_service.parse_report_info", side_effect=AssertionError), \
-         patch("app.services.report_parser_service.parse_device_base", side_effect=AssertionError), \
-         patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+    with patch("app.services.report.report_parser_service.parse_case_info", side_effect=AssertionError), \
+         patch("app.services.report.report_parser_service.parse_device_lists", side_effect=AssertionError), \
+         patch("app.services.report.report_parser_service.parse_report_info", side_effect=AssertionError), \
+         patch("app.services.report.report_parser_service.parse_device_base", side_effect=AssertionError), \
+         patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
 
     assert len(report["introduction"]["evidence_list"]) == 3
@@ -295,7 +295,7 @@ def test_parser_uses_snapshot_dto_without_reopening_legacy_readers(tmp_path):
 def test_snapshot_report_matches_existing_report_assembly(tmp_path):
     data_root = _write_snapshot_fixture(tmp_path, legacy=True)
     snapshot = build_report_parse_input_snapshot(str(tmp_path))
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         before = _build_report(str(data_root), str(tmp_path), str(tmp_path / "output"), compress=False)
         after = _build_report(
             str(data_root), str(tmp_path), str(tmp_path / "output"), compress=False,

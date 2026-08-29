@@ -32,7 +32,7 @@
 - `packages/backend/app/repository/report/json_loader.py`
 - `packages/backend/app/repository/report/device_field_parser.py`
 - `packages/backend/app/repository/report/navigation_parser.py`
-- `packages/backend/app/services/report_parser_service.py`
+- `packages/backend/app/services/report/report_parser_service.py`
 - `packages/backend/app/services/document_builder_service.py`
 - `packages/backend/app/services/record_generator_service.py`
 - `packages/frontend/src/components/EvidenceEditor.tsx`

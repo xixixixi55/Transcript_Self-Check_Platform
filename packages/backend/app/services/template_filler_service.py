@@ -19,7 +19,7 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Twips
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
-from .report_defaults_service import normalize_data_summary
+from .report.report_defaults_service import normalize_data_summary
 from .entrust_person_service import format_entrust_persons
 from .material_policy_service import (
     reviewed_material_display_name,

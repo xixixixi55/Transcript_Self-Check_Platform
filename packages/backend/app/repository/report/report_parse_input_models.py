@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .report.report_format_adapter import ReportFormat
+from .report_format_adapter import ReportFormat
 
 
 class ReportParseInputError(ValueError):

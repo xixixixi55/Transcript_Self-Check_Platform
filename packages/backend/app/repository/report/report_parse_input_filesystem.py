@@ -6,7 +6,7 @@ import os
 import stat
 from pathlib import Path
 
-from ..report_parse_input_models import ReportParseInputError
+from .report_parse_input_models import ReportParseInputError
 
 
 def directory_entries(root: Path) -> list[os.DirEntry[str]]:

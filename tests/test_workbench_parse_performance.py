@@ -18,7 +18,7 @@ from app.services.archive.archive_authorization_service import ArchiveAuthorizat
 from app.services.case_draft_service import CaseDraftService, _parse_source  # noqa: E402
 from app.services.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.case_parse_dispatcher_service import CaseParseDispatcher  # noqa: E402
-from app.services.report_parser_service import parse_report  # noqa: E402
+from app.services.report.report_parser_service import parse_report  # noqa: E402
 from app.services.source_record_service import SourceRecordService  # noqa: E402
 
 

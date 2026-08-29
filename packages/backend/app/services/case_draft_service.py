@@ -14,7 +14,7 @@ from ..repository.case.case_workflow_repository import CaseWorkflowRepository
 from ..repository.task_record_repository import TaskRecordRepository
 from ..repository.workbench_database import WorkbenchDatabase, utc_now
 from ..repository.workbench_errors import WorkbenchPersistenceError
-from .report_defaults_service import (
+from .report.report_defaults_service import (
     DEFAULT_DATA_SUMMARY,
     DEFAULT_DOCUMENT_NUMBER,
     DEFAULT_HARDWARE_DEVICE,
@@ -148,7 +148,7 @@ class CaseDraftService:
 
 
 def _parse_source(path: Path, output: Path) -> Mapping[str, Any]:
-    from .report_parser_service import parse_report
+    from .report.report_parser_service import parse_report
 
     output.mkdir(parents=True, exist_ok=True)
     return parse_report(str(path), str(output), compress=False)

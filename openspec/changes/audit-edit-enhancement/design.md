@@ -175,7 +175,7 @@ MD5 的密码学事实值保持不变，不改写既有 Manifest 或持久化摘
 | `packages/frontend/src/pages/RecordGeneratePage.tsx` | L12 | 修改 | 上传、导出与页面状态编排 |
 | `packages/shared/types/` | L0 | — | 无变更 |
 | `packages/shared/constants/` | L1 | — | 无变更 |
-| `packages/backend/app/services/report_parser_service.py` | L21 | 修改 | 数据字段映射与默认检查地点修正 |
+| `packages/backend/app/services/report/report_parser_service.py` | L21 | 修改 | 数据字段映射与默认检查地点修正 |
 | `packages/backend/app/services/record_generator_service.py` | L21 | 修改 | officecli 跨环境调用兼容 |
 | `packages/backend/app/services/template_filler_service.py` | L21 | 修改 | 附件摘要三行留白、不可拆分段落约束及条件分页 |
 | `tests/test_template_filler_service.py` | 测试 | 修改 | 条件分页 OOXML 回归及可容纳/不可容纳场景 |

@@ -1,4 +1,4 @@
-"""报告字段的跨入口默认值与规范化规则。"""
+"""报告服务子包的跨入口默认值与规范化规则。"""
 
 DEFAULT_DATA_SUMMARY = "即时通讯、手机信息"
 DEFAULT_DOCUMENT_NUMBER = "SYN-TEST〔2026〕000号"

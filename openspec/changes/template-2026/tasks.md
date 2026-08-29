@@ -66,7 +66,7 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 | 文件 | 变更类型 |
 |------|---------|
 | `packages/shared/types/index.ts` | 修改：entrust_persons 类型 |
-| `packages/backend/app/services/report_parser_service.py` | 修改：split 委托人 + _split_persons |
+| `packages/backend/app/services/report/report_parser_service.py` | 修改：split 委托人 + _split_persons |
 | `packages/backend/app/services/document_builder_service.py` | 修改：join 委托人 |
 | `packages/backend/app/services/template_filler_service.py` | **新增**：模板填充服务 |
 | `packages/backend/app/services/record_generator_service.py` | 修改：模板优先 + 回退 |

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from starlette.concurrency import run_in_threadpool
 
 from ..config import OUTPUT_BASE
-from ..services.report_parsing_cache_service import (
+from ..services.report.report_parsing_cache_service import (
     ReportParsingCacheError,
     clear_report_parsing_cache,
 )

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.report_parser_service import _build_report, parse_report  # noqa: E402
+from app.services.report.report_parser_service import _build_report, parse_report  # noqa: E402
 from synthetic_report_builders import (  # noqa: E402
     build_parse_cache_report_tree,
     write_synthetic_json,
@@ -34,7 +34,7 @@ def _open_counter(data_root: Path):
 def _parse_twice(root: Path, counted_open):
     output = root / "output"
     with patch("pathlib.Path.open", new=counted_open), \
-         patch("app.services.report_parser_service.detect_winrar_version", return_value=None):
+         patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         first = parse_report(str(root), str(output), compress=False)
         second = parse_report(str(root), str(output), compress=False)
     return first, second
@@ -63,8 +63,8 @@ def test_mtime_change_with_same_content_reads_only_changed_dependency(tmp_path):
     os.utime(candidate, ns=(before.st_atime_ns, before.st_mtime_ns + 2_000_000_000))
 
     with patch("pathlib.Path.open", new=counted_open), \
-         patch("app.services.report_parser_service.detect_winrar_version", return_value=None), \
-         patch("app.services.report_parser_service._build_report", wraps=_build_report) as build:
+         patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None), \
+         patch("app.services.report.report_parser_service._build_report", wraps=_build_report) as build:
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
 
     assert build.call_count == 0
@@ -82,8 +82,8 @@ def test_changed_dependency_invalidates_and_rebuilds_parser(tmp_path):
         encoding="utf-8",
     )
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None), \
-         patch("app.services.report_parser_service._build_report", wraps=_build_report) as build:
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None), \
+         patch("app.services.report.report_parser_service._build_report", wraps=_build_report) as build:
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
 
     assert build.call_count == 1
@@ -97,8 +97,8 @@ def test_unrelated_json_and_attachment_changes_do_not_invalidate_cache(tmp_path)
     (unrelated.parent / "new-unrelated.json").write_text("SYNTHETIC-NEW", encoding="utf-8")
     (unrelated.parent / "attachment.html").write_text("SYNTHETIC-HTML-CHANGED", encoding="utf-8")
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None), \
-         patch("app.services.report_parser_service._build_report", wraps=_build_report) as build:
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None), \
+         patch("app.services.report.report_parser_service._build_report", wraps=_build_report) as build:
         parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
 
     assert build.call_count == 0
@@ -114,8 +114,8 @@ def test_new_candidate_membership_invalidates_cache(tmp_path):
         {"c1": "序列号", "c2": "SYNTHETIC-HIGHER-SN"},
     ]})
 
-    with patch("app.services.report_parser_service.detect_winrar_version", return_value=None), \
-         patch("app.services.report_parser_service._build_report", wraps=_build_report) as build:
+    with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None), \
+         patch("app.services.report.report_parser_service._build_report", wraps=_build_report) as build:
         result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)
 
     assert build.call_count == 1

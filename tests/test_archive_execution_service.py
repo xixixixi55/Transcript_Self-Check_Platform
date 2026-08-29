@@ -25,7 +25,7 @@ from app.services.archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE  
 from app.services.archive.archive_runtime_service import ArchiveRuntimeError  # noqa: E402
 from app.services.archive.archive_attempt_service import ArchivePublicationSnapshot  # noqa: E402
 from app.services.archive.archive_manifest_access_service import get_manifest_part_download  # noqa: E402
-from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
+from app.services.report.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 from app.services.archive.archive_planner_service import ArchivePolicy, ArchiveTier  # noqa: E402
 
 

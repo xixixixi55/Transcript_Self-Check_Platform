@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.report_parse_inflight_service import (  # noqa: E402
+from app.services.report.report_parse_inflight_service import (  # noqa: E402
     ReportParseInFlightCapacityError,
     ReportParseInFlightRegistry,
     ReportParseWaitTimeout,

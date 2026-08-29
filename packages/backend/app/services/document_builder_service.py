@@ -16,7 +16,7 @@ Layer 21: BE_Services — docx 文档构建器
 - 二级标题（（一）检查方法）：16pt 加粗，缩进 21pt
 """
 
-from .report_defaults_service import normalize_data_summary
+from .report.report_defaults_service import normalize_data_summary
 from .legacy_report_projection_service import project_ordered_legacy_report
 from .entrust_person_service import format_entrust_persons
 from .material_policy_service import reviewed_material_display_name, unextractable_reason_text

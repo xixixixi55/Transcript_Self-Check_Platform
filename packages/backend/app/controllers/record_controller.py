@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
-from ..services.report_parser_service import parse_report
+from ..services.report.report_parser_service import parse_report
 from ..services.archive_parse_runtime_service import parse_archive_with_reuse as parse_from_archive
 from ..services.record_generator_service import generate_docx
 from ..services.export_gate_service import ExportGateInput, evaluate_export_gate
@@ -36,7 +36,7 @@ from ..services.archive.archive_source_runtime_service import (
     resolve_archive_context_id,
 )
 from ..services.archive.archive_authorization_service import ArchiveAuthorizationService
-from ..services.report_parse_error_service import report_parse_http_error
+from ..services.report.report_parse_error_service import report_parse_http_error
 from .pipeline_controller import (
     record_shadow_export_failure_at_controller,
     observe_shadow_export,

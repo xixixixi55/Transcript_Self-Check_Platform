@@ -10,7 +10,7 @@ from app.repository.archive.archive_manifest_repository import (  # noqa: E402
     ArchiveManifestRepository,
     ArchiveManifestRepositoryError,
 )
-from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
+from app.services.report.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 
 
 def manifest():

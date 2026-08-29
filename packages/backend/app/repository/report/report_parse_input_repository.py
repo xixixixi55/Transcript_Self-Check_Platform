@@ -20,7 +20,7 @@ from .report_format_adapter import (
     detect_report_format_from_payloads,
 )
 from .device_field_parser import is_generic_device_label, try_parse_json
-from ..report_parse_input_models import (
+from .report_parse_input_models import (
     DependencyRecord,
     ReportParseInputError,
     ReportParseInputSnapshot,

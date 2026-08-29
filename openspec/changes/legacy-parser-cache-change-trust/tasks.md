@@ -1,7 +1,7 @@
 ## 1. 合同和可观测性基础
 
 - [ ] 1.1 在 `packages/backend/app/repository/` 中增加内部文件变化信任状态、不透明原因码、令牌模式版本和指标 DTO，不暴露绝对路径；验证导入和架构层检查。
-- [ ] 1.2 定义由 `packages/backend/app/repository/filesystem_identity_repository.py` 和 `packages/backend/app/repository/report_parse_input_metadata_repository.py` 共同使用的提供方边界；验证假提供方可以表达受信任、已变化和不受信任结果。
+- [ ] 1.2 定义由 `packages/backend/app/repository/filesystem_identity_repository.py` 和 `packages/backend/app/repository/report/report_parse_input_metadata_repository.py` 共同使用的提供方边界；验证假提供方可以表达受信任、已变化和不受信任结果。
 - [ ] 1.3 在 `tests/test_filesystem_identity_repository.py` 和 `tests/test_report_parse_input_repository.py` 增加确定性合成测试，覆盖大小/stat 相同的替换、文件标识替换、删除后重建、读取失败和成员关系变化。
 
 ## 2. Windows NTFS 变化令牌适配器
@@ -15,18 +15,18 @@
 
 - [ ] 3.1 更新 `packages/backend/app/repository/filesystem_identity_repository.py` 中的内容摘要路径，以捕获并比较读取前/后的标识和变化令牌；验证变化中的文件绝不发布摘要。
 - [ ] 3.2 在 Parser 缓存边界为 `input_changed_during_read` 和读取错误增加有界失败语义；验证绝不返回过时缓存的 `InspectionReport` 数据。
-- [ ] 3.3 在 `packages/backend/app/repository/report_parse_input_metadata_repository.py` 增加候选和选定依赖集的目录成员关系校验；验证新增、删除、类型变化和目录缺失会安全失效。
+- [ ] 3.3 在 `packages/backend/app/repository/report/report_parse_input_metadata_repository.py` 增加候选和选定依赖集的目录成员关系校验；验证新增、删除、类型变化和目录缺失会安全失效。
 
 ## 4. 集成两条 Parser 缓存路径
 
-- [ ] 4.1 将信任提供方集成到 `packages/backend/app/services/report_parser_service.py` 使用的 Legacy 动态依赖路径；验证未变化的受信任依赖避免完整内容重读。
-- [ ] 4.2 将同一合同集成到 `packages/backend/app/repository/report_parse_input_metadata_repository.py` 和 `packages/backend/app/repository/report/report_parse_input_repository.py`；验证两条路径产生相同的已变化/不受信任语义。
-- [ ] 4.3 保持 `packages/backend/app/services/report_parsing_cache_service.py` 与 Archive/Manifest Repository 分离；验证 Parser 缓存命中绝不执行 WinRAR 或提供归档证据。
+- [ ] 4.1 将信任提供方集成到 `packages/backend/app/services/report/report_parser_service.py` 使用的 Legacy 动态依赖路径；验证未变化的受信任依赖避免完整内容重读。
+- [ ] 4.2 将同一合同集成到 `packages/backend/app/repository/report/report_parse_input_metadata_repository.py` 和 `packages/backend/app/repository/report/report_parse_input_repository.py`；验证两条路径产生相同的已变化/不受信任语义。
+- [ ] 4.3 保持 `packages/backend/app/services/report/report_parsing_cache_service.py` 与 Archive/Manifest Repository 分离；验证 Parser 缓存命中绝不执行 WinRAR 或提供归档证据。
 - [ ] 4.4 在 `tests/test_report_parsing_cache.py`、`tests/test_report_parse_cache_metadata.py`、`tests/test_report_parse_cache_lifecycle.py` 和 `tests/test_report_parser_service.py` 增加端到端 Parser 缓存测试；验证来源替换后旧字段无法保留。
 
 ## 5. 缓存格式和重启边界
 
-- [ ] 5.1 在 `packages/backend/app/repository/report_parsing_cache_models.py` 和 `packages/backend/app/repository/report_parsing_cache_repository.py` 增加 `input_trust_schema` 处理；验证缺少该字段的记录复用前要求完整验证。
+- [ ] 5.1 在 `packages/backend/app/repository/report/report_parsing_cache_models.py` 和 `packages/backend/app/repository/report/report_parsing_cache_repository.py` 增加 `input_trust_schema` 处理；验证缺少该字段的记录复用前要求完整验证。
 - [ ] 5.2 进程本地令牌保持瞬态，服务重启后要求完整内容验证；验证重启测试不信任重启前内存状态。
 - [ ] 5.3 增加格式错误、旧版本、部分写入和缓存迁移测试；验证无效缓存记录变为未命中，且解析缓存清理不删除 RAR、Manifest、DOCX 或来源文件。
 

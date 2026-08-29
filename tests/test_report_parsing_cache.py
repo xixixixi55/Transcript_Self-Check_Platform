@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
-from app.services.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
+from app.services.report.report_parsing_cache_service import ReportParsingCacheService  # noqa: E402
 
 
 class Clock:

@@ -33,7 +33,7 @@
 | Layer 0 | `packages/shared/types/` | 保持现有 `EvidenceItem`/`TableData` 契约，修正字段语义注释 |
 | Layer 11 | `packages/frontend/src/components/` | 设备名称标签、附件 1 默认表头 |
 | Layer 20 | `packages/backend/app/repository/report/html_parser.py` | 设备/Base 字段解析与兼容回退 |
-| Layer 21 | `packages/backend/app/services/report_parser_service.py`、`document_builder_service.py`、`record_generator_service.py` | 默认工具、附件表格、Word 内容与非空校验 |
+| Layer 21 | `packages/backend/app/services/report/report_parser_service.py`、`document_builder_service.py`、`record_generator_service.py` | 默认工具、附件表格、Word 内容与非空校验 |
 | Layer 22 | `packages/backend/app/controllers/record_controller.py` | 保持导出响应契约，透传生成失败 |
 
 ## 验证
