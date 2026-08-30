@@ -156,7 +156,7 @@ export interface InspectionReport {
     photo_ids: string[]                  // 附件2: 已上传检材照片 ID 列表
     photo_groups?: MaterialPhotoGroup[]  // 附件2: 显式检材-照片归属和组内顺序
     disc_number: string                  // 附件3: 光盘编号
-    burning_date?: string                // 附件3: 刻录时间（民警填写）
+    burning_date?: string                // 附件3: 刻录时间（工作人员填写）
     disc_sequence?: import('./discSequence').DiscSequence
   }
 }

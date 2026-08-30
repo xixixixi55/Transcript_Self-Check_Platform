@@ -30,15 +30,13 @@ export function getRequiredIncompleteTasks(content: string): TaskEntry[] {
   return getTaskEntries(content).filter((entry) => !entry.checked && !entry.exemption)
 }
 
-/** 仅从已完成任务条目中提取文件引用。 */
+/** 仅从已完成且适用的任务条目中提取文件引用。 */
 export function getCompletedTaskFileReferences(content: string): string[] {
-  const completedTaskLines = content
-    .replace(/```[\s\S]*?```/g, '')
-    .split('\n')
-    .filter((line) => /^\s*-\s*\[[xX]\]/.test(line))
+  const completedTasks = getTaskEntries(content.replace(/```[\s\S]*?```/g, ''))
+    .filter((entry) => entry.checked && !entry.exemption)
 
-  return completedTaskLines
-    .flatMap((line) => line.match(/`[^`]+\.[a-z]+`/g) || [])
+  return completedTasks
+    .flatMap((entry) => entry.text.match(/`[^`]+\.[a-z]+`/g) || [])
     .map((ref) => ref.replace(/`/g, ''))
 }
 

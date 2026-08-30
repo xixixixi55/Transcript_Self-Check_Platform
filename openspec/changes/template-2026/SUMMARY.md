@@ -45,7 +45,7 @@
 | `{{first_evidence_number}}` | `introduction.evidence_list[0].evidence_number` | 附件2照片标题 |
 | `{{photo_count}}` | `len(photo_paths)` | 检材图X张 |
 | `{{disc_number}}` | `attachments.disc_number` | 光盘编号 |
-| `{{burning_date}}` | `attachments.burning_date` | 刻录时间（民警填写） |
+| `{{burning_date}}` | `attachments.burning_date` | 刻录时间（工作人员填写） |
 | `{{md5_hash}}` | `inspection.result.md5_hash` | 文件MD5哈希值 |
 | `{{file_size}}` | `inspection.result.file_size` | 目录压缩时为字节数文本；压缩包直传时为带“字节”后缀的文本 |
 

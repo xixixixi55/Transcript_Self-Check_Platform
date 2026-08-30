@@ -23,7 +23,7 @@
 **理由**：
 - Spec REQ-007 明确要求"点击字段进入编辑"，当前 always-Input 模式已偏离 Spec
 - 检查笔录是正式法律文书——纯文本展示更接近"审阅纸质笔录"的体验，满屏输入框边框是视觉噪音
-- 统一交互降低认知负担——民警只需学一种操作模式
+- 统一交互降低认知负担——工作人员只需学一种操作模式
 - `EditableField` 封装点击编辑状态机（展示 → 编辑 → 保存/取消）后，15+ 字段只需一行组件声明
 - 组件签名：`<EditableField type="text|textarea|select" value={v} onChange={fn} options={[]} />`
 
@@ -50,7 +50,7 @@
 
 **理由**：
 - 拼接字符串中各字段不可单独编辑
-- 独立字段更符合审核场景（民警只需修改某个子字段）
+- 独立字段更符合审核场景（工作人员只需修改某个子字段）
 - 导出时 `packages/backend/app/services/document/document_builder_service.py` 仍从 `report.inspection.result` 取各字段值生成最终文本
 
 ---

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="820" viewBox="0 0 1440 820" role="img" aria-labelledby="title desc">
+  <title id="title">文枢主流程</title>
+  <desc id="desc">从案件登记、报告解析和人工审核，到后台归档、校验与成果导出的流程。</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f5f8fc"/><stop offset="1" stop-color="#eef3f8"/></linearGradient>
+    <linearGradient id="blueCard" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eaf3ff"/><stop offset="1" stop-color="#dceaff"/></linearGradient>
+    <linearGradient id="tealCard" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e9f8f5"/><stop offset="1" stop-color="#d8f1eb"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#38516d" flood-opacity="0.12"/></filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#65809d"/></marker>
+    <style>
+      .title{font:700 34px "Microsoft YaHei","PingFang SC",sans-serif;fill:#18324d}.subtitle{font:400 17px "Microsoft YaHei","PingFang SC",sans-serif;fill:#5c7188}.step{font:700 18px "Microsoft YaHei","PingFang SC",sans-serif;fill:#2f6fad}.card-title{font:700 24px "Microsoft YaHei","PingFang SC",sans-serif;fill:#18324d}.body{font:400 16px "Microsoft YaHei","PingFang SC",sans-serif;fill:#3f566e}.chip{font:600 14px "Microsoft YaHei","PingFang SC",sans-serif;fill:#31536f}.branch-title{font:700 17px "Microsoft YaHei","PingFang SC",sans-serif;fill:#18324d}.branch-body{font:400 14px "Microsoft YaHei","PingFang SC",sans-serif;fill:#50677d}.connector{fill:none;stroke:#65809d;stroke-width:3;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1440" height="820" rx="28" fill="url(#background)"/>
+  <text x="72" y="72" class="title">从报告目录到可核验的案件成果</text>
+  <text x="72" y="106" class="subtitle">平台负责自动整理，关键节点由工作人员确认；失败任务保留原因和重试入口。</text>
+  <path class="connector" d="M350 321h58"/><path class="connector" d="M690 321h58"/><path class="connector" d="M1030 321h58"/>
+
+  <g filter="url(#shadow)"><rect x="68" y="170" width="282" height="300" rx="24" fill="#fff" stroke="#c9d8e7"/><rect x="68" y="170" width="282" height="10" rx="5" fill="#4b87c5"/><circle cx="112" cy="224" r="22" fill="#e5f0fc"/><text x="112" y="231" text-anchor="middle" class="step">1</text><text x="146" y="232" class="card-title">登记与解析</text><text x="96" y="284" class="body">创建案件</text><text x="96" y="318" class="body">选择本机报告目录</text><text x="96" y="352" class="body">自动识别报告格式</text><rect x="96" y="390" width="106" height="38" rx="19" fill="#edf3f9"/><text x="149" y="415" text-anchor="middle" class="chip">后台解析</text><rect x="214" y="390" width="106" height="38" rx="19" fill="#fff3df"/><text x="267" y="415" text-anchor="middle" class="chip">失败可重试</text></g>
+
+  <g filter="url(#shadow)"><rect x="408" y="170" width="282" height="300" rx="24" fill="url(#blueCard)" stroke="#b8cfe8"/><rect x="408" y="170" width="282" height="10" rx="5" fill="#3d78b6"/><circle cx="452" cy="224" r="22" fill="#fff"/><text x="452" y="231" text-anchor="middle" class="step">2</text><text x="486" y="232" class="card-title">审核与补充</text><text x="436" y="284" class="body">核对案件、设备和软件信息</text><text x="436" y="318" class="body">编辑检查过程与人员信息</text><text x="436" y="352" class="body">绑定检材及对应图片</text><rect x="436" y="390" width="106" height="38" rx="19" fill="#fff"/><text x="489" y="415" text-anchor="middle" class="chip">自动保存</text><rect x="554" y="390" width="106" height="38" rx="19" fill="#fff"/><text x="607" y="415" text-anchor="middle" class="chip">人工确认</text></g>
+
+  <g filter="url(#shadow)"><rect x="748" y="170" width="282" height="300" rx="24" fill="url(#tealCard)" stroke="#b9dcd4"/><rect x="748" y="170" width="282" height="10" rx="5" fill="#2e9580"/><circle cx="792" cy="224" r="22" fill="#fff"/><text x="792" y="231" text-anchor="middle" class="step" style="fill:#257b6a">3</text><text x="826" y="232" class="card-title">归档与校验</text><text x="776" y="284" class="body">立即压缩或保存后稍后处理</text><text x="776" y="318" class="body">WinRAR 受控分卷归档</text><text x="776" y="352" class="body">计算校验值并生成清单</text><rect x="776" y="390" width="106" height="38" rx="19" fill="#fff"/><text x="829" y="415" text-anchor="middle" class="chip">后台执行</text><rect x="894" y="390" width="106" height="38" rx="19" fill="#fff"/><text x="947" y="415" text-anchor="middle" class="chip">保留历史</text></g>
+
+  <g filter="url(#shadow)"><rect x="1088" y="170" width="282" height="300" rx="24" fill="#fff" stroke="#c9d8e7"/><rect x="1088" y="170" width="282" height="10" rx="5" fill="#6d74bd"/><circle cx="1132" cy="224" r="22" fill="#efeffb"/><text x="1132" y="231" text-anchor="middle" class="step" style="fill:#5d65ad">4</text><text x="1166" y="232" class="card-title">成果导出</text><text x="1116" y="284" class="body">单独生成并导出 Word</text><text x="1116" y="318" class="body">统一导出文书、分卷和清单</text><text x="1116" y="352" class="body">修改后可再次生成</text><rect x="1116" y="390" width="106" height="38" rx="19" fill="#f0f0fa"/><text x="1169" y="415" text-anchor="middle" class="chip">导出门控</text><rect x="1234" y="390" width="106" height="38" rx="19" fill="#f0f0fa"/><text x="1287" y="415" text-anchor="middle" class="chip">本地成果</text></g>
+
+  <path class="connector" d="M209 470v70"/><path class="connector" d="M549 470v70"/><path class="connector" d="M889 470v70"/><path class="connector" d="M1229 470v70"/>
+  <g><rect x="68" y="558" width="282" height="154" rx="20" fill="#fff" stroke="#d2dee9"/><text x="96" y="602" class="branch-title">解析未完成</text><text x="96" y="634" class="branch-body">返回工作台处理其他案件</text><text x="96" y="662" class="branch-body">查看原因后重试或删除案件</text></g>
+  <g><rect x="408" y="558" width="282" height="154" rx="20" fill="#fff" stroke="#d2dee9"/><text x="436" y="602" class="branch-title">保存或版本异常</text><text x="436" y="634" class="branch-body">保留当前输入并提示重试</text><text x="436" y="662" class="branch-body">未保存完成前不允许导出</text></g>
+  <g><rect x="748" y="558" width="282" height="154" rx="20" fill="#fff" stroke="#d2dee9"/><text x="776" y="602" class="branch-title">暂不压缩 / 执行失败</text><text x="776" y="634" class="branch-body">草稿和任务历史继续保留</text><text x="776" y="662" class="branch-body">从审核页或工作台再次处理</text></g>
+  <g><rect x="1088" y="558" width="282" height="154" rx="20" fill="#fff" stroke="#d2dee9"/><text x="1116" y="602" class="branch-title">导出条件不足</text><text x="1116" y="634" class="branch-body">提示缺失图片、归档或保存项</text><text x="1116" y="662" class="branch-body">补齐后重新执行导出</text></g>
+  <text x="720" y="776" text-anchor="middle" class="subtitle">自动化不跳过审核：工作人员对来源、内容、归档状态和最终文书负责确认。</text>
+</svg>

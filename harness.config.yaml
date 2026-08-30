@@ -7,7 +7,7 @@ project:
   root: "笔录自检平台（文枢）"
   description: >
     电子数据检查笔录自动生成平台，支持基于 HTML 取证报告和 Word 模板自动生成检查笔录，
-    并提供人工调节修改功能，面向民警使用。后续扩展至专业化勘查报告、电子数据鉴定文书、
+    并提供人工调节修改功能，面向工作人员使用。后续扩展至专业化勘查报告、电子数据鉴定文书、
     传统现场三录、现场检查笔录、法医鉴定文书等 6 类文书。
   architecture_summary: >
     全栈应用：React + TypeScript 前端 → RESTful API → FastAPI Python 后端 →

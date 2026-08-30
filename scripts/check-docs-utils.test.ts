@@ -78,6 +78,8 @@ assert.deepEqual(getCompletedTaskFileReferences([
   '- [ ] `packages/backend/app/services/future_phase.py`',
   '- [x] `packages/backend/app/services/case_draft_service.py`',
   '- [X] `openspec/specs/data-model.md`',
+  '- [x] `packages/backend/app/services/not_applicable.py` [N/A]',
+  '- [x] `packages/backend/app/services/deferred.py` [DEFERRED]',
   '```text',
   '- [x] `packages/backend/app/services/inside_code_block.py`',
   '```',
