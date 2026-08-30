@@ -124,6 +124,14 @@ function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHisto
   const recognizedEvidenceCount = input.report.introduction.evidence_list.filter(item =>
     item.material_type_source === 'report' || item.material_type_status === 'confirmed_by_report',
   ).length
+  const userSupplementedEvidenceCount = Math.max(0, evidenceCount - recognizedEvidenceCount)
+  const evidenceSummary = evidenceCount > 0
+    ? `当前已处理 ${evidenceCount} 项检材${userSupplementedEvidenceCount > 0
+      ? recognizedEvidenceCount > 0
+        ? `，其中报告识别 ${recognizedEvidenceCount} 项、用户补充 ${userSupplementedEvidenceCount} 项`
+        : '，均为用户补充'
+      : ''}`
+    : null
   const recognizedFacts = [
     input.report.document_number.trim() ? `文号 ${input.report.document_number.trim()}` : null,
     recognizedEvidenceCount > 0 ? `${recognizedEvidenceCount} 项检材类型` : null,
@@ -133,8 +141,8 @@ function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHisto
   ].filter(Boolean)
   if (recognizedFacts.length > 0) history.push({
     id: 'fact-report-recognition', tone: 'complete', title: '报告内容已自动识别',
-    detail: `已从当前报告解析结果整理${recognizedFacts.join('、')}${evidenceCount > recognizedEvidenceCount
-      ? `，当前共整理 ${evidenceCount} 项检材` : ''}。`,
+    detail: `已从当前报告解析结果整理${recognizedFacts.join('、')}${evidenceSummary
+      ? `；${evidenceSummary}` : ''}。`,
   })
   if (input.report.introduction.inspection_place.trim()
     && input.report.inspection.method.trim()
@@ -145,7 +153,7 @@ function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHisto
   })
   if (evidenceCount > 0 && recognizedEvidenceCount === 0) history.push({
     id: 'fact-evidence', tone: 'complete', title: '检材信息已整理',
-    detail: `当前已整理 ${evidenceCount} 项检材信息。`,
+    detail: `${evidenceSummary}。`,
   })
   if (input.sourceStatus === 'available' && !input.sourceRequiresReselection) history.push({
     id: 'fact-source', tone: 'complete', title: '报告来源已确认',
@@ -309,7 +317,9 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
 
 export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const projection = deriveGuidedReviewProjection(input)
-  const historySignature = projection.history.map(item => item.id).join('|')
+  const historySignature = projection.history.map(item => (
+    [item.id, item.tone, item.title, item.detail || ''].join('\u0000')
+  )).join('\u0001')
   const [history, setHistory] = useState(projection.history)
   const [historyCaseId, setHistoryCaseId] = useState(input.caseId)
   const [selectedActionId, setSelectedActionId] = useState(projection.allActions[0]?.id || '')
@@ -381,6 +391,8 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
       return
     }
     setHistory(current => {
+      const projectedById = new Map(projection.history.map(item => [item.id, item]))
+      const refreshed = current.map(item => projectedById.get(item.id) || item)
       const known = new Set(current.map(item => item.id))
       const additions = projection.history.filter(item => !known.has(item.id))
       if (known.has('archive-interrupted')
@@ -389,7 +401,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
         id: 'archive-recovered', tone: 'recovered', title: '压缩办理已恢复',
         detail: '上次未完成状态已经处理，当前案件已继续进入现有归档流程。',
       })
-      return additions.length ? [...current, ...additions] : current
+      return additions.length ? [...refreshed, ...additions] : refreshed
     })
   }, [historyCaseId, historySignature, input.caseId])
 
@@ -481,11 +493,15 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const returnToPreviousAction = useCallback(() => {
     if (previousAction) setRevisitedAction(previousAction)
   }, [previousAction])
+  const revisitAction = useCallback((action: GuidedReviewAction) => {
+    if (baseCurrentAction?.id !== action.id) setPreviousAction(baseCurrentAction)
+    setRevisitedAction(action)
+  }, [baseCurrentAction])
   const returnToCurrentAction = useCallback(() => setRevisitedAction(null), [])
 
   return {
     ...projection, allActions, history, currentAction, previousAction,
     isReviewingPrevious: Boolean(revisitedAction), selectAction, confirmCurrentAction,
-    returnToPreviousAction, returnToCurrentAction,
+    revisitAction, returnToPreviousAction, returnToCurrentAction,
   }
 }

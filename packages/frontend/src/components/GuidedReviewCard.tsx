@@ -317,8 +317,8 @@ export function GuidedReviewCard({
   action, report, updateReport, readOnly, specialContent,
   fieldStates, onEvidenceCompletenessChange, onOpenFullEditor,
 }: Props) {
-  const [showEvidenceEditor, setShowEvidenceEditor] = useState(false)
-  useEffect(() => setShowEvidenceEditor(false), [action.id])
+  const [evidenceMode, setEvidenceMode] = useState<'closed' | 'choose' | 'batch' | 'manual'>('closed')
+  useEffect(() => setEvidenceMode('closed'), [action.id])
 
   if (specialContent) return <div className="guided-review-card__control">{specialContent}</div>
   const pending = action.pendingItem
@@ -349,7 +349,22 @@ export function GuidedReviewCard({
         onChange={value => updateReport('attachments.burning_date', value)} />
     </fieldset>
   )
-  if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && showEvidenceEditor) return (
+  if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'choose') return (
+    <div className="guided-review-card__evidence-paths" role="group" aria-label="选择检材补充方式">
+      <p>选择一种补充方式；页面一次只展开当前需要的工具。</p>
+      <Space wrap size="small">
+        <Button type="primary" icon={<FileSearchOutlined />} disabled={readOnly}
+          aria-label="快捷批量补充检材" onClick={() => setEvidenceMode('batch')}>
+          快捷批量补充
+        </Button>
+        <Button icon={<FileAddOutlined />} disabled={readOnly}
+          aria-label="逐项编辑检材" onClick={() => setEvidenceMode('manual')}>
+          逐项编辑
+        </Button>
+      </Space>
+    </div>
+  )
+  if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'batch') return (
     <div className="guided-review-card__evidence-editor">
       <fieldset disabled={readOnly} className="guided-review-card__fieldset">
         <QuickEvidenceBatchAdder items={report.introduction.evidence_list || []}
@@ -357,11 +372,25 @@ export function GuidedReviewCard({
             updateReport('introduction.evidence_list', items)
             onEvidenceCompletenessChange?.(false)
           }} onConfirmComplete={() => onEvidenceCompletenessChange?.(true)} />
+        <Button type="link" icon={<FileAddOutlined />} aria-label="改用逐项编辑"
+          onClick={() => setEvidenceMode('manual')}>改用逐项编辑</Button>
+      </fieldset>
+    </div>
+  )
+  if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'manual') return (
+    <div className="guided-review-card__evidence-editor">
+      <fieldset disabled={readOnly} className="guided-review-card__fieldset">
         <EvidenceEditor items={report.introduction.evidence_list || []} fieldStates={fieldStates}
           onChange={items => {
             updateReport('introduction.evidence_list', items)
             onEvidenceCompletenessChange?.(false)
           }} />
+        <div className="guided-review-card__manual-evidence-actions">
+          <Button type="primary" icon={<CheckCircleOutlined />} aria-label="完成检材补充并确认完整"
+            onClick={() => onEvidenceCompletenessChange?.(true)}>完成补充</Button>
+          <Button type="link" icon={<FileSearchOutlined />} aria-label="改用快捷批量补充"
+            onClick={() => setEvidenceMode('batch')}>改用快捷批量补充</Button>
+        </div>
       </fieldset>
     </div>
   )
@@ -375,7 +404,7 @@ export function GuidedReviewCard({
       <Tooltip title="不完整，手工添加检材">
         <Button shape="circle" size="large" disabled={readOnly}
           icon={<FileAddOutlined />} aria-label="检材信息不完整，手工添加检材"
-          onClick={() => setShowEvidenceEditor(true)} />
+          onClick={() => setEvidenceMode('choose')} />
       </Tooltip>
     </Space>
   )

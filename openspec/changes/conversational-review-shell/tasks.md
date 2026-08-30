@@ -116,12 +116,24 @@ workflow_level: 2
   - 验证：复用检材完整性组件用例核对两枚图标、可访问名称与完整确认/不完整展开行为；运行定向测试、前端类型检查、Impeccable 单次检测与差异检查。
 - [x] 6.30 根据底部操作截图把“完整审核编辑”圆形主按钮从 Ant 默认蓝色统一为案件工作台靛蓝，并补齐同体系的悬停、阴影与键盘焦点状态；其余三枚工具按钮继续保持中性次按钮外观，图标、Tooltip、可访问名称与回调不变。
   - 验证：组件用例断言完整审核按钮保留主按钮语义、编辑图标与专用样式身份；运行定向测试、前端类型检查、Impeccable 单次检测、严格文档检查及差异检查。
+- [x] 6.31 修复底部信息面板与检材轨迹反馈：用户点击“查看全部当前事项”或“查看已整理信息”后，展开面板必须立即进入同一滚动视口的可见范围并获得可预测焦点，无需继续向下滚动；用户在报告识别检材基础上补充检材后，历史轨迹更新为最终已处理总数，并简要区分报告识别数与用户补充数，不记录逐字输入。
+  - 验证：先补组件失败用例断言两类面板展开后的滚动与焦点；补 Hook 失败用例覆盖报告识别 2 项、用户补充 3 项后轨迹更新为已处理 5 项；实施后运行引导组件/Hook 定向测试、前端类型检查、Impeccable 单次检测、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+- [x] 6.32 按用户选择把獬豸助手升级为“更明显的角色型”对话体验：当前页面会话保留最近三轮不含逐字敏感输入的用户完成摘要与助手因果承接，并允许从对应轮次返回既有结构化控件修改；角色使用同一形象的倾听、核对、严肃提醒和完成四态表情及一次性语义动作，错误/冲突不使用欢快反馈，减少动态效果、离屏和页面隐藏时继续降级；检材补录等复杂事项先选择快捷批量或逐项编辑后再展开对应控件；当前回复保持唯一主操作，全局事项、整理信息、完整编辑和返回工作台继续采用既有圆形图标工具栏。
+  - 验证：先补组件/页面失败用例覆盖三轮会话、轮次修改、四态角色身份、错误状态克制动作、检材补录分步和工具层级；使用 SYNTHETIC/TEST 数据，不回显逐字输入；实施后运行引导组件/Hook/页面定向测试、前端类型检查与生产构建，执行 Impeccable 单次检测、`verify:quick`、scoped strict docs、OpenSpec strict validate、`git diff --check`，并在安全可用的合成页面检查桌面与窄屏；无合成实页时记录 N/A，不读取真实案件替代。
+- [x] 6.33 根据用户截图反馈恢复底部四枚圆形图标工具按钮：全部事项保留数量角标，已整理信息、完整审核编辑和返回工作台恢复直接图标入口，继续提供 Tooltip、可访问名称、主次颜色、面板自动滚动与焦点；移除常驻文字和“更多操作”菜单。同时清除四态獬豸精灵图中的浅色底板与背景雾，保留真实透明通道、角色四态和现有裁切位置。
+  - 验证：先以组件失败用例区分文字按钮与圆形图标工具栏；实施后运行引导组件/页面定向回归、类型检查、生产构建、Impeccable 单次检测、资产卫生、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+- [x] 6.34 根据透明角色截图继续修正视觉融合：将当前对话容器由浅蓝灰表面改为页面一致的纯白背景并移除浅蓝边框，保留角色阴影、圆角、布局、滚动和全部交互行为。
+  - 验证：核对截图颜色来源与 PNG Alpha，运行前端类型检查、生产构建、scoped strict docs 与 `git diff --check`；纯样式反馈不机械新增行为测试。
+- [x] 6.35 根据纯白容器仍呈现方形画布的反馈，将当前对话舞台进一步改为透明表面，直接继承页面底色；不再铺设任何角色背景色或边框，保留内容气泡、角色投影、布局和交互。
+  - 验证：核对透明 PNG 与父级表面叠加关系，运行前端类型检查、生产构建、scoped strict docs 与 `git diff --check`；纯样式反馈不机械新增行为测试。
+- [x] 6.36 根据用户明确反馈移除獬豸角色的全部 CSS 投影：删除静态 `drop-shadow` 及呼吸动画中的阴影变化，只保留角色本身、透明背景和原有轻微位移缩放。
+  - 验证：搜索确认角色样式不再含 `drop-shadow`，运行前端类型检查、生产构建、scoped strict docs 与 `git diff --check`；纯样式反馈不机械新增行为测试。
 
 ## 当前状态
 
-- `implementation_status: complete`：首轮实现、既有反馈、6.24 快捷批量添加、6.25 快捷排序布局及 6.26–6.30 视觉与反馈收敛均已完成。
-- `feedback_scope_status: complete`：6.30 底部完整审核主按钮配色统一反馈已收敛。
-- `spec_sync_status: synced`：6.25 delta 已同步到 living spec，最终行为与主规格一致。
+- `implementation_status: complete`：6.36 角色投影移除已实施并完成验证。
+- `feedback_scope_status: complete`：6.36 样式与门控核对完成。
+- `spec_sync_status: synced`：6.33 工具栏最终行为已核对并同步到 living spec。
 
 ## 2026-08-30 快捷补录视觉收敛证据
 
@@ -133,6 +145,14 @@ workflow_level: 2
 - `evidence_completeness_choice_style: PASS`：“完整 / 不完整”两枚回复图标统一为 44px 与 8px 间距，分别使用工作台靛蓝主按钮和中性次按钮状态；既有 Tooltip、可访问名称、确认回调与展开补录行为由组件 10/10 回归覆盖。
 - `guided_review_full_editor_button_style: PASS`：底部“完整审核编辑”圆形主按钮具有独立样式身份并改用工作台靛蓝，包含同体系的悬停、柔和阴影和键盘焦点状态；其余三枚工具按钮及所有交互合同保持不变。
 - `quick_evidence_regression: PASS`：前端类型检查通过；`GuidedReviewView.test.tsx` 10/10 与 `CaseRecordGeneratePage.test.tsx` 20/20 通过，保留既有 jsdom `getComputedStyle` 与 React `act` 警告；Impeccable 对本轮目标文件的检测仅报告 `reviewWorkspace.css` 第 167、314 行本次差异外的既有侧边强调线与宽度过渡，本次区域无发现；`verify:quick`、scoped strict docs 与 `git diff --check` 均通过。
+
+## 2026-08-30 面板可见性与检材轨迹总数证据
+
+- `guided_panel_visibility: PASS`：“查看全部当前事项”和“查看已整理信息”展开后均聚焦对应具名区域，并通过最近边界滚动立即带入同一纵向视口；未新增弹窗、嵌套滚动或业务副作用。
+- `evidence_history_total: PASS`：检材事实摘要显示当前最终已处理总数；报告识别 2 项后用户补充 3 项时更新为“当前已处理 5 项检材，其中报告识别 2 项、用户补充 3 项”，不记录逐字检材内容。
+- `guided_feedback_targeted_tests: PASS`：先得到面板焦点缺失与历史摘要数量缺失的 2 个失败用例，实施后 `GuidedReviewView.test.tsx` 10/10、`useGuidedReviewCards.test.ts` 12/12 通过。
+- `guided_feedback_quality: PASS`：`npm run verify:quick`、OpenSpec change strict validate、Impeccable 单次检测（0 项）与 `git diff --check` 通过；scoped strict docs 在任务勾选前仅准确报告 6.31 未完成，勾选后复跑确认。
+- `guided_feedback_manual_acceptance: N/A`：面板滚动调用、焦点归属、两类入口和 2+3 检材动态更新均由可区分的组件/Hook 自动化回归覆盖，本次不新增视觉样式或需真实案件数据的环境行为。
 
 ## 2026-08-30 快捷排序与图标操作组证据
 
@@ -287,3 +307,38 @@ workflow_level: 2
 - `mascot_motion_tests: PASS`：先得到事项变化后缺少角色动作身份的失败证据，实施后 `GuidedReviewView.test.tsx` 7/7 和前端 TypeScript 检查通过。
 - `mascot_motion_quality: PASS_WITH_EXISTING_FINDINGS`：`npm run verify:quick`、OpenSpec change strict validate 与 `git diff --check` 通过；Impeccable 单次检测仍仅命中 `reviewWorkspace.css` 第 167、314 行两处本次范围外既有告警。
 - `mascot_motion_manual_acceptance: N/A`：动效幅度、触发身份、可见性暂停与减少动态效果降级由组件回归、类型检查和机械检测覆盖；本次不改变角色资产尺寸、布局占位或业务操作。
+
+## 2026-08-30 明显角色型对话体验证据
+
+- `character_conversation_contract: PASS`：同一獬豸角色资产提供倾听、核对、严肃提醒与完成四态；恢复类异常优先映射严肃提醒，后台任务映射核对，事项完成短暂映射完成后回到当前真实状态。当前会话仅保留最近三轮业务完成摘要和修改入口，更早轮次只显示数量，不保存或回显逐字输入。
+- `progressive_evidence_and_tools: PASS`：检材不完整后先选择快捷批量或逐项编辑，页面一次仅渲染一条完整路径并可随时切换；“其他事项”“已整理信息”成为具名次级入口，“完整审核编辑”和“返回案件工作台”收进“更多操作”，当前回复继续是唯一主操作。
+- `character_targeted_tests: PASS`：`GuidedReviewView.test.tsx` 12/12、`useGuidedReviewCards.test.ts` 12/12、`CaseRecordGeneratePage.test.tsx` 20/20 通过；覆盖四态角色、最近三轮与更早折叠、逐轮修改、案件切换清空、分步检材补录、更多操作及既有编辑/压缩/导出链路。页面用例仅保留既有 jsdom 与 React 测试警告。
+- `character_visual_quality: PASS_WITH_TOOL_SCOPE_NOTE`：Impeccable 单次检测对两个改造 TSX 文件报告 0 项；命令误传的 CSS 路径不可访问，因此本次 CSS 差异另行人工核对了精灵裁切、语义动画、窄屏布局与减少动态效果规则，未发现新增阻断问题。
+- `character_manual_acceptance: N/A`：本地没有不接触用户现有案件数据即可使用的合成案件实页；未以真实案件替代。桌面/窄屏结构、角色状态身份、操作可达性和动效降级由 DOM 回归、响应式 CSS 差异核对及生产构建覆盖。
+- `character_level2_gates: PASS`：前端类型检查、生产构建、`npm run verify:quick`、scoped strict docs 14/14、OpenSpec change strict validate 与 `git diff --check` 全部通过；仓库资产卫生检查包含新增角色精灵图并通过，构建仅保留既有大包提示。
+
+## 2026-08-30 图标工具栏与透明角色资产反馈证据
+
+- `icon_toolbar_regression: PASS`：底部恢复全部事项、已整理信息、完整审核编辑和返回工作台四枚 44px 圆形图标；数量角标、Tooltip、可访问名称、主按钮靛蓝样式、面板展开后的自动滚动与焦点继续保留，常驻文字和“更多操作”入口已经移除。
+- `transparent_mascot_asset: PASS`：四态精灵图经内置 ImageGen 背景提取后替换，FFmpeg 检查确认为 PNG `rgba`，浅色矩形底板与背景雾已清除；四宫格顺序、角色身份、表情和现有 CSS 裁切保持不变。
+- `icon_toolbar_targeted_tests: PASS`：先得到圆形按钮断言失败证据，实施后 `GuidedReviewView.test.tsx` 12/12、`CaseRecordGeneratePage.test.tsx` 20/20、前端类型检查和生产构建通过；页面测试仅保留既有 jsdom 与 React 测试警告。
+- `icon_toolbar_impeccable: PASS_WITH_EXISTING_FINDINGS`：Impeccable 单次检测未报告本次图标工具栏差异问题，仅命中 `reviewWorkspace.css` 第 167、314 行两处本次范围外既有告警。
+- `icon_toolbar_level2_gates: PASS`：`npm run verify:quick`、仓库资产卫生、scoped strict docs 14/14、OpenSpec change strict validate 与 `git diff --check` 全部通过；生产构建仅保留既有大包提示。
+
+## 2026-08-30 对话容器纯白融合证据
+
+- `mascot_border_root_cause: PASS`：角色 PNG 四角 Alpha 为 0；用户截图四角 `RGB(251,253,255)` 与当前对话容器原 `#fbfdff` 完全一致，确认可见色块来自父容器而非图片底板。
+- `conversation_surface_blend: PASS`：当前对话容器改为纯白 `#ffffff` 并移除 `#cfdde8` 的 1px 边框；角色透明通道、柔和投影、圆角、滚动、布局与交互保持不变。
+- `conversation_surface_gates: PASS`：前端类型检查、生产构建与 `git diff --check` 通过；纯样式反馈未机械新增行为测试，构建仅保留既有大包提示。
+
+## 2026-08-30 对话舞台透明融合证据
+
+- `transparent_stage_blend: PASS`：当前对话舞台由纯白表面进一步改为 `transparent`，不再创建与页面底色不同的矩形画布；透明 PNG 直接继承页面背景，角色外只保留非矩形的自然投影。
+- `transparent_stage_scope: PASS`：内容气泡、角色四态裁切与动作、圆形工具栏、滚动锚点及全部交互未修改。
+- `transparent_stage_gates: PASS`：前端类型检查、生产构建与 `git diff --check` 通过；纯样式反馈未机械新增行为测试，构建仅保留既有大包提示。
+
+## 2026-08-30 角色投影移除证据
+
+- `mascot_shadow_removed: PASS`：角色图片静态样式及呼吸关键帧均不再使用 `drop-shadow`；透明舞台保持不变，角色只保留原有轻微位移与缩放。
+- `mascot_shadow_scope: PASS`：四态角色、语义亮度与饱和度反馈、布局、内容气泡、图标工具栏及全部交互均未修改。
+- `mascot_shadow_gates: PASS`：前端类型检查、生产构建、投影关键字检索与 `git diff --check` 通过；纯样式反馈未新增行为测试，构建仅保留既有大包提示。

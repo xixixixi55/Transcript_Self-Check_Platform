@@ -109,6 +109,38 @@ describe('guided review projection', () => {
     expect(completed.history.some(item => item.title === '后台归档已完成校验')).toBe(true)
   })
 
+  it('updates history to the final evidence total after the user supplements recognized evidence', () => {
+    const recognizedEvidence = [1, 2].map(index => ({
+      ...syntheticReport.introduction.evidence_list[0],
+      id: `SYNTHETIC-RECOGNIZED-${index}`,
+      evidence_id: `SYNTHETIC-RECOGNIZED-${index}`,
+      evidence_number: `SYNTHETIC-R-${index}`,
+    }))
+    const userEvidence = [1, 2, 3].map(index => ({
+      ...syntheticReport.introduction.evidence_list[0],
+      id: `SYNTHETIC-USER-${index}`,
+      evidence_id: `SYNTHETIC-USER-${index}`,
+      evidence_number: `SYNTHETIC-U-${index}`,
+      material_type_status: 'confirmed_by_user' as const,
+      material_type_source: 'user' as const,
+    }))
+    const reportWith = (evidenceList: typeof recognizedEvidence) => ({
+      ...syntheticReport,
+      introduction: { ...syntheticReport.introduction, evidence_list: evidenceList },
+    })
+    const { result, rerender } = renderHook(({ report }) => useGuidedReviewCards(buildInput(report)), {
+      initialProps: { report: reportWith(recognizedEvidence) },
+    })
+
+    expect(result.current.history.find(item => item.id === 'fact-report-recognition')?.detail)
+      .toContain('当前已处理 2 项检材')
+
+    rerender({ report: reportWith([...recognizedEvidence, ...userEvidence]) })
+
+    expect(result.current.history.find(item => item.id === 'fact-report-recognition')?.detail)
+      .toContain('当前已处理 5 项检材，其中报告识别 2 项、用户补充 3 项')
+  })
+
   it('keeps the current action stable when a background fact adds a higher-priority item', () => {
     const initial = buildInput({ ...syntheticReport, document_number: '' })
     const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
@@ -211,6 +243,11 @@ describe('guided review projection', () => {
     act(() => result.current.returnToCurrentAction())
     expect(result.current.currentAction?.id).toBe(nextActionId)
     expect(result.current.isReviewingPrevious).toBe(false)
+
+    const completedAction = result.current.previousAction!
+    act(() => result.current.revisitAction(completedAction))
+    expect(result.current.currentAction?.id).toBe(documentActionId)
+    expect(result.current.isReviewingPrevious).toBe(true)
   })
 
   it('phrases every current action as an explicit assistant prompt', () => {

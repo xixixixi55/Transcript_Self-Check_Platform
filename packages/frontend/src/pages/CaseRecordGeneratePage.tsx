@@ -384,6 +384,7 @@ export default function CaseRecordGeneratePage() {
           <GuidedReviewView conversationKey={caseId} history={guidedReview.history} currentAction={currentGuidedAction}
             allActions={guidedReview.allActions} hasResponse={Boolean(guidedSpecialContent || currentGuidedAction.pendingItem)}
             onSelectAction={guidedReview.selectAction}
+            onRevisitAction={guidedReview.revisitAction}
             onConfirmCurrentAction={guidedReview.confirmCurrentAction}
             canReturnToPrevious={Boolean(guidedReview.previousAction)}
             isReviewingPrevious={guidedReview.isReviewingPrevious}

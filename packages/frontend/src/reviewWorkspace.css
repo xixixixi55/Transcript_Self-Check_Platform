@@ -1173,7 +1173,7 @@
   gap: 16px;
   margin: 16px 0 -8px;
   padding: 8px 12px;
-  background: #ffffff;
+  background: transparent;
   border: 1px solid var(--review-border);
   border-radius: 12px 12px 0 0;
   box-shadow: 0 -8px 20px rgba(31, 52, 73, 0.06);
@@ -1560,8 +1560,8 @@
   overflow: visible;
   padding: 18px 18px 16px;
   color: var(--review-text);
-  background: #fbfdff;
-  border: 1px solid #cfdde8;
+  background: #ffffff;
+  border: 0;
   border-radius: 16px;
   scrollbar-color: #9bb0c2 #edf2f6;
   scrollbar-width: thin;
@@ -1579,28 +1579,55 @@
 }
 
 .guided-review-conversation__mascot-figure {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
   transform-origin: 50% 74%;
 }
 
-.guided-review-conversation__mascot.is-motion-active .guided-review-conversation__mascot-figure {
-  animation: guided-review-mascot-nod 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.guided-review-conversation__mascot img {
+.guided-review-conversation__mascot-sprite {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  transform-origin: 50% 78%;
+}
+
+.guided-review-conversation__mascot img {
+  position: absolute;
+  display: block;
+  width: 200%;
+  max-width: none;
+  height: 200%;
   object-fit: contain;
-  filter: drop-shadow(0 8px 10px rgba(31, 81, 119, 0.16));
   user-select: none;
 }
 
-.guided-review-conversation__mascot.is-motion-active img {
+.guided-review-conversation__mascot [data-mood='listening'] img { top: 0; left: 0; }
+.guided-review-conversation__mascot [data-mood='verifying'] img { top: 0; left: -100%; }
+.guided-review-conversation__mascot [data-mood='warning'] img { top: -100%; left: 0; }
+.guided-review-conversation__mascot [data-mood='complete'] img { top: -100%; left: -100%; }
+
+.guided-review-conversation__mascot.is-motion-active [data-mood='listening'] {
+  animation: guided-review-mascot-listen 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.guided-review-conversation__mascot.is-motion-active [data-mood='verifying'] {
+  animation: guided-review-mascot-verify 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.guided-review-conversation__mascot.is-motion-active [data-mood='warning'] {
+  animation: guided-review-mascot-warning 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.guided-review-conversation__mascot.is-motion-active [data-mood='complete'] {
+  animation: guided-review-mascot-complete 680ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.guided-review-conversation__mascot.is-motion-active [data-mood='listening'] .guided-review-conversation__mascot-sprite {
   animation: guided-review-mascot-breathe 7.2s ease-in-out 900ms infinite;
-  transform-origin: 50% 78%;
 }
 
 .guided-review-conversation__mascot .anticon {
@@ -1706,6 +1733,13 @@
   animation: guided-review-turn-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.guided-review-turn__collapsed {
+  margin: 0 0 8px;
+  color: var(--review-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
 .guided-review-turn__user {
   width: min(720px, 86%);
   margin-left: auto;
@@ -1729,6 +1763,32 @@
 .guided-review-turn__acknowledgement {
   margin: 0;
   line-height: 1.6;
+}
+
+.guided-review-turn__assistant-summary {
+  width: fit-content;
+  max-width: 72ch;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 6px 0 0;
+  padding: 7px 10px;
+  color: #36536a;
+  background: #eef6fb;
+  border-radius: 4px 12px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.guided-review-turn__assistant-summary > .anticon {
+  margin-top: 3px;
+  color: #287a4a;
+}
+
+.guided-review-turn__assistant-summary .ant-btn {
+  min-height: 28px;
+  margin: -4px -4px -4px 2px;
+  padding-inline: 6px;
 }
 
 .guided-review-turn__acknowledgement {
@@ -1815,6 +1875,29 @@
   background: var(--platform-preview-surface);
   border-color: var(--platform-preview-border);
   box-shadow: 0 4px 12px rgba(67, 80, 142, 0.08);
+}
+
+.guided-review-card__evidence-paths {
+  display: grid;
+  gap: 12px;
+}
+
+.guided-review-card__evidence-paths p {
+  margin: 0;
+  color: var(--platform-preview-text-secondary);
+  line-height: 1.6;
+}
+
+.guided-review-card__manual-evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.guided-review-card__manual-evidence-actions .ant-btn {
+  min-height: 44px;
 }
 
 .guided-review-card__choice-actions .ant-btn:not(:disabled):hover {
@@ -2070,25 +2153,37 @@
   }
 }
 
-@keyframes guided-review-mascot-nod {
+@keyframes guided-review-mascot-listen {
   0%, 100% {
     transform: translateY(0) rotate(0) scale(1);
   }
-  32% {
-    transform: translateY(2px) rotate(-1.2deg) scale(0.99);
+  55% {
+    transform: translateY(1px) rotate(-1deg) scale(1.012);
   }
-  68% {
-    transform: translateY(-1px) rotate(0.6deg) scale(1.008);
-  }
+}
+
+@keyframes guided-review-mascot-verify {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  35% { transform: translateY(1px) rotate(1.4deg); }
+  68% { transform: translateY(-1px) rotate(-0.7deg); }
+}
+
+@keyframes guided-review-mascot-warning {
+  0% { filter: saturate(0.9); transform: translateY(-1px) scale(1.01); }
+  100% { filter: saturate(0.9); transform: translateY(0) scale(1); }
+}
+
+@keyframes guided-review-mascot-complete {
+  0% { filter: brightness(0.98); transform: translateY(2px) scale(0.98); }
+  58% { filter: brightness(1.06); transform: translateY(-3px) rotate(1.6deg) scale(1.025); }
+  100% { filter: brightness(1); transform: translateY(0) rotate(0) scale(1); }
 }
 
 @keyframes guided-review-mascot-breathe {
   0%, 14%, 100% {
-    filter: drop-shadow(0 8px 10px rgba(31, 81, 119, 0.16));
     transform: translateY(0) scale(1);
   }
   7% {
-    filter: drop-shadow(0 10px 12px rgba(31, 81, 119, 0.19));
     transform: translateY(-2px) scale(1.012);
   }
 }
@@ -2322,6 +2417,10 @@
     width: 100%;
   }
 
+  .guided-review-turn__assistant-summary {
+    max-width: 100%;
+  }
+
   .guided-review-summary {
     grid-template-columns: 1fr;
   }
@@ -2355,6 +2454,7 @@
   }
 
   .guided-review-conversation__mascot-figure,
+  .guided-review-conversation__mascot-sprite,
   .guided-review-conversation__mascot img {
     animation: none !important;
     transform: none !important;

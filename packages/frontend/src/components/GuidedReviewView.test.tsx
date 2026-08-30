@@ -20,6 +20,14 @@ const waitingAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-WAITING', kind: 'waiting', title: '请稍候，正在生成压缩分卷',
   description: '后台任务仍在运行，可继续处理其他待办。',
 }
+const recoveryAction: GuidedReviewAction = {
+  id: 'SYNTHETIC-ACTION-RECOVERY', kind: 'save_recovery', title: '请恢复草稿保存',
+  description: 'SYNTHETIC/TEST：保存链路需要恢复。',
+}
+const readyAction: GuidedReviewAction = {
+  id: 'SYNTHETIC-ACTION-READY', kind: 'ready', title: '请确认并生成笔录',
+  description: 'SYNTHETIC/TEST：所需事项已经齐备。',
+}
 const evidenceCompletenessAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-EVIDENCE-COMPLETENESS', kind: 'pending_item', title: '请确认检材完整性',
   description: '请确认检材是否完整。',
@@ -73,20 +81,15 @@ describe('GuidedReviewView', () => {
     fireEvent.click(completeButton)
     expect(onEvidenceCompletenessChange).toHaveBeenCalledWith(true)
     fireEvent.click(incompleteButton)
+    expect(screen.getByRole('button', { name: '快捷批量补充检材' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '逐项编辑检材' })).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: '快捷批量添加检材' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '逐项编辑检材' }))
     expect(screen.getByRole('button', { name: '添加检材' })).toBeTruthy()
-    const parseButton = screen.getByRole('button', { name: '解析并预览' })
-    const sortButton = screen.getByRole('button', { name: '一键排序' })
     const confirmCompleteButton = screen.getByRole('button', { name: '完成检材补充并确认完整' })
     expect(confirmCompleteButton.querySelector('.anticon-check-circle')).toBeTruthy()
-    expect(parseButton.querySelector('.anticon-file-search')).toBeTruthy()
-    expect(sortButton.querySelector('.anticon-sort-ascending')).toBeTruthy()
-    expect(parseButton.textContent).toBe('')
-    expect(sortButton.textContent).toBe('')
-    expect(confirmCompleteButton.textContent).toBe('')
-    expect(parseButton.parentElement).toBe(sortButton.parentElement)
-    expect(sortButton.parentElement).toBe(confirmCompleteButton.parentElement)
-    expect(parseButton.compareDocumentPosition(sortButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(sortButton.compareDocumentPosition(confirmCompleteButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '解析并预览' })).toBeNull()
+    expect(screen.getByRole('button', { name: '改用快捷批量补充' })).toBeTruthy()
     expect(onOpenFullEditor).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '添加检材' }))
@@ -114,6 +117,7 @@ describe('GuidedReviewView', () => {
       updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    fireEvent.click(screen.getByRole('button', { name: '快捷批量补充检材' }))
     expect(screen.getByText(/每行一项/)).toBeTruthy()
     expect(screen.getByText(/全角括号/)).toBeTruthy()
 
@@ -181,6 +185,7 @@ describe('GuidedReviewView', () => {
     }} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    fireEvent.click(screen.getByRole('button', { name: '快捷批量补充检材' }))
     fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
     expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [evidence[2], evidence[1], evidence[0]])
     expect(screen.getByText('已按检材编号自然升序排列。')).toBeTruthy()
@@ -197,6 +202,7 @@ describe('GuidedReviewView', () => {
     }} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    fireEvent.click(screen.getByRole('button', { name: '快捷批量补充检材' }))
     fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
     expect(updateReport).not.toHaveBeenCalled()
     expect(screen.getByText('当前检材编号无法安全排序，已保持原顺序。')).toBeTruthy()
@@ -205,6 +211,12 @@ describe('GuidedReviewView', () => {
   it('keeps full history above the current conversation while exposing global review controls', () => {
     const selectAction = vi.fn()
     const updateReport = vi.fn()
+    const scrollIntoView = vi.fn()
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
     const view = render(<GuidedReviewView
       conversationKey="SYNTHETIC-CASE"
       history={history}
@@ -237,7 +249,8 @@ describe('GuidedReviewView', () => {
     expect(conversationBody?.querySelector(':scope > .guided-review-conversation__content')).toBe(conversationContent)
     expect(conversationContent?.contains(mascot)).toBe(false)
     expect(conversationBody?.contains(conversationUtilities)).toBe(false)
-    expect(mascot?.getAttribute('src')).toContain('xiezhi-assistant.png')
+    expect(mascot?.getAttribute('src')).toContain('xiezhi-assistant-states.png')
+    expect(mascot?.closest('[data-mood]')?.getAttribute('data-mood')).toBe('listening')
     fireEvent.error(mascot!)
     expect(view.container.querySelector('.anticon-safety-certificate')).toBeTruthy()
 
@@ -246,28 +259,41 @@ describe('GuidedReviewView', () => {
     expect(pendingButton.querySelector('.anticon-unordered-list')).toBeTruthy()
     expect(summaryButton.querySelector('.anticon-file-done')).toBeTruthy()
     expect(pendingButton.classList.contains('ant-btn-circle')).toBe(true)
-    expect(pendingButton.classList.contains('ant-btn-lg')).toBe(true)
+    expect(pendingButton.textContent).toBe('')
+    expect(summaryButton.classList.contains('ant-btn-circle')).toBe(true)
+    expect(summaryButton.textContent).toBe('')
     const fullEditorButton = screen.getByRole('button', { name: '完整审核编辑' })
     expect(fullEditorButton.querySelector('.anticon-edit')).toBeTruthy()
     expect(fullEditorButton.classList.contains('ant-btn-primary')).toBe(true)
     expect(fullEditorButton.classList.contains('guided-review-tools__primary')).toBe(true)
     expect(screen.getByRole('button', { name: '返回案件工作台' }).querySelector('.anticon-home')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull()
     expect(pendingButton.getAttribute('aria-controls')).toBe('guided-review-pending-panel')
     expect(summaryButton.getAttribute('aria-controls')).toBe('guided-review-summary-panel')
     fireEvent.click(pendingButton)
-    expect(screen.getByLabelText('全部当前事项').id).toBe('guided-review-pending-panel')
+    const pendingPanel = screen.getByLabelText('全部当前事项')
+    expect(pendingPanel.id).toBe('guided-review-pending-panel')
+    expect(document.activeElement).toBe(pendingPanel)
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' })
     expect(screen.getByRole('button', { name: /请输入文号.*当前/ }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷.*后台中/ })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷/ }))
     expect(selectAction).toHaveBeenCalledWith(waitingAction.id)
 
     fireEvent.click(summaryButton)
-    expect(screen.getByLabelText('已整理信息').id).toBe('guided-review-summary-panel')
+    const summaryPanel = screen.getByLabelText('已整理信息')
+    expect(summaryPanel.id).toBe('guided-review-summary-panel')
+    expect(document.activeElement).toBe(summaryPanel)
+    expect(scrollIntoView).toHaveBeenCalledTimes(2)
     expect(screen.getByText('SYNTHETIC ORGANIZED SUMMARY')).toBeTruthy()
     expect(updateReport).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByRole('textbox', { name: '文号' }), { target: { value: 'SYN-TEST〔2026〕009号' } })
     expect(updateReport).toHaveBeenCalledWith('document_number', 'SYN-TEST〔2026〕009号')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: originalScrollIntoView,
+    })
   })
 
   it('renders empty history and waiting content without inventing percentage progress', () => {
@@ -287,8 +313,37 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('办理轨迹会随案件现有事实逐步形成。')).toBeTruthy()
     expect(screen.getByText('请稍候，正在生成压缩分卷')).toBeTruthy()
     expect(screen.getByText('后台处理中')).toBeTruthy()
+    expect(document.querySelector('[data-mood="verifying"]')).toBeTruthy()
     expect(screen.getAllByText('后台任务仍在运行，可继续处理其他待办。')).toHaveLength(1)
     expect(screen.queryByText(/30%|问题\s*\d+\s*\/\s*\d+/)).toBeNull()
+  })
+
+  it('uses serious and celebratory mascot states for recovery and ready actions', () => {
+    const view = render(<GuidedReviewView
+      conversationKey="SYNTHETIC-CASE"
+      history={history}
+      currentAction={recoveryAction}
+      allActions={[recoveryAction]}
+      hasResponse={false}
+      onSelectAction={vi.fn()}
+      summary={null}
+      onOpenFullEditor={vi.fn()}
+      onBackToWorkbench={vi.fn()}
+    ><GuidedReviewCard action={recoveryAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+
+    expect(view.container.querySelector('[data-mood="warning"]')).toBeTruthy()
+    view.rerender(<GuidedReviewView
+      conversationKey="SYNTHETIC-CASE"
+      history={history}
+      currentAction={readyAction}
+      allActions={[readyAction]}
+      hasResponse={false}
+      onSelectAction={vi.fn()}
+      summary={null}
+      onOpenFullEditor={vi.fn()}
+      onBackToWorkbench={vi.fn()}
+    ><GuidedReviewCard action={readyAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+    expect(view.container.querySelector('[data-mood="complete"]')).toBeTruthy()
   })
 
   it('confirms text input only with an unmodified Enter outside IME composition', () => {
@@ -316,6 +371,7 @@ describe('GuidedReviewView', () => {
   })
 
   it('shows a session-only user reply and assistant handoff after an action is completed', async () => {
+    const revisitAction = vi.fn()
     const returnToPreviousAction = vi.fn()
     const returnToCurrentAction = vi.fn()
     const view = render(<GuidedReviewView
@@ -325,6 +381,7 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction, waitingAction]}
       hasResponse
       onSelectAction={vi.fn()}
+      onRevisitAction={revisitAction}
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
       summary={null}
@@ -344,6 +401,7 @@ describe('GuidedReviewView', () => {
       allActions={[waitingAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
+      onRevisitAction={revisitAction}
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
       summary={null}
@@ -353,7 +411,10 @@ describe('GuidedReviewView', () => {
 
     await waitFor(() => expect(screen.getByLabelText('上一轮办理结果')).toBeTruthy())
     expect(screen.getByText('文号已填写')).toBeTruthy()
-    expect(screen.getByText('已确认：文号已填写。后台任务还在继续，我会在这里同步进展。')).toBeTruthy()
+    expect(screen.getByText('文号已经纳入当前笔录。后台任务还在继续，我会同步核对结果。')).toBeTruthy()
+    expect(document.querySelector('[data-mood="complete"]')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '修改文号' }))
+    expect(revisitAction).toHaveBeenCalledWith(documentAction)
     expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent).toContain('请稍候，正在生成压缩分卷')
     fireEvent.click(screen.getByRole('button', { name: '返回上一步' }))
     expect(returnToPreviousAction).toHaveBeenCalledTimes(1)
@@ -365,6 +426,7 @@ describe('GuidedReviewView', () => {
       allActions={[waitingAction]}
       hasResponse
       onSelectAction={vi.fn()}
+      onRevisitAction={revisitAction}
       canReturnToPrevious
       isReviewingPrevious
       onReturnToPreviousAction={returnToPreviousAction}
@@ -390,6 +452,44 @@ describe('GuidedReviewView', () => {
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
     await waitFor(() => expect(screen.queryByLabelText('上一轮办理结果')).toBeNull())
+  })
+
+  it('keeps the latest three completed turns and summarizes older session turns', async () => {
+    const actions = ['甲', '乙', '丙', '丁'].map((fieldLabel, index): GuidedReviewAction => ({
+      ...documentAction,
+      id: `SYNTHETIC-ACTION-${fieldLabel}`,
+      title: `请填写${fieldLabel}`,
+      pendingItem: {
+        ...documentAction.pendingItem!,
+        id: `SYNTHETIC-PENDING-${fieldLabel}`,
+        fieldLabel,
+      },
+    }))
+    const props = {
+      conversationKey: 'SYNTHETIC-CASE', history, hasResponse: true,
+      onSelectAction: vi.fn(), onRevisitAction: vi.fn(), summary: null,
+      onOpenFullEditor: vi.fn(), onBackToWorkbench: vi.fn(),
+    }
+    const child = (action: GuidedReviewAction) => (
+      <GuidedReviewCard action={action} report={report} updateReport={vi.fn()} readOnly={false} />
+    )
+    const view = render(<GuidedReviewView {...props} currentAction={actions[0]}
+      allActions={[...actions, waitingAction]}>{child(actions[0])}</GuidedReviewView>)
+
+    for (let index = 1; index < actions.length; index += 1) {
+      const action = actions[index]
+      view.rerender(<GuidedReviewView {...props} currentAction={action}
+        allActions={[...actions.slice(index), waitingAction]}>{child(action)}</GuidedReviewView>)
+      await waitFor(() => expect(screen.getByRole('button', { name: `修改${actions[index - 1].pendingItem?.fieldLabel}` })).toBeTruthy())
+    }
+    view.rerender(<GuidedReviewView {...props} currentAction={waitingAction}
+      allActions={[waitingAction]} hasResponse={false}>{child(waitingAction)}</GuidedReviewView>)
+
+    await waitFor(() => expect(screen.getByText('更早已完成 1 项')).toBeTruthy())
+    expect(screen.queryByRole('button', { name: '修改甲' })).toBeNull()
+    expect(screen.getByRole('button', { name: '修改乙' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '修改丙' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '修改丁' })).toBeTruthy()
   })
 
   it('acknowledges a manual action switch and stages the next response as a conversational turn', async () => {

@@ -141,8 +141,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(screen.queryByText('笔录生成 / 审核编辑')).toBeNull()
     expect(screen.queryByRole('button', { name: '打开结构摘要预览' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: '完整审核编辑' }))
-    await waitFor(() => expect(document.querySelector('.review-editor-form')).toBeTruthy())
+    await openFullEditor()
     expect(screen.getByText('笔录生成 / 审核编辑')).toBeTruthy()
     expect(screen.getByRole('button', { name: /打开结构摘要预览/ })).toBeTruthy()
     const returnToGuidedButton = screen.getByRole('button', { name: '返回引导模式' })
@@ -159,7 +158,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: '獬豸助手', level: 2 })).toBe(document.activeElement))
     expect(document.querySelector('.review-editor-form')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: '完整审核编辑' }))
+    await openFullEditor()
     expect((await screen.findByRole('textbox', { name: '介质编号' }) as HTMLInputElement).value).toBe('GP20260731-009')
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_LEASE(caseId))).toHaveLength(1)
   }, 15000)
@@ -170,11 +169,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     const incompleteButton = await screen.findByRole('button', { name: '检材信息不完整，手工添加检材' })
     expect(incompleteButton.querySelector('.anticon-file-add')).toBeTruthy()
     fireEvent.click(incompleteButton)
+    fireEvent.click(screen.getByRole('button', { name: '逐项编辑检材' }))
 
     expect(screen.getByRole('region', { name: '当前对话' })).toBeTruthy()
     expect(document.querySelector('.review-editor-form')).toBeNull()
-    expect(screen.getByRole('textbox', { name: '快捷批量添加检材' })).toBeTruthy()
-    expect(screen.getByText(/每行一项/)).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: '快捷批量添加检材' })).toBeNull()
     expect(screen.getByRole('button', { name: '添加检材' })).toBeTruthy()
   }, 15000)
 
@@ -220,8 +219,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   }, 15000)
 
   async function openFullEditor() {
-    const button = await screen.findByRole('button', { name: '完整审核编辑' })
-    fireEvent.click(button)
+    fireEvent.click(await screen.findByRole('button', { name: '完整审核编辑' }))
     await waitFor(() => expect(document.querySelector('.review-editor-form')).toBeTruthy())
   }
 
