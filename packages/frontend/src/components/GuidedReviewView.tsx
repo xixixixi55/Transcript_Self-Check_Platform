@@ -318,7 +318,9 @@ export function GuidedReviewView({
                 aria-controls="guided-review-summary-panel" onClick={() => togglePanel('summary')} />
             </Tooltip>
             <Tooltip title="完整审核编辑">
-              <Button type="primary" shape="circle" size="large" className="guided-review-tools__icon-button" icon={<EditOutlined />}
+              <Button type="primary" shape="circle" size="large"
+                className="guided-review-tools__icon-button guided-review-tools__primary"
+                icon={<EditOutlined />}
                 aria-label="完整审核编辑" onClick={onOpenFullEditor} />
             </Tooltip>
             <Tooltip title="返回案件工作台">

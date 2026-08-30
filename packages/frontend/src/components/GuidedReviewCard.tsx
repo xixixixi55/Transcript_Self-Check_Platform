@@ -1,7 +1,7 @@
-import { CheckCircleOutlined, FileAddOutlined } from '@ant-design/icons'
-import { Button, Input, Space, Tooltip } from 'antd'
+import { CheckCircleOutlined, FileAddOutlined, FileSearchOutlined, SortAscendingOutlined } from '@ant-design/icons'
+import { Alert, Button, Input, message, Space, Tooltip } from 'antd'
 import { useEffect, useState } from 'react'
-import type { FieldState, InspectionReport } from '@biji/shared/types'
+import type { EvidenceItem, FieldState, InspectionReport } from '@biji/shared/types'
 import type { GuidedReviewAction } from '../hooks/useGuidedReviewCards'
 import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import { DateTimeField } from './DateTimeField'
@@ -25,6 +25,253 @@ interface TextField {
   value: string
   multiline?: boolean
   transform?: (value: string) => unknown
+}
+
+interface EvidenceBatchPreview {
+  deviceName: string
+  materialType: 'phone' | 'tablet'
+  unextractableReason: string
+  evidenceNumber: string
+}
+
+interface EvidenceBatchResult {
+  preview: EvidenceBatchPreview[]
+  errors: string[]
+}
+
+interface NaturalEvidenceOrder<T> {
+  items: T[]
+  applied: boolean
+}
+
+function evidenceNumberKey(value: string): number[] | null {
+  const groups = value.match(/\d+/g)
+  if (!groups) return null
+  const numbers = groups.map(Number)
+  return numbers.every(Number.isSafeInteger) ? numbers : null
+}
+
+function naturalEvidenceOrder<T>(items: T[], getNumber: (item: T) => string): NaturalEvidenceOrder<T> {
+  const keyed = items.map(item => ({ item, key: evidenceNumberKey(getNumber(item)) }))
+  if (keyed.some(candidate => candidate.key === null)) return { items, applied: false }
+  const serializedKeys = keyed.map(candidate => JSON.stringify(candidate.key))
+  if (new Set(serializedKeys).size !== serializedKeys.length) return { items, applied: false }
+  return {
+    applied: true,
+    items: [...keyed].sort((left, right) => {
+      const leftKey = left.key as number[]
+      const rightKey = right.key as number[]
+      const length = Math.max(leftKey.length, rightKey.length)
+      for (let index = 0; index < length; index += 1) {
+        if (index >= leftKey.length) return -1
+        if (index >= rightKey.length) return 1
+        if (leftKey[index] !== rightKey[index]) return leftKey[index] - rightKey[index]
+      }
+      return 0
+    }).map(candidate => candidate.item),
+  }
+}
+
+function formatEvidencePreview(candidate: EvidenceBatchPreview): string {
+  const typeLabel = candidate.materialType === 'phone' ? '手机' : '平板'
+  return `${candidate.deviceName}${typeLabel}一部（${candidate.unextractableReason}）${candidate.evidenceNumber}`
+}
+
+function parseEvidenceBatch(value: string, existingItems: EvidenceItem[]): EvidenceBatchResult {
+  const existingNumbers = new Set(existingItems
+    .map(item => String(item.evidence_number || '').trim().toLocaleLowerCase()).filter(Boolean))
+  const batchNumbers = new Set<string>()
+  const preview: EvidenceBatchPreview[] = []
+  const errors: string[] = []
+
+  value.split(/\r?\n/).forEach((rawLine, index) => {
+    const line = rawLine.trim()
+    if (!line) return
+    const match = line.match(/^(.+?)(手机|平板)\s*一部\s*（([^（）]+)）\s*([^\s（）]+)$/)
+    if (!match) {
+      errors.push(`第 ${index + 1} 行：格式不正确，请使用中文全角括号并把检材编号放在行末。`)
+      return
+    }
+    const [, rawDeviceName, typeLabel, rawReason, rawEvidenceNumber] = match
+    const deviceName = rawDeviceName.trim()
+    const unextractableReason = rawReason.trim()
+    const evidenceNumber = rawEvidenceNumber.trim()
+    const normalizedNumber = evidenceNumber.toLocaleLowerCase()
+    if (existingNumbers.has(normalizedNumber)) {
+      errors.push(`第 ${index + 1} 行：检材编号 ${evidenceNumber} 已存在。`)
+      return
+    }
+    if (batchNumbers.has(normalizedNumber)) {
+      errors.push(`第 ${index + 1} 行：检材编号 ${evidenceNumber} 在本次输入中重复。`)
+      return
+    }
+    batchNumbers.add(normalizedNumber)
+    preview.push({
+      deviceName,
+      materialType: typeLabel === '手机' ? 'phone' : 'tablet',
+      unextractableReason,
+      evidenceNumber,
+    })
+  })
+
+  if (!preview.length && !errors.length) errors.push('请输入至少一项检材。')
+  return { preview, errors }
+}
+
+function QuickEvidenceBatchAdder({ items, onChange, onConfirmComplete }: {
+  items: EvidenceItem[]
+  onChange: (items: EvidenceItem[]) => void
+  onConfirmComplete?: () => void
+}) {
+  const [value, setValue] = useState('')
+  const [result, setResult] = useState<EvidenceBatchResult | null>(null)
+  const [sortRequested, setSortRequested] = useState(false)
+  const [sortFeedback, setSortFeedback] = useState<{ message: string } | null>(null)
+  const [messageApi, messageContextHolder] = message.useMessage({ maxCount: 2, top: 24 })
+  const showSuccess = (content: string) => messageApi.open({
+    key: 'quick-evidence-success',
+    type: 'success',
+    content,
+    duration: 2.5,
+  })
+  const parse = () => {
+    const parsed = parseEvidenceBatch(value, items)
+    setResult(parsed)
+    if (parsed.errors.length) setSortRequested(false)
+    else showSuccess(`已识别 ${parsed.preview.length} 项检材，请确认后添加。`)
+    setSortFeedback(null)
+  }
+  const sort = () => {
+    if (!value.trim()) {
+      const ordered = naturalEvidenceOrder(items, item => item.evidence_number)
+      if (!ordered.applied) {
+        setSortFeedback({ message: '当前检材编号无法安全排序，已保持原顺序。' })
+        return
+      }
+      onChange(ordered.items)
+      setSortFeedback(null)
+      showSuccess('已按检材编号自然升序排列。')
+      return
+    }
+
+    const parsed = parseEvidenceBatch(value, items)
+    setResult(parsed)
+    if (parsed.errors.length) {
+      setSortRequested(false)
+      setSortFeedback(null)
+      return
+    }
+    const combined = [
+      ...items.map(item => ({ evidenceNumber: item.evidence_number, preview: null as EvidenceBatchPreview | null })),
+      ...parsed.preview.map(preview => ({ evidenceNumber: preview.evidenceNumber, preview })),
+    ]
+    const ordered = naturalEvidenceOrder(combined, item => item.evidenceNumber)
+    if (!ordered.applied) {
+      setSortRequested(false)
+      setSortFeedback({ message: '当前检材编号无法安全排序，已保持原顺序。' })
+      return
+    }
+    const orderedPreview = ordered.items.flatMap(item => item.preview ? [item.preview] : [])
+    setResult({ preview: orderedPreview, errors: [] })
+    setValue(orderedPreview.map(formatEvidencePreview).join('\n'))
+    setSortRequested(true)
+    setSortFeedback(null)
+    showSuccess('已按检材编号自然升序排列。')
+  }
+  const confirm = () => {
+    if (!result || result.errors.length || !result.preview.length) return
+    const createdAt = Date.now()
+    const additions = result.preview.map((candidate, index): EvidenceItem => {
+      const evidenceId = `local-evidence-${createdAt}-${items.length + index + 1}`
+      return {
+        id: evidenceId,
+        evidence_id: evidenceId,
+        device_type: '',
+        device_name: candidate.deviceName,
+        model: candidate.deviceName,
+        imei1: '',
+        imei2: '',
+        serial_number: '',
+        extractable: false,
+        unextractable_reason: candidate.unextractableReason,
+        evidence_number: candidate.evidenceNumber,
+        material_type: candidate.materialType,
+        material_type_status: 'confirmed_by_user',
+        material_type_source: 'user',
+      }
+    })
+    const nextItems = [...items, ...additions]
+    onChange(sortRequested
+      ? naturalEvidenceOrder(nextItems, item => item.evidence_number).items
+      : nextItems)
+    setValue('')
+    setResult(null)
+    setSortRequested(false)
+    setSortFeedback(null)
+    showSuccess(`已添加 ${additions.length} 项检材。`)
+  }
+
+  return (
+    <>
+      {messageContextHolder}
+      <div className="guided-review-card__quick-evidence">
+        <div className="guided-review-card__quick-evidence-intro">
+          <span className="guided-review-card__quick-evidence-icon" aria-hidden="true">
+            <FileAddOutlined />
+          </span>
+          <div className="guided-review-card__quick-evidence-copy">
+            <h4>快捷批量添加检材</h4>
+            <div id="quick-evidence-format-help">
+              <p>每行一项：设备名称＋手机/平板一部＋（原因）＋编号；全角括号，编号置于行末。</p>
+            </div>
+          </div>
+        </div>
+        <Space direction="vertical" size="small" style={{ width: '100%', marginTop: 12 }}>
+          <Input.TextArea aria-label="快捷批量添加检材" aria-describedby="quick-evidence-format-help" value={value}
+            placeholder={'iPhone 6手机一部（因设备损坏无法提取）JC2026089601\niPad平板一部（因无法开机无法提取）JC2026089602'}
+            autoSize={{ minRows: 4, maxRows: 10 }} maxLength={5000}
+            onChange={event => {
+              setValue(event.target.value)
+              setResult(null)
+              setSortRequested(false)
+              setSortFeedback(null)
+            }} />
+          <div className="guided-review-card__quick-evidence-actions" role="group" aria-label="快捷检材操作">
+            <Tooltip title="解析并预览">
+              <Button shape="circle" size="large" icon={<FileSearchOutlined />} aria-label="解析并预览"
+                onClick={parse} disabled={!value.trim()} />
+            </Tooltip>
+            <Tooltip title="一键排序">
+              <Button shape="circle" size="large" icon={<SortAscendingOutlined />} aria-label="一键排序"
+                onClick={sort} disabled={!value.trim() && items.length < 2} />
+            </Tooltip>
+            <Tooltip title="完成检材补充并确认完整">
+              <Button type="primary" shape="circle" size="large" icon={<CheckCircleOutlined />}
+                aria-label="完成检材补充并确认完整" onClick={onConfirmComplete} />
+            </Tooltip>
+          </div>
+          {sortFeedback ? <Alert type="warning" showIcon message={sortFeedback.message} /> : null}
+          {result?.errors.length ? (
+            <Alert type="error" showIcon message="无法添加，请修正以下内容" description={<ul>
+              {result.errors.map(error => <li key={error}>{error}</li>)}
+            </ul>} />
+          ) : null}
+          {result && !result.errors.length ? <>
+            <ul className="guided-review-card__quick-evidence-preview">
+              {result.preview.map(candidate => <li key={candidate.evidenceNumber}>
+                {candidate.deviceName} · {candidate.materialType === 'phone' ? '手机' : '平板'} ·
+                {' '}{candidate.evidenceNumber} · {candidate.unextractableReason}
+              </li>)}
+            </ul>
+            <Button type="primary" className="guided-review-card__quick-evidence-confirm"
+              icon={<CheckCircleOutlined />} aria-label={`确认添加 ${result.preview.length} 项检材`} onClick={confirm}>
+              确认添加 {result.preview.length} 项检材
+            </Button>
+          </> : null}
+        </Space>
+      </div>
+    </>
+  )
 }
 
 function resultField(report: InspectionReport, targetId: string): TextField | null {
@@ -105,17 +352,17 @@ export function GuidedReviewCard({
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && showEvidenceEditor) return (
     <div className="guided-review-card__evidence-editor">
       <fieldset disabled={readOnly} className="guided-review-card__fieldset">
+        <QuickEvidenceBatchAdder items={report.introduction.evidence_list || []}
+          onChange={items => {
+            updateReport('introduction.evidence_list', items)
+            onEvidenceCompletenessChange?.(false)
+          }} onConfirmComplete={() => onEvidenceCompletenessChange?.(true)} />
         <EvidenceEditor items={report.introduction.evidence_list || []} fieldStates={fieldStates}
           onChange={items => {
             updateReport('introduction.evidence_list', items)
             onEvidenceCompletenessChange?.(false)
           }} />
       </fieldset>
-      <Tooltip title="完成检材补充并确认完整">
-        <Button type="primary" shape="circle" size="large" disabled={readOnly}
-          icon={<CheckCircleOutlined />} aria-label="完成检材补充并确认完整"
-          onClick={() => onEvidenceCompletenessChange?.(true)} />
-      </Tooltip>
     </div>
   )
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness) return (

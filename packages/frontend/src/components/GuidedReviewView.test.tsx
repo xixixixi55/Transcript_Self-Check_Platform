@@ -74,7 +74,19 @@ describe('GuidedReviewView', () => {
     expect(onEvidenceCompletenessChange).toHaveBeenCalledWith(true)
     fireEvent.click(incompleteButton)
     expect(screen.getByRole('button', { name: '添加检材' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '完成检材补充并确认完整' }).querySelector('.anticon-check-circle')).toBeTruthy()
+    const parseButton = screen.getByRole('button', { name: '解析并预览' })
+    const sortButton = screen.getByRole('button', { name: '一键排序' })
+    const confirmCompleteButton = screen.getByRole('button', { name: '完成检材补充并确认完整' })
+    expect(confirmCompleteButton.querySelector('.anticon-check-circle')).toBeTruthy()
+    expect(parseButton.querySelector('.anticon-file-search')).toBeTruthy()
+    expect(sortButton.querySelector('.anticon-sort-ascending')).toBeTruthy()
+    expect(parseButton.textContent).toBe('')
+    expect(sortButton.textContent).toBe('')
+    expect(confirmCompleteButton.textContent).toBe('')
+    expect(parseButton.parentElement).toBe(sortButton.parentElement)
+    expect(sortButton.parentElement).toBe(confirmCompleteButton.parentElement)
+    expect(parseButton.compareDocumentPosition(sortButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(sortButton.compareDocumentPosition(confirmCompleteButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(onOpenFullEditor).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '添加检材' }))
@@ -82,6 +94,112 @@ describe('GuidedReviewView', () => {
       expect.objectContaining({ evidence_number: '' }),
     ])
     expect(onEvidenceCompletenessChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('previews and appends newline-delimited unavailable evidence without accepting invalid batches', () => {
+    const updateReport = vi.fn()
+    const reportWithExistingEvidence: InspectionReport = {
+      ...report,
+      introduction: {
+        ...report.introduction,
+        evidence_list: [{
+          id: 'SYNTHETIC-EXISTING', evidence_id: 'SYNTHETIC-EXISTING', device_type: '',
+          device_name: 'SYNTHETIC Existing', material_type: 'phone',
+          material_type_status: 'confirmed_by_user', material_type_source: 'user', extractable: false,
+          unextractable_reason: 'SYNTHETIC/TEST：无法提取', evidence_number: 'SYN-JC00000000',
+        }],
+      },
+    }
+    render(<GuidedReviewCard action={evidenceCompletenessAction} report={reportWithExistingEvidence}
+      updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    expect(screen.getByText(/每行一项/)).toBeTruthy()
+    expect(screen.getByText(/全角括号/)).toBeTruthy()
+
+    const input = screen.getByRole('textbox', { name: '快捷批量添加检材' })
+    expect(input.getAttribute('aria-describedby')).toBe('quick-evidence-format-help')
+    fireEvent.change(input, { target: { value: [
+      '',
+      'SYNTHETIC Pad平板一部（SYNTHETIC/TEST：屏幕损坏）SYN-JC00000003',
+      'SYNTHETIC Phone 6手机一部（SYNTHETIC/TEST：损坏无法提取）SYN-JC00000001',
+      'SYNTHETIC Phone 7手机一部（SYNTHETIC/TEST：无法开机）SYN-JC00000002',
+    ].join('\n') } })
+    fireEvent.click(screen.getByRole('button', { name: '解析并预览' }))
+
+    const parsedNotice = screen.getByText('已识别 3 项检材，请确认后添加。')
+    expect(parsedNotice.closest('.ant-message')).toBeTruthy()
+    expect(document.querySelector('.guided-review-card__quick-evidence .ant-alert-success')).toBeNull()
+    expect(screen.getByText(/SYNTHETIC Phone 6 · 手机/)).toBeTruthy()
+    expect(screen.getByText(/SYNTHETIC Pad · 平板/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
+    expect(screen.getByText('已按检材编号自然升序排列。')).toBeTruthy()
+    expect((input as HTMLTextAreaElement).value.split('\n').map(line => line.match(/SYN-JC\d+/)?.[0])).toEqual([
+      'SYN-JC00000001', 'SYN-JC00000002', 'SYN-JC00000003',
+    ])
+    const confirmAddButton = screen.getByRole('button', { name: '确认添加 3 项检材' })
+    expect(confirmAddButton.classList.contains('guided-review-card__quick-evidence-confirm')).toBe(true)
+    expect(confirmAddButton.querySelector('.anticon-check-circle')).toBeTruthy()
+    fireEvent.click(confirmAddButton)
+    expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [
+      reportWithExistingEvidence.introduction.evidence_list[0],
+      expect.objectContaining({
+        device_name: 'SYNTHETIC Phone 6', material_type: 'phone', extractable: false,
+        unextractable_reason: 'SYNTHETIC/TEST：损坏无法提取', evidence_number: 'SYN-JC00000001',
+      }),
+      expect.objectContaining({ evidence_number: 'SYN-JC00000002' }),
+      expect.objectContaining({ material_type: 'tablet', evidence_number: 'SYN-JC00000003' }),
+    ])
+
+    fireEvent.change(input, { target: { value: [
+      'SYNTHETIC Invalid手机一部(SYNTHETIC/TEST：半角括号)SYN-JC00000004',
+      'SYNTHETIC Duplicate手机一部（SYNTHETIC/TEST：重复编号）SYN-JC00000000',
+    ].join('\n') } })
+    fireEvent.click(screen.getByRole('button', { name: '解析并预览' }))
+    expect(screen.getByText(/第 1 行：格式不正确/)).toBeTruthy()
+    expect(screen.getByText(/第 2 行：检材编号 SYN-JC00000000 已存在/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /确认添加/ })).toBeNull()
+    expect((input as HTMLTextAreaElement).value).toContain('半角括号')
+
+    fireEvent.change(input, { target: { value: [
+      'SYNTHETIC Duplicate A手机一部（SYNTHETIC/TEST：重复编号）SYN-JC00000005',
+      'SYNTHETIC Duplicate B平板一部（SYNTHETIC/TEST：重复编号）SYN-JC00000005',
+    ].join('\n') } })
+    fireEvent.click(screen.getByRole('button', { name: '解析并预览' }))
+    expect(screen.getByText(/第 2 行：检材编号 SYN-JC00000005 在本次输入中重复/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /确认添加/ })).toBeNull()
+  })
+
+  it('sorts existing evidence by the report-recognition natural number rule only on explicit request', () => {
+    const updateReport = vi.fn()
+    const evidence = ['SYN-JC10', 'SYN-JC2', 'SYN-JC1'].map(evidenceNumber => ({
+      id: `SYNTHETIC-${evidenceNumber}`, evidence_id: `SYNTHETIC-${evidenceNumber}`,
+      device_type: '', device_name: evidenceNumber, evidence_number: evidenceNumber,
+    }))
+    render(<GuidedReviewCard action={evidenceCompletenessAction} report={{
+      ...report, introduction: { ...report.introduction, evidence_list: evidence },
+    }} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
+    expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [evidence[2], evidence[1], evidence[0]])
+    expect(screen.getByText('已按检材编号自然升序排列。')).toBeTruthy()
+  })
+
+  it('keeps the existing order when evidence numbers cannot be safely sorted', () => {
+    const updateReport = vi.fn()
+    const evidence = ['SYNTHETIC-UNKNOWN', 'SYN-JC2'].map(evidenceNumber => ({
+      id: `SYNTHETIC-${evidenceNumber}`, evidence_id: `SYNTHETIC-${evidenceNumber}`,
+      device_type: '', device_name: evidenceNumber, evidence_number: evidenceNumber,
+    }))
+    render(<GuidedReviewCard action={evidenceCompletenessAction} report={{
+      ...report, introduction: { ...report.introduction, evidence_list: evidence },
+    }} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
+    expect(updateReport).not.toHaveBeenCalled()
+    expect(screen.getByText('当前检材编号无法安全排序，已保持原顺序。')).toBeTruthy()
   })
 
   it('keeps full history above the current conversation while exposing global review controls', () => {
@@ -132,6 +250,7 @@ describe('GuidedReviewView', () => {
     const fullEditorButton = screen.getByRole('button', { name: '完整审核编辑' })
     expect(fullEditorButton.querySelector('.anticon-edit')).toBeTruthy()
     expect(fullEditorButton.classList.contains('ant-btn-primary')).toBe(true)
+    expect(fullEditorButton.classList.contains('guided-review-tools__primary')).toBe(true)
     expect(screen.getByRole('button', { name: '返回案件工作台' }).querySelector('.anticon-home')).toBeTruthy()
     expect(pendingButton.getAttribute('aria-controls')).toBe('guided-review-pending-panel')
     expect(summaryButton.getAttribute('aria-controls')).toBe('guided-review-summary-panel')

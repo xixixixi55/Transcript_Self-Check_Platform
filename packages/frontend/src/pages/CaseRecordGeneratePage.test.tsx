@@ -173,6 +173,8 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
     expect(screen.getByRole('region', { name: '当前对话' })).toBeTruthy()
     expect(document.querySelector('.review-editor-form')).toBeNull()
+    expect(screen.getByRole('textbox', { name: '快捷批量添加检材' })).toBeTruthy()
+    expect(screen.getByText(/每行一项/)).toBeTruthy()
     expect(screen.getByRole('button', { name: '添加检材' })).toBeTruthy()
   }, 15000)
 
