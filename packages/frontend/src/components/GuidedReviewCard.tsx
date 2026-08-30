@@ -1,4 +1,4 @@
-import { CheckCircleOutlined, FileAddOutlined, FileSearchOutlined, SortAscendingOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, EditOutlined, FileAddOutlined, FileSearchOutlined, SortAscendingOutlined } from '@ant-design/icons'
 import { Alert, Button, Input, message, Space, Tooltip } from 'antd'
 import { useEffect, useState } from 'react'
 import type { EvidenceItem, FieldState, InspectionReport } from '@biji/shared/types'
@@ -238,15 +238,18 @@ function QuickEvidenceBatchAdder({ items, onChange, onConfirmComplete }: {
             }} />
           <div className="guided-review-card__quick-evidence-actions" role="group" aria-label="快捷检材操作">
             <Tooltip title="解析并预览">
-              <Button shape="circle" size="large" icon={<FileSearchOutlined />} aria-label="解析并预览"
+              <Button shape="circle" size="large" className="guided-review-icon-action"
+                icon={<FileSearchOutlined />} aria-label="解析并预览"
                 onClick={parse} disabled={!value.trim()} />
             </Tooltip>
             <Tooltip title="一键排序">
-              <Button shape="circle" size="large" icon={<SortAscendingOutlined />} aria-label="一键排序"
+              <Button shape="circle" size="large" className="guided-review-icon-action"
+                icon={<SortAscendingOutlined />} aria-label="一键排序"
                 onClick={sort} disabled={!value.trim() && items.length < 2} />
             </Tooltip>
             <Tooltip title="完成检材补充并确认完整">
-              <Button type="primary" shape="circle" size="large" icon={<CheckCircleOutlined />}
+              <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
+                icon={<CheckCircleOutlined />}
                 aria-label="完成检材补充并确认完整" onClick={onConfirmComplete} />
             </Tooltip>
           </div>
@@ -263,10 +266,11 @@ function QuickEvidenceBatchAdder({ items, onChange, onConfirmComplete }: {
                 {' '}{candidate.evidenceNumber} · {candidate.unextractableReason}
               </li>)}
             </ul>
-            <Button type="primary" className="guided-review-card__quick-evidence-confirm"
-              icon={<CheckCircleOutlined />} aria-label={`确认添加 ${result.preview.length} 项检材`} onClick={confirm}>
-              确认添加 {result.preview.length} 项检材
-            </Button>
+            <Tooltip title={`确认添加 ${result.preview.length} 项检材`}>
+              <Button type="primary" shape="circle" size="large"
+                className="guided-review-icon-action guided-review-card__quick-evidence-confirm"
+                icon={<CheckCircleOutlined />} aria-label={`确认添加 ${result.preview.length} 项检材`} onClick={confirm} />
+            </Tooltip>
           </> : null}
         </Space>
       </div>
@@ -352,15 +356,17 @@ export function GuidedReviewCard({
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'choose') return (
     <div className="guided-review-card__evidence-paths" role="group" aria-label="选择检材补充方式">
       <p>选择一种补充方式；页面一次只展开当前需要的工具。</p>
-      <Space wrap size="small">
-        <Button type="primary" icon={<FileSearchOutlined />} disabled={readOnly}
-          aria-label="快捷批量补充检材" onClick={() => setEvidenceMode('batch')}>
-          快捷批量补充
-        </Button>
-        <Button icon={<FileAddOutlined />} disabled={readOnly}
-          aria-label="逐项编辑检材" onClick={() => setEvidenceMode('manual')}>
-          逐项编辑
-        </Button>
+      <Space wrap size="small" className="guided-review-card__evidence-icon-actions">
+        <Tooltip title="快捷批量补充">
+          <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
+            icon={<FileSearchOutlined />} disabled={readOnly}
+            aria-label="快捷批量补充检材" onClick={() => setEvidenceMode('batch')} />
+        </Tooltip>
+        <Tooltip title="逐项编辑">
+          <Button shape="circle" size="large" className="guided-review-icon-action"
+            icon={<FileAddOutlined />} disabled={readOnly}
+            aria-label="逐项编辑检材" onClick={() => setEvidenceMode('manual')} />
+        </Tooltip>
       </Space>
     </div>
   )
@@ -372,24 +378,35 @@ export function GuidedReviewCard({
             updateReport('introduction.evidence_list', items)
             onEvidenceCompletenessChange?.(false)
           }} onConfirmComplete={() => onEvidenceCompletenessChange?.(true)} />
-        <Button type="link" icon={<FileAddOutlined />} aria-label="改用逐项编辑"
-          onClick={() => setEvidenceMode('manual')}>改用逐项编辑</Button>
+        <div className="guided-review-card__evidence-icon-actions guided-review-card__evidence-icon-actions--end">
+          <Tooltip title="改用逐项编辑">
+            <Button shape="circle" size="large" className="guided-review-icon-action"
+              icon={<FileAddOutlined />} aria-label="改用逐项编辑"
+              onClick={() => setEvidenceMode('manual')} />
+          </Tooltip>
+        </div>
       </fieldset>
     </div>
   )
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'manual') return (
     <div className="guided-review-card__evidence-editor">
       <fieldset disabled={readOnly} className="guided-review-card__fieldset">
-        <EvidenceEditor items={report.introduction.evidence_list || []} fieldStates={fieldStates}
+        <EvidenceEditor items={report.introduction.evidence_list || []} fieldStates={fieldStates} compactActions
           onChange={items => {
             updateReport('introduction.evidence_list', items)
             onEvidenceCompletenessChange?.(false)
           }} />
-        <div className="guided-review-card__manual-evidence-actions">
-          <Button type="primary" icon={<CheckCircleOutlined />} aria-label="完成检材补充并确认完整"
-            onClick={() => onEvidenceCompletenessChange?.(true)}>完成补充</Button>
-          <Button type="link" icon={<FileSearchOutlined />} aria-label="改用快捷批量补充"
-            onClick={() => setEvidenceMode('batch')}>改用快捷批量补充</Button>
+        <div className="guided-review-card__evidence-icon-actions guided-review-card__evidence-icon-actions--end">
+          <Tooltip title="完成补充">
+            <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
+              icon={<CheckCircleOutlined />}
+              aria-label="完成检材补充并确认完整" onClick={() => onEvidenceCompletenessChange?.(true)} />
+          </Tooltip>
+          <Tooltip title="改用快捷批量补充">
+            <Button shape="circle" size="large" className="guided-review-icon-action"
+              icon={<FileSearchOutlined />} aria-label="改用快捷批量补充"
+              onClick={() => setEvidenceMode('batch')} />
+          </Tooltip>
         </div>
       </fieldset>
     </div>
@@ -397,12 +414,12 @@ export function GuidedReviewCard({
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness) return (
     <Space role="group" aria-label="检材完整性选择" size="middle" className="guided-review-card__choice-actions">
       <Tooltip title="完整">
-        <Button type="primary" shape="circle" size="large" disabled={readOnly}
+        <Button type="primary" shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
           icon={<CheckCircleOutlined />} aria-label="确认检材信息完整"
           onClick={() => onEvidenceCompletenessChange?.(true)} />
       </Tooltip>
       <Tooltip title="不完整，手工添加检材">
-        <Button shape="circle" size="large" disabled={readOnly}
+        <Button shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
           icon={<FileAddOutlined />} aria-label="检材信息不完整，手工添加检材"
           onClick={() => setEvidenceMode('choose')} />
       </Tooltip>
@@ -427,7 +444,11 @@ export function GuidedReviewCard({
   return (
     <div className="guided-review-card__fallback">
       <p>此事项使用完整审核编辑中的现有结构化控件办理。</p>
-      <Button onClick={() => onOpenFullEditor?.(targetId)}>在完整审核编辑中处理此项</Button>
+      <Tooltip title="在完整审核编辑中处理此项">
+        <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
+          icon={<EditOutlined />} aria-label="在完整审核编辑中处理此项"
+          onClick={() => onOpenFullEditor?.(targetId)} />
+      </Tooltip>
     </div>
   )
 }

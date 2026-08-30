@@ -1865,18 +1865,6 @@
   column-gap: 8px !important;
 }
 
-.guided-review-card__choice-actions .ant-btn {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0;
-  color: var(--platform-preview-text-secondary);
-  background: var(--platform-preview-surface);
-  border-color: var(--platform-preview-border);
-  box-shadow: 0 4px 12px rgba(67, 80, 142, 0.08);
-}
-
 .guided-review-card__evidence-paths {
   display: grid;
   gap: 12px;
@@ -1888,42 +1876,66 @@
   line-height: 1.6;
 }
 
-.guided-review-card__manual-evidence-actions {
+.guided-review-card__evidence-icon-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 8px;
+}
+
+.guided-review-card__evidence-icon-actions--end {
+  justify-content: flex-end;
   margin-top: 12px;
 }
 
-.guided-review-card__manual-evidence-actions .ant-btn {
+.guided-review-view .ant-btn.guided-review-icon-action {
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
   min-height: 44px;
+  padding: 0;
+  color: var(--platform-preview-text-secondary);
+  background: var(--platform-preview-surface);
+  border-color: var(--platform-preview-border);
+  box-shadow: 0 4px 12px rgba(67, 80, 142, 0.08);
 }
 
-.guided-review-card__choice-actions .ant-btn:not(:disabled):hover {
+.guided-review-view .ant-btn-default.guided-review-icon-action:not(:disabled):hover {
   color: var(--platform-preview-primary);
   background: var(--platform-preview-primary-soft);
   border-color: var(--platform-preview-primary-soft-strong);
 }
 
-.guided-review-card__choice-actions .ant-btn-primary {
+.guided-review-view .ant-btn-default.ant-btn-dangerous.guided-review-icon-action {
+  color: var(--review-error);
+  background: var(--platform-preview-surface);
+  border-color: #efb4b4;
+}
+
+.guided-review-view .ant-btn-default.ant-btn-dangerous.guided-review-icon-action:not(:disabled):hover {
+  color: #a61d24;
+  background: #fff1f0;
+  border-color: #d9363e;
+}
+
+.guided-review-view .ant-btn-primary.guided-review-icon-action {
   color: #ffffff;
   background: var(--platform-preview-primary);
   border-color: var(--platform-preview-primary);
 }
 
-.guided-review-card__choice-actions .ant-btn-primary:not(:disabled):hover {
+.guided-review-view .ant-btn-primary.guided-review-icon-action:not(:disabled):hover {
   color: #ffffff;
   background: #3e53b9;
   border-color: #3e53b9;
 }
 
-.guided-review-card__choice-actions .ant-btn:focus-visible {
+.guided-review-view .ant-btn.guided-review-icon-action:focus-visible {
   outline: 3px solid rgba(74, 98, 208, 0.26);
   outline-offset: 2px;
 }
 
-.guided-review-card__choice-actions .ant-btn:disabled {
+.guided-review-view .ant-btn.guided-review-icon-action:disabled {
   color: #a3a8b3;
   background: var(--platform-preview-neutral-soft);
   border-color: var(--platform-preview-border);
@@ -2022,68 +2034,6 @@
   gap: 8px;
 }
 
-.guided-review-card__quick-evidence-actions .ant-btn {
-  flex: 0 0 auto;
-  min-width: 44px;
-  min-height: 44px;
-  color: var(--platform-preview-text-secondary);
-  background: var(--platform-preview-surface);
-  border-color: var(--platform-preview-border);
-  box-shadow: 0 4px 12px rgba(67, 80, 142, 0.08);
-}
-
-.guided-review-card__quick-evidence-actions .ant-btn:not(:disabled):hover {
-  color: var(--platform-preview-primary);
-  background: var(--platform-preview-primary-soft);
-  border-color: var(--platform-preview-primary-soft-strong);
-}
-
-.guided-review-card__quick-evidence-actions .ant-btn-primary {
-  color: #ffffff;
-  background: var(--platform-preview-primary);
-  border-color: var(--platform-preview-primary);
-}
-
-.guided-review-card__quick-evidence-actions .ant-btn-primary:not(:disabled):hover {
-  color: #ffffff;
-  background: #3e53b9;
-  border-color: #3e53b9;
-}
-
-.guided-review-card__quick-evidence-actions .ant-btn:disabled {
-  color: #a3a8b3;
-  background: var(--platform-preview-neutral-soft);
-  border-color: var(--platform-preview-border);
-  box-shadow: none;
-}
-
-.guided-review-card__quick-evidence-confirm.ant-btn-primary {
-  min-height: 40px;
-  padding-inline: 16px;
-  color: #ffffff;
-  background: var(--platform-preview-primary);
-  border-color: var(--platform-preview-primary);
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(67, 80, 142, 0.12);
-}
-
-.guided-review-card__quick-evidence-confirm.ant-btn-primary:not(:disabled):hover {
-  color: #ffffff;
-  background: #3e53b9;
-  border-color: #3e53b9;
-}
-
-.guided-review-card__quick-evidence-confirm.ant-btn-primary:focus-visible {
-  outline: 3px solid rgba(74, 98, 208, 0.26);
-  outline-offset: 2px;
-}
-
-.guided-review-card__evidence-editor > .ant-btn {
-  justify-self: end;
-  min-width: 44px;
-  min-height: 44px;
-}
-
 @media (max-width: 640px) {
   .guided-review-card__response {
     padding: 12px;
@@ -2099,9 +2049,6 @@
     height: 30px;
   }
 
-  .guided-review-card__quick-evidence .ant-space-item > .ant-btn {
-    width: 100%;
-  }
 }
 
 .guided-review-card__field {
@@ -2136,8 +2083,7 @@
 }
 
 .guided-review-step-navigation .ant-btn {
-  min-height: 44px;
-  padding-inline: 8px;
+  flex: 0 0 44px;
 }
 
 @keyframes guided-review-message-enter {
@@ -2241,36 +2187,8 @@
 }
 
 .guided-review-tools .ant-btn.guided-review-tools__icon-button {
-  flex: 0 0 40px;
+  flex: 0 0 44px;
   font-size: 18px;
-  box-shadow: 0 2px 5px rgba(31, 52, 73, 0.12);
-}
-
-.guided-review-tools .ant-btn-default.guided-review-tools__icon-button {
-  color: #365267;
-}
-
-.guided-review-tools .ant-btn-default.guided-review-tools__icon-button:hover {
-  color: var(--review-primary);
-  background: #f7fafc;
-}
-
-.guided-review-tools .guided-review-tools__primary.ant-btn-primary {
-  color: #ffffff;
-  background: var(--platform-preview-primary);
-  border-color: var(--platform-preview-primary);
-  box-shadow: 0 4px 12px rgba(67, 80, 142, 0.14);
-}
-
-.guided-review-tools .guided-review-tools__primary.ant-btn-primary:not(:disabled):hover {
-  color: #ffffff;
-  background: #3e53b9;
-  border-color: #3e53b9;
-}
-
-.guided-review-tools .guided-review-tools__primary.ant-btn-primary:focus-visible {
-  outline: 3px solid rgba(74, 98, 208, 0.26);
-  outline-offset: 2px;
 }
 
 .guided-review-tools .ant-badge {

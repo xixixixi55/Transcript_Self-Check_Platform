@@ -128,11 +128,13 @@ workflow_level: 2
   - 验证：核对透明 PNG 与父级表面叠加关系，运行前端类型检查、生产构建、scoped strict docs 与 `git diff --check`；纯样式反馈不机械新增行为测试。
 - [x] 6.36 根据用户明确反馈移除獬豸角色的全部 CSS 投影：删除静态 `drop-shadow` 及呼吸动画中的阴影变化，只保留角色本身、透明背景和原有轻微位移缩放。
   - 验证：搜索确认角色样式不再含 `drop-shadow`，运行前端类型检查、生产构建、scoped strict docs 与 `git diff --check`；纯样式反馈不机械新增行为测试。
+- [x] 6.37 根据用户给出的工具栏参考图统一獬豸助手完整按钮体系：直接回复、检材补充、模式切换、解析结果确认、新增/删除检材、历史修改、步骤返回与兜底编辑入口均使用 44px 圆形图标按钮，主操作为靛蓝实心、次操作为白底描边、删除操作保留红色危险语义，文字移入 Tooltip 与可访问名称；待办事项面板继续保留整行列表导航，原操作语义、禁用状态和回调保持不变。
+  - 验证：复用组件用例断言各类直接操作均为无常驻文字的圆形图标按钮并保留主次语义，运行定向测试、前端类型检查、生产构建、scoped strict docs 与 `git diff --check`。
 
 ## 当前状态
 
-- `implementation_status: complete`：6.36 角色投影移除已实施并完成验证。
-- `feedback_scope_status: complete`：6.36 样式与门控核对完成。
+- `implementation_status: complete`：6.37 獬豸助手完整按钮体系统一已实施并完成验证。
+- `feedback_scope_status: complete`：6.37 组件回归与样式门控核对完成。
 - `spec_sync_status: synced`：6.33 工具栏最终行为已核对并同步到 living spec。
 
 ## 2026-08-30 快捷补录视觉收敛证据
@@ -342,3 +344,9 @@ workflow_level: 2
 - `mascot_shadow_removed: PASS`：角色图片静态样式及呼吸关键帧均不再使用 `drop-shadow`；透明舞台保持不变，角色只保留原有轻微位移与缩放。
 - `mascot_shadow_scope: PASS`：四态角色、语义亮度与饱和度反馈、布局、内容气泡、图标工具栏及全部交互均未修改。
 - `mascot_shadow_gates: PASS`：前端类型检查、生产构建、投影关键字检索与 `git diff --check` 通过；纯样式反馈未新增行为测试，构建仅保留既有大包提示。
+
+## 2026-08-30 獬豸助手按钮体系统一证据
+
+- `assistant_icon_button_system: PASS`：獬豸助手的直接回复、检材补充方式、解析/排序/确认、模式切换、新增/删除检材、历史修改、步骤返回、兜底编辑和底部工具栏统一复用 44px 圆形图标按钮；主操作使用靛蓝实心，次操作使用白底描边，删除操作保留红色危险语义，悬停、焦点、禁用与阴影状态一致。
+- `assistant_action_semantics: PASS`：按钮常驻文字已移入 Tooltip 与可访问名称，原回调、禁用条件和动态数量信息保持不变；全部事项面板的整行选择继续作为列表导航，不机械改成圆形工具按钮。
+- `assistant_icon_button_tests: PASS`：`GuidedReviewView.test.tsx` 12/12、`CaseRecordGeneratePage.test.tsx` 20/20、前端类型检查和生产构建通过；页面测试只保留既有 jsdom `getComputedStyle` 与 React `act` 警告，构建只保留既有大包提示。

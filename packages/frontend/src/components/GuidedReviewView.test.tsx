@@ -62,6 +62,12 @@ const report: InspectionReport = {
   attachments: { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: '' },
 }
 
+function expectCircularIconButton(button: HTMLElement, primary = false) {
+  expect(button.classList.contains('ant-btn-circle')).toBe(true)
+  expect(button.textContent).toBe('')
+  if (primary) expect(button.classList.contains('ant-btn-primary')).toBe(true)
+}
+
 describe('GuidedReviewView', () => {
   it('uses icon actions for complete evidence and manual evidence supplementation', () => {
     const onEvidenceCompletenessChange = vi.fn()
@@ -75,24 +81,29 @@ describe('GuidedReviewView', () => {
     const incompleteButton = screen.getByRole('button', { name: '检材信息不完整，手工添加检材' })
     expect(completeButton.querySelector('.anticon-check-circle')).toBeTruthy()
     expect(incompleteButton.querySelector('.anticon-file-add')).toBeTruthy()
-    expect(completeButton.textContent).toBe('')
-    expect(incompleteButton.textContent).toBe('')
+    expectCircularIconButton(completeButton, true)
+    expectCircularIconButton(incompleteButton)
 
     fireEvent.click(completeButton)
     expect(onEvidenceCompletenessChange).toHaveBeenCalledWith(true)
     fireEvent.click(incompleteButton)
-    expect(screen.getByRole('button', { name: '快捷批量补充检材' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '逐项编辑检材' })).toBeTruthy()
+    const batchModeButton = screen.getByRole('button', { name: '快捷批量补充检材' })
+    const manualModeButton = screen.getByRole('button', { name: '逐项编辑检材' })
+    expectCircularIconButton(batchModeButton, true)
+    expectCircularIconButton(manualModeButton)
     expect(screen.queryByRole('textbox', { name: '快捷批量添加检材' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '逐项编辑检材' }))
-    expect(screen.getByRole('button', { name: '添加检材' })).toBeTruthy()
+    fireEvent.click(manualModeButton)
+    const addEvidenceButton = screen.getByRole('button', { name: '添加检材' })
+    expectCircularIconButton(addEvidenceButton)
     const confirmCompleteButton = screen.getByRole('button', { name: '完成检材补充并确认完整' })
     expect(confirmCompleteButton.querySelector('.anticon-check-circle')).toBeTruthy()
+    expectCircularIconButton(confirmCompleteButton, true)
     expect(screen.queryByRole('button', { name: '解析并预览' })).toBeNull()
-    expect(screen.getByRole('button', { name: '改用快捷批量补充' })).toBeTruthy()
+    const switchToBatchButton = screen.getByRole('button', { name: '改用快捷批量补充' })
+    expectCircularIconButton(switchToBatchButton)
     expect(onOpenFullEditor).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: '添加检材' }))
+    fireEvent.click(addEvidenceButton)
     expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [
       expect.objectContaining({ evidence_number: '' }),
     ])
@@ -143,6 +154,7 @@ describe('GuidedReviewView', () => {
     ])
     const confirmAddButton = screen.getByRole('button', { name: '确认添加 3 项检材' })
     expect(confirmAddButton.classList.contains('guided-review-card__quick-evidence-confirm')).toBe(true)
+    expectCircularIconButton(confirmAddButton, true)
     expect(confirmAddButton.querySelector('.anticon-check-circle')).toBeTruthy()
     fireEvent.click(confirmAddButton)
     expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [
@@ -258,10 +270,8 @@ describe('GuidedReviewView', () => {
     const summaryButton = screen.getByRole('button', { name: '查看已整理信息' })
     expect(pendingButton.querySelector('.anticon-unordered-list')).toBeTruthy()
     expect(summaryButton.querySelector('.anticon-file-done')).toBeTruthy()
-    expect(pendingButton.classList.contains('ant-btn-circle')).toBe(true)
-    expect(pendingButton.textContent).toBe('')
-    expect(summaryButton.classList.contains('ant-btn-circle')).toBe(true)
-    expect(summaryButton.textContent).toBe('')
+    expectCircularIconButton(pendingButton)
+    expectCircularIconButton(summaryButton)
     const fullEditorButton = screen.getByRole('button', { name: '完整审核编辑' })
     expect(fullEditorButton.querySelector('.anticon-edit')).toBeTruthy()
     expect(fullEditorButton.classList.contains('ant-btn-primary')).toBe(true)
@@ -390,6 +400,7 @@ describe('GuidedReviewView', () => {
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
     const initialStepNavigation = screen.getByRole('button', { name: '返回上一步' })
+    expectCircularIconButton(initialStepNavigation)
     const initialReplyGroup = screen.getByRole('group', { name: '你的回复' })
     expect(initialStepNavigation.compareDocumentPosition(initialReplyGroup)
       & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -413,7 +424,9 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('文号已填写')).toBeTruthy()
     expect(screen.getByText('文号已经纳入当前笔录。后台任务还在继续，我会同步核对结果。')).toBeTruthy()
     expect(document.querySelector('[data-mood="complete"]')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '修改文号' }))
+    const revisitButton = screen.getByRole('button', { name: '修改文号' })
+    expectCircularIconButton(revisitButton)
+    fireEvent.click(revisitButton)
     expect(revisitAction).toHaveBeenCalledWith(documentAction)
     expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent).toContain('请稍候，正在生成压缩分卷')
     fireEvent.click(screen.getByRole('button', { name: '返回上一步' }))

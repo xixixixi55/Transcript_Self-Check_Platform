@@ -304,10 +304,11 @@ export function GuidedReviewView({
                   <div className="guided-review-turn__assistant-summary">
                     <CheckCircleOutlined aria-hidden />
                     <span>{turn.handoff}</span>
-                    <Button type="link" size="small" aria-label={`修改${actionConversationLabel(turn.action)}`}
-                      onClick={() => onRevisitAction?.(turn.action)}>
-                      修改
-                    </Button>
+                    <Tooltip title={`修改${actionConversationLabel(turn.action)}`}>
+                      <Button shape="circle" size="large" className="guided-review-icon-action"
+                        icon={<EditOutlined />} aria-label={`修改${actionConversationLabel(turn.action)}`}
+                        onClick={() => onRevisitAction?.(turn.action)} />
+                    </Tooltip>
                   </div>
                 </div>
               ))}
@@ -337,15 +338,17 @@ export function GuidedReviewView({
               {(canReturnToPrevious || isReviewingPrevious) && (
                 <div className="guided-review-step-navigation" aria-label="步骤导航">
                   {isReviewingPrevious ? (
-                    <Button type="text" icon={<ArrowRightOutlined />} aria-label="返回当前步骤"
-                      onClick={onReturnToCurrentAction}>
-                      返回当前步骤
-                    </Button>
+                    <Tooltip title="返回当前步骤">
+                      <Button shape="circle" size="large" className="guided-review-icon-action"
+                        icon={<ArrowRightOutlined />} aria-label="返回当前步骤"
+                        onClick={onReturnToCurrentAction} />
+                    </Tooltip>
                   ) : (
-                    <Button type="text" icon={<ArrowLeftOutlined />} aria-label="返回上一步"
-                      onClick={onReturnToPreviousAction}>
-                      返回上一步
-                    </Button>
+                    <Tooltip title="返回上一步">
+                      <Button shape="circle" size="large" className="guided-review-icon-action"
+                        icon={<ArrowLeftOutlined />} aria-label="返回上一步"
+                        onClick={onReturnToPreviousAction} />
+                    </Tooltip>
                   )}
                 </div>
               )}
@@ -367,25 +370,25 @@ export function GuidedReviewView({
           <div className="guided-review-tools" aria-label="其他审核操作">
             <Tooltip title={`查看全部当前事项（${allActions.length}）`}>
               <Badge count={allActions.length} size="small" offset={[-2, 2]}>
-                <Button shape="circle" size="large" className="guided-review-tools__icon-button"
+                <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
                   icon={<UnorderedListOutlined />} aria-label={`查看全部当前事项（${allActions.length}）`}
                   aria-expanded={openPanel === 'pending'} aria-controls="guided-review-pending-panel"
                   onClick={() => togglePanel('pending')} />
               </Badge>
             </Tooltip>
             <Tooltip title="查看已整理信息">
-              <Button shape="circle" size="large" className="guided-review-tools__icon-button"
+              <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
                 icon={<FileDoneOutlined />} aria-label="查看已整理信息"
                 aria-expanded={openPanel === 'summary'} aria-controls="guided-review-summary-panel"
                 onClick={() => togglePanel('summary')} />
             </Tooltip>
             <Tooltip title="完整审核编辑">
               <Button type="primary" shape="circle" size="large"
-                className="guided-review-tools__icon-button guided-review-tools__primary"
+                className="guided-review-icon-action guided-review-tools__icon-button guided-review-tools__primary"
                 icon={<EditOutlined />} aria-label="完整审核编辑" onClick={onOpenFullEditor} />
             </Tooltip>
             <Tooltip title="返回案件工作台">
-              <Button shape="circle" size="large" className="guided-review-tools__icon-button"
+              <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
                 icon={<HomeOutlined />} aria-label="返回案件工作台" onClick={onBackToWorkbench} />
             </Tooltip>
           </div>

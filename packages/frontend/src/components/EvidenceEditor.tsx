@@ -1,6 +1,6 @@
 // 第 11 层：FE_Components — 检材情况编辑器
 import React from 'react'
-import { Alert, Button, Card, Input, Select, Space, Typography } from 'antd'
+import { Alert, Button, Card, Input, Select, Space, Tooltip, Typography } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { EvidenceItem, FieldState } from '@biji/shared/types'
 import EditableField from './EditableField'
@@ -23,6 +23,7 @@ interface Props {
   items: EvidenceItem[]
   fieldStates?: Record<string, FieldState>
   onChange: (items: EvidenceItem[]) => void
+  compactActions?: boolean
 }
 
 function displayDeviceName(item: EvidenceItem): string {
@@ -41,7 +42,7 @@ function evidenceState(item: EvidenceItem, fieldStates?: Record<string, FieldSta
   return fieldStates?.[`evidence.${identity}.model`] || fieldStates?.[`evidence.${identity}.evidence_number`]
 }
 
-export default function EvidenceEditor({ items, fieldStates, onChange }: Props) {
+export default function EvidenceEditor({ items, fieldStates, onChange, compactActions = false }: Props) {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null)
   const addItem = () => {
     const evidenceId = `local-evidence-${Date.now()}-${items.length + 1}`
@@ -101,8 +102,15 @@ export default function EvidenceEditor({ items, fieldStates, onChange }: Props) 
           onDragEnd={() => setDraggedIndex(null)}
           style={{ marginBottom: 12 }}>
         <Card size="small" title={`检材 ${idx + 1}`} extra={<FieldProvenanceBadge state={evidenceState(item, fieldStates)} />}>
-          <Button type="text" danger size="small" icon={<DeleteOutlined />}
-            onClick={() => removeItem(idx)} />
+          {compactActions ? (
+            <Tooltip title={`删除检材 ${idx + 1}`}>
+              <Button shape="circle" size="large" danger className="guided-review-icon-action"
+                icon={<DeleteOutlined />} aria-label={`删除检材 ${idx + 1}`} onClick={() => removeItem(idx)} />
+            </Tooltip>
+          ) : (
+            <Button type="text" danger size="small" icon={<DeleteOutlined />}
+              aria-label={`删除检材 ${idx + 1}`} onClick={() => removeItem(idx)} />
+          )}
           <Space direction="vertical" style={{ width: '100%' }}>
             <div><Text strong>设备名称：</Text><EditableField type="text"
               placeholder="如 HUAWEI HBN-AL00" value={displayDeviceName(item)}
@@ -173,7 +181,16 @@ export default function EvidenceEditor({ items, fieldStates, onChange }: Props) 
         </Card>
         </div>
       ))}
-      <Button type="dashed" icon={<PlusOutlined />} aria-label="添加检材" onClick={addItem} block>添加检材</Button>
+      {compactActions ? (
+        <div className="guided-review-card__evidence-icon-actions guided-review-card__evidence-icon-actions--end">
+          <Tooltip title="添加检材">
+            <Button shape="circle" size="large" className="guided-review-icon-action"
+              icon={<PlusOutlined />} aria-label="添加检材" onClick={addItem} />
+          </Tooltip>
+        </div>
+      ) : (
+        <Button type="dashed" icon={<PlusOutlined />} aria-label="添加检材" onClick={addItem} block>添加检材</Button>
+      )}
     </div>
   )
 }
