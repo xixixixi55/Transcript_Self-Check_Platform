@@ -23,7 +23,8 @@ const manifest = {
     part_number: 1,
     filename: '合成案件.rar',
     size_bytes: 123,
-    md5: 'a'.repeat(32),
+    hash_algorithm: 'sha256',
+    hash_value: 'a'.repeat(64),
     disc_number: 'GP20260718-01',
     disc_capacity_bytes: 4_000_000_000,
   }],
@@ -73,7 +74,8 @@ describe('ArchiveStatusCard', () => {
     )
     expect(screen.getByText('合成案件.rar')).toBeTruthy()
     expect(screen.getByText('123 字节', { exact: false })).toBeTruthy()
-    expect(screen.getByText('A'.repeat(32))).toBeTruthy()
+    expect(screen.getByText('SHA-256 哈希')).toBeTruthy()
+    expect(screen.getByText('A'.repeat(64))).toBeTruthy()
     const link = screen.getByRole('link', { name: /下载该 RAR/ })
     expect(link.getAttribute('href')).toContain(
       '/records/archive/context-1/manifests/manifest-1/parts/part-1',
@@ -94,6 +96,28 @@ describe('ArchiveStatusCard', () => {
     expect(screen.getByText('合成案件.part2.rar')).toBeTruthy()
     expect(screen.getByText('GP20260718-01')).toBeTruthy()
     expect(screen.getByText('GP20260718-02')).toBeTruthy()
+  })
+
+  it('does not fall back to legacy md5 when a new hash payload is incomplete', () => {
+    const incomplete = {
+      ...manifest,
+      parts: [{
+        ...manifest.parts[0],
+        hash_algorithm: 'sha256',
+        hash_value: undefined,
+        md5: 'b'.repeat(32),
+      }],
+    } as unknown as ArchiveManifest
+    render(
+      <ArchiveStatusCard
+        contextId="context-1"
+        status="completed"
+        manifest={incomplete}
+        error={null}
+      />,
+    )
+    expect(screen.getByText('归档哈希信息无效，请重新准备归档。')).toBeTruthy()
+    expect(screen.queryByText('B'.repeat(32))).toBeNull()
   })
 
   it('renders completed workbench archive results with opaque part downloads', () => {

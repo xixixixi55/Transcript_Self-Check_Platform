@@ -411,7 +411,7 @@ def test_publication_cutpoint_tamper_never_becomes_durable_success(
             staging, final_dir, record, CaseDraftRepository(database).get(CASE_ID)["report"], context=context,
             attempt_id=attempt["attempt_id"], attempt_service=service,
             workbench_context_id=context_id,
-            verified_md5s={"SYNTHETIC-CASE.rar": manifest["parts"][0]["md5"]},
+            verified_hashes={"SYNTHETIC-CASE.rar": manifest["parts"][0]["md5"]},
         )
     assert tampered
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "running"

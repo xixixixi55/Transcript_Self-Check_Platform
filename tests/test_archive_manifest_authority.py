@@ -3,6 +3,8 @@
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.archive.archive_manifest_projection_service import (  # noqa: E402
@@ -12,6 +14,7 @@ from app.services.archive.archive_manifest_projection_service import (  # noqa: 
 from app.repository.archive.archive_report_metadata_repository import (  # noqa: E402
     apply_verified_archive_result,
 )
+from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
 
 
 def report():
@@ -144,6 +147,7 @@ def test_verified_manifest_backfills_existing_report_result_fields():
 def test_sha256_manifest_drives_legacy_value_title_and_result_algorithm():
     value = manifest()
     for index, part in enumerate(value["parts"], 1):
+        part.pop("md5")
         part.update({"hash_algorithm": "sha256", "hash_value": str(index) * 64})
     report_value = report()
     report_value["inspection"]["result"] = {"hash_algorithm": "sha256"}
@@ -157,3 +161,15 @@ def test_sha256_manifest_drives_legacy_value_title_and_result_algorithm():
     completed = apply_verified_archive_result(report_value, value)
     assert completed["inspection"]["result"]["hash_algorithm"] == "sha256"
     assert completed["inspection"]["result"]["md5_hash"] == "1" * 64 + "、" + "2" * 64
+
+
+def test_verified_result_projection_rejects_mixed_manifest_algorithms():
+    value = manifest()
+    value["parts"][0] = {
+        **value["parts"][0],
+        "hash_algorithm": "sha256", "hash_value": "1" * 64,
+    }
+    with pytest.raises(
+        WorkbenchPersistenceError, match="ARCHIVE_COMPLETION_EVIDENCE_REQUIRED",
+    ):
+        apply_verified_archive_result(report(), value)

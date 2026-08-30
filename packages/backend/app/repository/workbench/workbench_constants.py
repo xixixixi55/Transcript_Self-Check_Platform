@@ -94,7 +94,7 @@ TASK_TRANSITIONS = {
 }
 TASK_STAGES = {
     "queued", "parse", "inventory", "planning", "preflight_verified", "winrar",
-    "integrity", "integrity_verified", "md5", "manifest", "completed",
+    "integrity", "integrity_verified", "hash", "manifest", "completed",
     "export", "cleanup", "none",
 }
 ARCHIVE_WORKFLOW_MILESTONES = {
@@ -104,7 +104,7 @@ ARCHIVE_WORKFLOW_MILESTONES = {
     "winrar": (30, "\u6b63\u5728\u521b\u5efa RAR \u5206\u5377"),
     "integrity": (75, "RAR \u5206\u5377\u521b\u5efa\u5b8c\u6210\uff0c\u6b63\u5728\u6821\u9a8c"),
     "integrity_verified": (85, "\u5206\u5377\u5b8c\u6574\u6027\u6821\u9a8c\u901a\u8fc7"),
-    "md5": (90, "\u6b63\u5728\u8ba1\u7b97 MD5"),
+    "hash": (90, "\u6b63\u5728\u8ba1\u7b97\u6587\u4ef6\u54c8\u5e0c"),
     "manifest": (95, "\u6b63\u5728\u5199\u5165\u5e76\u9a8c\u8bc1 Manifest"),
     "completed": (100, "\u5f52\u6863\u5b8c\u6210"),
 }

@@ -74,7 +74,7 @@ def test_replan_preserves_removed_slots_and_manifest_converges(database: Workben
         {
             "slot_id": item["slot_id"], "ordinal": item["ordinal"],
             "disc_number": item["disc_mapping"]["disc_number"],
-            "output_bytes": 123, "md5": f"SYNTHETIC-MD5-{item['ordinal']}",
+            "output_bytes": 123, "md5": f"{item['ordinal']:032x}",
         }
         for item in replanned["volume_slots"] if item["status"] == "active"
     ]
@@ -93,6 +93,57 @@ def test_replan_preserves_removed_slots_and_manifest_converges(database: Workben
             input_inventory_revision=6, mapping_revision=4,
             expected_revision=replanned["revision"],
         )
+
+
+@pytest.mark.parametrize(
+    ("hash_algorithm", "hash_length"),
+    [("md5", 32), ("sha1", 40), ("sha256", 64)],
+)
+def test_manifest_accepts_one_selected_hash_algorithm(
+    database: WorkbenchDatabase, hash_algorithm: str, hash_length: int,
+) -> None:
+    repository = ArchivePlanRepository(database)
+    plan = create_plan(repository)
+    verified = [
+        {
+            "slot_id": item["slot_id"], "ordinal": item["ordinal"],
+            "disc_number": item["disc_mapping"]["disc_number"],
+            "output_bytes": 123, "hash_algorithm": hash_algorithm,
+            "hash_value": f"{item['ordinal']:0{hash_length}x}",
+        }
+        for item in plan["volume_slots"] if item["status"] == "active"
+    ]
+
+    assert repository.converge_manifest(
+        plan["plan_id"], verified, plan["revision"],
+    )["verified_slots"] == verified
+
+
+@pytest.mark.parametrize("invalid_kind", ["incomplete", "mixed"])
+def test_manifest_rejects_incomplete_or_mixed_selected_hashes(
+    database: WorkbenchDatabase, invalid_kind: str,
+) -> None:
+    repository = ArchivePlanRepository(database)
+    plan = create_plan(repository)
+    verified = [
+        {
+            "slot_id": item["slot_id"], "ordinal": item["ordinal"],
+            "disc_number": item["disc_mapping"]["disc_number"],
+            "output_bytes": 123, "hash_algorithm": "sha256",
+            "hash_value": f"{item['ordinal']:064x}",
+        }
+        for item in plan["volume_slots"] if item["status"] == "active"
+    ]
+    if invalid_kind == "incomplete":
+        verified[0].pop("hash_value")
+        verified[0]["md5"] = "a" * 32
+    else:
+        verified[1] = {
+            **verified[1], "hash_algorithm": "sha1", "hash_value": "b" * 40,
+        }
+
+    with pytest.raises(WorkbenchPersistenceError, match="INVALID_MANIFEST_SLOTS"):
+        repository.converge_manifest(plan["plan_id"], verified, plan["revision"])
 
 
 def test_manifest_must_cover_exact_active_slot_set(database: WorkbenchDatabase) -> None:

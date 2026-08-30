@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .hashmyfiles_capture_script import CAPTURE_SCRIPT
-from .hashmyfiles_result_repository import validate_hashmyfiles_rows
+from .hashmyfiles_result_repository import HashMyFilesRow, validate_hashmyfiles_rows
 from ..runtime.runtime_paths import get_runtime_paths
 
 _CAPTURE_SCRIPT = CAPTURE_SCRIPT
@@ -61,7 +61,7 @@ def run_hashmyfiles(
     output_dir: Path,
     timeout_seconds: int = 120,
     hash_algorithm: str = "md5",
-) -> str:
+) -> dict[str, Any]:
     """在 ``output_dir`` 中生成已验证的原生窗口 PNG。"""
     output_dir.mkdir(parents=True, exist_ok=True)
     image_path = output_dir / _HASH_IMAGE_FILENAME
@@ -70,7 +70,7 @@ def run_hashmyfiles(
         prefix=".biji-hashmyfiles-", dir=output_dir,
     ) as temp_dir:
         candidate_image_path = Path(temp_dir) / _HASH_IMAGE_FILENAME
-        _capture_hashmyfiles_window(
+        rows = _capture_hashmyfiles_window(
             executable, rar_paths, candidate_image_path, timeout_seconds,
             hash_algorithm,
         )
@@ -83,7 +83,11 @@ def run_hashmyfiles(
                 "HashMyFiles 校验截图发布失败。",
             ) from error
     legacy_html_path.unlink(missing_ok=True)
-    return _HASH_IMAGE_FILENAME
+    return {
+        "image_filename": _HASH_IMAGE_FILENAME,
+        "hash_algorithm": hash_algorithm,
+        "rows": rows,
+    }
 
 
 def _validate_png(image_path: Path) -> None:
@@ -107,7 +111,7 @@ def _capture_hashmyfiles_window(
     output_path: Path,
     timeout_seconds: int,
     hash_algorithm: str,
-) -> None:
+) -> list[HashMyFilesRow]:
     policy = _HASH_POLICIES.get(hash_algorithm)
     if policy is None:
         raise HashMyFilesError(
@@ -133,6 +137,7 @@ def _capture_hashmyfiles_window(
                 "timeout_seconds": timeout_seconds,
                 "capture_grace_seconds": _CAPTURE_GRACE_SECONDS,
                 "hash_arguments": hash_arguments,
+                "hash_algorithm": hash_algorithm,
                 "hash_column_index": policy["column"],
                 "hash_digest_length": policy["length"],
                 "hash_column_width": policy["display_width"],
@@ -164,9 +169,13 @@ def _capture_hashmyfiles_window(
                 raise HashMyFilesError(
                     "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果不完整。",
                 )
+            if capture_result.get("hash_algorithm") != hash_algorithm:
+                raise HashMyFilesError(
+                    "HASHMYFILES_RESULT_INVALID", "HashMyFiles 校验结果算法错误。",
+                )
             try:
-                validate_hashmyfiles_rows(
-                    capture_result.get("rows"), rar_paths, int(policy["length"]),
+                return validate_hashmyfiles_rows(
+                    capture_result.get("rows"), rar_paths, hash_algorithm,
                 )
             except (OSError, KeyError, TypeError, ValueError) as error:
                 raise HashMyFilesError(

@@ -231,7 +231,8 @@ def _task_dict(row: Mapping[str, Any]) -> dict[str, Any]:
         "last_heartbeat_at", "output_bytes", "output_volume_count",
         "last_output_change_at", "worker_state", "allowed_actions_json",
     )}
-    status, kind, stage = str(row["status"]), str(row["kind"]), str(row["stage"])
+    status, kind, raw_stage = str(row["status"]), str(row["kind"]), str(row["stage"])
+    stage = "hash" if kind == "archive" and raw_stage == "md5" else raw_stage
     milestone = ARCHIVE_WORKFLOW_MILESTONES.get(stage)
     legacy_archive = kind == "archive" and value["progress_kind"] is None
     worker_state = value["worker_state"]

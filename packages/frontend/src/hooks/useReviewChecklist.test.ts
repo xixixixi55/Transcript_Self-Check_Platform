@@ -231,6 +231,19 @@ describe('getReviewPendingItems', () => {
     expect(items.find(item => item.fieldLabel === 'MD5 哈希')?.targetId).toBe(REVIEW_TARGET_IDS.result('md5_hash'))
   })
 
+  it('uses the case hash snapshot in the missing-result label', () => {
+    const items = getReviewPendingItems({
+      ...report,
+      inspection: {
+        ...report.inspection,
+        result: { ...report.inspection.result, hash_algorithm: 'sha256' },
+      },
+    })
+    expect(items.find(item => item.fieldLabel === 'SHA-256 哈希')?.targetId).toBe(
+      REVIEW_TARGET_IDS.result('md5_hash'),
+    )
+  })
+
   it.each(['', 'INVALID-DISC'])('光盘编号“%s”始终指向顶部首个盘号输入', discNumber => {
     const items = getReviewPendingItems({
       ...report,

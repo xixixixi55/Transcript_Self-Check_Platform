@@ -7,6 +7,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash
 from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 
 
@@ -25,15 +26,24 @@ def publication_file_set(public_manifest: Mapping[str, Any]) -> list[dict[str, A
             raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_IDENTITY_INVALID")
         filename = part.get("filename")
         size = part.get("size_bytes")
-        md5 = part.get("md5")
+        try:
+            hash_algorithm, hash_value = manifest_part_business_hash(part)
+        except ValueError as error:
+            raise WorkbenchPersistenceError(
+                "ARCHIVE_PUBLICATION_IDENTITY_INVALID",
+            ) from error
         if (
             not isinstance(filename, str) or not filename or filename.casefold() in seen
             or isinstance(size, bool) or not isinstance(size, int) or size < 0
-            or not isinstance(md5, str) or len(md5) != 32
         ):
             raise WorkbenchPersistenceError("ARCHIVE_PUBLICATION_IDENTITY_INVALID")
         seen.add(filename.casefold())
-        result.append({"filename": filename, "size_bytes": size, "md5": md5.casefold()})
+        hash_identity = (
+            {"md5": hash_value}
+            if "hash_algorithm" not in part and "hash_value" not in part
+            else {"hash_algorithm": hash_algorithm, "hash_value": hash_value}
+        )
+        result.append({"filename": filename, "size_bytes": size, **hash_identity})
     return sorted(result, key=lambda item: str(item["filename"]).casefold())
 
 

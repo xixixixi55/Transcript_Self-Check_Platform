@@ -190,27 +190,40 @@ def test_archive_rejects_invalid_disc_sequence_with_stable_error(
     assert fake.calls == []
 
 
-def test_new_archive_hashes_each_generated_part_once(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ("algorithm", "digest_length"), [("md5", 32), ("sha1", 40), ("sha256", 64)],
+)
+def test_new_archive_hashes_each_generated_part_once(
+    tmp_path, monkeypatch, algorithm, digest_length,
+):
     _, output, context_id = make_context(tmp_path)
     fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 2)
-    calls: list[str] = []
+    calls: list[tuple[str, str]] = []
+    report = valid_report()
+    report["inspection"]["result"] = {"hash_algorithm": algorithm}
 
-    def counted_md5(path, _root):
-        calls.append(path.name)
-        return __import__("hashlib").md5(path.read_bytes()).hexdigest()
+    def counted_hash(path, _root, algorithm):
+        calls.append((path.name, algorithm))
+        return __import__("hashlib").new(algorithm, path.read_bytes()).hexdigest()
 
     monkeypatch.setattr(
-        "app.services.archive.archive_manifest_service.compute_md5_streaming", counted_md5,
+        "app.services.archive.archive_manifest_service.compute_hash_streaming", counted_hash,
     )
     outcome = execute_archive(
-        context_id, valid_report(), output_root=str(output), policy=policy(4),
+        context_id, report, output_root=str(output), policy=policy(4),
         capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True),
         executor=fake, integrity_runner=integrity_ok,
     )
 
     assert outcome.status == "completed"
     assert len(calls) == 2
-    assert sorted(calls) == ["合成案件.part1.rar", "合成案件.part2.rar"]
+    assert sorted(calls) == [
+        ("合成案件.part1.rar", algorithm), ("合成案件.part2.rar", algorithm),
+    ]
+    manifest = get_valid_manifest(context_id, outcome.manifest_id, report)
+    assert all("md5" not in part for part in manifest["parts"])
+    assert {part["hash_algorithm"] for part in manifest["parts"]} == {algorithm}
+    assert {len(part["hash_value"]) for part in manifest["parts"]} == {digest_length}
 
 
 def test_direct_source_execution_does_not_repeat_inventory_scan(tmp_path, monkeypatch):
@@ -321,12 +334,12 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
     hash_calls: list[str] = []
     completion_kwargs: dict[str, object] = {}
 
-    def counted_md5(path, _root):
-        hash_calls.append(path.name)
-        return __import__("hashlib").md5(path.read_bytes()).hexdigest()
+    def counted_hash(path, _root, algorithm):
+        hash_calls.append((path.name, algorithm))
+        return __import__("hashlib").new(algorithm, path.read_bytes()).hexdigest()
 
     monkeypatch.setattr(
-        "app.services.archive.archive_manifest_service.compute_md5_streaming", counted_md5,
+        "app.services.archive.archive_manifest_service.compute_hash_streaming", counted_hash,
     )
     monkeypatch.setattr(
         "app.services.archive.archive_execution_service.WinRarExecutor",
@@ -371,8 +384,8 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
 
     assert outcome.manifest_id
     assert publish_calls == 2
-    assert hash_calls == ["合成案件.rar"]
-    assert completion_kwargs["verified_md5s"]
+    assert hash_calls == [("合成案件.rar", "md5")]
+    assert completion_kwargs["verified_hashes"]
     assert completion_kwargs["verified_file_identities"] == {
         "合成案件.rar": (1, 2, 3, 4, 5),
     }
@@ -481,6 +494,29 @@ def test_successful_manifest_is_reused_only_for_same_snapshot_and_review(tmp_pat
     corrected_photos = valid_report()
     corrected_photos["attachments"]["photo_ids"] = ["photo-1", "photo-2"]
     assert get_valid_manifest(context_id, first.manifest_id, corrected_photos)
+
+
+def test_archive_hash_algorithm_change_never_reuses_previous_manifest(tmp_path):
+    _, output, context_id = make_context(tmp_path)
+    fake = FakeExecutor(tmp_path / "fake-staging", lambda tier: 1)
+    capability = WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True)
+    first_report = valid_report()
+    first = execute_archive(
+        context_id, first_report, output_root=str(output), policy=policy(4),
+        capability=capability, executor=fake, integrity_runner=integrity_ok,
+    )
+    sha_report = valid_report()
+    sha_report["inspection"]["result"] = {"hash_algorithm": "sha256"}
+    second = execute_archive(
+        context_id, sha_report, output_root=str(output), policy=policy(4),
+        capability=capability, executor=fake, integrity_runner=integrity_ok,
+    )
+
+    assert second.manifest_id != first.manifest_id
+    assert not second.reused
+    assert fake.calls == [4, 4]
+    with pytest.raises(ArchiveGateError):
+        get_valid_manifest(context_id, first.manifest_id, sha_report)
 
 
 def test_manifest_reuse_validates_output_without_rescanning_direct_source(tmp_path):

@@ -76,7 +76,7 @@ const ARCHIVE_STAGE_LABELS: Record<string, string> = {
   winrar: '正在生成压缩分卷',
   integrity: '正在校验压缩文件',
   integrity_verified: '压缩文件完整性已确认',
-  md5: '正在生成文件校验值',
+  hash: '正在生成文件校验值',
   manifest: '正在整理归档清单',
   completed: '归档产物已生成，正在确认结果',
 }

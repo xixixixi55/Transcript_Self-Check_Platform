@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -309,12 +310,61 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
         "case-synthetic", "exported", 3,
     )
     assert unified.call_args.kwargs["word_filename"] == "用户命名.docx"
+    api.results.manifest_bundle.assert_called_once_with("task-synthetic")
     assert unified.call_args.kwargs["report"]["inspection"]["software_tools"] == [
         {
             "category": "hashmyfiles", "name": "HashMyFiles", "version": "2.51",
             "display_name": "HashMyFiles 2.51",
         },
     ]
+
+
+@pytest.mark.parametrize("hash_algorithm", ["md5", "sha1", "sha256"])
+def test_real_export_bundle_never_invokes_hashmyfiles_or_publishes_screenshot(
+    tmp_path: Path, hash_algorithm: str,
+) -> None:
+    api = _api(consume_ok=True)
+    api.database = None
+    final_dir = tmp_path / f"SYNTHETIC-FINAL-{hash_algorithm}"
+    export_dir = tmp_path / f"SYNTHETIC-EXPORT-{hash_algorithm}"
+    final_dir.mkdir()
+    export_dir.mkdir()
+    rar_bytes = b"SYNTHETIC/RAR"
+    (final_dir / "case.part1.rar").write_bytes(rar_bytes)
+    for legacy_name in ("hash-verification.png", "hash-verification.html"):
+        (export_dir / legacy_name).write_bytes(b"SYNTHETIC/LEGACY")
+    manifest = api.results.manifest_bundle.return_value["public_manifest"]
+    manifest["parts"][0] = {
+        **manifest["parts"][0],
+        "size_bytes": len(rar_bytes),
+        "hash_algorithm": hash_algorithm,
+        "hash_value": hashlib.new(hash_algorithm, rar_bytes).hexdigest(),
+    }
+    manifest["parts"][0].pop("md5", None)
+    api.results.manifest_bundle.return_value["final_dir"] = final_dir
+
+    def fake_docx(*_args, output_dir: str, **_kwargs) -> str:
+        path = Path(output_dir) / "SYNTHETIC.docx"
+        path.write_bytes(b"SYNTHETIC/DOCX")
+        return str(path)
+
+    with patch(
+        "app.services.export.unified_export_service.generate_docx",
+        side_effect=fake_docx,
+    ), patch(
+        "app.services.integrity.hashmyfiles_service.generate_verification_image",
+        side_effect=AssertionError("笔录统一导出不得启动 HashMyFiles"),
+    ):
+        result = export_bundle(
+            api, "case-synthetic", 3, str(export_dir),
+            directory_token="token-synthetic", template_context={},
+        )
+
+    assert result["output"]["rar_filenames"] == ["case.part1.rar"]
+    assert (export_dir / "SYNTHETIC.docx").is_file()
+    assert (export_dir / "case.part1.rar").read_bytes() == rar_bytes
+    assert not list(export_dir.glob("*.png"))
+    assert not list(export_dir.glob("*.html"))
 
 
 def test_export_bundle_uses_asset_ref_order_and_rebuilds_missing_photo_groups(
@@ -383,24 +433,4 @@ def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> Non
                 directory_token="token-synthetic", template_context={},
             )
     assert error.value.code == "DISC_MAPPING_INCOMPLETE"
-    api.shells.update_lifecycle.assert_not_called()
-
-
-def test_export_bundle_projects_hash_screenshot_failure_without_marking_exported(tmp_path: Path) -> None:
-    api = _api(consume_ok=True)
-    export_dir = tmp_path / "export-out"
-    export_dir.mkdir(parents=True)
-    from app.services.export.unified_export_service import UnifiedExportError
-
-    with patch("app.services.archive.archive_export_service.unified_export", side_effect=UnifiedExportError(
-        "HASHMYFILES_SCREENSHOT_FAILED", "HashMyFiles 校验截图生成失败。",
-    )):
-        with pytest.raises(WorkbenchPersistenceError) as error:
-            export_bundle(
-                api, "case-synthetic", 3, str(export_dir),
-                directory_token="token-synthetic", template_context={},
-            )
-
-    assert error.value.code == "HASHMYFILES_SCREENSHOT_FAILED"
-    assert error.value.args[0] == "HashMyFiles 校验截图生成失败。"
     api.shells.update_lifecycle.assert_not_called()

@@ -67,16 +67,12 @@ export interface ArchivePlan {
   diagnostics: ArchiveDiagnostic[]
 }
 
-export interface ArchivePart {
+interface ArchivePartMetadata {
   part_id: string
   part_number: number
   filename: string
   /** WinRAR 实际输出文件大小。标准分卷不得超过档位上限。 */
   size_bytes: number
-  md5: string
-  /** 案件选定的业务摘要；旧版 manifest 省略两个字段并使用 md5。 */
-  hash_algorithm?: HashAlgorithm
-  hash_value?: string
   disc_number: string
   disc_date: string
   /** 标准分卷的最小二进制容量档位；超大单卷不含此值。 */
@@ -85,6 +81,24 @@ export interface ArchivePart {
   volume_size_bytes: number | null
   continuity_check: 'passed'
 }
+
+/** 新 Manifest 的唯一正式文件哈希合同。 */
+export interface SelectedArchivePartHash {
+  hash_algorithm: HashAlgorithm
+  hash_value: string
+  md5?: never
+}
+
+/** 仅用于读取缺少新哈希字段的旧 MD5 Manifest。 */
+export interface LegacyArchivePartHash {
+  md5: string
+  hash_algorithm?: never
+  hash_value?: never
+}
+
+export type ArchivePartHash = SelectedArchivePartHash | LegacyArchivePartHash
+
+export type ArchivePart = ArchivePartMetadata & ArchivePartHash
 
 export interface ArchiveManifest {
   manifest_id: string

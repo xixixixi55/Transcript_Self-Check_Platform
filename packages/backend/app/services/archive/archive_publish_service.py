@@ -28,14 +28,14 @@ def publish_staged_archive(
     workbench_context_id: str | None,
     expected_draft_revision: int | None = None,
     expected_report_fingerprint: str | None = None,
-    verified_md5s: dict[str, str] | None = None,
+    verified_hashes: dict[str, str] | None = None,
 ) -> dict[str, ArchiveFileIdentity] | None:
     verified_file_identities: dict[str, ArchiveFileIdentity] | None = None
 
     def validate(candidate: Any) -> bool:
-        if verified_md5s is None:
+        if verified_hashes is None:
             return validate_published_manifest(candidate)
-        if not validate_published_manifest(candidate, verified_md5s=verified_md5s):
+        if not validate_published_manifest(candidate, verified_hashes=verified_hashes):
             return False
         return (
             verified_file_identities is None
@@ -77,10 +77,10 @@ def publish_staged_archive(
             attempt_id, digest, file_set,
         )
         _seal_publication_directory(staging_dir)
-    if verified_md5s is not None:
+    if verified_hashes is not None:
         try:
             verified_file_identities = capture_archive_file_identities(
-                staging_dir, set(verified_md5s),
+                staging_dir, set(verified_hashes),
             )
         except (OSError, ValueError) as error:
             raise WorkbenchPersistenceError("ARCHIVE_PARTS_INVALID") from error

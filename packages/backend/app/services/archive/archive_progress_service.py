@@ -11,7 +11,7 @@ from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 
 _STAGES = (
     "queued", "inventory", "preflight_verified", "winrar", "integrity",
-    "integrity_verified", "md5", "manifest", "completed",
+    "integrity_verified", "hash", "manifest", "completed",
 )
 
 

@@ -9,6 +9,7 @@ from ..workbench.workbench_database import WorkbenchDatabase, normalize_utc, utc
 from ..workbench.workbench_errors import RevisionConflictError, WorkbenchPersistenceError
 from ..workbench.workbench_repository_helpers import json_text, row_json
 from ..workbench.workbench_serialization import validate_opaque_id
+from ..integrity.hash_algorithm_repository import normalize_manifest_hashes
 
 _SLOT_STATUSES = {"active", "pending", "removed", "verified"}
 class ArchivePlanRepository:
@@ -208,7 +209,7 @@ def _verified(value: Any) -> list[dict[str, Any]]:
             raise WorkbenchPersistenceError("INVALID_MANIFEST_SLOTS")
         item = dict(raw)
         slot_id = validate_opaque_id(item.get("slot_id"))
-        if slot_id in ids or not isinstance(item.get("md5"), str) or not item["md5"]:
+        if slot_id in ids:
             raise WorkbenchPersistenceError("INVALID_MANIFEST_SLOTS")
         _integer(item.get("ordinal"))
         _integer(item.get("output_bytes"))
@@ -216,6 +217,11 @@ def _verified(value: Any) -> list[dict[str, Any]]:
             raise WorkbenchPersistenceError("INVALID_MANIFEST_SLOTS")
         ids.add(slot_id)
         result.append(item)
+    if result:
+        try:
+            normalize_manifest_hashes(result)
+        except ValueError as error:
+            raise WorkbenchPersistenceError("INVALID_MANIFEST_SLOTS") from error
     return result
 
 

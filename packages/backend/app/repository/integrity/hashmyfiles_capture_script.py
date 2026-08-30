@@ -228,7 +228,7 @@ try {
     if (-not $captured) { Start-Sleep -Milliseconds 500 }
   }
   if (-not $captured) { $failureCode = 'HASHMYFILES_SCREENSHOT_FAILED'; throw 'HashMyFiles window capture failed' }
-  @{ status = 'succeeded'; item_count = $itemCount; rows = @($rows) } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultPath -Encoding UTF8
+  @{ status = 'succeeded'; item_count = $itemCount; hash_algorithm = [string]$payload.hash_algorithm; rows = @($rows) } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultPath -Encoding UTF8
 } catch {
   if (-not $failureCode) {
     $failureCode = if ($stage -eq 'launch') { 'HASHMYFILES_LAUNCH_FAILED' } elseif ($stage -eq 'screenshot') { 'HASHMYFILES_SCREENSHOT_FAILED' } else { 'HASHMYFILES_RUN_FAILED' }

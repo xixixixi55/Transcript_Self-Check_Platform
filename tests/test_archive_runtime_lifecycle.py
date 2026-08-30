@@ -116,7 +116,7 @@ class RecordingWorker:
             raise RuntimeError("SYNTHETIC worker failure")
         for stage in (
             "inventory", "preflight_verified", "winrar", "integrity",
-            "integrity_verified", "md5", "manifest",
+            "integrity_verified", "hash", "manifest",
         ):
             self.progress.advance(claim.task_id, claim.owner_token, stage)
             if stage == "winrar" and self.multi_part:
@@ -359,12 +359,12 @@ def test_http_task_is_claimed_and_one_failure_does_not_stop_runtime(
         ).json()["data"]["draft"]["report"]
         saved = saved_report["inspection"]["result"]
         assert saved["rar_filename"] == part["filename"]
-        assert saved["md5_hash"] == part["md5"]
+        assert saved["md5_hash"] == part["hash_value"]
         assert saved["file_size"] == str(part["size_bytes"])
         attachment_table = saved_report["attachments"]["extract_list"]
         assert [row["no"] for row in attachment_table["rows"]] == ["1"]
         assert [row["electronic_data"] for row in attachment_table["rows"]] == [part["filename"]]
-        assert [row["md5_hash"] for row in attachment_table["rows"]] == [part["md5"]]
+        assert [row["md5_hash"] for row in attachment_table["rows"]] == [part["hash_value"]]
         assert "file_size" not in {column["key"] for column in attachment_table["columns"]}
         assert saved_report["attachments"]["disc_number"] == part["disc_number"]
         assert services.archive_runtime.loop_start_count == 1

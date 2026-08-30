@@ -70,12 +70,25 @@ export function convergeVolumeSlotsWithManifest(
       || verified.disc_number !== slot.disc_mapping?.disc_number
       || !Number.isSafeInteger(verified.output_bytes)
       || verified.output_bytes <= 0
-      || !/^[a-f0-9]{32}$/i.test(verified.md5)
+      || !hasValidVerifiedHash(verified)
     ) {
       throw new Error('MANIFEST_SLOT_MISMATCH')
     }
     return { ...slot, status: 'verified' }
   })
+}
+
+function hasValidVerifiedHash(slot: VerifiedVolumeSlot): boolean {
+  if ('hash_algorithm' in slot) {
+    const expectedLength = slot.hash_algorithm === 'md5' ? 32
+      : slot.hash_algorithm === 'sha1' ? 40
+        : slot.hash_algorithm === 'sha256' ? 64 : 0
+    return expectedLength > 0
+      && typeof slot.hash_value === 'string'
+      && slot.hash_value.length === expectedLength
+      && /^[a-f0-9]+$/i.test(slot.hash_value)
+  }
+  return typeof slot.md5 === 'string' && /^[a-f0-9]{32}$/i.test(slot.md5)
 }
 
 function assertPlanInputs(plannedSlots: readonly PlannedVolumeSlot[], planRevision: number): void {

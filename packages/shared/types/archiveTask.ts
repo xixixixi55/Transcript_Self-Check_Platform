@@ -4,7 +4,7 @@ import type {
   ArchiveWorkerState,
   TaskStatus,
 } from './task'
-import type { ArchiveMedium, ArchiveMode } from './archive'
+import type { ArchiveMedium, ArchiveMode, ArchivePartHash } from './archive'
 
 export type ArchiveWorkflowStage =
   | 'queued'
@@ -13,7 +13,7 @@ export type ArchiveWorkflowStage =
   | 'winrar'
   | 'integrity'
   | 'integrity_verified'
-  | 'md5'
+  | 'hash'
   | 'manifest'
   | 'completed'
 
@@ -119,6 +119,14 @@ export interface ArchiveTaskHistory {
   items: ArchiveTaskPublicDetail[]
 }
 
+export type ArchiveTaskResultPart = {
+  part_id: string
+  filename: string
+  size_bytes: number
+  disc_number: string
+  disc_date: string
+} & ArchivePartHash
+
 export interface ArchiveTaskResult {
   task_id: string
   case_id: string
@@ -139,14 +147,7 @@ export interface ArchiveTaskResult {
     updated_at: string
     revision: number
   }[]
-  parts: {
-    part_id: string
-    filename: string
-    size_bytes: number
-    md5: string
-    disc_number: string
-    disc_date: string
-  }[]
+  parts: ArchiveTaskResultPart[]
   finished_at: string | null
 }
 
@@ -155,10 +156,9 @@ export interface ReconciledVolumeSlots {
   removed_slots: VolumeSlot[]
 }
 
-export interface VerifiedVolumeSlot {
+export type VerifiedVolumeSlot = {
   slot_id: string
   ordinal: number
   disc_number: string
   output_bytes: number
-  md5: string
-}
+} & ArchivePartHash

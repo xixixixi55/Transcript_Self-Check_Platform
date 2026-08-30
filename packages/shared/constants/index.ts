@@ -125,11 +125,12 @@ export const INSPECTION_RESULT_TEMPLATE = (
   softwareVersion: string,
   dataSummary: string,
   rarFilename: string,
-  md5Hash: string,
+  hashAlgorithmLabel: string,
+  hashValue: string,
   fileSize: string,
 ) =>
   `经对编号为${evidenceNumber}号检材使用${softwareName}（版本号为${softwareVersion}）进行检查，检出${dataSummary}等电子数据。` +
-  `将检出结果生成为"${rarFilename}"文件，文件MD5哈希值为"${md5Hash}"，文件大小为"${fileSize}"字节。`
+  `将检出结果生成为"${rarFilename}"文件，文件${hashAlgorithmLabel}哈希值为"${hashValue}"，文件大小为"${fileSize}"字节。`
 
 // ─── 默认值 ───
 

@@ -1,5 +1,5 @@
 import type { ArchiveMedium, FieldState, InspectionReport } from '@biji/shared/types'
-import { isValidDateFieldValue, isValidMinuteTimeRangeValue, parseDiscSequence } from '@biji/shared/utils'
+import { hashAlgorithmLabel, isValidDateFieldValue, isValidMinuteTimeRangeValue, parseDiscSequence } from '@biji/shared/utils'
 
 export type ReviewPendingSeverity = 'warning' | 'error'
 export type ReviewPendingKind = 'required_missing' | 'confirmation_required' | 'validation'
@@ -229,7 +229,7 @@ export function getReviewPendingItems(
     ['检材编号', result?.evidence_number],
     ['数据摘要', result?.data_summary],
     ['RAR 文件名', result?.rar_filename],
-    ['MD5 哈希', result?.md5_hash],
+    [`${hashAlgorithmLabel(result?.hash_algorithm)} 哈希`, result?.md5_hash],
     ['文件大小', result?.file_size],
   ].forEach(([label, value], index) => {
     const key = ['evidence_number', 'data_summary', 'rar_filename', 'md5_hash', 'file_size'][index]

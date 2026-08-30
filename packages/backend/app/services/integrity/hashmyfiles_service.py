@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import math
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from ...repository.integrity.hashmyfiles_repository import (
     HashMyFilesError,
@@ -13,7 +13,7 @@ from ...repository.integrity.hashmyfiles_repository import (
     run_hashmyfiles,
 )
 
-Runner = Callable[[Path, list[Path], Path, int, str], str]
+Runner = Callable[[Path, list[Path], Path, int, str], dict[str, Any]]
 
 _DEFAULT_RUNNER: Runner = run_hashmyfiles
 _MIN_TIMEOUT_SECONDS = 120
@@ -28,10 +28,10 @@ def generate_verification_image(
     *,
     hash_algorithm: str = "md5",
     runner: Runner = _DEFAULT_RUNNER,
-) -> str:
+) -> dict[str, Any]:
     """为 `rar_paths` 生成 HashMyFiles 验证 PNG。
 
-    返回写入 `output_dir` 的 PNG 文件名。工具不可用或运行失败时引发
+    返回 PNG 文件名、算法和无路径结构化行。工具不可用或运行失败时引发
     :class:HashMyFilesError，使导出明确失败，而非省略报告。
     """
     if not rar_paths:

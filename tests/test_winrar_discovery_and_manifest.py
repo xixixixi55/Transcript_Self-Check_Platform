@@ -10,6 +10,11 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository.archive.archive_validator_repository import validate_archive_parts  # noqa: E402
+from app.repository.archive.archive_hash_repository import compute_hash_streaming  # noqa: E402
+from app.repository.integrity.hash_algorithm_repository import (  # noqa: E402
+    normalize_manifest_hashes,
+    normalize_manifest_part_hash,
+)
 from app.repository.archive.winrar_discovery_repository import (  # noqa: E402
     WinRarCapability,
     discover_winrar,
@@ -26,6 +31,62 @@ from app.services.archive.archive_manifest_service import (  # noqa: E402
 
 def probe_ok(args, **kwargs):
     return subprocess.CompletedProcess(args, 0, "WinRAR 6.24\n-v<bytes>b", "")
+
+
+@pytest.mark.parametrize(
+    ("algorithm", "length"), [("md5", 32), ("sha1", 40), ("sha256", 64)],
+)
+def test_manifest_part_hash_normalizes_all_selected_algorithms(algorithm, length):
+    assert normalize_manifest_part_hash({
+        "hash_algorithm": algorithm,
+        "hash_value": "A" * length,
+    }) == (algorithm, "a" * length)
+
+
+def test_manifest_part_hash_accepts_legacy_md5_but_never_falls_back_from_new_fields():
+    assert normalize_manifest_part_hash({"md5": "A" * 32}) == ("md5", "a" * 32)
+    with pytest.raises(ValueError, match="ARCHIVE_BUSINESS_HASH_INVALID"):
+        normalize_manifest_part_hash({
+            "hash_algorithm": "sha256", "hash_value": "", "md5": "a" * 32,
+        })
+    with pytest.raises(ValueError, match="ARCHIVE_BUSINESS_HASH_INVALID"):
+        normalize_manifest_part_hash({"hash_value": "a" * 32, "md5": "a" * 32})
+
+
+def test_manifest_hashes_reject_mixed_algorithms_and_invalid_lengths():
+    with pytest.raises(ValueError, match="ARCHIVE_BUSINESS_HASH_INVALID"):
+        normalize_manifest_hashes([
+            {"hash_algorithm": "md5", "hash_value": "a" * 32},
+            {"hash_algorithm": "sha1", "hash_value": "b" * 40},
+        ])
+    with pytest.raises(ValueError, match="ARCHIVE_BUSINESS_HASH_INVALID"):
+        normalize_manifest_part_hash({
+            "hash_algorithm": "sha256", "hash_value": "a" * 32,
+        })
+
+
+def test_streaming_hash_uses_only_the_injected_selected_algorithm(tmp_path):
+    target = tmp_path / "SYNTHETIC.rar"
+    target.write_bytes(b"SYNTHETIC/SELECTED-HASH-ONLY")
+    algorithms: list[str] = []
+    opened: list[Path] = []
+
+    def hasher_factory(algorithm: str):
+        algorithms.append(algorithm)
+        return hashlib.new(algorithm)
+
+    def reader_factory(path: Path):
+        opened.append(path)
+        return path.open("rb")
+
+    digest = compute_hash_streaming(
+        target, tmp_path, "sha256",
+        reader_factory=reader_factory, hasher_factory=hasher_factory,
+    )
+
+    assert digest == hashlib.sha256(target.read_bytes()).hexdigest()
+    assert algorithms == ["sha256"]
+    assert opened == [target.resolve()]
 
 
 def test_discovery_priority_config_then_environment_then_path(tmp_path):
@@ -107,7 +168,7 @@ def test_discovery_winrar_config_prefers_console_sibling_without_gui_probe(tmp_p
     assert not any("WinRAR.exe".casefold() in str(args[0]).casefold() for args in calls)
 
 
-def test_manifest_uses_actual_numeric_order_streaming_md5_and_disc_date(tmp_path):
+def test_manifest_uses_actual_numeric_order_selected_md5_and_disc_date(tmp_path):
     first = tmp_path / "案件.part1.rar"
     second = tmp_path / "案件.part2.rar"
     first.write_bytes(b"first")
@@ -126,7 +187,9 @@ def test_manifest_uses_actual_numeric_order_streaming_md5_and_disc_date(tmp_path
         "GP20260718-01", "GP20260718-02",
     ]
     assert manifest["parts"][0]["filename"] == "案件.part1.rar"
-    assert manifest["parts"][0]["md5"] == hashlib.md5(b"first").hexdigest()
+    assert "md5" not in manifest["parts"][0]
+    assert manifest["parts"][0]["hash_algorithm"] == "md5"
+    assert manifest["parts"][0]["hash_value"] == hashlib.md5(b"first").hexdigest()
     assert manifest["parts"][0]["disc_date"] == "2026-07-18"
     assert all(Path(name).name == name for name in paths)
 
@@ -135,7 +198,7 @@ def test_manifest_uses_actual_numeric_order_streaming_md5_and_disc_date(tmp_path
     ("algorithm", "hash_factory"),
     [("sha1", hashlib.sha1), ("sha256", hashlib.sha256)],
 )
-def test_manifest_keeps_internal_md5_and_adds_selected_business_hash(
+def test_manifest_writes_only_the_selected_hash(
     tmp_path, algorithm, hash_factory,
 ):
     part = tmp_path / "SYNTHETIC.rar"
@@ -159,11 +222,11 @@ def test_manifest_keeps_internal_md5_and_adds_selected_business_hash(
 
     manifest, _ = assemble_archive_manifest(
         plan, validation, capability, retry_count=0,
-        business_hash_algorithm=algorithm,
+        hash_algorithm=algorithm,
     )
 
     item = manifest["parts"][0]
-    assert item["md5"] == hashlib.md5(payload).hexdigest()
+    assert "md5" not in item
     assert item["hash_algorithm"] == algorithm
     assert item["hash_value"] == hash_factory(payload).hexdigest()
 
@@ -282,6 +345,44 @@ def test_published_manifest_detects_modified_part(tmp_path):
     assert not validate_published_manifest(record)
 
 
+@pytest.mark.parametrize(
+    ("algorithm", "hash_factory"),
+    [("md5", hashlib.md5), ("sha1", hashlib.sha1), ("sha256", hashlib.sha256)],
+)
+def test_manifest_content_gate_rejects_same_size_tamper_for_selected_algorithm(
+    tmp_path, algorithm, hash_factory,
+):
+    part = tmp_path / "SYNTHETIC.rar"
+    original = b"SYNTHETIC/ORIGINAL"
+    tampered = b"SYNTHETIC/TAMPERED"
+    assert len(original) == len(tampered)
+    part.write_bytes(original)
+    manifest = {
+        "manifest_id": "SYNTHETIC-MANIFEST",
+        "archive_base_name": "SYNTHETIC",
+        "archive_mode": "standard_split",
+        "volume_size_bytes": 4 * 1024**3,
+        "max_part_count": 1,
+        "validation_status": "validated",
+        "parts": [{
+            "part_number": 1, "filename": part.name, "size_bytes": len(original),
+            "hash_algorithm": algorithm, "hash_value": hash_factory(original).hexdigest(),
+            "disc_number": "", "disc_date": "",
+            "disc_capacity_bytes": 4 * 1024**3,
+            "volume_size_bytes": 4 * 1024**3,
+        }],
+        "actual_archive_bytes": len(original),
+    }
+    record = SimpleNamespace(
+        manifest_id="SYNTHETIC-MANIFEST", final_dir=tmp_path,
+        public_manifest=manifest,
+    )
+
+    assert validate_manifest_files(record) is None
+    part.write_bytes(tampered)
+    assert validate_manifest_files(record) == "ARCHIVE_MANIFEST_PART_CHANGED"
+
+
 def test_manifest_file_validation_hashes_each_part_once(monkeypatch, tmp_path):
     first = tmp_path / "case.part1.rar"
     second = tmp_path / "case.part2.rar"
@@ -313,13 +414,13 @@ def test_manifest_file_validation_hashes_each_part_once(monkeypatch, tmp_path):
     )
     calls = []
 
-    def counted_md5(path, root):
-        calls.append(path.name)
-        return hashlib.md5(path.read_bytes()).hexdigest()
+    def counted_hash(path, root, algorithm):
+        calls.append((path.name, algorithm))
+        return hashlib.new(algorithm, path.read_bytes()).hexdigest()
 
-    monkeypatch.setattr("app.services.archive.archive_manifest_service.compute_md5_streaming", counted_md5)
+    monkeypatch.setattr("app.services.archive.archive_manifest_service.compute_hash_streaming", counted_hash)
     assert validate_manifest_files(record) is None
-    assert calls == [first.name, second.name]
+    assert calls == [(first.name, "md5"), (second.name, "md5")]
 
 
 def test_authenticated_manifest_metadata_does_not_read_part_content(monkeypatch, tmp_path):
@@ -345,7 +446,7 @@ def test_authenticated_manifest_metadata_does_not_read_part_content(monkeypatch,
         manifest_id="manifest-metadata", final_dir=tmp_path, public_manifest=manifest,
     )
     monkeypatch.setattr(
-        "app.services.archive.archive_manifest_service.compute_md5_streaming",
+        "app.services.archive.archive_manifest_service.compute_hash_streaming",
         lambda *_args, **_kwargs: pytest.fail("metadata projection read RAR content"),
     )
 
@@ -376,20 +477,20 @@ def test_same_run_identity_detects_equal_size_change_without_rehash(monkeypatch,
     record = SimpleNamespace(
         manifest_id="manifest-identity", final_dir=tmp_path, public_manifest=manifest,
     )
-    trusted_md5s = {part.name: manifest["parts"][0]["md5"]}
+    trusted_hashes = {part.name: manifest["parts"][0]["md5"]}
     identities = capture_archive_file_identities(tmp_path, {part.name})
     monkeypatch.setattr(
-        "app.services.archive.archive_manifest_service.compute_md5_streaming",
+        "app.services.archive.archive_manifest_service.compute_hash_streaming",
         lambda *_args, **_kwargs: pytest.fail("same-run validation rehashed content"),
     )
 
     assert validate_manifest_files(
-        record, verified_md5s=trusted_md5s,
+        record, verified_hashes=trusted_hashes,
         verified_file_identities=identities,
     ) is None
     part.write_bytes(b"SYNTHETIC/TAMPERED")
     assert validate_manifest_files(
-        record, verified_md5s=trusted_md5s,
+        record, verified_hashes=trusted_hashes,
         verified_file_identities=identities,
     ) == "ARCHIVE_MANIFEST_PART_CHANGED"
 

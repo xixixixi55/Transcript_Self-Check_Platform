@@ -1,8 +1,8 @@
 # 新案件可选择笔录哈希算法
 
 workflow_level: 3
-spec_sync_status: pending
-spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内部 MD5 + 可选业务哈希”纠正为“三算法同链、只使用案件所选文件哈希”；delta 已更新，待实现、Review 与 living spec 同步
+spec_sync_status: reconciled
+spec_sync_evidence: 2026-08-30 已将“三算法单一 Manifest 哈希”及“检查笔录统一导出不接入 HashMyFiles、只发布 Word + RAR”的用户确认同步至 delta、proposal、design、background-compression 关联 delta 与两份 living specs；实现和定向回归与该边界一致
 
 > 规格：
 > - `openspec/changes/selectable-case-hash-algorithm/specs/electronic-inspection-record/spec.md`
@@ -24,8 +24,8 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 - 设置只影响之后新建的案件；新案件将算法快照写入 `inspection.result.hash_algorithm`，旧案件和缺失字段的存量数据按 MD5 兼容。
 - 新归档分卷只持久化案件选择的 `hash_algorithm` 与 `hash_value`；MD5、SHA-1、SHA-256 经过相同链路，SHA 案件不得额外计算固定 MD5。
 - 审核界面、检查结果、附件1列标题、提取方式文案、Word正文与附件3文件哈希值使用案件快照对应的算法名称和值；legacy 字段键 `md5_hash` 保留作模板兼容载体，但其值代表当前案件选择的业务哈希。
-- 统一导出把 Manifest 绑定算法传给 HashMyFiles，只启用对应算法，读取 Filename、所选算法、File Size 三列，并把结构化摘要与 Manifest `hash_value` 逐项等值比较。
-- 统一导出不再在复制前固定 MD5 全量重算；HashMyFiles 对 staging 最终副本的等值比较承担本次内容门控，保持原子失败回滚。
+- 检查笔录统一导出继续只发布 Word + RAR，不启动 HashMyFiles、不生成截图；进入导出前仍按 Manifest 所选算法完成内容授权，保持原子失败回滚。
+- HashMyFiles 的三算法参数、完整摘要、结构化行和三列截图能力保留为未接线内部能力，等待鉴定文书模块使用。
 - 设置变更不回写旧案件，不批量修改既有 Manifest；缺失 `hash_algorithm/hash_value` 且含合法 `md5` 的旧 Manifest 继续按 MD5 规范化读取。
 - 报告缓存、上下文绑定、发布摘要和图片资产等非案件文件哈希继续使用各自既有算法，不受案件设置影响。
 
@@ -33,12 +33,12 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 
 - [x] 设置页正确展示 MD5、SHA-1、SHA-256，默认 MD5，保存时写入共享默认值 revision 合同。
 - [x] 新案件快照所选算法，旧案件和缺失字段按 MD5；修改设置不改变已创建案件。
-- [ ] MD5、SHA-1、SHA-256 新归档均只计算所选算法，分别生成 32/40/64 位摘要，调用阶段、状态、Manifest 结构和错误行为一致。
+- [x] MD5、SHA-1、SHA-256 新归档均只计算所选算法，分别生成 32/40/64 位摘要，调用阶段、状态、Manifest 结构和错误行为一致。
 - [x] 审核界面、附件1、检查结果、提取方式、Word正文和附件3使用正确算法名称和值。
-- [ ] HashMyFiles 参数、结果列读取、长度校验和截图列宽随案件算法变化，结构化摘要与 Manifest 逐项完全一致，仍只展示三列。
-- [ ] 无效算法、结果列缺失/重复、摘要长度错误或摘要不一致稳定失败，不产生混合导出包。
-- [ ] 旧 MD5 Manifest 可兼容读取；新 Manifest 不依赖 `md5`；复用、恢复、下载和发布安全门按所选算法拒绝同大小内容篡改。
-- [ ] 冻结候选后完成独立 Review、`npm run verify:full -- --change selectable-case-hash-algorithm`、真实 HashMyFiles 验收、资产与 diff 检查。
+- [x] 检查笔录统一导出三算法案件均不启动 HashMyFiles、不生成 PNG，只发布 Word + RAR，并继续清理历史校验截图。
+- [x] 保留的 HashMyFiles 内部能力支持三算法参数、32/40/64 位完整摘要、结构化行与三列截图，但没有检查笔录生产调用方。
+- [x] 旧 MD5 Manifest 可兼容读取；新 Manifest 不依赖 `md5`；复用、恢复、下载和发布安全门按所选算法拒绝同大小内容篡改。
+- [x] 冻结候选后完成独立 Review、`npm run verify:full -- --change selectable-case-hash-algorithm`、资产与 diff 检查；检查笔录真实 HashMyFiles 验收为 N/A。
 
 ## 任务列表
 
@@ -62,8 +62,8 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
   - 验证：扩展归档 Manifest、执行与完成投影测试，断言 MD5 安全门不变且 SHA 摘要正确。
 - [x] 修改附件计划、审核投影和 Word 生成相关服务：动态输出算法名称和值，legacy `md5_hash` 键只作为兼容载体。
   - 验证：复用附件计划、document builder、template filler 和 Word 定向测试，覆盖 SHA-1/SHA-256 文案与值。
-- [x] 修改 `packages/backend/app/services/integrity/hashmyfiles_service.py`、`packages/backend/app/services/export/unified_export_service.py` 及导出接线：从案件快照传递算法，生成匹配截图且维持原子发布。
-  - 验证：扩展 HashMyFiles 与统一导出测试，覆盖三算法和失败回滚。
+- [x] 修改 `packages/backend/app/services/integrity/hashmyfiles_service.py`：保留从显式调用方接收算法并生成结构化三列截图的内部能力；检查笔录统一导出不接线。
+  - 验证：HashMyFiles Repository/Service 覆盖三算法；统一导出测试断言 HashMyFiles 不被调用且不生成截图。
 
 ### Layer 10/11 — 设置与审核界面
 
@@ -108,46 +108,60 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 
 ### Layer 0 — 新旧 Manifest 共享合同
 
-- [ ] 修改 `packages/shared/types/archive.ts`、`packages/shared/types/index.ts`：把 `hash_algorithm/hash_value` 定义为新 `ArchivePart` 的正式哈希合同，将 `md5` 限定为旧 Manifest 兼容输入；外部工作台结果继续投影所选算法和值，不新增固定 MD5 要求。
+- [x] 修改 `packages/shared/types/archive.ts`、`packages/shared/types/index.ts`：把 `hash_algorithm/hash_value` 定义为新 `ArchivePart` 的正式哈希合同，将 `md5` 限定为旧 Manifest 兼容输入；外部工作台结果继续投影所选算法和值，不新增固定 MD5 要求。
   - 验证：运行 shared、frontend typecheck；更新现有 Manifest fixture，分别覆盖新三算法结构与 legacy `{md5}` 结构。
+  - 证据：`ArchivePartHash` 与工作台结果 part 使用“新 selected hash / legacy MD5”联合合同，聚合入口继续由 `types/index.ts` 导出；SHA-256 与 SHA-1 fixture 覆盖新结构，多卷 fixture 覆盖 legacy `{md5}`。`npm run lint:arch`、`npm run typecheck`、ArchiveStatusCard/useArchivePreparation 定向测试（12 passed）通过。
 
 ### Layer 20 — 规范哈希、存量兼容与 HashMyFiles 结果
 
-- [ ] 修改 `packages/backend/app/repository/integrity/hash_algorithm_repository.py` 与 `archive_hash_repository.py`：提供唯一的 part 哈希规范化、legacy MD5 单向投影、算法/长度校验和受控路径流式计算；删除新链路对固定 `md5`、32 位正则和 `verified_md5s` 的依赖。
+- [x] 修改 `packages/backend/app/repository/integrity/hash_algorithm_repository.py` 与 `archive_hash_repository.py`：提供唯一的 part 哈希规范化、legacy MD5 单向投影、算法/长度校验和受控路径流式计算；删除新链路对固定 `md5`、32 位正则和 `verified_md5s` 的依赖。
   - 验证：扩展现有 Repository/Manifest 测试，参数化覆盖 MD5/SHA-1/SHA-256、无效长度、混用算法、新字段无效不得回退、旧 MD5 可兼容；通过可注入 reader/hasher 证明 SHA 案件只计算所选算法。
-- [ ] 修改 `packages/backend/app/repository/integrity/hashmyfiles_result_repository.py`、`packages/backend/app/repository/integrity/hashmyfiles_repository.py` 与 `packages/backend/app/repository/integrity/hashmyfiles_capture_script.py`：保留 path-free rows，返回算法、文件名、精确字节数和完整摘要；按文件名拒绝缺失、重复、多出或错误算法列。
+  - 证据：新增唯一规范函数、Manifest 同算法校验与可注入流式计算；归档 Service 已全部改用 `verified_hashes`，生产归档链无 `verified_md5s`/固定 32 位校验。Repository 定向测试 6 passed，三算法归档/Manifest/投影组合 85 passed；两轮突变均被 SHA 与混用算法用例识别。
+- [x] 修改 `packages/backend/app/repository/integrity/hashmyfiles_result_repository.py`、`packages/backend/app/repository/integrity/hashmyfiles_repository.py` 与 `packages/backend/app/repository/integrity/hashmyfiles_capture_script.py`：保留 path-free rows，返回算法、文件名、精确字节数和完整摘要；按文件名拒绝缺失、重复、多出或错误算法列。
   - 验证：扩展 `tests/test_hashmyfiles_service.py`，覆盖三算法结构化结果、32/40/64 位摘要、重复行和列错误；测试数据全部标记 SYNTHETIC/TEST。
-- [ ] 修改 `packages/backend/app/repository/archive/archive_report_metadata_repository.py` 及直接读取 Manifest 哈希的 Repository：统一通过规范 part 哈希投影 legacy `md5_hash`，禁止从兼容键名推断算法。
+  - 证据：Repository/Service 返回 `image_filename/hash_algorithm/rows`，每行仅含文件名、精确字节数和规范摘要；原生脚本回传显式算法。定向测试 `33 passed`，覆盖三算法、重复/缺失/多出行、错误算法列与长度错误；临时固定为 MD5 的突变使 3 项用例失败，恢复后全通过。
+- [x] 修改 `packages/backend/app/repository/archive/archive_report_metadata_repository.py` 及直接读取 Manifest 哈希的 Repository：统一通过规范 part 哈希投影 legacy `md5_hash`，禁止从兼容键名推断算法。
   - 验证：复用归档完成草稿回填测试，覆盖新 SHA Manifest、旧 MD5 Manifest 和混合算法拒绝。
+  - 证据：Repository 投影统一消费 `normalize_manifest_part_hash`（兼容别名保留给既有调用方），新 SHA-256 fixture 不再携带 `md5`，legacy fixture 保持 `{md5}`，混合算法稳定拒绝；`test_archive_manifest_authority.py` 8 passed。
 
 ### Layer 21 — 归档、所有安全门与统一导出
 
-- [ ] 修改 `packages/backend/app/services/archive/archive_manifest_service.py`、`archive_execution_service.py`：WinRAR 完整性通过后，每个 RAR 只流式计算案件所选算法并写入 `hash_algorithm/hash_value`；发布 CAS 重试复用已计算摘要，新 Manifest 不再写固定 `md5`。
+- [x] 修改 `packages/backend/app/services/archive/archive_manifest_service.py`、`archive_execution_service.py`：WinRAR 完整性通过后，每个 RAR 只流式计算案件所选算法并写入 `hash_algorithm/hash_value`；发布 CAS 重试复用已计算摘要，新 Manifest 不再写固定 `md5`。
   - 验证：扩展 `tests/test_archive_execution_service.py`、`tests/test_archive_execution_milestones.py` 与 Manifest 测试，三算法使用同一状态序列和结构；SHA-1/SHA-256 不调用 MD5；发布重试不重复读取。
-- [ ] 修改 `packages/backend/app/services/archive/archive_manifest_access_service.py`、`archive_task_result_service.py`、`archive_manifest_reuse_service.py`、`archive_attempt_completion_service.py`、`archive_publish_service.py` 及其持久化恢复调用链：复用、恢复、结果授权、下载和发布全部按规范 `hash_algorithm/hash_value` 校验；归档复用指纹显式绑定算法。
+  - 证据：三算法参数化归档分别只实例化所选 hasher，生成 32/40/64 位唯一摘要且不写 `md5`；阶段统一为 `hash`，CAS 重试复用 `verified_output_hashes`，算法变更不复用旧 Manifest。核心 Service 临时固定 MD5 时 SHA-1/SHA-256 两项失败，恢复后 3 passed；相关组合 85 passed。
+- [x] 修改 `packages/backend/app/services/archive/archive_manifest_access_service.py`、`archive_task_result_service.py`、`archive_manifest_reuse_service.py`、`archive_attempt_completion_service.py`、`archive_publish_service.py` 及其持久化恢复调用链：复用、恢复、结果授权、下载和发布全部按规范 `hash_algorithm/hash_value` 校验；归档复用指纹显式绑定算法。
   - 验证：扩展 `tests/test_archive_manifest_authority.py`、`tests/test_archive_manifest_repository.py` 及现有恢复/下载测试，三算法均拒绝同名同大小内容篡改，旧 MD5 Manifest 继续可用，算法改变不得复用。
-- [ ] 修改 `packages/backend/app/services/integrity/hashmyfiles_service.py` 与 `packages/backend/app/services/export/unified_export_service.py`：统一导出复制前只执行发布身份、受控路径、普通文件、集合、顺序和精确大小门控；HashMyFiles 对 staging 副本计算所选算法后，与 Manifest 按文件名逐项比较摘要和大小，再进入原子发布。
-  - 验证：扩展 `tests/test_unified_export_service.py` 与 `tests/test_hashmyfiles_service.py`，覆盖三算法成功、格式合法但摘要不同、行缺失/重复、复制期间源变化、工具失败和上一版回滚；断言统一导出不再触发固定 MD5 内容复核。
-- [ ] 修改单独 Word、归档下载和其他不运行 HashMyFiles 的正式访问编排，确保它们仍在自身授权边界使用所选算法完成内容验证，不因统一导出优化而降级为仅检查大小。
-  - 验证：复用对应 Word、下载、恢复测试，区分统一导出最终副本门控和非统一导出的内容授权门控。
-- [ ] 修改 `packages/backend/app/services/inspection/software_policy_service.py`、归档进度模型及错误映射：把残留“固定 MD5 校验”语义改为所选文件哈希；新增稳定的 HashMyFiles 与 Manifest 摘要不一致错误，审计不记录绝对路径或摘要正文。
-  - 验证：复用软件工具投影、归档任务状态和统一导出错误映射测试。
+  - 证据：所有安全门消费规范 part 哈希，发布身份对新合同记录算法和值、对 legacy 保持原文件集摘要格式；MD5 指纹兼容旧数据，SHA-1/SHA-256 显式绑定算法。归档/恢复/下载/发布/Repository/投影组合 `123 passed`；安全门临时固定 MD5 时 SHA 两项失败，恢复后 3 passed。
+- [x] 保持 `packages/backend/app/services/export/unified_export_service.py` 的检查笔录边界：统一导出通过默认 `manifest_bundle(...)` 按所选算法完成内容授权，只原子发布 Word + RAR，不调用 HashMyFiles，并清理历史截图；HashMyFiles 三算法内部能力继续保留。
+  - 验证：`tests/test_unified_export_service.py` 断言生产调用不触发 HashMyFiles、结果与审计不含截图且历史 PNG/HTML 被清理；`tests/test_hashmyfiles_service.py` 独立覆盖保留能力。
+  - 证据：用户于 2026-08-30 明确检查笔录统一导出不需要截图，该能力等待鉴定文书模块使用；接线、摘要等值错误和 PNG 发布已撤回，统一导出恢复默认 Manifest 内容验证。
+- [x] 修改单独 Word、归档下载、统一导出和其他正式访问编排，确保它们均在自身授权边界使用所选算法完成内容验证。
+  - 验证：复用对应 Word、统一导出、下载与恢复测试，断言默认 `manifest_bundle(...)` 内容门控不降级。
+  - 证据：所有正式访问保持所选算法内容验证；统一导出不再使用 metadata-only 预门控。对应 Word/下载/恢复既有定向回归保留。
+- [x] 修改 `packages/backend/app/services/inspection/software_policy_service.py` 与归档进度模型：把残留“固定 MD5 校验”语义改为所选文件哈希；检查笔录统一导出不新增 HashMyFiles 错误或审计字段。
+  - 验证：复用软件工具投影、归档任务状态和统一导出响应/审计测试。
+  - 证据：软件策略继续只投影 HashMyFiles 工具身份且不绑定固定算法；归档阶段统一为 `hash`/“正在计算文件哈希”，统一导出响应与审计不含截图字段。
 
 ### Layer 10/11 — 状态和展示语义核对
 
-- [ ] 搜索并修改 `packages/frontend/src/hooks/`、`packages/frontend/src/components/reviewWorkspaceTypes.ts`、`ReviewSaveStatus.tsx` 及受影响测试中的固定 MD5 状态/标签；所有用户可见算法名称来自案件快照或 Manifest，三算法交互路径不分叉。
+- [x] 搜索并修改 `packages/frontend/src/hooks/`、`packages/frontend/src/components/reviewWorkspaceTypes.ts`、`ReviewSaveStatus.tsx` 及受影响测试中的固定 MD5 状态/标签；所有用户可见算法名称来自案件快照或 Manifest，三算法交互路径不分叉。
   - 验证：运行受影响 Hook/组件测试与 frontend typecheck；纯文案位置不重复新增同义测试。
+  - 证据：归档决定、完成、状态卡和审核清单改用案件/Manifest 算法标签，legacy `md5_hash` 仅保留为字段键；前端 5 个定向文件 `50 passed`、槽位兼容 `4 passed`，全仓 typecheck 与架构检查通过，Impeccable detector 返回空结果。
 
 ### 一致性、真实工具验收与 Level 3 门控
 
-- [ ] 核对 `background-compression-archive-completion` 相关 delta、`openspec/specs/data-model.md` 与 `openspec/specs/electronic-inspection-record/spec.md`，消除“固定内部 MD5”与新正式合同冲突；实现核对完成后 sync living specs，并把本文件 `spec_sync_status` 更新为 `reconciled`、记录证据。
+- [x] 核对 `background-compression-archive-completion` 相关 delta、`openspec/specs/data-model.md` 与 `openspec/specs/electronic-inspection-record/spec.md`，消除“固定内部 MD5”与新正式合同冲突；实现核对完成后 sync living specs，并把本文件 `spec_sync_status` 更新为 `reconciled`、记录证据。
   - 验证：`npm run verify:docs:strict -- --change selectable-case-hash-algorithm`。
-- [ ] 使用 HashMyFiles 2.51 对 SYNTHETIC 小 RAR 分别完成 MD5、SHA-1、SHA-256 真实验收：截图保持 Filename、所选算法、File Size 三列，摘要完整显示且逐项等于 Manifest；人为注入摘要不一致时不得发布。
-  - 验证：记录真实工具版本、三算法结果和失败回滚证据，不保存真实案件哈希或绝对路径。
-- [ ] 必选任务与人工验收收敛后冻结候选，按 `harness/code-review-agent.md` 启动独立 Review，覆盖 Manifest 兼容、安全门无固定 MD5 遗漏、统一导出等值闭环和原子回滚；审查发现的核心修改须解冻并在下一次收敛后复审。
+  - 证据：proposal/design/delta、关联 delta 与 living specs 已统一为新 Manifest 单哈希合同，并明确笔录统一导出不运行 HashMyFiles；严格文档检查的类型漂移已补齐，最终 Review/full gate 任务完成后复跑收敛。
+- [x] 确认检查笔录统一导出无 HashMyFiles 生产调用，桌面工具人工验收记为 `manual_acceptance: N/A`；保留能力沿用既有 SYNTHETIC 三算法截图证据，未来鉴定文书接线时重新验收。
+  - 验证：静态调用搜索与统一导出回归，不保存真实案件哈希或绝对路径。
+  - 证据：统一导出、归档导出与生命周期回归 `27 passed`，显式断言 HashMyFiles 不被调用、响应/审计无截图且历史 PNG/HTML 被清理；生产 Service 搜索无 HashMyFiles 调用。保留能力 `33 passed`，全仓 typecheck 通过。`manual_acceptance: N/A`（检查笔录不运行桌面工具）。
+- [x] 必选任务与人工验收收敛后冻结候选，按 `harness/code-review-agent.md` 启动独立 Review，覆盖 Manifest 兼容、安全门无固定 MD5 遗漏、统一导出无 HashMyFiles 接线和原子回滚；审查发现的核心修改须解冻并在下一次收敛后复审。
   - 验证：Review 无未解决阻断项。
-- [ ] 冻结候选运行 `npm run verify:full -- --change selectable-case-hash-algorithm`、scoped `git diff --check` 与仓库资产检查；核对 Git diff 仅含本变更预期内容。
+  - 证据：第一轮审查发现 4 项 MUST FIX 与 3 项 SHOULD FIX，候选解冻修复；第二轮独立复审结论为通过、MUST FIX 0，确认历史阶段兼容、Manifest 单哈希门禁、笔录统一导出仅 Word + RAR 和前端安全展示均已覆盖。
+- [x] 冻结候选运行 `npm run verify:full -- --change selectable-case-hash-algorithm`、scoped `git diff --check` 与仓库资产检查；核对 Git diff 仅含本变更预期内容。
   - 验证：scoped full gate、资产检查和 diff 检查全部通过。
+  - 证据：前端全量 `66 files / 447 tests` 通过；使用 D 盘仓库外 `HARNESS_TEMP_ROOT` 与隔离 `BIJI_WORKBENCH_DATA_ROOT` 后，限定变更包的 `npm run verify:full -- --change selectable-case-hash-algorithm` 最终通过，包含架构、类型、治理、资产、全量测试、构建和 strict docs；scoped `git diff --check` 通过。
 
 ## 非目标
 
@@ -156,5 +170,5 @@ spec_sync_evidence: 2026-08-25 用户审计反馈将正式合同从“固定内�
 - 不支持 CRC32、SHA-384、SHA-512 或自定义算法，不允许多选。
 - 不重命名现有模板占位符和 legacy `md5_hash` JSON 键，不进行破坏性数据库迁移。
 - 不修改报告缓存、上下文绑定、发布记录、图片资产等非案件文件哈希使用的内部 SHA-256。
-- 不用 HashMyFiles 替代后台归档 `hashlib`，不把统一导出迁移为新的 durable 后台任务。
+- 不用 HashMyFiles 替代后台归档 `hashlib`，不把 HashMyFiles 接入检查笔录统一导出，不把统一导出迁移为新的 durable 后台任务。
 - 不归档其他变更包，不提交用户现有未提交修改。

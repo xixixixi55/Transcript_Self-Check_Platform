@@ -317,11 +317,11 @@ describe('guided review projection', () => {
 
     const archiving = deriveGuidedReviewProjection({
       ...buildInput(), lifecycle: 'archiving',
-      archiveTask: { ...archiveTask, stage: 'md5', stage_label: '生成校验值' },
+      archiveTask: { ...archiveTask, stage: 'hash', stage_label: '生成校验值' },
       photoState: 'uploading',
     })
     expect(archiving.history).toContainEqual(expect.objectContaining({
-      id: 'archive-stage-md5', title: '后台归档处理中', detail: expect.stringContaining('正在生成文件校验值'),
+      id: 'archive-stage-hash', title: '后台归档处理中', detail: expect.stringContaining('正在生成文件校验值'),
     }))
     expect(archiving.systemStatus?.title).toBe('正在保存图片')
 

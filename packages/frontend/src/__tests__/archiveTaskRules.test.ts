@@ -49,7 +49,7 @@ describe('Phase 3 archive workflow milestone contract', () => {
     expect(ARCHIVE_WORKFLOW_MILESTONE_PERCENTS).toEqual([0, 10, 20, 30, 75, 85, 90, 95, 100])
     expect(ARCHIVE_WORKFLOW_MILESTONES.map(item => item.stage)).toEqual([
       'queued', 'inventory', 'preflight_verified', 'winrar', 'integrity',
-      'integrity_verified', 'md5', 'manifest', 'completed',
+      'integrity_verified', 'hash', 'manifest', 'completed',
     ])
     expect(ARCHIVE_WORKFLOW_MILESTONES[3]).toEqual({
       stage: 'winrar', percent: 30, label: '正在创建 RAR 分卷',
@@ -60,7 +60,7 @@ describe('Phase 3 archive workflow milestone contract', () => {
     expect(isLegalArchiveStageTransition('queued', 'inventory')).toBe(true)
     expect(isLegalArchiveStageTransition('winrar', 'winrar')).toBe(true)
     expect(isLegalArchiveStageTransition('winrar', 'integrity')).toBe(true)
-    expect(isLegalArchiveStageTransition('winrar', 'md5')).toBe(false)
+    expect(isLegalArchiveStageTransition('winrar', 'hash')).toBe(false)
     expect(isLegalArchiveStageTransition('integrity', 'winrar')).toBe(false)
   })
 

@@ -83,7 +83,7 @@ def mark_publish_phase(service: ArchiveAttemptService, attempt_id: str, phase: s
 def complete_verified(
     service: ArchiveAttemptService, attempt_id: str, registry: ArchiveManifestRepository,
     manifest_record: Any, *, recovery: bool = False,
-    verified_md5s: dict[str, str] | None = None,
+    verified_hashes: dict[str, str] | None = None,
     verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
 ) -> dict[str, Any]:
     attempt = service.repository.get_internal(attempt_id)
@@ -158,7 +158,7 @@ def complete_verified(
         publication_digest=intent.get("publication_digest"),
     )
     if validate_manifest_files(
-        record, verified_md5s=verified_md5s,
+        record, verified_hashes=verified_hashes,
         verified_file_identities=verified_file_identities,
     ) is not None:
         registry.mark_invalid(indexed.manifest_id)
@@ -237,7 +237,7 @@ def record_attempt_completion(
     attempt_service: ArchiveAttemptService | None, attempt_id: str | None,
     registry: Any, context: Any, archive_fingerprint: str, manifest_record: Any,
     context_binding_id: str | None = None,
-    *, verified_md5s: dict[str, str] | None = None,
+    *, verified_hashes: dict[str, str] | None = None,
     verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
 ) -> None:
     if attempt_service is None or attempt_id is None:
@@ -257,7 +257,7 @@ def record_attempt_completion(
     try:
         if intent["phase"] == "intent_persisted":
             if validate_manifest_files(
-                manifest_record, verified_md5s=verified_md5s,
+                manifest_record, verified_hashes=verified_hashes,
                 verified_file_identities=verified_file_identities,
             ) is not None:
                 raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_INVALID")
@@ -289,7 +289,7 @@ def record_attempt_completion(
             mark_publish_phase(attempt_service, attempt_id, "indexed")
         complete_verified(
             attempt_service, attempt_id, registry, manifest_record,
-            verified_md5s=verified_md5s,
+            verified_hashes=verified_hashes,
             verified_file_identities=verified_file_identities,
         )
     except WorkbenchPersistenceError as error:

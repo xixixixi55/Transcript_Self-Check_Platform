@@ -11,6 +11,7 @@ from ...repository.archive.archive_manifest_repository import ArchiveManifestRep
 from ...repository.archive.archive_plan_repository import ArchivePlanRepository
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.archive.archive_task_repository import ArchiveTaskRepository
+from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash
 from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
 from .archive_manifest_service import validate_manifest_files, validate_manifest_metadata
@@ -63,6 +64,7 @@ class ArchiveTaskResultService:
         }
         parts = []
         for part in manifest.public_manifest["parts"]:
+            hash_algorithm, hash_value = manifest_part_business_hash(part)
             mapping = disc_by_ordinal.get(part["part_number"], {}) or {}
             mapping_confirmed = mapping.get("confirmation") == "confirmed"
             disc_number = str(mapping.get("disc_number") or "") if mapping_confirmed else ""
@@ -76,7 +78,8 @@ class ArchiveTaskResultService:
                 "part_id": part["part_id"],
                 "filename": part["filename"],
                 "size_bytes": part["size_bytes"],
-                "md5": str(part["md5"]).upper(),
+                "hash_algorithm": hash_algorithm,
+                "hash_value": hash_value.upper(),
                 "disc_number": disc_number,
                 "disc_date": disc_date,
             })

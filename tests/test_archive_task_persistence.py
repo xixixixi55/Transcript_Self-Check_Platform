@@ -147,6 +147,30 @@ def test_restart_projection_and_legacy_defaults(database: WorkbenchDatabase) -> 
     assert legacy["worker_state"] == "waiting_reclaim"
 
 
+def test_restart_projects_legacy_md5_stage_and_rewrites_it_on_recovery(
+    database: WorkbenchDatabase,
+) -> None:
+    repository = ArchiveTaskRepository(database)
+    queued = create_task(repository)
+    with database.transaction() as connection:
+        connection.execute(
+            "UPDATE task_records SET status='running',stage='md5' WHERE task_id=?",
+            (queued["task_id"],),
+        )
+
+    reopened = ArchiveTaskRepository(
+        WorkbenchDatabase(database.database_path, "SYNTHETIC-T013")
+    )
+    assert reopened.get(queued["task_id"])["stage"] == "hash"
+    recovered = reopened.recover_after_restart()
+    assert recovered[0]["stage"] == "hash"
+    with database.connect() as connection:
+        persisted_stage = connection.execute(
+            "SELECT stage FROM task_records WHERE task_id=?", (queued["task_id"],),
+        ).fetchone()[0]
+    assert persisted_stage == "hash"
+
+
 def test_safe_card_summary_and_exact_winrar_milestone(database: WorkbenchDatabase) -> None:
     repository = ArchiveTaskRepository(database)
     queued = create_task(repository)

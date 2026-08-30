@@ -13,6 +13,7 @@ from .archive_manifest_output_security_service import compute_manifest_disc_capa
 from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord, ArchiveRuntimeError
 from ..export.export_gate_service import ExportGateCode, ExportGateIssue
+from ..integrity.hash_algorithm_service import report_hash_algorithm
 
 
 class ArchiveGateError(ArchiveRuntimeError):
@@ -35,6 +36,10 @@ def archive_report_fingerprint(
             inventory.source_root,
         ),
     }
+    hash_algorithm = report_hash_algorithm(report)
+    if hash_algorithm != "md5":
+        # 保留旧 MD5 指纹兼容；非 MD5 案件显式绑定算法，防止跨算法复用。
+        payload["hash_algorithm"] = hash_algorithm
     return hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode()
     ).hexdigest()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import json
 import sys
 import threading
@@ -47,12 +48,18 @@ def manifest() -> dict:
         "manifest_id": "SYNTHETIC-MANIFEST-1",
         "parts": [
             {
-                "filename": "SYNTHETIC-CASE.part1.rar", "size_bytes": 4,
-                "md5": "a" * 32, "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
+                "filename": "SYNTHETIC-CASE.part1.rar",
+                "hash_algorithm": "md5",
+                "hash_value": hashlib.md5(b"SYNTHETIC/RAR").hexdigest(),
+                "size_bytes": len(b"SYNTHETIC/RAR"),
+                "disc_number": "GP20260718-01", "disc_date": "2026-07-18",
             },
             {
-                "filename": "SYNTHETIC-CASE.part2.rar", "size_bytes": 4,
-                "md5": "b" * 32, "disc_number": "GP20260718-02", "disc_date": "2026-07-18",
+                "filename": "SYNTHETIC-CASE.part2.rar",
+                "hash_algorithm": "md5",
+                "hash_value": hashlib.md5(b"SYNTHETIC/RAR").hexdigest(),
+                "size_bytes": len(b"SYNTHETIC/RAR"),
+                "disc_number": "GP20260718-02", "disc_date": "2026-07-18",
             },
         ],
     }
@@ -143,8 +150,8 @@ def test_unified_export_does_not_invoke_hashmyfiles_screenshot(tmp_path, monkeyp
 
     monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
     monkeypatch.setattr(
-        unified_export_service, "generate_verification_image", fail_if_called,
-        raising=False,
+        "app.services.integrity.hashmyfiles_service.generate_verification_image",
+        fail_if_called,
     )
 
     result = unified_export(
@@ -298,7 +305,7 @@ def test_unified_export_requires_disc_mapping(database, tmp_path) -> None:
 def test_unified_export_missing_part_fails(database, tmp_path) -> None:
     final_dir = tmp_path / "SYNTHETIC-FINAL-3"
     final_dir.mkdir(parents=True)
-    (final_dir / "SYNTHETIC-CASE.part1.rar").write_bytes(b"x")
+    (final_dir / "SYNTHETIC-CASE.part1.rar").write_bytes(b"SYNTHETIC/RAR")
     with pytest.raises(UnifiedExportError) as error:
         unified_export(
             report={}, manifest=manifest(), final_dir=final_dir,

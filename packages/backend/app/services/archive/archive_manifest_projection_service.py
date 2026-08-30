@@ -119,17 +119,27 @@ def _ordered_manifest_parts(manifest: Mapping[str, Any]) -> list[Mapping[str, An
     if not isinstance(raw_parts, list) or not raw_parts:
         raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档清单必须包含实际分卷。")
     parts: list[Mapping[str, Any]] = []
+    algorithms: set[str] = set()
     for part in raw_parts:
         if not isinstance(part, Mapping):
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷结构无效。")
         number = part.get("part_number")
+        try:
+            algorithm, _ = manifest_part_business_hash(part)
+        except ValueError as error:
+            raise AttachmentPlanError(
+                "ARCHIVE_MANIFEST_INVALID", "归档分卷字段无效。",
+            ) from error
         if (isinstance(number, bool) or not isinstance(number, int) or number < 1
-                or not _text(part.get("filename")) or not _text(part.get("md5"))):
+                or not _text(part.get("filename"))):
             raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷字段无效。")
+        algorithms.add(algorithm)
         parts.append(part)
     parts.sort(key=lambda item: int(item["part_number"]))
     if [int(item["part_number"]) for item in parts] != list(range(1, len(parts) + 1)):
         raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷序号不连续。")
+    if len(algorithms) != 1:
+        raise AttachmentPlanError("ARCHIVE_MANIFEST_INVALID", "归档分卷哈希算法不一致。")
     return parts
 
 

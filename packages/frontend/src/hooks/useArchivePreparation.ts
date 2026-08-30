@@ -167,7 +167,7 @@ export function usePreviewArchive(
         result: {
           ...current.inspection.result,
           rar_filename: parts.map(part => part.filename).join('、'),
-          md5_hash: parts.map(part => part.md5).join('、'),
+          md5_hash: parts.map(part => part.hash_value ?? part.md5).join('、'),
           file_size: parts.map(part => String(part.size_bytes)).join('、'),
         },
       },

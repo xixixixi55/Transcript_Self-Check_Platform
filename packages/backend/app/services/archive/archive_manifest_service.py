@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from ...repository.archive.archive_hash_repository import compute_md5_streaming
-from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash, normalize_hash_algorithm
+from ...repository.archive.archive_hash_repository import compute_hash_streaming
+from ...repository.integrity.hash_algorithm_repository import (
+    manifest_part_business_hash,
+    normalize_hash_algorithm,
+    normalize_hash_digest,
+)
 from ...repository.archive.archive_validator_repository import ArchiveValidationResult
 from ...repository.archive.winrar_discovery_repository import WinRarCapability
 from ..disc.disc_sequence_service import generate_disc_numbers, parse_disc_sequence, validate_disc_mapping
 from .archive_staging_security_service import OWNERSHIP_MARKER_NAME
-from ..integrity.hash_algorithm_service import archive_business_hash
 from .archive_manifest_output_security_service import (
     assert_safe_output_file as _assert_safe_output_file, compute_disc_capacity,
     compute_manifest_disc_capacity as _expected_disc_capacity,
@@ -61,9 +63,8 @@ def assemble_archive_manifest(
     capability: WinRarCapability,
     *,
     retry_count: int,
-    verified_md5s: dict[str, str] | None = None,
-    business_hash_algorithm: str = "md5",
-    verified_business_hashes: dict[str, str] | None = None,
+    hash_algorithm: str = "md5",
+    verified_hashes: dict[str, str] | None = None,
 ) -> tuple[dict[str, object], dict[str, Path]]:
     if not validation.valid or not validation.parts:
         raise ValueError("ARCHIVE_PARTS_INVALID")
@@ -86,30 +87,29 @@ def assemble_archive_manifest(
     internal_paths: dict[str, Path] = {}
     total_archive_bytes = 0
     try:
-        business_algorithm = normalize_hash_algorithm(business_hash_algorithm)
+        selected_algorithm = normalize_hash_algorithm(hash_algorithm)
     except ValueError as error:
         raise ValueError("ARCHIVE_HASH_ALGORITHM_INVALID") from error
     for part, disc_number in zip(validation.parts, actual_disc_numbers, strict=True):
-        md5 = (
-            verified_md5s.get(part.filename)
-            if verified_md5s is not None
-            else compute_md5_streaming(part.path, validation.parts[0].path.parent)
+        selected_hash = (
+            verified_hashes.get(part.filename)
+            if verified_hashes is not None
+            else compute_hash_streaming(
+                part.path, validation.parts[0].path.parent, selected_algorithm,
+            )
         )
-        if not isinstance(md5, str) or not re.fullmatch(r"[0-9a-fA-F]{32}", md5):
-            raise ValueError("ARCHIVE_PARTS_INVALID")
-        business_hash = archive_business_hash(
-            part.path, validation.parts[0].path.parent, business_algorithm,
-            md5, verified_business_hashes,
-        )
+        try:
+            selected_hash = normalize_hash_digest(selected_algorithm, selected_hash)
+        except ValueError as error:
+            raise ValueError("ARCHIVE_PARTS_INVALID") from error
         disc_capacity = _expected_disc_capacity(part.size_bytes, archive_mode)
         public_part = {
             "part_id": str(uuid4()),
             "part_number": part.part_number,
             "filename": part.filename,
             "size_bytes": part.size_bytes,
-            "md5": md5,
-            "hash_algorithm": business_algorithm,
-            "hash_value": business_hash,
+            "hash_algorithm": selected_algorithm,
+            "hash_value": selected_hash,
             "disc_number": disc_number,
             "disc_date": disc_date,
             "volume_size_bytes": plan.volume_size_bytes,
@@ -140,7 +140,7 @@ def assemble_archive_manifest(
     return manifest, internal_paths
 
 
-def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None = None) -> bool:
+def validate_published_manifest(record, *, verified_hashes: dict[str, str] | None = None) -> bool:
     """在生成 DOCX 或重试前重新检查同次运行的文件。"""
 
     root = Path(record.final_dir).resolve(strict=False)
@@ -163,13 +163,15 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
     volume_size = manifest.get("volume_size_bytes")
     max_part_count = manifest.get("max_part_count")
     actual_total = 0
+    manifest_algorithms: set[str] = set()
     for item in parts:
         if not isinstance(item, dict):
             return False
         try:
-            manifest_part_business_hash(item)
+            hash_algorithm, expected_hash = manifest_part_business_hash(item)
         except ValueError:
             return False
+        manifest_algorithms.add(hash_algorithm)
         disc_number = item.get("disc_number")
         disc_date = item.get("disc_date")
         if disc_number is not None or disc_date is not None:
@@ -241,8 +243,12 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         if isinstance(part_vol, int) and not isinstance(part_vol, bool) and isinstance(volume_size, int) and not isinstance(volume_size, bool):
             if part_vol != volume_size:
                 return False
-        md5 = verified_md5s.get(filename) if verified_md5s is not None else compute_md5_streaming(path, root)
-        if md5 != item.get("md5"):
+        observed_hash = (
+            verified_hashes.get(filename)
+            if verified_hashes is not None
+            else compute_hash_streaming(path, root, hash_algorithm)
+        )
+        if not isinstance(observed_hash, str) or observed_hash.lower() != expected_hash:
             return False
         actual_total += size
     if sorted(numbers) != list(range(1, len(numbers) + 1)):
@@ -258,7 +264,9 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
         return False
     if isinstance(max_part_count, int) and len(parts) > max_part_count:
         return False
-    if verified_md5s is not None and set(verified_md5s) != filenames:
+    if len(manifest_algorithms) != 1:
+        return False
+    if verified_hashes is not None and set(verified_hashes) != filenames:
         return False
     entries = [entry for entry in root.iterdir() if entry.name != OWNERSHIP_MARKER_NAME]
     if any(not _is_safe_output_file(entry) for entry in entries):
@@ -269,7 +277,7 @@ def validate_published_manifest(record, *, verified_md5s: dict[str, str] | None 
 
 
 def validate_manifest_files(
-    record, *, verified_md5s: dict[str, str] | None = None,
+    record, *, verified_hashes: dict[str, str] | None = None,
     verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
 ) -> str | None:
     """为已发布的 Manifest 文件返回稳定的完整性错误码。"""
@@ -286,18 +294,21 @@ def validate_manifest_files(
     root = Path(record.final_dir).resolve(strict=False)
     if not isinstance(parts, list) or not parts or not root.is_dir():
         return "ARCHIVE_MANIFEST_PART_MISSING"
-    observed_md5s: dict[str, str] = {}
+    observed_hashes: dict[str, str] = {}
+    manifest_algorithms: set[str] = set()
     for item in parts:
         if not isinstance(item, dict):
             return "ARCHIVE_MANIFEST_INVALID"
         filename = item.get("filename")
-        md5 = item.get("md5")
         size_bytes = item.get("size_bytes")
+        try:
+            hash_algorithm, expected_hash = manifest_part_business_hash(item)
+        except ValueError:
+            return "ARCHIVE_MANIFEST_INVALID"
+        manifest_algorithms.add(hash_algorithm)
         if (
             not isinstance(filename, str)
             or Path(filename).name != filename
-            or not isinstance(md5, str)
-            or not re.fullmatch(r"[0-9a-fA-F]{32}", md5)
             or not isinstance(size_bytes, int)
             or isinstance(size_bytes, bool)
             or size_bytes <= 0
@@ -352,47 +363,57 @@ def validate_manifest_files(
             return "ARCHIVE_MANIFEST_PART_MISSING"
         if size != size_bytes:
             return "ARCHIVE_MANIFEST_PART_CHANGED"
-        observed_md5s[filename] = (
-            verified_md5s.get(filename)
-            if verified_md5s is not None
-            else compute_md5_streaming(path, root)
+        observed_hashes[filename] = (
+            verified_hashes.get(filename)
+            if verified_hashes is not None
+            else compute_hash_streaming(path, root, hash_algorithm)
         )
-        if observed_md5s[filename] != md5:
+        if (
+            not isinstance(observed_hashes[filename], str)
+            or observed_hashes[filename].lower() != expected_hash
+        ):
             return "ARCHIVE_MANIFEST_PART_CHANGED"
-    if verified_md5s is not None and set(verified_md5s) != set(observed_md5s):
+    if len(manifest_algorithms) != 1:
+        return "ARCHIVE_MANIFEST_INVALID"
+    if verified_hashes is not None and set(verified_hashes) != set(observed_hashes):
         return "ARCHIVE_MANIFEST_INVALID"
     if verified_file_identities is not None and (
-        set(verified_file_identities) != set(observed_md5s)
+        set(verified_file_identities) != set(observed_hashes)
         or not archive_file_identities_match(root, verified_file_identities)
     ):
         return "ARCHIVE_MANIFEST_PART_CHANGED"
     return None if validate_published_manifest(
-        record, verified_md5s=observed_md5s,
+        record, verified_hashes=observed_hashes,
     ) else "ARCHIVE_MANIFEST_INVALID"
 
 
 def validate_manifest_metadata(record) -> str | None:
     """验证已认证的 Manifest 标识和物理元数据，不执行内容 I/O。
 
-    调用方必须先根据持久发布摘要认证 Manifest 及其 MD5 值。正式下载、导出和复用
+    调用方必须先根据持久发布摘要认证 Manifest 及其所选哈希。正式下载、导出和复用
     路径仍在不提供可信哈希的情况下调用 `validate_manifest_files`。
     """
 
     parts = record.public_manifest.get("parts")
     if not isinstance(parts, list) or not parts:
         return "ARCHIVE_MANIFEST_INVALID"
-    trusted_md5s: dict[str, str] = {}
+    trusted_hashes: dict[str, str] = {}
+    algorithms: set[str] = set()
     for item in parts:
         if not isinstance(item, dict):
             return "ARCHIVE_MANIFEST_INVALID"
         filename = item.get("filename")
-        md5 = item.get("md5")
+        try:
+            algorithm, digest = manifest_part_business_hash(item)
+        except ValueError:
+            return "ARCHIVE_MANIFEST_INVALID"
         if (
             not isinstance(filename, str)
-            or filename in trusted_md5s
-            or not isinstance(md5, str)
-            or not re.fullmatch(r"[0-9a-fA-F]{32}", md5)
+            or filename in trusted_hashes
         ):
             return "ARCHIVE_MANIFEST_INVALID"
-        trusted_md5s[filename] = md5
-    return validate_manifest_files(record, verified_md5s=trusted_md5s)
+        algorithms.add(algorithm)
+        trusted_hashes[filename] = digest
+    if len(algorithms) != 1:
+        return "ARCHIVE_MANIFEST_INVALID"
+    return validate_manifest_files(record, verified_hashes=trusted_hashes)

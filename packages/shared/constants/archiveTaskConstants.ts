@@ -15,7 +15,7 @@ export const ARCHIVE_WORKFLOW_MILESTONES = [
   { stage: 'winrar', percent: 30, label: '正在创建 RAR 分卷' },
   { stage: 'integrity', percent: 75, label: 'RAR 分卷创建完成，正在校验' },
   { stage: 'integrity_verified', percent: 85, label: '分卷完整性校验通过' },
-  { stage: 'md5', percent: 90, label: '正在计算 MD5' },
+  { stage: 'hash', percent: 90, label: '正在计算文件哈希' },
   { stage: 'manifest', percent: 95, label: '正在写入并验证 Manifest' },
   { stage: 'completed', percent: 100, label: '归档完成' },
 ] as const satisfies readonly {
@@ -37,8 +37,8 @@ export const ARCHIVE_STAGE_TRANSITIONS: Readonly<
   preflight_verified: ['preflight_verified', 'winrar'],
   winrar: ['winrar', 'integrity'],
   integrity: ['integrity', 'integrity_verified'],
-  integrity_verified: ['integrity_verified', 'md5'],
-  md5: ['md5', 'manifest'],
+  integrity_verified: ['integrity_verified', 'hash'],
+  hash: ['hash', 'manifest'],
   manifest: ['manifest', 'completed'],
   completed: ['completed'],
 }

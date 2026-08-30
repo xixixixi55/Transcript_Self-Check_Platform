@@ -144,6 +144,7 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
       expect(onFirstDiscNumberChange).toHaveBeenCalledWith('GP20260731-002')
     })
     expect(screen.getByText('归档完成')).toBeTruthy()
+    expect(screen.getByText(/全部 RAR、文件哈希与盘号已对应完成/)).toBeTruthy()
   })
 
   it('allows an exported case to remap with the displayed plan revision', async () => {
@@ -161,6 +162,8 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
       planRowRevision: 6,
       parts: [{ disc_number: 'GP20260731-005' }, { disc_number: 'GP20260731-006' }],
     })
+    expect(screen.getByText('统一导出已完成，可再次导出获取最新 Word 与 RAR。')).toBeTruthy()
+    expect(screen.queryByText(/截图|PNG/)).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: '首个光盘编号' }), {
       target: { value: 'GP20260731-007' },
     })

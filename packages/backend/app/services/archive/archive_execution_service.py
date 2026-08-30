@@ -251,8 +251,7 @@ def execute_archive(
                 raise ArchiveGateError((ExportGateIssue(code, "archive", validation.safe_message),))
             try:
                 publication_attempt = 0
-                verified_output_md5s: dict[str, str] | None = None
-                verified_business_hashes: dict[str, str] | None = None
+                verified_output_hashes: dict[str, str] | None = None
                 while True:
                     publication_report = report
                     publication_snapshot = None
@@ -291,21 +290,15 @@ def execute_archive(
                         content_fingerprint=context.input_fingerprint,
                     )
                     observe_stage(stage_observer, "integrity_verified")
-                    observe_stage(stage_observer, "md5")
+                    observe_stage(stage_observer, "hash")
                     business_algorithm = report_hash_algorithm(publication_report)
                     public_manifest, _ = assemble_archive_manifest(
                         plan, validation, winrar, retry_count=retry_count,
-                        verified_md5s=verified_output_md5s,
-                        business_hash_algorithm=business_algorithm,
-                        verified_business_hashes=verified_business_hashes,
+                        hash_algorithm=business_algorithm,
+                        verified_hashes=verified_output_hashes,
                     )
-                    if verified_output_md5s is None:
-                        verified_output_md5s = {
-                            str(part["filename"]): str(part["md5"])
-                            for part in public_manifest["parts"]
-                        }
-                    if verified_business_hashes is None:
-                        verified_business_hashes = {
+                    if verified_output_hashes is None:
+                        verified_output_hashes = {
                             str(part["filename"]): str(part["hash_value"])
                             for part in public_manifest["parts"]
                         }
@@ -331,7 +324,7 @@ def execute_archive(
                             expected_report_fingerprint=(
                                 publication_snapshot.report_fingerprint if publication_snapshot else None
                             ),
-                            verified_md5s=verified_output_md5s,
+                            verified_hashes=verified_output_hashes,
                         )
                         break
                     except WorkbenchPersistenceError as error:
@@ -378,7 +371,7 @@ def execute_archive(
                     raise
             record_attempt_completion(
                 attempt_service, attempt_id, registry, context, fingerprint, record,
-                workbench_context_id, verified_md5s=verified_output_md5s,
+                workbench_context_id, verified_hashes=verified_output_hashes,
                 verified_file_identities=verified_output_identities,
             )
             try:  # 计划投影仅尽力执行；归档已经成功

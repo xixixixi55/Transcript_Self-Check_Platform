@@ -190,13 +190,13 @@ class ArchiveAttemptService:
 
     def complete_verified(
         self, attempt_id: str, registry: Any, manifest_record: Any, *,
-        recovery: bool = False, verified_md5s: dict[str, str] | None = None,
+        recovery: bool = False, verified_hashes: dict[str, str] | None = None,
         verified_file_identities: dict[str, ArchiveFileIdentity] | None = None,
     ) -> dict[str, Any]:
         from .archive_attempt_completion_service import complete_verified
         return complete_verified(
             self, attempt_id, registry, manifest_record,
-            recovery=recovery, verified_md5s=verified_md5s,
+            recovery=recovery, verified_hashes=verified_hashes,
             verified_file_identities=verified_file_identities,
         )
 

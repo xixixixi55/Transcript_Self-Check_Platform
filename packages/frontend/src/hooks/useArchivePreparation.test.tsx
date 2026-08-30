@@ -15,7 +15,10 @@ const report = {
 } as InspectionReport
 const manifest = {
   manifest_id: 'manifest-1',
-  parts: [{ part_id: 'part-1', filename: '合成案件.rar', size_bytes: 4, md5: 'a'.repeat(32) }],
+  parts: [{
+    part_id: 'part-1', filename: '合成案件.rar', size_bytes: 4,
+    hash_algorithm: 'sha1', hash_value: 'a'.repeat(40),
+  }],
 } as ArchiveManifest
 const attachmentPreview = {
   columns: [{ key: 'electronic_data', title: '电子数据' }],

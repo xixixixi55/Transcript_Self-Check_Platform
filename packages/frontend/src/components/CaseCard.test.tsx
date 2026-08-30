@@ -152,7 +152,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
   it.each([
     ['inventory', '正在核对文件清单与路径', 10, 2],
     ['integrity', 'RAR 分卷创建完成，正在校验', 75, 5],
-    ['md5', '正在计算 MD5', 90, 7],
+    ['hash', '正在计算文件哈希', 90, 7],
     ['manifest', '正在写入并验证 Manifest', 95, 8],
   ] as const)('shows confirmed workflow stage %s without inferred internal progress', (stage, label, percent, stageIndex) => {
     renderCard(summary({ stage, stage_label: label, percent, stage_index: stageIndex }))

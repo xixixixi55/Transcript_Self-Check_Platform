@@ -211,9 +211,9 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 #### Scenario: Legacy 兼容入口生成并核对真实归档
 - WHEN Legacy 兼容客户端的解析结果已建立 `ArchiveContext`、首个光盘编号有效且显式调用独立归档入口
 - THEN 系统异步启动真实 WinRAR 归档，不阻塞其他报告字段的审核和编辑
-- AND 归档区域按真实执行阶段显示等待开始、压缩中、完整性校验中、MD5计算中、已完成或失败
-- AND 已完成时只展示 validated `ArchiveManifest.parts` 中每个实际 RAR 的文件名、精确字节数、可读大小、MD5、分卷序号、光盘容量、状态和独立下载入口
-- AND 后端使用与 Word 相同的 Manifest→legacy附件投影生成附件1预览表格，前端显示每个 part 的文件名、审核后检材来源、案件提取方式快照（缺失时使用自动生成值）和MD5；不得继续显示解析期空表或旧 `rar_info`
+- AND 归档区域按真实执行阶段显示等待开始、压缩中、完整性校验中、文件哈希计算中、已完成或失败
+- AND 已完成时只展示 validated `ArchiveManifest.parts` 中每个实际 RAR 的文件名、精确字节数、可读大小、案件所选文件哈希、分卷序号、光盘容量、状态和独立下载入口
+- AND 后端使用与 Word 相同的 Manifest→legacy附件投影生成附件1预览表格，前端显示每个 part 的文件名、审核后检材来源、案件提取方式快照（缺失时使用自动生成值）和案件所选文件哈希；不得继续显示解析期空表或旧 `rar_info`
 - AND WinRAR 不可用或归档失败时仍允许继续审核和编辑，但正式 Word 导出保持阻止
 
 ### Requirement: REQ-006: 检查过程自动生成
@@ -295,7 +295,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - WHEN 用户进入“笔录默认设置”页面
 - THEN 系统展示当前委托单位前缀、文号格式、检查地点、检查方法、检查硬件设备、数据摘要、检查要求、有序检查人员和文件哈希算法
 - AND 文号格式由编号前内容和编号后内容组成，并展示使用示例；设置页不要求用户输入技术占位符
-- AND 页面不展示或提交光盘编号前缀及附件1提取方式，不展示当前版本及案件基础信息、文件哈希算法、检查人员顺序下方的说明提示
+- AND 页面不展示或提交光盘编号前缀及附件1提取方式，不展示当前版本及案件基础信息、检查人员顺序下方的说明提示
 - AND 用户可显式保存一个或多个修改，或用空值清除对应默认设置
 - AND 检查硬件设备使用与审核编辑相同的下拉选择能力，候选项来自“电子设备管理”，不得自由输入未管理设备
 - AND 检查人员使用与审核编辑相同的人员库卡片编辑器，支持添加、删除和拖拽调整保存顺序
@@ -520,7 +520,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - WHEN 民警在审核编辑界面点击「导出 Word」、确认文件名并在 Windows 原生目录选择器中选择目录
 - THEN 系统使用导出时刻已保存的最新审核数据生成 `.docx`，并将其直接写入所选目录
 - AND 案件已有成功归档时，单独 Word 导出复用统一导出的已验证最终 `ArchiveManifest`、持久化光盘映射和 `AttachmentPlan`，附件一及其他附件的结构和版式保持一致
-- AND 附件1的“电子数据”、“提取方法”和“文件MD5哈希值”数据单元格在首页与续页均允许西文在单词中间换行
+- AND 附件1的“电子数据”、“提取方法”和案件所选“文件哈希值”数据单元格在首页与续页均允许西文在单词中间换行
 - AND 附件1的“来源”将每个检材编号单独换行显示，编号间保留顿号，“检材内提取”在编号后单独占一行
 - AND 案件尚无成功归档时继续使用 report-only 兼容分支，不伪造 `ArchiveManifest` 或归档完成状态
 - AND 单独 Word 导出复用统一导出的目录授权、路径校验、目录记忆和文件名清洗规则，不再触发浏览器下载
@@ -538,9 +538,9 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - AND 所选目录位于文枢程序目录或用户数据目录中时，系统必须在签发目录授权和写入任何文件前明确拒绝，不得污染便携发布包或内部工作数据
 - AND 生产 Controller 使用审核后的 `InspectionReport` legacy DTO 和已验证的最终 `ArchiveManifest` 构造 `AttachmentPlan`
 - AND Word 使用案件明确引用且当前重新校验通过的 approved 模板版本生成 .docx；带 Manifest 的正式渲染失败时必须明确失败，不得静默回退到无 Manifest 的 officecli batch 输出
-- AND 检查笔录的统一导出不得启动 HashMyFiles 或生成校验截图；现有截图能力保留，供后续鉴定文书流程接入
+- AND 检查笔录统一导出不得启动 HashMyFiles 或生成校验截图；现有三算法截图能力保留，等待鉴定文书模块接入
 - AND Word 与 RAR 副本必须先完整暂存后统一发布；任一步失败时保留上一版完整导出，不得形成新旧产物混合包
-- AND 再次导出到含旧 `hash-verification.png` 或 `hash-verification.html` 的同一目录时，成功发布必须移除这些历史校验产物；发布失败则恢复旧完整导出
+- AND Word 与 RAR 必须同批原子发布；再次导出到含旧 `hash-verification.png` 或 `hash-verification.html` 的同一目录时，成功发布移除这些历史产物，发布失败恢复上一版完整导出
 
 #### Scenario: 可重复导出且 Word 用最新编辑
 - WHEN 案件已导出成功后民警再次导出
@@ -561,7 +561,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 
 #### Scenario: Legacy 安全门控和 Shadow 边界
 - WHEN 案件满足导出条件并开始正式输出
-- THEN 继续执行完整 inventory、路径/链接/文件变化、WinRAR、完整性、MD5、Manifest 和 Word 门控
+- THEN 继续执行完整 inventory、路径/链接/文件变化、WinRAR、完整性、案件所选文件哈希、Manifest 和 Word 门控
 - AND 任一门控失败都不得发布正式导出成功状态
 - AND 导出路径写入失败、磁盘不可写或文件被占用时明确报错，不标记已导出
 - WHEN 本变更的案件、任务或模板流程运行
@@ -569,7 +569,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 
 #### Scenario: 机械盘大体积统一导出不被固定请求上限提前截断
 - WHEN 已验证 RAR 总体积使暂存复制在机械盘上可能超过既有固定请求上限
-- THEN 前端必须根据全部实际分卷字节数，为复制一遍和固定编排余量动态计算有界请求上限，不得再叠加 HashMyFiles 预算
+- THEN 前端必须根据全部实际分卷字节数，为复制一遍和固定编排余量动态计算有界请求上限，不得叠加未接入的 HashMyFiles 预算
 - AND 默认预算按 0.1 MB/s 的保守单任务有效吞吐计算，从而覆盖观测到的 0.3 MB/s 机械盘并行部署场景并保留额外安全余量
 - AND 客户端最大请求上限为 30 天，必须与该低吞吐预算可覆盖的最大支持体积一致，不得由旧 24 小时上限提前截断仍在正常复制的请求
 - AND 大小缺失或非法时安全回退到既有最小请求上限，不得产生无限或负数等待
@@ -714,18 +714,18 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 #### Scenario: 预览归档与正式导出分离
 - WHEN 预览阶段已生成 validated `ArchiveManifest`
 - THEN 正式 Word 只消费该 Manifest，不再次调用 WinRAR
-- AND Word 导出前和每个 part 下载前都重新校验同一物理文件的存在性、精确大小和完整 MD5
-- AND 前端、Manifest、Word 与下载文件的文件名、字节数、MD5及分卷顺序必须一致
+- AND Word 导出前和每个 part 下载前都按 Manifest 绑定算法重新校验同一物理文件的存在性、精确大小和完整摘要
+- AND 前端、Manifest、Word 与下载文件的文件名、字节数、所选算法摘要及分卷顺序必须一致
 
 #### Scenario: 已验证 Manifest 的安全复用
 - WHEN 同一归档上下文、输入目录快照、案件归档基础名和首光盘编号均未变化，且已有已验证 Manifest
 - THEN 文书失败后的同次安全重试可以复用该归档结果而不重复执行 WinRAR
 - AND 盘号后填或盘号修改不破坏 Manifest 复用（盘号从复用指纹中解耦）
-- AND 新的导出请求仍重新验证实际 part 的存在性、大小和完整 MD5
+- AND 新的非统一导出内容访问仍按 Manifest 绑定算法重新验证实际 part 的存在性、大小和完整摘要
 - AND 不影响归档输入的普通表单字段和附件2照片编辑不使 Manifest 失效
 - AND 重新解析案件、输入目录变化或案件归档基础名变化时旧 Manifest 必须失效
-- AND 重新解析同一报告目录时，若原始输入内容指纹、归档审核指纹和已登记 Manifest 均未变化，且所有 RAR 分卷存在、大小和 MD5 校验有效，则允许跨新 archive context 复用已有 Manifest/RAR
-- AND 若 RAR 缺失、大小变化或 MD5 不一致，禁止复用并重新生成归档；旧归档文件由独立归档生命周期策略处理
+- AND 重新解析同一报告目录时，若原始输入内容指纹、归档审核指纹和已登记 Manifest 均未变化，且所有 RAR 分卷存在、大小和 Manifest 所选算法摘要校验有效，则允许跨新 archive context 复用已有 Manifest/RAR
+- AND 若 RAR 缺失、大小变化或所选算法摘要不一致，禁止复用并重新生成归档；旧归档文件由独立归档生命周期策略处理
 - AND 解析缓存被 LRU 淘汰或一键清空不会删除已验证 RAR、Manifest、当前页面下载或 Word 导出所需的运行时登记
 
 #### Scenario: 稍后压缩可恢复
@@ -771,13 +771,13 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - THEN 民警仍可查看、编辑并保存案件草稿，压缩在后台独立推进
 - AND 审核编辑不改变已密封快照；压缩产物只由快照与归档计划决定，不因编辑中途变化
 - AND 任意审核字段或图片引用的合法保存不得使归档任务进入中断/失败，也不得因审核内容变化触发 `ARCHIVE_ATTEMPT_BINDING_STALE`
-- AND 压缩、完整性、MD5 与 Manifest 各阶段完成状态实时反映在案件卡片上
+- AND 压缩、完整性、文件哈希与 Manifest 各阶段完成状态实时反映在案件卡片上
 
 #### Scenario: 压缩期间上传图片可靠绑定到最新草稿
 - WHEN 民警启动后台压缩后在审核编辑界面上传图片
 - THEN 图片上传完成后系统立即保存图片资产引用及其检材映射，且页面离开前必须等待该保存完成
 - AND 若保存发生在归档正式发布的短临界区，归档完成事务只把已验证的 RAR 结果合并到最新草稿，不得覆盖新图片引用或其他并发审核编辑
-- AND 若图片保存与归档完成回填发生竞争，系统必须识别仅由归档完成产生的 revision 推进并自动合并重试，不得向审核页面返回 409；最终草稿同时保留图片引用与已验证 RAR/MD5/附件1字段
+- AND 若图片保存与归档完成回填发生竞争，系统必须识别仅由归档完成产生的 revision 推进并自动合并重试，不得向审核页面返回 409；最终草稿同时保留图片引用与已验证 RAR/文件哈希/附件1字段
 - AND 已密封的归档输入快照、RAR 内容和发布证据仍保持不变
 
 ---
@@ -832,19 +832,24 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - WHEN 后端直接读取 `report_dir` 完成文件夹解析
 - THEN `rar_info` 中的空值或零值仅为 legacy 兼容数据，不表示最终归档已完成
 - AND `compress=false` 不能作为 `rar_info=null` 的可靠语义
-- AND 最终归档文件名、大小和 MD5 只来自已验证的 `ArchiveManifest`
+- AND 最终归档文件名、大小和案件所选文件哈希只来自已验证的 `ArchiveManifest`
 
-#### Scenario: Manifest 区分内部 MD5 与案件业务哈希
+#### Scenario: Manifest 只保存并验证案件所选文件哈希
 - WHEN 新案件完成 RAR 归档
-- THEN 每个 `ArchivePart.md5` 继续用于完整性、复用、下载与发布安全门
-- AND 每个 part 同时保存案件 `hash_algorithm` 与对应 `hash_value`
-- AND MD5 案件复用内部 MD5，SHA-1 与 SHA-256 摘要分别为 40 与 64 个十六进制字符
-- AND 旧 Manifest 缺少新增字段时以 MD5 和原 `md5` 兼容投影
+- THEN 每个 part 只保存案件 `hash_algorithm` 与对应 `hash_value`，MD5、SHA-1 与 SHA-256 摘要分别为 32、40 与 64 个十六进制字符
+- AND 完整性、复用、恢复、下载与发布安全门使用同一算法和值，SHA 案件不得额外计算固定 MD5
+- AND 旧 Manifest 缺少新字段且具有合法 `md5` 时以 MD5 兼容投影；新字段不完整或无效时不得回退
 
 #### Scenario: 文书和附件跟随业务哈希
 - WHEN SHA-1 或 SHA-256 案件归档完成
 - THEN 检查结果、附件1列标题、系统自动生成的提取方式、Word 正文和附件3显示所选算法名称与完整大写摘要；案件自定义提取方式快照保持原文
 - AND legacy `md5_hash` 键仅作为兼容载体，不得导致用户界面固定显示 MD5 标签
+
+#### Scenario: 检查笔录统一导出保持无截图
+- WHEN 用户统一导出 MD5、SHA-1 或 SHA-256 案件
+- THEN 系统在进入导出前按 Manifest 所选算法完成内容授权，只原子发布 Word 与全部 RAR
+- AND 不启动 HashMyFiles、不生成 PNG，并在成功发布时清理目标目录中的历史 HashMyFiles PNG/HTML
+- AND HashMyFiles 三算法与三列截图能力等待鉴定文书模块定义生产接线合同
 
 ---
 
@@ -928,7 +933,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - AND 审核编辑界面的 Word 导出保持阻止，直至用户填写原因
 - AND 存量数据生成 Word 时继续使用“无法提取”作为兼容兜底
 
-MD5 校验由 HashMyFiles.exe 执行，新解析案件和存量案件的运行时工具条目均显示 HashMyFiles；存量案件可继续持久化旧值 Python hashlib，读取与正式导出时投影为 HashMyFiles，底层识别逻辑同时兼容两者（`python hashlib`/`python_hashlib` 与 `hashmyfiles`）。
+保留的三算法截图能力由 HashMyFiles.exe 提供，但检查笔录统一导出不调用该能力。新解析案件和存量案件的运行时工具条目仍显示 HashMyFiles；存量案件可继续持久化旧值 Python hashlib，读取与正式导出时投影为 HashMyFiles，底层识别逻辑同时兼容两者（`python hashlib`/`python_hashlib` 与 `hashmyfiles`）。
 
 | 条件 | 名称 | 版本来源 |
 |:---:|------|---------|
@@ -944,7 +949,7 @@ MD5 校验由 HashMyFiles.exe 执行，新解析案件和存量案件的运行�
 
 #### Scenario: HashMyFiles 显示实际校验工具版本
 - WHEN 生成 software_tools
-- THEN 包含"HashMyFiles"，版本号为 `2.51`（MD5 校验由 HashMyFiles.exe 执行）
+- THEN 包含"HashMyFiles"，版本号为 `2.51`（三算法截图能力保留供鉴定文书模块使用，检查笔录统一导出不调用）
 - AND 存量案件即使仍持久化 "Python hashlib"，审核界面与正式导出也统一显示 "HashMyFiles 2.51"
 
 #### Scenario: 主软件候选不完整时不加入主软件工具
@@ -981,17 +986,17 @@ MD5 校验由 HashMyFiles.exe 执行，新解析案件和存量案件的运行�
 #### Scenario: 归档完成后生成附件1
 - WHEN 独立归档执行完成且最终 `ArchiveManifest` 验证通过
 - THEN `AttachmentPlan` 按 Manifest 中每个实际 part 生成一行数据：
-  - 列结构固定为：序号、电子数据、来源、提取方式、文件MD5哈希值
+  - 列结构固定为：序号、电子数据、来源、提取方式、案件所选文件哈希值
   - 电子数据 = 实际 part 文件名
   - 来源 = 审核后的 `evidence_number` 去重并按顺序使用“、”拼接，最后追加“内提取”；同一来源文本供各 part 行使用，不声称每个 part 独立对应一个检材编号
   - 提取方式 = 优先使用案件创建时固化的附件1提取方式快照；快照为空或缺失时使用 `inspection.hardware_device`，缺失硬件时使用“取证设备”，并按案件文件哈希算法生成既有检查、报告、压缩和哈希描述
-  - 文件MD5哈希值 = 该实际 part 的 MD5 哈希值
+  - 案件所选文件哈希值 = 该实际 part 的 `hash_value`
 - AND Word 和附件3使用同一 Manifest，不从 `rar_info`、ArchivePlan 或目录扫描重新生成卷列表
 - AND 附件3每页元数据框依次只显示检验单位、光盘编号、文件哈希和刻录时间，不显示“文件名”行；正文检查结果和附件1仍使用 Manifest 的实际 part 文件名
 
 #### Scenario: 每个 RAR 完成即回填并覆盖
-- WHEN 后台压缩的某个 part 完成并通过完整性/MD5 校验
-- THEN 后端立即将该 part 的文件名、文件大小和 MD5 写入案件记录的检查结果（`rar_filename`、`file_size`、`md5_hash` 对应位置）与附件1（`extract_list`）对应行，实时增量更新
+- WHEN 后台压缩的某个 part 完成并通过完整性与案件所选文件哈希校验
+- THEN 后端立即将该 part 的文件名、文件大小和所选摘要写入案件记录的检查结果（`rar_filename`、`file_size`、legacy `md5_hash` 对应位置）与附件1（`extract_list`）对应行，实时增量更新
 - AND 自动值覆盖 Manifest 控制的文件名、大小和哈希字段；来源列仍按审核后的 `evidence_number` 生成，提取方式优先使用案件快照，快照为空或缺失时使用 `inspection.hardware_device`，缺失硬件时使用「取证设备」
 - AND 未完成 part 对应位置保持未填写，不提前生成空行占位
 
@@ -1152,7 +1157,7 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 #### Scenario: 有界来源身份与输出权威分离
 - WHEN 工作台复核来源或归档发布核对当前来源记录
 - THEN 来源可用性只使用授权 locator、报告结构和核心报告文件有界指纹
-- AND 正式完成仍须通过 durable intent、Manifest、RAR 存在性/字节数/MD5 与发布代次门控
+- AND 正式完成仍须通过 durable intent、Manifest、RAR 存在性/字节数/所选算法摘要与发布代次门控
 
 #### Scenario: 归档中断时保持可恢复且不发布半成品
 - WHEN 归档执行在正式产物验证和可信完成提交前中断，或重启发现未完成归档尝试
@@ -1165,9 +1170,9 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 
 应用停止达到有界等待上限时，属于本部署实例的 pending/running claim MUST 在 owner、attempt、task revision、lease 和 fence 条件仍成立时收敛为现有 `interrupted`/可恢复状态；不得把未完成工作标为 succeeded、completed 或 100%，不得改写其他部署实例的 claim。已经完成 durable 发布并通过可信完成门控的 attempt MUST 保持成功。重复停止、Worker 超时后的迟到返回和重启恢复 MUST 幂等。
 
-用户确认压缩期间不修改源目录后，归档执行 MUST 以 Worker 唯一完整 inventory 的路径、类型、大小和 mtime 作为容量规划与 Manifest 输入统计，WinRAR 直接读取授权源目录。产物生成后不得为证明源目录持续不变而再次执行全目录枚举；完成权威收敛到 RAR 完整性、连续分卷/容量、每卷 MD5、durable intent、Manifest 与发布代次的物理文件校验。
+用户确认压缩期间不修改源目录后，归档执行 MUST 以 Worker 唯一完整 inventory 的路径、类型、大小和 mtime 作为容量规划与 Manifest 输入统计，WinRAR 直接读取授权源目录。产物生成后不得为证明源目录持续不变而再次执行全目录枚举；完成权威收敛到 RAR 完整性、连续分卷/容量、每卷所选算法摘要、durable intent、Manifest 与发布代次的物理文件校验。
 
-正式发布到索引、Manifest/MD5 确认和完成状态提交之间 MUST 继续核对同一 durable intent、fence、public Manifest、文件集合、顺序、字节数和摘要。正式卷、Manifest 或索引被替换、修改、删除、新增或重命名时 MUST 拒绝成功、复用、下载和 Word 导出；恢复遇到部分发布目录也不得直接提升为完成，不得删除或覆盖历史正式资产掩盖冲突。marker MUST 在 durable intent/fence 已建立且正式移动完成后才由明确发布所有者删除一次。
+正式发布到索引、Manifest/所选算法摘要确认和完成状态提交之间 MUST 继续核对同一 durable intent、fence、public Manifest、文件集合、顺序、字节数和摘要。正式卷、Manifest 或索引被替换、修改、删除、新增或重命名时 MUST 拒绝成功、复用、下载和 Word 导出；恢复遇到部分发布目录也不得直接提升为完成，不得删除或覆盖历史正式资产掩盖冲突。marker MUST 在 durable intent/fence 已建立且正式移动完成后才由明确发布所有者删除一次。
 
 归档尝试内部状态为 `accepted | running | succeeded | failed | interrupted`，另有 `cleanup_status` 为 `not_required | pending | succeeded | failed | unknown`。恢复主要处理未完成的 accepted/running；已完成但停在 indexed 的 intent 只允许补写最终 verified，绝不把 succeeded 改回 interrupted。新的用户确认必须创建新的 attempt_id，不得复用旧记录。attempt_id、revision、PID、内部 staging locator 和 marker 摘要只能用于后端归属证明和诊断，API、DTO、错误和普通日志不得返回这些内部字段。
 
@@ -1232,7 +1237,7 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 
 ### Requirement: REQ-025: 后台归档阶段里程碑和资源准入可恢复
 
-解析任务可以并行；压缩任务最多 6 个 running，但不要求启动 6 个 WinRAR。调度器 MUST 综合配置化的磁盘空间、临时空间、CPU、IO、输入规模和当前进程数决定运行或排队。归档任务覆盖 inventory、规划、WinRAR、完整性、MD5、Manifest 生成和验证。
+解析任务可以并行；压缩任务最多 6 个 running，但不要求启动 6 个 WinRAR。调度器 MUST 综合配置化的磁盘空间、临时空间、CPU、IO、输入规模和当前进程数决定运行或排队。归档任务覆盖 inventory、规划、WinRAR、完整性、案件所选文件哈希、Manifest 生成和验证。
 
 归档进度类型 MUST 固定为 `workflow_milestone`，使用单调的 `0/10/20/30/75/85/90/95/100` 里程碑；它表示真实工作流阶段，不表示 WinRAR 内部压缩字节百分比。TaskRecord 复用现有状态、阶段、percent、时间、错误和 cancel 字段，内部补充阶段、心跳、活动指标、worker 状态和后端权威 allowed_actions；公共案件卡片只返回安全摘要，不返回 Worker ID、内部租约、绝对路径、堆栈、技术日志、完整错误代码或完整进程信息。
 
@@ -1254,7 +1259,7 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 - WHEN 任务进入归档阶段
 - THEN 后端只在真实阶段开始或门控成功时持久化对应的固定里程碑，并同时返回阶段文字
 - AND 里程碑单调不下降，不读取 WinRAR CLI 连续百分比，不使用历史最大值、钳制、平滑、过滤、时间、文件/字节数量或输出大小制造中间百分比
-- AND WinRAR 执行期间保持 30%；WinRAR 成功后才进入 75%，完整性通过后才进入 85%，MD5 和 Manifest 真实开始后才分别进入 90% 和 95%，完整 Manifest 验证及正式完成提交成功后才进入 100%
+- AND WinRAR 执行期间保持 30%；WinRAR 成功后才进入 75%，完整性通过后才进入 85%，文件哈希和 Manifest 真实开始后才分别进入 90% 和 95%，完整 Manifest 验证及正式完成提交成功后才进入 100%
 
 #### Scenario: WinRAR 长耗时阶段以真实活动摘要证明仍在运行
 - WHEN 大文件归档长时间停留在创建 RAR 分卷阶段
@@ -1283,10 +1288,10 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 - AND 默认无增长阈值为 1800 秒，必须容忍繁忙机械盘与多个磁盘密集型任务并行造成的长时间收尾停顿，同时保持可配置、最长不超过 30 天且不允许无限等待
 - AND 若 hard 与 idle deadline 同时到期或一次轮询跨过两者，系统按绝对 deadline 选择最早者，相等时 hard 优先
 - AND 若自有 WinRAR 进程无法安全终止，系统不得清理仍可能被进程占用的 staging，并返回稳定的执行失败错误
-- AND 只有 WinRAR 正常退出且后续分卷完整性、MD5 与 Manifest 校验通过时任务才能成功
+- AND 只有 WinRAR 正常退出且后续分卷完整性、案件所选文件哈希与 Manifest 校验通过时任务才能成功
 
-#### Scenario: 完整性与 MD5 校验使用机械盘保守预算
-- WHEN 后端对全部实际 RAR 分卷执行 `rar t` 完整性校验或 HashMyFiles MD5 校验
+#### Scenario: 完整性与文件哈希校验使用机械盘保守预算
+- WHEN 后端对全部实际 RAR 分卷执行 `rar t` 完整性校验或案件所选摘要计算
 - THEN 两个阶段都必须按全部实际分卷总字节数和机械盘保守吞吐动态计算有界超时，并包含固定编排余量
 - AND 默认预算按 0.1 MB/s 的保守单任务有效吞吐计算，从而覆盖观测到的 0.3 MB/s 机械盘并行部署场景并保留额外安全余量
 - AND 内部最大上限为 30 天，必须与该低吞吐预算可覆盖的最大支持体积一致，不得由旧 10 小时上限提前终止仍在正常读取的校验
@@ -1328,7 +1333,7 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 - AND `archive_complete` 在工作台展示为「待导出」并推荐统一导出，`exported` 只展示已导出最终结果并推荐删除案件
 
 #### Scenario: 默认卡片不展开技术详情
-- WHEN 当前或历史归档任务包含完整阶段时间线、逐卷文件名/大小/MD5、Manifest 路径/内容、Worker ID、内部租约、精确心跳时间戳、完整错误代码、堆栈、技术日志、重试/调度诊断或进程信息
+- WHEN 当前或历史归档任务包含完整阶段时间线、逐卷文件名/大小/摘要、Manifest 路径/内容、Worker ID、内部租约、精确心跳时间戳、完整错误代码、堆栈、技术日志、重试/调度诊断或进程信息
 - THEN 默认案件卡片不平铺这些字段，只提供归档详情或查看结果入口
 - AND 案件列表 API 不返回绝对路径、堆栈、Worker ID、内部租约或完整技术日志
 
@@ -1345,7 +1350,7 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 
 ### Requirement: REQ-026: WinRAR 进度策略决策保留 Legacy 安全边界
 
-Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构决策。RAR 5.90、RAR 7.23 普通 pipe 及 RAR 7.23 ConPTY 的合成实验已经证明 CLI 百分比混合不同作用域且可重复回退。当前合同不读取连续 WinRAR 百分比，而使用 `workflow_milestone`；现有 WinRAR、RAR 分卷、Legacy 显式压缩、inventory、路径/变化、完整性、MD5、Manifest、Word 和发布门控保持不变。
+Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构决策。RAR 5.90、RAR 7.23 普通 pipe 及 RAR 7.23 ConPTY 的合成实验已经证明 CLI 百分比混合不同作用域且可重复回退。当前合同不读取连续 WinRAR 百分比，而使用 `workflow_milestone`；现有 WinRAR、RAR 分卷、Legacy 显式压缩、inventory、路径/变化、完整性、文件哈希、Manifest、Word 和发布门控保持不变。
 
 #### Scenario: 失败 spike 形成明确适配决定
 - WHEN 普通 pipe 和 ConPTY spike 均证明 WinRAR CLI 百分比不可作为稳定总进度
@@ -1686,7 +1691,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 归档完成态、导出路径提示、已导出标记与阶段主操作。
 
 #### Scenario: 全部对应完成后进入归档完成态
-- WHEN 全部 RAR 完成、全部 MD5 计算完成且所有盘号映射完成
+- WHEN 全部 RAR 完成、全部案件所选文件哈希计算完成且所有盘号映射完成
 - THEN 案件进入既有 `archive_complete` 状态，工作台展示为「待导出」
 - AND 卡片以「统一导出」为唯一推荐操作；提示只在盘号补齐后出现，未补齐时保持「待补盘号」并推荐打开案件
 - AND 「待导出」阶段的更多菜单同时提供「打开案件」与「删除案件」；打开案件进入既有审核编辑路由，不触发统一导出，也不改变案件状态
@@ -1762,26 +1767,26 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 
 #### Scenario: 输出准确性门保持
 - WHEN WinRAR 完成直接源压缩
-- THEN 系统仍执行 RAR 完整性测试、连续分卷与容量校验、每卷 MD5、Manifest/发布身份和最终产物存在性校验
+- THEN 系统仍执行 RAR 完整性测试、连续分卷与容量校验、每卷案件所选文件哈希、Manifest/发布身份和最终产物存在性校验
 - AND 任一输出校验失败不得标记归档完成或允许统一导出
 - AND 输入 inventory 的文件数、总字节数和路径元数据来自本次 Worker 的唯一完整枚举
 
-#### Scenario: 同一次新归档复用内部 MD5
+#### Scenario: 同一次新归档复用所选摘要
 - WHEN RAR 完整性测试通过且 Worker 为本次新生成的每个 part 组装 Manifest
-- THEN 每个 part 只执行一次完整内容 MD5，并将该摘要绑定到 durable publish intent、Manifest 和精确文件集合
+- THEN 每个 part 只执行一次案件所选算法的完整内容读取，并将该摘要绑定到 durable publish intent、Manifest 和精确文件集合
 - AND 同一 attempt 后续密封、原子发布、索引与完成提交复用该可信摘要，同时继续核对目录边界、文件类型、文件名集合、顺序、精确字节数和已哈希文件的稳定身份元数据
 
 - AND 发布切点观察到文件缺失、替换、增删、字节数变化或同大小文件身份/时间变化时仍必须安全失败
 
 #### Scenario: 结果展示不重复读取大文件内容
-- WHEN 已完成案件读取归档结果以展示 part、MD5 和盘号映射
+- WHEN 已完成案件读取归档结果以展示 part、所选文件哈希和盘号映射
 - THEN 后端验证 task/attempt/deployment、durable publication digest、Manifest 身份以及物理文件的存在性、类型、名称集合和精确字节数
-- AND 普通结果展示不得再次对全部 RAR 执行内容 MD5，也不得阻塞工作台事件循环
-- AND 结果展示不是正式文件授权；下载、统一导出、恢复与跨 attempt 复用仍执行现有完整内容校验，发现同大小内容篡改时必须拒绝
+- AND 普通结果展示不得再次对全部 RAR 执行内容哈希，也不得阻塞工作台事件循环
+- AND 结果展示不是正式文件授权；下载、恢复、跨 attempt 复用与进入统一导出前的 Manifest 授权均按所选算法执行完整内容校验，发现同大小内容篡改时必须拒绝
 
 #### Scenario: 审核编辑界面不提供单卷 RAR 下载
 - WHEN 审核编辑界面的附件区域展示已完成的真实 RAR 归档信息
-- THEN 页面继续展示各卷文件名、大小、MD5、分卷序号、光盘编号和验证状态
+- THEN 页面继续展示各卷文件名、大小、案件所选文件哈希、分卷序号、光盘编号和验证状态
 - AND 不显示「下载该 RAR」按钮，民警通过案件统一导出获取 RAR 产物
 - AND 后端既有受控分卷下载能力及其他兼容入口保持不变
 
@@ -1796,7 +1801,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 
 #### Scenario: 持久发布代次
 - WHEN 发布已验证的暂存文件集
-- THEN 持久发布意图中的唯一 `publication_id` 和代次摘要将任务、尝试、部署、栅栏、Manifest、精确文件集、文件大小及 MD5 值绑定
+- THEN 持久发布意图中的唯一 `publication_id` 和代次摘要将任务、尝试、部署、栅栏、Manifest、精确文件集、文件大小、哈希算法及摘要值绑定
 - AND 在同一文件系统原子重命名前封存暂存文件集，绝不覆盖历史正式目录；部分完成或崩溃的代次保持待处理或可恢复状态，而不是成功状态
 - AND 仅当已封存的发布标识、意图/栅栏、当前修订、Manifest 和索引投影一致时，完成事务才能将尝试和任务设为 `succeeded`
 - AND 下载、复用、恢复和 Word 导出解析持久发布标识并重新执行既有物理完整性门控；拒绝完成后的篡改
@@ -1877,7 +1882,7 @@ JSON Manifest 索引 MUST 始终是 SQLite 持久发布事实的可重建投影�
 
 #### Scenario: 系统处理中间结果不冒充人工问题
 
-- **WHEN** 后台压缩、完整性校验、MD5 或 Manifest 生成仍在执行，且 RAR 文件名、文件大小、MD5、实际卷数或介质模式尚未形成最终事实
+- **WHEN** 后台压缩、完整性校验、文件哈希或 Manifest 生成仍在执行，且 RAR 文件名、文件大小、所选摘要、实际卷数或介质模式尚未形成最终事实
 - **THEN** 对话式引导把这些内容展示为系统处理状态，不要求用户手工填写系统产出字段
 - **AND** 归档状态继续使用现有 `workflow_milestone`、阶段文字、运行时间、输出字节数和检测分卷数，不把活动指标换算为 WinRAR 连续完成百分比
 - **AND** 系统状态与当前可处理的用户事项分区展示，后台状态变化不得抢走或清空用户正在操作的卡片
@@ -1938,7 +1943,7 @@ JSON Manifest 索引 MUST 始终是 SQLite 持久发布事实的可重建投影�
 #### Scenario: 后台归档与人工审核并行且办理终态语义分离
 
 - **WHEN** 用户选择立即压缩且既有保存与来源确认成功
-- **THEN** 助手把归档排队、压缩、完整性校验、MD5 和 Manifest 阶段展示为后台系统状态，并允许用户继续处理当前案件的其他既有待办
+- **THEN** 助手把归档排队、压缩、完整性校验、文件哈希和 Manifest 阶段展示为后台系统状态，并允许用户继续处理当前案件的其他既有待办
 - **AND** `archive_queued`、`archiving`、图片上传请求返回或“已选择立即压缩”均不得被描述为笔录办理完成
 - **WHEN** 用户选择稍后压缩并且当前草稿已经安全保存
 - **THEN** 助手明确显示“草稿已保存并稍后处理”，允许用户继续审核或安全返回案件列表，不重复强迫选择立即压缩

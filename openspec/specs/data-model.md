@@ -154,7 +154,7 @@
 | software_version | string | 软件版本 |
 | data_summary | string | 数据分类摘要 |
 | rar_filename | string | legacy 兼容字段；文件夹解析不生成最终归档文件名 |
-| md5_hash | string | legacy 兼容字段；文件夹解析不生成最终归档 MD5 |
+| md5_hash | string | legacy 兼容字段键，可承载案件所选摘要；文件夹解析不生成最终归档哈希 |
 | file_size | string | legacy 兼容字段；文件夹解析当前仅保留空值/零值语义，不表达最终归档大小 |
 | hash_algorithm | `md5 \| sha1 \| sha256`（可选） | 案件业务哈希算法快照；存量缺失时按 `md5` 兼容 |
 
@@ -190,7 +190,7 @@
 | size_bytes | number | 文件大小（字节） |
 | size_display | string | 格式化后的文件大小（如 "11.77 MB"） |
 
-`rar_info` 是旧解析响应兼容字段，不是最终归档事实源。文件夹解析不生成最终归档信息，当前返回从 legacy 检查结果重建的空值/零值兼容数据；这些值不得视为归档完成。压缩包直接上传时，`rar_info` 保存原始上传压缩包的实际文件名、MD5、字节数和格式化大小。字段类型仍兼容 null，但 deprecated `compress=false` 不再能可靠决定 `rar_info` 是否为 null。最终归档文件名、实际大小和 MD5 只以已验证 `ArchiveManifest.parts[]` 为准。
+`rar_info` 是旧解析响应兼容字段，不是最终归档事实源。文件夹解析不生成最终归档信息，当前返回从 legacy 检查结果重建的空值/零值兼容数据；这些值不得视为归档完成。压缩包直接上传时，`rar_info` 保存原始上传压缩包的实际文件名、MD5、字节数和格式化大小。字段类型仍兼容 null，但 deprecated `compress=false` 不再能可靠决定 `rar_info` 是否为 null。最终归档文件名、实际大小和案件所选文件哈希只以已验证 `ArchiveManifest.parts[]` 为准。
 
 ### API 响应（ParseReportResponse）
 
@@ -309,8 +309,12 @@ type ArchiveMode 取 `standard_split` 或 `oversized_single_volume`，type Archi
 `ArchiveExecutionStatus` 表示 idle、planning、blocked、compressing、validating、
 hashing、completed 或 failed。WinRAR 成功退出不直接产生清单；只有当前执行目录中的
 标准分卷按数字连续、非零且满足 `0 < actual_size <= volume_size_bytes`；超大单卷只接受一个非空的 `<案件名>.rar`。首个 RAR 通过
-WinRAR 完整性测试后，才能使用 Python `hashlib` 流式计算 MD5 并构建 `ArchiveManifest`。
-Manifest 的 parts 按实际文件系统结果排序，保存模式、文件名、`size_bytes`、内部完整性 `md5`、案件业务 `hash_algorithm` 与 `hash_value`、历史字段名 `disc_number` 所承载的介质编号与日期，不保存绝对路径。`hash_algorithm` 取 `md5 | sha1 | sha256`；选择 MD5 时 `hash_value` 复用 `md5`，选择 SHA-1/SHA-256 时保存对应完整十六进制摘要；旧 part 缺少新增字段时以 `md5` 和现有 `md5` 兼容投影。标准分卷额外保存 `volume_size_bytes` 和按实际大小选择的最小二进制 4GB/22GB/45GB `disc_capacity_bytes`；超大单卷这两个容量字段为空。`ArchiveTaskResult` 与 `DiscMappingResult` 对外同时投影 `archive_medium`，供审核界面和 Word 选择光盘或硬盘语义。未带模式的历史 Manifest 按旧十进制规则复核。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 MD5 校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
+WinRAR 完整性测试后，才能使用 Python `hashlib` 流式计算案件快照选择的 MD5、SHA-1 或 SHA-256，并构建 `ArchiveManifest`。
+Manifest 的 parts 按实际文件系统结果排序，保存模式、文件名、`size_bytes`、唯一正式 `hash_algorithm/hash_value`、历史字段名 `disc_number` 所承载的介质编号与日期，不保存绝对路径。摘要长度分别为 32、40 和 64 个十六进制字符；SHA 案件不额外计算或写入固定 MD5。旧 part 仅在缺少两个新字段且具有合法 `md5` 时兼容投影为 MD5，新字段不完整或无效时不得回退。标准分卷额外保存 `volume_size_bytes` 和按实际大小选择的最小二进制 4GB/22GB/45GB `disc_capacity_bytes`；超大单卷这两个容量字段为空。`ArchiveTaskResult` 与 `DiscMappingResult` 对外同时投影 `archive_medium`，供审核界面和 Word 选择光盘或硬盘语义。未带模式的历史 Manifest 按旧十进制规则复核。最终 Manifest 是 Word 正文、附件一和附件三归档字段的唯一事实源。归档成功后再调用文书导出；文书导出失败不撤销已验证的 Manifest。再次解析同一目录时，只有输入和归档指纹一致且 Manifest/RAR 重新通过存在性、精确大小和 Manifest 所选算法摘要校验，才可将已有 Manifest 登记绑定到新的 opaque context；输入变化或物理归档校验失败时旧登记失效并重新生成，旧 RAR 不由解析缓存清理逻辑删除。
+
+检查笔录统一导出在进入编排前按 Manifest 所选算法完成内容授权，只将 Word 与全部 RAR 在同卷 staging 中组装并原子发布；不调用 HashMyFiles、不生成 PNG，成功发布时清理历史校验 PNG/HTML。HashMyFiles 2.51 的三算法参数、无路径结构化行和 Filename/所选算法/File Size 三列截图能力保留为内部未接线合同，等待鉴定文书模块定义生产使用边界。
+
+interface SelectedArchivePartHash 定义新 Manifest 的 `hash_algorithm/hash_value` 且排除 `md5`；interface LegacyArchivePartHash 只允许旧 `{md5}` 且排除新字段，type ArchivePartHash 是二者的联合。`ArchivePart` 与无路径公共结果 interface ArchiveTaskResultPart 复用该联合合同，因此新结果公开所选算法和值，旧 MD5 数据仍可被显式兼容读取。
 
 当前生产 renderer 消费 `InspectionReport` 兼容数据、最终 `ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1` TemplateProfile。`DocumentRenderPlan` 是未来统一渲染合同，不属于当前生产模型。
 
@@ -417,7 +421,7 @@ T011 只增加共享类型和纯规则；尚未接入数据库、Worker、案件
 
 `ArchiveWorkflowStage` 和 `ArchiveWorkflowMilestonePercent` 定义固定的 `0/10/20/30/75/85/90/95/100` 工作流里程碑。WinRAR 运行时保持在 30；输出字节数和分卷数只是活动证据，绝不代表压缩比例。`ProgressSnapshot` 是完整共享里程碑/活动快照。`ArchiveTaskCardSummary` 是显式安全投影，不得携带 Worker ID、租约、本地路径、堆栈、原始日志或内部诊断。
 
-`VolumeSlot` 包含稳定标识、计划修订、谱系、序号、计划字节数、状态和可选 `DiscMapping`；`PlannedVolumeSlot` 是重新规划输入。`ArchivePlanSnapshot` 保存带版本的槽位计划。`ReconciledVolumeSlots` 区分有效与已移除槽位，`VerifiedVolumeSlot` 是有界 Manifest 收敛输入。`LegacyArchiveCompatibilityStatus`、`ResourceAdmissionStatus`、`ArchiveResourceAdmission`、`ArchiveTaskCommandRequest` 和 `ArchiveTaskCommandResult` 作为共享合同引入；T013–T015 现已通过单一归档任务生命周期持久化并暴露它们。
+`VolumeSlot` 包含稳定标识、计划修订、谱系、序号、计划字节数、状态和可选 `DiscMapping`；`PlannedVolumeSlot` 是重新规划输入。`ArchivePlanSnapshot` 保存带版本的槽位计划。`ReconciledVolumeSlots` 区分有效与已移除槽位，`VerifiedVolumeSlot` 是有界 Manifest 收敛输入，其哈希字段使用新 `hash_algorithm/hash_value` 或 legacy `{md5}` 联合合同。`LegacyArchiveCompatibilityStatus`、`ResourceAdmissionStatus`、`ArchiveResourceAdmission`、`ArchiveTaskCommandRequest` 和 `ArchiveTaskCommandResult` 作为共享合同引入；T013–T015 现已通过单一归档任务生命周期持久化并暴露它们。
 
 T015 在同一持久记录之上增加无路径公共任务投影。`ArchiveTaskPublicDetail` 在卡片摘要基础上增加任务修订、尝试序号、取消标记、安全错误码和当前有界归档计划快照。`ArchiveTaskHistory` 按案件历史顺序返回这些公共详情，不替换先前尝试。只有任务及其绑定尝试均成功，且持久 Manifest 与物理分卷通过复验后，`ArchiveTaskResult` 才可用；它暴露已验证槽位元数据、已发布资产元数据和无路径分卷下载标识，但绝不暴露定位符、进程所有权、命令、日志或原始诊断。
 
@@ -505,11 +509,11 @@ v11 基础包含下列新表：
 
 3.1 保留策略服务现根据这些持久事实评估单个案件。它使用保留记录的有效变更时间、每个当前发布意图的最大验证时间及正式 Word 产物行的最大验证时间；不得以外壳 `updated_at`、文件 mtime、下载时间或派生 Manifest 索引时间替代。所得锚点和连续 24 小时到期时间通过部署/案件保留投影 upsert 持久化，并携带 `Z` 时间戳和当前持久策略/案件修订。
 
-`publication_verified_at` 为空的历史发布意图保持未验证，直到受控内部复验器证明精确持久发布标识、文件清单、RAR/Manifest/MD5 检查、栅栏、所有权、部署和案件绑定。只有此后，既有仅限 NULL 的发布 CAS 才写入所提供的受信任 UTC 验证时间。缺少复验或复验失败时字段保持为空；不推断时间戳，也不创建新发布标识。同一服务对格式错误或未来时间戳、不完整发布/Word 权威、有效任务或编辑租约、发布/恢复/快照/上下文冲突、有效清理运行及非终止案件状态安全失败。只有持久策略模式为 `enforce` 时才返回内部 `enforce_allowed` 门控；本切片不增加调度器、预览路由或公共清理执行 API。Word 验证器边界要求持久产物摘要、大小、Manifest 摘要和所有权匹配；物理文件解析留给后续清理/访问工作。
+`publication_verified_at` 为空的历史发布意图保持未验证，直到受控内部复验器证明精确持久发布标识、文件清单、RAR/Manifest 所选算法检查、栅栏、所有权、部署和案件绑定。只有此后，既有仅限 NULL 的发布 CAS 才写入所提供的受信任 UTC 验证时间。缺少复验或复验失败时字段保持为空；不推断时间戳，也不创建新发布标识。同一服务对格式错误或未来时间戳、不完整发布/Word 权威、有效任务或编辑租约、发布/恢复/快照/上下文冲突、有效清理运行及非终止案件状态安全失败。只有持久策略模式为 `enforce` 时才返回内部 `enforce_allowed` 门控；本切片不增加调度器、预览路由或公共清理执行 API。Word 验证器边界要求持久产物摘要、大小、Manifest 摘要和所有权匹配；物理文件解析留给后续清理/访问工作。
 
 #### v11 备份、恢复与应用回滚边界
 
-第五阶段定义受控运维备份/恢复边界，但不增加公共备份或撤销删除 API。可恢复代次是经过静默和交叉核对的集合，包含 v11 SQLite 数据库、正式 RAR/Manifest/MD5 发布文件及持久权威、正式 Word 行/文件、已批准模板标识/版本和文件、自有工作资产、保留策略及审计事实。代次记录部署/模式标识、UTC-Z 时间、相对定位符、大小和摘要；恢复前必须执行 SQLite 完整性/外键/模式校验及发布/Word 权威检查。
+第五阶段定义受控运维备份/恢复边界，但不增加公共备份或撤销删除 API。可恢复代次是经过静默和交叉核对的集合，包含 v11 SQLite 数据库、正式 RAR/Manifest/案件所选哈希发布文件及持久权威、正式 Word 行/文件、已批准模板标识/版本和文件、自有工作资产、保留策略及审计事实。代次记录部署/模式标识、UTC-Z 时间、相对定位符、大小和摘要；恢复前必须执行 SQLite 完整性/外键/模式校验及发布/Word 权威检查。
 
 恢复首先在策略为 `disabled` 的隔离合成部署中执行；正式文件按持久 `publication_id` 和 `word_artifact_id` 读取，派生 Manifest 索引只根据 SQLite 发布事实重建。分组缺失或不匹配、所有权不确定、外键错误或可能覆盖正式文件/来源时安全失败。Git/应用回滚不是数据回滚：v10 应用必须拒绝 v11 数据库；迁移后的应用回滚要求匹配的 v10 或 v11 分组备份，而不是反向 SQL 或人工删除。受控演练清单维护于
 `[harness/retention-backup-recovery.md](../../harness/retention-backup-recovery.md)`.

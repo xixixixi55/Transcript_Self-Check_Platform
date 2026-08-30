@@ -141,7 +141,7 @@ def export_bundle(
     word_filename: str | None = None,
     template_context: dict[str, object],
 ) -> dict[str, Any]:
-    """将最新 Word、所有 RAR 分卷和验证 PNG 写入 export_path。"""
+    """将最新 Word 和所有 RAR 分卷写入 export_path。"""
     shell = api.shells.get(case_id)
     if shell["revision"] != expected_revision:
         raise WorkbenchPersistenceError("REVISION_CONFLICT")

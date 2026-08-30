@@ -85,6 +85,15 @@ describe('archive volume slot pure rules', () => {
       md5: 'a'.repeat(32),
     }])).toEqual([expect.objectContaining({ slot_id: slot.slot_id, status: 'verified' })])
 
+    expect(convergeVolumeSlotsWithManifest([slot], [{
+      slot_id: slot.slot_id,
+      ordinal: slot.ordinal,
+      disc_number: slot.disc_mapping!.disc_number,
+      output_bytes: 3_900,
+      hash_algorithm: 'sha256',
+      hash_value: 'b'.repeat(64),
+    }])).toEqual([expect.objectContaining({ slot_id: slot.slot_id, status: 'verified' })])
+
     expect(() => convergeVolumeSlotsWithManifest([slot], [{
       slot_id: slot.slot_id,
       ordinal: slot.ordinal,

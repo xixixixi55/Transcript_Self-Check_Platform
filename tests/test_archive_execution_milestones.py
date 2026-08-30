@@ -88,6 +88,6 @@ def test_formal_executor_observes_only_real_safe_boundaries(tmp_path: Path) -> N
     assert outcome.status == "completed"
     assert stages == [
         "inventory", "preflight_verified", "winrar", "winrar", "integrity",
-        "integrity_verified", "md5", "manifest",
+        "integrity_verified", "hash", "manifest",
     ]
     assert not any(isinstance(stage, int) for stage in stages)

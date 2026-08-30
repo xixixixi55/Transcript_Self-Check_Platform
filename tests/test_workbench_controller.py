@@ -1311,12 +1311,14 @@ def test_archive_mapping_and_verified_result_routes(app_services):
         assert case_shell["archive_task_summary"]["task_id"] == done["task_id"]
         assert case_shell["archive_task_summary"]["status"] == "succeeded"
         with patch(
-            "app.services.archive.archive_manifest_service.compute_md5_streaming",
-            side_effect=lambda path, _root: hashlib.md5(path.read_bytes()).hexdigest(),
-        ) as compute_md5:
+            "app.services.archive.archive_manifest_service.compute_hash_streaming",
+            side_effect=lambda path, _root, algorithm: hashlib.new(
+                algorithm, path.read_bytes(),
+            ).hexdigest(),
+        ) as compute_hash:
             result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
             assert result.status_code == 200, result.text
-            assert compute_md5.call_count == 0
+            assert compute_hash.call_count == 0
             assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"
             assert result.json()["data"]["archive_mode"] == "standard_split"
             assert result.json()["data"]["archive_medium"] == "optical_disc"
@@ -1325,7 +1327,7 @@ def test_archive_mapping_and_verified_result_routes(app_services):
             download = client.get(
                 f"/api/v1/workbench/tasks/{done['task_id']}/result/parts/SYNTHETIC-PART-API",
             )
-            assert compute_md5.call_count == 1
+            assert compute_hash.call_count == 1
         assert download.status_code == 200
         assert download.content == payload
         assert filename in download.headers["content-disposition"]

@@ -19,6 +19,9 @@ from app.services.integrity.hashmyfiles_service import (  # noqa: E402
     _hash_timeout_seconds,
     generate_verification_image,
 )
+from app.repository.integrity.hashmyfiles_result_repository import (  # noqa: E402
+    validate_hashmyfiles_rows,
+)
 from app.controllers.workbench_error_messages_controller import (  # noqa: E402
     message_for_workbench_error,
 )
@@ -71,10 +74,19 @@ def test_generate_verification_image_invokes_runner_and_returns_filename(monkeyp
         captured["timeout"] = timeout_seconds
         captured["hash_algorithm"] = hash_algorithm
         (output_dir / "hash.png").write_bytes(b"SYNTHETIC/PNG")
-        return "hash.png"
+        return {
+            "image_filename": "hash.png", "hash_algorithm": hash_algorithm,
+            "rows": [{
+                "filename": rar_paths[0].name,
+                "size_bytes": rar_paths[0].stat().st_size,
+                "hash_value": "a" * 32,
+            }],
+        }
 
     result = generate_verification_image([rar], out, runner=fake_runner)
-    assert result == "hash.png"
+    assert result["image_filename"] == "hash.png"
+    assert result["hash_algorithm"] == "md5"
+    assert result["rows"][0]["filename"] == rar.name
     assert captured["rar_paths"] == [rar]
     assert captured["out"] == out
     assert captured["timeout"] == 121
@@ -158,18 +170,32 @@ def test_run_hashmyfiles_publishes_real_window_capture_and_removes_legacy_html(t
             "hash_algorithm": hash_algorithm,
         })
         output_path.write_bytes(b"\x89PNG\r\n\x1a\nSYNTHETIC")
+        return [
+            {
+                "filename": path.name, "size_bytes": path.stat().st_size,
+                "hash_value": "a" * 32,
+            }
+            for path in rar_paths
+        ]
 
     with patch.object(
         hashmyfiles_repository, "_capture_hashmyfiles_window", side_effect=fake_capture,
     ):
-        name = run_hashmyfiles(exe, [rar1, rar2], out, 60)
+        result = run_hashmyfiles(exe, [rar1, rar2], out, 60)
 
-    assert name == "hash-verification.png"
+    assert result == {
+        "image_filename": "hash-verification.png",
+        "hash_algorithm": "md5",
+        "rows": [
+            {"filename": rar1.name, "size_bytes": 15, "hash_value": "a" * 32},
+            {"filename": rar2.name, "size_bytes": 15, "hash_value": "a" * 32},
+        ],
+    }
     assert captured == {
         "executable": exe, "rar_paths": [rar1, rar2], "timeout": 60,
         "hash_algorithm": "md5",
     }
-    assert (out / name).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert (out / result["image_filename"]).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert not list(out.glob("*.html"))
 
 
@@ -248,7 +274,7 @@ def test_capture_passes_selected_hash_configuration(
         captured.update(hashmyfiles_repository.json.loads(payload_path.read_text(encoding="utf-8")))
         output_path.write_bytes(b"\x89PNG\r\n\x1a\nSYNTHETIC")
         result_path.write_text(
-            '{"status": "succeeded", "item_count": 1, "rows": [{"filename": "case.part1.rar", '
+            f'{{"status": "succeeded", "item_count": 1, "hash_algorithm": "{algorithm}", "rows": [{{"filename": "case.part1.rar", '
             f'"hash_value": "{"a" * length}", "size_bytes": "13"}}]}}',
             encoding="utf-8-sig",
         )
@@ -271,6 +297,56 @@ def test_capture_passes_selected_hash_configuration(
     assert captured["window_width"] == window_width
     assert captured["capture_grace_seconds"] == 30
     assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_hashmyfiles_rows_reject_duplicate_missing_and_extra_filenames(tmp_path):
+    first = tmp_path / "SYNTHETIC.part1.rar"
+    second = tmp_path / "SYNTHETIC.part2.rar"
+    first.write_bytes(b"SYNTHETIC/RAR-1")
+    second.write_bytes(b"SYNTHETIC/RAR-2")
+    duplicate_rows = [
+        {"filename": first.name, "size_bytes": 15, "hash_value": "a" * 40},
+        {"filename": first.name, "size_bytes": 15, "hash_value": "b" * 40},
+    ]
+    with pytest.raises(ValueError, match="hash rows invalid"):
+        validate_hashmyfiles_rows(duplicate_rows, [first, second], "sha1")
+    with pytest.raises(ValueError, match="hash rows invalid"):
+        validate_hashmyfiles_rows(duplicate_rows[:1], [first, second], "sha1")
+    with pytest.raises(ValueError, match="hash rows invalid"):
+        validate_hashmyfiles_rows([
+            duplicate_rows[0],
+            {"filename": "SYNTHETIC.extra.rar", "size_bytes": 15, "hash_value": "b" * 40},
+        ], [first, second], "sha1")
+    with pytest.raises(ValueError, match="hash rows invalid"):
+        validate_hashmyfiles_rows([
+            {"filename": first.name, "size_bytes": 15, "hash_value": "a" * 32},
+            {"filename": second.name, "size_bytes": 15, "hash_value": "b" * 32},
+        ], [first, second], "sha1")
+
+
+def test_capture_rejects_wrong_algorithm_column_result(tmp_path):
+    exe = tmp_path / "HashMyFiles.exe"
+    rar = tmp_path / "SYNTHETIC.rar"
+    rar.write_bytes(b"SYNTHETIC/RAR")
+
+    def fake_run(args, **kwargs):
+        result_path = Path(args[-1])
+        result_path.write_text(
+            '{"status":"succeeded","item_count":1,"hash_algorithm":"md5",'
+            '"rows":[{"filename":"SYNTHETIC.rar","size_bytes":13,'
+            '"hash_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}',
+            encoding="utf-8-sig",
+        )
+        return type("Completed", (), {"returncode": 0})()
+
+    with (
+        patch.object(hashmyfiles_repository.subprocess, "run", side_effect=fake_run),
+        pytest.raises(HashMyFilesError) as error,
+    ):
+        hashmyfiles_repository._capture_hashmyfiles_window(
+            exe, [rar], tmp_path / "hash-verification.png", 30, "sha256",
+        )
+    assert error.value.code == "HASHMYFILES_RESULT_INVALID"
 
 
 @pytest.mark.parametrize(

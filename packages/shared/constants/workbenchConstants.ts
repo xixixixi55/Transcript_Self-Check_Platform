@@ -28,7 +28,7 @@ export const EXPORT_DIRECTORY_PICKER_TIMEOUT_MS = 620000
 
 export const WORKBENCH_TASK_STAGES: readonly TaskStage[] = [
   'queued', 'parse', 'inventory', 'planning', 'preflight_verified', 'winrar',
-  'integrity', 'integrity_verified', 'md5', 'manifest', 'completed', 'export', 'cleanup', 'none',
+  'integrity', 'integrity_verified', 'hash', 'manifest', 'completed', 'export', 'cleanup', 'none',
 ]
 
 export const WORKBENCH_ERROR_CODES = {

@@ -65,30 +65,14 @@
 - **AND** 兼容投影后进入与新 MD5 Manifest 相同的动态算法安全门
 - **AND** 新 Manifest 不再生成或要求额外 `md5`
 
-### Requirement: HashMyFiles 截取案件所选算法列
+### Requirement: 检查笔录统一导出保持无截图合同
 
-统一导出 MUST 使用 Manifest 绑定的案件算法生成 HashMyFiles 校验截图，把待发布副本的结构化结果与 Manifest 逐项等值比较，并保持原子发布。
+检查笔录统一导出 MUST 继续只发布 Word 与已验证 RAR，不得接入为鉴定文书预留的 HashMyFiles 截图能力。
 
-#### Scenario: 截取所选 HashMyFiles 算法列
+#### Scenario: 统一导出不运行 HashMyFiles
 
-- **WHEN** 用户统一导出选择 MD5、SHA-1 或 SHA-256 的案件
-- **THEN** 系统只启用 HashMyFiles 中对应的算法
-- **AND** 读取并校验 Filename、所选算法摘要、File Size
-- **AND** 每个 HashMyFiles 摘要必须与同名 Manifest part 的 `hash_value` 完全一致
-- **AND** 最终截图只显示这三列，算法列标题与案件选择一致
-- **AND** 哈希列与截图窗口按摘要长度展开，完整摘要不得以省略号替代
-- **AND** 结果列缺失、行缺失/重复、摘要长度不符、摘要不一致或截图失败时导出明确失败且保留上一版完整产物
-
-#### Scenario: 统一导出避免固定 MD5 重复读取
-
-- **WHEN** 统一导出已验证发布身份、路径边界、RAR 集合和精确大小，并把 RAR 复制到同卷 staging
-- **THEN** 系统由 HashMyFiles 对 staging 副本计算案件所选算法并与 Manifest 比较
-- **AND** 不在复制前为了统一导出额外对全部源 RAR 计算固定 MD5
-- **AND** MD5、SHA-1、SHA-256 的统一导出编排和完整读取次数一致
-
-#### Scenario: HashMyFiles 摘要与 Manifest 不一致
-
-- **WHEN** HashMyFiles 返回格式及长度合法但与 Manifest `hash_value` 不同的摘要
-- **THEN** 统一导出以稳定错误失败
-- **AND** staging 中的 Word、RAR 和 PNG 不得发布
-- **AND** 上一版完整导出和案件未导出状态保持不变
+- **WHEN** 用户统一导出选择 MD5、SHA-1 或 SHA-256 的检查笔录案件
+- **THEN** 系统在进入统一导出前按 Manifest 所选算法完成内容授权
+- **AND** 导出编排只暂存并原子发布 Word 与全部 RAR，不启动 HashMyFiles、不生成 PNG
+- **AND** 再次成功导出移除目标目录中的历史 `hash-verification.png` 或 `hash-verification.html`
+- **AND** HashMyFiles 三算法与三列截图能力保留为内部未接线能力，等待鉴定文书模块定义使用合同

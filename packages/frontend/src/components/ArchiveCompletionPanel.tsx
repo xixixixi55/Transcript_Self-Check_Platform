@@ -118,10 +118,10 @@ export function ArchiveCompletionPanel({
           showIcon
           message={status === 'exported' ? '已导出' : '归档完成'}
           description={status === 'exported'
-            ? '统一导出已完成，可再次导出获取最新 Word、RAR 与校验截图。'
+            ? '统一导出已完成，可再次导出获取最新 Word 与 RAR。'
             : hardDrive
-              ? '完整 RAR、MD5 与硬盘编号已对应完成，可开始导出。'
-              : '全部 RAR、MD5 与盘号已对应完成，可开始导出。'}
+              ? '完整 RAR、文件哈希与硬盘编号已对应完成，可开始导出。'
+              : '全部 RAR、文件哈希与盘号已对应完成，可开始导出。'}
           action={<Space>
             <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
               disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />

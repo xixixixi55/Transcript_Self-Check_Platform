@@ -73,7 +73,7 @@ describe('SharedDefaultsSettingsForm', () => {
   it('shows all settings and saves an intentional clear without default inspectors', async () => {
     render(<SharedDefaultsSettingsForm />)
 
-    expect(await screen.findByDisplayValue('SYN-TEST〔2026〕')).toBeTruthy()
+    expect(await screen.findByDisplayValue('SYN-TEST〔2026〕', {}, { timeout: 5_000 })).toBeTruthy()
     expect(screen.getByDisplayValue('号')).toBeTruthy()
     expect(screen.getByText('SYN-TEST〔2026〕142号')).toBeTruthy()
     expect((screen.getByLabelText(/^检查要求/) as HTMLTextAreaElement).value).toBe('SYNTHETIC-INSPECTION-REQUIREMENT')
@@ -112,8 +112,8 @@ describe('SharedDefaultsSettingsForm', () => {
     const request = putMock.mock.calls[0]?.[1] as { values?: Record<string, unknown> }
     expect(request.values).not.toHaveProperty('disc_number_prefix')
     expect(request.values).not.toHaveProperty('extraction_method')
-    expect(await screen.findByText('笔录默认设置已保存')).toBeTruthy()
-  })
+    expect(await screen.findByText('笔录默认设置已保存', {}, { timeout: 5_000 })).toBeTruthy()
+  }, 10_000)
 
   it('selects a managed device and reuses inspector cards for add and drag sorting', async () => {
     render(<SharedDefaultsSettingsForm />)

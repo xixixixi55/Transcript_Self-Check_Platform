@@ -20,7 +20,7 @@ export type TaskStage =
   | 'winrar'
   | 'integrity'
   | 'integrity_verified'
-  | 'md5'
+  | 'hash'
   | 'manifest'
   | 'completed'
   | 'export'

@@ -139,7 +139,7 @@ def test_worker_drives_exact_gates_and_activity(setup, monkeypatch) -> None:
         root.mkdir()
         for stage in (
             "inventory", "preflight_verified", "winrar", "integrity",
-            "integrity_verified", "md5", "manifest",
+            "integrity_verified", "hash", "manifest",
         ):
             kwargs["stage_observer"](stage)
             if stage == "winrar":
