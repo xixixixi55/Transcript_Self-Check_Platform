@@ -800,7 +800,7 @@ def test_current_builtin_template_relocates_after_portable_directory_change(tmp_
         Path(__file__).parents[1] / "word_templates" / "template.docx"
     ).resolve()
     assert current["fingerprint"] == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
-    assert current["asset_id"] == "template-asset-current-v1-private-clean"
+    assert current["asset_id"] == "template-asset-current-v1-private-clean-1-0-5"
     assert restarted.templates.validate(REFERENCE)["valid"] is True
 
 
@@ -814,11 +814,11 @@ def test_builtin_template_upgrade_migrates_previous_default_and_case(tmp_path: P
         "display_name": "电子数据检查笔录（current-template-v1）",
         "fingerprint": PREVIOUS_TEMPLATE_PACKAGE_FINGERPRINT,
         "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
-        "asset_id": "template-asset-current-v1-balanced",
+        "asset_id": "template-asset-current-v1-private-clean",
         "registered_at": "2026-07-30T00:00:00+00:00",
     }, template_root / "template.docx")
     approvals.record(PREVIOUS_REFERENCE, {
-        "approval_record_id": "template-approval-current-v1-balanced",
+        "approval_record_id": "template-approval-current-v1-private-clean",
         "status": "approved",
         "acceptance_summary": "current-template-v1 已修正正文与附件一整体偏右并通过 Word 版式验收。",
         "recorded_at": "2026-07-30T00:00:00+00:00",

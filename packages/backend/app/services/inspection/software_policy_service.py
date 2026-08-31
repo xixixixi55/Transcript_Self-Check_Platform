@@ -31,14 +31,18 @@ def _normalize_legacy_process_step_four(
     version = _text(facts.get("version")) or "待确认"
     result = inspection.get("result") or {}
     evidence_label = _text(result.get("evidence_number")) or "xx"
-    legacy_content = (
+    oldest_generated_content = (
         f"启动{source_name}（版本号为{version}）"
         f"对检材{evidence_label}进行检查。"
     )
     action_name = source_name if source_name.endswith("软件") else f"{source_name}软件"
-    replacement = (
+    previous_generated_content = (
         f"启动{action_name}（版本号为{version}）"
         f"使用{action_name}对检材{evidence_label}进行检查。"
+    )
+    replacement = (
+        f"启动{action_name}，"
+        f"使用该软件对检材{evidence_label}进行检查。"
     )
     projected = []
     for step in inspection.get("process_steps") or []:
@@ -46,7 +50,12 @@ def _normalize_legacy_process_step_four(
             projected.append(copy.deepcopy(step))
             continue
         item = dict(step)
-        if step.get("step_number") == 4 and _text(step.get("content")) == legacy_content:
+        if (
+            step.get("step_number") == 4
+            and _text(step.get("content")) in {
+                oldest_generated_content, previous_generated_content,
+            }
+        ):
             item["content"] = replacement
         projected.append(item)
     inspection["process_steps"] = projected
@@ -106,6 +115,7 @@ def apply_device_company_prefix(
         else f"{company_value}{source_name}"
     )
     inspection = normalized.setdefault("inspection", {})
+    _normalize_legacy_process_step_four(inspection, facts)
     primary = inspection.get("primary_software")
     if not isinstance(primary, Mapping):
         return normalized

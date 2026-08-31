@@ -266,6 +266,9 @@ def test_manifest_disc_date_overrides_attachment_summary_signature_date(tmp_path
 
 def test_fill_template_combines_all_evidence_numbers_in_result_sentence(tmp_path):
     report = _report()
+    report["inspection"]["software_tools"] = [
+        {"name": "测试工具", "version": "1.0"},
+    ]
     report["introduction"]["evidence_list"].append({
         "evidence_number": "JC02",
         "device_type": "测试平板",
@@ -275,9 +278,20 @@ def test_fill_template_combines_all_evidence_numbers_in_result_sentence(tmp_path
 
     with zipfile.ZipFile(output) as package:
         document_xml = package.read("word/document.xml").decode("utf-8")
+    document = Document(output)
+    document_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
 
-    assert "经对编号为JC01、JC02号检材使用测试工具" in document_xml
+    assert "经对编号为JC01、JC02号检材使用测试工具" in document_text
+    assert "经对编号为JC01、JC02号检材使用测试工具进行检查" in document_text
+    assert "经对编号为JC01、JC02号检材使用测试工具（版本号为1.0）" not in document_text
+    assert "软件工具：测试工具（版本号为1.0）" in document_xml
     assert "；经对编号为JC02号检材" not in document_xml
+
+    result_paragraph = next(
+        paragraph for paragraph in document.paragraphs
+        if paragraph.text.startswith("经对编号为JC01、JC02号检材")
+    )
+    assert result_paragraph.paragraph_format.first_line_indent.pt == pytest.approx(32)
 
 
 def test_evidence_renderer_preserves_material_type_and_identifier_contracts(tmp_path):
@@ -389,7 +403,9 @@ def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
     assert title.runs and all(run.bold is False for run in title.runs if run.text)
     assert extract_heading.runs and all(run.bold for run in extract_heading.runs if run.text)
 
-    assert "经对编号为JC-A、JC-B、JC-C号检材使用已确认取证软件（版本号为3.2）" in document_xml
+    document_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    assert "经对编号为JC-A、JC-B、JC-C号检材使用已确认取证软件进行检查" in document_text
+    assert "经对编号为JC-A、JC-B、JC-C号检材使用已确认取证软件（版本号为3.2）" not in document_text
     for index in range(1, 4):
         assert f"synthetic.part{index}.rar" in document_xml
         assert f"文件大小为“{index * 100}”字节" in document_xml

@@ -115,21 +115,21 @@ export const PROCESS_STEP_2 = (evidenceNumber: string) =>
   `对检材${evidenceNumber}进行拍照。`
 
 /** 检查过程第4步模板 */
-export const PROCESS_STEP_4 = (softwareVersion: string, evidenceNumber: string) =>
-  `启动美亚手机大师-并行版V5软件（版本号为${softwareVersion}）使用美亚手机大师-并行版V5软件对检材${evidenceNumber}进行检查。`
+export const PROCESS_STEP_4 = (_softwareVersion: string, evidenceNumber: string) =>
+  `启动美亚手机大师-并行版V5软件，使用该软件对检材${evidenceNumber}进行检查。`
 
 /** 检查结果模板 */
 export const INSPECTION_RESULT_TEMPLATE = (
   evidenceNumber: string,
   softwareName: string,
-  softwareVersion: string,
+  _softwareVersion: string,
   dataSummary: string,
   rarFilename: string,
   hashAlgorithmLabel: string,
   hashValue: string,
   fileSize: string,
 ) =>
-  `经对编号为${evidenceNumber}号检材使用${softwareName}（版本号为${softwareVersion}）进行检查，检出${dataSummary}等电子数据。` +
+  `经对编号为${evidenceNumber}号检材使用${softwareName}进行检查，检出${dataSummary}等电子数据。` +
   `将检出结果生成为"${rarFilename}"文件，文件${hashAlgorithmLabel}哈希值为"${hashValue}"，文件大小为"${fileSize}"字节。`
 
 // ─── 默认值 ───

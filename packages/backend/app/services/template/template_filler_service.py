@@ -221,14 +221,9 @@ def _update_inspection_result(
         if isinstance(primary, Mapping) and primary.get("name")
         else flat["software_name"]
     )
-    software_version = (
-        str(primary.get("version")).strip()
-        if isinstance(primary, Mapping) and primary.get("version")
-        else flat["software_version"]
-    )
     result_text = (
-        f"经对编号为{evidence_label}号检材使用{software_name}（版本号为"
-        f"{software_version}）进行检查，检出{flat['data_summary']}等电子数据。"
+        f"经对编号为{evidence_label}号检材使用{software_name}进行检查，"
+        f"检出{flat['data_summary']}等电子数据。"
     )
     if plan is None:
         hash_title = hash_field_title(report_hash_algorithm(report))

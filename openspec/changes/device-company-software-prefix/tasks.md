@@ -99,3 +99,18 @@ spec_sync_evidence: `openspec/specs/electronic-inspection-record/spec.md` REQ-01
 - [x] 对照更新后的 REQ-010 核对实现，完成 living spec/data-model 同步，并运行本变更适用的 Level 2 收尾门控。
 
 本轮证据：设备/人员/快照/文书及相关兼容投影后端定向 113 passed；前端设备、人员、默认设置定向 18 passed，案件页及相关投影组合 44 passed；`npm run verify:quick` 与 scoped strict docs（14 checks、0 drift）通过，`git diff --check` 仅报告本次开始前已存在的 `AGENTS.md` EOF 空行。
+
+## 归档前反馈：精简检查叙述并修正结果段缩进
+
+- [x] 将检查步骤 4 统一改为“启动{软件名称}软件，使用该软件对检材{全部检材编号}进行检查。”；检查过程叙述不显示版本号，软件工具清单仍保留名称和版本。同步前端编辑投影、Parser 首次生成、公司前缀投影和既有自动步骤兼容。
+- [x] 将检查结果叙述中的主软件版本号移除，但保留软件名称；模板检查结果正文使用两个汉字宽度的首行缩进，并保持 fallback 文档生成一致。
+- [x] 更新模板版本与指纹，完成受影响前后端/Word 定向验证、模板校验、`verify:quick`、scoped strict docs 和 living spec 同步。
+
+本轮证据：前端软件/检材投影 11 项通过；Parser、软件策略、Word 生成/模板、工作台、模板指纹与隐私清理等后端定向 162 项通过（1 条用于拒绝重复 ZIP 条目的预期 warning）；OfficeCLI 模板校验、`npm run verify:quick` 与 scoped strict docs 通过。模板升级为 1.0.5，确定性包指纹为 `D5A7B1EB9893A1919B6F612C8693C2F6100BD48D727274616E4797530D81AF51`。
+
+## 启动回归：内置模板版本 ID 冲突
+
+- [x] 为 1.0.5 内置模板使用版本唯一的资产与审批 ID，确保已有 1.0.4 注册记录时可先注册新版本、迁移引用并清理旧版本，服务可正常启动。
+- [x] 以旧版真实固定 ID 构造升级回归测试，完成模板控制器定向验证、`verify:quick`、scoped strict docs 与差异检查。
+
+本轮证据：真实旧固定 ID 升级失败用例先复现 `template_versions.asset_id` 唯一约束错误；修复后升级与便携目录重定位 2 项通过，模板控制器 16 项通过。`ARCHIVE_CONFIGURED_ROOT_INVALID` 作为独立环境警告保留，不影响模板注册与应用启动。

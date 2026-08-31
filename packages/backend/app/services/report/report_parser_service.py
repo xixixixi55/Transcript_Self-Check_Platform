@@ -274,7 +274,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         {"step_number": 1, "content": f"将{'；'.join(material_descriptions)}。"},
         {"step_number": 2, "content": f"对检材{evidence_label}进行拍照。"},
         {"step_number": 3, "content": "检查环境将在案件初始化时自动识别。"},
-        {"step_number": 4, "content": f"启动{main_action_name}（版本号为{main_version or '待确认'}）使用{main_action_name}对检材{evidence_label}进行检查。"},
+        {"step_number": 4, "content": f"启动{main_action_name}，使用该软件对检材{evidence_label}进行检查。"},
     ]
 
     # 7. 数据摘要是报告字段默认值，不从导航分类列表动态拼接。

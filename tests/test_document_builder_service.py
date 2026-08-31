@@ -289,6 +289,9 @@ def test_build_document_result_names_all_evidence_items():
         if command.get("type") == "paragraph"
     )
     assert "经对编号为SYN-JC00000001、SYN-JC00000002号检材使用" in paragraph_text
+    assert "经对编号为SYN-JC00000001、SYN-JC00000002号检材使用工具进行检查" in paragraph_text
+    assert "经对编号为SYN-JC00000001、SYN-JC00000002号检材使用工具（版本号为1）" not in paragraph_text
+    assert "Python hashlib（版本号为标准库）" in paragraph_text
 
 
 def test_batch_fallback_normalizes_titles_md5_and_extract_source():

@@ -227,18 +227,21 @@ def _register_builtin_templates(
     reference = {
         "template_id": BUILTIN_TEMPLATE_ID, "version": CURRENT_TEMPLATE_VERSION,
     }
+    version_suffix = CURRENT_TEMPLATE_VERSION.replace(".", "-")
+    asset_id = f"template-asset-current-v1-private-clean-{version_suffix}"
+    approval_id = f"template-approval-current-v1-private-clean-{version_suffix}"
     registry.relocate_builtin_asset(
         reference,
         CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-private-clean",
+        asset_id,
         current_asset,
     )
     _register_builtin_template(
         registry, approvals, reference,
         "电子数据检查笔录（current-template-v1）",
         CURRENT_TEMPLATE_PACKAGE_FINGERPRINT,
-        "template-asset-current-v1-private-clean",
-        "template-approval-current-v1-private-clean",
+        asset_id,
+        approval_id,
         current_asset,
         "current-template-v1 已清除隐藏隐私元数据，正文与版式保持不变。",
     )

@@ -50,9 +50,12 @@ def test_generator_passes_normalized_saved_order_projection_to_word_renderer(tmp
     assert [item["name"] for item in report["introduction"]["inspectors"]] == ["SYNTHETIC-B", "SYNTHETIC-A"]
     assert "SYNTHETIC-UI-COLOR" not in repr(report)
     assert "SYNTHETIC-UI-SOURCE" not in repr(report)
+    assert report["inspection"]["software_tools"][0] == {
+        "name": "SYNTHETIC-TOOL", "version": "1.0",
+    }
     assert report["inspection"]["process_steps"][0]["content"] == (
-        "启动SYNTHETIC-TOOL软件（版本号为1.0）"
-        "使用SYNTHETIC-TOOL软件对检材SYNTHETIC-2、SYNTHETIC-10进行检查。"
+        "启动SYNTHETIC-TOOL软件，"
+        "使用该软件对检材SYNTHETIC-2、SYNTHETIC-10进行检查。"
     )
 
 

@@ -397,12 +397,13 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     evidence_numbers = report["inspection"]["result"]["evidence_number"]
     action_name = software_name if software_name.endswith("软件") else f"{software_name}软件"
     assert step_four == (
-        f"启动{action_name}（版本号为{software_version}）"
-        f"使用{action_name}对检材{evidence_numbers}进行检查。"
+        f"启动{action_name}，使用该软件对检材{evidence_numbers}进行检查。"
     )
-    assert f" {software_version}（版本号为{software_version}）" not in step_four
-    assert f"（版本号为{software_version}）" in step_four
-    assert step_four.count(software_version) == 1
+    assert software_version not in step_four
+    assert any(
+        tool["name"] == software_name and tool["version"] == software_version
+        for tool in report["inspection"]["software_tools"]
+    )
 
 
 def test_new_report_unknown_main_software_version_stays_blank(tmp_path):

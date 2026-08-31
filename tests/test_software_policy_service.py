@@ -41,6 +41,7 @@ def _company_prefix_report(status: str = "confirmed_by_report") -> dict:
                 },
             ],
             "result": {
+                "evidence_number": "SYNTHETIC-1",
                 "software_name": "SYNTHETIC手机大师NEXT", "software_version": "V1.2.3",
             },
         },
@@ -60,8 +61,8 @@ def test_device_company_prefix_projects_report_primary_software_only():
         "WinRAR压缩管理软件", "HashMyFiles", "SYNTHETIC人工工具",
     ]
     assert inspection["process_steps"][1]["content"] == (
-        "启动TEST美亚柏科SYNTHETIC手机大师NEXT软件（版本号为V1.2.3）"
-        "使用TEST美亚柏科SYNTHETIC手机大师NEXT软件对检材SYNTHETIC-1进行检查。"
+        "启动TEST美亚柏科SYNTHETIC手机大师NEXT软件，"
+        "使用该软件对检材SYNTHETIC-1进行检查。"
     )
     assert inspection["process_steps"][0]["content"] == "SYNTHETIC/TEST unchanged"
     assert inspection["primary_software"]["candidates"] == report["inspection"]["primary_software"]["candidates"]
@@ -200,8 +201,8 @@ def test_primary_projection_migrates_only_the_exact_legacy_generated_step_four()
     normalized = normalize_primary_software_projection(legacy)
 
     assert normalized["inspection"]["process_steps"][1]["content"] == (
-        "启动SYNTHETIC手机大师NEXT软件（版本号为V1.2.3）"
-        "使用SYNTHETIC手机大师NEXT软件对检材SYNTHETIC-1进行检查。"
+        "启动SYNTHETIC手机大师NEXT软件，"
+        "使用该软件对检材SYNTHETIC-1进行检查。"
     )
     legacy["inspection"]["process_steps"][1]["content"] += "SYNTHETIC/TEST 人工备注"
     custom = normalize_primary_software_projection(legacy)

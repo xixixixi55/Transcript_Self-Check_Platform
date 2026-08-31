@@ -277,7 +277,7 @@ def test_parse_task_prefixes_new_draft_software_once_without_rewriting_saved_cas
         ],
         "process_steps": [{
             "step_number": 4,
-            "content": "启动SYNTHETIC手机大师NEXT软件（版本号为V1.2.3）使用SYNTHETIC手机大师NEXT软件对检材SYNTHETIC-1进行检查。",
+            "content": "启动SYNTHETIC手机大师NEXT软件，使用该软件对检材SYNTHETIC-1进行检查。",
         }],
     })
     parsed_report["inspection"]["result"].update({
@@ -300,8 +300,8 @@ def test_parse_task_prefixes_new_draft_software_once_without_rewriting_saved_cas
     assert report["inspection"]["software_tools"][1]["name"] == "HashMyFiles"
     assert report["inspection"]["result"]["software_name"] == "TEST美亚柏科SYNTHETIC手机大师NEXT"
     expected_step = (
-        "启动TEST美亚柏科SYNTHETIC手机大师NEXT软件（版本号为V1.2.3）"
-        "使用TEST美亚柏科SYNTHETIC手机大师NEXT软件对检材SYNTHETIC-1进行检查。"
+        "启动TEST美亚柏科SYNTHETIC手机大师NEXT软件，"
+        "使用该软件对检材SYNTHETIC-1进行检查。"
     )
     assert report["inspection"]["process_steps"][0]["content"] == expected_step
 

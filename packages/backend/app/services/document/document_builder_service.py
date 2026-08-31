@@ -142,8 +142,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     disc = attach.get("disc_number", "")
     result_text = (
         "经对编号为" + evidence_label + "号检材使用"
-        + result.get("software_name", "") + "（版本号为"
-        + result.get("software_version", "") + "）进行检查，检出"
+        + result.get("software_name", "") + "进行检查，检出"
         + normalize_data_summary(result.get("data_summary")) + "等电子数据。"
         + "将检出结果生成为\"" + result.get("rar_filename", "") + "\"文件，"
         + hash_field_title(hash_algorithm) + "为\"" + str(result.get("md5_hash", "")).upper() + "\"，"

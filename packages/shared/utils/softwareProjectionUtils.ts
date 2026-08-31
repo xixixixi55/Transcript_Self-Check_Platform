@@ -51,12 +51,11 @@ function projectEvidenceProcessSteps(report: InspectionReport): ProcessStep[] {
   )
   const primary = report.inspection.primary_software
   const softwareName = text(primary?.name) || text(report.inspection.result.software_name)
-  const softwareVersion = text(primary?.version) || text(report.inspection.result.software_version)
   const softwareDisplay = softwareActionName(softwareName)
   const projectedContent = new Map<number, string>([
     [1, descriptions.length ? `将${descriptions.join('；')}。` : '将检材信息待确认。'],
     [2, `对检材${evidenceLabel}进行拍照。`],
-    [4, `启动${softwareDisplay}（版本号为${softwareVersion || '待确认'}）使用${softwareDisplay}对检材${evidenceLabel}进行检查。`],
+    [4, `启动${softwareDisplay}，使用该软件对检材${evidenceLabel}进行检查。`],
   ])
   return (report.inspection.process_steps || []).map(step => ({
     ...step,
