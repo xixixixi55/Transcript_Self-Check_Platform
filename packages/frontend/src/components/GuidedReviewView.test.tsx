@@ -220,7 +220,7 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('当前检材编号无法安全排序，已保持原顺序。')).toBeTruthy()
   })
 
-  it('keeps full history above the current conversation while exposing global review controls', () => {
+  it('shows history and conversation as switchable panes while exposing global review controls', () => {
     const selectAction = vi.fn()
     const updateReport = vi.fn()
     const scrollIntoView = vi.fn()
@@ -243,10 +243,16 @@ describe('GuidedReviewView', () => {
       <GuidedReviewCard action={documentAction} report={report} updateReport={updateReport} readOnly={false} />
     </GuidedReviewView>)
 
-    const historyRegion = screen.getByRole('region', { name: '历史处理轨迹' })
+    const historyRegion = screen.getByRole('region', { name: '历史预览' })
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /历史处理轨迹/ })).toBeNull()
+    expect(screen.getByText('历史预览在左，对话在右')).toBeTruthy()
+    const swapPanesButton = screen.getByRole('button', { name: '交换历史预览与对话的位置' })
+    fireEvent.click(swapPanesButton)
+    expect(conversationRegion.compareDocumentPosition(historyRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('对话在左，历史预览在右')).toBeTruthy()
+    fireEvent.click(swapPanesButton)
+    expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('报告内容已自动识别')).toBeTruthy()
     expect(screen.getByText('獬豸助手')).toBeTruthy()
     expect(screen.getByText('1 项待处理')).toBeTruthy()
@@ -543,54 +549,23 @@ describe('GuidedReviewView', () => {
     expect(nextMascotFigure).not.toBe(initialMascotFigure)
   })
 
-  it('anchors the current conversation by default and preserves history reading when records append', () => {
-    let conversationOffset = 320
-    const boundingRect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const scrollTop = this.parentElement?.classList.contains('guided-review-scroll')
-        ? this.parentElement.scrollTop
-        : 0
-      return { top: this.classList.contains('guided-review-conversation') ? conversationOffset - scrollTop : 0 } as DOMRect
-    })
+  it('keeps the active response mounted while switching pane order', () => {
+    render(<GuidedReviewView
+      conversationKey="SYNTHETIC-CASE"
+      history={history}
+      currentAction={documentAction}
+      allActions={[documentAction]}
+      hasResponse
+      onSelectAction={vi.fn()}
+      summary={null}
+      onOpenFullEditor={vi.fn()}
+      onBackToWorkbench={vi.fn()}
+    ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
-    try {
-      const renderView = (items: GuidedReviewHistoryItem[]) => <GuidedReviewView
-        conversationKey="SYNTHETIC-CASE"
-        history={items}
-        currentAction={documentAction}
-        allActions={[documentAction]}
-        hasResponse
-        onSelectAction={vi.fn()}
-        summary={null}
-        onOpenFullEditor={vi.fn()}
-        onBackToWorkbench={vi.fn()}
-      ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>
-
-      const view = render(renderView(history))
-      const scrollRegion = screen.getByRole('region', { name: '审核对话与历史处理轨迹' })
-      expect(scrollRegion.scrollTop).toBe(320)
-
-      const historyReadingPosition = conversationOffset - 8
-      scrollRegion.scrollTop = historyReadingPosition
-      fireEvent.scroll(scrollRegion)
-      conversationOffset = 380
-      view.rerender(renderView([
-        ...history,
-        { id: 'SYNTHETIC-HISTORY-2', tone: 'system', title: '归档校验中' },
-      ]))
-      expect(scrollRegion.scrollTop).toBe(historyReadingPosition)
-
-      const conversationViewportOffset = 80
-      scrollRegion.scrollTop = conversationOffset + conversationViewportOffset
-      fireEvent.scroll(scrollRegion)
-      conversationOffset = 440
-      view.rerender(renderView([
-        ...history,
-        { id: 'SYNTHETIC-HISTORY-2', tone: 'system', title: '归档校验中' },
-        { id: 'SYNTHETIC-HISTORY-3', tone: 'complete', title: '归档处理已完成' },
-      ]))
-      expect(scrollRegion.scrollTop).toBe(440 + conversationViewportOffset)
-    } finally {
-      boundingRect.mockRestore()
-    }
+    const response = screen.getByRole('group', { name: '你的回复' })
+    fireEvent.click(screen.getByRole('button', { name: '交换历史预览与对话的位置' }))
+    expect(screen.getByRole('group', { name: '你的回复' })).toBe(response)
+    expect(screen.getByRole('group', { name: '獬豸助手分栏' }).className)
+      .toContain('guided-review-scroll--conversation-first')
   })
 })

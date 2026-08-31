@@ -139,9 +139,9 @@ workflow_level: 2
 
 ## 当前状态
 
-- `implementation_status: complete`：6.39 案件简要情况预填输入与会话级人工核对已实施并完成验证。
-- `feedback_scope_status: complete`：6.39 Hook、组件和案件页面回归已通过。
-- `spec_sync_status: synced`：6.39 最终行为已核对并同步到 living spec。
+- `implementation_status: complete`：6.43 引导分栏铺满主工作区并调整为严格等宽，已实施并完成验证。
+- `feedback_scope_status: complete`：铺满宽度、等宽分栏、响应式布局及交换顺序均已核对。
+- `spec_sync_status: synced`：铺满与等宽分栏最终行为已核对并同步到 living spec。
 
 ## 2026-08-31 案件简要情况输入补齐证据
 
@@ -372,3 +372,29 @@ workflow_level: 2
 - `guided_order_impeccable: PASS_WITH_EXISTING_FINDINGS`：单次机械检查未发现本次新增问题，仅报告 `reviewWorkspace.css` 第 167、314 行两处本次范围外既有告警。
 - `guided_order_manual_acceptance: N/A`：顺序、全部检材可见性、空态、可访问名称和非线性事项入口均由可区分的 Hook、组件与页面 DOM 回归覆盖；未改变归档业务调用或检材编辑字段本身。
 - `guided_order_level2_gates: PASS`：`verify:quick`、scoped strict docs 14/14、OpenSpec change strict validate、仓库资产卫生与定向回归全部通过。
+
+## 2026-08-31 历史预览与对话可交换分栏
+
+- [x] 6.40 将 `packages/frontend/src/components/GuidedReviewView.tsx` 和 `GuidedReviewHistory.tsx` 从历史/对话单一纵向轨道改为桌面左右分栏：历史预览默认在左、当前对话默认在右，并提供可访问的交换位置操作；交换时保持当前回复、会话级完成摘要和业务控件状态。
+  - 验证：组件测试区分默认 DOM 顺序、交换后的 DOM/键盘顺序、布局状态文案和当前回复节点不被重建。
+- [x] 6.41 调整 `packages/frontend/src/reviewWorkspace.css`，桌面使用约 36%/64% 的历史/对话布局并让两区独立滚动；窄屏降级为无嵌套滚动的单列布局，交换操作切换上下顺序。
+  - 验证：运行前端类型检查、生产构建、Impeccable layout 检测，并在可用环境核对桌面与窄屏布局。
+- [x] 6.42 将本次最终行为同步到 living spec，并运行 `npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec strict validate 与 scoped `git diff --check`。
+
+### 分栏改造验证记录
+
+- `guided_split_contract: PASS`：桌面默认按约 36%/64% 展示左侧历史预览与右侧当前对话，两区独立滚动；交换操作同步重排 DOM 与键盘顺序，当前回复节点保持原实例，未触发业务写入。
+- `guided_split_responsive: PASS_WITH_BROWSER_NA`：760px 以下改为单列、取消两个面板的嵌套滚动，并让同一操作切换上下顺序；Impeccable layout 检测为 0 项。当前会话未暴露可用浏览器控制接口，因此真实桌面/窄屏截图验收记为 N/A，不以源码检查冒充视觉验收。
+- `guided_split_regression: PASS`：引导组件与案件页面回归 32/32、全项目 TypeScript、生产构建、`verify:quick`、OpenSpec strict validate 与 scoped `git diff --check` 通过；测试仅保留既有 jsdom 样式测量及 React `act` 提示，生产构建仅保留既有大包告警。
+
+## 2026-08-31 分栏铺满与等宽反馈
+
+- [x] 6.43 根据用户实页截图移除引导模式继承的 `1136px` 最大宽度和左右内边距，让历史/对话分栏铺满主工作区可用宽度；桌面分栏由 36%/64% 调整为严格 1:1，完整审核编辑页和窄屏单列行为保持不变。
+  - 文件：`packages/frontend/src/reviewWorkspace.css`、本包 delta 与 living spec。
+  - 验证：核对引导模式宽度覆盖与 `repeat(2, minmax(0, 1fr))` 等宽网格，运行前端类型检查、生产构建、Impeccable layout 检测、scoped strict docs 与 `git diff --check`；本次纯布局反馈不机械新增行为测试。
+
+### 铺满与等宽验证记录
+
+- `guided_split_fill_contract: PASS`：`.review-page--guided` 已覆盖通用 `.review-page` 的 `max-width`、居中外边距和左右内边距，只在引导模式铺满主工作区；完整审核编辑继续沿用原 1136px 内容宽度。
+- `guided_split_equal_columns: PASS`：桌面网格使用 `repeat(2, minmax(0, 1fr))`，历史预览与当前对话各占一半可用宽度；760px 以下既有单列降级保持不变。
+- `guided_split_fill_quality: PASS`：生产构建、TypeScript、`verify:quick`、scoped strict docs 14/14、OpenSpec strict validate 与 scoped `git diff --check` 通过，Impeccable layout 检测 0 项；构建仅保留既有大包提示。

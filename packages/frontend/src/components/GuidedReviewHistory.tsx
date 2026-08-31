@@ -15,11 +15,11 @@ function HistoryIcon({ tone }: { tone: GuidedReviewHistoryItem['tone'] }) {
 
 export function GuidedReviewHistory({ items }: Props) {
   return (
-    <section className="guided-review-history" role="region" aria-labelledby="guided-review-history-title">
+    <section className="guided-review-history" role="region" aria-labelledby="guided-review-history-title" tabIndex={0}>
       <div className="guided-review-history__heading">
         <div className="guided-review-history__summary">
-          <h2 id="guided-review-history-title">历史处理轨迹</h2>
-          <span>{items.length ? `已整理 ${items.length} 条事实` : '等待形成轨迹'}</span>
+          <h2 id="guided-review-history-title">历史预览</h2>
+          <span>{items.length ? `处理轨迹 · ${items.length} 条事实` : '等待形成轨迹'}</span>
         </div>
       </div>
       <div className="guided-review-history__content">

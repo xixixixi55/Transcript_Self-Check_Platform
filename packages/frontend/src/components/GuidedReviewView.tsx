@@ -43,6 +43,7 @@ interface SwitchedTurn {
 
 type ActionStatusTone = 'current' | 'pending' | 'warning' | 'system' | 'success'
 type MascotMood = 'listening' | 'verifying' | 'warning' | 'complete'
+type SplitOrder = 'history-first' | 'conversation-first'
 
 interface ActionStatus {
   label: string
@@ -52,14 +53,6 @@ interface ActionStatus {
 const RECOVERY_ACTIONS = new Set<GuidedReviewActionKind>([
   'source_recovery', 'lease_recovery', 'save_recovery', 'photo_recovery',
 ])
-const HISTORY_READING_THRESHOLD = 4
-
-function conversationTopInScrollRegion(scrollRegion: HTMLElement, conversation: HTMLElement): number {
-  return conversation.getBoundingClientRect().top
-    - scrollRegion.getBoundingClientRect().top
-    + scrollRegion.scrollTop
-}
-
 function assistantStatus(currentAction: GuidedReviewAction | null, allActions: GuidedReviewAction[]): ActionStatus {
   if (currentAction?.kind === 'waiting') return { label: '后台处理中', tone: 'system' }
   if (currentAction?.kind === 'ready') return { label: '可生成笔录', tone: 'success' }
@@ -127,6 +120,7 @@ export function GuidedReviewView({
   const [completedTurnCount, setCompletedTurnCount] = useState(0)
   const [completionMoodActive, setCompletionMoodActive] = useState(false)
   const [switchedTurn, setSwitchedTurn] = useState<SwitchedTurn | null>(null)
+  const [splitOrder, setSplitOrder] = useState<SplitOrder>('history-first')
   const [mascotMotionActive, setMascotMotionActive] = useState(() => (
     typeof document === 'undefined' || document.visibilityState !== 'hidden'
   ))
@@ -134,13 +128,7 @@ export function GuidedReviewView({
   const previousConversationKeyRef = useRef(conversationKey)
   const completedActionIdsRef = useRef(new Set<string>())
   const mascotRef = useRef<HTMLDivElement>(null)
-  const scrollRegionRef = useRef<HTMLDivElement>(null)
-  const conversationRef = useRef<HTMLElement>(null)
   const openPanelRef = useRef<HTMLDivElement>(null)
-  const positionedConversationKeyRef = useRef<string | null>(null)
-  const previousHistoryLengthRef = useRef(history.length)
-  const viewingHistoryRef = useRef(false)
-  const conversationViewportOffsetRef = useRef(0)
   const togglePanel = (panel: 'pending' | 'summary') => {
     setOpenPanel(current => current === panel ? null : panel)
   }
@@ -217,42 +205,12 @@ export function GuidedReviewView({
   }, [])
 
   useLayoutEffect(() => {
-    const scrollRegion = scrollRegionRef.current
-    const conversation = conversationRef.current
-    if (!scrollRegion || !conversation) return
-
-    const conversationChanged = positionedConversationKeyRef.current !== conversationKey
-    const historyChanged = previousHistoryLengthRef.current !== history.length
-    const conversationTop = conversationTopInScrollRegion(scrollRegion, conversation)
-    if (conversationChanged) {
-      scrollRegion.scrollTop = conversationTop
-      viewingHistoryRef.current = false
-      conversationViewportOffsetRef.current = 0
-    } else if (historyChanged && !viewingHistoryRef.current) {
-      scrollRegion.scrollTop = conversationTop + conversationViewportOffsetRef.current
-    }
-    positionedConversationKeyRef.current = conversationKey
-    previousHistoryLengthRef.current = history.length
-  }, [conversationKey, history.length])
-
-  useLayoutEffect(() => {
     if (!openPanel) return
     const panel = openPanelRef.current
     if (!panel) return
     panel.focus({ preventScroll: true })
     panel.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [openPanel])
-
-  const rememberScrollPosition = () => {
-    const scrollRegion = scrollRegionRef.current
-    const conversation = conversationRef.current
-    if (!scrollRegion || !conversation) return
-    const conversationTop = conversationTopInScrollRegion(scrollRegion, conversation)
-    viewingHistoryRef.current = scrollRegion.scrollTop < conversationTop - HISTORY_READING_THRESHOLD
-    if (!viewingHistoryRef.current) {
-      conversationViewportOffsetRef.current = Math.max(0, scrollRegion.scrollTop - conversationTop)
-    }
-  }
 
   const responseLabel = currentAction?.kind === 'pending_item' ? '你的回复' : '请选择操作'
   const assistantState = assistantStatus(currentAction, allActions)
@@ -270,10 +228,22 @@ export function GuidedReviewView({
 
   return (
     <div className="guided-review-view">
-      <div ref={scrollRegionRef} className="guided-review-scroll" role="region"
-        aria-label="审核对话与历史处理轨迹" tabIndex={0} onScroll={rememberScrollPosition}>
-        <GuidedReviewHistory items={history} />
-        <section ref={conversationRef} className="guided-review-conversation" role="region" aria-label="当前对话">
+      <div className="guided-review-layout-toolbar" aria-label="分栏布局控制">
+        <span aria-live="polite">
+          {splitOrder === 'history-first' ? '历史预览在左，对话在右' : '对话在左，历史预览在右'}
+        </span>
+        <Tooltip title={splitOrder === 'history-first' ? '将对话切换到左侧' : '将历史预览切换到左侧'}>
+          <Button shape="circle" size="large" className="guided-review-icon-action"
+            icon={<SwapOutlined />} aria-label="交换历史预览与对话的位置"
+            onClick={() => setSplitOrder(current => (
+              current === 'history-first' ? 'conversation-first' : 'history-first'
+            ))} />
+        </Tooltip>
+      </div>
+      <div className={`guided-review-scroll guided-review-scroll--${splitOrder}`} role="group"
+        aria-label="獬豸助手分栏">
+        {splitOrder === 'history-first' && <GuidedReviewHistory key="history" items={history} />}
+        <section key="conversation" className="guided-review-conversation" role="region" aria-label="当前对话">
         <div className="guided-review-conversation__body">
           <div ref={mascotRef}
             className={`guided-review-conversation__mascot${mascotMotionActive ? ' is-motion-active' : ''}`}
@@ -424,6 +394,7 @@ export function GuidedReviewView({
           )}
         </div>
         </section>
+        {splitOrder === 'conversation-first' && <GuidedReviewHistory key="history" items={history} />}
       </div>
     </div>
   )

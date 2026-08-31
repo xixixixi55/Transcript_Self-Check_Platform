@@ -1365,16 +1365,19 @@
   }
 }
 
-/* 引导式审核外壳：历史记录位于当前任务上方，共用一条对话滚动轨道。 */
+/* 引导式审核外壳：铺满工作区的可交换历史/对话分栏。 */
 .review-page--guided {
   width: 100%;
+  max-width: none;
   height: 100%;
   min-height: 0;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   box-sizing: border-box;
   overflow-x: clip;
+  padding-inline: 0;
   padding-bottom: 20px;
 }
 
@@ -1390,39 +1393,54 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 10px;
   overflow: hidden;
+}
+
+.guided-review-layout-toolbar {
+  min-height: 44px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.guided-review-layout-toolbar > span {
+  color: var(--review-muted);
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .guided-review-scroll {
   width: 100%;
-  height: 100%;
   min-height: 0;
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   overflow-x: clip;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scrollbar-color: #9bb0c2 #edf2f6;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-}
-
-.guided-review-scroll:focus-visible {
-  outline: 2px solid var(--review-primary);
-  outline-offset: -2px;
 }
 
 .guided-review-history {
+  height: 100%;
   min-height: 0;
-  flex: 0 0 auto;
-  overflow: visible;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: 0;
   color: var(--review-text);
   background: #f6f8fb;
   border: 1px solid var(--review-border);
   border-radius: 12px;
+  scrollbar-color: #9bb0c2 #edf2f6;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.guided-review-history:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--review-primary) 38%, transparent);
+  outline-offset: -2px;
 }
 
 .guided-review-conversation__identity h2:focus-visible {
@@ -1553,11 +1571,11 @@
 .guided-review-conversation {
   position: relative;
   box-sizing: border-box;
-  min-height: 100%;
-  flex: 0 0 auto;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
   padding: 18px 18px 16px;
   color: var(--review-text);
   background: #ffffff;
@@ -1650,7 +1668,7 @@
   grid-template-columns: clamp(96px, 10vw, 120px) minmax(0, 1fr);
   align-items: start;
   gap: 16px;
-  overflow-y: visible;
+  overflow-y: auto;
   overflow-x: clip;
   padding: 4px 2px 2px 0;
   scrollbar-color: #9bb0c2 #edf2f6;
@@ -2325,9 +2343,31 @@
     flex: 1;
   }
 
+  .guided-review-layout-toolbar {
+    justify-content: space-between;
+  }
+
+  .guided-review-scroll {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-color: #9bb0c2 #edf2f6;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  .guided-review-history {
+    height: auto;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
   .guided-review-conversation {
+    height: auto;
     min-height: 100%;
     flex: 0 0 auto;
+    overflow: visible;
     padding: 14px;
   }
 
