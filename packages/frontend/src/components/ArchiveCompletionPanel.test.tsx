@@ -5,8 +5,6 @@ import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared
 import { ArchiveCompletionPanel } from './ArchiveCompletionPanel'
 
 const mapping = vi.fn()
-const chooseDirectory = vi.fn()
-const exportBundle = vi.fn()
 
 vi.mock('../hooks/useArchiveCompletion', () => ({
   resolveArchiveCompletionStatusForParts: (
@@ -17,15 +15,7 @@ vi.mock('../hooks/useArchiveCompletion', () => ({
     busy: false,
     error: null,
     mapping,
-    chooseDirectory,
-    exportBundle,
   }),
-}))
-
-vi.mock('./WordDownloadNameDialog', () => ({
-  WordDownloadNameDialog: ({ open, onConfirm }: { open: boolean; onConfirm: (name: string) => void }) => (
-    open ? <button onClick={() => onConfirm('SYNTHETIC.docx')}>确认导出名称</button> : null
-  ),
 }))
 
 describe('ArchiveCompletionPanel unified disc-number input', () => {
@@ -35,8 +25,6 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
       plan_row_revision: 3,
       parts: [{ disc_number: 'GP20260731-002' }],
     })
-    chooseDirectory.mockResolvedValue({ path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' })
-    exportBundle.mockResolvedValue({ output: { export_path: 'D:\\SYNTHETIC\\EXPORT' } })
   })
 
   const renderPanel = (props: Partial<React.ComponentProps<typeof ArchiveCompletionPanel>> = {}) => {
@@ -162,7 +150,8 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
       planRowRevision: 6,
       parts: [{ disc_number: 'GP20260731-005' }, { disc_number: 'GP20260731-006' }],
     })
-    expect(screen.getByText('统一导出已完成，可再次导出获取最新 Word 与 RAR。')).toBeTruthy()
+    expect(screen.getByText('统一导出已完成；如需再次导出，请返回案件工作台。')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /再次导出|开始导出/ })).toBeNull()
     expect(screen.queryByText(/截图|PNG/)).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: '首个光盘编号' }), {
       target: { value: 'GP20260731-007' },
@@ -184,19 +173,12 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     })
   })
 
-  it('passes verified part sizes to the export hook', async () => {
-    const parts = [
-      { disc_number: 'GP20260731-001', size_bytes: 22_000_000_000 },
-      { disc_number: 'GP20260731-002', size_bytes: 23_000_000_000 },
-    ]
-    renderPanel({ lifecycle: 'archive_verified', parts })
-    fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
-    fireEvent.click(screen.getByRole('button', { name: '确认导出名称' }))
-    await vi.waitFor(() => {
-      expect(exportBundle).toHaveBeenCalledWith(
-        'case-synthetic-disc-input', 1, 'D:\\SYNTHETIC\\EXPORT',
-        'token-synthetic', 'SYNTHETIC.docx', parts,
-      )
+  it('directs archive-complete cases to the workbench without an internal unified export action', () => {
+    renderPanel({
+      lifecycle: 'archive_verified',
+      parts: [{ disc_number: 'GP20260731-001', size_bytes: 22_000_000_000 }],
     })
+    expect(screen.getByText(/请返回案件工作台统一导出/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /再次导出|开始导出/ })).toBeNull()
   })
 })

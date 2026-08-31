@@ -317,7 +317,7 @@ export default function CaseRecordGeneratePage() {
       archiveMedium={archiveMedium}
       firstDiscNumber={session.report.attachments?.disc_number || ''}
       onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
-      readOnly={!session.editingEnabled} defaultWordName={session.report.document_number}
+      readOnly={!session.editingEnabled}
       onCompleted={() => {
         session.completedArchive.reload()
         void session.reloadDetail(caseId)

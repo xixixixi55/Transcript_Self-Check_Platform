@@ -1,4 +1,4 @@
-// 第 11 层：FE_Components — 统一的首张光盘输入、延迟映射与导出。
+// 第 11 层：FE_Components — 统一的首张光盘输入与延迟映射。
 import React, { useEffect, useState } from 'react'
 import { Alert, Button, Input, Space, message } from 'antd'
 import type { ArchiveMedium, CaseLifecycle } from '@biji/shared/types'
@@ -6,7 +6,6 @@ import {
   resolveArchiveCompletionStatusForParts,
   useArchiveCompletion,
 } from '../hooks/useArchiveCompletion'
-import { WordDownloadNameDialog } from './WordDownloadNameDialog'
 import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 
 interface Props {
@@ -19,7 +18,6 @@ interface Props {
   firstDiscNumber: string
   onFirstDiscNumberChange: (value: string) => void
   readOnly?: boolean
-  defaultWordName?: string
   onCompleted: () => void
 }
 
@@ -27,14 +25,13 @@ export function ArchiveCompletionPanel({
   lifecycle, caseId, expectedRevision, planRowRevision, parts,
   archiveMedium = 'optical_disc',
   firstDiscNumber, onFirstDiscNumberChange,
-  readOnly = false, defaultWordName, onCompleted,
+  readOnly = false, onCompleted,
 }: Props) {
   const archive = useArchiveCompletion()
   const persistedFirstDiscNumber = String(parts?.[0]?.disc_number || '').trim()
   const effectiveFirstDiscNumber = persistedFirstDiscNumber || firstDiscNumber
   const [mappingDiscNumber, setMappingDiscNumber] = useState(effectiveFirstDiscNumber)
   const [mappingPlanRowRevision, setMappingPlanRowRevision] = useState(planRowRevision)
-  const [nameDialogOpen, setNameDialogOpen] = useState(false)
   const status = resolveArchiveCompletionStatusForParts(lifecycle, parts)
   const hardDrive = archiveMedium === 'hard_drive'
   const mediumLabel = hardDrive ? '硬盘' : archiveMedium === 'optical_disc' ? '光盘' : '介质'
@@ -69,26 +66,6 @@ export function ArchiveCompletionPanel({
     } catch { /* error already surfaced via useArchiveCompletion.error */ }
   }
 
-  const runExport = () => {
-    setNameDialogOpen(true)
-  }
-
-  const confirmExportName = async (wordFileName: string) => {
-    setNameDialogOpen(false)
-    try {
-      // 目录授权只能使用一次，并会在导出时消耗；应始终重新选择目录，
-      // 确保再次导出不会复用已消耗的令牌。
-      const chosen = await archive.chooseDirectory()
-      if ('cancelled' in chosen) return
-      const result = await archive.exportBundle(
-        caseId, expectedRevision, chosen.path, chosen.token, wordFileName,
-        parts,
-      )
-      message.success(`已导出至：${result.output.export_path}`)
-      onCompleted()
-    } catch { /* error already surfaced via useArchiveCompletion.error */ }
-  }
-
   if (status === 'disc_pending') {
     return (
       <Alert
@@ -111,33 +88,23 @@ export function ArchiveCompletionPanel({
 
   if (status === 'archive_complete' || status === 'exported') {
     return (
-      <>
-        <Alert
-          className="case-workbench-page__toolbar"
-          type="success"
-          showIcon
-          message={status === 'exported' ? '已导出' : '归档完成'}
-          description={status === 'exported'
-            ? '统一导出已完成，可再次导出获取最新 Word 与 RAR。'
-            : hardDrive
-              ? '完整 RAR、文件哈希与硬盘编号已对应完成，可开始导出。'
-              : '全部 RAR、文件哈希与盘号已对应完成，可开始导出。'}
-          action={<Space>
-            <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
-              disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
-            <Button loading={archive.busy} disabled={readOnly}
-              onClick={() => { void submitMapping() }}>{hardDrive ? '更新硬盘编号' : '更新盘号映射'}</Button>
-            <Button type="primary" loading={archive.busy} onClick={() => { runExport() }}>{status === 'exported' ? '再次导出' : '开始导出'}</Button>
-          </Space>}
-        />
-        <WordDownloadNameDialog
-          open={nameDialogOpen}
-          documentNumber={defaultWordName}
-          exporting={archive.busy}
-          onCancel={() => setNameDialogOpen(false)}
-          onConfirm={downloadName => { void confirmExportName(downloadName) }}
-        />
-      </>
+      <Alert
+        className="case-workbench-page__toolbar"
+        type="success"
+        showIcon
+        message={status === 'exported' ? '已导出' : '归档完成'}
+        description={status === 'exported'
+          ? '统一导出已完成；如需再次导出，请返回案件工作台。'
+          : hardDrive
+            ? '完整 RAR、文件哈希与硬盘编号已对应完成，请返回案件工作台统一导出。'
+            : '全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台统一导出。'}
+        action={<Space>
+          <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
+            disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
+          <Button loading={archive.busy} disabled={readOnly}
+            onClick={() => { void submitMapping() }}>{hardDrive ? '更新硬盘编号' : '更新盘号映射'}</Button>
+        </Space>}
+      />
     )
   }
 

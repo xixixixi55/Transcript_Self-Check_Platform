@@ -3,7 +3,6 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import axios from 'axios'
 import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
-import { unifiedExportRequestTimeoutMs } from '@biji/shared/utils'
 import type { ArchiveTaskResult, CaseDraft, CaseShell } from '@biji/shared/types'
 import CaseRecordGeneratePage from './CaseRecordGeneratePage'
 import { archiveTaskSummary, availableInspector, caseId, completedArchiveResult, defaults, detail, identity, lease, report, reportWithPhotos, task } from './CaseRecordGeneratePage.test-fixtures'
@@ -448,21 +447,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await screen.findByText('工作台路由')
   }, 15000)
 
-  it('asks for a Word file name then picks a fresh directory and triggers the unified export bundle', async () => {
+  it('does not offer unified export inside the case review page', async () => {
     showCompletedArchive = true
-    archiveResultParts = completedArchiveResult.parts.map((part, index) => ({
-      ...part,
-      size_bytes: index === 0 ? 22_000_000_000 : 23_000_000_000,
-    }))
     renderPage()
+    expect(await screen.findByText(/请返回案件工作台统一导出/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
     await openFullEditor()
-    fireEvent.click(await screen.findByRole('button', { name: /开始导出/ }))
-    const dialog = await screen.findByRole('dialog')
-    fireEvent.change(within(dialog).getByLabelText('Word 下载文件名'), { target: { value: '合成案件.docx' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: '开始导出' }))
-    // 每次导出都使用新授权 — 再次导出不得复用已消耗的令牌（422 回归）。
-    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY, undefined, expect.anything()))
-    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId), { expected_revision: 5, export_path: 'D:\\SYNTHETIC\\EXPORT', directory_token: 'token-synthetic', word_filename: '合成案件.docx' }, { timeout: unifiedExportRequestTimeoutMs(45_000_000_000) }))
+    expect(await screen.findByText(/请返回案件工作台统一导出/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
+    expect(postMock.mock.calls.some(([url]) => String(url).includes('/export-bundle'))).toBe(false)
   }, 15000)
 
   it('shows the exported state for a re-exported case', async () => {
@@ -472,7 +465,8 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(await within(historyRegion).findByText('统一导出已完成')).toBeTruthy()
     expect(within(historyRegion).queryByText('案件材料已完成导出')).toBeNull()
     await openFullEditor()
-    expect(await screen.findByRole('button', { name: /再次导出/ })).toBeTruthy()
+    expect(await screen.findByText('统一导出已完成；如需再次导出，请返回案件工作台。')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /再次导出|开始导出/ })).toBeNull()
     expect(screen.getByText('已导出')).toBeTruthy()
   }, 15000)
 })

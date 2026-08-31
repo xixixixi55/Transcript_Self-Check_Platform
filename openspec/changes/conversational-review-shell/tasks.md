@@ -398,3 +398,10 @@ workflow_level: 2
 - `guided_split_fill_contract: PASS`：`.review-page--guided` 已覆盖通用 `.review-page` 的 `max-width`、居中外边距和左右内边距，只在引导模式铺满主工作区；完整审核编辑继续沿用原 1136px 内容宽度。
 - `guided_split_equal_columns: PASS`：桌面网格使用 `repeat(2, minmax(0, 1fr))`，历史预览与当前对话各占一半可用宽度；760px 以下既有单列降级保持不变。
 - `guided_split_fill_quality: PASS`：生产构建、TypeScript、`verify:quick`、scoped strict docs 14/14、OpenSpec strict validate 与 scoped `git diff --check` 通过，Impeccable layout 检测 0 项；构建仅保留既有大包提示。
+
+## 2026-08-31 统一导出入口收口
+
+- [x] 6.44 按入口收口反馈移除案件内部审核页的统一导出操作，只保留介质编号填写/映射和单独 Word 导出；统一导出继续由案件工作台卡片触发，后端导出合同、工作台导出和历史状态展示保持不变。
+  - 文件：`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及相关测试；同步本包 delta 与 `openspec/specs/electronic-inspection-record/spec.md`。
+  - 验证：页面与组件定向 Vitest 区分“内部无统一导出入口”和“工作台仍可统一导出”，再运行 `npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell` 与 `git diff --check`。
+  - 证据：归档完成面板、案件内部审核页与案件工作台 3 个前端测试文件共 46 项通过；内部页面断言不出现统一导出按钮且不请求 `/export-bundle`，工作台卡片统一导出回归通过；`verify:quick`、scoped strict docs 与 `git diff --check` 通过。人工验收：N/A（入口可见性与请求边界由可区分的合成前端测试覆盖，未改变视觉版式或桌面目录选择器实现）。
