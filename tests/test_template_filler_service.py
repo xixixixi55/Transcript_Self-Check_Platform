@@ -292,6 +292,16 @@ def test_fill_template_combines_all_evidence_numbers_in_result_sentence(tmp_path
         if paragraph.text.startswith("经对编号为JC01、JC02号检材")
     )
     assert result_paragraph.paragraph_format.first_line_indent.pt == pytest.approx(32)
+    result_paragraph_xml = next(
+        paragraph
+        for paragraph in ET.fromstring(document_xml).iter(f"{{{W_NS}}}p")
+        if "".join(paragraph.itertext()).startswith("经对编号为JC01、JC02号检材")
+    )
+    result_indent = result_paragraph_xml.find(
+        f"./{{{W_NS}}}pPr/{{{W_NS}}}ind"
+    )
+    assert result_indent is not None
+    assert result_indent.get(f"{{{W_NS}}}firstLineChars") == "200"
 
 
 def test_evidence_renderer_preserves_material_type_and_identifier_contracts(tmp_path):

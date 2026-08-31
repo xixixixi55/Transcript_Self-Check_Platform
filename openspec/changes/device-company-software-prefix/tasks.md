@@ -114,3 +114,10 @@ spec_sync_evidence: `openspec/specs/electronic-inspection-record/spec.md` REQ-01
 - [x] 以旧版真实固定 ID 构造升级回归测试，完成模板控制器定向验证、`verify:quick`、scoped strict docs 与差异检查。
 
 本轮证据：真实旧固定 ID 升级失败用例先复现 `template_versions.asset_id` 唯一约束错误；修复后升级与便携目录重定位 2 项通过，模板控制器 16 项通过。`ARCHIVE_CONFIGURED_ROOT_INVALID` 作为独立环境警告保留，不影响模板注册与应用启动。
+
+## 归档前反馈：纠正检查结果的字符缩进
+
+- [x] 将内置模板检查结果正文的 `firstLineChars` 从 100 改为 200，确保 Word 实际按两个汉字宽度缩进。
+- [x] 增加 OOXML 字符缩进属性回归，更新模板版本与指纹，并完成模板校验、定向测试及 Level 2 收尾门控。
+
+本轮证据：新增回归在旧模板上准确失败于 `firstLineChars=100`，修复后直接断言导出文档 OOXML 为 `firstLineChars=200`；模板升级为 1.0.6，确定性包指纹为 `8FDCB657E6CD0AE0A91434D6C9C8F9D128A9BECB94BA9435D963C48B4BCEBBF8`。模板/指纹/清理/升级/文书定向测试 72 项通过，OfficeCLI 校验、`verify:quick` 与 scoped strict docs 通过。
