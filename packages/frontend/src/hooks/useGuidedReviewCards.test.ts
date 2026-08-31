@@ -82,7 +82,7 @@ function withMediumNumber(report: InspectionReport): InspectionReport {
 
 describe('guided review projection', () => {
   it('classifies existing facts without re-asking complete defaults or system-produced archive fields', () => {
-    const projection = deriveGuidedReviewProjection(buildInput())
+    const projection = deriveGuidedReviewProjection({ ...buildInput(), caseSummaryReviewed: true })
 
     expect(projection.pendingItems.some(item => item.targetId.includes('inspector'))).toBe(false)
     expect(projection.pendingItems.some(item => [
@@ -114,6 +114,35 @@ describe('guided review projection', () => {
     expect(running.history.some(item => item.id === 'archive-stage-winrar')).toBe(true)
     expect(completed.history.some(item => item.id === 'archive-stage-winrar')).toBe(false)
     expect(completed.history.some(item => item.title === '后台归档已完成校验')).toBe(true)
+  })
+
+  it('asks the user to review a prefilled case summary until it is confirmed in the page session', () => {
+    const pending = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems: [], caseSummaryReviewed: false,
+    })
+    expect(pending.allActions).toContainEqual(expect.objectContaining({
+      title: '请确认案件简要情况',
+      pendingItem: expect.objectContaining({
+        targetId: REVIEW_TARGET_IDS.caseSummary,
+        kind: 'confirmation_required',
+      }),
+    }))
+
+    const reviewed = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems: [], caseSummaryReviewed: true,
+    })
+    expect(reviewed.allActions.some(action =>
+      action.pendingItem?.targetId === REVIEW_TARGET_IDS.caseSummary)).toBe(false)
+  })
+
+  it('advances immediately after the page session confirms the case summary review', () => {
+    const { result, rerender } = renderHook(({ reviewed }) => useGuidedReviewCards({
+      ...buildInput(), pendingItems: [], caseSummaryReviewed: reviewed,
+    }), { initialProps: { reviewed: false } })
+
+    expect(result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.caseSummary)
+    rerender({ reviewed: true })
+    expect(result.current.currentAction?.kind).toBe('waiting')
   })
 
   it('updates history to the final evidence total after the user supplements recognized evidence', () => {

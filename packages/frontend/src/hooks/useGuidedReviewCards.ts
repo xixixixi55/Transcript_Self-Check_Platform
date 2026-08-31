@@ -42,6 +42,7 @@ export interface GuidedReviewProjectionInput {
   caseId: string
   report: InspectionReport | null
   pendingItems: ReviewPendingItem[]
+  caseSummaryReviewed?: boolean
   lifecycle: CaseLifecycle
   archiveTask?: ArchiveTaskCardSummary | null
   archiveMedium: ArchiveMedium | null
@@ -266,11 +267,26 @@ function pendingAction(item: ReviewPendingItem): GuidedReviewAction {
   }
 }
 
+const CASE_SUMMARY_REVIEW_ITEM: ReviewPendingItem = {
+  id: 'review-section-introduction-案件简要情况',
+  sectionId: 'review-section-introduction',
+  targetId: REVIEW_TARGET_IDS.caseSummary,
+  sectionLabel: '一、绪论',
+  fieldLabel: '案件简要情况',
+  reason: '报告已自动整理案件简要情况，请人工核对并按需修改。',
+  severity: 'warning',
+  kind: 'confirmation_required',
+}
+
 export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput): GuidedReviewProjection {
   if (!input.report) return {
     history: [], pendingItems: [], allActions: [], systemStatus: null, readyToGenerate: false,
   }
   const pendingItems = input.pendingItems.filter(item => !SYSTEM_OUTPUT_TARGETS.has(item.targetId))
+  if (input.caseSummaryReviewed === false
+    && !pendingItems.some(item => item.targetId === REVIEW_TARGET_IDS.caseSummary)) {
+    pendingItems.push(CASE_SUMMARY_REVIEW_ITEM)
+  }
   const allActions: GuidedReviewAction[] = []
   if (input.leaseState !== 'editable' && input.leaseState !== 'acquiring') {
     allActions.push({ id: 'lease-recovery', kind: 'lease_recovery', title: '请恢复编辑权限', description: '当前页面不能写入案件，请先恢复有效编辑租约。' })
@@ -353,6 +369,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const baseCurrentAction = !projectedSelectedAction
     && retainedForCase?.id === selectedActionId
     && retainedForCase.advanceOnEnter
+    && retainedForCase.pendingItem?.kind !== 'confirmation_required'
     ? retainedForCase
     : projectedSelectedAction || projection.allActions[0] || null
   const currentAction = revisitedAction || baseCurrentAction

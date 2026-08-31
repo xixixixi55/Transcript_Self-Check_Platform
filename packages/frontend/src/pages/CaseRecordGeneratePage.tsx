@@ -41,6 +41,7 @@ export default function CaseRecordGeneratePage() {
   const [exportPreparing, setExportPreparing] = useState(false)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const [reviewMode, setReviewMode] = useState<'guided' | 'full'>('guided')
+  const [caseSummaryReviewed, setCaseSummaryReviewed] = useState(false)
   const [fullEditorFocusRequest, setFullEditorFocusRequest] = useState({ targetId: null as string | null, sequence: 0 })
   const handledFullEditorFocusSequence = useRef(-1)
   const archiveDecisionInFlight = useRef(false)
@@ -48,6 +49,7 @@ export default function CaseRecordGeneratePage() {
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
   useEffect(() => {
     setReviewMode('guided')
+    setCaseSummaryReviewed(false)
     setFullEditorFocusRequest({ targetId: null, sequence: 0 })
     handledFullEditorFocusSequence.current = -1
     focusGuidedAfterSwitch.current = false
@@ -69,6 +71,7 @@ export default function CaseRecordGeneratePage() {
     caseId,
     report: projectedReport,
     pendingItems,
+    caseSummaryReviewed,
     lifecycle: session.detail?.shell.lifecycle || 'case_created',
     archiveTask: session.detail?.shell.archive_task_summary,
     archiveMedium,
@@ -385,7 +388,12 @@ export default function CaseRecordGeneratePage() {
             allActions={guidedReview.allActions} hasResponse={Boolean(guidedSpecialContent || currentGuidedAction.pendingItem)}
             onSelectAction={guidedReview.selectAction}
             onRevisitAction={guidedReview.revisitAction}
-            onConfirmCurrentAction={guidedReview.confirmCurrentAction}
+            onConfirmCurrentAction={() => {
+              if (currentGuidedAction.pendingItem?.targetId === REVIEW_TARGET_IDS.caseSummary) {
+                setCaseSummaryReviewed(true)
+              }
+              guidedReview.confirmCurrentAction()
+            }}
             canReturnToPrevious={Boolean(guidedReview.previousAction)}
             isReviewingPrevious={guidedReview.isReviewingPrevious}
             onReturnToPreviousAction={guidedReview.returnToPreviousAction}

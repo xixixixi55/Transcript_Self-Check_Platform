@@ -133,12 +133,21 @@ workflow_level: 2
   - 文件：`packages/frontend/src/hooks/useGuidedReviewCards.ts`、`packages/frontend/src/hooks/useGuidedReviewCards.test.ts`、`packages/frontend/src/components/GuidedReviewCard.tsx`、`packages/frontend/src/components/GuidedReviewView.test.tsx`、`packages/frontend/src/reviewWorkspace.css`、本包 delta 与 living spec。
   - 验证：定向 Vitest 区分“压缩时机→介质编号→文号”的正常顺序、恢复事项优先级和选择稍后后的继续办理；组件测试断言未点击“不完整”时已可见全部 SYNTHETIC/TEST 检材及空态；运行 `npm run verify:quick`、scoped strict docs、OpenSpec strict validate、Impeccable 单次检测与 `git diff --check`。
   - 验证：复用组件用例断言各类直接操作均为无常驻文字的圆形图标按钮并保留主次语义，运行定向测试、前端类型检查、生产构建、scoped strict docs 与 `git diff --check`。
+- [x] 6.39 补齐獬豸助手的案件简要情况用户输入：即使报告已经解析出案件简要情况，也在本次页面会话中提供预填的多行输入框供人工核对和修改；输入继续复用现有报告草稿与自动保存，确认后本次会话不重复询问，清空后仍按既有必填规则重新出现。
+  - 文件：`packages/frontend/src/hooks/useGuidedReviewCards.ts`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx`、`packages/frontend/src/components/GuidedReviewCard.tsx`、对应前端测试、本包 delta 与 living spec。
+  - 验证：定向 Vitest 区分“解析值仍展示输入框”“确认后会话内不重复询问”“修改写入 `introduction.case_summary`”；运行 `npm run verify:quick`、受影响前端测试、scoped strict docs 与 `git diff --check`。
 
 ## 当前状态
 
-- `implementation_status: complete`：6.37 獬豸助手完整按钮体系统一已实施并完成验证。
-- `feedback_scope_status: complete`：6.37 组件回归与样式门控核对完成。
-- `spec_sync_status: synced`：6.33 工具栏最终行为已核对并同步到 living spec。
+- `implementation_status: complete`：6.39 案件简要情况预填输入与会话级人工核对已实施并完成验证。
+- `feedback_scope_status: complete`：6.39 Hook、组件和案件页面回归已通过。
+- `spec_sync_status: synced`：6.39 最终行为已核对并同步到 living spec。
+
+## 2026-08-31 案件简要情况输入补齐证据
+
+- `case_summary_input_contract: PASS`：报告已有解析值时，獬豸助手仍生成一次“请确认案件简要情况”操作，并使用现有 `Input.TextArea` 预填当前值；修改继续调用 `updateReport('introduction.case_summary', value)`，沿用既有草稿自动保存。
+- `case_summary_session_flow: PASS`：用户确认后，本次页面会话立即推进到下一动态事项且不重复询问；案件切换或重新进入会重新要求人工核对，确认后若字段被清空，既有必填缺失项仍会重新出现。
+- `case_summary_verification: PASS`：相关 Hook/组件/页面 Vitest 共 48 个用例通过；`npm run typecheck`、`npm run verify:quick` 通过。测试拆分遵循组件职责，`GuidedReviewView.test.tsx` 回到 600 行以内。
 
 ## 2026-08-30 快捷补录视觉收敛证据
 
