@@ -405,3 +405,22 @@ workflow_level: 2
   - 文件：`packages/frontend/src/components/ArchiveCompletionPanel.tsx`、`packages/frontend/src/pages/CaseRecordGeneratePage.tsx` 及相关测试；同步本包 delta 与 `openspec/specs/electronic-inspection-record/spec.md`。
   - 验证：页面与组件定向 Vitest 区分“内部无统一导出入口”和“工作台仍可统一导出”，再运行 `npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell` 与 `git diff --check`。
   - 证据：归档完成面板、案件内部审核页与案件工作台 3 个前端测试文件共 46 项通过；内部页面断言不出现统一导出按钮且不请求 `/export-bundle`，工作台卡片统一导出回归通过；`verify:quick`、scoped strict docs 与 `git diff --check` 通过。人工验收：N/A（入口可见性与请求边界由可区分的合成前端测试覆盖，未改变视觉版式或桌面目录选择器实现）。
+
+## 2026-08-31 历史预览最终值与分类型展示反馈
+
+- [x] 6.45 将历史预览的业务信息改为当前报告草稿最终值投影：普通字段显示中文标签和值，用户修改覆盖旧识别值，并根据现有字段来源为用户填写或修改的最终值显示“用户填写”标记；长文本完整换行显示，空值不展示，来源、保存、归档、导出和异常仍保留自然语言状态。
+  - 文件：`packages/frontend/src/hooks/useGuidedReviewHistoryProjection.ts`、`useGuidedReviewCards.ts`、现有 Hook 测试。
+- [x] 6.46 为检材与图片增加逐检材结构化展示，使用“检材 N · 编号”主标签、右侧 `已上传数/2` 进度以及对应检材的最终设备信息；复用现有视觉语言并覆盖窄屏、长编号和可访问语义。
+  - 文件：`packages/frontend/src/components/GuidedReviewHistory.tsx`、`packages/frontend/src/reviewWorkspace.css`、现有组件测试。
+- [x] 6.47 核对 delta 与最终实现并同步 living spec，运行前端定向测试、类型检查、Impeccable 检测、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 scoped `git diff --check`。
+
+### 历史预览最终值与分类型展示验证记录
+
+- `history_final_value_contract: PASS`：历史业务摘要从当前报告草稿重建，普通字段、多值、长文本和空值使用分类型投影；Hook 回归区分报告识别委托人员、用户修改后的最终人员列表以及清空后的字段移除，不保留被覆盖的旧值。
+- `history_user_provenance: PASS`：页面向历史投影传入既有 `FieldState`，字段与检材按稳定来源路径判断 `user`，可见“用户填写”文字标记与蓝色样式同时存在；报告解析与系统默认来源不误标，标记不成为新的业务字段。
+- `history_material_photo_rows: PASS`：检材按当前顺序显示“检材 N · 编号”，右侧按现有照片绑定显示 `0/2`、`1/2` 或 `2/2`，完整状态使用既有成功色；设备、类型、IMEI、序列号和无法提取原因在对应检材下展示最终值，图片数量具有完整可访问名称。
+- `history_targeted_tests: PASS`：`useGuidedReviewCards.test.ts` 16/16、`GuidedReviewView.test.tsx` 12/12 通过，覆盖最终值刷新、用户来源标记、检材图片进度、结构化 DOM 和分栏交换；生产构建通过，仅保留既有大包提示。
+- `history_page_regression: PASS_WITH_OUT_OF_SCOPE_FAILURE`：扩展执行 `CaseRecordGeneratePage.test.tsx` 时 20 项中 19 项通过；与本次历史预览无代码交集的“统一导出入口”旧断言连续两次找不到“请返回案件工作台统一导出”文案，保持现状并未擅自改写该业务合同。测试仍输出既有 jsdom `getComputedStyle` 与 React `act` 提示。
+- `history_impeccable: PASS_WITH_EXISTING_FINDINGS`：一次性机械检测仅报告 `reviewWorkspace.css` 第 167 行既有 3px 左边框和第 314 行既有 `width` 过渡，本次新增历史样式无检测项。
+- `history_manual_acceptance: N/A`：为避免在未确认测试属性的现有案件上读取或截图业务信息，本轮未进行真实案件视觉验收；合成组件 DOM、长内容换行、760px 响应式规则和可访问名称由自动化与源码检查覆盖。
+- `history_level2_gates: PASS`：`lint:arch`、TypeScript、生产构建、`verify:quick`、scoped strict docs、OpenSpec strict validate、仓库资产卫生与 scoped `git diff --check` 通过。

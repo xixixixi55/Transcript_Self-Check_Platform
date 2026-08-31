@@ -1564,6 +1564,99 @@
   overflow-wrap: anywhere;
 }
 
+.guided-review-history__fields {
+  display: grid;
+  gap: 4px;
+  margin: 5px 0 0;
+  color: var(--review-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.guided-review-history__field {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+}
+
+.guided-review-history__field dt,
+.guided-review-history__field dd {
+  margin: 0;
+}
+
+.guided-review-history__field dt {
+  color: #51697d;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.guided-review-history__field dd {
+  min-width: 0;
+  color: var(--review-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.guided-review-history__user-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  color: #245d86;
+  background: #e6f0f8;
+  border: 1px solid #bfd4e5;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 17px;
+  font-weight: 600;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.guided-review-history__materials {
+  margin-top: 6px;
+  border-top: 1px solid #d6e0e8;
+}
+
+.guided-review-history__material {
+  min-width: 0;
+  padding: 9px 0;
+  border-bottom: 1px solid #d6e0e8;
+}
+
+.guided-review-history__material-heading {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--review-text);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.guided-review-history__material-heading > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.guided-review-history__material-count {
+  flex: 0 0 auto;
+  color: var(--review-warning);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.guided-review-history__material-count--complete {
+  color: var(--review-success);
+}
+
+.guided-review-history__material .guided-review-history__fields {
+  margin-top: 3px;
+  padding-right: 44px;
+}
+
 .guided-review-history__empty {
   padding: 10px 0 14px;
 }
@@ -2361,6 +2454,18 @@
     height: auto;
     flex: 0 0 auto;
     overflow: visible;
+  }
+
+  .guided-review-history__field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .guided-review-history__field dt {
+    margin-bottom: 1px;
+  }
+
+  .guided-review-history__material .guided-review-history__fields {
+    padding-right: 0;
   }
 
   .guided-review-conversation {

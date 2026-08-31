@@ -70,6 +70,7 @@ export default function CaseRecordGeneratePage() {
   const guidedReview = useGuidedReviewCards({
     caseId,
     report: projectedReport,
+    fieldStates: session.draft?.field_states,
     pendingItems,
     caseSummaryReviewed,
     lifecycle: session.detail?.shell.lifecycle || 'case_created',

@@ -6,7 +6,17 @@ import { GuidedReviewCard } from './GuidedReviewCard'
 import { GuidedReviewView } from './GuidedReviewView'
 
 const history: GuidedReviewHistoryItem[] = [
-  { id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '报告内容已自动识别', detail: '已从合成报告整理文号。' },
+  {
+    id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '文书与委托信息已整理',
+    fields: [{ label: '委托人员', value: 'SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B', userProvided: true }],
+  },
+  {
+    id: 'SYNTHETIC-HISTORY-2', tone: 'complete', title: '检材与图片 · 1 项',
+    materials: [{
+      id: 'SYNTHETIC-MATERIAL-1', label: '检材 1 · SYN-JC00000001', photoCount: 2, requiredPhotoCount: 2,
+      userProvided: true, fields: [{ label: '设备', value: 'SYNTHETIC PHONE', userProvided: true }],
+    }],
+  },
 ]
 const documentAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-DOCUMENT', kind: 'pending_item', title: '请输入文号', description: '当前必填字段为空。',
@@ -253,7 +263,13 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('对话在左，历史预览在右')).toBeTruthy()
     fireEvent.click(swapPanesButton)
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('报告内容已自动识别')).toBeTruthy()
+    expect(screen.getByText('文书与委托信息已整理')).toBeTruthy()
+    expect(screen.getByText('委托人员：')).toBeTruthy()
+    expect(screen.getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
+    expect(screen.getAllByText('用户填写')).toHaveLength(3)
+    expect(screen.getByText('检材 1 · SYN-JC00000001')).toBeTruthy()
+    expect(screen.getByText('2/2').getAttribute('aria-label'))
+      .toBe('检材 1 · SYN-JC00000001：已上传 2 张图片，共需 2 张')
     expect(screen.getByText('獬豸助手')).toBeTruthy()
     expect(screen.getByText('1 项待处理')).toBeTruthy()
     expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent).toContain('请输入文号')

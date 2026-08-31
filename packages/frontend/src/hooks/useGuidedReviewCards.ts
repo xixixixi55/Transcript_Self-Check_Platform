@@ -1,12 +1,23 @@
 // 第 10 层：FE_Hooks — 仅在会话中将已有审核事实投影为引导卡片。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
-  ArchiveMedium, ArchiveTaskCardSummary, CaseLifecycle, InspectionReport, SourceAccessStatus,
+  ArchiveMedium, ArchiveTaskCardSummary, CaseLifecycle, FieldState, InspectionReport, SourceAccessStatus,
 } from '@biji/shared/types'
 import type { ReviewPendingItem } from './useReviewChecklist'
 import { REVIEW_TARGET_IDS } from './useReviewChecklist'
+import {
+  buildReportHistory,
+  type GuidedReviewHistoryItem,
+  type GuidedReviewHistoryTone,
+} from './useGuidedReviewHistoryProjection'
 
-export type GuidedReviewHistoryTone = 'complete' | 'system' | 'warning' | 'recovered'
+export type {
+  GuidedReviewHistoryField,
+  GuidedReviewHistoryItem,
+  GuidedReviewHistoryMaterial,
+  GuidedReviewHistoryTone,
+} from './useGuidedReviewHistoryProjection'
+
 export type GuidedReviewActionKind =
   | 'pending_item'
   | 'source_recovery'
@@ -16,13 +27,6 @@ export type GuidedReviewActionKind =
   | 'archive_decision'
   | 'waiting'
   | 'ready'
-
-export interface GuidedReviewHistoryItem {
-  id: string
-  tone: GuidedReviewHistoryTone
-  title: string
-  detail?: string
-}
 
 export interface GuidedReviewAction {
   id: string
@@ -41,6 +45,7 @@ export interface GuidedReviewSystemStatus {
 export interface GuidedReviewProjectionInput {
   caseId: string
   report: InspectionReport | null
+  fieldStates?: Record<string, FieldState>
   pendingItems: ReviewPendingItem[]
   caseSummaryReviewed?: boolean
   lifecycle: CaseLifecycle
@@ -68,6 +73,14 @@ const SYSTEM_OUTPUT_TARGETS = new Set([
   REVIEW_TARGET_IDS.result('rar_filename'),
   REVIEW_TARGET_IDS.result('md5_hash'),
   REVIEW_TARGET_IDS.result('file_size'),
+])
+
+const CURRENT_REPORT_HISTORY_IDS = new Set([
+  'fact-report-recognition',
+  'fact-evidence',
+  'fact-defaults',
+  'fact-result',
+  'fact-source',
 ])
 
 const ARCHIVE_STAGE_LABELS: Record<string, string> = {
@@ -108,54 +121,9 @@ function archiveMediumLabel(medium: ArchiveMedium | null): string {
   return '归档介质'
 }
 
-function hasCompleteInspectors(report: InspectionReport): boolean {
-  const inspectors = report.introduction.inspector_snapshots
-    || report.introduction.inspectors.map(item => ({
-      name: item.name, unit: item.unit, police_number: item.badge_number,
-    }))
-  return inspectors.length > 0 && inspectors.every(item =>
-    Boolean(item.name?.trim() && item.unit?.trim() && item.police_number?.trim()),
-  )
-}
-
 function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHistoryItem[] {
-  const history: GuidedReviewHistoryItem[] = []
+  const history = buildReportHistory(input.report, input.fieldStates)
   if (!input.report) return history
-  const evidenceCount = input.report.introduction.evidence_list.length
-  const recognizedEvidenceCount = input.report.introduction.evidence_list.filter(item =>
-    item.material_type_source === 'report' || item.material_type_status === 'confirmed_by_report',
-  ).length
-  const userSupplementedEvidenceCount = Math.max(0, evidenceCount - recognizedEvidenceCount)
-  const evidenceSummary = evidenceCount > 0
-    ? `当前已处理 ${evidenceCount} 项检材${userSupplementedEvidenceCount > 0
-      ? recognizedEvidenceCount > 0
-        ? `，其中报告识别 ${recognizedEvidenceCount} 项、用户补充 ${userSupplementedEvidenceCount} 项`
-        : '，均为用户补充'
-      : ''}`
-    : null
-  const recognizedFacts = [
-    input.report.document_number.trim() ? `文号 ${input.report.document_number.trim()}` : null,
-    recognizedEvidenceCount > 0 ? `${recognizedEvidenceCount} 项检材类型` : null,
-    input.report.inspection.primary_software?.confirmation_status === 'confirmed_by_report'
-      ? `主取证软件 ${input.report.inspection.primary_software.display_name
-        || input.report.inspection.primary_software.name}` : null,
-  ].filter(Boolean)
-  if (recognizedFacts.length > 0) history.push({
-    id: 'fact-report-recognition', tone: 'complete', title: '报告内容已自动识别',
-    detail: `已从当前报告解析结果整理${recognizedFacts.join('、')}${evidenceSummary
-      ? `；${evidenceSummary}` : ''}。`,
-  })
-  if (input.report.introduction.inspection_place.trim()
-    && input.report.inspection.method.trim()
-    && input.report.inspection.hardware_device.trim()
-    && hasCompleteInspectors(input.report)) history.push({
-    id: 'fact-defaults', tone: 'complete', title: '检查设置已沿用',
-    detail: '检查人员、地点、方法和硬件设备已从案件信息与默认设置带入。',
-  })
-  if (evidenceCount > 0 && recognizedEvidenceCount === 0) history.push({
-    id: 'fact-evidence', tone: 'complete', title: '检材信息已整理',
-    detail: `${evidenceSummary}。`,
-  })
   if (input.sourceStatus === 'available' && !input.sourceRequiresReselection) history.push({
     id: 'fact-source', tone: 'complete', title: '报告来源已确认',
     detail: '系统将继续沿用当前案件已授权的报告来源。',
@@ -342,9 +310,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
 
 export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const projection = deriveGuidedReviewProjection(input)
-  const historySignature = projection.history.map(item => (
-    [item.id, item.tone, item.title, item.detail || ''].join('\u0000')
-  )).join('\u0001')
+  const historySignature = JSON.stringify(projection.history)
   const [history, setHistory] = useState(projection.history)
   const [historyCaseId, setHistoryCaseId] = useState(input.caseId)
   const [selectedActionId, setSelectedActionId] = useState(projection.allActions[0]?.id || '')
@@ -418,8 +384,12 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     }
     setHistory(current => {
       const projectedById = new Map(projection.history.map(item => [item.id, item]))
-      const refreshed = current.map(item => projectedById.get(item.id) || item)
-      const known = new Set(current.map(item => item.id))
+      const refreshed = current.flatMap(item => {
+        const projected = projectedById.get(item.id)
+        if (projected) return [projected]
+        return CURRENT_REPORT_HISTORY_IDS.has(item.id) ? [] : [item]
+      })
+      const known = new Set(refreshed.map(item => item.id))
       const additions = projection.history.filter(item => !known.has(item.id))
       if (known.has('archive-interrupted')
         && projection.history.some(item => item.id.startsWith('archive-stage-') || item.id === 'archive-completed')

@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import type { ArchiveTaskCardSummary, InspectionReport } from '@biji/shared/types'
+import type { ArchiveTaskCardSummary, FieldState, InspectionReport } from '@biji/shared/types'
 import { describe, expect, it } from 'vitest'
 import { getReviewPendingItems, REVIEW_TARGET_IDS } from './useReviewChecklist'
 import type { GuidedReviewProjectionInput } from './useGuidedReviewCards'
@@ -95,10 +95,13 @@ describe('guided review projection', () => {
     }))
     expect(projection.history).toContainEqual(expect.objectContaining({
       id: 'fact-report-recognition',
-      title: '报告内容已自动识别',
-      detail: expect.stringContaining('SYN-TEST〔2026〕001号'),
+      title: '文书与委托信息已整理',
+      fields: expect.arrayContaining([
+        { label: '文号', value: 'SYN-TEST〔2026〕001号' },
+        { label: '委托人员', value: 'SYNTHETIC-PERSON' },
+      ]),
     }))
-    expect(projection.history.map(item => `${item.title}${item.detail || ''}`).join(' ')).not.toMatch(
+    expect(JSON.stringify(projection.history)).not.toMatch(
       /SYNTHETIC-TASK|revision|Worker|worker|令牌|token|[A-Z]:\\/,
     )
   })
@@ -145,7 +148,7 @@ describe('guided review projection', () => {
     expect(result.current.currentAction?.kind).toBe('waiting')
   })
 
-  it('updates history to the final evidence total after the user supplements recognized evidence', () => {
+  it('updates structured history with user-supplemented evidence and per-material photo progress', () => {
     const recognizedEvidence = [1, 2].map(index => ({
       ...syntheticReport.introduction.evidence_list[0],
       id: `SYNTHETIC-RECOGNIZED-${index}`,
@@ -163,18 +166,71 @@ describe('guided review projection', () => {
     const reportWith = (evidenceList: typeof recognizedEvidence) => ({
       ...syntheticReport,
       introduction: { ...syntheticReport.introduction, evidence_list: evidenceList },
+      attachments: {
+        ...syntheticReport.attachments,
+        photo_ids: ['SYNTHETIC-PHOTO-1', 'SYNTHETIC-PHOTO-2', 'SYNTHETIC-PHOTO-3'],
+      },
     })
     const { result, rerender } = renderHook(({ report }) => useGuidedReviewCards(buildInput(report)), {
       initialProps: { report: reportWith(recognizedEvidence) },
     })
 
-    expect(result.current.history.find(item => item.id === 'fact-report-recognition')?.detail)
-      .toContain('当前已处理 2 项检材')
+    expect(result.current.history.find(item => item.id === 'fact-evidence')?.materials).toEqual([
+      expect.objectContaining({ label: '检材 1 · SYNTHETIC-R-1', photoCount: 2, requiredPhotoCount: 2 }),
+      expect.objectContaining({ label: '检材 2 · SYNTHETIC-R-2', photoCount: 1, requiredPhotoCount: 2 }),
+    ])
 
     rerender({ report: reportWith([...recognizedEvidence, ...userEvidence]) })
 
-    expect(result.current.history.find(item => item.id === 'fact-report-recognition')?.detail)
-      .toContain('当前已处理 5 项检材，其中报告识别 2 项、用户补充 3 项')
+    expect(result.current.history.find(item => item.id === 'fact-evidence')?.materials).toEqual([
+      expect.objectContaining({ label: '检材 1 · SYNTHETIC-R-1' }),
+      expect.objectContaining({ label: '检材 2 · SYNTHETIC-R-2' }),
+      expect.objectContaining({ label: '检材 3 · SYNTHETIC-U-1', userProvided: true }),
+      expect.objectContaining({ label: '检材 4 · SYNTHETIC-U-2' }),
+      expect.objectContaining({ label: '检材 5 · SYNTHETIC-U-3' }),
+    ])
+  })
+
+  it('refreshes history to the user-modified final value without retaining the recognized value', () => {
+    const recognized = {
+      ...syntheticReport,
+      introduction: { ...syntheticReport.introduction, entrust_persons: ['SYNTHETIC-RECOGNIZED-PERSON'] },
+    }
+    const recognizedFieldState: FieldState = {
+      field_path: 'introduction.entrust_persons', source: 'report', confirmation: 'confirmed',
+      revision: 0, last_changed_at: '2026-08-25T01:00:00Z',
+    }
+    const { result, rerender } = renderHook(({ report, fieldState }) => useGuidedReviewCards({
+      ...buildInput(report), fieldStates: { 'introduction.entrust_persons': fieldState },
+    }), {
+      initialProps: { report: recognized, fieldState: recognizedFieldState },
+    })
+
+    rerender({
+      report: {
+        ...recognized,
+        introduction: { ...recognized.introduction, entrust_persons: [
+          'SYNTHETIC-USER-PERSON-A', 'SYNTHETIC-USER-PERSON-B',
+        ] },
+      },
+      fieldState: { ...recognizedFieldState, source: 'user', revision: 1 },
+    })
+
+    const fields = result.current.history.find(item => item.id === 'fact-report-recognition')?.fields
+    expect(fields).toContainEqual({
+      label: '委托人员', value: 'SYNTHETIC-USER-PERSON-A、SYNTHETIC-USER-PERSON-B', userProvided: true,
+    })
+    expect(JSON.stringify(fields)).not.toContain('SYNTHETIC-RECOGNIZED-PERSON')
+
+    rerender({
+      report: {
+        ...recognized,
+        introduction: { ...recognized.introduction, entrust_persons: [] },
+      },
+      fieldState: { ...recognizedFieldState, source: 'user', revision: 2 },
+    })
+    expect(result.current.history.find(item => item.id === 'fact-report-recognition')?.fields)
+      .not.toContainEqual(expect.objectContaining({ label: '委托人员' }))
   })
 
   it('keeps the current action stable when a background fact adds a higher-priority item', () => {
