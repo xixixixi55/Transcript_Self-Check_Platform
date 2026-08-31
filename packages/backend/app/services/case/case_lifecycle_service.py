@@ -50,12 +50,31 @@ class CaseLifecycleService:
         public_items = [
             {
                 **item,
+                **self._entrust_projection(item["case_id"]),
                 "archive_task_summary": self.archive_tasks.get_card_summary(item["case_id"]),
                 "last_unified_export_at": self._last_unified_export_at(item["case_id"]),
             }
             for item in items[:limit]
         ]
         return {"items": public_items, "offset": offset, "limit": limit, "has_more": len(items) > limit}
+
+    def _entrust_projection(self, case_id: str) -> dict[str, Any]:
+        try:
+            report = self.drafts.get(case_id)["report"]
+        except WorkbenchPersistenceError as error:
+            if error.code not in {"DRAFT_NOT_FOUND", "CASE_RECORD_CLEANED"}:
+                raise
+            return {"entrust_unit": "", "entrust_persons": []}
+        introduction = report.get("introduction", {})
+        unit = introduction.get("entrust_unit", "")
+        persons = introduction.get("entrust_persons", [])
+        return {
+            "entrust_unit": unit.strip() if isinstance(unit, str) else "",
+            "entrust_persons": [
+                person.strip() for person in persons
+                if isinstance(person, str) and person.strip()
+            ] if isinstance(persons, list) else [],
+        }
 
     def detail(self, case_id: str) -> dict[str, Any]:
         for _ in range(3):

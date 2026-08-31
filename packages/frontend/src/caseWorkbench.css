@@ -245,13 +245,31 @@
   background: #e7f3ec;
 }
 
-.case-workbench-card__number {
+.case-workbench-card__entrust {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
   color: var(--platform-preview-text-secondary);
-  overflow: hidden;
-  overflow-wrap: anywhere;
   font-size: 13px;
   font-weight: 400;
-  font-variant-numeric: tabular-nums;
+}
+
+.case-workbench-card__entrust-row {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+}
+
+.case-workbench-card__entrust-label {
+  flex: 0 0 auto;
+  color: var(--platform-preview-text);
+  font-weight: 500;
+}
+
+.case-workbench-card__entrust-value {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -275,13 +293,6 @@
 .case-workbench-card__result strong {
   font-size: 15px;
   font-weight: 600;
-}
-
-.case-workbench-card__guidance {
-  margin-top: 10px;
-  color: var(--platform-preview-text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 .case-workbench-card__actions {

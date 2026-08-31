@@ -137,6 +137,8 @@ export function CaseCard({
   const canCancelParse = task?.status === 'queued' || task?.status === 'running'
   const archiveMainAction = recommendedArchiveAction(archiveSummary)
   const finishedAt = archiveSummary?.finished_at ?? shell.updated_at
+  const entrustPersons = shell.entrust_persons?.filter(Boolean).join('、') || '委托人待解析'
+  const entrustUnit = shell.entrust_unit?.trim() || '委托单位待解析'
 
   const menuItems: MenuProps['items'] = []
   if (phase === 'exported') {
@@ -182,7 +184,6 @@ export function CaseCard({
           <div className="case-workbench-card__result">
             <strong>导出完成</strong>
             <Text type="secondary">完成于 {displayDate(shell.updated_at)}</Text>
-            <span>文件已成功导出，可以删除当前案件</span>
           </div>
         )
       case 'archive_complete':
@@ -194,33 +195,26 @@ export function CaseCard({
                 ? `${archiveSummary.output_volume_count} 个分卷 · ` : ''}
               完成于 {displayDate(finishedAt)}
             </Text>
-            <span>压缩已完成，可以统一导出</span>
           </div>
         )
       case 'disc_pending':
         return (
           <div className="case-workbench-card__result">
             <strong>压缩完成，等待补充盘号</strong>
-            <span>打开案件补充盘号后即可统一导出</span>
           </div>
         )
       case 'archiving':
-        return (
-          <>
-            {archiveSummary
-              ? <ArchiveStatusPanel summary={archiveSummary} />
-              : <div className="case-workbench-card__result"><strong>后台压缩中</strong></div>}
-            <div className="case-workbench-card__guidance">压缩任务正在后台运行，可继续审核和编辑</div>
-          </>
-        )
+        return archiveSummary
+          ? <ArchiveStatusPanel summary={archiveSummary} />
+          : <div className="case-workbench-card__result"><strong>后台压缩中</strong></div>
       case 'archive_failed':
         return archiveSummary
           ? <ArchiveStatusPanel summary={archiveSummary} />
-          : <div className="case-workbench-card__result"><strong>归档任务未完成</strong><span>可打开案件查看当前情况</span></div>
+          : <div className="case-workbench-card__result"><strong>归档任务未完成</strong></div>
       case 'archive_result_pending':
-        return <div className="case-workbench-card__result"><strong>正在确认归档结果……</strong><span>可继续审核和编辑</span></div>
+        return <div className="case-workbench-card__result"><strong>正在确认归档结果……</strong></div>
       case 'parse_failed':
-        return <div className="case-workbench-card__result"><strong>报告解析失败</strong><span>可以重新提交解析任务</span></div>
+        return <div className="case-workbench-card__result"><strong>报告解析失败</strong></div>
       case 'parsing':
         return <div className="case-workbench-card__result"><strong>正在解析报告……</strong></div>
       case 'ready':
@@ -270,8 +264,15 @@ export function CaseCard({
       )}
       extra={<Tag color={phase === 'exported' ? 'success' : undefined} className="case-workbench-card__status">{phaseLabel(phase)}</Tag>}
     >
-      <div className="case-workbench-card__number" title={shell.case_number || '案件编号待解析'}>
-        {shell.case_number || '案件编号待解析'}
+      <div className="case-workbench-card__entrust">
+        <div className="case-workbench-card__entrust-row">
+          <span className="case-workbench-card__entrust-label">委托人：</span>
+          <span className="case-workbench-card__entrust-value" title={entrustPersons}>{entrustPersons}</span>
+        </div>
+        <div className="case-workbench-card__entrust-row">
+          <span className="case-workbench-card__entrust-label">委托单位：</span>
+          <span className="case-workbench-card__entrust-value" title={entrustUnit}>{entrustUnit}</span>
+        </div>
       </div>
       {sourceRequiresReselection && <SourceStatusBadge status="requires_reselection" />}
       {renderPhaseDetails()}

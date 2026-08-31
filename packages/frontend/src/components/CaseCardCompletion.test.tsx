@@ -71,7 +71,7 @@ describe('CaseCard archive completion states', () => {
     )
     expect(screen.getByText('已导出').className).toContain('ant-tag-success')
     expect(screen.getByText('导出完成')).toBeTruthy()
-    expect(screen.getByText('文件已成功导出，可以删除当前案件')).toBeTruthy()
+    expect(screen.queryByText('文件已成功导出，可以删除当前案件')).toBeNull()
     expect(screen.queryByText(/阶段 8/)).toBeNull()
     expect(screen.queryByText('正在写入并验证 Manifest')).toBeNull()
     expect(screen.queryByText('归档中')).toBeNull()
@@ -124,6 +124,7 @@ describe('CaseCard archive completion states', () => {
       </MemoryRouter>,
     )
     assertRecommended('重试解析')
+    expect(screen.queryByText('可以重新提交解析任务')).toBeNull()
   })
 
   it.each([
@@ -140,6 +141,8 @@ describe('CaseCard archive completion states', () => {
     )
     expect(screen.getByText(status)).toBeTruthy()
     expect(screen.getByRole('button', { name: cta })).toBeTruthy()
+    expect(screen.queryByText('打开案件补充盘号后即可统一导出')).toBeNull()
+    expect(screen.queryByText('压缩已完成，可以统一导出')).toBeNull()
     for (const other of ['重试解析', '打开案件', '统一导出', '删除案件'].filter(name => name !== cta)) {
       expect(screen.queryByRole('button', { name: other })).toBeNull()
     }
@@ -174,12 +177,13 @@ describe('CaseCard archive completion states', () => {
   it('keeps open case as the recommended CTA while background compression runs', () => {
     render(
       <MemoryRouter>
-        <CaseCard shell={shell} archiveSummary={activeSummary} completionStatus="compressing"
+        <CaseCard shell={{ ...shell, lifecycle: 'archiving' }} archiveSummary={activeSummary} completionStatus="compressing"
           onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} onArchiveAction={vi.fn()} />
       </MemoryRouter>,
     )
     expect(screen.getByText('处理中')).toBeTruthy()
     expect(screen.getByRole('button', { name: '打开案件' })).toBeTruthy()
+    expect(screen.queryByText('压缩任务正在后台运行，可继续审核和编辑')).toBeNull()
     expect(screen.queryByRole('button', { name: '统一导出' })).toBeNull()
     expect(screen.queryByRole('button', { name: '删除案件' })).toBeNull()
   })
@@ -192,6 +196,7 @@ describe('CaseCard archive completion states', () => {
       </MemoryRouter>,
     )
     expect(screen.getByText('正在确认归档结果……')).toBeTruthy()
+    expect(screen.queryByText('可继续审核和编辑')).toBeNull()
     expect(screen.queryByText('正在写入并验证 Manifest')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
     expect(screen.queryByRole('menuitem', { name: '取消归档' })).toBeNull()

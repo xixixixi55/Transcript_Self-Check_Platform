@@ -137,6 +137,30 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path, monkeyp
     assert calls and Path(calls[0][0]) == report_dir
 
 
+def test_case_list_projects_entrust_information_from_existing_draft(database, tmp_path):
+    parsed_report = copy.deepcopy(REPORT)
+    parsed_report["introduction"].update({
+        "entrust_unit": "SYNTHETIC/TEST 委托单位",
+        "entrust_persons": ["SYNTHETIC/TEST 委托人甲", "SYNTHETIC/TEST 委托人乙"],
+    })
+    source_service = make_source_service(database, tmp_path)
+    cases, lifecycle = make_services(
+        database, lambda path, output: {"report": copy.deepcopy(parsed_report)}, source_service,
+    )
+    identifiers = cases.submit(source_descriptor(source_service, tmp_path)[0])
+
+    queued_item = lifecycle.list(0, 6)["items"][0]
+    assert queued_item["entrust_unit"] == ""
+    assert queued_item["entrust_persons"] == []
+
+    cases.run_parse_task(**identifiers)
+    ready_item = lifecycle.list(0, 6)["items"][0]
+    assert ready_item["entrust_unit"] == "SYNTHETIC/TEST 委托单位"
+    assert ready_item["entrust_persons"] == [
+        "SYNTHETIC/TEST 委托人甲", "SYNTHETIC/TEST 委托人乙",
+    ]
+
+
 def test_new_draft_leaves_entrust_time_empty_instead_of_using_report_seed():
     parsed_report = copy.deepcopy(REPORT)
     parsed_report["introduction"]["entrust_time"] = "2020年1月2日"

@@ -5,12 +5,14 @@ import type { ArchiveTaskCardSummary, CaseShell } from '@biji/shared/types'
 import { CaseCard } from './CaseCard'
 
 const NOW = new Date('2026-07-30T12:00:00Z')
-const shell: CaseShell = {
+const shell: CaseShell & { entrust_unit: string; entrust_persons: string[] } = {
   schema_version: 1,
   case_id: 'case-SYNTHETIC-T012',
   case_number: 'SYNTHETIC-TEST-VERY-LONG-CASE-NUMBER-000000000000000000000012',
   case_name: 'SYNTHETIC/TEST very long case name that must not expand the card width',
   case_summary: 'SYNTHETIC/TEST summary',
+  entrust_unit: 'SYNTHETIC/TEST 委托单位',
+  entrust_persons: ['SYNTHETIC/TEST 委托人甲', 'SYNTHETIC/TEST 委托人乙'],
   source_id: 'source-SYNTHETIC-T012',
   parse_task_id: 'parse-SYNTHETIC-T012',
   lifecycle: 'review_ready',
@@ -96,13 +98,30 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
     expect(screen.queryByText(/总体里程碑/)).toBeNull()
   })
 
-  it('renders the case name once and keeps the case number clearly visible', () => {
+  it('keeps the case name as title and replaces the case number with entrust information', () => {
     renderCard()
     expect(screen.getAllByText(shell.case_name)).toHaveLength(1)
-    expect(screen.getByText(shell.case_number!)).toBeTruthy()
+    expect(screen.getByText('委托人：')).toBeTruthy()
+    expect(screen.getByText('SYNTHETIC/TEST 委托人甲、SYNTHETIC/TEST 委托人乙')).toBeTruthy()
+    expect(screen.getByText('委托单位：')).toBeTruthy()
+    expect(screen.getByText(shell.entrust_unit)).toBeTruthy()
+    expect(screen.queryByText(shell.case_number!)).toBeNull()
     expect(screen.queryByText('案件名称')).toBeNull()
     expect(screen.queryByText(shell.case_summary)).toBeNull()
     expect(screen.getByText(/更新于 2026-07-30/)).toBeTruthy()
+  })
+
+  it('shows per-field fallbacks while entrust information is unavailable', () => {
+    render(
+      <MemoryRouter>
+        <CaseCard
+          shell={{ ...shell, entrust_unit: '', entrust_persons: [] }}
+          onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('委托人待解析')).toBeTruthy()
+    expect(screen.getByText('委托单位待解析')).toBeTruthy()
   })
 
   it('shows queued and recovery states without claiming the task is running', () => {
