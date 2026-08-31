@@ -317,6 +317,47 @@ function textField(report: InspectionReport, targetId: string): TextField | null
   return fields[targetId] || resultField(report, targetId)
 }
 
+function evidenceDeviceLabel(item: EvidenceItem): string {
+  const brand = String(item.brand || '').trim()
+  const model = String(item.model || '').trim()
+  if (brand && model) return model.toLocaleLowerCase().includes(brand.toLocaleLowerCase()) ? model : `${brand} ${model}`
+  return String(item.device_name || model || item.device_type || '').trim() || '设备名称待补充'
+}
+
+function evidenceTypeLabel(item: EvidenceItem): string {
+  if (item.material_type === 'phone') return '手机'
+  if (item.material_type === 'tablet') return '平板'
+  return '类型待确认'
+}
+
+function evidenceExtractionLabel(item: EvidenceItem): string {
+  const extractable = typeof item.extractable === 'boolean'
+    ? item.extractable
+    : Boolean(item.imei1?.trim() || item.imei2?.trim() || item.serial_number?.trim())
+  return extractable ? '可以提取' : '无法提取'
+}
+
+function EvidenceCompletenessSummary({ items }: { items: EvidenceItem[] }) {
+  if (!items.length) return (
+    <p className="guided-review-card__evidence-empty" role="status">
+      当前未识别到检材，请选择“不完整”后补充。
+    </p>
+  )
+  return (
+    <section className="guided-review-card__evidence-summary" aria-labelledby="guided-evidence-summary-title">
+      <h3 id="guided-evidence-summary-title">当前检材（{items.length}项）</h3>
+      <ol aria-label={`当前检材情况，共 ${items.length} 项`}>
+        {items.map((item, index) => (
+          <li key={item.evidence_id || item.id || index}>
+            <strong>{String(item.evidence_number || '').trim() || '编号待补充'}</strong>
+            <span>{evidenceDeviceLabel(item)} · {evidenceTypeLabel(item)} · {evidenceExtractionLabel(item)}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
 export function GuidedReviewCard({
   action, report, updateReport, readOnly, specialContent,
   fieldStates, onEvidenceCompletenessChange, onOpenFullEditor,
@@ -412,18 +453,21 @@ export function GuidedReviewCard({
     </div>
   )
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness) return (
-    <Space role="group" aria-label="检材完整性选择" size="middle" className="guided-review-card__choice-actions">
-      <Tooltip title="完整">
-        <Button type="primary" shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
-          icon={<CheckCircleOutlined />} aria-label="确认检材信息完整"
-          onClick={() => onEvidenceCompletenessChange?.(true)} />
-      </Tooltip>
-      <Tooltip title="不完整，手工添加检材">
-        <Button shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
-          icon={<FileAddOutlined />} aria-label="检材信息不完整，手工添加检材"
-          onClick={() => setEvidenceMode('choose')} />
-      </Tooltip>
-    </Space>
+    <div className="guided-review-card__evidence-confirmation">
+      <EvidenceCompletenessSummary items={report.introduction.evidence_list || []} />
+      <Space role="group" aria-label="检材完整性选择" size="middle" className="guided-review-card__choice-actions">
+        <Tooltip title="完整">
+          <Button type="primary" shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
+            icon={<CheckCircleOutlined />} aria-label="确认检材信息完整"
+            onClick={() => onEvidenceCompletenessChange?.(true)} />
+        </Tooltip>
+        <Tooltip title="不完整，手工添加检材">
+          <Button shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
+            icon={<FileAddOutlined />} aria-label="检材信息不完整，手工添加检材"
+            onClick={() => setEvidenceMode('choose')} />
+        </Tooltip>
+      </Space>
+    </div>
   )
 
   const field = textField(report, targetId)

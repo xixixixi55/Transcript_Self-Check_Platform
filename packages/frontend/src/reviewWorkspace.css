@@ -1865,6 +1865,60 @@
   column-gap: 8px !important;
 }
 
+.guided-review-card__evidence-confirmation {
+  display: grid;
+  gap: 14px;
+}
+
+.guided-review-card__evidence-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.guided-review-card__evidence-summary h3 {
+  margin: 0;
+  color: var(--platform-preview-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.guided-review-card__evidence-summary ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guided-review-card__evidence-summary li {
+  display: grid;
+  grid-template-columns: minmax(112px, auto) minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: baseline;
+  padding: 8px 10px;
+  color: var(--platform-preview-text-secondary);
+  background: var(--platform-preview-neutral-soft);
+  border-radius: 10px;
+}
+
+.guided-review-card__evidence-summary strong {
+  color: var(--platform-preview-text);
+  overflow-wrap: anywhere;
+}
+
+.guided-review-card__evidence-summary span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.guided-review-card__evidence-empty {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--platform-preview-text-secondary);
+  background: var(--platform-preview-neutral-soft);
+  border-radius: 10px;
+}
+
 .guided-review-card__evidence-paths {
   display: grid;
   gap: 12px;

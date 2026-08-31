@@ -73,6 +73,13 @@ function buildInput(report = syntheticReport): GuidedReviewProjectionInput {
   }
 }
 
+function withMediumNumber(report: InspectionReport): InspectionReport {
+  return {
+    ...report,
+    attachments: { ...report.attachments, disc_number: 'GP2026082501-01' },
+  }
+}
+
 describe('guided review projection', () => {
   it('classifies existing facts without re-asking complete defaults or system-produced archive fields', () => {
     const projection = deriveGuidedReviewProjection(buildInput())
@@ -142,7 +149,7 @@ describe('guided review projection', () => {
   })
 
   it('keeps the current action stable when a background fact adds a higher-priority item', () => {
-    const initial = buildInput({ ...syntheticReport, document_number: '' })
+    const initial = buildInput(withMediumNumber({ ...syntheticReport, document_number: '' }))
     const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
       initialProps: { input: initial },
     })
@@ -181,13 +188,13 @@ describe('guided review projection', () => {
   })
 
   it('keeps a completed text action current until Enter confirms it', () => {
-    const initial = buildInput({ ...syntheticReport, document_number: '' })
+    const initial = buildInput(withMediumNumber({ ...syntheticReport, document_number: '' }))
     const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
       initialProps: { input: initial },
     })
     const documentActionId = result.current.currentAction?.id
 
-    rerender({ input: buildInput({ ...syntheticReport, document_number: 'S' }) })
+    rerender({ input: buildInput(withMediumNumber({ ...syntheticReport, document_number: 'S' })) })
 
     expect(result.current.currentAction?.id).toBe(documentActionId)
     expect(result.current.allActions.some(action => action.id === documentActionId)).toBe(true)
@@ -204,7 +211,7 @@ describe('guided review projection', () => {
     const report = {
       ...syntheticReport,
       document_number: '',
-      attachments: { ...syntheticReport.attachments, photo_ids: [] },
+      attachments: { ...syntheticReport.attachments, photo_ids: [], disc_number: 'GP2026082501-01' },
     }
     const { result } = renderHook(() => useGuidedReviewCards(buildInput(report)))
     const photoAction = result.current.allActions.find(
@@ -222,13 +229,15 @@ describe('guided review projection', () => {
   })
 
   it('keeps the previous completed action available for session-only step navigation', () => {
-    const initial = buildInput({ ...syntheticReport, document_number: '' })
+    const initial = buildInput(withMediumNumber({ ...syntheticReport, document_number: '' }))
     const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
       initialProps: { input: initial },
     })
     const documentActionId = result.current.currentAction?.id
 
-    rerender({ input: buildInput({ ...syntheticReport, document_number: 'SYN-TEST〔2026〕009号' }) })
+    rerender({ input: buildInput(withMediumNumber({
+      ...syntheticReport, document_number: 'SYN-TEST〔2026〕009号',
+    })) })
     act(() => result.current.confirmCurrentAction())
 
     const nextActionId = result.current.currentAction?.id
@@ -286,6 +295,42 @@ describe('guided review projection', () => {
       archiveParts: [{ disc_number: 'GP20260825-01', size_bytes: 2048 }],
     })
     expect(ready.allActions[0]?.title).toBe('请确认并生成笔录')
+  })
+
+  it('recommends compression, medium number, then ordinary review fields', () => {
+    const pendingItems = [
+      {
+        id: 'SYNTHETIC-DOCUMENT', sectionId: 'review-section-document',
+        targetId: REVIEW_TARGET_IDS.documentNumber, sectionLabel: '文书信息', fieldLabel: '文号',
+        reason: '当前必填字段为空。', severity: 'warning' as const, kind: 'required_missing' as const,
+      },
+      {
+        id: 'SYNTHETIC-MEDIUM', sectionId: 'review-section-archive',
+        targetId: REVIEW_TARGET_IDS.discNumber, sectionLabel: '附件', fieldLabel: '介质编号',
+        reason: '当前必填字段为空。', severity: 'warning' as const, kind: 'required_missing' as const,
+      },
+    ]
+    const ready = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems, lifecycle: 'review_ready', archiveTask: null,
+    })
+    expect(ready.allActions.map(action => action.title)).toEqual([
+      '请选择压缩时机', '请输入介质编号', '请输入文号',
+    ])
+
+    const deferred = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems, lifecycle: 'archive_deferred', archiveTask: null,
+    })
+    expect(deferred.allActions.map(action => action.title)).toEqual([
+      '请输入介质编号', '请输入文号', '请选择压缩时机',
+    ])
+
+    const recovering = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems, lifecycle: 'review_ready', archiveTask: null,
+      saveState: 'failed', saveHasPending: true,
+    })
+    expect(recovering.allActions.slice(0, 2).map(action => action.title)).toEqual([
+      '请恢复草稿保存', '请选择压缩时机',
+    ])
   })
 
   it('projects save conflicts and lease failures as recoverable actions and records recovery', () => {

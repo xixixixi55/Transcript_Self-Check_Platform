@@ -129,6 +129,9 @@ workflow_level: 2
 - [x] 6.36 根据用户明确反馈移除獬豸角色的全部 CSS 投影：删除静态 `drop-shadow` 及呼吸动画中的阴影变化，只保留角色本身、透明背景和原有轻微位移缩放。
   - 验证：搜索确认角色样式不再含 `drop-shadow`，运行前端类型检查、生产构建、scoped strict docs 与 `git diff --check`；纯样式反馈不机械新增行为测试。
 - [x] 6.37 根据用户给出的工具栏参考图统一獬豸助手完整按钮体系：直接回复、检材补充、模式切换、解析结果确认、新增/删除检材、历史修改、步骤返回与兜底编辑入口均使用 44px 圆形图标按钮，主操作为靛蓝实心、次操作为白底描边、删除操作保留红色危险语义，文字移入 Tooltip 与可访问名称；待办事项面板继续保留整行列表导航，原操作语义、禁用状态和回调保持不变。
+- [x] 6.38 修正獬豸助手的正常办理顺序并补齐检材确认上下文：恢复类异常继续优先；无异常时先选择压缩时机，再填写介质编号，随后才按现有动态待办处理文号、委托时间等事项。检材完整性确认卡在用户选择“完整/不完整”前直接展示当前全部检材的编号、设备、类型与可提取情况；未识别到检材时明确显示空态，不要求先进入补录模式。
+  - 文件：`packages/frontend/src/hooks/useGuidedReviewCards.ts`、`packages/frontend/src/hooks/useGuidedReviewCards.test.ts`、`packages/frontend/src/components/GuidedReviewCard.tsx`、`packages/frontend/src/components/GuidedReviewView.test.tsx`、`packages/frontend/src/reviewWorkspace.css`、本包 delta 与 living spec。
+  - 验证：定向 Vitest 区分“压缩时机→介质编号→文号”的正常顺序、恢复事项优先级和选择稍后后的继续办理；组件测试断言未点击“不完整”时已可见全部 SYNTHETIC/TEST 检材及空态；运行 `npm run verify:quick`、scoped strict docs、OpenSpec strict validate、Impeccable 单次检测与 `git diff --check`。
   - 验证：复用组件用例断言各类直接操作均为无常驻文字的圆形图标按钮并保留主次语义，运行定向测试、前端类型检查、生产构建、scoped strict docs 与 `git diff --check`。
 
 ## 当前状态
@@ -350,3 +353,13 @@ workflow_level: 2
 - `assistant_icon_button_system: PASS`：獬豸助手的直接回复、检材补充方式、解析/排序/确认、模式切换、新增/删除检材、历史修改、步骤返回、兜底编辑和底部工具栏统一复用 44px 圆形图标按钮；主操作使用靛蓝实心，次操作使用白底描边，删除操作保留红色危险语义，悬停、焦点、禁用与阴影状态一致。
 - `assistant_action_semantics: PASS`：按钮常驻文字已移入 Tooltip 与可访问名称，原回调、禁用条件和动态数量信息保持不变；全部事项面板的整行选择继续作为列表导航，不机械改成圆形工具按钮。
 - `assistant_icon_button_tests: PASS`：`GuidedReviewView.test.tsx` 12/12、`CaseRecordGeneratePage.test.tsx` 20/20、前端类型检查和生产构建通过；页面测试只保留既有 jsdom `getComputedStyle` 与 React `act` 警告，构建只保留既有大包提示。
+
+## 2026-08-31 归档准备顺序与检材清单证据
+
+- `guided_archive_precedence: PASS`：无恢复事项时操作集稳定按“选择压缩时机→介质编号→文号等普通待办”推荐；选择稍后后介质编号成为当前推荐，再次立即压缩入口退到全部事项末尾；保存、租约、来源与图片恢复事项继续保持最高优先级。
+- `evidence_context_before_choice: PASS`：检材完整性卡在完整/不完整操作之前直接显示全部有序检材的编号、设备名称、手机/平板类型和可提取情况；零检材时显示明确空态，进入不完整路径后仍复用既有批量/逐项编辑器。
+- `guided_order_targeted_tests: PASS`：Hook、引导组件及独立检材摘要测试 27/27 通过；页面集成测试 20/20 通过，覆盖从全部事项非线性进入检材确认，并保留既有 jsdom `getComputedStyle` 与 React `act` 警告。
+- `guided_order_architecture: PASS`：检材摘要验证沿自然组件职责迁入独立同目录测试文件，`GuidedReviewView.test.tsx` 保持在 600 行以内；`lint:arch` 通过，无行数豁免。
+- `guided_order_impeccable: PASS_WITH_EXISTING_FINDINGS`：单次机械检查未发现本次新增问题，仅报告 `reviewWorkspace.css` 第 167、314 行两处本次范围外既有告警。
+- `guided_order_manual_acceptance: N/A`：顺序、全部检材可见性、空态、可访问名称和非线性事项入口均由可区分的 Hook、组件与页面 DOM 回归覆盖；未改变归档业务调用或检材编辑字段本身。
+- `guided_order_level2_gates: PASS`：`verify:quick`、scoped strict docs 14/14、OpenSpec change strict validate、仓库资产卫生与定向回归全部通过。

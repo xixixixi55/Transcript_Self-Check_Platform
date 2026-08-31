@@ -295,15 +295,24 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
         : '图片尚未完成绑定，请使用现有图片控件检查并重试。',
     })
   }
-  allActions.push(...pendingItems.map(pendingAction))
-  if (['review_ready', 'archive_deferred', 'archive_interrupted'].includes(input.lifecycle)
-    && !input.sourceRequiresReselection) {
-    allActions.push({
+  const archiveDecisionAction: GuidedReviewAction = {
       id: 'archive-decision', kind: 'archive_decision', title: '请选择压缩时机',
       description: input.lifecycle === 'archive_deferred'
         ? '当前已选择稍后处理，也可以现在开始压缩。'
         : '建议现在开始压缩；也可以保留案件并稍后处理。',
-    })
+  }
+  const canChooseArchiveTiming = ['review_ready', 'archive_deferred', 'archive_interrupted'].includes(input.lifecycle)
+    && !input.sourceRequiresReselection
+  if (canChooseArchiveTiming && input.lifecycle !== 'archive_deferred') {
+    allActions.push(archiveDecisionAction)
+  }
+  const prioritizedPendingItems = [...pendingItems].sort((left, right) => (
+    Number(right.targetId === REVIEW_TARGET_IDS.discNumber)
+      - Number(left.targetId === REVIEW_TARGET_IDS.discNumber)
+  ))
+  allActions.push(...prioritizedPendingItems.map(pendingAction))
+  if (canChooseArchiveTiming && input.lifecycle === 'archive_deferred') {
+    allActions.push(archiveDecisionAction)
   }
   const systemStatus = buildSystemStatus(input)
   const readyToGenerate = pendingItems.length === 0

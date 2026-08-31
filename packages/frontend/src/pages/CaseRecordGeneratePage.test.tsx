@@ -20,7 +20,10 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
-  beforeAll(() => { Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) }) })
+  beforeAll(() => {
+    Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
+  })
   beforeEach(() => {
     vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -166,6 +169,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   it('keeps the guided conversation open and reuses the manual evidence editor when evidence is incomplete', async () => {
     renderPage()
 
+    await selectGuidedAction('请确认检材完整性')
     const incompleteButton = await screen.findByRole('button', { name: '检材信息不完整，手工添加检材' })
     expect(incompleteButton.querySelector('.anticon-file-add')).toBeTruthy()
     fireEvent.click(incompleteButton)
@@ -180,6 +184,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   it('keeps failed and conflicting edits in the guided shell and exposes the existing recovery operations', async () => {
     rejectSave = true
     const failedView = renderPage()
+    await selectGuidedAction('请确认检材完整性')
     fireEvent.click(await screen.findByRole('button', { name: '确认检材信息完整' }))
     expect(await screen.findByText('草稿保存失败')).toBeTruthy()
     expect(screen.getByText('当前输入仍保留在本页面，请重试保存。')).toBeTruthy()
@@ -190,6 +195,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
     failedView.unmount(); detailReads = 0; conflictSave = true
     renderPage()
+    await selectGuidedAction('请确认检材完整性')
     fireEvent.click(await screen.findByRole('button', { name: '确认检材信息完整' }))
     expect(await screen.findByText('草稿保存发生冲突')).toBeTruthy()
     expect(screen.getByRole('button', { name: '加载服务端版本' })).toBeTruthy()
@@ -221,6 +227,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   async function openFullEditor() {
     fireEvent.click(await screen.findByRole('button', { name: '完整审核编辑' }))
     await waitFor(() => expect(document.querySelector('.review-editor-form')).toBeTruthy())
+  }
+
+  async function selectGuidedAction(title: string) {
+    fireEvent.click(await screen.findByRole('button', { name: /查看全部当前事项/ }))
+    const panel = await screen.findByRole('region', { name: '全部当前事项' })
+    fireEvent.click(within(panel).getByRole('button', { name: new RegExp(title) }))
   }
 
   async function editDiscNumber() {
