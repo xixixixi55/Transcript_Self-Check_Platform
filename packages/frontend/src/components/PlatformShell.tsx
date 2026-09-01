@@ -10,9 +10,10 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
   return (
     <ConfigProvider theme={{
       token: {
-        colorPrimary: '#2F6FA3',
+        colorPrimary: '#4E3FA8',
+        colorPrimaryHover: '#3E53B9',
         colorInfo: '#3B78A8',
-        borderRadius: 6,
+        borderRadius: 8,
         fontFamily: 'Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif',
       },
     }}>

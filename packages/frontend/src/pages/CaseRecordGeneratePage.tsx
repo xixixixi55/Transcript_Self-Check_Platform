@@ -1,5 +1,6 @@
 // 第 12 层：FE_Pages — 基于案件 ID、使用旧版生产映射的完整编辑器。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { DownloadOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Space, Spin, message } from 'antd'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
@@ -363,21 +364,12 @@ export default function CaseRecordGeneratePage() {
   } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.discNumber) {
     guidedSpecialContent = archiveCompletionPanel
   } else if (currentGuidedAction?.kind === 'ready') {
-    guidedSpecialContent = <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Button type="primary" loading={exporting || exportPreparing} onClick={requestExport}>单独导出 Word</Button>
+    guidedSpecialContent = <Space direction="vertical" size="middle" className="guided-review-ready-actions">
+      <Button type="primary" icon={<DownloadOutlined />}
+        loading={exporting || exportPreparing} onClick={requestExport}>单独导出 Word</Button>
       {archiveCompletionPanel}
     </Space>
   }
-  const guidedSummary = (
-    <>
-      <dl><dt>文号</dt><dd>{session.report.document_number || '待整理'}</dd></dl>
-      <dl><dt>案件简要情况</dt><dd>{session.report.introduction.case_summary || '待整理'}</dd></dl>
-      <dl><dt>检材</dt><dd>{session.report.introduction.evidence_list.length} 项</dd></dl>
-      <dl><dt>检查地点</dt><dd>{session.report.introduction.inspection_place || '待整理'}</dd></dl>
-      <dl><dt>检查方法</dt><dd>{session.report.inspection.method || '待整理'}</dd></dl>
-      <dl><dt>介质编号</dt><dd>{session.report.attachments.disc_number || '待整理'}</dd></dl>
-    </>
-  )
   return (
     <>
       <div className={`review-page${reviewMode === 'guided' ? ' review-page--guided' : ''}`}>
@@ -399,7 +391,7 @@ export default function CaseRecordGeneratePage() {
             isReviewingPrevious={guidedReview.isReviewingPrevious}
             onReturnToPreviousAction={guidedReview.returnToPreviousAction}
             onReturnToCurrentAction={guidedReview.returnToCurrentAction}
-            summary={guidedSummary} onOpenFullEditor={() => openFullEditor()}
+            onOpenFullEditor={() => openFullEditor()}
             onBackToWorkbench={() => { void handleBackToWorkbench() }}>
             <GuidedReviewCard action={currentGuidedAction} report={projectedReport || session.report}
               updateReport={updateReport}

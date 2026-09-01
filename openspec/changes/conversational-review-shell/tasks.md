@@ -462,3 +462,28 @@ workflow_level: 2
 - `guided_edit_center_tests: PASS_WITH_EXISTING_PAGE_FAILURE`：引导组件 12/12 通过；案件页面 20 项中 19 项通过，唯一失败仍为本包此前已记录的“请返回案件工作台统一导出”旧文案断言，与本次入口调整无代码交集。
 - `guided_edit_center_quality: PASS`：架构检查、全项目 TypeScript、生产构建、`verify:quick`、OpenSpec change strict validate、仓库资产卫生与 scoped `git diff --check` 通过；构建仅保留既有大包提示。Impeccable 单次检测只报告 `reviewWorkspace.css` 第 167、314 行两处本次修改前既有告警，本次新增区域无告警。
 - `guided_edit_center_manual_acceptance: N/A`：当前环境未提供可安全使用的 SYNTHETIC/TEST 案件页面，未读取或截图现有案件；入口分组、数量语义、会话完成项修改、完整编辑往返、焦点和 Word 预览隔离均由合成组件及页面 DOM 回归区分覆盖。
+
+## 2026-09-01 移除已整理信息入口反馈
+
+- [x] 6.56 从当前对话工具栏移除“查看已整理信息”按钮及其专属摘要面板，保留“已填内容与待办”和“返回案件工作台”；删除仅服务于该入口的组件属性、页面摘要投影与样式，不修改 Word 内容预览、报告草稿或 Word 生成逻辑。
+- [x] 6.57 更新组件回归以区分该入口缺席及其余工具入口保留，同步 delta 与 living spec，并运行风险相称的前端检查及 Level 2 文档门控。
+
+### 移除已整理信息入口验证记录
+
+- `guided_summary_entry_contract: PASS`：旧实现先被“工具栏不存在查看已整理信息按钮”的新增断言区分；实施后按钮、专属摘要面板、组件 `summary` 属性、页面摘要投影和对应样式均已移除，“已填内容与待办”及“返回案件工作台”继续保留。
+- `guided_summary_entry_tests: PASS`：`GuidedReviewView.test.tsx` 12/12 与全项目 TypeScript 通过；`verify:quick` 的架构、类型、治理文档与仓库资产检查、scoped strict docs、OpenSpec change strict validate 和 `git diff --check` 均通过。
+- `guided_summary_entry_impeccable: PASS_WITH_EXISTING_FINDINGS`：一次性机械检测仅报告 `reviewWorkspace.css` 第 167、314 行两处本次修改前既存告警，本次删除区域无检测项。
+- `guided_summary_entry_manual_acceptance: N/A`：该入口缺席、其余入口保留及待办面板焦点由合成组件 DOM 回归可区分覆盖，未使用或读取真实案件数据。
+
+## 2026-09-01 分栏顺序持久化反馈
+
+- [x] 6.58 将 Word 内容预览与当前对话的交换顺序保存为浏览器本地界面偏好，使刷新页面和打开其他案件时继续沿用；存储不可用或值无效时安全回退，不写入案件草稿、报告或服务端。
+- [x] 6.59 更新组件回归以区分偏好读取、切换写入和跨案件重新挂载复用，同步 delta 与 living spec，并运行风险相称的前端检查及 Level 2 文档门控。
+
+### 分栏顺序持久化验证记录
+
+- `guided_split_order_preference: PASS`：分栏组件首次挂载从 `biji.guidedReview.splitOrder` 读取经过白名单校验的顺序，用户交换后立即写回；刷新或打开其他案件重新挂载时沿用同一浏览器偏好，存储异常或无效值回退为 Word 内容预览在左。
+- `guided_split_order_scope: PASS`：偏好只保存 `history-first` 或 `conversation-first` 两个界面值，不进入案件草稿、报告、后端接口或服务端存储，交换仍保持当前回复组件挂载。
+- `guided_split_order_tests: PASS`：新增回归先在旧实现上失败，实施后 `GuidedReviewView.test.tsx` 13/13 通过，覆盖偏好读取、切换写入、跨案件重新挂载复用及原有分栏 DOM/键盘顺序行为。
+- `guided_split_order_quality: PASS`：架构检查、全项目 TypeScript、治理测试、文档快检、仓库资产卫生、生产构建和 `git diff --check` 通过；Impeccable 单次检测 0 项，构建仅保留既有大包提示。
+- `guided_split_order_manual_acceptance: N/A`：持久化键值、重新挂载和跨案件复用由 SYNTHETIC 组件回归可区分覆盖，未读取或写入真实案件数据。

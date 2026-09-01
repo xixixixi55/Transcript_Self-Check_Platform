@@ -32,6 +32,7 @@ const waitingAction: GuidedReviewAction = {
 }
 
 beforeEach(() => {
+  window.localStorage.clear()
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     value: vi.fn(),
@@ -254,7 +255,6 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction, waitingAction]}
       hasResponse
       onSelectAction={selectAction}
-      summary={<div>SYNTHETIC ORGANIZED SUMMARY</div>}
       onOpenFullEditor={openFullEditor}
       onBackToWorkbench={vi.fn()}
     >
@@ -297,21 +297,21 @@ describe('GuidedReviewView', () => {
     expect(view.container.querySelector('.anticon-safety-certificate')).toBeTruthy()
 
     const pendingButton = screen.getByRole('button', { name: '查看已填内容与待办（1 项待处理）' })
-    const summaryButton = screen.getByRole('button', { name: '查看已整理信息' })
     expect(pendingButton.querySelector('.anticon-unordered-list')).toBeTruthy()
-    expect(summaryButton.querySelector('.anticon-file-done')).toBeTruthy()
     expectCircularIconButton(pendingButton)
-    expectCircularIconButton(summaryButton)
+    expect(screen.queryByRole('button', { name: '查看已整理信息' })).toBeNull()
     expect(screen.queryByRole('button', { name: '完整审核编辑' })).toBeNull()
     expect(screen.getByRole('button', { name: '返回案件工作台' }).querySelector('.anticon-home')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull()
     expect(pendingButton.getAttribute('aria-controls')).toBe('guided-review-pending-panel')
-    expect(summaryButton.getAttribute('aria-controls')).toBe('guided-review-summary-panel')
     fireEvent.click(pendingButton)
     const pendingPanel = screen.getByLabelText('已填内容与待办')
     expect(pendingPanel.id).toBe('guided-review-pending-panel')
     expect(document.activeElement).toBe(pendingPanel)
     expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' })
+    expect(pendingPanel.textContent).not.toContain(documentAction.description)
+    expect(pendingPanel.textContent).not.toContain(waitingAction.description)
+    expect(pendingPanel.textContent).not.toContain('进入完整审核编辑')
     expect(screen.getByRole('button', { name: /请输入文号.*当前/ }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷.*后台中/ })).toBeTruthy()
     const fullEditorButton = screen.getByRole('button', { name: '修改其他已填内容' })
@@ -322,12 +322,6 @@ describe('GuidedReviewView', () => {
     fireEvent.click(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷/ }))
     expect(selectAction).toHaveBeenCalledWith(waitingAction.id)
 
-    fireEvent.click(summaryButton)
-    const summaryPanel = screen.getByLabelText('已整理信息')
-    expect(summaryPanel.id).toBe('guided-review-summary-panel')
-    expect(document.activeElement).toBe(summaryPanel)
-    expect(scrollIntoView).toHaveBeenCalledTimes(3)
-    expect(screen.getByText('SYNTHETIC ORGANIZED SUMMARY')).toBeTruthy()
     expect(updateReport).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByRole('textbox', { name: '文号' }), { target: { value: 'SYN-TEST〔2026〕009号' } })
@@ -346,7 +340,6 @@ describe('GuidedReviewView', () => {
       allActions={[waitingAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -368,7 +361,6 @@ describe('GuidedReviewView', () => {
       allActions={[recoveryAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={recoveryAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -381,7 +373,6 @@ describe('GuidedReviewView', () => {
       allActions={[readyAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={readyAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -398,7 +389,6 @@ describe('GuidedReviewView', () => {
       hasResponse
       onSelectAction={vi.fn()}
       onConfirmCurrentAction={confirmCurrentAction}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -426,7 +416,6 @@ describe('GuidedReviewView', () => {
       onRevisitAction={revisitAction}
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -447,7 +436,6 @@ describe('GuidedReviewView', () => {
       onRevisitAction={revisitAction}
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -475,7 +463,6 @@ describe('GuidedReviewView', () => {
       isReviewingPrevious
       onReturnToPreviousAction={returnToPreviousAction}
       onReturnToCurrentAction={returnToCurrentAction}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -491,7 +478,6 @@ describe('GuidedReviewView', () => {
       onSelectAction={vi.fn()}
       canReturnToPrevious={false}
       onReturnToPreviousAction={returnToPreviousAction}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -511,7 +497,7 @@ describe('GuidedReviewView', () => {
     }))
     const props = {
       conversationKey: 'SYNTHETIC-CASE', history, hasResponse: true,
-      onSelectAction: vi.fn(), onRevisitAction: vi.fn(), summary: null,
+      onSelectAction: vi.fn(), onRevisitAction: vi.fn(),
       onOpenFullEditor: vi.fn(), onBackToWorkbench: vi.fn(),
     }
     const child = (action: GuidedReviewAction) => (
@@ -545,7 +531,6 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction, photoAction]}
       hasResponse
       onSelectAction={vi.fn()}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -559,7 +544,6 @@ describe('GuidedReviewView', () => {
       hasResponse
       onSelectAction={vi.fn()}
       canReturnToPrevious
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={photoAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -583,7 +567,6 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction]}
       hasResponse
       onSelectAction={vi.fn()}
-      summary={null}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
@@ -593,5 +576,23 @@ describe('GuidedReviewView', () => {
     expect(screen.getByRole('group', { name: '你的回复' })).toBe(response)
     expect(screen.getByRole('group', { name: '獬豸助手分栏' }).className)
       .toContain('guided-review-scroll--conversation-first')
+  })
+
+  it('reuses the preferred pane order across cases and page remounts', () => {
+    window.localStorage.setItem('biji.guidedReview.splitOrder', 'conversation-first')
+    const props = {
+      history, currentAction: documentAction, allActions: [documentAction], hasResponse: true,
+      onSelectAction: vi.fn(), onOpenFullEditor: vi.fn(), onBackToWorkbench: vi.fn(),
+    }
+    const child = <GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} />
+    const firstCase = render(<GuidedReviewView conversationKey="SYNTHETIC-CASE-A" {...props}>{child}</GuidedReviewView>)
+    expect(screen.getByRole('group', { name: '獬豸助手分栏' }).className)
+      .toContain('guided-review-scroll--conversation-first')
+    fireEvent.click(screen.getByRole('button', { name: '交换 Word 内容预览与对话的位置' }))
+    expect(window.localStorage.getItem('biji.guidedReview.splitOrder')).toBe('history-first')
+    firstCase.unmount()
+    render(<GuidedReviewView conversationKey="SYNTHETIC-CASE-B" {...props}>{child}</GuidedReviewView>)
+    expect(screen.getByRole('group', { name: '獬豸助手分栏' }).className)
+      .toContain('guided-review-scroll--history-first')
   })
 })

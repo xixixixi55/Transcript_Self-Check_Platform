@@ -69,14 +69,14 @@ export function ArchiveCompletionPanel({
   if (status === 'disc_pending') {
     return (
       <Alert
-        className="case-workbench-page__toolbar"
+        className="case-workbench-page__toolbar archive-completion-panel"
         type="warning"
         showIcon
         message={hardDrive ? '待补硬盘编号' : archiveMedium === 'optical_disc' ? '待补盘号' : '待补介质编号'}
         description={hardDrive
           ? '压缩已完成且产物为一个超大单卷；编号可使用旧格式，也可在日期后加入两位用户标识。'
           : '压缩已完成；首盘号可使用旧格式，也可在日期后加入两位用户标识，系统将按 part 顺序生成全序列映射。'}
-        action={<Space>
+        action={<Space className="archive-completion-panel__controls">
           <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
             disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
           <Button type="primary" loading={archive.busy} disabled={readOnly}
@@ -89,7 +89,7 @@ export function ArchiveCompletionPanel({
   if (status === 'archive_complete' || status === 'exported') {
     return (
       <Alert
-        className="case-workbench-page__toolbar"
+        className="case-workbench-page__toolbar archive-completion-panel"
         type="success"
         showIcon
         message={status === 'exported' ? '已导出' : '归档完成'}
@@ -98,7 +98,7 @@ export function ArchiveCompletionPanel({
           : hardDrive
             ? '完整 RAR、文件哈希与硬盘编号已对应完成，请返回案件工作台统一导出。'
             : '全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台统一导出。'}
-        action={<Space>
+        action={<Space className="archive-completion-panel__controls">
           <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
             disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
           <Button loading={archive.busy} disabled={readOnly}
@@ -110,7 +110,7 @@ export function ArchiveCompletionPanel({
 
   return (
     <Alert
-      className="case-workbench-page__toolbar"
+      className="case-workbench-page__toolbar archive-completion-panel"
       type="info"
       showIcon
       message={archiveMedium ? `${mediumLabel}编号` : '介质编号（可提前填写）'}

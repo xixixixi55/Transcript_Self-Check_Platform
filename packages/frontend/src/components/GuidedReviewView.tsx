@@ -1,5 +1,5 @@
 import {
-  ArrowLeftOutlined, ArrowRightOutlined, EditOutlined, FileDoneOutlined, HomeOutlined,
+  ArrowLeftOutlined, ArrowRightOutlined, EditOutlined, HomeOutlined,
   SafetyCertificateOutlined, SwapOutlined, UnorderedListOutlined,
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
@@ -24,7 +24,6 @@ interface Props {
   isReviewingPrevious?: boolean
   onReturnToPreviousAction?: () => void
   onReturnToCurrentAction?: () => void
-  summary: React.ReactNode
   onOpenFullEditor: () => void
   onBackToWorkbench: () => void
   children: React.ReactNode
@@ -43,6 +42,27 @@ interface SwitchedTurn {
 type ActionStatusTone = 'current' | 'pending' | 'warning' | 'system' | 'success'
 type MascotMood = 'listening' | 'verifying' | 'warning' | 'complete'
 type SplitOrder = 'history-first' | 'conversation-first'
+
+const SPLIT_ORDER_STORAGE_KEY = 'biji.guidedReview.splitOrder'
+
+function readSplitOrderPreference(): SplitOrder {
+  if (typeof window === 'undefined') return 'history-first'
+  try {
+    const stored = window.localStorage.getItem(SPLIT_ORDER_STORAGE_KEY)
+    return stored === 'conversation-first' || stored === 'history-first' ? stored : 'history-first'
+  } catch {
+    return 'history-first'
+  }
+}
+
+function writeSplitOrderPreference(value: SplitOrder): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(SPLIT_ORDER_STORAGE_KEY, value)
+  } catch {
+    // The current layout still works when browser storage is unavailable.
+  }
+}
 
 interface ActionStatus {
   label: string
@@ -95,17 +115,17 @@ function mascotMood(currentAction: GuidedReviewAction | null, completionActive: 
 }
 
 export function GuidedReviewView({
-  conversationKey, history, currentAction, allActions, hasResponse, onSelectAction, summary,
+  conversationKey, history, currentAction, allActions, hasResponse, onSelectAction,
   onRevisitAction,
   onConfirmCurrentAction, canReturnToPrevious = false, isReviewingPrevious = false,
   onReturnToPreviousAction, onReturnToCurrentAction, onOpenFullEditor, onBackToWorkbench, children,
 }: Props) {
-  const [openPanel, setOpenPanel] = useState<'pending' | 'summary' | null>(null)
+  const [openPanel, setOpenPanel] = useState<'pending' | null>(null)
   const [avatarUnavailable, setAvatarUnavailable] = useState(false)
   const [completedTurns, setCompletedTurns] = useState<CompletedTurn[]>([])
   const [completionMoodActive, setCompletionMoodActive] = useState(false)
   const [switchedTurn, setSwitchedTurn] = useState<SwitchedTurn | null>(null)
-  const [splitOrder, setSplitOrder] = useState<SplitOrder>('history-first')
+  const [splitOrder, setSplitOrder] = useState<SplitOrder>(readSplitOrderPreference)
   const [mascotMotionActive, setMascotMotionActive] = useState(() => (
     typeof document === 'undefined' || document.visibilityState !== 'hidden'
   ))
@@ -114,8 +134,13 @@ export function GuidedReviewView({
   const completedActionIdsRef = useRef(new Set<string>())
   const mascotRef = useRef<HTMLDivElement>(null)
   const openPanelRef = useRef<HTMLDivElement>(null)
-  const togglePanel = (panel: 'pending' | 'summary') => {
-    setOpenPanel(current => current === panel ? null : panel)
+  const togglePendingPanel = () => {
+    setOpenPanel(current => current === 'pending' ? null : 'pending')
+  }
+  const swapSplitOrder = () => {
+    const nextOrder = splitOrder === 'history-first' ? 'conversation-first' : 'history-first'
+    setSplitOrder(nextOrder)
+    writeSplitOrderPreference(nextOrder)
   }
 
   useEffect(() => {
@@ -220,9 +245,7 @@ export function GuidedReviewView({
         <Tooltip title={splitOrder === 'history-first' ? '将对话切换到左侧' : '将 Word 内容预览切换到左侧'}>
           <Button shape="circle" size="large" className="guided-review-icon-action"
             icon={<SwapOutlined />} aria-label="交换 Word 内容预览与对话的位置"
-            onClick={() => setSplitOrder(current => (
-              current === 'history-first' ? 'conversation-first' : 'history-first'
-            ))} />
+            onClick={swapSplitOrder} />
         </Tooltip>
       </div>
       <div className={`guided-review-scroll guided-review-scroll--${splitOrder}`} role="group"
@@ -308,14 +331,8 @@ export function GuidedReviewView({
                   icon={<UnorderedListOutlined />}
                   aria-label={`查看已填内容与待办（${pendingActionCount} 项待处理）`}
                   aria-expanded={openPanel === 'pending'} aria-controls="guided-review-pending-panel"
-                  onClick={() => togglePanel('pending')} />
+                  onClick={togglePendingPanel} />
               </Badge>
-            </Tooltip>
-            <Tooltip title="查看已整理信息">
-              <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
-                icon={<FileDoneOutlined />} aria-label="查看已整理信息"
-                aria-expanded={openPanel === 'summary'} aria-controls="guided-review-summary-panel"
-                onClick={() => togglePanel('summary')} />
             </Tooltip>
             <Tooltip title="返回案件工作台">
               <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
@@ -344,7 +361,6 @@ export function GuidedReviewView({
                           {status.label}
                         </span>
                       </span>
-                      <small>{action.description}</small>
                     </Button>
                   )
                 }) : <p>当前没有待处理事项。</p>}
@@ -363,7 +379,6 @@ export function GuidedReviewView({
                         <span>{actionConversationLabel(turn.action)}</span>
                         <span className="guided-review-action__status guided-review-status--success">已填写</span>
                       </span>
-                      <small>{turn.reply}，点击返回修改</small>
                     </Button>
                   ))}
                 </section>
@@ -378,16 +393,8 @@ export function GuidedReviewView({
                   <span className="guided-review-action__title-row">
                     <span className="guided-review-action__label"><EditOutlined />修改其他已填内容</span>
                   </span>
-                  <small>进入完整审核编辑</small>
                 </Button>
               </section>
-            </div>
-          )}
-          {openPanel === 'summary' && (
-            <div ref={openPanelRef} id="guided-review-summary-panel"
-              className="guided-review-popover-panel guided-review-summary"
-              role="region" aria-label="已整理信息" tabIndex={-1}>
-              {summary || <p>当前还没有可展示的整理摘要。</p>}
             </div>
           )}
         </div>
