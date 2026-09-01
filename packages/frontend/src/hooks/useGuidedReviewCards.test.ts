@@ -147,6 +147,30 @@ describe('guided review projection', () => {
       action.pendingItem?.targetId === REVIEW_TARGET_IDS.caseSummary)).toBe(false)
   })
 
+  it('places the prefilled case summary immediately after entrust time', () => {
+    const pendingItems = [
+      {
+        id: 'SYNTHETIC-ENTRUST-TIME', sectionId: 'review-section-introduction',
+        targetId: REVIEW_TARGET_IDS.entrustTime, sectionLabel: '一、绪论', fieldLabel: '委托时间',
+        reason: '当前必填字段为空。', severity: 'warning' as const, kind: 'required_missing' as const,
+      },
+      {
+        id: 'SYNTHETIC-REQUIREMENT', sectionId: 'review-section-introduction',
+        targetId: REVIEW_TARGET_IDS.inspectionRequirement, sectionLabel: '一、绪论', fieldLabel: '检查要求',
+        reason: '当前必填字段为空。', severity: 'warning' as const, kind: 'required_missing' as const,
+      },
+    ]
+    const pending = deriveGuidedReviewProjection({
+      ...buildInput(withMediumNumber(syntheticReport)), pendingItems, caseSummaryReviewed: false,
+    })
+
+    expect(pending.allActions.map(action => action.pendingItem?.targetId)).toEqual([
+      REVIEW_TARGET_IDS.entrustTime,
+      REVIEW_TARGET_IDS.caseSummary,
+      REVIEW_TARGET_IDS.inspectionRequirement,
+    ])
+  })
+
   it('advances immediately after the page session confirms the case summary review', () => {
     const { result, rerender } = renderHook(({ reviewed }) => useGuidedReviewCards({
       ...buildInput(), pendingItems: [], caseSummaryReviewed: reviewed,

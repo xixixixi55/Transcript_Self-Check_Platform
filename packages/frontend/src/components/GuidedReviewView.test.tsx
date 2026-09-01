@@ -379,29 +379,6 @@ describe('GuidedReviewView', () => {
     expect(view.container.querySelector('[data-mood="complete"]')).toBeTruthy()
   })
 
-  it('confirms text input only with an unmodified Enter outside IME composition', () => {
-    const confirmCurrentAction = vi.fn()
-    render(<GuidedReviewView
-      conversationKey="SYNTHETIC-CASE"
-      history={history}
-      currentAction={{ ...documentAction, advanceOnEnter: true }}
-      allActions={[{ ...documentAction, advanceOnEnter: true }]}
-      hasResponse
-      onSelectAction={vi.fn()}
-      onConfirmCurrentAction={confirmCurrentAction}
-      onOpenFullEditor={vi.fn()}
-      onBackToWorkbench={vi.fn()}
-    ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
-
-    const input = screen.getByRole('textbox', { name: '文号' })
-    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
-    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
-    expect(confirmCurrentAction).not.toHaveBeenCalled()
-
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(confirmCurrentAction).toHaveBeenCalledTimes(1)
-  })
-
   it('moves a completed action out of the conversation and into the edit center', async () => {
     const revisitAction = vi.fn()
     const returnToPreviousAction = vi.fn()
@@ -422,6 +399,7 @@ describe('GuidedReviewView', () => {
 
     const initialStepNavigation = screen.getByRole('button', { name: '返回上一步' })
     expectCircularIconButton(initialStepNavigation)
+    expect(initialStepNavigation.querySelector('.anticon-arrow-up')).toBeTruthy()
     const initialReplyGroup = screen.getByRole('group', { name: '你的回复' })
     expect(initialStepNavigation.compareDocumentPosition(initialReplyGroup)
       & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -466,7 +444,9 @@ describe('GuidedReviewView', () => {
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
-    fireEvent.click(screen.getByRole('button', { name: '返回当前步骤' }))
+    const returnToCurrentStep = screen.getByRole('button', { name: '返回当前步骤' })
+    expect(returnToCurrentStep.querySelector('.anticon-arrow-down')).toBeTruthy()
+    fireEvent.click(returnToCurrentStep)
     expect(returnToCurrentAction).toHaveBeenCalledTimes(1)
 
     view.rerender(<GuidedReviewView

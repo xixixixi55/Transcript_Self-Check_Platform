@@ -2259,6 +2259,55 @@
   font-weight: 400;
 }
 
+.guided-review-card__confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.guided-review-view .ant-btn.guided-review-card__confirm-action {
+  flex-basis: 44px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  color: var(--platform-preview-primary);
+  background: transparent;
+  border-color: transparent;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.guided-review-card__confirm-enter-key {
+  display: block;
+  width: 34px;
+  height: 34px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.guided-review-view .ant-btn-default.guided-review-card__confirm-action:not(:disabled):hover {
+  color: #3e53b9;
+  background: var(--platform-preview-primary-soft);
+  border-color: transparent;
+}
+
+.guided-review-view .ant-btn-default.guided-review-card__confirm-action:not(:disabled):active {
+  color: #33479f;
+  background: color-mix(in srgb, var(--platform-preview-primary-soft) 72%, #ffffff);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.guided-review-view .ant-btn.guided-review-card__confirm-action:disabled {
+  color: #8e95a3;
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.68;
+}
+
 .guided-review-card__control .ant-alert {
   margin: 0;
 }

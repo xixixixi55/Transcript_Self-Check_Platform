@@ -370,6 +370,14 @@ export default function CaseRecordGeneratePage() {
       {archiveCompletionPanel}
     </Space>
   }
+  const guidedInteractionDisabled = !session.editingEnabled
+    || exportPreparing || exportDirectory.busy || exporting
+  const confirmCurrentGuidedAction = () => {
+    if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.caseSummary) {
+      setCaseSummaryReviewed(true)
+    }
+    guidedReview.confirmCurrentAction()
+  }
   return (
     <>
       <div className={`review-page${reviewMode === 'guided' ? ' review-page--guided' : ''}`}>
@@ -381,12 +389,8 @@ export default function CaseRecordGeneratePage() {
             allActions={guidedReview.allActions} hasResponse={Boolean(guidedSpecialContent || currentGuidedAction.pendingItem)}
             onSelectAction={guidedReview.selectAction}
             onRevisitAction={guidedReview.revisitAction}
-            onConfirmCurrentAction={() => {
-              if (currentGuidedAction.pendingItem?.targetId === REVIEW_TARGET_IDS.caseSummary) {
-                setCaseSummaryReviewed(true)
-              }
-              guidedReview.confirmCurrentAction()
-            }}
+            onConfirmCurrentAction={confirmCurrentGuidedAction}
+            confirmCurrentActionDisabled={guidedInteractionDisabled}
             canReturnToPrevious={Boolean(guidedReview.previousAction)}
             isReviewingPrevious={guidedReview.isReviewingPrevious}
             onReturnToPreviousAction={guidedReview.returnToPreviousAction}
@@ -395,7 +399,7 @@ export default function CaseRecordGeneratePage() {
             onBackToWorkbench={() => { void handleBackToWorkbench() }}>
             <GuidedReviewCard action={currentGuidedAction} report={projectedReport || session.report}
               updateReport={updateReport}
-              readOnly={!session.editingEnabled || exportPreparing || exportDirectory.busy || exporting}
+              readOnly={guidedInteractionDisabled}
               specialContent={guidedSpecialContent}
               fieldStates={session.draft?.field_states}
               onEvidenceCompletenessChange={confirmed => {

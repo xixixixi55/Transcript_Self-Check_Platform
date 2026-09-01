@@ -1,5 +1,5 @@
 import {
-  ArrowLeftOutlined, ArrowRightOutlined, EditOutlined, HomeOutlined,
+  ArrowDownOutlined, ArrowUpOutlined, EditOutlined, HomeOutlined,
   SafetyCertificateOutlined, SwapOutlined, UnorderedListOutlined,
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
@@ -20,6 +20,7 @@ interface Props {
   onSelectAction: (actionId: string) => void
   onRevisitAction?: (action: GuidedReviewAction) => void
   onConfirmCurrentAction?: () => void
+  confirmCurrentActionDisabled?: boolean
   canReturnToPrevious?: boolean
   isReviewingPrevious?: boolean
   onReturnToPreviousAction?: () => void
@@ -42,6 +43,16 @@ interface SwitchedTurn {
 type ActionStatusTone = 'current' | 'pending' | 'warning' | 'system' | 'success'
 type MascotMood = 'listening' | 'verifying' | 'warning' | 'complete'
 type SplitOrder = 'history-first' | 'conversation-first'
+
+function ConfirmEnterKeyIcon() {
+  return (
+    <svg className="guided-review-card__confirm-enter-key" viewBox="0 0 36 36"
+      fill="none" aria-hidden focusable="false" data-direction="right">
+      <path d="M5 3.5h15.5a3 3 0 0 1 3 3v7H30a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-22a3 3 0 0 1 3-3Z" />
+      <path d="M10 10v7.5a3.5 3.5 0 0 0 3.5 3.5H27m-4-4 4 4-4 4" />
+    </svg>
+  )
+}
 
 const SPLIT_ORDER_STORAGE_KEY = 'biji.guidedReview.splitOrder'
 
@@ -117,7 +128,8 @@ function mascotMood(currentAction: GuidedReviewAction | null, completionActive: 
 export function GuidedReviewView({
   conversationKey, history, currentAction, allActions, hasResponse, onSelectAction,
   onRevisitAction,
-  onConfirmCurrentAction, canReturnToPrevious = false, isReviewingPrevious = false,
+  onConfirmCurrentAction, confirmCurrentActionDisabled = false,
+  canReturnToPrevious = false, isReviewingPrevious = false,
   onReturnToPreviousAction, onReturnToCurrentAction, onOpenFullEditor, onBackToWorkbench, children,
 }: Props) {
   const [openPanel, setOpenPanel] = useState<'pending' | null>(null)
@@ -297,13 +309,13 @@ export function GuidedReviewView({
                   {isReviewingPrevious ? (
                     <Tooltip title="返回当前步骤">
                       <Button shape="circle" size="large" className="guided-review-icon-action"
-                        icon={<ArrowRightOutlined />} aria-label="返回当前步骤"
+                        icon={<ArrowDownOutlined />} aria-label="返回当前步骤"
                         onClick={onReturnToCurrentAction} />
                     </Tooltip>
                   ) : (
                     <Tooltip title="返回上一步">
                       <Button shape="circle" size="large" className="guided-review-icon-action"
-                        icon={<ArrowLeftOutlined />} aria-label="返回上一步"
+                        icon={<ArrowUpOutlined />} aria-label="返回上一步"
                         onClick={onReturnToPreviousAction} />
                     </Tooltip>
                   )}
@@ -318,6 +330,18 @@ export function GuidedReviewView({
                   onKeyDown={confirmTextResponse}>
                   <span className="guided-review-card__response-label">{responseLabel}</span>
                   {children}
+                  {currentAction?.advanceOnEnter && (
+                    <div className="guided-review-card__confirm-actions">
+                      <Tooltip title="确认并进入下一步">
+                        <Button
+                          className="guided-review-icon-action guided-review-card__confirm-action"
+                          icon={<ConfirmEnterKeyIcon />}
+                          aria-label="确认并进入下一步"
+                          disabled={confirmCurrentActionDisabled}
+                          onClick={onConfirmCurrentAction} />
+                      </Tooltip>
+                    </div>
+                  )}
                 </div>
               )}
             </article>

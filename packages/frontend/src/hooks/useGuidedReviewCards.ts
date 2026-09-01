@@ -175,6 +175,13 @@ const CASE_SUMMARY_REVIEW_ITEM: ReviewPendingItem = {
   kind: 'confirmation_required',
 }
 
+const CASE_SUMMARY_PRECEDING_TARGETS = new Set<string>([
+  REVIEW_TARGET_IDS.documentNumber,
+  REVIEW_TARGET_IDS.entrustUnit,
+  REVIEW_TARGET_IDS.entrustPersons,
+  REVIEW_TARGET_IDS.entrustTime,
+])
+
 export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput): GuidedReviewProjection {
   if (!input.report) return {
     history: [], pendingItems: [], allActions: [], systemStatus: null, readyToGenerate: false,
@@ -182,7 +189,14 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   const pendingItems = input.pendingItems.filter(item => !SYSTEM_OUTPUT_TARGETS.has(item.targetId))
   if (input.caseSummaryReviewed === false
     && !pendingItems.some(item => item.targetId === REVIEW_TARGET_IDS.caseSummary)) {
-    pendingItems.push(CASE_SUMMARY_REVIEW_ITEM)
+    const nextIntroductionFieldIndex = pendingItems.findIndex(
+      item => !CASE_SUMMARY_PRECEDING_TARGETS.has(item.targetId),
+    )
+    pendingItems.splice(
+      nextIntroductionFieldIndex === -1 ? pendingItems.length : nextIntroductionFieldIndex,
+      0,
+      CASE_SUMMARY_REVIEW_ITEM,
+    )
   }
   const allActions: GuidedReviewAction[] = []
   if (input.leaseState !== 'editable' && input.leaseState !== 'acquiring') {

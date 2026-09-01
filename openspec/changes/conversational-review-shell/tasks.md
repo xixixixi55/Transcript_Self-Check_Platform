@@ -487,3 +487,26 @@ workflow_level: 2
 - `guided_split_order_tests: PASS`：新增回归先在旧实现上失败，实施后 `GuidedReviewView.test.tsx` 13/13 通过，覆盖偏好读取、切换写入、跨案件重新挂载复用及原有分栏 DOM/键盘顺序行为。
 - `guided_split_order_quality: PASS`：架构检查、全项目 TypeScript、治理测试、文档快检、仓库资产卫生、生产构建和 `git diff --check` 通过；Impeccable 单次检测 0 项，构建仅保留既有大包提示。
 - `guided_split_order_manual_acceptance: N/A`：持久化键值、重新挂载和跨案件复用由 SYNTHETIC 组件回归可区分覆盖，未读取或写入真实案件数据。
+
+## 2026-09-01 案件简要情况顺序反馈
+
+- [x] 6.60 将报告预填的案件简要情况插入委托时间之后、其他后续审核事项之前；保持恢复事项、压缩时机和介质编号的既有优先级，补充可区分的 Hook 回归，同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 案件简要情况顺序验证记录
+
+- `case_summary_order_contract: PASS`：新增 SYNTHETIC Hook 回归先在旧实现上失败，明确得到“委托时间→检查要求→案件简要情况”；实施后顺序为“委托时间→案件简要情况→检查要求”，预填多行输入和会话确认行为不变。
+- `case_summary_order_tests: PASS`：`useGuidedReviewCards.test.ts` 17/17 通过；既有恢复事项、压缩时机和介质编号优先级用例继续通过。
+- `case_summary_order_quality: PASS`：`npm run verify:quick` 的架构、类型、治理文档、文档快检与仓库资产卫生检查通过；scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 通过，delta 已同步到 living spec。
+- `case_summary_order_manual_acceptance: N/A`：该变化仅调整确定性的动作数组顺序，由可区分的 Hook 回归完整覆盖，不涉及视觉布局、真实 Word/PDF 或桌面环境。
+
+## 2026-09-01 文本事项确认按钮反馈
+
+- [x] 6.61 为所有支持 Enter 推进的文本事项增加圆形确认按钮，点击与 Enter 复用同一完成回调；保持 IME、Shift+Enter、自动保存和只读/导出忙碌保护，补充可区分的组件回归，同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 文本事项确认按钮验证记录
+
+- `text_confirmation_button_contract: PASS`：新增组件回归先在旧实现上失败；实施后所有 `advanceOnEnter` 文本事项均显示具有 Tooltip 和“确认并进入下一步”可访问名称的 44px 圆形主按钮，点击与非组合态 Enter 调用同一完成回调。
+- `text_confirmation_button_hardening: PASS`：IME 组合态 Enter 与 Shift+Enter 不误推进；只读或导出忙碌状态通过页面统一禁用条件同步禁用输入和确认按钮，既有实时草稿更新与自动保存未改变。
+- `text_confirmation_button_tests: PASS`：确认专项与原引导组件测试共 14/14 通过；架构检查、全项目 TypeScript、`verify:quick`、生产构建、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 通过。页面综合回归 19/20 通过，唯一失败为本次差异外既有“请返回案件工作台统一导出”提示文案断言，单独运行可稳定复现；本次按钮接线与其无调用关系。
+- `text_confirmation_button_impeccable: PASS_WITH_EXISTING_FINDINGS`：一次性机械检测只报告 `reviewWorkspace.css` 第 167、314 行两处本次差异外既有告警，新增确认按钮区域无检测项。
+- `text_confirmation_button_manual_acceptance: N/A`：按钮尺寸、主次语义、键盘顺序、可访问名称、点击行为与禁用状态均由既有样式系统、组件 DOM 回归和生产构建可区分覆盖；未使用或读取真实案件数据。
