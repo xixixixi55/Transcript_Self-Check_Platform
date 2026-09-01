@@ -1,5 +1,5 @@
 import {
-  ArrowLeftOutlined, ArrowRightOutlined, CheckCircleOutlined, EditOutlined, FileDoneOutlined, HomeOutlined,
+  ArrowLeftOutlined, ArrowRightOutlined, EditOutlined, FileDoneOutlined, HomeOutlined,
   SafetyCertificateOutlined, SwapOutlined, UnorderedListOutlined,
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
@@ -33,7 +33,6 @@ interface Props {
 interface CompletedTurn {
   action: GuidedReviewAction
   reply: string
-  handoff: string
 }
 
 interface SwitchedTurn {
@@ -87,19 +86,6 @@ function actionConversationLabel(action: GuidedReviewAction): string {
   return action.title.replace(/^请(?:先)?/, '').replace(/[。！？!?]$/, '')
 }
 
-function assistantHandoff(action: GuidedReviewAction, reply: string, nextAction: GuidedReviewAction | null): string {
-  const label = actionConversationLabel(action)
-  if (!nextAction) return `${label}已经处理完成。当前需要办理的事项已经全部核对。`
-  if (nextAction.kind === 'waiting') {
-    return label === '文号'
-      ? '文号已经纳入当前笔录。后台任务还在继续，我会同步核对结果。'
-      : `${label}已经处理完成。后台任务还在继续，我会同步核对结果。`
-  }
-  if (nextAction.kind === 'ready') return `${label}已经处理完成。所需事项已经齐备，可以进行最后生成。`
-  const nextLabel = actionConversationLabel(nextAction)
-  return `${label}已经处理完成。接下来核对${nextLabel}，确保相关内容保持一致。`
-}
-
 function mascotMood(currentAction: GuidedReviewAction | null, completionActive: boolean): MascotMood {
   if (currentAction && RECOVERY_ACTIONS.has(currentAction.kind)) return 'warning'
   if (currentAction?.kind === 'ready') return 'complete'
@@ -117,7 +103,6 @@ export function GuidedReviewView({
   const [openPanel, setOpenPanel] = useState<'pending' | 'summary' | null>(null)
   const [avatarUnavailable, setAvatarUnavailable] = useState(false)
   const [completedTurns, setCompletedTurns] = useState<CompletedTurn[]>([])
-  const [completedTurnCount, setCompletedTurnCount] = useState(0)
   const [completionMoodActive, setCompletionMoodActive] = useState(false)
   const [switchedTurn, setSwitchedTurn] = useState<SwitchedTurn | null>(null)
   const [splitOrder, setSplitOrder] = useState<SplitOrder>('history-first')
@@ -139,7 +124,6 @@ export function GuidedReviewView({
       previousActionRef.current = currentAction
       completedActionIdsRef.current.clear()
       setCompletedTurns([])
-      setCompletedTurnCount(0)
       setCompletionMoodActive(false)
       setSwitchedTurn(null)
       return
@@ -162,12 +146,10 @@ export function GuidedReviewView({
           const completed = {
             action: previousAction,
             reply,
-            handoff: assistantHandoff(previousAction, reply, currentAction),
           }
-          setCompletedTurns(turns => [...turns.filter(turn => turn.action.id !== previousAction.id), completed].slice(-3))
+          setCompletedTurns(turns => [...turns.filter(turn => turn.action.id !== previousAction.id), completed])
           if (!completedActionIdsRef.current.has(previousAction.id)) {
             completedActionIdsRef.current.add(previousAction.id)
-            setCompletedTurnCount(count => count + 1)
           }
           setCompletionMoodActive(true)
         }
@@ -180,7 +162,7 @@ export function GuidedReviewView({
     if (!completionMoodActive) return
     const timer = window.setTimeout(() => setCompletionMoodActive(false), 1800)
     return () => window.clearTimeout(timer)
-  }, [completionMoodActive, completedTurnCount])
+  }, [completionMoodActive, completedTurns.length])
 
   useEffect(() => {
     const mascot = mascotRef.current
@@ -215,7 +197,10 @@ export function GuidedReviewView({
   const responseLabel = currentAction?.kind === 'pending_item' ? '你的回复' : '请选择操作'
   const assistantState = assistantStatus(currentAction, allActions)
   const currentMascotMood = mascotMood(currentAction, completionMoodActive)
-  const hiddenCompletedTurnCount = Math.max(0, completedTurnCount - completedTurns.length)
+  const pendingActionCount = allActions.filter(action => !['waiting', 'ready'].includes(action.kind)).length
+  const revisitableCompletedTurns = completedTurns.filter(turn => (
+    !allActions.some(action => action.id === turn.action.id)
+  ))
   const confirmTextResponse = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!currentAction?.advanceOnEnter || event.key !== 'Enter' || event.shiftKey
       || event.altKey || event.ctrlKey || event.metaKey) return
@@ -261,27 +246,6 @@ export function GuidedReviewView({
           </div>
           <div className="guided-review-conversation__content">
             <article className="guided-review-card">
-              {hiddenCompletedTurnCount > 0 && (
-                <p className="guided-review-turn__collapsed">更早已完成 {hiddenCompletedTurnCount} 项</p>
-              )}
-              {completedTurns.map((turn, index) => (
-                <div key={turn.action.id} className="guided-review-turn"
-                  aria-label={index === completedTurns.length - 1 ? '上一轮办理结果' : '较早办理结果'}>
-                  <div className="guided-review-turn__user">
-                    <span>你已完成</span>
-                    <p>{turn.reply}</p>
-                  </div>
-                  <div className="guided-review-turn__assistant-summary">
-                    <CheckCircleOutlined aria-hidden />
-                    <span>{turn.handoff}</span>
-                    <Tooltip title={`修改${actionConversationLabel(turn.action)}`}>
-                      <Button shape="circle" size="large" className="guided-review-icon-action"
-                        icon={<EditOutlined />} aria-label={`修改${actionConversationLabel(turn.action)}`}
-                        onClick={() => onRevisitAction?.(turn.action)} />
-                    </Tooltip>
-                  </div>
-                </div>
-              ))}
               <div className="guided-review-card__assistant">
                 <div className="guided-review-card__assistant-body">
                   <div className="guided-review-conversation__identity">
@@ -338,10 +302,11 @@ export function GuidedReviewView({
         </div>
         <div className="guided-review-conversation__utilities">
           <div className="guided-review-tools" aria-label="其他审核操作">
-            <Tooltip title={`查看全部当前事项（${allActions.length}）`}>
-              <Badge count={allActions.length} size="small" offset={[-2, 2]}>
+            <Tooltip title="查看并修改已填内容与待办">
+              <Badge count={pendingActionCount} size="small" offset={[-2, 2]}>
                 <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
-                  icon={<UnorderedListOutlined />} aria-label={`查看全部当前事项（${allActions.length}）`}
+                  icon={<UnorderedListOutlined />}
+                  aria-label={`查看已填内容与待办（${pendingActionCount} 项待处理）`}
                   aria-expanded={openPanel === 'pending'} aria-controls="guided-review-pending-panel"
                   onClick={() => togglePanel('pending')} />
               </Badge>
@@ -352,11 +317,6 @@ export function GuidedReviewView({
                 aria-expanded={openPanel === 'summary'} aria-controls="guided-review-summary-panel"
                 onClick={() => togglePanel('summary')} />
             </Tooltip>
-            <Tooltip title="完整审核编辑">
-              <Button type="primary" shape="circle" size="large"
-                className="guided-review-icon-action guided-review-tools__icon-button guided-review-tools__primary"
-                icon={<EditOutlined />} aria-label="完整审核编辑" onClick={onOpenFullEditor} />
-            </Tooltip>
             <Tooltip title="返回案件工作台">
               <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
                 icon={<HomeOutlined />} aria-label="返回案件工作台" onClick={onBackToWorkbench} />
@@ -364,25 +324,63 @@ export function GuidedReviewView({
           </div>
           {openPanel === 'pending' && (
             <div ref={openPanelRef} id="guided-review-pending-panel" className="guided-review-popover-panel"
-              role="region" aria-label="全部当前事项" tabIndex={-1}>
-              {allActions.length ? allActions.map(action => {
-                const isCurrent = action.id === currentAction?.id
-                const status = actionStatus(action, isCurrent)
-                return (
-                  <Button type="text" block key={action.id}
-                    aria-current={isCurrent ? 'true' : undefined}
-                    className={isCurrent ? 'guided-review-action--current' : ''}
-                    onClick={() => onSelectAction(action.id)}>
-                    <span className="guided-review-action__title-row">
-                      <span>{action.title}</span>
-                      <span className={`guided-review-action__status guided-review-status--${status.tone}`}>
-                        {status.label}
+              role="region" aria-label="已填内容与待办" tabIndex={-1}>
+              <section className="guided-review-action-group" aria-labelledby="guided-review-pending-heading">
+                <h3 id="guided-review-pending-heading">待处理与状态</h3>
+                {allActions.length ? allActions.map(action => {
+                  const isCurrent = action.id === currentAction?.id
+                  const status = actionStatus(action, isCurrent)
+                  return (
+                    <Button type="text" block key={action.id}
+                      aria-current={isCurrent ? 'true' : undefined}
+                      className={isCurrent ? 'guided-review-action--current' : ''}
+                      onClick={() => {
+                        onSelectAction(action.id)
+                        setOpenPanel(null)
+                      }}>
+                      <span className="guided-review-action__title-row">
+                        <span>{action.title}</span>
+                        <span className={`guided-review-action__status guided-review-status--${status.tone}`}>
+                          {status.label}
+                        </span>
                       </span>
-                    </span>
-                    <small>{action.description}</small>
-                  </Button>
-                )
-              }) : <p>当前没有可展示事项。</p>}
+                      <small>{action.description}</small>
+                    </Button>
+                  )
+                }) : <p>当前没有待处理事项。</p>}
+              </section>
+              {revisitableCompletedTurns.length > 0 && (
+                <section className="guided-review-action-group" aria-labelledby="guided-review-completed-heading">
+                  <h3 id="guided-review-completed-heading">本次已填写</h3>
+                  {revisitableCompletedTurns.map(turn => (
+                    <Button type="text" block key={turn.action.id}
+                      aria-label={`修改${actionConversationLabel(turn.action)}`}
+                      onClick={() => {
+                        onRevisitAction?.(turn.action)
+                        setOpenPanel(null)
+                      }}>
+                      <span className="guided-review-action__title-row">
+                        <span>{actionConversationLabel(turn.action)}</span>
+                        <span className="guided-review-action__status guided-review-status--success">已填写</span>
+                      </span>
+                      <small>{turn.reply}，点击返回修改</small>
+                    </Button>
+                  ))}
+                </section>
+              )}
+              <section className="guided-review-action-group" aria-labelledby="guided-review-all-fields-heading">
+                <h3 id="guided-review-all-fields-heading">其他内容</h3>
+                <Button type="text" block aria-label="修改其他已填内容"
+                  onClick={() => {
+                    setOpenPanel(null)
+                    onOpenFullEditor()
+                  }}>
+                  <span className="guided-review-action__title-row">
+                    <span className="guided-review-action__label"><EditOutlined />修改其他已填内容</span>
+                  </span>
+                  <small>进入完整审核编辑</small>
+                </Button>
+              </section>
             </div>
           )}
           {openPanel === 'summary' && (

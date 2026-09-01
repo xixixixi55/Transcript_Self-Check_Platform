@@ -1802,28 +1802,6 @@
   padding-top: 4px;
 }
 
-.guided-review-turn {
-  margin-bottom: 8px;
-  animation: guided-review-turn-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.guided-review-turn__collapsed {
-  margin: 0 0 8px;
-  color: var(--review-muted);
-  font-size: 12px;
-  text-align: center;
-}
-
-.guided-review-turn__user {
-  width: min(720px, 86%);
-  margin-left: auto;
-  padding: 9px 12px 10px;
-  color: #163f5e;
-  background: #dceef9;
-  border-radius: 14px 4px 14px 14px;
-}
-
-.guided-review-turn__user span,
 .guided-review-card__response-label {
   display: block;
   margin-bottom: 4px;
@@ -1833,36 +1811,9 @@
   line-height: 18px;
 }
 
-.guided-review-turn__user p,
 .guided-review-turn__acknowledgement {
   margin: 0;
   line-height: 1.6;
-}
-
-.guided-review-turn__assistant-summary {
-  width: fit-content;
-  max-width: 72ch;
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
-  margin: 6px 0 0;
-  padding: 7px 10px;
-  color: #36536a;
-  background: #eef6fb;
-  border-radius: 4px 12px 12px;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.guided-review-turn__assistant-summary > .anticon {
-  margin-top: 3px;
-  color: #287a4a;
-}
-
-.guided-review-turn__assistant-summary .ant-btn {
-  min-height: 28px;
-  margin: -4px -4px -4px 2px;
-  padding-inline: 6px;
 }
 
 .guided-review-turn__acknowledgement {
@@ -2275,17 +2226,6 @@
   }
 }
 
-@keyframes guided-review-turn-enter {
-  from {
-    opacity: 0.86;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes guided-review-status-pulse {
   0%, 100% {
     opacity: 0.45;
@@ -2349,6 +2289,25 @@
   line-height: 1.5;
 }
 
+.guided-review-action-group {
+  display: grid;
+  gap: 4px;
+}
+
+.guided-review-action-group + .guided-review-action-group {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #dce5ed;
+}
+
+.guided-review-action-group h3 {
+  margin: 0;
+  padding: 2px 10px 4px;
+  color: var(--review-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .guided-review-action__title-row {
   width: 100%;
   display: flex;
@@ -2359,6 +2318,12 @@
 
 .guided-review-action__status {
   flex: 0 0 auto;
+}
+
+.guided-review-action__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .guided-review-action--current {
@@ -2492,13 +2457,8 @@
   }
 
   .guided-review-card__response,
-  .guided-review-step-navigation,
-  .guided-review-turn__user {
+  .guided-review-step-navigation {
     width: 100%;
-  }
-
-  .guided-review-turn__assistant-summary {
-    max-width: 100%;
   }
 
   .guided-review-summary {

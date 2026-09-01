@@ -39,6 +39,71 @@ from ..template.template_profile_service import (
 )
 from ..integrity.hash_algorithm_service import hash_display_name, hash_field_title
 
+_LEGACY_ATTACHMENT1_INSTITUTION = "椒江区公安司法鉴定中心"
+
+
+def replace_attachment1_institution(doc: Any, inspection_place: object) -> None:
+    """让附件1最终签名行的落款与当前检查地点保持一致。"""
+    replacement = "" if inspection_place is None else str(inspection_place)
+    text_tag = qn(W_NS, "t")
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    text_elements = paragraph._element.findall(f".//{text_tag}")
+                    full_text = "".join(element.text or "" for element in text_elements)
+                    if (
+                        "检查人员" not in full_text
+                        or _LEGACY_ATTACHMENT1_INSTITUTION not in full_text
+                    ):
+                        continue
+                    _replace_text_across_elements(
+                        text_elements,
+                        _LEGACY_ATTACHMENT1_INSTITUTION,
+                        replacement,
+                    )
+
+
+def _replace_text_across_elements(text_elements: Sequence[Any], old: str, new: str) -> bool:
+    """跨相邻 w:t 替换文本，并保留匹配范围外的 Run 及其格式。"""
+    element_texts = [element.text or "" for element in text_elements]
+    full_text = "".join(element_texts)
+    start = full_text.find(old)
+    if start < 0:
+        return False
+    end = start + len(old)
+
+    cursor = 0
+    start_index = start_offset = end_index = end_offset = None
+    for index, text in enumerate(element_texts):
+        next_cursor = cursor + len(text)
+        if start_index is None and start < next_cursor:
+            start_index = index
+            start_offset = start - cursor
+        if start_index is not None and end <= next_cursor:
+            end_index = index
+            end_offset = end - cursor
+            break
+        cursor = next_cursor
+
+    if start_index is None or end_index is None:
+        return False
+
+    if start_index == end_index:
+        original = element_texts[start_index]
+        text_elements[start_index].text = (
+            original[:start_offset] + new + original[end_offset:]
+        )
+        return True
+
+    text_elements[start_index].text = element_texts[start_index][:start_offset] + new
+    for index in range(start_index + 1, end_index):
+        text_elements[index].text = ""
+    text_elements[end_index].text = element_texts[end_index][end_offset:]
+    return True
+
+
 def render_attachment_plan(
     doc: Any, plan: AttachmentPlan, profile: CurrentTemplateProfile,
     report: Mapping[str, Any], photo_assets: Sequence[Attachment2PhotoAsset] = (),

@@ -432,10 +432,28 @@ def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path
         assert package.testzip() is None
         document_xml = package.read("word/document.xml").decode("utf-8")
 
+    document_root = ET.fromstring(document_xml)
+    w_tag = f"{{{W_NS}}}"
+    attachment_table = document_root.find(f".//{w_tag}tbl")
+    blank_cell_properties = (
+        attachment_table.findall(f"{w_tag}tr")[1]
+        .findall(f"{w_tag}tc")[0]
+        .find(f"{w_tag}tcPr")
+    )
+    property_names = [element.tag.removeprefix(w_tag) for element in blank_cell_properties]
+    assert blank_cell_properties.find(f"{w_tag}tcBorders/{w_tag}tr2bl") is not None
+    assert property_names.index("tcBorders") < property_names.index("vAlign")
+
     assert document_xml.count("<w:pict") >= 2
     assert document_xml.count("<v:textbox") == 2
     assert document_xml.count("<w:txbxContent") == 2
     assert "检验单位：测试鉴定中心" in document_xml
+    signature_text = "".join(
+        cell.text for cell in Document(output).tables[0].rows[-1].cells
+    )
+    assert "检查人员" in signature_text
+    assert "测试鉴定中心" in signature_text
+    assert "椒江区公安司法鉴定中心" not in signature_text
     assert _DEFAULT_SUMMARY in document_xml
     assert "<w:pageBreakBefore" not in document_xml
     assert document_xml.count('w:type="page"') == 3

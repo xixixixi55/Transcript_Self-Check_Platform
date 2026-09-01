@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { InspectionReport } from '@biji/shared/types'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GuidedReviewAction, GuidedReviewHistoryItem } from '../hooks/useGuidedReviewCards'
 import { GuidedReviewCard } from './GuidedReviewCard'
 import { GuidedReviewView } from './GuidedReviewView'
@@ -30,6 +30,13 @@ const waitingAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-WAITING', kind: 'waiting', title: '请稍候，正在生成压缩分卷',
   description: '后台任务仍在运行，可继续处理其他待办。',
 }
+
+beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  })
+})
 const recoveryAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-RECOVERY', kind: 'save_recovery', title: '请恢复草稿保存',
   description: 'SYNTHETIC/TEST：保存链路需要恢复。',
@@ -233,6 +240,7 @@ describe('GuidedReviewView', () => {
   it('shows history and conversation as switchable panes while exposing global review controls', () => {
     const selectAction = vi.fn()
     const updateReport = vi.fn()
+    const openFullEditor = vi.fn()
     const scrollIntoView = vi.fn()
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
@@ -247,7 +255,7 @@ describe('GuidedReviewView', () => {
       hasResponse
       onSelectAction={selectAction}
       summary={<div>SYNTHETIC ORGANIZED SUMMARY</div>}
-      onOpenFullEditor={vi.fn()}
+      onOpenFullEditor={openFullEditor}
       onBackToWorkbench={vi.fn()}
     >
       <GuidedReviewCard action={documentAction} report={report} updateReport={updateReport} readOnly={false} />
@@ -288,27 +296,29 @@ describe('GuidedReviewView', () => {
     fireEvent.error(mascot!)
     expect(view.container.querySelector('.anticon-safety-certificate')).toBeTruthy()
 
-    const pendingButton = screen.getByRole('button', { name: '查看全部当前事项（2）' })
+    const pendingButton = screen.getByRole('button', { name: '查看已填内容与待办（1 项待处理）' })
     const summaryButton = screen.getByRole('button', { name: '查看已整理信息' })
     expect(pendingButton.querySelector('.anticon-unordered-list')).toBeTruthy()
     expect(summaryButton.querySelector('.anticon-file-done')).toBeTruthy()
     expectCircularIconButton(pendingButton)
     expectCircularIconButton(summaryButton)
-    const fullEditorButton = screen.getByRole('button', { name: '完整审核编辑' })
-    expect(fullEditorButton.querySelector('.anticon-edit')).toBeTruthy()
-    expect(fullEditorButton.classList.contains('ant-btn-primary')).toBe(true)
-    expect(fullEditorButton.classList.contains('guided-review-tools__primary')).toBe(true)
+    expect(screen.queryByRole('button', { name: '完整审核编辑' })).toBeNull()
     expect(screen.getByRole('button', { name: '返回案件工作台' }).querySelector('.anticon-home')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull()
     expect(pendingButton.getAttribute('aria-controls')).toBe('guided-review-pending-panel')
     expect(summaryButton.getAttribute('aria-controls')).toBe('guided-review-summary-panel')
     fireEvent.click(pendingButton)
-    const pendingPanel = screen.getByLabelText('全部当前事项')
+    const pendingPanel = screen.getByLabelText('已填内容与待办')
     expect(pendingPanel.id).toBe('guided-review-pending-panel')
     expect(document.activeElement).toBe(pendingPanel)
     expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' })
     expect(screen.getByRole('button', { name: /请输入文号.*当前/ }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷.*后台中/ })).toBeTruthy()
+    const fullEditorButton = screen.getByRole('button', { name: '修改其他已填内容' })
+    expect(fullEditorButton.querySelector('.anticon-edit')).toBeTruthy()
+    fireEvent.click(fullEditorButton)
+    expect(openFullEditor).toHaveBeenCalledTimes(1)
+    fireEvent.click(pendingButton)
     fireEvent.click(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷/ }))
     expect(selectAction).toHaveBeenCalledWith(waitingAction.id)
 
@@ -316,7 +326,7 @@ describe('GuidedReviewView', () => {
     const summaryPanel = screen.getByLabelText('已整理信息')
     expect(summaryPanel.id).toBe('guided-review-summary-panel')
     expect(document.activeElement).toBe(summaryPanel)
-    expect(scrollIntoView).toHaveBeenCalledTimes(2)
+    expect(scrollIntoView).toHaveBeenCalledTimes(3)
     expect(screen.getByText('SYNTHETIC ORGANIZED SUMMARY')).toBeTruthy()
     expect(updateReport).not.toHaveBeenCalled()
 
@@ -402,7 +412,7 @@ describe('GuidedReviewView', () => {
     expect(confirmCurrentAction).toHaveBeenCalledTimes(1)
   })
 
-  it('shows a session-only user reply and assistant handoff after an action is completed', async () => {
+  it('moves a completed action out of the conversation and into the edit center', async () => {
     const revisitAction = vi.fn()
     const returnToPreviousAction = vi.fn()
     const returnToCurrentAction = vi.fn()
@@ -442,12 +452,11 @@ describe('GuidedReviewView', () => {
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
-    await waitFor(() => expect(screen.getByLabelText('上一轮办理结果')).toBeTruthy())
-    expect(screen.getByText('文号已填写')).toBeTruthy()
-    expect(screen.getByText('文号已经纳入当前笔录。后台任务还在继续，我会同步核对结果。')).toBeTruthy()
+    await waitFor(() => expect(screen.queryByLabelText('上一轮办理结果')).toBeNull())
+    expect(screen.queryByText('文号已填写')).toBeNull()
     expect(document.querySelector('[data-mood="complete"]')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '查看已填内容与待办（0 项待处理）' }))
     const revisitButton = screen.getByRole('button', { name: '修改文号' })
-    expectCircularIconButton(revisitButton)
     fireEvent.click(revisitButton)
     expect(revisitAction).toHaveBeenCalledWith(documentAction)
     expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent).toContain('请稍候，正在生成压缩分卷')
@@ -489,7 +498,7 @@ describe('GuidedReviewView', () => {
     await waitFor(() => expect(screen.queryByLabelText('上一轮办理结果')).toBeNull())
   })
 
-  it('keeps the latest three completed turns and summarizes older session turns', async () => {
+  it('keeps all completed session actions available in the edit center', async () => {
     const actions = ['甲', '乙', '丙', '丁'].map((fieldLabel, index): GuidedReviewAction => ({
       ...documentAction,
       id: `SYNTHETIC-ACTION-${fieldLabel}`,
@@ -515,13 +524,14 @@ describe('GuidedReviewView', () => {
       const action = actions[index]
       view.rerender(<GuidedReviewView {...props} currentAction={action}
         allActions={[...actions.slice(index), waitingAction]}>{child(action)}</GuidedReviewView>)
-      await waitFor(() => expect(screen.getByRole('button', { name: `修改${actions[index - 1].pendingItem?.fieldLabel}` })).toBeTruthy())
+      await waitFor(() => expect(document.querySelector('[data-mood="complete"]')).toBeTruthy())
     }
     view.rerender(<GuidedReviewView {...props} currentAction={waitingAction}
       allActions={[waitingAction]} hasResponse={false}>{child(waitingAction)}</GuidedReviewView>)
 
-    await waitFor(() => expect(screen.getByText('更早已完成 1 项')).toBeTruthy())
-    expect(screen.queryByRole('button', { name: '修改甲' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '查看已填内容与待办（0 项待处理）' }))
+    expect(screen.queryByText('更早已完成 1 项')).toBeNull()
+    expect(screen.getByRole('button', { name: '修改甲' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '修改乙' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '修改丙' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '修改丁' })).toBeTruthy()

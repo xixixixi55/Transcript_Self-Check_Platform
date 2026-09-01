@@ -245,6 +245,8 @@ def test_attachment1_final_page_keeps_template_signature_row(tmp_path, count, ta
     final_text = "".join("".join(node.itertext()) for node in tables[-1].iter())
     assert "检查人员" in final_text
     assert "盖章" in final_text
+    assert "测试鉴定中心" in final_text
+    assert "椒江区公安司法鉴定中心" not in final_text
 
 
 def test_attachment1_three_rows_match_customer_font_baseline(tmp_path):

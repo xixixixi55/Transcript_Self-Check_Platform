@@ -30,6 +30,7 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 | 4 | 附件3新增 `burning_date` 刻录时间字段 | L2 | shared types / report_parser / template / filler / 前端输入框 |
 | 5 | 附件2无照片时删除模板示例图片 | L1 | `packages/backend/app/services/template/template_filler_service.py`: `_handle_photos()` |
 | 6 | 附件1空表格清除占位符 + 左下→右上对角线 | L1 | `packages/backend/app/services/template/template_filler_service.py`: `_clear_row_and_draw_diagonal()` |
+| 7 | 附件1空表格斜线的 `tcBorders` 节点顺序不符合 OOXML | L1 | 保留斜线样式，将 `tcBorders` 插入 `vAlign` 之前 |
 
 ## 任务列表
 
@@ -60,6 +61,25 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
   - 依赖：T005、T006
   - 内容：核对 delta 与实现，运行轻量门控和受影响模块测试，将最终行为同步到 living spec。
   - 验证：`npm run verify:quick`、`npm run verify:docs:strict -- --change template-2026`
+
+- [x] T008 **附件1检查人员落款跟随检查地点**
+  - 文件：`packages/backend/app/services/template/template_filler_service.py`、`packages/backend/app/services/attachment/attachment_docx_renderer_service.py`、现有模板/附件渲染测试。
+  - 内容：把正式模板附件1最后签名行中跨 Run 写死的鉴定中心名称替换为当前报告 `introduction.inspection_place`；保持签名、盖章、分页和 Manifest 多页结构不变，不修改模板二进制及其他 Word 内容。
+  - 覆盖 Spec：REQ-009。
+  - 验证：先以现有 SYNTHETIC/TEST 报告证明兼容填充与 Manifest 多页路径失败，实施后运行定向后端测试、生成合成 DOCX 并用 officecli 校验文本与文件结构。
+  - 证据：定向回归 `3 passed`；受影响后端测试 `75 passed`。合成 DOCX 可由 officecli 读取；officecli 的既有 `tcBorders` 顺序告警在禁用本次替换的基线输出中同样存在，本次仅替换文本节点且未新增结构差异。
+
+- [x] T009 **完成本次 Level 2 规格同步与门控**
+  - 依赖：T008。
+  - 内容：核对 delta 与实现、同步 living spec，运行 `verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+  - 证据：`npm run verify:quick` 通过；`npx openspec validate template-2026 --type change --strict --no-interactive` 通过；scoped strict docs 与最终 diff 检查在任务勾选后复跑。
+
+- [x] T010 **修复附件1空清单斜线的 OOXML 属性顺序**
+  - 文件：`packages/backend/app/services/template/template_filler_service.py`、`tests/test_template_filler_service.py`。
+  - 内容：保留空白数据区域的左下至右上斜线，只将 `w:tcBorders` 插入到 OOXML 规定的 `w:vAlign` 之前，消除 officecli 严格结构告警。
+  - 级别：Level 1 既有行为缺陷修复，不新增或修改 Requirement/Scenario。
+  - 验证：定向回归同时断言 `w:tr2bl` 仍存在且属性顺序合法；生成 SYNTHETIC 空清单 DOCX 后运行 `officecli validate`，并执行受影响后端测试与项目快速门控。
+  - 证据：失败用例先确认旧顺序为 `tcW → vAlign → tcBorders`；修复后定向用例通过且 `officecli validate` 零错误；模板与 Word 构建测试 `42 passed`，`npm run pre-commit` 通过。
 
 ## 关键文件
 

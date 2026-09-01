@@ -224,13 +224,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   }, 15000)
 
   async function openFullEditor() {
-    fireEvent.click(await screen.findByRole('button', { name: '完整审核编辑' }))
+    fireEvent.click(await screen.findByRole('button', { name: /查看已填内容与待办/ }))
+    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
+    fireEvent.click(within(panel).getByRole('button', { name: '修改其他已填内容' }))
     await waitFor(() => expect(document.querySelector('.review-editor-form')).toBeTruthy())
   }
 
   async function selectGuidedAction(title: string) {
-    fireEvent.click(await screen.findByRole('button', { name: /查看全部当前事项/ }))
-    const panel = await screen.findByRole('region', { name: '全部当前事项' })
+    fireEvent.click(await screen.findByRole('button', { name: /查看已填内容与待办/ }))
+    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
     fireEvent.click(within(panel).getByRole('button', { name: new RegExp(title) }))
   }
 

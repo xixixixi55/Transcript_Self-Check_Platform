@@ -39,7 +39,10 @@ from ..attachment.attachment2_plan_service import (
 )
 from ..attachment.attachment2_docx_renderer_service import render_attachment2_pages
 from ..attachment.attachment_plan_service import build_attachment_plan
-from ..attachment.attachment_docx_renderer_service import render_attachment_plan
+from ..attachment.attachment_docx_renderer_service import (
+    render_attachment_plan,
+    replace_attachment1_institution,
+)
 from ..attachment.docx_attachment_xml_service import (
     allow_latin_character_wrap,
     attachment1_source_lines,
@@ -115,6 +118,7 @@ def fill_template(report: dict, template_path: str, output_path: str,
 
     # 3. 替换简单 {{key}} 占位符
     _replace_placeholders(doc, flat)
+    replace_attachment1_institution(doc, flat.get("inspection_place", ""))
     _update_inspection_result(doc, report, flat, plan)
 
     # 3.5 替换页眉/页脚占位符
@@ -1048,7 +1052,14 @@ def _clear_row_and_draw_diagonal(row, is_first_data_row: bool = True):
             tcBorders = tcPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tcBorders')
             if tcBorders is None:
                 from lxml import etree
-                tcBorders = etree.SubElement(tcPr, '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tcBorders')
+                tcBorders = etree.Element('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tcBorders')
+                vertical_alignment = tcPr.find(
+                    '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}vAlign'
+                )
+                if vertical_alignment is None:
+                    tcPr.append(tcBorders)
+                else:
+                    vertical_alignment.addprevious(tcBorders)
             # 添加 tr2bl（左下→右上），即 top-right to bottom-left 对角线
             tr2bl = etree.SubElement(tcBorders, '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tr2bl')
             tr2bl.set('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val', 'single')

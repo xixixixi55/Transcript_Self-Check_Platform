@@ -447,3 +447,18 @@ workflow_level: 2
 
 - `word_preview_software_dedup: PASS`：预览投影不再生成“主取证软件”行，现有“软件工具 N”列表继续展示名称与版本；报告中的 `primary_software`、检查结果字段和 Word 生成链路均未修改。
 - `word_preview_software_tests: PASS`：`useGuidedReviewCards.test.ts` 16/16 与全项目 TypeScript 通过，新增断言同时证明软件工具保留且重复主软件字段缺席；人工验收 N/A，该展示差异由合成 DOM 投影可区分覆盖。
+
+## 2026-09-01 已填内容与待办集中修改反馈
+
+- [x] 6.53 移除当前对话内会话级“你已完成”历史轮次和逐轮修改按钮，把本次会话已完成的结构化事项统一收纳到“已填内容与待办”面板；保留当前事项、事项切换说明、返回步骤和既有结构化控件。
+- [x] 6.54 将独立“完整审核编辑”图标并入“已填内容与待办”面板作为修改其他既有内容的兜底入口，并让红色数量角标只统计真实用户待处理项；后台等待、可生成状态和已填写内容不得计入角标。
+- [x] 6.55 保持 Word 内容预览投影、结构、交换分栏及 Word 生成逻辑不变；更新组件/页面回归、同步 delta 与 living spec，并运行风险相称的前端与 Level 2 文档门控。
+
+### 集中修改入口验证记录
+
+- `guided_edit_center_contract: PASS`：当前对话不再渲染“你已完成”轮次；本次会话已完成的结构化事项全部进入“已填内容与待办”，可返回原控件修改，完整审核编辑也作为同一面板内的兜底入口。
+- `guided_edit_center_badge: PASS`：红色角标只统计 `pending_item`、恢复和压缩选择等用户可处理事项；`waiting`、`ready` 与本次已填写内容均不计入数量，系统状态仍保留在面板列表。
+- `guided_edit_center_scope: PASS`：生产差异未修改 `GuidedReviewHistory.tsx`、历史投影 Hook、报告草稿、Word 预览投影或 Word 生成/导出链路；只调整引导视图、局部样式、现有回归和对应规格。
+- `guided_edit_center_tests: PASS_WITH_EXISTING_PAGE_FAILURE`：引导组件 12/12 通过；案件页面 20 项中 19 项通过，唯一失败仍为本包此前已记录的“请返回案件工作台统一导出”旧文案断言，与本次入口调整无代码交集。
+- `guided_edit_center_quality: PASS`：架构检查、全项目 TypeScript、生产构建、`verify:quick`、OpenSpec change strict validate、仓库资产卫生与 scoped `git diff --check` 通过；构建仅保留既有大包提示。Impeccable 单次检测只报告 `reviewWorkspace.css` 第 167、314 行两处本次修改前既有告警，本次新增区域无告警。
+- `guided_edit_center_manual_acceptance: N/A`：当前环境未提供可安全使用的 SYNTHETIC/TEST 案件页面，未读取或截图现有案件；入口分组、数量语义、会话完成项修改、完整编辑往返、焦点和 Word 预览隔离均由合成组件及页面 DOM 回归区分覆盖。
