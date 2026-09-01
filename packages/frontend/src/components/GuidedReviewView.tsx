@@ -230,11 +230,11 @@ export function GuidedReviewView({
     <div className="guided-review-view">
       <div className="guided-review-layout-toolbar" aria-label="分栏布局控制">
         <span aria-live="polite">
-          {splitOrder === 'history-first' ? '历史预览在左，对话在右' : '对话在左，历史预览在右'}
+          {splitOrder === 'history-first' ? 'Word 内容预览在左，对话在右' : '对话在左，Word 内容预览在右'}
         </span>
-        <Tooltip title={splitOrder === 'history-first' ? '将对话切换到左侧' : '将历史预览切换到左侧'}>
+        <Tooltip title={splitOrder === 'history-first' ? '将对话切换到左侧' : '将 Word 内容预览切换到左侧'}>
           <Button shape="circle" size="large" className="guided-review-icon-action"
-            icon={<SwapOutlined />} aria-label="交换历史预览与对话的位置"
+            icon={<SwapOutlined />} aria-label="交换 Word 内容预览与对话的位置"
             onClick={() => setSplitOrder(current => (
               current === 'history-first' ? 'conversation-first' : 'history-first'
             ))} />

@@ -77,16 +77,6 @@ function hasCompleteInspectors(report: InspectionReport): boolean {
   )
 }
 
-function softwareSummary(report: InspectionReport): string {
-  const primary = report.inspection.primary_software
-  if (primary) return [primary.name?.trim(), primary.version?.trim()].filter(Boolean).join(' ')
-    || primary.display_name?.trim()
-  return [
-    report.inspection.result.software_name?.trim(),
-    report.inspection.result.software_version?.trim(),
-  ].filter(Boolean).join(' ')
-}
-
 function materialPhotoCount(report: InspectionReport, materialIndex: number, materialId: string): number {
   const groups = report.attachments.photo_groups
   if (groups?.length) {
@@ -162,7 +152,7 @@ export function buildReportHistory(
       isUserProvided(fieldStates, 'introduction.inspection_time_range')),
   ])
   if (introductionFields.length) history.push({
-    id: 'fact-report-recognition', tone: 'complete', title: '文书与委托信息已整理',
+    id: 'fact-report-recognition', tone: 'complete', title: '文书与委托信息',
     fields: introductionFields,
   })
 
@@ -181,9 +171,6 @@ export function buildReportHistory(
       isUserProvided(fieldStates, 'inspection.method')),
     historyField('硬件设备', report.inspection.hardware_device,
       isUserProvided(fieldStates, 'inspection.hardware_device')),
-    historyField('主取证软件', softwareSummary(report), isUserProvided(fieldStates,
-      'inspection.primary_software.name', 'inspection.primary_software.version',
-      'inspection.result.software_name', 'inspection.result.software_version')),
     ...report.inspection.software_tools.map((tool, index) => historyField(
       `软件工具 ${index + 1}`,
       [tool.name?.trim(), tool.version?.trim()].filter(Boolean).join(' '),
@@ -198,7 +185,7 @@ export function buildReportHistory(
   )
   if (inspectionFields.length) history.push({
     id: 'fact-defaults', tone: hasCompleteInspectionSettings ? 'complete' : 'system',
-    title: hasCompleteInspectionSettings ? '检查信息已整理' : '检查信息正在整理',
+    title: '检查信息',
     fields: inspectionFields,
   })
 
@@ -227,7 +214,7 @@ export function buildReportHistory(
       isUserProvided(fieldStates, 'attachments.extraction_method')),
   ])
   if (resultFields.length) history.push({
-    id: 'fact-result', tone: 'complete', title: '检查结果已整理', fields: resultFields,
+    id: 'fact-result', tone: 'complete', title: '检查结果', fields: resultFields,
   })
   return history
 }

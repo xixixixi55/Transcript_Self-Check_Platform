@@ -1509,44 +1509,7 @@
 
 .guided-review-history__item {
   position: relative;
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 10px;
-  padding: 7px 0 9px;
-}
-
-.guided-review-history__item:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 30px;
-  bottom: -1px;
-  left: 11px;
-  width: 1px;
-  background: #c9d6e1;
-}
-
-.guided-review-history__icon {
-  position: relative;
-  z-index: 1;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--review-primary);
-  background: #e8f1f8;
-  border-radius: 50%;
-}
-
-.guided-review-history__item--complete .guided-review-history__icon,
-.guided-review-history__item--recovered .guided-review-history__icon {
-  color: #287a4a;
-  background: #e5f4ea;
-}
-
-.guided-review-history__item--warning .guided-review-history__icon {
-  color: var(--review-warning);
-  background: #fff3d8;
+  padding: 10px 0 12px;
 }
 
 .guided-review-history__item h3 {

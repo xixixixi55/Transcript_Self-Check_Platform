@@ -424,3 +424,26 @@ workflow_level: 2
 - `history_impeccable: PASS_WITH_EXISTING_FINDINGS`：一次性机械检测仅报告 `reviewWorkspace.css` 第 167 行既有 3px 左边框和第 314 行既有 `width` 过渡，本次新增历史样式无检测项。
 - `history_manual_acceptance: N/A`：为避免在未确认测试属性的现有案件上读取或截图业务信息，本轮未进行真实案件视觉验收；合成组件 DOM、长内容换行、760px 响应式规则和可访问名称由自动化与源码检查覆盖。
 - `history_level2_gates: PASS`：`lint:arch`、TypeScript、生产构建、`verify:quick`、scoped strict docs、OpenSpec strict validate、仓库资产卫生与 scoped `git diff --check` 通过。
+
+## 2026-09-01 Word 内容预览去除过程轨迹反馈
+
+- [x] 6.48 将左侧区域从“历史预览”收敛为“Word 内容预览”，只展示当前报告草稿中供用户快速核对 Word 正文与附件的最终内容；移除来源确认、保存、编辑权限、归档、导出、异常恢复和字段完成等过程轨迹。
+- [x] 6.49 保留过程状态在当前对话、恢复操作与系统状态中的既有表达，更新分栏文案、空态和可访问名称，并用现有 Hook、组件与页面测试区分内容预览与过程状态。
+- [x] 6.50 核对 delta 与实现并同步 living spec，运行前端定向测试、类型检查、生产构建、Impeccable 检测、`verify:quick`、scoped strict docs、OpenSpec strict validate 与 `git diff --check`。
+
+### Word 内容预览去除过程轨迹验证记录
+
+- `word_preview_scope: PASS`：预览只由当前报告草稿与字段来源投影，来源确认、保存/权限、归档、导出、异常恢复和字段完成记录均不再进入预览；对应恢复操作与后台系统状态仍沿用当前对话既有能力。
+- `word_preview_copy_accessibility: PASS`：区域标题、分栏状态、交换操作和空态统一使用“Word 内容预览”，结构化文书、检材、图片数量与用户填写标记保持可见、可聚焦和可访问。
+- `word_preview_targeted_tests: PASS_WITH_EXISTING_OUT_OF_SCOPE_FAILURE`：Hook 与引导组件 28/28 通过，页面集成 20 项中 19 项通过；唯一失败仍为本包既有记录中的“统一导出入口”旧文案断言，与本次预览投影无代码交集。测试保留既有 jsdom `getComputedStyle` 与 React `act` 提示。
+- `word_preview_quality: PASS`：前端 TypeScript、生产构建、`verify:quick` 与 Impeccable 单次检测（0 项）通过；人工验收 N/A，内容可见性、状态隔离、实时最终值、空态和可访问名称均由合成 Hook、组件及页面 DOM 回归区分覆盖。
+
+## 2026-09-01 Word 内容预览软件字段去重反馈
+
+- [x] 6.51 从 Word 内容预览中移除重复的“主取证软件”字段，只保留现有“软件工具 N”列表；不得修改报告草稿、主取证软件数据或 Word 生成逻辑。
+- [x] 6.52 用现有 Hook 回归区分“软件工具仍展示”和“主取证软件不再展示”，同步 delta 与 living spec，并运行风险相称的前端检查及限定范围文档门控。
+
+### Word 内容预览软件字段去重验证记录
+
+- `word_preview_software_dedup: PASS`：预览投影不再生成“主取证软件”行，现有“软件工具 N”列表继续展示名称与版本；报告中的 `primary_software`、检查结果字段和 Word 生成链路均未修改。
+- `word_preview_software_tests: PASS`：`useGuidedReviewCards.test.ts` 16/16 与全项目 TypeScript 通过，新增断言同时证明软件工具保留且重复主软件字段缺席；人工验收 N/A，该展示差异由合成 DOM 投影可区分覆盖。

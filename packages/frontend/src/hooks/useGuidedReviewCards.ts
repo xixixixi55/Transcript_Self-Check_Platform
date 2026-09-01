@@ -8,7 +8,6 @@ import { REVIEW_TARGET_IDS } from './useReviewChecklist'
 import {
   buildReportHistory,
   type GuidedReviewHistoryItem,
-  type GuidedReviewHistoryTone,
 } from './useGuidedReviewHistoryProjection'
 
 export type {
@@ -75,14 +74,6 @@ const SYSTEM_OUTPUT_TARGETS = new Set([
   REVIEW_TARGET_IDS.result('file_size'),
 ])
 
-const CURRENT_REPORT_HISTORY_IDS = new Set([
-  'fact-report-recognition',
-  'fact-evidence',
-  'fact-defaults',
-  'fact-result',
-  'fact-source',
-])
-
 const ARCHIVE_STAGE_LABELS: Record<string, string> = {
   queued: '归档任务正在等待处理',
   inventory: '正在整理待归档内容',
@@ -115,70 +106,8 @@ function backgroundArchiveDetail(task: ArchiveTaskCardSummary): string {
   return `${stage}；${archiveDetail(task)}。可继续处理其他待办。`
 }
 
-function archiveMediumLabel(medium: ArchiveMedium | null): string {
-  if (medium === 'hard_drive') return '硬盘'
-  if (medium === 'optical_disc') return '光盘'
-  return '归档介质'
-}
-
 function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHistoryItem[] {
-  const history = buildReportHistory(input.report, input.fieldStates)
-  if (!input.report) return history
-  if (input.sourceStatus === 'available' && !input.sourceRequiresReselection) history.push({
-    id: 'fact-source', tone: 'complete', title: '报告来源已确认',
-    detail: '系统将继续沿用当前案件已授权的报告来源。',
-  })
-  if (input.saveState === 'failed') history.push({
-    id: 'save-problem-failed', tone: 'warning', title: '草稿保存失败',
-    detail: '当前输入仍保留在本页面，需要重试保存。',
-  })
-  if (input.saveState === 'conflict') history.push({
-    id: 'save-problem-conflict', tone: 'warning', title: '草稿保存发生冲突',
-    detail: '当前输入仍保留在本页面，需要重试或加载服务端版本。',
-  })
-  if (['read_only', 'expired', 'failed'].includes(input.leaseState)) history.push({
-    id: `lease-problem-${input.leaseState}`, tone: 'warning', title: '编辑权限需要恢复',
-    detail: input.leaseState === 'read_only'
-      ? '当前案件由其他页面占用，本页面暂时只读。'
-      : '当前页面没有有效编辑权限，自动保存已经暂停。',
-  })
-  if (input.photoState === 'error') history.push({
-    id: 'photo-problem-error', tone: 'warning', title: '图片保存或读取需要处理',
-    detail: '图片尚未完成绑定或当前无法读取，请返回图片控件检查。',
-  })
-  if (input.photoState === 'warning') history.push({
-    id: 'photo-problem-warning', tone: 'warning', title: 'Word 已导出，附件2已省略',
-    detail: '当前图片无法完整读取，本次 Word 未生成附件2。',
-  })
-  if (input.wordExportSucceeded) history.push({
-    id: 'word-export-completed', tone: 'complete', title: 'Word 已导出',
-    detail: '单独 Word 已生成；这不代表压缩归档或统一导出已经完成。',
-  })
-
-  const task = input.archiveTask
-  if (input.lifecycle === 'archive_deferred') history.push({
-    id: 'archive-deferred', tone: 'complete', title: '草稿已保存并稍后处理',
-    detail: '当前草稿已安全保留，可以继续审核、返回案件列表或稍后开始压缩。',
-  })
-  if (input.lifecycle === 'archive_interrupted') history.push({
-    id: 'archive-interrupted', tone: 'warning', title: '上次压缩未完成',
-    detail: '草稿仍然可用，可重新开始或继续稍后处理。',
-  })
-  if (task && ['archive_queued', 'archiving'].includes(input.lifecycle)) history.push({
-    id: `archive-stage-${task.stage}`, tone: 'system',
-    title: '后台归档处理中', detail: backgroundArchiveDetail(task),
-  })
-  if (['archive_verified', 'exported'].includes(input.lifecycle)) history.push({
-    id: 'archive-completed', tone: 'complete', title: '后台归档已完成校验',
-    detail: input.pendingItems.some(item => item.targetId === REVIEW_TARGET_IDS.discNumber)
-      ? `压缩产物已完成校验，仍需整理${archiveMediumLabel(input.archiveMedium)}编号后再统一导出。`
-      : `压缩产物已完成校验，${archiveMediumLabel(input.archiveMedium)}信息已整理。`,
-  })
-  if (input.lifecycle === 'exported') history.push({
-    id: 'export-completed', tone: 'complete', title: '统一导出已完成',
-    detail: 'Word 与现有归档产物已按统一导出流程生成；案件信息继续修改后可重新导出。',
-  })
-  return history
+  return buildReportHistory(input.report, input.fieldStates)
 }
 
 function buildSystemStatus(input: GuidedReviewProjectionInput): GuidedReviewSystemStatus | null {
@@ -310,9 +239,6 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
 
 export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const projection = deriveGuidedReviewProjection(input)
-  const historySignature = JSON.stringify(projection.history)
-  const [history, setHistory] = useState(projection.history)
-  const [historyCaseId, setHistoryCaseId] = useState(input.caseId)
   const [selectedActionId, setSelectedActionId] = useState(projection.allActions[0]?.id || '')
   const [previousAction, setPreviousAction] = useState<GuidedReviewAction | null>(null)
   const [revisitedAction, setRevisitedAction] = useState<GuidedReviewAction | null>(null)
@@ -320,15 +246,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     caseId: input.caseId,
     action: projection.allActions[0] || null as GuidedReviewAction | null,
   })
-  const previousPending = useRef(new Map(projection.pendingItems.map(item => [item.id, item])))
-  const previousPendingCaseId = useRef(input.caseId)
-  const previousRecoveryState = useRef({
-    caseId: input.caseId,
-    saveState: input.saveState,
-    leaseState: input.leaseState,
-    photoState: input.photoState,
-  })
-  const pendingSignature = projection.pendingItems.map(item => item.id).join('|')
+  const previousCaseId = useRef(input.caseId)
   const projectedSelectedAction = projection.allActions.find(action => action.id === selectedActionId)
   const retainedForCase = retainedAction.current.caseId === input.caseId
     ? retainedAction.current.action : null
@@ -340,19 +258,6 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     : projectedSelectedAction || projection.allActions[0] || null
   const currentAction = revisitedAction || baseCurrentAction
   const previousBaseAction = useRef({ caseId: input.caseId, action: baseCurrentAction })
-  const selectedPendingId = currentAction?.advanceOnEnter ? currentAction.pendingItem?.id : undefined
-  const appendCompletedHistory = useCallback((items: ReviewPendingItem[]) => {
-    if (!items.length) return
-    setHistory(current => {
-      const known = new Set(current.map(item => item.id))
-      const additions = items.filter(item => !known.has(`completed-${item.id}`)).map(item => ({
-        id: `completed-${item.id}`, tone: 'complete' as const, title: `${item.fieldLabel}已完成`,
-        detail: '当前案件事实已不再要求处理此事项。',
-      }))
-      return additions.length ? [...current, ...additions] : current
-    })
-  }, [])
-
   useEffect(() => {
     retainedAction.current = { caseId: input.caseId, action: baseCurrentAction }
   }, [baseCurrentAction, input.caseId])
@@ -374,106 +279,27 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   }, [baseCurrentAction, input.caseId, projection.allActions])
 
   useEffect(() => {
-    if (historyCaseId !== input.caseId) {
-      setHistoryCaseId(input.caseId)
-      setHistory(projection.history)
+    if (previousCaseId.current !== input.caseId) {
+      previousCaseId.current = input.caseId
       setSelectedActionId(projection.allActions[0]?.id || '')
       setPreviousAction(null)
       setRevisitedAction(null)
-      return
     }
-    setHistory(current => {
-      const projectedById = new Map(projection.history.map(item => [item.id, item]))
-      const refreshed = current.flatMap(item => {
-        const projected = projectedById.get(item.id)
-        if (projected) return [projected]
-        return CURRENT_REPORT_HISTORY_IDS.has(item.id) ? [] : [item]
-      })
-      const known = new Set(refreshed.map(item => item.id))
-      const additions = projection.history.filter(item => !known.has(item.id))
-      if (known.has('archive-interrupted')
-        && projection.history.some(item => item.id.startsWith('archive-stage-') || item.id === 'archive-completed')
-        && !known.has('archive-recovered')) additions.push({
-        id: 'archive-recovered', tone: 'recovered', title: '压缩办理已恢复',
-        detail: '上次未完成状态已经处理，当前案件已继续进入现有归档流程。',
-      })
-      return additions.length ? [...refreshed, ...additions] : refreshed
-    })
-  }, [historyCaseId, historySignature, input.caseId])
-
-  useEffect(() => {
-    const nextPending = new Map(projection.pendingItems.map(item => [item.id, item]))
-    if (previousPendingCaseId.current !== input.caseId) {
-      previousPendingCaseId.current = input.caseId
-      previousPending.current = nextPending
-      return
-    }
-    const completed = [...previousPending.current.values()].filter(item => !nextPending.has(item.id))
-    appendCompletedHistory(completed.filter(item => item.id !== selectedPendingId))
-    previousPending.current = nextPending
-  }, [appendCompletedHistory, input.caseId, pendingSignature, selectedPendingId])
-
-  useEffect(() => {
-    const previous = previousRecoveryState.current
-    if (previous.caseId !== input.caseId) {
-      previousRecoveryState.current = {
-        caseId: input.caseId,
-        saveState: input.saveState,
-        leaseState: input.leaseState,
-        photoState: input.photoState,
-      }
-      return
-    }
-    const additions: GuidedReviewHistoryItem[] = []
-    if (['failed', 'conflict'].includes(previous.saveState)
-      && ['idle', 'saved', 'not_changed'].includes(input.saveState)) additions.push({
-      id: 'save-recovered', tone: 'recovered', title: '草稿保存状态已恢复',
-      detail: '此前保留在页面中的输入已经重新进入正常保存流程。',
-    })
-    if (['read_only', 'expired', 'failed'].includes(previous.leaseState)
-      && input.leaseState === 'editable') additions.push({
-      id: 'lease-recovered', tone: 'recovered', title: '编辑权限已恢复',
-      detail: '当前页面已经可以继续编辑并保存案件。',
-    })
-    if (['error', 'warning'].includes(previous.photoState) && input.photoState === 'ready') additions.push({
-      id: 'photo-recovered', tone: 'recovered', title: '附件2图片状态已恢复',
-      detail: '图片已经重新进入可保存和完整导出的状态。',
-    })
-    if (additions.length) setHistory(current => {
-      const known = new Set(current.map(item => item.id))
-      const novel = additions.filter(item => !known.has(item.id))
-      return novel.length ? [...current, ...novel] : current
-    })
-    previousRecoveryState.current = {
-      caseId: input.caseId,
-      saveState: input.saveState === 'saving' && ['failed', 'conflict'].includes(previous.saveState)
-        ? previous.saveState : input.saveState,
-      leaseState: input.leaseState === 'acquiring' && ['read_only', 'expired', 'failed'].includes(previous.leaseState)
-        ? previous.leaseState : input.leaseState,
-      photoState: input.photoState === 'uploading' && ['error', 'warning'].includes(previous.photoState)
-        ? previous.photoState : input.photoState,
-    }
-  }, [input.caseId, input.leaseState, input.photoState, input.saveState])
+  }, [input.caseId, projection.allActions])
 
   const allActions = useMemo(() => baseCurrentAction?.advanceOnEnter
     && !projection.allActions.some(action => action.id === baseCurrentAction.id)
     ? [baseCurrentAction, ...projection.allActions]
     : projection.allActions, [baseCurrentAction, projection.allActions])
-  const finalizeRetainedAction = useCallback(() => {
-    if (!currentAction?.advanceOnEnter) return
-    if (projection.allActions.some(action => action.id === currentAction.id)) return
-    if (currentAction.pendingItem) appendCompletedHistory([currentAction.pendingItem])
-  }, [appendCompletedHistory, currentAction, projection.allActions])
   const selectAction = useCallback((actionId: string) => {
     const action = allActions.find(candidate => candidate.id === actionId)
     if (!action) return
     if (action.id !== currentAction?.id) {
       if (currentAction?.kind === 'pending_item') setPreviousAction(currentAction)
-      finalizeRetainedAction()
     }
     setRevisitedAction(null)
     setSelectedActionId(action.id)
-  }, [allActions, currentAction?.id, finalizeRetainedAction])
+  }, [allActions, currentAction])
   const confirmCurrentAction = useCallback(() => {
     if (!currentAction?.advanceOnEnter) return
     if (revisitedAction) {
@@ -482,9 +308,8 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
       return
     }
     if (projection.allActions.some(action => action.id === currentAction.id)) return
-    finalizeRetainedAction()
     setSelectedActionId(projection.allActions[0]?.id || '')
-  }, [currentAction, finalizeRetainedAction, projection.allActions, revisitedAction])
+  }, [currentAction, projection.allActions, revisitedAction])
 
   const returnToPreviousAction = useCallback(() => {
     if (previousAction) setRevisitedAction(previousAction)
@@ -496,7 +321,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const returnToCurrentAction = useCallback(() => setRevisitedAction(null), [])
 
   return {
-    ...projection, allActions, history, currentAction, previousAction,
+    ...projection, allActions, currentAction, previousAction,
     isReviewingPrevious: Boolean(revisitedAction), selectAction, confirmCurrentAction,
     revisitAction, returnToPreviousAction, returnToCurrentAction,
   }

@@ -82,7 +82,14 @@ function withMediumNumber(report: InspectionReport): InspectionReport {
 
 describe('guided review projection', () => {
   it('classifies existing facts without re-asking complete defaults or system-produced archive fields', () => {
-    const projection = deriveGuidedReviewProjection({ ...buildInput(), caseSummaryReviewed: true })
+    const report = {
+      ...syntheticReport,
+      inspection: {
+        ...syntheticReport.inspection,
+        software_tools: [{ name: 'SYNTHETIC-SOFTWARE', version: '1.0' }],
+      },
+    }
+    const projection = deriveGuidedReviewProjection({ ...buildInput(report), caseSummaryReviewed: true })
 
     expect(projection.pendingItems.some(item => item.targetId.includes('inspector'))).toBe(false)
     expect(projection.pendingItems.some(item => [
@@ -95,7 +102,7 @@ describe('guided review projection', () => {
     }))
     expect(projection.history).toContainEqual(expect.objectContaining({
       id: 'fact-report-recognition',
-      title: '文书与委托信息已整理',
+      title: '文书与委托信息',
       fields: expect.arrayContaining([
         { label: '文号', value: 'SYN-TEST〔2026〕001号' },
         { label: '委托人员', value: 'SYNTHETIC-PERSON' },
@@ -104,9 +111,12 @@ describe('guided review projection', () => {
     expect(JSON.stringify(projection.history)).not.toMatch(
       /SYNTHETIC-TASK|revision|Worker|worker|令牌|token|[A-Z]:\\/,
     )
+    const inspectionFields = projection.history.find(item => item.id === 'fact-defaults')?.fields
+    expect(inspectionFields).toContainEqual({ label: '软件工具 1', value: 'SYNTHETIC-SOFTWARE 1.0' })
+    expect(inspectionFields).not.toContainEqual(expect.objectContaining({ label: '主取证软件' }))
   })
 
-  it('rebuilds refresh history from current facts and does not retain stale intermediate stages', () => {
+  it('keeps operational states out of the Word content preview', () => {
     const running = deriveGuidedReviewProjection(buildInput())
     const completed = deriveGuidedReviewProjection({
       ...buildInput(), lifecycle: 'archive_verified',
@@ -114,9 +124,8 @@ describe('guided review projection', () => {
       archiveMedium: 'optical_disc', archiveParts: [{ disc_number: 'GP20260825-01', size_bytes: 2048 }],
     })
 
-    expect(running.history.some(item => item.id === 'archive-stage-winrar')).toBe(true)
-    expect(completed.history.some(item => item.id === 'archive-stage-winrar')).toBe(false)
-    expect(completed.history.some(item => item.title === '后台归档已完成校验')).toBe(true)
+    expect(completed.history).toEqual(running.history)
+    expect(JSON.stringify(completed.history)).not.toMatch(/来源已确认|归档|导出|保存状态|编辑权限/)
   })
 
   it('asks the user to review a prefilled case summary until it is confirmed in the page session', () => {
@@ -269,7 +278,7 @@ describe('guided review projection', () => {
     expect(result.current.currentAction?.kind).toBe('source_recovery')
 
     rerender({ input: buildInput() })
-    expect(result.current.history.some(item => item.title === '文号已完成')).toBe(true)
+    expect(result.current.history.some(item => item.id.startsWith('completed-'))).toBe(false)
   })
 
   it('keeps a completed text action current until Enter confirms it', () => {
@@ -283,13 +292,14 @@ describe('guided review projection', () => {
 
     expect(result.current.currentAction?.id).toBe(documentActionId)
     expect(result.current.allActions.some(action => action.id === documentActionId)).toBe(true)
-    expect(result.current.history.some(item => item.title === '文号已完成')).toBe(false)
+    expect(result.current.history.some(item => item.id.startsWith('completed-'))).toBe(false)
 
     act(() => result.current.confirmCurrentAction())
 
     expect(result.current.currentAction?.id).not.toBe(documentActionId)
     expect(result.current.allActions.some(action => action.id === documentActionId)).toBe(false)
-    expect(result.current.history.some(item => item.title === '文号已完成')).toBe(true)
+    expect(result.current.history.find(item => item.id === 'fact-report-recognition')?.fields)
+      .toContainEqual(expect.objectContaining({ label: '文号', value: 'S' }))
   })
 
   it('returns to the prior pending field after switching to the photo action', () => {
@@ -418,7 +428,7 @@ describe('guided review projection', () => {
     ])
   })
 
-  it('projects save conflicts and lease failures as recoverable actions and records recovery', () => {
+  it('keeps save and lease recovery in actions without adding them to the Word preview', () => {
     const failed: GuidedReviewProjectionInput = {
       ...buildInput(), saveState: 'conflict' as const, saveHasPending: true,
       leaseState: 'expired' as const,
@@ -431,20 +441,14 @@ describe('guided review projection', () => {
       expect.objectContaining({ id: 'lease-recovery', kind: 'lease_recovery' }),
       expect.objectContaining({ id: 'save-recovery', kind: 'save_recovery' }),
     ])
-    expect(result.current.history).toEqual(expect.arrayContaining([
-      expect.objectContaining({ title: '草稿保存发生冲突', tone: 'warning' }),
-      expect.objectContaining({ title: '编辑权限需要恢复', tone: 'warning' }),
-    ]))
+    expect(JSON.stringify(result.current.history)).not.toMatch(/草稿保存|编辑权限/)
 
     rerender({ input: { ...buildInput(), saveState: 'saved', saveHasPending: false } })
-    expect(result.current.history).toEqual(expect.arrayContaining([
-      expect.objectContaining({ title: '草稿保存状态已恢复', tone: 'recovered' }),
-      expect.objectContaining({ title: '编辑权限已恢复', tone: 'recovered' }),
-    ]))
+    expect(JSON.stringify(result.current.history)).not.toMatch(/草稿保存|编辑权限/)
     expect(result.current.allActions.some(action => ['save_recovery', 'lease_recovery'].includes(action.kind))).toBe(false)
   })
 
-  it('projects an omitted attachment2 as a recoverable image action and records a fact-based recovery', () => {
+  it('keeps attachment recovery in actions without adding export status to the Word preview', () => {
     const warning: GuidedReviewProjectionInput = { ...buildInput(), photoState: 'warning' }
     const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
       initialProps: { input: warning },
@@ -453,33 +457,25 @@ describe('guided review projection', () => {
     expect(result.current.allActions).toContainEqual(expect.objectContaining({
       id: 'photo-recovery', kind: 'photo_recovery', title: '请检查附件2图片',
     }))
-    expect(result.current.history).toContainEqual(expect.objectContaining({
-      id: 'photo-problem-warning', tone: 'warning', title: 'Word 已导出，附件2已省略',
-    }))
+    expect(JSON.stringify(result.current.history)).not.toMatch(/Word 已导出|附件2已省略/)
 
     rerender({ input: buildInput() })
-    expect(result.current.history).toContainEqual(expect.objectContaining({
-      id: 'photo-recovered', tone: 'recovered', title: '附件2图片状态已恢复',
-    }))
+    expect(JSON.stringify(result.current.history)).not.toMatch(/附件2图片状态已恢复/)
     expect(result.current.allActions.some(action => action.kind === 'photo_recovery')).toBe(false)
   })
 
-  it('keeps deferred, queued, archiving, and verified archive states distinct from办理完成', () => {
+  it('keeps archive states distinct in actions and system status, outside the Word preview', () => {
     const deferred = deriveGuidedReviewProjection({
       ...buildInput(), lifecycle: 'archive_deferred', archiveTask: null,
     })
-    expect(deferred.history).toContainEqual(expect.objectContaining({
-      id: 'archive-deferred', tone: 'complete', title: '草稿已保存并稍后处理',
-    }))
+    expect(JSON.stringify(deferred.history)).not.toMatch(/稍后处理|归档/)
 
     const queued = deriveGuidedReviewProjection({
       ...buildInput(), lifecycle: 'archive_queued',
       archiveTask: { ...archiveTask, stage: 'queued', stage_label: '等待处理' },
     })
     expect(queued.systemStatus).toEqual(expect.objectContaining({ title: '后台归档处理中' }))
-    expect(queued.history).toContainEqual(expect.objectContaining({
-      id: 'archive-stage-queued', title: '后台归档处理中', detail: expect.stringContaining('可继续处理'),
-    }))
+    expect(JSON.stringify(queued.history)).not.toMatch(/后台归档处理中/)
     expect(queued.allActions.some(action => action.kind === 'pending_item')).toBe(true)
 
     const archiving = deriveGuidedReviewProjection({
@@ -487,9 +483,7 @@ describe('guided review projection', () => {
       archiveTask: { ...archiveTask, stage: 'hash', stage_label: '生成校验值' },
       photoState: 'uploading',
     })
-    expect(archiving.history).toContainEqual(expect.objectContaining({
-      id: 'archive-stage-hash', title: '后台归档处理中', detail: expect.stringContaining('正在生成文件校验值'),
-    }))
+    expect(JSON.stringify(archiving.history)).not.toMatch(/正在生成文件校验值/)
     expect(archiving.systemStatus?.title).toBe('正在保存图片')
 
     const verified = deriveGuidedReviewProjection({
@@ -497,26 +491,17 @@ describe('guided review projection', () => {
       archiveTask: { ...archiveTask, status: 'succeeded', stage: 'completed', stage_label: '归档完成' },
       archiveMedium: 'optical_disc', archiveParts: [{ disc_number: null, size_bytes: 2048 }],
     })
-    expect(verified.history).toContainEqual(expect.objectContaining({
-      id: 'archive-completed', title: '后台归档已完成校验', detail: expect.stringContaining('仍需整理光盘编号'),
-    }))
-    expect(verified.history.map(item => item.title).join(' ')).not.toContain('办理完成')
+    expect(JSON.stringify(verified.history)).not.toMatch(/归档|办理完成/)
   })
 
-  it('separates single Word success from unified export completion', () => {
+  it('keeps single Word and unified export status out of the Word content preview', () => {
     const word = deriveGuidedReviewProjection({ ...buildInput(), wordExportSucceeded: true })
-    expect(word.history).toContainEqual(expect.objectContaining({
-      id: 'word-export-completed', title: 'Word 已导出',
-    }))
-    expect(word.history.some(item => item.title === '统一导出已完成')).toBe(false)
+    expect(JSON.stringify(word.history)).not.toMatch(/Word 已导出|统一导出已完成/)
 
     const unified = deriveGuidedReviewProjection({
       ...buildInput(), lifecycle: 'exported', wordExportSucceeded: false,
       archiveMedium: 'hard_drive', archiveParts: [{ disc_number: 'YP20260825-01', size_bytes: 2048 }],
     })
-    expect(unified.history).toContainEqual(expect.objectContaining({
-      id: 'export-completed', title: '统一导出已完成',
-    }))
-    expect(unified.history.some(item => item.title === 'Word 已导出')).toBe(false)
+    expect(unified.history).toEqual(word.history)
   })
 })

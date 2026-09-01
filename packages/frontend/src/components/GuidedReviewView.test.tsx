@@ -7,7 +7,7 @@ import { GuidedReviewView } from './GuidedReviewView'
 
 const history: GuidedReviewHistoryItem[] = [
   {
-    id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '文书与委托信息已整理',
+    id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '文书与委托信息',
     fields: [{ label: '委托人员', value: 'SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B', userProvided: true }],
   },
   {
@@ -253,17 +253,17 @@ describe('GuidedReviewView', () => {
       <GuidedReviewCard action={documentAction} report={report} updateReport={updateReport} readOnly={false} />
     </GuidedReviewView>)
 
-    const historyRegion = screen.getByRole('region', { name: '历史预览' })
+    const historyRegion = screen.getByRole('region', { name: 'Word 内容预览' })
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('历史预览在左，对话在右')).toBeTruthy()
-    const swapPanesButton = screen.getByRole('button', { name: '交换历史预览与对话的位置' })
+    expect(screen.getByText('Word 内容预览在左，对话在右')).toBeTruthy()
+    const swapPanesButton = screen.getByRole('button', { name: '交换 Word 内容预览与对话的位置' })
     fireEvent.click(swapPanesButton)
     expect(conversationRegion.compareDocumentPosition(historyRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('对话在左，历史预览在右')).toBeTruthy()
+    expect(screen.getByText('对话在左，Word 内容预览在右')).toBeTruthy()
     fireEvent.click(swapPanesButton)
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('文书与委托信息已整理')).toBeTruthy()
+    expect(screen.getByText('文书与委托信息')).toBeTruthy()
     expect(screen.getByText('委托人员：')).toBeTruthy()
     expect(screen.getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
     expect(screen.getAllByText('用户填写')).toHaveLength(3)
@@ -341,8 +341,8 @@ describe('GuidedReviewView', () => {
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
-    expect(screen.getByText('等待形成轨迹')).toBeTruthy()
-    expect(screen.getByText('办理轨迹会随案件现有事实逐步形成。')).toBeTruthy()
+    expect(screen.getByText('暂无可预览内容')).toBeTruthy()
+    expect(screen.getByText('请先完善笔录信息，内容会在这里同步更新。')).toBeTruthy()
     expect(screen.getByText('请稍候，正在生成压缩分卷')).toBeTruthy()
     expect(screen.getByText('后台处理中')).toBeTruthy()
     expect(document.querySelector('[data-mood="verifying"]')).toBeTruthy()
@@ -579,7 +579,7 @@ describe('GuidedReviewView', () => {
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
     const response = screen.getByRole('group', { name: '你的回复' })
-    fireEvent.click(screen.getByRole('button', { name: '交换历史预览与对话的位置' }))
+    fireEvent.click(screen.getByRole('button', { name: '交换 Word 内容预览与对话的位置' }))
     expect(screen.getByRole('group', { name: '你的回复' })).toBe(response)
     expect(screen.getByRole('group', { name: '獬豸助手分栏' }).className)
       .toContain('guided-review-scroll--conversation-first')

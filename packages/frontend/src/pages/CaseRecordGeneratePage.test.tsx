@@ -136,7 +136,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
   it('defaults to the guided shell and mounts the full editor only on demand without losing draft state', async () => {
     renderPage()
-    const historyRegion = await screen.findByRole('region', { name: '历史预览' })
+    const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(document.querySelector('.review-editor-form')).toBeNull()
@@ -327,8 +327,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       expect(formData.get('export_path')).toBe('D:\\SYNTHETIC\\EXPORT'); expect(formData.get('directory_token')).toBe('token-synthetic')
       expect(events.indexOf('draft-save')).toBeLessThan(postMock.mock.calls.findIndex(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY))
       fireEvent.click(screen.getByRole('button', { name: '返回引导模式' }))
-      const historyRegion = await screen.findByRole('region', { name: '历史预览' })
-      expect(await within(historyRegion).findByText('Word 已导出')).toBeTruthy()
+      const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
+      expect(await within(historyRegion).findByText('文书与委托信息')).toBeTruthy()
+      expect(within(historyRegion).queryByText('Word 已导出')).toBeNull()
       expect(within(historyRegion).queryByText('统一导出已完成')).toBeNull()
     } finally {
       anchorClick.mockRestore()
@@ -461,8 +462,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   it('shows the exported state for a re-exported case', async () => {
     useExportedLifecycle = true
     renderPage()
-    const historyRegion = await screen.findByRole('region', { name: '历史预览' })
-    expect(await within(historyRegion).findByText('统一导出已完成')).toBeTruthy()
+    const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
+    expect(await within(historyRegion).findByText('文书与委托信息')).toBeTruthy()
+    expect(within(historyRegion).queryByText('统一导出已完成')).toBeNull()
     expect(within(historyRegion).queryByText('案件材料已完成导出')).toBeNull()
     await openFullEditor()
     expect(await screen.findByText('统一导出已完成；如需再次导出，请返回案件工作台。')).toBeTruthy()
