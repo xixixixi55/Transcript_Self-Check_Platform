@@ -4,8 +4,9 @@ import {
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { canRevisitGuidedHistoryField } from '../hooks/useGuidedReviewCards'
 import type {
-  GuidedReviewAction, GuidedReviewActionKind, GuidedReviewHistoryItem,
+  GuidedReviewAction, GuidedReviewActionKind, GuidedReviewHistoryField, GuidedReviewHistoryItem,
 } from '../hooks/useGuidedReviewCards'
 import { GuidedReviewHistory } from './GuidedReviewHistory'
 
@@ -19,13 +20,14 @@ interface Props {
   hasResponse: boolean
   onSelectAction: (actionId: string) => void
   onRevisitAction?: (action: GuidedReviewAction) => void
+  onRevisitHandledField?: (field: GuidedReviewHistoryField) => void
   onConfirmCurrentAction?: () => void
   confirmCurrentActionDisabled?: boolean
   canReturnToPrevious?: boolean
-  isReviewingPrevious?: boolean
+  canReturnToNext?: boolean
   onReturnToPreviousAction?: () => void
-  onReturnToCurrentAction?: () => void
-  onOpenFullEditor: () => void
+  onReturnToNextAction?: () => void
+  onOpenFullEditor: (targetId?: string, focusInteractive?: boolean) => void
   onBackToWorkbench: () => void
   children: React.ReactNode
 }
@@ -38,6 +40,15 @@ interface CompletedTurn {
 interface SwitchedTurn {
   from: string
   to: string
+}
+
+interface HandledHistoryItem {
+  id: string
+  label: string
+  matchLabel: string
+  value: string
+  targetId?: string
+  field: GuidedReviewHistoryField
 }
 
 type ActionStatusTone = 'current' | 'pending' | 'warning' | 'system' | 'success'
@@ -107,6 +118,48 @@ function actionConversationLabel(action: GuidedReviewAction): string {
   return action.title.replace(/^请(?:先)?/, '').replace(/[。！？!?]$/, '')
 }
 
+function handledHistoryItems(history: GuidedReviewHistoryItem[]): HandledHistoryItem[] {
+  return history.flatMap(group => {
+    const fields = (group.fields || []).flatMap((field, index) => (
+      field.userProvided && canRevisitGuidedHistoryField(field) ? [{
+      id: `${group.id}-field-${index}`,
+      label: field.label,
+      matchLabel: field.label,
+      value: field.value,
+      targetId: field.targetId,
+      field,
+    }] : []))
+    const materials = (group.materials || []).flatMap(material => {
+      const materialFields = material.fields.flatMap((field, index) => (
+        field.userProvided && canRevisitGuidedHistoryField(field) ? [{
+        id: `${group.id}-${material.id}-field-${index}`,
+        label: `${material.label} · ${field.label}`,
+        matchLabel: field.label,
+        value: field.value,
+        targetId: field.targetId || material.targetId,
+        field: { ...field, targetId: field.targetId || material.targetId },
+      }] : []))
+      if (materialFields.length || !material.userProvided) return materialFields
+      const field = {
+        label: material.label,
+        value: material.photoCount > 0 ? `已上传 ${material.photoCount} 张图片` : '检材信息已填写',
+        userProvided: true,
+        targetId: material.targetId,
+      }
+      if (!canRevisitGuidedHistoryField(field)) return []
+      return [{
+        id: `${group.id}-${material.id}`,
+        label: material.label,
+        matchLabel: material.label,
+        value: field.value,
+        targetId: material.targetId,
+        field,
+      }]
+    })
+    return [...fields, ...materials]
+  })
+}
+
 function mascotMood(currentAction: GuidedReviewAction | null, completionActive: boolean): MascotMood {
   if (currentAction && RECOVERY_ACTIONS.has(currentAction.kind)) return 'warning'
   if (currentAction?.kind === 'ready') return 'complete'
@@ -117,10 +170,10 @@ function mascotMood(currentAction: GuidedReviewAction | null, completionActive: 
 
 export function GuidedReviewView({
   conversationKey, history, currentAction, allActions, hasResponse, onSelectAction,
-  onRevisitAction,
+  onRevisitAction, onRevisitHandledField,
   onConfirmCurrentAction, confirmCurrentActionDisabled = false,
-  canReturnToPrevious = false, isReviewingPrevious = false,
-  onReturnToPreviousAction, onReturnToCurrentAction, onOpenFullEditor, onBackToWorkbench, children,
+  canReturnToPrevious = false, canReturnToNext = false,
+  onReturnToPreviousAction, onReturnToNextAction, onOpenFullEditor, onBackToWorkbench, children,
 }: Props) {
   const [openPanel, setOpenPanel] = useState<'pending' | null>(null)
   const [avatarUnavailable, setAvatarUnavailable] = useState(false)
@@ -228,6 +281,14 @@ export function GuidedReviewView({
   const revisitableCompletedTurns = completedTurns.filter(turn => (
     !allActions.some(action => action.id === turn.action.id)
   ))
+  const activeOrSessionLabels = new Set<string>([
+    ...allActions.map(action => action.pendingItem?.fieldLabel)
+      .filter((label): label is string => Boolean(label)),
+    ...revisitableCompletedTurns.map(turn => actionConversationLabel(turn.action)),
+  ])
+  const previouslyHandledItems = handledHistoryItems(history).filter(item => (
+    !activeOrSessionLabels.has(item.matchLabel)
+  ))
   const confirmTextResponse = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!currentAction?.advanceOnEnter || event.key !== 'Enter' || event.shiftKey
       || event.altKey || event.ctrlKey || event.metaKey) return
@@ -237,18 +298,18 @@ export function GuidedReviewView({
     event.preventDefault()
     onConfirmCurrentAction?.()
   }
-  const previousStepButton = !isReviewingPrevious && canReturnToPrevious ? (
+  const previousStepButton = canReturnToPrevious ? (
     <Tooltip title="返回上一步">
-      <Button shape="circle" size="large" className="guided-review-icon-action"
+      <Button shape="circle" size="large" type="primary" className="guided-review-icon-action"
         icon={<ArrowLeftOutlined />} aria-label="返回上一步"
         onClick={onReturnToPreviousAction} />
     </Tooltip>
   ) : null
-  const currentStepButton = isReviewingPrevious ? (
-    <Tooltip title="返回当前步骤">
-      <Button shape="circle" size="large" className="guided-review-icon-action"
-        icon={<ArrowRightOutlined />} aria-label="返回当前步骤"
-        onClick={onReturnToCurrentAction} />
+  const nextStepButton = canReturnToNext ? (
+    <Tooltip title="进入下一步">
+      <Button shape="circle" size="large" type="primary" className="guided-review-icon-action"
+        icon={<ArrowRightOutlined />} aria-label="进入下一步"
+        onClick={onReturnToNextAction} />
     </Tooltip>
   ) : null
 
@@ -308,11 +369,11 @@ export function GuidedReviewView({
                   </div>
                 </div>
               </div>
-              {!hasResponse && (previousStepButton || currentStepButton) && (
+              {!hasResponse && (previousStepButton || nextStepButton) && (
                 <div className="guided-review-step-navigation guided-review-step-navigation--standalone"
                   aria-label="步骤导航">
                   <span>{previousStepButton}</span>
-                  <span>{currentStepButton}</span>
+                  <span>{nextStepButton}</span>
                 </div>
               )}
               {hasResponse && (
@@ -324,18 +385,17 @@ export function GuidedReviewView({
                   onKeyDown={confirmTextResponse}>
                   <span className="guided-review-card__response-label">{responseLabel}</span>
                   {children}
-                  {(previousStepButton || currentStepButton || currentAction?.advanceOnEnter) && (
+                  {(previousStepButton || nextStepButton || currentAction?.advanceOnEnter) && (
                     <div className="guided-review-step-navigation" aria-label="步骤导航">
                       <span className="guided-review-step-navigation__previous">{previousStepButton}</span>
                       <span className="guided-review-step-navigation__next">
-                        {currentStepButton}
-                        {currentAction?.advanceOnEnter && (
-                          <Tooltip title="确认并进入下一步">
-                            <Button
-                              shape="circle"
-                              className="guided-review-icon-action guided-review-card__confirm-action"
+                        {nextStepButton}
+                        {currentAction?.advanceOnEnter && !canReturnToNext && (
+                          <Tooltip title="进入下一步">
+                            <Button shape="circle" size="large" type="primary"
+                              className="guided-review-icon-action"
                               icon={<ArrowRightOutlined />}
-                              aria-label="确认并进入下一步"
+                              aria-label="进入下一步"
                               disabled={confirmCurrentActionDisabled}
                               onClick={onConfirmCurrentAction} />
                           </Tooltip>
@@ -406,6 +466,29 @@ export function GuidedReviewView({
                       </span>
                     </Button>
                   ))}
+                </section>
+              )}
+              {previouslyHandledItems.length > 0 && (
+                <section className="guided-review-action-group" aria-labelledby="guided-review-previously-handled-heading">
+                  <h3 id="guided-review-previously-handled-heading">此前已处理</h3>
+                  <ul className="guided-review-handled-list">
+                    {previouslyHandledItems.map(item => (
+                      <li key={item.id}>
+                        <Button type="text" block className="guided-review-handled-item"
+                          aria-label={`修改${item.label}`}
+                          onClick={() => {
+                            setOpenPanel(null)
+                            onRevisitHandledField?.(item.field)
+                          }}>
+                          <span className="guided-review-action__title-row">
+                            <span>{item.label}</span>
+                            <span className="guided-review-action__status guided-review-status--success">已处理</span>
+                          </span>
+                          <span className="guided-review-handled-item__value">{item.value}</span>
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               )}
               <section className="guided-review-action-group" aria-labelledby="guided-review-all-fields-heading">

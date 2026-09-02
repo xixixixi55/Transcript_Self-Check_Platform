@@ -43,7 +43,9 @@ export default function CaseRecordGeneratePage() {
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const [reviewMode, setReviewMode] = useState<'guided' | 'full'>('guided')
   const [caseSummaryReviewed, setCaseSummaryReviewed] = useState(false)
-  const [fullEditorFocusRequest, setFullEditorFocusRequest] = useState({ targetId: null as string | null, sequence: 0 })
+  const [fullEditorFocusRequest, setFullEditorFocusRequest] = useState({
+    targetId: null as string | null, focusInteractive: false, sequence: 0,
+  })
   const handledFullEditorFocusSequence = useRef(-1)
   const archiveDecisionInFlight = useRef(false)
   const focusGuidedAfterSwitch = useRef(false)
@@ -51,7 +53,7 @@ export default function CaseRecordGeneratePage() {
   useEffect(() => {
     setReviewMode('guided')
     setCaseSummaryReviewed(false)
-    setFullEditorFocusRequest({ targetId: null, sequence: 0 })
+    setFullEditorFocusRequest({ targetId: null, focusInteractive: false, sequence: 0 })
     handledFullEditorFocusSequence.current = -1
     focusGuidedAfterSwitch.current = false
     setReviewStatus('尚未修改')
@@ -92,9 +94,10 @@ export default function CaseRecordGeneratePage() {
     wordExportSucceeded: reviewStatus === '导出成功',
   })
   const { navigateToPendingItem, navigateToSection } = useReviewPendingNavigation()
-  const openFullEditor = (targetId?: string) => {
+  const openFullEditor = (targetId?: string, focusInteractive = false) => {
     setFullEditorFocusRequest(current => ({
       targetId: targetId || null,
+      focusInteractive,
       sequence: current.sequence + 1,
     }))
     setReviewMode('full')
@@ -111,7 +114,13 @@ export default function CaseRecordGeneratePage() {
       else if (fullEditorFocusRequest.targetId) {
         const target = document.getElementById(fullEditorFocusRequest.targetId)
         target?.scrollIntoView?.({ block: 'center' })
-        target?.focus()
+        const focusTarget = fullEditorFocusRequest.focusInteractive
+          ? target?.matches('input, textarea, select')
+            ? target
+            : target?.querySelector<HTMLElement>('input, textarea, select, [role="button"], button, [tabindex]')
+              || (target?.matches('[tabindex]') ? target : null)
+          : target
+        focusTarget?.focus({ preventScroll: true })
       } else document.getElementById('review-editor-title')?.focus()
     })
     return () => window.cancelAnimationFrame(frame)
@@ -388,13 +397,14 @@ export default function CaseRecordGeneratePage() {
             allActions={guidedReview.allActions} hasResponse={Boolean(guidedSpecialContent || currentGuidedAction.pendingItem)}
             onSelectAction={guidedReview.selectAction}
             onRevisitAction={guidedReview.revisitAction}
+            onRevisitHandledField={guidedReview.revisitHandledField}
             onConfirmCurrentAction={confirmCurrentGuidedAction}
             confirmCurrentActionDisabled={guidedInteractionDisabled}
-            canReturnToPrevious={Boolean(guidedReview.previousAction)}
-            isReviewingPrevious={guidedReview.isReviewingPrevious}
+            canReturnToPrevious={guidedReview.canReturnToPrevious}
+            canReturnToNext={guidedReview.canReturnToNext}
             onReturnToPreviousAction={guidedReview.returnToPreviousAction}
-            onReturnToCurrentAction={guidedReview.returnToCurrentAction}
-            onOpenFullEditor={() => openFullEditor()}
+            onReturnToNextAction={guidedReview.returnToNextAction}
+            onOpenFullEditor={openFullEditor}
             onBackToWorkbench={() => { void handleBackToWorkbench() }}>
             <GuidedReviewCard action={currentGuidedAction} report={projectedReport || session.report}
               updateReport={updateReport}

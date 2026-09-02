@@ -2244,39 +2244,6 @@
   font-weight: 400;
 }
 
-.guided-review-view .ant-btn.guided-review-card__confirm-action {
-  flex-basis: 44px;
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
-  min-height: 44px;
-  color: var(--platform-preview-primary);
-  background: transparent;
-  border-color: transparent;
-  border-radius: 50%;
-  box-shadow: none;
-}
-
-.guided-review-view .ant-btn-default.guided-review-card__confirm-action:not(:disabled):hover {
-  color: #3e53b9;
-  background: var(--platform-preview-primary-soft);
-  border-color: transparent;
-}
-
-.guided-review-view .ant-btn-default.guided-review-card__confirm-action:not(:disabled):active {
-  color: #33479f;
-  background: color-mix(in srgb, var(--platform-preview-primary-soft) 72%, #ffffff);
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.guided-review-view .ant-btn.guided-review-card__confirm-action:disabled {
-  color: #8e95a3;
-  background: transparent;
-  border-color: transparent;
-  opacity: 0.68;
-}
-
 .guided-review-card__control .ant-alert {
   margin: 0;
 }
@@ -2418,8 +2385,12 @@
 .guided-review-popover-panel {
   display: grid;
   gap: 4px;
+  max-height: min(52vh, 520px);
   margin-top: 10px;
   padding: 10px;
+  overflow-y: auto;
+  scrollbar-color: #9bb0c2 #edf2f6;
+  scrollbar-gutter: stable;
   background: #f7f9fb;
   border: 1px solid #dce5ed;
   border-radius: 10px;
@@ -2471,6 +2442,25 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.guided-review-handled-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guided-review-handled-item {
+  color: var(--platform-preview-text);
+}
+
+.guided-review-handled-item__value {
+  color: var(--platform-preview-text-secondary);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .guided-review-action--current {

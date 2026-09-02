@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { InspectionReport } from '@biji/shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GuidedReviewAction, GuidedReviewHistoryItem } from '../hooks/useGuidedReviewCards'
@@ -8,13 +8,26 @@ import { GuidedReviewView } from './GuidedReviewView'
 const history: GuidedReviewHistoryItem[] = [
   {
     id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '文书与委托信息',
-    fields: [{ label: '委托人员', value: 'SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B', userProvided: true }],
+    fields: [{
+      label: '委托人员', value: 'SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B', userProvided: true,
+      targetId: 'review-target-entrust-persons',
+    }],
   },
   {
     id: 'SYNTHETIC-HISTORY-2', tone: 'complete', title: '检材与图片 · 1 项',
     materials: [{
       id: 'SYNTHETIC-MATERIAL-1', label: '检材 1 · SYN-JC00000001', photoCount: 2, requiredPhotoCount: 2,
-      userProvided: true, fields: [{ label: '设备', value: 'SYNTHETIC PHONE', userProvided: true }],
+      userProvided: true, fields: [{
+        label: '设备', value: 'SYNTHETIC PHONE', userProvided: true,
+        targetId: 'review-target-evidence-0',
+      }],
+    }],
+  },
+  {
+    id: 'SYNTHETIC-HISTORY-3', tone: 'complete', title: '检查结果',
+    fields: [{
+      label: '检查步骤 1', value: 'SYNTHETIC SYSTEM-GENERATED STEP', userProvided: true,
+      targetId: 'review-target-process-step-0',
     }],
   },
 ]
@@ -223,6 +236,7 @@ describe('GuidedReviewView', () => {
     const selectAction = vi.fn()
     const updateReport = vi.fn()
     const openFullEditor = vi.fn()
+    const revisitHandledField = vi.fn()
     const scrollIntoView = vi.fn()
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
@@ -236,6 +250,7 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction, waitingAction]}
       hasResponse
       onSelectAction={selectAction}
+      onRevisitHandledField={revisitHandledField}
       onOpenFullEditor={openFullEditor}
       onBackToWorkbench={vi.fn()}
     >
@@ -255,7 +270,7 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('文书与委托信息')).toBeTruthy()
     expect(screen.getByText('委托人员：')).toBeTruthy()
     expect(screen.getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
-    expect(screen.getAllByText('用户填写')).toHaveLength(3)
+    expect(screen.getAllByText('用户填写')).toHaveLength(4)
     expect(screen.getByText('检材 1 · SYN-JC00000001')).toBeTruthy()
     expect(screen.getByText('2/2').getAttribute('aria-label'))
       .toBe('检材 1 · SYN-JC00000001：已上传 2 张图片，共需 2 张')
@@ -295,9 +310,21 @@ describe('GuidedReviewView', () => {
     expect(pendingPanel.textContent).not.toContain('进入完整审核编辑')
     expect(screen.getByRole('button', { name: /请输入文号.*当前/ }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷.*后台中/ })).toBeTruthy()
+    expect(within(pendingPanel).getByRole('heading', { name: '此前已处理' })).toBeTruthy()
+    expect(within(pendingPanel).getByText('委托人员')).toBeTruthy()
+    expect(within(pendingPanel).getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
+    expect(within(pendingPanel).getByText('检材 1 · SYN-JC00000001 · 设备')).toBeTruthy()
+    expect(within(pendingPanel).getByText('SYNTHETIC PHONE')).toBeTruthy()
+    expect(within(pendingPanel).queryByText('检查步骤 1')).toBeNull()
+    expect(within(pendingPanel).queryByText('SYNTHETIC SYSTEM-GENERATED STEP')).toBeNull()
+    fireEvent.click(within(pendingPanel).getByRole('button', { name: '修改委托人员' }))
+    expect(revisitHandledField).toHaveBeenCalledWith(history[0].fields?.[0])
+    expect(openFullEditor).not.toHaveBeenCalled()
+    fireEvent.click(pendingButton)
     const fullEditorButton = screen.getByRole('button', { name: '修改其他已填内容' })
     expect(fullEditorButton.querySelector('.anticon-edit')).toBeTruthy()
     fireEvent.click(fullEditorButton)
+    expect(openFullEditor).toHaveBeenLastCalledWith()
     expect(openFullEditor).toHaveBeenCalledTimes(1)
     fireEvent.click(pendingButton)
     fireEvent.click(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷/ }))
@@ -379,11 +406,12 @@ describe('GuidedReviewView', () => {
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
     const initialStepNavigation = screen.getByRole('button', { name: '返回上一步' })
-    expectCircularIconButton(initialStepNavigation)
     expect(initialStepNavigation.querySelector('.anticon-arrow-left')).toBeTruthy()
+    expectCircularIconButton(initialStepNavigation, true)
     const initialReplyGroup = screen.getByRole('group', { name: '你的回复' })
     expect(initialReplyGroup.contains(initialStepNavigation)).toBe(true)
-    const confirmationButton = screen.getByRole('button', { name: '确认并进入下一步' })
+    const confirmationButton = screen.getByRole('button', { name: '进入下一步' })
+    expect(confirmationButton.textContent).toBe('')
     expect(initialReplyGroup.contains(confirmationButton)).toBe(true)
     expect(initialStepNavigation.compareDocumentPosition(confirmationButton)
       & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -422,14 +450,16 @@ describe('GuidedReviewView', () => {
       onSelectAction={vi.fn()}
       onRevisitAction={revisitAction}
       canReturnToPrevious
-      isReviewingPrevious
+      canReturnToNext
       onReturnToPreviousAction={returnToPreviousAction}
-      onReturnToCurrentAction={returnToCurrentAction}
+      onReturnToNextAction={returnToCurrentAction}
       onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
-    const returnToCurrentStep = screen.getByRole('button', { name: '返回当前步骤' })
+    const returnToCurrentStep = screen.getByRole('button', { name: '进入下一步' })
     expect(returnToCurrentStep.querySelector('.anticon-arrow-right')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: '进入下一步' })).toHaveLength(1)
+    expect(returnToCurrentStep.textContent).toBe('')
     expect(screen.getByRole('group', { name: '你的回复' }).contains(returnToCurrentStep)).toBe(true)
     fireEvent.click(returnToCurrentStep)
     expect(returnToCurrentAction).toHaveBeenCalledTimes(1)

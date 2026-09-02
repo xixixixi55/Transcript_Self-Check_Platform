@@ -574,3 +574,78 @@ workflow_level: 2
 - `guided_ready_exit_tests: PASS`：Hook、引导组件与案件页面共 51/51 通过，覆盖完成态按钮、归档控件缺席、成功返回工作台及既有图片导航保护；测试仅输出既有 jsdom `getComputedStyle` 与 React `act` 提示。
 - `guided_ready_exit_quality: PASS`：`verify:quick`、生产构建、OpenSpec change strict validate、scoped strict docs 与 `git diff --check` 通过；构建仅保留既有大包提示，Impeccable 单次检测结果为 0 项。
 - `guided_ready_exit_manual_acceptance: N/A`：完成态入口、控件缺席和导航结果由 SYNTHETIC 页面回归可区分覆盖，未读取或操作真实案件。
+
+## 2026-09-02 已填内容与待办展示历史处理反馈
+
+- [x] 6.72 在獬豸助手“已填内容与待办”面板中，除当前待办、本次已填写和系统状态外，展示从当前草稿事实恢复出的此前用户已处理字段及其现值；正在处理或本次刚完成的同一字段去重，红色角标仍只统计真实待办。
+- [x] 6.73 更新组件回归以覆盖刷新前的用户填写字段、检材字段、分组顺序与长内容承载；同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 已填内容与待办历史处理验证记录
+
+- `guided_previously_handled_contract: PASS`：面板按“待处理与状态→本次已填写→此前已处理→其他内容”组织；此前已处理项从现有历史投影中的 `userProvided` 草稿事实恢复并展示字段名与现值，当前待办和本次完成同字段会去重，未新增持久化状态或业务判断。
+- `guided_previously_handled_tests: PASS`：新增 SYNTHETIC 组件断言先在旧实现上失败；实施后 `GuidedReviewView.test.tsx` 12/12 通过，覆盖刷新前委托字段和检材字段展示，既有待办角标、系统状态、会话完成项及完整编辑入口回归继续通过。
+- `guided_previously_handled_quality: PASS`：`verify:quick`、生产构建、`git diff --check` 与 Impeccable 单次 layout 检测通过，检测结果 0 项；构建仅保留既有大包提示。
+- `guided_previously_handled_manual_acceptance: N/A`：分组顺序、事实筛选、字段现值、长内容换行和面板独立滚动由源码结构、SYNTHETIC DOM 回归、类型检查及生产构建覆盖，未读取或操作真实案件。
+
+## 2026-09-02 已处理内容点击定位修改反馈
+
+- [x] 6.74 将獬豸助手“此前已处理”中的文号、委托时间、介质编号、刻录时间等内容行改为可点击操作，复用完整审核编辑及现有定位机制，点击后打开编辑视图并聚焦对应字段；检材、人员和其他已处理字段使用同一稳定目标映射。
+- [x] 6.75 更新历史投影、组件与页面回归，覆盖稳定目标标识、键盘可操作名称以及点击后的编辑视图切换和字段聚焦；同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 已处理内容点击定位修改验证记录
+
+- `guided_handled_edit_target_contract: PASS`：此前已处理内容以具备可访问名称的按钮呈现；文号、委托单位/人员/时间、案件与检查信息、检材、检查人员、过程结果及光盘信息均映射到完整审核编辑中的稳定目标，点击后关闭状态面板、打开编辑视图并聚焦对应可编辑控件。
+- `guided_handled_edit_target_tests: PASS`：历史投影、引导组件与案件页面回归共 53/53 通过；映射用例明确覆盖文号、委托时间、介质编号和刻录时间，页面用例覆盖点击“修改文号”后的视图切换与交互控件聚焦，并确认既有照片恢复仍聚焦原目标容器。测试仅输出既有 jsdom `getComputedStyle` 与 React `act` 提示。
+- `guided_handled_edit_target_quality: PASS`：`verify:quick`、全项目 TypeScript 与生产构建通过；构建仅保留既有大包提示。Impeccable 单次检测仅报告 `reviewWorkspace.css` 第 167、314 行两处本次差异外既有告警。
+- `guided_handled_edit_target_manual_acceptance: N/A`：目标映射、键盘按钮语义、视图切换和焦点结果由 SYNTHETIC Hook/组件/页面回归可区分覆盖，未读取或操作真实案件数据。
+
+## 2026-09-02 步骤导航文字按钮反馈
+
+- [x] 6.76 将有回复框时的步骤导航改为明确的文字按钮：左下角“返回上一步”，右下角“进入下一步”；查看历史步骤时右侧只保留一个推进按钮，不再并排显示两个纯右箭头。
+- [x] 6.77 更新组件与页面回归以覆盖可见文案、左右 DOM 顺序、单一右侧操作、禁用和回调行为；同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 步骤导航文字按钮验证记录
+
+- `guided_step_text_navigation_contract: PASS`：有回复框时，后退操作以“返回上一步”文字按钮固定在左下角，推进操作以主按钮“进入下一步”固定在右下角；两者保留方向图标、44px 最小操作高度和可见焦点。查看历史步骤时右侧只渲染一个“进入下一步”，其回调返回最新进度，不再出现两个相邻右箭头。
+- `guided_step_text_navigation_behavior: PASS`：正常步骤的“进入下一步”和未修饰 Enter 继续复用原确认回调；历史步骤的同名右侧按钮继续复用返回当前进度回调，禁用、输入法组合态、Shift+Enter、保存和步骤状态均未改变。
+- `guided_step_text_navigation_tests: PASS`：新断言先在纯图标实现上失败；实施后引导组件、确认行为和案件页面回归共 37/37 通过，覆盖可见文字、左右 DOM 顺序、单一右侧操作、方向图标、禁用及回调。测试仅输出既有 jsdom `getComputedStyle`、React `act` 和 Router future flag 提示。
+- `guided_step_text_navigation_quality: PASS`：`verify:quick`、全项目 TypeScript、生产构建和仓库资产卫生检查通过，构建仅保留既有大包提示；Impeccable 单次 layout 检测 0 项。
+- `guided_step_text_navigation_manual_acceptance: N/A`：导航归属、文案、顺序、按钮数量、操作高度、回调与禁用状态由 SYNTHETIC DOM 回归、源码布局检查和生产构建可区分覆盖，未读取或操作真实案件数据。
+
+## 2026-09-02 全局多步图标导航反馈
+
+- [x] 6.78 将单一上一步快照升级为当前案件页面会话内的完整步骤访问轨迹，支持连续后退与连续前进，并在切换案件时清空；导航不得回滚草稿、修改待办事实或持久化轨迹。
+- [x] 6.79 将左右导航恢复为仅图标按钮，保留 Tooltip、明确可访问名称、44px 操作目标和边界状态；更新 Hook、组件及页面回归，同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 全局多步图标导航验证记录
+
+- `guided_global_navigation_contract: PASS`：Hook 在当前案件页面会话维护按访问顺序排列的动作轨迹和游标；步骤切换、事项完成和从已填面板重访均进入同一轨迹，左箭头每次后退一项，右箭头每次前进一项，切换案件时轨迹重置。轨迹未写入报告、草稿或服务端，也不改变待办事实。
+- `guided_global_navigation_boundaries: PASS`：最早位置不提供左向操作，最新位置没有历史前进项时不提供历史右向操作；最新可确认文本事项仍以同一个右箭头执行原确认回调。在历史位置编辑文本时，右箭头仅向后续轨迹前进一步，避免并排出现两个右箭头。
+- `guided_global_navigation_tests: PASS`：新增 Hook 与组件断言先分别因缺少多步能力和存在文字按钮而失败；实施后 Hook、引导组件、确认行为与案件页面回归共 56/56 通过，明确覆盖三步轨迹连续后退两次、连续前进两次、纯图标内容、Tooltip/可访问名称、方向位置和既有页面流程。测试仅输出既有 jsdom `getComputedStyle`、React `act` 与 Router future flag 提示。
+- `guided_global_navigation_quality: PASS`：`verify:quick`、全项目 TypeScript、生产构建和仓库资产卫生检查通过；最初类型检查发现并移除了不符合当前编译目标的 `findLastIndex`，改为兼容的倒序查找后通过。构建仅保留既有大包提示，Impeccable 单次 layout 检测 0 项。
+- `guided_global_navigation_manual_acceptance: N/A`：多步游标、案件隔离、图标内容、边界可用性、回调与布局由 SYNTHETIC Hook/DOM/页面回归、源码检查及生产构建可区分覆盖，未读取或操作真实案件数据。
+
+## 2026-09-02 此前已处理回到助手与来源过滤反馈
+
+- [x] 6.80 将“此前已处理”的点击行为从完整审核编辑改为重新打开獬豸助手对应的原结构化回复控件，并把该回访纳入会话前进/后退轨迹；“修改其他已填内容”继续作为完整编辑入口。
+- [x] 6.81 将“此前已处理”限定为用户直接办理且獬豸助手可重新承载的字段，排除检查步骤、系统产物和其他识别/模板/规则生成内容；更新 Hook、组件与页面回归，同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 此前已处理回到助手与来源过滤验证记录
+
+- `guided_handled_revisit_contract: PASS`：“此前已处理”点击后由 Hook 将历史字段恢复为对应的獬豸助手 `pending_item`，重新使用文号、日期、文本、结果或检材完整性等原结构化回复控件，并插入现有会话导航轨迹；不再调用完整审核编辑。独立的“修改其他已填内容”仍保留原完整编辑入口。
+- `guided_handled_source_filter: PASS`：面板同时要求历史字段具有用户来源标记且存在獬豸助手可承载的回复目标；检查步骤、归档系统产物以及检查人员、软件工具等非助手直接办理字段即使被通用状态误标为 `user` 也不会展示，检材明细统一回到助手检材完整性流程。
+- `guided_handled_revisit_tests: PASS`：Hook、引导组件与案件页面回归共 54/54 通过；组件用例明确注入一条误标为用户来源的 SYNTHETIC 检查步骤并验证面板不展示，页面用例验证点击“修改文号”后仍在獬豸助手、重新显示文号输入控件且完整编辑表单未挂载。
+- `guided_handled_revisit_quality: PASS`：`verify:quick`、全项目 TypeScript、生产构建和仓库资产卫生检查通过，构建仅保留既有大包提示；Impeccable 单次检测 0 项。
+- `guided_handled_revisit_manual_acceptance: N/A`：来源过滤、助手动作恢复、完整编辑隔离与会话轨迹接入由 SYNTHETIC Hook/DOM/页面回归及生产构建可区分覆盖，未读取或操作真实案件数据。
+
+## 2026-09-02 临时系统状态误入步骤导航反馈
+
+- [x] 6.82 将正常自动保存从可操作恢复事项中分离，仅在保存失败或冲突时保留现有恢复入口；保存、租约、图片等临时系统恢复状态不得进入会话前进/后退轨迹。
+- [x] 6.83 补充“文号完成后自动保存、随后进入委托时间”的 Hook 回归，确保连续前后导航只经过用户实际填写、确认或主动选择的事项；同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 临时系统状态导航过滤验证记录
+
+- `guided_transient_navigation_contract: PASS`：正常自动保存只保留为后台系统状态，不再生成 `save_recovery` 当前事项；保存失败或冲突仍进入全部待处理事项并复用现有恢复能力，但保存、租约、图片、等待和完成等临时系统动作不写入会话步骤轨迹。用户主动填写、确认、来源恢复和压缩选择仍可按原有左右箭头连续导航。
+- `guided_transient_navigation_tests: PASS`：新增 SYNTHETIC Hook 用例先在旧实现下准确失败，显示文号确认后错误进入 `save_recovery`；修复后 Hook 20/20、引导组件与案件页面 37/37 通过，覆盖“文号→正常自动保存→委托时间”、保存失败入口仍存在、恢复后退回文号时不经过保存卡片及临时恢复卡片不显示步骤箭头。
+- `guided_transient_navigation_quality: PASS`：全项目 TypeScript、Impeccable 单次检测、`verify:quick`、scoped strict docs 与 `git diff --check` 通过；新增回归使原 Hook 测试文件超过 600 行阈值后，按自然职责抽取共享 SYNTHETIC 测试夹具，架构检查恢复通过，不登记文件大小豁免。
+- `guided_transient_navigation_manual_acceptance: N/A`：步骤投影、恢复入口保留、导航游标和案件页面接线可由 SYNTHETIC Hook/DOM/页面回归可靠区分，不需要读取或操作真实案件数据。

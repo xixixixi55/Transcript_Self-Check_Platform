@@ -1,84 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
-import type { ArchiveTaskCardSummary, FieldState, InspectionReport } from '@biji/shared/types'
+import type { FieldState } from '@biji/shared/types'
 import { describe, expect, it } from 'vitest'
-import { getReviewPendingItems, REVIEW_TARGET_IDS } from './useReviewChecklist'
+import { REVIEW_TARGET_IDS } from './useReviewChecklist'
 import type { GuidedReviewProjectionInput } from './useGuidedReviewCards'
 import { deriveGuidedReviewProjection, useGuidedReviewCards } from './useGuidedReviewCards'
-
-const syntheticReport: InspectionReport = {
-  title: '电子数据检查笔录',
-  document_number: 'SYN-TEST〔2026〕001号',
-  case_number: 'SYNTHETIC-CASE-001',
-  introduction: {
-    entrust_unit: 'SYNTHETIC-UNIT',
-    entrust_persons: ['SYNTHETIC-PERSON'],
-    entrust_time: '2026年08月25日',
-    case_summary: 'SYNTHETIC CASE SUMMARY',
-    evidence_list: [{
-      id: 'SYNTHETIC-EVIDENCE-1', device_type: '手机', evidence_number: 'SYNTHETIC-E-001',
-      material_type: 'phone', material_type_status: 'confirmed_by_report', material_type_source: 'report',
-      imei1: 'SYNTHETIC-IMEI', extractable: true,
-    }],
-    inspection_requirement: 'SYNTHETIC REQUIREMENT',
-    inspection_time_range: '2026年08月25日09时00分至2026年08月25日10时00分',
-    inspectors: [],
-    inspector_snapshots: [{
-      name: 'SYNTHETIC-INSPECTOR', unit: 'SYNTHETIC-UNIT', position: 'TEST', police_number: 'SYNTHETIC-BADGE',
-    }],
-    inspection_place: 'SYNTHETIC-PLACE',
-  },
-  inspection: {
-    method: 'SYNTHETIC-METHOD', hardware_device: 'SYNTHETIC-HARDWARE', software_tools: [], process_steps: [],
-    primary_software: {
-      name: 'SYNTHETIC-SOFTWARE', version: '1.0', display_name: 'SYNTHETIC-SOFTWARE 1.0',
-      confirmation_status: 'confirmed_by_report', provenance: [], candidates: [],
-    },
-    result: {
-      evidence_number: 'SYNTHETIC-E-001', software_name: 'SYNTHETIC-SOFTWARE', software_version: '1.0',
-      data_summary: 'SYNTHETIC DATA', rar_filename: '', md5_hash: '', file_size: '',
-    },
-  },
-  attachments: { extract_list: { columns: [], rows: [] }, photo_ids: ['SYNTHETIC-PHOTO-1', 'SYNTHETIC-PHOTO-2'], disc_number: '' },
-}
-
-const archiveTask: ArchiveTaskCardSummary = {
-  task_id: 'SYNTHETIC-TASK', case_id: 'SYNTHETIC-CASE-001', status: 'running',
-  progress_kind: 'workflow_milestone', stage: 'winrar', stage_label: '正在生成压缩分卷',
-  stage_index: 4, stage_count: 9, percent: 30, updated_at: '2026-08-25T01:00:00Z',
-  last_heartbeat_at: null, output_bytes: 2048, output_volume_count: 1,
-  last_output_change_at: null, worker_state: 'owned_running', started_at: '2026-08-25T00:59:00Z',
-  finished_at: null, error_summary: null, allowed_actions: [],
-}
-
-function buildInput(report = syntheticReport): GuidedReviewProjectionInput {
-  return {
-    caseId: 'SYNTHETIC-CASE-001', report,
-    pendingItems: getReviewPendingItems(report, undefined, null, {
-      'introduction.evidence_list.completeness': {
-        field_path: 'introduction.evidence_list.completeness', source: 'user', confirmation: 'confirmed',
-        revision: 1, last_changed_at: '2026-08-25T01:00:00Z',
-      },
-    }),
-    lifecycle: 'archiving' as const,
-    archiveTask,
-    archiveMedium: null,
-    archiveParts: null,
-    sourceStatus: 'available' as const,
-    sourceRequiresReselection: false,
-    saveState: 'saved' as const,
-    saveHasPending: false,
-    leaseState: 'editable' as const,
-    photoState: 'ready' as const,
-    wordExportSucceeded: false,
-  }
-}
-
-function withMediumNumber(report: InspectionReport): InspectionReport {
-  return {
-    ...report,
-    attachments: { ...report.attachments, disc_number: 'GP2026082501-01' },
-  }
-}
+import { archiveTask, buildInput, syntheticReport, withMediumNumber } from './useGuidedReviewCards.testFixtures'
 
 describe('guided review projection', () => {
   it('classifies existing facts without re-asking complete defaults or system-produced archive fields', () => {
@@ -104,16 +30,48 @@ describe('guided review projection', () => {
       id: 'fact-report-recognition',
       title: '文书与委托信息',
       fields: expect.arrayContaining([
-        { label: '文号', value: 'SYN-TEST〔2026〕001号' },
-        { label: '委托人员', value: 'SYNTHETIC-PERSON' },
+        expect.objectContaining({ label: '文号', value: 'SYN-TEST〔2026〕001号' }),
+        expect.objectContaining({ label: '委托人员', value: 'SYNTHETIC-PERSON' }),
       ]),
     }))
     expect(JSON.stringify(projection.history)).not.toMatch(
       /SYNTHETIC-TASK|revision|Worker|worker|令牌|token|[A-Z]:\\/,
     )
     const inspectionFields = projection.history.find(item => item.id === 'fact-defaults')?.fields
-    expect(inspectionFields).toContainEqual({ label: '软件工具 1', value: 'SYNTHETIC-SOFTWARE 1.0' })
+    expect(inspectionFields).toContainEqual(expect.objectContaining({
+      label: '软件工具 1', value: 'SYNTHETIC-SOFTWARE 1.0',
+    }))
     expect(inspectionFields).not.toContainEqual(expect.objectContaining({ label: '主取证软件' }))
+  })
+
+  it('projects stable edit targets for previously handled document, date, and medium fields', () => {
+    const report = {
+      ...syntheticReport,
+      attachments: {
+        ...syntheticReport.attachments,
+        disc_number: 'GP2026082501-01',
+        burning_date: '2026年08月25日',
+      },
+    }
+    const paths = [
+      'document_number', 'introduction.entrust_time',
+      'attachments.disc_number', 'attachments.burning_date',
+    ]
+    const fieldStates = Object.fromEntries(paths.map(path => [path, {
+      field_path: path, source: 'user', confirmation: 'confirmed',
+      revision: 1, last_changed_at: '2026-08-25T01:00:00Z',
+    }])) as Record<string, FieldState>
+    const projection = deriveGuidedReviewProjection({
+      ...buildInput(report), fieldStates, caseSummaryReviewed: true,
+    })
+    const fields = projection.history.flatMap(item => item.fields || [])
+
+    expect(fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '文号', userProvided: true, targetId: REVIEW_TARGET_IDS.documentNumber }),
+      expect.objectContaining({ label: '委托时间', userProvided: true, targetId: REVIEW_TARGET_IDS.entrustTime }),
+      expect.objectContaining({ label: '介质编号', userProvided: true, targetId: REVIEW_TARGET_IDS.discNumber }),
+      expect.objectContaining({ label: '刻录时间', userProvided: true, targetId: REVIEW_TARGET_IDS.burningDate }),
+    ]))
   })
 
   it('keeps operational states out of the Word content preview', () => {
@@ -250,9 +208,9 @@ describe('guided review projection', () => {
     })
 
     const fields = result.current.history.find(item => item.id === 'fact-report-recognition')?.fields
-    expect(fields).toContainEqual({
+    expect(fields).toContainEqual(expect.objectContaining({
       label: '委托人员', value: 'SYNTHETIC-USER-PERSON-A、SYNTHETIC-USER-PERSON-B', userProvided: true,
-    })
+    }))
     expect(JSON.stringify(fields)).not.toContain('SYNTHETIC-RECOGNIZED-PERSON')
 
     rerender({
@@ -298,7 +256,7 @@ describe('guided review projection', () => {
     expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('文号')
     expect(result.current.isReviewingPrevious).toBe(true)
 
-    act(() => result.current.returnToCurrentAction())
+    act(() => result.current.returnToNextAction())
     expect(result.current.currentAction?.kind).toBe('source_recovery')
 
     rerender({ input: buildInput() })
@@ -368,7 +326,7 @@ describe('guided review projection', () => {
     expect(result.current.isReviewingPrevious).toBe(true)
     expect(result.current.allActions.some(action => action.id === documentActionId)).toBe(false)
 
-    act(() => result.current.returnToCurrentAction())
+    act(() => result.current.returnToNextAction())
     expect(result.current.currentAction?.id).toBe(nextActionId)
     expect(result.current.isReviewingPrevious).toBe(false)
 
@@ -376,6 +334,91 @@ describe('guided review projection', () => {
     act(() => result.current.revisitAction(completedAction))
     expect(result.current.currentAction?.id).toBe(documentActionId)
     expect(result.current.isReviewingPrevious).toBe(true)
+  })
+
+  it('navigates backward and forward across the full session action trail', () => {
+    const { result } = renderHook(() => useGuidedReviewCards(buildInput(withMediumNumber({
+      ...syntheticReport,
+      document_number: '',
+      introduction: { ...syntheticReport.introduction, entrust_time: '', case_summary: '' },
+    }))))
+    const pendingActions = result.current.allActions.filter(action => action.kind === 'pending_item')
+    expect(pendingActions.length).toBeGreaterThanOrEqual(3)
+    const [firstAction, secondAction, thirdAction] = pendingActions
+
+    act(() => result.current.selectAction(secondAction.id))
+    act(() => result.current.selectAction(thirdAction.id))
+    expect(result.current.currentAction?.id).toBe(thirdAction.id)
+    expect(result.current.canReturnToPrevious).toBe(true)
+    expect(result.current.canReturnToNext).toBe(false)
+
+    act(() => result.current.returnToPreviousAction())
+    expect(result.current.currentAction?.id).toBe(secondAction.id)
+    act(() => result.current.returnToPreviousAction())
+    expect(result.current.currentAction?.id).toBe(firstAction.id)
+    expect(result.current.canReturnToPrevious).toBe(false)
+    expect(result.current.canReturnToNext).toBe(true)
+
+    act(() => result.current.returnToNextAction())
+    expect(result.current.currentAction?.id).toBe(secondAction.id)
+    act(() => result.current.returnToNextAction())
+    expect(result.current.currentAction?.id).toBe(thirdAction.id)
+    expect(result.current.canReturnToNext).toBe(false)
+  })
+
+  it('does not place autosave or recovery states between user-handled steps', () => {
+    const initial = buildInput(withMediumNumber({
+      ...syntheticReport,
+      document_number: '',
+      introduction: { ...syntheticReport.introduction, entrust_time: '' },
+    }))
+    const { result, rerender } = renderHook(({ input }) => useGuidedReviewCards(input), {
+      initialProps: { input: initial },
+    })
+    const documentActionId = result.current.currentAction?.id
+
+    rerender({ input: {
+      ...buildInput(withMediumNumber({
+        ...syntheticReport,
+        document_number: 'SYN-TEST〔2026〕010号',
+        introduction: { ...syntheticReport.introduction, entrust_time: '' },
+      })),
+      saveState: 'saving',
+      saveHasPending: true,
+    } })
+    act(() => result.current.confirmCurrentAction())
+
+    expect(result.current.currentAction?.kind).toBe('pending_item')
+    expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('委托时间')
+    expect(result.current.allActions.some(action => action.kind === 'save_recovery')).toBe(false)
+
+    rerender({ input: {
+      ...buildInput(withMediumNumber({
+        ...syntheticReport,
+        document_number: 'SYN-TEST〔2026〕010号',
+        introduction: { ...syntheticReport.introduction, entrust_time: '' },
+      })),
+      saveState: 'failed',
+      saveHasPending: true,
+    } })
+    expect(result.current.allActions.some(action => action.kind === 'save_recovery')).toBe(true)
+
+    act(() => result.current.selectAction('save-recovery'))
+    expect(result.current.currentAction?.kind).toBe('save_recovery')
+    expect(result.current.canReturnToPrevious).toBe(false)
+    expect(result.current.canReturnToNext).toBe(false)
+
+    rerender({ input: buildInput(withMediumNumber({
+      ...syntheticReport,
+      document_number: 'SYN-TEST〔2026〕010号',
+      introduction: { ...syntheticReport.introduction, entrust_time: '' },
+    })) })
+    expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('委托时间')
+
+    act(() => result.current.returnToPreviousAction())
+    expect(result.current.currentAction?.id).toBe(documentActionId)
+    expect(result.current.currentAction?.kind).toBe('pending_item')
+    expect(result.current.canReturnToPrevious).toBe(false)
   })
 
   it('phrases every current action as an explicit assistant prompt', () => {

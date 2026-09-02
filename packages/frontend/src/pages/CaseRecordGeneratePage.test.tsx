@@ -15,7 +15,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let events: string[] = []
   let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
   let leaseFailure = false, leaseConflict = false
-  let showCompletedArchive = false, showGuidedReady = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
+  let showCompletedArchive = false, showGuidedReady = false, showHandledHistory = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
@@ -24,7 +24,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showHandledHistory = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -49,6 +49,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
           Object.assign(value.draft.report.inspection.result, {
             rar_filename: 'SYNTHETIC.rar', md5_hash: 'a'.repeat(32), file_size: '1 KB',
           })
+        }
+        if (showHandledHistory && value.draft) {
+          value.draft.field_states = {
+            ...value.draft.field_states,
+            document_number: {
+              field_path: 'document_number', source: 'user', confirmation: 'confirmed',
+              revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
+            },
+          }
         }
         if (sourcePending) {
           value.source.access_status = 'pending'
@@ -182,6 +191,20 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await openFullEditor()
     expect((await screen.findByRole('textbox', { name: '介质编号' }) as HTMLInputElement).value).toBe('GP20260731-009')
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_LEASE(caseId))).toHaveLength(1)
+  }, 15000)
+
+  it('reopens the matching guided assistant field from a previously handled item', async () => {
+    showHandledHistory = true
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /查看已填内容与待办/ }))
+    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
+    fireEvent.click(within(panel).getByRole('button', { name: '修改文号' }))
+
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('请输入文号'))
+    expect(screen.getByRole('textbox', { name: '文号' })).toBeTruthy()
+    expect(document.querySelector('.review-editor-form')).toBeNull()
   }, 15000)
 
   it('keeps the guided conversation open with only quick batch evidence supplementation', async () => {
@@ -474,7 +497,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     showGuidedReady = true
     renderPage()
     await screen.findByText('请确认案件简要情况')
-    fireEvent.click(screen.getByRole('button', { name: '确认并进入下一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
     expect(await screen.findByRole('button', { name: /保存并退出/ })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '更新盘号映射' })).toBeNull()
     expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
@@ -487,7 +510,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     showGuidedReady = true
     renderPage()
     await screen.findByText('请确认案件简要情况')
-    fireEvent.click(screen.getByRole('button', { name: '确认并进入下一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
     fireEvent.click(await screen.findByRole('button', { name: /保存并退出/ }))
     expect(await screen.findByText('工作台路由')).toBeTruthy()
   }, 15000)

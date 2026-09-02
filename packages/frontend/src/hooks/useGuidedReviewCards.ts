@@ -4,9 +4,10 @@ import type {
   ArchiveMedium, ArchiveTaskCardSummary, CaseLifecycle, FieldState, InspectionReport, SourceAccessStatus,
 } from '@biji/shared/types'
 import type { ReviewPendingItem } from './useReviewChecklist'
-import { REVIEW_TARGET_IDS } from './useReviewChecklist'
+import { REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from './useReviewChecklist'
 import {
   buildReportHistory,
+  type GuidedReviewHistoryField,
   type GuidedReviewHistoryItem,
 } from './useGuidedReviewHistoryProjection'
 
@@ -26,6 +27,12 @@ export type GuidedReviewActionKind =
   | 'archive_decision'
   | 'waiting'
   | 'ready'
+
+const SESSION_NAVIGATION_ACTION_KINDS: ReadonlySet<GuidedReviewActionKind> = new Set([
+  'pending_item',
+  'source_recovery',
+  'archive_decision',
+])
 
 export interface GuidedReviewAction {
   id: string
@@ -110,6 +117,10 @@ function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHisto
   return buildReportHistory(input.report, input.fieldStates)
 }
 
+function isSessionNavigationAction(action: GuidedReviewAction | null): action is GuidedReviewAction {
+  return Boolean(action && SESSION_NAVIGATION_ACTION_KINDS.has(action.kind))
+}
+
 function buildSystemStatus(input: GuidedReviewProjectionInput): GuidedReviewSystemStatus | null {
   if (input.saveHasPending && input.saveState === 'saving') return {
     title: '正在保存当前输入', detail: '保存完成前，当前输入会继续保留在本页面。',
@@ -164,6 +175,53 @@ function pendingAction(item: ReviewPendingItem): GuidedReviewAction {
   }
 }
 
+const GUIDED_HISTORY_REVISIT_TARGETS = new Set<string>([
+  ...ENTER_CONFIRM_TARGETS,
+  ...DATE_PROMPT_TARGETS,
+])
+
+function resolvedHistoryTarget(targetId: string | undefined): string | null {
+  if (!targetId) return null
+  if (/^review-target-evidence-\d+$/.test(targetId)) return REVIEW_TARGET_IDS.evidenceCompleteness
+  if (SYSTEM_OUTPUT_TARGETS.has(targetId)) return null
+  return GUIDED_HISTORY_REVISIT_TARGETS.has(targetId) ? targetId : null
+}
+
+export function canRevisitGuidedHistoryField(field: GuidedReviewHistoryField): boolean {
+  return resolvedHistoryTarget(field.targetId) !== null
+}
+
+function historySection(targetId: string): { id: string; label: string } {
+  if (targetId === REVIEW_TARGET_IDS.documentNumber) {
+    return { id: REVIEW_SECTION_IDS.document, label: '文书信息' }
+  }
+  if (targetId === REVIEW_TARGET_IDS.discNumber || targetId === REVIEW_TARGET_IDS.burningDate) {
+    return { id: REVIEW_SECTION_IDS.attachments, label: '附件' }
+  }
+  if (targetId.startsWith('review-target-result-')) {
+    return { id: REVIEW_SECTION_IDS.inspection, label: '二、检查' }
+  }
+  return { id: REVIEW_SECTION_IDS.introduction, label: '一、绪论' }
+}
+
+function handledHistoryAction(field: GuidedReviewHistoryField): GuidedReviewAction | null {
+  const targetId = resolvedHistoryTarget(field.targetId)
+  if (!targetId) return null
+  const isEvidence = targetId === REVIEW_TARGET_IDS.evidenceCompleteness
+  const fieldLabel = isEvidence ? '检材完整性' : field.label
+  const section = historySection(targetId)
+  return pendingAction({
+    id: `handled-${field.targetId || targetId}-${field.label}`,
+    sectionId: section.id,
+    targetId,
+    sectionLabel: section.label,
+    fieldLabel,
+    reason: '此项此前已处理，可在獬豸助手中核对或修改。',
+    severity: 'warning',
+    kind: isEvidence ? 'confirmation_required' : 'required_missing',
+  })
+}
+
 const CASE_SUMMARY_REVIEW_ITEM: ReviewPendingItem = {
   id: 'review-section-introduction-案件简要情况',
   sectionId: 'review-section-introduction',
@@ -202,7 +260,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   if (input.leaseState !== 'editable' && input.leaseState !== 'acquiring') {
     allActions.push({ id: 'lease-recovery', kind: 'lease_recovery', title: '请恢复编辑权限', description: '当前页面不能写入案件，请先恢复有效编辑租约。' })
   }
-  if (input.saveHasPending && ['saving', 'failed', 'conflict'].includes(input.saveState)) {
+  if (input.saveHasPending && ['failed', 'conflict'].includes(input.saveState)) {
     allActions.push({
       id: 'save-recovery', kind: 'save_recovery', title: '请恢复草稿保存',
       description: input.saveState === 'saving'
@@ -254,8 +312,6 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
 export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const projection = deriveGuidedReviewProjection(input)
   const [selectedActionId, setSelectedActionId] = useState(projection.allActions[0]?.id || '')
-  const [previousAction, setPreviousAction] = useState<GuidedReviewAction | null>(null)
-  const [revisitedAction, setRevisitedAction] = useState<GuidedReviewAction | null>(null)
   const retainedAction = useRef({
     caseId: input.caseId,
     action: projection.allActions[0] || null as GuidedReviewAction | null,
@@ -270,34 +326,47 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     && retainedForCase.pendingItem?.kind !== 'confirmation_required'
     ? retainedForCase
     : projectedSelectedAction || projection.allActions[0] || null
-  const currentAction = revisitedAction || baseCurrentAction
-  const previousBaseAction = useRef({ caseId: input.caseId, action: baseCurrentAction })
+  const initialNavigationAction = isSessionNavigationAction(baseCurrentAction) ? baseCurrentAction : null
+  const [navigation, setNavigation] = useState(() => ({
+    caseId: input.caseId,
+    entries: initialNavigationAction ? [initialNavigationAction] : [] as GuidedReviewAction[],
+    index: 0,
+  }))
+  const navigationAction = navigation.entries[navigation.index] || null
+  const currentIsTransientAction = Boolean(
+    baseCurrentAction
+      && !isSessionNavigationAction(baseCurrentAction)
+      && (navigation.entries.length === 0 || navigation.index === navigation.entries.length - 1),
+  )
+  const currentAction = currentIsTransientAction ? baseCurrentAction : navigationAction || baseCurrentAction
   useEffect(() => {
     retainedAction.current = { caseId: input.caseId, action: baseCurrentAction }
   }, [baseCurrentAction, input.caseId])
 
   useEffect(() => {
-    const previous = previousBaseAction.current
-    if (previous.caseId !== input.caseId) {
-      previousBaseAction.current = { caseId: input.caseId, action: baseCurrentAction }
-      setPreviousAction(null)
-      setRevisitedAction(null)
-      return
-    }
-    if (previous.action?.kind === 'pending_item'
-      && previous.action.id !== baseCurrentAction?.id
-      && !projection.allActions.some(action => action.id === previous.action?.id)) {
-      setPreviousAction(previous.action)
-    }
-    previousBaseAction.current = { caseId: input.caseId, action: baseCurrentAction }
-  }, [baseCurrentAction, input.caseId, projection.allActions])
+    setNavigation(previous => {
+      const nextNavigationAction = isSessionNavigationAction(baseCurrentAction) ? baseCurrentAction : null
+      if (previous.caseId !== input.caseId) return {
+        caseId: input.caseId,
+        entries: nextNavigationAction ? [nextNavigationAction] : [],
+        index: 0,
+      }
+      if (!nextNavigationAction) return previous
+      const latestIndex = previous.entries.length - 1
+      if (previous.entries[latestIndex]?.id === nextNavigationAction.id) return previous
+      const entries = [...previous.entries, nextNavigationAction]
+      return {
+        ...previous,
+        entries,
+        index: previous.index === latestIndex ? entries.length - 1 : previous.index,
+      }
+    })
+  }, [baseCurrentAction, input.caseId])
 
   useEffect(() => {
     if (previousCaseId.current !== input.caseId) {
       previousCaseId.current = input.caseId
       setSelectedActionId(projection.allActions[0]?.id || '')
-      setPreviousAction(null)
-      setRevisitedAction(null)
     }
   }, [input.caseId, projection.allActions])
 
@@ -308,35 +377,67 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const selectAction = useCallback((actionId: string) => {
     const action = allActions.find(candidate => candidate.id === actionId)
     if (!action) return
-    if (action.id !== currentAction?.id) {
-      if (currentAction?.kind === 'pending_item') setPreviousAction(currentAction)
-    }
-    setRevisitedAction(null)
+    setNavigation(previous => {
+      if (!isSessionNavigationAction(action)) return {
+        ...previous,
+        index: Math.max(0, previous.entries.length - 1),
+      }
+      if (previous.entries[previous.index]?.id === action.id) return previous
+      const entries = [...previous.entries.slice(0, previous.index + 1), action]
+      return { ...previous, entries, index: entries.length - 1 }
+    })
     setSelectedActionId(action.id)
-  }, [allActions, currentAction])
+  }, [allActions])
   const confirmCurrentAction = useCallback(() => {
     if (!currentAction?.advanceOnEnter) return
-    if (revisitedAction) {
-      setRevisitedAction(null)
-      setSelectedActionId(projection.allActions[0]?.id || '')
+    if (navigation.index < navigation.entries.length - 1) {
+      setNavigation(previous => ({ ...previous, index: Math.min(previous.index + 1, previous.entries.length - 1) }))
       return
     }
     if (projection.allActions.some(action => action.id === currentAction.id)) return
     setSelectedActionId(projection.allActions[0]?.id || '')
-  }, [currentAction, projection.allActions, revisitedAction])
+  }, [currentAction, navigation.entries.length, navigation.index, projection.allActions])
 
   const returnToPreviousAction = useCallback(() => {
-    if (previousAction) setRevisitedAction(previousAction)
-  }, [previousAction])
+    setNavigation(previous => ({ ...previous, index: Math.max(0, previous.index - 1) }))
+  }, [])
+  const returnToNextAction = useCallback(() => {
+    setNavigation(previous => ({
+      ...previous,
+      index: Math.min(previous.entries.length - 1, previous.index + 1),
+    }))
+  }, [])
   const revisitAction = useCallback((action: GuidedReviewAction) => {
-    if (baseCurrentAction?.id !== action.id) setPreviousAction(baseCurrentAction)
-    setRevisitedAction(action)
-  }, [baseCurrentAction])
-  const returnToCurrentAction = useCallback(() => setRevisitedAction(null), [])
+    setNavigation(previous => {
+      let existingIndex = -1
+      for (let index = previous.entries.length - 1; index >= 0; index -= 1) {
+        if (previous.entries[index].id === action.id) {
+          existingIndex = index
+          break
+        }
+      }
+      if (existingIndex >= 0) return { ...previous, index: existingIndex }
+      const entries = [
+        ...previous.entries.slice(0, previous.index),
+        action,
+        ...previous.entries.slice(previous.index),
+      ]
+      return { ...previous, entries, index: previous.index }
+    })
+  }, [])
+  const revisitHandledField = useCallback((field: GuidedReviewHistoryField) => {
+    const action = handledHistoryAction(field)
+    if (action) revisitAction(action)
+  }, [revisitAction])
+  const previousAction = !currentIsTransientAction && navigation.index > 0
+    ? navigation.entries[navigation.index - 1] : null
+  const canReturnToPrevious = !currentIsTransientAction && navigation.index > 0
+  const canReturnToNext = !currentIsTransientAction && navigation.index < navigation.entries.length - 1
 
   return {
     ...projection, allActions, currentAction, previousAction,
-    isReviewingPrevious: Boolean(revisitedAction), selectAction, confirmCurrentAction,
-    revisitAction, returnToPreviousAction, returnToCurrentAction,
+    isReviewingPrevious: canReturnToNext, canReturnToPrevious, canReturnToNext,
+    selectAction, confirmCurrentAction, revisitAction, revisitHandledField,
+    returnToPreviousAction, returnToNextAction,
   }
 }

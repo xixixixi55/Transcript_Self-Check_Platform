@@ -46,10 +46,10 @@ describe('GuidedReviewView text confirmation', () => {
     render(confirmationView(confirm))
 
     const input = screen.getByRole('textbox', { name: '文号' })
-    const enterKey = screen.getByRole('button', { name: '确认并进入下一步' })
+    const enterKey = screen.getByRole('button', { name: '进入下一步' })
       .querySelector('.anticon-arrow-right')
     expect(enterKey).toBeInstanceOf(HTMLElement)
-    fireEvent.click(screen.getByRole('button', { name: '确认并进入下一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
     fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
     expect(confirm).toHaveBeenCalledTimes(1)
@@ -60,7 +60,7 @@ describe('GuidedReviewView text confirmation', () => {
 
   it('disables the action button while editing is unavailable', () => {
     render(confirmationView(vi.fn(), true))
-    const button = screen.getByRole('button', { name: '确认并进入下一步' }) as HTMLButtonElement
+    const button = screen.getByRole('button', { name: '进入下一步' }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
   })
 })
