@@ -20,6 +20,7 @@ const history: GuidedReviewHistoryItem[] = [
 ]
 const documentAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-DOCUMENT', kind: 'pending_item', title: '请输入文号', description: '当前必填字段为空。',
+  advanceOnEnter: true,
   pendingItem: {
     id: 'SYNTHETIC-PENDING-DOCUMENT', sectionId: 'review-section-document',
     targetId: 'review-target-document-number', sectionLabel: '文书信息', fieldLabel: '文号',
@@ -43,8 +44,8 @@ const recoveryAction: GuidedReviewAction = {
   description: 'SYNTHETIC/TEST：保存链路需要恢复。',
 }
 const readyAction: GuidedReviewAction = {
-  id: 'SYNTHETIC-ACTION-READY', kind: 'ready', title: '请确认并生成笔录',
-  description: 'SYNTHETIC/TEST：所需事项已经齐备。',
+  id: 'SYNTHETIC-ACTION-READY', kind: 'ready', title: '当前审核已完成',
+  description: 'SYNTHETIC/TEST：请保存并退出；返回案件工作台后可统一导出。',
 }
 const evidenceCompletenessAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-EVIDENCE-COMPLETENESS', kind: 'pending_item', title: '请确认检材完整性',
@@ -87,7 +88,7 @@ function expectCircularIconButton(button: HTMLElement, primary = false) {
 }
 
 describe('GuidedReviewView', () => {
-  it('uses icon actions for complete evidence and manual evidence supplementation', () => {
+  it('keeps only quick batch supplementation after evidence is marked incomplete', () => {
     const onEvidenceCompletenessChange = vi.fn()
     const onOpenFullEditor = vi.fn()
     const updateReport = vi.fn()
@@ -105,27 +106,10 @@ describe('GuidedReviewView', () => {
     fireEvent.click(completeButton)
     expect(onEvidenceCompletenessChange).toHaveBeenCalledWith(true)
     fireEvent.click(incompleteButton)
-    const batchModeButton = screen.getByRole('button', { name: '快捷批量补充检材' })
-    const manualModeButton = screen.getByRole('button', { name: '逐项编辑检材' })
-    expectCircularIconButton(batchModeButton, true)
-    expectCircularIconButton(manualModeButton)
-    expect(screen.queryByRole('textbox', { name: '快捷批量添加检材' })).toBeNull()
-    fireEvent.click(manualModeButton)
-    const addEvidenceButton = screen.getByRole('button', { name: '添加检材' })
-    expectCircularIconButton(addEvidenceButton)
-    const confirmCompleteButton = screen.getByRole('button', { name: '完成检材补充并确认完整' })
-    expect(confirmCompleteButton.querySelector('.anticon-check-circle')).toBeTruthy()
-    expectCircularIconButton(confirmCompleteButton, true)
-    expect(screen.queryByRole('button', { name: '解析并预览' })).toBeNull()
-    const switchToBatchButton = screen.getByRole('button', { name: '改用快捷批量补充' })
-    expectCircularIconButton(switchToBatchButton)
+    expect(screen.getByRole('textbox', { name: '快捷批量添加检材' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '快捷批量补充检材' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /逐项编辑/ })).toBeNull()
     expect(onOpenFullEditor).not.toHaveBeenCalled()
-
-    fireEvent.click(addEvidenceButton)
-    expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [
-      expect.objectContaining({ evidence_number: '' }),
-    ])
-    expect(onEvidenceCompletenessChange).toHaveBeenLastCalledWith(false)
   })
 
   it('previews and appends newline-delimited unavailable evidence without accepting invalid batches', () => {
@@ -146,7 +130,6 @@ describe('GuidedReviewView', () => {
       updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
-    fireEvent.click(screen.getByRole('button', { name: '快捷批量补充检材' }))
     expect(screen.getByText(/每行一项/)).toBeTruthy()
     expect(screen.getByText(/全角括号/)).toBeTruthy()
 
@@ -215,7 +198,6 @@ describe('GuidedReviewView', () => {
     }} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
-    fireEvent.click(screen.getByRole('button', { name: '快捷批量补充检材' }))
     fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
     expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [evidence[2], evidence[1], evidence[0]])
     expect(screen.getByText('已按检材编号自然升序排列。')).toBeTruthy()
@@ -232,7 +214,6 @@ describe('GuidedReviewView', () => {
     }} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
-    fireEvent.click(screen.getByRole('button', { name: '快捷批量补充检材' }))
     fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
     expect(updateReport).not.toHaveBeenCalled()
     expect(screen.getByText('当前检材编号无法安全排序，已保持原顺序。')).toBeTruthy()
@@ -399,9 +380,12 @@ describe('GuidedReviewView', () => {
 
     const initialStepNavigation = screen.getByRole('button', { name: '返回上一步' })
     expectCircularIconButton(initialStepNavigation)
-    expect(initialStepNavigation.querySelector('.anticon-arrow-up')).toBeTruthy()
+    expect(initialStepNavigation.querySelector('.anticon-arrow-left')).toBeTruthy()
     const initialReplyGroup = screen.getByRole('group', { name: '你的回复' })
-    expect(initialStepNavigation.compareDocumentPosition(initialReplyGroup)
+    expect(initialReplyGroup.contains(initialStepNavigation)).toBe(true)
+    const confirmationButton = screen.getByRole('button', { name: '确认并进入下一步' })
+    expect(initialReplyGroup.contains(confirmationButton)).toBe(true)
+    expect(initialStepNavigation.compareDocumentPosition(confirmationButton)
       & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     view.rerender(<GuidedReviewView
@@ -445,7 +429,8 @@ describe('GuidedReviewView', () => {
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
     const returnToCurrentStep = screen.getByRole('button', { name: '返回当前步骤' })
-    expect(returnToCurrentStep.querySelector('.anticon-arrow-down')).toBeTruthy()
+    expect(returnToCurrentStep.querySelector('.anticon-arrow-right')).toBeTruthy()
+    expect(screen.getByRole('group', { name: '你的回复' }).contains(returnToCurrentStep)).toBe(true)
     fireEvent.click(returnToCurrentStep)
     expect(returnToCurrentAction).toHaveBeenCalledTimes(1)
 

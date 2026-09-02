@@ -413,7 +413,8 @@ describe('guided review projection', () => {
       ...buildInput(), pendingItems: [], lifecycle: 'archive_verified',
       archiveParts: [{ disc_number: 'GP20260825-01', size_bytes: 2048 }],
     })
-    expect(ready.allActions[0]?.title).toBe('请确认并生成笔录')
+    expect(ready.allActions[0]?.title).toBe('当前审核已完成')
+    expect(ready.allActions[0]?.description).toBe('请保存并退出；返回案件工作台后可统一导出。')
   })
 
   it('recommends compression, medium number, then ordinary review fields', () => {

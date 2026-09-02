@@ -246,7 +246,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
     && ['archive_verified', 'exported'].includes(input.lifecycle)
     && input.archiveParts !== null
   if (allActions.length === 0) allActions.push(readyToGenerate
-    ? { id: 'ready', kind: 'ready', title: '请确认并生成笔录', description: '笔录已准备完成，生成时仍由现有保存与导出门控进行最终检查。' }
+    ? { id: 'ready', kind: 'ready', title: '当前审核已完成', description: '请保存并退出；返回案件工作台后可统一导出。' }
     : { id: 'waiting', kind: 'waiting', title: systemStatus ? `请稍候，${systemStatus.title}` : '请稍候，正在整理下一步', description: systemStatus?.detail || '当前没有需要立即填写的事项。' })
   return { history: buildFactHistory(input), pendingItems, allActions, systemStatus, readyToGenerate }
 }

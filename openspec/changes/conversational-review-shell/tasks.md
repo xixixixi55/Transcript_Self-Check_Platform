@@ -510,3 +510,67 @@ workflow_level: 2
 - `text_confirmation_button_tests: PASS`：确认专项与原引导组件测试共 14/14 通过；架构检查、全项目 TypeScript、`verify:quick`、生产构建、scoped strict docs、OpenSpec change strict validate 与 `git diff --check` 通过。页面综合回归 19/20 通过，唯一失败为本次差异外既有“请返回案件工作台统一导出”提示文案断言，单独运行可稳定复现；本次按钮接线与其无调用关系。
 - `text_confirmation_button_impeccable: PASS_WITH_EXISTING_FINDINGS`：一次性机械检测只报告 `reviewWorkspace.css` 第 167、314 行两处本次差异外既有告警，新增确认按钮区域无检测项。
 - `text_confirmation_button_manual_acceptance: N/A`：按钮尺寸、主次语义、键盘顺序、可访问名称、点击行为与禁用状态均由既有样式系统、组件 DOM 回归和生产构建可区分覆盖；未使用或读取真实案件数据。
+
+## 2026-09-02 步骤导航左右布局反馈
+
+- [x] 6.62 将有回复框时的步骤导航统一收进框内底部：上一步位于左侧并使用左箭头，确认下一步或返回当前步骤位于右侧并使用右箭头；没有回复框时保留独立入口，不改变保存、Enter 推进或步骤状态。
+- [x] 6.63 更新组件回归以区分导航所属容器、左右 DOM 顺序和方向图标，同步 delta 与 living spec，并运行风险相称的前端检查及 Level 2 文档门控。
+
+### 步骤导航左右布局验证记录
+
+- `guided_step_navigation_layout: PASS`：有回复框时，“返回上一步”和确认下一步均位于回复组内，DOM 与视觉方向为左后右；返回历史事项时，“返回当前步骤”位于右侧。三种动作分别使用向左或向右图标，没有回复框时仍保留独立步骤导航。
+- `guided_step_navigation_behavior: PASS`：导航继续调用原返回回调，文本确认按钮与非组合态 Enter 继续调用同一完成回调；自动保存、输入法组合态、Shift+Enter、禁用状态和步骤派生逻辑未修改。
+- `guided_step_navigation_tests: PASS`：新增断言先在旧实现上失败，实施后 `GuidedReviewView.test.tsx` 与 `GuidedReviewView.confirmation.test.tsx` 共 14/14 通过；`verify:quick`、全项目 TypeScript、生产构建、仓库资产卫生与 `git diff --check` 通过，构建仅保留既有大包提示。
+- `guided_step_navigation_specs: PASS_WITH_EXISTING_LIVING_SPEC_ISSUES`：delta 与 living spec 已同步，change strict 和 scoped strict docs 通过；全量 living spec 校验仍报告 `electronic-inspection-record` 与 `harness-workflow` 缺少新版 OpenSpec 要求的 `Purpose`/`Requirements` 顶层标题，两项均为本次修改前既存的仓库级格式债务，本次不扩大范围重排整份现行规格。
+- `guided_step_navigation_impeccable: PASS`：按 Layout playbook 将回复框底部设为单一横向导航轴，窄屏保持 44px 操作目标和 DOM/焦点顺序；Impeccable 单次 layout 检测 0 项。
+- `guided_step_navigation_manual_acceptance: N/A`：当前环境未提供可安全使用的 SYNTHETIC/TEST 案件页面，未读取或截图现有案件；容器归属、方向、操作目标、回调与禁用状态由合成组件 DOM 回归和生产构建可区分覆盖。
+
+## 2026-09-02 移除獬豸助手单独 Word 导出入口反馈
+
+- [x] 6.64 从獬豸助手 ready 终态移除“单独导出 Word”按钮和仅服务于该按钮的样式，终态改为提示当前审核已完成并返回案件工作台统一导出；归档完成信息继续展示。
+- [x] 6.65 保留完整审核编辑的既有“导出 Word”入口及底层导出、图片容错、保存与目录选择合同；更新可区分的页面/Hook 回归，同步 delta 与 living spec，并运行风险相称门控。
+
+### 移除獬豸助手单独 Word 导出入口验证记录
+
+- `guided_word_export_entry: PASS`：獬豸助手 ready 终态不再渲染“单独导出 Word”按钮，仅保留归档完成信息，并改为“当前审核已完成”和返回案件工作台统一导出的引导。
+- `full_editor_word_export: PASS`：完整审核编辑仍通过原 `requestExport` 流程提供“导出 Word”按钮；新增页面回归可区分验证助手入口缺失且完整编辑入口存在，定向用例 1/1 通过。
+- `guided_word_export_tests: PASS_WITH_EXISTING_PAGE_FAILURE`：Hook 与引导组件回归共 31/31 通过；页面综合回归 21 项中 20 项通过，唯一失败仍为此前已记录的“请返回案件工作台统一导出”旧页面状态断言，本次新增入口边界用例通过。测试保留既有 jsdom `getComputedStyle` 与 React `act` 提示。
+- `guided_word_export_quality: PASS`：`verify:quick` 的架构、类型、治理文档、文档快检与仓库资产卫生检查通过，生产构建通过并仅保留既有大包提示；Impeccable 单次检测仅报告 `reviewWorkspace.css` 第 167、314 行两处本次差异外既有告警。
+- `guided_word_export_manual_acceptance: N/A`：入口可见性、完整编辑保留和终态文案由 SYNTHETIC 页面/组件/Hook 回归及生产构建覆盖，未使用或读取真实案件数据。
+
+## 2026-09-02 移除獬豸助手逐项编辑入口反馈
+
+- [x] 6.66 从检材补充方式选择和快捷批量补充界面移除全部“逐项编辑”入口，清理不可达的逐项编辑分支，保留快捷批量补充、完整性确认及完整审核编辑能力。
+- [x] 6.67 更新组件与页面回归以区分逐项编辑入口缺失和快捷批量补充可用，同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 移除獬豸助手逐项编辑入口验证记录
+
+- `guided_manual_evidence_entry: PASS`：检材补充方式选择页和快捷批量补充页均不再显示“逐项编辑”入口，不可达的 manual 状态、逐项编辑器分支及仅服务于该分支的字段状态接线已清理。
+- `guided_quick_evidence_path: PASS`：选择检材不完整后仍可进入快捷批量补充，原解析预览、追加、排序与完整性确认链路保持不变；组件相关整文件回归 12/12 通过，页面定向回归 1/1 通过。
+- `guided_manual_evidence_quality: PASS_WITH_EXISTING_PAGE_FAILURE`：`verify:quick`、生产构建、scoped strict docs、OpenSpec change strict validate 及 Impeccable 单次检测通过，检测结果 0 项；案件页面综合回归仍为 20/21，唯一失败是此前已记录的统一导出旧页面状态文案断言，本次修改后的快捷批量用例通过。
+- `guided_manual_evidence_manual_acceptance: N/A`：入口缺失、快捷路径可达及完整编辑未挂载由 SYNTHETIC DOM 回归和生产构建覆盖，未使用真实案件数据。
+
+## 2026-09-02 检材不完整后直接展开快捷补充反馈
+
+- [x] 6.68 删除检材补充的单选 `choose` 中间态；用户选择检材不完整后直接进入快捷批量补充界面，复用原解析预览、排序、追加和完整性确认逻辑。
+- [x] 6.69 更新组件与页面回归以断言一次点击后文本框立即出现且中间入口不存在，同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 检材不完整后直接展开快捷补充验证记录
+
+- `direct_quick_evidence_open: PASS`：点击“检材信息不完整”后 `evidenceMode` 直接进入 `batch`，快捷批量添加文本框立即出现；`choose` 中间态及“快捷批量补充检材”入口按钮均已删除。
+- `direct_quick_evidence_tests: PASS`：新增直接展开断言先在旧实现上失败；实施后引导组件整文件 12/12 通过，案件页面定向回归 1/1 通过，既有解析预览与安全排序用例已改为直接操作展开后的表单并继续通过。
+- `direct_quick_evidence_quality: PASS`：`verify:quick`、生产构建、OpenSpec change strict validate 及 Impeccable 单次检测通过，检测结果 0 项；构建仅保留既有大包提示。
+- `direct_quick_evidence_manual_acceptance: N/A`：一次点击后的控件可见性和后续操作由 SYNTHETIC DOM 回归可区分覆盖，未读取或操作真实案件。
+
+## 2026-09-02 完成态保存并退出反馈
+
+- [x] 6.70 将獬豸助手 ready 终态的归档完成/盘号映射面板替换为唯一主操作“保存并退出”，复用现有安全返回工作台流程；盘号待补事项和完整审核编辑中的归档能力保持不变。
+- [x] 6.71 更新页面与 Hook 回归，覆盖完成态入口、归档控件缺席及成功返回工作台；同步 delta 与 living spec，并运行 Level 2 风险相称门控。
+
+### 完成态保存并退出验证记录
+
+- `guided_ready_exit_contract: PASS`：完成态显示“当前审核已完成”和“保存并退出”，不再展示“已导出”、盘号输入或更新映射控件；工作台统一导出与完整编辑中的归档/Word 能力未改变。
+- `guided_ready_exit_navigation: PASS`：按钮复用 `handleBackToWorkbench`，继续等待图片绑定与自动保存，仅在收敛成功后导航；既有保存失败、冲突和图片未完成保护保持生效。
+- `guided_ready_exit_tests: PASS`：Hook、引导组件与案件页面共 51/51 通过，覆盖完成态按钮、归档控件缺席、成功返回工作台及既有图片导航保护；测试仅输出既有 jsdom `getComputedStyle` 与 React `act` 提示。
+- `guided_ready_exit_quality: PASS`：`verify:quick`、生产构建、OpenSpec change strict validate、scoped strict docs 与 `git diff --check` 通过；构建仅保留既有大包提示，Impeccable 单次检测结果为 0 项。
+- `guided_ready_exit_manual_acceptance: N/A`：完成态入口、控件缺席和导航结果由 SYNTHETIC 页面回归可区分覆盖，未读取或操作真实案件。

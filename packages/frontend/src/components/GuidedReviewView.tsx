@@ -1,5 +1,5 @@
 import {
-  ArrowDownOutlined, ArrowUpOutlined, EditOutlined, HomeOutlined,
+  ArrowLeftOutlined, ArrowRightOutlined, EditOutlined, HomeOutlined,
   SafetyCertificateOutlined, SwapOutlined, UnorderedListOutlined,
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
@@ -43,16 +43,6 @@ interface SwitchedTurn {
 type ActionStatusTone = 'current' | 'pending' | 'warning' | 'system' | 'success'
 type MascotMood = 'listening' | 'verifying' | 'warning' | 'complete'
 type SplitOrder = 'history-first' | 'conversation-first'
-
-function ConfirmEnterKeyIcon() {
-  return (
-    <svg className="guided-review-card__confirm-enter-key" viewBox="0 0 36 36"
-      fill="none" aria-hidden focusable="false" data-direction="right">
-      <path d="M5 3.5h15.5a3 3 0 0 1 3 3v7H30a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-22a3 3 0 0 1 3-3Z" />
-      <path d="M10 10v7.5a3.5 3.5 0 0 0 3.5 3.5H27m-4-4 4 4-4 4" />
-    </svg>
-  )
-}
 
 const SPLIT_ORDER_STORAGE_KEY = 'biji.guidedReview.splitOrder'
 
@@ -247,6 +237,20 @@ export function GuidedReviewView({
     event.preventDefault()
     onConfirmCurrentAction?.()
   }
+  const previousStepButton = !isReviewingPrevious && canReturnToPrevious ? (
+    <Tooltip title="返回上一步">
+      <Button shape="circle" size="large" className="guided-review-icon-action"
+        icon={<ArrowLeftOutlined />} aria-label="返回上一步"
+        onClick={onReturnToPreviousAction} />
+    </Tooltip>
+  ) : null
+  const currentStepButton = isReviewingPrevious ? (
+    <Tooltip title="返回当前步骤">
+      <Button shape="circle" size="large" className="guided-review-icon-action"
+        icon={<ArrowRightOutlined />} aria-label="返回当前步骤"
+        onClick={onReturnToCurrentAction} />
+    </Tooltip>
+  ) : null
 
   return (
     <div className="guided-review-view">
@@ -304,21 +308,11 @@ export function GuidedReviewView({
                   </div>
                 </div>
               </div>
-              {(canReturnToPrevious || isReviewingPrevious) && (
-                <div className="guided-review-step-navigation" aria-label="步骤导航">
-                  {isReviewingPrevious ? (
-                    <Tooltip title="返回当前步骤">
-                      <Button shape="circle" size="large" className="guided-review-icon-action"
-                        icon={<ArrowDownOutlined />} aria-label="返回当前步骤"
-                        onClick={onReturnToCurrentAction} />
-                    </Tooltip>
-                  ) : (
-                    <Tooltip title="返回上一步">
-                      <Button shape="circle" size="large" className="guided-review-icon-action"
-                        icon={<ArrowUpOutlined />} aria-label="返回上一步"
-                        onClick={onReturnToPreviousAction} />
-                    </Tooltip>
-                  )}
+              {!hasResponse && (previousStepButton || currentStepButton) && (
+                <div className="guided-review-step-navigation guided-review-step-navigation--standalone"
+                  aria-label="步骤导航">
+                  <span>{previousStepButton}</span>
+                  <span>{currentStepButton}</span>
                 </div>
               )}
               {hasResponse && (
@@ -330,16 +324,23 @@ export function GuidedReviewView({
                   onKeyDown={confirmTextResponse}>
                   <span className="guided-review-card__response-label">{responseLabel}</span>
                   {children}
-                  {currentAction?.advanceOnEnter && (
-                    <div className="guided-review-card__confirm-actions">
-                      <Tooltip title="确认并进入下一步">
-                        <Button
-                          className="guided-review-icon-action guided-review-card__confirm-action"
-                          icon={<ConfirmEnterKeyIcon />}
-                          aria-label="确认并进入下一步"
-                          disabled={confirmCurrentActionDisabled}
-                          onClick={onConfirmCurrentAction} />
-                      </Tooltip>
+                  {(previousStepButton || currentStepButton || currentAction?.advanceOnEnter) && (
+                    <div className="guided-review-step-navigation" aria-label="步骤导航">
+                      <span className="guided-review-step-navigation__previous">{previousStepButton}</span>
+                      <span className="guided-review-step-navigation__next">
+                        {currentStepButton}
+                        {currentAction?.advanceOnEnter && (
+                          <Tooltip title="确认并进入下一步">
+                            <Button
+                              shape="circle"
+                              className="guided-review-icon-action guided-review-card__confirm-action"
+                              icon={<ArrowRightOutlined />}
+                              aria-label="确认并进入下一步"
+                              disabled={confirmCurrentActionDisabled}
+                              onClick={onConfirmCurrentAction} />
+                          </Tooltip>
+                        )}
+                      </span>
                     </div>
                   )}
                 </div>

@@ -158,7 +158,7 @@ export function CaseCard({
         label: <Link to={casePath(shell.case_id)}>打开案件</Link>,
       })
     }
-    menuItems.push({ key: 'delete', label: '删除案件', danger: true, onClick: onDelete })
+    menuItems.push({ key: 'delete', label: '归档案件', danger: true, onClick: onDelete })
   }
 
   if (phase === 'parsing' && canCancelParse) {
@@ -235,7 +235,7 @@ export function CaseCard({
       if (exporting) {
         return <Button type="primary" loading>再次导出</Button>
       }
-      return <Button type="primary" danger onClick={onDelete} disabled={actionBusy}>删除案件</Button>
+      return <Button type="primary" danger onClick={onDelete} disabled={actionBusy}>归档案件</Button>
     }
     if (phase === 'archive_failed' && archiveMainAction && archiveSummary) {
       return (

@@ -15,7 +15,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let events: string[] = []
   let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
   let leaseFailure = false, leaseConflict = false
-  let showCompletedArchive = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
+  let showCompletedArchive = false, showGuidedReady = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
@@ -24,13 +24,32 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) {
         const read = detailReads++
-        const value = useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002')
+        const value = useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive || showGuidedReady ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002')
+        if (showGuidedReady && value.draft) {
+          value.draft.field_states = { 'introduction.evidence_list.completeness': {
+            field_path: 'introduction.evidence_list.completeness', source: 'user', confirmation: 'confirmed',
+            revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
+          } }
+          value.draft.report.introduction.evidence_list = [{
+            id: 'material-synthetic-ready', device_type: 'SYNTHETIC Phone', evidence_number: 'SYN-JC00000001',
+            material_type: 'phone', material_type_status: 'confirmed_by_report', material_type_source: 'report',
+            extractable: true, imei1: '000000000000001',
+          }]
+          value.draft.report.attachments.photo_ids = ['asset-synthetic-ready-front', 'asset-synthetic-ready-back']
+          value.draft.report.inspection.primary_software = {
+            name: 'SYNTHETIC-TOOL', version: '1.0', display_name: 'SYNTHETIC-TOOL 1.0',
+            confirmation_status: 'confirmed_by_report', provenance: [], candidates: [],
+          }
+          Object.assign(value.draft.report.inspection.result, {
+            rar_filename: 'SYNTHETIC.rar', md5_hash: 'a'.repeat(32), file_size: '1 KB',
+          })
+        }
         if (sourcePending) {
           value.source.access_status = 'pending'
           value.source.fingerprint = 'pending:source-synthetic'
@@ -165,19 +184,20 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_LEASE(caseId))).toHaveLength(1)
   }, 15000)
 
-  it('keeps the guided conversation open and reuses the manual evidence editor when evidence is incomplete', async () => {
+  it('keeps the guided conversation open with only quick batch evidence supplementation', async () => {
     renderPage()
 
     await selectGuidedAction('请确认检材完整性')
     const incompleteButton = await screen.findByRole('button', { name: '检材信息不完整，手工添加检材' })
     expect(incompleteButton.querySelector('.anticon-file-add')).toBeTruthy()
     fireEvent.click(incompleteButton)
-    fireEvent.click(screen.getByRole('button', { name: '逐项编辑检材' }))
+    expect(screen.queryByRole('button', { name: /逐项编辑/ })).toBeNull()
 
     expect(screen.getByRole('region', { name: '当前对话' })).toBeTruthy()
     expect(document.querySelector('.review-editor-form')).toBeNull()
-    expect(screen.queryByRole('textbox', { name: '快捷批量添加检材' })).toBeNull()
-    expect(screen.getByRole('button', { name: '添加检材' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: '快捷批量添加检材' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '快捷批量补充检材' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /逐项编辑/ })).toBeNull()
   }, 15000)
 
   it('keeps failed and conflicting edits in the guided shell and exposes the existing recovery operations', async () => {
@@ -450,15 +470,35 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await screen.findByText('工作台路由')
   }, 15000)
 
-  it('does not offer unified export inside the case review page', async () => {
-    showCompletedArchive = true
+  it('shows save and exit instead of archive completion controls when guided review is complete', async () => {
+    showGuidedReady = true
     renderPage()
-    expect(await screen.findByText(/请返回案件工作台统一导出/)).toBeTruthy()
+    await screen.findByText('请确认案件简要情况')
+    fireEvent.click(screen.getByRole('button', { name: '确认并进入下一步' }))
+    expect(await screen.findByRole('button', { name: /保存并退出/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '更新盘号映射' })).toBeNull()
     expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
     await openFullEditor()
-    expect(await screen.findByText(/请返回案件工作台统一导出/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
     expect(postMock.mock.calls.some(([url]) => String(url).includes('/export-bundle'))).toBe(false)
+  }, 15000)
+
+  it('returns to the workbench from the completed guided review through save and exit', async () => {
+    showGuidedReady = true
+    renderPage()
+    await screen.findByText('请确认案件简要情况')
+    fireEvent.click(screen.getByRole('button', { name: '确认并进入下一步' }))
+    fireEvent.click(await screen.findByRole('button', { name: /保存并退出/ }))
+    expect(await screen.findByText('工作台路由')).toBeTruthy()
+  }, 15000)
+
+  it('retains the full editor Word export after removing the guided assistant action', async () => {
+    showCompletedArchive = true
+    renderPage()
+    await screen.findByRole('heading', { name: '獬豸助手', level: 2 })
+    expect(screen.queryByRole('button', { name: '单独导出 Word' })).toBeNull()
+    await openFullEditor()
+    expect(await screen.findByRole('button', { name: '导出 Word' })).toBeTruthy()
   }, 15000)
 
   it('shows the exported state for a re-exported case', async () => {

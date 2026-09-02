@@ -22,9 +22,9 @@ describe('CaseCard deletion action', () => {
   it('keeps deletion in the overflow menu before export', () => {
     const onDelete = vi.fn()
     render(<MemoryRouter><CaseCard shell={shell} onRetry={vi.fn()} onCancel={vi.fn()} onDelete={onDelete} /></MemoryRouter>)
-    expect(screen.queryByRole('button', { name: '删除案件' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '归档案件' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: '删除案件' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档案件' }))
     expect(onDelete).toHaveBeenCalledTimes(1)
   })
 })

@@ -436,3 +436,5 @@ workflow_level: 3
   - 自动化证据：后端导出目录 Repository、统一导出、导出编排及工作台持久化 52/52 通过；案件卡片 10/10、归档完成 Hook 7/7，通过案件页 A/B 反序完成定向回归 1/1；前端生产构建、`npm run verify:quick`、scoped strict docs（14 checks / 0 drift）与 `git diff --check` 通过。Impeccable detector 仅报告 `platformShell.css:67` 既有 `margin-left` 布局动画，本任务新增样式无新告警。
   - code_review: [DEFERRED] 本任务复用当前未冻结 Level 3 变更包，按包级节奏待全部反馈收敛后统一独立审查，不为单项反馈提前冻结候选。
   - manual_acceptance: [PENDING] 自动化已验证按案件端点和 Windows Explorer 参数列表；仍需在真实打包 Windows 客户端中点击图标，确认文件资源管理器聚焦到实际导出目录。
+
+- [x] T054 将阶段操作矩阵中的“删除案件”显示名称同步为“归档案件”，保持已导出阶段的入口权重、原删除回调、DELETE API 与平台受控产物清理合同不变；对应实现与组件回归由 `case-workbench-delete` T017 收敛，scoped strict docs 通过。OpenSpec change strict 仍报告本历史包的旧式 delta 标题格式债务；本次低风险界面文案反馈不扩大范围修订全包格式，也不触发 Level 3 包冻结或提前运行 full gate。

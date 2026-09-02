@@ -76,7 +76,7 @@ describe('CaseCard archive completion states', () => {
     expect(screen.queryByText('正在写入并验证 Manifest')).toBeNull()
     expect(screen.queryByText('归档中')).toBeNull()
     expect(screen.queryByRole('button', { name: '统一导出' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '删除案件' }))
+    fireEvent.click(screen.getByRole('button', { name: '归档案件' }))
     expect(onDelete).toHaveBeenCalledTimes(1)
     const openDirectoryButton = screen.getByRole('button', { name: '打开导出文件夹' })
     expect(openDirectoryButton.textContent).toBe('')
@@ -92,7 +92,7 @@ describe('CaseCard archive completion states', () => {
   })
 
   it('maps each phase to its actual visible recommended CTA', () => {
-    const recommendedCtas = ['重试解析', '打开案件', '统一导出', '删除案件']
+    const recommendedCtas = ['重试解析', '打开案件', '统一导出', '归档案件']
     const assertRecommended = (name?: string) => {
       for (const cta of recommendedCtas) {
         if (cta === name) expect(screen.getByRole('button', { name: cta })).toBeTruthy()
@@ -143,7 +143,7 @@ describe('CaseCard archive completion states', () => {
     expect(screen.getByRole('button', { name: cta })).toBeTruthy()
     expect(screen.queryByText('打开案件补充盘号后即可统一导出')).toBeNull()
     expect(screen.queryByText('压缩已完成，可以统一导出')).toBeNull()
-    for (const other of ['重试解析', '打开案件', '统一导出', '删除案件'].filter(name => name !== cta)) {
+    for (const other of ['重试解析', '打开案件', '统一导出', '归档案件'].filter(name => name !== cta)) {
       expect(screen.queryByRole('button', { name: other })).toBeNull()
     }
   })
@@ -163,7 +163,7 @@ describe('CaseCard archive completion states', () => {
     expect(screen.queryByRole('button', { name: '打开案件' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
-    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['打开案件', '删除案件'])
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['打开案件', '归档案件'])
     const openCaseItem = screen.getByRole('menuitem', { name: '打开案件' })
     fireEvent.click(openCaseItem.querySelector('a')!)
 
@@ -185,7 +185,7 @@ describe('CaseCard archive completion states', () => {
     expect(screen.getByRole('button', { name: '打开案件' })).toBeTruthy()
     expect(screen.queryByText('压缩任务正在后台运行，可继续审核和编辑')).toBeNull()
     expect(screen.queryByRole('button', { name: '统一导出' })).toBeNull()
-    expect(screen.queryByRole('button', { name: '删除案件' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '归档案件' })).toBeNull()
   })
 
   it('does not let stale task details override archive_verified while completion data loads', () => {
@@ -222,7 +222,7 @@ describe('CaseCard archive completion states', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('button', { name: /loading.*再次导出/ })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '删除案件' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '归档案件' })).toBeNull()
     expect((screen.getByRole('button', { name: '更多操作' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

@@ -1,12 +1,11 @@
 import { CheckCircleOutlined, EditOutlined, FileAddOutlined, FileSearchOutlined, SortAscendingOutlined } from '@ant-design/icons'
 import { Alert, Button, Input, message, Space, Tooltip } from 'antd'
 import { useEffect, useState } from 'react'
-import type { EvidenceItem, FieldState, InspectionReport } from '@biji/shared/types'
+import type { EvidenceItem, InspectionReport } from '@biji/shared/types'
 import type { GuidedReviewAction } from '../hooks/useGuidedReviewCards'
 import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import { DateTimeField } from './DateTimeField'
 import { DocumentNumberEditor } from './DocumentNumberEditor'
-import EvidenceEditor from './EvidenceEditor'
 import { normalizeEntrustPersons } from './ReviewIntroductionSection'
 
 interface Props {
@@ -15,7 +14,6 @@ interface Props {
   updateReport: (path: string, value: unknown) => void
   readOnly: boolean
   specialContent?: React.ReactNode
-  fieldStates?: Record<string, FieldState>
   onEvidenceCompletenessChange?: (confirmed: boolean) => void
   onOpenFullEditor?: (targetId?: string) => void
 }
@@ -360,9 +358,9 @@ function EvidenceCompletenessSummary({ items }: { items: EvidenceItem[] }) {
 
 export function GuidedReviewCard({
   action, report, updateReport, readOnly, specialContent,
-  fieldStates, onEvidenceCompletenessChange, onOpenFullEditor,
+  onEvidenceCompletenessChange, onOpenFullEditor,
 }: Props) {
-  const [evidenceMode, setEvidenceMode] = useState<'closed' | 'choose' | 'batch' | 'manual'>('closed')
+  const [evidenceMode, setEvidenceMode] = useState<'closed' | 'batch'>('closed')
   useEffect(() => setEvidenceMode('closed'), [action.id])
 
   if (specialContent) return <div className="guided-review-card__control">{specialContent}</div>
@@ -394,23 +392,6 @@ export function GuidedReviewCard({
         onChange={value => updateReport('attachments.burning_date', value)} />
     </fieldset>
   )
-  if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'choose') return (
-    <div className="guided-review-card__evidence-paths" role="group" aria-label="选择检材补充方式">
-      <p>选择一种补充方式；页面一次只展开当前需要的工具。</p>
-      <Space wrap size="small" className="guided-review-card__evidence-icon-actions">
-        <Tooltip title="快捷批量补充">
-          <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
-            icon={<FileSearchOutlined />} disabled={readOnly}
-            aria-label="快捷批量补充检材" onClick={() => setEvidenceMode('batch')} />
-        </Tooltip>
-        <Tooltip title="逐项编辑">
-          <Button shape="circle" size="large" className="guided-review-icon-action"
-            icon={<FileAddOutlined />} disabled={readOnly}
-            aria-label="逐项编辑检材" onClick={() => setEvidenceMode('manual')} />
-        </Tooltip>
-      </Space>
-    </div>
-  )
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'batch') return (
     <div className="guided-review-card__evidence-editor">
       <fieldset disabled={readOnly} className="guided-review-card__fieldset">
@@ -419,36 +400,6 @@ export function GuidedReviewCard({
             updateReport('introduction.evidence_list', items)
             onEvidenceCompletenessChange?.(false)
           }} onConfirmComplete={() => onEvidenceCompletenessChange?.(true)} />
-        <div className="guided-review-card__evidence-icon-actions guided-review-card__evidence-icon-actions--end">
-          <Tooltip title="改用逐项编辑">
-            <Button shape="circle" size="large" className="guided-review-icon-action"
-              icon={<FileAddOutlined />} aria-label="改用逐项编辑"
-              onClick={() => setEvidenceMode('manual')} />
-          </Tooltip>
-        </div>
-      </fieldset>
-    </div>
-  )
-  if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'manual') return (
-    <div className="guided-review-card__evidence-editor">
-      <fieldset disabled={readOnly} className="guided-review-card__fieldset">
-        <EvidenceEditor items={report.introduction.evidence_list || []} fieldStates={fieldStates} compactActions
-          onChange={items => {
-            updateReport('introduction.evidence_list', items)
-            onEvidenceCompletenessChange?.(false)
-          }} />
-        <div className="guided-review-card__evidence-icon-actions guided-review-card__evidence-icon-actions--end">
-          <Tooltip title="完成补充">
-            <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
-              icon={<CheckCircleOutlined />}
-              aria-label="完成检材补充并确认完整" onClick={() => onEvidenceCompletenessChange?.(true)} />
-          </Tooltip>
-          <Tooltip title="改用快捷批量补充">
-            <Button shape="circle" size="large" className="guided-review-icon-action"
-              icon={<FileSearchOutlined />} aria-label="改用快捷批量补充"
-              onClick={() => setEvidenceMode('batch')} />
-          </Tooltip>
-        </div>
       </fieldset>
     </div>
   )
@@ -464,7 +415,7 @@ export function GuidedReviewCard({
         <Tooltip title="不完整，手工添加检材">
           <Button shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
             icon={<FileAddOutlined />} aria-label="检材信息不完整，手工添加检材"
-            onClick={() => setEvidenceMode('choose')} />
+            onClick={() => setEvidenceMode('batch')} />
         </Tooltip>
       </Space>
     </div>

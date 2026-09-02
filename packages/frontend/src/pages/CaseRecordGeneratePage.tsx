@@ -1,6 +1,6 @@
 // 第 12 层：FE_Pages — 基于案件 ID、使用旧版生产映射的完整编辑器。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DownloadOutlined } from '@ant-design/icons'
+import { SaveOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Space, Spin, message } from 'antd'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
@@ -364,11 +364,10 @@ export default function CaseRecordGeneratePage() {
   } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.discNumber) {
     guidedSpecialContent = archiveCompletionPanel
   } else if (currentGuidedAction?.kind === 'ready') {
-    guidedSpecialContent = <Space direction="vertical" size="middle" className="guided-review-ready-actions">
-      <Button type="primary" icon={<DownloadOutlined />}
-        loading={exporting || exportPreparing} onClick={requestExport}>单独导出 Word</Button>
-      {archiveCompletionPanel}
-    </Space>
+    guidedSpecialContent = <Button type="primary" size="large" icon={<SaveOutlined />}
+      loading={session.autosave.draftState.status === 'saving' || session.photoAssets.navigationUnsafe}
+      disabled={!session.editingEnabled}
+      onClick={() => { void handleBackToWorkbench() }}>保存并退出</Button>
   }
   const guidedInteractionDisabled = !session.editingEnabled
     || exportPreparing || exportDirectory.busy || exporting
@@ -401,7 +400,6 @@ export default function CaseRecordGeneratePage() {
               updateReport={updateReport}
               readOnly={guidedInteractionDisabled}
               specialContent={guidedSpecialContent}
-              fieldStates={session.draft?.field_states}
               onEvidenceCompletenessChange={confirmed => {
                 session.setEvidenceCompletenessConfirmed(confirmed)
                 if (session.editingEnabled) setReviewStatus('存在未导出修改')

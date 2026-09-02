@@ -47,8 +47,8 @@ describe('GuidedReviewView text confirmation', () => {
 
     const input = screen.getByRole('textbox', { name: '文号' })
     const enterKey = screen.getByRole('button', { name: '确认并进入下一步' })
-      .querySelector('svg[data-direction="right"]')
-    expect(enterKey).toBeInstanceOf(SVGElement)
+      .querySelector('.anticon-arrow-right')
+    expect(enterKey).toBeInstanceOf(HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: '确认并进入下一步' }))
     fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
