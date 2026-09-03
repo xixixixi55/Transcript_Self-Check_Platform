@@ -3,13 +3,26 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: 现有场景及主软件单一显示场景已于 2026-08-25 同步到 openspec/specs/electronic-inspection-record/spec.md
+spec_sync_evidence: Word 内容预览不展示委托单位前缀的最终行为已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-029
 
 ## 目标
 
 在不改变报告解析、字段数据结构、上传、附件处理和 Word 导出行为的前提下，为平台建立现代政务工作台全局外壳，并在电子数据检查笔录流程中保留已验收的审核编辑页样板。
 
 本任务为 Level 2，仅维护本文件；不创建 proposal、spec 或 design，不实现其他五类未开放文书。
+
+## 反馈迭代：Word 内容预览移除委托单位前缀
+
+- [x] 从案件 Word 内容预览移除“委托单位前缀”独立编辑项及对应历史信息展示，保留“（一）委托单位”编辑；旧前缀数据被忽略，正式 Word 只输出委托单位。
+- [x] 删除仅服务于前缀/委托单位双列展示的废弃样式，并更新现有前端测试覆盖字段隐藏与委托单位编辑。
+- [x] 核对 delta 与实现、同步 living spec，并运行前端定向测试、`npm run verify:quick`、scoped strict docs、Impeccable detector 与 scoped `git diff --check`。
+
+### 本轮验证记录
+
+- 前端定向 Vitest：`RecordEditorForm.test.tsx` 与 `useGuidedReviewCards.test.ts` 共 2 个测试文件、36 项通过。
+- `npm run verify:quick` 通过，包含架构、类型、治理文档与仓库资产检查。
+- Impeccable detector 仅报告 `reviewWorkspace.css` 中本次修改前既有的侧边强调线和宽度动画警告；本次删除前缀字段及废弃双列样式未新增检测项。
+- living spec 已同步；scoped strict docs 14 项、0 drift，scoped `git diff --check` 通过。
 
 ## 第十二阶段：审核章节标题反馈补丁
 
@@ -748,3 +761,44 @@ spec_sync_evidence: 现有场景及主软件单一显示场景已于 2026-08-25 
 - 默认设置操作栏反馈修正后，确认此前对模版列表操作列的误改已撤回；默认设置与模版管理定向 Vitest 2 files / 7 passed，前端 TypeScript 类型检查通过。真实浏览器在 1440×900 的顶部、306px 中段和586px 底部滚动位置均保持操作栏可见，中段操作栏底边与主滚动区底边同为 900px；390×844 下操作栏底边与滚动区底边同为 844px，两个按钮均无可见文字且保留“重新加载”“保存默认设置”无障碍名称，页面无横向溢出；scoped `git diff --check` 通过。
 - 根据反馈进一步精简默认设置常驻操作栏：移除“重新加载”图标，仅保留“保存默认设置”主操作；加载失败和版本冲突提示中的重新加载入口继续作为异常恢复能力保留。默认设置定向 Vitest 1 file / 3 passed、前端 TypeScript 类型检查、Impeccable 检测和 scoped `git diff --check` 均通过。
 - 根据反馈在检查方法、数据摘要和检查要求标题右侧增加“选填”次级提示，明确三个默认值均为可选项。默认设置定向 Vitest 1 file / 3 passed、前端 TypeScript 类型检查和 scoped `git diff --check` 通过；Impeccable 仅报告本次范围外既有 Sidebar 布局过渡告警。
+
+## 第二十六阶段：修复重开案件后检材完整性不进入此前已处理
+
+### 回归原因与修复
+
+- [x] 复现并确认：检材完整性 `confirmed` 已由草稿 `field_states` 正确持久化，但獬豸助手的历史可重访投影未登记该稳定目标，导致首次确认只出现在本次会话，重新进入后从“此前已处理”消失。
+- [x] 将已持久化的检材完整性确认独立投影为“检材完整性 / 已确认”，并纳入历史可重访目标；点击后继续在獬豸助手中打开原确认控件。
+- [x] 保持该人工确认不进入报告、Word 内容预览或 Word 导出字段；未确认及因检材变化重置为 `pending` 时仍作为待处理事项显示。
+- [x] 增加页面级回归，覆盖服务端草稿已有 `confirmed`、重新打开案件、在“此前已处理”显示并可重新进入确认控件。
+
+### 影响范围
+
+- Level 1 既有合同回归；仅影响 Layer 10 FE_Hooks、Layer 11 FE_Components 与页面接线，不修改共享类型、后端接口、持久化格式或 Word 合同。
+- 复用第二十至二十一阶段的检材完整性状态事实源，以及既有“此前已处理”交互，不新增视觉样式。
+
+### 第二十六阶段验证记录
+
+- 失败用例先复现重开案件后找不到“修改检材完整性”；修复后该页面级用例通过，并验证点击后仍打开原“确认检材信息完整”控件。
+- 獬豸助手投影、面板组件和案件页面定向 Vitest 共 3 files / 55 passed；前端 TypeScript 类型检查通过。
+- `verify:quick` 通过，含架构、类型、治理、文档与仓库资产检查；Impeccable 对受影响界面文件检测返回 0 项。
+
+## 第二十七阶段：修复案件简要情况确认在重开后丢失
+
+### 回归原因与修复
+
+- [x] 复现并确认：案件简要情况的人工确认仅保存在页面组件状态中，重新打开案件后会再次生成待确认事项。
+- [x] 使用既有草稿 `field_states` 保存案件简要情况确认状态，并由该持久化事实派生是否继续询问。
+- [x] 将已确认且未改写的案件简要情况投影到“此前已处理”；点击后继续在獬豸助手中打开原文本核对控件。
+- [x] 后端保留该控制状态，且确认标记不进入报告正文或 Word 导出内容。
+- [x] 增加后端持久化回归与页面级重开回归；主取证软件和检材照片逻辑保持不变。
+
+### 影响范围
+
+- 复用既有 `FieldState` 草稿结构和自动保存链路，不新增共享类型、接口、数据库表、报告字段、样式或 Word 合同。
+- 影响 Layer 10 FE_Hooks、Layer 12 FE_Pages 与既有后端字段来源服务。
+
+### 第二十七阶段验证记录
+
+- 失败基线：后端回归因 `introduction.case_summary.confirmation` 被丢弃而失败；页面重开后无法从“此前已处理”重新进入案件简要情况。
+- 修复后字段来源服务定向 Pytest 3 passed；獬豸助手投影、面板组件和案件页面定向 Vitest 共 3 files / 56 passed；前端 TypeScript 类型检查通过。
+- `verify:quick` 与限定变更包的 `verify:docs:strict` 均通过；人工视觉与 Word 验收 N/A（本次不修改界面样式、报告正文或 Word 合同）。

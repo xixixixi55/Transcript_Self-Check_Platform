@@ -150,8 +150,6 @@ export function buildReportHistory(
   const introductionFields = compactHistoryFields([
     historyField('文号', report.document_number, isUserProvided(fieldStates, 'document_number'),
       REVIEW_TARGET_IDS.documentNumber),
-    historyField('委托单位前缀', report.introduction.entrust_unit_prefix,
-      isUserProvided(fieldStates, 'introduction.entrust_unit_prefix'), REVIEW_TARGET_IDS.entrustUnit),
     historyField('委托单位', report.introduction.entrust_unit,
       isUserProvided(fieldStates, 'introduction.entrust_unit'), REVIEW_TARGET_IDS.entrustUnit),
     historyField('委托人员', report.introduction.entrust_persons.join('、'),

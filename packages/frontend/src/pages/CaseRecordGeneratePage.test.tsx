@@ -15,7 +15,8 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let events: string[] = []
   let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
   let leaseFailure = false, leaseConflict = false
-  let showCompletedArchive = false, showGuidedReady = false, showHandledHistory = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
+  let showCompletedArchive = false, showGuidedReady = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
+  let caseSummaryConfirmationSaved = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
@@ -24,7 +25,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showHandledHistory = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -56,6 +57,24 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
             document_number: {
               field_path: 'document_number', source: 'user', confirmation: 'confirmed',
               revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
+            },
+          }
+        }
+        if (showHandledCompleteness && value.draft) {
+          value.draft.field_states = {
+            ...value.draft.field_states,
+            'introduction.evidence_list.completeness': {
+              field_path: 'introduction.evidence_list.completeness', source: 'user', confirmation: 'confirmed',
+              revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
+            },
+          }
+        }
+        if ((showHandledCaseSummary || caseSummaryConfirmationSaved) && value.draft) {
+          value.draft.field_states = {
+            ...value.draft.field_states,
+            'introduction.case_summary.confirmation': {
+              field_path: 'introduction.case_summary.confirmation', source: 'user', confirmation: 'confirmed',
+              revision: 1, last_changed_at: '2026-09-03T00:00:00Z',
             },
           }
         }
@@ -140,6 +159,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         } } } },
       }
       const request = body as { draft: CaseDraft; shared_defaults_patch?: Record<string, unknown> | null }
+      caseSummaryConfirmationSaved = request.draft.field_states['introduction.case_summary.confirmation']?.confirmation === 'confirmed'
       const sharedDefaultsSaveStatus = failSharedDefaults
         ? { status: 'failed', revision: 0, error_code: 'SYNTHETIC_DEFAULT_FAILURE' }
         : request.shared_defaults_patch
@@ -204,6 +224,35 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
       .toContain('请输入文号'))
     expect(screen.getByRole('textbox', { name: '文号' })).toBeTruthy()
+    expect(document.querySelector('.review-editor-form')).toBeNull()
+  }, 15000)
+
+  it('restores confirmed evidence completeness under previously handled after reopening the case', async () => {
+    showHandledCompleteness = true
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /查看已填内容与待办/ }))
+    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
+    const completenessButton = within(panel).getByRole('button', { name: '修改检材完整性' })
+    expect(completenessButton.textContent).toContain('已确认')
+    fireEvent.click(completenessButton)
+
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('请确认检材完整性'))
+    expect(screen.getByRole('button', { name: '确认检材信息完整' })).toBeTruthy()
+  }, 15000)
+
+  it('restores a confirmed case summary under previously handled after reopening the case', async () => {
+    showHandledCaseSummary = true
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /查看已填内容与待办/ }))
+    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
+    fireEvent.click(within(panel).getByRole('button', { name: '修改案件简要情况' }))
+
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('请输入案件简要情况'))
+    expect(screen.getByRole('textbox', { name: '案件简要情况' })).toBeTruthy()
     expect(document.querySelector('.review-editor-form')).toBeNull()
   }, 15000)
 
@@ -421,26 +470,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await new Promise(resolve => setTimeout(resolve, 1200))
     expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
-  it('saves an explicitly cleared entrust-unit prefix only to the current draft', async () => {
-    renderPage()
-    await openFullEditor()
-    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
-    await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-    fireEvent.click(screen.getByText('SYNTHETIC-PREFIX'))
-    const input = screen.getByDisplayValue('SYNTHETIC-PREFIX')
-    fireEvent.change(input, { target: { value: '' } })
-    fireEvent.blur(input)
-
-    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
-    const request = patchMock.mock.calls[0][1] as {
-      draft: CaseDraft
-      shared_defaults_patch?: Record<string, unknown> | null
-    }
-    expect(request.draft.report.introduction.entrust_unit_prefix).toBe('')
-    expect(request.draft.report.introduction.entrust_unit).toBe('SYNTHETIC-UNIT')
-    expect(request.shared_defaults_patch).toBeNull()
-  }, 15000)
-
   it.each(['archive_queued', 'archive_deferred'] as const)('accepts and autosaves a YP number without medium guidance while lifecycle is %s', async lifecycle => {
     initialLifecycle = lifecycle
     renderPage()
@@ -498,6 +527,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     renderPage()
     await screen.findByText('请确认案件简要情况')
     fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
+    await waitFor(() => expect(patchMock).toHaveBeenCalled())
+    const savedDraft = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft
+    expect(savedDraft.field_states['introduction.case_summary.confirmation']).toEqual(expect.objectContaining({
+      source: 'user', confirmation: 'confirmed',
+    }))
     expect(await screen.findByRole('button', { name: /保存并退出/ })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '更新盘号映射' })).toBeNull()
     expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
@@ -508,9 +542,8 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
   it('returns to the workbench from the completed guided review through save and exit', async () => {
     showGuidedReady = true
+    showHandledCaseSummary = true
     renderPage()
-    await screen.findByText('请确认案件简要情况')
-    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
     fireEvent.click(await screen.findByRole('button', { name: /保存并退出/ }))
     expect(await screen.findByText('工作台路由')).toBeTruthy()
   }, 15000)

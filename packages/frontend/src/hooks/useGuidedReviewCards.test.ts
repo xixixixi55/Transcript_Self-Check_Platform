@@ -34,6 +34,7 @@ describe('guided review projection', () => {
         expect.objectContaining({ label: '委托人员', value: 'SYNTHETIC-PERSON' }),
       ]),
     }))
+    expect(JSON.stringify(projection.history)).not.toContain('委托单位前缀')
     expect(JSON.stringify(projection.history)).not.toMatch(
       /SYNTHETIC-TASK|revision|Worker|worker|令牌|token|[A-Z]:\\/,
     )

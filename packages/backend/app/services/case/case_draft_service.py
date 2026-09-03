@@ -213,7 +213,6 @@ def _initialize_draft(
             DEFAULT_INSPECTION_REQUIREMENT,
         )
     candidates = (
-        ("introduction.entrust_unit_prefix", ("introduction", "entrust_unit_prefix"), defaults.get("entrust_unit_prefix"), None),
         ("introduction.inspection_place", ("introduction", "inspection_place"), defaults.get("inspection_place"), DEFAULT_INSPECTION_PLACE),
         ("introduction.inspection_requirement", ("introduction", "inspection_requirement"), defaults.get("inspection_requirement"), DEFAULT_INSPECTION_REQUIREMENT),
         ("inspection.method", ("inspection", "method"), defaults.get("inspection_method"), DEFAULT_INSPECTION_METHOD),

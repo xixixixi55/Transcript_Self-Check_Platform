@@ -341,10 +341,7 @@ def _flatten_report(report: dict) -> dict:
     flat = {
         "title": report.get("title", ""),
         "document_number": report.get("document_number", ""),
-        "entrust_unit": (
-            str(intro.get("entrust_unit_prefix", "")).strip()
-            + str(intro.get("entrust_unit", "")).strip()
-        ),
+        "entrust_unit": str(intro.get("entrust_unit", "")).strip(),
         "entrust_persons_text": format_entrust_persons(intro.get("entrust_persons")),
         "entrust_time": intro.get("entrust_time", ""),
         "case_summary": intro.get("case_summary", ""),

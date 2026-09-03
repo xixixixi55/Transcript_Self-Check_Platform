@@ -81,7 +81,7 @@ def test_canonical_to_inspection_report_preserves_identifiers_and_order():
     assert report["inspection"]["result"]["software_name"] == "Synthetic forensic tool"
 
 
-def test_entrust_unit_prefix_survives_canonical_compatibility_projection():
+def test_deprecated_entrust_unit_prefix_is_dropped_from_canonical_projection():
     legacy = {
         "title": "Synthetic inspection",
         "document_number": "SYNTHETIC-DOC-001",
@@ -92,19 +92,10 @@ def test_entrust_unit_prefix_survives_canonical_compatibility_projection():
     }
 
     canonical = inspection_report_to_canonical(legacy).canonical_case
-    assert canonical.case_info.introduction.entrust_unit_prefix == "SYNTHETIC-PUBLIC-SECURITY"
+    assert not hasattr(canonical.case_info.introduction, "entrust_unit_prefix")
     projected = canonical_to_inspection_report(canonical)
-    assert projected["introduction"]["entrust_unit_prefix"] == "SYNTHETIC-PUBLIC-SECURITY"
+    assert "entrust_unit_prefix" not in projected["introduction"]
     assert projected["introduction"]["entrust_unit"] == "SYNTHETIC-STATION"
-
-    legacy["introduction"]["entrust_unit_prefix"] = ""
-    empty = inspection_report_to_canonical(legacy).canonical_case
-    assert empty.case_info.introduction.entrust_unit_prefix == ""
-    assert canonical_to_inspection_report(empty)["introduction"]["entrust_unit_prefix"] == ""
-
-    del legacy["introduction"]["entrust_unit_prefix"]
-    missing = inspection_report_to_canonical(legacy).canonical_case
-    assert missing.case_info.introduction.entrust_unit_prefix == ""
 
 
 def test_canonical_model_supports_all_material_states_and_identifier_types():

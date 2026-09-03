@@ -13,7 +13,7 @@ const getMock = vi.mocked(axios.get)
 const putMock = vi.mocked(axios.put)
 const defaults: SharedDefaults = {
   schema_version: 1, deployment_instance_id: 'SYNTHETIC-DEPLOYMENT', revision: 4,
-  entrust_unit_prefix: 'SYNTHETIC-PREFIX', document_number: 'SYNTHETIC-DOC',
+  document_number: 'SYNTHETIC-DOC',
   document_number_template: { prefix: 'SYN-TEST〔2026〕', suffix: '号' },
   inspection_place: 'SYNTHETIC-PLACE', inspection_method: 'SYNTHETIC-METHOD',
   hardware_device: 'SYNTHETIC-DEVICE',
@@ -48,6 +48,7 @@ describe('useSharedDefaultsSettings', () => {
     }))
     expect(sharedDefaultsPatch(values, defaults.document_number, true)).not.toHaveProperty('disc_number_prefix')
     expect(sharedDefaultsPatch(values, defaults.document_number, true)).not.toHaveProperty('extraction_method')
+    expect(sharedDefaultsPatch(values, defaults.document_number, true)).not.toHaveProperty('entrust_unit_prefix')
 
     await act(async () => { await result.current.save(values) })
 

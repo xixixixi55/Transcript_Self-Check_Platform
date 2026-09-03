@@ -653,12 +653,6 @@
   font-weight: 600;
 }
 
-.review-field-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-}
-
 .review-case-summary-whitespace {
   margin-top: 8px;
 }
@@ -1343,11 +1337,6 @@
   .material-photo-overflow__list,
   .material-photo-summary {
     grid-template-columns: 1fr;
-  }
-
-  .review-field-row {
-    grid-template-columns: 1fr;
-    gap: 0;
   }
 
   .review-result-field {

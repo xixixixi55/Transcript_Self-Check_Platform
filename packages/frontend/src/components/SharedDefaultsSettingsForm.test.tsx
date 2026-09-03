@@ -37,7 +37,7 @@ const inspectors = [
 ]
 const defaults = {
   schema_version: 1, deployment_instance_id: 'SYNTHETIC-DEPLOYMENT', revision: 2,
-  entrust_unit_prefix: 'SYNTHETIC-PREFIX', document_number: 'SYNTHETIC-DOC',
+  document_number: 'SYNTHETIC-DOC',
   document_number_template: { prefix: 'SYN-TEST〔2026〕', suffix: '号' },
   inspection_place: 'SYNTHETIC-PLACE', inspection_method: 'SYNTHETIC-METHOD',
   hardware_device: 'SYNTHETIC-DEVICE',
@@ -74,6 +74,7 @@ describe('SharedDefaultsSettingsForm', () => {
     render(<SharedDefaultsSettingsForm />)
 
     expect(await screen.findByDisplayValue('SYN-TEST〔2026〕', {}, { timeout: 5_000 })).toBeTruthy()
+    expect(screen.queryByLabelText('委托单位前缀')).toBeNull()
     expect(screen.getByDisplayValue('号')).toBeTruthy()
     expect(screen.getByText('SYN-TEST〔2026〕142号')).toBeTruthy()
     expect((screen.getByLabelText(/^检查要求/) as HTMLTextAreaElement).value).toBe('SYNTHETIC-INSPECTION-REQUIREMENT')
@@ -110,6 +111,7 @@ describe('SharedDefaultsSettingsForm', () => {
       }),
     ))
     const request = putMock.mock.calls[0]?.[1] as { values?: Record<string, unknown> }
+    expect(request.values).not.toHaveProperty('entrust_unit_prefix')
     expect(request.values).not.toHaveProperty('disc_number_prefix')
     expect(request.values).not.toHaveProperty('extraction_method')
     expect(await screen.findByText('笔录默认设置已保存', {}, { timeout: 5_000 })).toBeTruthy()

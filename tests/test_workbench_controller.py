@@ -350,6 +350,17 @@ def test_http_revision_conflict_and_defaults_are_stable(app_services):
         conflict = client.patch(f"/api/v1/workbench/cases/{case_id}/draft", json=body)
         assert conflict.status_code == 409
         defaults = client.get("/api/v1/workbench/defaults").json()["data"]
+        assert "entrust_unit_prefix" not in defaults
+        rejected_prefix = client.put(
+            "/api/v1/workbench/defaults",
+            json={
+                "values": {"entrust_unit_prefix": "SYNTHETIC-LEGACY-PREFIX"},
+                "expected_revision": defaults["revision"],
+                "identity": IDENTITY,
+            },
+        )
+        assert rejected_prefix.status_code == 422
+        assert rejected_prefix.json()["detail"]["code"] == "UNKNOWN_SHARED_DEFAULT_FIELD"
         saved = client.put("/api/v1/workbench/defaults", json={"values": {"document_number": "SYNTHETIC-DEFAULT"}, "expected_revision": defaults["revision"], "identity": IDENTITY})
         assert saved.status_code == 200
         assert saved.json()["data"]["document_number"] == "SYNTHETIC-DEFAULT"

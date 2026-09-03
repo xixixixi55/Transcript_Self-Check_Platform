@@ -261,22 +261,10 @@ describe('RecordEditorForm', () => {
     expect(screen.queryByText('当前内容末尾存在多余回车、空格或制表符，请检查并删除。')).toBeNull()
   })
 
-  it('委托单位前缀与委托单位使用响应式双列容器且标题精简', () => {
-    const view = render(<RecordEditorForm report={report} updateReport={vi.fn()} onExport={vi.fn()}
-      exporting={false} onBackToUpload={vi.fn()} deviceOptions={[]} photoFiles={[]}
-      onPhotoFilesChange={vi.fn()} />)
-
-    const row = view.container.querySelector('.review-field-row--entrust-unit')
-    expect(row).toBeTruthy()
-    expect(row?.textContent).toContain('委托单位前缀')
-    expect(row?.textContent).toContain('（一）委托单位')
-    expect(screen.queryByText('委托单位前缀（共享默认值）')).toBeNull()
-  })
-
-  it('单独编辑可为空的委托单位共享前缀，不改写报告识别单位', () => {
+  it('不展示委托单位前缀并保留委托单位编辑', () => {
     const updateReport = vi.fn()
     const reportWithPrefix = JSON.parse(JSON.stringify(report)) as InspectionReport
-    reportWithPrefix.introduction.entrust_unit_prefix = 'SYNTHETIC-公安分局'
+    ;(reportWithPrefix.introduction as unknown as Record<string, unknown>).entrust_unit_prefix = 'SYNTHETIC-公安分局'
     reportWithPrefix.introduction.entrust_unit = 'SYNTHETIC-派出所'
 
     render(<RecordEditorForm report={reportWithPrefix} updateReport={updateReport} onExport={vi.fn()}
@@ -284,9 +272,12 @@ describe('RecordEditorForm', () => {
       onPhotoFilesChange={vi.fn()} />)
 
     expect(screen.getByDisplayValue('SYNTHETIC-派出所')).toBeTruthy()
-    const prefix = screen.getByDisplayValue('SYNTHETIC-公安分局')
-    fireEvent.change(prefix, { target: { value: '' } })
-    expect(updateReport).toHaveBeenCalledWith('introduction.entrust_unit_prefix', '')
+    expect(screen.queryByText('委托单位前缀')).toBeNull()
+    expect(screen.queryByDisplayValue('SYNTHETIC-公安分局')).toBeNull()
+    fireEvent.change(screen.getByDisplayValue('SYNTHETIC-派出所'), {
+      target: { value: 'SYNTHETIC-新委托单位' },
+    })
+    expect(updateReport).toHaveBeenCalledWith('introduction.entrust_unit', 'SYNTHETIC-新委托单位')
   })
 
   it('将委托人的常见分隔符统一显示为顿号并按数组保存', () => {

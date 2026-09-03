@@ -6,7 +6,6 @@ import type { HashAlgorithm, InspectorSnapshot, SharedDefaults } from '@biji/sha
 import { createClientIdentity } from './useEditLease'
 
 export interface SharedDefaultsFormValues {
-  entrustUnitPrefix: string
   documentNumberPrefix: string
   documentNumberSuffix: string
   inspectionPlace: string
@@ -31,7 +30,6 @@ function parseInspector(value: string, index: number): InspectorSnapshot {
 
 export function sharedDefaultsToForm(defaults: SharedDefaults): SharedDefaultsFormValues {
   return {
-    entrustUnitPrefix: defaults.entrust_unit_prefix,
     documentNumberPrefix: defaults.document_number_template?.prefix || '',
     documentNumberSuffix: defaults.document_number_template?.suffix || '',
     inspectionPlace: defaults.inspection_place,
@@ -53,7 +51,6 @@ export function sharedDefaultsPatch(
     values.documentNumberPrefix.trim() || values.documentNumberSuffix.trim(),
   )
   return {
-    entrust_unit_prefix: values.entrustUnitPrefix,
     document_number: hasDocumentNumberTemplate || hadDocumentNumberTemplate ? '' : legacyDocumentNumber,
     document_number_template: {
       prefix: values.documentNumberPrefix,

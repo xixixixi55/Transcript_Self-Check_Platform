@@ -111,7 +111,6 @@ export interface SharedDefaults {
   schema_version: WorkbenchSchemaVersion
   deployment_instance_id: string
   revision: number
-  entrust_unit_prefix: string
   /** 为兼容持久化部署而保留的旧版完整值默认项。 */
   document_number: string
   /** 快照到后续新案件中的格式；序号仍限定在案件范围内。 */

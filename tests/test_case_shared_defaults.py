@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 import sys
 from pathlib import Path
@@ -97,7 +98,7 @@ def test_shared_defaults_patch_is_sparse_and_rejects_unknown_fields(tmp_path: Pa
     assert error.value.code == "INVALID_SHARED_DEFAULTS"
 
 
-def test_entrust_unit_prefix_can_be_persisted_and_cleared(tmp_path: Path):
+def test_entrust_unit_prefix_is_no_longer_a_shared_default(tmp_path: Path):
     database = WorkbenchDatabase(
         database_path_for_deployment(tmp_path, "SYNTHETIC-ENTRUST-PREFIX"),
         "SYNTHETIC-ENTRUST-PREFIX",
@@ -106,20 +107,24 @@ def test_entrust_unit_prefix_can_be_persisted_and_cleared(tmp_path: Path):
 
     initial = repository.get()
     assert initial["hash_algorithm"] == "md5"
-    assert initial["entrust_unit_prefix"] == ""
+    assert "entrust_unit_prefix" not in initial
 
-    updated = repository.patch(
-        {"entrust_unit_prefix": "  SYNTHETIC-PUBLIC-SECURITY  "},
-        initial["revision"],
-    )
-    assert updated["defaults"]["entrust_unit_prefix"] == "SYNTHETIC-PUBLIC-SECURITY"
+    with database.transaction() as transaction:
+        transaction.execute(
+            "UPDATE shared_defaults SET values_json = ? WHERE deployment_instance_id = ?",
+            (
+                json.dumps({"entrust_unit_prefix": "SYNTHETIC-LEGACY-PREFIX"}),
+                database.deployment_instance_id,
+            ),
+        )
+    assert "entrust_unit_prefix" not in repository.get()
 
-    cleared = repository.patch(
-        {"entrust_unit_prefix": "   "},
-        updated["defaults"]["revision"],
-    )
-    assert cleared["status"] == "updated"
-    assert cleared["defaults"]["entrust_unit_prefix"] == ""
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        repository.patch(
+            {"entrust_unit_prefix": "SYNTHETIC-PUBLIC-SECURITY"},
+            initial["revision"],
+        )
+    assert error.value.code == "UNKNOWN_SHARED_DEFAULT_FIELD"
 
 
 def test_parser_non_empty_values_win_over_shared_defaults_without_mutating_inputs():
@@ -188,7 +193,7 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
         "attachments": {"disc_number": ""},
     }
     defaults = {
-        "entrust_unit_prefix": "SYNTHETIC-PREFIX",
+        "entrust_unit_prefix": "SYNTHETIC-LEGACY-PREFIX",
         "document_number": "SYNTHETIC-DOC-001",
         "inspection_place": "SYNTHETIC-SHARED-PLACE",
         "inspection_method": "SYNTHETIC-SHARED-METHOD",
@@ -204,7 +209,7 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
 
     initialized, field_states = _initialize_draft(copy.deepcopy(report), defaults)
 
-    assert initialized["introduction"]["entrust_unit_prefix"] == "SYNTHETIC-PREFIX"
+    assert "entrust_unit_prefix" not in initialized["introduction"]
     assert initialized["document_number"] == "SYNTHETIC-DOC-001"
     assert initialized["introduction"]["inspection_place"] == "SYNTHETIC-SHARED-PLACE"
     assert initialized["introduction"]["inspection_requirement"] == "SYNTHETIC-SHARED-REQUIREMENT"
@@ -221,7 +226,6 @@ def test_parser_blank_missing_and_empty_array_values_use_shared_defaults():
     assert initialized["attachments"]["disc_number"] == ""
     assert initialized["attachments"]["disc_number"] != defaults["disc_number_prefix"]
     assert all(field_states[path]["source"] == "system_default" for path in (
-        "introduction.entrust_unit_prefix",
         "document_number",
         "introduction.inspection_place",
         "introduction.inspection_requirement",

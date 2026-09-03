@@ -11,7 +11,10 @@ from ...repository.workbench.workbench_database import utc_now
 _SOURCE_VALUES = {"report", "user", "system_default"}
 _CONFIRMATION_VALUES = {"confirmed", "pending"}
 _STABLE_FIELDS = {"evidence_id", "snapshot_id", "inspector_id", "id", "selected_order"}
-_PERSISTED_CONTROL_FIELDS = {"introduction.evidence_list.completeness"}
+_PERSISTED_CONTROL_FIELDS = {
+    "introduction.evidence_list.completeness",
+    "introduction.case_summary.confirmation",
+}
 
 
 class FieldProvenanceService:

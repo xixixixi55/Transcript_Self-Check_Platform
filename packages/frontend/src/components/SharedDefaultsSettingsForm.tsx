@@ -140,9 +140,6 @@ export function SharedDefaultsSettingsForm() {
             <h2 id="shared-defaults-basic-title">案件基础信息</h2>
           </div>
           <div className="shared-defaults-settings__grid">
-            <Form.Item name="entrustUnitPrefix" label="委托单位前缀">
-              <Input maxLength={200} placeholder="例如：宜都公安分局" allowClear />
-            </Form.Item>
             <Form.Item className="shared-defaults-settings__wide" label="文号格式">
               <div className="shared-defaults-settings__document-number-format">
                 <Form.Item name="documentNumberPrefix" noStyle>

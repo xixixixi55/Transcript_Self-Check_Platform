@@ -59,10 +59,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
     commands.append(_heading("一、绪论"))
 
     # (一)～(九)
-    entrust_unit = (
-        str(intro.get("entrust_unit_prefix", "")).strip()
-        + str(intro.get("entrust_unit", "")).strip()
-    )
+    entrust_unit = str(intro.get("entrust_unit", "")).strip()
     commands.append(_p(f"（一）委托单位：{entrust_unit}"))
     commands.append(_p(f"（二）委 托 人：{format_entrust_persons(intro.get('entrust_persons'))}"))
     commands.append(_p(f"（三）委托时间：{intro.get('entrust_time', '')}"))

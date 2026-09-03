@@ -10,6 +10,7 @@ from app.services.case.field_provenance_service import FieldProvenanceService  #
 
 
 EVIDENCE_COMPLETENESS_FIELD_PATH = "introduction.evidence_list.completeness"
+CASE_SUMMARY_CONFIRMATION_FIELD_PATH = "introduction.case_summary.confirmation"
 
 
 def _report(model: str = ""):
@@ -58,3 +59,21 @@ def test_preserves_submitted_evidence_completeness_confirmation():
     states = service.reconcile(report, initial_states, report, submitted)
 
     assert states[EVIDENCE_COMPLETENESS_FIELD_PATH] == submitted[EVIDENCE_COMPLETENESS_FIELD_PATH]
+
+
+def test_preserves_submitted_case_summary_confirmation():
+    service = FieldProvenanceService()
+    report = _report()
+    initial_states = service.initialize(report)
+    submitted = copy.deepcopy(initial_states)
+    submitted[CASE_SUMMARY_CONFIRMATION_FIELD_PATH] = {
+        "field_path": CASE_SUMMARY_CONFIRMATION_FIELD_PATH,
+        "source": "user",
+        "confirmation": "confirmed",
+        "revision": 1,
+        "last_changed_at": "2026-09-03T00:00:00Z",
+    }
+
+    states = service.reconcile(report, initial_states, report, submitted)
+
+    assert states[CASE_SUMMARY_CONFIRMATION_FIELD_PATH] == submitted[CASE_SUMMARY_CONFIRMATION_FIELD_PATH]

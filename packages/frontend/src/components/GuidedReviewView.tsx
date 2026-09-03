@@ -15,6 +15,7 @@ const xiezhiAssistantStatesImage = new URL('./xiezhi-assistant-states.png', impo
 interface Props {
   conversationKey: string
   history: GuidedReviewHistoryItem[]
+  previouslyHandledFields?: GuidedReviewHistoryField[]
   currentAction: GuidedReviewAction | null
   allActions: GuidedReviewAction[]
   hasResponse: boolean
@@ -118,8 +119,20 @@ function actionConversationLabel(action: GuidedReviewAction): string {
   return action.title.replace(/^请(?:先)?/, '').replace(/[。！？!?]$/, '')
 }
 
-function handledHistoryItems(history: GuidedReviewHistoryItem[]): HandledHistoryItem[] {
-  return history.flatMap(group => {
+function handledHistoryItems(
+  history: GuidedReviewHistoryItem[],
+  persistedFields: GuidedReviewHistoryField[],
+): HandledHistoryItem[] {
+  const persisted = persistedFields.flatMap((field, index) => (
+    field.userProvided && canRevisitGuidedHistoryField(field) ? [{
+      id: `persisted-field-${index}-${field.targetId || field.label}`,
+      label: field.label,
+      matchLabel: field.label,
+      value: field.value,
+      targetId: field.targetId,
+      field,
+    }] : []))
+  return [...persisted, ...history.flatMap(group => {
     const fields = (group.fields || []).flatMap((field, index) => (
       field.userProvided && canRevisitGuidedHistoryField(field) ? [{
       id: `${group.id}-field-${index}`,
@@ -157,7 +170,7 @@ function handledHistoryItems(history: GuidedReviewHistoryItem[]): HandledHistory
       }]
     })
     return [...fields, ...materials]
-  })
+  })]
 }
 
 function mascotMood(currentAction: GuidedReviewAction | null, completionActive: boolean): MascotMood {
@@ -169,7 +182,7 @@ function mascotMood(currentAction: GuidedReviewAction | null, completionActive: 
 }
 
 export function GuidedReviewView({
-  conversationKey, history, currentAction, allActions, hasResponse, onSelectAction,
+  conversationKey, history, previouslyHandledFields = [], currentAction, allActions, hasResponse, onSelectAction,
   onRevisitAction, onRevisitHandledField,
   onConfirmCurrentAction, confirmCurrentActionDisabled = false,
   canReturnToPrevious = false, canReturnToNext = false,
@@ -286,7 +299,7 @@ export function GuidedReviewView({
       .filter((label): label is string => Boolean(label)),
     ...revisitableCompletedTurns.map(turn => actionConversationLabel(turn.action)),
   ])
-  const previouslyHandledItems = handledHistoryItems(history).filter(item => (
+  const previouslyHandledItems = handledHistoryItems(history, previouslyHandledFields).filter(item => (
     !activeOrSessionLabels.has(item.matchLabel)
   ))
   const confirmTextResponse = (event: React.KeyboardEvent<HTMLDivElement>) => {

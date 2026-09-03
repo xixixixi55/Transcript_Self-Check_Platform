@@ -2,8 +2,27 @@
 
 workflow_level: 3
 
+spec_sync_status: reconciled
+spec_sync_evidence: 委托单位前缀彻底废除行为已同步到 electronic-inspection-record REQ-007 与 data-model SharedDefaults 合同
+
 > 规格：`openspec/changes/audit-edit-enhancement/specs/electronic-inspection-record/spec.md`
 > 按架构层级从低到高排列（Layer 2、10 → 12、21）；包含审核编辑增强与既有解析/导出缺陷修复。
+
+## 反馈迭代：彻底废除委托单位前缀
+
+- [x] 更新共享 `InspectionReport`、`SharedDefaults`、Canonical 类型与后端规范模型，移除 `entrust_unit_prefix` 公共字段；旧数据读取时忽略并在规范投影中丢弃。
+- [x] 从共享默认值白名单和新案件初始化移除前缀；旧持久值不再通过 API 返回，写入请求按未知字段拒绝。
+- [x] 修改模板正式导出与 batch 兼容导出，两条 Word 路径只输出 `entrust_unit`，即使旧案件携带前缀也不得写入 Word。
+- [x] 移除前端默认设置、审核预览和历史信息中的字段及废弃样式，更新测试 fixture 与回归断言。
+- [x] 核对 delta、设计与实现，sync living specs，并执行受影响前后端测试、`npm run verify:quick`、scoped strict docs、Impeccable detector 与 scoped `git diff --check`。
+
+### 本轮验证记录
+
+- 失败基线：修改回归断言后旧实现得到 6 failed、64 passed，分别捕获两条 Word 路径、共享默认值、新案初始化和 Canonical 投影仍保留前缀。
+- 修正后后端受影响测试 109 passed、1 个既存 `ARCHIVE_CONFIGURED_ROOT_INVALID` 测试环境 warning；前端受影响测试 6 files、67 passed。
+- `npm run typecheck` 与 `npm run verify:quick` 通过，覆盖架构、共享/前端类型、治理文档和仓库资产检查。
+- Impeccable detector 仅报告 `reviewWorkspace.css` 中本次修改前既有的侧边强调线和宽度动画警告；本次删除字段及废弃布局未新增检测项。
+- 人工真实案件验收 N/A；两条 Word 路径使用携带旧前缀的 SYNTHETIC/TEST 数据自动断言只输出委托单位。scoped strict docs 与 scoped `git diff --check` 由最终门控确认。
 
 ---
 

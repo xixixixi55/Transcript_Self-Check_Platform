@@ -95,7 +95,6 @@ class PrimarySoftware(CanonicalBaseModel):
 
 
 class CanonicalCaseIntroduction(CanonicalBaseModel):
-    entrust_unit_prefix: str = ""
     entrust_unit: str = ""
     entrust_persons: list[str] = Field(default_factory=list)
     entrust_time: str = ""

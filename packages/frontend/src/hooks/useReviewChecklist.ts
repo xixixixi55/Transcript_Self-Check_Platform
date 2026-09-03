@@ -5,6 +5,7 @@ export type ReviewPendingSeverity = 'warning' | 'error'
 export type ReviewPendingKind = 'required_missing' | 'confirmation_required' | 'validation'
 
 export const EVIDENCE_COMPLETENESS_FIELD_PATH = 'introduction.evidence_list.completeness'
+export const CASE_SUMMARY_CONFIRMATION_FIELD_PATH = 'introduction.case_summary.confirmation'
 
 export interface ReviewPendingItem {
   id: string

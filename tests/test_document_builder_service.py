@@ -253,7 +253,7 @@ def test_build_document_uses_unextractable_reason_instead_of_identifiers():
     assert "543210987654321" not in paragraph_text
 
 
-def test_build_document_combines_entrust_unit_prefix_without_separator():
+def test_build_document_ignores_deprecated_entrust_unit_prefix():
     report = _report()
     report["introduction"]["entrust_unit_prefix"] = "SYNTHETIC-公安分局"
     report["introduction"]["entrust_unit"] = "SYNTHETIC-派出所"
@@ -264,16 +264,8 @@ def test_build_document_combines_entrust_unit_prefix_without_separator():
         for command in commands
         if command.get("type") == "paragraph"
     )
-    assert "（一）委托单位：SYNTHETIC-公安分局SYNTHETIC-派出所" in paragraph_text
-
-    report["introduction"]["entrust_unit_prefix"] = ""
-    commands = build_record_document(report)
-    paragraph_text = "\n".join(
-        command.get("props", {}).get("text", "")
-        for command in commands
-        if command.get("type") == "paragraph"
-    )
     assert "（一）委托单位：SYNTHETIC-派出所" in paragraph_text
+    assert "SYNTHETIC-公安分局" not in paragraph_text
 
 
 def test_build_document_result_names_all_evidence_items():

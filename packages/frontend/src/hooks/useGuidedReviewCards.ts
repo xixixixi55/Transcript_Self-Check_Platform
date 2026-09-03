@@ -4,7 +4,7 @@ import type {
   ArchiveMedium, ArchiveTaskCardSummary, CaseLifecycle, FieldState, InspectionReport, SourceAccessStatus,
 } from '@biji/shared/types'
 import type { ReviewPendingItem } from './useReviewChecklist'
-import { REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from './useReviewChecklist'
+import { CASE_SUMMARY_CONFIRMATION_FIELD_PATH, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from './useReviewChecklist'
 import {
   buildReportHistory,
   type GuidedReviewHistoryField,
@@ -69,6 +69,7 @@ export interface GuidedReviewProjectionInput {
 
 export interface GuidedReviewProjection {
   history: GuidedReviewHistoryItem[]
+  previouslyHandledFields: GuidedReviewHistoryField[]
   pendingItems: ReviewPendingItem[]
   allActions: GuidedReviewAction[]
   systemStatus: GuidedReviewSystemStatus | null
@@ -115,6 +116,28 @@ function backgroundArchiveDetail(task: ArchiveTaskCardSummary): string {
 
 function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHistoryItem[] {
   return buildReportHistory(input.report, input.fieldStates)
+}
+
+function buildPersistedHandledFields(
+  report: InspectionReport,
+  fieldStates?: Record<string, FieldState>,
+): GuidedReviewHistoryField[] {
+  const completeness = fieldStates?.['introduction.evidence_list.completeness']
+  const fields: GuidedReviewHistoryField[] = completeness?.source === 'user'
+    && completeness.confirmation === 'confirmed' ? [{
+    label: '检材完整性', value: '已确认', userProvided: true,
+    targetId: REVIEW_TARGET_IDS.evidenceCompleteness,
+  }] : []
+  const summaryConfirmation = fieldStates?.[CASE_SUMMARY_CONFIRMATION_FIELD_PATH]
+  const summaryWasEdited = fieldStates?.['introduction.case_summary']?.source === 'user'
+  if (summaryConfirmation?.source === 'user' && summaryConfirmation.confirmation === 'confirmed'
+    && report.introduction.case_summary.trim() && !summaryWasEdited) {
+    fields.push({
+      label: '案件简要情况', value: report.introduction.case_summary.trim(), userProvided: true,
+      targetId: REVIEW_TARGET_IDS.caseSummary,
+    })
+  }
+  return fields
 }
 
 function isSessionNavigationAction(action: GuidedReviewAction | null): action is GuidedReviewAction {
@@ -178,6 +201,7 @@ function pendingAction(item: ReviewPendingItem): GuidedReviewAction {
 const GUIDED_HISTORY_REVISIT_TARGETS = new Set<string>([
   ...ENTER_CONFIRM_TARGETS,
   ...DATE_PROMPT_TARGETS,
+  REVIEW_TARGET_IDS.evidenceCompleteness,
 ])
 
 function resolvedHistoryTarget(targetId: string | undefined): string | null {
@@ -242,7 +266,8 @@ const CASE_SUMMARY_PRECEDING_TARGETS = new Set<string>([
 
 export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput): GuidedReviewProjection {
   if (!input.report) return {
-    history: [], pendingItems: [], allActions: [], systemStatus: null, readyToGenerate: false,
+    history: [], previouslyHandledFields: [], pendingItems: [], allActions: [],
+    systemStatus: null, readyToGenerate: false,
   }
   const pendingItems = input.pendingItems.filter(item => !SYSTEM_OUTPUT_TARGETS.has(item.targetId))
   if (input.caseSummaryReviewed === false
@@ -306,7 +331,11 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   if (allActions.length === 0) allActions.push(readyToGenerate
     ? { id: 'ready', kind: 'ready', title: '当前审核已完成', description: '请保存并退出；返回案件工作台后可统一导出。' }
     : { id: 'waiting', kind: 'waiting', title: systemStatus ? `请稍候，${systemStatus.title}` : '请稍候，正在整理下一步', description: systemStatus?.detail || '当前没有需要立即填写的事项。' })
-  return { history: buildFactHistory(input), pendingItems, allActions, systemStatus, readyToGenerate }
+  return {
+    history: buildFactHistory(input),
+    previouslyHandledFields: buildPersistedHandledFields(input.report, input.fieldStates),
+    pendingItems, allActions, systemStatus, readyToGenerate,
+  }
 }
 
 export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {

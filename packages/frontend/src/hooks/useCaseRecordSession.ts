@@ -13,7 +13,7 @@ import { useTaskRecords } from './useTaskRecords'
 import { shouldHydrateServerDraft } from './useCaseDraftHydration'
 import { useCompletedArchiveResult } from './useCompletedArchiveResult'
 import { buildSourceReplacementRequest } from './useSourceAuthorizationRequests'
-import { EVIDENCE_COMPLETENESS_FIELD_PATH } from './useReviewChecklist'
+import { CASE_SUMMARY_CONFIRMATION_FIELD_PATH, EVIDENCE_COMPLETENESS_FIELD_PATH } from './useReviewChecklist'
 
 const ACTIVE_ARCHIVE_LIFECYCLES = new Set(['archive_queued', 'archiving'])
 
@@ -158,33 +158,39 @@ export function useCaseRecordSession(caseId: string) {
     setChangeToken(token)
   }, [editingEnabled])
 
-  const setEvidenceCompletenessConfirmed = useCallback((confirmed: boolean) => {
+  const setFieldConfirmed = useCallback((fieldPath: string, confirmed: boolean) => {
     if (!editingEnabled) return
     const token = changeTokenRef.current + 1
     changeTokenRef.current = token
     setDraft(current => {
       if (!current) return current
-      const previous = current.field_states[EVIDENCE_COMPLETENESS_FIELD_PATH]
+      const previous = current.field_states[fieldPath]
       const confirmation: FieldConfirmation = confirmed ? 'confirmed' : 'pending'
       const state: FieldState = {
-        field_path: EVIDENCE_COMPLETENESS_FIELD_PATH,
+        field_path: fieldPath,
         source: 'user',
         confirmation,
         revision: (previous?.revision ?? 0) + 1,
         last_changed_at: new Date().toISOString(),
       }
       localFieldStateEdits.current.push({
-        fieldPath: EVIDENCE_COMPLETENESS_FIELD_PATH,
+        fieldPath,
         state,
         token,
       })
       return {
         ...current,
-        field_states: { ...current.field_states, [EVIDENCE_COMPLETENESS_FIELD_PATH]: state },
+        field_states: { ...current.field_states, [fieldPath]: state },
       }
     })
     setChangeToken(token)
   }, [editingEnabled])
+  const setEvidenceCompletenessConfirmed = useCallback((confirmed: boolean) => {
+    setFieldConfirmed(EVIDENCE_COMPLETENESS_FIELD_PATH, confirmed)
+  }, [setFieldConfirmed])
+  const setCaseSummaryConfirmed = useCallback((confirmed: boolean) => {
+    setFieldConfirmed(CASE_SUMMARY_CONFIRMATION_FIELD_PATH, confirmed)
+  }, [setFieldConfirmed])
 
   const updatePhotoAssetRefs = useCallback(async (
     refs: OpaqueAssetRef[], expectedRefs: OpaqueAssetRef[],
@@ -261,7 +267,8 @@ export function useCaseRecordSession(caseId: string) {
   return {
     ...workbench, draft, report, defaults, identity, parseTask, taskRecords, lease, editingEnabled,
     leaseLost, autosave, retrySave,
-    updateReport, setEvidenceCompletenessConfirmed, updatePhotoAssetRefs, photoAssets, replaceSource, decideArchive, loadServerVersion,
+    updateReport, setEvidenceCompletenessConfirmed, setCaseSummaryConfirmed,
+    updatePhotoAssetRefs, photoAssets, replaceSource, decideArchive, loadServerVersion,
     completedArchive,
   }
 }

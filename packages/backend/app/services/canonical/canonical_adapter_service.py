@@ -190,7 +190,6 @@ def canonical_to_inspection_report(case: CanonicalInspectionCase) -> dict[str, A
         "document_number": case.case_info.document_number,
         "case_number": case.case_info.case_number,
         "introduction": {
-            "entrust_unit_prefix": intro.entrust_unit_prefix,
             "entrust_unit": intro.entrust_unit,
             "entrust_persons": list(intro.entrust_persons),
             "entrust_time": intro.entrust_time,
@@ -290,7 +289,6 @@ def inspection_report_to_canonical(
         document_number=_text(report.get("document_number")),
         case_number=_text(report.get("case_number")),
         introduction={
-            "entrust_unit_prefix": _text(introduction.get("entrust_unit_prefix")),
             "entrust_unit": _text(introduction.get("entrust_unit")),
             "entrust_persons": list(introduction.get("entrust_persons") or []),
             "entrust_time": _text(introduction.get("entrust_time")),

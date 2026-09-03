@@ -129,7 +129,6 @@ export interface InspectionReport {
   document_number_template?: DocumentNumberTemplate
   case_number?: string                   // 案件编号（从报告解析），用于生成文号
   introduction: {
-    entrust_unit_prefix?: string         // 委托单位共享前缀（允许为空）
     entrust_unit: string                 // (一) 委托单位
     entrust_persons: string[]            // (二) 委托人（多人，顿号分隔展示）
     entrust_time: string                 // (三) 委托时间

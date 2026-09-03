@@ -7,7 +7,7 @@ import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
 import { useRecordEditorCatalogs } from '../hooks/useRecordEditorCatalogs'
 import { useRecordExport } from '../hooks/useRecordExport'
 import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
-import { findMissingUnextractableReasonIndex, getReviewPendingItems, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
+import { CASE_SUMMARY_CONFIRMATION_FIELD_PATH, findMissingUnextractableReasonIndex, getReviewPendingItems, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import { useReviewPendingNavigation } from '../hooks/useReviewPendingNavigation'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
 import { isValidDateFieldValue, isValidMinuteTimeRangeValue, projectEvidenceDerivedContent } from '@biji/shared/utils'
@@ -42,7 +42,6 @@ export default function CaseRecordGeneratePage() {
   const [exportPreparing, setExportPreparing] = useState(false)
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
   const [reviewMode, setReviewMode] = useState<'guided' | 'full'>('guided')
-  const [caseSummaryReviewed, setCaseSummaryReviewed] = useState(false)
   const [fullEditorFocusRequest, setFullEditorFocusRequest] = useState({
     targetId: null as string | null, focusInteractive: false, sequence: 0,
   })
@@ -52,7 +51,6 @@ export default function CaseRecordGeneratePage() {
   const [downloadNameDialogOpen, setDownloadNameDialogOpen] = useState(false)
   useEffect(() => {
     setReviewMode('guided')
-    setCaseSummaryReviewed(false)
     setFullEditorFocusRequest({ targetId: null, focusInteractive: false, sequence: 0 })
     handledFullEditorFocusSequence.current = -1
     focusGuidedAfterSwitch.current = false
@@ -70,6 +68,9 @@ export default function CaseRecordGeneratePage() {
     () => projectedReport ? getReviewPendingItems(projectedReport, undefined, archiveMedium, session.draft?.field_states) : [],
     [archiveMedium, projectedReport, session.draft?.field_states],
   )
+  const caseSummaryState = session.draft?.field_states[CASE_SUMMARY_CONFIRMATION_FIELD_PATH]
+  const caseSummaryReviewed = caseSummaryState?.source === 'user'
+    && caseSummaryState.confirmation === 'confirmed'
   const guidedReview = useGuidedReviewCards({
     caseId,
     report: projectedReport,
@@ -382,7 +383,8 @@ export default function CaseRecordGeneratePage() {
     || exportPreparing || exportDirectory.busy || exporting
   const confirmCurrentGuidedAction = () => {
     if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.caseSummary) {
-      setCaseSummaryReviewed(true)
+      session.setCaseSummaryConfirmed(true)
+      if (session.editingEnabled) setReviewStatus('存在未导出修改')
     }
     guidedReview.confirmCurrentAction()
   }
@@ -393,7 +395,8 @@ export default function CaseRecordGeneratePage() {
           <ReviewPageHeader report={session.report} onPreview={() => setPreviewOpen(true)} />
         )}
         {reviewMode === 'guided' && currentGuidedAction ? (
-          <GuidedReviewView conversationKey={caseId} history={guidedReview.history} currentAction={currentGuidedAction}
+          <GuidedReviewView conversationKey={caseId} history={guidedReview.history}
+            previouslyHandledFields={guidedReview.previouslyHandledFields} currentAction={currentGuidedAction}
             allActions={guidedReview.allActions} hasResponse={Boolean(guidedSpecialContent || currentGuidedAction.pendingItem)}
             onSelectAction={guidedReview.selectAction}
             onRevisitAction={guidedReview.revisitAction}

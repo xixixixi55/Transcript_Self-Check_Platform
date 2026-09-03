@@ -12,7 +12,6 @@ from ..workbench.workbench_serialization import validate_opaque_id, validate_saf
 from ..integrity.hash_algorithm_repository import normalize_hash_algorithm
 
 _DEFAULT_VALUES = {
-    "entrust_unit_prefix": "",
     "document_number": "",
     "document_number_template": {"prefix": "", "suffix": ""},
     "inspection_place": "",
@@ -91,8 +90,9 @@ class SharedDefaultsRepository:
             actual = int(row[0])
             if actual != expected_revision:
                 raise RevisionConflictError("shared_defaults", expected_revision, actual)
+            stored = row_json(row, "values_json") if hasattr(row, "keys") and "values_json" in row.keys() else {}
             merged = dict(_DEFAULT_VALUES)
-            merged.update(row_json(row, "values_json") if hasattr(row, "keys") and "values_json" in row.keys() else {})
+            merged.update({key: value for key, value in stored.items() if key in _DEFAULT_VALUES})
             changed = [key for key, value in normalized.items() if merged.get(key) != value]
             if not changed:
                 return {"status": "unchanged", "defaults": self.get_or_create(), "changed_fields": []}
@@ -166,7 +166,7 @@ def _normalize_values(values: Mapping[str, Any]) -> dict[str, Any]:
     ):
         raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
     for key in (
-        "entrust_unit_prefix", "document_number", "inspection_place", "inspection_method",
+        "document_number", "inspection_place", "inspection_method",
         "hardware_device", "extraction_method", "data_summary", "inspection_requirement",
         "disc_number_prefix",
     ):
@@ -197,7 +197,7 @@ def _normalize_patch(values: Mapping[str, Any], *, allow_clear: bool = False) ->
         raise WorkbenchPersistenceError("UNKNOWN_SHARED_DEFAULT_FIELD")
     normalized: dict[str, Any] = {}
     scalar_keys = (
-        "entrust_unit_prefix", "document_number", "inspection_place", "inspection_method",
+        "document_number", "inspection_place", "inspection_method",
         "hardware_device", "extraction_method", "data_summary", "inspection_requirement",
         "disc_number_prefix",
     )
@@ -208,7 +208,7 @@ def _normalize_patch(values: Mapping[str, Any], *, allow_clear: bool = False) ->
         if not isinstance(value, str):
             raise WorkbenchPersistenceError("INVALID_SHARED_DEFAULTS")
         validate_safe_string(value, "INVALID_SHARED_DEFAULTS")
-        if value.strip() or allow_clear or key == "entrust_unit_prefix":
+        if value.strip() or allow_clear:
             normalized[key] = value.strip()
     if "inspector_order" in values:
         items = values["inspector_order"]
@@ -257,7 +257,11 @@ def _normalize_document_number_template(value: Any) -> dict[str, str]:
 
 
 def _defaults_dict(row: Mapping[str, Any]) -> dict[str, Any]:
-    values = {**_DEFAULT_VALUES, **row_json(row, "values_json")}
+    stored = row_json(row, "values_json")
+    values = {
+        **_DEFAULT_VALUES,
+        **{key: value for key, value in stored.items() if key in _DEFAULT_VALUES},
+    }
     return {
         "schema_version": int(row["schema_version"]),
         "deployment_instance_id": row["deployment_instance_id"],

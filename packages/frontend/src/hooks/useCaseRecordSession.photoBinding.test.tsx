@@ -32,7 +32,7 @@ const testIdentity: ClientIdentity = {
 }
 const testDefaults: SharedDefaults = {
   schema_version: 1, deployment_instance_id: 'deployment-synthetic', revision: 0,
-  entrust_unit_prefix: '', document_number: '', inspection_place: '', inspection_method: '',
+  document_number: '', inspection_place: '', inspection_method: '',
   hardware_device: '', inspector_order: [], disc_number_prefix: 'GP',
   migration_decision: 'ignored', updated_at: '2026-01-01T00:00:00Z',
 }

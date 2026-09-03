@@ -62,7 +62,6 @@ const CANONICAL_PAIRS: ContractPair = {
       tsType: 'CanonicalCaseIntroduction',
       pyClass: 'CanonicalCaseIntroduction',
       tsFields: [
-        { name: 'entrust_unit_prefix', required: true },
         { name: 'entrust_unit', required: true },
         { name: 'entrust_persons', required: true },
         { name: 'entrust_time', required: true },

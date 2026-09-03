@@ -112,14 +112,11 @@ def test_flatten_report_uses_burning_date_for_attachment_summary_signature():
     assert flat["created_date"] == "2026年7月16日"
 
 
-def test_flatten_report_combines_entrust_unit_prefix_without_separator():
+def test_flatten_report_ignores_deprecated_entrust_unit_prefix():
     report = _report()
     report["introduction"]["entrust_unit_prefix"] = " SYNTHETIC-公安分局 "
     report["introduction"]["entrust_unit"] = " SYNTHETIC-派出所 "
 
-    assert _flatten_report(report)["entrust_unit"] == "SYNTHETIC-公安分局SYNTHETIC-派出所"
-
-    report["introduction"]["entrust_unit_prefix"] = ""
     assert _flatten_report(report)["entrust_unit"] == "SYNTHETIC-派出所"
 
 
@@ -171,9 +168,10 @@ def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
         assert paragraph._p.pPr.find(qn("w:ind")) is None
         assert not paragraph._p.findall(".//" + qn("w:rPr") + "/" + qn("w:spacing"))
     assert any(
-        "委托单位：SYNTHETIC-公安分局SYNTHETIC-派出所" in paragraph.text
+        "委托单位：SYNTHETIC-派出所" in paragraph.text
         for paragraph in document.paragraphs
     )
+    assert all("SYNTHETIC-公安分局" not in paragraph.text for paragraph in document.paragraphs)
     assert document.tables[0].rows[1].cells[2].text.strip().splitlines() == [
         "JC01", "检材内提取",
     ]

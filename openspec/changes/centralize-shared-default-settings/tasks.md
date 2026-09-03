@@ -2,7 +2,7 @@
 
 workflow_level: 2
 spec_sync_status: reconciled
-spec_sync_evidence: 检查要求替换提取方式的最终行为已同步到 electronic-inspection-record REQ-007 与 data-model SharedDefaults 合同
+spec_sync_evidence: 委托单位前缀不再展示、提交或进入共享默认值合同的最终行为已同步到 electronic-inspection-record REQ-007 与 data-model SharedDefaults 合同
 
 > 规格：`openspec/changes/centralize-shared-default-settings/specs/electronic-inspection-record/spec.md`
 
@@ -11,12 +11,12 @@ spec_sync_evidence: 检查要求替换提取方式的最终行为已同步到 el
 - 级别：Level 2。新增正式管理场景，并修改案件编辑更新共享默认值的既有合同；保持现有部署实例作用域、SQLite 事实源、Parser 优先级和总体架构。
 - `case-shared-defaults` 是强关联候选，但其六字段持久化与新案预填目标已经完成；本次增加第七个已存在字段的集中管理页面并改变写入口，属于新的用户结果，不重开原包。
 - `remove-audit-edit-template-and-defaults-display` 是强关联候选，但其目标是移除审核编辑页展示且已经完成；本次不恢复审核页展示，而是新增独立入口，不重开原包。
-- `audit-edit-enhancement` 包含后来新增的委托单位前缀共享字段；本次复用其现有合同，不修改该包。
+- `audit-edit-enhancement` 是委托单位前缀的原始归属包；后续“彻底废除”反馈已回到该包撤销字段、默认值与 Word 拼接合同。
 
 ## 目标行为
 
 - 左侧“电子数据检查笔录”子菜单在“笔录模版管理”下方提供六字入口“笔录默认设置”，路由为 `/electronic-inspection/defaults`。
-- 独立页面从 `/api/v1/workbench/defaults` 读取并展示九项可配置业务默认值：委托单位前缀、文号格式、检查地点、检查方法、检查硬件设备、数据摘要、检查要求、有序检查人员和文件哈希算法；文号格式由编号前内容和编号后内容组成，不再展示或提交光盘编号前缀及附件1提取方式。
+- 独立页面从 `/api/v1/workbench/defaults` 读取并展示八项可配置业务默认值：文号格式、检查地点、检查方法、检查硬件设备、数据摘要、检查要求、有序检查人员和文件哈希算法；文号格式由编号前内容和编号后内容组成，不展示或提交委托单位前缀、光盘编号前缀及附件1提取方式。
 - 页面显式保存九项默认值，允许用空值清除对应默认；保存使用服务端 revision，冲突时不覆盖新值并提示重新加载。
 - 检查硬件设备只能从“电子设备管理”的当前设备中下拉选择；检查人员顺序直接复用审核编辑的人员卡片、添加、删除和拖拽排序交互。
 - 案件审核编辑页修改字段只保存当前案件，不再生成或提交共享默认值 patch。
@@ -127,6 +127,12 @@ spec_sync_evidence: 检查要求替换提取方式的最终行为已同步到 el
   - 验证：前端 Hook/组件测试覆盖加载、提交、清空、字段可访问名称及提取方式隐藏；运行 Impeccable detector。
 - [x] 核对 delta 与实现，sync living specs，并执行 `npm run verify:quick`、受影响模块测试、`npm run verify:docs:strict -- --change centralize-shared-default-settings` 与 scoped `git diff --check`。
 
+### 反馈迭代 — 默认设置移除委托单位前缀
+
+- [x] 修改默认设置表单与 Hook，不再展示或提交 `entrust_unit_prefix`；后续彻底废除反馈已从共享默认值合同移除该字段，旧持久值仅安全忽略。
+  - 验证：前端组件与 Hook 测试覆盖字段隐藏及保存载荷不包含 `entrust_unit_prefix`。
+- [x] 核对 delta 与实现，sync living spec，并执行前端定向测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change centralize-shared-default-settings`、Impeccable detector 与 scoped `git diff --check`。
+
 ## 验证证据
 
 - 前端定向 Vitest：49 项通过；界面复核修正后 Hook/表单 5 项通过。
@@ -154,6 +160,7 @@ spec_sync_evidence: 检查要求替换提取方式的最终行为已同步到 el
 - 检查要求反馈定向验证：前端 Hook/表单 2 个测试文件、7 项通过；后端共享默认值与新案初始化 17 项通过；Python 编译检查与前端 typecheck 通过。
 - 检查要求反馈界面检查：Impeccable detector 0 项发现；字段沿用现有表单布局，无新增视觉结构，人工真实业务数据验收 N/A。
 - 检查要求反馈门控：`npm run verify:quick` 通过；scoped strict docs 14 项、0 drift；living specs 已同步；scoped `git diff --check` 通过。
+- 委托单位前缀移除反馈：前端 Hook/表单 2 个测试文件、7 项通过；`npm run verify:quick` 通过；Impeccable detector 0 项发现；living spec 已同步；scoped strict docs 14 项、0 drift；scoped `git diff --check` 通过。
 
 ## 非目标
 

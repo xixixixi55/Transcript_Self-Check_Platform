@@ -53,12 +53,8 @@ export function ReviewIntroductionSection({
   const evidenceCompletenessConfirmed = fieldStates?.[EVIDENCE_COMPLETENESS_FIELD_PATH]?.confirmation === 'confirmed'
   return (
     <>
-      <div className="review-field-row review-field-row--entrust-unit">
-        <ReviewField label="委托单位前缀" type="text" value={introduction.entrust_unit_prefix || ''}
-          onChange={value => updateReport('introduction.entrust_unit_prefix', value)} />
-        <ReviewField targetId={REVIEW_TARGET_IDS.entrustUnit} label="（一）委托单位" type="text" value={introduction.entrust_unit}
-          onChange={value => updateReport('introduction.entrust_unit', value)} />
-      </div>
+      <ReviewField targetId={REVIEW_TARGET_IDS.entrustUnit} label="（一）委托单位" type="text" value={introduction.entrust_unit}
+        onChange={value => updateReport('introduction.entrust_unit', value)} />
       <ReviewField targetId={REVIEW_TARGET_IDS.entrustPersons} label="（二）委托人员" type="text" value={formatEntrustPersons(introduction.entrust_persons || [])}
         onChange={value => updateReport('introduction.entrust_persons', normalizeEntrustPersons(value))} />
       <DateTimeField targetId={REVIEW_TARGET_IDS.entrustTime} label="（三）委托时间" precision="date" value={introduction.entrust_time}
