@@ -149,8 +149,8 @@ describe('guided review projection', () => {
     }))
     const userEvidence = [1, 2, 3].map(index => ({
       ...syntheticReport.introduction.evidence_list[0],
-      id: `SYNTHETIC-USER-${index}`,
-      evidence_id: `SYNTHETIC-USER-${index}`,
+      id: `local-evidence-SYNTHETIC-${index}`,
+      evidence_id: `local-evidence-SYNTHETIC-${index}`,
       evidence_number: `SYNTHETIC-U-${index}`,
       material_type_status: 'confirmed_by_user' as const,
       material_type_source: 'user' as const,
@@ -177,7 +177,7 @@ describe('guided review projection', () => {
     expect(result.current.history.find(item => item.id === 'fact-evidence')?.materials).toEqual([
       expect.objectContaining({ label: '检材 1 · SYNTHETIC-R-1' }),
       expect.objectContaining({ label: '检材 2 · SYNTHETIC-R-2' }),
-      expect.objectContaining({ label: '检材 3 · SYNTHETIC-U-1', userProvided: true }),
+      expect.objectContaining({ label: '检材 3 · SYNTHETIC-U-1', userProvided: true, sourceLabel: '人工添加' }),
       expect.objectContaining({ label: '检材 4 · SYNTHETIC-U-2' }),
       expect.objectContaining({ label: '检材 5 · SYNTHETIC-U-3' }),
     ])
@@ -337,6 +337,29 @@ describe('guided review projection', () => {
     expect(result.current.isReviewingPrevious).toBe(true)
   })
 
+  it('opens a previously handled evidence confirmation from the ready state', () => {
+    const completenessPath = 'introduction.evidence_list.completeness'
+    const fieldStates = { [completenessPath]: {
+      field_path: completenessPath, source: 'user', confirmation: 'confirmed',
+      revision: 1, last_changed_at: '2026-08-25T01:00:00Z',
+    } } as Record<string, FieldState>
+    const { result } = renderHook(() => useGuidedReviewCards({
+      ...buildInput(), pendingItems: [], fieldStates, caseSummaryReviewed: true, lifecycle: 'archive_verified',
+      archiveParts: [{ disc_number: 'GP20260825-01', size_bytes: 2048 }],
+    }))
+    const completeness = result.current.previouslyHandledFields.find(
+      field => field.targetId === REVIEW_TARGET_IDS.evidenceCompleteness)
+    expect(result.current.currentAction?.kind).toBe('ready')
+    expect(completeness).toBeTruthy()
+    act(() => result.current.revisitHandledField(completeness!))
+    expect(result.current.currentAction).toEqual(expect.objectContaining({
+      kind: 'pending_item',
+      title: '请确认检材完整性',
+      pendingItem: expect.objectContaining({ targetId: REVIEW_TARGET_IDS.evidenceCompleteness }),
+    }))
+    act(() => result.current.selectAction('ready'))
+    expect(result.current.currentAction?.kind).toBe('ready')
+  })
   it('navigates backward and forward across the full session action trail', () => {
     const { result } = renderHook(() => useGuidedReviewCards(buildInput(withMediumNumber({
       ...syntheticReport,
@@ -441,9 +464,8 @@ describe('guided review projection', () => {
       },
     ]
     const pending = deriveGuidedReviewProjection({ ...buildInput(), pendingItems })
-    expect(pending.allActions.map(action => action.title)).toEqual([
-      '请输入文号', '请选择委托时间', '请确认检材完整性',
-    ])
+    expect(pending.allActions.map(action => action.title)).toEqual(['请输入文号', '请选择委托时间', '请确认检材完整性'])
+    expect(pending.allActions[2]?.advanceOnEnter).toBe(true)
 
     const decision = deriveGuidedReviewProjection({
       ...buildInput(), pendingItems: [], lifecycle: 'review_ready', archiveTask: null,

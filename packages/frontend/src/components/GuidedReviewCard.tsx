@@ -1,5 +1,5 @@
-import { CheckCircleOutlined, EditOutlined, FileAddOutlined, FileSearchOutlined, SortAscendingOutlined } from '@ant-design/icons'
-import { Alert, Button, Input, message, Space, Tooltip } from 'antd'
+import { DeleteOutlined, EditOutlined, FileAddOutlined, FileSearchOutlined, SortAscendingOutlined } from '@ant-design/icons'
+import { Alert, Button, Input, message, Popconfirm, Space, Tooltip } from 'antd'
 import { useEffect, useState } from 'react'
 import type { EvidenceItem, InspectionReport } from '@biji/shared/types'
 import type { GuidedReviewAction } from '../hooks/useGuidedReviewCards'
@@ -116,10 +116,9 @@ function parseEvidenceBatch(value: string, existingItems: EvidenceItem[]): Evide
   return { preview, errors }
 }
 
-function QuickEvidenceBatchAdder({ items, onChange, onConfirmComplete }: {
+function QuickEvidenceBatchAdder({ items, onChange }: {
   items: EvidenceItem[]
   onChange: (items: EvidenceItem[]) => void
-  onConfirmComplete?: () => void
 }) {
   const [value, setValue] = useState('')
   const [result, setResult] = useState<EvidenceBatchResult | null>(null)
@@ -245,11 +244,6 @@ function QuickEvidenceBatchAdder({ items, onChange, onConfirmComplete }: {
                 icon={<SortAscendingOutlined />} aria-label="一键排序"
                 onClick={sort} disabled={!value.trim() && items.length < 2} />
             </Tooltip>
-            <Tooltip title="完成检材补充并确认完整">
-              <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
-                icon={<CheckCircleOutlined />}
-                aria-label="完成检材补充并确认完整" onClick={onConfirmComplete} />
-            </Tooltip>
           </div>
           {sortFeedback ? <Alert type="warning" showIcon message={sortFeedback.message} /> : null}
           {result?.errors.length ? (
@@ -265,9 +259,11 @@ function QuickEvidenceBatchAdder({ items, onChange, onConfirmComplete }: {
               </li>)}
             </ul>
             <Tooltip title={`确认添加 ${result.preview.length} 项检材`}>
-              <Button type="primary" shape="circle" size="large"
-                className="guided-review-icon-action guided-review-card__quick-evidence-confirm"
-                icon={<CheckCircleOutlined />} aria-label={`确认添加 ${result.preview.length} 项检材`} onClick={confirm} />
+              <Button type="primary" size="large"
+                className="guided-review-card__quick-evidence-confirm"
+                icon={<FileAddOutlined />} aria-label={`确认添加 ${result.preview.length} 项检材`} onClick={confirm}>
+                确认添加 {result.preview.length} 项检材
+              </Button>
             </Tooltip>
           </> : null}
         </Space>
@@ -335,7 +331,11 @@ function evidenceExtractionLabel(item: EvidenceItem): string {
   return extractable ? '可以提取' : '无法提取'
 }
 
-function EvidenceCompletenessSummary({ items }: { items: EvidenceItem[] }) {
+function EvidenceCompletenessSummary({ items, onRemove, readOnly }: {
+  items: EvidenceItem[]
+  onRemove: (index: number) => void
+  readOnly: boolean
+}) {
   if (!items.length) return (
     <p className="guided-review-card__evidence-empty" role="status">
       当前未识别到检材，请选择“不完整”后补充。
@@ -348,7 +348,18 @@ function EvidenceCompletenessSummary({ items }: { items: EvidenceItem[] }) {
         {items.map((item, index) => (
           <li key={item.evidence_id || item.id || index}>
             <strong>{String(item.evidence_number || '').trim() || '编号待补充'}</strong>
-            <span>{evidenceDeviceLabel(item)} · {evidenceTypeLabel(item)} · {evidenceExtractionLabel(item)}</span>
+            <span className="guided-review-card__evidence-details">
+              {evidenceDeviceLabel(item)} · {evidenceTypeLabel(item)} · {evidenceExtractionLabel(item)}
+            </span>
+            <Tooltip title={`删除检材 ${index + 1}`}>
+              <Popconfirm title={`删除检材 ${String(item.evidence_number || '').trim() || index + 1}？`}
+                description="删除后需要重新确认检材完整性。" okText="删除" cancelText="取消"
+                okButtonProps={{ danger: true }} onConfirm={() => onRemove(index)} disabled={readOnly}>
+                <Button danger shape="circle" size="large" className="guided-review-icon-action"
+                  icon={<DeleteOutlined />} disabled={readOnly}
+                  aria-label={`删除检材 ${index + 1}：${String(item.evidence_number || '').trim() || '编号待补充'}`} />
+              </Popconfirm>
+            </Tooltip>
           </li>
         ))}
       </ol>
@@ -367,6 +378,11 @@ export function GuidedReviewCard({
   const pending = action.pendingItem
   if (!pending) return null
   const { targetId, fieldLabel } = pending
+  const evidenceItems = report.introduction.evidence_list || []
+  const removeEvidence = (index: number) => {
+    updateReport('introduction.evidence_list', evidenceItems.filter((_, itemIndex) => itemIndex !== index))
+    onEvidenceCompletenessChange?.(false)
+  }
 
   if (targetId === REVIEW_TARGET_IDS.documentNumber && report.document_number_template) return (
     <fieldset disabled={readOnly} className="guided-review-card__fieldset">
@@ -395,23 +411,19 @@ export function GuidedReviewCard({
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'batch') return (
     <div className="guided-review-card__evidence-editor">
       <fieldset disabled={readOnly} className="guided-review-card__fieldset">
-        <QuickEvidenceBatchAdder items={report.introduction.evidence_list || []}
+        <EvidenceCompletenessSummary items={evidenceItems} onRemove={removeEvidence} readOnly={readOnly} />
+        <QuickEvidenceBatchAdder items={evidenceItems}
           onChange={items => {
             updateReport('introduction.evidence_list', items)
             onEvidenceCompletenessChange?.(false)
-          }} onConfirmComplete={() => onEvidenceCompletenessChange?.(true)} />
+          }} />
       </fieldset>
     </div>
   )
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness) return (
     <div className="guided-review-card__evidence-confirmation">
-      <EvidenceCompletenessSummary items={report.introduction.evidence_list || []} />
-      <Space role="group" aria-label="检材完整性选择" size="middle" className="guided-review-card__choice-actions">
-        <Tooltip title="完整">
-          <Button type="primary" shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
-            icon={<CheckCircleOutlined />} aria-label="确认检材信息完整"
-            onClick={() => onEvidenceCompletenessChange?.(true)} />
-        </Tooltip>
+      <EvidenceCompletenessSummary items={evidenceItems} onRemove={removeEvidence} readOnly={readOnly} />
+      <Space role="group" aria-label="检材补充操作" size="middle" className="guided-review-card__choice-actions">
         <Tooltip title="不完整，手工添加检材">
           <Button shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
             icon={<FileAddOutlined />} aria-label="检材信息不完整，手工添加检材"

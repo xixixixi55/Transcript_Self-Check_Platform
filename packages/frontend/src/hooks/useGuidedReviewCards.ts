@@ -165,6 +165,7 @@ const DATE_PROMPT_TARGETS = new Set<string>([
 
 const ENTER_CONFIRM_TARGETS = new Set<string>([
   REVIEW_TARGET_IDS.documentNumber,
+  REVIEW_TARGET_IDS.evidenceCompleteness,
   REVIEW_TARGET_IDS.entrustUnit,
   REVIEW_TARGET_IDS.entrustPersons,
   REVIEW_TARGET_IDS.caseSummary,
@@ -361,13 +362,17 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     entries: initialNavigationAction ? [initialNavigationAction] : [] as GuidedReviewAction[],
     index: 0,
   }))
+  const [revisitedActionId, setRevisitedActionId] = useState<string | null>(null)
   const navigationAction = navigation.entries[navigation.index] || null
+  const revisitedNavigationAction = navigationAction?.id === revisitedActionId
+    ? navigationAction : null
   const currentIsTransientAction = Boolean(
     baseCurrentAction
       && !isSessionNavigationAction(baseCurrentAction)
       && (navigation.entries.length === 0 || navigation.index === navigation.entries.length - 1),
   )
-  const currentAction = currentIsTransientAction ? baseCurrentAction : navigationAction || baseCurrentAction
+  const currentAction = revisitedNavigationAction
+    || (currentIsTransientAction ? baseCurrentAction : navigationAction || baseCurrentAction)
   useEffect(() => {
     retainedAction.current = { caseId: input.caseId, action: baseCurrentAction }
   }, [baseCurrentAction, input.caseId])
@@ -395,6 +400,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   useEffect(() => {
     if (previousCaseId.current !== input.caseId) {
       previousCaseId.current = input.caseId
+      setRevisitedActionId(null)
       setSelectedActionId(projection.allActions[0]?.id || '')
     }
   }, [input.caseId, projection.allActions])
@@ -406,6 +412,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const selectAction = useCallback((actionId: string) => {
     const action = allActions.find(candidate => candidate.id === actionId)
     if (!action) return
+    setRevisitedActionId(null)
     setNavigation(previous => {
       if (!isSessionNavigationAction(action)) return {
         ...previous,
@@ -437,6 +444,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     }))
   }, [])
   const revisitAction = useCallback((action: GuidedReviewAction) => {
+    setRevisitedActionId(action.id)
     setNavigation(previous => {
       let existingIndex = -1
       for (let index = previous.entries.length - 1; index >= 0; index -= 1) {

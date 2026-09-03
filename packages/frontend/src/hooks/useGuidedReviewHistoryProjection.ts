@@ -11,6 +11,7 @@ export interface GuidedReviewHistoryField {
   label: string
   value: string
   userProvided?: boolean
+  sourceLabel?: '已修改'
   targetId?: string
 }
 
@@ -21,6 +22,7 @@ export interface GuidedReviewHistoryMaterial {
   photoCount: number
   requiredPhotoCount: number
   userProvided?: boolean
+  sourceLabel?: '人工添加'
   targetId?: string
 }
 
@@ -38,11 +40,13 @@ function historyField(
   value: string | null | undefined,
   userProvided = false,
   targetId?: string,
+  sourceLabel?: GuidedReviewHistoryField['sourceLabel'],
 ): GuidedReviewHistoryField | null {
   const normalized = value?.trim()
   return normalized ? {
     label, value: normalized,
     ...(userProvided ? { userProvided: true } : {}),
+    ...(userProvided && sourceLabel ? { sourceLabel } : {}),
     ...(targetId ? { targetId } : {}),
   } : null
 }
@@ -110,32 +114,30 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
       ? material.unextractable_reason?.trim()
         ? `无法提取：${material.unextractable_reason.trim()}` : '无法提取'
       : material.extractable === true ? '可提取' : null
+    const materialId = material.evidence_id || material.id || `material-${index}`
     const evidencePrefix = material.evidence_id ? `evidence.${material.evidence_id}.` : ''
     const evidencePath = (field: string) => evidencePrefix ? `${evidencePrefix}${field}` : ''
-    const userProvided = material.material_type_source === 'user'
-      || isUserProvided(fieldStates, 'introduction.evidence_list')
-      || Boolean(evidencePrefix && hasUserProvidedPrefix(fieldStates, evidencePrefix))
+    const userAdded = materialId.startsWith('local-evidence-')
+    const editedField = (label: string, value: string | null | undefined, edited: boolean) => historyField(
+      label, value, !userAdded && edited, REVIEW_TARGET_IDS.evidence(index), '已修改',
+    )
     return {
-      id: material.evidence_id || material.id || `material-${index}`,
+      id: materialId,
       label,
       photoCount: materialPhotoCount(report, index, material.id),
       requiredPhotoCount: 2,
       targetId: REVIEW_TARGET_IDS.evidence(index),
-      ...(userProvided ? { userProvided: true } : {}),
+      ...(userAdded ? { userProvided: true, sourceLabel: '人工添加' as const } : {}),
       fields: compactHistoryFields([
-        historyField('设备', deviceName, isUserProvided(fieldStates,
-          evidencePath('device_name'), evidencePath('brand'), evidencePath('model'), evidencePath('device_type')),
-        REVIEW_TARGET_IDS.evidence(index)),
-        historyField('类型', materialType, material.material_type_source === 'user'
-          || isUserProvided(fieldStates, evidencePath('material_type')), REVIEW_TARGET_IDS.evidence(index)),
-        historyField('IMEI 1', material.imei1, isUserProvided(fieldStates, evidencePath('imei1')),
-          REVIEW_TARGET_IDS.evidence(index)),
-        historyField('IMEI 2', material.imei2, isUserProvided(fieldStates, evidencePath('imei2')),
-          REVIEW_TARGET_IDS.evidence(index)),
-        historyField('序列号', material.serial_number, isUserProvided(fieldStates, evidencePath('serial_number')),
-          REVIEW_TARGET_IDS.evidence(index)),
-        historyField('提取情况', extractability, isUserProvided(fieldStates,
-          evidencePath('extractable'), evidencePath('unextractable_reason')), REVIEW_TARGET_IDS.evidence(index)),
+        editedField('设备', deviceName, isUserProvided(fieldStates,
+          evidencePath('device_name'), evidencePath('brand'), evidencePath('model'), evidencePath('device_type'))),
+        editedField('类型', materialType, material.material_type_source === 'user'
+          || isUserProvided(fieldStates, evidencePath('material_type'))),
+        editedField('IMEI 1', material.imei1, isUserProvided(fieldStates, evidencePath('imei1'))),
+        editedField('IMEI 2', material.imei2, isUserProvided(fieldStates, evidencePath('imei2'))),
+        editedField('序列号', material.serial_number, isUserProvided(fieldStates, evidencePath('serial_number'))),
+        editedField('提取情况', extractability, isUserProvided(fieldStates,
+          evidencePath('extractable'), evidencePath('unextractable_reason'))),
       ]),
     }
   })
@@ -205,11 +207,11 @@ export function buildReportHistory(
   const resultFields = compactHistoryFields([
     ...report.inspection.process_steps.map((step, index) => historyField(
       `检查步骤 ${step.step_number}`, step.content,
-      isUserProvided(fieldStates, 'inspection.process_steps'),
+      false,
       REVIEW_TARGET_IDS.processStep(index),
     )),
     historyField('检材编号', report.inspection.result.evidence_number,
-      isUserProvided(fieldStates, 'inspection.result.evidence_number'), REVIEW_TARGET_IDS.result('evidence_number')),
+      false, REVIEW_TARGET_IDS.result('evidence_number')),
     historyField('数据摘要', report.inspection.result.data_summary,
       isUserProvided(fieldStates, 'inspection.result.data_summary'), REVIEW_TARGET_IDS.result('data_summary')),
     historyField('哈希算法', hashAlgorithmLabel(report.inspection.result.hash_algorithm),

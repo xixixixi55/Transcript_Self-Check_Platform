@@ -12,7 +12,9 @@ function HistoryFields({ fields }: { fields: NonNullable<GuidedReviewHistoryItem
           <dt>{field.label}：</dt>
           <dd>
             <span>{field.value}</span>
-            {field.userProvided && <span className="guided-review-history__user-badge">用户填写</span>}
+            {field.userProvided && <span className="guided-review-history__user-badge">
+              {field.sourceLabel || '用户填写'}
+            </span>}
           </dd>
         </div>
       ))}
@@ -30,7 +32,9 @@ function HistoryMaterials({ materials }: { materials: NonNullable<GuidedReviewHi
             <div className="guided-review-history__material-heading">
               <span>
                 {material.label}
-                {material.userProvided && <span className="guided-review-history__user-badge">用户填写</span>}
+                {material.userProvided && <span className="guided-review-history__user-badge">
+                  {material.sourceLabel || '用户填写'}
+                </span>}
               </span>
               <span
                 className={`guided-review-history__material-count${complete

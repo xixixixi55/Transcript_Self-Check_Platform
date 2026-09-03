@@ -2019,9 +2019,9 @@
 
 .guided-review-card__evidence-summary li {
   display: grid;
-  grid-template-columns: minmax(112px, auto) minmax(0, 1fr);
+  grid-template-columns: minmax(112px, auto) minmax(0, 1fr) 44px;
   gap: 8px 12px;
-  align-items: baseline;
+  align-items: center;
   padding: 8px 10px;
   color: var(--platform-preview-text-secondary);
   background: var(--platform-preview-neutral-soft);
@@ -2033,9 +2033,13 @@
   overflow-wrap: anywhere;
 }
 
-.guided-review-card__evidence-summary span {
+.guided-review-card__evidence-details {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.guided-review-card__evidence-summary .guided-review-icon-action {
+  justify-self: end;
 }
 
 .guided-review-card__evidence-empty {

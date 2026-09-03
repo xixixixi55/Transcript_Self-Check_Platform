@@ -17,8 +17,8 @@ const history: GuidedReviewHistoryItem[] = [
     id: 'SYNTHETIC-HISTORY-2', tone: 'complete', title: '检材与图片 · 1 项',
     materials: [{
       id: 'SYNTHETIC-MATERIAL-1', label: '检材 1 · SYN-JC00000001', photoCount: 2, requiredPhotoCount: 2,
-      userProvided: true, fields: [{
-        label: '设备', value: 'SYNTHETIC PHONE', userProvided: true,
+      userProvided: true, sourceLabel: '人工添加', targetId: 'review-target-evidence-0', fields: [{
+        label: '设备', value: 'SYNTHETIC PHONE',
         targetId: 'review-target-evidence-0',
       }],
     }],
@@ -26,7 +26,7 @@ const history: GuidedReviewHistoryItem[] = [
   {
     id: 'SYNTHETIC-HISTORY-3', tone: 'complete', title: '检查结果',
     fields: [{
-      label: '检查步骤 1', value: 'SYNTHETIC SYSTEM-GENERATED STEP', userProvided: true,
+      label: '检查步骤 1', value: 'SYNTHETIC SYSTEM-GENERATED STEP',
       targetId: 'review-target-process-step-0',
     }],
   },
@@ -109,15 +109,11 @@ describe('GuidedReviewView', () => {
       readOnly={false} onEvidenceCompletenessChange={onEvidenceCompletenessChange}
       onOpenFullEditor={onOpenFullEditor} />)
 
-    const completeButton = screen.getByRole('button', { name: '确认检材信息完整' })
     const incompleteButton = screen.getByRole('button', { name: '检材信息不完整，手工添加检材' })
-    expect(completeButton.querySelector('.anticon-check-circle')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '确认检材信息完整' })).toBeNull()
     expect(incompleteButton.querySelector('.anticon-file-add')).toBeTruthy()
-    expectCircularIconButton(completeButton, true)
     expectCircularIconButton(incompleteButton)
 
-    fireEvent.click(completeButton)
-    expect(onEvidenceCompletenessChange).toHaveBeenCalledWith(true)
     fireEvent.click(incompleteButton)
     expect(screen.getByRole('textbox', { name: '快捷批量添加检材' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '快捷批量补充检材' })).toBeNull()
@@ -168,8 +164,9 @@ describe('GuidedReviewView', () => {
     ])
     const confirmAddButton = screen.getByRole('button', { name: '确认添加 3 项检材' })
     expect(confirmAddButton.classList.contains('guided-review-card__quick-evidence-confirm')).toBe(true)
-    expectCircularIconButton(confirmAddButton, true)
-    expect(confirmAddButton.querySelector('.anticon-check-circle')).toBeTruthy()
+    expect(confirmAddButton.classList.contains('ant-btn-circle')).toBe(false)
+    expect(confirmAddButton.textContent).toContain('确认添加 3 项检材')
+    expect(confirmAddButton.querySelector('.anticon-file-add')).toBeTruthy()
     fireEvent.click(confirmAddButton)
     expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [
       reportWithExistingEvidence.introduction.evidence_list[0],
@@ -270,7 +267,9 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('文书与委托信息')).toBeTruthy()
     expect(screen.getByText('委托人员：')).toBeTruthy()
     expect(screen.getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
-    expect(screen.getAllByText('用户填写')).toHaveLength(4)
+    expect(screen.getAllByText('用户填写')).toHaveLength(1)
+    expect(screen.getByText('人工添加')).toBeTruthy()
+    expect(screen.queryByText('已修改')).toBeNull()
     expect(screen.getByText('检材 1 · SYN-JC00000001')).toBeTruthy()
     expect(screen.getByText('2/2').getAttribute('aria-label'))
       .toBe('检材 1 · SYN-JC00000001：已上传 2 张图片，共需 2 张')
@@ -313,8 +312,8 @@ describe('GuidedReviewView', () => {
     expect(within(pendingPanel).getByRole('heading', { name: '此前已处理' })).toBeTruthy()
     expect(within(pendingPanel).getByText('委托人员')).toBeTruthy()
     expect(within(pendingPanel).getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
-    expect(within(pendingPanel).getByText('检材 1 · SYN-JC00000001 · 设备')).toBeTruthy()
-    expect(within(pendingPanel).getByText('SYNTHETIC PHONE')).toBeTruthy()
+    expect(within(pendingPanel).getByText('检材 1 · SYN-JC00000001')).toBeTruthy()
+    expect(within(pendingPanel).getByText('已上传 2 张图片')).toBeTruthy()
     expect(within(pendingPanel).queryByText('检查步骤 1')).toBeNull()
     expect(within(pendingPanel).queryByText('SYNTHETIC SYSTEM-GENERATED STEP')).toBeNull()
     fireEvent.click(within(pendingPanel).getByRole('button', { name: '修改委托人员' }))

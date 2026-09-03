@@ -649,3 +649,50 @@ workflow_level: 2
 - `guided_transient_navigation_tests: PASS`：新增 SYNTHETIC Hook 用例先在旧实现下准确失败，显示文号确认后错误进入 `save_recovery`；修复后 Hook 20/20、引导组件与案件页面 37/37 通过，覆盖“文号→正常自动保存→委托时间”、保存失败入口仍存在、恢复后退回文号时不经过保存卡片及临时恢复卡片不显示步骤箭头。
 - `guided_transient_navigation_quality: PASS`：全项目 TypeScript、Impeccable 单次检测、`verify:quick`、scoped strict docs 与 `git diff --check` 通过；新增回归使原 Hook 测试文件超过 600 行阈值后，按自然职责抽取共享 SYNTHETIC 测试夹具，架构检查恢复通过，不登记文件大小豁免。
 - `guided_transient_navigation_manual_acceptance: N/A`：步骤投影、恢复入口保留、导航游标和案件页面接线可由 SYNTHETIC Hook/DOM/页面回归可靠区分，不需要读取或操作真实案件数据。
+
+## 2026-09-03 完成态回访检材完整性反馈
+
+- [x] 6.84 修复獬豸助手处于“当前审核已完成”时，从“此前已处理”点击检材完整性仍被完成态覆盖的问题；用户主动回访应优先展示原检材摘要及“完整 / 不完整”结构化操作，选择其他当前事项后再解除本次回访覆盖，不修改完成判定、草稿事实或保存退出合同。
+
+### 完成态回访检材完整性验证记录
+
+- `guided_ready_evidence_revisit_contract: PASS`：会话 Hook 为用户主动回访保留显式当前动作，完成/等待等临时投影不再覆盖该动作；用户从事项面板选择其他状态时会清除回访覆盖，案件切换时也会重置。
+- `guided_ready_evidence_revisit_tests: PASS`：新增 SYNTHETIC Hook 与案件页面回归，旧逻辑下先复现点击后仍显示“保存并退出”，修复后定向用例 2 files / 46 passed，并断言检材确认操作出现且“保存并退出”退出当前回复区。
+- `guided_ready_evidence_revisit_quality: PASS`：`verify:quick`、scoped strict docs、Impeccable 单次检测与 `git diff --check` 通过；测试文件保持在 600 行门控内。
+- `guided_ready_evidence_revisit_manual_acceptance: N/A`：完成态与回访动作竞争、页面接线和可见控件由 SYNTHETIC Hook/DOM 回归可区分覆盖，未读取或操作真实案件数据。
+
+## 2026-09-03 獬豸助手删除错误检材反馈
+
+- [x] 6.85 在检材完整性清单及快捷批量补录状态中为每项检材提供具名的危险图标删除操作，并在确认后复用现有 `introduction.evidence_list` 更新与自动保存链路移除目标项；删除后将检材完整性恢复为未确认，不新增后端接口、数据结构或独立检材状态。
+- [x] 6.86 补充删除指定项、取消删除、只读禁用、删除最后一项后的空态以及快捷添加后可删除的 SYNTHETIC 组件/页面回归；同步 delta 与 living spec，并运行受影响测试、Impeccable 单次检测、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 删除错误检材验证记录
+
+- `guided_evidence_delete_contract: PASS`：检材摘要与快捷批量补录共用同一逐项删除入口；确认后只过滤目标项、保持其余顺序，并沿用报告更新与自动保存链路将完整性恢复为未确认；取消与只读状态不修改草稿。
+- `guided_evidence_delete_tests: PASS`：旧实现下新增 SYNTHETIC 回归准确失败于缺少删除入口；修复后受影响组件、引导视图与案件页面共 3 files / 41 passed，另在补齐强类型夹具后定向组件 4/4 通过，覆盖指定项删除、取消、只读禁用、删除最后一项空态及快捷补录状态。
+- `guided_evidence_delete_quality: PASS`：`verify:quick`、scoped strict docs 与 `git diff --check` 通过；Impeccable 单次检测仅报告本次 diff 外既有的侧边强调线与宽度动画，无新增控件告警；delta 与 living spec 已同步。
+- `guided_evidence_delete_manual_acceptance: N/A`：删除确认、目标项过滤、只读禁用、空态和页面接线均可由 SYNTHETIC DOM/页面回归可靠区分，不需要读取或操作真实案件数据。
+
+## 2026-09-03 检材完整性操作去重反馈
+
+- [x] 6.87 删除检材摘要与快捷批量补录区内独立的“确认完整”图标，将检材完整性确认合并到统一“进入下一步”动作；当前待办或回访历史检材时，进入下一步均先沿用现有字段确认与自动保存链路，再推进会话导航。
+- [x] 6.88 将批量解析预览后的写入操作改为带数量文案的“确认添加 N 项检材”按钮，明确该操作只添加预览批次且继续保持完整性未确认；补充 SYNTHETIC 组件、Hook 与页面回归，同步 delta/living spec，并运行受影响测试、Impeccable 单次检测、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 检材完整性操作去重验证记录
+
+- `guided_evidence_next_contract: PASS`：检材待办被纳入统一下一步确认目标；页面在当前待办和历史回访的向前导航中先写入 `introduction.evidence_list.completeness=confirmed`，再沿用既有会话推进与自动保存链路。
+- `guided_evidence_next_tests: PASS`：新增/调整的 SYNTHETIC 回归在旧实现下准确出现 7 个失败点；修复后组件、引导视图、Hook 与案件页面共 4 files / 62 passed，覆盖独立确认按钮消失、下一步可用、确认事实进入保存草稿及批次写入按钮语义区分。
+- `guided_evidence_next_quality: PASS`：`verify:quick`、scoped strict docs 与 `git diff --check` 通过；Impeccable 单次检测为 0 条告警；Hook 测试文件保持在 600 行门槛内，delta 与 living spec 已同步。
+- `guided_evidence_next_manual_acceptance: N/A`：按钮可见性、可访问名称、确认事实、批次写入和会话导航均由 SYNTHETIC DOM/Hook/页面回归可靠区分，不需要读取或操作真实案件数据。
+
+## 2026-09-03 人工检材来源标记去重反馈
+
+- [x] 6.89 将 Word 内容预览中的检材来源改为分层标记：通过现有本地新增身份识别整项人工添加检材，仅在检材标题显示一次“人工添加”，不在其设备、类型、标识与提取情况上重复；报告识别检材的单字段人工变更仅在对应字段显示“已修改”，其他直接填写字段继续显示“用户填写”。
+- [x] 6.90 补充整项人工添加、识别检材局部修改与普通直接填写字段的 SYNTHETIC 投影/DOM 回归；同步 delta 与 living spec，并运行受影响测试、Impeccable 单次检测、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 人工检材来源标记去重验证记录
+
+- `guided_material_provenance_contract: PASS`：Word 预览以稳定的 `local-evidence-*` 身份识别整项人工添加，只在检材标题投影“人工添加”；其子字段不再重复继承来源。报告识别检材不因局部字段变更而整项标记，仅对应字段投影“已修改”，其他直接填写业务字段仍沿用“用户填写”。
+- `guided_material_provenance_tests: PASS`：新增/调整的 SYNTHETIC 投影与 DOM 回归在旧实现下准确出现 3 个失败点；修复后投影、Hook 与引导视图共 3 files / 36 passed，覆盖整项去重、局部修改和普通直接填写三种来源层级。
+- `guided_material_provenance_quality: PASS`：`verify:quick`、scoped strict docs 与 `git diff --check` 通过，Impeccable 单次检测为 0 条告警；新测试按独立投影职责落在同目录且未触发文件大小门控，delta 与 living spec 已同步。
+- `guided_material_provenance_manual_acceptance: N/A`：来源层级、标签文案和 DOM 数量均可由 SYNTHETIC 投影/组件回归可靠区分，不需要读取或操作真实案件数据。

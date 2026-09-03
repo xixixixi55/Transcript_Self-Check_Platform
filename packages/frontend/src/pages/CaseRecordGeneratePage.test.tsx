@@ -239,7 +239,26 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
     await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
       .toContain('请确认检材完整性'))
-    expect(screen.getByRole('button', { name: '确认检材信息完整' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '确认检材信息完整' })).toBeNull()
+    expect(screen.getByRole('button', { name: '进入下一步' })).toBeTruthy()
+  }, 15000)
+
+  it('reopens evidence completeness instead of keeping save and exit visible after review completion', async () => {
+    showGuidedReady = true
+    showHandledCompleteness = true
+    showHandledCaseSummary = true
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /保存并退出/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /查看已填内容与待办/ }))
+    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
+    fireEvent.click(within(panel).getByRole('button', { name: '修改检材完整性' }))
+
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('请确认检材完整性'))
+    expect(screen.queryByRole('button', { name: '确认检材信息完整' })).toBeNull()
+    expect(screen.getByRole('button', { name: '进入下一步' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /保存并退出/ })).toBeNull()
   }, 15000)
 
   it('restores a confirmed case summary under previously handled after reopening the case', async () => {
@@ -276,8 +295,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     rejectSave = true
     const failedView = renderPage()
     await selectGuidedAction('请确认检材完整性')
-    fireEvent.click(await screen.findByRole('button', { name: '确认检材信息完整' }))
+    fireEvent.click(await screen.findByRole('button', { name: '进入下一步' }))
     expect(await screen.findByText('草稿保存失败')).toBeTruthy()
+    const failedDraft = (patchMock.mock.calls.at(-1)?.[1] as { draft: CaseDraft }).draft
+    expect(failedDraft.field_states['introduction.evidence_list.completeness'])
+      .toEqual(expect.objectContaining({ source: 'user', confirmation: 'confirmed' }))
     expect(screen.getByText('当前输入仍保留在本页面，请重试保存。')).toBeTruthy()
 
     rejectSave = false
@@ -287,7 +309,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     failedView.unmount(); detailReads = 0; conflictSave = true
     renderPage()
     await selectGuidedAction('请确认检材完整性')
-    fireEvent.click(await screen.findByRole('button', { name: '确认检材信息完整' }))
+    fireEvent.click(await screen.findByRole('button', { name: '进入下一步' }))
     expect(await screen.findByText('草稿保存发生冲突')).toBeTruthy()
     expect(screen.getByRole('button', { name: '加载服务端版本' })).toBeTruthy()
 

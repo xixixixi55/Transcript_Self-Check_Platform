@@ -381,12 +381,24 @@ export default function CaseRecordGeneratePage() {
   }
   const guidedInteractionDisabled = !session.editingEnabled
     || exportPreparing || exportDirectory.busy || exporting
-  const confirmCurrentGuidedAction = () => {
-    if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.caseSummary) {
+  const confirmCurrentGuidedField = () => {
+    const targetId = currentGuidedAction?.pendingItem?.targetId
+    if (targetId === REVIEW_TARGET_IDS.caseSummary) {
       session.setCaseSummaryConfirmed(true)
       if (session.editingEnabled) setReviewStatus('存在未导出修改')
     }
+    if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness) {
+      session.setEvidenceCompletenessConfirmed(true)
+      if (session.editingEnabled) setReviewStatus('存在未导出修改')
+    }
+  }
+  const confirmCurrentGuidedAction = () => {
+    confirmCurrentGuidedField()
     guidedReview.confirmCurrentAction()
+  }
+  const returnToNextGuidedAction = () => {
+    confirmCurrentGuidedField()
+    guidedReview.returnToNextAction()
   }
   return (
     <>
@@ -406,7 +418,7 @@ export default function CaseRecordGeneratePage() {
             canReturnToPrevious={guidedReview.canReturnToPrevious}
             canReturnToNext={guidedReview.canReturnToNext}
             onReturnToPreviousAction={guidedReview.returnToPreviousAction}
-            onReturnToNextAction={guidedReview.returnToNextAction}
+            onReturnToNextAction={returnToNextGuidedAction}
             onOpenFullEditor={openFullEditor}
             onBackToWorkbench={() => { void handleBackToWorkbench() }}>
             <GuidedReviewCard action={currentGuidedAction} report={projectedReport || session.report}
