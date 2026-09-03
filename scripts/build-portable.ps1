@@ -126,8 +126,11 @@ try {
     $officeSmokeBatch = Join-Path $officeSmokeRoot "SYNTHETIC-officecli-batch.json"
     Set-Content -LiteralPath $officeSmokeBatch -Encoding ASCII -Value '[{"command":"add","parent":"/body","type":"paragraph","props":{"text":"SYNTHETIC portable smoke"}}]'
     $savedPath = $env:Path
+    $hadOfficecliNoAutoResident = Test-Path Env:OFFICECLI_NO_AUTO_RESIDENT
+    $savedOfficecliNoAutoResident = $env:OFFICECLI_NO_AUTO_RESIDENT
     try {
         $env:Path = Join-Path $env:SystemRoot "System32"
+        $env:OFFICECLI_NO_AUTO_RESIDENT = "1"
         & $privateNode $privateOfficecli create $officeSmokeDocx
         if ($LASTEXITCODE -ne 0) { throw "Bundled officecli create smoke failed with exit code $LASTEXITCODE." }
         & $privateNode $privateOfficecli batch $officeSmokeDocx --input $officeSmokeBatch
@@ -136,6 +139,11 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Bundled officecli save smoke failed with exit code $LASTEXITCODE." }
     } finally {
         $env:Path = $savedPath
+        if ($hadOfficecliNoAutoResident) {
+            $env:OFFICECLI_NO_AUTO_RESIDENT = $savedOfficecliNoAutoResident
+        } else {
+            Remove-Item Env:OFFICECLI_NO_AUTO_RESIDENT -ErrorAction SilentlyContinue
+        }
     }
     if (-not (Test-Path -LiteralPath $officeSmokeDocx -PathType Leaf) -or (Get-Item -LiteralPath $officeSmokeDocx).Length -eq 0) {
         throw "Bundled officecli smoke output is missing or empty."

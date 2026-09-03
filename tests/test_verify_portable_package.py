@@ -107,3 +107,11 @@ def test_portable_build_prefers_versioned_local_toolchain_before_system_fallback
     office_system = script.index('"npm/node_modules/@officecli/officecli"')
     assert office_override < office_local < office_system
     assert 'Join-Path $projectRoot "dist/toolchain"' in script
+
+
+def test_portable_build_disables_officecli_auto_resident_for_smoke() -> None:
+    script = BUILD_SCRIPT.read_text(encoding="utf-8")
+    smoke_start = script.index('$officeSmokeRoot = Join-Path $buildRoot "officecli-smoke"')
+    smoke_end = script.index("python scripts/verify-portable-package.py", smoke_start)
+    smoke_script = script[smoke_start:smoke_end]
+    assert '$env:OFFICECLI_NO_AUTO_RESIDENT = "1"' in smoke_script

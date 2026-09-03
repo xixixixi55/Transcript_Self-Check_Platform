@@ -60,12 +60,15 @@ def run_officecli(
     env: Mapping[str, str] | None = None,
     runner: Runner = subprocess.run,
 ) -> subprocess.CompletedProcess[str]:
+    runtime_paths = paths or get_runtime_paths()
     values = dict(os.environ if env is None else env)
+    if runtime_paths.portable:
+        values["OFFICECLI_NO_AUTO_RESIDENT"] = "1"
     system32 = str(Path(values.get("SystemRoot", r"C:\Windows")) / "System32")
     path_parts = values.get("PATH", "").split(os.pathsep)
     if system32.casefold() not in {part.casefold() for part in path_parts if part}:
         values["PATH"] = system32 + os.pathsep + values.get("PATH", "")
-    command = resolve_officecli_command(paths, env=values)
+    command = resolve_officecli_command(runtime_paths, env=values)
     return runner(
         command.arguments(args), env=values, capture_output=True,
         encoding="utf-8", errors="replace", shell=False,

@@ -82,3 +82,11 @@ workflow_level: 3
 - [x] 12.4 使用实际 `文枢.exe` 验收：清单外文件可启动且日志脱敏，缺失/篡改清单文件仍拒绝，干净解压首次与第二次启动均成功，指定真实报告完成解析、审核、分卷压缩和统一导出。Word 视觉验收按用户要求标记 N/A。
 
 验证记录：启动器、RuntimePaths、设备配置与便携包校验定向 Pytest 45 项通过，`lint:arch`、`typecheck`、`verify:quick` 通过；实际重新构建覆盖 `文枢-v0.2.0-portable-x64.zip`，SHA-256 为 `a413c87a660afb9710d19905e0c977f26008a12d8a8be9074382e6b619797ce4`。实际 EXE 缺失与篡改场景分别显示稳定拒绝提示；单个清单外普通文件连续两次启动成功，用户数据日志仅记录 `count=1`，旧设备配置一次性规范化迁入用户数据根且程序目录内容未被回写。指定报告目录完成解析、审核、4 张 SYNTHETIC/TEST 图片绑定、约 4.90GB 数据压缩为 2 个 RAR 分卷并统一导出 1 个 DOCX、2 个 RAR 和 1 个校验 PNG；DOCX 必需 ZIP 项、PNG 可读取且 RAR 全卷测试退出码为 0。Word 视觉验收：N/A（用户明确要求不执行）。
+
+## 13. 构建反馈：officecli resident冷启动失败
+
+- [x] 13.1 记录构建失败：包内officecli的`--version`通过，首个`create`在自动resident路径因`System.Private.Xml, Version=10.0.0.0`加载失败而终止便携构建。
+- [x] 13.2 便携构建烟雾与冻结后端包内officecli调用强制设置`OFFICECLI_NO_AUTO_RESIDENT=1`；开发态仍保留officecli默认行为。
+- [x] 13.3 增加构建脚本与运行时环境合同回归，执行officecli Repository、便携构建脚本定向测试及实际create/batch/save冷启动烟雾。
+
+验证记录：新增环境合同用例在修复前稳定失败2项，修复后officecli Runtime、便携构建脚本与文书生成定向Pytest 35项通过；在清空PATH且禁用resident的条件下，包内officecli的create、batch、save及validate通过。`pnpm run build:portable`完整成功，重新生成`dist/portable/文枢-v0.2.0-portable-x64.zip`，SHA-256为`6656ab41ec18d6aa4965cdb7d36d66d410769c71d6e922c6f1fb7fe40a597a1b`；`verify:quick`、scoped strict docs与`git diff --check`通过。

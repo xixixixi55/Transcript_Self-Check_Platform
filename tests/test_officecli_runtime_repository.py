@@ -99,3 +99,23 @@ def test_run_officecli_passes_argument_array_without_shell(tmp_path: Path) -> No
     ]
     assert captured["kwargs"]["shell"] is False
     assert captured["kwargs"]["capture_output"] is True
+    assert captured["kwargs"]["env"]["OFFICECLI_NO_AUTO_RESIDENT"] == "1"
+
+
+def test_development_run_keeps_officecli_resident_default(tmp_path: Path) -> None:
+    paths = resolve_runtime_paths(
+        {"LOCALAPPDATA": str(tmp_path / "local")},
+        module_path=tmp_path / "repo" / "packages" / "backend" / "app" / "repository" / "runtime_paths.py",
+        platform_name="nt",
+    )
+    captured = {}
+
+    def runner(command, **kwargs):
+        captured["env"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, 0, "SYNTHETIC/OK", "")
+
+    run_officecli(
+        "--version", paths=paths,
+        env={"PATH": "SYNTHETIC"}, runner=runner,
+    )
+    assert "OFFICECLI_NO_AUTO_RESIDENT" not in captured["env"]

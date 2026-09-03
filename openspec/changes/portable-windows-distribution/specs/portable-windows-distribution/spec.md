@@ -72,6 +72,11 @@
 - **WHEN** 目标电脑未安装Node且PATH中不存在officecli
 - **THEN** 包内officecli的create、batch和save烟雾操作仍成功
 
+#### Scenario: 便携运行不依赖officecli后台常驻
+- **WHEN** 发布构建烟雾或冻结后端调用包内officecli
+- **THEN** 调用显式禁用officecli自动resident模式，create、batch和save在当前进程直接完成
+- **AND** 后台子进程、命名管道或其单文件加载缓存失败不得导致便携构建或Word生成失败
+
 #### Scenario: 包内officecli损坏
 - **WHEN** 包内Node或officecli入口缺失、哈希不匹配或执行失败
 - **THEN** 发布预检或运行时明确失败，不得静默调用目标电脑上的未知全局版本
