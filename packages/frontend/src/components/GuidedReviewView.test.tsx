@@ -154,15 +154,16 @@ describe('GuidedReviewView', () => {
       'SYNTHETIC Phone 6手机一部（SYNTHETIC/TEST：损坏无法提取）SYN-JC00000001',
       'SYNTHETIC Phone 7手机一部（SYNTHETIC/TEST：无法开机）SYN-JC00000002',
     ].join('\n') } })
-    fireEvent.click(screen.getByRole('button', { name: '解析并预览' }))
+    fireEvent.click(screen.getByRole('button', { name: '解析、排序并预览' }))
 
-    const parsedNotice = screen.getByText('已识别 3 项检材，请确认后添加。')
+    const parsedNotice = screen.getByText('已识别并排序 3 项检材，请确认后添加。')
     expect(parsedNotice.closest('.ant-message')).toBeTruthy()
     expect(document.querySelector('.guided-review-card__quick-evidence .ant-alert-success')).toBeNull()
     expect(screen.getByText(/SYNTHETIC Phone 6 · 手机/)).toBeTruthy()
     expect(screen.getByText(/SYNTHETIC Pad · 平板/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
-    expect(screen.getByText('已按检材编号自然升序排列。')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '一键排序' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('预览已按检材编号自然升序排列，确认添加时将同步排序全部检材。')
+    expect(updateReport).not.toHaveBeenCalled()
     expect((input as HTMLTextAreaElement).value.split('\n').map(line => line.match(/SYN-JC\d+/)?.[0])).toEqual([
       'SYN-JC00000001', 'SYN-JC00000002', 'SYN-JC00000003',
     ])
@@ -186,7 +187,8 @@ describe('GuidedReviewView', () => {
       'SYNTHETIC Invalid手机一部(SYNTHETIC/TEST：半角括号)SYN-JC00000004',
       'SYNTHETIC Duplicate手机一部（SYNTHETIC/TEST：重复编号）SYN-JC00000000',
     ].join('\n') } })
-    fireEvent.click(screen.getByRole('button', { name: '解析并预览' }))
+    fireEvent.click(screen.getByRole('button', { name: '解析、排序并预览' }))
+    expect(screen.queryByRole('status')).toBeNull()
     expect(screen.getByText(/第 1 行：格式不正确/)).toBeTruthy()
     expect(screen.getByText(/第 2 行：检材编号 SYN-JC00000000 已存在/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /确认添加/ })).toBeNull()
@@ -196,7 +198,7 @@ describe('GuidedReviewView', () => {
       'SYNTHETIC Duplicate A手机一部（SYNTHETIC/TEST：重复编号）SYN-JC00000005',
       'SYNTHETIC Duplicate B平板一部（SYNTHETIC/TEST：重复编号）SYN-JC00000005',
     ].join('\n') } })
-    fireEvent.click(screen.getByRole('button', { name: '解析并预览' }))
+    fireEvent.click(screen.getByRole('button', { name: '解析、排序并预览' }))
     expect(screen.getByText(/第 2 行：检材编号 SYN-JC00000005 在本次输入中重复/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /确认添加/ })).toBeNull()
   })
@@ -212,7 +214,7 @@ describe('GuidedReviewView', () => {
     }} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
-    fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
+    fireEvent.click(screen.getByRole('button', { name: '解析、排序并预览' }))
     expect(updateReport).toHaveBeenCalledWith('introduction.evidence_list', [evidence[2], evidence[1], evidence[0]])
     expect(screen.getByText('已按检材编号自然升序排列。')).toBeTruthy()
   })
@@ -228,7 +230,7 @@ describe('GuidedReviewView', () => {
     }} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
-    fireEvent.click(screen.getByRole('button', { name: '一键排序' }))
+    fireEvent.click(screen.getByRole('button', { name: '解析、排序并预览' }))
     expect(updateReport).not.toHaveBeenCalled()
     expect(screen.getByText('当前检材编号无法安全排序，已保持原顺序。')).toBeTruthy()
   })

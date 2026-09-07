@@ -163,7 +163,7 @@ describe('CaseCard archive completion states', () => {
     expect(screen.queryByRole('button', { name: '打开案件' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
-    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['打开案件', '归档案件'])
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['打开案件', '删除案件'])
     const openCaseItem = screen.getByRole('menuitem', { name: '打开案件' })
     fireEvent.click(openCaseItem.querySelector('a')!)
 

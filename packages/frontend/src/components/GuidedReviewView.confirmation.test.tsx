@@ -64,6 +64,31 @@ describe('GuidedReviewView text confirmation', () => {
     expect(button.disabled).toBe(true)
   })
 
+  it('updates the entrust date without advancing on change, blur or Enter', () => {
+    const confirm = vi.fn()
+    const updateReport = vi.fn()
+    const dateAction: GuidedReviewAction = {
+      ...action, id: 'SYNTHETIC-ENTRUST-DATE', title: '请选择委托时间',
+      advanceOnEnter: false, requiresExplicitAdvance: true,
+      pendingItem: {
+        ...action.pendingItem!, targetId: 'review-target-entrust-time', fieldLabel: '委托时间',
+      },
+    }
+    render(<GuidedReviewView conversationKey="SYNTHETIC-CASE" history={[]}
+      currentAction={dateAction} allActions={[dateAction]} hasResponse onSelectAction={vi.fn()}
+      onConfirmCurrentAction={confirm} onOpenFullEditor={vi.fn()} onBackToWorkbench={vi.fn()}>
+      <GuidedReviewCard action={dateAction} report={report} updateReport={updateReport} readOnly={false} />
+    </GuidedReviewView>)
+    const input = screen.getByLabelText('委托时间')
+    fireEvent.change(input, { target: { value: '2026-10-15' } })
+    expect(updateReport).toHaveBeenCalledWith('introduction.entrust_time', '2026年10月15日')
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.blur(input)
+    expect(confirm).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
+    expect(confirm).toHaveBeenCalledOnce()
+  })
+
   it('requires a button click to advance after reviewing a completed photo batch', () => {
     const confirm = vi.fn()
     const photoAction: GuidedReviewAction = {

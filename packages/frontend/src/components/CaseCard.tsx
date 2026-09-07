@@ -158,7 +158,7 @@ export function CaseCard({
         label: <Link to={casePath(shell.case_id)}>打开案件</Link>,
       })
     }
-    menuItems.push({ key: 'delete', label: '归档案件', danger: true, onClick: onDelete })
+    menuItems.push({ key: 'delete', label: '删除案件', danger: true, onClick: onDelete })
   }
 
   if (phase === 'parsing' && canCancelParse) {

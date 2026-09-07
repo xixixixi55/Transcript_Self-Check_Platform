@@ -251,8 +251,8 @@ export default function CaseWorkbenchPage() {
       </div>
       <Modal
         open={Boolean(deleteCaseId)}
-        title="确认归档该案件？"
-        okText="确认归档"
+        title={deleteShell?.lifecycle === 'exported' ? '确认归档该案件？' : '确认删除该案件？'}
+        okText={deleteShell?.lifecycle === 'exported' ? '确认归档' : '确认删除'}
         cancelText="取消"
         confirmLoading={Boolean(deleteCaseId && actionCaseId === deleteCaseId)}
         onOk={() => { void confirmDelete() }}
@@ -260,7 +260,7 @@ export default function CaseWorkbenchPage() {
       >
         {deleteShell?.lifecycle === 'exported'
           ? '案件已成功导出。归档后，该案件将从案件工作台移除。已导出到目标目录的文件不会被删除。'
-          : '归档后，该案件将从案件工作台移除，平台内受控数据和文件不可恢复。'}
+          : '删除后，该案件将从案件工作台移除，平台内受控数据和文件不可恢复。'}
       </Modal>
       <Modal
         open={Boolean(archiveDetail)}

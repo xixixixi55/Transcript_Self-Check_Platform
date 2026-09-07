@@ -204,7 +204,8 @@ function pendingAction(item: ReviewPendingItem): GuidedReviewAction {
     id: `pending-${item.id}`, kind: 'pending_item', pendingItem: item,
     title: pendingPrompt(item), description: item.reason,
     advanceOnEnter: ENTER_CONFIRM_TARGETS.has(item.targetId),
-    requiresExplicitAdvance: item.targetId === REVIEW_TARGET_IDS.photos,
+    requiresExplicitAdvance: item.targetId === REVIEW_TARGET_IDS.photos
+      || item.targetId === REVIEW_TARGET_IDS.entrustTime,
   }
 }
 

@@ -1,4 +1,4 @@
-import { DeleteOutlined, EditOutlined, FileAddOutlined, FileSearchOutlined, SortAscendingOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, FileAddOutlined, FileSearchOutlined } from '@ant-design/icons'
 import { Alert, Button, Input, message, Popconfirm, Space, Tooltip } from 'antd'
 import { useEffect, useState } from 'react'
 import type { EvidenceItem, InspectionReport } from '@biji/shared/types'
@@ -136,14 +136,7 @@ function QuickEvidenceBatchAdder({ items, onChange }: {
     content,
     duration: 2.5,
   })
-  const parse = () => {
-    const parsed = parseEvidenceBatch(value, items)
-    setResult(parsed)
-    if (parsed.errors.length) setSortRequested(false)
-    else showSuccess(`已识别 ${parsed.preview.length} 项检材，请确认后添加。`)
-    setSortFeedback(null)
-  }
-  const sort = () => {
+  const parseSortAndPreview = () => {
     if (!value.trim()) {
       const ordered = naturalEvidenceOrder(items, item => item.evidence_number)
       if (!ordered.applied) {
@@ -178,7 +171,7 @@ function QuickEvidenceBatchAdder({ items, onChange }: {
     setValue(orderedPreview.map(formatEvidencePreview).join('\n'))
     setSortRequested(true)
     setSortFeedback(null)
-    showSuccess('已按检材编号自然升序排列。')
+    showSuccess(`已识别并排序 ${orderedPreview.length} 项检材，请确认后添加。`)
   }
   const confirm = () => {
     if (!result || result.errors.length || !result.preview.length) return
@@ -239,15 +232,10 @@ function QuickEvidenceBatchAdder({ items, onChange }: {
               setSortFeedback(null)
             }} />
           <div className="guided-review-card__quick-evidence-actions" role="group" aria-label="快捷检材操作">
-            <Tooltip title="解析并预览">
+            <Tooltip title="解析、排序并预览">
               <Button shape="circle" size="large" className="guided-review-icon-action"
-                icon={<FileSearchOutlined />} aria-label="解析并预览"
-                onClick={parse} disabled={!value.trim()} />
-            </Tooltip>
-            <Tooltip title="一键排序">
-              <Button shape="circle" size="large" className="guided-review-icon-action"
-                icon={<SortAscendingOutlined />} aria-label="一键排序"
-                onClick={sort} disabled={!value.trim() && items.length < 2} />
+                icon={<FileSearchOutlined />} aria-label="解析、排序并预览"
+                onClick={parseSortAndPreview} disabled={!value.trim() && items.length < 2} />
             </Tooltip>
           </div>
           {sortFeedback ? <Alert type="warning" showIcon message={sortFeedback.message} /> : null}
@@ -257,6 +245,9 @@ function QuickEvidenceBatchAdder({ items, onChange }: {
             </ul>} />
           ) : null}
           {result && !result.errors.length ? <>
+            {sortRequested ? <p role="status">
+              预览已按检材编号自然升序排列，确认添加时将同步排序全部检材。
+            </p> : null}
             <ul className="guided-review-card__quick-evidence-preview">
               {result.preview.map(candidate => <li key={candidate.evidenceNumber}>
                 {candidate.deviceName} · {candidate.materialType === 'phone' ? '手机' : '平板'} ·

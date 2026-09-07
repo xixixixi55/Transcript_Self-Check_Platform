@@ -761,3 +761,21 @@ workflow_level: 2
 - `imei_rule_tests: PASS`：新增/调整的 SYNTHETIC 前端定向回归 5 files / 35 tests、后端解析与检材策略 71 tests、文书投影相关后端 112 tests 通过；完整前端首轮 489/490，通过项包含全部本次受影响模块，唯一源文件警告时序用例单独复跑通过。
 - `imei_rule_quality: PASS`：`npm run verify:quick`、全项目 TypeScript、架构、治理文档和仓库资产检查通过；Impeccable 检测仅命中本次差异外两处既有 CSS 告警，新增交互使用具名按钮、语义化 `details` 和 44px 触控目标。
 - `imei_rule_manual_acceptance: N/A`：分组、异常条件、字段可见性、修改回调、只读状态、窄屏网格和提取推导均由 SYNTHETIC 投影/DOM/服务回归及机械布局检查可靠区分，未读取或操作真实案件数据。
+
+
+## 2026-09-07 快捷批量解析排序统一入口（workflow_level: 2）
+
+- [x] 6.99 将解析预览与一键排序合并为“解析、排序并预览”，复用原自然排序与确认添加链路；成功时即时提示识别并排序数量，并在预览上方保留明确的已排序说明；失败时保留原顺序和警告，编辑输入清除过期反馈。
+- [x] 6.100 更新既有组件回归并同步 delta 与现行规格。
+- [x] 6.101 运行受影响组件测试、verify:quick 和限定范围 strict docs，记录结果。
+
+- `unified_batch_sort: PASS`：原组件回归在改实现前因缺少统一按钮而失败，修改后 12/12 通过，覆盖单击解析排序、明确成功提示、确认后写入、重复与格式错误、空输入排序现有项和不可排序警告。
+- `unified_batch_quality: PASS`：verify:quick 通过；Impeccable 检测 0 项；git diff --check 通过；delta 已同步现行规格。限定范围 strict docs 初次仅因本条验证任务未勾选而失败，补全记录后复核。
+- `unified_batch_manual: N/A`：沿用现有圆形图标和自适应操作组，DOM 回归验证预览内持续可见且可访问的排序说明；未进行真实案件操作或浏览器人工验收。
+
+
+## 2026-09-07 委托日期显式推进修复（Level 1）
+
+- [x] 6.102 修复原日期字段有效后自动退出当前步骤的缺陷：委托时间复用 requiresExplicitAdvance，日期更新仅更新字段，保持日期控件及当前步骤；只有点击“进入下一步”才推进，清空日期仍受原校验限制。
+  - 定向回归先复现中间有效日期触发自动进入案情步骤；修复后验证月份中间值、再次改日、清空、显式推进及返回上一步；组件回归验证 change、blur、Enter 均不触发确认，仅点击按钮触发。
+  - 验证：受影响 Hook 与组件共 26 项回归通过；日期推进用例按独立交互职责落在 useGuidedReviewCards.entrustDate.test.ts，移动后单独复跑通过；架构、TypeScript 与 git diff --check 通过。人工 Chrome 选择器验收未执行，已用原生 input 的 change、blur、Enter 事件与 Hook 重渲染回归复现并区分原缺陷。

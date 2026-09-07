@@ -202,8 +202,11 @@ describe('CaseWorkbenchPage', () => {
     render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(6))
     fireEvent.click(screen.getAllByRole('button', { name: '更多操作' })[0])
-    fireEvent.click(screen.getByRole('menuitem', { name: '归档案件' }))
-    fireEvent.click(screen.getByRole('button', { name: /确认归档/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '删除案件' }))
+    expect(screen.getByText('确认删除该案件？')).toBeTruthy()
+    expect(screen.getByText('删除后，该案件将从案件工作台移除，平台内受控数据和文件不可恢复。')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '确认归档' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /确认删除/ }))
 
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(
       expect.stringContaining('/workbench/cases/case-synthetic-1'),

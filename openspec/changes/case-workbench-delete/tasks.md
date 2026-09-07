@@ -103,3 +103,8 @@ workflow_level: 2
   - 实现与合同：卡片推荐操作、更多菜单、确认标题和确认按钮统一显示“归档案件”；内部 `onDelete`、`confirmDelete`、DELETE API、平台内数据清理和不可恢复提示均保持不变。
   - 自动化证据：案件卡片删除/归档完成组件回归 11/11 通过，案件工作台页面整文件回归通过；`verify:quick`、生产构建、scoped strict docs 和 Impeccable 单次检测通过，检测结果 0 项。OpenSpec change strict 仍报告该历史包使用旧式 `## MODIFIED:` 标题而无法识别 delta，属于本次修改前既存的格式债务，本次不扩大范围重排该包全部规格。
   - manual_acceptance: [N/A] 显示名称、确认文案与原回调/API 复用由 SYNTHETIC 组件及页面回归可区分覆盖，未读取或操作真实案件。
+
+
+- [x] T018 按用户反馈将“归档案件”限定为统一导出成功后的主操作；其余阶段更多菜单恢复“删除案件”，确认标题、确认按钮及正文同步使用删除措辞。复用原 DELETE API 和清理行为，同步相关 delta 与 living spec。
+  - 本次增量为 Level 1 文案修正，关联 T017，不新增接口或删除行为；复用卡片及工作台既有测试验证未导出删除和已导出归档两种文案。
+  - 验证：3 个既有前端测试文件 28/28 通过，覆盖未导出菜单删除、确认文案、DELETE 请求及已导出归档入口保留；scoped strict docs 14 项通过，Impeccable 检测 0 项，git diff --check 通过。人工验收 N/A（纯文案调整，复用现有布局和交互）。
