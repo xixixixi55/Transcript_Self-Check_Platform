@@ -47,4 +47,20 @@ describe('GuidedReviewCard', () => {
       'introduction.case_summary', 'SYNTHETIC/TEST UPDATED SUMMARY',
     )
   })
+
+  it('warns when the case summary ends with whitespace', () => {
+    const reportWithTrailingWhitespace = {
+      ...report,
+      introduction: { ...report.introduction, case_summary: 'SYNTHETIC SUMMARY  \n' },
+    }
+
+    const { rerender } = render(<GuidedReviewCard action={caseSummaryAction} report={reportWithTrailingWhitespace}
+      updateReport={vi.fn()} readOnly={false} />)
+
+    expect(screen.getByText('当前内容末尾存在多余回车、空格或制表符，请检查并删除。')).toBeTruthy()
+
+    rerender(<GuidedReviewCard action={caseSummaryAction} report={report}
+      updateReport={vi.fn()} readOnly={false} />)
+    expect(screen.queryByText('当前内容末尾存在多余回车、空格或制表符，请检查并删除。')).toBeNull()
+  })
 })

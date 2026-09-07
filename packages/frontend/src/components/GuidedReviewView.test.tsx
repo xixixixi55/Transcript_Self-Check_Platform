@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { InspectionReport } from '@biji/shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GuidedReviewAction, GuidedReviewHistoryItem } from '../hooks/useGuidedReviewCards'
+import type { GuidedReviewAction, GuidedReviewHistoryField, GuidedReviewHistoryItem } from '../hooks/useGuidedReviewCards'
 import { GuidedReviewCard } from './GuidedReviewCard'
 import { GuidedReviewView } from './GuidedReviewView'
 
@@ -43,6 +43,10 @@ const documentAction: GuidedReviewAction = {
 const waitingAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-WAITING', kind: 'waiting', title: '请稍候，正在生成压缩分卷',
   description: '后台任务仍在运行，可继续处理其他待办。',
+}
+const completedPhotoField: GuidedReviewHistoryField = {
+  label: '检材照片', value: '已上传 2 张图片', userProvided: true,
+  targetId: 'review-target-material-photos',
 }
 
 beforeEach(() => {
@@ -243,6 +247,7 @@ describe('GuidedReviewView', () => {
     const view = render(<GuidedReviewView
       conversationKey="SYNTHETIC-CASE"
       history={history}
+      previouslyHandledFields={[completedPhotoField]}
       currentAction={documentAction}
       allActions={[documentAction, waitingAction]}
       hasResponse
@@ -313,11 +318,11 @@ describe('GuidedReviewView', () => {
     expect(within(pendingPanel).getByText('委托人员')).toBeTruthy()
     expect(within(pendingPanel).getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
     expect(within(pendingPanel).getByText('检材 1 · SYN-JC00000001')).toBeTruthy()
-    expect(within(pendingPanel).getByText('已上传 2 张图片')).toBeTruthy()
+    expect(within(pendingPanel).getAllByText('已上传 2 张图片')).toHaveLength(2)
     expect(within(pendingPanel).queryByText('检查步骤 1')).toBeNull()
     expect(within(pendingPanel).queryByText('SYNTHETIC SYSTEM-GENERATED STEP')).toBeNull()
-    fireEvent.click(within(pendingPanel).getByRole('button', { name: '修改委托人员' }))
-    expect(revisitHandledField).toHaveBeenCalledWith(history[0].fields?.[0])
+    fireEvent.click(within(pendingPanel).getByRole('button', { name: '修改检材照片' }))
+    expect(revisitHandledField).toHaveBeenCalledWith(completedPhotoField)
     expect(openFullEditor).not.toHaveBeenCalled()
     fireEvent.click(pendingButton)
     const fullEditorButton = screen.getByRole('button', { name: '修改其他已填内容' })

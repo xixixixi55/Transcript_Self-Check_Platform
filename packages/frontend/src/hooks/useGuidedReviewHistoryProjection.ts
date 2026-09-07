@@ -21,6 +21,7 @@ export interface GuidedReviewHistoryMaterial {
   fields: GuidedReviewHistoryField[]
   photoCount: number
   requiredPhotoCount: number
+  imeiStatus?: 'complete' | 'attention'
   userProvided?: boolean
   sourceLabel?: '人工添加'
   targetId?: string
@@ -110,10 +111,14 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
     const deviceName = brand && model
       ? model.toLocaleLowerCase().includes(brand.toLocaleLowerCase()) ? model : `${brand} ${model}`
       : material.device_name?.trim() || model || material.device_type?.trim()
-    const extractability = material.extractable === false
+    const inferredExtractable = Boolean(material.imei1?.trim() || material.imei2?.trim())
+    const extractable = typeof material.extractable === 'boolean' ? material.extractable : inferredExtractable
+    const extractability = extractable === false
       ? material.unextractable_reason?.trim()
         ? `无法提取：${material.unextractable_reason.trim()}` : '无法提取'
-      : material.extractable === true ? '可提取' : null
+      : '可提取'
+    const imei1 = material.imei1?.trim() || ''
+    const imei2 = material.imei2?.trim() || ''
     const materialId = material.evidence_id || material.id || `material-${index}`
     const evidencePrefix = material.evidence_id ? `evidence.${material.evidence_id}.` : ''
     const evidencePath = (field: string) => evidencePrefix ? `${evidencePrefix}${field}` : ''
@@ -121,24 +126,28 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
     const editedField = (label: string, value: string | null | undefined, edited: boolean) => historyField(
       label, value, !userAdded && edited, REVIEW_TARGET_IDS.evidence(index), '已修改',
     )
+    const visibleField = (label: string, value: string | null | undefined, fallback: string, edited: boolean) => (
+      editedField(label, value?.trim() || fallback, edited)!
+    )
     return {
       id: materialId,
       label,
       photoCount: materialPhotoCount(report, index, material.id),
       requiredPhotoCount: 2,
+      imeiStatus: Boolean(imei1 && imei2 && imei1 !== imei2) ? 'complete' : 'attention',
       targetId: REVIEW_TARGET_IDS.evidence(index),
       ...(userAdded ? { userProvided: true, sourceLabel: '人工添加' as const } : {}),
-      fields: compactHistoryFields([
-        editedField('设备', deviceName, isUserProvided(fieldStates,
+      fields: [
+        visibleField('设备', deviceName, '待填写', isUserProvided(fieldStates,
           evidencePath('device_name'), evidencePath('brand'), evidencePath('model'), evidencePath('device_type'))),
-        editedField('类型', materialType, material.material_type_source === 'user'
+        visibleField('类型', materialType, '待确认', material.material_type_source === 'user'
           || isUserProvided(fieldStates, evidencePath('material_type'))),
-        editedField('IMEI 1', material.imei1, isUserProvided(fieldStates, evidencePath('imei1'))),
-        editedField('IMEI 2', material.imei2, isUserProvided(fieldStates, evidencePath('imei2'))),
-        editedField('序列号', material.serial_number, isUserProvided(fieldStates, evidencePath('serial_number'))),
-        editedField('提取情况', extractability, isUserProvided(fieldStates,
+        visibleField('IMEI 1', imei1, '待核对', isUserProvided(fieldStates, evidencePath('imei1'))),
+        visibleField('IMEI 2', imei2, '待核对', isUserProvided(fieldStates, evidencePath('imei2'))),
+        visibleField('序列号', material.serial_number, '未识别', isUserProvided(fieldStates, evidencePath('serial_number'))),
+        visibleField('提取情况', extractability, '无法提取', isUserProvided(fieldStates,
           evidencePath('extractable'), evidencePath('unextractable_reason'))),
-      ]),
+      ],
     }
   })
 }

@@ -39,6 +39,10 @@ const PRINCIPLE_MAX_LINES = 800
  * 模块只做行数搬运。
  */
 const FILE_SIZE_JUSTIFICATIONS: Record<string, { maxLines: number; reason: string }> = {
+  'packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx': {
+    maxLines: 650,
+    reason: 'The page-level coordination scenarios share one router, lease, async API, and revision-race harness; splitting now would duplicate stateful fixtures, so retain the cohesive suite under a narrow growth cap.',
+  },
   'packages/backend/app/services/template/template_filler_service.py': {
     maxLines: 1100,
     reason: 'Existing Legacy template orchestration remains behavior-frozen until natural renderer and plan boundaries are implemented and verified.',

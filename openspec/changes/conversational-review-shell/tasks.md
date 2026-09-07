@@ -696,3 +696,68 @@ workflow_level: 2
 - `guided_material_provenance_tests: PASS`：新增/调整的 SYNTHETIC 投影与 DOM 回归在旧实现下准确出现 3 个失败点；修复后投影、Hook 与引导视图共 3 files / 36 passed，覆盖整项去重、局部修改和普通直接填写三种来源层级。
 - `guided_material_provenance_quality: PASS`：`verify:quick`、scoped strict docs 与 `git diff --check` 通过，Impeccable 单次检测为 0 条告警；新测试按独立投影职责落在同目录且未触发文件大小门控，delta 与 living spec 已同步。
 - `guided_material_provenance_manual_acceptance: N/A`：来源层级、标签文案和 DOM 数量均可由 SYNTHETIC 投影/组件回归可靠区分，不需要读取或操作真实案件数据。
+
+## 2026-09-04 案件简要情况尾部空白提示一致性反馈
+
+- [x] 6.91 让獬豸助手的案件简要情况输入复用完整审核编辑的尾部空白检测与警告文案；补充 SYNTHETIC 组件回归，同步 delta/living spec，并运行受影响测试、`verify:quick`、scoped strict docs 与 `git diff --check`。
+
+### 案件简要情况尾部空白提示一致性验证记录
+
+- `guided_case_summary_whitespace_contract: PASS`：獬豸助手与完整审核编辑共用同一尾部空白检测函数和警告文案；案件简要情况末尾含空格、回车或制表符时显示警告，清理后警告消失，不自动裁剪或阻断既有输入保存链路。
+- `guided_case_summary_whitespace_tests: PASS`：新增 SYNTHETIC 组件回归在旧实现上准确失败于缺少警告；实施后獬豸助手与完整审核编辑定向回归共 2 files / 18 passed，覆盖警告出现、消失及既有编辑行为。
+- `guided_case_summary_whitespace_quality: PASS`：`verify:quick` 通过，架构、全项目 TypeScript、治理文档与仓库资产卫生检查无异常；delta 已同步 living spec。
+- `guided_case_summary_whitespace_manual_acceptance: N/A`：尾部空白识别、警告文案、清理后消失及两个入口的共用规则均由 SYNTHETIC DOM 回归可靠区分，不需要读取或操作真实案件数据。
+
+## 2026-09-04 獬豸助手批量图片导入停留反馈
+
+- [x] 6.92 修复獬豸助手批量导入图片补齐后自动切换下一事项的问题；图片待办完成后保留当前图片步骤和已导入结果，仅在用户点击“进入下一步”时推进，不把文件输入框的 Enter 操作误作步骤确认。
+
+### 獬豸助手批量图片导入停留验证记录
+
+- `guided_photo_review_contract: PASS`：图片数量补齐后，引导 Hook 保留当前图片动作及已导入结果；“进入下一步”作为独立的显式推进操作，文件输入框的 Enter 不触发步骤确认，上传、绑定和待办派生合同保持不变。
+- `guided_photo_review_tests: PASS`：新增 SYNTHETIC Hook/DOM 回归在旧实现下准确失败于图片步骤自动切到文号；修复后核心回归 2 files / 4 passed，扩展引导 Hook、组件与案件页面回归 4 files / 62 passed，仅保留既有 jsdom `getComputedStyle` 与 React `act` 警告。
+- `guided_photo_review_quality: PASS`：`verify:quick`、scoped strict docs 与 `git diff --check` 通过，Impeccable 单次检测为 0 条告警；测试按可独立验证的图片审查导航职责拆分，架构文件大小检查通过，delta 已同步 living spec。
+- `guided_photo_review_manual_acceptance: N/A`：当前步骤身份、已导入结果保留、显式按钮推进及文件输入 Enter 隔离均由 SYNTHETIC Hook/DOM 回归可靠区分，不需要读取或操作真实案件数据。
+
+## 2026-09-04 已上传图片回访入口反馈
+
+- [x] 6.93 将已上传完成的检材照片作为非待办的“此前已处理”内容投影，显示当前图片数量；点击“修改检材照片”后仍在獬豸助手中重新打开原图片管理控件，允许检查、删除或重新上传，不增加红色待办数量。
+
+### 已上传图片回访入口验证记录
+
+- `guided_photo_revisit_contract: PASS`：草稿存在图片 ID 时稳定投影“检材照片 / 已上传 N 张图片”，并登记为獬豸助手可回访目标；完成态不重新进入动态待办或红色计数，点击后以“请核对检材照片”恢复原图片管理控件。
+- `guided_photo_revisit_tests: PASS`：新增 SYNTHETIC Hook 回归在旧实现下准确失败于缺少图片回访字段；修复后 Hook/组件核心回归 2 files / 14 passed，扩展引导与案件页面回归 5 files / 63 passed，仅保留既有 jsdom `getComputedStyle` 与 React `act` 警告。
+- `guided_photo_revisit_quality: PASS`：`verify:quick`、scoped strict docs 与 `git diff --check` 通过，Impeccable 单次检测为 0 条告警；架构、TypeScript、治理文档与仓库资产卫生检查通过，delta 已同步 living spec。
+- `guided_photo_revisit_manual_acceptance: N/A`：入口可见文案、图片数量、待办计数隔离与回访目标均可由 SYNTHETIC Hook/DOM 回归可靠区分，不需要读取或操作真实案件数据。
+
+## 2026-09-04 检材图片绑定竞态与重复页面反馈
+
+- [x] 6.94 将检材照片绑定错误提示合并进唯一的可上传图片步骤；上传、补齐或异常状态变化都不得自动离开该步骤，仅在用户点击“进入下一步”后推进。
+
+### 检材图片绑定竞态与重复页面验证记录
+
+- `guided_photo_single_step_contract: PASS`：图片仍未补齐时，绑定错误不再额外投影独立恢复事项；图片刚补齐但异步错误到达时，保留的图片步骤会屏蔽重复恢复事项。错误 Alert 与原 `ImageUploader` 同时可见。
+- `guided_photo_single_step_tests: PASS`：新增 Hook 回归在旧实现上失败于同时存在两个图片事项；修复后受影响 Hook、组件与页面 6 files / 79 tests 通过，确认单一事项内错误可见且批量上传仍可用。页面综合回归共用唯一的路由、租约、异步 API 与 revision 时序桩，拆分会复制状态基础设施，因此在架构检查中登记 650 行有界上限，当前 626 行。
+- `guided_photo_single_step_manual_acceptance: N/A`：事项数量、错误提示、上传控件可用性与显式推进由 SYNTHETIC Hook/页面 DOM 回归可靠区分，不读取或操作真实案件数据。
+
+## 2026-09-07 检材 IMEI 核对与提取规则反馈
+
+- [x] 6.95 调整 Word 内容预览的检材投影与展示：IMEI1、IMEI2 均非空且不同的普通检材合并收纳在一个默认折叠框内；任一 IMEI 缺失或两个值相同的检材逐项单独展示，并保留检材编号、设备、类型、IMEI1、IMEI2、序列号、提取情况和图片数量。
+  - 预计文件：`packages/frontend/src/hooks/useGuidedReviewHistoryProjection.ts`、`packages/frontend/src/components/GuidedReviewHistory.tsx`、`packages/frontend/src/reviewWorkspace.css` 及相关 SYNTHETIC 组件/投影测试。
+  - 验证：完整 IMEI 检材只进入同一折叠组，单 IMEI、无 IMEI和重复 IMEI 检材保持逐项展开；原始顺序、字段值和图片计数不丢失。
+- [x] 6.96 在獬豸助手的检材完整性事项中为每项检材提供逐项编辑入口，复用现有 `EvidenceEditor` 和报告更新/自动保存链路；设备名称、检材类型、是否可提取、无法提取原因、IMEI1、IMEI2、序列号和检材编号均可修改，序列号不得因手机类型或无法提取状态而隐藏。
+  - 预计文件：`packages/frontend/src/components/GuidedReviewCard.tsx`、`packages/frontend/src/components/EvidenceEditor.tsx` 及相关组件测试。
+  - 验证：从检材摘要打开编辑后可修改各字段；只读状态不可修改；删除确认、批量补录和统一“进入下一步”语义保持不变。
+- [x] 6.97 将自动“是否可提取”规则统一改为仅在 IMEI1 或 IMEI2 至少一个非空时为可提取；序列号继续解析、保存和展示，但不参与报告解析、存量缺失字段兼容推导、前端待核对和文书投影的默认判定，用户显式修正的布尔值继续生效。
+  - 预计文件：`packages/backend/app/services/report/report_parser_service.py`、`packages/backend/app/services/inspection/material_policy_service.py`、文书投影服务、`packages/shared/utils/softwareProjectionUtils.ts`、前端检查与编辑组件及相关测试。
+  - 验证：仅序列号检材默认无法提取，任一 IMEI 非空默认可提取，显式人工值不被覆盖；运行受影响 Pytest/Vitest、`verify:quick`、scoped strict docs 与 `git diff --check`。
+- [x] 6.98 核对并同步本次 delta 至 living specs，记录 Level 2 验证与人工验收结论。
+
+### 检材 IMEI 核对与提取规则验证记录
+
+- `guided_evidence_imei_contract: PASS`：Word 内容预览把双 IMEI 均存在且不同的检材统一放入默认折叠组；单 IMEI、无 IMEI 和重复 IMEI 检材逐项展示“IMEI 待核对”，同时保留序列号、最终提取状态和图片数量。每项修改入口回到獬豸助手检材控件，不跳转完整编辑。
+- `guided_evidence_editing: PASS`：检材完整性事项可逐项展开现有 `EvidenceEditor`；设备名称、类型、提取状态、原因、IMEI1、IMEI2、序列号和编号均可修改，修改继续调用 `introduction.evidence_list` 更新与自动保存链路。手机、平板及无法提取状态均不再隐藏标识编辑入口。
+- `imei_only_extractability: PASS`：报告解析、规范检材兼容投影、文书构建/模板填充、共享过程投影及前端待核对均只用 IMEI1/IMEI2 推导缺失的 `extractable`；序列号继续保存和预览，显式布尔值保持优先。
+- `imei_rule_tests: PASS`：新增/调整的 SYNTHETIC 前端定向回归 5 files / 35 tests、后端解析与检材策略 71 tests、文书投影相关后端 112 tests 通过；完整前端首轮 489/490，通过项包含全部本次受影响模块，唯一源文件警告时序用例单独复跑通过。
+- `imei_rule_quality: PASS`：`npm run verify:quick`、全项目 TypeScript、架构、治理文档和仓库资产检查通过；Impeccable 检测仅命中本次差异外两处既有 CSS 告警，新增交互使用具名按钮、语义化 `details` 和 44px 触控目标。
+- `imei_rule_manual_acceptance: N/A`：分组、异常条件、字段可见性、修改回调、只读状态、窄屏网格和提取推导均由 SYNTHETIC 投影/DOM/服务回归及机械布局检查可靠区分，未读取或操作真实案件数据。

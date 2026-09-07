@@ -63,4 +63,32 @@ describe('GuidedReviewView text confirmation', () => {
     const button = screen.getByRole('button', { name: '进入下一步' }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
   })
+
+  it('requires a button click to advance after reviewing a completed photo batch', () => {
+    const confirm = vi.fn()
+    const photoAction: GuidedReviewAction = {
+      ...action,
+      id: 'SYNTHETIC-PHOTOS',
+      title: '请上传检材照片',
+      advanceOnEnter: false,
+      requiresExplicitAdvance: true,
+      pendingItem: {
+        ...action.pendingItem!,
+        id: 'SYNTHETIC-PHOTOS',
+        targetId: 'review-target-material-photos',
+        fieldLabel: '检材照片',
+      },
+    }
+    render(<GuidedReviewView conversationKey="SYNTHETIC-CASE" history={[]}
+      currentAction={photoAction} allActions={[photoAction]} hasResponse onSelectAction={vi.fn()}
+      onConfirmCurrentAction={confirm} onOpenFullEditor={vi.fn()} onBackToWorkbench={vi.fn()}>
+      <input type="file" aria-label="批量导入图片" multiple />
+    </GuidedReviewView>)
+
+    fireEvent.keyDown(screen.getByLabelText('批量导入图片'), { key: 'Enter' })
+    expect(confirm).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
+    expect(confirm).toHaveBeenCalledOnce()
+  })
 })

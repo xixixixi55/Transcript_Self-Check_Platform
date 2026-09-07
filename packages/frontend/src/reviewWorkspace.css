@@ -1570,10 +1570,40 @@
   border-top: 1px solid #d6e0e8;
 }
 
+.guided-review-history__material-group {
+  margin: 8px 0;
+  padding: 0 10px;
+  background: #f6f9fb;
+  border: 1px solid #d6e0e8;
+  border-radius: 8px;
+}
+
+.guided-review-history__material-group > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--review-text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.guided-review-history__material-group-content {
+  border-top: 1px solid #d6e0e8;
+}
+
 .guided-review-history__material {
   min-width: 0;
   padding: 9px 0;
   border-bottom: 1px solid #d6e0e8;
+}
+
+.guided-review-history__material--attention {
+  margin-top: 8px;
+  padding: 9px 10px;
+  background: #fff8ed;
+  border: 1px solid #ead3aa;
+  border-radius: 8px;
 }
 
 .guided-review-history__material-heading {
@@ -1602,6 +1632,31 @@
 
 .guided-review-history__material-count--complete {
   color: var(--review-success);
+}
+
+.guided-review-history__material-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.guided-review-history__material-actions .ant-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.guided-review-history__attention-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  color: #8a4b08;
+  background: #fff0d4;
+  border: 1px solid #e7c58a;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 17px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .guided-review-history__material .guided-review-history__fields {
@@ -2019,13 +2074,17 @@
 
 .guided-review-card__evidence-summary li {
   display: grid;
-  grid-template-columns: minmax(112px, auto) minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(112px, auto) minmax(0, 1fr) 44px 44px;
   gap: 8px 12px;
   align-items: center;
   padding: 8px 10px;
   color: var(--platform-preview-text-secondary);
   background: var(--platform-preview-neutral-soft);
   border-radius: 10px;
+}
+
+.guided-review-card__evidence-inline-editor {
+  margin-top: 4px;
 }
 
 .guided-review-card__evidence-summary strong {
@@ -2503,6 +2562,14 @@
 
   .guided-review-history__material .guided-review-history__fields {
     padding-right: 0;
+  }
+
+  .guided-review-card__evidence-summary li {
+    grid-template-columns: minmax(0, 1fr) 44px 44px;
+  }
+
+  .guided-review-card__evidence-summary strong {
+    grid-column: 1 / -1;
   }
 
   .guided-review-conversation {

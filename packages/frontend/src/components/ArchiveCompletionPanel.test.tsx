@@ -115,7 +115,7 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     })
   })
 
-  it('keeps the persisted first disc editable after the mapping is verified', async () => {
+  it('keeps the persisted first disc editable without writing the mapping back to the draft', async () => {
     const { onFirstDiscNumberChange } = renderPanel({
       lifecycle: 'archive_verified',
       parts: [{ disc_number: 'GP20260731-001' }],
@@ -128,9 +128,8 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     expect(mapping).toHaveBeenCalledWith(
       'case-synthetic-disc-input', 1, 2, 'GP20260731-002',
     )
-    await vi.waitFor(() => {
-      expect(onFirstDiscNumberChange).toHaveBeenCalledWith('GP20260731-002')
-    })
+    await vi.waitFor(() => expect(mapping).toHaveBeenCalledTimes(1))
+    expect(onFirstDiscNumberChange).not.toHaveBeenCalled()
     expect(screen.getByText('归档完成')).toBeTruthy()
     expect(screen.getByText(/全部 RAR、文件哈希与盘号已对应完成/)).toBeTruthy()
   })

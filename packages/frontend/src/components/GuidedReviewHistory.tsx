@@ -1,7 +1,10 @@
+import { EditOutlined } from '@ant-design/icons'
+import { Button, Tooltip } from 'antd'
 import type { GuidedReviewHistoryItem } from '../hooks/useGuidedReviewCards'
 
 interface Props {
   items: GuidedReviewHistoryItem[]
+  onEditMaterial?: (targetId: string) => void
 }
 
 function HistoryFields({ fields }: { fields: NonNullable<GuidedReviewHistoryItem['fields']> }) {
@@ -22,37 +25,69 @@ function HistoryFields({ fields }: { fields: NonNullable<GuidedReviewHistoryItem
   )
 }
 
-function HistoryMaterials({ materials }: { materials: NonNullable<GuidedReviewHistoryItem['materials']> }) {
+function HistoryMaterial({ material, onEditMaterial }: {
+  material: NonNullable<GuidedReviewHistoryItem['materials']>[number]
+  onEditMaterial?: (targetId: string) => void
+}) {
+  const complete = material.photoCount >= material.requiredPhotoCount
   return (
-    <div className="guided-review-history__materials" role="list" aria-label="检材与图片">
-      {materials.map(material => {
-        const complete = material.photoCount >= material.requiredPhotoCount
-        return (
-          <div className="guided-review-history__material" role="listitem" key={material.id}>
-            <div className="guided-review-history__material-heading">
-              <span>
-                {material.label}
-                {material.userProvided && <span className="guided-review-history__user-badge">
-                  {material.sourceLabel || '用户填写'}
-                </span>}
-              </span>
-              <span
-                className={`guided-review-history__material-count${complete
-                  ? ' guided-review-history__material-count--complete' : ''}`}
-                aria-label={`${material.label}：已上传 ${material.photoCount} 张图片，共需 ${material.requiredPhotoCount} 张`}
-              >
-                {material.photoCount}/{material.requiredPhotoCount}
-              </span>
-            </div>
-            {material.fields.length > 0 && <HistoryFields fields={material.fields} />}
-          </div>
-        )
-      })}
+    <div className={`guided-review-history__material guided-review-history__material--${material.imeiStatus}`}
+      role="listitem" aria-label={material.label}>
+      <div className="guided-review-history__material-heading">
+        <span>
+          {material.label}
+          {material.userProvided && <span className="guided-review-history__user-badge">
+            {material.sourceLabel || '用户填写'}
+          </span>}
+          {material.imeiStatus === 'attention' && (
+            <span className="guided-review-history__attention-badge">IMEI 待核对</span>
+          )}
+        </span>
+        <span className="guided-review-history__material-actions">
+          <span
+            className={`guided-review-history__material-count${complete
+              ? ' guided-review-history__material-count--complete' : ''}`}
+            aria-label={`${material.label}：已上传 ${material.photoCount} 张图片，共需 ${material.requiredPhotoCount} 张`}
+          >
+            {material.photoCount}/{material.requiredPhotoCount}
+          </span>
+          {material.targetId && onEditMaterial && (
+            <Tooltip title={`修改${material.label}`}>
+              <Button type="text" shape="circle" icon={<EditOutlined />}
+                aria-label={`修改${material.label}`} onClick={() => onEditMaterial(material.targetId!)} />
+            </Tooltip>
+          )}
+        </span>
+      </div>
+      {material.fields.length > 0 && <HistoryFields fields={material.fields} />}
     </div>
   )
 }
 
-export function GuidedReviewHistory({ items }: Props) {
+function HistoryMaterials({ materials, onEditMaterial }: {
+  materials: NonNullable<GuidedReviewHistoryItem['materials']>
+  onEditMaterial?: (targetId: string) => void
+}) {
+  const completeMaterials = materials.filter(material => material.imeiStatus === 'complete')
+  const attentionMaterials = materials.filter(material => material.imeiStatus !== 'complete')
+  return (
+    <div className="guided-review-history__materials" role="list" aria-label="检材与图片">
+      {completeMaterials.length > 0 && (
+        <details className="guided-review-history__material-group">
+          <summary>IMEI 信息完整（{completeMaterials.length}项）</summary>
+          <div className="guided-review-history__material-group-content" role="list">
+            {completeMaterials.map(material => <HistoryMaterial key={material.id}
+              material={material} onEditMaterial={onEditMaterial} />)}
+          </div>
+        </details>
+      )}
+      {attentionMaterials.map(material => <HistoryMaterial key={material.id}
+        material={material} onEditMaterial={onEditMaterial} />)}
+    </div>
+  )
+}
+
+export function GuidedReviewHistory({ items, onEditMaterial }: Props) {
   return (
     <section className="guided-review-history" role="region" aria-labelledby="guided-review-history-title" tabIndex={0}>
       <div className="guided-review-history__heading">
@@ -70,7 +105,9 @@ export function GuidedReviewHistory({ items }: Props) {
                   <h3>{item.title}</h3>
                   {item.detail && <p>{item.detail}</p>}
                   {item.fields && item.fields.length > 0 && <HistoryFields fields={item.fields} />}
-                  {item.materials && item.materials.length > 0 && <HistoryMaterials materials={item.materials} />}
+                  {item.materials && item.materials.length > 0 && (
+                    <HistoryMaterials materials={item.materials} onEditMaterial={onEditMaterial} />
+                  )}
                 </div>
               </li>
             ))}

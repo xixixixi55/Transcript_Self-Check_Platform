@@ -19,6 +19,12 @@ interface ReviewIntroductionSectionProps {
 
 const ENTRUST_PERSON_SEPARATOR = /[、,，;；/／|｜\r\n]+/
 
+export const CASE_SUMMARY_TRAILING_WHITESPACE_MESSAGE = '当前内容末尾存在多余回车、空格或制表符，请检查并删除。'
+
+export function hasCaseSummaryTrailingWhitespace(value: string): boolean {
+  return /[ \t\r\n]+$/.test(value)
+}
+
 export function normalizeEntrustPersons(value: string | string[]): string[] {
   const values = Array.isArray(value) ? value : [value]
   return values.flatMap(item => item.split(ENTRUST_PERSON_SEPARATOR))
@@ -49,7 +55,7 @@ export function ReviewIntroductionSection({
   fieldStates,
   onEvidenceCompletenessChange,
 }: ReviewIntroductionSectionProps) {
-  const hasTrailingWhitespace = /[ \t\r\n]+$/.test(introduction.case_summary || '')
+  const hasTrailingWhitespace = hasCaseSummaryTrailingWhitespace(introduction.case_summary || '')
   const evidenceCompletenessConfirmed = fieldStates?.[EVIDENCE_COMPLETENESS_FIELD_PATH]?.confirmation === 'confirmed'
   return (
     <>
@@ -66,7 +72,7 @@ export function ReviewIntroductionSection({
         className="review-case-summary-whitespace"
         type="warning"
         showIcon
-        message="当前内容末尾存在多余回车、空格或制表符，请检查并删除。"
+        message={CASE_SUMMARY_TRAILING_WHITESPACE_MESSAGE}
       />}
       <div id={REVIEW_TARGET_IDS.evidenceCompleteness} className="review-editor-block review-navigation-target" tabIndex={-1}>
         <div className="review-evidence-heading">

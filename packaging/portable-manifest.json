@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "product": "文枢",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "platform": "windows-x64",
   "node_version": "22.23.2",
   "officecli_package": "@officecli/officecli",

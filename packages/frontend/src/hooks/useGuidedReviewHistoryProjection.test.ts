@@ -14,6 +14,27 @@ function userState(fieldPath: string): FieldState {
 }
 
 describe('guided Word preview source attribution', () => {
+  it('classifies complete and attention IMEI material previews without hiding serial numbers', () => {
+    const base = syntheticReport.introduction.evidence_list[0]
+    const materials = [
+      { ...base, id: 'SYNTHETIC-COMPLETE', evidence_id: 'SYNTHETIC-COMPLETE',
+        imei1: '111111111111111', imei2: '222222222222222', serial_number: 'SYNTHETIC-SERIAL-A' },
+      { ...base, id: 'SYNTHETIC-MISSING', evidence_id: 'SYNTHETIC-MISSING',
+        imei1: '333333333333333', imei2: '', serial_number: 'SYNTHETIC-SERIAL-B' },
+      { ...base, id: 'SYNTHETIC-DUPLICATE', evidence_id: 'SYNTHETIC-DUPLICATE',
+        imei1: '444444444444444', imei2: '444444444444444', serial_number: 'SYNTHETIC-SERIAL-C' },
+    ]
+    const projected = buildReportHistory({
+      ...syntheticReport,
+      introduction: { ...syntheticReport.introduction, evidence_list: materials },
+    }).find(item => item.id === 'fact-evidence')?.materials || []
+
+    expect(projected.map(item => item.imeiStatus)).toEqual(['complete', 'attention', 'attention'])
+    expect(projected[1].fields.find(field => field.label === 'IMEI 2')?.value).toBe('待核对')
+    expect(projected.map(item => item.fields.find(field => field.label === '序列号')?.value))
+      .toEqual(['SYNTHETIC-SERIAL-A', 'SYNTHETIC-SERIAL-B', 'SYNTHETIC-SERIAL-C'])
+  })
+
   it('does not label evidence-derived result fields as user-filled', () => {
     const report = {
       ...syntheticReport,

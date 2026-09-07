@@ -78,7 +78,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
         )
         extractable = ev.get("extractable")
         if not isinstance(extractable, bool):
-            extractable = any(str(ev.get(key, "")).strip() for key in ("imei1", "imei2", "serial_number"))
+            extractable = any(str(ev.get(key, "")).strip() for key in ("imei1", "imei2"))
         details = []
         if extractable:
             for key, label in (("imei1", "IMEI1"), ("imei2", "IMEI2"), ("serial_number", "序列号")):

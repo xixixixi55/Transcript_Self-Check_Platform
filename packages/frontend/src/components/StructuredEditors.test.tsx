@@ -95,13 +95,13 @@ describe('结构化编辑器', () => {
     ])
   })
 
-  it('手机只显示 IMEI，平板只显示序列号但保留原始字段', () => {
+  it('每种检材都允许修改 IMEI 与序列号字段', () => {
     const phone = render(<EvidenceEditor items={[{
       id: 'phone', device_type: '手机', material_type: 'phone', imei1: '111111111111111',
       serial_number: 'PHONE-SERIAL', model: '', evidence_number: 'JC-PHONE',
     }]} onChange={vi.fn()} />)
     expect(screen.getByText('IMEI1：')).toBeTruthy()
-    expect(screen.queryByText('序列号：')).toBeNull()
+    expect(screen.getByText('序列号：')).toBeTruthy()
     phone.unmount()
 
     render(<EvidenceEditor items={[{
@@ -109,7 +109,19 @@ describe('结构化编辑器', () => {
       serial_number: 'TABLET-SERIAL', model: '', evidence_number: 'JC-TABLET',
     }]} onChange={vi.fn()} />)
     expect(screen.getByText('序列号：')).toBeTruthy()
-    expect(screen.queryByText('IMEI1：')).toBeNull()
+    expect(screen.getByText('IMEI1：')).toBeTruthy()
+    expect(screen.getByText('IMEI2：')).toBeTruthy()
+  })
+
+  it('序列号不参与缺失 extractable 字段的自动判断', () => {
+    render(<EvidenceEditor items={[{
+      id: 'serial-only', device_type: '平板', material_type: 'tablet', model: '',
+      imei1: '', imei2: '', serial_number: 'SYNTHETIC-SERIAL', evidence_number: 'SYN-JC-SERIAL',
+    }]} onChange={vi.fn()} />)
+
+    expect((screen.getByLabelText('检材1是否可提取') as HTMLSelectElement).value).toBe('false')
+    expect(screen.getByText('（仅根据 IMEI 自动判断）')).toBeTruthy()
+    expect(screen.getByText('SYNTHETIC-SERIAL')).toBeTruthy()
   })
 
   it('提取清单保留默认表头，并通过 EditableField 更新单元格', () => {
@@ -173,8 +185,8 @@ describe('结构化编辑器', () => {
 
     expect(screen.getByText('是否可提取：')).toBeTruthy()
     expect((screen.getByLabelText('检材1是否可提取') as HTMLSelectElement).value).toBe('false')
-    expect(screen.queryByText('IMEI1：')).toBeNull()
-    expect(screen.queryByText('序列号：')).toBeNull()
+    expect(screen.getByText('IMEI1：')).toBeTruthy()
+    expect(screen.getByText('序列号：')).toBeTruthy()
   })
 
   it('无法提取时显示原因输入框并写回用户填写内容', () => {
@@ -187,7 +199,8 @@ describe('结构化编辑器', () => {
 
     const input = screen.getByLabelText('检材1无法提取原因')
     expect(input).toBeTruthy()
-    expect(screen.queryByText('IMEI1：')).toBeNull()
+    expect(screen.getByText('IMEI1：')).toBeTruthy()
+    expect(screen.getByText('序列号：')).toBeTruthy()
     fireEvent.change(input, { target: { value: 'SYNTHETIC/TEST：设备接口损坏' } })
     expect(onChange).toHaveBeenCalledWith([
       expect.objectContaining({ unextractable_reason: 'SYNTHETIC/TEST：设备接口损坏' }),

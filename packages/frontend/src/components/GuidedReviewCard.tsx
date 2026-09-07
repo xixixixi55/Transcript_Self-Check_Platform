@@ -6,7 +6,12 @@ import type { GuidedReviewAction } from '../hooks/useGuidedReviewCards'
 import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import { DateTimeField } from './DateTimeField'
 import { DocumentNumberEditor } from './DocumentNumberEditor'
-import { normalizeEntrustPersons } from './ReviewIntroductionSection'
+import EvidenceEditor from './EvidenceEditor'
+import {
+  CASE_SUMMARY_TRAILING_WHITESPACE_MESSAGE,
+  hasCaseSummaryTrailingWhitespace,
+  normalizeEntrustPersons,
+} from './ReviewIntroductionSection'
 
 interface Props {
   action: GuidedReviewAction
@@ -327,13 +332,14 @@ function evidenceTypeLabel(item: EvidenceItem): string {
 function evidenceExtractionLabel(item: EvidenceItem): string {
   const extractable = typeof item.extractable === 'boolean'
     ? item.extractable
-    : Boolean(item.imei1?.trim() || item.imei2?.trim() || item.serial_number?.trim())
+    : Boolean(item.imei1?.trim() || item.imei2?.trim())
   return extractable ? '可以提取' : '无法提取'
 }
 
-function EvidenceCompletenessSummary({ items, onRemove, readOnly }: {
+function EvidenceCompletenessSummary({ items, onRemove, onEdit, readOnly }: {
   items: EvidenceItem[]
   onRemove: (index: number) => void
+  onEdit: (index: number) => void
   readOnly: boolean
 }) {
   if (!items.length) return (
@@ -351,6 +357,12 @@ function EvidenceCompletenessSummary({ items, onRemove, readOnly }: {
             <span className="guided-review-card__evidence-details">
               {evidenceDeviceLabel(item)} · {evidenceTypeLabel(item)} · {evidenceExtractionLabel(item)}
             </span>
+            <Tooltip title={`修改检材 ${index + 1}`}>
+              <Button shape="circle" size="large" className="guided-review-icon-action"
+                icon={<EditOutlined />} disabled={readOnly}
+                aria-label={`修改检材 ${index + 1}：${String(item.evidence_number || '').trim() || '编号待补充'}`}
+                onClick={() => onEdit(index)} />
+            </Tooltip>
             <Tooltip title={`删除检材 ${index + 1}`}>
               <Popconfirm title={`删除检材 ${String(item.evidence_number || '').trim() || index + 1}？`}
                 description="删除后需要重新确认检材完整性。" okText="删除" cancelText="取消"
@@ -372,7 +384,11 @@ export function GuidedReviewCard({
   onEvidenceCompletenessChange, onOpenFullEditor,
 }: Props) {
   const [evidenceMode, setEvidenceMode] = useState<'closed' | 'batch'>('closed')
-  useEffect(() => setEvidenceMode('closed'), [action.id])
+  const [editingEvidenceIndex, setEditingEvidenceIndex] = useState<number | null>(null)
+  useEffect(() => {
+    setEvidenceMode('closed')
+    setEditingEvidenceIndex(null)
+  }, [action.id])
 
   if (specialContent) return <div className="guided-review-card__control">{specialContent}</div>
   const pending = action.pendingItem
@@ -383,6 +399,22 @@ export function GuidedReviewCard({
     updateReport('introduction.evidence_list', evidenceItems.filter((_, itemIndex) => itemIndex !== index))
     onEvidenceCompletenessChange?.(false)
   }
+  const evidenceSummary = <>
+    <EvidenceCompletenessSummary items={evidenceItems} onRemove={removeEvidence}
+      onEdit={setEditingEvidenceIndex} readOnly={readOnly} />
+    {editingEvidenceIndex !== null && evidenceItems[editingEvidenceIndex] && (
+      <div className="guided-review-card__evidence-inline-editor">
+        <EvidenceEditor items={[evidenceItems[editingEvidenceIndex]]} compactActions
+          showItemActions={false} showAddAction={false}
+          onChange={updated => {
+            const next = [...evidenceItems]
+            next[editingEvidenceIndex] = updated[0]
+            updateReport('introduction.evidence_list', next)
+            onEvidenceCompletenessChange?.(false)
+          }} />
+      </div>
+    )}
+  </>
 
   if (targetId === REVIEW_TARGET_IDS.documentNumber && report.document_number_template) return (
     <fieldset disabled={readOnly} className="guided-review-card__fieldset">
@@ -411,7 +443,7 @@ export function GuidedReviewCard({
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness && evidenceMode === 'batch') return (
     <div className="guided-review-card__evidence-editor">
       <fieldset disabled={readOnly} className="guided-review-card__fieldset">
-        <EvidenceCompletenessSummary items={evidenceItems} onRemove={removeEvidence} readOnly={readOnly} />
+        {evidenceSummary}
         <QuickEvidenceBatchAdder items={evidenceItems}
           onChange={items => {
             updateReport('introduction.evidence_list', items)
@@ -422,7 +454,7 @@ export function GuidedReviewCard({
   )
   if (targetId === REVIEW_TARGET_IDS.evidenceCompleteness) return (
     <div className="guided-review-card__evidence-confirmation">
-      <EvidenceCompletenessSummary items={evidenceItems} onRemove={removeEvidence} readOnly={readOnly} />
+      {evidenceSummary}
       <Space role="group" aria-label="检材补充操作" size="middle" className="guided-review-card__choice-actions">
         <Tooltip title="不完整，手工添加检材">
           <Button shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
@@ -436,15 +468,25 @@ export function GuidedReviewCard({
   const field = textField(report, targetId)
   if (field) {
     const change = (value: string) => updateReport(field.path, field.transform ? field.transform(value) : value)
+    const showCaseSummaryWhitespaceWarning = targetId === REVIEW_TARGET_IDS.caseSummary
+      && hasCaseSummaryTrailingWhitespace(field.value)
     return (
-      <label className="guided-review-card__field">
-        <span>{fieldLabel}</span>
-        {field.multiline
-          ? <Input.TextArea aria-label={fieldLabel} value={field.value} disabled={readOnly}
-              autoSize={{ minRows: 2, maxRows: 5 }} onChange={event => change(event.target.value)} />
-          : <Input aria-label={fieldLabel} value={field.value} disabled={readOnly}
-              onChange={event => change(event.target.value)} />}
-      </label>
+      <>
+        <label className="guided-review-card__field">
+          <span>{fieldLabel}</span>
+          {field.multiline
+            ? <Input.TextArea aria-label={fieldLabel} value={field.value} disabled={readOnly}
+                autoSize={{ minRows: 2, maxRows: 5 }} onChange={event => change(event.target.value)} />
+            : <Input aria-label={fieldLabel} value={field.value} disabled={readOnly}
+                onChange={event => change(event.target.value)} />}
+        </label>
+        {showCaseSummaryWhitespaceWarning && <Alert
+          className="review-case-summary-whitespace"
+          type="warning"
+          showIcon
+          message={CASE_SUMMARY_TRAILING_WHITESPACE_MESSAGE}
+        />}
+      </>
     )
   }
 

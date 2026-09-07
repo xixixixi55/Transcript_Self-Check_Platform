@@ -167,6 +167,31 @@ def test_display_policy_selects_only_allowed_valid_identifiers():
     assert [item.value for item in select_display_identifiers(tablet)] == ["SERIAL-SYNTHETIC-2"]
 
 
+def test_serial_number_alone_does_not_infer_extractable_but_is_preserved():
+    material = material_from_legacy_item(
+        {
+            "device_type": "平板",
+            "serial_number": "SERIAL-SYNTHETIC-ONLY",
+            "evidence_number": "E-SYNTHETIC-SERIAL",
+        },
+        0,
+    )
+
+    assert material.extractable is False
+    assert [(item.type, item.value) for item in material.identifiers] == [
+        ("serial_number", "SERIAL-SYNTHETIC-ONLY"),
+    ]
+
+
+def test_explicit_extractable_value_remains_authoritative_without_imei():
+    material = material_from_legacy_item(
+        {"device_type": "平板", "serial_number": "SERIAL-SYNTHETIC", "extractable": True},
+        0,
+    )
+
+    assert material.extractable is True
+
+
 def test_manual_confirmation_is_distinct_from_report_candidate():
     material = material_from_legacy_item(
         {

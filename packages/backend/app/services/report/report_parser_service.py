@@ -227,7 +227,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "imei1": imei1,
             "imei2": imei2,
             "serial_number": serial_number,
-            "extractable": bool(str(imei1).strip() or str(imei2).strip() or str(serial_number).strip()),
+            "extractable": bool(str(imei1).strip() or str(imei2).strip()),
             "evidence_number": en,
         })
 
@@ -247,7 +247,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         if evidence_number and evidence_number not in evidence_numbers:
             evidence_numbers.append(evidence_number)
         extractable = bool(device.get("extractable", any(
-            str(device.get(key, "")).strip() for key in ("imei1", "imei2", "serial_number")
+            str(device.get(key, "")).strip() for key in ("imei1", "imei2")
         )))
         identifiers = select_display_identifiers(material_from_legacy_item(device, index)) if extractable else ()
         identifier_text = "；".join(

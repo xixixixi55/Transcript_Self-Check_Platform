@@ -471,7 +471,7 @@ def _fill_evidence_item(text_elements, item_template: str, item: dict):
     )
     extractable = item.get("extractable")
     if not isinstance(extractable, bool):
-        extractable = any(str(item.get(key, "")).strip() for key in ("imei1", "imei2", "serial_number"))
+        extractable = any(str(item.get(key, "")).strip() for key in ("imei1", "imei2"))
     display_identifiers = {
         identifier.type: identifier.value
         for identifier in (select_display_identifiers(material_from_legacy_item(item, 0)) if extractable else ())

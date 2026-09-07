@@ -369,8 +369,14 @@ export default function CaseRecordGeneratePage() {
     guidedSpecialContent = <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy}
       onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
   } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.photos) {
-    guidedSpecialContent = <ImageUploader materials={session.report.introduction.evidence_list || []}
-      photos={session.photoAssets.files} onChange={session.photoAssets.handleChange} />
+    guidedSpecialContent = <>
+      {(attachmentWarning || session.photoAssets.assetError) && <Alert
+        type={attachmentWarning ? 'warning' : 'error'}
+        showIcon
+        message={attachmentWarning || session.photoAssets.assetError} />}
+      <ImageUploader materials={session.report.introduction.evidence_list || []}
+        photos={session.photoAssets.files} onChange={session.photoAssets.handleChange} />
+    </>
   } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.discNumber) {
     guidedSpecialContent = archiveCompletionPanel
   } else if (currentGuidedAction?.kind === 'ready') {

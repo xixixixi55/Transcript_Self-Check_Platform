@@ -24,6 +24,8 @@ interface Props {
   fieldStates?: Record<string, FieldState>
   onChange: (items: EvidenceItem[]) => void
   compactActions?: boolean
+  showItemActions?: boolean
+  showAddAction?: boolean
 }
 
 function displayDeviceName(item: EvidenceItem): string {
@@ -42,7 +44,10 @@ function evidenceState(item: EvidenceItem, fieldStates?: Record<string, FieldSta
   return fieldStates?.[`evidence.${identity}.model`] || fieldStates?.[`evidence.${identity}.evidence_number`]
 }
 
-export default function EvidenceEditor({ items, fieldStates, onChange, compactActions = false }: Props) {
+export default function EvidenceEditor({
+  items, fieldStates, onChange, compactActions = false,
+  showItemActions = true, showAddAction = true,
+}: Props) {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null)
   const addItem = () => {
     const evidenceId = `local-evidence-${Date.now()}-${items.length + 1}`
@@ -61,6 +66,16 @@ export default function EvidenceEditor({ items, fieldStates, onChange, compactAc
 
   const updateItem = (idx: number, field: string, value: string) => {
     const list = items.map((item, i) => i === idx ? { ...item, [field]: value } : item)
+    onChange(list)
+  }
+
+  const updateDeviceName = (idx: number, value: string) => {
+    const list = items.map((item, i) => i === idx ? {
+      ...item,
+      device_name: value,
+      brand: '',
+      model: '',
+    } : item)
     onChange(list)
   }
 
@@ -88,7 +103,7 @@ export default function EvidenceEditor({ items, fieldStates, onChange, compactAc
 
   const isExtractable = (item: EvidenceItem) => typeof item.extractable === 'boolean'
     ? item.extractable
-    : Boolean(item.imei1?.trim() || item.imei2?.trim() || item.serial_number?.trim())
+    : Boolean(item.imei1?.trim() || item.imei2?.trim())
 
   return (
     <div>
@@ -102,7 +117,7 @@ export default function EvidenceEditor({ items, fieldStates, onChange, compactAc
           onDragEnd={() => setDraggedIndex(null)}
           style={{ marginBottom: 12 }}>
         <Card size="small" title={`检材 ${idx + 1}`} extra={<FieldProvenanceBadge state={evidenceState(item, fieldStates)} />}>
-          {compactActions ? (
+          {showItemActions && (compactActions ? (
             <Tooltip title={`删除检材 ${idx + 1}`}>
               <Button shape="circle" size="large" danger className="guided-review-icon-action"
                 icon={<DeleteOutlined />} aria-label={`删除检材 ${idx + 1}`} onClick={() => removeItem(idx)} />
@@ -110,11 +125,11 @@ export default function EvidenceEditor({ items, fieldStates, onChange, compactAc
           ) : (
             <Button type="text" danger size="small" icon={<DeleteOutlined />}
               aria-label={`删除检材 ${idx + 1}`} onClick={() => removeItem(idx)} />
-          )}
+          ))}
           <Space direction="vertical" style={{ width: '100%' }}>
             <div><Text strong>设备名称：</Text><EditableField type="text"
               placeholder="如 HUAWEI HBN-AL00" value={displayDeviceName(item)}
-              onChange={value => updateItem(idx, 'device_name', value)} /></div>
+              onChange={value => updateDeviceName(idx, value)} /></div>
             <div>
               <Text strong>检材类型：</Text>
               <Select
@@ -141,7 +156,7 @@ export default function EvidenceEditor({ items, fieldStates, onChange, compactAc
                 onChange={(value: string) => onChange(items.map((candidate, i) =>
                   i === idx ? { ...candidate, extractable: value === 'true' } : candidate))}
                 style={{ minWidth: 140 }} />
-              <Text type="secondary">（根据 IMEI 或序列号自动判断）</Text>
+              <Text type="secondary">（仅根据 IMEI 自动判断）</Text>
             </div>
             {!isExtractable(item) && (
               <div className="review-evidence-reason">
@@ -164,16 +179,14 @@ export default function EvidenceEditor({ items, fieldStates, onChange, compactAc
                 )}
               </div>
             )}
-            {isExtractable(item) && item.material_type !== 'tablet' && <>
+            <>
               <div><Text strong>IMEI1：</Text><EditableField type="text" value={item.imei1 || ''}
                 onChange={value => updateItem(idx, 'imei1', value)} /></div>
               <div><Text strong>IMEI2：</Text><EditableField type="text" value={item.imei2 || ''}
                 onChange={value => updateItem(idx, 'imei2', value)} /></div>
-            </>}
-            {isExtractable(item) && item.material_type !== 'phone' && (
               <div><Text strong>序列号：</Text><EditableField type="text" value={item.serial_number || ''}
                 onChange={value => updateItem(idx, 'serial_number', value)} /></div>
-            )}
+            </>
             <div><Text strong>检材编号：</Text><EditableField type="text"
               placeholder="如 SYN-JC00000001" value={item.evidence_number}
               onChange={value => updateItem(idx, 'evidence_number', value)} /></div>
@@ -181,7 +194,7 @@ export default function EvidenceEditor({ items, fieldStates, onChange, compactAc
         </Card>
         </div>
       ))}
-      {compactActions ? (
+      {showAddAction && (compactActions ? (
         <div className="guided-review-card__evidence-icon-actions guided-review-card__evidence-icon-actions--end">
           <Tooltip title="添加检材">
             <Button shape="circle" size="large" className="guided-review-icon-action"
@@ -190,7 +203,7 @@ export default function EvidenceEditor({ items, fieldStates, onChange, compactAc
         </div>
       ) : (
         <Button type="dashed" icon={<PlusOutlined />} aria-label="添加检材" onClick={addItem} block>添加检材</Button>
-      )}
+      ))}
     </div>
   )
 }

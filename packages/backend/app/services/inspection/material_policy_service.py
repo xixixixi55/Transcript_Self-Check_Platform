@@ -139,7 +139,7 @@ def material_from_legacy_item(item: Mapping[str, Any], index: int) -> Material:
             )
     extractable = item.get("extractable")
     if not isinstance(extractable, bool):
-        extractable = bool(identifiers)
+        extractable = any(identifier.type in {"imei1", "imei2"} for identifier in identifiers)
     return Material(
         id=_safe_text(item.get("id")) or f"legacy-material-{index + 1}",
         evidence_number=_safe_text(item.get("evidence_number")),

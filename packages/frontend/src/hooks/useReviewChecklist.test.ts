@@ -100,6 +100,19 @@ describe('getReviewPendingItems', () => {
     })).toBe(-1)
   })
 
+  it('仅有序列号且未保存显式状态时仍要求填写无法提取原因', () => {
+    const serialOnly = {
+      id: 'material-serial-only', device_type: 'SYNTHETIC TABLET', evidence_number: 'SYN-E-SERIAL',
+      material_type: 'tablet' as const, material_type_status: 'confirmed_by_user' as const,
+      material_type_source: 'user' as const, serial_number: 'SYNTHETIC-SERIAL', imei1: '', imei2: '',
+    }
+
+    expect(findMissingUnextractableReasonIndex({
+      ...report,
+      introduction: { ...report.introduction, evidence_list: [serialOnly] },
+    })).toBe(0)
+  })
+
   it('按每个检材两张图片汇总附件图片缺失并指向图片区域', () => {
     const withMaterials: InspectionReport = {
       ...report,

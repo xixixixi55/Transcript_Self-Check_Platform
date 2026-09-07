@@ -247,6 +247,45 @@ describe('useCasePhotoAssets', () => {
     await expect(view.result.current.waitForIdle()).resolves.toBe(true)
   })
 
+  it('does not let orphan recovery race an in-flight upload binding', async () => {
+    const file = new File(['SYNTHETIC-RACE'], 'race.png', { type: 'image/png' })
+    const created = { ...ref('asset-synthetic-race'), content_status: 'available' as const }
+    let resolveAssetList: ((value: unknown) => void) | undefined
+    let resolveBinding: ((saved: boolean) => void) | undefined
+    getMock.mockReset()
+      .mockImplementationOnce(() => new Promise(resolve => { resolveAssetList = resolve }) as any)
+      .mockResolvedValue({ data: { data: { items: [created] } } } as any)
+    postMock.mockResolvedValueOnce({ data: { data: created } } as any)
+    const onAssetRefsChange = vi.fn(() => new Promise<boolean>(resolve => { resolveBinding = resolve }))
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+
+    let upload!: Promise<boolean>
+    act(() => {
+      upload = view.result.current.handleChange([{
+        uid: 'local-race', name: file.name,
+        originFileObj: file as unknown as NonNullable<UploadFile['originFileObj']>,
+      }])
+    })
+    await waitFor(() => expect(onAssetRefsChange).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      resolveAssetList?.({ data: { data: { items: [created] } } })
+      await Promise.resolve()
+    })
+    expect(onAssetRefsChange).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveBinding?.(true)
+      await upload
+    })
+    await waitFor(() => expect(getMock).toHaveBeenCalledTimes(2))
+    expect(onAssetRefsChange).toHaveBeenCalledTimes(1)
+    expect(view.result.current.assetError).toBeNull()
+    expect(view.result.current.files.map(item => item.uid)).toEqual([created.asset_id])
+  })
+
   it('lets standalone Word stop waiting for a stalled photo operation', async () => {
     const file = new File(['SYNTHETIC-STALLED-SAVE'], 'stalled.png', { type: 'image/png' })
     const created = { ...ref('asset-synthetic-stalled'), content_status: 'available' as const }

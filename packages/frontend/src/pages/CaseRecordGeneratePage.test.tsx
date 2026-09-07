@@ -15,17 +15,18 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let events: string[] = []
   let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
   let leaseFailure = false, leaseConflict = false
-  let showCompletedArchive = false, showGuidedReady = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetRead = false, unextractableWithoutReason = false
+  let showCompletedArchive = false, showGuidedReady = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false
   let caseSummaryConfirmationSaved = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
+  let persistedCaseRevision = 5, archivePlanRowRevision = 4
   beforeAll(() => {
     Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) })
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   })
   beforeEach(() => {
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -50,6 +51,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
           Object.assign(value.draft.report.inspection.result, {
             rar_filename: 'SYNTHETIC.rar', md5_hash: 'a'.repeat(32), file_size: '1 KB',
           })
+        }
+        if (showPhotoPending && value.draft) {
+          value.draft.report.introduction.evidence_list = [{
+            id: 'material-synthetic-photo', device_type: 'SYNTHETIC Phone',
+            evidence_number: 'SYN-JC00000002', material_type: 'phone',
+            material_type_status: 'confirmed_by_report', material_type_source: 'report',
+            extractable: true, imei1: '000000000000002',
+          }]
+          value.draft.report.attachments.photo_ids = []
         }
         if (showHandledHistory && value.draft) {
           value.draft.field_states = {
@@ -95,9 +105,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       }
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) {
-        return { data: { data: { ...completedArchiveResult, parts: archiveResultParts ?? completedArchiveResult.parts } } }
+        return { data: { data: { ...completedArchiveResult, plan_row_revision: archivePlanRowRevision, parts: archiveResultParts ?? completedArchiveResult.parts } } }
       }
-      if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) return { data: { data: { items: recoverPhotoOnLoad ? [{ asset_id: 'asset-synthetic-recovered', asset_kind: 'image', fingerprint: 'a'.repeat(64), metadata: { file_name: 'SYNTHETIC-recovered.png', extension: '.png', media_type: 'image/png', size_bytes: 1 }, content_status: 'available' }] : [] } } }
+      if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) {
+        if (failPhotoAssetList) throw { response: { data: { detail: { code: 'PHOTO_BINDING_CONFLICT' } } } }
+        return { data: { data: { items: recoverPhotoOnLoad ? [{ asset_id: 'asset-synthetic-recovered', asset_kind: 'image', fingerprint: 'a'.repeat(64), metadata: { file_name: 'SYNTHETIC-recovered.png', extension: '.png', media_type: 'image/png', size_bytes: 1 }, content_status: 'available' }] : [] } } }
+      }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSET(caseId, 'asset-synthetic-recovered')) return failPhotoAssetRead ? Promise.reject(new Error('SYNTHETIC_PHOTO_READ_FAILED')) : { data: new Blob(['SYNTHETIC-PHOTO'], { type: 'image/png' }) }
       if (url === API_ENDPOINTS.DEVICES) return { data: { data: [] } }
       if (url === API_ENDPOINTS.INSPECTORS) return { data: { data: [availableInspector] } }
@@ -124,6 +137,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId)) {
         const request = body as { expected_revision: number; expected_plan_row_revision: number; first_disc_number: string }
+        if (request.expected_revision !== persistedCaseRevision
+          || request.expected_plan_row_revision !== archivePlanRowRevision) {
+          throw { response: { status: 409, data: { detail: { code: 'REVISION_CONFLICT', message: '案件或归档计划已被修改。' } } } }
+        }
+        archivePlanRowRevision += 1
         archiveResultParts = completedArchiveResult.parts.map((part, index) => ({
           ...part,
           disc_number: index === 0 ? request.first_disc_number : 'GP2026073102-02',
@@ -159,6 +177,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         } } } },
       }
       const request = body as { draft: CaseDraft; shared_defaults_patch?: Record<string, unknown> | null }
+      persistedCaseRevision = 6
       caseSummaryConfirmationSaved = request.draft.field_states['introduction.case_summary.confirmation']?.confirmation === 'confirmed'
       const sharedDefaultsSaveStatus = failSharedDefaults
         ? { status: 'failed', revision: 0, error_code: 'SYNTHETIC_DEFAULT_FAILURE' }
@@ -289,6 +308,20 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(screen.getByRole('textbox', { name: '快捷批量添加检材' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '快捷批量补充检材' })).toBeNull()
     expect(screen.queryByRole('button', { name: /逐项编辑/ })).toBeNull()
+  }, 15000)
+
+  it('keeps one usable photo page when photo binding needs recovery', async () => {
+    showPhotoPending = true; failPhotoAssetList = true
+    renderPage()
+
+    await selectGuidedAction('请上传检材照片')
+    expect(await screen.findByText('图片列表已被另一会话修改，请重新读取案件后再保存。')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '批量导入图片' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /查看已填内容与待办/ }))
+    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
+    expect(within(panel).queryByText('请处理图片保存问题')).toBeNull()
+    expect(within(panel).getAllByText('请上传检材照片')).toHaveLength(1)
   }, 15000)
 
   it('keeps failed and conflicting edits in the guided shell and exposes the existing recovery operations', async () => {
@@ -507,25 +540,23 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(savedDraft.report.attachments.disc_number).toBe('YP2026073102-009')
   }, 15000)
 
-  it('collects a first disc number after compression and posts the disc mapping', async () => {
+  it('allows repeated disc mapping updates without creating a competing draft revision', async () => {
     archiveResultParts = completedArchiveResult.parts.map(part => ({ ...part, disc_number: '', disc_date: '' }))
-    try {
-      showCompletedArchive = true
-      renderPage()
-      await openFullEditor()
-      expect(await screen.findByText('待补盘号')).toBeTruthy()
-      fireEvent.change(await screen.findByPlaceholderText('如 GP2026073102-01'), { target: { value: 'GP2026073102-01' } })
-      fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
-      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, expected_plan_row_revision: 4, first_disc_number: 'GP2026073102-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
-      await waitFor(() => expect(screen.getByText('归档完成')).toBeTruthy())
-      expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP2026073102-01')
-      expect(screen.getByText('GP2026073102-02')).toBeTruthy()
-      expect(getMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id))).toHaveLength(2)
-    } finally {
-      archiveResultParts = null
-    }
+    showCompletedArchive = true
+    renderPage()
+    await openFullEditor()
+    expect(await screen.findByText('待补盘号')).toBeTruthy()
+    fireEvent.change(await screen.findByPlaceholderText('如 GP2026073102-01'), { target: { value: 'GP2026073102-01' } })
+    fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, expected_plan_row_revision: 4, first_disc_number: 'GP2026073102-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+    await waitFor(() => expect(screen.getByText('归档完成')).toBeTruthy())
+    expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP2026073102-01')
+    await new Promise(resolve => setTimeout(resolve, 800))
+    fireEvent.change(screen.getByRole('textbox', { name: '首个光盘编号' }), { target: { value: 'GP2026073102-03' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新盘号映射' }))
+    await waitFor(() => expect(archivePlanRowRevision).toBe(6))
+    expect(patchMock).not.toHaveBeenCalled()
   }, 15000)
-
   it('blocks browser and SPA navigation until recovered photo bindings finish saving', async () => {
     recoverPhotoOnLoad = true
     holdSave = true

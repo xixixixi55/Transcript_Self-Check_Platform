@@ -144,21 +144,38 @@ export function useCasePhotoAssets(options: Options) {
   useEffect(() => {
     const sequence = ++requestSequence.current
     let active = true
-    setFiles([])
-    setAssetError(null)
-    axios.get<{ data: CaseAssetList }>(API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId))
-      .then(response => {
+    if (!pendingOperationRef.current) {
+      setFiles([])
+      setAssetError(null)
+    }
+    const loadAssets = async () => {
+      try {
+        let response = await axios.get<{ data: CaseAssetList }>(
+          API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId),
+        )
         if (!active || sequence !== requestSequence.current) return
+        const inFlightOperation = pendingOperationRef.current
+        if (inFlightOperation) {
+          const succeeded = await inFlightOperation
+          if (!active || sequence !== requestSequence.current || !succeeded) return
+          response = await axios.get<{ data: CaseAssetList }>(
+            API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId),
+          )
+          if (!active || sequence !== requestSequence.current) return
+        }
         const items = response.data.data.items
         const records = new Map(items.map(item => [item.asset_id, item]))
-        const referencedIds = new Set(assetRefs.map(ref => ref.asset_id))
+        const currentRefs = refsRef.current
+        const referencedIds = new Set(currentRefs.map(ref => ref.asset_id))
         const recoveredRefs = editingEnabled
           ? items.filter(item => item.content_status === 'available' && !referencedIds.has(item.asset_id)).map(refForRecord)
           : []
-        const effectiveRefs = [...assetRefs, ...recoveredRefs]
+        const effectiveRefs = [...currentRefs, ...recoveredRefs]
         for (const ref of recoveredRefs) completedUploadsRef.current.set(ref.asset_id, ref)
         const restored = effectiveRefs.map(ref => {
           const record = records.get(ref.asset_id)
+          const currentFile = filesRef.current.find(file => file.uid === ref.asset_id)
+          if (!record && currentFile) return currentFile
           const available = record?.content_status === 'available'
           return {
             uid: ref.asset_id, name: fileName(ref), type: fileType(ref), status: available ? 'done' : 'error',
@@ -171,20 +188,22 @@ export function useCasePhotoAssets(options: Options) {
         if (recoveredRefs.length) {
           void beginOperation(async () => {
             try {
-              const saved = await onAssetRefsChangeRef.current(effectiveRefs, assetRefs)
-              if (!saved) refsRef.current = assetRefs
+              const saved = await onAssetRefsChangeRef.current(effectiveRefs, currentRefs)
+              if (!saved) refsRef.current = currentRefs
+              if (saved && active) setAssetError(null)
               if (!saved && active) setAssetError('已恢复未绑定图片，但草稿保存未完成，请重试保存。')
               return saved
             } catch (error) {
-              refsRef.current = assetRefs
+              refsRef.current = currentRefs
               throw error
             }
           })
         }
-      })
-      .catch(error => {
+      } catch (error) {
         if (active && sequence === requestSequence.current) setAssetError(errorMessage(error))
-      })
+      }
+    }
+    void loadAssets()
     return () => { active = false }
   }, [beginOperation, caseId, editingEnabled, refsKey])
 

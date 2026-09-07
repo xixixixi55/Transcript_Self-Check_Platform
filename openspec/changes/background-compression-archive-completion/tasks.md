@@ -438,3 +438,15 @@ workflow_level: 3
   - manual_acceptance: [PENDING] 自动化已验证按案件端点和 Windows Explorer 参数列表；仍需在真实打包 Windows 客户端中点击图标，确认文件资源管理器聚焦到实际导出目录。
 
 - [x] T054 将阶段操作矩阵中的“删除案件”显示名称同步为“归档案件”，保持已导出阶段的入口权重、原删除回调、DELETE API 与平台受控产物清理合同不变；对应实现与组件回归由 `case-workbench-delete` T017 收敛，scoped strict docs 通过。OpenSpec change strict 仍报告本历史包的旧式 delta 标题格式债务；本次低风险界面文案反馈不扩大范围修订全包格式，也不触发 Level 3 包冻结或提前运行 full gate。
+
+- [x] T055 修复獬豸助手及完整审核编辑在归档完成后只能更新一次介质映射的 revision 竞态：压缩后以归档计划映射为事实源，成功重映射不再额外写回草稿兼容字段；补充连续两次映射的 SYNTHETIC 页面回归，并运行受影响前端/CAS 测试、`verify:quick`、scoped strict docs 与 `git diff --check`。
+  - 根因与修复：映射成功后的兼容草稿写回触发 700ms 自动保存并推进案件 revision，而完成回调先于保存重读旧案件 revision，导致第二次映射被后端 CAS 拒绝。压缩后现只持久化归档计划并重读结果；压缩前介质编号仍沿用草稿自动保存，案件 revision 与 plan revision 两道后端并发保护保持不变。
+  - 自动化证据：新增 SYNTHETIC 页面回归在旧实现上准确失败于第二次映射未提交；修复后归档完成面板与案件页面 2 files / 34 tests、后端盘号映射及过期 plan revision CAS 11 tests 全部通过。`verify:quick` 通过；首次架构检查发现页面测试 601/600 行，收敛相邻测试空行后复跑通过。
+  - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有既有人工验收开放项，候选尚未冻结；本反馈运行风险相称的增量门控，不提前重复最终 Review/full gate。
+  - manual_acceptance: [N/A] 连续两次映射、最新 plan revision、无竞争草稿保存及后端 CAS 均由 SYNTHETIC 页面/组件/服务回归可靠区分，不读取或操作真实案件数据。
+
+- [x] T056 修复同一页面的未绑定图片恢复扫描与批量上传绑定并发，避免两个请求复用旧图片基线触发 `PATCH /assets/binding` 409；保留当前上传结果和离页保护。
+  - 根因与修复：资产扫描响应可在上传绑定尚未完成时把同批二进制识别为孤儿，`beginOperation` 又允许恢复绑定覆盖当前操作。现在扫描响应如遇进行中的图片操作，只等待该操作收敛并丢弃较早扫描结果；成功后由最新草稿引用触发正常资产重读，失败时保留现有图片供用户重试。
+  - 自动化证据：新增 SYNTHETIC 交错时序回归在旧实现上失败于同时发起两次绑定；修复后图片资产与助手图片导航 2 files / 17 tests 通过。
+  - final_gate/code_review: [DEFERRED] 当前 Level 3 包尚未冻结，本反馈执行风险相称增量门控，不提前重复最终 Review/full gate。
+  - manual_acceptance: [N/A] 同页面请求交错、绑定次数与当前图片保留由可控 Promise 的 SYNTHETIC Hook 回归可靠区分，不需读取真实案件数据。

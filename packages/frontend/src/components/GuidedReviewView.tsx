@@ -340,7 +340,10 @@ export function GuidedReviewView({
       </div>
       <div className={`guided-review-scroll guided-review-scroll--${splitOrder}`} role="group"
         aria-label="獬豸助手分栏">
-        {splitOrder === 'history-first' && <GuidedReviewHistory key="history" items={history} />}
+        {splitOrder === 'history-first' && <GuidedReviewHistory key="history" items={history}
+          onEditMaterial={targetId => onRevisitHandledField?.({
+            label: '检材完整性', value: '核对并修改检材信息', targetId,
+          })} />}
         <section key="conversation" className="guided-review-conversation" role="region" aria-label="当前对话">
         <div className="guided-review-conversation__body">
           <div ref={mascotRef}
@@ -398,12 +401,14 @@ export function GuidedReviewView({
                   onKeyDown={confirmTextResponse}>
                   <span className="guided-review-card__response-label">{responseLabel}</span>
                   {children}
-                  {(previousStepButton || nextStepButton || currentAction?.advanceOnEnter) && (
+                  {(previousStepButton || nextStepButton || currentAction?.advanceOnEnter
+                    || currentAction?.requiresExplicitAdvance) && (
                     <div className="guided-review-step-navigation" aria-label="步骤导航">
                       <span className="guided-review-step-navigation__previous">{previousStepButton}</span>
                       <span className="guided-review-step-navigation__next">
                         {nextStepButton}
-                        {currentAction?.advanceOnEnter && !canReturnToNext && (
+                        {(currentAction?.advanceOnEnter || currentAction?.requiresExplicitAdvance)
+                          && !canReturnToNext && (
                           <Tooltip title="进入下一步">
                             <Button shape="circle" size="large" type="primary"
                               className="guided-review-icon-action"
@@ -520,7 +525,10 @@ export function GuidedReviewView({
           )}
         </div>
         </section>
-        {splitOrder === 'conversation-first' && <GuidedReviewHistory key="history" items={history} />}
+        {splitOrder === 'conversation-first' && <GuidedReviewHistory key="history" items={history}
+          onEditMaterial={targetId => onRevisitHandledField?.({
+            label: '检材完整性', value: '核对并修改检材信息', targetId,
+          })} />}
       </div>
     </div>
   )

@@ -91,7 +91,7 @@ function effectiveEvidenceDeviceType(item: InspectionReport['introduction']['evi
 
 function isEvidenceExtractable(item: InspectionReport['introduction']['evidence_list'][number]): boolean {
   if (typeof item.extractable === 'boolean') return item.extractable
-  return Boolean(item.imei1?.trim() || item.imei2?.trim() || item.serial_number?.trim())
+  return Boolean(item.imei1?.trim() || item.imei2?.trim())
 }
 
 export function findMissingUnextractableReasonIndex(report: InspectionReport): number {

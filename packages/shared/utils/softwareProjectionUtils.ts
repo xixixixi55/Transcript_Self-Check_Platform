@@ -37,9 +37,9 @@ function evidenceIdentifiers(item: EvidenceItem): string {
   return identifiers.join('；') || '设备标识待确认'
 }
 
-function isEvidenceExtractable(item: EvidenceItem): boolean {
+export function isEvidenceExtractable(item: EvidenceItem): boolean {
   if (typeof item.extractable === 'boolean') return item.extractable
-  return Boolean(text(item.imei1) || text(item.imei2) || text(item.serial_number))
+  return Boolean(text(item.imei1) || text(item.imei2))
 }
 
 function projectEvidenceProcessSteps(report: InspectionReport): ProcessStep[] {

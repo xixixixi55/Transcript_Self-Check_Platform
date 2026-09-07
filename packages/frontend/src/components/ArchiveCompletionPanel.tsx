@@ -58,7 +58,6 @@ export function ArchiveCompletionPanel({
         caseId, expectedRevision, mappingPlanRowRevision, candidate,
       )
       setMappingPlanRowRevision(result.plan_row_revision)
-      onFirstDiscNumberChange(candidate)
       message.success(hardDrive
         ? `已保存硬盘编号 ${candidate}。`
         : `已按序映射 ${result.parts.length} 个光盘编号。`)

@@ -99,7 +99,7 @@
 | imei1 | string（可选） | IMEI1 |
 | imei2 | string（可选） | IMEI2 |
 | serial_number | string（可选） | 序列号 |
-| extractable | boolean（可选） | 是否可提取；解析时由 IMEI1、IMEI2、序列号任一非空自动生成，存量缺失时同规则推导 |
+| extractable | boolean（可选） | 是否可提取；解析时仅由 IMEI1、IMEI2 任一非空自动生成，序列号不参与判定；存量缺失时同规则推导，显式人工值优先 |
 | evidence_number | string | 检材编号 |
 
 ### 检查人员（Inspector）

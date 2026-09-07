@@ -41,6 +41,7 @@ export interface GuidedReviewAction {
   description: string
   pendingItem?: ReviewPendingItem
   advanceOnEnter?: boolean
+  requiresExplicitAdvance?: boolean
 }
 
 export interface GuidedReviewSystemStatus {
@@ -137,6 +138,13 @@ function buildPersistedHandledFields(
       targetId: REVIEW_TARGET_IDS.caseSummary,
     })
   }
+  const photoCount = report.attachments?.photo_ids?.length || 0
+  if (photoCount > 0) {
+    fields.push({
+      label: '检材照片', value: `已上传 ${photoCount} 张图片`, userProvided: true,
+      targetId: REVIEW_TARGET_IDS.photos,
+    })
+  }
   return fields
 }
 
@@ -196,6 +204,7 @@ function pendingAction(item: ReviewPendingItem): GuidedReviewAction {
     id: `pending-${item.id}`, kind: 'pending_item', pendingItem: item,
     title: pendingPrompt(item), description: item.reason,
     advanceOnEnter: ENTER_CONFIRM_TARGETS.has(item.targetId),
+    requiresExplicitAdvance: item.targetId === REVIEW_TARGET_IDS.photos,
   }
 }
 
@@ -203,6 +212,7 @@ const GUIDED_HISTORY_REVISIT_TARGETS = new Set<string>([
   ...ENTER_CONFIRM_TARGETS,
   ...DATE_PROMPT_TARGETS,
   REVIEW_TARGET_IDS.evidenceCompleteness,
+  REVIEW_TARGET_IDS.photos,
 ])
 
 function resolvedHistoryTarget(targetId: string | undefined): string | null {
@@ -220,7 +230,9 @@ function historySection(targetId: string): { id: string; label: string } {
   if (targetId === REVIEW_TARGET_IDS.documentNumber) {
     return { id: REVIEW_SECTION_IDS.document, label: '文书信息' }
   }
-  if (targetId === REVIEW_TARGET_IDS.discNumber || targetId === REVIEW_TARGET_IDS.burningDate) {
+  if (targetId === REVIEW_TARGET_IDS.discNumber
+    || targetId === REVIEW_TARGET_IDS.burningDate
+    || targetId === REVIEW_TARGET_IDS.photos) {
     return { id: REVIEW_SECTION_IDS.attachments, label: '附件' }
   }
   if (targetId.startsWith('review-target-result-')) {
@@ -235,7 +247,7 @@ function handledHistoryAction(field: GuidedReviewHistoryField): GuidedReviewActi
   const isEvidence = targetId === REVIEW_TARGET_IDS.evidenceCompleteness
   const fieldLabel = isEvidence ? '检材完整性' : field.label
   const section = historySection(targetId)
-  return pendingAction({
+  const action = pendingAction({
     id: `handled-${field.targetId || targetId}-${field.label}`,
     sectionId: section.id,
     targetId,
@@ -245,6 +257,11 @@ function handledHistoryAction(field: GuidedReviewHistoryField): GuidedReviewActi
     severity: 'warning',
     kind: isEvidence ? 'confirmation_required' : 'required_missing',
   })
+  return targetId === REVIEW_TARGET_IDS.photos ? {
+    ...action,
+    title: '请核对检材照片',
+    description: `${field.value}，可继续检查、删除或重新上传。`,
+  } : action
 }
 
 const CASE_SUMMARY_REVIEW_ITEM: ReviewPendingItem = {
@@ -283,6 +300,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
     )
   }
   const allActions: GuidedReviewAction[] = []
+  const hasPhotoPending = pendingItems.some(item => item.targetId === REVIEW_TARGET_IDS.photos)
   if (input.leaseState !== 'editable' && input.leaseState !== 'acquiring') {
     allActions.push({ id: 'lease-recovery', kind: 'lease_recovery', title: '请恢复编辑权限', description: '当前页面不能写入案件，请先恢复有效编辑租约。' })
   }
@@ -297,7 +315,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   if (input.sourceRequiresReselection || ['invalid', 'requires_reselection'].includes(input.sourceStatus)) {
     allActions.push({ id: 'source-recovery', kind: 'source_recovery', title: '请重新选择报告来源', description: '当前来源不可用，请重新选择后继续。' })
   }
-  if (input.photoState === 'error' || input.photoState === 'warning') {
+  if ((input.photoState === 'error' || input.photoState === 'warning') && !hasPhotoPending) {
     allActions.push({
       id: 'photo-recovery', kind: 'photo_recovery',
       title: input.photoState === 'warning' ? '请检查附件2图片' : '请处理图片保存问题',
@@ -352,7 +370,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     ? retainedAction.current.action : null
   const baseCurrentAction = !projectedSelectedAction
     && retainedForCase?.id === selectedActionId
-    && retainedForCase.advanceOnEnter
+    && (retainedForCase.advanceOnEnter || retainedForCase.requiresExplicitAdvance)
     && retainedForCase.pendingItem?.kind !== 'confirmation_required'
     ? retainedForCase
     : projectedSelectedAction || projection.allActions[0] || null
@@ -405,10 +423,15 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     }
   }, [input.caseId, projection.allActions])
 
-  const allActions = useMemo(() => baseCurrentAction?.advanceOnEnter
-    && !projection.allActions.some(action => action.id === baseCurrentAction.id)
-    ? [baseCurrentAction, ...projection.allActions]
-    : projection.allActions, [baseCurrentAction, projection.allActions])
+  const allActions = useMemo(() => {
+    const projectedActions = baseCurrentAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.photos
+      ? projection.allActions.filter(action => action.kind !== 'photo_recovery')
+      : projection.allActions
+    return (baseCurrentAction?.advanceOnEnter || baseCurrentAction?.requiresExplicitAdvance)
+      && !projectedActions.some(action => action.id === baseCurrentAction.id)
+      ? [baseCurrentAction, ...projectedActions]
+      : projectedActions
+  }, [baseCurrentAction, projection.allActions])
   const selectAction = useCallback((actionId: string) => {
     const action = allActions.find(candidate => candidate.id === actionId)
     if (!action) return
@@ -425,7 +448,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     setSelectedActionId(action.id)
   }, [allActions])
   const confirmCurrentAction = useCallback(() => {
-    if (!currentAction?.advanceOnEnter) return
+    if (!currentAction?.advanceOnEnter && !currentAction?.requiresExplicitAdvance) return
     if (navigation.index < navigation.entries.length - 1) {
       setNavigation(previous => ({ ...previous, index: Math.min(previous.index + 1, previous.entries.length - 1) }))
       return
