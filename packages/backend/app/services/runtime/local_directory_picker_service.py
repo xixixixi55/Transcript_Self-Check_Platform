@@ -208,7 +208,7 @@ class LocalDirectoryPickerService:
         )
         initial_directory = (
             self.history.last_directory(history_kind)
-            if history_kind is not None and self.history is not None
+            if history_kind not in {None, "report"} and self.history is not None
             else None
         )
         try:
@@ -263,7 +263,7 @@ class LocalDirectoryPickerService:
             logger.warning("directory picker: foreground owner was not captured; fallback owner used")
         if "PICKER_FOREGROUND_NOT_CONFIRMED" in (result.stderr or ""):
             logger.warning("directory picker: native foreground activation was not confirmed")
-        if history_kind is not None and self.history is not None:
+        if history_kind not in {None, "report"} and self.history is not None:
             self.history.remember_directory(history_kind, candidate)
         logger.info("directory picker: directory selected")
         return str(candidate)

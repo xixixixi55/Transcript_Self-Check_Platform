@@ -149,7 +149,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
         }))
         return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, plan_row_revision: request.expected_plan_row_revision + 1, lifecycle: 'archive_verified', prefix: 'GP', disc_date: '2026-07-31', parts: archiveResultParts.map((part, index) => ({ part_number: index + 1, disc_number: part.disc_number, disc_date: part.disc_date })) } } }
       }
-      if (url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY) { if (holdDirectory) await new Promise<void>(resolve => { resolveDirectory = resolve }); return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } } }
+      if (url.endsWith('/export-directory')) { if (holdDirectory) await new Promise<void>(resolve => { resolveDirectory = resolve }); return { data: { data: { path: 'D:\\SYNTHETIC\\EXPORT', token: 'token-synthetic' } } } }
       if (url === API_ENDPOINTS.WORKBENCH_UNIFIED_EXPORT(caseId)) {
         const request = body as { expected_revision: number; export_path: string; directory_token: string }
         return { data: { data: { case_id: caseId, task_id: 'archive-synthetic-1', expected_revision: request.expected_revision, lifecycle: 'exported', output: { export_path: request.export_path, word_filename: 'SYNTHETIC.docx', rar_filenames: ['SYNTHETIC.part1.rar'], exported_at: '2026-01-01T00:00:00Z' } } } }
@@ -467,14 +467,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       fireEvent.click(screen.getByRole('button', { name: /导出 Word/ }))
       fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
       await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1)); expect((document.querySelector('.review-editor-form__fieldset') as HTMLFieldSetElement).disabled).toBe(true)
-      expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY)).toBe(false)
+      expect(postMock.mock.calls.some(([url]) => url.endsWith('/export-directory'))).toBe(false)
       holdSave = false; resolveSave?.(); resolveSave = null
-      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY, undefined, expect.anything()))
+      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_EXPORT_DIRECTORY(caseId), undefined, expect.anything()))
       await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)).toBe(true))
       const formData = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)?.[1] as FormData
       expect(formData.get('case_id')).toBe(caseId); expect(formData.get('case_revision')).toBe('6')
       expect(formData.get('export_path')).toBe('D:\\SYNTHETIC\\EXPORT'); expect(formData.get('directory_token')).toBe('token-synthetic')
-      expect(events.indexOf('draft-save')).toBeLessThan(postMock.mock.calls.findIndex(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY))
+      expect(events.indexOf('draft-save')).toBeLessThan(postMock.mock.calls.findIndex(([url]) => url.endsWith('/export-directory')))
       fireEvent.click(screen.getByRole('button', { name: '返回引导模式' }))
       const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
       expect(await within(historyRegion).findByText('文书与委托信息')).toBeTruthy()
@@ -495,7 +495,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     fireEvent.click(screen.getByRole('button', { name: /导出 Word/ }))
 
     expect(screen.queryByRole('button', { name: '开始导出' })).toBeNull()
-    expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY)).toBe(false)
+    expect(postMock.mock.calls.some(([url]) => url.endsWith('/export-directory'))).toBe(false)
   }, 15000)
 
   it('uses the latest revision when photo binding finishes during directory selection after timeout', async () => {
@@ -503,7 +503,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await openFullEditor()
     await screen.findByRole('heading', { name: '审核编辑', level: 2 }); await waitFor(() => expect(patchMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_CASE_PHOTO_BINDING(caseId))).toBe(true))
     fireEvent.click(screen.getByRole('button', { name: /导出 Word/ })); fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
-    await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY)).toBe(true), { timeout: 7000 }); await act(async () => { holdSave = false; resolveSave?.(); resolveSave = null; await Promise.resolve() }); holdDirectory = false; resolveDirectory?.(); resolveDirectory = null
+    await waitFor(() => expect(postMock.mock.calls.some(([url]) => url.endsWith('/export-directory'))).toBe(true), { timeout: 7000 }); await act(async () => { holdSave = false; resolveSave?.(); resolveSave = null; await Promise.resolve() }); holdDirectory = false; resolveDirectory?.(); resolveDirectory = null
     await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)).toBe(true)); const formData = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)?.[1] as FormData
     expect(formData.getAll('photos')).toHaveLength(0); expect(formData.get('case_revision')).toBe('8')
     const returnButton = await screen.findByRole('button', { name: '返回图片控件' })

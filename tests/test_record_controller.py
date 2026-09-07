@@ -38,7 +38,9 @@ def client():
                return_value=_MOCK_RESPONSE), \
          patch.object(record_controller, "parse_report", return_value=_MOCK_RESPONSE), \
          patch.object(record_controller, "parse_from_archive", return_value=_MOCK_RESPONSE), \
-         patch.object(record_controller, "ARCHIVE_AUTHORIZATION_SERVICE", test_authorization):
+         patch.object(record_controller, "ARCHIVE_AUTHORIZATION_SERVICE", test_authorization), \
+         patch("app.controllers.archive_controller.get_workbench_services") as archive_services:
+        archive_services.return_value.archive_attempts = None
         yield TestClient(app)
 
 
@@ -219,6 +221,7 @@ def test_standalone_word_export_writes_to_picker_authorized_directory(client, tm
     token = authorization.issue_exact_directory_grant(str(tmp_path))
     services = MagicMock()
     services.sources.authorization = authorization
+    services.sources.case_export_directory.return_value = tmp_path
 
     def generate_to_staging(*_args, **kwargs):
         output = Path(kwargs["output_dir"]) / "SYNTHETIC-result.docx"
@@ -270,6 +273,7 @@ def test_case_standalone_word_export_reuses_unified_export_manifest(client, tmp_
     }
     services = MagicMock()
     services.sources.authorization = authorization
+    services.sources.case_export_directory.return_value = tmp_path
     services.archive_api = MagicMock()
     report = _directory_export_report()
     report["introduction"]["evidence_list"] = [{
@@ -328,6 +332,7 @@ def test_standalone_word_export_rejects_reused_or_mismatched_directory_grant(cli
     authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
     services = MagicMock()
     services.sources.authorization = authorization
+    services.sources.case_export_directory.return_value = tmp_path
 
     def request(token, export_path):
         return client.post(
@@ -402,6 +407,7 @@ def test_standalone_word_export_failure_preserves_existing_file(client, tmp_path
     token = authorization.issue_exact_directory_grant(str(tmp_path))
     services = MagicMock()
     services.sources.authorization = authorization
+    services.sources.case_export_directory.return_value = tmp_path
     existing = tmp_path / "SYNTHETIC-result.docx"
     existing.write_bytes(b"PREVIOUS")
 
@@ -571,6 +577,7 @@ def test_directory_word_export_omits_odd_attachment2_images_without_blocking(cli
     token = authorization.issue_exact_directory_grant(str(tmp_path))
     services = MagicMock()
     services.sources.authorization = authorization
+    services.sources.case_export_directory.return_value = tmp_path
 
     def generate_to_staging(generated_report, **kwargs):
         assert generated_report["attachments"]["photo_ids"] == []

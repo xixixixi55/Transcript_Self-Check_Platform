@@ -22,6 +22,7 @@
 │   │   ├── electronic-inspection-record/  #    📋 电子数据检查笔录
 │   │   └── harness-workflow/              #    🛡️ Level 2 工作流合同
 │   └── changes/                           # 🔄 变更管理
+│       ├── report-parent-export/          #    报告上级目录导出（Level 2）
 │       └── archive/                       #    归档（完成的变更包）
 │
 ├── harness/                               # 🛡️ Harness（骨架：流程 + 约束 + 验证）

@@ -93,7 +93,7 @@ def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
     try:
         if services.directory_picker is None:
             raise WorkbenchPersistenceError("DIRECTORY_PICKER_UNAVAILABLE")
-        selected_path = services.directory_picker.select(history_kind="report")
+        selected_path = services.directory_picker.select()
         if selected_path is None:
             return _envelope({"cancelled": True})
         return _envelope(submit_case(
@@ -111,66 +111,14 @@ def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
         _handle(error)
 
 
-@router.post("/workbench/select-export-directory")
-def select_export_directory_endpoint():
-    """打开可信原生选择器，并返回所选路径及一次性授权。"""
+@router.post("/workbench/cases/{case_id}/export-directory")
+def case_export_directory_endpoint(case_id: str):
+    """返回案件报告上级目录及本次导出的精确授权。"""
     services = get_workbench_services()
     try:
-        if services.directory_picker is None:
-            raise WorkbenchPersistenceError("DIRECTORY_PICKER_UNAVAILABLE")
-        selected_path = services.directory_picker.select(
-            description="选择导出目录",
-            history_kind="export",
-            selection_validator=validate_export_directory,
-        )
-        if selected_path is None:
-            return _envelope({"cancelled": True})
-        validated_path = validate_export_directory(selected_path)
-        canonical_path = str(validated_path)
-        token = services.sources.authorization.issue_exact_directory_grant(canonical_path)
-        return _envelope({"path": canonical_path, "token": token})
-    except Exception as error:
-        _handle(error)
-
-
-@router.get("/workbench/archive-storage-settings")
-def archive_storage_settings_endpoint():
-    services = get_workbench_services()
-    try:
-        if services.archive_storage_settings is None:
-            raise WorkbenchPersistenceError("ARCHIVE_STORAGE_SETTINGS_UNAVAILABLE")
-        return _envelope(services.archive_storage_settings.status())
-    except Exception as error:
-        _handle(error)
-
-
-@router.post("/workbench/archive-storage-settings/select-directory")
-def select_archive_storage_directory_endpoint():
-    services = get_workbench_services()
-    try:
-        if services.directory_picker is None or services.archive_storage_settings is None:
-            raise WorkbenchPersistenceError("ARCHIVE_STORAGE_SETTINGS_UNAVAILABLE")
-        selected_path = services.directory_picker.select(
-            description="选择 RAR 工作与存储目录",
-            history_kind="archive",
-        )
-        if selected_path is None:
-            return _envelope({"cancelled": True, "settings": services.archive_storage_settings.status()})
-        return _envelope({
-            "cancelled": False,
-            "settings": services.archive_storage_settings.select(selected_path),
-        })
-    except Exception as error:
-        _handle(error)
-
-
-@router.delete("/workbench/archive-storage-settings")
-def reset_archive_storage_settings_endpoint():
-    services = get_workbench_services()
-    try:
-        if services.archive_storage_settings is None:
-            raise WorkbenchPersistenceError("ARCHIVE_STORAGE_SETTINGS_UNAVAILABLE")
-        return _envelope(services.archive_storage_settings.reset())
+        path = validate_export_directory(services.sources.case_export_directory(case_id))
+        token = services.sources.authorization.issue_exact_directory_grant(str(path))
+        return _envelope({"path": str(path), "token": token})
     except Exception as error:
         _handle(error)
 

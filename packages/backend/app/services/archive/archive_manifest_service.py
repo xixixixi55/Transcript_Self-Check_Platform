@@ -268,7 +268,11 @@ def validate_published_manifest(record, *, verified_hashes: dict[str, str] | Non
         return False
     if verified_hashes is not None and set(verified_hashes) != filenames:
         return False
-    entries = [entry for entry in root.iterdir() if entry.name != OWNERSHIP_MARKER_NAME]
+    entries = (
+        [root / name for name in filenames]
+        if getattr(record, "external_export", False)
+        else [entry for entry in root.iterdir() if entry.name != OWNERSHIP_MARKER_NAME]
+    )
     if any(not _is_safe_output_file(entry) for entry in entries):
         return False
     if {entry.name for entry in entries} != filenames:

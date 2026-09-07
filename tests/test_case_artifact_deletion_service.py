@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository import WorkbenchDatabase, database_path_for_deployment  # noqa: E402
 from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository  # noqa: E402
+from app.repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository  # noqa: E402
 from app.repository.retention.formal_word_artifact_repository import FormalWordArtifactRepository  # noqa: E402
 from app.services.archive.archive_authorization_service import ArchiveAuthorizationService  # noqa: E402
 from app.services.case.case_artifact_deletion_service import CaseArtifactDeletionService  # noqa: E402
@@ -104,8 +105,9 @@ def _add_formal_rows(database: WorkbenchDatabase, identifiers: dict[str, str]) -
     return attempt_id, relative_dir
 
 
+@pytest.mark.parametrize("relocated", [False, True])
 def test_explicit_delete_removes_formal_archive_word_and_case_assets_but_keeps_source(
-    tmp_path: Path,
+    tmp_path: Path, relocated: bool,
 ) -> None:
     database = WorkbenchDatabase(
         database_path_for_deployment(tmp_path, "SYNTHETIC-DEPLOYMENT"), "SYNTHETIC-DEPLOYMENT",
@@ -130,6 +132,18 @@ def test_explicit_delete_removes_formal_archive_word_and_case_assets_but_keeps_s
     asset_path.parent.mkdir(parents=True)
     asset_path.write_bytes(b"SYNTHETIC/TEST/IMAGE")
 
+    external_rar = source_dir.parent / "SYNTHETIC-volume.rar"
+    external_word = source_dir.parent / "SYNTHETIC-DELETE.docx"
+    if relocated:
+        (final_dir / external_rar.name).rename(external_rar)
+        external_word.write_bytes(b"SYNTHETIC/TEST/DOCX")
+        LocalCaseExportDirectoryRepository(
+            database.database_path.parent / "archive-export-locations.json", strict=True,
+        ).remember(
+            "manifest-SYNTHETIC-FORMAL-DELETE", source_dir.parent,
+            "2026-09-07T00:00:00Z", artifact_origin=str(final_dir),
+        )
+
     lifecycle = CaseLifecycleService(
         database, artifact_deletion_service=CaseArtifactDeletionService(database, output_root),
     )
@@ -141,6 +155,9 @@ def test_explicit_delete_removes_formal_archive_word_and_case_assets_but_keeps_s
     assert not word_path.exists()
     assert not asset_path.exists()
     assert source_dir.exists()
+    if relocated:
+        assert external_rar.read_bytes() == b"SYNTHETIC/TEST/RAR"
+        assert external_word.read_bytes() == b"SYNTHETIC/TEST/DOCX"
     assert ArchiveManifestRepository(output_root).find_for_attempt(attempt_id) == []
 
 

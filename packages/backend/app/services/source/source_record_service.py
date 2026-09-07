@@ -93,6 +93,22 @@ class SourceRecordService:
     def get(self, source_id: str) -> dict[str, Any]:
         return self.repository.get(source_id)
 
+    def case_export_directory(self, case_id: str) -> Path:
+        """仅从持久化案件来源解析输出位置，不接受客户端路径。"""
+        shell = CaseShellRepository(self.database).get(case_id)
+        source = self.repository.get(shell["source_id"])
+        if source["source_type"] != "report_directory":
+            raise WorkbenchPersistenceError("SOURCE_DIRECTORY_REQUIRED")
+        locator = self.repository.get_internal_locator(shell["source_id"])
+        report_dir = Path(locator["internal_path"])
+        if not report_dir.is_absolute() or report_dir.is_symlink():
+            raise WorkbenchPersistenceError("EXPORT_PATH_INVALID")
+        try:
+            validate_pending_locator(report_dir, Path(locator["allowed_root"]))
+            return report_dir.parent.resolve(strict=True)
+        except (OSError, ValueError) as error:
+            raise WorkbenchPersistenceError("EXPORT_PATH_INVALID") from error
+
     def replace_case_source(
         self, case_id: str, report_dir: str, expected_revision: int,
         grant_token: str | None = None,

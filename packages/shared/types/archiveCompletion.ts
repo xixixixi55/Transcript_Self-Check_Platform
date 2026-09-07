@@ -32,9 +32,9 @@ export interface DiscMappingResult {
 
 export interface UnifiedExportRequest {
   expected_revision: number
-  /** 原生目录选择器返回的路径；后端会再次验证。 */
+  /** 案件报告上级目录；后端按来源再次验证。 */
   export_path: string
-  /** 选择器签发的一次性授权；后端只写入此路径。 */
+  /** 案件目录服务签发的一次性授权；后端只写入此路径。 */
   directory_token: string
   /** 用户选择的 Word 文件名（不含目录）；覆盖自动生成的名称。 */
   word_filename: string
@@ -62,9 +62,9 @@ export interface OpenExportDirectoryResult {
 }
 
 /**
- * 后端打开的可信原生目录选择器的结果。
- * 导出路径始终由选择器选定，绝不由用户键入。
- * 一次性授权由 export-bundle 消耗，确保后端只写入选择器授权的路径。
+ * 后端解析的案件导出位置结果。
+ * 导出路径始终由案件报告目录决定，绝不由用户键入。
+ * 一次性授权由 export-bundle 消耗，确保后端只写入该案件报告上级目录。
  */
 export type ExportDirectoryResult =
   | { path: string; token: string }

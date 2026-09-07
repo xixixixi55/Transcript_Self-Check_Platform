@@ -20,14 +20,16 @@ _WRITE_LOCK = threading.RLock()
 class LocalCaseExportDirectoryRepository:
     """仅在专用本地路径注册表中存储绝对导出路径。"""
 
-    def __init__(self, file_path: str | os.PathLike[str]) -> None:
+    def __init__(self, file_path: str | os.PathLike[str], *, strict: bool = False) -> None:
         self.file_path = Path(file_path)
+        self.strict = strict
 
     def remember(
         self,
         case_id: str,
         export_path: str | os.PathLike[str],
         exported_at: str,
+        *, artifact_origin: str | None = None,
     ) -> dict[str, str]:
         validated_case_id = validate_opaque_id(case_id)
         candidate = Path(export_path)
@@ -42,6 +44,11 @@ class LocalCaseExportDirectoryRepository:
             "export_path": str(resolved),
             "exported_at": normalize_utc(exported_at),
         }
+        if artifact_origin is not None:
+            origin = Path(artifact_origin)
+            if not origin.is_absolute():
+                raise WorkbenchPersistenceError("EXPORT_DIRECTORY_RECORD_FAILED")
+            record["artifact_origin"] = str(origin.resolve(strict=False))
         temp_path: Path | None = None
         with _WRITE_LOCK:
             try:
@@ -90,18 +97,29 @@ class LocalCaseExportDirectoryRepository:
             or not isinstance(exported_at, str)
         ):
             return None
-        return {
+        result = {
             "case_id": validated_case_id,
             "export_path": export_path,
             "exported_at": exported_at,
         }
+        if isinstance(record.get("artifact_origin"), str):
+            result["artifact_origin"] = record["artifact_origin"]
+        return result
 
     def _read_records(self) -> dict[str, Any]:
         try:
             payload = json.loads(self.file_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
         except (OSError, UnicodeError, json.JSONDecodeError):
+            if self.strict:
+                raise WorkbenchPersistenceError("EXPORT_DIRECTORY_RECORD_FAILED") from None
             return {}
         if not isinstance(payload, dict) or payload.get("schema_version") != _SCHEMA_VERSION:
+            if self.strict:
+                raise WorkbenchPersistenceError("EXPORT_DIRECTORY_RECORD_FAILED")
             return {}
         records = payload.get("records")
+        if self.strict and not isinstance(records, dict):
+            raise WorkbenchPersistenceError("EXPORT_DIRECTORY_RECORD_FAILED")
         return dict(records) if isinstance(records, dict) else {}

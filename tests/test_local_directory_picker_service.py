@@ -232,7 +232,7 @@ def test_picker_keeps_valid_selection_when_foreground_owner_or_activation_is_unc
     assert "foreground activation was not confirmed" in caplog.text
 
 
-def test_report_and_export_picker_histories_are_independent(tmp_path: Path):
+def test_new_report_picker_ignores_previous_report_and_export_directories(tmp_path: Path):
     report = tmp_path / "SYNTHETIC-REPORT"
     export = tmp_path / "SYNTHETIC-EXPORT"
     report.mkdir()
@@ -250,7 +250,8 @@ def test_report_and_export_picker_histories_are_independent(tmp_path: Path):
     picker.select(history_kind="report")
     picker.select(history_kind="export")
 
-    assert f"$dialog.SelectedPath = '{report}'" in commands[0][-1]
+    assert str(report) not in commands[0][-1]
+    assert str(export) not in commands[0][-1]
     assert f"$dialog.SelectedPath = '{export}'" in commands[1][-1]
 
 

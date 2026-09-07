@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
-import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import { unifiedExportRequestTimeoutMs } from '@biji/shared/utils'
 import { useArchiveCompletion } from './useArchiveCompletion'
 
@@ -81,17 +81,17 @@ describe('useArchiveCompletion', () => {
     expect(result.current.error).toBe('操作失败（DISC_MAPPING_INCOMPLETE）。')
   })
 
-  it('asks the backend native picker for an export directory', async () => {
+  it('resolves the current case report parent from the backend', async () => {
     postMock.mockResolvedValueOnce({ data: { data: { path: 'D:\\SYNTHETIC\\out', token: 'token-synthetic' } } } as never)
     const { result } = renderHook(() => useArchiveCompletion())
     let chosen: unknown
     await act(async () => {
-      chosen = await result.current.chooseDirectory()
+      chosen = await result.current.resolveDirectory('SYNTHETIC-case')
     })
     expect(postMock).toHaveBeenCalledWith(
-      API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY,
+      `${API_ENDPOINTS.WORKBENCH_CASES}/SYNTHETIC-case/export-directory`,
       undefined,
-      { timeout: EXPORT_DIRECTORY_PICKER_TIMEOUT_MS },
+      { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     )
     expect(chosen).toEqual({ path: 'D:\\SYNTHETIC\\out', token: 'token-synthetic' })
   })
@@ -101,7 +101,7 @@ describe('useArchiveCompletion', () => {
     const { result } = renderHook(() => useArchiveCompletion())
     let chosen: unknown
     await act(async () => {
-      chosen = await result.current.chooseDirectory()
+      chosen = await result.current.resolveDirectory('SYNTHETIC-case')
     })
     expect(chosen).toEqual({ cancelled: true })
   })

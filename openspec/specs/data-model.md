@@ -334,7 +334,7 @@ interface SelectedArchivePartHash 定义新 Manifest 的 `hash_algorithm/hash_va
 `interface UnifiedExportOutput`、`interface UnifiedExportResult`、
 `interface ExportRecord`、`type ExportDirectoryResult`、
 `interface OpenExportDirectoryResult`、`type ArchiveCompletionStatus`。
-（盘号映射与统一导出契约：压缩允许先无盘号执行，压缩后输入首个盘号自动生成全序列并映射到 plan 槽位；统一导出把最新 Word + 全部 RAR 写入用户选择路径，导出路径由后端 native picker（`LocalDirectoryPickerService`）选择并返回，导出审计不保存绝对路径。`ExportDirectoryResult` 是 picker 的选择结果契约：`{ path, token }` 或 `{ cancelled }`。案件最后成功导出路径只由专用本地 Repository 按 `case_id` 保存；`OpenExportDirectoryResult` 只返回案件标识、打开成功标记和导出时间，不向前端回传路径。）
+（盘号映射与统一导出契约：压缩允许先无盘号执行，压缩后输入首个盘号自动生成全序列并映射到 plan 槽位；统一导出把最新 Word 与全部 RAR 写入案件报告文件夹的上一级目录。后端从案件来源解析目录并返回一次性精确授权，`ExportDirectoryResult` 的成功结果为 `{ path, token }`，类型保留 `{ cancelled: true }` 兼容分支；当前接口不弹出导出目录选择器。导出审计不保存绝对路径；案件最后成功导出路径由专用本地 Repository 按 `case_id` 保存，RAR 最终位置另按 Manifest 标识登记。`OpenExportDirectoryResult` 只返回案件标识、打开成功标记和导出时间，不向前端回传路径。）
 
 ### 其他迁移支持类型
 
@@ -352,7 +352,7 @@ interface SelectedArchivePartHash 定义新 Manifest 的 `hash_algorithm/hash_va
 
 `WordDownloadName` 是第二阶段 T007 的共享 DTO，只承载面向浏览器的下载名称，绝不包含服务器物理产物名称。当前第二阶段下载名称对话框和 Legacy 导出流程使用该类型：每次导出都询问并校验面向客户端的名称；取消时不创建下载产物；服务器物理产物名称保持唯一且相互独立。当前顺序、来源和导出交互合同记录在现行 electronic-inspection-record 规格中；该 DTO 仍绝不包含服务器定位符或物理产物名称。
 
-`WordDirectoryExportTarget` 将 Windows 选择器选定的目录及其一次性精确目录授权令牌从前端传给独立 Word 导出请求。文档原子发布到该位置后，`WordDirectoryExportResult` 只返回最终导出目录和净化后的 Word 文件名。两项 DTO 均不授予可复用文件系统访问权限；不含目标的 Legacy 请求继续返回浏览器下载响应。
+`WordDirectoryExportTarget` 将后端解析的案件报告上级目录及其一次性精确目录授权令牌从前端传给独立 Word 导出请求，后端再次核对案件来源以拒绝重定向。文档原子发布到该位置后，`WordDirectoryExportResult` 只返回最终导出目录和净化后的 Word 文件名。两项 DTO 均不授予可复用文件系统访问权限；不含目标的 Legacy 请求继续返回浏览器下载响应。
 
 `WordExportWarning` 为安全省略可选章节但成功完成的独立 Word 导出携带稳定警告码和用户可见消息。当前生成方在图片无效或不完整而省略附件 2 时使用该类型；警告不会将成功的 Word 结果变为导出失败。
 
@@ -591,7 +591,6 @@ type CleanupRunPhase, type CleanupRunStatus, type RetentionBlockerCode,
 type CleanupErrorCode, interface RetentionPolicyDto,
 interface RetentionStatusDto, interface CleanupPreviewItemDto,
 interface CleanupPreviewDto, interface CleanupRunStatusDto,
-interface FormalWordArtifactSafeProjection,
-interface ArchiveStorageSettings.
+interface FormalWordArtifactSafeProjection.
 
-`ArchiveStorageSettings` 是部署本机的归档目录设置投影，包含当前生效目录、待生效目录、默认目录、自定义/有效状态、是否需要重启及稳定错误码。它不保存案件内容，也不把本机绝对路径写入案件数据库或归档 Manifest。
+最终导出目录由案件持久化的 HTML 报告来源解析为报告文件夹的上一级目录，不再提供归档目录设置类型。RAR 迁移成功后，以 Manifest 标识为键在部署本机的 `archive-export-locations.json` 中记录最终目录、原工作区目录和导出时间；绝对路径不进入公开 Manifest 或案件业务 DTO。旧归档存储配置仅用于只读定位历史产物。

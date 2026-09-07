@@ -71,6 +71,74 @@ def fake_docx(report, *, photo_paths, output_dir, archive_manifest, **template_c
     return str(path)
 
 
+def test_relocation_keeps_one_rar_set_and_reuses_it_after_reload(database, tmp_path, monkeypatch):
+    from app.repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
+    source = tmp_path / "SYNTHETIC-WORK"
+    target = tmp_path / "SYNTHETIC-PARENT"
+    source.mkdir()
+    target.mkdir()
+    for part in manifest()["parts"]:
+        (source / part["filename"]).write_bytes(b"SYNTHETIC/RAR")
+    monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
+    kwargs = dict(report={}, manifest=manifest(), export_path=target, photo_paths=[],
+                  template_context={}, database=database, case_id=CASE_ID, relocate=True)
+    unified_export(final_dir=source, **kwargs)
+    assert not list(source.glob("*.rar"))
+    assert len(list(target.glob("*.rar"))) == 2
+    locations = LocalCaseExportDirectoryRepository(database.database_path.parent / "archive-export-locations.json", strict=True)
+    saved = locations.latest(manifest()["manifest_id"])
+    assert saved["export_path"] == str(target)
+    identities = {p.name: p.stat().st_ino for p in target.glob("*.rar")}
+    monkeypatch.setattr(unified_export_service.shutil, "copy2", lambda *_: pytest.fail("RAR must not be copied again"))
+    unified_export(final_dir=Path(saved["export_path"]), **kwargs)
+    assert {p.name: p.stat().st_ino for p in target.glob("*.rar")} == identities
+
+
+@pytest.mark.parametrize("failure", ["existing", "during_copy", "registry"])
+def test_relocation_failure_preserves_originals_and_external_files(database, tmp_path, monkeypatch, failure):
+    from app.repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
+    source = tmp_path / "SYNTHETIC-WORK"
+    target = tmp_path / "SYNTHETIC-PARENT"
+    source.mkdir()
+    target.mkdir()
+    filename = manifest()["parts"][0]["filename"]
+    for part in manifest()["parts"]:
+        (source / part["filename"]).write_bytes(b"SYNTHETIC/RAR")
+    word = target / "SYNTHETIC-CASE.docx"
+    word.write_bytes(b"SYNTHETIC/OLD-WORD")
+    monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
+    if failure == "existing":
+        (target / filename).write_bytes(b"SYNTHETIC/UNRELATED")
+    elif failure == "during_copy":
+        copy = unified_export_service.shutil.copy2
+        def collide(src, dst):
+            copy(src, dst)
+            (target / filename).write_bytes(b"SYNTHETIC/UNRELATED")
+        monkeypatch.setattr(unified_export_service.shutil, "copy2", collide)
+    else:
+        monkeypatch.setattr(LocalCaseExportDirectoryRepository, "remember", lambda *a, **k: (_ for _ in ()).throw(OSError("SYNTHETIC record failure")))
+    with pytest.raises(UnifiedExportError):
+        unified_export(report={}, manifest=manifest(), final_dir=source, export_path=target,
+                       photo_paths=[], template_context={}, database=database, case_id=CASE_ID, relocate=True)
+    assert len(list(source.glob("*.rar"))) == 2
+    assert word.read_bytes() == b"SYNTHETIC/OLD-WORD"
+    if failure != "registry":
+        assert (target / filename).read_bytes() == b"SYNTHETIC/UNRELATED"
+    else:
+        assert not list(target.glob("*.rar"))
+
+
+def test_strict_location_registry_never_overwrites_corrupt_history(tmp_path):
+    from app.repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
+    from app.repository.workbench.workbench_errors import WorkbenchPersistenceError
+    path = tmp_path / "SYNTHETIC-locations.json"
+    path.write_bytes(b"SYNTHETIC/CORRUPT")
+    repository = LocalCaseExportDirectoryRepository(path, strict=True)
+    with pytest.raises(WorkbenchPersistenceError):
+        repository.remember("SYNTHETIC-MANIFEST", tmp_path, "2026-09-07T00:00:00Z")
+    assert path.read_bytes() == b"SYNTHETIC/CORRUPT"
+
+
 def test_attachment_mapping_error_is_not_wrapped_as_generic_word_failure(
     tmp_path, monkeypatch,
 ) -> None:

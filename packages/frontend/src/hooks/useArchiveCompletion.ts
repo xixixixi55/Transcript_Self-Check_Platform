@@ -1,7 +1,7 @@
 // 第 10 层：FE_Hooks — 延迟光盘映射与统一导出操作。
 import { useCallback, useState } from 'react'
 import axios from 'axios'
-import { API_ENDPOINTS, EXPORT_DIRECTORY_PICKER_TIMEOUT_MS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
+import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type {
   ArchiveCompletionStatus, CaseLifecycle, DiscMappingResult,
   ExportDirectoryResult, OpenExportDirectoryResult, UnifiedExportResult,
@@ -21,7 +21,7 @@ export function resolveArchiveCompletionStatusForParts(
 interface ArchiveCompletion {
   mapping: (caseId: string, expectedRevision: number, expectedPlanRowRevision: number, firstDiscNumber: string) => Promise<DiscMappingResult>
   exportBundle: (caseId: string, expectedRevision: number, exportPath: string, directoryToken: string, wordFilename: string, parts: { size_bytes?: number | null }[] | null) => Promise<UnifiedExportResult>
-  chooseDirectory: () => Promise<ExportDirectoryResult>
+  resolveDirectory: (caseId: string) => Promise<ExportDirectoryResult>
   openExportDirectory: (caseId: string) => Promise<OpenExportDirectoryResult>
   busy: boolean
   error: string | null
@@ -93,13 +93,13 @@ export function useArchiveCompletion(): ArchiveCompletion {
     }
   }, [])
 
-  const chooseDirectory = useCallback(async (): Promise<ExportDirectoryResult> => {
+  const resolveDirectory = useCallback(async (caseId: string): Promise<ExportDirectoryResult> => {
     beginOperation()
     try {
       const response = await axios.post<{ data: ExportDirectoryResult }>(
-        API_ENDPOINTS.WORKBENCH_SELECT_EXPORT_DIRECTORY,
+        API_ENDPOINTS.WORKBENCH_EXPORT_DIRECTORY(caseId),
         undefined,
-        { timeout: EXPORT_DIRECTORY_PICKER_TIMEOUT_MS },
+        { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
       )
       return response.data.data
     } catch (failure) {
@@ -130,7 +130,7 @@ export function useArchiveCompletion(): ArchiveCompletion {
   }, [])
 
   return {
-    mapping, exportBundle, chooseDirectory, openExportDirectory,
+    mapping, exportBundle, resolveDirectory, openExportDirectory,
     busy: pendingOperations > 0, error,
   }
 }

@@ -187,9 +187,9 @@ export default function CaseRecordGeneratePage() {
           catch { files = [] }
         }
         let chosen
-        try { chosen = await exportDirectory.chooseDirectory() }
+        try { chosen = await exportDirectory.resolveDirectory(caseId) }
         catch {
-          message.error('本机导出目录选择器暂不可用，请稍后重试。')
+          message.error('报告上级目录暂不可用，请检查报告位置后重试。')
           return false
         }
         if ('cancelled' in chosen) return false

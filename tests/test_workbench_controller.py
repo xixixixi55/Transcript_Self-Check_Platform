@@ -184,7 +184,7 @@ def test_select_directory_endpoint_submits_selected_directory_without_exposing_p
         assert data["shell"]["case_name"] == "SYNTHETIC-PICKED-CASE"
         assert data["source"]["source_type"] == "report_directory"
         assert str(app_services.synthetic_report_dir) not in response.text
-        picker.select.assert_called_once_with(history_kind="report")
+        picker.select.assert_called_once_with()
         _wait_for_parse(client, data["shell"]["case_id"])
 
 
@@ -201,7 +201,7 @@ def test_select_directory_endpoint_cancel_does_not_create_case(app_services):
         assert response.status_code == 200, response.text
         assert response.json()["data"] == {"cancelled": True}
         assert client.get("/api/v1/workbench/cases").json()["data"]["items"] == []
-        picker.select.assert_called_once_with(history_kind="report")
+        picker.select.assert_called_once_with()
 
 
 def test_delete_case_endpoint_removes_case_from_workbench(app_services):
@@ -1616,87 +1616,46 @@ def test_photo_export_failures_have_safe_actionable_messages():
     assert "返回审核页" in messages[0]
 
 
-def test_select_export_directory_endpoint_covers_selected_cancelled_and_unavailable(app_services):
+def test_case_export_directory_uses_source_parent_without_picker(app_services):
     from app.main import app
     from app.controllers import workbench_controller
 
     picker = MagicMock()
-    picker.select.return_value = str(app_services.synthetic_report_dir)
     app_services.directory_picker = picker
-    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+    parent = app_services.synthetic_report_dir.parent
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), patch.object(
+        app_services.sources, "case_export_directory", return_value=parent,
+    ) as resolve:
         client = TestClient(app)
-        selected = client.post("/api/v1/workbench/select-export-directory")
-        picker.select.return_value = None
-        cancelled = client.post("/api/v1/workbench/select-export-directory")
-        app_services.directory_picker = None
-        unavailable = client.post("/api/v1/workbench/select-export-directory")
-
-    assert selected.status_code == 200, selected.text
-    data = selected.json()["data"]
-    assert data["path"] == str(app_services.synthetic_report_dir)
-    assert isinstance(data["token"], str) and data["token"]
-    assert picker.select.call_count == 2
-    picker.select.assert_called_with(
-        description="选择导出目录",
-        history_kind="export",
-        selection_validator=workbench_controller.validate_export_directory,
-    )
-    assert cancelled.status_code == 200, cancelled.text
-    assert cancelled.json()["data"] == {"cancelled": True}
-    assert unavailable.status_code == 422
-    assert unavailable.json()["detail"]["code"] == "DIRECTORY_PICKER_UNAVAILABLE"
+        response = client.post("/api/v1/workbench/cases/SYNTHETIC-case/export-directory")
+        assert client.post("/api/v1/workbench/select-export-directory").status_code == 404
+        assert client.get("/api/v1/workbench/archive-storage-settings").status_code == 404
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["path"] == str(parent)
+    assert response.json()["data"]["token"]
+    resolve.assert_called_once_with("SYNTHETIC-case")
+    picker.select.assert_not_called()
 
 
-def test_select_export_directory_rejects_program_root_without_issuing_grant(app_services):
-    from app.config import RUNTIME_PATHS
+def test_case_export_directory_rejects_protected_parent(app_services):
     from app.main import app
+    from app.config import RUNTIME_PATHS
     from app.controllers import workbench_controller
-
-    picker = MagicMock()
-    picker.select.return_value = str(RUNTIME_PATHS.resource_root)
-    app_services.directory_picker = picker
-    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), \
-         patch.object(
-             app_services.sources.authorization,
-             "issue_exact_directory_grant",
-             wraps=app_services.sources.authorization.issue_exact_directory_grant,
-         ) as issue_grant:
-        response = TestClient(app).post("/api/v1/workbench/select-export-directory")
-
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), patch.object(
+        app_services.sources, "case_export_directory", return_value=RUNTIME_PATHS.resource_root,
+    ), patch.object(app_services.sources.authorization, "issue_exact_directory_grant") as issue:
+        response = TestClient(app).post("/api/v1/workbench/cases/SYNTHETIC-case/export-directory")
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "EXPORT_DIRECTORY_UNSAFE"
-    issue_grant.assert_not_called()
+    issue.assert_not_called()
 
 
-def test_select_export_directory_issues_grant_for_canonical_path(app_services, tmp_path):
-    from app.main import app
-    from app.controllers import workbench_controller
-
-    selected_path = str(tmp_path / "SYNTHETIC-EXPORT" / ".." / "SYNTHETIC-EXPORT")
-    canonical_path = (tmp_path / "SYNTHETIC-EXPORT").resolve()
-    canonical_path.mkdir()
-    picker = MagicMock()
-    picker.select.return_value = selected_path
-    app_services.directory_picker = picker
-    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), \
-         patch.object(
-             workbench_controller, "validate_export_directory", return_value=canonical_path,
-         ) as validate, \
-         patch.object(
-             app_services.sources.authorization,
-             "issue_exact_directory_grant",
-             return_value="token-SYNTHETIC",
-         ) as issue_grant:
-        response = TestClient(app).post("/api/v1/workbench/select-export-directory")
-
-    assert response.status_code == 200
-    assert response.json()["data"] == {
-        "path": str(canonical_path), "token": "token-SYNTHETIC",
-    }
-    picker.select.assert_called_once_with(
-        description="选择导出目录",
-        history_kind="export",
-        selection_validator=validate,
-    )
-    validate.assert_called_once_with(selected_path)
-    issue_grant.assert_called_once_with(str(canonical_path))
+def test_case_output_parent_is_bound_to_persisted_source(app_services):
+    descriptor = app_services.sources.register_report_directory(str(app_services.synthetic_report_dir))
+    identifiers = app_services.cases.submit(descriptor, case_name="SYNTHETIC-OUTPUT-CASE")
+    assert app_services.sources.case_export_directory(identifiers["case_id"]) == app_services.synthetic_report_dir.parent
+    app_services.synthetic_report_dir.rename(app_services.synthetic_report_dir.with_name("SYNTHETIC-MOVED"))
+    from app.repository.workbench.workbench_errors import WorkbenchPersistenceError
+    with pytest.raises(WorkbenchPersistenceError) as failure:
+        app_services.sources.case_export_directory(identifiers["case_id"])
+    assert failure.value.code == "EXPORT_PATH_INVALID"

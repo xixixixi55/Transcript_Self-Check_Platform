@@ -255,6 +255,10 @@ async def export_record_endpoint(
             )
         try:
             validated_export_path = validate_export_directory(export_path)
+            if case_id and validated_export_path != validate_export_directory(
+                get_workbench_services().sources.case_export_directory(case_id),
+            ):
+                raise WorkbenchPersistenceError("EXPORT_PATH_NOT_AUTHORIZED")
         except WorkbenchPersistenceError as error:
             raise HTTPException(
                 status_code=422,

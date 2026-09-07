@@ -504,7 +504,7 @@ def test_public_result_rejects_formal_part_tamper_after_completion(tmp_path: Pat
         assert completed["status"] == "succeeded"
 
 
-def test_public_result_resolves_completed_archive_from_legacy_root(tmp_path: Path) -> None:
+def test_public_result_resolves_completed_archive_from_legacy_root(tmp_path: Path, monkeypatch) -> None:
     services, _worker = _services(tmp_path)
     legacy_root = tmp_path / "SYNTHETIC-LEGACY-ARCHIVE-ROOT"
     with _controller_patches(services), TestClient(
@@ -535,6 +535,36 @@ def test_public_result_resolves_completed_archive_from_legacy_root(tmp_path: Pat
 
         assert result.status_code == 200, result.text
         assert result.json()["data"]["parts"]
+
+        # SYNTHETIC: 迁出旧工作区后重建结果服务，多输出根仍只定位同一 Manifest。
+        from app.services.export import unified_export_service
+        from app.services.archive.archive_task_result_service import ArchiveTaskResultService
+        target = tmp_path / "SYNTHETIC-REPORT-PARENT"
+        target.mkdir()
+        (target / "SYNTHETIC-REPORT").mkdir()
+        def word(*_args, output_dir, **_kwargs):
+            path = Path(output_dir) / "SYNTHETIC.docx"
+            path.write_bytes(b"SYNTHETIC/DOCX")
+            return str(path)
+        monkeypatch.setattr(unified_export_service, "generate_docx", word)
+        unified_export_service.unified_export(
+            report={}, manifest=record.public_manifest, final_dir=destination,
+            export_path=target, photo_paths=[], template_context={}, relocate=True,
+            database=services.database, case_id=ready["shell"]["case_id"], task_id=task["task_id"],
+        )
+        assert not list(destination.glob("*.rar"))
+        previous = services.archive_api.results
+        services.archive_api.results = ArchiveTaskResultService(
+            previous.tasks, previous.plans, previous.assets, services.archive_attempts, (legacy_root,),
+        )
+        result = client.get(f"/api/v1/workbench/tasks/{queued['task_id']}/result")
+        assert result.status_code == 200, result.text
+        part = result.json()["data"]["parts"][0]
+        path = services.archive_api.results.download_part(task["task_id"], part["part_id"])[1]
+        assert path.parent == target
+        path.write_bytes(b"SYNTHETIC/TAMPERED")
+        with pytest.raises(WorkbenchPersistenceError):
+            services.archive_api.results.manifest_bundle(task["task_id"])
 
 
 def test_runtime_start_is_idempotent_and_empty_queue_waits(tmp_path: Path) -> None:
@@ -837,9 +867,6 @@ def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
     from app.controllers import record_template_context_controller
 
     services, _worker = _services(tmp_path)
-    export_dir = tmp_path / "SYNTHETIC-EXPORT"
-    export_dir.mkdir()
-    token = services.sources.authorization.issue_exact_directory_grant(str(export_dir))
 
     with _controller_patches(services), \
             patch.object(
@@ -848,6 +875,8 @@ def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
             ), TestClient(create_app(service_provider=lambda: services)) as client:
         ready = _create_ready_case(client, services)
         case_id = ready["shell"]["case_id"]
+        export_dir = services.sources.case_export_directory(case_id)
+        token = services.sources.authorization.issue_exact_directory_grant(str(export_dir))
         queued = client.post(
             f"/api/v1/workbench/cases/{case_id}/archive-decision",
             json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},

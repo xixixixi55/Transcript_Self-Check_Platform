@@ -124,7 +124,7 @@ export default function CaseWorkbenchPage() {
     setExportNameCaseId(null)
     if (!shell || actionCaseId === shell.case_id || !reserveExport(shell.case_id)) return
     try {
-      const chosen = await archiveCompletion.chooseDirectory()
+      const chosen = await archiveCompletion.resolveDirectory(shell.case_id)
       if ('cancelled' in chosen) return
       const summary = archiveSummariesByCase[shell.case_id]
       const cachedArchiveResult = completionResults[shell.case_id]

@@ -146,6 +146,9 @@ def export_bundle(
     if shell["revision"] != expected_revision:
         raise WorkbenchPersistenceError("REVISION_CONFLICT")
     export_dir = validate_export_directory(export_path)
+    expected_dir = validate_export_directory(api.sources.case_export_directory(case_id))
+    if export_dir != expected_dir:
+        raise WorkbenchPersistenceError("EXPORT_PATH_NOT_AUTHORIZED", "导出位置必须为本次报告文件夹的上一级目录。")
     if not api.sources.authorization.consume_exact_directory_grant(
         directory_token, str(export_dir),
     ):
@@ -176,6 +179,7 @@ def export_bundle(
             word_filename=word_filename,
             database=api.database, case_id=case_id, task_id=task["task_id"],
             plan=bound_plan,
+            relocate=True,
         )
     except UnifiedExportError as error:
         raise WorkbenchPersistenceError(error.code, error.args[0]) from error

@@ -15,14 +15,17 @@ import weakref
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from collections.abc import Callable
 from uuid import uuid4
 
 from ...config import OUTPUT_BASE
 from ...repository.case.audit_event_repository import AuditEventRepository
+from ...repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ...repository.workbench.workbench_database import WorkbenchDatabase
 from ..attachment.attachment2_image_service import Attachment2ImageError
 from ..attachment.attachment_plan_models_service import AttachmentPlanError
 from ..document.record_generator_service import generate_docx
+from ..archive.archive_manifest_output_security_service import assert_safe_output_file
 
 
 _EXPORT_DIRECTORY_LOCKS: weakref.WeakValueDictionary[str, threading.Lock] = (
@@ -83,6 +86,7 @@ def unified_export(
     task_id: str | None = None,
     output_root: str | Path = OUTPUT_BASE,
     plan: dict[str, Any] | None = None,
+    relocate: bool = False,
 ) -> dict[str, Any]:
     """将归档包写入 ``export_path`` 并返回其投影。"""
     _require_disc_mapping(manifest, plan)
@@ -93,19 +97,53 @@ def unified_export(
             raise UnifiedExportError("ARCHIVE_PART_MISSING", "归档分卷文件缺失，无法导出。")
 
     export_path.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".biji-export-", dir=export_path) as temp_dir:
+    with _export_directory_lock(export_path), tempfile.TemporaryDirectory(prefix=".biji-export-", dir=export_path) as temp_dir:
         staging_path = Path(temp_dir)
         word_filename = _export_word(
             report, with_disc_mapping(manifest, plan), staging_path, photo_paths,
             template_context, word_filename,
         )
+        already_at_destination = final_dir.resolve() == export_path.resolve()
+        if relocate and not already_at_destination:
+            for rar in rar_paths:
+                if (export_path / rar.name).exists():
+                    raise UnifiedExportError("EXPORT_TARGET_CONFLICT", "报告上级目录已有同名压缩包，请先移走已有文件后重试。")
         for rar in rar_paths:
-            shutil.copy2(rar, staging_path / rar.name)
+            if not already_at_destination:
+                shutil.copy2(rar, staging_path / rar.name)
         rar_filenames = [rar.name for rar in rar_paths]
+        origin = final_dir.resolve()
+        remember = None
+        if relocate:
+            if database is None:
+                raise UnifiedExportError("EXPORT_DIRECTORY_RECORD_FAILED", "导出位置无法登记。")
+            locations = LocalCaseExportDirectoryRepository(
+                database.database_path.parent / "archive-export-locations.json",
+                strict=True,
+            )
+            previous = locations.latest(str(manifest["manifest_id"]))
+            if already_at_destination and previous and previous.get("artifact_origin"):
+                origin = Path(previous["artifact_origin"])
+            def remember() -> None:
+                locations.remember(
+                    str(manifest["manifest_id"]), export_path, _utc_now(), artifact_origin=str(origin),
+                )
         _publish_staged_bundle(
             staging_path, export_path,
-            [word_filename, *rar_filenames],
+            [word_filename, *([] if already_at_destination else rar_filenames)],
+            **({"on_publish": remember, "remove_legacy": False,
+                "exclusive_names": set(rar_filenames) if not already_at_destination else set()} if relocate else {}),
         )
+
+        if relocate and origin != export_path.resolve():
+            # 仅清理登记的工作区原件；重试也可完成上次登记后的残留清理。
+            for name in rar_filenames:
+                rar = origin / name
+                if rar.exists():
+                    assert_safe_output_file(rar)
+                    origin.chmod(origin.stat().st_mode | 0o700)
+                    rar.chmod(rar.stat().st_mode | 0o200)
+                    rar.unlink()
 
     exported_at = _utc_now()
     _record_export(
@@ -122,10 +160,15 @@ def unified_export(
 
 def _publish_staged_bundle(
     staging_path: Path, export_path: Path, filenames: list[str],
+    *, on_publish: Callable[[], None] | None = None, remove_legacy: bool = True,
+    exclusive_names: set[str] | None = None,
 ) -> None:
     """发布一个完整包，并在出错时恢复上一版本。"""
     with _export_directory_lock(export_path):
-        _publish_staged_bundle_unlocked(staging_path, export_path, filenames)
+        _publish_staged_bundle_unlocked(
+            staging_path, export_path, filenames, on_publish=on_publish, remove_legacy=remove_legacy,
+            exclusive_names=exclusive_names,
+        )
 
 
 def _export_directory_lock(export_path: Path) -> threading.Lock:
@@ -135,13 +178,15 @@ def _export_directory_lock(export_path: Path) -> threading.Lock:
     with _EXPORT_DIRECTORY_LOCKS_GUARD:
         lock = _EXPORT_DIRECTORY_LOCKS.get(normalized)
         if lock is None:
-            lock = threading.Lock()
+            lock = threading.RLock()
             _EXPORT_DIRECTORY_LOCKS[normalized] = lock
         return lock
 
 
 def _publish_staged_bundle_unlocked(
     staging_path: Path, export_path: Path, filenames: list[str],
+    *, on_publish: Callable[[], None] | None = None, remove_legacy: bool = True,
+    exclusive_names: set[str] | None = None,
 ) -> None:
     names = list(dict.fromkeys(Path(name).name for name in filenames))
     rollback_path = staging_path / ".rollback"
@@ -149,7 +194,9 @@ def _publish_staged_bundle_unlocked(
     backed_up: list[str] = []
     published: list[str] = []
     try:
-        for name in [*names, "hash-verification.png", "hash-verification.html"]:
+        for name in [*names, *(["hash-verification.png", "hash-verification.html"] if remove_legacy else [])]:
+            if name in (exclusive_names or set()):
+                continue
             target = export_path / name
             if target.is_file():
                 os.replace(target, rollback_path / name)
@@ -158,11 +205,23 @@ def _publish_staged_bundle_unlocked(
             source = staging_path / name
             if not source.is_file():
                 raise OSError("staged export artifact missing")
-            os.replace(source, export_path / name)
+            if name in (exclusive_names or set()):
+                # 同卷原子排他创建；不得覆盖复制期间由其他程序创建的同名文件。
+                if os.name == "nt":
+                    os.rename(source, export_path / name)
+                else:
+                    os.link(source, export_path / name)
+            else:
+                os.replace(source, export_path / name)
             published.append(name)
-    except OSError as error:
+        if on_publish is not None:
+            on_publish()
+    except Exception as error:
         for name in published:
-            (export_path / name).unlink(missing_ok=True)
+            target = export_path / name
+            if target.is_file():
+                target.chmod(target.stat().st_mode | 0o200)
+                target.unlink()
         for name in backed_up:
             backup = rollback_path / name
             if backup.is_file():

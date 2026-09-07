@@ -26,8 +26,12 @@ from app.services.archive.archive_manifest_projection_service import (  # noqa: 
 from app.services.export.unified_export_service import with_disc_mapping  # noqa: E402
 
 
+_TEST_EXPORT_ROOT: Path
+
+
 def _api(consume_ok: bool) -> MagicMock:
     api = MagicMock()
+    api.sources.case_export_directory.return_value = _TEST_EXPORT_ROOT
     api.shells.get.return_value = {"revision": 3}
     api.sources.authorization.consume_exact_directory_grant.return_value = consume_ok
     api.tasks.get_current_or_recent.return_value = {
@@ -71,8 +75,10 @@ def _api(consume_ok: bool) -> MagicMock:
 
 
 @pytest.fixture(autouse=True)
-def _no_photo_side_effects():
-    with patch("app.services.archive.archive_export_service._resolve_photo_paths", return_value=[]):
+def _no_photo_side_effects(tmp_path):
+    global _TEST_EXPORT_ROOT
+    _TEST_EXPORT_ROOT = tmp_path
+    with patch("app.services.archive.archive_export_service._resolve_photo_paths", return_value=[]), patch("app.services.export.unified_export_service._record_export"):
         yield
 
 
@@ -80,6 +86,7 @@ def test_open_latest_export_directory_uses_case_scoped_record(tmp_path: Path) ->
     api = _api(consume_ok=True)
     export_dir = tmp_path / "SYNTHETIC-CASE-A-EXPORT"
     export_dir.mkdir()
+    api.sources.case_export_directory.return_value = export_dir
     opener = MagicMock()
     api.export_directories.latest.return_value = {
             "case_id": "case-synthetic-a",
@@ -285,6 +292,7 @@ def test_export_bundle_marks_shell_exported_after_success(tmp_path: Path) -> Non
     api = _api(consume_ok=True)
     export_dir = tmp_path / "export-out"
     export_dir.mkdir(parents=True)
+    api.sources.case_export_directory.return_value = export_dir
     api.sources.authorization.consume_exact_directory_grant.return_value = True
 
     with patch("app.services.archive.archive_export_service.unified_export") as unified:
@@ -324,11 +332,13 @@ def test_real_export_bundle_never_invokes_hashmyfiles_or_publishes_screenshot(
     tmp_path: Path, hash_algorithm: str,
 ) -> None:
     api = _api(consume_ok=True)
-    api.database = None
+    from types import SimpleNamespace
+    api.database = SimpleNamespace(database_path=tmp_path / "SYNTHETIC.sqlite")
     final_dir = tmp_path / f"SYNTHETIC-FINAL-{hash_algorithm}"
     export_dir = tmp_path / f"SYNTHETIC-EXPORT-{hash_algorithm}"
     final_dir.mkdir()
     export_dir.mkdir()
+    api.sources.case_export_directory.return_value = export_dir
     rar_bytes = b"SYNTHETIC/RAR"
     (final_dir / "case.part1.rar").write_bytes(rar_bytes)
     for legacy_name in ("hash-verification.png", "hash-verification.html"):
@@ -363,8 +373,8 @@ def test_real_export_bundle_never_invokes_hashmyfiles_or_publishes_screenshot(
     assert result["output"]["rar_filenames"] == ["case.part1.rar"]
     assert (export_dir / "SYNTHETIC.docx").is_file()
     assert (export_dir / "case.part1.rar").read_bytes() == rar_bytes
-    assert not list(export_dir.glob("*.png"))
-    assert not list(export_dir.glob("*.html"))
+    assert list(export_dir.glob("*.png")) == [export_dir / "hash-verification.png"]
+    assert list(export_dir.glob("*.html")) == [export_dir / "hash-verification.html"]
 
 
 def test_export_bundle_uses_asset_ref_order_and_rebuilds_missing_photo_groups(
@@ -373,6 +383,7 @@ def test_export_bundle_uses_asset_ref_order_and_rebuilds_missing_photo_groups(
     api = _api(consume_ok=True)
     export_dir = tmp_path / "export-with-photos"
     export_dir.mkdir()
+    api.sources.case_export_directory.return_value = export_dir
     photo_ids = ["asset-synthetic-front", "asset-synthetic-back"]
     api.drafts.get.return_value = {
         "asset_refs": [
@@ -418,6 +429,7 @@ def test_export_bundle_fails_when_disc_mapping_incomplete(tmp_path: Path) -> Non
     api = _api(consume_ok=True)
     export_dir = tmp_path / "export-out"
     export_dir.mkdir(parents=True)
+    api.sources.case_export_directory.return_value = export_dir
     # 计划中仍有未映射的槽位。
     api.plans.get_latest_for_case.return_value = {
         "volume_slots": [{"status": "active", "disc_mapping": None}],

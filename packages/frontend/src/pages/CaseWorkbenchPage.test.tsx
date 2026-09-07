@@ -240,7 +240,7 @@ it('exports a completed archive bundle directly from the card', async () => {
     throw new Error(`unexpected GET ${url}`)
   })
   postMock.mockImplementation(async (url: string, body?: unknown) => {
-    if (url.endsWith('/select-export-directory')) return { data: { data: { path: 'D:\SYNTHETIC\EXPORT', token: 'token-synthetic' } } }
+    if (url.endsWith('/export-directory')) return { data: { data: { path: 'D:\SYNTHETIC\EXPORT', token: 'token-synthetic' } } }
     if (url.endsWith('/export-bundle')) return { data: { data: { case_id: 'case-synthetic-1', task_id: 'archive-SYNTHETIC-1', expected_revision: (body as { expected_revision: number }).expected_revision, lifecycle: 'exported', output: { export_path: 'D:\SYNTHETIC\EXPORT', word_filename: 'out.docx', rar_filenames: ['SYNTHETIC.part1.rar'], exported_at: '2026-07-30T12:01:00Z' } } } }
     return { data: { data: {} } }
   })
@@ -305,7 +305,7 @@ it('keeps unified exports isolated so another case can start before the first fi
   let resolveSecondExport!: (value: unknown) => void
   let pickerIndex = 0
   postMock.mockImplementation((url: string) => {
-    if (url.endsWith('/select-export-directory')) {
+    if (url.endsWith('/export-directory')) {
       pickerIndex += 1
       return Promise.resolve({ data: { data: { path: `D:\\SYNTHETIC\\EXPORT-${pickerIndex}`, token: `token-${pickerIndex}` } } })
     }
@@ -327,7 +327,7 @@ it('keeps unified exports isolated so another case can start before the first fi
     firstStartButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     firstStartButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   })
-  await waitFor(() => expect(postMock.mock.calls.filter(([url]) => String(url).endsWith('/select-export-directory'))).toHaveLength(1))
+  await waitFor(() => expect(postMock.mock.calls.filter(([url]) => String(url).endsWith('/export-directory'))).toHaveLength(1))
   await waitFor(() => expect(postMock.mock.calls.filter(([url]) => String(url).includes('/export-bundle'))).toHaveLength(1))
 
   expect(screen.getAllByRole('button', { name: '更多操作' })[0].hasAttribute('disabled')).toBe(true)
@@ -401,7 +401,7 @@ it('opens each case own export directory after concurrent exports finish out of 
   const exportResolvers = new Map<number, (value: unknown) => void>()
   let pickerIndex = 0
   postMock.mockImplementation((url: string) => {
-    if (url.endsWith('/select-export-directory')) {
+    if (url.endsWith('/export-directory')) {
       pickerIndex += 1
       return Promise.resolve({ data: { data: { path: `D:\\SYNTHETIC\\EXPORT-${pickerIndex}`, token: `token-${pickerIndex}` } } })
     }

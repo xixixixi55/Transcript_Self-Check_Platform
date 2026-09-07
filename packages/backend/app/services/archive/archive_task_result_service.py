@@ -11,6 +11,7 @@ from ...repository.archive.archive_manifest_repository import ArchiveManifestRep
 from ...repository.archive.archive_plan_repository import ArchivePlanRepository
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.archive.archive_task_repository import ArchiveTaskRepository
+from ...repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash
 from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
@@ -32,6 +33,10 @@ class ArchiveTaskResultService:
         self.plans = plans
         self.assets = assets
         self.attempts = attempts
+        self.export_locations = LocalCaseExportDirectoryRepository(
+            attempts.database.database_path.parent / "archive-export-locations.json",
+            strict=True,
+        )
         roots = (attempts.output_root, *legacy_output_roots)
         unique_roots = tuple(dict.fromkeys(Path(root).resolve(strict=False) for root in roots))
         self.manifests = tuple(
@@ -154,12 +159,17 @@ class ArchiveTaskResultService:
         verify_content: bool = True,
     ) -> Any:
         matches = []
+        external = self.export_locations.latest(manifest_id)
+        external_path = Path(external["export_path"]) if external else None
         for repository in self.manifests:
             records = [
                 item for item in repository.find_for_attempt(attempt_id)
                 if item.manifest_id == manifest_id
             ]
-            if len(records) == 1 and repository.resolve_final_dir(records[0]).is_dir():
+            if len(records) == 1 and (
+                (external_path.is_dir() and str(repository.resolve_final_dir(records[0])) == external.get("artifact_origin"))
+                if external_path else repository.resolve_final_dir(records[0]).is_dir()
+            ):
                 matches.append((records[0], repository))
         if len(matches) != 1:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
@@ -186,7 +196,8 @@ class ArchiveTaskResultService:
         view = SimpleNamespace(
             manifest_id=record.manifest_id,
             public_manifest=record.public_manifest,
-            final_dir=repository.resolve_final_dir(record),
+            final_dir=external_path or repository.resolve_final_dir(record),
+            external_export=external_path is not None,
         )
         try:
             assert_publication_identity(record, intent)
@@ -199,6 +210,8 @@ class ArchiveTaskResultService:
         )
         if validation_error is not None:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
+        if external_path is not None:
+            return record, SimpleNamespace(resolve_final_dir=lambda _record: external_path)
         return record, repository
 
     def _assert_task_attempt(self, task: dict[str, Any], attempt: dict[str, Any]) -> None:
