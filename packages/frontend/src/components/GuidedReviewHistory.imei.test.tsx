@@ -27,7 +27,7 @@ describe('GuidedReviewHistory IMEI grouping', () => {
       materials: [material('A', 'complete'), material('B', 'complete'), material('C', 'attention')],
     }]} onEditMaterial={onEditMaterial} />)
 
-    const completeGroup = screen.getByText('IMEI 信息完整（2项）').closest('details')
+    const completeGroup = screen.getByText('检材信息完整（2项）').closest('details')
     expect(completeGroup).toBeTruthy()
     expect(completeGroup?.hasAttribute('open')).toBe(false)
     expect(screen.getByRole('listitem', { name: /检材 C/ })).toBeTruthy()

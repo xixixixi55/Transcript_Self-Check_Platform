@@ -40,7 +40,7 @@ function HistoryMaterial({ material, onEditMaterial }: {
             {material.sourceLabel || '用户填写'}
           </span>}
           {material.imeiStatus === 'attention' && (
-            <span className="guided-review-history__attention-badge">IMEI 待核对</span>
+            <span className="guided-review-history__attention-badge">检材信息待核对</span>
           )}
         </span>
         <span className="guided-review-history__material-actions">
@@ -74,7 +74,7 @@ function HistoryMaterials({ materials, onEditMaterial }: {
     <div className="guided-review-history__materials" role="list" aria-label="检材与图片">
       {completeMaterials.length > 0 && (
         <details className="guided-review-history__material-group">
-          <summary>IMEI 信息完整（{completeMaterials.length}项）</summary>
+          <summary>检材信息完整（{completeMaterials.length}项）</summary>
           <div className="guided-review-history__material-group-content" role="list">
             {completeMaterials.map(material => <HistoryMaterial key={material.id}
               material={material} onEditMaterial={onEditMaterial} />)}

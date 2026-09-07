@@ -779,3 +779,12 @@ workflow_level: 2
 - [x] 6.102 修复原日期字段有效后自动退出当前步骤的缺陷：委托时间复用 requiresExplicitAdvance，日期更新仅更新字段，保持日期控件及当前步骤；只有点击“进入下一步”才推进，清空日期仍受原校验限制。
   - 定向回归先复现中间有效日期触发自动进入案情步骤；修复后验证月份中间值、再次改日、清空、显式推进及返回上一步；组件回归验证 change、blur、Enter 均不触发确认，仅点击按钮触发。
   - 验证：受影响 Hook 与组件共 26 项回归通过；日期推进用例按独立交互职责落在 useGuidedReviewCards.entrustDate.test.ts，移动后单独复跑通过；架构、TypeScript 与 git diff --check 通过。人工 Chrome 选择器验收未执行，已用原生 input 的 change、blur、Enter 事件与 Hook 重渲染回归复现并区分原缺陷。
+
+## 2026-09-07 检材设备与类型缺失异常识别
+
+- [x] 复用本包“Word 预览突出检材信息异常并支持逐项修改”场景，按 Level 2 扩展现有分组条件；设备或类型任一为空（含纯空白）时单独展示，保留原 IMEI 缺失与相等判断。
+- [x] 按预览最终设备名称与手机/平板类型判断，补齐后自动恢复正常分组；提示改为“检材信息待核对 / 检材信息完整”。
+- [x] 扩展 SYNTHETIC 投影回归覆盖设备空值、纯空白、类型缺失、两者缺失和补齐恢复；旧实现 4 项失败，修复后投影及分组组件共 9 项通过。
+- [x] 核对实现并同步当前 delta 与 living spec。
+- [x] 运行 verify:quick、限定 conversational-review-shell 的严格文档检查与 diff 检查。
+- manual_acceptance: N/A；本次仅调整派生分组条件及提示文字，由自动化投影与组件回归验证。

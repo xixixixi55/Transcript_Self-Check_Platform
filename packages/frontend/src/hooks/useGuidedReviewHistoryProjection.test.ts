@@ -1,4 +1,4 @@
-import type { FieldState } from '@biji/shared/types'
+import type { FieldState, InspectionReport } from '@biji/shared/types'
 import { describe, expect, it } from 'vitest'
 import { syntheticReport } from './useGuidedReviewCards.testFixtures'
 import { buildReportHistory } from './useGuidedReviewHistoryProjection'
@@ -33,6 +33,26 @@ describe('guided Word preview source attribution', () => {
     expect(projected[1].fields.find(field => field.label === 'IMEI 2')?.value).toBe('待核对')
     expect(projected.map(item => item.fields.find(field => field.label === '序列号')?.value))
       .toEqual(['SYNTHETIC-SERIAL-A', 'SYNTHETIC-SERIAL-B', 'SYNTHETIC-SERIAL-C'])
+  })
+
+  it.each([
+    { device_name: '', device_type: '', brand: '', model: '' },
+    { device_name: ' \t', device_type: ' ', brand: ' ', model: '\n' },
+    { material_type: undefined },
+    { device_name: '', device_type: '', material_type: undefined },
+  ])('flags missing device or type even with distinct IMEIs and clears after correction: %j', missing => {
+    const complete = {
+      ...syntheticReport.introduction.evidence_list[0],
+      device_name: 'SYNTHETIC DEVICE', imei1: '111111111111111', imei2: '222222222222222',
+    }
+    const report: InspectionReport = {
+      ...syntheticReport,
+      introduction: { ...syntheticReport.introduction, evidence_list: [{ ...complete, ...missing }] },
+    }
+    const project = () => buildReportHistory(report).find(item => item.id === 'fact-evidence')?.materials?.[0]
+    expect(project()?.imeiStatus).toBe('attention')
+    report.introduction.evidence_list[0] = complete
+    expect(project()?.imeiStatus).toBe('complete')
   })
 
   it('does not label evidence-derived result fields as user-filled', () => {

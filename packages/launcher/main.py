@@ -15,6 +15,7 @@ from portable_launcher import (
     open_desktop_browser,
     record_integrity_warning,
     resolve_launcher_paths,
+    select_loopback_port,
     start_backend,
     terminate_process_tree,
     validate_program_integrity,
@@ -49,9 +50,10 @@ def main() -> int:
         ready_file = paths.log_root / "backend-ready.json"
         ready_file.unlink(missing_ok=True)
         secret = new_secret()
-        process, log_handle = start_backend(paths, 0, secret, ready_file)
+        port = select_loopback_port()
+        process, log_handle = start_backend(paths, port, secret, ready_file)
         process_job = attach_kill_on_close_job(process)
-        port = wait_until_ready(process, ready_file, secret)
+        port = wait_until_ready(process, ready_file, secret, expected_port=port)
         open_desktop_browser(port, secret)
 
         def reopen_application() -> None:

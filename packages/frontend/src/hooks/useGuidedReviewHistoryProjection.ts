@@ -134,7 +134,7 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
       label,
       photoCount: materialPhotoCount(report, index, material.id),
       requiredPhotoCount: 2,
-      imeiStatus: Boolean(imei1 && imei2 && imei1 !== imei2) ? 'complete' : 'attention',
+      imeiStatus: Boolean(deviceName && materialType && imei1 && imei2 && imei1 !== imei2) ? 'complete' : 'attention',
       targetId: REVIEW_TARGET_IDS.evidence(index),
       ...(userAdded ? { userProvided: true, sourceLabel: '人工添加' as const } : {}),
       fields: [

@@ -90,3 +90,14 @@ workflow_level: 3
 - [x] 13.3 增加构建脚本与运行时环境合同回归，执行officecli Repository、便携构建脚本定向测试及实际create/batch/save冷启动烟雾。
 
 验证记录：新增环境合同用例在修复前稳定失败2项，修复后officecli Runtime、便携构建脚本与文书生成定向Pytest 35项通过；在清空PATH且禁用resident的条件下，包内officecli的create、batch、save及validate通过。`pnpm run build:portable`完整成功，重新生成`dist/portable/文枢-v0.2.0-portable-x64.zip`，SHA-256为`6656ab41ec18d6aa4965cdb7d36d66d410769c71d6e922c6f1fb7fe40a597a1b`；`verify:quick`、scoped strict docs与`git diff --check`通过。
+
+## 2026-09-07 固定便携 EXE 服务端口
+
+- [x] 复用本包本地生产服务隔离合同，按 Level 2 增量将网页和 API 共用端口固定为 40000；开发模式配置保持现状。
+- [x] 启动前检查固定 loopback 端口，端口不可用时显示明确提示并停止，不随机回退；后端就绪握手必须匹配启动端口，首次浏览器打开及托盘重开均使用该端口。
+- [x] 扩展 SYNTHETIC 启动器测试：旧实现固定端口断言失败；修复后启动器、端口冲突、握手与后端入口定向 Pytest 23 项通过。
+- [x] 更新 delta 和设计端口说明，将本次本地生产服务隔离 Requirement 同步到现行 electronic-inspection-record 规格。
+- [x] 完成 verify:quick、限定范围严格文档检查、便携包重建和固定端口冻结后端冒烟。
+- 验证记录：verify:quick 与 scoped strict docs（14 checks / 0 drift）通过；包内 backend.exe 使用 SYNTHETIC 独立临时数据目录在40000返回网页及健康状态，运行期间再次申请端口被明确拒绝，测试进程已清理。
+- 构建记录：首次发布校验拒绝 web/tsconfig.tsbuildinfo 构建缓存；移除该缓存后重新生成启动器内嵌完整性表、构建启动器并重新执行发布白名单与 ZIP 校验，未放宽发布资产规则。
+- manual_acceptance: N/A；端口、握手与真实冻结后端通过自动化冒烟验证，未操作真实案件数据。

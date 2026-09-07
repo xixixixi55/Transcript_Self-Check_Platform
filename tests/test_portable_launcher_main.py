@@ -64,9 +64,18 @@ def test_successful_start_uses_tray_and_reopens_existing_application(tmp_path: P
     monkeypatch.setattr(module, "validate_program_integrity", lambda _paths: None)
     monkeypatch.setattr(module, "SingleInstance", Lock)
     monkeypatch.setattr(module, "new_secret", lambda: "SYNTHETIC-SECRET")
-    monkeypatch.setattr(module, "start_backend", lambda *_args: (process, log_handle))
+    monkeypatch.setattr(module, "select_loopback_port", lambda: 40000)
+    def start_backend(_paths, port, _secret, _ready_file):
+        assert port == 40000
+        return process, log_handle
+
+    monkeypatch.setattr(module, "start_backend", start_backend)
     monkeypatch.setattr(module, "attach_kill_on_close_job", lambda _process: Job())
-    monkeypatch.setattr(module, "wait_until_ready", lambda *_args: 32123)
+    def wait_until_ready(*_args, expected_port=None):
+        assert expected_port == 40000
+        return 40000
+
+    monkeypatch.setattr(module, "wait_until_ready", wait_until_ready)
     monkeypatch.setattr(module, "open_desktop_browser", lambda port, secret: events.append(("bootstrap", port, secret)))
     monkeypatch.setattr(module, "open_application_browser", lambda port: events.append(("open", port)))
     monkeypatch.setattr(module, "terminate_process_tree", lambda target: events.append(("terminate", target)))
@@ -79,7 +88,7 @@ def test_successful_start_uses_tray_and_reopens_existing_application(tmp_path: P
     monkeypatch.setattr(module, "run_windows_tray", run_tray)
     assert module.main() == 0
     assert events == [
-        ("bootstrap", 32123, "SYNTHETIC-SECRET"),
-        ("open", 32123),
+        ("bootstrap", 40000, "SYNTHETIC-SECRET"),
+        ("open", 40000),
         ("terminate", process),
     ]

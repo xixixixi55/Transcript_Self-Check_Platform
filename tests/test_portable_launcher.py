@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import struct
+import socket
 import sys
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from portable_launcher import (  # noqa: E402
     open_desktop_browser,
     record_integrity_warning,
     resolve_launcher_paths,
+    select_loopback_port,
     validate_program_integrity,
     wait_until_ready,
 )
@@ -47,6 +49,34 @@ class FakeResponse:
 
     def __exit__(self, *_args):
         return None
+
+
+@pytest.mark.parametrize("occupied", [False, True])
+def test_fixed_loopback_port_never_falls_back(monkeypatch, occupied: bool) -> None:
+    addresses = []
+
+    class Listener:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def setsockopt(self, *_args):
+            return None
+
+        def bind(self, address):
+            addresses.append(address)
+            if occupied:
+                raise OSError("SYNTHETIC port occupied")
+
+    monkeypatch.setattr(socket, "socket", lambda *_args: Listener())
+    if occupied:
+        with pytest.raises(LauncherError, match="固定端口 40000"):
+            select_loopback_port()
+    else:
+        assert select_loopback_port() == 40000
+    assert addresses == [("127.0.0.1", 40000)]
 
 
 def test_resolve_launcher_paths_separates_program_and_data(tmp_path: Path) -> None:

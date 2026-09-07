@@ -178,9 +178,15 @@ class SingleInstance:
 
 
 def select_loopback_port() -> int:
+    port = 40000
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.bind(("127.0.0.1", 0))
-        return int(listener.getsockname()[1])
+        try:
+            if os.name == "nt":
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            listener.bind(("127.0.0.1", port))
+        except OSError as error:
+            raise LauncherError(f"无法使用固定端口 {port}，请关闭占用该端口的程序后重试。") from error
+    return port
 
 
 def build_backend_environment(paths: LauncherPaths, secret: str) -> dict[str, str]:
