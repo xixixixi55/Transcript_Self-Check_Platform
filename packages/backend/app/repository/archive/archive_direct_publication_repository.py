@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,18 @@ from ..workbench.workbench_database import utc_now
 from ..workbench.workbench_errors import WorkbenchPersistenceError
 
 JOURNAL_NAME = ".direct-publication.json"
+
+
+def assert_direct_output_available(destination: Path, archive_base_name: str) -> None:
+    """启动压缩前拒绝同名包及旧分卷，避免实际分卷数变化时混入旧产物。"""
+    pattern = re.compile(
+        rf"{re.escape(archive_base_name)}(?:\.part[0-9]+)?\.rar", re.IGNORECASE,
+    )
+    with os.scandir(destination) as entries:
+        for entry in entries:
+            # 名称已被目录或链接占用也属于冲突，不跟随链接读取内容。
+            if pattern.fullmatch(entry.name):
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_CONFLICT")
 
 
 def file_identity(path: Path) -> list[int]:

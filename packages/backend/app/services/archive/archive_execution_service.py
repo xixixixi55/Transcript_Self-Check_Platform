@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ...repository.archive.archive_authorization_repository import AuthorizedInputRoot
+from ...repository.archive.archive_direct_publication_repository import assert_direct_output_available
 from ...repository.source.filesystem_identity_repository import directory_fingerprint_matches
 from ...repository.archive.archive_manifest_repository import (
     ArchiveManifestRepository, ArchiveManifestRepositoryError,
@@ -40,6 +41,11 @@ from ..export.export_gate_service import (
 from ..integrity.hash_algorithm_service import report_hash_algorithm
 
 _PUBLICATION_EVIDENCE_RETRIES = 3
+_PUBLISH_CONFLICT_MESSAGE = (
+    "归档目标位置已有同名文件或目录，未覆盖原文件。"
+    "请先检查报告文件夹上一级的同名 RAR，确认用途后移至其他备份目录再重试；"
+    "直接重试无法消除冲突。若未发现同名 RAR，请联系维护人员检查发布目录。"
+)
 
 
 def pre_archive_gate(report: dict) -> ExportGateResult:
@@ -210,12 +216,18 @@ def execute_archive(
         if plan.status != "planned":
             code = plan.diagnostics[0].code if plan.diagnostics else "ARCHIVE_PLAN_INVALID"
             raise ArchiveGateError((ExportGateIssue(code, "archive", "Archive plan rejected."),))
-        observe_stage(stage_observer, "preflight_verified")
         staging_root = Path(output_root) / "compressed" / ".staging"
         marker_enabled = executor is None and attempt_id is not None and attempt_service is not None
         direct_output = attempt_service.direct_output_directory(attempt_id) if marker_enabled else None
         if direct_output is not None:
             staging_root = direct_output
+            try:
+                assert_direct_output_available(direct_output, plan.archive_base_name)
+            except WorkbenchPersistenceError as error:
+                raise ArchiveGateError((ExportGateIssue(
+                    error.code, "archive", _PUBLISH_CONFLICT_MESSAGE,
+                ),)) from error
+        observe_stage(stage_observer, "preflight_verified")
         active_executor = executor or WinRarExecutor(
             staging_root,
             staging_initializer=attempt_service.staging_initializer(attempt_id, staging_root) if marker_enabled else None,
@@ -351,6 +363,8 @@ def execute_archive(
                     if error.code == "ARCHIVE_ATTEMPT_BINDING_STALE"
                     else "归档发布未完成，请重试。"
                 )
+                if error.code == "ARCHIVE_PUBLISH_TARGET_CONFLICT":
+                    message = _PUBLISH_CONFLICT_MESSAGE
                 raise ArchiveGateError((ExportGateIssue(
                     error.code, "archive", message,
                 ),)) from error

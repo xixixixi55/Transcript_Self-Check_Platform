@@ -5,7 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from .archive_direct_publication_repository import ArchiveDirectPublicationRepository, file_identity
+from .archive_direct_publication_repository import (
+    ArchiveDirectPublicationRepository, assert_direct_output_available, file_identity,
+)
 from ..workbench.workbench_errors import WorkbenchPersistenceError
 
 
@@ -20,6 +22,23 @@ def publication(tmp_path):
     origin = tmp_path / "internal" / "SYNTHETIC-manifest"
     repo = ArchiveDirectPublicationRepository(SimpleNamespace(database_path=tmp_path / "db.sqlite3"))
     return repo, origin, staging, target, names
+
+
+@pytest.mark.parametrize(("filename", "conflicts"), [
+    ("SYNTHETIC[TEST].rar", True),
+    ("synthetic[test].PART02.RAR", True),
+    ("SYNTHETIC[TEST].part99.rar", True),
+    ("SYNTHETIC[TEST]-backup.rar", False),
+    ("SYNTHETIC[TEST].rar.backup", False),
+    ("SYNTHETICT.rar", False),
+])
+def test_preflight_matches_only_same_archive_family(tmp_path, filename, conflicts):
+    (tmp_path / filename).write_bytes(b"SYNTHETIC/TEST")
+    if conflicts:
+        with pytest.raises(WorkbenchPersistenceError, match="ARCHIVE_PUBLISH_TARGET_CONFLICT"):
+            assert_direct_output_available(tmp_path, "SYNTHETIC[TEST]")
+    else:
+        assert_direct_output_available(tmp_path, "SYNTHETIC[TEST]")
 
 
 def test_publish_preserves_file_identity_without_copy(publication):

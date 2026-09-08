@@ -45,7 +45,10 @@ def valid_report():
     }
 
 
-@pytest.mark.parametrize("restart_during_publish", [False, True, "invalidated", "edited"])
+@pytest.mark.parametrize("restart_during_publish", [
+    False, True, "invalidated", "edited", "conflict",
+    "existing_single", "existing_part", "existing_directory",
+])
 def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, monkeypatch, restart_during_publish):
     """SYNTHETIC/TEST：真实发布与完成链；只替换 WinRAR 子进程。"""
     from types import SimpleNamespace
@@ -73,6 +76,15 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
     accepted = attempts.accept(CASE_ID, SOURCE_ID, 0, "SYNTHETIC-context", shell["revision"])
     attempts.start(accepted["attempt_id"])
     report = CaseDraftRepository(database).get(CASE_ID)["report"]
+    existing = str(restart_during_publish).startswith("existing_")
+    if existing:
+        from app.services.archive.archive_planner_service import safe_archive_base_name
+        base = safe_archive_base_name(report["introduction"]["case_summary"])
+        target = source.parent / (base + (".part2.rar" if restart_during_publish == "existing_part" else ".rar"))
+        if restart_during_publish == "existing_directory":
+            target.mkdir()
+        else:
+            target.write_bytes(b"SYNTHETIC/TEST/EXISTING-RAR")
     context_id = create_archive_context(AuthorizedInputRoot(source, "configured_root", "SYNTHETIC-root"), report, output_root=str(output))
     observed = []
     def runner(args, **kwargs):
@@ -80,9 +92,26 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
         assert archive_path.parent.parent == source.parent
         assert Path(kwargs["cwd"]) == source.parent
         archive_path.write_bytes(b"SYNTHETIC/TEST/RAR")
+        if restart_during_publish == "conflict":
+            (source.parent / archive_path.name).write_bytes(b"SYNTHETIC/TEST/EXISTING-RAR")
         observed.append(archive_path.stat().st_ino)
         return subprocess.CompletedProcess(args, 0)
     monkeypatch.setattr("app.services.archive.archive_execution_service.WinRarExecutor", lambda root, **kwargs: WinRarExecutor(root, process_runner=runner, **kwargs))
+    if restart_during_publish == "conflict" or existing:
+        with pytest.raises(ArchiveGateError) as error:
+            execute_archive(context_id, report, output_root=str(output), capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True), integrity_runner=integrity_ok, attempt_id=accepted["attempt_id"], attempt_service=attempts, workbench_context_id="SYNTHETIC-context")
+        assert str(error.value.blockers[0].code) == "ARCHIVE_PUBLISH_TARGET_CONFLICT"
+        assert "同名" in error.value.blockers[0].message
+        assert "直接重试" in error.value.blockers[0].message
+        assert [path.read_bytes() for path in source.parent.glob("*.rar") if path.is_file()] == (
+            [] if restart_during_publish == "existing_directory" else [b"SYNTHETIC/TEST/EXISTING-RAR"]
+        )
+        if existing:
+            assert observed == []  # 拒绝必须早于 WinRAR 启动和临时目录创建。
+            assert not list(source.parent.glob("archive-*"))
+            assert target.exists()
+        assert attempts.repository.get_internal(accepted["attempt_id"])["status"] != "succeeded"
+        return
     if restart_during_publish:
         original = ArchiveDirectPublicationRepository.publish
         def stopped(self, *args):
