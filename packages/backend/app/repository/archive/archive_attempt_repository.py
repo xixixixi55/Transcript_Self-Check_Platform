@@ -74,7 +74,7 @@ class ArchiveAttemptRepository:
             raise WorkbenchPersistenceError("INVALID_ARCHIVE_ATTEMPT")
         with self.database.transaction() as connection:
             updated = connection.execute(
-                "UPDATE archive_attempts SET cleanup_status = ?, error_code = COALESCE(?, error_code), revision = revision + 1 WHERE attempt_id = ? AND status IN ('failed', 'interrupted')",
+                "UPDATE archive_attempts SET cleanup_status = ?, error_code = COALESCE(?, error_code), revision = revision + 1 WHERE attempt_id = ? AND status IN ('failed', 'interrupted', 'succeeded')",
                 (status, error_code, validate_opaque_id(attempt_id)),
             )
             if updated.rowcount != 1:

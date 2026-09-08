@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
+from ...repository.archive.archive_direct_publication_repository import ArchiveDirectPublicationRepository
 from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import (
     ARCHIVE_MANIFEST_TTL_SECONDS,
@@ -52,6 +53,14 @@ def restore_persisted_manifest(
             publication_id=persisted.publication_id,
             publication_digest=persisted.publication_digest,
         )
+        if attempt_service is not None:
+            actual = ArchiveDirectPublicationRepository(attempt_service.database).resolve(
+                record.final_dir, record.manifest_id,
+            )
+            if actual != record.final_dir:
+                record.logical_final_dir = record.final_dir
+                record.final_dir = actual
+                record.external_export = True
         if validate_manifest_files(record) is not None:
             registry.mark_invalid(persisted.manifest_id)
             continue

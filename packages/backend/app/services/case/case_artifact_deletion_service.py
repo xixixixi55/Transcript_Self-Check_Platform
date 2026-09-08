@@ -10,11 +10,13 @@ from pathlib import Path
 from typing import Any
 
 from ...repository.archive.archive_manifest_repository import ArchiveManifestRepository
+from ...repository.source.source_record_repository import SourceRecordRepository
 from ...repository.workbench.workbench_database import WorkbenchDatabase
 from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from ...repository.workbench.workbench_serialization import validate_opaque_id
 from ..archive.archive_input_snapshot_files_service import marker_path
 from ..archive.archive_input_snapshot_layout_service import private_snapshot_root
+from ..archive.archive_staging_security_service import controlled_staging_root_id
 
 _INDEX_NAMES = {".archive-manifest-index.json", ".archive-manifest-index.lock"}
 
@@ -65,7 +67,7 @@ class CaseArtifactDeletionService:
             ).fetchone() is None:
                 raise WorkbenchPersistenceError("CASE_NOT_FOUND")
             attempts = connection.execute(
-                "SELECT attempt_id,staging_locator,input_snapshot_locator FROM archive_attempts "
+                "SELECT attempt_id,staging_locator,input_snapshot_locator,source_id,staging_root_id FROM archive_attempts "
                 "WHERE case_id=? AND deployment_instance_id=?",
                 (case_id, self.database.deployment_instance_id),
             ).fetchall()
@@ -158,7 +160,7 @@ class CaseArtifactDeletionService:
         paths.extend(
             path
             for row in attempts if row["staging_locator"]
-            for path in self._controlled_staging_paths(row["staging_locator"])
+            for path in self._controlled_staging_paths(row["staging_locator"], row)
         )
         paths.extend(
             path
@@ -286,7 +288,7 @@ class CaseArtifactDeletionService:
             raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
         return _unique_paths(candidates)
 
-    def _controlled_staging_paths(self, locator: Any) -> tuple[Path, ...]:
+    def _controlled_staging_paths(self, locator: Any, attempt: Any = None) -> tuple[Path, ...]:
         candidates = []
         for compressed_root in self.compressed_roots:
             try:
@@ -294,6 +296,21 @@ class CaseArtifactDeletionService:
             except WorkbenchPersistenceError:
                 continue
         if not candidates:
+            # 已发布的外部暂存目录已移空并移除；保留最终 RAR，不能把报告根列入删除计划。
+            if attempt is not None:
+                try:
+                    source = SourceRecordRepository(self.database).get_internal_locator(attempt["source_id"])
+                except WorkbenchPersistenceError as error:
+                    raise WorkbenchPersistenceError("CASE_DELETE_FAILED") from error
+                root = Path(source["internal_path"]).parent.resolve(strict=False)
+                candidate = Path(locator)
+                if (
+                    candidate.is_absolute() and candidate.resolve(strict=False).parent == root
+                    and candidate.name.startswith("archive-")
+                    and attempt["staging_root_id"] == controlled_staging_root_id(root, self.database.deployment_instance_id)
+                    and not candidate.exists() and not candidate.is_symlink()
+                ):
+                    return ()
             raise WorkbenchPersistenceError("CASE_DELETE_FAILED")
         return _unique_paths(candidates)
 

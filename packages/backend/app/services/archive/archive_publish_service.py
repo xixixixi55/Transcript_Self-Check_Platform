@@ -20,6 +20,8 @@ from ...repository.archive.archive_publish_fence_repository import assert_publis
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_publication_identity_service import publication_digest
+from ...repository.archive.archive_direct_publication_repository import ArchiveDirectPublicationRepository
+from .archive_staging_security_service import remove_ownership_marker
 
 
 def publish_staged_archive(
@@ -29,6 +31,7 @@ def publish_staged_archive(
     expected_draft_revision: int | None = None,
     expected_report_fingerprint: str | None = None,
     verified_hashes: dict[str, str] | None = None,
+    direct_output: Path | None = None,
 ) -> dict[str, ArchiveFileIdentity] | None:
     verified_file_identities: dict[str, ArchiveFileIdentity] | None = None
 
@@ -91,15 +94,36 @@ def publish_staged_archive(
     if attempt_service is not None:
         try:
             staging_dir.resolve(strict=False).relative_to(
-                attempt_service.staging_root.resolve(strict=False),
+                (direct_output or attempt_service.staging_root).resolve(strict=False),
             )
         except ValueError as error:
             raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_STAGING_INVALID") from error
-    registry.atomic_publish_generation(staging_dir, final_dir)
+    if direct_output is not None:
+        if attempt_service is None or attempt_id is None:
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_OWNER_REQUIRED")
+        if attempt_service.direct_output_directory(attempt_id) != direct_output:
+            raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
+        publisher = ArchiveDirectPublicationRepository(attempt_service.database)
+        publisher.prepare(
+            final_dir, staging_dir, direct_output, record.manifest_id,
+            [str(part["filename"]) for part in record.public_manifest["parts"]],
+        )
+        # 目录密封只用于暂存；重命名分卷需要暂存目录写权限。
+        staging_dir.chmod(staging_dir.stat().st_mode | 0o700)
+        publisher.publish(final_dir, direct_output, record.manifest_id)
+        record.logical_final_dir = final_dir
+        record.final_dir = direct_output
+        record.external_export = True
+    else:
+        registry.atomic_publish_generation(staging_dir, final_dir)
     if not validate(record):
         raise ValueError("ARCHIVE_PARTS_INVALID")
     if attempt_id is not None and attempt_service is not None:
-        attempt_service.remove_marker(final_dir)
+        if direct_output is not None:
+            remove_ownership_marker(staging_dir)
+            staging_dir.rmdir()
+        else:
+            attempt_service.remove_marker(final_dir)
         ArchivePublishIntentRepository(attempt_service.database).mark_publication_state(
             attempt_id, "published",
         )

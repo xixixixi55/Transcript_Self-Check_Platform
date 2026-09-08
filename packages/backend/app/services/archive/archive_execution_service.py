@@ -213,9 +213,12 @@ def execute_archive(
         observe_stage(stage_observer, "preflight_verified")
         staging_root = Path(output_root) / "compressed" / ".staging"
         marker_enabled = executor is None and attempt_id is not None and attempt_service is not None
+        direct_output = attempt_service.direct_output_directory(attempt_id) if marker_enabled else None
+        if direct_output is not None:
+            staging_root = direct_output
         active_executor = executor or WinRarExecutor(
             staging_root,
-            staging_initializer=attempt_service.staging_initializer(attempt_id) if marker_enabled else None,
+            staging_initializer=attempt_service.staging_initializer(attempt_id, staging_root) if marker_enabled else None,
             process_started_callback=attempt_service.process_started_callback(attempt_id) if marker_enabled else None,
             activity_callback=activity_observer,
             cancellation_check=cancellation_check,
@@ -325,6 +328,7 @@ def execute_archive(
                                 publication_snapshot.report_fingerprint if publication_snapshot else None
                             ),
                             verified_hashes=verified_output_hashes,
+                            direct_output=direct_output,
                         )
                         break
                     except WorkbenchPersistenceError as error:

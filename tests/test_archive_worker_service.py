@@ -315,7 +315,9 @@ def test_worker_reports_untrusted_archive_directory_actionably(setup, monkeypatc
 
     assert result["status"] == "failed_retryable"
     assert result["error_code"] == "ARCHIVE_INDEX_UNTRUSTED"
-    assert "新空白目录" in result["error_summary"]
+    assert "本次压缩已停止" in result["error_summary"]
+    assert "案件库是否配套" in result["error_summary"]
+    assert "归档存储设置" not in result["error_summary"]
     assert "现有文件不会被修改" in result["error_summary"]
     assert attempts.failed == [(
         "SYNTHETIC-WORKER-ATTEMPT-1", "ARCHIVE_INDEX_UNTRUSTED",

@@ -25,6 +25,7 @@ from .archive_manifest_service import validate_manifest_files
 from .archive_runtime_service import ArchiveManifestRecord
 from .archive_staging_security_service import cleanup_owned_staging
 from .archive_publication_identity_service import publication_digest
+from ...repository.archive.archive_direct_publication_repository import ArchiveDirectPublicationRepository, JOURNAL_NAME
 
 if TYPE_CHECKING:
     from .archive_attempt_service import ArchiveAttemptService
@@ -172,7 +173,7 @@ def _cleanup_unsealed_publication(
 
 
 def _cleanup_interrupted(service: ArchiveAttemptService, record: dict[str, Any]) -> None:
-    cleanup = cleanup_owned_staging(record, service.staging_root, service.database.deployment_instance_id)
+    cleanup = cleanup_owned_staging(record, service.staging_root_for_record(record), service.database.deployment_instance_id)
     if cleanup != "not_required":
         error_code = "ARCHIVE_STAGING_CLEANUP_UNKNOWN" if cleanup == "unknown" else None
         if cleanup == "failed":
@@ -221,6 +222,22 @@ def _recover_published_intent(
         intent["public_manifest"], final_dir, 0.0, time.time() + 60,
         publication_id=intent["publication_id"], publication_digest=intent["publication_digest"],
     )
+    if (final_dir / JOURNAL_NAME).is_file():
+        try:
+            destination = service.direct_output_directory(attempt["attempt_id"])
+            publisher = ArchiveDirectPublicationRepository(service.database)
+            publisher.assert_binding(final_dir, attempt, intent["public_manifest"])
+            with publisher.recovery_guard(attempt, intent):
+                actual = publisher.publish(final_dir, destination, intent["manifest_id"])
+        except WorkbenchPersistenceError as error:
+            if error.code == "ARCHIVE_COMPLETION_EVIDENCE_CONFLICT":
+                raise _RecoveryConflictError(error.code) from error
+            raise _RecoveryTransientError() from error
+        except (OSError, ValueError, WorkbenchPersistenceError) as error:
+            raise _RecoveryTransientError() from error
+        record.logical_final_dir = final_dir
+        record.final_dir = actual
+        record.external_export = True
     try:
         if not final_dir.is_dir():
             return False
@@ -229,8 +246,13 @@ def _recover_published_intent(
         raise _RecoveryTransientError() from error
     if integrity_error is not None:
         raise _RecoveryConflictError(integrity_error)
+    if record.external_export and intent["phase"] == "intent_persisted":
+        intents.mark_publication_state(attempt["attempt_id"], "published")
+        intents.mark_phase(attempt["attempt_id"], "published")
+        intent = intents.get_for_attempt(attempt["attempt_id"]) or intent
     try:
-        service.remove_marker(final_dir)
+        if not record.external_export:
+            service.remove_marker(final_dir)
     except (OSError, PermissionError) as error:
         raise _RecoveryTransientError() from error
     registry = ArchiveManifestRepository(service.output_root, database=service.database)
@@ -265,6 +287,8 @@ def _recover_published_intent(
             intents.mark_phase(attempt["attempt_id"], "indexed")
         from .archive_attempt_completion_service import complete_verified
         complete_verified(service, attempt["attempt_id"], registry, record, recovery=attempt["status"] != "succeeded")
+        if record.external_export:
+            _cleanup_interrupted(service, attempt)
         current = intents.get_for_attempt(attempt["attempt_id"])
         if current and current["phase"] == "indexed" and attempt["status"] == "succeeded":
             intents.mark_phase(attempt["attempt_id"], "verified")

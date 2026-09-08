@@ -207,7 +207,7 @@ class ArchiveAttemptService:
             record = self.repository.get_internal(attempt_id)
             if record["staging_locator"]:
                 cleanup = cleanup_owned_staging(
-                    record, self.staging_root, self.database.deployment_instance_id,
+                    record, self.staging_root_for_record(record), self.database.deployment_instance_id,
                 )
                 if cleanup != "not_required":
                     cleanup_error = (
@@ -225,7 +225,7 @@ class ArchiveAttemptService:
         record = self.repository.get_internal(attempt_id)
         if record["staging_locator"]:
             cleanup = cleanup_owned_staging(
-                record, self.staging_root, self.database.deployment_instance_id,
+                record, self.staging_root_for_record(record), self.database.deployment_instance_id,
             )
             if cleanup != "not_required":
                 cleanup_error = (
@@ -245,8 +245,28 @@ class ArchiveAttemptService:
             # 绝不能将失败归档变成虚假成功。
             pass
 
-    def staging_initializer(self, attempt_id: str) -> Callable[[Path], None]:
-        root_id = self.staging_root_id
+    def direct_output_directory(self, attempt_id: str) -> Path:
+        from ..source.source_record_service import SourceRecordService
+        from .archive_export_service import validate_export_directory
+        attempt = self.repository.get_internal(attempt_id)
+        return validate_export_directory(
+            SourceRecordService(self.database).case_export_directory(attempt["case_id"]),
+        )
+
+    def staging_root_for_record(self, record: dict[str, Any]) -> Path:
+        if record.get("staging_root_id") in {None, self.staging_root_id}:
+            return self.staging_root
+        try:
+            return self.direct_output_directory(record["attempt_id"])
+        except (OSError, ValueError, WorkbenchPersistenceError):
+            return self.staging_root  # 根身份不匹配时清理失败关闭。
+
+    def staging_initializer(
+        self, attempt_id: str, staging_root: Path | None = None,
+    ) -> Callable[[Path], None]:
+        root_id = controlled_staging_root_id(
+            staging_root or self.staging_root, self.database.deployment_instance_id,
+        )
         deployment_id = self.database.deployment_instance_id
         task_id = self.repository.get_internal(attempt_id).get("task_id")
 

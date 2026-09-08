@@ -41,7 +41,7 @@ export function ArchiveDecisionPanel({ lifecycle, busy = false, onImmediate, onD
       type="warning"
       showIcon
       message="上次压缩未完成"
-      description="应用重启或执行中断导致上次压缩未完成；草稿仍可查看和编辑，半成品不会作为正式产物使用。"
+      description="上次压缩失败或执行中断；请先查看归档任务的安全摘要，处理原因后再重试。草稿仍可查看和编辑，半成品不会作为正式产物使用。"
       action={<Space>
         <Button type="primary" loading={busy} onClick={onImmediate}>重新确认并立即压缩</Button>
         <Button loading={busy} onClick={onDeferred}>稍后压缩</Button>

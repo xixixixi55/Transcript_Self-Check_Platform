@@ -13,6 +13,7 @@ from pathlib import Path
 from .archive_manifest_record_repository import (
     PersistedArchiveManifest, manifest_record_dict, parse_manifest_record,
 )
+from .archive_direct_publication_repository import JOURNAL_NAME
 
 _INDEX_VERSION = 1
 _INDEX_FILENAME = ".archive-manifest-index.json"
@@ -181,7 +182,7 @@ class ArchiveManifestIndexMixin:
     def _formal_assets_exist(self, *, exclude_relative: str | None = None) -> bool:
         if not self.compressed_root.is_dir():
             return False
-        ignored = {_INDEX_FILENAME, ".archive-manifest-index.lock", ".staging", ".inputs"}
+        ignored = {_INDEX_FILENAME, ".archive-manifest-index.lock", ".staging", ".inputs", JOURNAL_NAME}
         excluded = (
             (self.compressed_root / exclude_relative).resolve(strict=False)
             if exclude_relative else None

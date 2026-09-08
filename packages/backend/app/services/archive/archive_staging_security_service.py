@@ -90,6 +90,8 @@ def cleanup_owned_staging(
     if record.get("staging_root_id") != expected_root_id:
         return "unknown"
     try:
+        if candidate.is_symlink() or getattr(candidate.lstat(), "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
+            return "unknown"
         resolved = candidate.resolve(strict=True)
         if resolved == root or resolved.parent != root:
             return "unknown"
@@ -113,6 +115,13 @@ def cleanup_owned_staging(
     if marker != expected or _process_is_active(record.get("process_pid")):
         return "unknown"
     try:
+        # 发布密封使标记只读；只在归属核验通过后恢复清理所需写权限。
+        for item in resolved.rglob("*"):
+            if item.is_symlink() or getattr(item.lstat(), "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
+                return "unknown"
+        for item in resolved.rglob("*"):
+            item.chmod(item.stat().st_mode | stat.S_IWUSR)
+        resolved.chmod(resolved.stat().st_mode | stat.S_IWUSR)
         shutil.rmtree(resolved)
     except OSError:
         return "failed"

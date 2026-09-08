@@ -259,11 +259,12 @@ def _safe_failure(error: Exception) -> tuple[str, str]:
         code = str(error)
         if code == "ARCHIVE_INDEX_UNTRUSTED":
             return code, (
-                "归档目录包含当前案件库无法确认的历史 RAR。请在归档存储设置中选择 "
-                "D 盘上的新空白目录，重启文枢后重试；现有文件不会被修改。"
+                "归档工作区存在当前案件库无法确认的历史归档记录或文件，本次压缩已停止。"
+                "请先核对应用数据目录与案件库是否配套，再由维护人员处理工作区冲突；"
+                "现有文件不会被修改。"
             )
         if code.startswith("ARCHIVE_INDEX_"):
-            return code, "归档目录登记无法安全确认，请更换新的空白归档目录并重启后重试。"
-        return "ARCHIVE_INDEX_INVALID", "归档目录登记无法安全确认，请更换新的空白归档目录并重启后重试。"
+            return code, "归档目录登记无法安全确认，请先核对应用数据目录与案件库，并由维护人员处理工作区冲突后重试。"
+        return "ARCHIVE_INDEX_INVALID", "归档目录登记无法安全确认，请先核对应用数据目录与案件库，并由维护人员处理工作区冲突后重试。"
     code = getattr(error, "code", "ARCHIVE_EXECUTION_FAILED")
     return str(code), "Archive execution failed safely."

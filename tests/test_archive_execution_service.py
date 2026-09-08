@@ -45,6 +45,92 @@ def valid_report():
     }
 
 
+@pytest.mark.parametrize("restart_during_publish", [False, True, "invalidated", "edited"])
+def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, monkeypatch, restart_during_publish):
+    """SYNTHETIC/TEST：真实发布与完成链；只替换 WinRAR 子进程。"""
+    from types import SimpleNamespace
+    from test_phase1d_recovery import ready_case, mark_source_available, CASE_ID, SOURCE_ID
+    from app.repository.workbench.workbench_database import WorkbenchDatabase
+    from app.repository.source.source_locator_repository import SourceLocatorRepository
+    from app.repository.case.case_workbench_repository import CaseDraftRepository
+    from app.services.archive.archive_attempt_service import ArchiveAttemptService
+    from app.repository.archive.winrar_executor_repository import WinRarExecutor
+    from app.repository.archive.archive_direct_publication_repository import ArchiveDirectPublicationRepository
+    from app.services.archive import archive_export_service
+    from app.services.archive.archive_manifest_service import validate_manifest_files
+    database = WorkbenchDatabase(tmp_path / "SYNTHETIC-db.sqlite3", "SYNTHETIC-DIRECT")
+    shell = ready_case(database)
+    mark_source_available(database)
+    source = tmp_path / "SYNTHETIC-case" / "report"
+    source.mkdir(parents=True)
+    (source / "index.html").write_text("SYNTHETIC/TEST")
+    SourceLocatorRepository(database).save(SOURCE_ID, str(source), str(source.parent))
+    monkeypatch.setattr(archive_export_service, "RUNTIME_PATHS", SimpleNamespace(
+        resource_root=tmp_path / "SYNTHETIC-program", app_data_root=tmp_path / "SYNTHETIC-data",
+    ))
+    output = tmp_path / "SYNTHETIC-output"
+    attempts = ArchiveAttemptService(database, output)
+    accepted = attempts.accept(CASE_ID, SOURCE_ID, 0, "SYNTHETIC-context", shell["revision"])
+    attempts.start(accepted["attempt_id"])
+    report = CaseDraftRepository(database).get(CASE_ID)["report"]
+    context_id = create_archive_context(AuthorizedInputRoot(source, "configured_root", "SYNTHETIC-root"), report, output_root=str(output))
+    observed = []
+    def runner(args, **kwargs):
+        archive_path = Path(args[-2])
+        assert archive_path.parent.parent == source.parent
+        assert Path(kwargs["cwd"]) == source.parent
+        archive_path.write_bytes(b"SYNTHETIC/TEST/RAR")
+        observed.append(archive_path.stat().st_ino)
+        return subprocess.CompletedProcess(args, 0)
+    monkeypatch.setattr("app.services.archive.archive_execution_service.WinRarExecutor", lambda root, **kwargs: WinRarExecutor(root, process_runner=runner, **kwargs))
+    if restart_during_publish:
+        original = ArchiveDirectPublicationRepository.publish
+        def stopped(self, *args):
+            if restart_during_publish is True or restart_during_publish == "edited":
+                original(self, *args)
+            if restart_during_publish == "edited":
+                draft = CaseDraftRepository(database).get(CASE_ID)
+                draft["report"]["document_number"] = "SYNTHETIC-EDIT-DURING-PUBLISH"
+                draft.pop("lifecycle")
+                CaseDraftRepository(database).save(draft, expected_revision=draft["revision"])
+            raise KeyboardInterrupt("SYNTHETIC abrupt process stop")
+        monkeypatch.setattr(ArchiveDirectPublicationRepository, "publish", stopped)
+        with pytest.raises(KeyboardInterrupt):
+            execute_archive(context_id, report, output_root=str(output), capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True), integrity_runner=integrity_ok, attempt_id=accepted["attempt_id"], attempt_service=attempts, workbench_context_id="SYNTHETIC-context")
+        monkeypatch.setattr(ArchiveDirectPublicationRepository, "publish", original)
+        if restart_during_publish == "invalidated":
+            with database.transaction() as connection:
+                connection.execute("UPDATE archive_publish_fences SET status='invalidated'")
+        ArchiveAttemptService(database, output).recover_after_restart()
+    else:
+        execute_archive(context_id, report, output_root=str(output), capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True), integrity_runner=integrity_ok, attempt_id=accepted["attempt_id"], attempt_service=attempts, workbench_context_id="SYNTHETIC-context")
+    attempt = attempts.repository.get_internal(accepted["attempt_id"])
+    if restart_during_publish == "invalidated":
+        assert attempt["status"] == "interrupted"
+        assert not list(source.parent.glob("*.rar"))
+        assert list(source.parent.glob("archive-*/*.rar"))
+        return
+    assert attempt["status"] == "succeeded"
+    if restart_during_publish == "edited":
+        assert CaseDraftRepository(database).get(CASE_ID)["report"]["document_number"] == "SYNTHETIC-EDIT-DURING-PUBLISH"
+    assert not list(source.parent.glob("archive-*"))
+    if restart_during_publish:
+        assert attempt["cleanup_status"] == "succeeded"
+    rar = list(source.parent.glob("*.rar"))
+    assert len(rar) == 1 and rar[0].stat().st_ino == observed[0]
+    assert not list(output.rglob("*.rar"))
+    from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository
+    registry = ArchiveManifestRepository(output, database=database)
+    persisted = registry.find_for_attempt(accepted["attempt_id"])[0]
+    actual = ArchiveDirectPublicationRepository(database).resolve(registry.resolve_final_dir(persisted), attempt["manifest_id"])
+    assert actual == source.parent
+    assert validate_manifest_files(SimpleNamespace(manifest_id=persisted.manifest_id, public_manifest=persisted.public_manifest, final_dir=actual, external_export=True)) is None
+    from app.services.case.case_artifact_deletion_service import CaseArtifactDeletionService
+    deletion = CaseArtifactDeletionService(database, output).prepare(CASE_ID)
+    assert all(path != actual and not actual.is_relative_to(path) for path in deletion.paths)
+    assert all(path not in rar for path in deletion.paths)
+
+
 class FakeExecutor:
     def __init__(self, root, count_for_tier):
         self.root = Path(root)
@@ -314,7 +400,11 @@ def test_workbench_publish_removes_staging_marker_exactly_once(
         latest_report["attachments"]["disc_number"] = "GP2026080802-08"
 
         @staticmethod
-        def staging_initializer(_attempt_id):
+        def direct_output_directory(_attempt_id):
+            return tmp_path
+
+        @staticmethod
+        def staging_initializer(_attempt_id, _root=None):
             return lambda _staging: None
 
         @staticmethod
@@ -412,7 +502,11 @@ def test_publish_revalidation_rejects_latest_invalid_disc_sequence(
 
     class AttemptService:
         @staticmethod
-        def staging_initializer(_attempt_id):
+        def direct_output_directory(_attempt_id):
+            return tmp_path
+
+        @staticmethod
+        def staging_initializer(_attempt_id, _root=None):
             return lambda _staging: None
 
         @staticmethod
@@ -449,7 +543,11 @@ def test_publish_binding_error_is_not_misreported_as_invalid_rar(tmp_path, monke
 
     class StaleAttemptService:
         @staticmethod
-        def staging_initializer(_attempt_id):
+        def direct_output_directory(_attempt_id):
+            return tmp_path
+
+        @staticmethod
+        def staging_initializer(_attempt_id, _root=None):
             return lambda _staging: None
 
         @staticmethod
