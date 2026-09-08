@@ -6,6 +6,7 @@ import hashlib
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -72,6 +73,38 @@ def _api(consume_ok: bool) -> MagicMock:
     api.plans.get.return_value = plan
     api.plans.get_latest_for_case.return_value = plan
     return api
+
+
+@pytest.mark.parametrize("foreign_case", [False, True])
+def test_result_uses_manifest_bound_plan_instead_of_latest(foreign_case):
+    """SYNTHETIC：结果展示与 Word 必须采用同一 Manifest 计划。"""
+    from app.services.archive.archive_task_result_service import ArchiveTaskResultService
+    service = MagicMock()
+    service.tasks.get.return_value = {
+        "task_id": "task-synthetic", "case_id": "case-synthetic",
+        "process_binding": {"staging_asset_id": "attempt-synthetic"},
+    }
+    service.tasks.get_task_card_summary.return_value = {
+        "status": "succeeded", "allowed_actions": ["view_result"], "finished_at": None,
+    }
+    service.attempts.repository.get_internal.return_value = {"status": "succeeded", "manifest_id": "manifest-synthetic"}
+    api = _api(consume_ok=True)
+    service._verified_manifest.return_value = (
+        SimpleNamespace(public_manifest=api.results.manifest_bundle.return_value["public_manifest"]), None,
+    )
+    plan = api.plans.get.return_value
+    plan.update(revision=4, verified_slots=[])
+    plan["case_id"] = "SYNTHETIC-OTHER-CASE" if foreign_case else "case-synthetic"
+    service.plans.get.return_value = plan
+    service.plans.get_latest_for_case.side_effect = AssertionError("must not mix a newer plan into an old result")
+    if foreign_case:
+        with pytest.raises(WorkbenchPersistenceError, match="ARCHIVE_RESULT_NOT_AVAILABLE"):
+            ArchiveTaskResultService.result(service, "task-synthetic")
+    else:
+        result = ArchiveTaskResultService.result(service, "task-synthetic")
+        assert result["parts"][0]["disc_number"] == "GP20260730-01"
+        assert result["plan_row_revision"] == 4
+    service.plans.get.assert_called_once_with("plan-synthetic")
 
 
 @pytest.fixture(autouse=True)

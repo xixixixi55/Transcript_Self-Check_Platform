@@ -22,6 +22,8 @@ from ...config import OUTPUT_BASE
 from ...repository.case.audit_event_repository import AuditEventRepository
 from ...repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ...repository.workbench.workbench_database import WorkbenchDatabase
+from ...repository.archive.archive_hash_repository import compute_hash_streaming
+from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash
 from ..attachment.attachment2_image_service import Attachment2ImageError
 from ..attachment.attachment_plan_models_service import AttachmentPlanError
 from ..document.record_generator_service import generate_docx
@@ -49,10 +51,14 @@ def _require_disc_mapping(
     # 因此计划存在时门禁检查该计划；对于没有计划的调用方
     #（例如直接服务测试），则回退到 manifest 分卷。
     if plan is not None:
+        slots = [slot for slot in plan.get("volume_slots", []) if slot.get("status") != "removed"]
+        ordinals = [slot.get("ordinal") for slot in slots]
+        part_ordinals = [part.get("part_number") or index for index, part in enumerate(manifest.get("parts") or [], 1)]
+        if not part_ordinals or len(ordinals) != len(part_ordinals) or set(ordinals) != set(part_ordinals):
+            raise UnifiedExportError("DISC_MAPPING_INCOMPLETE", "介质映射与实际分卷不一致，无法导出。")
         missing = [
-            slot for slot in plan.get("volume_slots", [])
-            if slot.get("status") != "removed"
-            and (
+            slot for slot in slots
+            if (
                 (slot.get("disc_mapping") or {}).get("confirmation") != "confirmed"
                 or not str((slot.get("disc_mapping") or {}).get("disc_number") or "").strip()
             )
@@ -111,6 +117,21 @@ def unified_export(
         for rar in rar_paths:
             if not already_at_destination:
                 shutil.copy2(rar, staging_path / rar.name)
+        if not already_at_destination:
+            # 历史工作区迁移只有副本校验通过后才能发布、登记并清理原件。
+            for part in parts:
+                copied = staging_path / str(part["filename"])
+                try:
+                    assert_safe_output_file(copied)
+                    algorithm, expected_hash = manifest_part_business_hash(part)
+                    if copied.stat().st_size != part["size_bytes"] or compute_hash_streaming(
+                        copied, staging_path, algorithm,
+                    ).lower() != expected_hash.lower():
+                        raise ValueError("ARCHIVE_COPY_CHANGED")
+                except (OSError, ValueError, KeyError) as error:
+                    raise UnifiedExportError(
+                        "EXPORT_PUBLISH_FAILED", "归档副本校验失败，已保留原压缩包和上一版导出。",
+                    ) from error
         rar_filenames = [rar.name for rar in rar_paths]
         origin = final_dir.resolve()
         remember = None

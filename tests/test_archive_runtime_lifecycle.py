@@ -856,8 +856,9 @@ def test_runtime_timeout_persists_owned_claim_as_interrupted(
     assert final_task["percent"] != 100
 
 
+@pytest.mark.parametrize("origin_case_changed", [False, pytest.param(True, marks=pytest.mark.skipif(os.name != "nt", reason="Windows path identity"))])
 def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
-    tmp_path: Path,
+    tmp_path: Path, origin_case_changed: bool,
 ) -> None:
     """从已完成卡片统一导出时，不得被独立草稿版本阻止。
 
@@ -911,3 +912,41 @@ def test_export_bundle_succeeds_after_archive_completion_when_revisions_differ(
         assert response.json()["data"]["output"]["word_filename"] == "SYNTHETIC-EXPORT.docx"
         assert not (export_dir / "hash-verification.png").exists()
         assert not (export_dir / "hash-verification.html").exists()
+
+        # SYNTHETIC：首次迁出后重建结果服务，再次导出复用同一份 RAR。
+        from app.services.archive.archive_task_result_service import ArchiveTaskResultService
+        from app.repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
+        locations = LocalCaseExportDirectoryRepository(
+            services.database.database_path.parent / "archive-export-locations.json", strict=True,
+        )
+        first_result = client.get(f"/api/v1/workbench/tasks/{queued['task_id']}/result")
+        assert first_result.status_code == 200, first_result.text
+        manifest_id = first_result.json()["data"]["manifest_id"]
+        if origin_case_changed:
+            # Windows 的盘符/目录大小写变化不改变文件身份。
+            payload = json.loads(locations.file_path.read_text(encoding="utf-8"))
+            payload["records"][manifest_id]["artifact_origin"] = payload["records"][manifest_id]["artifact_origin"].swapcase()
+            locations.file_path.write_text(json.dumps(payload), encoding="utf-8")
+        previous = services.archive_api.results
+        services.archive_api.results = ArchiveTaskResultService(
+            previous.tasks, previous.plans, previous.assets, services.archive_attempts,
+        )
+        repeated_result = client.get(f"/api/v1/workbench/tasks/{queued['task_id']}/result")
+        assert repeated_result.status_code == 200, repeated_result.text
+        identities = {path.name: path.stat().st_ino for path in export_dir.glob("*.rar")}
+        with patch("app.services.export.unified_export_service.generate_docx", side_effect=fake_docx), patch(
+            "app.services.export.unified_export_service.shutil.copy2",
+            side_effect=AssertionError("SYNTHETIC RAR must not be copied on re-export"),
+        ):
+            repeated = client.post(
+                f"/api/v1/workbench/cases/{case_id}/export-bundle",
+                json={
+                    "expected_revision": CaseShellRepository(services.database).get(case_id)["revision"],
+                    "export_path": str(export_dir),
+                    "directory_token": services.sources.authorization.issue_exact_directory_grant(str(export_dir)),
+                    "word_filename": "SYNTHETIC-EXPORT.docx",
+                },
+            )
+        assert repeated.status_code == 200, repeated.text
+        assert {path.name: path.stat().st_ino for path in export_dir.glob("*.rar")} == identities
+        assert client.get(f"/api/v1/workbench/tasks/{queued['task_id']}/result").status_code == 200

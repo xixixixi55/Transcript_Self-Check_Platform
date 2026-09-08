@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from .archive_manifest_service import validate_manifest_files, validate_manifest
 from .archive_publication_identity_service import assert_publication_identity
 from ..disc.disc_sequence_service import archive_medium_for_mode
 
+logger = logging.getLogger(__name__)
 
 class ArchiveTaskResultService:
     def __init__(
@@ -61,7 +63,10 @@ class ArchiveTaskResultService:
             verify_content=False,
         )
         archive_mode = str(manifest.public_manifest.get("archive_mode") or "standard_split")
-        plan = self.plans.get_latest_for_case(task["case_id"])
+        plan_id = str(manifest.public_manifest.get("plan_id") or "")
+        plan = self.plans.get(plan_id) if plan_id else None
+        if plan is not None and plan["case_id"] != task["case_id"]:
+            raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         disc_by_ordinal = {
             slot["ordinal"]: slot.get("disc_mapping") or {}
             for slot in (plan["volume_slots"] if plan else [])
@@ -167,11 +172,13 @@ class ArchiveTaskResultService:
                 if item.manifest_id == manifest_id
             ]
             if len(records) == 1 and (
-                (external_path.is_dir() and str(repository.resolve_final_dir(records[0])) == external.get("artifact_origin"))
+                (external_path.is_dir() and external.get("artifact_origin")
+                 and repository.resolve_final_dir(records[0]) == Path(external["artifact_origin"]).resolve(strict=False))
                 if external_path else repository.resolve_final_dir(records[0]).is_dir()
             ):
                 matches.append((records[0], repository))
         if len(matches) != 1:
+            logger.warning("Archive result unavailable: task=%s reason=ARCHIVE_LOCATION_BINDING_INVALID", task_id)
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         record, repository = matches[0]
         intent = ArchivePublishIntentRepository(self.attempts.database).get_for_attempt(attempt_id)
@@ -209,6 +216,7 @@ class ArchiveTaskResultService:
             else validate_manifest_metadata(view)
         )
         if validation_error is not None:
+            logger.warning("Archive result unavailable: task=%s reason=%s", task_id, validation_error)
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         if external_path is not None:
             return record, SimpleNamespace(resolve_final_dir=lambda _record: external_path)

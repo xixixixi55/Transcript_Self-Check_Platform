@@ -5,8 +5,18 @@ import axios from 'axios'
 import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type { ArchiveTaskResult, CaseDraft, CaseShell } from '@biji/shared/types'
 import CaseRecordGeneratePage from './CaseRecordGeneratePage'
+import type { GuidedReviewView } from '../components/GuidedReviewView'
 import { archiveTaskSummary, availableInspector, caseId, completedArchiveResult, defaults, detail, identity, lease, report, reportWithPhotos, task } from './CaseRecordGeneratePage.test-fixtures'
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn() } }))
+const fullEditorAccess = vi.hoisted(() => ({ open: null as null | (() => void) }))
+vi.mock('../components/GuidedReviewView', async importOriginal => {
+  const original = await importOriginal<typeof import('../components/GuidedReviewView')>()
+  return { ...original, GuidedReviewView: (props: Parameters<typeof GuidedReviewView>[0]) => {
+    // 保留完整编辑器的回归覆盖；测试通过回调进入，不恢复已移除的用户入口。
+    fullEditorAccess.open = props.onOpenFullEditor
+    return <original.GuidedReviewView {...props} />
+  } }
+})
 const getMock = vi.mocked(axios.get); const postMock = vi.mocked(axios.post); const patchMock = vi.mocked(axios.patch)
 
 describe('CaseRecordGeneratePage archive decision coordination', () => {
@@ -26,6 +36,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   })
   beforeEach(() => {
+    fullEditorAccess.open = null
     vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
@@ -373,7 +384,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   async function openFullEditor() {
     fireEvent.click(await screen.findByRole('button', { name: /查看已填内容与待办/ }))
     const panel = await screen.findByRole('region', { name: '已填内容与待办' })
-    fireEvent.click(within(panel).getByRole('button', { name: '修改其他已填内容' }))
+    expect(within(panel).queryByRole('button', { name: '修改其他已填内容' })).toBeNull()
+    expect(fullEditorAccess.open).toBeTypeOf('function')
+    await act(async () => { fullEditorAccess.open?.() })
     await waitFor(() => expect(document.querySelector('.review-editor-form')).toBeTruthy())
   }
 

@@ -47,3 +47,15 @@ T006 更新：临时压缩位于报告上级目录，校验后同卷重命名发
 - 独立复审：`/root/direct_archive_review` 按五维清单复审通过，无剩余 P1/P2 必须修复项；恢复授权、只读清理和草稿编辑兼容问题已修复。
 - 工程门控：`npm run verify:quick` 通过；架构、类型、治理测试、快速文档及仓库资产检查均通过。未提交、打包或归档。
 - 严格文档门控：完成任务记录更新后，`npm run verify:docs:strict -- --change report-parent-export --details` 通过（14 项、0 漂移）；增量与现行规格已同步，`git diff --check` 通过。
+
+## T009 再次导出故障反馈（2026-09-08）
+
+- [x] T009 修复再次导出与历史产物迁移的既有合同回归，完成受影响验证及独立审查。
+  - 归属与范围：关联本包 T002/T006 的唯一产物、外部定位与重复导出场景；`background-compression-archive-completion` 是原编排能力，`metadata-fingerprint-archive-path` 是结果轻量校验能力，本次不新增能力或持久化格式，按 Level 1 反馈修复验证，因涉及原件清理追加独立审查。
+  - 现场限制：用户提供再次导出时任务结果 GET 返回 422 的日志，随后说明已经删除该案件。本机复查返回 `TASK_NOT_FOUND`，不能追认原案件的具体根因。
+  - 复现：SYNTHETIC Windows 集成用例在首次迁出后仅改变登记路径大小写，旧代码再次 GET 返回 `422 / ARCHIVE_RESULT_NOT_AVAILABLE`；普通再次导出通过。另有同长度损坏复制用例暴露旧实现仍发布坏副本并删除原件，四种空/缺卷/重复/错位计划暴露盘号门禁漏检。
+  - 实现：结果读取和直接发布恢复按平台 Path 语义匹配规范路径；结果盘号使用 Manifest 绑定计划并检查案件归属；盘号槽位必须覆盖实际分卷；历史 RAR 迁移在发布前校验副本大小及 Manifest 指定哈希，失败保留原件和旧 Word；新 RAR 原地复用不增加复制。结果定位和文件校验失败追加仅含任务标识及稳定原因码的日志。
+  - 定向证据：归档执行、运行时 HTTP、统一导出、导出编排、直接发布仓储、重启恢复及案件删除共 133 项通过；覆盖新产物原地连续导出、历史产物迁出后重建服务再导出、Windows 路径大小写、复制损坏拒绝和现有篡改拒绝。
+  - 独立审查：续接任务中的 `/root/export_review` 按五维清单审查通过，无 actionable P1/P2 问题；确认公开统一导出先完整验证 Manifest，迁移副本验证在发布和原件清理之前，原地再次导出复用同一份 RAR。三个完整编辑入口移除的前端文件不属于本次审查范围。
+  - 收尾检查：`npm run pre-commit`（调用 `verify:quick`）通过，涵盖架构、类型、治理、快速文档与仓库资产；`npm run verify:docs:strict -- --change report-parent-export` 通过（14 项、0 漂移）。本次恢复既有合同，未新增正式行为，不修改 delta/living spec；未提交、打包或归档。
+  - manual_acceptance: N/A（使用 SYNTHETIC 文件验证 Windows 文件发布和公开 HTTP 链路；测试替换 WinRAR 子进程及 Word 生成，未使用真实案件，未宣称完成真实大文件压缩或 Word 版式人工验收）。

@@ -154,6 +154,40 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
     actual = ArchiveDirectPublicationRepository(database).resolve(registry.resolve_final_dir(persisted), attempt["manifest_id"])
     assert actual == source.parent
     assert validate_manifest_files(SimpleNamespace(manifest_id=persisted.manifest_id, public_manifest=persisted.public_manifest, final_dir=actual, external_export=True)) is None
+    if restart_during_publish is False:
+        from app.repository.archive.archive_task_repository import ArchiveTaskRepository
+        from app.repository.archive.archive_plan_repository import ArchivePlanRepository
+        from app.repository.archive.archive_asset_repository import ArchiveAssetRepository
+        from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
+        from app.services.archive.archive_task_result_service import ArchiveTaskResultService
+        from app.services.export import unified_export_service
+        from app.services.disc.disc_mapping_service import build_disc_mappings, active_slots
+        results = ArchiveTaskResultService(
+            ArchiveTaskRepository(database), ArchivePlanRepository(database),
+            ArchiveAssetRepository(database), attempts,
+        )
+        intent = ArchivePublishIntentRepository(database).get_for_attempt(accepted["attempt_id"])
+        plan_repository = ArchivePlanRepository(database)
+        bound_plan = plan_repository.get(persisted.public_manifest["plan_id"])
+        bound_plan = plan_repository.update_mappings(
+            bound_plan["plan_id"], build_disc_mappings("GP20260908-01", active_slots(bound_plan)), bound_plan["revision"],
+        )
+        def word(*_args, output_dir, **_kwargs):
+            target = Path(output_dir) / "SYNTHETIC-EXPORT.docx"
+            target.write_bytes(b"SYNTHETIC/DOCX")
+            return target
+        monkeypatch.setattr(unified_export_service, "generate_docx", word)
+        monkeypatch.setattr(unified_export_service.shutil, "copy2", lambda *_: pytest.fail("direct RAR must not be copied"))
+        for _ in range(2):
+            record, locator = results._verified_manifest(intent["task_id"], accepted["attempt_id"], attempt["manifest_id"])
+            unified_export_service.unified_export(
+                report=report, manifest=record.public_manifest,
+                final_dir=locator.resolve_final_dir(record), export_path=actual,
+                photo_paths=[], template_context={}, database=database, relocate=True,
+                case_id=CASE_ID, plan=bound_plan,
+            )
+            assert rar[0].stat().st_ino == observed[0]
+        results._verified_manifest(intent["task_id"], accepted["attempt_id"], attempt["manifest_id"])
     from app.services.case.case_artifact_deletion_service import CaseArtifactDeletionService
     deletion = CaseArtifactDeletionService(database, output).prepare(CASE_ID)
     assert all(path != actual and not actual.is_relative_to(path) for path in deletion.paths)

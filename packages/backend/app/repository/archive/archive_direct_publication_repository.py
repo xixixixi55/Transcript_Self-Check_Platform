@@ -104,7 +104,8 @@ class ArchiveDirectPublicationRepository:
 
     def resolve(self, origin: Path, manifest_id: str) -> Path:
         record = self.locations.latest(manifest_id)
-        if record and record.get("artifact_origin") == str(origin.resolve(strict=False)):
+        if (record and record.get("artifact_origin")
+                and Path(record["artifact_origin"]).resolve(strict=False) == origin.resolve(strict=False)):
             return Path(record["export_path"])
         return origin
 

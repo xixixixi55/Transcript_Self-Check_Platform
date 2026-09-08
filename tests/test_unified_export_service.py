@@ -94,7 +94,7 @@ def test_relocation_keeps_one_rar_set_and_reuses_it_after_reload(database, tmp_p
     assert {p.name: p.stat().st_ino for p in target.glob("*.rar")} == identities
 
 
-@pytest.mark.parametrize("failure", ["existing", "during_copy", "registry"])
+@pytest.mark.parametrize("failure", ["existing", "during_copy", "registry", "corrupt_copy"])
 def test_relocation_failure_preserves_originals_and_external_files(database, tmp_path, monkeypatch, failure):
     from app.repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
     source = tmp_path / "SYNTHETIC-WORK"
@@ -107,7 +107,13 @@ def test_relocation_failure_preserves_originals_and_external_files(database, tmp
     word = target / "SYNTHETIC-CASE.docx"
     word.write_bytes(b"SYNTHETIC/OLD-WORD")
     monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
-    if failure == "existing":
+    if failure == "corrupt_copy":
+        original_copy = unified_export_service.shutil.copy2
+        def corrupt_copy(source_path, target_path):
+            original_copy(source_path, target_path)
+            Path(target_path).write_bytes(b"SYNTHETIC/BAD")  # 与原件长度相同的损坏副本。
+        monkeypatch.setattr(unified_export_service.shutil, "copy2", corrupt_copy)
+    elif failure == "existing":
         (target / filename).write_bytes(b"SYNTHETIC/UNRELATED")
     elif failure == "during_copy":
         copy = unified_export_service.shutil.copy2
@@ -122,10 +128,22 @@ def test_relocation_failure_preserves_originals_and_external_files(database, tmp
                        photo_paths=[], template_context={}, database=database, case_id=CASE_ID, relocate=True)
     assert len(list(source.glob("*.rar"))) == 2
     assert word.read_bytes() == b"SYNTHETIC/OLD-WORD"
-    if failure != "registry":
+    if failure in {"existing", "during_copy"}:
         assert (target / filename).read_bytes() == b"SYNTHETIC/UNRELATED"
     else:
         assert not list(target.glob("*.rar"))
+
+
+@pytest.mark.parametrize("ordinals", [[], [1], [1, 1], [1, 3]])
+def test_unified_export_requires_mapping_for_each_actual_part(tmp_path, ordinals):
+    """SYNTHETIC：空计划、缺卷、重复或错位槽位均不能绕过盘号检查。"""
+    plan = {"volume_slots": [{
+        "status": "active", "ordinal": ordinal,
+        "disc_mapping": {"disc_number": "GP20260718-01", "confirmation": "confirmed"},
+    } for ordinal in ordinals]}
+    with pytest.raises(UnifiedExportError) as error:
+        unified_export_service._require_disc_mapping(manifest(), plan)
+    assert error.value.code == "DISC_MAPPING_INCOMPLETE"
 
 
 def test_strict_location_registry_never_overwrites_corrupt_history(tmp_path):

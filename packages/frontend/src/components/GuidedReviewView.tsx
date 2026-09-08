@@ -1,5 +1,5 @@
 import {
-  ArrowLeftOutlined, ArrowRightOutlined, EditOutlined, HomeOutlined,
+  ArrowLeftOutlined, ArrowRightOutlined, HomeOutlined,
   SafetyCertificateOutlined, SwapOutlined, UnorderedListOutlined,
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
@@ -186,7 +186,7 @@ export function GuidedReviewView({
   onRevisitAction, onRevisitHandledField,
   onConfirmCurrentAction, confirmCurrentActionDisabled = false,
   canReturnToPrevious = false, canReturnToNext = false,
-  onReturnToPreviousAction, onReturnToNextAction, onOpenFullEditor, onBackToWorkbench, children,
+  onReturnToPreviousAction, onReturnToNextAction, onBackToWorkbench, children,
 }: Props) {
   const [openPanel, setOpenPanel] = useState<'pending' | null>(null)
   const [avatarUnavailable, setAvatarUnavailable] = useState(false)
@@ -509,18 +509,6 @@ export function GuidedReviewView({
                   </ul>
                 </section>
               )}
-              <section className="guided-review-action-group" aria-labelledby="guided-review-all-fields-heading">
-                <h3 id="guided-review-all-fields-heading">其他内容</h3>
-                <Button type="text" block aria-label="修改其他已填内容"
-                  onClick={() => {
-                    setOpenPanel(null)
-                    onOpenFullEditor()
-                  }}>
-                  <span className="guided-review-action__title-row">
-                    <span className="guided-review-action__label"><EditOutlined />修改其他已填内容</span>
-                  </span>
-                </Button>
-              </section>
             </div>
           )}
         </div>
