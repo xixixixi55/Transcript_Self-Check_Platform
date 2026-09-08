@@ -11,7 +11,7 @@ Layer 21: BE_Services — docx 文档构建器
 格式参照业务方认可的最终 Word 标准：
 - 正文：16pt 仿宋_GB2312，26pt 固定行距，首行缩进 32pt
 - 标题：22pt 仿宋_GB2312，居中
-- 文号：18pt 仿宋，居中
+- 文号：18pt 仿宋，右对齐
 - 一级标题（一、绪论）：16pt 加粗，首行缩进
 - 二级标题（（一）检查方法）：16pt 加粗，缩进 21pt
 """
@@ -52,8 +52,12 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
         report.get("title", "电子数据检查笔录"),
         size=22, align="center",
     ))
-    # ─── 文号（18pt 仿宋 居中）───
-    commands.append(_p(report.get("document_number", "xx电检〔20xx〕xx号"), size=18, align="center", spacing_after=400, font_ea="仿宋"))
+    # ─── 文号（18pt 仿宋 右对齐）───
+    commands.append(_p(
+        report.get("document_number", "xx电检〔20xx〕xx号"),
+        size=18, align="right", spacing_after=400,
+        first_line="", font_ea="仿宋",
+    ))
 
     # ═══ 一、绪论 ═══
     commands.append(_heading("一、绪论"))

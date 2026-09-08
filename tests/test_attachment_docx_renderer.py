@@ -247,6 +247,19 @@ def test_attachment1_final_page_keeps_template_signature_row(tmp_path, count, ta
     assert "盖章" in final_text
     assert "测试鉴定中心" in final_text
     assert "椒江区公安司法鉴定中心" not in final_text
+    signature_paragraph = tables[-1].findall("./{%s}tr" % W_NS)[-1].find(
+        ".//{%s}p" % W_NS
+    )
+    assert "".join(signature_paragraph.itertext()) == "检查人员：测试鉴定中心"
+    right_tab = signature_paragraph.find(
+        "./{%s}pPr/{%s}tabs/{%s}tab" % (W_NS, W_NS, W_NS)
+    )
+    assert right_tab is not None
+    assert right_tab.get("{%s}val" % W_NS) == "right"
+    assert signature_paragraph.find(".//{%s}tab" % W_NS) is not None
+    assert signature_paragraph.find(
+        "./{%s}pPr/{%s}wordWrap" % (W_NS, W_NS)
+    ).get("{%s}val" % W_NS) == "off"
 
 
 def test_attachment1_three_rows_match_customer_font_baseline(tmp_path):

@@ -3,7 +3,7 @@
 workflow_level: 2
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-007 和 REQ-009，包括在解析、审核编辑和 Word 导出间统一多委托人分隔符
+spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-007 和 REQ-009，包括在解析、审核编辑和 Word 导出间统一多委托人分隔符，以及附件1签名行左右对齐和长落款换行行为
 
 ## 目标
 
@@ -80,6 +80,13 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
   - 级别：Level 1 既有行为缺陷修复，不新增或修改 Requirement/Scenario。
   - 验证：定向回归同时断言 `w:tr2bl` 仍存在且属性顺序合法；生成 SYNTHETIC 空清单 DOCX 后运行 `officecli validate`，并执行受影响后端测试与项目快速门控。
   - 证据：失败用例先确认旧顺序为 `tcW → vAlign → tcBorders`；修复后定向用例通过且 `officecli validate` 零错误；模板与 Word 构建测试 `42 passed`，`npm run pre-commit` 通过。
+
+- [x] T011 **附件1签名行左右对齐与长名称换行**
+  - 文件：`packages/backend/app/services/attachment/attachment_docx_renderer_service.py`、`docx_attachment_xml_service.py`、现有模板/附件渲染测试。
+  - 内容：移除附件1最后签名行依赖固定空格的布局；“检查人员：”固定从左侧内容边界开始，动态鉴定中心名称通过右对齐制表位使末字固定在右侧内容边界，超出单行可用宽度时由 Word 自动换行。
+  - 覆盖 Spec：REQ-009。
+  - 验证：兼容填充与 Manifest 多页路径均断言无固定空格、左侧标签、右对齐制表位、字符级换行属性和动态长名称完整保留；生成 SYNTHETIC DOCX 后用 officecli 校验。
+  - 证据：新定向用例在旧实现上先失败，实施后模板/附件/Word 构建受影响测试通过；`npm run pre-commit` 通过；长名称 SYNTHETIC DOCX 通过 `officecli validate`且零错误。
 
 ## 关键文件
 

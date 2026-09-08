@@ -800,7 +800,7 @@ def test_current_builtin_template_relocates_after_portable_directory_change(tmp_
         Path(__file__).parents[1] / "word_templates" / "template.docx"
     ).resolve()
     assert current["fingerprint"] == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
-    assert current["asset_id"] == "template-asset-current-v1-private-clean-1-0-6"
+    assert current["asset_id"] == "template-asset-current-v1-private-clean-1-0-7"
     assert restarted.templates.validate(REFERENCE)["valid"] is True
 
 

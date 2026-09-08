@@ -172,7 +172,12 @@ def set_cell_lines(cell: Any, lines: list[str]) -> None:
 
 def set_paragraph_alignment(element: Any, alignment: str) -> None:
     """为 OOXML 区域中的每个段落设置直接对齐。"""
-    for paragraph in element.findall(".//%s" % qn(W_NS, "p")):
+    paragraphs = (
+        [element]
+        if element.tag == qn(W_NS, "p")
+        else element.findall(".//%s" % qn(W_NS, "p"))
+    )
+    for paragraph in paragraphs:
         paragraph_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
         if paragraph_pr is None:
             paragraph_pr = etree.Element(qn(W_NS, "pPr"))

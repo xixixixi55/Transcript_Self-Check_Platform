@@ -40,6 +40,8 @@ from ..template.template_profile_service import (
 from ..integrity.hash_algorithm_service import hash_display_name, hash_field_title
 
 _LEGACY_ATTACHMENT1_INSTITUTION = "椒江区公安司法鉴定中心"
+_ATTACHMENT1_SIGNATURE_LABEL = "检查人员："
+_DEFAULT_TABLE_CELL_MARGIN_TWIPS = 108
 
 
 def replace_attachment1_institution(doc: Any, inspection_place: object) -> None:
@@ -58,50 +60,88 @@ def replace_attachment1_institution(doc: Any, inspection_place: object) -> None:
                         or _LEGACY_ATTACHMENT1_INSTITUTION not in full_text
                     ):
                         continue
-                    _replace_text_across_elements(
-                        text_elements,
-                        _LEGACY_ATTACHMENT1_INSTITUTION,
-                        replacement,
+                    _format_attachment1_signature_paragraph(
+                        paragraph._element, replacement,
                     )
 
 
-def _replace_text_across_elements(text_elements: Sequence[Any], old: str, new: str) -> bool:
-    """跨相邻 w:t 替换文本，并保留匹配范围外的 Run 及其格式。"""
-    element_texts = [element.text or "" for element in text_elements]
-    full_text = "".join(element_texts)
-    start = full_text.find(old)
-    if start < 0:
-        return False
-    end = start + len(old)
+def _format_attachment1_signature_paragraph(paragraph: Any, institution: str) -> None:
+    """用右对齐制表位排版附件1签名行，不依赖固定空格。"""
+    from lxml import etree
 
-    cursor = 0
-    start_index = start_offset = end_index = end_offset = None
-    for index, text in enumerate(element_texts):
-        next_cursor = cursor + len(text)
-        if start_index is None and start < next_cursor:
-            start_index = index
-            start_offset = start - cursor
-        if start_index is not None and end <= next_cursor:
-            end_index = index
-            end_offset = end - cursor
-            break
-        cursor = next_cursor
+    runs = paragraph.findall("./%s" % qn(W_NS, "r"))
+    label_run = next(
+        (
+            run for run in runs
+            if _ATTACHMENT1_SIGNATURE_LABEL
+            in "".join(node.text or "" for node in run.findall(".//%s" % qn(W_NS, "t")))
+        ),
+        None,
+    )
+    if label_run is None:
+        return
 
-    if start_index is None or end_index is None:
-        return False
+    for run in runs:
+        paragraph.remove(run)
+    paragraph.append(_signature_text_run(label_run, _ATTACHMENT1_SIGNATURE_LABEL))
+    tab_run = etree.Element(qn(W_NS, "r"))
+    etree.SubElement(tab_run, qn(W_NS, "tab"))
+    paragraph.append(tab_run)
+    paragraph.append(_signature_text_run(label_run, institution))
 
-    if start_index == end_index:
-        original = element_texts[start_index]
-        text_elements[start_index].text = (
-            original[:start_offset] + new + original[end_offset:]
+    paragraph_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
+    if paragraph_pr is None:
+        paragraph_pr = etree.Element(qn(W_NS, "pPr"))
+        paragraph.insert(0, paragraph_pr)
+    tabs = paragraph_pr.find("./%s" % qn(W_NS, "tabs"))
+    if tabs is None:
+        tabs = etree.Element(qn(W_NS, "tabs"))
+        insertion_index = next(
+            (
+                index for index, child in enumerate(paragraph_pr)
+                if child.tag in {qn(W_NS, "spacing"), qn(W_NS, "ind"), qn(W_NS, "jc"), qn(W_NS, "rPr")}
+            ),
+            len(paragraph_pr),
         )
-        return True
+        paragraph_pr.insert(insertion_index, tabs)
+    else:
+        for existing_tab in list(tabs):
+            tabs.remove(existing_tab)
+    tab = etree.SubElement(tabs, qn(W_NS, "tab"))
+    tab.set(qn(W_NS, "val"), "right")
+    tab.set(qn(W_NS, "pos"), str(_signature_right_tab_position(paragraph)))
 
-    text_elements[start_index].text = element_texts[start_index][:start_offset] + new
-    for index in range(start_index + 1, end_index):
-        text_elements[index].text = ""
-    text_elements[end_index].text = element_texts[end_index][end_offset:]
-    return True
+    set_paragraph_alignment(paragraph, "left")
+    allow_latin_character_wrap(paragraph)
+
+
+def _signature_text_run(template_run: Any, value: str) -> Any:
+    """复用模板签名文字格式构建无空格定位的 Run。"""
+    from lxml import etree
+
+    run = copy.deepcopy(template_run)
+    for child in list(run):
+        if child.tag != qn(W_NS, "rPr"):
+            run.remove(child)
+    text = etree.SubElement(run, qn(W_NS, "t"))
+    text.text = value
+    return run
+
+
+def _signature_right_tab_position(paragraph: Any) -> int:
+    """根据当前合并单元格宽度计算右侧内容边界。"""
+    cell = paragraph.getparent()
+    cell_width = None
+    if cell is not None and cell.tag == qn(W_NS, "tc"):
+        width = cell.find("./%s/%s" % (qn(W_NS, "tcPr"), qn(W_NS, "tcW")))
+        if width is not None and width.get(qn(W_NS, "type")) == "dxa":
+            try:
+                cell_width = int(width.get(qn(W_NS, "w"), ""))
+            except ValueError:
+                cell_width = None
+    if cell_width is None:
+        cell_width = 9594
+    return max(720, cell_width - 2 * _DEFAULT_TABLE_CELL_MARGIN_TWIPS)
 
 
 def render_attachment_plan(

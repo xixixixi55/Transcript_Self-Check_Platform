@@ -154,11 +154,17 @@ def test_word_titles_md5_and_legacy_extract_source_are_normalized(tmp_path):
 
     document = Document(output)
     title = next(p for p in document.paragraphs if p.text.strip() == "电子数据检查笔录")
+    document_number = next(
+        p for p in document.paragraphs
+        if p.text.strip() == report["document_number"]
+    )
     extract_heading = next(
         p for p in document.paragraphs if p.text.strip() == "电子数据提取固定清单"
     )
     assert title.alignment == 1
     assert title.runs and all(run.bold is False for run in title.runs if run.text)
+    assert document_number.text == report["document_number"]
+    assert document_number.alignment == WD_ALIGN_PARAGRAPH.RIGHT
     assert extract_heading.runs and all(run.bold for run in extract_heading.runs if run.text)
     header_cells = document.tables[0].rows[0].cells
     for cell_index, expected_text in ((1, "电子数据"), (2, "来源")):
@@ -404,11 +410,17 @@ def test_manifest_result_uses_every_part_filename_hash_size_and_disc(tmp_path):
 
     document = Document(output)
     title = next(p for p in document.paragraphs if p.text.strip() == "电子数据检查笔录")
+    document_number = next(
+        p for p in document.paragraphs
+        if p.text.strip() == report["document_number"]
+    )
     extract_heading = next(
         p for p in document.paragraphs if p.text.strip() == "电子数据提取固定清单"
     )
     assert title.alignment == 1
     assert title.runs and all(run.bold is False for run in title.runs if run.text)
+    assert document_number.text == report["document_number"]
+    assert document_number.alignment == WD_ALIGN_PARAGRAPH.RIGHT
     assert extract_heading.runs and all(run.bold for run in extract_heading.runs if run.text)
 
     document_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
@@ -455,6 +467,34 @@ def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path
     assert _DEFAULT_SUMMARY in document_xml
     assert "<w:pageBreakBefore" not in document_xml
     assert document_xml.count('w:type="page"') == 3
+
+
+def test_attachment1_signature_aligns_dynamic_long_institution_without_fixed_spaces(tmp_path):
+    report = _report()
+    institution = "SYNTHETIC浙江省电子数据检验鉴定实验室长名称换行测试中心"
+    report["introduction"]["inspection_place"] = institution
+    output = tmp_path / "attachment1-signature-alignment.docx"
+
+    fill_template(report, str(_TEMPLATE), str(output))
+
+    signature_paragraph = Document(output).tables[0].rows[-1].cells[0].paragraphs[0]
+    assert signature_paragraph.text == f"检查人员：\t{institution}"
+    paragraph_pr = signature_paragraph._p.pPr
+    tab = paragraph_pr.find(f"./{{{W_NS}}}tabs/{{{W_NS}}}tab")
+    assert tab is not None
+    assert tab.get(f"{{{W_NS}}}val") == "right"
+    signature_cell = signature_paragraph._p.getparent()
+    cell_width = int(
+        signature_cell.find(f"./{{{W_NS}}}tcPr/{{{W_NS}}}tcW").get(f"{{{W_NS}}}w")
+    )
+    assert int(tab.get(f"{{{W_NS}}}pos")) == cell_width - 216
+    assert paragraph_pr.find(f"./{{{W_NS}}}jc").get(f"{{{W_NS}}}val") == "left"
+    assert paragraph_pr.find(f"./{{{W_NS}}}wordWrap").get(f"{{{W_NS}}}val") == "off"
+    assert not signature_paragraph._p.findall(f".//{{{W_NS}}}br")
+    row_height = signature_cell.getparent().find(
+        f"./{{{W_NS}}}trPr/{{{W_NS}}}trHeight"
+    )
+    assert row_height.get(f"{{{W_NS}}}hRule") != "exact"
 
 
 def test_attachment_summary_uses_page_top_suppressed_spacing_and_conditional_pagination(tmp_path):

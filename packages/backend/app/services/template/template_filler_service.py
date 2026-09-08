@@ -118,6 +118,11 @@ def fill_template(report: dict, template_path: str, output_path: str,
 
     # 3. 替换简单 {{key}} 占位符
     _replace_placeholders(doc, flat)
+    document_number_paragraph = doc.paragraphs[1]
+    for text_node in document_number_paragraph._element.findall(".//" + qn("w:t")):
+        if (text_node.text or "").isspace():
+            text_node.text = ""
+    document_number_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     replace_attachment1_institution(doc, flat.get("inspection_place", ""))
     _update_inspection_result(doc, report, flat, plan)
 

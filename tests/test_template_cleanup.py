@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from lxml import etree
 
 ROOT = Path(__file__).parents[1]
@@ -61,6 +62,13 @@ def test_clean_template_has_no_comments_or_sample_media_and_keeps_anchors():
 def test_current_template_has_stable_fingerprint_and_no_retired_assets():
     assert compute_ooxml_package_fingerprint(CURRENT) == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
     assert sorted(path.name for path in CURRENT.parent.glob("*.docx")) == ["template.docx"]
+
+
+def test_current_template_document_number_slot_is_right_aligned_without_padding():
+    document_number = Document(CURRENT).paragraphs[1]
+
+    assert document_number.text == "{{document_number}}"
+    assert document_number.alignment == WD_ALIGN_PARAGRAPH.RIGHT
 
 
 def test_privacy_cleanup_is_idempotent_and_removes_hidden_metadata(tmp_path: Path):

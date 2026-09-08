@@ -70,6 +70,14 @@ def test_build_table_contains_standard_headers_and_empty_row():
     assert len(cell_texts) == 10
 
 
+def test_build_document_right_aligns_document_number():
+    commands = build_record_document(_report())
+
+    document_number = commands[1]
+    assert document_number["props"]["text"] == "SYN-TEST〔2026〕000000号"
+    assert document_number["props"]["align"] == "right"
+
+
 def test_build_document_includes_inspector_position_without_blank_separator():
     report = _report()
     report["introduction"]["inspectors"] = [
