@@ -9,7 +9,6 @@ _MESSAGES = {
     "SOURCE_STRUCTURE_INVALID": "所选目录不包含可识别的报告结构。",
     "SOURCE_ACCESS_DENIED": "所选目录当前无法访问。",
     "ARCHIVE_INPUT_PATH_INVALID": "所选报告目录不存在或无效。",
-    "ARCHIVE_INPUT_ROOT_NOT_ALLOWED": "所选报告目录未获授权。",
     "ARCHIVE_INPUT_LINK_NOT_ALLOWED": "所选报告目录包含不支持的链接或特殊路径。",
     "ARCHIVE_INPUT_OUTPUT_OVERLAP": "所选报告目录与系统输出区域冲突。",
     "ARCHIVE_AUTHORIZATION_INVALID": "所选报告目录授权无效。",

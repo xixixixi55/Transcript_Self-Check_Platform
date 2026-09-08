@@ -92,7 +92,7 @@ def synthetic_archive_source(tmp_path):
     source_root = tmp_path / "synthetic-source"
     source_root.mkdir()
     (source_root / "SYNTHETIC-input.bin").write_bytes(b"SYNTHETIC")
-    authorization = ArchiveAuthorizationStore(str(tmp_path), environment={})
+    authorization = ArchiveAuthorizationStore()
     authorized_input = authorization.authorize_directory(
         str(source_root), output_roots=(OUTPUT_BASE,),
     )
@@ -295,7 +295,7 @@ def test_shadow_parser_failure_is_queryable_and_does_not_change_legacy_response(
 
     case_dir = tmp_path / "synthetic-case"
     case_dir.mkdir()
-    authorization = ArchiveAuthorizationService(str(tmp_path), record_controller.OUTPUT_BASE)
+    authorization = ArchiveAuthorizationService(record_controller.OUTPUT_BASE)
     with patch.object(record_controller, "parse_report", return_value={"report": copy.deepcopy(SYNTHETIC_REPORT)}), \
          patch.object(record_controller, "ARCHIVE_AUTHORIZATION_SERVICE", authorization), \
          patch.object(pipeline_controller, "run_shadow_parse", side_effect=RuntimeError("SYNTHETIC shadow failure")):

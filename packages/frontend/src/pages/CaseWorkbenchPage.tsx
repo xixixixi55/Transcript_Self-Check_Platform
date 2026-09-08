@@ -1,14 +1,13 @@
 // 第 12 层：FE_Pages — 持久化多案件工作台入口。
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Col, Modal, Row, Space, Spin, Tooltip, Typography, message } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
+import { Alert, Button, Col, Modal, Row, Space, Spin, Typography, message } from 'antd'
 import type {
   ArchiveCompletionStatus, ArchiveTaskAction, ArchiveTaskHistory,
   ArchiveTaskPublicDetail, ArchiveTaskResult, CaseShell,
 } from '@biji/shared/types'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared/utils'
-import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useSourceAuthorizationPreference, useTaskRecords } from '../hooks'
+import { CASE_PAGE_SIZE, resolveWorkbenchError, useCaseWorkbench, useTaskRecords } from '../hooks'
 import { useArchiveCompletion } from '../hooks/useArchiveCompletion'
 import { useArchiveCompletionStatuses } from '../hooks/useArchiveCompletionStatuses'
 import { CaseCard } from '../components/CaseCard'
@@ -31,7 +30,6 @@ function completionStatusFor(
 
 export default function CaseWorkbenchPage() {
   const workbench = useCaseWorkbench()
-  const sourceAuthorization = useSourceAuthorizationPreference()
   const taskIds = workbench.page.items.map(item => item.parse_task_id)
   const refreshPageAfterTaskSettled = useCallback(() => {
     void workbench.loadPage(workbench.page.offset)
@@ -196,22 +194,6 @@ export default function CaseWorkbenchPage() {
           <div className="case-workbench-page__heading">
             <div className="platform-page__eyebrow">电子数据检查笔录</div>
             <Title level={1}>案件工作台</Title>
-          </div>
-          <div className="case-workbench-page__submission">
-            <Tooltip title={sourceAuthorization.enabled
-              ? '已开启，只允许登记已配置或明确授权的来源目录。'
-              : '已关闭，可登记满足基础安全检查的本机报告目录。'}>
-              <Button
-                size="small"
-                type={sourceAuthorization.enabled ? 'primary' : 'default'}
-                aria-label="来源目录校验"
-                aria-pressed={sourceAuthorization.enabled}
-                onClick={() => sourceAuthorization.setEnabled(!sourceAuthorization.enabled)}
-              >
-                来源目录校验：{sourceAuthorization.enabled ? '开' : '关'}
-              </Button>
-            </Tooltip>
-            <Button icon={<ReloadOutlined />} onClick={() => workbench.loadPage(workbench.page.offset)} loading={workbench.pageLoading}>刷新</Button>
           </div>
         </div>
 

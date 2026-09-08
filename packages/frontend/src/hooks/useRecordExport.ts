@@ -60,7 +60,6 @@ const EXPORT_BLOCKER_MESSAGES: Record<string, string> = {
 }
 
 const ARCHIVE_INPUT_MESSAGES: Record<string, string> = {
-  ARCHIVE_INPUT_ROOT_NOT_ALLOWED: '所选案件目录未获授权，请重新解析案件目录。',
   ARCHIVE_INPUT_PATH_INVALID: '所选案件目录无效，请重新选择并解析。',
   ARCHIVE_INPUT_LINK_NOT_ALLOWED: '输入目录包含不支持的链接或特殊路径，请重新解析。',
   ARCHIVE_INPUT_OUTPUT_OVERLAP: '输入目录与输出区域冲突，请重新选择。',

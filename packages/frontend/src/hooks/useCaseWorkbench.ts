@@ -8,7 +8,6 @@ import type {
   CaseDirectorySubmissionRequest, CaseDirectorySubmissionResult,
   CaseSubmissionRequest, TaskRecord,
 } from '@biji/shared/types'
-import { getSourceAuthorizationEnabled } from './useSourceAuthorizationPreference'
 
 export const CASE_PAGE_SIZE = 6
 
@@ -23,7 +22,6 @@ export interface CaseSubmissionFields {
   caseNumber?: string
   clientInstanceId?: string
   sessionId?: string
-  directoryGrantToken?: string
 }
 
 export interface LoadDetailOptions {
@@ -115,8 +113,6 @@ export function useCaseWorkbench(caseId?: string) {
       case_number: fields.caseNumber || null,
       client_instance_id: fields.clientInstanceId || undefined,
       session_id: fields.sessionId || undefined,
-      directory_grant_token: fields.directoryGrantToken || undefined,
-      source_authorization_enabled: getSourceAuthorizationEnabled(),
     }
     const response = await axios.post<{ data: CaseSubmission }>(API_ENDPOINTS.WORKBENCH_CASES, request)
     const submission = dataOf(response)
@@ -138,7 +134,6 @@ export function useCaseWorkbench(caseId?: string) {
       client_instance_id: fields.clientInstanceId || undefined,
       session_id: fields.sessionId || undefined,
       local_display_name: undefined,
-      source_authorization_enabled: getSourceAuthorizationEnabled(),
     }
     const response = await axios.post<{ data: CaseDirectorySubmissionResult }>(
       API_ENDPOINTS.WORKBENCH_SELECT_DIRECTORY_CASE,

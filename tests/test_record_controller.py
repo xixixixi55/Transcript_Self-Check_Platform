@@ -28,9 +28,8 @@ def client():
     from app.controllers import record_controller
     from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
-    # 测试根目录是显式配置，与 BIJI_ALLOWED_INPUT_ROOTS 对应。
     test_authorization = ArchiveAuthorizationService(
-        tempfile.gettempdir(), record_controller.OUTPUT_BASE,
+        record_controller.OUTPUT_BASE,
     )
     with patch("app.services.report.report_parser_service.parse_report",
                return_value=_MOCK_RESPONSE), \
@@ -217,7 +216,7 @@ def test_standalone_word_export_writes_to_picker_authorized_directory(client, tm
     from app.controllers import record_controller
     from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
-    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    authorization = ArchiveAuthorizationService(tmp_path / "internal-output")
     token = authorization.issue_exact_directory_grant(str(tmp_path))
     services = MagicMock()
     services.sources.authorization = authorization
@@ -254,7 +253,7 @@ def test_case_standalone_word_export_reuses_unified_export_manifest(client, tmp_
     from app.controllers import record_controller
     from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
-    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    authorization = ArchiveAuthorizationService(tmp_path / "internal-output")
     token = authorization.issue_exact_directory_grant(str(tmp_path))
     manifest = {
         "manifest_id": "SYNTHETIC-MANIFEST",
@@ -329,7 +328,7 @@ def test_standalone_word_export_rejects_reused_or_mismatched_directory_grant(cli
     mismatch = tmp_path / "mismatch"
     selected.mkdir()
     mismatch.mkdir()
-    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    authorization = ArchiveAuthorizationService(tmp_path / "internal-output")
     services = MagicMock()
     services.sources.authorization = authorization
     services.sources.case_export_directory.return_value = tmp_path
@@ -403,7 +402,7 @@ def test_standalone_word_export_failure_preserves_existing_file(client, tmp_path
     from app.controllers import record_controller
     from app.services.archive.archive_authorization_service import ArchiveAuthorizationService
 
-    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    authorization = ArchiveAuthorizationService(tmp_path / "internal-output")
     token = authorization.issue_exact_directory_grant(str(tmp_path))
     services = MagicMock()
     services.sources.authorization = authorization
@@ -573,7 +572,7 @@ def test_directory_word_export_omits_odd_attachment2_images_without_blocking(cli
             "confirmation_status": "confirmed_by_user",
         }},
     }
-    authorization = ArchiveAuthorizationService(tmp_path, tmp_path / "internal-output")
+    authorization = ArchiveAuthorizationService(tmp_path / "internal-output")
     token = authorization.issue_exact_directory_grant(str(tmp_path))
     services = MagicMock()
     services.sources.authorization = authorization
@@ -845,23 +844,15 @@ def test_preview_source_capacity_error_has_stable_code(client):
     assert tmpdir not in response.text
 
 
-def test_parse_rejects_disallowed_roots_and_does_not_echo_paths(client):
-    outside = os.environ.get("SystemRoot", r"C:\Windows")
-    configured = str(Path(tempfile.gettempdir()))
-
-    for path in (outside, configured):
-        response = client.post("/api/v1/reports/parse", data={"report_dir": path})
-        assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
-        assert path not in response.text
-
-
-def test_parse_allows_unconfigured_directory_when_authorization_is_disabled(client):
+@pytest.mark.parametrize("retired_fields", [{}, {
+    "source_authorization_enabled": "true", "directory_grant_token": "SYNTHETIC-RETIRED",
+}])
+def test_parse_allows_local_directory_without_authorization_parameters(client, retired_fields):
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
         response = client.post(
             "/api/v1/reports/parse",
-            data={"report_dir": tmpdir, "source_authorization_enabled": "false"},
+            data={"report_dir": tmpdir, **retired_fields},
         )
     assert response.status_code == 200
     assert response.json()["success"] is True

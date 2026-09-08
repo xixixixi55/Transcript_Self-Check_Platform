@@ -12,7 +12,7 @@ import { createClientIdentity, useEditLease } from './useEditLease'
 import { useTaskRecords } from './useTaskRecords'
 import { shouldHydrateServerDraft } from './useCaseDraftHydration'
 import { useCompletedArchiveResult } from './useCompletedArchiveResult'
-import { buildSourceReplacementRequest } from './useSourceAuthorizationRequests'
+import { buildSourceReplacementRequest } from './useSourceRequests'
 import { CASE_SUMMARY_CONFIRMATION_FIELD_PATH, EVIDENCE_COMPLETENESS_FIELD_PATH } from './useReviewChecklist'
 
 const ACTIVE_ARCHIVE_LIFECYCLES = new Set(['archive_queued', 'archiving'])

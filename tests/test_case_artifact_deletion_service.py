@@ -42,7 +42,7 @@ def _case(database: WorkbenchDatabase, tmp_path: Path) -> tuple[dict[str, str], 
         json.dumps({"contents": [{"c3": "SYNTHETIC-C3"}]}), encoding="utf-8",
     )
     sources = SourceRecordService(
-        database, ArchiveAuthorizationService(str(allowed), str(output)),
+        database, ArchiveAuthorizationService(str(output)),
     )
     cases = CaseDraftService(
         database, parser=lambda _path, _output: {"report": copy.deepcopy(REPORT)},

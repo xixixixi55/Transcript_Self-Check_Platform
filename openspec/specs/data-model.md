@@ -291,7 +291,7 @@
 
 ### 归档规划与最终清单
 
-归档输入授权采用配置根目录与未来受控本机精确目录授权双轨模型。`report_dir` 仅是 deprecated 的一次性上下文创建参数；根目录外普通提交不得自动信任，后续接口只接受 `archive_context_id`。当前上下文只在进程内存中保存，服务重启后按 `ARCHIVE_CONTEXT_NOT_FOUND` 处理；过期/忙碌分别返回稳定错误，清理只删除系统元数据和系统临时产物。已验证的 ArchiveManifest/RAR 另有 `output/compressed/.archive-manifest-index.json` 登记，保存不透明目录键、输入/归档指纹和相对归档目录，不保存供前端展示的绝对路径；该登记属于归档生命周期，供后续独立归档清理策略识别未引用产物。
+本机来源目录统一执行基础路径安全、报告结构和输入输出隔离检查，不使用来源白名单或来源精确目录令牌；导出目录的一次性授权独立保留。`report_dir` 仅是 deprecated 的一次性上下文创建参数，后续接口只接受 `archive_context_id`。当前上下文只在进程内存中保存，服务重启后按 `ARCHIVE_CONTEXT_NOT_FOUND` 处理；过期/忙碌分别返回稳定错误，清理只删除系统元数据和系统临时产物。已验证的 ArchiveManifest/RAR 另有 `output/compressed/.archive-manifest-index.json` 登记，保存不透明目录键、输入/归档指纹和相对归档目录，不保存供前端展示的绝对路径；该登记属于归档生命周期，供后续独立归档清理策略识别未引用产物。
 
 解析阶段只建立 `archive_context_id` 和后端输入快照，不执行压缩。每个顺序解析请求重新读取当前来源并运行 Parser，不保存可供后续请求复用的解析结果；同一规范化来源同时进行的请求可以共享在途任务。审核完成并通过执行前门禁后，`ArchivePlan` 记录案件展示名、安全归档基础名、相对输入文件清单、
 二进制字节总量、归档模式、固定分卷档位、预计与最大卷数、首个光盘编号、重规划上限和诊断。
@@ -356,13 +356,13 @@ interface SelectedArchivePartHash 定义新 Manifest 的 `hash_algorithm/hash_va
 
 `WordExportWarning` 为安全省略可选章节但成功完成的独立 Word 导出携带稳定警告码和用户可见消息。当前生成方在图片无效或不完整而省略附件 2 时使用该类型；警告不会将成功的 Word 结果变为导出失败。
 
-### 来源授权请求类型
+### 本机来源请求类型
 
-`SourceAuthorizationRequest` 是普通前端来源目录开关的共享请求片段。`source_authorization_enabled` 为显式字段：持久化的首页偏好控制工作台和 legacy 目录解析请求，而直接 API 调用方默认仍接受严格授权。`CaseSubmissionRequest` 携带初始工作台来源路径和可选案件元数据；`SourceReplacementRequest` 携带替换路径和预期来源修订；`ParseReportDirectoryRequest` 是 legacy 目录解析合同。三类请求均可携带可选的 `directory_grant_token`，但关闭授权绝不会移除后端基本的本地路径和输出隔离安全检查。
+`packages/shared/types/sourceRequests.ts` 定义本机来源请求：`CaseSubmissionRequest` 携带初始路径和可选案件元数据，`CaseDirectorySubmissionRequest` 用于原生目录选择，`SourceReplacementRequest` 携带替换路径和预期来源修订，`ParseReportDirectoryRequest` 用于旧版目录解析。请求不包含来源授权模式或来源目录令牌；旧浏览器偏好不再被读取。后端保留基本路径安全、报告结构和输出隔离检查；导出目录的一次性授权独立保留。
 
-`CaseDirectorySubmissionRequest` 是受信任的本地 Windows 文件夹选择器桥接所使用的无路径工作台请求。它携带可选案件元数据和持久化授权偏好；浏览器绝不提供选定的绝对路径。后端选择目录后，立即将该路径送入同一来源登记和解析提交链路。
+`CaseDirectorySubmissionRequest` 是受信任的本地 Windows 文件夹选择器桥接所使用的无路径工作台请求。它携带可选案件元数据；浏览器绝不提供选定的绝对路径。后端选择目录后，立即将该路径送入同一来源登记和解析提交链路。
 
-类型索引：`interface SourceAuthorizationRequest`、
+类型索引：
 `interface CaseSubmissionRequest`, `interface SourceReplacementRequest`,
 `interface ParseReportDirectoryRequest`、`interface CaseDirectorySubmissionRequest`。
 

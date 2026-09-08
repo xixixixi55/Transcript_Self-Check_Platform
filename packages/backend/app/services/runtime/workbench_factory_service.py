@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from ...config import ARCHIVE_OUTPUT_BASE, LEGACY_ARCHIVE_OUTPUT_BASE, OUTPUT_BASE, UPLOAD_BASE
+from ...config import ARCHIVE_OUTPUT_BASE, LEGACY_ARCHIVE_OUTPUT_BASE, OUTPUT_BASE
 from ...repository.workbench.workbench_database import WorkbenchDatabase, database_path_for_deployment
 from ...repository.archive.archive_task_repository import ArchiveTaskRepository
 from ...repository.runtime.local_directory_history_repository import LocalDirectoryHistoryRepository
@@ -83,7 +83,7 @@ def build_workbench_services(
 ) -> WorkbenchServices:
     sources = SourceRecordService(
         database, ArchiveAuthorizationService(
-            UPLOAD_BASE, OUTPUT_BASE, (ARCHIVE_OUTPUT_BASE,),
+            OUTPUT_BASE, (ARCHIVE_OUTPUT_BASE,),
         ),
     )
     leases = EditLeaseService(database)

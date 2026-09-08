@@ -51,7 +51,6 @@ def profile_fixture(tmp_path: Path):
     source_service = SourceRecordService(
         database,
         ArchiveAuthorizationService(
-            str(tmp_path / "SYNTHETIC-ALLOWED-ROOT"),
             str(tmp_path / "SYNTHETIC-OUTPUT"),
         ),
     )

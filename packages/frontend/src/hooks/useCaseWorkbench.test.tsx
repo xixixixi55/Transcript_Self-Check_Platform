@@ -43,7 +43,7 @@ describe('useCaseWorkbench detail reload', () => {
     await act(async () => { await reload })
   })
 
-  it('sends the persisted source authorization mode when submitting a case', async () => {
+  it('ignores the retired source authorization preference when submitting a case', async () => {
     window.localStorage.setItem('biji.sourceAuthorization.enabled', 'true')
     getMock.mockResolvedValue({ data: { data: { items: [], offset: 0, limit: 6, has_more: false } } })
     postMock.mockResolvedValue({ data: { data: {
@@ -56,7 +56,7 @@ describe('useCaseWorkbench detail reload', () => {
 
     expect(postMock).toHaveBeenCalledWith(
       API_ENDPOINTS.WORKBENCH_CASES,
-      expect.objectContaining({ source_authorization_enabled: true }),
+      expect.not.objectContaining({ source_authorization_enabled: expect.anything() }),
     )
   })
 
@@ -72,7 +72,7 @@ describe('useCaseWorkbench detail reload', () => {
 
     expect(postMock).toHaveBeenCalledWith(
       API_ENDPOINTS.WORKBENCH_SELECT_DIRECTORY_CASE,
-      expect.objectContaining({ case_name: 'SYNTHETIC-PICKED', source_authorization_enabled: false }),
+      expect.objectContaining({ case_name: 'SYNTHETIC-PICKED' }),
     )
     expect(postMock.mock.calls[0][1]).not.toHaveProperty('source_path')
   })

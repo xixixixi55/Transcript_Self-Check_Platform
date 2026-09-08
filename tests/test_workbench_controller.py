@@ -58,7 +58,7 @@ def app_services(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     allowed_root.mkdir()
     output_root.mkdir()
     source_service = SourceRecordService(
-        database, ArchiveAuthorizationService(str(allowed_root), str(output_root)),
+        database, ArchiveAuthorizationService(str(output_root)),
     )
     report_dir = allowed_root / "SYNTHETIC-REPORT"
     data_dir = report_dir / "data"
@@ -242,7 +242,7 @@ def test_delete_case_endpoint_removes_case_from_workbench(app_services):
         assert case_id not in {item["case_id"] for item in listed}
 
 
-def test_submit_accepts_external_report_directory_when_authorization_is_disabled(app_services):
+def test_submit_accepts_external_report_directory_without_authorization_parameters(app_services):
     from app.main import app
     from app.controllers import workbench_controller
 
@@ -253,7 +253,6 @@ def test_submit_accepts_external_report_directory_when_authorization_is_disabled
             "/api/v1/workbench/cases",
             json={
                 "source_path": str(external),
-                "source_authorization_enabled": False,
             },
         )
     assert response.status_code == 200
@@ -1509,7 +1508,7 @@ def test_source_replacement_resets_draft_and_explicitly_reparses(app_services):
     from app.main import app
     from app.controllers import source_controller, workbench_controller
 
-    replacement_dir = app_services.synthetic_report_dir.parent / "SYNTHETIC-REPLACEMENT"
+    replacement_dir = app_services.synthetic_report_dir.parent.parent / "SYNTHETIC-REPLACEMENT"
     shutil.copytree(app_services.synthetic_report_dir, replacement_dir)
     with patch.object(workbench_controller, "get_workbench_services", return_value=app_services), patch.object(source_controller, "get_workbench_services", return_value=app_services):
         client = TestClient(app)
@@ -1538,6 +1537,32 @@ def test_source_replacement_resets_draft_and_explicitly_reparses(app_services):
         release.set()
         final = _wait_for_parse(client, case_id)
         assert final["shell"]["lifecycle"] == "review_ready"
+
+
+@pytest.mark.parametrize("endpoint, payload", [
+    ("/api/v1/workbench/cases", {"source_path": "C:/SYNTHETIC/REPORT"}),
+    ("/api/v1/workbench/cases/select-directory", {}),
+    ("/api/v1/workbench/cases/SYNTHETIC-CASE/source", {
+        "source_path": "C:/SYNTHETIC/REPORT", "expected_revision": 0,
+    }),
+])
+@pytest.mark.parametrize("field, value", [
+    ("source_authorization_enabled", True),
+    ("directory_grant_token", "SYNTHETIC-RETIRED"),
+])
+def test_source_requests_reject_retired_fields_before_side_effects(endpoint, payload, field, value):
+    from app.main import app
+    from app.controllers import source_controller, workbench_controller
+
+    with patch.object(workbench_controller, "get_workbench_services") as workbench_services, patch.object(
+        source_controller, "get_workbench_services",
+    ) as source_services:
+        response = TestClient(app).post(endpoint, json={**payload, field: value})
+    assert response.status_code == 422
+    assert any(error["loc"] == ["body", field] and error["type"] == "extra_forbidden"
+               for error in response.json()["detail"])
+    workbench_services.assert_not_called()
+    source_services.assert_not_called()
 
 
 def test_directory_validation_errors_are_stable_and_do_not_echo_path(app_services, tmp_path):
@@ -1571,7 +1596,6 @@ def test_source_registration_errors_have_distinct_safe_messages():
     from app.controllers.workbench_controller import _message as workbench_message
 
     codes = (
-        "ARCHIVE_INPUT_ROOT_NOT_ALLOWED",
         "SOURCE_ACCESS_DENIED",
         "SOURCE_STRUCTURE_INVALID",
     )
@@ -1580,9 +1604,8 @@ def test_source_registration_errors_have_distinct_safe_messages():
 
     assert len(set(initial_messages)) == len(codes)
     assert len(set(replacement_messages)) == len(codes)
-    assert "未获授权" in initial_messages[0]
-    assert "无法访问" in initial_messages[1]
-    assert "报告结构" in initial_messages[2]
+    assert "无法访问" in initial_messages[0]
+    assert "报告结构" in initial_messages[1]
     assert all("C:\\" not in message for message in initial_messages + replacement_messages)
 
 

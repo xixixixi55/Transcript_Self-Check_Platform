@@ -205,7 +205,7 @@ def _services(tmp_path: Path) -> tuple[WorkbenchServices, RecordingWorker]:
         json.dumps({"contents": []}), encoding="utf-8",
     )
     sources = SourceRecordService(
-        database, ArchiveAuthorizationService(str(allowed), str(output)),
+        database, ArchiveAuthorizationService(str(output)),
     )
     attempts = ArchiveAttemptService(database, output)
     tasks = ArchiveTaskRepository(database)

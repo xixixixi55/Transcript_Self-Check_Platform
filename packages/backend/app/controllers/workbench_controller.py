@@ -40,8 +40,6 @@ class CaseSubmissionRequest(BaseModel):
     case_name: str = ""
     case_summary: str = ""
     case_number: str | None = None
-    directory_grant_token: str | None = None
-    source_authorization_enabled: bool = True
     client_instance_id: str = "local-client"
     session_id: str = "local-session"
     local_display_name: str | None = None
@@ -52,7 +50,6 @@ class DirectoryCaseSubmissionRequest(BaseModel):
     case_name: str = ""
     case_summary: str = ""
     case_number: str | None = None
-    source_authorization_enabled: bool = False
     client_instance_id: str = "local-client"
     session_id: str = "local-session"
     local_display_name: str | None = None
@@ -76,8 +73,6 @@ def submit_case_endpoint(body: CaseSubmissionRequest):
             case_name=body.case_name,
             case_summary=body.case_summary,
             case_number=body.case_number,
-            directory_grant_token=body.directory_grant_token,
-            source_authorization_enabled=body.source_authorization_enabled,
             client_instance_id=body.client_instance_id,
             session_id=body.session_id,
             local_display_name=body.local_display_name,
@@ -102,7 +97,6 @@ def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
             case_name=body.case_name,
             case_summary=body.case_summary,
             case_number=body.case_number,
-            source_authorization_enabled=body.source_authorization_enabled,
             client_instance_id=body.client_instance_id,
             session_id=body.session_id,
             local_display_name=body.local_display_name,

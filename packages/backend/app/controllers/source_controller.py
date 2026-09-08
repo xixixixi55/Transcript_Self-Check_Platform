@@ -17,8 +17,6 @@ class SourceReplacementRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_path: str
     expected_revision: int = Field(ge=0)
-    directory_grant_token: str | None = None
-    source_authorization_enabled: bool = True
 
 
 @router.get("/workbench/sources/{source_id}")
@@ -45,8 +43,6 @@ async def replace_case_source_endpoint(case_id: str, body: SourceReplacementRequ
             case_id,
             body.source_path,
             body.expected_revision,
-            body.directory_grant_token,
-            source_authorization_enabled=body.source_authorization_enabled,
         )
         task_id = services.lifecycle.detail(case_id)["shell"]["parse_task_id"]
         try:
@@ -76,7 +72,6 @@ def _message(code: str) -> str:
         "SOURCE_STRUCTURE_INVALID": "所选目录不包含可识别的报告结构。",
         "SOURCE_ACCESS_DENIED": "所选报告目录当前无法访问。",
         "ARCHIVE_INPUT_PATH_INVALID": "所选报告目录不存在或无效。",
-        "ARCHIVE_INPUT_ROOT_NOT_ALLOWED": "所选报告目录未获授权。",
         "ARCHIVE_INPUT_LINK_NOT_ALLOWED": "所选报告目录包含不支持的链接或特殊路径。",
         "ARCHIVE_INPUT_OUTPUT_OVERLAP": "所选报告目录与系统输出区域冲突。",
     }.get(code, "报告来源不可用，请重新选择来源。")

@@ -97,15 +97,15 @@ WinRAR 缺失或不可调用是明确阻断项：允许上传、解析、审核�
 - [x] 8.1T 增加 mock/真实小 fixture 测试，覆盖 `-v...b`、`.partN.rar`、跳号、卷数、大小、MD5、连续性和 staging 清理；验收：预计文件名/大小/卷数不能进入最终 Manifest。
 - [x] 8.2 实现实际结果不符合计划时的有限重规划：最多两次重试，重试仍失败返回明确错误且不提交归档/Word。输入：执行结果与 ArchivePlan；输出：最终 manifest 或阻止错误；验收：4→22→45 的升级和耗尽路径可回归。
 - [x] 8.2T 增加压缩比导致少卷、超卷、无下一档和重试耗尽测试；验收：不会静默降级 ZIP 或自动回退 legacy。
-- [x] 8.3 实现归档输入授权与不透明 `archive_context_id` 生命周期：保留 `UPLOAD_BASE`、`BIJI_ALLOWED_INPUT_ROOTS`、精确目录令牌和后续规划/执行/Manifest 只接受上下文标识的既有能力；路径安全和上下文生命周期保持不变。需求6通过 8.4 增加可恢复的授权模式切换，不删除本任务的实现。
+- [x] 8.3 实现归档输入授权与不透明 `archive_context_id` 生命周期。历史来源白名单和开关由 2026-09-08 反馈移除；路径安全、输入输出隔离和后续规划/执行/Manifest 仅接受上下文标识的边界继续保留。
 - [x] 8.3T 增加固定根目录、前缀相邻目录、大小写、相对/穿越、链接/reparse、UNC/设备路径、输入输出重叠、精确授权令牌、上下文摘要/过期/并发/清理、解析接口稳定错误码测试；验收：公共响应和错误不包含完整本地路径，原始案件不会被清理。
 
 8.3/8.3T 的完成边界：本轮完成固定根目录生产能力、精确目录授权安全模型/令牌验证/拒绝边界及其自动化测试；本机目录选择器和可信桌面桥接由 8.5 单独承接，不改变 8.3 的路径安全合同。
 
-- [x] 8.4 在 `packages/frontend/src/hooks/useSourceAuthorizationPreference.ts`、`packages/frontend/src/pages/CaseWorkbenchPage.tsx`、`packages/frontend/src/hooks/useCaseWorkbench.ts`、`packages/frontend/src/hooks/useCaseRecordSession.ts`、`packages/backend/app/controllers/record_controller.py`、`packages/backend/app/controllers/workbench_controller.py`、`packages/backend/app/controllers/source_controller.py`、`packages/backend/app/services/source/source_record_service.py`、`packages/backend/app/services/archive/archive_authorization_service.py` 和 `packages/backend/app/repository/archive/archive_authorization_repository.py` 增加可持久化的 `source_authorization_enabled` 模式开关。首页默认关闭授权根校验，用户选择保存在浏览器本地；登记/重新登记请求读取该偏好；关闭时仅跳过根目录/精确令牌边界，路径安全、输出隔离和报告结构校验继续执行，开启时恢复既有授权规则。验证：前后端请求契约、页面刷新持久化、任意本机目录登记和重新开启后的根目录拒绝。
-- [x] 8.4T 在 `tests/test_archive_authorization.py`、`tests/test_workbench_services.py`、`tests/test_record_controller.py`、`tests/test_workbench_controller.py`、`packages/frontend/src/hooks/useSourceAuthorizationPreference.test.tsx` 和 `packages/frontend/src/pages/CaseWorkbenchPage.test.tsx` 增加关闭/开启两种模式、持久化和安全边界断言；同时移除来源授权就绪状态说明测试。验证：关闭模式允许合成的根目录外报告目录，开启模式仍返回 `ARCHIVE_INPUT_ROOT_NOT_ALLOWED`，非法/链接/输出重叠路径在两种模式均被拒绝。
+- [x] 8.4 来源授权模式的历史实现已由 2026-09-08 反馈替代：移除浏览器偏好和来源白名单，最终请求由 `packages/shared/types/sourceRequests.ts` 和 `packages/frontend/src/hooks/useSourceRequests.ts` 定义。
+- [x] 8.4T 原开关/持久化测试已合并为无来源授权参数、旧设置失效和基础安全边界回归，见本文件末尾反馈验证证据。
 
-8.4 验证证据：后端受影响测试 98 passed、前端受影响测试 22 passed；`lint:arch`、`typecheck` 和核心授权分支突变有效性验证通过。共享请求 DTO 位于 `packages/shared/types/sourceAuthorization.ts`，legacy 目录解析请求构造器位于 `packages/frontend/src/hooks/useSourceAuthorizationRequests.ts`；当前前端生产路由没有直接调用 deprecated `/reports/parse` 的页面，直接 API 缺省仍保持开启。
+8.4 历史验证证据：后端 98 passed、前端 22 passed；当时的架构、类型和授权分支验证通过。最终行为以 2026-09-08 反馈为准。
 
 ## 8.5 本地 Windows 文件夹选择桥接（新增需求）
 
@@ -261,3 +261,13 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [ ] 17.1T 为 Profile 来源文件、JSON 路径、规则、置信度、确认和版本失效增加契约测试；验收：同类复用和低置信人工确认边界明确。 [DEFERRED]
 - [ ] 17.2 只定义 `TemplateProfile` 的段落/表格/单元格/内容控件/VML anchor、重复区、图片区、显示条件、分页和推荐草稿扩展点，不在阶段一实现通用模板设计器、无标记识别或自动推荐。输入：固定 current-template-v1 Profile；输出：阶段三可扩展接口；验收：阶段一只接受固定 Profile。 [DEFERRED]
 - [ ] 17.2T 为 TemplateProfile round-trip、版本、anchor 和“未确认不可导出”增加契约测试；验收：接口可扩展但阶段一能力边界不扩大。 [DEFERRED]
+
+## 2026-09-08 来源目录校验移除反馈
+
+本次增量 workflow_level: 2；关联原 8.4 来源授权模式任务，以本节和修订后的需求6为准。demo-readiness-and-source-guidance 仅承载就绪提示，工作台样式包仅承载视觉反馈，不承载该来源请求合同。manual_acceptance: N/A（界面入口上一轮已移除，本轮由请求和后端自动化覆盖）。
+
+- [x] 移除来源请求模式/令牌、浏览器偏好、后端白名单加载和来源授权分支，保留基础安全和导出授权。
+- [x] 合并既有测试，覆盖旧设置失效、外部目录导入/替换、非法目录拒绝及导出令牌边界。
+- [x] 核对增量与实现并同步现行规格，完成定向测试、verify:quick 和限定严格文档检查。
+
+验证证据（2026-09-08）：受影响后端 154 passed、前端 26 passed；verify:quick 通过（架构、类型、治理、文档及资产检查）。独立审查发现的规格残留与废弃 JSON 字段覆盖缺口已修复，复审通过。增量与现行规格已同步；限定 strict docs 14 项检查通过，git diff --check 通过。后端首次执行因默认工作台数据库只读失败，使用独立 SYNTHETIC 临时数据根完整重跑后通过。

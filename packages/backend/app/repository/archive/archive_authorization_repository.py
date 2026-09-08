@@ -8,10 +8,8 @@ import secrets
 import stat
 import tempfile
 import time
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
 
 
 _REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
@@ -101,48 +99,17 @@ def _resolve_directory(raw_path: str | os.PathLike[str]) -> Path:
 
 
 class ArchiveAuthorizationStore:
-    """当前桌面进程的内存根目录和授权注册表。"""
+    """本机输入路径安全检查和导出目录授权注册表。"""
 
     def __init__(
         self,
-        upload_base: str | os.PathLike[str],
         *,
-        environment: Mapping[str, str] | None = None,
         grant_ttl_seconds: int = 5 * 60,
         clock=time.time,
     ) -> None:
-        self._environment = os.environ if environment is None else environment
         self._grant_ttl_seconds = grant_ttl_seconds
         self._clock = clock
-        self._configuration_warnings: list[str] = []
-        self._configured_roots = self._load_configured_roots(upload_base)
         self._grants: dict[str, _ExactDirectoryGrant] = {}
-
-    def _load_configured_roots(self, upload_base: str | os.PathLike[str]) -> tuple[Path, ...]:
-        raw_roots = [os.fspath(upload_base)]
-        raw_roots.extend(self._environment.get("BIJI_ALLOWED_INPUT_ROOTS", "").split(";"))
-        roots: list[Path] = []
-        for raw_root in raw_roots:
-            if not raw_root.strip():
-                continue
-            try:
-                root = _resolve_directory(raw_root)
-            except ArchiveAuthorizationError:
-                self._configuration_warnings.append("ARCHIVE_CONFIGURED_ROOT_INVALID")
-                warnings.warn("ARCHIVE_CONFIGURED_ROOT_INVALID", RuntimeWarning, stacklevel=2)
-                continue
-            if not any(str(root).casefold() == str(existing).casefold() for existing in roots):
-                roots.append(root)
-        return tuple(roots)
-
-    @property
-    def configured_roots(self) -> tuple[Path, ...]:
-        return self._configured_roots
-
-    @property
-    def configuration_warnings(self) -> tuple[str, ...]:
-        """安全启动诊断；不包含任何已配置路径。"""
-        return tuple(self._configuration_warnings)
 
     @staticmethod
     def _root_id(root: Path) -> str:
@@ -169,30 +136,19 @@ class ArchiveAuthorizationStore:
         self,
         selected_path: str | os.PathLike[str],
         *,
-        grant_token: str | None = None,
         output_roots: tuple[str | os.PathLike[str], ...] = (),
-        source_authorization_enabled: bool = True,
     ) -> AuthorizedInputRoot:
         resolved = _resolve_directory(selected_path)
         self.validate_output_separation(resolved, output_roots)
-        if not source_authorization_enabled:
-            return AuthorizedInputRoot(
-                resolved,
-                "unrestricted_local_directory",
-                self._root_id(resolved.parent),
-                resolved.parent,
-            )
-        if grant_token:
-            return self._consume_grant(grant_token, resolved)
-        for root in self._configured_roots:
-            if resolved != root and _is_within(resolved, root):
-                return AuthorizedInputRoot(resolved, "configured_root", self._root_id(root), root)
-        raise ArchiveAuthorizationError(
-            "ARCHIVE_INPUT_ROOT_NOT_ALLOWED", "归档输入目录未获授权，请重新选择案件目录。",
+        return AuthorizedInputRoot(
+            resolved,
+            "unrestricted_local_directory",
+            self._root_id(resolved.parent),
+            resolved.parent,
         )
 
     def issue_exact_directory_grant(self, selected_path: str | os.PathLike[str]) -> str:
-        """为将来的可信本地目录选择器签发一次性令牌。"""
+        """为受控导出目录签发一次性令牌。"""
         resolved = _resolve_directory(selected_path)
         token = secrets.token_urlsafe(32)
         self._grants[hashlib.sha256(token.encode("ascii")).hexdigest()] = _ExactDirectoryGrant(

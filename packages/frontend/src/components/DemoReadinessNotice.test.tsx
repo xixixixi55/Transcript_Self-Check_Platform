@@ -39,7 +39,6 @@ describe('Demo readiness and source guidance', () => {
   })
 
   it.each([
-    ['ARCHIVE_INPUT_ROOT_NOT_ALLOWED', '所选报告目录未获授权。'],
     ['SOURCE_ACCESS_DENIED', '所选报告目录当前无法访问。'],
     ['SOURCE_STRUCTURE_INVALID', '所选目录不包含可识别的报告结构。'],
   ])('keeps replacement error %s distinct and safe', async (code, message) => {

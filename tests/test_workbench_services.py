@@ -87,7 +87,7 @@ def make_source_service(database: WorkbenchDatabase, tmp_path: Path) -> SourceRe
     output_root.mkdir(exist_ok=True)
     return SourceRecordService(
         database,
-        ArchiveAuthorizationService(str(allowed_root), str(output_root)),
+        ArchiveAuthorizationService(str(output_root)),
     )
 
 
@@ -634,16 +634,10 @@ def test_directory_source_rejects_archives_outside_roots_and_invalid_structure(d
         source_service.register_report_directory(str(archive_path))
     assert archive_error.value.code == "SOURCE_ARCHIVE_NOT_ALLOWED"
 
-    outside = tmp_path / "SYNTHETIC-OUTSIDE" / "report"
-    outside.mkdir(parents=True)
-    with pytest.raises(ArchiveAuthorizationError) as root_error:
-        source_service.register_report_directory(str(outside))
-    assert root_error.value.code == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
-
     unrestricted = tmp_path / "SYNTHETIC-OUTSIDE" / "SYNTHETIC-REPORT"
     shutil.copytree(make_report_directory(tmp_path, "SYNTHETIC-BASELINE"), unrestricted)
     descriptor = source_service.register_report_directory(
-        str(unrestricted), source_authorization_enabled=False,
+        str(unrestricted),
     )
     assert descriptor["source_type"] == "report_directory"
 
@@ -651,13 +645,9 @@ def test_directory_source_rejects_archives_outside_roots_and_invalid_structure(d
     invalid_external.mkdir(parents=True)
     with pytest.raises(WorkbenchPersistenceError) as structure_error:
         source_service.register_report_directory(
-            str(invalid_external), source_authorization_enabled=False,
+            str(invalid_external),
         )
     assert structure_error.value.code == "SOURCE_STRUCTURE_INVALID"
-
-    with pytest.raises(ArchiveAuthorizationError) as enabled_error:
-        source_service.register_report_directory(str(unrestricted), source_authorization_enabled=True)
-    assert enabled_error.value.code == "ARCHIVE_INPUT_ROOT_NOT_ALLOWED"
 
     invalid = tmp_path / "SYNTHETIC-ALLOWED-ROOT" / "SYNTHETIC-INVALID"
     invalid.mkdir(parents=True)

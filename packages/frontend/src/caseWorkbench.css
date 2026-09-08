@@ -10,7 +10,6 @@
   --case-workbench-canvas: #f8f9fb;
   --case-workbench-shadow-card: 0 14px 32px rgba(66, 59, 113, 0.085);
   --case-workbench-shadow-hover: 0 20px 42px rgba(66, 59, 113, 0.12);
-  --case-workbench-shadow-control: 0 4px 12px rgba(67, 80, 142, 0.08);
   box-sizing: border-box;
   width: 100%;
   min-height: 100%;
@@ -61,37 +60,12 @@
   color: var(--platform-preview-text-secondary);
 }
 
-.case-workbench-page__submission {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 8px;
-  padding-top: 18px;
-}
-
-.case-workbench-page__submission .ant-btn {
-  min-height: 34px;
-  color: var(--platform-preview-text-secondary);
-  background: var(--platform-preview-surface);
-  border-color: transparent;
-  border-radius: var(--platform-preview-radius-control);
-  box-shadow: var(--case-workbench-shadow-control);
-}
-
-.case-workbench-page__submission .ant-btn:hover {
-  color: var(--platform-preview-primary) !important;
-  background: var(--platform-preview-primary-soft) !important;
-  border-color: transparent !important;
-}
-
-.case-workbench-page__submission .ant-btn-primary,
 .case-workbench-page .case-workbench-card .ant-btn-primary:not(.ant-btn-dangerous) {
   color: #ffffff;
   background: var(--platform-preview-primary);
   border-color: var(--platform-preview-primary);
 }
 
-.case-workbench-page__submission .ant-btn-primary:hover,
 .case-workbench-page .case-workbench-card .ant-btn-primary:not(.ant-btn-dangerous):hover {
   color: #ffffff !important;
   background: #3e53b9 !important;
@@ -376,17 +350,6 @@
   .case-workbench-page__header {
     flex-direction: column;
     gap: 12px;
-  }
-
-  .case-workbench-page__submission {
-    width: 100%;
-    flex-wrap: wrap;
-    align-self: stretch;
-    padding-top: 0;
-  }
-
-  .case-workbench-page__submission .ant-btn:last-child {
-    margin-left: auto;
   }
 }
 
