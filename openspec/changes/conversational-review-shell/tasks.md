@@ -827,3 +827,13 @@ workflow_level: 2
 - `assistant_evidence_edit_removal_tests: PASS`：受影响的检材摘要与 Word 预览组件回归 2 files / 7 tests 通过，TypeScript 检查通过。
 - `assistant_evidence_edit_removal_ui_check: PASS`：摘要网格已移除一个 44px 操作列和失效内嵌编辑器样式；Impeccable 检测只报告本次差异外第 167、314 行两处既有 CSS 告警。
 - `assistant_evidence_edit_removal_manual_acceptance: N/A`：按钮不存在、删除入口保留和 Word 预览编辑不受影响均由 SYNTHETIC DOM 回归可靠区分，未读取或操作真实案件数据。
+
+## 2026-09-09 “此前已处理”检材聚合反馈（workflow_level: 2）
+
+- [x] 6.112 将“此前已处理”中的检材内容收敛为单一“检材完整性”事项；设备、类型、IMEI、序列号、提取情况和检材编号等逐项详情即使由用户修改也不单独展示。
+- [x] 6.113 保持 Word 内容预览中的检材逐字段编辑、来源标识、草稿自动保存，以及独立“检材照片”已处理入口不变，并用 SYNTHETIC 组件回归区分两个展示范围。
+- [x] 6.114 同步本包 delta 与 living spec，运行受影响组件测试、`verify:quick`、限定范围严格文档检查和差异检查。
+
+- `handled_evidence_aggregation_contract: PASS`：旧实现上的 SYNTHETIC 组件回归稳定复现“检材 1 · 编号 · IMEI 1”进入“此前已处理”；修复后该面板只显示“检材完整性”和独立“检材照片”，Word 内容预览仍展示已修改的 IMEI 字段及来源标识。
+- `handled_evidence_aggregation_tests: PASS`：受影响的引导视图、状态导航、图片步骤和图片资产 4 files / 53 tests 通过；全项目 TypeScript、架构检查与 `verify:quick` 通过。
+- `handled_evidence_aggregation_manual_acceptance: N/A`：两个展示范围、可回访入口和详情排除均由 SYNTHETIC DOM 回归可靠区分，未读取或操作真实案件数据。

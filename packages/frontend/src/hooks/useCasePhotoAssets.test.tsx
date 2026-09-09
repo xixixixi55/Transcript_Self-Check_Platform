@@ -208,6 +208,34 @@ describe('useCasePhotoAssets', () => {
     expect(view.result.current.files).toEqual([])
   })
 
+  it('uploads the same local file again after its previous asset was removed', async () => {
+    const localFile = new File(['SYNTHETIC-REUPLOAD'], 'reupload.png', { type: 'image/png' })
+    const localUpload = {
+      uid: 'batch-synthetic-reupload',
+      name: localFile.name,
+      originFileObj: localFile as unknown as NonNullable<UploadFile['originFileObj']>,
+    }
+    const firstAsset = { ...ref('asset-synthetic-reupload-1'), content_status: 'available' as const }
+    const secondAsset = { ...ref('asset-synthetic-reupload-2'), content_status: 'available' as const }
+    postMock.mockResolvedValueOnce({ data: { data: firstAsset } } as any)
+      .mockResolvedValueOnce({ data: { data: secondAsset } } as any)
+    const onAssetRefsChange = vi.fn(async () => true)
+    const view = renderHook(() => useCasePhotoAssets({
+      caseId: 'case-synthetic', assetRefs: [], editingEnabled: true, lease, onAssetRefsChange,
+    }))
+
+    await act(async () => { await view.result.current.handleChange([localUpload]) })
+    await act(async () => { await view.result.current.handleChange([]) })
+    await act(async () => { await view.result.current.handleChange([localUpload]) })
+
+    expect(postMock).toHaveBeenCalledTimes(2)
+    expect(onAssetRefsChange).toHaveBeenNthCalledWith(2, [], [ref(firstAsset.asset_id)])
+    expect(onAssetRefsChange).toHaveBeenNthCalledWith(
+      3, [expect.objectContaining({ asset_id: secondAsset.asset_id })], [],
+    )
+    expect(view.result.current.files[0].uid).toBe(secondAsset.asset_id)
+  })
+
   it('blocks export when persisted assets cannot be restored', async () => {
     const stored = ref('asset-synthetic-missing')
     getMock.mockRejectedValueOnce({ response: { data: { detail: { code: 'ASSET_CONTENT_MISSING' } } } })

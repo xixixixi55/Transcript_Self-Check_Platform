@@ -56,6 +56,16 @@ function fileForRef(caseId: string, ref: OpaqueAssetRef): UploadFile {
 
 const PHOTO_IO_CONCURRENCY = 4
 
+function retainCompletedUploads(
+  completedUploads: Map<string, OpaqueAssetRef>,
+  retainedRefs: OpaqueAssetRef[],
+): void {
+  const retainedIds = new Set(retainedRefs.map(ref => ref.asset_id))
+  completedUploads.forEach((ref, key) => {
+    if (!retainedIds.has(ref.asset_id)) completedUploads.delete(key)
+  })
+}
+
 async function mapPhotoIo<T, R>(items: T[], operation: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length)
   let cursor = 0
@@ -243,11 +253,17 @@ export function useCasePhotoAssets(options: Options) {
       if (JSON.stringify(nextRefs) !== JSON.stringify(refsRef.current)) {
         const previousRefs = refsRef.current
         refsRef.current = nextRefs
-        if (!await onAssetRefsChangeRef.current(nextRefs, previousRefs)) {
+        try {
+          if (!await onAssetRefsChangeRef.current(nextRefs, previousRefs)) {
+            refsRef.current = previousRefs
+            setAssetError('图片引用尚未保存到草稿，请重试保存。')
+            return false
+          }
+        } catch (error) {
           refsRef.current = previousRefs
-          setAssetError('图片引用尚未保存到草稿，请重试保存。')
-          return false
+          throw error
         }
+        retainCompletedUploads(completedUploads, nextRefs)
       }
       return true
     }
@@ -275,6 +291,7 @@ export function useCasePhotoAssets(options: Options) {
       filesRef.current = restored
       setFiles(restored)
       if (!await onAssetRefsChangeRef.current(nextRefs, previousRefs)) throw new Error('DRAFT_SAVE_FAILED')
+      retainCompletedUploads(completedUploads, nextRefs)
       return true
     } catch (error) {
       // 已上传文件仍可用于重试，但比较并设置的基线必须保持为

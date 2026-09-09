@@ -94,7 +94,8 @@ const RECOVERY_ACTIONS = new Set<GuidedReviewActionKind>([
 function assistantStatus(currentAction: GuidedReviewAction | null, allActions: GuidedReviewAction[]): ActionStatus {
   if (currentAction?.kind === 'waiting') return { label: '后台处理中', tone: 'system' }
   if (currentAction?.kind === 'ready') return { label: '可生成笔录', tone: 'success' }
-  const actionableCount = allActions.filter(action => !['waiting', 'ready'].includes(action.kind)).length
+  if (currentAction?.kind === 'archive_deferred') return { label: '已稍后处理', tone: 'success' }
+  const actionableCount = allActions.filter(action => !['waiting', 'ready', 'archive_deferred'].includes(action.kind)).length
   return actionableCount > 0
     ? { label: `${actionableCount} 项待处理`, tone: 'pending' }
     : { label: '正在整理', tone: 'system' }
@@ -104,6 +105,7 @@ function actionStatus(action: GuidedReviewAction, isCurrent: boolean): ActionSta
   if (isCurrent) return { label: '当前', tone: 'current' }
   if (action.kind === 'waiting') return { label: '后台中', tone: 'system' }
   if (action.kind === 'ready') return { label: '可生成', tone: 'success' }
+  if (action.kind === 'archive_deferred') return { label: '已稍后处理', tone: 'success' }
   if (RECOVERY_ACTIONS.has(action.kind)) return { label: '需恢复', tone: 'warning' }
   if (action.kind === 'archive_decision') return { label: '待选择', tone: 'warning' }
   return { label: '待处理', tone: 'pending' }
@@ -148,40 +150,13 @@ function handledHistoryItems(
       targetId: field.targetId,
       field,
     }] : []))
-    const materials = (group.materials || []).flatMap(material => {
-      const materialFields = material.fields.flatMap((field, index) => (
-        field.userProvided && canRevisitGuidedHistoryField(field) ? [{
-        id: `${group.id}-${material.id}-field-${index}`,
-        label: `${material.label} · ${field.label}`,
-        matchLabel: field.label,
-        value: field.value,
-        targetId: field.targetId || material.targetId,
-        field: { ...field, targetId: field.targetId || material.targetId },
-      }] : []))
-      if (materialFields.length || !material.userProvided) return materialFields
-      const field = {
-        label: material.label,
-        value: material.photoCount > 0 ? `已上传 ${material.photoCount} 张图片` : '检材信息已填写',
-        userProvided: true,
-        targetId: material.targetId,
-      }
-      if (!canRevisitGuidedHistoryField(field)) return []
-      return [{
-        id: `${group.id}-${material.id}`,
-        label: material.label,
-        matchLabel: material.label,
-        value: field.value,
-        targetId: material.targetId,
-        field,
-      }]
-    })
-    return [...fields, ...materials]
+    return fields
   })]
 }
 
 function mascotMood(currentAction: GuidedReviewAction | null, completionActive: boolean): MascotMood {
   if (currentAction && RECOVERY_ACTIONS.has(currentAction.kind)) return 'warning'
-  if (currentAction?.kind === 'ready') return 'complete'
+  if (currentAction?.kind === 'ready' || currentAction?.kind === 'archive_deferred') return 'complete'
   if (completionActive) return 'complete'
   if (currentAction?.kind === 'waiting') return 'verifying'
   return 'listening'
@@ -233,7 +208,7 @@ export function GuidedReviewView({
     if (previousAction && previousAction.id !== currentAction?.id) {
       const previousStillPending = allActions.some(action => action.id === previousAction.id)
       const switchedToAction = previousStillPending && currentAction
-        && !['waiting', 'ready'].includes(currentAction.kind)
+        && !['waiting', 'ready', 'archive_deferred'].includes(currentAction.kind)
       if (switchedToAction) {
         setSwitchedTurn({
           from: actionConversationLabel(previousAction),
@@ -297,7 +272,7 @@ export function GuidedReviewView({
   const responseLabel = currentAction?.kind === 'pending_item' ? '你的回复' : '请选择操作'
   const assistantState = assistantStatus(currentAction, allActions)
   const currentMascotMood = mascotMood(currentAction, completionMoodActive)
-  const pendingActionCount = allActions.filter(action => !['waiting', 'ready'].includes(action.kind)).length
+  const pendingActionCount = allActions.filter(action => !['waiting', 'ready', 'archive_deferred'].includes(action.kind)).length
   const revisitableCompletedTurns = completedTurns.filter(turn => (
     !allActions.some(action => action.id === turn.action.id)
   ))

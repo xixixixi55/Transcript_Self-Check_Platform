@@ -174,11 +174,6 @@ def _normalize_case_name(case_name: object) -> str:
     return _TRAILING_CASE_NAME_MARK_RE.sub(r"\1", value).strip()
 
 
-def _format_case_summary(case_name: object) -> str:
-    """使用规范化的报告案件名称作为可编辑案件摘要的初始值。"""
-    return _normalize_case_name(case_name)
-
-
 def _build_report(data_dir: str, source_dir: str, output_dir: str,
                   compress: bool = True, is_rar_archive: bool = False,
                   input_snapshot: ReportParseInputSnapshot | None = None) -> dict:
@@ -329,7 +324,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "entrust_unit": case.get("submit_unit", ""),
             "entrust_persons": _split_persons(case.get("submit_person", "")),
             "entrust_time": "",
-            "case_summary": _format_case_summary(normalized_case_name),
+            "case_summary": "",
             "evidence_list": evidence_items,
             "inspection_requirement": DEFAULT_INSPECTION_REQUIREMENT,
             "inspection_time_range": time_range,

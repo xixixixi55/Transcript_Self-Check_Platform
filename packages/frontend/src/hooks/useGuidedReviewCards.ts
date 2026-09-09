@@ -25,6 +25,7 @@ export type GuidedReviewActionKind =
   | 'save_recovery'
   | 'photo_recovery'
   | 'archive_decision'
+  | 'archive_deferred'
   | 'waiting'
   | 'ready'
 
@@ -32,6 +33,7 @@ const SESSION_NAVIGATION_ACTION_KINDS: ReadonlySet<GuidedReviewActionKind> = new
   'pending_item',
   'source_recovery',
   'archive_decision',
+  'archive_deferred',
 ])
 
 export interface GuidedReviewAction {
@@ -342,6 +344,10 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   ))
   allActions.push(...prioritizedPendingItems.map(pendingAction))
   if (canChooseArchiveTiming && input.lifecycle === 'archive_deferred') {
+    if (allActions.length === 0) allActions.push({
+      id: 'archive-deferred', kind: 'archive_deferred', title: '草稿已保存并稍后处理',
+      description: '当前没有需要立即填写的事项，可安全返回案件列表；如需压缩，可从全部事项中重新打开压缩时机。',
+    })
     allActions.push(archiveDecisionAction)
   }
   const systemStatus = buildSystemStatus(input)
@@ -366,6 +372,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     action: projection.allActions[0] || null as GuidedReviewAction | null,
   })
   const previousCaseId = useRef(input.caseId)
+  const previousLifecycle = useRef(input.lifecycle)
   const projectedSelectedAction = projection.allActions.find(action => action.id === selectedActionId)
   const retainedForCase = retainedAction.current.caseId === input.caseId
     ? retainedAction.current.action : null
@@ -395,6 +402,24 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   useEffect(() => {
     retainedAction.current = { caseId: input.caseId, action: baseCurrentAction }
   }, [baseCurrentAction, input.caseId])
+
+  useEffect(() => {
+    const fallbackActionId = projection.allActions[0]?.id
+    if (!projectedSelectedAction && baseCurrentAction?.id === fallbackActionId
+      && selectedActionId !== fallbackActionId) {
+      setSelectedActionId(fallbackActionId || '')
+    }
+  }, [baseCurrentAction?.id, projectedSelectedAction, projection.allActions, selectedActionId])
+
+  useEffect(() => {
+    const enteredDeferred = previousLifecycle.current !== 'archive_deferred'
+      && input.lifecycle === 'archive_deferred'
+    previousLifecycle.current = input.lifecycle
+    if (!enteredDeferred || selectedActionId !== 'archive-decision') return
+    const nextAction = projection.allActions.find(action => action.id !== 'archive-decision')
+    setRevisitedActionId(null)
+    setSelectedActionId(nextAction?.id || '')
+  }, [input.lifecycle, projection.allActions, selectedActionId])
 
   useEffect(() => {
     setNavigation(previous => {

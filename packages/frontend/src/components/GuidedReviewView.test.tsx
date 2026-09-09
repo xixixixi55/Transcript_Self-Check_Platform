@@ -9,8 +9,7 @@ const history: GuidedReviewHistoryItem[] = [
   {
     id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '文书与委托信息',
     fields: [{
-      label: '委托人员', value: 'SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B', userProvided: true,
-      targetId: 'review-target-entrust-persons',
+      label: '委托人员', value: 'SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B', userProvided: true, targetId: 'review-target-entrust-persons',
     }],
   },
   {
@@ -18,16 +17,16 @@ const history: GuidedReviewHistoryItem[] = [
     materials: [{
       id: 'SYNTHETIC-MATERIAL-1', label: '检材 1 · SYN-JC00000001', photoCount: 2, requiredPhotoCount: 2,
       userProvided: true, sourceLabel: '人工添加', targetId: 'review-target-evidence-0', fields: [{
-        label: '设备', value: 'SYNTHETIC PHONE',
-        targetId: 'review-target-evidence-0',
+        label: '设备', value: 'SYNTHETIC PHONE', targetId: 'review-target-evidence-0',
+      }, {
+        label: 'IMEI 1', value: 'SYNTHETIC-IMEI-1', userProvided: true, sourceLabel: '已修改', targetId: 'review-target-evidence-0',
       }],
     }],
   },
   {
     id: 'SYNTHETIC-HISTORY-3', tone: 'complete', title: '检查结果',
     fields: [{
-      label: '检查步骤 1', value: 'SYNTHETIC SYSTEM-GENERATED STEP',
-      targetId: 'review-target-process-step-0',
+      label: '检查步骤 1', value: 'SYNTHETIC SYSTEM-GENERATED STEP', targetId: 'review-target-process-step-0',
     }],
   },
 ]
@@ -44,10 +43,7 @@ const waitingAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-WAITING', kind: 'waiting', title: '请稍候，正在生成压缩分卷',
   description: '后台任务仍在运行，可继续处理其他待办。',
 }
-const completedPhotoField: GuidedReviewHistoryField = {
-  label: '检材照片', value: '已上传 2 张图片', userProvided: true,
-  targetId: 'review-target-material-photos',
-}
+const completedPhotoField: GuidedReviewHistoryField = { label: '检材照片', value: '已上传 2 张图片', userProvided: true, targetId: 'review-target-material-photos' }
 
 beforeEach(() => {
   window.localStorage.clear()
@@ -250,7 +246,9 @@ describe('GuidedReviewView', () => {
     const view = render(<GuidedReviewView
       conversationKey="SYNTHETIC-CASE"
       history={history}
-      previouslyHandledFields={[completedPhotoField]}
+      previouslyHandledFields={[{
+        label: '检材完整性', value: '已确认', userProvided: true, targetId: 'review-target-evidence-completeness',
+      }, completedPhotoField]}
       currentAction={documentAction}
       allActions={[documentAction, waitingAction]}
       hasResponse
@@ -277,7 +275,7 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
     expect(screen.getAllByText('用户填写')).toHaveLength(1)
     expect(screen.getByText('人工添加')).toBeTruthy()
-    expect(screen.queryByText('已修改')).toBeNull()
+    expect(screen.getByText('已修改')).toBeTruthy()
     expect(screen.getByText('检材 1 · SYN-JC00000001')).toBeTruthy()
     expect(screen.getByText('2/2').getAttribute('aria-label'))
       .toBe('检材 1 · SYN-JC00000001：已上传 2 张图片，共需 2 张')
@@ -320,8 +318,11 @@ describe('GuidedReviewView', () => {
     expect(within(pendingPanel).getByRole('heading', { name: '此前已处理' })).toBeTruthy()
     expect(within(pendingPanel).getByText('委托人员')).toBeTruthy()
     expect(within(pendingPanel).getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
-    expect(within(pendingPanel).getByText('检材 1 · SYN-JC00000001')).toBeTruthy()
-    expect(within(pendingPanel).getAllByText('已上传 2 张图片')).toHaveLength(2)
+    expect(within(pendingPanel).getByText('检材完整性')).toBeTruthy()
+    expect(within(pendingPanel).getByText('已确认')).toBeTruthy()
+    expect(within(pendingPanel).queryByText('检材 1 · SYN-JC00000001 · IMEI 1')).toBeNull()
+    expect(within(pendingPanel).queryByText('SYNTHETIC-IMEI-1')).toBeNull()
+    expect(within(pendingPanel).getAllByText('已上传 2 张图片')).toHaveLength(1)
     expect(within(pendingPanel).queryByText('检查步骤 1')).toBeNull()
     expect(within(pendingPanel).queryByText('SYNTHETIC SYSTEM-GENERATED STEP')).toBeNull()
     fireEvent.click(within(pendingPanel).getByRole('button', { name: '修改检材照片' }))
