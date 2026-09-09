@@ -229,7 +229,7 @@ export function CaseCard({
       return <Button type="primary" onClick={onRetry} loading={actionBusy}>重试解析</Button>
     }
     if (phase === 'archive_complete' && onExport) {
-      return <Button type="primary" onClick={onExport} loading={exporting || actionBusy}>统一导出</Button>
+      return <Button type="primary" onClick={onExport} loading={exporting || actionBusy}>完成导出</Button>
     }
     if (phase === 'exported') {
       if (exporting) {

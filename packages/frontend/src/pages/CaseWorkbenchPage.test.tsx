@@ -236,7 +236,7 @@ it('exports a completed archive bundle directly from the card', async () => {
     return { data: { data: {} } }
   })
   render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-  const exportButton = await screen.findByRole('button', { name: '统一导出' })
+  const exportButton = await screen.findByRole('button', { name: '完成导出' })
   expect(screen.queryByRole('button', { name: '查看结果' })).toBeNull()
   fireEvent.click(exportButton)
   const nameInput = (await screen.findByRole('textbox', { name: 'Word 下载文件名' })) as HTMLInputElement
@@ -310,9 +310,9 @@ it('keeps unified exports isolated so another case can start before the first fi
   })
 
   render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-  await screen.findAllByRole('button', { name: '统一导出' })
+  await screen.findAllByRole('button', { name: '完成导出' })
   const cards = document.querySelectorAll<HTMLElement>('.case-workbench-card')
-  fireEvent.click(within(cards[0]).getByRole('button', { name: '统一导出' }))
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '完成导出' }))
   const firstStartButton = await screen.findByRole('button', { name: '开始导出' })
   act(() => {
     firstStartButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -322,7 +322,7 @@ it('keeps unified exports isolated so another case can start before the first fi
   await waitFor(() => expect(postMock.mock.calls.filter(([url]) => String(url).includes('/export-bundle'))).toHaveLength(1))
 
   expect(screen.getAllByRole('button', { name: '更多操作' })[0].hasAttribute('disabled')).toBe(true)
-  fireEvent.click(within(cards[1]).getByRole('button', { name: '统一导出' }))
+  fireEvent.click(within(cards[1]).getByRole('button', { name: '完成导出' }))
   fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
   await waitFor(() => expect(postMock.mock.calls.filter(([url]) => String(url).includes('/export-bundle'))).toHaveLength(2))
 
@@ -408,10 +408,10 @@ it('opens each case own export directory after concurrent exports finish out of 
   })
 
   render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
-  await screen.findAllByRole('button', { name: '统一导出' })
+  await screen.findAllByRole('button', { name: '完成导出' })
   const cards = Array.from(document.querySelectorAll<HTMLElement>('.case-workbench-card'))
   for (const card of cards) {
-    fireEvent.click(within(card).getByRole('button', { name: '统一导出' }))
+    fireEvent.click(within(card).getByRole('button', { name: '完成导出' }))
     fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
   }
   await waitFor(() => expect(exportResolvers.size).toBe(2))

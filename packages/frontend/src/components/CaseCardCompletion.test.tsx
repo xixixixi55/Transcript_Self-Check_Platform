@@ -75,7 +75,7 @@ describe('CaseCard archive completion states', () => {
     expect(screen.queryByText(/阶段 8/)).toBeNull()
     expect(screen.queryByText('正在写入并验证 Manifest')).toBeNull()
     expect(screen.queryByText('归档中')).toBeNull()
-    expect(screen.queryByRole('button', { name: '统一导出' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '完成导出' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '归档案件' }))
     expect(onDelete).toHaveBeenCalledTimes(1)
     const openDirectoryButton = screen.getByRole('button', { name: '打开导出文件夹' })
@@ -92,7 +92,7 @@ describe('CaseCard archive completion states', () => {
   })
 
   it('maps each phase to its actual visible recommended CTA', () => {
-    const recommendedCtas = ['重试解析', '打开案件', '统一导出', '归档案件']
+    const recommendedCtas = ['重试解析', '打开案件', '完成导出', '归档案件']
     const assertRecommended = (name?: string) => {
       for (const cta of recommendedCtas) {
         if (cta === name) expect(screen.getByRole('button', { name: cta })).toBeTruthy()
@@ -130,7 +130,7 @@ describe('CaseCard archive completion states', () => {
   it.each([
     ['待处理', undefined, '打开案件'],
     ['待补盘号', 'disc_pending', '打开案件'],
-    ['待导出', 'archive_complete', '统一导出'],
+    ['待导出', 'archive_complete', '完成导出'],
   ] as const)('shows %s with its expected recommended CTA', (status, completionStatus, cta) => {
     const phaseShell = completionStatus ? shell : { ...shell, lifecycle: 'review_ready' as const }
     render(
@@ -143,7 +143,7 @@ describe('CaseCard archive completion states', () => {
     expect(screen.getByRole('button', { name: cta })).toBeTruthy()
     expect(screen.queryByText('打开案件补充盘号后即可统一导出')).toBeNull()
     expect(screen.queryByText('压缩已完成，可以统一导出')).toBeNull()
-    for (const other of ['重试解析', '打开案件', '统一导出', '归档案件'].filter(name => name !== cta)) {
+    for (const other of ['重试解析', '打开案件', '完成导出', '归档案件'].filter(name => name !== cta)) {
       expect(screen.queryByRole('button', { name: other })).toBeNull()
     }
   })
@@ -159,7 +159,7 @@ describe('CaseCard archive completion states', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('button', { name: '统一导出' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '完成导出' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '打开案件' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
@@ -169,7 +169,7 @@ describe('CaseCard archive completion states', () => {
 
     expect(screen.getByTestId('location').textContent)
       .toBe('/electronic-inspection/cases/case-SYNTHETIC-COMPLETION')
-    expect(screen.getByRole('button', { name: '统一导出' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '完成导出' })).toBeTruthy()
     expect(onExport).not.toHaveBeenCalled()
     expect(onDelete).not.toHaveBeenCalled()
   })
@@ -184,7 +184,7 @@ describe('CaseCard archive completion states', () => {
     expect(screen.getByText('处理中')).toBeTruthy()
     expect(screen.getByRole('button', { name: '打开案件' })).toBeTruthy()
     expect(screen.queryByText('压缩任务正在后台运行，可继续审核和编辑')).toBeNull()
-    expect(screen.queryByRole('button', { name: '统一导出' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '完成导出' })).toBeNull()
     expect(screen.queryByRole('button', { name: '归档案件' })).toBeNull()
   })
 
@@ -210,7 +210,7 @@ describe('CaseCard archive completion states', () => {
           onRetry={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} onExport={onExport} />
       </MemoryRouter>,
     )
-    fireEvent.click(screen.getByRole('button', { name: /统一导出/ }))
+    fireEvent.click(screen.getByRole('button', { name: /完成导出/ }))
     expect(onExport).not.toHaveBeenCalled()
   })
 

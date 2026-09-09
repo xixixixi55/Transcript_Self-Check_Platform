@@ -221,7 +221,7 @@ describe('CaseCard archive task summary — Phase 3 card scenarios', () => {
     expect(screen.queryByText('总体里程碑 100% · 3 个分卷')).toBeNull()
     expect(screen.queryByText(/阶段 9/)).toBeNull()
     expect(screen.queryByRole('progressbar')).toBeNull()
-    expect(screen.getByRole('button', { name: '统一导出' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '完成导出' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '查看结果' })).toBeNull()
   })
 
