@@ -255,6 +255,8 @@ def test_extract_device_fields_supports_confirmed_aliases_and_tables():
     assert extract_device_fields(info_content, "")["model"] == "Model-B"
     c1_c2 = {"rows": [{"c1": "序列号", "c2": "SN-C1C2"}]}
     assert extract_device_fields(c1_c2, "")["serial_number"] == "SN-C1C2"
+    phone_serial = {"rows": [{"c1": "手机序列号", "c2": "SYNTHETIC-PHONE-SN"}]}
+    assert extract_device_fields(phone_serial, "")["serial_number"] == "SYNTHETIC-PHONE-SN"
     tt_ct = {"rows": [{"tt": "设备型号", "ct": "Model-TT"}]}
     assert extract_device_fields(tt_ct, "")["model"] == ""
     assert extract_device_fields(tt_ct, "", allow_tt_ct=True)["model"] == "Model-TT"
@@ -412,6 +414,18 @@ def test_device_candidate_uses_highest_score_and_requires_identity():
     assert not any(select_best_device_candidate([_candidate_rows("c1c2", {
         "IMEI1": "123456789012345", "IMEI2": "543210987654321", "\u8bbe\u5907\u578b\u53f7": "",
     })], allow_tt_ct=False).values())
+
+
+def test_device_candidate_accepts_scoped_phone_serial_alias():
+    payload = {
+        "设备名称": "SYNTHETIC PHONE",
+        "设备型号": "SYNTHETIC MODEL",
+        "手机序列号": "SYNTHETIC-PHONE-SN",
+    }
+
+    selected = select_best_device_candidate([payload], allow_tt_ct=False)
+
+    assert selected["serial_number"] == "SYNTHETIC-PHONE-SN"
 
 
 def test_same_score_candidates_with_conflict_are_blank_and_same_values_are_stable():

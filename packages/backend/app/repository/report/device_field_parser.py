@@ -70,7 +70,10 @@ def extract_device_fields(
             result["imei1"] = result["imei1"] or normalise_imei(value_text)
         elif key in {"imei2", "imei-2"}:
             result["imei2"] = result["imei2"] or normalise_imei(value_text)
-        elif key in {"序列号", "serial", "serialnumber", "sn"}:
+        elif key in {
+            "序列号", "手机序列号", "设备序列号", "终端序列号",
+            "serial", "serialnumber", "sn",
+        }:
             result["serial_number"] = result["serial_number"] or value_text
 
     for key, value in _iter_key_values(payload):
@@ -82,7 +85,7 @@ def extract_device_fields(
         for field, aliases in {
             "imei1": r"IMEI(?!\s*[/／]\s*MEID)(?:\s*[-:：]?\s*1)?(?!\s*[-:：]?\s*2)",
             "imei2": r"IMEI\s*[-:：]?\s*2",
-            "serial_number": r"序列号|serial[_ ]?number|serial|sn",
+            "serial_number": r"(?:手机|设备|终端)?序列号|serial[_ ]?number|serial|sn",
             "device_name": r"设备名称|检材名称|手机名称|device[_ ]?name|phone[_ ]?name",
             "brand": r"手机品牌|设备品牌|品牌(?:名称)?|制造商|厂商|生产厂商|manufacturer|phone[_ ]?brand|device[_ ]?brand",
             "model": r"设备型号|产品型号|手机型号|设备机型|手机机型|硬件型号|机型|型号|model",

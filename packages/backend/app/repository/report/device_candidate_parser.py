@@ -89,7 +89,8 @@ def _is_device_label(label: Any) -> bool:
         "model", "devicemodel", "productmodel", "phonemodel", "modelname", "hardwaremodel",
         "手机品牌", "设备品牌", "品牌", "品牌名称", "制造商", "厂商", "brand",
         "phonebrand", "devicebrand", "manufacturer",
-        "imei", "imei1", "imei2", "序列号", "serial", "serialnumber", "sn",
+        "imei", "imei1", "imei2", "序列号", "手机序列号", "设备序列号",
+        "终端序列号", "serial", "serialnumber", "sn",
     }
 
 
