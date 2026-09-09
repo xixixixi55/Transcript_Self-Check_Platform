@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 _COOKIE_NAME = "wenshu_desktop_session"
+_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 _RESERVED_PREFIXES = ("api/", "desktop/", "health")
 
 
@@ -84,7 +85,8 @@ fetch('/desktop/bootstrap/session', {
         bootstrap_available = False
         response = JSONResponse({"status": "ok"})
         response.set_cookie(
-            _COOKIE_NAME, secret, httponly=True, samesite="strict", path="/",
+            _COOKIE_NAME, secret, max_age=_COOKIE_MAX_AGE_SECONDS,
+            httponly=True, samesite="strict", path="/",
         )
         response.headers["Cache-Control"] = "no-store"
         return response

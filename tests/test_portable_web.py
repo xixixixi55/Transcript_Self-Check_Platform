@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from http.cookies import SimpleCookie
 import os
 import sys
 from pathlib import Path
@@ -13,9 +14,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.main import create_app  # noqa: E402
 
 SECRET = "SYNTHETIC-DESKTOP-SECRET-0123456789ABCDEF"
+RESTARTED_SECRET = "SYNTHETIC-RESTARTED-SECRET-0123456789AB"
 
 
-def portable_app(tmp_path: Path):
+def portable_app(tmp_path: Path, secret: str = SECRET):
     web = tmp_path / "web"
     (web / "assets").mkdir(parents=True)
     (web / "index.html").write_text("<html>SYNTHETIC/INDEX</html>", encoding="utf-8")
@@ -23,7 +25,7 @@ def portable_app(tmp_path: Path):
     app = create_app(
         enable_archive_runtime=False,
         portable_web_root=web,
-        desktop_secret=SECRET,
+        desktop_secret=secret,
     )
 
     return app
@@ -54,9 +56,24 @@ def test_portable_api_requires_one_use_desktop_bootstrap(tmp_path: Path) -> None
     assert accepted.status_code == 200
     assert "HttpOnly" in accepted.headers["set-cookie"]
     assert "SameSite=strict" in accepted.headers["set-cookie"]
+    desktop_cookie = SimpleCookie()
+    desktop_cookie.load(accepted.headers["set-cookie"])
+    assert int(desktop_cookie["wenshu_desktop_session"]["max-age"]) > 0
     assert client.get("/api/v1/SYNTHETIC-not-found").status_code == 404
     replay = client.post("/desktop/bootstrap/session", json={"token": SECRET})
     assert replay.status_code == 401
+
+
+def test_persisted_desktop_cookie_expires_logically_with_backend_launch(tmp_path: Path) -> None:
+    client = TestClient(portable_app(tmp_path))
+    accepted = client.post("/desktop/bootstrap/session", json={"token": SECRET})
+    assert accepted.status_code == 200
+
+    restarted_client = TestClient(portable_app(tmp_path / "restarted", RESTARTED_SECRET))
+    restarted_client.cookies.set("wenshu_desktop_session", SECRET)
+    denied = restarted_client.get("/api/v1/SYNTHETIC-not-found")
+    assert denied.status_code == 401
+    assert denied.json()["detail"]["code"] == "DESKTOP_SESSION_REQUIRED"
 
 
 def test_portable_responses_set_security_headers(tmp_path: Path) -> None:

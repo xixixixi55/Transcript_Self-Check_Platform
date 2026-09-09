@@ -101,3 +101,12 @@ workflow_level: 3
 - 验证记录：verify:quick 与 scoped strict docs（14 checks / 0 drift）通过；包内 backend.exe 使用 SYNTHETIC 独立临时数据目录在40000返回网页及健康状态，运行期间再次申请端口被明确拒绝，测试进程已清理。
 - 构建记录：首次发布校验拒绝 web/tsconfig.tsbuildinfo 构建缓存；移除该缓存后重新生成启动器内嵌完整性表、构建启动器并重新执行发布白名单与 ZIP 校验，未放宽发布资产规则。
 - manual_acceptance: N/A；端口、握手与真实冻结后端通过自动化冒烟验证，未操作真实案件数据。
+
+## 14. 部署反馈：浏览器整体关闭后桌面会话丢失
+
+- [x] 14.1 记录部署失败：关闭整个浏览器会清除会话 Cookie；启动器与后端仍运行时重新打开应用，工作台 API 因缺少桌面会话返回未授权。
+- [x] 14.2 将桌面会话 Cookie 改为浏览器进程重启后仍可保留；Cookie 继续使用 HttpOnly、SameSite=strict，并继续由当前后端启动随机秘密校验，后端重启后旧 Cookie 自动失效。
+- [x] 14.3 运行便携 Web 与启动器定向测试、`verify:quick`、scoped strict docs 和 `git diff --check`，并重新构建便携 ZIP。
+- [ ] 14.4 在不影响其他浏览器会话的部署环境按原复现步骤执行真实 EXE 验收。 [DEFERRED]
+
+验证记录：便携 Web 与启动器定向 Pytest 24 项通过，`verify:quick` 通过；重新生成 `文枢-v0.3.0-portable-x64.zip`，SHA-256 为 `e0066282a6ae6b6ce56372749263d9e7994112123636ad60afcb62dab0fa0182`。当前 Chrome 存在用户页面，未强制关闭整个浏览器；真实 EXE 整浏览器重启验收保持延期。
