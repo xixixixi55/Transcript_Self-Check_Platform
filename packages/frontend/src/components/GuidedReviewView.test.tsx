@@ -60,6 +60,14 @@ const readyAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-READY', kind: 'ready', title: '当前审核已完成',
   description: 'SYNTHETIC/TEST：请保存并退出；返回案件工作台后可统一导出。',
 }
+const deferredAction: GuidedReviewAction = {
+  id: 'archive-deferred', kind: 'archive_deferred', title: '草稿已保存',
+  description: '压缩已设为稍后处理。当前没有待填写事项，稍后可从案件工作台继续。',
+}
+const archiveDecisionAction: GuidedReviewAction = {
+  id: 'archive-decision', kind: 'archive_decision', title: '请选择压缩时机',
+  description: '可以现在开始压缩，也可以继续稍后处理。',
+}
 const evidenceCompletenessAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-EVIDENCE-COMPLETENESS', kind: 'pending_item', title: '请确认检材完整性',
   description: '请确认检材是否完整。',
@@ -390,6 +398,46 @@ describe('GuidedReviewView', () => {
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={readyAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
     expect(view.container.querySelector('[data-mood="complete"]')).toBeTruthy()
+  })
+
+  it('presents deferred archiving as a terminal outcome with explicit prioritized actions', () => {
+    const backToWorkbench = vi.fn()
+    const startArchiveNow = vi.fn()
+    const returnToPreviousAction = vi.fn()
+    render(<GuidedReviewView
+      conversationKey="SYNTHETIC-DEFERRED-CASE"
+      history={history}
+      currentAction={deferredAction}
+      allActions={[deferredAction, archiveDecisionAction]}
+      hasResponse={false}
+      onSelectAction={vi.fn()}
+      canReturnToPrevious
+      onReturnToPreviousAction={returnToPreviousAction}
+      onStartArchiveNow={startArchiveNow}
+      onOpenFullEditor={vi.fn()}
+      onBackToWorkbench={backToWorkbench}
+    ><GuidedReviewCard action={deferredAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+
+    const terminalActions = screen.getByRole('group', { name: '稍后处理完成后的操作' })
+    const backButton = within(terminalActions).getByRole('button', { name: '返回案件工作台' })
+    const archiveButton = within(terminalActions).getByRole('button', { name: '现在压缩' })
+    const reviseButton = within(terminalActions).getByRole('button', { name: '返回上一步修改' })
+    expect(backButton.classList.contains('ant-btn-primary')).toBe(true)
+    expect(backButton.compareDocumentPosition(archiveButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(archiveButton.compareDocumentPosition(reviseButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '返回上一步' })).toBeNull()
+    const pendingTrigger = screen.getByRole('button', { name: '查看已填内容与待办（0 项待处理）' })
+    fireEvent.click(pendingTrigger)
+    const pendingPanel = screen.getByRole('region', { name: '已填内容与待办' })
+    expect(within(pendingPanel).getByRole('button', { name: /草稿已保存.*已稍后处理/ })).toBeTruthy()
+    expect(within(pendingPanel).getByRole('button', { name: /请选择压缩时机.*可选/ })).toBeTruthy()
+
+    fireEvent.click(backButton)
+    fireEvent.click(archiveButton)
+    fireEvent.click(reviseButton)
+    expect(backToWorkbench).toHaveBeenCalledTimes(1)
+    expect(startArchiveNow).toHaveBeenCalledTimes(1)
+    expect(returnToPreviousAction).toHaveBeenCalledTimes(1)
   })
 
   it('moves a completed action out of the conversation and into the edit center', async () => {

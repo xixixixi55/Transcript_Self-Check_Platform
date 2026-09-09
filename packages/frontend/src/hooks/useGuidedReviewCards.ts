@@ -6,6 +6,13 @@ import type {
 import type { ReviewPendingItem } from './useReviewChecklist'
 import { CASE_SUMMARY_CONFIRMATION_FIELD_PATH, REVIEW_SECTION_IDS, REVIEW_TARGET_IDS } from './useReviewChecklist'
 import {
+  guidedReviewNavigationStepReference,
+  restoreGuidedReviewNavigation,
+  writeGuidedReviewNavigationCheckpoint,
+  type GuidedReviewNavigationState,
+  type GuidedReviewNavigationStepReference,
+} from './useGuidedReviewNavigationPersistence'
+import {
   buildReportHistory,
   type GuidedReviewHistoryField,
   type GuidedReviewHistoryItem,
@@ -267,6 +274,33 @@ function handledHistoryAction(field: GuidedReviewHistoryField): GuidedReviewActi
   } : action
 }
 
+function actionForStoredReference(reference: GuidedReviewNavigationStepReference,
+  projection: GuidedReviewProjection,
+): GuidedReviewAction | null {
+  const projectedAction = projection.allActions.find(action => (
+    action.id === reference.actionId
+    || (reference.targetId && action.pendingItem?.targetId === reference.targetId)
+  ))
+  if (isSessionNavigationAction(projectedAction || null)) return projectedAction || null
+  if (!reference.targetId) return null
+  const handledField = [...projection.previouslyHandledFields,
+    ...projection.history.flatMap(item => item.fields || [])]
+    .find(field => field.userProvided && canRevisitGuidedHistoryField(field)
+      && field.targetId === reference.targetId)
+  return handledField ? handledHistoryAction(handledField) : null
+}
+
+function persistedNavigation(caseId: string, projection: GuidedReviewProjection,
+): GuidedReviewNavigationState<GuidedReviewAction> {
+  const projectedFirstAction = projection.allActions[0] || null
+  const firstAction = isSessionNavigationAction(projectedFirstAction) ? projectedFirstAction : null
+  return restoreGuidedReviewNavigation(
+    caseId,
+    firstAction,
+    reference => actionForStoredReference(reference, projection),
+  )
+}
+
 const CASE_SUMMARY_REVIEW_ITEM: ReviewPendingItem = {
   id: 'review-section-introduction-案件简要情况',
   sectionId: 'review-section-introduction',
@@ -345,8 +379,8 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   allActions.push(...prioritizedPendingItems.map(pendingAction))
   if (canChooseArchiveTiming && input.lifecycle === 'archive_deferred') {
     if (allActions.length === 0) allActions.push({
-      id: 'archive-deferred', kind: 'archive_deferred', title: '草稿已保存并稍后处理',
-      description: '当前没有需要立即填写的事项，可安全返回案件列表；如需压缩，可从全部事项中重新打开压缩时机。',
+      id: 'archive-deferred', kind: 'archive_deferred', title: '草稿已保存',
+      description: '压缩已设为稍后处理。当前没有待填写事项，稍后可从案件工作台继续。',
     })
     allActions.push(archiveDecisionAction)
   }
@@ -366,29 +400,40 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
 
 export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const projection = deriveGuidedReviewProjection(input)
-  const [selectedActionId, setSelectedActionId] = useState(projection.allActions[0]?.id || '')
+  const [initialNavigation] = useState<GuidedReviewNavigationState<GuidedReviewAction>>(() => (
+    input.report ? persistedNavigation(input.caseId, projection) : {
+      caseId: input.caseId, entries: [], index: 0,
+    }
+  ))
+  const initialCurrentAction = initialNavigation.entries[initialNavigation.index]
+    || projection.allActions[0] || null
+  const [selectedActionId, setSelectedActionId] = useState(initialCurrentAction?.id || '')
   const retainedAction = useRef({
     caseId: input.caseId,
-    action: projection.allActions[0] || null as GuidedReviewAction | null,
+    action: initialCurrentAction as GuidedReviewAction | null,
   })
-  const previousCaseId = useRef(input.caseId)
   const previousLifecycle = useRef(input.lifecycle)
   const projectedSelectedAction = projection.allActions.find(action => action.id === selectedActionId)
+  const leaseRecoveryAction = projection.allActions.find(action => action.kind === 'lease_recovery')
   const retainedForCase = retainedAction.current.caseId === input.caseId
     ? retainedAction.current.action : null
-  const baseCurrentAction = !projectedSelectedAction
+  const selectedOrFallbackAction = !projectedSelectedAction
     && retainedForCase?.id === selectedActionId
     && (retainedForCase.advanceOnEnter || retainedForCase.requiresExplicitAdvance)
     && retainedForCase.pendingItem?.kind !== 'confirmation_required'
     ? retainedForCase
     : projectedSelectedAction || projection.allActions[0] || null
-  const initialNavigationAction = isSessionNavigationAction(baseCurrentAction) ? baseCurrentAction : null
-  const [navigation, setNavigation] = useState(() => ({
-    caseId: input.caseId,
-    entries: initialNavigationAction ? [initialNavigationAction] : [] as GuidedReviewAction[],
-    index: 0,
-  }))
-  const [revisitedActionId, setRevisitedActionId] = useState<string | null>(null)
+  const baseCurrentAction = leaseRecoveryAction || selectedOrFallbackAction
+  const [navigation, setNavigation] = useState<GuidedReviewNavigationState<GuidedReviewAction>>(initialNavigation)
+  const [revisitedActionId, setRevisitedActionId] = useState<string | null>(() => (
+    initialCurrentAction && !projection.allActions.some(action => action.id === initialCurrentAction.id)
+      ? initialCurrentAction.id : null
+  ))
+  const hydratedCaseIdRef = useRef<string | null>(input.report ? input.caseId : null)
+  const skipNavigationAppendRef = useRef<string | null>(input.report ? input.caseId : null)
+  const skipSelectedFallbackRef = useRef<string | null>(null)
+  const skipCheckpointWriteRef = useRef<string | null>(null)
+  const terminalSaveTransitionRef = useRef(false)
   const navigationAction = navigation.entries[navigation.index] || null
   const revisitedNavigationAction = navigationAction?.id === revisitedActionId
     ? navigationAction : null
@@ -399,17 +444,49 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   )
   const currentAction = revisitedNavigationAction
     || (currentIsTransientAction ? baseCurrentAction : navigationAction || baseCurrentAction)
+  const waitingForTerminalSave = navigationAction?.pendingItem?.kind === 'confirmation_required'
+    && projection.allActions[0]?.kind === 'archive_decision'
+  const shouldHoldTerminalTransition = () => {
+    if (!waitingForTerminalSave) return false
+    if (input.saveState === 'saving') terminalSaveTransitionRef.current = true
+    return !terminalSaveTransitionRef.current || input.saveHasPending
+      || ['saving', 'failed', 'conflict'].includes(input.saveState)
+  }
+
+  useEffect(() => {
+    if (!input.report || hydratedCaseIdRef.current === input.caseId) return
+    const restored = persistedNavigation(input.caseId, projection)
+    const restoredCurrent = restored.entries[restored.index] || projection.allActions[0] || null
+    hydratedCaseIdRef.current = input.caseId
+    skipNavigationAppendRef.current = input.caseId
+    skipSelectedFallbackRef.current = input.caseId
+    skipCheckpointWriteRef.current = input.caseId
+    retainedAction.current = { caseId: input.caseId, action: restoredCurrent }
+    setNavigation(restored)
+    setSelectedActionId(restoredCurrent?.id || '')
+    setRevisitedActionId(restoredCurrent
+      && !projection.allActions.some(action => action.id === restoredCurrent.id)
+      ? restoredCurrent.id : null)
+  }, [input.caseId, input.report, projection])
+
   useEffect(() => {
     retainedAction.current = { caseId: input.caseId, action: baseCurrentAction }
   }, [baseCurrentAction, input.caseId])
 
   useEffect(() => {
-    const fallbackActionId = projection.allActions[0]?.id
+    if (skipSelectedFallbackRef.current === input.caseId) {
+      skipSelectedFallbackRef.current = null
+      return
+    }
+    const fallbackAction = projection.allActions[0]
+    if (shouldHoldTerminalTransition()) return
+    const fallbackActionId = fallbackAction?.id
     if (!projectedSelectedAction && baseCurrentAction?.id === fallbackActionId
       && selectedActionId !== fallbackActionId) {
       setSelectedActionId(fallbackActionId || '')
     }
-  }, [baseCurrentAction?.id, projectedSelectedAction, projection.allActions, selectedActionId])
+  }, [baseCurrentAction?.id, input.caseId, input.saveHasPending, input.saveState,
+    projectedSelectedAction, projection.allActions, selectedActionId, waitingForTerminalSave])
 
   useEffect(() => {
     const enteredDeferred = previousLifecycle.current !== 'archive_deferred'
@@ -422,13 +499,16 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   }, [input.lifecycle, projection.allActions, selectedActionId])
 
   useEffect(() => {
+    if (!input.report || hydratedCaseIdRef.current !== input.caseId) return
+    if (skipNavigationAppendRef.current === input.caseId) {
+      skipNavigationAppendRef.current = null
+      return
+    }
+    if (shouldHoldTerminalTransition()) return
+    if (waitingForTerminalSave) terminalSaveTransitionRef.current = false
     setNavigation(previous => {
       const nextNavigationAction = isSessionNavigationAction(baseCurrentAction) ? baseCurrentAction : null
-      if (previous.caseId !== input.caseId) return {
-        caseId: input.caseId,
-        entries: nextNavigationAction ? [nextNavigationAction] : [],
-        index: 0,
-      }
+      if (previous.caseId !== input.caseId) return previous
       if (!nextNavigationAction) return previous
       const latestIndex = previous.entries.length - 1
       if (previous.entries[latestIndex]?.id === nextNavigationAction.id) return previous
@@ -439,15 +519,22 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
         index: previous.index === latestIndex ? entries.length - 1 : previous.index,
       }
     })
-  }, [baseCurrentAction, input.caseId])
+  }, [baseCurrentAction, input.caseId, input.report, input.saveHasPending, input.saveState,
+    waitingForTerminalSave])
 
   useEffect(() => {
-    if (previousCaseId.current !== input.caseId) {
-      previousCaseId.current = input.caseId
-      setRevisitedActionId(null)
-      setSelectedActionId(projection.allActions[0]?.id || '')
+    if (!input.report || hydratedCaseIdRef.current !== input.caseId
+      || navigation.caseId !== input.caseId) return
+    if (skipCheckpointWriteRef.current === input.caseId) {
+      skipCheckpointWriteRef.current = null
+      return
     }
-  }, [input.caseId, projection.allActions])
+    writeGuidedReviewNavigationCheckpoint(
+      input.caseId,
+      navigation.entries.map(guidedReviewNavigationStepReference),
+      navigation.index,
+    )
+  }, [input.caseId, input.report, navigation])
 
   const allActions = useMemo(() => {
     const projectedActions = baseCurrentAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.photos

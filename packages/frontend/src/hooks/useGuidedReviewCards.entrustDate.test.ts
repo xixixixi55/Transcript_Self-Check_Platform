@@ -1,8 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { REVIEW_TARGET_IDS } from './useReviewChecklist'
 import { useGuidedReviewCards } from './useGuidedReviewCards'
 import { buildInput, syntheticReport, withMediumNumber } from './useGuidedReviewCards.testFixtures'
+
+beforeEach(() => window.localStorage.clear())
 
 describe('guided entrust date confirmation', () => {
   it('keeps entrust date edits on the current step until explicit confirmation', () => {

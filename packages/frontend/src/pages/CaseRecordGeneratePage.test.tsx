@@ -25,7 +25,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let events: string[] = []
   let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
   let leaseFailure = false, leaseConflict = false
-  let showCompletedArchive = false, showGuidedReady = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false
+  let showCompletedArchive = false, showGuidedReady = false, showDeferredTerminal = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false
   let caseSummaryConfirmationSaved = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
@@ -36,15 +36,16 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   })
   beforeEach(() => {
+    window.localStorage.clear()
     fullEditorAccess.open = null
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) {
         const read = detailReads++
-        const value = useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive || showGuidedReady ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002')
-        if (showGuidedReady && value.draft) {
+        const value = useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive || showGuidedReady ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : showDeferredTerminal ? detail(5, 5, 'archive_deferred') : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002')
+        if ((showGuidedReady || showDeferredTerminal) && value.draft) {
           value.draft.field_states = { 'introduction.evidence_list.completeness': {
             field_path: 'introduction.evidence_list.completeness', source: 'user', confirmation: 'confirmed',
             revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
@@ -622,6 +623,19 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /保存并退出/ }))
     expect(await screen.findByText('工作台路由')).toBeTruthy()
+  }, 15000)
+
+  it('starts immediate compression directly from the deferred terminal outcome', async () => {
+    showDeferredTerminal = true
+    showHandledCaseSummary = true
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: '草稿已保存' })).toBeTruthy()
+    expect(screen.getByText(/压缩已设为稍后处理/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '现在压缩' }))
+
+    await waitFor(() => expect(decisionBodies).toHaveLength(1))
+    expect(decisionBodies[0]).toEqual(expect.objectContaining({ decision: 'immediate' }))
   }, 15000)
 
   it('retains the full editor Word export after removing the guided assistant action', async () => {

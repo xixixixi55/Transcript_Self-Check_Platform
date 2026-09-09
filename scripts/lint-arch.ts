@@ -39,9 +39,17 @@ const PRINCIPLE_MAX_LINES = 800
  * 模块只做行数搬运。
  */
 const FILE_SIZE_JUSTIFICATIONS: Record<string, { maxLines: number; reason: string }> = {
+  'packages/frontend/src/hooks/useGuidedReviewCards.ts': {
+    maxLines: 640,
+    reason: 'Guided action projection and navigation must share one action identity model; browser checkpoint encoding is already isolated, and further splitting would create a pass-through hook solely for line count.',
+  },
+  'packages/frontend/src/components/GuidedReviewView.test.tsx': {
+    maxLines: 660,
+    reason: 'Guided conversation, terminal outcome, navigation, and accessibility scenarios share one synthetic history/action fixture; splitting the single terminal regression would duplicate the component harness without creating an independent behavior boundary.',
+  },
   'packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx': {
-    maxLines: 650,
-    reason: 'The page-level coordination scenarios share one router, lease, async API, and revision-race harness; splitting now would duplicate stateful fixtures, so retain the cohesive suite under a narrow growth cap.',
+    maxLines: 680,
+    reason: 'The page-level coordination scenarios, including the deferred terminal action, share one router, lease, async API, and revision-race harness; splitting now would duplicate stateful fixtures, so retain the cohesive suite under a narrow growth cap.',
   },
   'packages/backend/app/services/template/template_filler_service.py': {
     maxLines: 1100,

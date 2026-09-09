@@ -34,6 +34,8 @@ interface Props {
   canReturnToNext?: boolean
   onReturnToPreviousAction?: () => void
   onReturnToNextAction?: () => void
+  onStartArchiveNow?: () => void
+  startArchiveNowBusy?: boolean
   onOpenFullEditor: (targetId?: string, focusInteractive?: boolean) => void
   onBackToWorkbench: () => void
   children: React.ReactNode
@@ -101,11 +103,12 @@ function assistantStatus(currentAction: GuidedReviewAction | null, allActions: G
     : { label: '正在整理', tone: 'system' }
 }
 
-function actionStatus(action: GuidedReviewAction, isCurrent: boolean): ActionStatus {
-  if (isCurrent) return { label: '当前', tone: 'current' }
+function actionStatus(action: GuidedReviewAction, isCurrent: boolean, deferredCompletionActive: boolean): ActionStatus {
   if (action.kind === 'waiting') return { label: '后台中', tone: 'system' }
   if (action.kind === 'ready') return { label: '可生成', tone: 'success' }
   if (action.kind === 'archive_deferred') return { label: '已稍后处理', tone: 'success' }
+  if (action.kind === 'archive_decision' && deferredCompletionActive) return { label: '可选', tone: 'system' }
+  if (isCurrent) return { label: '当前', tone: 'current' }
   if (RECOVERY_ACTIONS.has(action.kind)) return { label: '需恢复', tone: 'warning' }
   if (action.kind === 'archive_decision') return { label: '待选择', tone: 'warning' }
   return { label: '待处理', tone: 'pending' }
@@ -168,7 +171,9 @@ export function GuidedReviewView({
   evidenceReadOnly, evidenceSaveState, evidenceSaveHasPending,
   onConfirmCurrentAction, confirmCurrentActionDisabled = false,
   canReturnToPrevious = false, canReturnToNext = false,
-  onReturnToPreviousAction, onReturnToNextAction, onBackToWorkbench, children,
+  onReturnToPreviousAction, onReturnToNextAction,
+  onStartArchiveNow, startArchiveNowBusy = false,
+  onBackToWorkbench, children,
 }: Props) {
   const [openPanel, setOpenPanel] = useState<'pending' | null>(null)
   const [avatarUnavailable, setAvatarUnavailable] = useState(false)
@@ -270,9 +275,13 @@ export function GuidedReviewView({
   }, [openPanel])
 
   const responseLabel = currentAction?.kind === 'pending_item' ? '你的回复' : '请选择操作'
+  const isDeferredTerminal = currentAction?.kind === 'archive_deferred'
   const assistantState = assistantStatus(currentAction, allActions)
   const currentMascotMood = mascotMood(currentAction, completionMoodActive)
-  const pendingActionCount = allActions.filter(action => !['waiting', 'ready', 'archive_deferred'].includes(action.kind)).length
+  const pendingActionCount = allActions.filter(action => (
+    !['waiting', 'ready', 'archive_deferred'].includes(action.kind)
+    && !(isDeferredTerminal && action.kind === 'archive_decision')
+  )).length
   const revisitableCompletedTurns = completedTurns.filter(turn => (
     !allActions.some(action => action.id === turn.action.id)
   ))
@@ -364,9 +373,27 @@ export function GuidedReviewView({
                     <h3>{currentAction?.title || '请稍候，正在整理下一步'}</h3>
                     <p className="guided-review-card__description">{currentAction?.description || '当前没有需要立即处理的事项。'}</p>
                   </div>
+                  {isDeferredTerminal && (
+                    <div className="guided-review-card__terminal-actions" role="group"
+                      aria-label="稍后处理完成后的操作">
+                      <Button type="primary" size="large" icon={<HomeOutlined />}
+                        aria-label="返回案件工作台"
+                        onClick={onBackToWorkbench}>返回案件工作台</Button>
+                      {onStartArchiveNow && (
+                        <Button size="large" loading={startArchiveNowBusy} disabled={startArchiveNowBusy}
+                          onClick={onStartArchiveNow}>现在压缩</Button>
+                      )}
+                      {canReturnToPrevious && (
+                        <Button type="text" size="large" icon={<ArrowLeftOutlined />}
+                          className="guided-review-card__terminal-revise"
+                          aria-label="返回上一步修改"
+                          onClick={onReturnToPreviousAction}>返回上一步修改</Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-              {!hasResponse && (previousStepButton || nextStepButton) && (
+              {!isDeferredTerminal && !hasResponse && (previousStepButton || nextStepButton) && (
                 <div className="guided-review-step-navigation guided-review-step-navigation--standalone"
                   aria-label="步骤导航">
                   <span>{previousStepButton}</span>
@@ -418,10 +445,12 @@ export function GuidedReviewView({
                   onClick={togglePendingPanel} />
               </Badge>
             </Tooltip>
-            <Tooltip title="返回案件工作台">
-              <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
-                icon={<HomeOutlined />} aria-label="返回案件工作台" onClick={onBackToWorkbench} />
-            </Tooltip>
+            {!isDeferredTerminal && (
+              <Tooltip title="返回案件工作台">
+                <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
+                  icon={<HomeOutlined />} aria-label="返回案件工作台" onClick={onBackToWorkbench} />
+              </Tooltip>
+            )}
           </div>
           {openPanel === 'pending' && (
             <div ref={openPanelRef} id="guided-review-pending-panel" className="guided-review-popover-panel"
@@ -430,7 +459,7 @@ export function GuidedReviewView({
                 <h3 id="guided-review-pending-heading">待处理与状态</h3>
                 {allActions.length ? allActions.map(action => {
                   const isCurrent = action.id === currentAction?.id
-                  const status = actionStatus(action, isCurrent)
+                  const status = actionStatus(action, isCurrent, isDeferredTerminal)
                   return (
                     <Button type="text" block key={action.id}
                       aria-current={isCurrent ? 'true' : undefined}

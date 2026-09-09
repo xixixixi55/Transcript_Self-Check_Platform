@@ -1,8 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { REVIEW_TARGET_IDS } from './useReviewChecklist'
 import { useGuidedReviewCards, type GuidedReviewProjectionInput } from './useGuidedReviewCards'
 import { buildInput, syntheticReport, withMediumNumber } from './useGuidedReviewCards.testFixtures'
+
+beforeEach(() => window.localStorage.clear())
 
 describe('guided photo review navigation', () => {
   it('keeps the photo action current after a complete batch import until the user advances', () => {
@@ -126,6 +128,10 @@ describe('guided photo review navigation', () => {
 
     act(() => result.current.confirmCurrentAction())
     expect(result.current.currentAction?.kind).toBe('archive_deferred')
+    expect(result.current.currentAction?.title).toBe('草稿已保存')
+    expect(result.current.currentAction?.description).toContain('压缩已设为稍后处理')
+    expect(result.current.currentAction?.description).toContain('案件工作台')
+    expect(result.current.currentAction?.description).not.toContain('案件列表')
     expect(result.current.canReturnToPrevious).toBe(true)
     expect(result.current.canReturnToNext).toBe(false)
 

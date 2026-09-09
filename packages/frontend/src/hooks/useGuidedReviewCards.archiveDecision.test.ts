@@ -1,8 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { REVIEW_TARGET_IDS } from './useReviewChecklist'
 import { deriveGuidedReviewProjection, useGuidedReviewCards } from './useGuidedReviewCards'
 import { buildInput, syntheticReport, withMediumNumber } from './useGuidedReviewCards.testFixtures'
+
+beforeEach(() => window.localStorage.clear())
 
 const discNumberItem = {
   id: 'SYNTHETIC-MEDIUM',
@@ -44,6 +46,7 @@ describe('guided review deferred archive navigation', () => {
     expect(projection.allActions.map(action => action.kind)).toEqual([
       'archive_deferred', 'archive_decision',
     ])
-    expect(projection.allActions[0]?.title).toBe('草稿已保存并稍后处理')
+    expect(projection.allActions[0]?.title).toBe('草稿已保存')
+    expect(projection.allActions[0]?.description).toContain('压缩已设为稍后处理')
   })
 })

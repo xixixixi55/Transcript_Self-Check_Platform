@@ -1,11 +1,12 @@
 import { act, renderHook } from '@testing-library/react'
 import type { FieldState } from '@biji/shared/types'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { REVIEW_TARGET_IDS } from './useReviewChecklist'
 import type { GuidedReviewProjectionInput } from './useGuidedReviewCards'
 import { deriveGuidedReviewProjection, useGuidedReviewCards } from './useGuidedReviewCards'
 import { archiveTask, buildInput, syntheticReport, withMediumNumber } from './useGuidedReviewCards.testFixtures'
 
+beforeEach(() => window.localStorage.clear())
 describe('guided review projection', () => {
   it('classifies existing facts without re-asking complete defaults or system-produced archive fields', () => {
     const report = {

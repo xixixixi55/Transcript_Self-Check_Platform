@@ -837,3 +837,29 @@ workflow_level: 2
 - `handled_evidence_aggregation_contract: PASS`：旧实现上的 SYNTHETIC 组件回归稳定复现“检材 1 · 编号 · IMEI 1”进入“此前已处理”；修复后该面板只显示“检材完整性”和独立“检材照片”，Word 内容预览仍展示已修改的 IMEI 字段及来源标识。
 - `handled_evidence_aggregation_tests: PASS`：受影响的引导视图、状态导航、图片步骤和图片资产 4 files / 53 tests 通过；全项目 TypeScript、架构检查与 `verify:quick` 通过。
 - `handled_evidence_aggregation_manual_acceptance: N/A`：两个展示范围、可回访入口和详情排除均由 SYNTHETIC DOM 回归可靠区分，未读取或操作真实案件数据。
+
+## 2026-09-09 獬豸助手步骤状态持久化（workflow_level: 2）
+
+- [x] 6.115 将用户反馈关联到本包：退出后继续当前步骤、恢复连续前进/后退与本包的獬豸助手、步骤访问轨迹和同一引导 Hook 属于同一用户结果与核心调用链；本包已完成但尚未归档，按归档前反馈重开，不新建 change。`case-record-retention-and-formal-artifact-protection` 仍负责案件正文与自动保存，本任务不修改草稿、后端持久化、共享 DTO 或导出合同。
+  - 验证：核对 `packages/frontend/src/hooks/useGuidedReviewCards.ts`、现有 Hook/页面回归与本包 delta，记录 Level 2 关联与边界。
+- [x] 6.116 调整 `packages/frontend/src/hooks/useGuidedReviewCards.ts`，以 `caseId` 隔离、版本化的浏览器本地检查点持久化可回访的用户步骤参考与当前游标；案件安全退出并再次打开时，先依当前报告草稿、`FieldState` 和动态操作集重建可执行卡片，再恢复到原游标；如用户在填写“案件简要情况”时退出，重新进入仍展示该结构化步骤，并可继续返回更早步骤或前进至最新进度。检查点不存储逐字输入、报告字段值、错误详情或临时恢复状态；存储不可用、版本不兼容、数据损坏、步骤已失效或案件不匹配时忽略对应项并安全回退到当前派生步骤。
+  - 验证：新增同目录 `packages/frontend/src/hooks/useGuidedReviewCards.persistence.test.ts`，先用 SYNTHETIC 失败用例复现卸载/重挂载后回到默认步骤且无法后退，再覆盖案件简要情况恢复、多步连续前进/后退、分案件隔离、已失效步骤清理、临时恢复事项排除、非法存储和 `localStorage` 异常回退；复用既有 `useGuidedReviewCards.test.ts` 保持当前会话导航合同。
+- [x] 6.117 将实现与 `openspec/changes/conversational-review-shell/specs/electronic-inspection-record/spec.md` 逐项核对后同步至 `openspec/specs/electronic-inspection-record/spec.md`；运行新增持久化回归、受影响引导 Hook/组件/页面测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec 严格校验与 `git diff --check`。
+  - 人工验收：使用 SYNTHETIC/TEST 案件，在案件简要情况及更后步骤分别安全退出/关闭页面后重新打开，核对当前步骤、连续后退/前进、两个案件间隔离及无效检查点回退；不使用或提交真实案件数据、人员信息、设备编号或生成输出。
+
+- `guided_navigation_persistence_contract: PASS`：按 `caseId` 保存版本化步骤参考与游标，重新进入时从当前动态操作、报告草稿和 `FieldState` 重建卡片；检查点不含案件字段值，且会丢弃失效步骤、临时保存恢复项、损坏数据、版本不兼容和案件不匹配内容。
+- `guided_navigation_persistence_tests: PASS`：新增持久化回归 10 tests 通过；受影响 Hook/组件 6 files / 51 tests 通过；页面保存失败与租约恢复 2 tests 通过。
+- `guided_navigation_persistence_gates: PASS`：`npm run verify:quick`、OpenSpec 严格校验与 `git diff --check` 通过；限定范围严格文档检查在任务勾选后复跑通过。
+- `guided_navigation_persistence_manual_acceptance: N/A`：退出/重挂载、当前步骤恢复、连续后退/前进、案件隔离和无效检查点回退均由 SYNTHETIC Hook 重挂载回归可靠覆盖；本次无视觉或桌面环境差异，未读取或操作真实案件数据。
+
+## 2026-09-09 “稍后处理”完成态语义反馈（workflow_level: 2）
+
+- [x] 6.118 将 `archive_deferred` 保留为可回访的历史里程碑，但在獬豸助手中使用专用完成态布局：标题只确认“草稿已保存”，状态摘要说明“压缩已设为稍后处理”，不得继续以普通当前步骤和孤立主色后退箭头呈现。
+- [x] 6.119 在完成态内将“返回案件工作台”设为带文字的唯一主操作并复用现有安全退出回调；“现在压缩”作为次操作直接复用现有立即压缩入口；“返回上一步修改”作为低强调文字操作保留原步骤轨迹，其他普通步骤的圆形前后导航保持不变。
+- [x] 6.120 先用 SYNTHETIC 组件回归复现旧完成态的错误层级，再覆盖三个操作的可见标签、DOM 顺序、回调和历史轨迹不回归；同步 delta/living spec，运行受影响组件、Hook、页面测试、`verify:quick`、限定范围严格文档检查、OpenSpec 严格校验、Impeccable 单次检测及 `git diff --check`。
+
+- `deferred_terminal_contract: PASS`：`archive_deferred` 继续保留在历史轨迹中，但当前区改为“草稿已保存”专用完成态；摘要明确压缩已设为稍后处理，待办计数为 0，归档决定标记为可选，不再显示孤立的主色圆形后退按钮。
+- `deferred_terminal_actions: PASS`：完成态按“返回案件工作台”“现在压缩”“返回上一步修改”的层级与 DOM 顺序呈现；主操作复用安全退出，次操作直达既有立即压缩流程，低强调操作保持原步骤轨迹，其他步骤导航未改变。
+- `deferred_terminal_tests: PASS`：旧实现上的 SYNTHETIC 失败用例复现旧标题和缺失操作组；修复后受影响组件、Hook 与页面 6 files / 62 tests 通过，页面回归确认“现在压缩”提交既有 `immediate` 决定。
+- `deferred_terminal_gates: PASS`：架构检查、TypeScript、前端构建与 `npm run verify:quick` 通过；限定范围严格文档检查 14 项无漂移，OpenSpec 严格校验和 `git diff --check` 通过；Impeccable 单次检测为 0 项，delta 已同步 living spec。
+- `deferred_terminal_manual_acceptance: N/A`：完成态文案、操作层级、回调、历史轨迹和待办语义由 SYNTHETIC DOM/页面集成回归可靠区分；窄屏规则经静态差异检查，未读取或操作真实案件数据。

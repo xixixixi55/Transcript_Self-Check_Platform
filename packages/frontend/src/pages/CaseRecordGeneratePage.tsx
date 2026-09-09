@@ -247,7 +247,7 @@ export default function CaseRecordGeneratePage() {
       }
       const result = await session.decideArchive(decision)
       if (result.archive_task) message.success('归档任务已进入后台队列，可在案件卡片查看状态。')
-      if (decision === 'deferred') message.success('草稿已保存并稍后处理，可继续审核或安全返回案件列表。')
+      if (decision === 'deferred') message.success('草稿已保存，压缩已设为稍后处理，可返回案件工作台。')
     } catch (error) {
       const responseCode = (error as { response?: { data?: { detail?: { code?: string } } } })?.response?.data?.detail?.code
       if (responseCode === 'REVISION_CONFLICT') {
@@ -433,6 +433,8 @@ export default function CaseRecordGeneratePage() {
             canReturnToNext={guidedReview.canReturnToNext}
             onReturnToPreviousAction={guidedReview.returnToPreviousAction}
             onReturnToNextAction={returnToNextGuidedAction}
+            onStartArchiveNow={() => { void chooseArchive('immediate') }}
+            startArchiveNowBusy={archiveDecisionBusy}
             onOpenFullEditor={openFullEditor}
             onBackToWorkbench={() => { void handleBackToWorkbench() }}>
             <GuidedReviewCard action={currentGuidedAction} report={projectedReport || session.report}
