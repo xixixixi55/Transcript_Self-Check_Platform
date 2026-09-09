@@ -88,6 +88,13 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
   - 验证：兼容填充与 Manifest 多页路径均断言无固定空格、左侧标签、右对齐制表位、字符级换行属性和动态长名称完整保留；生成 SYNTHETIC DOCX 后用 officecli 校验。
   - 证据：新定向用例在旧实现上先失败，实施后模板/附件/Word 构建受影响测试通过；`npm run pre-commit` 通过；长名称 SYNTHETIC DOCX 通过 `officecli validate`且零错误。
 
+- [x] T012 **修复同版本模板指纹漂移导致的启动失败**
+  - 文件：`packages/backend/app/services/template/template_profile_service.py`、`tests/test_template_controller.py`。
+  - 内容：模板资产发生变化后发布新的内置模板版本，将已落盘的冲突 `1.0.7` 记录纳入既有迁移链路；继续禁止覆盖同一版本，不放宽 `TEMPLATE_VERSION_IMMUTABLE`。
+  - 级别：Level 1 既有不可变版本与启动迁移行为缺陷修复，不新增或修改 Requirement/Scenario。
+  - 验证：先用 SYNTHETIC 旧 `1.0.7` 指纹稳定复现启动失败；修复后验证旧记录迁移、当前模板注册、同版本不可变与模板控制器定向测试，并执行适用静态检查和 diff 检查。
+  - 证据：新增回归在旧实现上稳定失败并返回 `TEMPLATE_VERSION_IMMUTABLE`；修复后模板控制器/仓储 21 项、模板 Profile/填充/工作台组合根 59 项通过，`npm run lint:arch` 与 `git diff --check` 通过；现场数据库只读副本完成启动并迁移为 `1.0.8`，原数据库未修改。
+
 ## 关键文件
 
 | 文件 | 变更类型 |

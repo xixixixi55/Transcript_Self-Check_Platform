@@ -47,6 +47,12 @@ LEGACY_REFERENCE = {
 PREVIOUS_REFERENCE = {
     "template_id": "electronic-inspection-record", "version": PREVIOUS_TEMPLATE_VERSION,
 }
+STALE_COLLIDING_REFERENCE = {
+    "template_id": "electronic-inspection-record", "version": "1.0.7",
+}
+SYNTHETIC_STALE_TEMPLATE_PACKAGE_FINGERPRINT = (
+    "37D563B249D5EAE3B1CA126B213493133CE2C046E641F5CC8E1D905D70867C35"
+)
 IDENTITY = {
     "identity_kind": "local_session",
     "client_instance_id": "SYNTHETIC-TEMPLATE-CLIENT",
@@ -800,8 +806,38 @@ def test_current_builtin_template_relocates_after_portable_directory_change(tmp_
         Path(__file__).parents[1] / "word_templates" / "template.docx"
     ).resolve()
     assert current["fingerprint"] == CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
-    assert current["asset_id"] == "template-asset-current-v1-private-clean-1-0-7"
+    assert current["asset_id"] == "template-asset-current-v1-private-clean-1-0-8"
     assert restarted.templates.validate(REFERENCE)["valid"] is True
+
+
+def test_builtin_template_upgrade_recovers_from_stale_same_version_fingerprint(
+    tmp_path: Path,
+):
+    database = WorkbenchDatabase(
+        tmp_path / "workbench.sqlite3", "SYNTHETIC-STALE-TEMPLATE-VERSION",
+    )
+    template_root = Path(__file__).parents[1] / "word_templates"
+    registry = TemplateRegistryRepository(database, (template_root,))
+    registry.register({
+        "schema_version": 1,
+        "template_ref": STALE_COLLIDING_REFERENCE,
+        "display_name": "SYNTHETIC stale built-in template",
+        "fingerprint": SYNTHETIC_STALE_TEMPLATE_PACKAGE_FINGERPRINT,
+        "validation_rules": [CURRENT_TEMPLATE_VALIDATION_RULE],
+        "asset_id": "template-asset-current-v1-private-clean-1-0-7",
+        "registered_at": "2026-07-30T00:00:00+00:00",
+    }, template_root / "template.docx")
+
+    upgraded = build_workbench_services(
+        WorkbenchDatabase(database.database_path, database.deployment_instance_id),
+    )
+
+    assert upgraded.template_registry.get_internal(REFERENCE)["fingerprint"] == (
+        CURRENT_TEMPLATE_PACKAGE_FINGERPRINT
+    )
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        upgraded.template_registry.get_internal(STALE_COLLIDING_REFERENCE)
+    assert error.value.code == "TEMPLATE_UNKNOWN"
 
 
 def test_builtin_template_upgrade_migrates_previous_default_and_case(tmp_path: Path):
