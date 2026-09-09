@@ -419,6 +419,14 @@ export default function CaseRecordGeneratePage() {
             onSelectAction={guidedReview.selectAction}
             onRevisitAction={guidedReview.revisitAction}
             onRevisitHandledField={guidedReview.revisitHandledField}
+            evidenceItems={session.report.introduction.evidence_list || []}
+            onEvidenceItemsChange={items => {
+              updateReport('introduction.evidence_list', items)
+              session.setEvidenceCompletenessConfirmed(false)
+            }}
+            evidenceReadOnly={guidedInteractionDisabled}
+            evidenceSaveState={session.autosave.draftState.status}
+            evidenceSaveHasPending={session.autosave.hasPending}
             onConfirmCurrentAction={confirmCurrentGuidedAction}
             confirmCurrentActionDisabled={guidedInteractionDisabled}
             canReturnToPrevious={guidedReview.canReturnToPrevious}

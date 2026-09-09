@@ -62,20 +62,16 @@ describe('GuidedReviewCard evidence completeness summary', () => {
     expect(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' })).toBeTruthy()
   })
 
-  it('opens every identifier field for editing without leaving the assistant', () => {
-    const updateReport = vi.fn()
+  it('keeps field editing out of the assistant summary', () => {
     render(<GuidedReviewCard action={action} report={reportWithEvidence([{
       id: 'SYNTHETIC-EDITABLE', device_type: 'SYNTHETIC Phone', device_name: 'SYNTHETIC Phone',
       evidence_number: 'SYN-JC-EDITABLE', material_type: 'phone', extractable: false,
       imei1: '', imei2: '', serial_number: 'SYNTHETIC-SERIAL', unextractable_reason: 'SYNTHETIC/TEST',
-    }])} updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
+    }])} updateReport={vi.fn()} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: '修改检材 1：SYN-JC-EDITABLE' }))
-
-    expect(screen.getByText('IMEI1：')).toBeTruthy()
-    expect(screen.getByText('IMEI2：')).toBeTruthy()
-    expect(screen.getByText('序列号：')).toBeTruthy()
-    expect(screen.getByText('SYNTHETIC-SERIAL')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '修改检材 1：SYN-JC-EDITABLE' })).toBeNull()
+    expect(screen.getByRole('button', { name: '删除检材 1：SYN-JC-EDITABLE' })).toBeTruthy()
+    expect(screen.queryByText('IMEI1：')).toBeNull()
   })
 
   it('confirms removal of one evidence item and marks completeness unconfirmed', async () => {

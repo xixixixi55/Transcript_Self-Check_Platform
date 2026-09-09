@@ -257,6 +257,16 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(document.querySelector('.review-editor-form')).toBeNull()
   }, 15000)
 
+  it('edits evidence in the Word preview and sends it through draft autosave', async () => {
+    showGuidedReady = true; renderPage()
+    const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
+    expect(within(historyRegion).queryByRole('button', { name: /修改检材 1/ })).toBeNull()
+    fireEvent.click(within(historyRegion).getByRole('button', { name: /SYNTHETIC Phone，按 Enter 编辑/ }))
+    const deviceInput = within(historyRegion).getByDisplayValue('SYNTHETIC Phone'); fireEvent.change(deviceInput, { target: { value: 'SYNTHETIC Updated Phone' } }); fireEvent.blur(deviceInput)
+    await waitFor(() => expect(patchMock.mock.calls.some(([url, body]) => url === API_ENDPOINTS.WORKBENCH_DRAFT(caseId)
+      && (body as { draft: CaseDraft }).draft.report.introduction.evidence_list[0]?.device_name === 'SYNTHETIC Updated Phone')).toBe(true))
+    expect(within(historyRegion).getByText('已自动保存')).toBeTruthy()
+  }, 15000)
   it('restores confirmed evidence completeness under previously handled after reopening the case', async () => {
     showHandledCompleteness = true
     renderPage()

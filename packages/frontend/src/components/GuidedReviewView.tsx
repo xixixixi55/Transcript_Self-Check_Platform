@@ -4,6 +4,7 @@ import {
 } from '@ant-design/icons'
 import { Badge, Button, Tooltip } from 'antd'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { EvidenceItem } from '@biji/shared/types'
 import { canRevisitGuidedHistoryField } from '../hooks/useGuidedReviewCards'
 import type {
   GuidedReviewAction, GuidedReviewActionKind, GuidedReviewHistoryField, GuidedReviewHistoryItem,
@@ -22,6 +23,11 @@ interface Props {
   onSelectAction: (actionId: string) => void
   onRevisitAction?: (action: GuidedReviewAction) => void
   onRevisitHandledField?: (field: GuidedReviewHistoryField) => void
+  evidenceItems?: EvidenceItem[]
+  onEvidenceItemsChange?: (items: EvidenceItem[]) => void
+  evidenceReadOnly?: boolean
+  evidenceSaveState?: 'idle' | 'saving' | 'saved' | 'failed' | 'conflict' | 'not_changed'
+  evidenceSaveHasPending?: boolean
   onConfirmCurrentAction?: () => void
   confirmCurrentActionDisabled?: boolean
   canReturnToPrevious?: boolean
@@ -183,7 +189,8 @@ function mascotMood(currentAction: GuidedReviewAction | null, completionActive: 
 
 export function GuidedReviewView({
   conversationKey, history, previouslyHandledFields = [], currentAction, allActions, hasResponse, onSelectAction,
-  onRevisitAction, onRevisitHandledField,
+  onRevisitAction, onRevisitHandledField, evidenceItems, onEvidenceItemsChange,
+  evidenceReadOnly, evidenceSaveState, evidenceSaveHasPending,
   onConfirmCurrentAction, confirmCurrentActionDisabled = false,
   canReturnToPrevious = false, canReturnToNext = false,
   onReturnToPreviousAction, onReturnToNextAction, onBackToWorkbench, children,
@@ -341,9 +348,8 @@ export function GuidedReviewView({
       <div className={`guided-review-scroll guided-review-scroll--${splitOrder}`} role="group"
         aria-label="獬豸助手分栏">
         {splitOrder === 'history-first' && <GuidedReviewHistory key="history" items={history}
-          onEditMaterial={targetId => onRevisitHandledField?.({
-            label: '检材完整性', value: '核对并修改检材信息', targetId,
-          })} />}
+          evidenceItems={evidenceItems} onEvidenceItemsChange={onEvidenceItemsChange}
+          readOnly={evidenceReadOnly} saveState={evidenceSaveState} saveHasPending={evidenceSaveHasPending} />}
         <section key="conversation" className="guided-review-conversation" role="region" aria-label="当前对话">
         <div className="guided-review-conversation__body">
           <div ref={mascotRef}
@@ -514,9 +520,8 @@ export function GuidedReviewView({
         </div>
         </section>
         {splitOrder === 'conversation-first' && <GuidedReviewHistory key="history" items={history}
-          onEditMaterial={targetId => onRevisitHandledField?.({
-            label: '检材完整性', value: '核对并修改检材信息', targetId,
-          })} />}
+          evidenceItems={evidenceItems} onEvidenceItemsChange={onEvidenceItemsChange}
+          readOnly={evidenceReadOnly} saveState={evidenceSaveState} saveHasPending={evidenceSaveHasPending} />}
       </div>
     </div>
   )

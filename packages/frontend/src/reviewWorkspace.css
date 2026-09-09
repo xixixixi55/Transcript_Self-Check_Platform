@@ -1661,7 +1661,48 @@
 
 .guided-review-history__material .guided-review-history__fields {
   margin-top: 3px;
-  padding-right: 44px;
+  padding-right: 0;
+}
+
+.guided-review-history__fields--editable .review-editable-display {
+  min-height: 24px;
+  padding: 1px 3px;
+  color: var(--review-text);
+  border-radius: 4px;
+}
+
+.guided-review-history__fields--editable .review-editable-display:hover,
+.guided-review-history__material-heading .review-editable-display:hover {
+  background: #edf3f8;
+}
+
+.guided-review-history__fields--editable .ant-select {
+  min-width: 104px;
+  max-width: 100%;
+  margin: -2px 0;
+}
+
+.guided-review-history__save-state {
+  margin-top: 4px;
+  text-align: right;
+  color: var(--review-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.guided-review-history__save-state--saving {
+  color: var(--review-primary);
+}
+
+.guided-review-history__save-state--saved,
+.guided-review-history__save-state--not_changed {
+  color: var(--review-success);
+}
+
+.guided-review-history__save-state--failed,
+.guided-review-history__save-state--conflict {
+  color: var(--review-danger);
+  font-weight: 600;
 }
 
 .guided-review-history__empty {
@@ -2074,17 +2115,13 @@
 
 .guided-review-card__evidence-summary li {
   display: grid;
-  grid-template-columns: minmax(112px, auto) minmax(0, 1fr) 44px 44px;
+  grid-template-columns: minmax(112px, auto) minmax(0, 1fr) 44px;
   gap: 8px 12px;
   align-items: center;
   padding: 8px 10px;
   color: var(--platform-preview-text-secondary);
   background: var(--platform-preview-neutral-soft);
   border-radius: 10px;
-}
-
-.guided-review-card__evidence-inline-editor {
-  margin-top: 4px;
 }
 
 .guided-review-card__evidence-summary strong {

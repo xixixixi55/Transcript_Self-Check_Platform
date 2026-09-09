@@ -788,3 +788,42 @@ workflow_level: 2
 - [x] 核对实现并同步当前 delta 与 living spec。
 - [x] 运行 verify:quick、限定 conversational-review-shell 的严格文档检查与 diff 检查。
 - manual_acceptance: N/A；本次仅调整派生分组条件及提示文字，由自动化投影与组件回归验证。
+
+## 2026-09-09 Word 内容预览检材就地编辑（workflow_level: 2）
+
+- [x] 6.103 将用户反馈关联到本包：目标仍是同一 Word 内容预览、检材编辑与案件草稿自动保存链路；`audit-edit-enhancement` 提供可复用编辑控件，`case-record-retention-and-formal-artifact-protection` 提供保存与冲突合同，因此不新建变更包、不修改后端或共享 DTO。
+- [x] 6.104 将每项检材的修改入口改为在 Word 内容预览原位置展开现有 `EvidenceEditor`；支持设备名称、类型、提取状态及原因、IMEI1、IMEI2、序列号和检材编号，图片仍由既有图片步骤管理，只读时禁止编辑。
+- [x] 6.105 复用 `introduction.evidence_list` 更新、检材完整性重置和现有草稿自动保存，显示上下文保存状态；补充 SYNTHETIC 组件与页面接线回归，同步 delta/living spec，并运行 Level 2 门控。
+
+### Word 内容预览检材就地编辑验证记录
+
+- `preview_evidence_inline_edit_contract: PASS`：检材铅笔按钮在原预览项下展开既有 `EvidenceEditor`，不切换獬豸助手事项或完整审核模式；设备、类型、提取状态与原因、IMEI、序列号和编号均保持可编辑，图片入口未迁入。
+- `preview_evidence_autosave_contract: PASS`：字段修改更新现有 `introduction.evidence_list`，同时把检材完整性重置为待处理；页面级回归确认防抖后草稿 PATCH 含最新检材值，编辑区显示保存中、已保存或失败/冲突且输入保留的状态，不新增保存按钮。
+- `preview_evidence_tests: PASS`：组件、引导视图与案件页面定向回归 3 files / 41 tests 通过；全项目 TypeScript 与 `verify:quick` 通过。
+- `preview_evidence_ui_check: PASS`：Impeccable 单次检测仅命中本次差异外第 167、314 行两处既有 CSS 告警；新编辑区使用现有字段控件、44px 具名开关、语义化状态与只读禁用。
+- `preview_evidence_manual_acceptance: N/A`：就地展开、字段覆盖、自动保存请求、状态变化和只读语义均由 SYNTHETIC DOM/页面集成回归可靠区分，不读取或操作真实案件数据。
+
+## 2026-09-09 Word 预览逐字段直接编辑反馈
+
+- [x] 6.106 明确上一版“在预览项下展开完整 `EvidenceEditor`”仍多出一步且不符合截图目标；最终交互改为设备、类型、IMEI、序列号、提取情况与标题检材编号的值本身直接可编辑，不保留检材级展开/收起按钮。
+- [x] 6.107 移除预览内嵌完整编辑卡片，使用紧凑的原位文本与下拉控件，继续复用同一 `introduction.evidence_list` 更新、完整性重置、只读限制和自动保存状态。
+- [x] 6.108 更新 SYNTHETIC 组件与页面回归、同步 delta/living spec，并运行 Level 2 门控。
+
+### Word 预览逐字段直接编辑验证记录
+
+- `preview_direct_field_edit_contract: PASS`：Word 内容预览不再显示检材级铅笔按钮或展开完整 `EvidenceEditor`；检材编号和设备名称直接复用原位文本编辑，类型与提取情况直接使用紧凑下拉，IMEI1、IMEI2、序列号及按条件展示的无法提取原因均在原字段位置修改，图片管理仍留在原图片步骤。
+- `preview_direct_field_autosave: PASS`：所有字段继续写入同一 `introduction.evidence_list`，修改后展示保存中、成功、失败或冲突状态；页面回归确认防抖后的草稿 PATCH 携带最新设备值，且不新增手动保存按钮。
+- `preview_direct_field_tests: PASS`：SYNTHETIC 组件、引导视图与页面定向回归 3 files / 41 tests 通过，覆盖无额外跳转、设备名称和检材编号直改、下拉入口及页面自动保存；`npm run verify:quick` 通过。
+- `preview_direct_field_ui_check: PASS`：Impeccable 单次检测只报告本次差异外的两处既有 CSS 告警；新增控件沿用现有 `EditableField`、Ant Design 下拉、语义化保存状态和响应式字段布局。
+- `preview_direct_field_manual_acceptance: N/A`：直接编辑入口、字段覆盖、无展开按钮、自动保存请求与状态反馈均由 SYNTHETIC DOM/页面集成回归可靠区分，未读取或操作真实案件数据。
+
+## 2026-09-09 删除獬豸助手检材修改入口反馈
+
+- [x] 6.109 删除獬豸助手当前检材摘要中的逐项修改按钮及内嵌完整 `EvidenceEditor`，保留检材摘要、删除确认和快捷批量补录；检材字段编辑统一由 Word 内容预览承担。
+- [x] 6.110 将摘要行从双操作位收紧为单个删除操作位，删除失效样式，并更新 delta、living spec 与 SYNTHETIC 回归。
+- [x] 6.111 运行受影响组件测试、类型检查、`verify:quick`、限定范围严格文档检查和 diff 检查。
+
+- `assistant_evidence_edit_removal: PASS`：獬豸助手检材摘要不再渲染“修改检材”按钮或内嵌字段编辑器，删除检材入口及其二次确认保持可用；Word 内容预览的逐字段编辑与自动保存入口不受影响。
+- `assistant_evidence_edit_removal_tests: PASS`：受影响的检材摘要与 Word 预览组件回归 2 files / 7 tests 通过，TypeScript 检查通过。
+- `assistant_evidence_edit_removal_ui_check: PASS`：摘要网格已移除一个 44px 操作列和失效内嵌编辑器样式；Impeccable 检测只报告本次差异外第 167、314 行两处既有 CSS 告警。
+- `assistant_evidence_edit_removal_manual_acceptance: N/A`：按钮不存在、删除入口保留和 Word 预览编辑不受影响均由 SYNTHETIC DOM 回归可靠区分，未读取或操作真实案件数据。
