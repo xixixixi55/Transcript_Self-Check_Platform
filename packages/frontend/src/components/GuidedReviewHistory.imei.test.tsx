@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
+import type { EvidenceItem } from '@biji/shared/types'
 import type { GuidedReviewHistoryMaterial } from '../hooks/useGuidedReviewHistoryProjection'
+import { buildReportHistory } from '../hooks/useGuidedReviewHistoryProjection'
+import { syntheticReport } from '../hooks/useGuidedReviewCards.testFixtures'
 import { GuidedReviewHistory } from './GuidedReviewHistory'
 
 function material(id: string, imeiStatus: 'complete' | 'attention'): GuidedReviewHistoryMaterial {
@@ -17,6 +21,21 @@ function material(id: string, imeiStatus: 'complete' | 'attention'): GuidedRevie
       { label: '序列号', value: `${id}-SERIAL` },
     ],
   }
+}
+
+function EditableGroupingHarness() {
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([{
+    ...syntheticReport.introduction.evidence_list[0],
+    id: 'SYNTHETIC-ATTENTION', evidence_id: 'SYNTHETIC-ATTENTION',
+    device_name: '', device_type: '', brand: '', model: '', material_type: 'phone' as const,
+    imei1: '111111111111111', imei2: '',
+  }])
+  const report = {
+    ...syntheticReport,
+    introduction: { ...syntheticReport.introduction, evidence_list: evidenceItems },
+  }
+  return <GuidedReviewHistory items={buildReportHistory(report)} evidenceItems={evidenceItems}
+    onEvidenceItemsChange={setEvidenceItems} saveState="saving" saveHasPending />
 }
 
 describe('GuidedReviewHistory IMEI grouping', () => {
@@ -79,5 +98,28 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     expect(onEvidenceItemsChange).toHaveBeenCalledWith([
       expect.objectContaining({ evidence_number: 'SYN-JC-C-UPDATED' }),
     ])
+  })
+
+  it('moves an attention material into the complete group as soon as its missing information is filled', () => {
+    render(<EditableGroupingHarness />)
+
+    expect(screen.queryByText('检材信息完整（1项）')).toBeNull()
+    expect(screen.getByText('检材信息待核对')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '待填写，按 Enter 编辑' }))
+    const deviceInput = screen.getByRole('textbox')
+    fireEvent.change(deviceInput, { target: { value: 'SYNTHETIC Phone' } })
+    fireEvent.blur(deviceInput)
+
+    expect(screen.queryByText('检材信息完整（1项）')).toBeNull()
+    expect(screen.getByText('检材信息待核对')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '待核对，按 Enter 编辑' }))
+    const imeiInput = screen.getByRole('textbox')
+    fireEvent.change(imeiInput, { target: { value: '222222222222222' } })
+    fireEvent.blur(imeiInput)
+
+    expect(screen.getByText('检材信息完整（1项）')).toBeTruthy()
+    expect(screen.queryByText('检材信息待核对')).toBeNull()
   })
 })

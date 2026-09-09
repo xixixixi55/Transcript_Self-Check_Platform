@@ -216,7 +216,7 @@ function QuickEvidenceBatchAdder({ items, onChange }: {
           <div className="guided-review-card__quick-evidence-copy">
             <h4>快捷批量添加检材</h4>
             <div id="quick-evidence-format-help">
-              <p>每行一项：设备名称＋手机/平板一部＋（原因）＋编号；全角括号，编号置于行末。</p>
+              <p>每行一项，换行请按 Shift + Enter。格式：设备名称＋手机/平板一部＋（原因）＋编号；全角括号，编号置于行末。</p>
             </div>
           </div>
         </div>
