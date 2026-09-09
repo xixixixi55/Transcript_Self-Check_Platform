@@ -216,7 +216,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         device_type = explicit_device_type or base_info.get("device_name") or base_info.get("model") or dev.get("device_name", "")
         imei1 = dev.get("imei1", "") or base_info.get("imei1", "")
         imei2 = dev.get("imei2", "") or base_info.get("imei2", "")
-        serial_number = base_info.get("serial_number", "")
+        serial_number = base_info.get("serial_number", "") or dev.get("serial_number", "")
         evidence_items.append({
             "id": en,
             "device_type": device_type,

@@ -36,6 +36,7 @@ from .report_parse_input_filesystem import (
 from .report_parse_input_selection_repository import (
     build_evidence_directory_index,
     find_vendor_device_names,
+    navigation_device_candidate_names,
     select_device_candidate_files,
     split_vendor_device_name,
 )
@@ -79,8 +80,22 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
     )
     use_vendor_names_without_data_scan = (
         len(vendor_device_names) == len(device_rows)
-        and all(_has_core_device_identity(row) for row in device_rows)
+        and all(_has_complete_device_fields(row) for row in device_rows)
     )
+    navigation_candidates: dict[str, str] = {}
+    navigation_path = data_root / "data_navigation.json"
+    if report_format == ReportFormat.NEW and not use_vendor_names_without_data_scan:
+        try:
+            navigation_raw = _read_dependency(
+                navigation_path, data_root, dependencies,
+            )
+        except ReportParseInputError:
+            pass
+        else:
+            navigation_candidates = navigation_device_candidate_names(
+                navigation_raw.decode("utf-8-sig", errors="replace"),
+                device_rows,
+            )
     device_base_info: dict[str, dict[str, str]] = {}
     candidate_indexes: list[CandidateDirectoryIndex] = []
     for row in device_rows:
@@ -89,6 +104,7 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
             evidence_directories.get(evidence_number, ""), data_root,
             report_format=report_format,
             include_data_files=not use_vendor_names_without_data_scan,
+            preferred_data_filename=navigation_candidates.get(evidence_number, ""),
         )
         candidate_indexes.extend(indexes)
         payloads: list[tuple[Any, str]] = []
@@ -186,9 +202,10 @@ def _fingerprint_records(records: tuple[DependencyRecord, ...]) -> str:
     return digest.hexdigest()
 
 
-def _has_core_device_identity(row: dict[str, str]) -> bool:
-    return any(str(row.get(key) or "").strip() for key in (
-        "device_type", "imei1", "imei2",
+def _has_complete_device_fields(row: dict[str, str]) -> bool:
+    """仅在设备列表无需 Base 元数据补充时允许跳过 ``data_`` 探测。"""
+    return all(str(row.get(key) or "").strip() for key in (
+        "device_type", "imei1", "imei2", "serial_number",
     ))
 
 

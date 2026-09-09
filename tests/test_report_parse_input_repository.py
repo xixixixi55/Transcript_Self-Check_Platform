@@ -207,6 +207,61 @@ def test_snapshot_uses_vendor_display_directories_when_jc_base_is_empty(tmp_path
     assert snapshot.device_base_info["JC-SYN-01"]["model"] == "MODEL-ONE"
 
 
+def test_snapshot_reads_data_device_table_when_vendor_names_lack_serial(tmp_path):
+    data_root = _write_snapshot_fixture(tmp_path)
+    navigation = []
+    vendor_names = (
+        "SYNTHETIC-BRAND-ONE MODEL-ONE",
+        "SYNTHETIC-BRAND-TWO MODEL-TWO",
+        "SYNTHETIC-BRAND-THREE MODEL-THREE",
+    )
+    for index, vendor_name in enumerate(vendor_names, 1):
+        base = data_root / f"JC-SYN-{index:02d}" / "Base"
+        (base / "device_table.json").unlink()
+        _write_json(base / f"data_SYNTHETIC-DEVICE-{index}.json", {"contents": [
+            {"c1": "设备类型", "c2": "手机"},
+            {"c1": "设备名称", "c2": f"SYNTHETIC-PHONE-{index}"},
+            {"c1": "设备品牌", "c2": f"SYNTHETIC-BRAND-{index}"},
+            {"c1": "设备型号", "c2": f"SYNTHETIC-MODEL-{index}"},
+            {"c1": "序列号", "c2": f"SYNTHETIC-SERIAL-{index}"},
+        ]})
+        _write_json(base / f"data_SYNTHETIC-NOISE-{index}.json", {
+            "value": "SYNTHETIC-NON-DEVICE-DATA",
+        })
+        (data_root / vendor_name / "Base").mkdir(parents=True)
+        navigation.append({
+            "name": "手机信息 (5)",
+            "dataConfig": {
+                "filePath": f".\\data\\JC-SYN-{index:02d}\\Base\\",
+                "varName": f"data_SYNTHETIC-DEVICE-{index}",
+            },
+        })
+    (data_root / "data_navigation.json").write_text(
+        "; static.mypico.json.navigation = "
+        + json.dumps(navigation, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    calls, counted_open = _count_data_opens(data_root)
+
+    with patch("pathlib.Path.open", new=counted_open):
+        snapshot = build_report_parse_input_snapshot(str(tmp_path))
+
+    assert [
+        snapshot.device_base_info[f"JC-SYN-{index:02d}"]["serial_number"]
+        for index in range(1, 4)
+    ] == [
+        "SYNTHETIC-SERIAL-1", "SYNTHETIC-SERIAL-2", "SYNTHETIC-SERIAL-3",
+    ]
+    dependency_paths = {record.relative_path for record in snapshot.dependencies}
+    assert "JC-SYN-01/Base/data_SYNTHETIC-DEVICE-1.json" in dependency_paths
+    assert "JC-SYN-01/Base/data_SYNTHETIC-NOISE-1.json" not in dependency_paths
+    assert [
+        calls[f"JC-SYN-{index:02d}/Base/data_SYNTHETIC-DEVICE-{index}.json"]
+        for index in range(1, 4)
+    ] == [2, 2, 2]
+    assert calls["JC-SYN-01/Base/data_SYNTHETIC-NOISE-1.json"] == 0
+
+
 def test_snapshot_binds_vendor_directory_from_each_device_row_before_sorting(tmp_path):
     data_root = _write_snapshot_fixture(tmp_path)
     for index in range(1, 4):

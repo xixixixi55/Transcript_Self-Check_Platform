@@ -406,6 +406,24 @@ def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path)
     )
 
 
+def test_new_report_preserves_serial_from_tb2_when_base_table_omits_it(tmp_path):
+    _write_service_fixture(str(tmp_path), known_software=True)
+    import json
+    data_dir = tmp_path / "data"
+    device_file = data_dir / "data_device_lists.json"
+    devices = json.loads(device_file.read_text(encoding="utf-8"))
+    devices["contents"][0]["tb2"].append({"tt": "序列号", "ct": "SYNTHETIC-TB2-SN"})
+    device_file.write_text(json.dumps(devices, ensure_ascii=False), encoding="utf-8")
+    base_file = data_dir / "JC01" / "Base" / "device_table.json"
+    base = json.loads(base_file.read_text(encoding="utf-8"))
+    base["rows"] = [row for row in base["rows"] if row.get("c1") != "序列号"]
+    base_file.write_text(json.dumps(base, ensure_ascii=False), encoding="utf-8")
+
+    report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
+
+    assert report["introduction"]["evidence_list"][0]["serial_number"] == "SYNTHETIC-TB2-SN"
+
+
 def test_report_parser_preserves_serial_but_only_imei_makes_material_extractable(tmp_path):
     _write_service_fixture(str(tmp_path), known_software=True)
     import json

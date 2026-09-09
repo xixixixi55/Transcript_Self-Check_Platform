@@ -68,6 +68,12 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 - [x] 新旧格式 Word 导出对比。
 - [x] 真实样例字段人工核对。
 
+### 新格式设备列表序列号回归整改
+
+- [x] 修复 `data_device_lists.json` 的 `tb2` 序列号在设备行归一化时被丢弃的问题；保留结构化设备表既有来源优先级，仅在其缺失时使用设备列表值补充，并以脱敏合成 fixture 覆盖列表解析和最终 `InspectionReport` 投影。
+- [x] 修复 new 报告在设备目录和 IMEI 已可识别时过早跳过 Base `data_` 设备表的问题；只有设备列表已具备设备类型、两组 IMEI 和序列号全部字段时才跳过有界候选探测，继续排除非设备数据文件。验证：解析器、输入快照、报告组装与合成性能路径 `96 passed`，`verify:quick` 通过；外部 new 报告只读脱敏复测中全部检材均识别到序列号，未记录路径、原值或业务数据。
+- [x] 优化缺失字段时的 new 报告设备表定位：优先使用 `data_navigation.json` 中按检材绑定的受控“手机/设备/终端信息”相对路径和 `data_` 文件名，只探测已枚举候选集内的单一目标；导航缺失、歧义或目标无效时回退既有有界探测。脱敏测试断言目标设备表进入依赖而相邻非设备 `data_` 文件打开次数为零；外部报告只读复测保持全部序列号识别，未记录路径、原值或业务数据。
+
 ### 新格式检材与设备目录绑定修复
 
 - [x] 在 `packages/backend/app/repository/report/html_parser.py` 与 `packages/backend/app/repository/report/report_parse_input_repository.py` 使用每个 `tb2` 行内明确的 `data/<设备目录>/Base/` 路径绑定检材编号和设备型号，避免分别排序后按下标错配；无明确路径的兼容变体继续使用一对一保守回退。

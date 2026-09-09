@@ -65,6 +65,7 @@ def _write_report_fixture(root, report_format="legacy", *, mixed=False, known_so
             {"tt": "检材编号", "ct": "JC01"},
             {"tt": "IMEI1", "ct": " 111111111111111 "},
             {"tt": "IMEI2", "ct": "222222222222222"},
+            {"tt": "序列号", "ct": "SN-TB2"},
             {"tt": "取证时间段", "ct": "2099-01-01 00:00:00 ~ 2099-01-01 00:01:00"},
             {"tt": "检材来源", "ct": "不进入标准模型"},
         ]
@@ -133,6 +134,7 @@ def test_new_fixture_uses_tb2_and_strong_device_table(tmp_path):
     assert device["device_name"] == ""
     assert device["imei1"] == "111111111111111"
     assert device["imei2"] == "222222222222222"
+    assert device["serial_number"] == "SN-TB2"
     assert device["time_range"] == ""
     fields = parse_device_base(str(data_dir), "JC01")
     assert fields == {

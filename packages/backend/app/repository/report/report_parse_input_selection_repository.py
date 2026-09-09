@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import unicodedata
 from pathlib import Path
 
@@ -33,6 +35,15 @@ _STRUCTURED_DEVICE_LABELS = (
     "device_type", "material_type", "device_name", "phone_name", "phone_brand",
     "device_brand", "device_model", "product_model", "phone_model", "IMEI",
 )
+_NAVIGATION_DEVICE_ENTRY_RE = re.compile(
+    r'"name"\s*:\s*"(?:手机|设备|终端)信息(?:\s*[（(]\d+[）)])?"'
+    r'.{0,2048}?"dataConfig"\s*:\s*\{(?P<config>[^{}]{0,1024})\}',
+    re.DOTALL,
+)
+_NAVIGATION_STRING_PROPERTY_RE = re.compile(
+    r'"(?P<key>filePath|varName)"\s*:\s*"(?P<value>(?:\\.|[^"\\])*)"',
+)
+_NAVIGATION_DATA_NAME_RE = re.compile(r"data_[A-Za-z0-9_-]+", re.IGNORECASE)
 
 
 def build_evidence_directory_index(
@@ -83,9 +94,64 @@ def split_vendor_device_name(value: str) -> tuple[str, str]:
     return (parts[0], parts[1]) if len(parts) == 2 else ("", parts[0])
 
 
+def navigation_device_candidate_names(
+    content: str, device_rows: tuple[dict[str, str], ...],
+) -> dict[str, str]:
+    """从 new 报告导航中提取按检材绑定的设备信息文件名。"""
+    evidence_by_key: dict[str, set[str]] = {}
+    for row in device_rows:
+        evidence_number = str(row.get("evidence_number") or "").strip()
+        if not evidence_number:
+            continue
+        for directory_name in (
+            evidence_number, str(row.get("vendor_device_name") or "").strip(),
+        ):
+            if directory_name:
+                evidence_by_key.setdefault(
+                    _normalise_directory_name(directory_name), set(),
+                ).add(evidence_number)
+    candidates: dict[str, set[str]] = {}
+    for match in _NAVIGATION_DEVICE_ENTRY_RE.finditer(content):
+        properties = {
+            item.group("key"): _decode_navigation_string(item.group("value"))
+            for item in _NAVIGATION_STRING_PROPERTY_RE.finditer(match.group("config"))
+        }
+        path_parts = [
+            part for part in re.split(r"[\\/]", properties.get("filePath", ""))
+            if part
+        ]
+        if path_parts[:1] == ["."]:
+            path_parts = path_parts[1:]
+        var_name = properties.get("varName", "")
+        if (
+            len(path_parts) != 3
+            or path_parts[0].casefold() != "data"
+            or path_parts[2].casefold() not in _METADATA_DIRECTORY_NAMES
+            or not _NAVIGATION_DATA_NAME_RE.fullmatch(var_name)
+        ):
+            continue
+        matches = evidence_by_key.get(_normalise_directory_name(path_parts[1]), set())
+        if len(matches) != 1:
+            continue
+        candidates.setdefault(next(iter(matches)), set()).add(f"{var_name}.json")
+    return {
+        evidence_number: next(iter(names))
+        for evidence_number, names in candidates.items()
+        if len(names) == 1
+    }
+
+
+def _decode_navigation_string(value: str) -> str:
+    try:
+        decoded = json.loads(f'"{value}"')
+    except json.JSONDecodeError:
+        return ""
+    return decoded if isinstance(decoded, str) else ""
+
+
 def select_device_candidate_files(
     evidence_dir: str, data_root: Path, *, report_format: ReportFormat,
-    include_data_files: bool = True,
+    include_data_files: bool = True, preferred_data_filename: str = "",
 ) -> tuple[list[Path], tuple[CandidateDirectoryIndex, ...]]:
     if not evidence_dir:
         return [], ()
@@ -123,7 +189,16 @@ def select_device_candidate_files(
         for item in role_files.get(role, [])
         if not _is_data_file(item.name)
     ]
-    files = named_files or [
+    preferred_files = [
+        item for role in _METADATA_DIRECTORY_NAMES
+        for item in role_files.get(role, [])
+        if (
+            preferred_data_filename
+            and item.name.casefold() == preferred_data_filename.casefold()
+            and _is_selected_data_file(item)
+        )
+    ]
+    files = named_files or preferred_files or [
         item for role in _METADATA_DIRECTORY_NAMES
         for item in role_files.get(role, [])
         if _is_selected_data_file(item)
@@ -204,6 +279,7 @@ def _normalise_directory_name(value: str) -> str:
 
 __all__ = [
     "build_evidence_directory_index", "find_vendor_device_names",
-    "is_device_metadata_name", "is_json", "select_device_candidate_files",
+    "is_device_metadata_name", "is_json", "navigation_device_candidate_names",
+    "select_device_candidate_files",
     "split_vendor_device_name",
 ]

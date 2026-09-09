@@ -120,6 +120,7 @@ def parse_device_lists_payload(
             "device_type": str(tb2_fields.get("device_type") or item.get("device_type", "")).strip(),
             "imei1": tb2_fields.get("imei1", ""),
             "imei2": tb2_fields.get("imei2", ""),
+            "serial_number": tb2_fields.get("serial_number", ""),
             "start_time": parts[0].strip(),
             "end_time": parts[1].strip() if len(parts) > 1 else parts[0].strip(),
             "time_range": time_range,
