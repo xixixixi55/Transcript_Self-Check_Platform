@@ -284,6 +284,7 @@ def _write_service_fixture(root, *, known_software=True):
     write("data_case_info.json", {"contents": [{"tp": k, "ct": v} for k, v in case_values.items()]})
     write("data_device_lists.json", {"contents": [{
         "c1": "1", "c2": "JC01", "tb2": [
+            {"tt": "检材持有人姓名", "ct": "SYNTHETIC-HOLDER-A"},
             {"tt": "IMEI1", "ct": "111111111111111"},
             {"tt": "IMEI2", "ct": "222222222222222"},
             {"tt": "取证时间段", "ct": "2099-01-01 00:00:00 ~ 2099-01-01 00:01:00"},
@@ -313,6 +314,7 @@ def test_multiple_devices_keep_tb2_and_base_fields_matched(tmp_path):
     devices = json.loads(device_file.read_text(encoding="utf-8"))
     devices["contents"].append({
         "c1": "2", "c2": "JC02", "tb2": [
+            {"tt": "检材持有人姓名", "ct": "SYNTHETIC-HOLDER-B"},
             {"tt": "IMEI1", "ct": "333333333333333"},
             {"tt": "IMEI2", "ct": "444444444444444"},
         ],
@@ -332,9 +334,11 @@ def test_multiple_devices_keep_tb2_and_base_fields_matched(tmp_path):
         report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
     by_id = {item["evidence_number"]: item for item in report["introduction"]["evidence_list"]}
     assert by_id["JC01"]["imei1"] == "111111111111111"
+    assert by_id["JC01"]["holder_name"] == "SYNTHETIC-HOLDER-A"
     assert by_id["JC01"]["device_name"] == "Model-NEW"
     assert by_id["JC01"]["model"] == "Model-NEW"
     assert by_id["JC02"]["imei1"] == "333333333333333"
+    assert by_id["JC02"]["holder_name"] == "SYNTHETIC-HOLDER-B"
     assert by_id["JC02"]["device_name"] == "Model-SECOND"
     assert by_id["JC02"]["model"] == "Model-SECOND"
     assert by_id["JC02"]["serial_number"] == "SN-SECOND"
@@ -437,6 +441,7 @@ def test_report_parser_preserves_serial_but_only_imei_makes_material_extractable
     assert evidence["imei1"] == ""
     assert evidence["imei2"] == ""
     assert evidence["serial_number"] == "SN-NEW"
+    assert evidence["holder_name"] == "SYNTHETIC-HOLDER-A"
     assert evidence["extractable"] is False
 
 
@@ -589,6 +594,7 @@ def test_legacy_full_standard_model_regression(tmp_path):
     assert evidence["imei1"] == "123456789012345"
     assert evidence["imei2"] == "543210987654321"
     assert evidence["serial_number"] == "OLD-SN"
+    assert evidence["holder_name"] == ""
     assert report["inspection"]["result"]["software_version"] == "V3.2.1"
     assert len(report["attachments"]["extract_list"]["columns"]) == 5
     assert report["attachments"]["photo_ids"] == []
@@ -637,7 +643,7 @@ def test_invalid_fixed_imei_allows_valid_structured_base_fallback(tmp_path):
     data_dir = tmp_path / "data"
     device_file = data_dir / "data_device_lists.json"
     devices = json.loads(device_file.read_text(encoding="utf-8"))
-    devices["contents"][0]["tb2"][0]["ct"] = "unknown"
+    next(row for row in devices["contents"][0]["tb2"] if row.get("tt") == "IMEI1")["ct"] = "unknown"
     device_file.write_text(json.dumps(devices, ensure_ascii=False), encoding="utf-8")
     base_file = data_dir / "JC01" / "Base" / "device_table.json"
     base = json.loads(base_file.read_text(encoding="utf-8"))

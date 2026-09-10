@@ -20,7 +20,7 @@ from datetime import datetime
 from typing import Any
 from .device_candidate_parser import select_best_device_candidate
 from .device_field_parser import (
-    extract_device_fields, is_generic_device_label, try_parse_json,
+    extract_device_fields, holder_name_from_device_row, is_generic_device_label, try_parse_json,
     vendor_device_name_from_row,
 )
 from .navigation_parser import parse_navigation
@@ -117,6 +117,10 @@ def parse_device_lists_payload(
         devices.append({
             "evidence_number": evidence_number,
             "device_name": device_name,
+            "holder_name": (
+                holder_name_from_device_row(item.get("tb2"))
+                if report_format == ReportFormat.NEW else ""
+            ),
             "device_type": str(tb2_fields.get("device_type") or item.get("device_type", "")).strip(),
             "imei1": tb2_fields.get("imei1", ""),
             "imei2": tb2_fields.get("imei2", ""),

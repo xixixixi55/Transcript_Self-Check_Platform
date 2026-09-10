@@ -262,11 +262,20 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     showGuidedReady = true; renderPage()
     const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
     expect(within(historyRegion).queryByRole('button', { name: /修改检材 1/ })).toBeNull()
-    fireEvent.click(within(historyRegion).getByRole('button', { name: /SYNTHETIC Phone，按 Enter 编辑/ }))
+    fireEvent.click(await within(historyRegion).findByRole('button', { name: /SYNTHETIC Phone，按 Enter 编辑/ }))
     const deviceInput = within(historyRegion).getByDisplayValue('SYNTHETIC Phone'); fireEvent.change(deviceInput, { target: { value: 'SYNTHETIC Updated Phone' } }); fireEvent.blur(deviceInput)
     await waitFor(() => expect(patchMock.mock.calls.some(([url, body]) => url === API_ENDPOINTS.WORKBENCH_DRAFT(caseId)
       && (body as { draft: CaseDraft }).draft.report.introduction.evidence_list[0]?.device_name === 'SYNTHETIC Updated Phone')).toBe(true))
     expect(within(historyRegion).getByText('已自动保存')).toBeTruthy()
+
+    fireEvent.click(await within(historyRegion).findByRole('button', { name: '未填写，按 Enter 编辑' }))
+    const holderField = within(historyRegion).getByText('持有人：').closest('.guided-review-history__field')
+    expect(holderField).toBeTruthy()
+    const holderInput = within(holderField as HTMLElement).getByRole('textbox')
+    fireEvent.change(holderInput, { target: { value: 'SYNTHETIC-HOLDER-A' } })
+    fireEvent.blur(holderInput)
+    await waitFor(() => expect(patchMock.mock.calls.some(([url, body]) => url === API_ENDPOINTS.WORKBENCH_DRAFT(caseId)
+      && (body as { draft: CaseDraft }).draft.report.introduction.evidence_list[0]?.holder_name === 'SYNTHETIC-HOLDER-A')).toBe(true))
   }, 15000)
   it('restores confirmed evidence completeness under previously handled after reopening the case', async () => {
     showHandledCompleteness = true

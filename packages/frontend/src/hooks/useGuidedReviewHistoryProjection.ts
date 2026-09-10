@@ -140,6 +140,8 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
       fields: [
         visibleField('设备', deviceName, '待填写', isUserProvided(fieldStates,
           evidencePath('device_name'), evidencePath('brand'), evidencePath('model'), evidencePath('device_type'))),
+        visibleField('持有人', material.holder_name, '未填写',
+          isUserProvided(fieldStates, evidencePath('holder_name'))),
         visibleField('类型', materialType, '待确认', material.material_type_source === 'user'
           || isUserProvided(fieldStates, evidencePath('material_type'))),
         visibleField('IMEI 1', imei1, '待核对', isUserProvided(fieldStates, evidencePath('imei1'))),

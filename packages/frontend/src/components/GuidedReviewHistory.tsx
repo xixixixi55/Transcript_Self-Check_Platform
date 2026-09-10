@@ -9,7 +9,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'conflict' | 'not_chan
 interface Props {
   items: GuidedReviewHistoryItem[]
   evidenceItems?: EvidenceItem[]
-  onEvidenceItemsChange?: (items: EvidenceItem[]) => void
+  onEvidenceItemsChange?: (items: EvidenceItem[], options?: { affectsCompleteness?: boolean }) => void
   readOnly?: boolean
   saveState?: SaveState
   saveHasPending?: boolean
@@ -83,7 +83,7 @@ function MaterialField({ label, material, children }: {
 function EditableMaterialFields({ material, item, onChange }: {
   material: NonNullable<GuidedReviewHistoryItem['materials']>[number]
   item: EvidenceItem
-  onChange: (item: EvidenceItem) => void
+  onChange: (item: EvidenceItem, options?: { affectsCompleteness?: boolean }) => void
 }) {
   const inferredExtractable = Boolean(item.imei1?.trim() || item.imei2?.trim())
   const extractable = typeof item.extractable === 'boolean' ? item.extractable : inferredExtractable
@@ -93,6 +93,10 @@ function EditableMaterialFields({ material, item, onChange }: {
         <MaterialField label="设备" material={material}>
           <EditableField type="text" value={displayDeviceName(item)} placeholder="待填写"
             onChange={value => update({ device_name: value, brand: '', model: '' })} />
+        </MaterialField>
+        <MaterialField label="持有人" material={material}>
+          <EditableField type="text" value={item.holder_name || ''} placeholder="未填写"
+            onChange={value => onChange({ ...item, holder_name: value }, { affectsCompleteness: false })} />
         </MaterialField>
         <MaterialField label="类型" material={material}>
           <Select aria-label={`${material.label}类型`} variant="borderless" size="small"
@@ -131,7 +135,7 @@ function EditableMaterialFields({ material, item, onChange }: {
 function HistoryMaterial({ material, evidenceItems, onEvidenceItemsChange, readOnly, saveState, saveHasPending }: {
   material: NonNullable<GuidedReviewHistoryItem['materials']>[number]
   evidenceItems?: EvidenceItem[]
-  onEvidenceItemsChange?: (items: EvidenceItem[]) => void
+  onEvidenceItemsChange?: (items: EvidenceItem[], options?: { affectsCompleteness?: boolean }) => void
   readOnly?: boolean
   saveState?: SaveState
   saveHasPending?: boolean
@@ -140,12 +144,13 @@ function HistoryMaterial({ material, evidenceItems, onEvidenceItemsChange, readO
   const complete = material.photoCount >= material.requiredPhotoCount
   const evidenceIndex = evidenceItems?.findIndex(item => (item.evidence_id || item.id) === material.id) ?? -1
   const editableItem = evidenceIndex >= 0 ? evidenceItems?.[evidenceIndex] : undefined
-  const updateItem = (item: EvidenceItem) => {
+  const updateItem = (item: EvidenceItem, options?: { affectsCompleteness?: boolean }) => {
     if (!onEvidenceItemsChange || !evidenceItems || readOnly) return
     setHasEdited(true)
     const next = [...evidenceItems]
     next[evidenceIndex] = item
-    onEvidenceItemsChange(next)
+    if (options) onEvidenceItemsChange(next, options)
+    else onEvidenceItemsChange(next)
   }
   return (
     <div className={`guided-review-history__material guided-review-history__material--${material.imeiStatus}`}
@@ -185,7 +190,7 @@ function HistoryMaterial({ material, evidenceItems, onEvidenceItemsChange, readO
 function HistoryMaterials({ materials, evidenceItems, onEvidenceItemsChange, readOnly, saveState, saveHasPending }: {
   materials: NonNullable<GuidedReviewHistoryItem['materials']>
   evidenceItems?: EvidenceItem[]
-  onEvidenceItemsChange?: (items: EvidenceItem[]) => void
+  onEvidenceItemsChange?: (items: EvidenceItem[], options?: { affectsCompleteness?: boolean }) => void
   readOnly?: boolean
   saveState?: SaveState
   saveHasPending?: boolean

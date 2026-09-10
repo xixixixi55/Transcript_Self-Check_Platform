@@ -24,7 +24,7 @@ interface Props {
   onRevisitAction?: (action: GuidedReviewAction) => void
   onRevisitHandledField?: (field: GuidedReviewHistoryField) => void
   evidenceItems?: EvidenceItem[]
-  onEvidenceItemsChange?: (items: EvidenceItem[]) => void
+  onEvidenceItemsChange?: (items: EvidenceItem[], options?: { affectsCompleteness?: boolean }) => void
   evidenceReadOnly?: boolean
   evidenceSaveState?: 'idle' | 'saving' | 'saved' | 'failed' | 'conflict' | 'not_changed'
   evidenceSaveHasPending?: boolean

@@ -313,6 +313,7 @@ def test_evidence_renderer_preserves_material_type_and_identifier_contracts(tmp_
     report["introduction"]["evidence_list"] = [
         {
             "id": "phone", "evidence_number": "JC-PHONE", "device_type": "手机",
+            "holder_name": "SYNTHETIC-HOLDER-MUST-NOT-RENDER",
             "material_type": "phone", "material_type_status": "confirmed_by_user",
             "material_type_source": "user", "imei1": "111111111111111",
             "serial_number": "PHONE-SERIAL-MUST-NOT-RENDER",
@@ -362,6 +363,7 @@ def test_evidence_renderer_preserves_material_type_and_identifier_contracts(tmp_
         "SYNTHETIC iPhone 14一部",
         "333333333333333",
         "SYNTHETIC-SERIAL-MUST-NOT-RENDER",
+        "SYNTHETIC-HOLDER-MUST-NOT-RENDER",
     ):
         assert forbidden not in document_xml
 

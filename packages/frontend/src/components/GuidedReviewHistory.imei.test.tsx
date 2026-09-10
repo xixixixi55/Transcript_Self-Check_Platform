@@ -56,7 +56,7 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     const evidenceItems = [{
       id: 'SYNTHETIC-C', evidence_id: 'SYNTHETIC-C', device_type: 'SYNTHETIC Phone',
       device_name: 'SYNTHETIC Phone', evidence_number: 'SYN-JC-C', material_type: 'phone' as const,
-      imei1: 'C-IMEI-1', imei2: '', serial_number: 'C-SERIAL', extractable: true,
+      holder_name: 'SYNTHETIC-HOLDER-A', imei1: 'C-IMEI-1', imei2: '', serial_number: 'C-SERIAL', extractable: true,
     }]
     const onEvidenceItemsChange = vi.fn()
     const editableMaterial = {
@@ -72,6 +72,7 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     expect(screen.queryByRole('button', { name: '修改检材 C' })).toBeNull()
     expect(screen.queryByText('正在自动保存…')).toBeNull()
     expect(screen.getByText('设备：')).toBeTruthy()
+    expect(screen.getByText('持有人：')).toBeTruthy()
     expect(screen.getByText('类型：')).toBeTruthy()
     expect(screen.getByText('提取情况：')).toBeTruthy()
     expect(screen.getByText('IMEI 1：')).toBeTruthy()
@@ -98,6 +99,14 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     expect(onEvidenceItemsChange).toHaveBeenCalledWith([
       expect.objectContaining({ evidence_number: 'SYN-JC-C-UPDATED' }),
     ])
+
+    fireEvent.click(screen.getByRole('button', { name: /SYNTHETIC-HOLDER-A，按 Enter 编辑/ }))
+    const holderInput = screen.getByDisplayValue('SYNTHETIC-HOLDER-A')
+    fireEvent.change(holderInput, { target: { value: 'SYNTHETIC-HOLDER-B' } })
+    fireEvent.blur(holderInput)
+    expect(onEvidenceItemsChange).toHaveBeenCalledWith([
+      expect.objectContaining({ holder_name: 'SYNTHETIC-HOLDER-B' }),
+    ], { affectsCompleteness: false })
   })
 
   it('moves an attention material into the complete group as soon as its missing information is filled', () => {

@@ -121,4 +121,28 @@ describe('guided Word preview source attribution', () => {
       .toEqual(expect.objectContaining({ userProvided: true, sourceLabel: '已修改' }))
     expect(projected?.fields.filter(field => field.userProvided)).toHaveLength(1)
   })
+
+  it('projects an optional holder without changing material completeness', () => {
+    const material = {
+      ...syntheticReport.introduction.evidence_list[0],
+      id: 'SYNTHETIC-HOLDER-MATERIAL', evidence_id: 'SYNTHETIC-HOLDER-MATERIAL',
+      device_name: 'SYNTHETIC Phone', material_type: 'phone' as const,
+      imei1: '111111111111111', imei2: '222222222222222',
+      holder_name: '',
+    }
+    const holderPath = `evidence.${material.evidence_id}.holder_name`
+    const project = (holderName: string, fieldStates = {}) => buildReportHistory({
+      ...syntheticReport,
+      introduction: {
+        ...syntheticReport.introduction,
+        evidence_list: [{ ...material, holder_name: holderName }],
+      },
+    }, fieldStates).find(item => item.id === 'fact-evidence')?.materials?.[0]
+
+    expect(project('')?.imeiStatus).toBe('complete')
+    expect(project('')?.fields.find(field => field.label === '持有人')?.value).toBe('未填写')
+    expect(project('SYNTHETIC-HOLDER-A', { [holderPath]: userState(holderPath) })?.fields
+      .find(field => field.label === '持有人'))
+      .toEqual(expect.objectContaining({ value: 'SYNTHETIC-HOLDER-A', userProvided: true, sourceLabel: '已修改' }))
+  })
 })

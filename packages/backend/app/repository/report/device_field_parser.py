@@ -196,6 +196,22 @@ def vendor_device_name_from_row(fields: Any) -> str:
     return ""
 
 
+def holder_name_from_device_row(fields: Any) -> str:
+    """只读取 new 报告设备行内明确的检材持有人姓名。"""
+    if not isinstance(fields, list):
+        return ""
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        if _normalise_key(str(field.get("tt") or "")) != "检材持有人姓名":
+            continue
+        value = field.get("ct")
+        if value is None or isinstance(value, (dict, list)):
+            return ""
+        return str(value).strip()
+    return ""
+
+
 def _normalise_key(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", str(value))
     return re.sub(r"[\s_\-:：/／]", "", normalized).lower()

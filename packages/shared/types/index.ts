@@ -32,6 +32,7 @@ export interface EvidenceItem {
   evidence_id?: string
   device_type: string         // 报告明确的设备类型字段；具体型号单独放在 model
   device_name?: string        // 品牌 + 有效型号组成的统一设备展示名称
+  holder_name?: string        // 检材持有人姓名；可选，仅用于审核草稿，不进入 Word
   brand?: string              // 报告中对应检材的真实品牌
   device_type_source?: 'report_field' | 'legacy_display'
   model?: string              // 具体型号

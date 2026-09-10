@@ -294,6 +294,19 @@ def test_build_document_result_names_all_evidence_items():
     assert "Python hashlib（版本号为标准库）" in paragraph_text
 
 
+def test_build_document_does_not_render_optional_material_holder():
+    report = _report()
+    report["introduction"]["evidence_list"][0]["holder_name"] = "SYNTHETIC-HOLDER-MUST-NOT-RENDER"
+
+    paragraph_text = "\n".join(
+        command.get("props", {}).get("text", "")
+        for command in build_record_document(report)
+        if command.get("type") == "paragraph"
+    )
+
+    assert "SYNTHETIC-HOLDER-MUST-NOT-RENDER" not in paragraph_text
+
+
 def test_batch_fallback_normalizes_titles_md5_and_extract_source():
     report = _report()
     report["inspection"]["result"]["md5_hash"] = "abcdef0123456789abcdef0123456789"

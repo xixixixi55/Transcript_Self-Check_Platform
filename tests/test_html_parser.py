@@ -63,6 +63,7 @@ def _write_report_fixture(root, report_format="legacy", *, mixed=False, known_so
     if report_format == "new":
         row["tb2"] = [
             {"tt": "检材编号", "ct": "JC01"},
+            {"tt": "检材持有人姓名", "ct": "SYNTHETIC-HOLDER-A"},
             {"tt": "IMEI1", "ct": " 111111111111111 "},
             {"tt": "IMEI2", "ct": "222222222222222"},
             {"tt": "序列号", "ct": "SN-TB2"},
@@ -121,6 +122,7 @@ def test_legacy_fixture_is_detected_and_parsed(tmp_path):
     assert info["case_number"] == "CASE-SYNTH-001"
     assert parse_device_lists(str(data_dir))[0]["evidence_number"] == "JC01"
     assert parse_device_lists(str(data_dir))[0]["device_name"] == "1"
+    assert parse_device_lists(str(data_dir))[0]["holder_name"] == ""
     assert "2026-01-01" in parse_device_lists(str(data_dir))[0]["time_range"]
     assert "FL-901" in parse_report_info(str(data_dir))["product_version"]
     assert parse_navigation(str(data_dir))["total_items"] == 1
@@ -132,6 +134,7 @@ def test_new_fixture_uses_tb2_and_strong_device_table(tmp_path):
     assert detect_report_format(str(data_dir)) == ReportFormat.NEW
     device = parse_device_lists(str(data_dir))[0]
     assert device["device_name"] == ""
+    assert device["holder_name"] == "SYNTHETIC-HOLDER-A"
     assert device["imei1"] == "111111111111111"
     assert device["imei2"] == "222222222222222"
     assert device["serial_number"] == "SN-TB2"

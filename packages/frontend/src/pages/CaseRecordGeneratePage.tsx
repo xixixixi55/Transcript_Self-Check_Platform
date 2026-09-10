@@ -420,9 +420,11 @@ export default function CaseRecordGeneratePage() {
             onRevisitAction={guidedReview.revisitAction}
             onRevisitHandledField={guidedReview.revisitHandledField}
             evidenceItems={session.report.introduction.evidence_list || []}
-            onEvidenceItemsChange={items => {
+            onEvidenceItemsChange={(items, options) => {
               updateReport('introduction.evidence_list', items)
-              session.setEvidenceCompletenessConfirmed(false)
+              if (options?.affectsCompleteness !== false) {
+                session.setEvidenceCompletenessConfirmed(false)
+              }
             }}
             evidenceReadOnly={guidedInteractionDisabled}
             evidenceSaveState={session.autosave.draftState.status}

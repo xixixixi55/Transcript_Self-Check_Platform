@@ -56,6 +56,7 @@ export default function EvidenceEditor({
       evidence_id: evidenceId,
       device_type: '',
       device_name: '',
+      holder_name: '',
       model: '',
       imei1: '',
       imei2: '',
@@ -130,6 +131,9 @@ export default function EvidenceEditor({
             <div><Text strong>设备名称：</Text><EditableField type="text"
               placeholder="如 HUAWEI HBN-AL00" value={displayDeviceName(item)}
               onChange={value => updateDeviceName(idx, value)} /></div>
+            <div><Text strong>持有人：</Text><EditableField type="text"
+              placeholder="未填写" value={item.holder_name || ''}
+              onChange={value => updateItem(idx, 'holder_name', value)} /></div>
             <div>
               <Text strong>检材类型：</Text>
               <Select
