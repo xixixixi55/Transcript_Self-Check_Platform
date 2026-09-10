@@ -240,7 +240,7 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('当前检材编号无法安全排序，已保持原顺序。')).toBeTruthy()
   })
 
-  it('shows history and conversation as switchable panes while exposing global review controls', () => {
+  it('shows Word preview on the left and conversation on the right without a pane switch', () => {
     const selectAction = vi.fn()
     const updateReport = vi.fn()
     const openFullEditor = vi.fn()
@@ -272,12 +272,7 @@ describe('GuidedReviewView', () => {
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('Word 内容预览在左，对话在右')).toBeTruthy()
-    const swapPanesButton = screen.getByRole('button', { name: '交换 Word 内容预览与对话的位置' })
-    fireEvent.click(swapPanesButton)
-    expect(conversationRegion.compareDocumentPosition(historyRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('对话在左，Word 内容预览在右')).toBeTruthy()
-    fireEvent.click(swapPanesButton)
-    expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '交换 Word 内容预览与对话的位置' })).toBeNull()
     expect(screen.getByText('文书与委托信息')).toBeTruthy()
     expect(screen.getByText('委托人员：')).toBeTruthy()
     expect(screen.getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
@@ -607,7 +602,8 @@ describe('GuidedReviewView', () => {
     expect(nextMascotFigure).not.toBe(initialMascotFigure)
   })
 
-  it('keeps the active response mounted while switching pane order', () => {
+  it('keeps the fixed pane order when a legacy preference requests conversation first', () => {
+    window.localStorage.setItem('biji.guidedReview.splitOrder', 'conversation-first')
     render(<GuidedReviewView
       conversationKey="SYNTHETIC-CASE"
       history={history}
@@ -619,28 +615,11 @@ describe('GuidedReviewView', () => {
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
-    const response = screen.getByRole('group', { name: '你的回复' })
-    fireEvent.click(screen.getByRole('button', { name: '交换 Word 内容预览与对话的位置' }))
-    expect(screen.getByRole('group', { name: '你的回复' })).toBe(response)
+    const historyRegion = screen.getByRole('region', { name: 'Word 内容预览' })
+    const conversationRegion = screen.getByRole('region', { name: '当前对话' })
+    expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole('group', { name: '獬豸助手分栏' }).className)
-      .toContain('guided-review-scroll--conversation-first')
-  })
-
-  it('reuses the preferred pane order across cases and page remounts', () => {
-    window.localStorage.setItem('biji.guidedReview.splitOrder', 'conversation-first')
-    const props = {
-      history, currentAction: documentAction, allActions: [documentAction], hasResponse: true,
-      onSelectAction: vi.fn(), onOpenFullEditor: vi.fn(), onBackToWorkbench: vi.fn(),
-    }
-    const child = <GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} />
-    const firstCase = render(<GuidedReviewView conversationKey="SYNTHETIC-CASE-A" {...props}>{child}</GuidedReviewView>)
-    expect(screen.getByRole('group', { name: '獬豸助手分栏' }).className)
-      .toContain('guided-review-scroll--conversation-first')
-    fireEvent.click(screen.getByRole('button', { name: '交换 Word 内容预览与对话的位置' }))
-    expect(window.localStorage.getItem('biji.guidedReview.splitOrder')).toBe('history-first')
-    firstCase.unmount()
-    render(<GuidedReviewView conversationKey="SYNTHETIC-CASE-B" {...props}>{child}</GuidedReviewView>)
-    expect(screen.getByRole('group', { name: '獬豸助手分栏' }).className)
-      .toContain('guided-review-scroll--history-first')
+      .toBe('guided-review-scroll')
+    expect(screen.queryByRole('button', { name: '交换 Word 内容预览与对话的位置' })).toBeNull()
   })
 })

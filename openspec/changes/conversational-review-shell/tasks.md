@@ -863,3 +863,14 @@ workflow_level: 2
 - `deferred_terminal_tests: PASS`：旧实现上的 SYNTHETIC 失败用例复现旧标题和缺失操作组；修复后受影响组件、Hook 与页面 6 files / 62 tests 通过，页面回归确认“现在压缩”提交既有 `immediate` 决定。
 - `deferred_terminal_gates: PASS`：架构检查、TypeScript、前端构建与 `npm run verify:quick` 通过；限定范围严格文档检查 14 项无漂移，OpenSpec 严格校验和 `git diff --check` 通过；Impeccable 单次检测为 0 项，delta 已同步 living spec。
 - `deferred_terminal_manual_acceptance: N/A`：完成态文案、操作层级、回调、历史轨迹和待办语义由 SYNTHETIC DOM/页面集成回归可靠区分；窄屏规则经静态差异检查，未读取或操作真实案件数据。
+
+## 2026-09-10 固定 Word 预览与对话分栏（workflow_level: 2）
+
+- [x] 6.121 删除 Word 内容预览与当前对话的左右交换按钮、顺序状态和浏览器本地顺序偏好读取，固定左侧 Word 内容预览、右侧当前对话；旧偏好不得改变固定顺序。
+- [x] 6.122 更新既有 SYNTHETIC 组件回归，区分交换入口缺席、固定 DOM/键盘顺序及旧偏好不生效；同步 delta 与 living spec。
+- [x] 6.123 运行受影响组件测试、类型与架构检查、`verify:quick`、限定范围严格文档检查、OpenSpec 严格校验、Impeccable 单次检测及 `git diff --check`。
+
+- `guided_fixed_split_contract: PASS`：删除布局交换按钮、`SplitOrder` 状态和 `biji.guidedReview.splitOrder` 读写；分栏 DOM 固定先渲染 Word 内容预览、后渲染当前对话，旧浏览器偏好不再改变视觉、DOM 或键盘顺序。
+- `guided_fixed_split_tests: PASS`：先在旧实现上得到 2 个可区分失败，实施后 `GuidedReviewView.test.tsx` 12/12 通过，覆盖交换入口缺席、固定顺序和旧 `conversation-first` 偏好不生效。
+- `guided_fixed_split_gates: PASS`：架构、TypeScript、治理文档、仓库资产、生产构建和 `verify:quick` 通过；OpenSpec change 严格校验与 `git diff --check` 通过；Impeccable 单次检测为 0 项。限定范围严格文档检查初次仅因本验证任务未勾选而失败，补全记录后复核通过（14/14）。
+- `guided_fixed_split_manual_acceptance: N/A`：本次未修改分栏尺寸、颜色或响应式样式；按钮缺席、桌面左右顺序、窄屏上下 DOM 顺序和旧偏好隔离均由 SYNTHETIC DOM 回归可靠区分，未读取或操作真实案件数据。

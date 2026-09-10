@@ -62,28 +62,6 @@ interface HandledHistoryItem {
 
 type ActionStatusTone = 'current' | 'pending' | 'warning' | 'system' | 'success'
 type MascotMood = 'listening' | 'verifying' | 'warning' | 'complete'
-type SplitOrder = 'history-first' | 'conversation-first'
-
-const SPLIT_ORDER_STORAGE_KEY = 'biji.guidedReview.splitOrder'
-
-function readSplitOrderPreference(): SplitOrder {
-  if (typeof window === 'undefined') return 'history-first'
-  try {
-    const stored = window.localStorage.getItem(SPLIT_ORDER_STORAGE_KEY)
-    return stored === 'conversation-first' || stored === 'history-first' ? stored : 'history-first'
-  } catch {
-    return 'history-first'
-  }
-}
-
-function writeSplitOrderPreference(value: SplitOrder): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(SPLIT_ORDER_STORAGE_KEY, value)
-  } catch {
-    // The current layout still works when browser storage is unavailable.
-  }
-}
 
 interface ActionStatus {
   label: string
@@ -180,7 +158,6 @@ export function GuidedReviewView({
   const [completedTurns, setCompletedTurns] = useState<CompletedTurn[]>([])
   const [completionMoodActive, setCompletionMoodActive] = useState(false)
   const [switchedTurn, setSwitchedTurn] = useState<SwitchedTurn | null>(null)
-  const [splitOrder, setSplitOrder] = useState<SplitOrder>(readSplitOrderPreference)
   const [mascotMotionActive, setMascotMotionActive] = useState(() => (
     typeof document === 'undefined' || document.visibilityState !== 'hidden'
   ))
@@ -191,11 +168,6 @@ export function GuidedReviewView({
   const openPanelRef = useRef<HTMLDivElement>(null)
   const togglePendingPanel = () => {
     setOpenPanel(current => current === 'pending' ? null : 'pending')
-  }
-  const swapSplitOrder = () => {
-    const nextOrder = splitOrder === 'history-first' ? 'conversation-first' : 'history-first'
-    setSplitOrder(nextOrder)
-    writeSplitOrderPreference(nextOrder)
   }
 
   useEffect(() => {
@@ -319,21 +291,13 @@ export function GuidedReviewView({
 
   return (
     <div className="guided-review-view">
-      <div className="guided-review-layout-toolbar" aria-label="分栏布局控制">
-        <span aria-live="polite">
-          {splitOrder === 'history-first' ? 'Word 内容预览在左，对话在右' : '对话在左，Word 内容预览在右'}
-        </span>
-        <Tooltip title={splitOrder === 'history-first' ? '将对话切换到左侧' : '将 Word 内容预览切换到左侧'}>
-          <Button shape="circle" size="large" className="guided-review-icon-action"
-            icon={<SwapOutlined />} aria-label="交换 Word 内容预览与对话的位置"
-            onClick={swapSplitOrder} />
-        </Tooltip>
+      <div className="guided-review-layout-toolbar" aria-label="分栏布局">
+        <span>Word 内容预览在左，对话在右</span>
       </div>
-      <div className={`guided-review-scroll guided-review-scroll--${splitOrder}`} role="group"
-        aria-label="獬豸助手分栏">
-        {splitOrder === 'history-first' && <GuidedReviewHistory key="history" items={history}
+      <div className="guided-review-scroll" role="group" aria-label="獬豸助手分栏">
+        <GuidedReviewHistory key="history" items={history}
           evidenceItems={evidenceItems} onEvidenceItemsChange={onEvidenceItemsChange}
-          readOnly={evidenceReadOnly} saveState={evidenceSaveState} saveHasPending={evidenceSaveHasPending} />}
+          readOnly={evidenceReadOnly} saveState={evidenceSaveState} saveHasPending={evidenceSaveHasPending} />
         <section key="conversation" className="guided-review-conversation" role="region" aria-label="当前对话">
         <div className="guided-review-conversation__body">
           <div ref={mascotRef}
@@ -523,9 +487,6 @@ export function GuidedReviewView({
           )}
         </div>
         </section>
-        {splitOrder === 'conversation-first' && <GuidedReviewHistory key="history" items={history}
-          evidenceItems={evidenceItems} onEvidenceItemsChange={onEvidenceItemsChange}
-          readOnly={evidenceReadOnly} saveState={evidenceSaveState} saveHasPending={evidenceSaveHasPending} />}
       </div>
     </div>
   )
