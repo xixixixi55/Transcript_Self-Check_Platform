@@ -19,7 +19,11 @@ Layer 21: BE_Services — docx 文档构建器
 from ..report.report_defaults_service import normalize_data_summary
 from ..report.legacy_report_projection_service import project_ordered_legacy_report
 from ..inspection.entrust_person_service import format_entrust_persons
-from ..inspection.material_policy_service import reviewed_material_display_name, unextractable_reason_text
+from ..inspection.material_policy_service import (
+    is_material_extractable,
+    reviewed_material_display_name,
+    unextractable_reason_text,
+)
 from ..integrity.hash_algorithm_service import hash_field_title, report_hash_algorithm
 
 
@@ -80,9 +84,7 @@ def build_record_document(report: dict, photo_paths: list[str] = None) -> list[d
             if device_type.casefold() in {"手机", "智能手机", "phone", "smartphone", "平板", "平板电脑", "tablet"}
             else device_type or ev.get("device_name") or ev.get("model", "")
         )
-        extractable = ev.get("extractable")
-        if not isinstance(extractable, bool):
-            extractable = any(str(ev.get(key, "")).strip() for key in ("imei1", "imei2"))
+        extractable = is_material_extractable(ev)
         details = []
         if extractable:
             for key, label in (("imei1", "IMEI1"), ("imei2", "IMEI2"), ("serial_number", "序列号")):

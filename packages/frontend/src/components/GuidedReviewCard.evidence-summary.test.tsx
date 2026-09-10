@@ -34,7 +34,7 @@ describe('GuidedReviewCard evidence completeness summary', () => {
     const report = reportWithEvidence([
       {
         id: 'SYNTHETIC-EVIDENCE-1', device_type: 'SYNTHETIC Phone', device_name: 'SYNTHETIC Phone', evidence_number: 'SYN-JC00000001',
-        material_type: 'phone', extractable: true, imei1: 'SYNTHETIC-IMEI',
+        material_type: 'phone', imei1: '', imei2: '',
       },
       {
         id: 'SYNTHETIC-EVIDENCE-2', device_type: 'SYNTHETIC Pad', device_name: 'SYNTHETIC Pad', evidence_number: 'SYN-JC00000002',

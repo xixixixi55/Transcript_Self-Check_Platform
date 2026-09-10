@@ -104,7 +104,7 @@ export default function EvidenceEditor({
 
   const isExtractable = (item: EvidenceItem) => typeof item.extractable === 'boolean'
     ? item.extractable
-    : Boolean(item.imei1?.trim() || item.imei2?.trim())
+    : true
 
   return (
     <div>
@@ -160,7 +160,7 @@ export default function EvidenceEditor({
                 onChange={(value: string) => onChange(items.map((candidate, i) =>
                   i === idx ? { ...candidate, extractable: value === 'true' } : candidate))}
                 style={{ minWidth: 140 }} />
-              <Text type="secondary">（仅根据 IMEI 自动判断）</Text>
+              <Text type="secondary">（报告检材默认可提取）</Text>
             </div>
             {!isExtractable(item) && (
               <div className="review-evidence-reason">

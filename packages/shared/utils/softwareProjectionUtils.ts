@@ -39,7 +39,7 @@ function evidenceIdentifiers(item: EvidenceItem): string {
 
 export function isEvidenceExtractable(item: EvidenceItem): boolean {
   if (typeof item.extractable === 'boolean') return item.extractable
-  return Boolean(text(item.imei1) || text(item.imei2))
+  return true
 }
 
 function projectEvidenceProcessSteps(report: InspectionReport): ProcessStep[] {

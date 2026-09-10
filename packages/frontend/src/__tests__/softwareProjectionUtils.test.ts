@@ -107,7 +107,7 @@ function evidenceReport(): InspectionReport {
 }
 
 describe('evidence list projection', () => {
-  it('does not infer extractability from a serial number alone', () => {
+  it('defaults a material without an explicit extractable value to extractable', () => {
     const serialOnly = { ...secondMaterial, extractable: undefined }
     const staleReport = evidenceReport()
     staleReport.introduction.evidence_list = [serialOnly]
@@ -115,7 +115,7 @@ describe('evidence list projection', () => {
     const updated = projectEvidenceDerivedContent(staleReport)
 
     expect(updated.inspection.process_steps.find(step => step.step_number === 1)?.content)
-      .toContain('SYNTHETIC TABLET 2（无法提取）编号为SYNTHETIC-2')
+      .toContain('SYNTHETIC TABLET 2（序列号：SYNTHETIC-SERIAL-2）编号为SYNTHETIC-2')
   })
 
   it('marks an identifier-free material as unable to extract in process step 1', () => {
@@ -153,7 +153,7 @@ describe('evidence list projection', () => {
 
     expect(updated.inspection.result.evidence_number).toBe('SYNTHETIC-1、SYNTHETIC-2')
     expect(updated.inspection.process_steps.find(step => step.step_number === 1)?.content)
-      .toContain('SYNTHETIC TABLET 2（无法提取）编号为SYNTHETIC-2')
+      .toContain('SYNTHETIC TABLET 2（序列号：SYNTHETIC-SERIAL-2）编号为SYNTHETIC-2')
     expect(updated.inspection.process_steps.find(step => step.step_number === 2)?.content)
       .toBe('对检材SYNTHETIC-1、SYNTHETIC-2进行拍照。')
     expect(updated.inspection.process_steps.find(step => step.step_number === 3)?.content)

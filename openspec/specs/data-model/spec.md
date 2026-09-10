@@ -1,4 +1,10 @@
-## MODIFIED Requirements
+# Spec: 共享数据模型
+
+## Purpose
+
+定义前后端共享业务数据的现行语义和兼容默认值，确保解析、审核、预览与正式文书投影使用一致的数据合同。
+
+## Requirements
 
 ### Requirement: EvidenceItem 可提取状态推导
 

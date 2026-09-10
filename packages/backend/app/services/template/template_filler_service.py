@@ -22,6 +22,7 @@ from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from ..report.report_defaults_service import normalize_data_summary
 from ..inspection.entrust_person_service import format_entrust_persons
 from ..inspection.material_policy_service import (
+    is_material_extractable,
     reviewed_material_display_name,
     material_from_legacy_item,
     select_display_identifiers,
@@ -474,9 +475,7 @@ def _fill_evidence_item(text_elements, item_template: str, item: dict):
         or item.get("model")
         or item.get("device_type", "")
     )
-    extractable = item.get("extractable")
-    if not isinstance(extractable, bool):
-        extractable = any(str(item.get(key, "")).strip() for key in ("imei1", "imei2"))
+    extractable = is_material_extractable(item)
     display_identifiers = {
         identifier.type: identifier.value
         for identifier in (select_display_identifiers(material_from_legacy_item(item, 0)) if extractable else ())

@@ -18,7 +18,7 @@
 ├── openspec/                              # 📋 OpenSpec（内容：需求 + 设计 + 任务）
 │   ├── config.yaml                        # 🔧 项目配置（上下文 + 规则）
 │   ├── specs/                             # 📋 当前生效的能力 spec（单一真相源）
-│   │   ├── data-model.md                  #    💾 数据模型定义
+│   │   ├── data-model/                    #    💾 共享数据模型与兼容默认值
 │   │   ├── electronic-inspection-record/  #    📋 电子数据检查笔录
 │   │   └── harness-workflow/              #    🛡️ Level 2 工作流合同
 │   └── changes/                           # 🔄 变更管理

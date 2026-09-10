@@ -419,7 +419,7 @@ def test_new_report_preserves_serial_from_tb2_when_base_table_omits_it(tmp_path)
     assert report["introduction"]["evidence_list"][0]["serial_number"] == "SYNTHETIC-TB2-SN"
 
 
-def test_report_parser_preserves_serial_but_only_imei_makes_material_extractable(tmp_path):
+def test_report_parser_defaults_report_material_to_extractable_without_imei(tmp_path):
     _write_service_fixture(str(tmp_path), known_software=True)
     import json
     data_dir = tmp_path / "data"
@@ -442,7 +442,7 @@ def test_report_parser_preserves_serial_but_only_imei_makes_material_extractable
     assert evidence["imei2"] == ""
     assert evidence["serial_number"] == "SN-NEW"
     assert evidence["holder_name"] == "SYNTHETIC-HOLDER-A"
-    assert evidence["extractable"] is False
+    assert evidence["extractable"] is True
 
 
 def test_new_report_unknown_main_software_version_stays_blank(tmp_path):

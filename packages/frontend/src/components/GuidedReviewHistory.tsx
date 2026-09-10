@@ -85,8 +85,7 @@ function EditableMaterialFields({ material, item, onChange }: {
   item: EvidenceItem
   onChange: (item: EvidenceItem, options?: { affectsCompleteness?: boolean }) => void
 }) {
-  const inferredExtractable = Boolean(item.imei1?.trim() || item.imei2?.trim())
-  const extractable = typeof item.extractable === 'boolean' ? item.extractable : inferredExtractable
+  const extractable = typeof item.extractable === 'boolean' ? item.extractable : true
   const update = (values: Partial<EvidenceItem>) => onChange({ ...item, ...values })
   return (
     <dl className="guided-review-history__fields guided-review-history__fields--editable">

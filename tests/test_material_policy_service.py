@@ -167,7 +167,7 @@ def test_display_policy_selects_only_allowed_valid_identifiers():
     assert [item.value for item in select_display_identifiers(tablet)] == ["SERIAL-SYNTHETIC-2"]
 
 
-def test_serial_number_alone_does_not_infer_extractable_but_is_preserved():
+def test_missing_extractable_defaults_true_and_preserves_identifiers():
     material = material_from_legacy_item(
         {
             "device_type": "平板",
@@ -177,7 +177,7 @@ def test_serial_number_alone_does_not_infer_extractable_but_is_preserved():
         0,
     )
 
-    assert material.extractable is False
+    assert material.extractable is True
     assert [(item.type, item.value) for item in material.identifiers] == [
         ("serial_number", "SERIAL-SYNTHETIC-ONLY"),
     ]

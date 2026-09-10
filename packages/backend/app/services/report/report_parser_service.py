@@ -38,7 +38,11 @@ from .report_defaults_service import (
     DEFAULT_INSPECTION_PLACE,
     DEFAULT_INSPECTION_REQUIREMENT,
 )
-from ..inspection.material_policy_service import material_from_legacy_item, select_display_identifiers
+from ..inspection.material_policy_service import (
+    is_material_extractable,
+    material_from_legacy_item,
+    select_display_identifiers,
+)
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from ..inspection.entrust_person_service import normalize_entrust_persons
 _TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")
@@ -223,7 +227,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "imei1": imei1,
             "imei2": imei2,
             "serial_number": serial_number,
-            "extractable": bool(str(imei1).strip() or str(imei2).strip()),
+            "extractable": True,
             "evidence_number": en,
         })
 
@@ -242,9 +246,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         evidence_number = str(device.get("evidence_number", "")).strip()
         if evidence_number and evidence_number not in evidence_numbers:
             evidence_numbers.append(evidence_number)
-        extractable = bool(device.get("extractable", any(
-            str(device.get(key, "")).strip() for key in ("imei1", "imei2")
-        )))
+        extractable = is_material_extractable(device)
         identifiers = select_display_identifiers(material_from_legacy_item(device, index)) if extractable else ()
         identifier_text = "；".join(
             f"{identifier_labels[item.type]}：{item.value}" for item in identifiers

@@ -322,7 +322,7 @@ function evidenceTypeLabel(item: EvidenceItem): string {
 function evidenceExtractionLabel(item: EvidenceItem): string {
   const extractable = typeof item.extractable === 'boolean'
     ? item.extractable
-    : Boolean(item.imei1?.trim() || item.imei2?.trim())
+    : true
   return extractable ? '可以提取' : '无法提取'
 }
 

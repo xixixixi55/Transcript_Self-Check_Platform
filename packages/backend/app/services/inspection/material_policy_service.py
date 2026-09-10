@@ -24,6 +24,12 @@ _TABLET_DISPLAY_TYPE_WORDS = ("平板", "平板电脑", "tablet")
 _CONFIRMED_STATUSES = {"confirmed_by_report", "confirmed_by_user"}
 
 
+def is_material_extractable(item: Mapping[str, Any]) -> bool:
+    """显式人工状态优先；缺少状态的报告兼容数据默认可提取。"""
+    extractable = item.get("extractable")
+    return extractable if isinstance(extractable, bool) else True
+
+
 def _normalise_device_type(value: Any) -> str:
     if not isinstance(value, str):
         return ""
@@ -137,9 +143,7 @@ def material_from_legacy_item(item: Mapping[str, Any], index: int) -> Material:
                     provenance=[_legacy_provenance(path)],
                 )
             )
-    extractable = item.get("extractable")
-    if not isinstance(extractable, bool):
-        extractable = any(identifier.type in {"imei1", "imei2"} for identifier in identifiers)
+    extractable = is_material_extractable(item)
     return Material(
         id=_safe_text(item.get("id")) or f"legacy-material-{index + 1}",
         evidence_number=_safe_text(item.get("evidence_number")),

@@ -56,7 +56,7 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     const evidenceItems = [{
       id: 'SYNTHETIC-C', evidence_id: 'SYNTHETIC-C', device_type: 'SYNTHETIC Phone',
       device_name: 'SYNTHETIC Phone', evidence_number: 'SYN-JC-C', material_type: 'phone' as const,
-      holder_name: 'SYNTHETIC-HOLDER-A', imei1: 'C-IMEI-1', imei2: '', serial_number: 'C-SERIAL', extractable: true,
+      holder_name: 'SYNTHETIC-HOLDER-A', imei1: '', imei2: '', serial_number: 'C-SERIAL',
     }]
     const onEvidenceItemsChange = vi.fn()
     const editableMaterial = {
@@ -80,7 +80,7 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     expect(screen.getByText('序列号：')).toBeTruthy()
     expect(screen.getByRole('button', { name: /SYN-JC-C，按 Enter 编辑/ })).toBeTruthy()
     expect(screen.getByRole('combobox', { name: '检材 C类型' })).toBeTruthy()
-    expect(screen.getByRole('combobox', { name: '检材 C提取情况' })).toBeTruthy()
+    expect(screen.getByText('可提取')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /SYNTHETIC Phone，按 Enter 编辑/ }))
     const deviceInput = screen.getByDisplayValue('SYNTHETIC Phone')

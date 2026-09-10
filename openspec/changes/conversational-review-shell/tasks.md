@@ -874,3 +874,18 @@ workflow_level: 2
 - `guided_fixed_split_tests: PASS`：先在旧实现上得到 2 个可区分失败，实施后 `GuidedReviewView.test.tsx` 12/12 通过，覆盖交换入口缺席、固定顺序和旧 `conversation-first` 偏好不生效。
 - `guided_fixed_split_gates: PASS`：架构、TypeScript、治理文档、仓库资产、生产构建和 `verify:quick` 通过；OpenSpec change 严格校验与 `git diff --check` 通过；Impeccable 单次检测为 0 项。限定范围严格文档检查初次仅因本验证任务未勾选而失败，补全记录后复核通过（14/14）。
 - `guided_fixed_split_manual_acceptance: N/A`：本次未修改分栏尺寸、颜色或响应式样式；按钮缺席、桌面左右顺序、窄屏上下 DOM 顺序和旧偏好隔离均由 SYNTHETIC DOM 回归可靠区分，未读取或操作真实案件数据。
+
+## 2026-09-10 原始报告检材默认可提取（workflow_level: 2）
+
+- [x] 6.124 将用户反馈关联到本包并修改 `openspec/changes/conversational-review-shell/specs/data-model/spec.md`：从原始报告解析出的检材一律默认可提取，缺少 `extractable` 的兼容数据同样默认可提取，不再按 IMEI 或序列号推导；用户显式选择无法提取及其原因校验保持有效。`audit-edit-enhancement` 是最初引入可提取状态的候选，但本包最近直接修改了同一推导合同和核心调用链，因此复用本包，不改写旧包。
+  - 验证：OpenSpec 严格校验能够区分无 IMEI 的报告检材、缺字段兼容数据和显式 `extractable: false`；异常核对与无法提取原因场景继续保留。
+- [x] 6.125 按 Layer 0→2→10→11→21 调整现有实现：更新 `packages/shared/types/index.ts` 的字段语义及 `packages/shared/utils/softwareProjectionUtils.ts`；将 `packages/frontend/src/hooks/useReviewChecklist.ts`、`useGuidedReviewHistoryProjection.ts` 和 `packages/frontend/src/components/EvidenceEditor.tsx`、`GuidedReviewHistory.tsx`、`GuidedReviewCard.tsx` 的缺字段回退改为默认可提取；将 `packages/backend/app/services/report/report_parser_service.py` 的报告解析结果设为可提取，并统一 `material_policy_service.py`、`canonical_adapter_service.py`、`document_builder_service.py`、`template_filler_service.py` 的兼容回退。不得修改 `useGuidedReviewHistoryProjection.ts` 的 IMEI 异常判定，也不得改变显式无法提取原因的待核对、导出阻止和文书投影。
+  - 验证：先修改现有 SYNTHETIC 回归并在旧实现上得到可区分失败；覆盖原始报告检材无 IMEI 仍可提取、缺字段兼容数据默认可提取、显式 `false` 保持优先，以及 IMEI 异常核对和无法提取原因规则不回归。
+- [x] 6.126 将 delta 与实现核对后同步 `openspec/specs/data-model/spec.md`，运行受影响前端组件/Hook/共享投影测试、后端解析/规范化/文书投影测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec 严格校验及 `git diff --check`。
+  - 人工验收：N/A；默认值、显式覆盖、异常核对和文书投影均为确定性数据规则，可由 SYNTHETIC 自动化回归可靠区分，且不得读取或提交真实报告数据。
+
+- `report_material_default_extractable_contract: PASS`：原始报告解析出的检材固定写入 `extractable: true`；缺字段兼容数据在共享投影、审核检查、编辑器、Word 预览、规范模型与两条文书管线中统一默认可提取，不再读取 IMEI 或序列号决定该状态。
+- `report_material_default_extractable_anomaly_guard: PASS`：IMEI 缺失、单一、重复仍由既有 `imeiStatus` 规则标记为待核对；显式 `extractable: false` 仍优先，并继续触发无法提取原因、导出阻止及文书原因投影。
+- `report_material_default_extractable_tests: PASS`：旧实现上前端 6 项、后端 3 项回归按预期失败；实施后受影响前端 6 files / 61 tests 与后端 5 files / 126 tests 通过，TypeScript 和架构检查通过。
+- `report_material_default_extractable_gates: PASS`：`npm run verify:quick`、限定范围严格文档检查、OpenSpec change 与现行 `data-model` spec 严格校验及 `git diff --check` 通过；delta 已同步到新建的现行 `openspec/specs/data-model/spec.md`，目录索引已同步。
+- `report_material_default_extractable_manual_acceptance: N/A`：默认值、显式覆盖、异常核对和文书投影均由 SYNTHETIC 自动化回归可靠区分，未读取或操作真实案件数据。

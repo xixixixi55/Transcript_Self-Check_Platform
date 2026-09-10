@@ -81,6 +81,16 @@ def test_canonical_to_inspection_report_preserves_identifiers_and_order():
     assert report["inspection"]["result"]["software_name"] == "Synthetic forensic tool"
 
 
+def test_canonical_projection_defaults_material_without_extractable_or_identifiers_to_true():
+    case = _canonical_case()
+    case.materials[0].extractable = None
+    case.materials[0].identifiers = []
+
+    report = canonical_to_inspection_report(case)
+
+    assert report["introduction"]["evidence_list"][0]["extractable"] is True
+
+
 def test_deprecated_entrust_unit_prefix_is_dropped_from_canonical_projection():
     legacy = {
         "title": "Synthetic inspection",

@@ -113,14 +113,14 @@ describe('结构化编辑器', () => {
     expect(screen.getByText('IMEI2：')).toBeTruthy()
   })
 
-  it('序列号不参与缺失 extractable 字段的自动判断', () => {
+  it('缺失 extractable 字段时默认可提取且不依赖设备标识', () => {
     render(<EvidenceEditor items={[{
       id: 'serial-only', device_type: '平板', material_type: 'tablet', model: '',
       imei1: '', imei2: '', serial_number: 'SYNTHETIC-SERIAL', evidence_number: 'SYN-JC-SERIAL',
     }]} onChange={vi.fn()} />)
 
-    expect((screen.getByLabelText('检材1是否可提取') as HTMLSelectElement).value).toBe('false')
-    expect(screen.getByText('（仅根据 IMEI 自动判断）')).toBeTruthy()
+    expect((screen.getByLabelText('检材1是否可提取') as HTMLSelectElement).value).toBe('true')
+    expect(screen.getByText('（报告检材默认可提取）')).toBeTruthy()
     expect(screen.getByText('SYNTHETIC-SERIAL')).toBeTruthy()
   })
 

@@ -111,8 +111,7 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
     const deviceName = brand && model
       ? model.toLocaleLowerCase().includes(brand.toLocaleLowerCase()) ? model : `${brand} ${model}`
       : material.device_name?.trim() || model || material.device_type?.trim()
-    const inferredExtractable = Boolean(material.imei1?.trim() || material.imei2?.trim())
-    const extractable = typeof material.extractable === 'boolean' ? material.extractable : inferredExtractable
+    const extractable = typeof material.extractable === 'boolean' ? material.extractable : true
     const extractability = extractable === false
       ? material.unextractable_reason?.trim()
         ? `无法提取：${material.unextractable_reason.trim()}` : '无法提取'
