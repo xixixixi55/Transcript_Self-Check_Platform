@@ -222,7 +222,7 @@ export function GuidedReviewHistory({
       <div className="guided-review-history__heading">
         <div className="guided-review-history__summary">
           <h2 id="guided-review-history-title">Word 内容预览</h2>
-          <span>{items.length ? '按文书结构汇总，供快速核对' : '暂无可预览内容'}</span>
+          {!items.length && <span>暂无可预览内容</span>}
         </div>
       </div>
       <div className="guided-review-history__content">

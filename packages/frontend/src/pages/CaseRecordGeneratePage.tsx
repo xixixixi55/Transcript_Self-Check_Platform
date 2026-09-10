@@ -18,14 +18,14 @@ import { ReviewPreviewDrawer } from '../components/ReviewPreviewDrawer'
 import { CaseStatusBadge } from '../components/CaseStatusBadge'
 import { SourceReselectionPanel } from '../components/SourceReselectionPanel'
 import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
-import { ArchiveCompletionPanel } from '../components/ArchiveCompletionPanel'
+import { ArchiveCompletionPanel, getArchiveCompletionGuidance } from '../components/ArchiveCompletionPanel'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
 import type { ReviewPageStatus } from '../components/reviewWorkspaceTypes'
 import { runWithSourceExportRiskConfirmation } from '../hooks/useSourceExportRisk'
 import { useGuidedReviewCards } from '../hooks/useGuidedReviewCards'
 import { GuidedReviewView } from '../components/GuidedReviewView'
 import { GuidedReviewCard } from '../components/GuidedReviewCard'
-import ImageUploader from '../components/ImageUploader'
+import ImageUploader, { PHOTO_UPLOAD_GUIDANCE } from '../components/ImageUploader'
 
 const WORD_EXPORT_PHOTO_WAIT_MS = 5_000
 
@@ -337,48 +337,69 @@ export default function CaseRecordGeneratePage() {
   )
   const currentGuidedAction = guidedReview.currentAction
   let guidedSpecialContent: React.ReactNode
+  let guidedAssistantMessage: { title: string; description?: React.ReactNode } | undefined
   if (currentGuidedAction?.kind === 'save_recovery') {
     const saveState = session.autosave.draftState.status
-    guidedSpecialContent = <Alert
-      type={saveState === 'failed' ? 'error' : saveState === 'conflict' ? 'warning' : 'info'}
-      showIcon
-      message={saveState === 'failed' ? '草稿保存失败'
-        : saveState === 'conflict' ? '草稿保存发生冲突' : '正在重新保存当前输入'}
-      description={saveState === 'conflict'
+    guidedAssistantMessage = {
+      title: saveState === 'failed' ? '草稿保存失败'
+        : saveState === 'conflict' ? '草稿保存发生冲突' : '正在重新保存当前输入',
+      description: saveState === 'conflict'
         ? '当前输入仍保留在本页面。可以重试保存，或确认后加载服务端版本。'
         : saveState === 'failed' ? '当前输入仍保留在本页面，请重试保存。'
-          : '保存完成前，当前输入会继续保留在本页面。'}
-      action={saveState === 'saving' ? undefined : <Space wrap>
+          : '保存完成前，当前输入会继续保留在本页面。',
+    }
+    if (saveState !== 'saving') guidedSpecialContent = <Space wrap>
         <Button type="primary" onClick={() => { void retryDraftSave() }}>重试保存</Button>
         {saveState === 'conflict' && <Button onClick={() => { void loadServerDraft() }}>加载服务端版本</Button>}
-      </Space>} />
+      </Space>
   } else if (currentGuidedAction?.kind === 'source_recovery') {
-    guidedSpecialContent = <SourceReselectionPanel required onReselect={session.replaceSource} />
+    guidedSpecialContent = <SourceReselectionPanel required controlsOnly onReselect={session.replaceSource} />
   } else if (currentGuidedAction?.kind === 'lease_recovery') {
-    guidedSpecialContent = <Alert type="warning" showIcon message={leaseMessage || '当前页面没有有效编辑权限。'}
-      action={session.lease.phase === 'read_only'
+    guidedAssistantMessage = {
+      title: currentGuidedAction.title,
+      description: leaseMessage || '当前页面没有有效编辑权限。',
+    }
+    guidedSpecialContent = session.lease.phase === 'read_only'
         ? <Button onClick={forceTakeover}>强制接管</Button>
         : session.lease.phase === 'acquiring' ? undefined
-          : <Button onClick={reacquireLease}>重新获取编辑权限</Button>} />
+          : <Button onClick={reacquireLease}>重新获取编辑权限</Button>
   } else if (currentGuidedAction?.kind === 'photo_recovery') {
-    guidedSpecialContent = <Alert type={attachmentWarning ? 'warning' : 'error'} showIcon
-      message={attachmentWarning || session.photoAssets.assetError || '图片尚未完成保存。'}
-      action={<Button onClick={() => openFullEditor(REVIEW_TARGET_IDS.photos)}>返回图片控件</Button>} />
-  } else if (currentGuidedAction?.kind === 'archive_decision'
-    || currentGuidedAction?.kind === 'waiting' && ['archive_queued', 'archiving'].includes(session.detail.shell.lifecycle)) {
+    guidedAssistantMessage = {
+      title: currentGuidedAction.title,
+      description: attachmentWarning || session.photoAssets.assetError || currentGuidedAction.description,
+    }
+    guidedSpecialContent = <Button onClick={() => openFullEditor(REVIEW_TARGET_IDS.photos)}>返回图片控件</Button>
+  } else if (currentGuidedAction?.kind === 'archive_decision') {
     guidedSpecialContent = <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy}
-      onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
+      controlsOnly onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
   } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.photos) {
-    guidedSpecialContent = <>
-      {(attachmentWarning || session.photoAssets.assetError) && <Alert
-        type={attachmentWarning ? 'warning' : 'error'}
-        showIcon
-        message={attachmentWarning || session.photoAssets.assetError} />}
-      <ImageUploader materials={session.report.introduction.evidence_list || []}
-        photos={session.photoAssets.files} onChange={session.photoAssets.handleChange} />
-    </>
+    guidedAssistantMessage = {
+      title: currentGuidedAction.title,
+      description: [
+        currentGuidedAction.description,
+        PHOTO_UPLOAD_GUIDANCE,
+        attachmentWarning || session.photoAssets.assetError,
+      ].filter(Boolean).join(' '),
+    }
+    guidedSpecialContent = <ImageUploader materials={session.report.introduction.evidence_list || []}
+      photos={session.photoAssets.files} onChange={session.photoAssets.handleChange} showGuidance={false} />
   } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.discNumber) {
-    guidedSpecialContent = archiveCompletionPanel
+    guidedAssistantMessage = getArchiveCompletionGuidance(
+      session.detail.shell.lifecycle,
+      session.completedArchive.result?.parts ?? null,
+      archiveMedium,
+    )
+    guidedSpecialContent = <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
+      expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
+      planRowRevision={session.completedArchive.result?.plan_row_revision ?? null}
+      archiveMedium={archiveMedium}
+      firstDiscNumber={session.report.attachments?.disc_number || ''}
+      onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
+      readOnly={!session.editingEnabled} controlsOnly
+      onCompleted={() => {
+        session.completedArchive.reload()
+        void session.reloadDetail(caseId)
+      }} />
   } else if (currentGuidedAction?.kind === 'ready') {
     guidedSpecialContent = <Button type="primary" size="large" icon={<SaveOutlined />}
       loading={session.autosave.draftState.status === 'saving' || session.photoAssets.navigationUnsafe}
@@ -416,6 +437,7 @@ export default function CaseRecordGeneratePage() {
           <GuidedReviewView conversationKey={caseId} history={guidedReview.history}
             previouslyHandledFields={guidedReview.previouslyHandledFields} currentAction={currentGuidedAction}
             allActions={guidedReview.allActions} hasResponse={Boolean(guidedSpecialContent || currentGuidedAction.pendingItem)}
+            assistantMessage={guidedAssistantMessage}
             onSelectAction={guidedReview.selectAction}
             onRevisitAction={guidedReview.revisitAction}
             onRevisitHandledField={guidedReview.revisitHandledField}

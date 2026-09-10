@@ -15,6 +15,16 @@ describe('ArchiveDecisionPanel', () => {
     expect(onDeferred).toHaveBeenCalledOnce()
   })
 
+  it('renders only the available choices when embedded in the guided reply', () => {
+    render(<ArchiveDecisionPanel lifecycle="review_ready" controlsOnly
+      onImmediate={vi.fn()} onDeferred={vi.fn()} />)
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('报告解析成功，请选择压缩时机。')).toBeNull()
+    expect(screen.getByRole('button', { name: '立即开始压缩' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '稍后压缩' })).toBeTruthy()
+  })
+
   it('keeps deferred status visible without a progress indicator', () => {
     const onImmediate = vi.fn()
     render(<ArchiveDecisionPanel lifecycle="archive_deferred" onImmediate={onImmediate} onDeferred={vi.fn()} />)

@@ -8,7 +8,7 @@ describe('CaseWorkbenchDirectoryPickerCard', () => {
     render(<CaseWorkbenchDirectoryPickerCard onClick={onClick} />)
 
     expect(screen.getByRole('button', { name: '上传报告目录' })).toBeTruthy()
-    expect(screen.getByText('点击选择本机报告文件夹并立即解析')).toBeTruthy()
+    expect(screen.queryByText('点击选择本机报告文件夹并立即解析')).toBeNull()
     expect(document.querySelector('input[type="file"]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '上传报告目录' }))
     expect(onClick).toHaveBeenCalledOnce()

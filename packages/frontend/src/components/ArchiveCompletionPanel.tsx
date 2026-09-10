@@ -18,14 +18,56 @@ interface Props {
   firstDiscNumber: string
   onFirstDiscNumberChange: (value: string) => void
   readOnly?: boolean
+  controlsOnly?: boolean
   onCompleted: () => void
+}
+
+export interface ArchiveCompletionGuidance {
+  title: string
+  description?: string
+}
+
+export function getArchiveCompletionGuidance(
+  lifecycle: CaseLifecycle,
+  parts: Props['parts'],
+  archiveMedium: ArchiveMedium | null = 'optical_disc',
+): ArchiveCompletionGuidance {
+  const status = resolveArchiveCompletionStatusForParts(lifecycle, parts)
+  const hardDrive = archiveMedium === 'hard_drive'
+  const mediumLabel = hardDrive ? '硬盘' : archiveMedium === 'optical_disc' ? '光盘' : '介质'
+  if (status === 'disc_pending') return {
+    title: hardDrive ? '待补硬盘编号' : archiveMedium === 'optical_disc' ? '待补盘号' : '待补介质编号',
+    description: hardDrive
+      ? '压缩已完成且产物为一个超大单卷；编号可使用旧格式，也可在日期后加入两位用户标识。'
+      : '压缩已完成；首盘号可使用旧格式，也可在日期后加入两位用户标识，系统将按 part 顺序生成全序列映射。',
+  }
+  if (status === 'archive_complete' || status === 'exported') return {
+    title: status === 'exported' ? '已导出' : '归档完成',
+    description: status === 'exported'
+      ? '统一导出已完成；如需再次导出，请返回案件工作台。'
+      : hardDrive
+        ? '完整 RAR、文件哈希与硬盘编号已对应完成，请返回案件工作台统一导出。'
+        : '全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台统一导出。',
+  }
+  return {
+    title: archiveMedium ? `${mediumLabel}编号` : '介质编号（可提前填写）',
+    description: status === 'compressing'
+      ? hardDrive
+        ? '压缩正在后台进行；完成后可填写硬盘编号。'
+        : archiveMedium === 'optical_disc'
+          ? '压缩正在后台进行；现在仍可填写新格式或旧格式首盘号，压缩完成后将沿用该编号。'
+          : undefined
+      : archiveMedium
+        ? '可提前填写编号；系统会在压缩完成后按归档模式校验。'
+        : '可提前填写新格式或旧格式的完整 GP/YP 编号；最终介质由压缩前归档总量决定。',
+  }
 }
 
 export function ArchiveCompletionPanel({
   lifecycle, caseId, expectedRevision, planRowRevision, parts,
   archiveMedium = 'optical_disc',
   firstDiscNumber, onFirstDiscNumberChange,
-  readOnly = false, onCompleted,
+  readOnly = false, controlsOnly = false, onCompleted,
 }: Props) {
   const archive = useArchiveCompletion()
   const persistedFirstDiscNumber = String(parts?.[0]?.disc_number || '').trim()
@@ -38,6 +80,7 @@ export function ArchiveCompletionPanel({
   const numberLabel = hardDrive ? '硬盘编号' : archiveMedium === 'optical_disc' ? '首个光盘编号' : '介质编号'
   const numberPlaceholder = hardDrive ? '如 YP2026041302-01' : archiveMedium === 'optical_disc'
     ? '如 GP2026073102-01' : '如 GP2026073102-01 或 YP2026041302-01'
+  const guidance = getArchiveCompletionGuidance(lifecycle, parts, archiveMedium)
   useEffect(() => {
     if (archive.error) message.error(archive.error)
   }, [archive.error])
@@ -66,64 +109,31 @@ export function ArchiveCompletionPanel({
   }
 
   if (status === 'disc_pending') {
-    return (
-      <Alert
-        className="case-workbench-page__toolbar archive-completion-panel"
-        type="warning"
-        showIcon
-        message={hardDrive ? '待补硬盘编号' : archiveMedium === 'optical_disc' ? '待补盘号' : '待补介质编号'}
-        description={hardDrive
-          ? '压缩已完成且产物为一个超大单卷；编号可使用旧格式，也可在日期后加入两位用户标识。'
-          : '压缩已完成；首盘号可使用旧格式，也可在日期后加入两位用户标识，系统将按 part 顺序生成全序列映射。'}
-        action={<Space className="archive-completion-panel__controls">
-          <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
-            disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
-          <Button type="primary" loading={archive.busy} disabled={readOnly}
-            onClick={() => { void submitMapping() }}>{hardDrive ? '提交硬盘编号' : '提交盘号映射'}</Button>
-        </Space>}
-      />
-    )
+    const controls = <Space className="archive-completion-panel__controls">
+      <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
+        disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
+      <Button type="primary" loading={archive.busy} disabled={readOnly}
+        onClick={() => { void submitMapping() }}>{hardDrive ? '提交硬盘编号' : '提交盘号映射'}</Button>
+    </Space>
+    if (controlsOnly) return controls
+    return <Alert className="case-workbench-page__toolbar archive-completion-panel"
+      type="warning" showIcon message={guidance.title} description={guidance.description} action={controls} />
   }
 
   if (status === 'archive_complete' || status === 'exported') {
-    return (
-      <Alert
-        className="case-workbench-page__toolbar archive-completion-panel"
-        type="success"
-        showIcon
-        message={status === 'exported' ? '已导出' : '归档完成'}
-        description={status === 'exported'
-          ? '统一导出已完成；如需再次导出，请返回案件工作台。'
-          : hardDrive
-            ? '完整 RAR、文件哈希与硬盘编号已对应完成，请返回案件工作台统一导出。'
-            : '全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台统一导出。'}
-        action={<Space className="archive-completion-panel__controls">
-          <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
-            disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
-          <Button loading={archive.busy} disabled={readOnly}
-            onClick={() => { void submitMapping() }}>{hardDrive ? '更新硬盘编号' : '更新盘号映射'}</Button>
-        </Space>}
-      />
-    )
+    const controls = <Space className="archive-completion-panel__controls">
+      <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
+        disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
+      <Button loading={archive.busy} disabled={readOnly}
+        onClick={() => { void submitMapping() }}>{hardDrive ? '更新硬盘编号' : '更新盘号映射'}</Button>
+    </Space>
+    if (controlsOnly) return controls
+    return <Alert className="case-workbench-page__toolbar archive-completion-panel"
+      type="success" showIcon message={guidance.title} description={guidance.description} action={controls} />
   }
-
-  return (
-    <Alert
-      className="case-workbench-page__toolbar archive-completion-panel"
-      type="info"
-      showIcon
-      message={archiveMedium ? `${mediumLabel}编号` : '介质编号（可提前填写）'}
-      description={status === 'compressing'
-        ? hardDrive
-          ? '压缩正在后台进行；完成后可填写硬盘编号。'
-          : archiveMedium === 'optical_disc'
-            ? '压缩正在后台进行；现在仍可填写新格式或旧格式首盘号，压缩完成后将沿用该编号。'
-            : undefined
-        : archiveMedium
-          ? '可提前填写编号；系统会在压缩完成后按归档模式校验。'
-          : '可提前填写新格式或旧格式的完整 GP/YP 编号；最终介质由压缩前归档总量决定。'}
-      action={<Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={firstDiscNumber}
-        disabled={readOnly} onChange={event => onFirstDiscNumberChange(event.target.value)} />}
-    />
-  )
+  const control = <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={firstDiscNumber}
+    disabled={readOnly} onChange={event => onFirstDiscNumberChange(event.target.value)} />
+  if (controlsOnly) return control
+  return <Alert className="case-workbench-page__toolbar archive-completion-panel"
+    type="info" showIcon message={guidance.title} description={guidance.description} action={control} />
 }

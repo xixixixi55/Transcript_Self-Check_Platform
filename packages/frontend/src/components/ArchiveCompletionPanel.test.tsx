@@ -134,6 +134,19 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     expect(screen.getByText(/全部 RAR、文件哈希与盘号已对应完成/)).toBeTruthy()
   })
 
+  it('renders only editable controls when embedded in the guided reply', () => {
+    renderPanel({
+      lifecycle: 'archive_verified',
+      parts: [{ disc_number: 'GP20260731-001' }],
+      controlsOnly: true,
+    })
+
+    expect(screen.queryByText('归档完成')).toBeNull()
+    expect(screen.queryByText(/全部 RAR、文件哈希与盘号已对应完成/)).toBeNull()
+    expect(screen.getByRole('textbox', { name: '首个光盘编号' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '更新盘号映射' })).toBeTruthy()
+  })
+
   it('allows an exported case to remap with the displayed plan revision', async () => {
     mapping
       .mockResolvedValueOnce({

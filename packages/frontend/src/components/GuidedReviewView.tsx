@@ -39,6 +39,10 @@ interface Props {
   onOpenFullEditor: (targetId?: string, focusInteractive?: boolean) => void
   onBackToWorkbench: () => void
   children: React.ReactNode
+  assistantMessage?: {
+    title: string
+    description?: React.ReactNode
+  }
 }
 
 interface CompletedTurn {
@@ -151,7 +155,7 @@ export function GuidedReviewView({
   canReturnToPrevious = false, canReturnToNext = false,
   onReturnToPreviousAction, onReturnToNextAction,
   onStartArchiveNow, startArchiveNowBusy = false,
-  onBackToWorkbench, children,
+  onBackToWorkbench, children, assistantMessage,
 }: Props) {
   const [openPanel, setOpenPanel] = useState<'pending' | null>(null)
   const [avatarUnavailable, setAvatarUnavailable] = useState(false)
@@ -337,8 +341,10 @@ export function GuidedReviewView({
                   )}
                   <div key={currentAction?.id || 'guided-review-empty'} className="guided-review-card__message" role="status"
                     aria-label="獬豸助手提示" aria-atomic="true">
-                    <h3>{currentAction?.title || '请稍候，正在整理下一步'}</h3>
-                    <p className="guided-review-card__description">{currentAction?.description || '当前没有需要立即处理的事项。'}</p>
+                    <h3>{assistantMessage?.title || currentAction?.title || '请稍候，正在整理下一步'}</h3>
+                    <p className="guided-review-card__description">
+                      {assistantMessage?.description ?? currentAction?.description ?? '当前没有需要立即处理的事项。'}
+                    </p>
                   </div>
                   {isDeferredTerminal && (
                     <div className="guided-review-card__terminal-actions" role="group"

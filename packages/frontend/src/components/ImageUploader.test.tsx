@@ -70,6 +70,13 @@ function photo(index: number): UploadFile {
 }
 
 describe('ImageUploader material groups', () => {
+  it('can leave operation guidance to the assistant while keeping upload controls available', () => {
+    render(<ImageUploader materials={materials} photos={[]} onChange={vi.fn()} showGuidance={false} />)
+
+    expect(screen.queryByText('每个检材对应两张图片；支持普通数字自然排序，或用 1-1、1-2 表示第一个检材的两张图片。')).toBeNull()
+    expect(screen.getByRole('button', { name: '批量导入图片' })).toBeTruthy()
+  })
+
   it('通过独立按钮批量选择，并按多段数字和扩展名自然排序后一次填入', () => {
     const onChange = vi.fn()
     const view = render(<ImageUploader materials={materials} photos={[]} onChange={onChange} />)

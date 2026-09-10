@@ -48,8 +48,8 @@ const FILE_SIZE_JUSTIFICATIONS: Record<string, { maxLines: number; reason: strin
     reason: 'Guided conversation, terminal outcome, navigation, and accessibility scenarios share one synthetic history/action fixture; splitting the single terminal regression would duplicate the component harness without creating an independent behavior boundary.',
   },
   'packages/frontend/src/pages/CaseRecordGeneratePage.test.tsx': {
-    maxLines: 700,
-    reason: 'The page-level coordination scenarios, including completed-step navigation and the deferred terminal action, share one router, lease, async API, and revision-race harness; splitting now would duplicate stateful fixtures, so retain the cohesive suite under a narrow growth cap.',
+    maxLines: 760,
+    reason: 'The page-level coordination scenarios, including assistant/reply ownership, completed-step navigation, and deferred terminal actions, share one router, lease, async API, and revision-race harness; splitting now would duplicate stateful fixtures, so retain the cohesive suite under a narrow growth cap.',
   },
   'packages/backend/app/services/template/template_filler_service.py': {
     maxLines: 1100,

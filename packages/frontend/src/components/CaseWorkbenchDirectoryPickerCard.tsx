@@ -21,7 +21,7 @@ export function CaseWorkbenchDirectoryPickerCard({ loading = false, onClick }: P
         <PlusOutlined />
       </span>
       <strong><FolderOpenOutlined /> 上传报告目录</strong>
-      <span>{loading ? '正在打开本机选择器…' : '点击选择本机报告文件夹并立即解析'}</span>
+      {loading && <span>正在打开本机选择器…</span>}
     </button>
   )
 }

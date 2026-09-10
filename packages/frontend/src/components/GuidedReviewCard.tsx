@@ -459,7 +459,6 @@ export function GuidedReviewCard({
 
   return (
     <div className="guided-review-card__fallback">
-      <p>此事项使用完整审核编辑中的现有结构化控件办理。</p>
       <Tooltip title="在完整审核编辑中处理此项">
         <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
           icon={<EditOutlined />} aria-label="在完整审核编辑中处理此项"

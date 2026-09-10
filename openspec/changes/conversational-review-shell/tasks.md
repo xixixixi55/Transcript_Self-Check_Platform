@@ -913,3 +913,14 @@ workflow_level: 2
 - `completed_manual_navigation_tests: PASS`：Hook/组件 6 files / 51 tests 与页面全套 28 tests 通过，共 79 项；覆盖零待办显隐、完成态历史重建、无本地检查点重进、前后边界、照片显式推进、恢复优先级及页面保存/来源异步边界。
 - `completed_manual_navigation_gates: PASS`：架构、TypeScript、治理文档、仓库资产及 `npm run verify:quick` 通过；Hook 高内聚职责经评估后将有界文件上限登记为 740 行；Impeccable 单次检测为 0 项；delta 已同步 living spec。
 - `completed_manual_navigation_manual_acceptance: N/A`：本次未修改尺寸、颜色或响应式布局；按钮条件显隐、焦点可达的圆形前后步骤、刷新重进和恢复边界均由 SYNTHETIC DOM/Hook 回归可靠区分，未读取或操作真实案件数据。
+
+## 2026-09-10 獬豸助手与用户回复内容归属（workflow_level: 2）
+
+- [x] 6.133 将用户反馈关联到本包：当前任务说明、图片操作提示、归档完成结果和恢复状态属于獬豸助手发言，用户回复区只承载真实输入与操作；本包尚未归档，按归档前反馈继续复用，不新建 change。`review-page-modern-government-ui` 只负责视觉布局，`background-compression-archive-completion` 继续负责归档与介质映射合同，本任务不修改业务状态、后端 API、共享 DTO 或归档行为。
+- [x] 6.134 统一引导页消息层级：将图片数量/排序说明、归档完成或待补介质说明、保存/租约/来源/图片恢复状态放入獬豸助手消息；“你的回复”或“请选择操作”仅保留输入、上传、选择、确认、恢复按钮及必要的字段格式和局部校验；纯等待状态不渲染空回复区，完整审核编辑中的原有说明保持不变。
+- [x] 6.135 更新 SYNTHETIC 组件与页面回归，明确断言说明文字属于“獬豸助手提示”且不属于回复区；同步 delta/living spec，运行受影响测试、`npm run verify:quick`、限定范围严格文档检查、OpenSpec 严格校验、Impeccable 单次检测及 `git diff --check`。
+  - 人工验收：使用 SYNTHETIC/TEST 案件核对检材照片、介质编号、归档完成、保存失败和后台等待状态；确认助手气泡包含说明、回复区仅含可操作内容，并检查桌面与窄屏布局，不读取或提交真实案件数据。
+- `completed_assistant_reply_contract: PASS`：任务说明、处理状态、完成结果与恢复说明统一由獬豸助手承载；引导页的回复区域仅保留用户可操作控件及紧邻控件的格式/校验信息，纯等待状态不再生成空回复区；完整审核编辑保持原有独立说明。
+- `completed_assistant_reply_tests: PASS`：先以 3 个组件失败用例确认旧实现仍将归档、压缩选择和图片指导放入控件面板；修复后 6 files / 81 tests 与 TypeScript 检查通过，页面级回归覆盖压缩选择、图片异常与数量排序提示、保存失败、归档完成和纯等待归属。
+- `completed_assistant_reply_gates: PASS`：生产构建、`npm run verify:quick`、限定范围严格文档检查、OpenSpec 严格校验与 `git diff --check` 均通过；页面集成测试继续共享同一 Router/租约/异步 API/修订竞态夹具，并以 760 行有界上限登记；Impeccable 单次检测为 0 项；delta 已同步 living spec。
+- `completed_assistant_reply_manual_acceptance: N/A`：本次不改尺寸、颜色、断点或响应式布局；内容归属、回复区显隐与控件保留均由 SYNTHETIC DOM 回归可靠区分，且生产构建已验证，未读取或操作真实案件数据。

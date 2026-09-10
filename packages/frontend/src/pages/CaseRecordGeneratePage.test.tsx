@@ -25,7 +25,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let events: string[] = []
   let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
   let leaseFailure = false, leaseConflict = false
-  let showCompletedArchive = false, showGuidedReady = false, showDeferredTerminal = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false
+  let showCompletedArchive = false, showGuidedReady = false, showDeferredTerminal = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, showHandledDiscNumber = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false
   let caseSummaryConfirmationSaved = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
@@ -38,7 +38,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   beforeEach(() => {
     window.localStorage.clear()
     fullEditorAccess.open = null
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; showHandledDiscNumber = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -97,6 +97,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
             'introduction.case_summary.confirmation': {
               field_path: 'introduction.case_summary.confirmation', source: 'user', confirmation: 'confirmed',
               revision: 1, last_changed_at: '2026-09-03T00:00:00Z',
+            },
+          }
+        }
+        if (showHandledDiscNumber && value.draft) {
+          value.draft.field_states = {
+            ...value.draft.field_states,
+            'attachments.disc_number': {
+              field_path: 'attachments.disc_number', source: 'user', confirmation: 'confirmed',
+              revision: 1, last_changed_at: '2026-09-10T00:00:00Z',
             },
           }
         }
@@ -244,6 +253,19 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_LEASE(caseId))).toHaveLength(1)
   }, 15000)
 
+  it('speaks the archive decision prompt while the reply presents only the choices', async () => {
+    renderPage()
+
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('请选择压缩时机'))
+    const assistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
+    const reply = screen.getByRole('group', { name: '请选择操作' })
+    expect(assistantMessage.textContent).toContain('建议现在开始压缩；也可以保留案件并稍后处理。')
+    expect(within(reply).queryByText('报告解析成功，请选择压缩时机。')).toBeNull()
+    expect(within(reply).getByRole('button', { name: '立即开始压缩' })).toBeTruthy()
+    expect(within(reply).getByRole('button', { name: '稍后压缩' })).toBeTruthy()
+  }, 15000)
+
   it('reopens the matching guided assistant field from a previously handled item', async () => {
     showHandledHistory = true
     renderPage()
@@ -348,7 +370,13 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     renderPage()
 
     await selectGuidedAction('请上传检材照片')
-    expect(await screen.findByText('图片列表已被另一会话修改，请重新读取案件后再保存。')).toBeTruthy()
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('图片列表已被另一会话修改，请重新读取案件后再保存。'))
+    const assistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
+    const reply = screen.getByRole('group', { name: '你的回复' })
+    expect(assistantMessage.textContent).toContain('每个检材对应两张图片；支持普通数字自然排序，或用 1-1、1-2 表示第一个检材的两张图片。')
+    expect(within(reply).queryByText('图片列表已被另一会话修改，请重新读取案件后再保存。')).toBeNull()
+    expect(within(reply).queryByText('每个检材对应两张图片；支持普通数字自然排序，或用 1-1、1-2 表示第一个检材的两张图片。')).toBeNull()
     expect(screen.getByRole('button', { name: '批量导入图片' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /查看已填内容与待办/ }))
@@ -362,7 +390,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     const failedView = renderPage()
     await selectGuidedAction('请确认检材完整性')
     fireEvent.click(await screen.findByRole('button', { name: '进入下一步' }))
-    expect(await screen.findByText('草稿保存失败')).toBeTruthy()
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('草稿保存失败'))
+    const failedAssistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
+    expect(failedAssistantMessage.textContent).toContain('当前输入仍保留在本页面，请重试保存。')
+    expect(within(screen.getByRole('group', { name: '请选择操作' })).queryByText('草稿保存失败')).toBeNull()
     const failedDraft = (patchMock.mock.calls.at(-1)?.[1] as { draft: CaseDraft }).draft
     expect(failedDraft.field_states['introduction.evidence_list.completeness'])
       .toEqual(expect.objectContaining({ source: 'user', confirmation: 'confirmed' }))
@@ -645,6 +677,24 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /保存并退出/ }))
     expect(await screen.findByText('工作台路由')).toBeTruthy()
+  }, 15000)
+
+  it('speaks archive completion through the assistant while the reply keeps only mapping controls', async () => {
+    showGuidedReady = true
+    showHandledCaseSummary = true
+    showHandledDiscNumber = true
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: '返回上一步' }))
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('归档完成'))
+    const assistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
+    const reply = screen.getByRole('group', { name: '你的回复' })
+    expect(assistantMessage.textContent).toContain('全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台统一导出。')
+    expect(within(reply).queryByText('归档完成')).toBeNull()
+    expect(within(reply).queryByText(/全部 RAR、文件哈希与盘号已对应完成/)).toBeNull()
+    expect(within(reply).getByRole('textbox', { name: '首个光盘编号' })).toBeTruthy()
+    expect(within(reply).getByRole('button', { name: '更新盘号映射' })).toBeTruthy()
   }, 15000)
 
   it('starts immediate compression directly from the deferred terminal outcome', async () => {

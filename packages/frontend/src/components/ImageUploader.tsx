@@ -11,14 +11,17 @@ interface Props {
   materials: EvidenceItem[]
   photos: UploadFile[]
   onChange: (photos: UploadFile[]) => void
+  showGuidance?: boolean
 }
+
+export const PHOTO_UPLOAD_GUIDANCE = '每个检材对应两张图片；支持普通数字自然排序，或用 1-1、1-2 表示第一个检材的两张图片。'
 
 function materialLabel(material: EvidenceItem, index: number): string {
   const number = material.evidence_number?.trim()
   return number ? `检材 ${index + 1} · ${number}` : `检材 ${index + 1} · 编号待填写`
 }
 
-export default function ImageUploader({ materials, photos, onChange }: Props) {
+export default function ImageUploader({ materials, photos, onChange, showGuidance = true }: Props) {
   const [expanded, setExpanded] = useState(true)
   const { inputRef, beforeUpload, importBatch, openBatchPicker } = useBatchImageImport({
     materialCount: materials.length, onChange,
@@ -42,9 +45,7 @@ export default function ImageUploader({ materials, photos, onChange }: Props) {
     <div className="material-photo-uploader">
       {materials.length ? <>
         <div className="material-photo-uploader__header">
-          {expanded && <p className="material-photo-uploader__hint">
-            每个检材对应两张图片；支持普通数字自然排序，或用 1-1、1-2 表示第一个检材的两张图片。
-          </p>}
+          {expanded && showGuidance && <p className="material-photo-uploader__hint">{PHOTO_UPLOAD_GUIDANCE}</p>}
           <input
             ref={inputRef}
             type="file"

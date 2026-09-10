@@ -272,6 +272,7 @@ describe('GuidedReviewView', () => {
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText('Word 内容预览在左，对话在右')).toBeNull()
+    expect(screen.queryByText('按文书结构汇总，供快速核对')).toBeNull()
     expect(screen.queryByRole('button', { name: '交换 Word 内容预览与对话的位置' })).toBeNull()
     expect(screen.getByText('文书与委托信息')).toBeTruthy()
     expect(screen.getByText('委托人员：')).toBeTruthy()
@@ -366,6 +367,8 @@ describe('GuidedReviewView', () => {
     expect(screen.getByText('后台处理中')).toBeTruthy()
     expect(document.querySelector('[data-mood="verifying"]')).toBeTruthy()
     expect(screen.getAllByText('后台任务仍在运行，可继续处理其他待办。')).toHaveLength(1)
+    expect(screen.queryByRole('group', { name: '请选择操作' })).toBeNull()
+    expect(screen.queryByRole('group', { name: '你的回复' })).toBeNull()
     expect(screen.queryByText(/30%|问题\s*\d+\s*\/\s*\d+/)).toBeNull()
   })
 
