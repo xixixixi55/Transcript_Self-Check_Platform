@@ -1,7 +1,9 @@
 // 第 10 层：FE_Hooks — 仅限当前工作台页面的任务状态轮询。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
-import { API_ENDPOINTS, CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
+import {
+  API_ENDPOINTS, CASE_PARSE_TASK_POLL_INTERVAL_MS, CASE_TASK_POLL_INTERVAL_MS,
+} from '@biji/shared/constants'
 import type { ArchiveTaskCardSummary, CaseShell, TaskRecord, TaskStatus } from '@biji/shared/types'
 import type { WorkbenchError } from './useCaseWorkbench'
 
@@ -43,7 +45,8 @@ export function useTaskRecords(taskIds: readonly string[] = [], options: TaskRec
     let active = true
     let inFlight = false
     let requestSequence = 0
-    let timer: number | undefined
+    let parseTimer: number | undefined
+    let archiveTimer: number | undefined
     const activeIds = new Set(ids)
     const observedStatuses = new Map<string, TaskStatus>()
 
@@ -88,20 +91,27 @@ export function useTaskRecords(taskIds: readonly string[] = [], options: TaskRec
         return next
       })
       if (changedTasks.length) onTaskStatusChangeRef.current?.(changedTasks[changedTasks.length - 1])
-      if (!activeIds.size && !pollForArchive && timer !== undefined) window.clearInterval(timer)
+      if (!activeIds.size && parseTimer !== undefined) {
+        window.clearInterval(parseTimer)
+        parseTimer = undefined
+      }
       inFlight = false
     }
 
     refreshRef.current = refresh
     setError(null)
     void refresh()
-    if (activeIds.size || pollForArchive) {
-      timer = window.setInterval(() => { void refresh() }, CASE_TASK_POLL_INTERVAL_MS)
+    if (activeIds.size) {
+      parseTimer = window.setInterval(() => { void refresh() }, CASE_PARSE_TASK_POLL_INTERVAL_MS)
+    }
+    if (pollForArchive) {
+      archiveTimer = window.setInterval(() => { void refresh() }, CASE_TASK_POLL_INTERVAL_MS)
     }
     return () => {
       active = false
       requestSequence += 1
-      if (timer !== undefined) window.clearInterval(timer)
+      if (parseTimer !== undefined) window.clearInterval(parseTimer)
+      if (archiveTimer !== undefined) window.clearInterval(archiveTimer)
       if (refreshRef.current === refresh) refreshRef.current = null
     }
   }, [ids, taskKey, options.refreshKey, pollForArchive])

@@ -56,6 +56,13 @@ Parser MUST 动态登记它为业务字段实际读取的文件。MUST NOT 仅�
 - THEN 业务解析缓存仍可复用
 - AND 除非实际 Parser 依赖发生变化，否则预览 DTO 保持不变
 
+**Scenario: 导航直接绑定带计数的设备信息文件**
+
+- WHEN New 报告的导航节点以单计数或“总数/有效数”双计数显示手机、设备或终端信息
+- THEN Parser 使用节点中的 `filePath` 和 `varName` 绑定该检材的设备元数据文件
+- AND 不为定位该文件而打开同目录的其他 `data_` JSON
+- AND 不为已移除的持久化解析缓存收集未被 Parser 使用的逐文件候选元数据
+
 ### REQ-PREVIEW-SNAPSHOT-004：DTO 兼容性
 
 对于相同源输入，优化后的解析器 MUST 保留现有 Legacy DTO 值和受支持的 New DTO 值，包括证据顺序、设备标识符、软件字段、`rar_info` 兼容语义及可编辑报告默认值。
@@ -276,6 +283,12 @@ Parser MUST 动态登记它为业务字段实际读取的文件。MUST NOT 仅�
 - WHEN 预览成功后归档准备失败
 - THEN 预览数据仍可编辑
 - AND 只有归档准备状态变为失败；在存在已验证 Manifest 前，Manifest 绑定的正式导出保持阻塞
+
+**Scenario: 解析任务及时进入可审核状态**
+
+- WHEN 工作台存在仍在排队或执行的解析任务
+- THEN 前端以短于归档后台任务的有界间隔刷新解析状态
+- AND 解析任务全部终止后停止高频刷新；仅剩归档任务时恢复较低频率
 
 ### REQ-FRONTEND-LIVENESS-003：独立 Word 导出和正式归档门控
 

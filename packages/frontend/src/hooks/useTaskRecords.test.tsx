@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
-import { CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
+import { CASE_PARSE_TASK_POLL_INTERVAL_MS, CASE_TASK_POLL_INTERVAL_MS } from '@biji/shared/constants'
 import type { ArchiveTaskCardSummary, CaseShell, TaskRecord, TaskStatus } from '@biji/shared/types'
 import { useTaskRecords } from './useTaskRecords'
 
@@ -49,13 +49,13 @@ describe('useTaskRecords', () => {
     expect(view.result.current.records['task-a'].status).toBe('queued')
     expect(view.result.current.records['task-b'].status).toBe('running')
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_TASK_POLL_INTERVAL_MS) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_PARSE_TASK_POLL_INTERVAL_MS) })
     expect(view.result.current.records['task-a'].status).toBe('succeeded')
     expect(view.result.current.records['task-b'].status).toBe('failed_retryable')
     expect(statusChanged.mock.calls.map(([value]) => value.status)).toEqual(['running', 'failed_retryable'])
 
     const callsAfterTerminal = getMock.mock.calls.length
-    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_TASK_POLL_INTERVAL_MS * 2) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_PARSE_TASK_POLL_INTERVAL_MS * 2) })
     expect(getMock.mock.calls.length).toBe(callsAfterTerminal)
   })
 
@@ -70,11 +70,11 @@ describe('useTaskRecords', () => {
 
     const view = renderHook(() => useTaskRecords(['task-a'], { onTaskStatusChange: statusChanged }))
     await act(async () => { await flushPromises() })
-    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_TASK_POLL_INTERVAL_MS) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_PARSE_TASK_POLL_INTERVAL_MS) })
     expect(view.result.current.records['task-a'].status).toBe('running')
     expect(view.result.current.error?.code).toBe('NETWORK_ERROR')
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_TASK_POLL_INTERVAL_MS) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_PARSE_TASK_POLL_INTERVAL_MS) })
     expect(view.result.current.records['task-a'].status).toBe('succeeded')
     expect(view.result.current.error).toBeNull()
     expect(statusChanged).toHaveBeenCalledWith(expect.objectContaining({ status: 'succeeded' }))
@@ -110,12 +110,13 @@ describe('useTaskRecords', () => {
     await act(async () => { await flushPromises() })
     const callsBeforeUnmount = getMock.mock.calls.length
     view.unmount()
-    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_TASK_POLL_INTERVAL_MS * 2) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_PARSE_TASK_POLL_INTERVAL_MS * 2) })
     expect(getMock.mock.calls.length).toBe(callsBeforeUnmount)
   })
 
-  it('maps summaries embedded by the case-list API without creating another timer', async () => {
-    getMock.mockResolvedValue({ data: { data: task('task-a', 'running') } })
+  it('keeps archive-only polling at the lower frequency after parsing is terminal', async () => {
+    getMock.mockResolvedValue({ data: { data: task('task-a', 'succeeded') } })
+    const onPoll = vi.fn()
     const archiveSummary: ArchiveTaskCardSummary = {
       task_id: 'archive-SYNTHETIC',
       case_id: 'case-task-a',
@@ -148,7 +149,7 @@ describe('useTaskRecords', () => {
           updated_at: '2026-07-30T12:00:00Z',
           archive_task_summary: archiveSummary,
         } satisfies CaseShell],
-        onPoll: vi.fn(),
+        onPoll,
       },
     ))
     await act(async () => { await flushPromises() })
@@ -156,6 +157,18 @@ describe('useTaskRecords', () => {
     expect(view.result.current.archiveSummariesByCase['case-task-a']).toEqual(archiveSummary)
     expect(getMock).toHaveBeenCalledTimes(1)
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
-    expect(getMock).toHaveBeenCalledTimes(1 + Math.floor(60_000 / CASE_TASK_POLL_INTERVAL_MS))
+    expect(getMock).toHaveBeenCalledTimes(1)
+    expect(onPoll).toHaveBeenCalledTimes(1 + Math.floor(60_000 / CASE_TASK_POLL_INTERVAL_MS))
+  })
+
+  it('polls active parsing faster than archive-only background work', async () => {
+    getMock.mockResolvedValue({ data: { data: task('task-a', 'running') } })
+    renderHook(() => useTaskRecords(['task-a']))
+    await act(async () => { await flushPromises() })
+
+    expect(getMock).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(CASE_PARSE_TASK_POLL_INTERVAL_MS) })
+    expect(getMock).toHaveBeenCalledTimes(2)
+    expect(CASE_PARSE_TASK_POLL_INTERVAL_MS).toBeLessThan(CASE_TASK_POLL_INTERVAL_MS)
   })
 })

@@ -9,12 +9,7 @@ from pathlib import Path
 
 from .device_field_parser import is_generic_device_label
 from .report_format_adapter import ReportFormat
-from .report_parse_input_filesystem import directory_entries, file_entries, stable_identity
-from .report_parse_input_models import (
-    CandidateDirectoryIndex,
-    CandidateFileRecord,
-    ReportParseInputError,
-)
+from .report_parse_input_filesystem import directory_entries, file_entries
 
 _METADATA_DIRECTORY_NAMES = ("base", "phone")
 _DEVICE_FILENAME_MARKERS = (
@@ -36,7 +31,8 @@ _STRUCTURED_DEVICE_LABELS = (
     "device_brand", "device_model", "product_model", "phone_model", "IMEI",
 )
 _NAVIGATION_DEVICE_ENTRY_RE = re.compile(
-    r'"name"\s*:\s*"(?:手机|设备|终端)信息(?:\s*[（(]\d+[）)])?"'
+    r'"name"\s*:\s*"(?:手机|设备|终端)信息'
+    r'(?:\s*[（(]\d+(?:\s*/\s*\d+)?[）)])?"'
     r'.{0,2048}?"dataConfig"\s*:\s*\{(?P<config>[^{}]{0,1024})\}',
     re.DOTALL,
 )
@@ -150,26 +146,21 @@ def _decode_navigation_string(value: str) -> str:
 
 
 def select_device_candidate_files(
-    evidence_dir: str, data_root: Path, *, report_format: ReportFormat,
+    evidence_dir: str, *, report_format: ReportFormat,
     include_data_files: bool = True, preferred_data_filename: str = "",
-) -> tuple[list[Path], tuple[CandidateDirectoryIndex, ...]]:
+) -> list[Path]:
     if not evidence_dir:
-        return [], ()
+        return []
     root = Path(evidence_dir)
-    evidence_relative = root.relative_to(data_root).as_posix()
     directories = {
         entry.name.casefold(): entry
         for entry in directory_entries(root)
         if entry.name.casefold() in _METADATA_DIRECTORY_NAMES
     }
     role_files: dict[str, list[Path]] = {}
-    indexes: list[CandidateDirectoryIndex] = []
     for role in _METADATA_DIRECTORY_NAMES:
         directory = directories.get(role)
         if directory is None:
-            indexes.append(CandidateDirectoryIndex(
-                f"{evidence_relative}/{role}", False, (),
-            ))
             continue
         candidate_entries = [
             entry for entry in file_entries(directory.path)
@@ -177,13 +168,6 @@ def select_device_candidate_files(
             and (include_data_files or not _is_data_file(entry.name))
         ]
         role_files[role] = [Path(entry.path) for entry in candidate_entries]
-        indexes.append(CandidateDirectoryIndex(
-            f"{evidence_relative}/{role}", True,
-            tuple(sorted(
-                (_candidate_file_record(entry.path, data_root) for entry in candidate_entries),
-                key=lambda item: item.relative_path.casefold(),
-            )),
-        ))
     named_files = [
         item for role in _METADATA_DIRECTORY_NAMES
         for item in role_files.get(role, [])
@@ -207,7 +191,7 @@ def select_device_candidate_files(
         if report_format == ReportFormat.LEGACY:
             # 旧版解析器历来会合并指定 Base/Phone 元数据目录中的所有直接 JSON 文件。
             # 保留此规则，同时允许权威表位于 Phone、而 Base 目录仅包含辅助 data_ 文件的导出。
-            return sorted(files, key=lambda item: str(item).casefold()), tuple(indexes)
+            return sorted(files, key=lambda item: str(item).casefold())
         best_priority = min(_device_filename_priority(item.name) for item in files)
         selected = [
             item for item in files
@@ -218,19 +202,8 @@ def select_device_candidate_files(
             key=lambda item: (
                 _device_filename_priority(item.name), str(item).casefold(),
             ),
-        ), tuple(indexes)
-    return [], tuple(indexes)
-
-
-def _candidate_file_record(path: str, data_root: Path) -> CandidateFileRecord:
-    try:
-        info = Path(path).stat()
-        relative = Path(path).relative_to(data_root).as_posix()
-    except (OSError, ValueError) as error:
-        raise ReportParseInputError("candidate metadata unreadable") from error
-    return CandidateFileRecord(
-        relative, int(info.st_size), int(info.st_mtime_ns), stable_identity(info),
-    )
+        )
+    return []
 
 
 def is_device_metadata_name(name: str) -> bool:

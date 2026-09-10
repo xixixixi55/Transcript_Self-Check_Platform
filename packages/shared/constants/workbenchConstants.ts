@@ -10,6 +10,9 @@ export const WORKBENCH_RETENTION_CONFIG_KEY = 'workbench.successful_case_retenti
 export const EDIT_LEASE_HEARTBEAT_SECONDS = 15
 export const EDIT_LEASE_TIMEOUT_SECONDS = 120
 export const CASE_DRAFT_AUTOSAVE_DEBOUNCE_MS = 700
+/** 解析通常为秒级任务，使用短轮询避免后端完成后仍长时间显示“解析中”。 */
+export const CASE_PARSE_TASK_POLL_INTERVAL_MS = 1000
+/** 长时间归档任务保持较低轮询频率，避免持续增加请求负载。 */
 export const CASE_TASK_POLL_INTERVAL_MS = 5000
 export const MAX_RUNNING_ARCHIVE_TASKS = 6
 /** 归档/删除变更调用会返回安全超时，而不是无限等待。 */

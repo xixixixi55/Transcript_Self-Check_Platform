@@ -186,9 +186,23 @@ workflow_level: 3
   - 文件：`tests/test_archive_input_repository.py`、`tests/test_archive_runtime_lifecycle.py` 及现有归档运行时/源/工作进程测试。
   - 断言被阻塞的准备已处于清单里程碑、遍历在取消边界停止，且定向归档生命周期套件保持通过。
 
+- [x] **T28 — 修复 New 报告双计数导航绑定并移除失效候选索引**
+  - 需求：REQ-PREVIEW-SNAPSHOT-003、REQ-ACCEPTANCE-001。
+  - 文件：`packages/backend/app/repository/report/report_parse_input_selection_repository.py`、`packages/backend/app/repository/report/report_parse_input_repository.py`、`packages/backend/app/repository/report/report_parse_input_models.py`、`tests/test_report_parse_input_repository.py`。
+  - 支持设备信息导航节点中的单计数和“总数/有效数”双计数标签；继续要求检材目录及 `varName` 唯一绑定。删除持久化解析缓存移除后没有生产消费者的逐候选元数据索引，保留实际依赖摘要。
+  - 验证：使用带大量 SYNTHETIC 噪声 `data_` JSON 的 New 固件，断言只探测并读取导航选中的设备文件，且 DTO 设备字段保持不变；外部报告只记录聚合计时和计数，不保存路径、内容或输出。
+  - 证据：新增回归在旧实现上失败、修复后通过；Parser/快照/HTML 定向集合 `94 passed`。代表性外部 New 报告的候选头部探测由 2240 次降为 1 次，快照由约 0.93 秒降至 0.06–0.13 秒，完整解析由约 1.0–1.5 秒降至 0.15–0.16 秒；只记录聚合指标。
+
+- [x] **T29 — 区分解析与归档任务轮询频率**
+  - 需求：REQ-FRONTEND-LIVENESS-002、REQ-ACCEPTANCE-001。
+  - 文件：`packages/shared/constants/workbenchConstants.ts`、`packages/frontend/src/hooks/useTaskRecords.ts`、`packages/frontend/src/hooks/useTaskRecords.test.tsx`。
+  - 活跃解析任务约每秒刷新；归档任务仍使用现有五秒间隔。解析任务终止后停止高频计时器，页面卸载时清理两类计时器，并保留请求互斥和终态停止语义。
+  - 验证：Vitest 假时钟区分短解析间隔、长归档间隔、终态停止和卸载清理。
+  - 证据：`useTaskRecords` 回归 `6 passed`，工作台页面联合定向集合 `22 passed`；解析轮询从 5000ms 降至 1000ms，归档仍保持 5000ms。`lint:arch` 与 TypeScript `typecheck` 通过。
+
 ## 实施后门控
 
-- [x] Level 3 独立代码审查已完成。增加过期所有者/尝试绑定保护及集成回归后，独立审查通过。
+- [ ] Level 3 独立代码审查。此前针对归档所有权修复的审查已通过；T28/T29 反馈修改了解析核心逻辑和轮询预期，使相关结论失效，待人工验收与开放项收敛、候选重新冻结后统一复审。[DEFERRED]
 - [ ] 已针对外部多检材报告完成人工验收，且未增加敏感产物。早期证据早于 T24-T27；需重新执行归档阶段/取消验收，且不记录敏感路径、业务数据、生成输出或性能日志。[DEFERRED]
 - [ ] 完整 Harness 执行已完成并通过；早期运行早于 T24-T27，不得复用为当前证据。[DEFERRED]
 - [ ] 除非另有请求，否则不提交或推送。[N/A]

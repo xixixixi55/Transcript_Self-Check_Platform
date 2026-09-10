@@ -97,16 +97,14 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
                 device_rows,
             )
     device_base_info: dict[str, dict[str, str]] = {}
-    candidate_indexes: list[CandidateDirectoryIndex] = []
     for row in device_rows:
         evidence_number = row.get("evidence_number", "")
-        candidate_files, indexes = select_device_candidate_files(
-            evidence_directories.get(evidence_number, ""), data_root,
+        candidate_files = select_device_candidate_files(
+            evidence_directories.get(evidence_number, ""),
             report_format=report_format,
             include_data_files=not use_vendor_names_without_data_scan,
             preferred_data_filename=navigation_candidates.get(evidence_number, ""),
         )
-        candidate_indexes.extend(indexes)
         payloads: list[tuple[Any, str]] = []
         for path in candidate_files:
             try:
@@ -151,19 +149,7 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
         evidence_directories=evidence_directories,
         device_base_info=device_base_info,
         dependencies=records,
-        candidate_indexes=tuple(candidate_indexes),
         dependency_fingerprint=_fingerprint_records(records),
-    )
-
-
-def _candidate_file_record(path: str, data_root: Path) -> CandidateFileRecord:
-    try:
-        info = Path(path).stat()
-        relative = Path(path).relative_to(data_root).as_posix()
-    except (OSError, ValueError) as error:
-        raise ReportParseInputError("报告候选目录无法读取。") from error
-    return CandidateFileRecord(
-        relative, int(info.st_size), int(info.st_mtime_ns), stable_identity(info),
     )
 
 

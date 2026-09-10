@@ -262,6 +262,46 @@ def test_snapshot_reads_data_device_table_when_vendor_names_lack_serial(tmp_path
     assert calls["JC-SYN-01/Base/data_SYNTHETIC-NOISE-1.json"] == 0
 
 
+def test_snapshot_uses_dual_count_navigation_without_probing_other_data_files(tmp_path):
+    data_root = _write_snapshot_fixture(tmp_path)
+    base = data_root / "JC-SYN-01" / "Base"
+    (base / "device_table.json").unlink()
+    selected = base / "data_SYNTHETIC-DEVICE.json"
+    _write_json(selected, {"contents": [
+        {"c1": "设备类型", "c2": "手机"},
+        {"c1": "设备名称", "c2": "SYNTHETIC-PHONE"},
+        {"c1": "设备品牌", "c2": "SYNTHETIC-BRAND"},
+        {"c1": "设备型号", "c2": "SYNTHETIC-MODEL"},
+        {"c1": "序列号", "c2": "SYNTHETIC-SERIAL"},
+    ]})
+    noise_paths = []
+    for index in range(200):
+        noise = base / f"data_SYNTHETIC-NOISE-{index:03d}.json"
+        _write_json(noise, {"value": "SYNTHETIC-NON-DEVICE-DATA"})
+        noise_paths.append(noise)
+    navigation = [{
+        "name": "手机信息 (6599/117)",
+        "dataConfig": {
+            "filePath": ".\\data\\JC-SYN-01\\Base\\",
+            "varName": "data_SYNTHETIC-DEVICE",
+        },
+    }]
+    (data_root / "data_navigation.json").write_text(
+        "; static.mypico.json.navigation = "
+        + json.dumps(navigation, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    calls, counted_open = _count_data_opens(data_root)
+
+    with patch("pathlib.Path.open", new=counted_open):
+        snapshot = build_report_parse_input_snapshot(str(tmp_path))
+
+    assert snapshot.device_base_info["JC-SYN-01"]["serial_number"] == "SYNTHETIC-SERIAL"
+    assert calls["JC-SYN-01/Base/data_SYNTHETIC-DEVICE.json"] == 2
+    assert all(calls[path.relative_to(data_root).as_posix()] == 0 for path in noise_paths)
+    assert not hasattr(snapshot, "candidate_indexes")
+
+
 def test_snapshot_binds_vendor_directory_from_each_device_row_before_sorting(tmp_path):
     data_root = _write_snapshot_fixture(tmp_path)
     for index in range(1, 4):

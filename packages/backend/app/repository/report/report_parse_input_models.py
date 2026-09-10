@@ -21,21 +21,6 @@ class DependencyRecord:
 
 
 @dataclass(frozen=True)
-class CandidateFileRecord:
-    relative_path: str
-    size_bytes: int
-    modified_time_ns: int
-    stable_identity: str
-
-
-@dataclass(frozen=True)
-class CandidateDirectoryIndex:
-    relative_directory: str
-    exists: bool
-    files: tuple[CandidateFileRecord, ...]
-
-
-@dataclass(frozen=True)
 class ReportParseInputSnapshot:
     """内部解析状态；绝不序列化到报告或公开响应中。"""
 
@@ -47,11 +32,9 @@ class ReportParseInputSnapshot:
     evidence_directories: dict[str, str]
     device_base_info: dict[str, dict[str, str]]
     dependencies: tuple[DependencyRecord, ...]
-    candidate_indexes: tuple[CandidateDirectoryIndex, ...]
     dependency_fingerprint: str
 
 
 __all__ = [
-    "CandidateDirectoryIndex", "CandidateFileRecord", "DependencyRecord",
-    "ReportParseInputError", "ReportParseInputSnapshot",
+    "DependencyRecord", "ReportParseInputError", "ReportParseInputSnapshot",
 ]
