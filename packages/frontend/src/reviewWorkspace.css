@@ -1386,21 +1386,6 @@
   overflow: hidden;
 }
 
-.guided-review-layout-toolbar {
-  min-height: 44px;
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.guided-review-layout-toolbar > span {
-  color: var(--review-muted);
-  font-size: 13px;
-  line-height: 20px;
-}
-
 .guided-review-scroll {
   width: 100%;
   min-height: 0;
@@ -2610,10 +2595,6 @@
   .guided-review-view {
     min-height: 0;
     flex: 1;
-  }
-
-  .guided-review-layout-toolbar {
-    justify-content: space-between;
   }
 
   .guided-review-scroll {

@@ -291,9 +291,6 @@ export function GuidedReviewView({
 
   return (
     <div className="guided-review-view">
-      <div className="guided-review-layout-toolbar" aria-label="分栏布局">
-        <span>Word 内容预览在左，对话在右</span>
-      </div>
       <div className="guided-review-scroll" role="group" aria-label="獬豸助手分栏">
         <GuidedReviewHistory key="history" items={history}
           evidenceItems={evidenceItems} onEvidenceItemsChange={onEvidenceItemsChange}

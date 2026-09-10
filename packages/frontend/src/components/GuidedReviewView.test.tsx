@@ -271,7 +271,7 @@ describe('GuidedReviewView', () => {
     const historyRegion = screen.getByRole('region', { name: 'Word 内容预览' })
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
     expect(historyRegion.compareDocumentPosition(conversationRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('Word 内容预览在左，对话在右')).toBeTruthy()
+    expect(screen.queryByText('Word 内容预览在左，对话在右')).toBeNull()
     expect(screen.queryByRole('button', { name: '交换 Word 内容预览与对话的位置' })).toBeNull()
     expect(screen.getByText('文书与委托信息')).toBeTruthy()
     expect(screen.getByText('委托人员：')).toBeTruthy()
