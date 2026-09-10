@@ -801,6 +801,35 @@ def test_parse_controller_offloads_blocking_work_from_event_loop(client):
     assert record_controller.create_preview_source in called_functions
 
 
+def test_parse_preserves_case_name_for_archive_context(client):
+    from app.controllers import record_controller
+
+    parsed = {
+        **_MOCK_RESPONSE,
+        "_case_metadata": {
+            "case_name": "SYNTHETIC-CASE-NAME",
+            "case_summary": "SYNTHETIC-CASE-SUMMARY",
+        },
+    }
+    with tempfile.TemporaryDirectory() as tmpdir, patch.object(
+        record_controller, "parse_report", return_value=parsed,
+    ), patch.object(
+        record_controller,
+        "create_preview_source",
+        return_value="SYNTHETIC-PREVIEW-CONTEXT",
+    ) as create_preview, patch.object(
+        record_controller,
+        "get_preview_source_summary",
+        return_value={"status": "not_prepared"},
+    ):
+        os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)
+        response = client.post("/api/v1/reports/parse", data={"report_dir": tmpdir})
+
+    assert response.status_code == 200, response.text
+    assert "_case_metadata" not in response.json()["data"]
+    assert create_preview.call_args.kwargs["case_display_name"] == "SYNTHETIC-CASE-NAME"
+
+
 def test_parse_folder_returns_path_free_context_summary(client):
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, "data"), exist_ok=True)

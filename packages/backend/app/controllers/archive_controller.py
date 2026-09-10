@@ -130,7 +130,7 @@ async def execute_archive_endpoint(
         attempt_service.start(archive_attempt_id)
     try:
         formal_context_id = await run_in_threadpool(
-            prepare_archive_source, archive_context_id, report, output_root=OUTPUT_BASE,
+            prepare_archive_source, archive_context_id, output_root=OUTPUT_BASE,
         )
         outcome = await run_in_threadpool(
             execute_archive, formal_context_id, report, output_root=OUTPUT_BASE,

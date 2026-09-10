@@ -92,11 +92,14 @@ class ArchiveExecutionOutcome:
 
 
 def create_archive_context(
-    authorized_input: AuthorizedInputRoot, report: dict, *, output_root: str,
+    authorized_input: AuthorizedInputRoot,
+    case_display_name: str,
+    *,
+    output_root: str,
     cleanup_root: str | None = None,
     cancellation_check: Callable[[], bool] | None = None,
 ) -> str:
-    case_name = report.get("introduction", {}).get("case_summary", "")
+    case_name = str(case_display_name or "").strip()
     return ARCHIVE_RUNTIME_STORE.create_context(
         authorized_input, str(case_name), output_root=output_root,
         cleanup_root=cleanup_root,
@@ -168,7 +171,7 @@ def execute_archive(
                 ExportGateCode.ARCHIVE_INPUT_EMPTY, "archive", "Archive input is empty.",
             ),))
         fingerprint = _fingerprint(
-            report, execution_inventory,
+            context.case_display_name, report, execution_inventory,
             content_fingerprint=context.input_fingerprint,
         )
         registry.mark_source_changed(
@@ -207,9 +210,7 @@ def execute_archive(
             ArchiveSourceEntry(item.relative_path, item.size_bytes, item.modified_time_ns)
             for item in execution_inventory.files
         )
-        case_display_name = str(
-            (report.get("introduction") or {}).get("case_summary") or ""
-        ).strip()
+        case_display_name = context.case_display_name.strip()
         plan = plan_archive(
             case_display_name, entries, first_disc_number=first_disc_number, policy=policy,
         )
@@ -301,7 +302,7 @@ def execute_archive(
                         )) if first_disc_number else (),
                     )
                     fingerprint = _fingerprint(
-                        publication_report, execution_inventory,
+                        context.case_display_name, publication_report, execution_inventory,
                         content_fingerprint=context.input_fingerprint,
                     )
                     observe_stage(stage_observer, "integrity_verified")

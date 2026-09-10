@@ -23,14 +23,16 @@ class ArchiveGateError(ArchiveRuntimeError):
 
 
 def archive_report_fingerprint(
-    report: dict, inventory, *, content_fingerprint: str | None = None,
+    case_display_name: str,
+    report: dict,
+    inventory,
+    *,
+    content_fingerprint: str | None = None,
 ) -> str:
     # 光盘编号是压缩后映射到各分卷的延迟标签（首个编号可提前或稍后输入）。
     # 此处有意排除这些编号，避免后续映射破坏 Manifest 复用。
     payload = {
-        "archive_base_name": str(
-            (report.get("introduction") or {}).get("case_summary") or ""
-        ).strip(),
+        "archive_base_name": str(case_display_name or "").strip(),
         "input": inventory.public_entries(),
         "input_content_fingerprint": content_fingerprint or directory_content_fingerprint(
             inventory.source_root,
@@ -60,7 +62,7 @@ def get_valid_manifest(context_id: str, manifest_id: str, report: dict) -> dict[
             ),))
         ARCHIVE_RUNTIME_STORE.validate_context_authorization(context)
         if record.fingerprint != archive_report_fingerprint(
-            report, context.inventory,
+            context.case_display_name, report, context.inventory,
             content_fingerprint=context.input_fingerprint or None,
         ):
             raise ArchiveGateError((ExportGateIssue(

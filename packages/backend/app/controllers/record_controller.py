@@ -113,7 +113,7 @@ async def parse_report_endpoint(
         else:
             authorized_input = await run_in_threadpool(ARCHIVE_AUTHORIZATION_SERVICE.authorize_report_directory, report_dir)
             result = await run_in_threadpool(parse_report, str(authorized_input.resolved_input_root), OUTPUT_BASE, compress=compress)
-        result.pop("_case_metadata", None)
+        case_metadata = result.pop("_case_metadata", None)
         result["report"] = enrich_report_material_types(result["report"])
         result["archive_context_id"] = None
         source_root = result.pop("_archive_source_root", None)
@@ -122,7 +122,12 @@ async def parse_report_endpoint(
             authorized_input = await run_in_threadpool(ARCHIVE_AUTHORIZATION_SERVICE.authorize_server_source, source_root, cleanup_root or source_root)
         if authorized_input:
             result["archive_context_id"] = await run_in_threadpool(
-                create_preview_source, authorized_input, cleanup_root=cleanup_root,
+                create_preview_source,
+                authorized_input,
+                cleanup_root=cleanup_root,
+                case_display_name=str(
+                    (case_metadata or {}).get("case_name") or ""
+                ),
             )
             result["archive_context"] = await run_in_threadpool(
                 get_preview_source_summary, result["archive_context_id"],

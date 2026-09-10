@@ -24,6 +24,7 @@ from .archive_scheduler_service import ArchiveTaskClaim
 class ArchiveWorkItem:
     formal_context_id: str
     report: dict[str, Any]
+    case_display_name: str
     output_root: str
     attempt_service: ArchiveAttemptService
     workbench_context_id: str | None = None
@@ -56,9 +57,7 @@ class ArchiveWorkerService:
             item.attempt_service.start(claim.attempt_id)
         elif attempt["status"] != "running":
             raise WorkbenchPersistenceError("ARCHIVE_ATTEMPT_STATE_INVALID")
-        base_name = safe_archive_base_name(str(
-            (item.report.get("introduction") or {}).get("case_summary") or ""
-        ))
+        base_name = safe_archive_base_name(item.case_display_name)
         try:
             outcome = execute_archive(
                 item.formal_context_id,

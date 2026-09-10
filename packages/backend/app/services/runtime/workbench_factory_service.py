@@ -22,6 +22,7 @@ from ..archive.archive_attempt_service import ArchiveAttemptService
 from ..archive.archive_progress_service import ArchiveProgressService
 from ..archive.archive_resource_admission_service import ArchiveAdmissionConfig, ArchiveResourceAdmissionService
 from ..archive.archive_runtime_coordinator_service import ArchiveRuntimeCoordinator
+from ..archive.archive_runtime_service import ARCHIVE_RUNTIME_STORE
 from ..archive.archive_runtime_resource_service import (
     ArchiveRuntimeResourceProvider,
     build_archive_admission_config,
@@ -189,13 +190,16 @@ def _archive_work_item(
     report = attempts.workbench_report(attempt_id, context_id)
     formal_context_id = prepare_archive_source(
         context_id,
-        report,
         output_root=ARCHIVE_OUTPUT_BASE,
         cancellation_check=cancellation_check,
     )
+    case_display_name = ARCHIVE_RUNTIME_STORE.get_context_snapshot(
+        formal_context_id,
+    ).case_display_name
     return ArchiveWorkItem(
         formal_context_id,
         report,
+        case_display_name,
         ARCHIVE_OUTPUT_BASE,
         attempts,
         workbench_context_id=context_id,

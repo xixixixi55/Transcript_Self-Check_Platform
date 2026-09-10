@@ -100,9 +100,11 @@ def synthetic_archive_source(tmp_path):
     with patch.object(
         archive_source_runtime_service, "ARCHIVE_SOURCE_RUNTIME_STORE", source_store,
     ):
-        source_id = create_preview_source(authorized_input)
+        source_id = create_preview_source(
+            authorized_input, case_display_name="SYNTHETIC-CASE",
+        )
         formal_context_id = prepare_archive_source(
-            source_id, copy.deepcopy(SYNTHETIC_REPORT), output_root=OUTPUT_BASE,
+            source_id, output_root=OUTPUT_BASE,
         )
         try:
             yield SimpleNamespace(

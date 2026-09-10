@@ -270,7 +270,9 @@ class SourceRecordService:
         authorized = AuthorizedInputRoot(
             Path(locator["internal_path"]), "configured_root", source["allowed_root_id"], Path(locator["allowed_root"]),
         )
-        return create_preview_source(authorized)
+        return create_preview_source(
+            authorized, case_display_name=str(shell.get("case_name") or ""),
+        )
 
     def remove_unbound_source(self, descriptor: dict[str, Any]) -> None:
         locator_id = descriptor.get("locator_id")

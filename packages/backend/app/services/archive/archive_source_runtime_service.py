@@ -74,6 +74,7 @@ class PreviewSourceRecord:
     source_id: str
     authorized_input: AuthorizedInputRoot
     source_key: str
+    case_display_name: str
     created_at: float
     expires_at: float
     cleanup_root: Path | None = None
@@ -121,6 +122,7 @@ class ArchiveSourceRuntimeStore:
         authorized_input: AuthorizedInputRoot,
         *,
         cleanup_root: str | None = None,
+        case_display_name: str = "",
     ) -> str:
         validate_authorized_input(authorized_input)
         now = self._clock()
@@ -136,6 +138,7 @@ class ArchiveSourceRuntimeStore:
                 source_id,
                 authorized_input,
                 normalized_directory_key(authorized_input.resolved_input_root),
+                str(case_display_name or "").strip(),
                 now,
                 now + self.ttl_seconds,
                 Path(cleanup_root) if cleanup_root else None,
@@ -222,6 +225,9 @@ class ArchiveSourceRuntimeStore:
             ) from error
         return record.prepared_context_id
 
+    def case_display_name(self, source_id: str) -> str:
+        return self._active(source_id).case_display_name
+
     def cleanup(self, now: float | None = None) -> None:
         current = self._clock() if now is None else now
         with self._lock:
@@ -257,9 +263,14 @@ ARCHIVE_SOURCE_RUNTIME_STORE = ArchiveSourceRuntimeStore()
 def create_preview_source(
     authorized_input: AuthorizedInputRoot,
     *,
+    case_display_name: str,
     cleanup_root: str | None = None,
 ) -> str:
-    return ARCHIVE_SOURCE_RUNTIME_STORE.create(authorized_input, cleanup_root=cleanup_root)
+    return ARCHIVE_SOURCE_RUNTIME_STORE.create(
+        authorized_input,
+        cleanup_root=cleanup_root,
+        case_display_name=case_display_name,
+    )
 
 
 def get_preview_source_summary(source_id: str) -> dict[str, object]:
@@ -272,7 +283,6 @@ def discard_preview_source(source_id: str) -> None:
 
 def prepare_archive_source(
     source_id: str,
-    report: dict,
     *,
     output_root: str,
     cancellation_check: Callable[[], bool] | None = None,
@@ -284,11 +294,12 @@ def prepare_archive_source(
     except ArchiveRuntimeError as error:
         if error.code != "ARCHIVE_CONTEXT_NOT_PREPARED":
             raise
+    case_display_name = ARCHIVE_SOURCE_RUNTIME_STORE.case_display_name(source_id)
     return ARCHIVE_SOURCE_RUNTIME_STORE.prepare(
         source_id,
         lambda authorized, cleanup: create_archive_context(
             authorized,
-            report,
+            case_display_name,
             output_root=output_root,
             cleanup_root=str(cleanup) if cleanup else None,
             cancellation_check=cancellation_check,

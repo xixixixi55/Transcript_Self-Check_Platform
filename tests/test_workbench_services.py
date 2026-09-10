@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -135,6 +136,14 @@ def test_submit_persists_shell_and_task_before_parse(database, tmp_path, monkeyp
     assert ready["draft"]["report"]["title"] == REPORT["title"]
     assert ready["draft"]["report"]["introduction"]["entrust_time"] == ""
     assert calls and Path(calls[0][0]) == report_dir
+    with patch(
+        "app.services.archive.archive_source_runtime_service.create_preview_source",
+        return_value="SYNTHETIC-PREVIEW-CONTEXT",
+    ) as create_preview:
+        assert source_service.create_legacy_preview_source(
+            identifiers["case_id"],
+        ) == "SYNTHETIC-PREVIEW-CONTEXT"
+    assert create_preview.call_args.kwargs["case_display_name"] == "SYNTHETIC-CASE"
 
 
 def test_case_list_projects_entrust_information_from_existing_draft(database, tmp_path):

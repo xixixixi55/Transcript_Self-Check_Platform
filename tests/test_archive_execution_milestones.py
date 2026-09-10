@@ -67,7 +67,7 @@ def test_formal_executor_observes_only_real_safe_boundaries(tmp_path: Path) -> N
     output = tmp_path / "output"
     context_id = create_archive_context(
         AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "SYNTHETIC-ROOT"),
-        report(), output_root=str(output),
+        "SYNTHETIC-T014-ARCHIVE", output_root=str(output),
     )
     stages = []
     outcome = execute_archive(

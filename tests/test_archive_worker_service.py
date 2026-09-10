@@ -123,6 +123,7 @@ def work_item(tmp_path: Path, attempts: FakeAttemptService):
     return ArchiveWorkItem(
         "SYNTHETIC-FORMAL-CONTEXT",
         {"introduction": {"case_summary": "SYNTHETIC-ARCHIVE"}},
+        "SYNTHETIC-CASE-NAME",
         str(tmp_path / "output"),
         attempts,  # type: ignore[arg-type]
     )
@@ -143,7 +144,7 @@ def test_worker_drives_exact_gates_and_activity(setup, monkeypatch) -> None:
         ):
             kwargs["stage_observer"](stage)
             if stage == "winrar":
-                (root / "SYNTHETIC-ARCHIVE.part1.rar").write_bytes(b"SYNTHETIC")
+                (root / "SYNTHETIC-CASE-NAME.part1.rar").write_bytes(b"SYNTHETIC")
                 kwargs["activity_observer"](root)
                 assert kwargs["cancellation_check"]() is False
         return SimpleNamespace(reused=False, manifest_id="SYNTHETIC-MANIFEST")

@@ -153,15 +153,39 @@ def test_explicit_preparation_uses_full_inventory_and_context_gates(tmp_path):
     (source / "input.bin").write_bytes(b"SYNTHETIC")
     from app.services.archive.archive_source_runtime_service import create_preview_source
 
-    source_id = create_preview_source(_authorized(source))
+    source_id = create_preview_source(
+        _authorized(source), case_display_name="SYNTHETIC-CASE",
+    )
     with patch(
         "app.services.archive.archive_runtime_service.build_input_inventory",
         wraps=build_input_inventory,
     ) as build_inventory:
-        context_id = prepare_archive_source(source_id, _report(), output_root=str(tmp_path / "output"))
+        context_id = prepare_archive_source(
+            source_id, output_root=str(tmp_path / "output"),
+        )
 
     assert context_id
     assert build_inventory.call_count == 1
     summary = archive_source_runtime_service.get_preview_source_summary(source_id)
     assert summary["context_kind"] == "formal"
     assert summary["inventory_ready"] is True
+
+
+def test_preparation_preserves_case_name_separately_from_case_summary(tmp_path):
+    source = tmp_path / "case"
+    source.mkdir()
+    (source / "input.bin").write_bytes(b"SYNTHETIC")
+    from app.services.archive.archive_source_runtime_service import create_preview_source
+
+    source_id = create_preview_source(
+        _authorized(source), case_display_name="SYNTHETIC-CASE-NAME",
+    )
+    context_id = prepare_archive_source(
+        source_id,
+        output_root=str(tmp_path / "output"),
+    )
+
+    snapshot = archive_source_runtime_service.ARCHIVE_RUNTIME_STORE.get_context_snapshot(
+        context_id,
+    )
+    assert snapshot.case_display_name == "SYNTHETIC-CASE-NAME"

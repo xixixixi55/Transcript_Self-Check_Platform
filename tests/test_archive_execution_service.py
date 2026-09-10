@@ -77,15 +77,20 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
     attempts.start(accepted["attempt_id"])
     report = CaseDraftRepository(database).get(CASE_ID)["report"]
     existing = str(restart_during_publish).startswith("existing_")
+    archive_case_name = shell["case_name"]
     if existing:
         from app.services.archive.archive_planner_service import safe_archive_base_name
-        base = safe_archive_base_name(report["introduction"]["case_summary"])
+        base = safe_archive_base_name(archive_case_name)
         target = source.parent / (base + (".part2.rar" if restart_during_publish == "existing_part" else ".rar"))
         if restart_during_publish == "existing_directory":
             target.mkdir()
         else:
             target.write_bytes(b"SYNTHETIC/TEST/EXISTING-RAR")
-    context_id = create_archive_context(AuthorizedInputRoot(source, "configured_root", "SYNTHETIC-root"), report, output_root=str(output))
+    context_id = create_archive_context(
+        AuthorizedInputRoot(source, "configured_root", "SYNTHETIC-root"),
+        archive_case_name,
+        output_root=str(output),
+    )
     observed = []
     def runner(args, **kwargs):
         archive_path = Path(args[-2])
@@ -147,6 +152,7 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
         assert attempt["cleanup_status"] == "succeeded"
     rar = list(source.parent.glob("*.rar"))
     assert len(rar) == 1 and rar[0].stat().st_ino == observed[0]
+    assert rar[0].name == "SYNTHETIC_TEST_Case.rar"
     assert not list(output.rglob("*.rar"))
     from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository
     registry = ArchiveManifestRepository(output, database=database)
@@ -238,7 +244,7 @@ def make_context(tmp_path):
     (source / "input.bin").write_bytes(b"12345678")
     output = tmp_path / "output"
     authorized = AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "test-root")
-    context_id = create_archive_context(authorized, valid_report(), output_root=str(output))
+    context_id = create_archive_context(authorized, "合成案件", output_root=str(output))
     return source, output, context_id
 
 
@@ -820,7 +826,7 @@ def test_reparse_same_input_reuses_persisted_manifest(tmp_path):
 
     second_context = create_archive_context(
         AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "test-root"),
-        valid_report(), output_root=str(output),
+        "合成案件", output_root=str(output),
     )
     second_fake = FakeExecutor(tmp_path / "fake-staging-second", lambda tier: 1)
     second = execute_archive(
@@ -848,7 +854,7 @@ def test_reparse_reuses_manifest_within_confirmed_immutable_input_window(tmp_pat
     (source / "input.bin").write_bytes(b"changed!")
     changed_context = create_archive_context(
         AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "test-root"),
-        valid_report(), output_root=str(output),
+        "合成案件", output_root=str(output),
     )
     second_fake = FakeExecutor(tmp_path / "fake-staging-second", lambda tier: 1)
     outcome = execute_archive(
@@ -882,7 +888,7 @@ def test_reparse_does_not_reuse_tampered_rar(tmp_path, tamper):
 
     second_context = create_archive_context(
         AuthorizedInputRoot(source.resolve(), "exact_directory_grant", "test-root"),
-        valid_report(), output_root=str(output),
+        "合成案件", output_root=str(output),
     )
     second_fake = FakeExecutor(tmp_path / "fake-staging-second", lambda tier: 1)
     outcome = execute_archive(
