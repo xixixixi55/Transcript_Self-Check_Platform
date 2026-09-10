@@ -300,9 +300,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     renderPage()
 
     expect(await screen.findByRole('button', { name: /保存并退出/ })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /查看已填内容与待办/ }))
-    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
-    fireEvent.click(within(panel).getByRole('button', { name: '修改检材完整性' }))
+    expect(screen.queryByRole('button', { name: /查看已填内容与待办/ })).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: '返回上一步' }))
+    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
+      .toContain('请核对检材照片'))
+    fireEvent.click(screen.getByRole('button', { name: '返回上一步' }))
 
     await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
       .toContain('请确认检材完整性'))
@@ -402,10 +404,14 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   }, 15000)
 
   async function openFullEditor() {
-    fireEvent.click(await screen.findByRole('button', { name: /查看已填内容与待办/ }))
-    const panel = await screen.findByRole('region', { name: '已填内容与待办' })
-    expect(within(panel).queryByRole('button', { name: '修改其他已填内容' })).toBeNull()
-    expect(fullEditorAccess.open).toBeTypeOf('function')
+    await screen.findByRole('heading', { name: '獬豸助手', level: 2 })
+    const reviewCenterButton = screen.queryByRole('button', { name: /查看已填内容与待办/ })
+    if (reviewCenterButton) {
+      fireEvent.click(reviewCenterButton)
+      const panel = await screen.findByRole('region', { name: '已填内容与待办' })
+      expect(within(panel).queryByRole('button', { name: '修改其他已填内容' })).toBeNull()
+    }
+    await waitFor(() => expect(fullEditorAccess.open).toBeTypeOf('function'))
     await act(async () => { fullEditorAccess.open?.() })
     await waitFor(() => expect(document.querySelector('.review-editor-form')).toBeTruthy())
   }
@@ -437,9 +443,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     renderPage()
     await openFullEditor()
     expect(await screen.findByText('报告来源待快速复核')).toBeTruthy()
-    const button = await screen.findByRole('button', { name: /立即开始压缩/ })
+    const button = await screen.findByRole('button', { name: /立即开始压缩/ }) as HTMLButtonElement
+    await waitFor(() => expect(button.disabled).toBe(false))
     fireEvent.click(button)
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/请勿修改、移动或删除源文件/))
+    await waitFor(() => expect(window.confirm)
+      .toHaveBeenCalledWith(expect.stringMatching(/请勿修改、移动或删除源文件/)), { timeout: 5000 })
   }, 15000)
 
   it('allows and persists a disc-number edit before compression, then posts one archive decision with the new shell revision', async () => {
@@ -460,7 +468,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await openFullEditor()
     await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-    fireEvent.click(screen.getByRole('button', { name: /立即开始压缩/ }))
+    const button = screen.getByRole('button', { name: /立即开始压缩/ }) as HTMLButtonElement
+    await waitFor(() => expect(button.disabled).toBe(false))
+    fireEvent.click(button)
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/请勿修改、移动或删除源文件/))
     expect(patchMock).not.toHaveBeenCalled()
@@ -475,7 +485,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     failedView.unmount()
     conflictDecision = true; rejectSave = false; detailReads = 0; renderPage(); await editDiscAndClick()
     await waitFor(() => expect(decisionBodies).toHaveLength(1))
-    expect(await screen.findByText(/其他会话修改/)).toBeTruthy()
+    expect(await screen.findByText(/其他会话修改/, {}, { timeout: 5000 })).toBeTruthy()
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DECISION(caseId))).toHaveLength(1)
   }, 15000)
 
@@ -612,13 +622,16 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     showGuidedReady = true
     renderPage()
     await screen.findByText('请确认案件简要情况')
-    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
+    const nextStepButton = screen.getByRole('button', { name: '进入下一步' }) as HTMLButtonElement
+    await waitFor(() => expect(nextStepButton.disabled).toBe(false))
+    fireEvent.click(nextStepButton)
     await waitFor(() => expect(patchMock).toHaveBeenCalled())
     const savedDraft = (patchMock.mock.calls[0][1] as { draft: CaseDraft }).draft
     expect(savedDraft.field_states['introduction.case_summary.confirmation']).toEqual(expect.objectContaining({
       source: 'user', confirmation: 'confirmed',
     }))
     expect(await screen.findByRole('button', { name: /保存并退出/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /查看已填内容与待办/ })).toBeNull()
     expect(screen.queryByRole('button', { name: '更新盘号映射' })).toBeNull()
     expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
     await openFullEditor()

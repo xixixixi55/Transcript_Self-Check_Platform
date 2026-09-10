@@ -421,11 +421,7 @@ describe('GuidedReviewView', () => {
     expect(backButton.compareDocumentPosition(archiveButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(archiveButton.compareDocumentPosition(reviseButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByRole('button', { name: '返回上一步' })).toBeNull()
-    const pendingTrigger = screen.getByRole('button', { name: '查看已填内容与待办（0 项待处理）' })
-    fireEvent.click(pendingTrigger)
-    const pendingPanel = screen.getByRole('region', { name: '已填内容与待办' })
-    expect(within(pendingPanel).getByRole('button', { name: /草稿已保存.*已稍后处理/ })).toBeTruthy()
-    expect(within(pendingPanel).getByRole('button', { name: /请选择压缩时机.*可选/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /查看已填内容与待办/ })).toBeNull()
 
     fireEvent.click(backButton)
     fireEvent.click(archiveButton)
@@ -435,8 +431,7 @@ describe('GuidedReviewView', () => {
     expect(returnToPreviousAction).toHaveBeenCalledTimes(1)
   })
 
-  it('moves a completed action out of the conversation and into the edit center', async () => {
-    const revisitAction = vi.fn()
+  it('hides the edit center after completion and keeps previous-next navigation', async () => {
     const returnToPreviousAction = vi.fn()
     const returnToCurrentAction = vi.fn()
     const view = render(<GuidedReviewView
@@ -446,7 +441,6 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction, waitingAction]}
       hasResponse
       onSelectAction={vi.fn()}
-      onRevisitAction={revisitAction}
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
       onOpenFullEditor={vi.fn()}
@@ -463,6 +457,7 @@ describe('GuidedReviewView', () => {
     expect(initialReplyGroup.contains(confirmationButton)).toBe(true)
     expect(initialStepNavigation.compareDocumentPosition(confirmationButton)
       & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: /查看已填内容与待办/ })).toBeTruthy()
 
     view.rerender(<GuidedReviewView
       conversationKey="SYNTHETIC-CASE"
@@ -471,7 +466,6 @@ describe('GuidedReviewView', () => {
       allActions={[waitingAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
-      onRevisitAction={revisitAction}
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
       onOpenFullEditor={vi.fn()}
@@ -481,11 +475,7 @@ describe('GuidedReviewView', () => {
     await waitFor(() => expect(screen.queryByLabelText('上一轮办理结果')).toBeNull())
     expect(screen.queryByText('文号已填写')).toBeNull()
     expect(document.querySelector('[data-mood="complete"]')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '查看已填内容与待办（0 项待处理）' }))
-    const revisitButton = screen.getByRole('button', { name: '修改文号' })
-    fireEvent.click(revisitButton)
-    expect(revisitAction).toHaveBeenCalledWith(documentAction)
-    expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent).toContain('请稍候，正在生成压缩分卷')
+    expect(screen.queryByRole('button', { name: /查看已填内容与待办/ })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '返回上一步' }))
     expect(returnToPreviousAction).toHaveBeenCalledTimes(1)
 
@@ -496,7 +486,6 @@ describe('GuidedReviewView', () => {
       allActions={[waitingAction]}
       hasResponse
       onSelectAction={vi.fn()}
-      onRevisitAction={revisitAction}
       canReturnToPrevious
       canReturnToNext
       onReturnToPreviousAction={returnToPreviousAction}
@@ -527,7 +516,7 @@ describe('GuidedReviewView', () => {
     await waitFor(() => expect(screen.queryByLabelText('上一轮办理结果')).toBeNull())
   })
 
-  it('keeps all completed session actions available in the edit center', async () => {
+  it('keeps completed session actions in the edit center only while manual work remains', async () => {
     const actions = ['甲', '乙', '丙', '丁'].map((fieldLabel, index): GuidedReviewAction => ({
       ...documentAction,
       id: `SYNTHETIC-ACTION-${fieldLabel}`,
@@ -549,21 +538,16 @@ describe('GuidedReviewView', () => {
     const view = render(<GuidedReviewView {...props} currentAction={actions[0]}
       allActions={[...actions, waitingAction]}>{child(actions[0])}</GuidedReviewView>)
 
-    for (let index = 1; index < actions.length; index += 1) {
-      const action = actions[index]
-      view.rerender(<GuidedReviewView {...props} currentAction={action}
-        allActions={[...actions.slice(index), waitingAction]}>{child(action)}</GuidedReviewView>)
-      await waitFor(() => expect(document.querySelector('[data-mood="complete"]')).toBeTruthy())
-    }
+    view.rerender(<GuidedReviewView {...props} currentAction={actions[1]}
+      allActions={[...actions.slice(1), waitingAction]}>{child(actions[1])}</GuidedReviewView>)
+    await waitFor(() => expect(document.querySelector('[data-mood="complete"]')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /查看已填内容与待办/ }))
+    expect(screen.getByRole('button', { name: '修改甲' })).toBeTruthy()
+
     view.rerender(<GuidedReviewView {...props} currentAction={waitingAction}
       allActions={[waitingAction]} hasResponse={false}>{child(waitingAction)}</GuidedReviewView>)
-
-    fireEvent.click(screen.getByRole('button', { name: '查看已填内容与待办（0 项待处理）' }))
-    expect(screen.queryByText('更早已完成 1 项')).toBeNull()
-    expect(screen.getByRole('button', { name: '修改甲' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '修改乙' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '修改丙' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '修改丁' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /查看已填内容与待办/ })).toBeNull()
+    expect(screen.queryByRole('region', { name: '已填内容与待办' })).toBeNull()
   })
 
   it('acknowledges a manual action switch and stages the next response as a conversational turn', async () => {

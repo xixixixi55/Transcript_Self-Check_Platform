@@ -484,42 +484,6 @@ describe('guided review projection', () => {
     expect(ready.allActions[0]?.description).toBe('请保存并退出；返回案件工作台后可统一导出。')
   })
 
-  it('recommends compression, medium number, then ordinary review fields', () => {
-    const pendingItems = [
-      {
-        id: 'SYNTHETIC-DOCUMENT', sectionId: 'review-section-document',
-        targetId: REVIEW_TARGET_IDS.documentNumber, sectionLabel: '文书信息', fieldLabel: '文号',
-        reason: '当前必填字段为空。', severity: 'warning' as const, kind: 'required_missing' as const,
-      },
-      {
-        id: 'SYNTHETIC-MEDIUM', sectionId: 'review-section-archive',
-        targetId: REVIEW_TARGET_IDS.discNumber, sectionLabel: '附件', fieldLabel: '介质编号',
-        reason: '当前必填字段为空。', severity: 'warning' as const, kind: 'required_missing' as const,
-      },
-    ]
-    const ready = deriveGuidedReviewProjection({
-      ...buildInput(), pendingItems, lifecycle: 'review_ready', archiveTask: null,
-    })
-    expect(ready.allActions.map(action => action.title)).toEqual([
-      '请选择压缩时机', '请输入介质编号', '请输入文号',
-    ])
-
-    const deferred = deriveGuidedReviewProjection({
-      ...buildInput(), pendingItems, lifecycle: 'archive_deferred', archiveTask: null,
-    })
-    expect(deferred.allActions.map(action => action.title)).toEqual([
-      '请输入介质编号', '请输入文号', '请选择压缩时机',
-    ])
-
-    const recovering = deriveGuidedReviewProjection({
-      ...buildInput(), pendingItems, lifecycle: 'review_ready', archiveTask: null,
-      saveState: 'failed', saveHasPending: true,
-    })
-    expect(recovering.allActions.slice(0, 2).map(action => action.title)).toEqual([
-      '请恢复草稿保存', '请选择压缩时机',
-    ])
-  })
-
   it('keeps save and lease recovery in actions without adding them to the Word preview', () => {
     const failed: GuidedReviewProjectionInput = {
       ...buildInput(), saveState: 'conflict' as const, saveHasPending: true,

@@ -254,6 +254,9 @@ export function GuidedReviewView({
     !['waiting', 'ready', 'archive_deferred'].includes(action.kind)
     && !(isDeferredTerminal && action.kind === 'archive_decision')
   )).length
+  const showReviewCenter = allActions.some(action => (
+    action.kind === 'pending_item' || RECOVERY_ACTIONS.has(action.kind)
+  ))
   const revisitableCompletedTurns = completedTurns.filter(turn => (
     !allActions.some(action => action.id === turn.action.id)
   ))
@@ -274,6 +277,9 @@ export function GuidedReviewView({
     event.preventDefault()
     onConfirmCurrentAction?.()
   }
+  useEffect(() => {
+    if (!showReviewCenter) setOpenPanel(null)
+  }, [showReviewCenter])
   const previousStepButton = canReturnToPrevious ? (
     <Tooltip title="返回上一步">
       <Button shape="circle" size="large" type="primary" className="guided-review-icon-action"
@@ -397,15 +403,17 @@ export function GuidedReviewView({
         </div>
         <div className="guided-review-conversation__utilities">
           <div className="guided-review-tools" aria-label="其他审核操作">
-            <Tooltip title="查看并修改已填内容与待办">
-              <Badge count={pendingActionCount} size="small" offset={[-2, 2]}>
-                <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
-                  icon={<UnorderedListOutlined />}
-                  aria-label={`查看已填内容与待办（${pendingActionCount} 项待处理）`}
-                  aria-expanded={openPanel === 'pending'} aria-controls="guided-review-pending-panel"
-                  onClick={togglePendingPanel} />
-              </Badge>
-            </Tooltip>
+            {showReviewCenter && (
+              <Tooltip title="查看并修改已填内容与待办">
+                <Badge count={pendingActionCount} size="small" offset={[-2, 2]}>
+                  <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
+                    icon={<UnorderedListOutlined />}
+                    aria-label={`查看已填内容与待办（${pendingActionCount} 项待处理）`}
+                    aria-expanded={openPanel === 'pending'} aria-controls="guided-review-pending-panel"
+                    onClick={togglePendingPanel} />
+                </Badge>
+              </Tooltip>
+            )}
             {!isDeferredTerminal && (
               <Tooltip title="返回案件工作台">
                 <Button shape="circle" size="large" className="guided-review-icon-action guided-review-tools__icon-button"
@@ -413,7 +421,7 @@ export function GuidedReviewView({
               </Tooltip>
             )}
           </div>
-          {openPanel === 'pending' && (
+          {showReviewCenter && openPanel === 'pending' && (
             <div ref={openPanelRef} id="guided-review-pending-panel" className="guided-review-popover-panel"
               role="region" aria-label="已填内容与待办" tabIndex={-1}>
               <section className="guided-review-action-group" aria-labelledby="guided-review-pending-heading">

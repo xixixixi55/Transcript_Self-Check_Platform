@@ -17,7 +17,54 @@ const discNumberItem = {
   kind: 'required_missing' as const,
 }
 
+const photoItem = {
+  id: 'SYNTHETIC-PHOTOS',
+  sectionId: 'review-section-attachments',
+  targetId: REVIEW_TARGET_IDS.photos,
+  sectionLabel: '附件',
+  fieldLabel: '检材照片',
+  reason: '还需上传 2 张图片（每个检材需 2 张）。',
+  severity: 'warning' as const,
+  kind: 'required_missing' as const,
+}
+
+const documentItem = {
+  id: 'SYNTHETIC-DOCUMENT',
+  sectionId: 'review-section-document',
+  targetId: REVIEW_TARGET_IDS.documentNumber,
+  sectionLabel: '文书信息',
+  fieldLabel: '文号',
+  reason: '当前必填字段为空。',
+  severity: 'warning' as const,
+  kind: 'required_missing' as const,
+}
+
 describe('guided review deferred archive navigation', () => {
+  it('keeps medium number after photo upload in the normal review sequence', () => {
+    const pendingItems = [documentItem, photoItem, discNumberItem]
+    const ready = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems, lifecycle: 'review_ready', archiveTask: null,
+    })
+    expect(ready.allActions.map(action => action.title)).toEqual([
+      '请选择压缩时机', '请输入文号', '请上传检材照片', '请输入介质编号',
+    ])
+
+    const deferred = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems, lifecycle: 'archive_deferred', archiveTask: null,
+    })
+    expect(deferred.allActions.map(action => action.title)).toEqual([
+      '请输入文号', '请上传检材照片', '请输入介质编号', '请选择压缩时机',
+    ])
+
+    const recovering = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems, lifecycle: 'review_ready', archiveTask: null,
+      saveState: 'failed', saveHasPending: true,
+    })
+    expect(recovering.allActions.slice(0, 2).map(action => action.title)).toEqual([
+      '请恢复草稿保存', '请选择压缩时机',
+    ])
+  })
+
   it('continues to the next review item after choosing deferred while keeping compression revisitable', () => {
     const input = {
       ...buildInput(syntheticReport), pendingItems: [discNumberItem],

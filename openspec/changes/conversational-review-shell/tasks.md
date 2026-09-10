@@ -889,3 +889,27 @@ workflow_level: 2
 - `report_material_default_extractable_tests: PASS`：旧实现上前端 6 项、后端 3 项回归按预期失败；实施后受影响前端 6 files / 61 tests 与后端 5 files / 126 tests 通过，TypeScript 和架构检查通过。
 - `report_material_default_extractable_gates: PASS`：`npm run verify:quick`、限定范围严格文档检查、OpenSpec change 与现行 `data-model` spec 严格校验及 `git diff --check` 通过；delta 已同步到新建的现行 `openspec/specs/data-model/spec.md`，目录索引已同步。
 - `report_material_default_extractable_manual_acceptance: N/A`：默认值、显式覆盖、异常核对和文书投影均由 SYNTHETIC 自动化回归可靠区分，未读取或操作真实案件数据。
+
+## 2026-09-10 介质编号调整到图片上传之后（workflow_level: 2）
+
+- [x] 6.127 将用户反馈关联到本包：调整獬豸助手中检材照片与介质编号的先后顺序，属于同一动态操作集、图片步骤和归档准备调用链；本包已完成但尚未归档，按归档前反馈重开，不新建 change。`background-compression-archive-completion` 继续提供图片绑定与介质映射合同，本任务不修改上传、编号校验、后端 API、共享 DTO 或归档行为。
+- [x] 6.128 移除介质编号抢占普通待办的特殊优先级，保持现有动态待办顺序，并确保附件事项按“上传检材照片→填写介质编号”办理；照片已补齐或介质编号已填写时跳过对应事项，图片步骤的明确“进入下一步”、恢复事项优先级和稍后压缩语义保持不变。
+- [x] 6.129 更新 SYNTHETIC Hook 回归、同步 delta/living spec，并运行受影响测试、`npm run verify:quick`、限定范围严格文档检查、OpenSpec 严格校验与 `git diff --check`。
+  - 人工验收：N/A；操作排序、图片完成后的显式推进和已满足事项跳过均可由确定性 Hook 回归可靠区分，不读取或操作真实案件数据。
+
+- `photo_before_medium_contract: PASS`：删除介质编号对全部普通待办的抢占排序，继续使用审核清单的稳定顺序；当照片和介质编号同时待处理时，检材照片在前、介质编号在后，已完成项继续由既有清单自动跳过，图片步骤仍须明确进入下一步。
+- `photo_before_medium_tests: PASS`：旧实现上的聚焦回归稳定复现介质编号排在检材照片之前；实施后归档决策、图片导航、持久化、日期、引导组件和页面 8 files / 83 tests 通过，仅输出既有 jsdom `getComputedStyle` 与 React `act` 提示。
+- `photo_before_medium_gates: PASS`：架构、TypeScript、治理文档、仓库资产和 `npm run verify:quick` 通过；OpenSpec change 严格校验与 `git diff --check` 通过，delta 已同步 living spec。限定范围严格文档检查初次仅因本验证任务尚未勾选而失败，补全记录后复核通过。
+- `photo_before_medium_manual_acceptance: N/A`：排序、显式推进、恢复优先级和已满足事项跳过均由 SYNTHETIC Hook 与页面回归可靠区分，本次无新增视觉或桌面环境差异，未读取或操作真实案件数据。
+
+## 2026-09-10 人工填写完成后收起待办入口（workflow_level: 2）
+
+- [x] 6.130 将用户反馈关联到本包：隐藏“已填内容与待办”零待办入口并改由前后步骤访问人工内容，直接修改同一獬豸助手工具栏、动态操作集和步骤轨迹；本包尚未归档，按归档前反馈继续复用，不新建 change，不修改案件草稿、后端 API 或共享 DTO。
+- [x] 6.131 仍有人工待办或保存、租约、来源、图片恢复事项时保留面板入口；全部人工内容完成且无恢复事项时隐藏入口，从当前草稿与用户字段状态重建全部可回访人工步骤，并允许从最新完成/等待状态连续上一步、下一步切换。刷新、重进、无检查点、导航边界、新待办和异常恢复均不得造成入口或步骤丢失。
+- [x] 6.132 更新 SYNTHETIC Hook、组件与页面回归，同步 delta/living spec，运行受影响测试、`npm run verify:quick`、限定范围严格文档检查、OpenSpec 严格校验、Impeccable 单次检测与 `git diff --check`。
+  - 人工验收：N/A；按钮条件显隐、完整人工步骤重建、前后边界、刷新重进和异常恢复均可由确定性 DOM/Hook 回归可靠区分，不读取或操作真实案件数据。
+
+- `completed_manual_navigation_contract: PASS`：人工待办或阻断性恢复存在时保留“已填内容与待办”；二者均为零时关闭并移除入口，从当前草稿及用户字段状态按人工办理顺序重建可回访步骤，以完成/等待状态作为末端，上一步与下一步可连续往返；新待办或恢复事项出现时入口随动作集自动恢复。
+- `completed_manual_navigation_tests: PASS`：Hook/组件 6 files / 51 tests 与页面全套 28 tests 通过，共 79 项；覆盖零待办显隐、完成态历史重建、无本地检查点重进、前后边界、照片显式推进、恢复优先级及页面保存/来源异步边界。
+- `completed_manual_navigation_gates: PASS`：架构、TypeScript、治理文档、仓库资产及 `npm run verify:quick` 通过；Hook 高内聚职责经评估后将有界文件上限登记为 740 行；Impeccable 单次检测为 0 项；delta 已同步 living spec。
+- `completed_manual_navigation_manual_acceptance: N/A`：本次未修改尺寸、颜色或响应式布局；按钮条件显隐、焦点可达的圆形前后步骤、刷新重进和恢复边界均由 SYNTHETIC DOM/Hook 回归可靠区分，未读取或操作真实案件数据。

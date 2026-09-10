@@ -79,7 +79,7 @@ describe('guided review navigation persistence', () => {
     expect(secondCase.result.current.canReturnToPrevious).toBe(false)
   })
 
-  it('drops a checkpoint when its current step can no longer be rebuilt from current facts', () => {
+  it('rebuilds completed manual steps when the current checkpoint step is no longer pending', () => {
     const first = renderHook(() => useGuidedReviewCards(journeyInput()))
     selectTarget(first.result, REVIEW_TARGET_IDS.caseSummary)
     first.unmount()
@@ -89,10 +89,28 @@ describe('guided review navigation persistence', () => {
       caseId: 'SYNTHETIC-CASE-PERSISTENCE',
       pendingItems: [],
       caseSummaryReviewed: true,
+      fieldStates: {
+        'introduction.evidence_list.completeness': {
+          field_path: 'introduction.evidence_list.completeness', source: 'user' as const,
+          confirmation: 'confirmed' as const, revision: 2,
+          last_changed_at: '2026-09-10T17:00:00Z',
+        },
+      },
     }
     const reopened = renderHook(() => useGuidedReviewCards(currentFacts))
     expect(reopened.result.current.currentAction?.kind).toBe('waiting')
-    expect(reopened.result.current.canReturnToPrevious).toBe(false)
+    expect(reopened.result.current.canReturnToPrevious).toBe(true)
+    expect(reopened.result.current.canReturnToNext).toBe(false)
+
+    act(() => reopened.result.current.returnToPreviousAction())
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.photos)
+    expect(reopened.result.current.canReturnToNext).toBe(true)
+    act(() => reopened.result.current.returnToPreviousAction())
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId)
+      .toBe(REVIEW_TARGET_IDS.evidenceCompleteness)
+    act(() => reopened.result.current.returnToNextAction())
+    act(() => reopened.result.current.returnToNextAction())
+    expect(reopened.result.current.currentAction?.kind).toBe('waiting')
     expect(reopened.result.current.canReturnToNext).toBe(false)
   })
 
