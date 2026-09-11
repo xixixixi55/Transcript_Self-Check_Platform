@@ -549,8 +549,8 @@ def test_parse_from_archive_can_retain_private_source_for_archive_context():
 
 def _write_legacy_service_fixture(root):
     data_dir = root / "data"
-    base_dir = data_dir / "JC-OLD" / "Base"
-    base_dir.mkdir(parents=True)
+    phone_dir = data_dir / "JC-OLD" / "Phone"
+    phone_dir.mkdir(parents=True)
 
     def write(path, payload):
         path.write_text(__import__("json").dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -571,10 +571,15 @@ def _write_legacy_service_fixture(root):
     (data_dir / "data_navigation.json").write_text(
         "; static.mypico.json.navigation = []", encoding="utf-8"
     )
-    write(base_dir / "device.json", {
-        "\u8bbe\u5907\u540d\u79f0": "Old Phone", "\u8bbe\u5907\u578b\u53f7": "Old-Model",
-        "IMEI1": "123456789012345", "IMEI2": "543210987654321", "\u5e8f\u5217\u53f7": "OLD-SN",
-    })
+    write(phone_dir / "data_SYNTHETIC_LEGACY_DEVICE.json", {"contents": [
+        {"c1": "检材持有人", "c2": "SYNTHETIC-HOLDER-LEGACY"},
+        {"c1": "持有人编号", "c2": "SYNTHETIC-WRONG-ID"},
+        {"c1": "设备名称", "c2": "Old Phone"},
+        {"c1": "设备型号", "c2": "Old-Model"},
+        {"c1": "IMEI1", "c2": "123456789012345"},
+        {"c1": "IMEI2", "c2": "543210987654321"},
+        {"c1": "序列号", "c2": "OLD-SN"},
+    ]})
     return data_dir
 
 
@@ -594,7 +599,7 @@ def test_legacy_full_standard_model_regression(tmp_path):
     assert evidence["imei1"] == "123456789012345"
     assert evidence["imei2"] == "543210987654321"
     assert evidence["serial_number"] == "OLD-SN"
-    assert evidence["holder_name"] == ""
+    assert evidence["holder_name"] == "SYNTHETIC-HOLDER-LEGACY"
     assert report["inspection"]["result"]["software_version"] == "V3.2.1"
     assert len(report["attachments"]["extract_list"]["columns"]) == 5
     assert report["attachments"]["photo_ids"] == []

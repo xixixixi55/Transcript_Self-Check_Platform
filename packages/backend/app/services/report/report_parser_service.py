@@ -221,7 +221,9 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "device_type": device_type,
             "device_type_source": "report_field" if explicit_device_type else "legacy_display",
             "device_name": display_name,
-            "holder_name": str(dev.get("holder_name") or "").strip(),
+            "holder_name": str(
+                dev.get("holder_name") or base_info.get("holder_name") or ""
+            ).strip(),
             "brand": brand,
             "model": raw_model,
             "imei1": imei1,

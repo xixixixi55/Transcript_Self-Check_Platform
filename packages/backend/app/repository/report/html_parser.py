@@ -20,7 +20,8 @@ from datetime import datetime
 from typing import Any
 from .device_candidate_parser import select_best_device_candidate
 from .device_field_parser import (
-    extract_device_fields, holder_name_from_device_row, is_generic_device_label, try_parse_json,
+    extract_device_fields, holder_name_from_device_row, holder_name_from_legacy_payload,
+    is_generic_device_label, try_parse_json,
     vendor_device_name_from_row,
 )
 from .navigation_parser import parse_navigation
@@ -319,7 +320,11 @@ def parse_device_base(data_dir: str, evidence_number: str) -> dict[str, str]:
     """
     resolved_dir = _resolve_evidence_directory(data_dir, evidence_number)
     if not resolved_dir:
-        return {"device_type": "", "device_name": "", "brand": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+        return {
+            "device_type": "", "device_name": "", "holder_name": "",
+            "brand": "", "model": "", "imei1": "", "imei2": "",
+            "serial_number": "",
+        }
 
     report_format = require_supported_report_format(data_dir)
     json_files = []
@@ -368,7 +373,7 @@ def parse_device_base_payloads(
 
     result = {
         "device_type": "", "device_name": "", "brand": "", "model": "",
-        "imei1": "", "imei2": "", "serial_number": "",
+        "imei1": "", "imei2": "", "serial_number": "", "holder_name": "",
     }
     for payload, text in payloads:
         extracted = extract_device_fields(
@@ -377,6 +382,9 @@ def parse_device_base_payloads(
         for key, value in extracted.items():
             if value and not result[key]:
                 result[key] = value
+        holder_name = holder_name_from_legacy_payload(payload)
+        if holder_name and not result["holder_name"]:
+            result["holder_name"] = holder_name
     if not result["device_name"] and result["model"]:
         result["device_name"] = result["model"]
     if not result["model"] and result["device_name"] and not is_generic_device_label(result["device_name"]):

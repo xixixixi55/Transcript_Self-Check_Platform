@@ -196,6 +196,26 @@ def vendor_device_name_from_row(fields: Any) -> str:
     return ""
 
 
+def holder_name_from_legacy_payload(payload: Any) -> str:
+    """读取 legacy 设备元数据中明确的 ``c1/c2`` 检材持有人行。"""
+    if isinstance(payload, dict):
+        if _normalise_key(str(payload.get("c1") or "")) == "检材持有人":
+            value = payload.get("c2")
+            if value is None or isinstance(value, (dict, list)):
+                return ""
+            return str(value).strip()
+        for child in payload.values():
+            holder_name = holder_name_from_legacy_payload(child)
+            if holder_name:
+                return holder_name
+    elif isinstance(payload, list):
+        for child in payload:
+            holder_name = holder_name_from_legacy_payload(child)
+            if holder_name:
+                return holder_name
+    return ""
+
+
 def holder_name_from_device_row(fields: Any) -> str:
     """只读取 new 报告设备行内明确的检材持有人姓名。"""
     if not isinstance(fields, list):

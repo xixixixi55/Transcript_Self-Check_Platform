@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 from app.repository.report.device_field_parser import (
     extract_device_fields,
     extract_strong_device_fields,
+    holder_name_from_legacy_payload,
     normalise_imei,
 )
 from app.repository.report.device_candidate_parser import select_best_device_candidate
@@ -265,6 +266,20 @@ def test_extract_device_fields_supports_confirmed_aliases_and_tables():
     assert extract_device_fields(tt_ct, "", allow_tt_ct=True)["model"] == "Model-TT"
     generic = extract_device_fields({"设备名称": "手机"}, "")
     assert generic["model"] == ""
+
+
+def test_legacy_holder_requires_exact_structured_label():
+    payload = {"contents": [
+        {"c1": "持有人编号", "c2": "SYNTHETIC-WRONG-ID"},
+        {"c1": "持有人民族", "c2": "SYNTHETIC-WRONG-NATION"},
+        {"c1": "检材持有人", "c2": " SYNTHETIC-HOLDER-A "},
+        {"c1": "持有人性别", "c2": "SYNTHETIC-WRONG-GENDER"},
+    ]}
+
+    assert holder_name_from_legacy_payload(payload) == "SYNTHETIC-HOLDER-A"
+    assert holder_name_from_legacy_payload({
+        "contents": [{"c1": "机主", "c2": "SYNTHETIC-NOT-AUTHORITATIVE"}],
+    }) == ""
 
 
 def test_device_field_normalization_keeps_empty_candidates_safe_and_identifiers_distinct():
