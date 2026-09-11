@@ -449,7 +449,9 @@ def test_manifest_index_is_fail_closed_and_cross_instance_append_is_lossless(
         repository_a.find_by_manifest_id("SYNTHETIC-MANIFEST-M4B-1")
 
 
-def test_sqlite_authority_repairs_corrupt_derived_index(database, tmp_path: Path) -> None:
+def test_sqlite_authority_ignores_corrupt_legacy_index_without_rewriting(
+    database, tmp_path: Path,
+) -> None:
     service, attempt, _registry, record = _trusted_completion(
         database, tmp_path, "SYNTHETIC-CONTEXT-M4B-AUTHORITY", "SYNTHETIC-MANIFEST-M4B-AUTHORITY",
     )
@@ -460,6 +462,7 @@ def test_sqlite_authority_repairs_corrupt_derived_index(database, tmp_path: Path
     payload = json.loads(repository.index_path.read_text(encoding="utf-8"))
     payload["records"][0]["publication_digest"] = "0" * 64
     repository.index_path.write_text(json.dumps(payload), encoding="utf-8")
+    legacy_index_bytes = repository.index_path.read_bytes()
     found = repository.find_for_attempt(attempt["attempt_id"])
     assert len(found) == 1
     assert found[0].publication_digest == expected_digest
@@ -470,7 +473,32 @@ def test_sqlite_authority_repairs_corrupt_derived_index(database, tmp_path: Path
         workbench_attempt_id=attempt["attempt_id"], publication_id=found[0].publication_id,
         publication_digest=found[0].publication_digest,
     )
-    assert json.loads(repository.index_path.read_text(encoding="utf-8"))["records"][0]["publication_digest"] == expected_digest
+    assert repository.index_path.read_bytes() == legacy_index_bytes
+
+
+def test_sqlite_registry_cannot_fabricate_manifest_without_publish_intent(
+    database, tmp_path: Path,
+) -> None:
+    output = tmp_path / "SYNTHETIC-OUTPUT-NO-AUTHORITY"
+    repository = ArchiveManifestRepository(output, database=database)
+    with pytest.raises(
+        ArchiveManifestRepositoryError, match="ARCHIVE_INDEX_AUTHORITY_INVALID",
+    ):
+        repository.save(
+            source_key="1" * 64,
+            input_fingerprint="2" * 64,
+            archive_fingerprint="3" * 64,
+            manifest_id="SYNTHETIC-MANIFEST-NO-AUTHORITY",
+            final_dir=(
+                output / "compressed" / "SYNTHETIC-CONTEXT-NO-AUTHORITY"
+                / "SYNTHETIC-MANIFEST-NO-AUTHORITY"
+            ),
+            public_manifest={
+                "manifest_id": "SYNTHETIC-MANIFEST-NO-AUTHORITY", "parts": [],
+            },
+            workbench_attempt_id="SYNTHETIC-ATTEMPT-NO-AUTHORITY",
+        )
+    assert not output.exists()
 
 
 def _prepared_marker_publish(database, tmp_path: Path):

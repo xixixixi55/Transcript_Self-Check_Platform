@@ -204,6 +204,7 @@ describe('CaseWorkbenchPage', () => {
       { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
     ))
     await waitFor(() => expect(document.querySelectorAll('.case-workbench-card')).toHaveLength(0))
+    expect(await screen.findByText('案件已删除。')).toBeTruthy()
     expect(screen.getByRole('button', { name: '上传报告目录' })).toBeTruthy()
   })
 
@@ -437,13 +438,23 @@ it('opens each case own export directory after concurrent exports finish out of 
   })
 })
 
-it('explains that exported target-directory files survive case deletion', async () => {
+it('confirms an exported case is archived and reports archive success', async () => {
   listItems = [{ ...shell(1), lifecycle: 'exported', report_available: true }]
+  deleteMock.mockImplementationOnce(async () => {
+    listItems = []
+    return { data: { data: { case_id: 'case-synthetic-1', deleted: true } } }
+  })
   render(<MemoryRouter><CaseWorkbenchPage /></MemoryRouter>)
   const deleteButton = await screen.findByRole('button', { name: '归档案件' })
   fireEvent.click(deleteButton)
   expect(screen.getByText('确认归档该案件？')).toBeTruthy()
   expect(screen.getByText(/已导出到目标目录的文件不会被删除/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: '确认归档' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '确认归档' }))
+
+  await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(
+    expect.stringContaining('/workbench/cases/case-synthetic-1'),
+    { timeout: WORKBENCH_REQUEST_TIMEOUT_MS },
+  ))
+  expect(await screen.findByText('案件已归档。')).toBeTruthy()
 })
 })

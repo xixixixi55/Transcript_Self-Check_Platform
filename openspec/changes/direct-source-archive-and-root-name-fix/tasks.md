@@ -26,6 +26,11 @@ workflow_level: 3
   - 内容：移除绝对快照路径分支；以源 parent 为 cwd、源 basename 为相对输入，真实 RAR listing/解压回归拒绝 `.i/s...` 和绝对路径泄漏。
   - 验证：执行器单元测试与本机真实 WinRAR 集成测试。
 
+- [x] T011 解除工作台直出归档对全局 `output` Manifest 索引的依赖。
+  - 文件：`packages/backend/app/repository/archive/archive_manifest_index_repository.py`、`packages/backend/app/repository/archive/archive_manifest_repository.py`、归档恢复服务及定向测试。
+  - 内容：数据库参与的直出流程只读取 SQLite 持久发布事实，不读取、创建、锁定或重写 `output/compressed/.archive-manifest-index.json`；无数据库旧流程继续使用文件索引、跨进程锁和失败关闭语义，现有历史文件不自动删除。
+  - 验证：失败优先回归复现空案件库遇到历史索引时的 `ARCHIVE_INDEX_UNTRUSTED`，并证明无发布意图时不得伪造 Manifest；修改后直出、发布冲突、重启恢复、SQLite 权威和旧索引兼容共 110 项受影响 pytest 通过，`npm run verify:quick` 通过。
+
 ## 后端 Service（Layer 21）
 
 - [x] T004 将归档编排改为直接源 inventory 与 WinRAR 前后变化门控。
@@ -54,12 +59,12 @@ workflow_level: 3
 
 ## 候选审查与验证
 
-- [x] T006 冻结候选版本并执行独立 Code Review。
+- [ ] T006 冻结候选版本并执行独立 Code Review。
   - 文件：本变更全部实现与测试差异。
   - 验证：按 `harness/code-review-agent.md` 保留独立审查证据；若修改被审查源码、测试断言或行为，必须复审。
-  - 证据：原直接源候选经修复后 PASS。人工验收补丁第 1/2 轮复审分别发现发布 TOCTOU、orphan queued 饥饿、task revision 污染和 never-leased 缺口；用户确认继续后第 3 轮复审 PASS，确认 publication snapshot + intent CAS、内部 context-binding lease、claim 清租约及各收敛路径闭合，无 MUST FIX。
+  - 证据：原直接源候选经修复后 PASS。人工验收补丁第 1/2 轮复审分别发现发布 TOCTOU、orphan queued 饥饿、task revision 污染和 never-leased 缺口；用户确认继续后第 3 轮复审 PASS。T011 修改持久权威边界后候选已解冻，待本轮反馈收敛后统一复审。
 
-- [x] T007 运行 Level 3 完整验证并记录人工验收。
+- [ ] T007 运行 Level 3 完整验证并记录人工验收。
   - 文件：`openspec/changes/direct-source-archive-and-root-name-fix/tasks.md`、`harness/archive/iterations/`中本轮迭代记录。
   - 验证：`npm run verify:full -- --change direct-source-archive-and-root-name-fix`、`git diff --check`；本机真实 WinRAR 测试验证原始根名，UI 人工验收根据自动化覆盖结果记录为通过或 N/A。
-  - 证据：首次最终 scoped gate 的前端 279/279 通过，后端 969 通过、3 跳过、1 个长路径夹具环境边界失败；确定性修正经独立复审 PASS。最终 scoped gate 重跑的 preflight、lint:arch、typecheck、test:governance、check:repository-assets、test、build、verify:docs:strict 全部 PASS。真实 WinRAR listing/解压自动化已覆盖原始根名；人工验收已验证归档第 3 次成功，统一导出需在单实例重启后复测。
+  - 证据：原候选最终 scoped gate 的 preflight、lint:arch、typecheck、test:governance、check:repository-assets、test、build、verify:docs:strict 全部 PASS。T011 解冻候选后先完成受影响定向验证，待反馈收敛后重新执行完整门控；真实 WinRAR listing/解压自动化继续覆盖原始根名。

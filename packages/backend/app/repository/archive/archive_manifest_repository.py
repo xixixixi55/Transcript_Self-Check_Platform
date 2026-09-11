@@ -81,6 +81,8 @@ class ArchiveManifestRepository(ArchiveManifestIndexMixin):
                     and item.status == "validated"
                 ):
                     item.status = "stale"
+            if self.database is not None:
+                raise ArchiveManifestRepositoryError("ARCHIVE_INDEX_AUTHORITY_INVALID")
             records = [item for item in records if item.manifest_id != manifest_id]
             records.append(record)
             self._write_records(records)
@@ -188,6 +190,8 @@ class ArchiveManifestRepository(ArchiveManifestIndexMixin):
         return value
 
     def _write_records(self, records: list[PersistedArchiveManifest]) -> None:
+        if self.database is not None:
+            return
         payload = {
             "version": _INDEX_VERSION,
             "records": [manifest_record_dict(item) for item in records],

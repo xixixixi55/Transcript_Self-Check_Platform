@@ -708,7 +708,10 @@ def test_published_intent_without_index_is_registered_and_completed(database, tm
     assert service.recover_after_restart() == []
     assert service.repository.get_public(attempt["attempt_id"])["status"] == "succeeded"
     assert service.recover_after_restart() == []
-    assert len(ArchiveManifestRepository(output).find_for_attempt(attempt["attempt_id"])) == 1
+    assert len(ArchiveManifestRepository(
+        output, database=database,
+    ).find_for_attempt(attempt["attempt_id"])) == 1
+    assert not (output / "compressed" / ".archive-manifest-index.json").exists()
 
 
 def test_tampered_published_intent_is_interrupted_and_preserved(database, tmp_path: Path) -> None:

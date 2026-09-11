@@ -56,6 +56,7 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
     from app.repository.workbench.workbench_database import WorkbenchDatabase
     from app.repository.source.source_locator_repository import SourceLocatorRepository
     from app.repository.case.case_workbench_repository import CaseDraftRepository
+    from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository
     from app.services.archive.archive_attempt_service import ArchiveAttemptService
     from app.repository.archive.winrar_executor_repository import WinRarExecutor
     from app.repository.archive.archive_direct_publication_repository import ArchiveDirectPublicationRepository
@@ -72,6 +73,20 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
         resource_root=tmp_path / "SYNTHETIC-program", app_data_root=tmp_path / "SYNTHETIC-data",
     ))
     output = tmp_path / "SYNTHETIC-output"
+    legacy_registry = ArchiveManifestRepository(output)
+    legacy_registry.save(
+        source_key="9" * 64,
+        input_fingerprint="8" * 64,
+        archive_fingerprint="7" * 64,
+        manifest_id="SYNTHETIC-LEGACY-MANIFEST",
+        final_dir=(
+            output / "compressed" / "SYNTHETIC-legacy"
+            / "SYNTHETIC-LEGACY-MANIFEST"
+        ),
+        public_manifest={"manifest_id": "SYNTHETIC-LEGACY-MANIFEST", "parts": []},
+        workbench_attempt_id="SYNTHETIC-LEGACY-ATTEMPT",
+    )
+    legacy_index_bytes = legacy_registry.index_path.read_bytes()
     attempts = ArchiveAttemptService(database, output)
     accepted = attempts.accept(CASE_ID, SOURCE_ID, 0, "SYNTHETIC-context", shell["revision"])
     attempts.start(accepted["attempt_id"])
@@ -116,6 +131,7 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
             assert not list(source.parent.glob("archive-*"))
             assert target.exists()
         assert attempts.repository.get_internal(accepted["attempt_id"])["status"] != "succeeded"
+        assert legacy_registry.index_path.read_bytes() == legacy_index_bytes
         return
     if restart_during_publish:
         original = ArchiveDirectPublicationRepository.publish
@@ -138,6 +154,7 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
         ArchiveAttemptService(database, output).recover_after_restart()
     else:
         execute_archive(context_id, report, output_root=str(output), capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True), integrity_runner=integrity_ok, attempt_id=accepted["attempt_id"], attempt_service=attempts, workbench_context_id="SYNTHETIC-context")
+    assert legacy_registry.index_path.read_bytes() == legacy_index_bytes
     attempt = attempts.repository.get_internal(accepted["attempt_id"])
     if restart_during_publish == "invalidated":
         assert attempt["status"] == "interrupted"
@@ -154,7 +171,6 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
     assert len(rar) == 1 and rar[0].stat().st_ino == observed[0]
     assert rar[0].name == "SYNTHETIC_TEST_Case.rar"
     assert not list(output.rglob("*.rar"))
-    from app.repository.archive.archive_manifest_repository import ArchiveManifestRepository
     registry = ArchiveManifestRepository(output, database=database)
     persisted = registry.find_for_attempt(accepted["attempt_id"])[0]
     actual = ArchiveDirectPublicationRepository(database).resolve(registry.resolve_final_dir(persisted), attempt["manifest_id"])

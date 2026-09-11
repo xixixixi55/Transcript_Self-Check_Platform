@@ -99,12 +99,15 @@ export default function CaseWorkbenchPage() {
   const confirmDelete = async () => {
     if (!deleteCaseId || actionCaseId === deleteCaseId) return
     const requestedCaseId = deleteCaseId
+    const isArchiveAction = workbench.page.items.some(
+      item => item.case_id === requestedCaseId && item.lifecycle === 'exported',
+    )
     setActionCaseId(requestedCaseId)
     try {
       await workbench.deleteCase(requestedCaseId)
       setDeleteCaseId(null)
       await workbench.loadPage(0)
-      message.success('案件已删除。')
+      message.success(isArchiveAction ? '案件已归档。' : '案件已删除。')
     } catch (error) {
       message.error(resolveWorkbenchError(error).message)
     } finally {

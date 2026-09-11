@@ -49,6 +49,33 @@
 - THEN 系统不得声称前后元数据门能检测该变化
 - AND RAR 完整性与 MD5 仅证明已生成归档自身可读与固定，不等同于源目录的强不可变证明
 
+### Requirement: REQ-ARCHIVE-PUBLICATION-GENERATION: 直出发布完成证据
+
+正式发布 MUST 使用唯一的 SQLite 持久发布代次，并将其与任务、尝试、部署、栅栏、Manifest 及精确的物理文件集绑定；工作台直出完成不得依赖全局 JSON Manifest 索引。
+
+#### Scenario: 直出发布完成
+
+- WHEN 已验证的暂存 RAR 原子发布到用户所选报告目录的上一级
+- THEN 仅当已封存的发布标识、意图/栅栏、当前修订、Manifest 和 SQLite 持久发布事实一致时，完成事务才将尝试和任务设为 `succeeded`
+- AND 下载、恢复、统一导出和结果查询从 SQLite 发布事实解析实际 RAR 位置并重新执行物理完整性门控
+
+### Requirement: REQ-ARCHIVE-MANIFEST-PROJECTION: 直出权威与旧索引兼容边界
+
+数据库参与的工作台直出归档 MUST 仅以 SQLite 持久发布事实作为 Manifest 权威，不得读取、创建、锁定或重写全局 JSON Manifest 索引；JSON 索引只保留给无数据库旧流程兼容使用。
+
+#### Scenario: 历史 output 索引不阻塞新直出归档
+
+- WHEN 当前案件库没有对应发布记录，但 `output/compressed` 中存在历史、损坏、缺失或与当前部署不一致的 JSON Manifest 索引或旧文件
+- THEN 工作台直出流程忽略该索引且不修改现有历史文件
+- AND 新 attempt 继续依据当前 SQLite 任务、发布意图、目标目录冲突和实际 RAR 完整性执行，不得返回 `ARCHIVE_INDEX_UNTRUSTED`
+- AND SQLite 证据缺失或不一致时仍基于对应的持久证据错误安全失败，不得从旧索引补造成功状态
+
+#### Scenario: 无数据库旧流程继续失败关闭
+
+- WHEN 兼容调用在没有 SQLite 数据库的情况下使用集中式归档目录
+- THEN JSON Manifest 索引继续在跨进程锁下原子更新
+- AND 索引缺失、损坏或无法可信解释时继续安全失败，不得被当作空列表或成功证据
+
 ## ADDED Requirements
 
 ### Requirement: REQ-ARCHIVE-ROOT-NAME: RAR 内部保留原始报告根目录名

@@ -269,8 +269,7 @@ def _recover_published_intent(
             or indexed.archive_fingerprint != intent["archive_fingerprint"]
         ):
             raise _RecoveryConflictError("indexed evidence mismatch")
-        # 始终根据持久意图重写派生投影。这样也能在崩溃后修复缺失/损坏的索引，
-        # 而不会将 JSON 文件视为第二权威来源。
+        # 数据库模式只复核持久意图，不读取或重写旧的全局 JSON 索引。
         registry.save(
             source_key=intent["source_key"], input_fingerprint=intent["input_fingerprint"],
             archive_fingerprint=intent["archive_fingerprint"], manifest_id=intent["manifest_id"],

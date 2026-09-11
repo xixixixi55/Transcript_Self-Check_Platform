@@ -1,4 +1,4 @@
-"""持久且失败关闭的索引投影和跨进程写入锁。"""
+"""无数据库旧流程的失败关闭索引，以及旧内部发布所需的文件锁。"""
 
 from __future__ import annotations
 
@@ -27,7 +27,16 @@ class ArchiveManifestRepositoryError(RuntimeError):
 class ArchiveManifestIndexMixin:
     @contextmanager
     def _index_lock(self):
-        """跨进程和线程协调写入者。"""
+        """只为旧文件索引协调写入者；数据库模式不接触全局 output 索引。"""
+        if self.database is not None:
+            yield
+            return
+        with self._filesystem_index_lock():
+            yield
+
+    @contextmanager
+    def _filesystem_index_lock(self):
+        """跨进程和线程协调旧文件索引及内部目录发布。"""
         with _INDEX_LOCK:
             self.compressed_root.mkdir(parents=True, exist_ok=True)
             lock_path = self.compressed_root / ".archive-manifest-index.lock"
@@ -70,7 +79,7 @@ class ArchiveManifestIndexMixin:
             raise ArchiveManifestRepositoryError("ARCHIVE_PUBLISH_TARGET_MISMATCH") from error
         if not staging.is_dir() or staging.is_symlink():
             raise ArchiveManifestRepositoryError("ARCHIVE_PUBLISH_STAGING_INVALID")
-        with self._index_lock():
+        with self._filesystem_index_lock():
             if final.exists():
                 raise ArchiveManifestRepositoryError("ARCHIVE_PUBLISH_TARGET_CONFLICT")
             try:
@@ -84,6 +93,8 @@ class ArchiveManifestIndexMixin:
         self, *, attempt_ids: set[str], relative_final_dirs: set[str],
     ) -> None:
         """移除明确删除案件的索引投影。"""
+        if self.database is not None:
+            return
         if not self.index_path.is_file():
             return
         with self._index_lock():
@@ -98,6 +109,8 @@ class ArchiveManifestIndexMixin:
 
     def _read_records(self, *, bootstrap_relative: str | None = None) -> list[PersistedArchiveManifest]:
         authoritative = self._authoritative_records()
+        if self.database is not None:
+            return authoritative
         if not self.index_path.is_file():
             if authoritative:
                 return authoritative
@@ -128,10 +141,6 @@ class ArchiveManifestIndexMixin:
             if authoritative:
                 return authoritative
             raise ArchiveManifestRepositoryError("ARCHIVE_INDEX_UNTRUSTED")
-        if self.database is not None:
-            if not authoritative and records:
-                raise ArchiveManifestRepositoryError("ARCHIVE_INDEX_UNTRUSTED")
-            return authoritative
         return records
 
     def _read_index_records_for_mutation(self) -> list[PersistedArchiveManifest]:
@@ -203,6 +212,8 @@ class ArchiveManifestIndexMixin:
         return False
 
     def _write_records(self, records: list[PersistedArchiveManifest]) -> None:
+        if self.database is not None:
+            return
         payload = {
             "version": _INDEX_VERSION,
             "records": [manifest_record_dict(item) for item in records],

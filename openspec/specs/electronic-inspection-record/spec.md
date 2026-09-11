@@ -1875,18 +1875,23 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - WHEN 发布已验证的暂存文件集
 - THEN 持久发布意图中的唯一 `publication_id` 和代次摘要将任务、尝试、部署、栅栏、Manifest、精确文件集、文件大小、哈希算法及摘要值绑定
 - AND 在同一文件系统原子重命名前封存暂存文件集，绝不覆盖历史正式目录；部分完成或崩溃的代次保持待处理或可恢复状态，而不是成功状态
-- AND 仅当已封存的发布标识、意图/栅栏、当前修订、Manifest 和索引投影一致时，完成事务才能将尝试和任务设为 `succeeded`
+- AND 仅当已封存的发布标识、意图/栅栏、当前修订、Manifest 和 SQLite 持久发布事实一致时，完成事务才能将尝试和任务设为 `succeeded`
 - AND 下载、复用、恢复和 Word 导出解析持久发布标识并重新执行既有物理完整性门控；拒绝完成后的篡改
 
 ### Requirement: REQ-ARCHIVE-MANIFEST-PROJECTION
 
-JSON Manifest 索引 MUST 始终是 SQLite 持久发布事实的可重建投影，MUST NOT 将其视为独立的成功事实源。
+数据库参与的工作台直出归档 MUST 仅以 SQLite 持久发布事实作为 Manifest 权威，不得读取、创建、锁定或重写全局 JSON Manifest 索引；JSON 索引只保留给无数据库旧流程兼容使用。
 
-#### Scenario: 派生索引安全失败
-- WHEN JSON Manifest 索引缺失、格式错误、结构无效、摘要不一致或被并发更新
-- THEN 绝不将其解释为空的权威列表
-- AND SQLite 持久发布事实是唯一事实源，并可在跨进程锁保护下通过临时文件刷新/fsync 和原子替换重建投影
-- AND 如果无法重建或持久化投影，公共完成结果不得报告成功
+#### Scenario: 历史 output 索引不阻塞新直出归档
+- WHEN 当前案件库没有对应发布记录，但 `output/compressed` 中存在历史、损坏、缺失或与当前部署不一致的 JSON Manifest 索引或旧文件
+- THEN 工作台直出流程忽略该索引且不修改现有历史文件
+- AND 新 attempt 继续依据当前 SQLite 任务、发布意图、目标目录冲突和实际 RAR 完整性执行，不得返回 `ARCHIVE_INDEX_UNTRUSTED`
+- AND SQLite 证据缺失或不一致时仍基于对应的持久证据错误安全失败，不得从旧索引补造成功状态
+
+#### Scenario: 无数据库旧流程继续失败关闭
+- WHEN 兼容调用在没有 SQLite 数据库的情况下使用集中式归档目录
+- THEN JSON Manifest 索引继续在跨进程锁下原子更新
+- AND 索引缺失、损坏或无法可信解释时继续安全失败，不得被当作空列表或成功证据
 
 ### Requirement: REQ-ARCHIVE-OWNERSHIP-CAS
 

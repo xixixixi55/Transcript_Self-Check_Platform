@@ -489,7 +489,9 @@ def test_public_result_rejects_formal_part_tamper_after_completion(tmp_path: Pat
         result = client.get(f"/api/v1/workbench/tasks/{queued['task_id']}/result")
         assert result.status_code == 200
         part = result.json()["data"]["parts"][0]
-        registry = ArchiveManifestRepository(services.archive_attempts.output_root)
+        registry = ArchiveManifestRepository(
+            services.archive_attempts.output_root, database=services.database,
+        )
         task = ArchiveTaskRepository(services.database).get(queued["task_id"])
         attempt_id = task["process_binding"]["staging_asset_id"]
         record = registry.find_for_attempt(attempt_id)[0]
