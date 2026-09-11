@@ -404,9 +404,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
     allActions.push(archiveDecisionAction)
   }
   const systemStatus = buildGuidedReviewSystemStatus(input)
-  const readyToGenerate = pendingItems.length === 0
-    && ['archive_verified', 'exported'].includes(input.lifecycle)
-    && input.archiveParts !== null
+  const readyToGenerate = pendingItems.length === 0 && allActions.length === 0
   if (allActions.length === 0) allActions.push(readyToGenerate
     ? { id: 'ready', kind: 'ready', title: '当前审核已完成', description: '请保存并退出；返回案件工作台后可完成导出。' }
     : { id: 'waiting', kind: 'waiting', title: systemStatus ? `请稍候，${systemStatus.title}` : '请稍候，正在整理下一步', description: systemStatus?.detail || '当前没有需要立即填写的事项。' })

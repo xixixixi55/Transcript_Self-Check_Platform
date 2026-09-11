@@ -15,7 +15,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let events: string[] = []
   let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
   let leaseFailure = false, leaseConflict = false
-  let showCompletedArchive = false, showGuidedReady = false, showDeferredTerminal = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, showHandledDiscNumber = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false, emptyInspectors = false
+  let showCompletedArchive = false, showGuidedReady = false, showManualReviewComplete = false, showDeferredTerminal = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, showHandledDiscNumber = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false, emptyInspectors = false
   let caseSummaryConfirmationSaved = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
@@ -27,14 +27,23 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   })
   beforeEach(() => {
     window.localStorage.clear()
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; showHandledDiscNumber = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; emptyInspectors = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showManualReviewComplete = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; showHandledDiscNumber = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; emptyInspectors = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
       if (url === API_ENDPOINTS.WORKBENCH_CASE(caseId)) {
         const read = detailReads++
-        const value = useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary) : showCompletedArchive || showGuidedReady ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary) : showDeferredTerminal ? detail(5, 5, 'archive_deferred') : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle) : read === 0 ? detail(5, 5) : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002') : detail(7, 6, 'archive_queued', 'GP20260731-002')
-        if ((showGuidedReady || showDeferredTerminal) && value.draft) {
+        const value = useExportedLifecycle ? detail(5, 5, 'exported', 'GP20260731-001', archiveTaskSummary)
+          : showManualReviewComplete ? detail(5, 5, 'archiving', 'GP20260731-001', {
+            ...archiveTaskSummary, status: 'running', stage: 'winrar', stage_label: '正在生成压缩分卷', finished_at: null,
+          })
+            : showCompletedArchive || showGuidedReady ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary)
+              : showDeferredTerminal ? detail(5, 5, 'archive_deferred')
+                : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle)
+                  : read === 0 ? detail(5, 5)
+                    : read === 1 ? detail(6, 6, 'review_ready', 'GP20260731-002')
+                      : detail(7, 6, 'archive_queued', 'GP20260731-002')
+        if ((showGuidedReady || showManualReviewComplete || showDeferredTerminal) && value.draft) {
           value.draft.field_states = { 'introduction.evidence_list.completeness': {
             field_path: 'introduction.evidence_list.completeness', source: 'user', confirmation: 'confirmed',
             revision: 1, last_changed_at: '2026-01-01T00:00:00Z',
@@ -550,8 +559,8 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     await screen.findByText('工作台路由')
   }, 15000)
 
-  it('shows save and exit instead of archive completion controls when guided review is complete', async () => {
-    showGuidedReady = true
+  it('shows save and exit as soon as manual review completes while archiving continues', async () => {
+    showManualReviewComplete = true
     renderPage()
     await screen.findByText('请确认案件简要情况')
     const nextStepButton = screen.getByRole('button', { name: '进入下一步' }) as HTMLButtonElement
@@ -563,6 +572,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       source: 'user', confirmation: 'confirmed',
     }))
     expect(await screen.findByRole('button', { name: /保存并退出/ })).toBeTruthy()
+    expect(screen.getByRole('status', { name: '系统处理状态' }).textContent).toContain('后台归档处理中')
     expect(screen.queryByRole('button', { name: /查看已填内容与待办/ })).toBeNull()
     expect(screen.queryByRole('button', { name: '更新盘号映射' })).toBeNull()
     expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()

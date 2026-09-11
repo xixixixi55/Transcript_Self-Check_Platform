@@ -283,7 +283,10 @@ describe('GuidedReviewView', () => {
       .toBe('检材 1 · SYN-JC00000001：已上传 2 张图片，共需 2 张')
     expect(screen.getByText('獬豸助手')).toBeTruthy()
     expect(screen.getByText('1 项待处理')).toBeTruthy()
-    expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent).toContain('请输入文号')
+    const assistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
+    expect(assistantMessage.textContent).toContain('请输入文号')
+    expect(assistantMessage.textContent).not.toContain('当前必填字段为空。')
+    expect(assistantMessage.querySelector('.guided-review-card__description')).toBeNull()
     expect(screen.getByRole('group', { name: '你的回复' })).toBeTruthy()
     expect(screen.queryByText('其他操作')).toBeNull()
     const mascot = view.container.querySelector<HTMLImageElement>('.guided-review-conversation__mascot img')
@@ -367,6 +370,37 @@ describe('GuidedReviewView', () => {
     expect(screen.queryByRole('group', { name: '请选择操作' })).toBeNull()
     expect(screen.queryByRole('group', { name: '你的回复' })).toBeNull()
     expect(screen.queryByText(/30%|问题\s*\d+\s*\/\s*\d+/)).toBeNull()
+  })
+
+  it('omits empty assistant copy without hiding useful guidance', () => {
+    const view = render(<GuidedReviewView
+      conversationKey="SYNTHETIC-CASE"
+      history={history}
+      currentAction={documentAction}
+      allActions={[documentAction]}
+      hasResponse
+      assistantMessage={{ title: '介质编号（可提前填写）' }}
+      onSelectAction={vi.fn()}
+      onBackToWorkbench={vi.fn()}
+    ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+
+    const prefillMessage = screen.getByRole('status', { name: '獬豸助手提示' })
+    expect(prefillMessage.textContent).toBe('介质编号（可提前填写）')
+    expect(prefillMessage.querySelector('.guided-review-card__description')).toBeNull()
+
+    view.rerender(<GuidedReviewView
+      conversationKey="SYNTHETIC-CASE"
+      history={history}
+      currentAction={photoAction}
+      allActions={[photoAction]}
+      hasResponse
+      onSelectAction={vi.fn()}
+      onBackToWorkbench={vi.fn()}
+    ><GuidedReviewCard action={photoAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
+
+    const photoMessage = screen.getByRole('status', { name: '獬豸助手提示' })
+    expect(photoMessage.textContent).toContain('还需上传 2 张图片（每个检材需 2 张）。')
+    expect(photoMessage.querySelector('.guided-review-card__description')).toBeTruthy()
   })
 
   it('uses serious and celebratory mascot states for recovery and ready actions', () => {

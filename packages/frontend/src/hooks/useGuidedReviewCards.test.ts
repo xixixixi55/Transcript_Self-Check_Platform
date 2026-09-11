@@ -138,7 +138,8 @@ describe('guided review projection', () => {
 
     expect(result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.caseSummary)
     rerender({ reviewed: true })
-    expect(result.current.currentAction?.kind).toBe('waiting')
+    expect(result.current.currentAction?.kind).toBe('ready')
+    expect(result.current.currentAction?.title).toBe('当前审核已完成')
   })
 
   it('updates structured history with user-supplemented evidence and per-material photo progress', () => {
@@ -473,8 +474,9 @@ describe('guided review projection', () => {
     })
     expect(decision.allActions[0]?.title).toBe('请选择压缩时机')
 
-    const waiting = deriveGuidedReviewProjection({ ...buildInput(), pendingItems: [] })
-    expect(waiting.allActions[0]?.title).toBe('请稍候，后台归档处理中')
+    const completeWhileArchiving = deriveGuidedReviewProjection({ ...buildInput(), pendingItems: [] })
+    expect(completeWhileArchiving.allActions[0]?.title).toBe('当前审核已完成')
+    expect(completeWhileArchiving.systemStatus?.title).toBe('后台归档处理中')
 
     const ready = deriveGuidedReviewProjection({
       ...buildInput(), pendingItems: [], lifecycle: 'archive_verified',

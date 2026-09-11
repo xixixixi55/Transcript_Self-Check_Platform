@@ -100,7 +100,10 @@ describe('guided review navigation persistence', () => {
     first.unmount()
 
     const currentFacts = {
-      ...buildInput(withMediumNumber(syntheticReport)),
+      ...buildInput(withMediumNumber({
+        ...syntheticReport,
+        attachments: { ...syntheticReport.attachments, burning_date: '2026年08月25日' },
+      })),
       caseId: 'SYNTHETIC-CASE-PERSISTENCE',
       pendingItems: [],
       caseSummaryReviewed: true,
@@ -110,22 +113,30 @@ describe('guided review navigation persistence', () => {
           confirmation: 'confirmed' as const, revision: 2,
           last_changed_at: '2026-09-10T17:00:00Z',
         },
+        'attachments.burning_date': {
+          field_path: 'attachments.burning_date', source: 'user' as const,
+          confirmation: 'confirmed' as const, revision: 3,
+          last_changed_at: '2026-09-10T17:01:00Z',
+        },
       },
     }
     const reopened = renderHook(() => useGuidedReviewCards(currentFacts))
-    expect(reopened.result.current.currentAction?.kind).toBe('waiting')
+    expect(reopened.result.current.currentAction?.kind).toBe('ready')
     expect(reopened.result.current.canReturnToPrevious).toBe(true)
     expect(reopened.result.current.canReturnToNext).toBe(false)
 
     act(() => reopened.result.current.returnToPreviousAction())
-    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.photos)
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.burningDate)
     expect(reopened.result.current.canReturnToNext).toBe(true)
+    act(() => reopened.result.current.returnToPreviousAction())
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.photos)
     act(() => reopened.result.current.returnToPreviousAction())
     expect(reopened.result.current.currentAction?.pendingItem?.targetId)
       .toBe(REVIEW_TARGET_IDS.evidenceCompleteness)
     act(() => reopened.result.current.returnToNextAction())
     act(() => reopened.result.current.returnToNextAction())
-    expect(reopened.result.current.currentAction?.kind).toBe('waiting')
+    act(() => reopened.result.current.returnToNextAction())
+    expect(reopened.result.current.currentAction?.kind).toBe('ready')
     expect(reopened.result.current.canReturnToNext).toBe(false)
   })
 

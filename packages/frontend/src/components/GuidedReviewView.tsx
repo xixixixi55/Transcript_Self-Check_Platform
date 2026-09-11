@@ -262,6 +262,11 @@ export function GuidedReviewView({
   const isDeferredTerminal = currentAction?.kind === 'archive_deferred'
   const assistantState = assistantStatus(currentAction, allActions)
   const currentMascotMood = mascotMood(currentAction, completionMoodActive)
+  const assistantDescription = assistantMessage
+    ? assistantMessage.description
+    : currentAction?.description === '当前必填字段为空。'
+      ? undefined
+      : currentAction?.description ?? '当前没有需要立即处理的事项。'
   const pendingActionCount = allActions.filter(action => (
     !['waiting', 'ready', 'archive_deferred'].includes(action.kind)
     && !(isDeferredTerminal && action.kind === 'archive_decision')
@@ -357,9 +362,9 @@ export function GuidedReviewView({
                   <div key={currentAction?.id || 'guided-review-empty'} className="guided-review-card__message" role="status"
                     aria-label="獬豸助手提示" aria-atomic="true">
                     <h3>{assistantMessage?.title || currentAction?.title || '请稍候，正在整理下一步'}</h3>
-                    <p className="guided-review-card__description">
-                      {assistantMessage?.description ?? currentAction?.description ?? '当前没有需要立即处理的事项。'}
-                    </p>
+                    {assistantDescription && (
+                      <p className="guided-review-card__description">{assistantDescription}</p>
+                    )}
                   </div>
                   {isDeferredTerminal && (
                     <div className="guided-review-card__terminal-actions" role="group"
