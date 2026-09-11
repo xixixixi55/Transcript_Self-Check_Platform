@@ -6,7 +6,9 @@ import {
   getManagedAgentToolingFiles,
   getRequiredIncompleteTasks,
   getTaskEntries,
+  hasCompletedRequiredTasks,
   parseWorkflowLevel,
+  validateChangeLifecycleMetadata,
   validateDeltaSpec,
   validateProgressiveContextCommand,
 } from './check-docs-utils'
@@ -73,6 +75,43 @@ assert.deepEqual(
   getRequiredIncompleteTasks(content).map((task) => task.text),
   ['T1 ordinary task', 'T5 OPTIONAL in ordinary prose', 'T6 task [OPTIONAL] with trailing prose'],
 )
+
+const completedChange = [
+  'workflow_level: 2',
+  'lifecycle_status: ready-to-archive',
+  'spec_sync_status: reconciled',
+  'spec_sync_evidence: openspec/specs/harness-workflow/spec.md',
+  '- [x] T1 completed task',
+  '- [ ] T2 intentionally deferred [DEFERRED]',
+].join('\n')
+assert.equal(hasCompletedRequiredTasks(completedChange), true)
+assert.equal(hasCompletedRequiredTasks('- [ ] T1 still active'), false)
+assert.equal(hasCompletedRequiredTasks('- [ ] T1 optional only [OPTIONAL]'), false)
+assert.deepEqual(validateChangeLifecycleMetadata(completedChange), [])
+assert.deepEqual(validateChangeLifecycleMetadata('- [x] T1 completed task'), [
+  'active change requires lifecycle_status',
+])
+assert.deepEqual(validateChangeLifecycleMetadata([
+  'lifecycle_status: ready-to-archive',
+  'spec_sync_status: partial',
+  'spec_sync_evidence: openspec/specs/example/spec.md',
+  '- [x] T1 completed task',
+].join('\n')), [
+  'ready-to-archive change requires spec_sync_status: reconciled',
+])
+assert.deepEqual(validateChangeLifecycleMetadata([
+  'lifecycle_status: ready-to-archive',
+  'spec_sync_status: reconciled',
+  'spec_sync_evidence: openspec/specs/example/spec.md',
+  '- [ ] T1 still active',
+].join('\n')), [
+  'ready-to-archive change has incomplete required tasks',
+])
+assert.deepEqual(validateChangeLifecycleMetadata([
+  'lifecycle_status: in-progress',
+  '- [x] T1 implemented but acceptance remains deferred',
+  '- [ ] T2 manual acceptance [DEFERRED]',
+].join('\n')), [])
 
 assert.deepEqual(getCompletedTaskFileReferences([
   '- [ ] `packages/backend/app/services/future_phase.py`',
@@ -146,12 +185,32 @@ assert.throws(() => resolveNpmInvocation({
   execPath: 'C:\\node\\node.exe',
   fileExists: () => false,
 }), /Unable to locate a directly executable npm CLI/)
-assert.deepEqual(buildVerificationEnvironment({ KEEP: 'yes' }, 'D:\\short-temp'), {
+const isolatedEnvironment = buildVerificationEnvironment({
+  KEEP: 'yes',
+  temp: 'D:\\old-temp',
+  Tmp: 'D:\\old-tmp',
+  NPM_CONFIG_CACHE: 'D:\\old-cache',
+  Biji_App_Data_Root: 'D:\\old-app-data',
+  BIJI_WORKBENCH_DATA_ROOT: 'D:\\old-workbench-data',
+}, 'D:\\short-temp')
+assert.deepEqual(isolatedEnvironment, {
   KEEP: 'yes',
   TEMP: 'D:\\short-temp',
   TMP: 'D:\\short-temp',
   npm_config_cache: 'D:\\short-temp\\npm-cache',
+  BIJI_APP_DATA_ROOT: 'D:\\short-temp\\app-data',
+  BIJI_WORKBENCH_DATA_ROOT: 'D:\\short-temp\\workbench-data',
 })
+for (const key of [
+  'temp', 'tmp', 'npm_config_cache', 'biji_app_data_root', 'biji_workbench_data_root',
+]) {
+  assert.equal(
+    Object.keys(isolatedEnvironment).filter(
+      (candidate) => candidate.toLowerCase() === key,
+    ).length,
+    1,
+  )
+}
 assert.equal(
   resolveVerificationTempRoot(
     'D:\\workspace\\project', {}, 'win32',

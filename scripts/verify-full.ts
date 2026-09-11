@@ -106,7 +106,7 @@ async function main(): Promise<number> {
     const startedAt = Date.now()
     const safeName = command.script.replace(/[^a-z0-9_-]+/gi, '-')
     const logPath = path.join(logRoot, `${String(index + 1).padStart(2, '0')}-${safeName}.log`)
-    const result = await runNpm(command, logPath, preflight.tempRoot)
+    const result = await runNpm(command, logPath, logRoot)
     const durationSeconds = ((Date.now() - startedAt) / 1000).toFixed(1)
     if (result.status === 0) {
       console.log(`${command.script} | PASS | ${durationSeconds}s`)

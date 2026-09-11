@@ -195,7 +195,7 @@ npm run test:backend           # Level 2 后端受影响模块
 npm run verify:preflight       # 单独检查完整门控使用的临时目录环境
 npm run verify:full -- --change <name>  # 全仓库自动化工程检查；严格任务状态限定当前变更
 npm run verify:full -- --change <name> --dry-run  # 只输出最终命令列表，不执行检查
-npm run verify:full:all                 # 全局发布/集中归档完整门控
+npm run verify:full:all                 # 仅全局发布完整门控
 npm run verify:docs:strict -- --change <name>  # 当前变更严格文档检查
 npm run verify:docs:strict:all               # 全局严格文档检查
 ```
@@ -236,14 +236,14 @@ npm run verify:docs:strict:all               # 全局严格文档检查
 
 **Step 1 — 自动化门控（MUST 全部通过）：**
 
-运行当前变更的 `npm run verify:docs:strict -- --change <name>`；全局归档运行 `npm run verify:docs:strict:all`。以下检查自动执行（详见 `harness/entropy-rules.md` E-A1 ~ E-A7）：
+运行当前变更的 `npm run verify:docs:strict -- --change <name>`；一次选择多个已完成变更归档时，对每个目标分别运行 scoped gate；只有全局发布运行 `npm run verify:docs:strict:all`。以下检查自动执行（详见 `harness/entropy-rules.md` E-A1 ~ E-A7）：
 - [ ] directory.md 与文件系统一致
 - [ ] 数据模型 Spec 与类型定义一致
 - [ ] 文档链接引用有效
 - [ ] OpenSpec 版本一致
 - [ ] 迭代记录教训反哺完整性
 
-严格模式的任务状态规则：普通 checklist 任务默认必选；同一行末尾明确标记 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时可不勾选。Level 2 和 Level 3 当前变更收尾传 `--change <变更包名称>`，只检查当前变更包；全局发布/集中归档使用 `verify:full:all` 或 `verify:docs:strict:all`。脚本读取 tasks.md 的 `workflow_level` 和 delta 结构，但不自动判断代码与规格的完整语义一致性。
+严格模式的任务状态规则：普通 checklist 任务默认必选；同一行末尾明确标记 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时可不勾选。Level 2 和 Level 3 当前变更收尾传 `--change <变更包名称>`，只检查当前变更包；选定批量归档逐个检查目标；只有全局发布使用 `verify:full:all` 或 `verify:docs:strict:all`。脚本读取 tasks.md 的 `workflow_level`、delta 结构和完成态同步证据，但不自动判断代码与规格的完整语义一致性。
 
 **Step 2 — Agent 自治检查（自动执行 + 自动修复）：**
 

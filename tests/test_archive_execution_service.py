@@ -47,7 +47,7 @@ def valid_report():
 
 @pytest.mark.parametrize("restart_during_publish", [
     False, True, "invalidated", "edited", "conflict",
-    "existing_single", "existing_part", "existing_directory",
+    "legacy_relative", "existing_single", "existing_part", "existing_directory",
 ])
 def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, monkeypatch, restart_during_publish):
     """SYNTHETIC/TEST：真实发布与完成链；只替换 WinRAR 子进程。"""
@@ -151,6 +151,28 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
         if restart_during_publish == "invalidated":
             with database.transaction() as connection:
                 connection.execute("UPDATE archive_publish_fences SET status='invalidated'")
+        if restart_during_publish == "legacy_relative":
+            from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
+            from app.services.archive.archive_publication_identity_service import publication_digest
+            legacy_intent = ArchivePublishIntentRepository(database).get_for_attempt(
+                accepted["attempt_id"],
+            )
+            legacy_intent["publication_relative_dir"] = legacy_intent["relative_final_dir"]
+            legacy_digest, _ = publication_digest(
+                legacy_intent, legacy_intent["public_manifest"],
+            )
+            with database.transaction() as connection:
+                connection.execute(
+                    "UPDATE archive_publish_intents SET publication_relative_dir=?, "
+                    "publication_digest=? WHERE attempt_id=?",
+                    (
+                        legacy_intent["relative_final_dir"], legacy_digest,
+                        accepted["attempt_id"],
+                    ),
+                )
+            (database.database_path.parent / "archive-export-locations.json").unlink(
+                missing_ok=True,
+            )
         ArchiveAttemptService(database, output).recover_after_restart()
     else:
         execute_archive(context_id, report, output_root=str(output), capability=WinRarCapability(True, "fake", "WinRAR.exe", "6.24", True), integrity_runner=integrity_ok, attempt_id=accepted["attempt_id"], attempt_service=attempts, workbench_context_id="SYNTHETIC-context")
@@ -189,6 +211,17 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
             ArchiveAssetRepository(database), attempts,
         )
         intent = ArchivePublishIntentRepository(database).get_for_attempt(accepted["attempt_id"])
+        assert Path(intent["publication_relative_dir"]).resolve(strict=False) == source.parent.resolve()
+        # 新直出发布的物理位置由 SQLite 发布意图持久化；旧 JSON 仅是兼容投影。
+        legacy_locations = database.database_path.parent / "archive-export-locations.json"
+        legacy_locations.unlink(missing_ok=True)
+        shutil.rmtree(registry.resolve_final_dir(persisted))
+        restarted_database = WorkbenchDatabase(database.database_path, database.deployment_instance_id)
+        restarted_attempts = ArchiveAttemptService(restarted_database, output)
+        results = ArchiveTaskResultService(
+            ArchiveTaskRepository(restarted_database), ArchivePlanRepository(restarted_database),
+            ArchiveAssetRepository(restarted_database), restarted_attempts,
+        )
         plan_repository = ArchivePlanRepository(database)
         bound_plan = plan_repository.get(persisted.public_manifest["plan_id"])
         bound_plan = plan_repository.update_mappings(

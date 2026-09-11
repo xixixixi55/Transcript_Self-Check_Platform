@@ -1,6 +1,7 @@
 # Demo 就绪提示与来源目录开关边界
 
 workflow_level: 2
+lifecycle_status: in-progress
 legacy_migration: true
 spec_sync_status: reconciled
 spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-029，包括移除页面级就绪状态展示

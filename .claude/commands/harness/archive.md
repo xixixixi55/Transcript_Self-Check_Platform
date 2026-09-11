@@ -19,12 +19,13 @@ argument-hint: "[变更包名称]"
 **步骤**
 
 1. **选择变更包**
-   - 有名称则使用，否则列出活跃变更包让用户选择
+   - 有名称则使用，否则列出 `lifecycle_status: ready-to-archive` 的活跃变更包让用户选择
+   - 指定包仍为 `in-progress` 时停止归档并报告未收敛事项，不根据 checkbox 推断完成
 
 2. **Harness 自动化门控（MUST 全部通过，在归档前执行）**
    ```
    npm run verify:docs:strict -- --change <变更包名称>
-   # 全局发布/集中归档才使用：
+   # 只有全局发布才使用：
    npm run verify:docs:strict:all
    ```
    检查项（详见 `harness/entropy-rules.md` E-A1 ~ E-A9）：
@@ -38,7 +39,7 @@ argument-hint: "[变更包名称]"
    - E-A9: `.agents` 与 `.claude` 镜像一致性
    - E-A7: 必选任务状态（普通任务必选，行尾 `[OPTIONAL]`/`[DEFERRED]`/`[N/A]` 可豁免）
 
-   **不通过则停止，修复后重试。`--change` 只阻断当前变更包；其他活跃包的迁移债务仅在全局 `--all` 门控中检查。**
+   一次选择多个已完成变更归档时，对每个目标分别运行 scoped gate。**不通过则停止当前目标，修复后重试。`--change` 只阻断当前变更包；其他活跃包的迁移债务仅在全局发布的 `--all` 门控中检查。**
 
 3. **Agent 自治检查（自动执行 + 自动修复）**
 

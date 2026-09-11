@@ -31,3 +31,4 @@ argument-hint: "[变更包名称]"
 - Level 1：定向验证与 diff 检查。
 - Level 2：核对 delta 与最终行为，sync living spec，再执行 `verify:quick`、受影响模块测试和 scoped strict docs。
 - Level 3：开发与反馈阶段保持定向验证；需求、实现和适用人工验收收敛后冻结候选，再统一 Review 和 scoped full gate。
+- checkbox 只表达任务义务；存在延期、待验收或未冻结反馈时保持 `lifecycle_status: in-progress`。只有必选任务和适用门控收敛、living spec 已对账并有证据时，才设置 `lifecycle_status: ready-to-archive`。

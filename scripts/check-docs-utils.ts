@@ -30,6 +30,12 @@ export function getRequiredIncompleteTasks(content: string): TaskEntry[] {
   return getTaskEntries(content).filter((entry) => !entry.checked && !entry.exemption)
 }
 
+/** 只有存在必选任务且这些任务均已完成时，变更才进入可归档完成态。 */
+export function hasCompletedRequiredTasks(content: string): boolean {
+  const requiredTasks = getTaskEntries(content).filter((entry) => !entry.exemption)
+  return requiredTasks.length > 0 && requiredTasks.every((entry) => entry.checked)
+}
+
 /** 仅从已完成且适用的任务条目中提取文件引用。 */
 export function getCompletedTaskFileReferences(content: string): string[] {
   const completedTasks = getTaskEntries(content.replace(/```[\s\S]*?```/g, ''))
@@ -42,6 +48,7 @@ export function getCompletedTaskFileReferences(content: string): string[] {
 
 export type WorkflowLevel = 2 | 3
 export type SpecSyncStatus = 'pending' | 'partial' | 'reconciled'
+export type ChangeLifecycleStatus = 'in-progress' | 'ready-to-archive'
 
 /** 从 tasks.md 元数据头部读取稳定的顶层标量。 */
 export function getWorkflowMetadata(content: string, key: string): string | undefined {
@@ -54,6 +61,26 @@ export function parseWorkflowLevel(content: string): WorkflowLevel | undefined {
   const value = getWorkflowMetadata(content, 'workflow_level')
   if (value === '2' || value === '3') return Number(value) as WorkflowLevel
   return undefined
+}
+
+/** 生命周期状态是归档事实源；checkbox 只表达任务义务，不负责推断归档意图。 */
+export function validateChangeLifecycleMetadata(content: string): string[] {
+  const errors: string[] = []
+  const lifecycleStatus = getWorkflowMetadata(content, 'lifecycle_status')
+  if (!lifecycleStatus) return ['active change requires lifecycle_status']
+  if (lifecycleStatus !== 'in-progress' && lifecycleStatus !== 'ready-to-archive') {
+    return ['lifecycle_status must be in-progress or ready-to-archive']
+  }
+  if (lifecycleStatus === 'in-progress') return errors
+
+  if (!hasCompletedRequiredTasks(content)) {
+    errors.push('ready-to-archive change has incomplete required tasks')
+  }
+  const status = getWorkflowMetadata(content, 'spec_sync_status')
+  const evidence = getWorkflowMetadata(content, 'spec_sync_evidence')
+  if (status !== 'reconciled') errors.push('ready-to-archive change requires spec_sync_status: reconciled')
+  if (!evidence) errors.push('ready-to-archive change requires spec_sync_evidence')
+  return errors
 }
 
 /** 只验证 OpenSpec 增量的结构契约，不验证其语义。 */

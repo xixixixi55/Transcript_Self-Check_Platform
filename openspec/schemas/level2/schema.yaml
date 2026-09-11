@@ -1,0 +1,29 @@
+name: level2
+version: 1
+description: Harness Level 2 workflow with delta specs and implementation tasks only
+artifacts:
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Formal behavior deltas for affected capabilities
+    template: specs/spec.md
+    instruction: |
+      Create one delta spec per affected capability.
+      Use ADDED, MODIFIED, REMOVED, or RENAMED Requirements and include testable scenarios.
+      MODIFIED requirements must contain the complete updated requirement block.
+    requires: []
+  - id: tasks
+    generates: tasks.md
+    description: Concise implementation checklist and verification evidence
+    template: tasks.md
+    instruction: |
+      Record workflow_level: 2, spec sync metadata, candidate association, and executable tasks.
+      Keep historical narration out of the active checklist; archive the package after reconciliation.
+    requires:
+      - specs
+apply:
+  requires:
+    - tasks
+  tracks: tasks.md
+  instruction: |
+    Implement required tasks, record concise evidence, reconcile the delta with the living spec,
+    then run the Level 2 scoped verification gates.

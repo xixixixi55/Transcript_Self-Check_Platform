@@ -19,6 +19,6 @@ argument-hint: "<功能描述>"
 
 1. 依据正式能力、用户结果、验收场景、核心调用链和反馈生命周期关联未归档 change；同目标复用原包。多个候选仍无法排除时请求用户选择。
 2. 排除候选后按 `AGENTS.md` 判定 Level；创建新 Level 2/3 包时记录主要候选和排除理由。
-3. Level 1 不创建 change。Level 2 只创建 tasks + 至少一个 ADDED/MODIFIED/REMOVED/RENAMED delta，并持久化 `workflow_level: 2`。Level 3 才创建 proposal + specs + design + tasks。
+3. Level 1 不创建 change。Level 2 通过 `openspec new change <name> --schema level2` 使用项目内 schema，只创建 tasks + 至少一个 ADDED/MODIFIED/REMOVED/RENAMED delta。Level 2/3 的 tasks 均持久化 `workflow_level` 与 `lifecycle_status: in-progress`；Level 3 才创建 proposal + specs + design + tasks。
 4. tasks 指向具体文件和验证方式；先复用现有验证，只在风险覆盖缺口存在时新增测试。涉及架构时按层级从低到高安排任务。
 5. 输出关联结论、Level、已读取资料、计划工件和下一步；需求语义有实质歧义时再请求用户确认。

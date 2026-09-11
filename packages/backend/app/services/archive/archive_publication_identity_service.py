@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash
@@ -68,6 +69,11 @@ def publication_digest(intent: Mapping[str, Any], public_manifest: Mapping[str, 
         "public_manifest": public_manifest,
         "file_set": file_set,
     }
+    publication_locator = intent.get("publication_relative_dir")
+    # v8-v11 的相对值只是 logical final dir 的镜像，旧摘要未包含它。
+    # 新直出发布把绝对内部定位符纳入摘要，同时保持历史摘要可验证。
+    if isinstance(publication_locator, str) and Path(publication_locator).is_absolute():
+        identity["publication_root_locator"] = publication_locator
     serialized = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest(), file_set
 

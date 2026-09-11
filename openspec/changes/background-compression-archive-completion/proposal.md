@@ -24,7 +24,7 @@
 - **不实现 Canonical 双轨**：继续 Legacy 唯一正式输出；Shadow 只做旁路比较，不参与状态、进度、门控或正式产物。
 - **不改变归档快照密封/元数据校验/崩溃重试契约**：`REQ-ARCHIVE-IMMUTABLE-INPUT`、`REQ-ARCHIVE-PUBLICATION-GENERATION` 等保持不变。
 - **不重写案件删除**：删除案件复用 `case-workbench-delete`（已实现：确认后删除任意状态案件与平台受控产物，已导出到目标目录的文件与外部原始资料目录不删）。
-- **不迁移 openspec delta 格式**：沿用仓库自定义轻量格式，权威门控为 `check-docs.ts`。
+- **不借格式迁移改变业务合同**：delta 文档采用 OpenSpec 1.5 标准分区与 Requirement 标题，但迁移只改变结构，不新增、删除或重解释既有行为。
 - **不处理导出路径下的副本生命周期**：导出路径由用户管理，删除案件不触碰已导出副本。
 
 ## 能力

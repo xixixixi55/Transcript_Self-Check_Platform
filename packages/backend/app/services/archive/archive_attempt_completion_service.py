@@ -39,6 +39,7 @@ def persist_publish_intent(
     final_dir: Path, public_manifest: dict[str, Any], context_id: str,
     target_context_id: str | None = None,
     publication_id_value: str | None = None,
+    publication_root: Path | None = None,
     expected_draft_revision: int | None = None,
     expected_report_fingerprint: str | None = None,
 ) -> dict[str, Any]:
@@ -58,6 +59,9 @@ def persist_publish_intent(
         task_id=attempt.get("task_id"),
         deployment_instance_id=attempt.get("deployment_instance_id"),
         publication_id=publication_id_value or publication_id(attempt_id, manifest_id),
+        publication_relative_dir=(
+            str(publication_root.resolve(strict=False)) if publication_root is not None else relative
+        ),
     )
 
 
@@ -170,6 +174,7 @@ def complete_verified(
         or indexed.archive_fingerprint != record.fingerprint
         or ArchiveDirectPublicationRepository(service.database).resolve(
             registry.resolve_final_dir(indexed), manifest_id,
+            intent.get("publication_relative_dir"),
         ).resolve(strict=False) != record.final_dir.resolve(strict=False)
     ):
         registry.mark_invalid(indexed.manifest_id)
@@ -187,7 +192,9 @@ def complete_verified(
         raise WorkbenchPersistenceError("ARCHIVE_COMPLETION_EVIDENCE_CONFLICT")
     assert_publication_identity(record, intent)
     expected_final_dir = (service.output_root / "compressed" / intent["relative_final_dir"]).resolve(strict=False)
-    expected_final_dir = ArchiveDirectPublicationRepository(service.database).resolve(expected_final_dir, manifest_id)
+    expected_final_dir = ArchiveDirectPublicationRepository(service.database).resolve(
+        expected_final_dir, manifest_id, intent.get("publication_relative_dir"),
+    )
     if expected_final_dir != record.final_dir.resolve(strict=False):
         raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
     bound_task_id = attempt.get("task_id") or intent["task_id"]
@@ -256,6 +263,10 @@ def record_attempt_completion(
         context_id=context_binding_id or context.context_id,
         target_context_id=context.context_id,
         publication_id_value=getattr(manifest_record, "publication_id", None),
+        publication_root=(
+            Path(manifest_record.final_dir)
+            if getattr(manifest_record, "external_export", False) else None
+        ),
     )
     intent = ArchivePublishIntentRepository(attempt_service.database).get_for_attempt(attempt_id)
     if intent is None:

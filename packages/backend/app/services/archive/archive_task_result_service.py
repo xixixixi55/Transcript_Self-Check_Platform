@@ -164,24 +164,46 @@ class ArchiveTaskResultService:
         verify_content: bool = True,
     ) -> Any:
         matches = []
-        external = self.export_locations.latest(manifest_id)
-        external_path = Path(external["export_path"]) if external else None
+        intent = ArchivePublishIntentRepository(self.attempts.database).get_for_attempt(attempt_id)
+        publication_locator = intent.get("publication_relative_dir") if intent else None
+        locator_path = Path(publication_locator) if isinstance(publication_locator, str) else None
+        external = None
+        external_path = (
+            locator_path.resolve(strict=False)
+            if locator_path is not None and locator_path.is_absolute()
+            else None
+        )
+        sqlite_external = external_path is not None
+        if external_path is None:
+            # v8-v11 兼容：旧直出记录尚未把物理根写入 SQLite，只能读取旧投影。
+            external = self.export_locations.latest(manifest_id)
+            external_path = Path(external["export_path"]) if external else None
         for repository in self.manifests:
             records = [
                 item for item in repository.find_for_attempt(attempt_id)
                 if item.manifest_id == manifest_id
             ]
-            if len(records) == 1 and (
-                (external_path.is_dir() and external.get("artifact_origin")
-                 and repository.resolve_final_dir(records[0]) == Path(external["artifact_origin"]).resolve(strict=False))
-                if external_path else repository.resolve_final_dir(records[0]).is_dir()
-            ):
+            logical_dir = repository.resolve_final_dir(records[0]) if len(records) == 1 else None
+            if sqlite_external:
+                location_matches = bool(
+                    external_path is not None and external_path.is_dir()
+                    and repository.compressed_root.resolve(strict=False)
+                    == (self.attempts.output_root / "compressed").resolve(strict=False)
+                )
+            elif external_path is not None:
+                location_matches = bool(
+                    external_path.is_dir() and external is not None
+                    and external.get("artifact_origin") and logical_dir is not None
+                    and logical_dir == Path(external["artifact_origin"]).resolve(strict=False)
+                )
+            else:
+                location_matches = logical_dir is not None and logical_dir.is_dir()
+            if len(records) == 1 and location_matches:
                 matches.append((records[0], repository))
         if len(matches) != 1:
             logger.warning("Archive result unavailable: task=%s reason=ARCHIVE_LOCATION_BINDING_INVALID", task_id)
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         record, repository = matches[0]
-        intent = ArchivePublishIntentRepository(self.attempts.database).get_for_attempt(attempt_id)
         if intent is None or intent["phase"] != "verified" or intent.get("publication_status") != "verified" or any(
             intent[key] != value for key, value in {
                 "manifest_id": record.manifest_id,

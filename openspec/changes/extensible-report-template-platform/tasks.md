@@ -2,6 +2,7 @@
 # 实现任务：extensible-report-template-platform
 
 workflow_level: 3
+lifecycle_status: in-progress
 
 ## 验证执行节奏（本变更约束）
 

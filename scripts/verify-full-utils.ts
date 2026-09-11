@@ -28,11 +28,25 @@ export function buildVerificationEnvironment(
   baseEnvironment: NodeJS.ProcessEnv,
   tempRoot: string,
 ): NodeJS.ProcessEnv {
+  const isolatedKeys = new Set([
+    'temp',
+    'tmp',
+    'npm_config_cache',
+    'biji_app_data_root',
+    'biji_workbench_data_root',
+  ])
+  const inherited = Object.fromEntries(
+    Object.entries(baseEnvironment).filter(
+      ([key]) => !isolatedKeys.has(key.toLowerCase()),
+    ),
+  )
   return {
-    ...baseEnvironment,
+    ...inherited,
     TEMP: tempRoot,
     TMP: tempRoot,
     npm_config_cache: path.join(tempRoot, 'npm-cache'),
+    BIJI_APP_DATA_ROOT: path.join(tempRoot, 'app-data'),
+    BIJI_WORKBENCH_DATA_ROOT: path.join(tempRoot, 'workbench-data'),
   }
 }
 

@@ -21,8 +21,10 @@
 │   │   ├── data-model/                    #    💾 共享数据模型与兼容默认值
 │   │   ├── electronic-inspection-record/  #    📋 电子数据检查笔录
 │   │   └── harness-workflow/              #    🛡️ Level 2 工作流合同
+│   ├── schemas/                           # 🧩 项目内 OpenSpec 工作流 schema
+│   │   └── level2/                        #    Level 2：delta specs → tasks
 │   └── changes/                           # 🔄 变更管理
-│       ├── report-parent-export/          #    报告上级目录导出（Level 2）
+│       ├── <active-change>/               #    活跃变更包（按行为范围命名）
 │       └── archive/                       #    归档（完成的变更包）
 │
 ├── harness/                               # 🛡️ Harness（骨架：流程 + 约束 + 验证）

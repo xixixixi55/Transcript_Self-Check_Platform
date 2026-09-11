@@ -39,7 +39,7 @@ argument-hint: ""
 3. **冻结候选后的完整自动化工程门控（Level 3）**
    ```
    npm run verify:full -- --change <变更包名称>  # 全仓库工程检查；严格任务状态仅限当前变更包
-   npm run verify:full:all                         # 全局发布/集中归档完整门控
+   npm run verify:full:all                         # 仅全局发布完整门控
    ```
    开发和反馈阶段只运行风险相称的定向验证；全部反馈收敛、候选冻结后才执行上述最终门控。它不代表 E2E、mypy、真实桌面环境或 Word/PDF 人工验收均已完成。
 

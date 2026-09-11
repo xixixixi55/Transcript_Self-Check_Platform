@@ -6,7 +6,7 @@ description: "归档已完成的变更包，含熵治理门控和迭代记录。
 读取项目根目录对应工具目录下的 `commands/harness/archive.md` 获取详细执行协议，按其步骤执行 `/harness:archive` 的完整流程。
 
 **快速参考**（完整步骤见命令文件）：
-1. 运行自动化门控（E-A1 ~ E-A9）
+1. 只选择 `lifecycle_status: ready-to-archive` 的包并运行自动化门控（E-A1 ~ E-A9）
 2. Agent 自治检查并修复（E-M1, E-M3, E-M4）
 3. 输出分析报告，等待用户确认（E-M2, E-M5）
 4. 执行归档（合并 specs + 移入 archive）

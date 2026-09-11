@@ -60,6 +60,7 @@ def publish_staged_archive(
             target_context_id=context.context_id,
             expected_draft_revision=expected_draft_revision,
             expected_report_fingerprint=expected_report_fingerprint,
+            publication_root=direct_output,
         )
         # 持久围栏由 persist_publish_intent 在最终服务器事实验证的同一事务中建立。
         # 再进行一次普通读取无法关闭 TOCTOU 窗口。

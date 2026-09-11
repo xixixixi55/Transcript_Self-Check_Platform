@@ -217,3 +217,11 @@
 **失败有界性**：可写性探针不得依赖 Windows `NamedTemporaryFile` 对 `PermissionError` 的内部重试。Repository 使用自有不可预测名称做有限次独占创建，只有名称碰撞允许重试；权限、只读、离线盘和其他 I/O 错误立即收敛为目录不可用，避免配置解析在后端启动或测试收集阶段挂起。
 
 **界面**：设置入口位于侧栏 footer、折叠按钮上方，复用现有 40px 控件、10px 圆角、阴影、紫色悬停和 focus ring。弹窗使用现有 Ant Design 表单语义而非新增导航页，路径用可复制的只读区域展示；选择、恢复默认和重启提示均有明确 loading、取消与错误状态。
+
+## D13. 失败收敛后的受控重试重基
+
+**决策**：重试仍以调用方提交的 task revision 和 case revision 作为并发基线。唯一例外是当前任务已经收敛为 `failed_retryable`/`interrupted`，且失败处理只把案件壳与草稿生命周期推进为 `archive_interrupted`、案件 revision 恰好增加一版时，服务端可把重试基线重基到当前 revision。新任务与 attempt 仍由既有事务化准备链路创建，不能绕过其 CAS。
+
+**安全边界**：受控重基必须同时确认当前失败任务仍是该案件最新任务、失败 attempt 绑定该 task、来源 ID/revision 与可用状态未变化、草稿 revision 与 attempt 捕获值一致、报告指纹一致且案件壳和草稿均处于 `archive_interrupted`。任一条件不满足都保留 `REVISION_CONFLICT` 或 `ARCHIVE_TASK_STALE`；因此真实用户编辑、来源重检、新任务或多版推进不会被内部状态收敛伪装。
+
+**竞态处理**：上述读取只用于识别可重基候选。识别后若又发生并发写入，enqueue 的归档准备事务会再次校验 shell/source/draft revision 并拒绝，不依赖先检查后使用窗口保证安全。

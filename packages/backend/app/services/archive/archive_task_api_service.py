@@ -7,8 +7,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ...repository.archive.archive_asset_repository import ArchiveAssetRepository
+from ...repository.archive.archive_context_binding_repository import report_fingerprint
 from ...repository.archive.archive_plan_repository import ArchivePlanRepository
-from ...repository.archive.archive_task_repository import ArchiveTaskRepository
+from ...repository.archive.archive_task_repository import (
+    ArchiveTaskRepository,
+    build_archive_task_card_summary,
+)
 from ...repository.case.case_workbench_repository import CaseDraftRepository, CaseShellRepository
 from ...repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ...repository.workbench.workbench_database import WorkbenchDatabase, utc_now
@@ -132,14 +136,50 @@ class ArchiveTaskApiService:
         current = self.tasks.get_current_or_recent(task["case_id"])
         if current is None or current["task_id"] != task_id:
             raise WorkbenchPersistenceError("ARCHIVE_TASK_STALE")
-        return self.enqueue(task["case_id"], expected_case_revision)
+        retry_case_revision = self._retry_case_revision(
+            task, expected_case_revision,
+        )
+        return self.enqueue(task["case_id"], retry_case_revision)
+
+    def _retry_case_revision(
+        self, task: dict[str, Any], expected_case_revision: int,
+    ) -> int:
+        shell = self.shells.get(task["case_id"])
+        if shell["revision"] == expected_case_revision:
+            return expected_case_revision
+        if (
+            task["status"] not in {"failed_retryable", "interrupted"}
+            or shell["lifecycle"] != "archive_interrupted"
+            or shell["revision"] != expected_case_revision + 1
+        ):
+            raise WorkbenchPersistenceError("REVISION_CONFLICT")
+
+        attempt_id = (task.get("process_binding") or {}).get("staging_asset_id")
+        if not attempt_id:
+            raise WorkbenchPersistenceError("REVISION_CONFLICT")
+        attempt = self.attempts.repository.get_internal(str(attempt_id))
+        draft = self.drafts.get(task["case_id"])
+        source = self.sources.get(shell["source_id"])
+        if (
+            attempt["task_id"] != task["task_id"]
+            or attempt["status"] not in {"failed", "interrupted"}
+            or attempt["source_id"] != shell["source_id"]
+            or attempt["source_id"] != source["source_id"]
+            or attempt["source_revision"] != source["revision"]
+            or source["access_status"] != "available"
+            or attempt["draft_revision"] != draft["revision"]
+            or attempt["report_fingerprint"] != report_fingerprint(draft["report"])
+            or draft["lifecycle"] != "archive_interrupted"
+        ):
+            raise WorkbenchPersistenceError("REVISION_CONFLICT")
+        return int(shell["revision"])
 
     def progress_summary(self, task_id: str) -> dict[str, Any]:
         return self.tasks.get_task_card_summary(task_id)
 
     def detail(self, task_id: str) -> dict[str, Any]:
         task = self.tasks.get(task_id)
-        summary = self.tasks.get_task_card_summary(task_id)
+        summary = build_archive_task_card_summary(self.database, task)
         plan = self.plans.get_latest_for_case(task["case_id"])
         return {
             **summary,

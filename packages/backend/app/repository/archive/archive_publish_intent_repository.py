@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 from .archive_context_binding_repository import (
@@ -41,6 +42,7 @@ def same_publish_identity(
     archive_fingerprint: str, manifest_id: str, relative_final_dir: str,
     serialized_manifest: str, context_hash: str, task_id: str,
     deployment_instance_id: str, publication_id: str,
+    publication_relative_dir: str,
 ) -> bool:
     expected = {
         "attempt_id": attempt_id, "case_id": case_id, "source_id": source_id,
@@ -52,7 +54,7 @@ def same_publish_identity(
         "public_manifest_json": serialized_manifest, "task_id": task_id,
         "deployment_instance_id": deployment_instance_id,
         "publication_id": publication_id,
-        "publication_relative_dir": relative_final_dir,
+        "publication_relative_dir": publication_relative_dir,
     }
     if any(existing[key] != value for key, value in expected.items()):
         return False
@@ -83,7 +85,8 @@ def create_intent(repository: Any, *, attempt_id: str, case_id: str, source_id: 
                   input_fingerprint: str, archive_fingerprint: str, manifest_id: str,
                   relative_final_dir: str, public_manifest: dict[str, Any],
                   task_id: str | None = None, deployment_instance_id: str | None = None,
-                  publication_id: str | None = None) -> dict[str, Any]:
+                  publication_id: str | None = None,
+                  publication_relative_dir: str | None = None) -> dict[str, Any]:
     database = repository.database
     values = (source_key, input_fingerprint, archive_fingerprint, report_fingerprint)
     if not all(isinstance(value, str) and _HASH.fullmatch(value) for value in values):
@@ -101,6 +104,7 @@ def create_intent(repository: Any, *, attempt_id: str, case_id: str, source_id: 
     if deployment_instance_id != database.deployment_instance_id:
         raise WorkbenchPersistenceError("ARCHIVE_DEPLOYMENT_MISMATCH")
     publication_id = validate_opaque_id(publication_id or f"publication-{attempt_id}-{manifest_id}")
+    publication_relative_dir = publication_relative_dir or relative_final_dir
     if (
         not isinstance(relative_final_dir, str) or not relative_final_dir
         or relative_final_dir.startswith(("/", "\\"))
@@ -110,6 +114,9 @@ def create_intent(repository: Any, *, attempt_id: str, case_id: str, source_id: 
     if not isinstance(public_manifest, dict):
         raise WorkbenchPersistenceError("INVALID_ARCHIVE_PUBLISH_INTENT")
     if relative_final_dir.replace("\\", "/") != f"{target_context_id}/{manifest_id}":
+        raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
+    publication_path = Path(publication_relative_dir)
+    if publication_relative_dir != relative_final_dir and not publication_path.is_absolute():
         raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
     serialized = json.dumps(public_manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     now = utc_now()
@@ -129,6 +136,7 @@ def create_intent(repository: Any, *, attempt_id: str, case_id: str, source_id: 
                 relative_final_dir=relative_final_dir, serialized_manifest=serialized,
                 context_hash=context_binding_hash(context_id), task_id=task_id,
                 deployment_instance_id=deployment_instance_id, publication_id=publication_id,
+                publication_relative_dir=publication_relative_dir,
             ):
                 raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_INTENT_CONFLICT")
             if existing["phase"] == "conflict" or existing["publication_status"] == "conflict":
@@ -226,7 +234,7 @@ def create_intent(repository: Any, *, attempt_id: str, case_id: str, source_id: 
                 intent_id, attempt_id, task_id, deployment_instance_id, case_id, source_id,
                 source_revision, draft_revision, report_fingerprint, source_key, input_fingerprint,
                 archive_fingerprint, manifest_id, relative_final_dir, serialized, publication_id,
-                relative_final_dir, fence_id, now, now,
+                publication_relative_dir, fence_id, now, now,
             ),
         )
         return {
@@ -237,7 +245,7 @@ def create_intent(repository: Any, *, attempt_id: str, case_id: str, source_id: 
             "archive_fingerprint": archive_fingerprint, "manifest_id": manifest_id,
             "relative_final_dir": relative_final_dir, "public_manifest": public_manifest,
             "task_id": task_id, "deployment_instance_id": deployment_instance_id,
-            "publication_id": publication_id, "publication_relative_dir": relative_final_dir,
+            "publication_id": publication_id, "publication_relative_dir": publication_relative_dir,
             "publication_digest": None, "publication_file_set": None,
             "publication_status": "pending", "fence_id": fence_id,
             "phase": "intent_persisted", "created_at": now, "updated_at": now,
@@ -256,6 +264,7 @@ class ArchivePublishIntentRepository:
         manifest_id: str, relative_final_dir: str,
         public_manifest: dict[str, Any], task_id: str | None = None,
         deployment_instance_id: str | None = None, publication_id: str | None = None,
+        publication_relative_dir: str | None = None,
     ) -> dict[str, Any]:
         return create_intent(
             self, attempt_id=attempt_id, case_id=case_id, source_id=source_id,
@@ -266,6 +275,7 @@ class ArchivePublishIntentRepository:
             manifest_id=manifest_id, relative_final_dir=relative_final_dir,
             public_manifest=public_manifest, task_id=task_id,
             deployment_instance_id=deployment_instance_id, publication_id=publication_id,
+            publication_relative_dir=publication_relative_dir,
         )
     def get_for_attempt(self, attempt_id: str) -> dict[str, Any] | None:
         connection = self.database.connect()

@@ -3,7 +3,7 @@
 > 能力：CAP-001 ~ CAP-011
 > 状态：MODIFIED（2026-08-01：Phase 1–4 工作台/归档合同和归档就绪性核对）
 
-## 目的
+## Purpose
 
 > 本文件是现行规格，只描述当前生产已经具备的能力。已批准但尚未正式输出启用的 Canonical/`DocumentRenderPlan` 目标见活跃变更 `openspec/changes/extensible-report-template-platform/spec.md`；Shadow 已作为不改变 Legacy 响应的脱敏旁路接线，当前实现与验收进度见其 `tasks.md`。代码和测试是实现证据，不自动覆盖已批准的业务合同。
 
@@ -778,6 +778,23 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - AND 不显示伪造进度；任务只按真实的 `workflow_milestone`、所有权、租约、完整性和 Manifest 门控推进
 - AND 任一步准备失败时数据库状态全部回滚，不把案件标为成功
 
+#### Scenario: 确认后才立即压缩
+- WHEN 用户在待压缩、稍后压缩或中断后可重试的案件上选择“立即开始压缩”
+- THEN 前端在提交归档决策前显示确认提示，明确告知压缩期间不得修改、移动或删除源报告目录，也不得继续使用取证软件向其写入
+- AND 只有用户明确确认才创建归档任务，取消时不发送立即压缩请求，不改变案件状态
+
+#### Scenario: 压缩期间持续提示
+- WHEN 案件处于 `archive_queued` 或 `archiving`
+- THEN 页面持续显示“请勿修改源文件”警告及可识别的压缩进行状态
+- AND 压缩成功、失败、取消或中断后不再将案件显示为正在读取源文件
+
+#### Scenario: 压缩期间填写首个光盘编号
+- WHEN 用户在 `archive_queued` 或 `archiving` 期间填写或修正首个光盘编号
+- THEN 后端仅接受盘号及其派生日期/序列字段的草稿变化，并同步当前 attempt 的发布证据 revision 与 fingerprint
+- AND WinRAR 完成后 Manifest 和最终草稿使用最新有效盘号
+- AND 若盘号在 Manifest 组装与发布围栏建立之间再次保存，系统重新读取最新证据并重建 Manifest，不发布旧盘号映射
+- AND 同期其他报告字段变化不得静默并入本次归档
+
 #### Scenario: 立即压缩在重启后必须重新确认
 - WHEN 案件处于 `archive_queued` 或归档执行中，应用随后重启且尚无已验证正式产物
 - THEN 案件生命周期转为 `archive_interrupted`，归档尝试标记为 `interrupted`
@@ -794,6 +811,12 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - THEN 后端原子接受新的 attempt 和归档上下文；失败时案件保持 `archive_interrupted`
 - AND `archive_interrupted` 不得直接转为 `archiving`、`archive_verified`、`exporting_word` 或 `exported`
 
+#### Scenario: 归档失败收敛后的立即重试受控重基
+- WHEN 当前归档任务刚进入 `failed_retryable` 或 `interrupted`，内部失败收敛只把案件与草稿推进为 `archive_interrupted`，并且调用方携带的是收敛前一版案件 revision
+- THEN 后端可以把该请求受控重基到恰好前进一版的当前案件 revision，并原子创建新的归档任务与 attempt，不得误报 `REVISION_CONFLICT`
+- AND 受控重基只允许当前失败任务仍为最新任务、失败 attempt 与该任务绑定、来源 ID/revision 及可用状态未变化、草稿 revision 与报告指纹未变化的情况
+- AND 若存在真实用户编辑、来源变化、超过一版的案件推进、非中断生命周期或更新的活动任务，后端必须继续以 409 冲突拒绝，不得用失败收敛重基吞掉并发变化
+
 #### Scenario: 解析失败不询问压缩
 - WHEN 目录解析失败
 - THEN 案件卡片保留失败和重试入口，但不得返回或显示压缩时机询问
@@ -808,7 +831,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 #### Scenario: 后台压缩不阻塞审核编辑
 - WHEN 案件处于压缩执行中
 - THEN 工作人员仍可查看、编辑并保存案件草稿，压缩在后台独立推进
-- AND 审核编辑不改变已密封快照；压缩产物只由快照与归档计划决定，不因编辑中途变化
+- AND 审核编辑不改变本次 Worker 已建立的唯一输入 inventory；压缩产物只由该 inventory 与归档计划决定，不因编辑中途变化
 - AND 任意审核字段或图片引用的合法保存不得使归档任务进入中断/失败，也不得因审核内容变化触发 `ARCHIVE_ATTEMPT_BINDING_STALE`
 - AND 压缩、完整性、文件哈希与 Manifest 各阶段完成状态实时反映在案件卡片上
 
@@ -817,7 +840,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 - THEN 图片上传完成后系统立即保存图片资产引用及其检材映射，且页面离开前必须等待该保存完成
 - AND 若保存发生在归档正式发布的短临界区，归档完成事务只把已验证的 RAR 结果合并到最新草稿，不得覆盖新图片引用或其他并发审核编辑
 - AND 若图片保存与归档完成回填发生竞争，系统必须识别仅由归档完成产生的 revision 推进并自动合并重试，不得向审核页面返回 409；最终草稿同时保留图片引用与已验证 RAR/文件哈希/附件1字段
-- AND 已密封的归档输入快照、RAR 内容和发布证据仍保持不变
+- AND 本次 Worker 的唯一归档输入 inventory、RAR 内容和发布证据仍保持不变
 
 ---
 
@@ -1713,7 +1736,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 
 ### Requirement: REQ-030: 归档介质编号由用户填写并按归档模式映射
 
-介质编号可在压缩前或压缩后由用户在审核编辑界面以完整字符串输入。光盘、硬盘编号同时支持原有格式与日期后带两位数字用户标识的新格式；标准分卷按 part 顺序生成光盘编号全序列，超大单卷只映射一个硬盘编号。系统不得自动补写或删除用户标识。
+系统 MUST 允许用户在压缩前或压缩后于审核编辑界面以完整字符串输入介质编号。光盘、硬盘编号同时支持原有格式与日期后带两位数字用户标识的新格式；标准分卷按 part 顺序生成光盘编号全序列，超大单卷只映射一个硬盘编号。系统不得自动补写或删除用户标识。
 
 #### Scenario: 压缩前未填盘号仍可压缩
 - WHEN 用户未填写首个光盘编号即启动压缩
@@ -1755,7 +1778,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 
 ### Requirement: REQ-031: 归档完成与已导出状态机
 
-归档完成态、导出路径提示、已导出标记与阶段主操作。
+系统 MUST 按以下合同管理归档完成态、导出路径提示、已导出标记与阶段主操作。
 
 #### Scenario: 全部对应完成后进入归档完成态
 - WHEN 全部 RAR 完成、全部案件所选文件哈希计算完成且所有盘号映射完成
@@ -1804,7 +1827,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 
 ### Requirement: REQ-ARCHIVE-PHOTO-BINDING: 后台归档期间图片引用独立收敛
 
-图片二进制上传后，系统 MUST 以调用方最后观察到的图片 ID 列表作为图片域 CAS 基线，把图片引用绑定到最新案件草稿；后台归档或普通字段保存引起的无关 revision 推进不得形成永久 409。
+系统 MUST 在图片二进制上传后，以调用方最后观察到的图片 ID 列表作为图片域 CAS 基线，把图片引用绑定到最新案件草稿；后台归档或普通字段保存引起的无关 revision 推进不得形成永久 409。
 
 #### Scenario: 非图片字段或归档完成推进草稿 revision
 - WHEN 图片二进制已上传成功，且后台归档完成回填或其他非图片字段保存已推进案件草稿 revision
@@ -1867,16 +1890,16 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - THEN 系统不承诺通过额外的压缩前后全目录扫描检测该变化
 - AND WinRAR 或输出完整性校验观察到的错误仍必须安全失败，不得伪造成功
 
-### Requirement: REQ-ARCHIVE-PUBLICATION-GENERATION
+### Requirement: REQ-ARCHIVE-PUBLICATION-GENERATION: 直出发布完成证据
 
-正式发布 MUST 使用唯一的持久发布代次，并将其与任务、尝试、部署、栅栏、Manifest 及精确的物理文件集绑定；代次不完整或被篡改时 MUST 以安全失败方式处理。
+正式发布 MUST 使用唯一的 SQLite 持久发布代次，并将其与任务、尝试、部署、栅栏、Manifest 及精确的物理文件集绑定；工作台直出完成不得依赖全局 JSON Manifest 索引，代次不完整或被篡改时 MUST 以安全失败方式处理。
 
-#### Scenario: 持久发布代次
-- WHEN 发布已验证的暂存文件集
+#### Scenario: 直出持久发布代次
+- WHEN 已验证的暂存 RAR 原子发布到用户所选报告目录的上一级
 - THEN 持久发布意图中的唯一 `publication_id` 和代次摘要将任务、尝试、部署、栅栏、Manifest、精确文件集、文件大小、哈希算法及摘要值绑定
 - AND 在同一文件系统原子重命名前封存暂存文件集，绝不覆盖历史正式目录；部分完成或崩溃的代次保持待处理或可恢复状态，而不是成功状态
 - AND 仅当已封存的发布标识、意图/栅栏、当前修订、Manifest 和 SQLite 持久发布事实一致时，完成事务才能将尝试和任务设为 `succeeded`
-- AND 下载、复用、恢复和 Word 导出解析持久发布标识并重新执行既有物理完整性门控；拒绝完成后的篡改
+- AND 下载、复用、恢复、统一导出和结果查询从 SQLite 发布事实解析实际 RAR 位置，并重新执行适用的物理完整性门控；拒绝完成后的篡改
 
 ### Requirement: REQ-ARCHIVE-MANIFEST-PROJECTION
 
@@ -1892,6 +1915,40 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - WHEN 兼容调用在没有 SQLite 数据库的情况下使用集中式归档目录
 - THEN JSON Manifest 索引继续在跨进程锁下原子更新
 - AND 索引缺失、损坏或无法可信解释时继续安全失败，不得被当作空列表或成功证据
+
+### Requirement: REQ-ARCHIVE-ROOT-NAME: RAR 内部保留原始报告根目录名
+
+系统 MUST 由已验证的源目录路径派生 WinRAR 工作目录和相对输入名，使 RAR 内唯一业务根保持原始报告目录名，并禁止客户端注入内部根名或 WinRAR 参数。
+
+#### Scenario: 原始根目录名和完整目录树
+- WHEN WinRAR 从已授权报告目录生成单卷或分卷 RAR
+- THEN 压缩包内唯一顶层业务根目录名精确等于源报告目录名
+- AND 根目录下文件、重名文件、中文/空格目录和空目录的相对结构与源目录一致
+- AND listing 不包含 `.i`、`.inputs`、`.t`、snapshot token、staging 名或源目录之上的绝对路径片段
+
+#### Scenario: 非法根目录输入不可注入
+- WHEN 执行器接收已授权源目录
+- THEN WinRAR 的工作目录与相对输入名由后端从已验证 `Path` 派生
+- AND API 和前端不能提供任意归档内部根名或 WinRAR 参数
+
+### Requirement: REQ-ARCHIVE-RUNTIME-OWNERSHIP: 进程本地上下文不得被其他进程领取
+
+系统 MUST 仅允许持有 queued task 授权 context 的 coordinator 领取任务，并在持有进程停止或租约过期后将任务收敛为可重试中断状态。
+
+#### Scenario: 多个开发进程共享持久队列
+- WHEN 多个后端进程短暂连接同一 deployment 数据库，且 queued task 的授权 context 只登记在其中一个 coordinator
+- THEN 只有持有该 task context 的 coordinator 可以领取并执行该 task
+- AND 其他进程不得把任务推进到 running 后以 `ARCHIVE_RUNTIME_CONTEXT_UNAVAILABLE` 失败
+- AND 持有进程正常停止或其 context owner lease 过期后，queued task 最终进入可重试的 `interrupted`，不得永久等待
+
+### Requirement: REQ-UNIFIED-EXPORT-TIMEOUT: 大体积统一导出不得使用普通请求超时
+
+前端 MUST 为包含 Word、RAR 复制和哈希校验的统一导出使用专用长超时，并将后端安全拒绝映射为可区分的业务提示。
+
+#### Scenario: 统一导出超过三十秒
+- WHEN Word、RAR 复制和 HashMyFiles 校验合计耗时超过普通工作台请求超时
+- THEN 前端继续等待统一导出的专用长超时结果
+- AND 若后端拒绝目录授权、归档结果不可用或导出路径无效，界面显示对应安全提示而非通用“请求未完成”
 
 ### Requirement: REQ-ARCHIVE-OWNERSHIP-CAS
 
@@ -2117,7 +2174,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - **AND** Word 内容预览区与当前对话区具有明确区域名称，键盘可以进入预览内容和当前控件，焦点、可访问名称、窄屏布局和现有快捷键行为保持可用
 - **AND** 窄屏和浏览器缩放不得通过过小操作目标、嵌套滚动或被遮挡焦点阻止用户打开待办、执行恢复或返回案件列表
 
-## 存储路径
+**存储路径参考**
 
 
 ### Requirement: 报告来源决定最终导出目录
@@ -2136,7 +2193,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - **THEN** 拒绝导出并保留可重试产物，不退回历史路径
 
 ### Requirement: 最终压缩包仅保留一份
-系统 SHALL 在用户点击立即压缩时，以案件绑定的 HTML 报告文件夹的上一级目录作为压缩输出工作位置。在该目录的任务独占临时子目录中生成并校验 RAR 后，系统 SHALL 通过同卷排他重命名将分卷发布到该上级目录，持久登记其唯一最终位置；不得先在应用输出工作区生成 RAR 再复制。应用工作区可保存发布日志和索引元数据。完成导出 SHALL 直接复用已校验 RAR，仅生成 Word。历史工作区产物保留兼容迁移能力。
+系统 SHALL 在用户点击立即压缩时，以案件绑定的 HTML 报告文件夹的上一级目录作为压缩输出工作位置。在该目录的任务独占临时子目录中生成并校验 RAR 后，系统 SHALL 通过同卷排他重命名将分卷发布到该上级目录，持久登记其唯一最终位置；不得先在应用输出工作区生成 RAR 再复制。工作台以 SQLite 保存发布权威，应用工作区只为无数据库旧流程保留文件索引兼容。完成导出 SHALL 直接复用已校验 RAR，仅生成 Word。历史工作区产物保留兼容迁移能力。
 
 #### Scenario: 立即压缩直接落盘
 - **WHEN** 用户选择 `D:\案件A\报告\index.html` 所在报告目录并点击立即压缩
@@ -2159,11 +2216,11 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 |------|------|
 | 报告解析结果 | 不持久化；同一规范化来源仅共享当前在途任务 |
 | 归档文件 | 生成校验期间位于报告文件夹上一级的任务临时子目录；压缩完成后同卷重命名为该上一级目录的最终 RAR（本地，不得进入 Git） |
-| 归档登记索引 | 工作区 `compressed/.archive-manifest-index.json`（本地，不得进入 Git；与解析缓存独立） |
+| 归档登记权威 | 工作台使用 SQLite 持久发布事实；无数据库旧流程兼容使用工作区 `compressed/.archive-manifest-index.json`（本地，不得进入 Git；与解析缓存独立） |
 | 导出 .docx | 工作台案件写入报告文件夹上一级目录；Legacy 下载兼容使用 `output/exports/`（本地，不得进入 Git） |
 | 硬件设备配置 | `packages/backend/app/data/hardware_devices.json` |
 
-## 跨功能约束
+**跨功能约束参考**
 
 - **MUST**: API 响应字段名用 camelCase，Python 内部用 snake_case，Controller 层做转换
 - **MUST**: 当前正式输出是 legacy DTO 管线；`template_filler_service.py` 是带最终 Manifest 的正式渲染路径，失败时不回退；officecli batch 只保留为无 Manifest 兼容回退

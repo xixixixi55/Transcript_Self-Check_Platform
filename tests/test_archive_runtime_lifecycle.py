@@ -384,20 +384,30 @@ def test_retry_returns_safe_task_and_runtime_claims_new_attempt(tmp_path: Path) 
         failed = _wait_task(client, first["task_id"], {"failed_retryable"})
 
         tasks = ArchiveTaskRepository(services.database)
+        with patch.object(
+            services.archive_api.tasks,
+            "get_task_card_summary",
+            side_effect=AssertionError("detail must project one task snapshot"),
+        ):
+            consistent_detail = services.archive_api.detail(first["task_id"])
+        assert consistent_detail["status"] == "failed_retryable"
+        assert consistent_detail["revision"] == tasks.get(first["task_id"])["revision"]
         old_attempt_id = tasks.get(first["task_id"])["process_binding"]["staging_asset_id"]
         current_case = client.get(
             f"/api/v1/workbench/cases/{ready['shell']['case_id']}"
         ).json()["data"]
+        assert current_case["shell"]["lifecycle"] == "archive_interrupted"
+        stale_case_revision = current_case["shell"]["revision"] - 1
         retried = client.post(
             f"/api/v1/workbench/tasks/{first['task_id']}/retry",
             json={
                 "expected_revision": failed["revision"],
-                "expected_case_revision": current_case["shell"]["revision"],
+                "expected_case_revision": stale_case_revision,
             },
         )
         assert retried.status_code == 200, (
             f"{retried.text} task_revision={failed['revision']} "
-            f"case_revision={current_case['shell']['revision']}"
+            f"case_revision={stale_case_revision}"
         )
         retry_data = retried.json()["data"]
         assert set(retry_data) == {"task"}
@@ -415,6 +425,17 @@ def test_retry_returns_safe_task_and_runtime_claims_new_attempt(tmp_path: Path) 
         new_attempt_id = tasks.get(retry_task["task_id"])["process_binding"]["staging_asset_id"]
         assert new_attempt_id != old_attempt_id
         assert services.archive_attempts.repository.get_internal(new_attempt_id)["task_id"] == retry_task["task_id"]
+        stale_old_retry = client.post(
+            f"/api/v1/workbench/tasks/{first['task_id']}/retry",
+            json={
+                "expected_revision": failed["revision"],
+                "expected_case_revision": CaseShellRepository(
+                    services.database,
+                ).get(ready["shell"]["case_id"])["revision"],
+            },
+        )
+        assert stale_old_retry.status_code == 409
+        assert stale_old_retry.json()["detail"]["code"] == "ARCHIVE_TASK_STALE"
         completed = _wait_task(client, retry_task["task_id"], {"succeeded"})
         assert completed["status"] == "succeeded"
         assert completed["worker_state"] == "released"
@@ -425,6 +446,110 @@ def test_retry_returns_safe_task_and_runtime_claims_new_attempt(tmp_path: Path) 
         assert len(result["parts"]) == 2
 
     assert worker.calls == [first["task_id"], retry_task["task_id"]]
+
+
+def test_retry_does_not_rebase_stale_case_revision_after_user_edit(
+    tmp_path: Path,
+) -> None:
+    services, worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        worker.fail_next = True
+        first = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        failed = _wait_task(client, first["task_id"], {"failed_retryable"})
+        case_id = ready["shell"]["case_id"]
+        settled_shell = CaseShellRepository(services.database).get(case_id)
+
+        drafts = CaseDraftRepository(services.database)
+        edited = drafts.get(case_id)
+        edited["report"]["title"] = "SYNTHETIC/TEST/USER-EDIT-AFTER-FAILURE"
+        drafts.save(edited, edited["revision"])
+        current_shell = CaseShellRepository(services.database).get(case_id)
+        assert current_shell["revision"] == settled_shell["revision"] + 1
+
+        retried = client.post(
+            f"/api/v1/workbench/tasks/{first['task_id']}/retry",
+            json={
+                "expected_revision": failed["revision"],
+                "expected_case_revision": settled_shell["revision"],
+            },
+        )
+        assert retried.status_code == 409
+        assert retried.json()["detail"]["code"] == "REVISION_CONFLICT"
+
+
+def test_retry_does_not_rebase_stale_case_revision_after_source_revision_change(
+    tmp_path: Path,
+) -> None:
+    services, worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        worker.fail_next = True
+        first = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        failed = _wait_task(client, first["task_id"], {"failed_retryable"})
+        case_id = ready["shell"]["case_id"]
+        settled_shell = CaseShellRepository(services.database).get(case_id)
+        source = services.sources.get(settled_shell["source_id"])
+        refreshed_source = services.sources.revalidate(source["source_id"])
+        assert refreshed_source["revision"] == source["revision"] + 1
+
+        retried = client.post(
+            f"/api/v1/workbench/tasks/{first['task_id']}/retry",
+            json={
+                "expected_revision": failed["revision"],
+                "expected_case_revision": settled_shell["revision"] - 1,
+            },
+        )
+        assert retried.status_code == 409
+        assert retried.json()["detail"]["code"] == "REVISION_CONFLICT"
+
+
+def test_retry_rechecks_case_revision_after_controlled_rebase(
+    tmp_path: Path,
+) -> None:
+    services, worker = _services(tmp_path)
+    app = create_app(service_provider=lambda: services)
+    with _controller_patches(services), TestClient(app) as client:
+        ready = _create_ready_case(client, services)
+        worker.fail_next = True
+        first = client.post(
+            f"/api/v1/workbench/cases/{ready['shell']['case_id']}/archive-decision",
+            json={"decision": "immediate", "expected_revision": ready["shell"]["revision"]},
+        ).json()["data"]["archive_task"]
+        failed = _wait_task(client, first["task_id"], {"failed_retryable"})
+        case_id = ready["shell"]["case_id"]
+        settled_shell = CaseShellRepository(services.database).get(case_id)
+        original_enqueue = services.archive_api.enqueue
+
+        def edit_then_enqueue(retry_case_id: str, expected_revision: int):
+            assert retry_case_id == case_id
+            assert expected_revision == settled_shell["revision"]
+            drafts = CaseDraftRepository(services.database)
+            edited = drafts.get(case_id)
+            edited["report"]["title"] = "SYNTHETIC/TEST/RACE-AFTER-REBASE"
+            drafts.save(edited, edited["revision"])
+            return original_enqueue(retry_case_id, expected_revision)
+
+        with patch.object(
+            services.archive_api, "enqueue", side_effect=edit_then_enqueue,
+        ):
+            retried = client.post(
+                f"/api/v1/workbench/tasks/{first['task_id']}/retry",
+                json={
+                    "expected_revision": failed["revision"],
+                    "expected_case_revision": settled_shell["revision"] - 1,
+                },
+            )
+        assert retried.status_code == 409
+        assert retried.json()["detail"]["code"] == "REVISION_CONFLICT"
 
 
 def test_public_http_task_is_claimed_with_windows_style_resource_snapshot(

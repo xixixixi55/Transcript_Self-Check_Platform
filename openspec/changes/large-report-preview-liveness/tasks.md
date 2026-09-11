@@ -3,6 +3,7 @@
 > 变更：`large-report-preview-liveness`
 > Level：3
 workflow_level: 3
+lifecycle_status: in-progress
 > 状态：`PROPOSED`；当前修复的实现及定向/完整自动化检查已完成。合成基准、修复后人工验收和最终审查门控仍未完成。
 > 范围：预览活性、解析器快照/缓存身份、执行中复用，以及延后构建完整 ArchiveContext。
 > 明确排除：Shadow、Canonical 和完整 Harness 执行。

@@ -1,6 +1,7 @@
 # Tasks: 后台压缩与归档完成统一导出
 
 workflow_level: 3
+lifecycle_status: in-progress
 
 > 规格：`openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`
 > 设计：`openspec/changes/background-compression-archive-completion/design.md`
@@ -321,13 +322,16 @@ workflow_level: 3
   - code_review: [PASS] 独立首轮审查发现历史无模式 Manifest 在导出访问层错误使用二进制容量补值；修复为统一模式感知容量策略，并加入 4.1GB 边界回归。复审 `CONDITIONAL PASS`，原 MUST FIX 关闭且无新 MUST FIX；遗留 SHOULD 为补对称归一化测试、共享类型表达历史可选模式及执行前更早拒绝非法模式，不阻塞本轮。
   - final_gate: [PASS] `npm run verify:full -- --change background-compression-archive-completion` 在隔离的可写临时目录与合成工作台数据目录下通过：preflight、架构、类型、治理测试、仓库资产、全量测试、构建和 scoped strict docs 全部 PASS。首次默认数据目录运行因沙箱对 `%LOCALAPPDATA%/文枢` 仅只读而失败；第二次仅命中既有并发 retry flaky（后端 1156 passed、1 failed，失败用例隔离重跑通过）；第三次完整门控取得 exit 0，期间未修改实现。
 
-- [ ] T042 归档失败状态刚出现时立即重试可能误报 REVISION_CONFLICT。[DEFERRED]
+- [x] T042 修复归档失败状态刚出现时立即重试误报 REVISION_CONFLICT。
   - 类型：低概率时序边界 Bug；不影响正常压缩、容量规划、归档产物或失败后的数据安全。
   - 用户复现：启动归档并使其进入可重试失败；在界面刚显示“压缩失败，可重试”时立即点击“重试”。若后台仍在把案件生命周期收敛为 `archive_interrupted` 并递增 case revision，前端携带的旧 revision 会收到 409 `REVISION_CONFLICT`。
-  - 临时规避：刷新或重新进入案件后再次点击重试；读取到最新案件 revision 后通常可成功。
-
   - 根因：retry 对 task revision 与 case revision 分阶段校验，案件读取与新 attempt/task 创建不在同一原子事务；后台失败收尾可在检查与使用之间推进 case revision。
-  - 后续验收：内部失败收尾仅推进生命周期且 source/draft/report fingerprint 未变化时，重试应受控重基并成功；真实用户编辑、来源变化或新活动任务仍必须返回 409；增加确定性并发测试，不以盲目重跑掩盖竞态。
+  - 实现：重试只在失败/中断任务仍为最新任务、案件 revision 恰好推进一版、shell/draft 均为 `archive_interrupted`，且失败 attempt 的 task、source revision、draft revision 与 report fingerprint 全部仍匹配时受控重基；随后继续进入既有事务化 enqueue CAS。真实用户编辑、来源变化和更新任务保持 409。
+  - 文件：`packages/backend/app/services/archive/archive_task_api_service.py`、`tests/test_archive_runtime_lifecycle.py`、本变更包 delta/design 与 living spec。
+  - failure_first: 原即时重试回归稳定得到 409 `REVISION_CONFLICT`（1 failed），证明时序边界可确定复现。
+  - 验证：即时失败收敛重试、用户编辑拒绝、来源 revision 变化拒绝、受控重基后写入竞争及旧任务拒绝均有确定性回归；整份归档运行时生命周期回归 21 passed，关联控制器冲突回归 1 passed；`npm run verify:quick` 与 scoped strict docs（15 checks/0 drift）通过。实施当时发现的历史 delta 标题格式债已由 T058 收敛。
+  - manual_acceptance: [N/A] 本任务仅调整后端 revision/绑定并发判定，无视觉、真实 Word 或桌面外部工具行为；合成任务、来源、草稿与 attempt 状态可确定覆盖受控重基和三类拒绝路径。
+  - final_gate/code_review: [DEFERRED] 当前 Level 3 变更包仍有 T044/T053 真实 Windows/DOCX 人工验收待完成，候选尚未冻结；本反馈只运行受影响验证与增量门控，不重复最终 Review/full gate。
 
 - [x] T043 将统一导出压缩包归位到所选文件夹（用户需求）。
   - 内容：统一导出时 Word、HashMyFiles 校验 PNG 与全部 RAR 分卷均写入用户选择的文件夹；发布阶段不访问所选文件夹上级目录，保留目录授权边界。
@@ -437,7 +441,7 @@ workflow_level: 3
   - code_review: [DEFERRED] 本任务复用当前未冻结 Level 3 变更包，按包级节奏待全部反馈收敛后统一独立审查，不为单项反馈提前冻结候选。
   - manual_acceptance: [PENDING] 自动化已验证按案件端点和 Windows Explorer 参数列表；仍需在真实打包 Windows 客户端中点击图标，确认文件资源管理器聚焦到实际导出目录。
 
-- [x] T054 将阶段操作矩阵中的“删除案件”显示名称同步为“归档案件”，保持已导出阶段的入口权重、原删除回调、DELETE API 与平台受控产物清理合同不变；对应实现与组件回归由 `case-workbench-delete` T017 收敛，scoped strict docs 通过。OpenSpec change strict 仍报告本历史包的旧式 delta 标题格式债务；本次低风险界面文案反馈不扩大范围修订全包格式，也不触发 Level 3 包冻结或提前运行 full gate。
+- [x] T054 将阶段操作矩阵中的“删除案件”显示名称同步为“归档案件”，保持已导出阶段的入口权重、原删除回调、DELETE API 与平台受控产物清理合同不变；对应实现与组件回归由 `case-workbench-delete` T017 收敛，scoped strict docs 通过。实施当时保留的旧式 delta 标题格式债务已由 T058 收敛。
 
 - [x] T055 修复獬豸助手及完整审核编辑在归档完成后只能更新一次介质映射的 revision 竞态：压缩后以归档计划映射为事实源，成功重映射不再额外写回草稿兼容字段；补充连续两次映射的 SYNTHETIC 页面回归，并运行受影响前端/CAS 测试、`verify:quick`、scoped strict docs 与 `git diff --check`。
   - 根因与修复：映射成功后的兼容草稿写回触发 700ms 自动保存并推进案件 revision，而完成回调先于保存重读旧案件 revision，导致第二次映射被后端 CAS 拒绝。压缩后现只持久化归档计划并重读结果；压缩前介质编号仍沿用草稿自动保存，案件 revision 与 plan revision 两道后端并发保护保持不变。
@@ -456,3 +460,9 @@ workflow_level: 3
   - 自动化证据：SYNTHETIC 页面回归让同页审核字段保存保持在途，将案件 revision 从 5 推进至 6 后再连续两次更新介质映射；旧实现会提前以 revision 5 提交并失败，修复后等待保存响应并使用 revision 6，页面与归档完成面板 2 files / 37 tests 通过且只产生预期的一次草稿 PATCH。后端映射与过期 revision CAS 11 tests、`npm run verify:quick`、scoped strict docs（14 checks / 0 drift）和 `git diff --check` 均通过；前端测试仅输出既有 React `act` 提示。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 包尚未冻结，本反馈执行风险相称增量门控，不提前重复最终 Review/full gate。
   - manual_acceptance: [N/A] 同页草稿保存、案件 revision 重读、连续 plan CAS 与请求次数均由 SYNTHETIC 可控回归可靠区分，不读取或操作真实案件数据。
+
+- [x] T058 将历史 delta 迁移为 OpenSpec 1.5 标准格式。
+  - 内容：把分散的 `## MODIFIED: REQ-*` / `## ADDED: REQ-*` 标题归并为唯一的 `## MODIFIED Requirements` 与 `## ADDED Requirements` 分区，统一使用 `### Requirement:` 标题，并为缺少规范性正文的条目补充不改变行为语义的 MUST 陈述。
+  - 文件：`openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`、`proposal.md`、`tasks.md`。
+  - 验证：`npx openspec validate background-compression-archive-completion --strict --json` 通过（1 passed、0 failed），并继续运行 scoped strict docs、`verify:quick` 与 `git diff --check`。
+  - manual_acceptance: [N/A] 仅迁移需求文档结构，不改变产品行为、界面或输出文件。

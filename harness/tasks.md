@@ -24,7 +24,7 @@ Bug/回归任务先按根目录 `AGENTS.md` §3 的规则检查是否属于已�
 - 普通 checklist 任务（`- [ ] ...`）默认是必选任务。
 - 只有在同一任务行末尾明确写出 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 时，未勾选才不会阻塞严格检查。
 - 脚本只读取 checklist 状态和上述显式标记，不根据任务标题、文件是否存在或自然语言推断完成度。
-- Level 2 收尾按 delta spec → 实现核对 → sync → living spec 检查执行；使用 scoped strict docs 只检查当前变更包，主规格未同步不得正式归档。Level 3 开发中按 Task 风险定向验证，只有候选冻结后才运行 `npm run verify:full -- --change <变更包名称>`；全局发布/集中归档使用 `npm run verify:full:all` 或 `npm run verify:docs:strict:all`。
+- Level 2 收尾按 delta spec → 实现核对 → sync → living spec 检查执行；使用 scoped strict docs 只检查当前变更包，主规格未同步不得正式归档。Level 3 开发中按 Task 风险定向验证，只有候选冻结后才运行 `npm run verify:full -- --change <变更包名称>`；选定批量归档逐包执行 scoped gate，只有全局发布使用 `npm run verify:full:all` 或 `npm run verify:docs:strict:all`。
 
 ---
 

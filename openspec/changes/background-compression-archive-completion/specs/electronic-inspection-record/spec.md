@@ -3,18 +3,18 @@
 > 基准 Spec：`openspec/specs/electronic-inspection-record/spec.md`
 > 变更类型：MODIFIED + ADDED（案件打开后台压缩触发、每 RAR 实时回填、盘号后填映射、归档完成态、统一导出、已导出与删除案件）
 
-## MODIFIED: REQ-016 — 按实际操作生成 software_tools
+## MODIFIED Requirements
 
-### REQ-016: HashMyFiles 作为当前文件哈希校验工具统一展示
+### Requirement: REQ-016: HashMyFiles 作为当前文件哈希校验工具统一展示
+
+系统 MUST 将历史 `Python hashlib` 工具记录按当前 HashMyFiles 能力统一展示，同时保留底层兼容识别。
 
 #### Scenario: 存量案件的旧 hashlib 条目按当前工具展示
 - WHEN 案件草稿仍持久化 `Python hashlib` 运行时工具条目
 - THEN 审核编辑界面和正式导出均显示 `HashMyFiles`，版本号为 `2.51`
 - AND 底层迁移与归档来源识别仍兼容 `python hashlib` / `python_hashlib`，无需批量改写存量数据库
 
-## MODIFIED: REQ-012 — 解析与最终归档分离
-
-### REQ-012: 解析与最终归档分离（案件打开后台压缩触发）
+### Requirement: REQ-012: 解析与最终归档分离（案件打开后台压缩触发）
 
 系统 MUST 满足以下现有合同：
 #### Scenario: 工作台解析阶段不执行真实压缩
@@ -67,6 +67,12 @@
 - THEN 案件和草稿生命周期持久化为 `archive_deferred`，页面显示「暂未压缩」
 - AND 刷新或后端重启后仍显示该状态，并可从案件操作区再次选择立即压缩
 
+#### Scenario: 归档失败收敛后的立即重试受控重基
+- WHEN 当前归档任务刚进入 `failed_retryable` 或 `interrupted`，内部失败收敛只把案件与草稿推进为 `archive_interrupted`，并且调用方携带的是收敛前一版案件 revision
+- THEN 后端可以把该请求受控重基到恰好前进一版的当前案件 revision，并原子创建新的归档任务与 attempt，不得误报 `REVISION_CONFLICT`
+- AND 受控重基只允许当前失败任务仍为最新任务、失败 attempt 与该任务绑定、来源 ID/revision 及可用状态未变化、草稿 revision 与报告指纹未变化的情况
+- AND 若存在真实用户编辑、来源变化、超过一版的案件推进、非中断生命周期或更新的活动任务，后端必须继续以 409 冲突拒绝，不得用失败收敛重基吞掉并发变化
+
 #### Scenario: 已验证 Manifest 的安全复用
 - WHEN 同一归档上下文、输入目录快照与案件归档基础名均未变化，且已有已验证 Manifest
 - THEN 文书失败后的同次安全重试可以复用该归档结果而不重复执行 WinRAR
@@ -74,9 +80,7 @@
 - AND 重新解析案件、输入目录变化或案件归档基础名变化时旧 Manifest 必须失效
 - AND 若 RAR 缺失、大小变化或 Manifest 所选算法摘要不一致，禁止复用并重新生成归档
 
-## MODIFIED: REQ-017 — 从最终 ArchiveManifest 生成提取清单
-
-### REQ-017: 每 RAR 完成实时覆盖填写附件1与检查结果
+### Requirement: REQ-017: 每 RAR 完成实时覆盖填写附件1与检查结果
 
 系统 MUST 满足以下现有合同：
 #### Scenario: 每个 RAR 完成即回填并覆盖
@@ -107,9 +111,7 @@
 - AND 不显示「下载该 RAR」按钮，工作人员通过案件统一导出获取 RAR 产物
 - AND 后端既有受控分卷下载能力及其他兼容入口保持不变
 
-## MODIFIED: REQ-009 — 导出标准格式笔录
-
-### REQ-009: 统一导出最新 Word + 全部 RAR
+### Requirement: REQ-009: 统一导出最新 Word + 全部 RAR
 
 系统 MUST 满足以下现有合同：
 #### Scenario: 确认无误后统一导出到用户路径
@@ -195,7 +197,9 @@
 - AND 大小缺失或非法时安全回退到既有最小请求上限，不得产生无限或负数等待
 - AND 普通工作台请求仍使用其独立短超时，不得随统一导出一起放宽
 
-## MODIFIED: REQ-025 — 后台归档任务的活动感知超时
+### Requirement: REQ-025: 后台归档任务的活动感知超时
+
+系统 MUST 以可观察输出活动和输入体积共同约束后台归档及完整性校验超时，并保持全部等待有界。
 
 #### Scenario: 多分卷生成后仍在收尾
 - WHEN WinRAR 已在 staging 中生成一个或多个 RAR 分卷但进程仍在处理输入或执行收尾
@@ -228,11 +232,37 @@
 - AND 不得以只适用于高速磁盘的固定吞吐或只统计首卷来提前终止仍在正常读取的校验
 - AND 超过各自有界上限时仍返回现有稳定超时错误，不得把未完成校验标记为成功
 
-## ADDED: REQ-030 — 盘号后填与顺序映射
+### Requirement: REQ-018: 标准分卷与超大单卷使用不同容量合同
 
-### REQ-030: 归档介质编号由用户填写并按归档模式映射
+系统 MUST 按二进制容量规划标准分卷，并在标准阈值之外切换为显式的超大单卷模式，同时兼容复核历史 Manifest。
 
-介质编号可在压缩前或压缩后由用户在审核编辑界面以完整字符串输入。光盘、硬盘编号同时支持原有格式与日期后带两位数字用户标识的新格式；标准分卷按 part 顺序生成光盘编号全序列，超大单卷只映射一个硬盘编号。系统不得自动补写或删除用户标识。
+#### Scenario: 标准分卷使用二进制容量
+- WHEN 归档输入总量不超过 `225 × 1024³` 字节
+- THEN 系统仅使用 4GB、22GB、45GB 三档，且 `1GB = 1024³` 字节
+- AND 4GB、22GB 档最多各 2 卷，45GB 档最多 5 卷，不新增 75GB 档
+- AND Manifest 写入 `archive_mode=standard_split`，每个 part 必须满足当前档位的 `volume_size_bytes` 上限
+- AND 归档介质为光盘，用户填写 `GPyyyyMMdd-序号` 或 `GPyyyyMMddXX-序号` 首盘号（可选 `XX` 为两位用户标识），正式 Word 使用“封盘、刻录、光盘”语义并列出全部实际光盘编号
+
+#### Scenario: 超过标准分卷阈值切换为单卷
+- WHEN 归档输入总量超过 `225 × 1024³` 字节且仍在安全整数范围内
+- THEN 系统不得返回 `ARCHIVE_TOO_LARGE`，必须生成不分卷的 `<案件名>.rar`
+- AND WinRAR 调用不得携带分卷参数，Manifest 写入 `archive_mode=oversized_single_volume`
+- AND 超大单卷的 `volume_size_bytes`、`volume_tier_gb` 与 `disc_capacity_bytes` 为空，校验只接受一个非空的 `<案件名>.rar`，不得套用每卷不超过 45GB 的规则
+- AND 默认资源准入不得继续以 135GB 阻断输入，但部署人员仍可显式配置本机输入安全上限
+- AND 附件与 Word 计划必须接受这些空容量字段，不得为超大单卷伪造光盘容量档位
+- AND 归档介质为一块硬盘，编号来自用户填写的 `YPyyyyMMdd-序号` 或 `YPyyyyMMddXX-序号`（可选 `XX` 为两位用户标识）；正式 Word 正文、附件摘要和附件3分别使用“拷贝、硬盘1块、硬盘编号”语义
+- AND 模式仍由压缩前归档输入总量决定；压缩完成后的实际 RAR 大小只记录在 Manifest，不触发介质切换或重新分卷
+
+#### Scenario: 历史 Manifest 继续可复核
+- WHEN 系统复核一个未包含 `archive_mode` 的既有 Manifest
+- THEN 系统继续按该 Manifest 创建时的十进制档位规则验证容量
+- AND 新生成的 Manifest 必须显式写入模式，不得继续产生无模式清单
+
+## ADDED Requirements
+
+### Requirement: REQ-030: 归档介质编号由用户填写并按归档模式映射
+
+系统 MUST 允许用户在压缩前或压缩后于审核编辑界面以完整字符串输入介质编号。光盘、硬盘编号同时支持原有格式与日期后带两位数字用户标识的新格式；标准分卷按 part 顺序生成光盘编号全序列，超大单卷只映射一个硬盘编号。系统不得自动补写或删除用户标识。
 
 #### Scenario: 压缩前未填盘号仍可压缩
 - WHEN 用户未填写首个光盘编号即启动压缩
@@ -272,9 +302,9 @@
 - AND 每个实际 RAR 的 `disc_number`、`disc_date` 与发布前复核使用同一序列事实源，多分卷归档必须完成发布
 - AND 非法日期、非法编号或与归档模式不匹配的介质前缀仍按稳定错误拒绝
 
-## ADDED: REQ-031 — 归档完成与已导出状态机
+### Requirement: REQ-031: 归档完成态、导出路径提示、已导出标记与删除案件
 
-### REQ-031: 归档完成态、导出路径提示、已导出标记与删除案件
+系统 MUST 根据已验证归档、介质映射和统一导出事实投影案件完成状态，并提供与阶段一致的后续操作。
 
 #### Scenario: 全部对应完成后进入归档完成态
 - WHEN 全部 RAR 完成、全部案件所选文件哈希计算完成且所有盘号映射完成
@@ -319,9 +349,9 @@
 - AND 待导出阶段虽在更多菜单保留「打开案件」，但其仍是次要操作，不计为第二个推荐操作
 - AND 测试按各阶段实际可见操作名称断言，不以按钮 `type` 属性代替业务操作断言
 
-## ADDED: REQ-ARCHIVE-PHOTO-BINDING — 后台归档期间图片引用独立收敛
+### Requirement: REQ-ARCHIVE-PHOTO-BINDING: 图片二进制上传后必须以图片域 CAS 绑定到最新案件草稿
 
-### REQ-ARCHIVE-PHOTO-BINDING: 图片二进制上传后必须以图片域 CAS 绑定到最新案件草稿
+系统 MUST 使用图片域 CAS 将已上传图片绑定到最新案件草稿，并把真实同域冲突与无关 revision 推进区分处理。
 
 #### Scenario: 非图片字段或归档完成推进草稿 revision
 - WHEN 图片二进制已上传成功，且后台归档完成回填或其他非图片字段保存已推进案件草稿 revision
@@ -344,35 +374,9 @@
 - THEN 前端必须保留当前图片输入并阻止离开案件，显示可区分的失败原因
 - AND 不得因后台归档或无关字段单独推进 revision 而将图片绑定永久留在失败状态
 
-## MODIFIED: REQ-018 — 当前生产归档合同
+### Requirement: REQ-ARCHIVE-STORAGE-SETTINGS: 归档文件不得被固定到系统盘
 
-### REQ-018: 标准分卷与超大单卷使用不同容量合同
-
-#### Scenario: 标准分卷使用二进制容量
-- WHEN 归档输入总量不超过 `225 × 1024³` 字节
-- THEN 系统仅使用 4GB、22GB、45GB 三档，且 `1GB = 1024³` 字节
-- AND 4GB、22GB 档最多各 2 卷，45GB 档最多 5 卷，不新增 75GB 档
-- AND Manifest 写入 `archive_mode=standard_split`，每个 part 必须满足当前档位的 `volume_size_bytes` 上限
-- AND 归档介质为光盘，用户填写 `GPyyyyMMdd-序号` 或 `GPyyyyMMddXX-序号` 首盘号（可选 `XX` 为两位用户标识），正式 Word 使用“封盘、刻录、光盘”语义并列出全部实际光盘编号
-
-#### Scenario: 超过标准分卷阈值切换为单卷
-- WHEN 归档输入总量超过 `225 × 1024³` 字节且仍在安全整数范围内
-- THEN 系统不得返回 `ARCHIVE_TOO_LARGE`，必须生成不分卷的 `<案件名>.rar`
-- AND WinRAR 调用不得携带分卷参数，Manifest 写入 `archive_mode=oversized_single_volume`
-- AND 超大单卷的 `volume_size_bytes`、`volume_tier_gb` 与 `disc_capacity_bytes` 为空，校验只接受一个非空的 `<案件名>.rar`，不得套用每卷不超过 45GB 的规则
-- AND 默认资源准入不得继续以 135GB 阻断输入，但部署人员仍可显式配置本机输入安全上限
-- AND 附件与 Word 计划必须接受这些空容量字段，不得为超大单卷伪造光盘容量档位
-- AND 归档介质为一块硬盘，编号来自用户填写的 `YPyyyyMMdd-序号` 或 `YPyyyyMMddXX-序号`（可选 `XX` 为两位用户标识）；正式 Word 正文、附件摘要和附件3分别使用“拷贝、硬盘1块、硬盘编号”语义
-- AND 模式仍由压缩前归档输入总量决定；压缩完成后的实际 RAR 大小只记录在 Manifest，不触发介质切换或重新分卷
-
-#### Scenario: 历史 Manifest 继续可复核
-- WHEN 系统复核一个未包含 `archive_mode` 的既有 Manifest
-- THEN 系统继续按该 Manifest 创建时的十进制档位规则验证容量
-- AND 新生成的 Manifest 必须显式写入模式，不得继续产生无模式清单
-
-## ADDED: REQ-ARCHIVE-STORAGE-SETTINGS — 用户可配置 RAR 工作与存储目录
-
-### REQ-ARCHIVE-STORAGE-SETTINGS: 归档文件不得被固定到系统盘
+系统 MUST 允许用户配置 RAR 工作与存储根，并在配置无效时安全失败而非静默回退或无界等待。
 
 #### Scenario: 选择新的归档目录
 - WHEN 用户从平台侧栏打开设置并通过 Windows 原生目录选择器选择一个现有可写目录

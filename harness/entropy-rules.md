@@ -19,7 +19,7 @@
 
 ## 自动化检查（由 `npm run verify:docs` / `npm run verify:docs:strict` / `npm run verify:docs:strict:all` 执行）
 
-以下检查由 `check_docs` 脚本自动执行；默认模式用于轻量提交门控，严格模式用于 Level 2 收尾、Level 3 最终门控和全局归档：
+以下检查由 `check_docs` 脚本自动执行；默认模式用于轻量提交门控，严格 scoped 模式用于 Level 2 收尾、Level 3 最终门控和选定归档目标，全局模式用于全局发布：
 
 ### E-A1: directory.md 与文件系统一致性（目录维度）
 - 扫描 `harness/directory.md` 中声明的源码目录
@@ -57,6 +57,7 @@
 
 ### E-A8：工作流级别与 Level 2 增量（仅严格模式）
 - 活跃变更包的 `tasks.md` 必须显式记录 `workflow_level: 2` 或 `workflow_level: 3`；脚本不根据 proposal/design 是否存在反向猜测级别。
+- 活跃变更包必须显式记录 `lifecycle_status: in-progress` 或 `ready-to-archive`；checkbox 只表达任务义务，不自动推断归档意图。只有 `ready-to-archive` 需要完成必选任务并提供 reconciled 状态与 living spec 证据。
 - Level 2 必须有至少一个 `specs/<capability>/spec.md`，并通过 ADDED/MODIFIED/REMOVED/RENAMED、Requirement、Scenario、WHEN、THEN 的基本结构检查。
 - Level 2 不得使用 `Spec impact: N/A`；没有行为 delta 时应重新判断为 Level 1。
 - 历史包只有同时记录 `legacy_migration: true`、`spec_sync_status: reconciled` 和 `spec_sync_evidence` 时，才可用“已完整同步/已核对”例外代替重复 delta；这不是新建 Level 2 的绕过路径。
@@ -128,7 +129,8 @@
 | 每次提交 | 默认模式检查（结构、命令、类型文档、链接和资产） | — | — |
 | Level 2 收尾 | 严格模式 + `--change <名称>`，只检查当前变更包任务、workflow level 和 delta 结构 | delta 已通过 sync 后按需归档 | 按需 |
 | Level 3 当前变更收尾 | 当前变更 scoped full gate + 严格任务检查 | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
-| 全局发布/集中归档 | `verify:full:all` / `verify:docs:strict:all` 检查全部活跃变更包 | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
+| 选定多个变更归档 | 对每个目标运行 scoped gate；无关在途变更不阻断 | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
+| 全局发布 | `verify:full:all` / `verify:docs:strict:all` 检查全部活跃变更包 | E-M1, E-M3, E-M4（**自动执行修复**） | E-M2, E-M5（**快速审阅**） |
 | 每个里程碑 | — | — | TEMPLATE_CANDIDATE 积压审阅（E-A5 warning 触发） |
 
 ---
@@ -137,11 +139,13 @@
 
 Agent 在执行 Level 3 归档（⑥）时 **MUST** 按以下流程操作：
 
-1. 运行 `npm run verify:docs:strict:all` — 脚本自动化检查全部活跃变更包通过
+1. 运行 `npm run verify:docs:strict -- --change <name>` — 检查当前归档目标；一次归档多个目标时逐个运行
 2. 执行 Agent 自治检查（E-M1, E-M3, E-M4）— 自动检查并修复，输出结果摘要
 3. 执行 Agent 辅助检查（E-M2, E-M5）— 输出分析报告，请求人类快速确认
 4. 人类确认后，执行 `/opsx:archive`
-5. 如有问题，Agent **MUST** 停止归档，协助修复后重新确认
+5. 如当前目标有问题，Agent **MUST** 停止该目标归档，协助修复后重新确认；其他无关活跃包不阻断
+
+`verify:docs:strict:all` 与 `verify:full:all` 只作为全局发布门控和活跃 change 健康审计，不作为选定单包或选定批量归档的共同前置条件。
 
 > **设计理由**：E-M1/M3/M4 是确定性检查（有标准答案），Agent 不存在乐观偏见，全自动接管可提升归档效率。
 > E-M2/M5 涉及语义判断和跨项目视角，保留人工快速审阅作为安全网。

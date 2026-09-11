@@ -224,8 +224,15 @@ def _recover_published_intent(
     )
     if (final_dir / JOURNAL_NAME).is_file():
         try:
-            destination = service.direct_output_directory(attempt["attempt_id"])
             publisher = ArchiveDirectPublicationRepository(service.database)
+            publication_locator = str(intent.get("publication_relative_dir") or "")
+            destination = (
+                publisher.resolve(final_dir, intent["manifest_id"], publication_locator)
+                if Path(publication_locator).is_absolute()
+                else service.direct_output_directory(attempt["attempt_id"])
+            )
+            if destination != service.direct_output_directory(attempt["attempt_id"]):
+                raise WorkbenchPersistenceError("ARCHIVE_PUBLISH_TARGET_MISMATCH")
             publisher.assert_binding(final_dir, attempt, intent["public_manifest"])
             with publisher.recovery_guard(attempt, intent):
                 actual = publisher.publish(final_dir, destination, intent["manifest_id"])

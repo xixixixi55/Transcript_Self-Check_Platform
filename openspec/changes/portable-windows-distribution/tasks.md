@@ -1,4 +1,5 @@
 workflow_level: 3
+lifecycle_status: in-progress
 
 ## 1. 发布基础设施与依赖锁定
 

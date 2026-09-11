@@ -14,6 +14,7 @@
  * 10. [E-A5] TEMPLATE_CANDIDATE 积压统计                      [strict]
  * 11. [E-A6] 迭代记录教训反哺完整性                           [strict]
  * 12. [补充] 高频 Harness 入口渐进式上下文合同（所有模式阻断）
+ * 13. [补充] 活跃 change 完成态、同步证据与文档预算             [strict]
  *
  * 用法：
  *   npx tsx scripts/check-docs.ts             默认模式（低噪音检查）
@@ -33,8 +34,10 @@ import {
   getRequiredIncompleteTasks,
   getWorkflowMetadata,
   parseWorkflowLevel,
+  validateChangeLifecycleMetadata,
   validateDeltaSpec,
   validateProgressiveContextCommand,
+  type ChangeLifecycleStatus,
   type WorkflowLevel,
 } from './check-docs-utils'
 
@@ -61,7 +64,7 @@ const DIRECTORY_MD = path.join(DOCS_DIR, 'directory.md')
 const EXPECTED_COMMANDS: string[] = [
   'dev', 'build', 'lint:arch', 'typecheck', 'test', 'test:frontend', 'test:backend',
   'test:governance', 'verify:quick', 'verify:frontend', 'verify:backend', 'verify:full', 'verify:full:all', 'verify', 'verify:docs',
-  'verify:docs:strict', 'verify:docs:strict:all', 'check:repository-assets', 'check-docs', 'pre-commit',
+  'verify:docs:strict', 'verify:docs:strict:all', 'verify:specs', 'check:repository-assets', 'check-docs', 'pre-commit',
 ]
 
 /** 期望的源码目录（相对于各 SRC_ROOT，key 为 SRC_ROOT 索引） */
@@ -73,6 +76,9 @@ const EXPECTED_DIRS: Record<number, string[]> = {
 
 // 根规则入口保持精简；详细执行说明应下沉到 Harness 专用文档。
 const AGENTS_MAX_LINES = 250
+
+/** 活跃任务清单应保持为可执行状态；长篇历史应沉淀到归档迭代记录。 */
+const ACTIVE_TASKS_MAX_LINES = 600
 
 const PROGRESSIVE_CONTEXT_COMMANDS = [
   '.agents/commands/harness/propose.md',
@@ -114,7 +120,8 @@ type DriftType =
   | 'agents-md-line-budget' | 'workflow-level-missing' | 'workflow-level-invalid'
   | 'level2-delta-spec-missing' | 'delta-spec-invalid'
   | 'legacy-reconciliation-invalid' | 'agent-tooling-mirror-drift'
-  | 'harness-context-loading-regression'
+  | 'harness-context-loading-regression' | 'active-change-lifecycle-invalid'
+  | 'completed-change-unarchived' | 'active-tasks-line-budget'
 
 interface Drift { type: DriftType; message: string }
 
@@ -233,6 +240,8 @@ interface ActiveChangeMetadata extends ActiveTaskFile {
   rawLegacyMigration?: string
   specSyncStatus?: string
   specSyncEvidence?: string
+  lifecycleStatus?: ChangeLifecycleStatus
+  changeSchema?: string
   deltaSpecPaths: string[]
 }
 
@@ -265,6 +274,8 @@ function getActiveChangeMetadata(changeName?: string): ActiveChangeMetadata[] {
     const rawLegacyMigration = getWorkflowMetadata(taskFile.content, 'legacy_migration')
     const rawSpecSyncStatus = getWorkflowMetadata(taskFile.content, 'spec_sync_status')
     const rawSpecSyncEvidence = getWorkflowMetadata(taskFile.content, 'spec_sync_evidence')
+    const rawLifecycleStatus = getWorkflowMetadata(taskFile.content, 'lifecycle_status')
+    const changeConfig = readFileIfExists(path.join(OPENSPEC_DIR, 'changes', taskFile.changeName, '.openspec.yaml'))
     return {
       ...taskFile,
       workflowLevel: parseWorkflowLevel(taskFile.content),
@@ -273,6 +284,11 @@ function getActiveChangeMetadata(changeName?: string): ActiveChangeMetadata[] {
       rawLegacyMigration,
       specSyncStatus: rawSpecSyncStatus,
       specSyncEvidence: rawSpecSyncEvidence,
+      lifecycleStatus:
+        rawLifecycleStatus === 'in-progress' || rawLifecycleStatus === 'ready-to-archive'
+          ? rawLifecycleStatus
+          : undefined,
+      changeSchema: getWorkflowMetadata(changeConfig, 'schema'),
       deltaSpecPaths: getDeltaSpecPaths(taskFile.changeName),
     }
   })
@@ -366,6 +382,13 @@ function checkWorkflowLevelAndDeltaSpecs(): Drift[] {
     }
 
     if (change.workflowLevel === 2) {
+      if (change.changeSchema !== 'level2') {
+        drifts.push({
+          type: 'workflow-level-invalid',
+          message: `${change.changeName}: workflow_level 2 requires .openspec.yaml with schema: level2`,
+        })
+      }
+
       const hasReconciledHistoricalSpec =
         change.legacyMigration === true &&
         change.specSyncStatus === 'reconciled' &&
@@ -392,7 +415,41 @@ function checkWorkflowLevelAndDeltaSpecs(): Drift[] {
   return drifts
 }
 
-// ─── 检查 4c：.agents/.claude 镜像契约 ───────────────────────────
+// ─── 检查 4c：活跃 change 生命周期健康 ─────────────────────────
+
+function checkActiveChangeLifecycle(): Drift[] {
+  const drifts: Drift[] = []
+  for (const change of getActiveChangeMetadata(CHANGE_NAME)) {
+    if (!change.content) continue
+
+    for (const error of validateChangeLifecycleMetadata(change.content)) {
+      drifts.push({
+        type: 'active-change-lifecycle-invalid',
+        message: `${change.changeName}: ${error}`,
+      })
+    }
+
+    if (!ALL_SCOPE) continue
+
+    if (change.lifecycleStatus === 'ready-to-archive') {
+      drifts.push({
+        type: 'completed-change-unarchived',
+        message: `${change.changeName}: lifecycle_status is ready-to-archive; archive this package`,
+      })
+    }
+
+    const lineCount = getLineBudgetOverflow(change.content, ACTIVE_TASKS_MAX_LINES)
+    if (lineCount !== undefined) {
+      drifts.push({
+        type: 'active-tasks-line-budget',
+        message: `${change.changeName}: tasks.md has ${lineCount} lines, exceeds active budget of ${ACTIVE_TASKS_MAX_LINES}`,
+      })
+    }
+  }
+  return drifts
+}
+
+// ─── 检查 4d：.agents/.claude 镜像契约 ───────────────────────────
 
 function checkAgentToolingMirror(): Drift[] {
   const drifts: Drift[] = []
@@ -433,7 +490,7 @@ function checkAgentToolingMirror(): Drift[] {
   return drifts
 }
 
-// ─── 检查 4d：高频 Harness 上下文加载契约 ───────────────────────
+// ─── 检查 4e：高频 Harness 上下文加载契约 ───────────────────────
 
 function checkHarnessContextLoading(): Drift[] {
   const drifts: Drift[] = []
@@ -659,13 +716,14 @@ function main() {
       ...checkTaskFiles(),
       ...checkRequiredTaskCompletion(),
       ...checkWorkflowLevelAndDeltaSpecs(),
+      ...checkActiveChangeLifecycle(),
       ...checkSpecsListed(),
       ...checkOpenSpecVersion(),
       ...checkTemplateCandidateBacklog(),
       ...checkLessonFeedback(),
     )
     checks.push(
-      'task-file-refs', 'required-task-completion', 'workflow-level-and-delta-spec', 'specs-listed',
+      'task-file-refs', 'required-task-completion', 'workflow-level-and-delta-spec', 'active-change-lifecycle', 'specs-listed',
       'E-A4:openspec-version', 'E-A5:template-candidate-backlog', 'E-A6:lesson-feedback',
     )
   }

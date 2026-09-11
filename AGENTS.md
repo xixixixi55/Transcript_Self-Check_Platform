@@ -70,7 +70,7 @@ Level 2 增量使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关�
 | Level 2 | `npm run verify:quick` + 受影响模块测试 + `npm run verify:docs:strict -- --change <name>` |
 | Level 3 | 冻结候选后的 Review + `npm run verify:full -- --change <name>` |
 
-全局发布/集中归档才运行 `npm run verify:full:all`。`package.json` 是命令唯一来源；输出、环境预检和失败下钻见 `harness/verification-strategy.md`。
+只有全局发布才运行 `npm run verify:full:all`。一次选择多个已完成变更归档时，逐个运行当前变更 scoped gate；无关的在途变更不阻断所选归档。`package.json` 是命令唯一来源；输出、环境预检和失败下钻见 `harness/verification-strategy.md`。
 
 ## 6. 代码审查
 
@@ -88,13 +88,14 @@ Level 2 增量使用 ADDED/MODIFIED/REMOVED/RENAMED，只写最终行为和关�
 - TS 使用 camelCase/PascalCase 和命名导出，Python 使用 snake_case。新增目录更新 `harness/directory.md`。
 - 详细依赖矩阵、文件和测试组织见 `harness/architecture.md`。
 - `.agents/` 与 `.claude/` 中 Git 管理的对应命令/Skill 必须镜像一致；工具入口只转发本文件和 Harness 细则，不复制独立流程规则。
+- 活跃 change 必须显式记录 `lifecycle_status: in-progress` 或 `ready-to-archive`，不得根据 checkbox 自动推断归档意图。Level 2 使用项目内 `level2` schema，仅跟踪 delta specs 与 tasks；`ready-to-archive` 必须记录 `spec_sync_status: reconciled` 和 living spec 证据，并及时归档。
 - `AGENTS.md` 必须不超过 250 行；详细执行说明下沉到已有 Harness 专用文档。
 
 ## 8. 完成标准
 
 - 适用的架构、类型检查和受影响验证通过；`git diff` 仅含预期变更。
 - Level 2：必选任务完成、增量与实现核对并同步现行规格、限定范围的严格文档检查通过。
-- Level 3：冻结候选的审查与限定范围的完整门控通过；全局发布/集中归档另跑全局完整门控。
+- Level 3：冻结候选的审查与限定范围的完整门控通过；只有全局发布另跑全局完整门控，选定批量归档逐包执行 scoped gate。
 - 普通 checklist 默认必选；只有行末明确 `[OPTIONAL]`、`[DEFERRED]` 或 `[N/A]` 可不勾选。
 
 ## 9. 禁止事项

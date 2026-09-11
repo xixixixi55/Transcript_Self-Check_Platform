@@ -122,7 +122,7 @@ class CaseArtifactDeletionService:
                 str(value)
                 for row in intents
                 for value in (row["relative_final_dir"], row["publication_relative_dir"])
-                if value
+                if value and not Path(str(value)).is_absolute()
             }
             shared_dirs = {
                 str(value) for row in connection.execute(

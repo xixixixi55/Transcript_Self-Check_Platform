@@ -96,7 +96,7 @@ Canonical 在补充验收通过或发布负责人明确接受风险前，不会�
 
 ### 本地开发
 
-环境要求：Node.js >= 18、pnpm >= 9、Python >= 3.11；需要验证归档流程时还需安装 WinRAR。
+环境要求：Node.js 版本以 `package.json` 的 `engines.node` 为准，pnpm >= 9、Python >= 3.11；需要验证归档流程时还需安装 WinRAR。
 
 ```bash
 # 安装前端与工作区依赖
