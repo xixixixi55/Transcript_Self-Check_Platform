@@ -72,7 +72,10 @@ export function useCaseRecordSession(caseId: string) {
     localFieldStateEdits.current = []
   }, [caseId])
 
-  const serverDraft = workbench.detail?.draft
+  const detail = workbench.detail?.shell.case_id === caseId ? workbench.detail : null
+  const scopedDraft = draft?.case_id === caseId ? draft : null
+  const scopedReport = scopedDraft ? report : null
+  const serverDraft = detail?.draft
   useEffect(() => {
     if (!serverDraft || !shouldHydrateServerDraft(caseId, serverDraft, lastHydratedDraftKey.current, changeToken)) return
     lastHydratedDraftKey.current = `${caseId}:${serverDraft.revision}`
@@ -83,26 +86,26 @@ export function useCaseRecordSession(caseId: string) {
     setLeaseLost(false)
   }, [caseId, changeToken, serverDraft?.case_id, serverDraft?.revision])
 
-  const taskIds = workbench.detail ? [workbench.detail.parse_task.task_id] : []
+  const taskIds = detail ? [detail.parse_task.task_id] : []
   const { records: taskRecords } = useTaskRecords(taskIds)
-  const parseTask = workbench.detail ? taskRecords[workbench.detail.parse_task.task_id] || workbench.detail.parse_task : null
+  const parseTask = detail ? taskRecords[detail.parse_task.task_id] || detail.parse_task : null
 
   useEffect(() => {
-    if (workbench.detail?.draft || !parseTask || !['succeeded', 'failed_retryable', 'interrupted'].includes(parseTask.status)) return
+    if (detail?.draft || !parseTask || !['succeeded', 'failed_retryable', 'interrupted'].includes(parseTask.status)) return
     if (terminalStatus.current === parseTask.status) return
     terminalStatus.current = parseTask.status
     void workbench.reloadDetail(caseId)
-  }, [caseId, parseTask, workbench.detail?.draft, workbench.reloadDetail])
+  }, [caseId, detail?.draft, parseTask, workbench.reloadDetail])
 
   useEffect(() => {
-    if (workbench.detail?.source.access_status !== 'pending') return
+    if (detail?.source.access_status !== 'pending') return
     const timer = window.setInterval(() => { void workbench.reloadDetail(caseId, { background: true }) }, 1500)
     return () => window.clearInterval(timer)
-  }, [caseId, workbench.detail?.source.access_status, workbench.reloadDetail])
+  }, [caseId, detail?.source.access_status, workbench.reloadDetail])
 
-  const archiveLifecycle = workbench.detail?.shell.lifecycle
+  const archiveLifecycle = detail?.shell.lifecycle
   const completedArchive = useCompletedArchiveResult(
-    workbench.detail?.shell.archive_task_summary, workbench.archiveResult,
+    detail?.shell.archive_task_summary, workbench.archiveResult,
   )
   useEffect(() => {
     if (!archiveLifecycle || !ACTIVE_ARCHIVE_LIFECYCLES.has(archiveLifecycle)) return
@@ -115,11 +118,14 @@ export function useCaseRecordSession(caseId: string) {
   const lease = useEditLease({
     caseId,
     identity,
-    enabled: Boolean(draft),
+    enabled: Boolean(scopedDraft),
     onLeaseLost: handleLeaseLost,
   })
-  const editingEnabled = lease.phase === 'active' && !leaseLost
-  const draftForSave = useMemo(() => draft && report ? { ...draft, report } : draft, [draft, report])
+  const editingEnabled = lease.phase === 'active' && !leaseLost && Boolean(scopedDraft)
+  const draftForSave = useMemo(
+    () => scopedDraft && scopedReport ? { ...scopedDraft, report: scopedReport } : scopedDraft,
+    [scopedDraft, scopedReport],
+  )
   const onSaved = useCallback((savedDraft: CaseDraft, _sharedStatus: SharedDefaultsSaveStatus, meta: AutosaveSaveMeta) => {
     localReportEdits.current = localReportEdits.current.filter(
       edit => edit.token > meta.savedThroughChangeToken,
@@ -228,19 +234,19 @@ export function useCaseRecordSession(caseId: string) {
   }, [autosave, caseId, editingEnabled, lease.lease])
 
   const photoAssets = useCasePhotoAssets({
-    caseId, assetRefs: draft?.asset_refs || [], draftRevision: draft?.revision,
+    caseId, assetRefs: scopedDraft?.asset_refs || [], draftRevision: scopedDraft?.revision,
     editingEnabled, lease: lease.lease,
     onAssetRefsChange: updatePhotoAssetRefs,
   })
 
   const replaceSource = useCallback(async (sourcePath: string) => {
-    if (!workbench.detail?.source) return false
+    if (!detail?.source) return false
     await axios.post(API_ENDPOINTS.WORKBENCH_SOURCE(caseId), buildSourceReplacementRequest(
-      sourcePath, workbench.detail.shell.revision,
+      sourcePath, detail.shell.revision,
     ))
     await workbench.reloadDetail(caseId)
     return true
-  }, [caseId, workbench.detail?.source, workbench.reloadDetail])
+  }, [caseId, detail?.shell.revision, detail?.source, workbench.reloadDetail])
 
   const retrySave = useCallback(() => autosave.retry(), [autosave])
 
@@ -265,7 +271,10 @@ export function useCaseRecordSession(caseId: string) {
   }, [autosave, caseId, workbench.reloadDetail])
 
   return {
-    ...workbench, draft, report, defaults, identity, parseTask, taskRecords, lease, editingEnabled,
+    ...workbench,
+    detail,
+    detailLoading: workbench.detailLoading || Boolean(workbench.detail && !detail),
+    draft: scopedDraft, report: scopedReport, defaults, identity, parseTask, taskRecords, lease, editingEnabled,
     leaseLost, autosave, retrySave,
     updateReport, setEvidenceCompletenessConfirmed, setCaseSummaryConfirmed,
     updatePhotoAssetRefs, photoAssets, replaceSource, decideArchive, loadServerVersion,

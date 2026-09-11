@@ -34,8 +34,7 @@ const report = {
 function confirmationView(confirm: () => void, disabled = false) {
   return <GuidedReviewView conversationKey="SYNTHETIC-CASE" history={[]}
     currentAction={action} allActions={[action]} hasResponse onSelectAction={vi.fn()}
-    onConfirmCurrentAction={confirm} confirmCurrentActionDisabled={disabled}
-    onOpenFullEditor={vi.fn()} onBackToWorkbench={vi.fn()}>
+    onConfirmCurrentAction={confirm} confirmCurrentActionDisabled={disabled} onBackToWorkbench={vi.fn()}>
     <GuidedReviewCard action={action} report={report} updateReport={vi.fn()} readOnly={disabled} />
   </GuidedReviewView>
 }
@@ -76,7 +75,7 @@ describe('GuidedReviewView text confirmation', () => {
     }
     render(<GuidedReviewView conversationKey="SYNTHETIC-CASE" history={[]}
       currentAction={dateAction} allActions={[dateAction]} hasResponse onSelectAction={vi.fn()}
-      onConfirmCurrentAction={confirm} onOpenFullEditor={vi.fn()} onBackToWorkbench={vi.fn()}>
+      onConfirmCurrentAction={confirm} onBackToWorkbench={vi.fn()}>
       <GuidedReviewCard action={dateAction} report={report} updateReport={updateReport} readOnly={false} />
     </GuidedReviewView>)
     const input = screen.getByLabelText('委托时间')
@@ -106,7 +105,7 @@ describe('GuidedReviewView text confirmation', () => {
     }
     render(<GuidedReviewView conversationKey="SYNTHETIC-CASE" history={[]}
       currentAction={photoAction} allActions={[photoAction]} hasResponse onSelectAction={vi.fn()}
-      onConfirmCurrentAction={confirm} onOpenFullEditor={vi.fn()} onBackToWorkbench={vi.fn()}>
+      onConfirmCurrentAction={confirm} onBackToWorkbench={vi.fn()}>
       <input type="file" aria-label="批量导入图片" multiple />
     </GuidedReviewView>)
 

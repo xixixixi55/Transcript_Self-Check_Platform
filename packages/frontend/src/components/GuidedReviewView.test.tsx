@@ -58,7 +58,7 @@ const recoveryAction: GuidedReviewAction = {
 }
 const readyAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-READY', kind: 'ready', title: '当前审核已完成',
-  description: 'SYNTHETIC/TEST：请保存并退出；返回案件工作台后可统一导出。',
+  description: 'SYNTHETIC/TEST：请保存并退出；返回案件工作台后可完成导出。',
 }
 const deferredAction: GuidedReviewAction = {
   id: 'archive-deferred', kind: 'archive_deferred', title: '草稿已保存',
@@ -114,8 +114,7 @@ describe('GuidedReviewView', () => {
     const onOpenFullEditor = vi.fn()
     const updateReport = vi.fn()
     render(<GuidedReviewCard action={evidenceCompletenessAction} report={report} updateReport={updateReport}
-      readOnly={false} onEvidenceCompletenessChange={onEvidenceCompletenessChange}
-      onOpenFullEditor={onOpenFullEditor} />)
+      readOnly={false} onEvidenceCompletenessChange={onEvidenceCompletenessChange} />)
 
     const incompleteButton = screen.getByRole('button', { name: '检材信息不完整，手工添加检材' })
     expect(screen.queryByRole('button', { name: '确认检材信息完整' })).toBeNull()
@@ -262,7 +261,6 @@ describe('GuidedReviewView', () => {
       hasResponse
       onSelectAction={selectAction}
       onRevisitHandledField={revisitHandledField}
-      onOpenFullEditor={openFullEditor}
       onBackToWorkbench={vi.fn()}
     >
       <GuidedReviewCard action={documentAction} report={report} updateReport={updateReport} readOnly={false} />
@@ -319,7 +317,7 @@ describe('GuidedReviewView', () => {
     expect(pendingPanel.textContent).not.toContain('进入完整审核编辑')
     expect(screen.getByRole('button', { name: /请输入文号.*当前/ }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByRole('button', { name: /请稍候，正在生成压缩分卷.*后台中/ })).toBeTruthy()
-    expect(within(pendingPanel).getByRole('heading', { name: '此前已处理' })).toBeTruthy()
+    expect(within(pendingPanel).getByRole('heading', { name: '已填内容' })).toBeTruthy()
     expect(within(pendingPanel).getByText('委托人员')).toBeTruthy()
     expect(within(pendingPanel).getByText('SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B')).toBeTruthy()
     expect(within(pendingPanel).getByText('检材完整性')).toBeTruthy()
@@ -327,8 +325,8 @@ describe('GuidedReviewView', () => {
     expect(within(pendingPanel).queryByText('检材 1 · SYN-JC00000001 · IMEI 1')).toBeNull()
     expect(within(pendingPanel).queryByText('SYNTHETIC-IMEI-1')).toBeNull()
     expect(within(pendingPanel).getAllByText('已上传 2 张图片')).toHaveLength(1)
-    expect(within(pendingPanel).queryByText('检查步骤 1')).toBeNull()
-    expect(within(pendingPanel).queryByText('SYNTHETIC SYSTEM-GENERATED STEP')).toBeNull()
+    expect(within(pendingPanel).getByText('检查步骤 1')).toBeTruthy()
+    expect(within(pendingPanel).getByText('SYNTHETIC SYSTEM-GENERATED STEP')).toBeTruthy()
     fireEvent.click(within(pendingPanel).getByRole('button', { name: '修改检材照片' }))
     expect(revisitHandledField).toHaveBeenCalledWith(completedPhotoField)
     expect(openFullEditor).not.toHaveBeenCalled()
@@ -357,7 +355,6 @@ describe('GuidedReviewView', () => {
       allActions={[waitingAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
@@ -380,7 +377,6 @@ describe('GuidedReviewView', () => {
       allActions={[recoveryAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={recoveryAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
@@ -392,7 +388,6 @@ describe('GuidedReviewView', () => {
       allActions={[readyAction]}
       hasResponse={false}
       onSelectAction={vi.fn()}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={readyAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
     expect(view.container.querySelector('[data-mood="complete"]')).toBeTruthy()
@@ -412,7 +407,6 @@ describe('GuidedReviewView', () => {
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
       onStartArchiveNow={startArchiveNow}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={backToWorkbench}
     ><GuidedReviewCard action={deferredAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
@@ -446,7 +440,6 @@ describe('GuidedReviewView', () => {
       onSelectAction={vi.fn()}
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
@@ -471,7 +464,6 @@ describe('GuidedReviewView', () => {
       onSelectAction={vi.fn()}
       canReturnToPrevious
       onReturnToPreviousAction={returnToPreviousAction}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
@@ -493,7 +485,6 @@ describe('GuidedReviewView', () => {
       canReturnToNext
       onReturnToPreviousAction={returnToPreviousAction}
       onReturnToNextAction={returnToCurrentAction}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
     const returnToCurrentStep = screen.getByRole('button', { name: '进入下一步' })
@@ -513,7 +504,6 @@ describe('GuidedReviewView', () => {
       onSelectAction={vi.fn()}
       canReturnToPrevious={false}
       onReturnToPreviousAction={returnToPreviousAction}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={waitingAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
     await waitFor(() => expect(screen.queryByLabelText('上一轮办理结果')).toBeNull())
@@ -532,8 +522,7 @@ describe('GuidedReviewView', () => {
     }))
     const props = {
       conversationKey: 'SYNTHETIC-CASE', history, hasResponse: true,
-      onSelectAction: vi.fn(), onRevisitAction: vi.fn(),
-      onOpenFullEditor: vi.fn(), onBackToWorkbench: vi.fn(),
+      onSelectAction: vi.fn(), onRevisitAction: vi.fn(), onBackToWorkbench: vi.fn(),
     }
     const child = (action: GuidedReviewAction) => (
       <GuidedReviewCard action={action} report={report} updateReport={vi.fn()} readOnly={false} />
@@ -561,7 +550,6 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction, photoAction]}
       hasResponse
       onSelectAction={vi.fn()}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
     const initialMascotFigure = view.container.querySelector('.guided-review-conversation__mascot-figure')
@@ -574,7 +562,6 @@ describe('GuidedReviewView', () => {
       hasResponse
       onSelectAction={vi.fn()}
       canReturnToPrevious
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={photoAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 
@@ -598,7 +585,6 @@ describe('GuidedReviewView', () => {
       allActions={[documentAction]}
       hasResponse
       onSelectAction={vi.fn()}
-      onOpenFullEditor={vi.fn()}
       onBackToWorkbench={vi.fn()}
     ><GuidedReviewCard action={documentAction} report={report} updateReport={vi.fn()} readOnly={false} /></GuidedReviewView>)
 

@@ -1,11 +1,15 @@
-import { DeleteOutlined, EditOutlined, FileAddOutlined, FileSearchOutlined } from '@ant-design/icons'
+import { DeleteOutlined, FileAddOutlined, FileSearchOutlined } from '@ant-design/icons'
 import { Alert, Button, Input, message, Popconfirm, Space, Tooltip } from 'antd'
 import { useEffect, useState } from 'react'
-import type { EvidenceItem, InspectionReport } from '@biji/shared/types'
+import type { EvidenceItem, FieldState, InspectionReport, InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
 import type { GuidedReviewAction } from '../hooks/useGuidedReviewCards'
 import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import { DateTimeField } from './DateTimeField'
 import { DocumentNumberEditor } from './DocumentNumberEditor'
+import EvidenceEditor from './EvidenceEditor'
+import InspectorEditor from './InspectorEditor'
+import ProcessStepsEditor from './ProcessStepsEditor'
+import SoftwareToolsList from './SoftwareToolsList'
 import {
   CASE_SUMMARY_TRAILING_WHITESPACE_MESSAGE,
   hasCaseSummaryTrailingWhitespace,
@@ -19,7 +23,10 @@ interface Props {
   readOnly: boolean
   specialContent?: React.ReactNode
   onEvidenceCompletenessChange?: (confirmed: boolean) => void
-  onOpenFullEditor?: (targetId?: string) => void
+  fieldStates?: Record<string, FieldState>
+  availableInspectors?: InspectorLibraryRecord[]
+  inspectorLoading?: boolean
+  inspectorError?: string | null
 }
 
 interface TextField {
@@ -306,6 +313,16 @@ function textField(report: InspectionReport, targetId: string): TextField | null
   return fields[targetId] || resultField(report, targetId)
 }
 
+function inspectorSnapshots(report: InspectionReport): InspectorSnapshot[] {
+  if (Array.isArray(report.introduction.inspector_snapshots)) {
+    return report.introduction.inspector_snapshots
+  }
+  return (report.introduction.inspectors || []).map(inspector => ({
+    name: inspector.name, unit: inspector.unit, position: inspector.position,
+    police_number: inspector.badge_number,
+  }))
+}
+
 function evidenceDeviceLabel(item: EvidenceItem): string {
   const brand = String(item.brand || '').trim()
   const model = String(item.model || '').trim()
@@ -364,7 +381,8 @@ function EvidenceCompletenessSummary({ items, onRemove, readOnly }: {
 
 export function GuidedReviewCard({
   action, report, updateReport, readOnly, specialContent,
-  onEvidenceCompletenessChange, onOpenFullEditor,
+  onEvidenceCompletenessChange, fieldStates, availableInspectors = [],
+  inspectorLoading = false, inspectorError = null,
 }: Props) {
   const [evidenceMode, setEvidenceMode] = useState<'closed' | 'batch'>('closed')
   useEffect(() => {
@@ -432,6 +450,41 @@ export function GuidedReviewCard({
     </div>
   )
 
+  if (/^review-target-evidence-\d+$/.test(targetId)) return (
+    <fieldset disabled={readOnly} className="guided-review-card__fieldset">
+      <EvidenceEditor items={evidenceItems} fieldStates={fieldStates}
+        onChange={items => {
+          updateReport('introduction.evidence_list', items)
+          onEvidenceCompletenessChange?.(false)
+        }} showAddAction={false} />
+    </fieldset>
+  )
+
+  if (/^review-target-inspector-\d+$/.test(targetId)) return (
+    <fieldset disabled={readOnly} className="guided-review-card__fieldset">
+      <InspectorEditor snapshots={inspectorSnapshots(report)} availableInspectors={availableInspectors}
+        loading={inspectorLoading} error={inspectorError} fieldStates={fieldStates} disabled={readOnly}
+        onChange={value => updateReport('introduction.inspector_snapshots', value)} />
+    </fieldset>
+  )
+
+  if (/^review-target-software-tool-\d+$/.test(targetId)
+    || targetId === REVIEW_TARGET_IDS.primarySoftwareStatus) return (
+    <fieldset disabled={readOnly} className="guided-review-card__fieldset">
+      <SoftwareToolsList tools={report.inspection.software_tools || []}
+        primarySoftware={report.inspection.primary_software}
+        onPrimarySoftwareChange={(key, value) => updateReport(`inspection.primary_software.${key}`, value)}
+        onChange={value => updateReport('inspection.software_tools', value)} readOnly={readOnly} />
+    </fieldset>
+  )
+
+  if (/^review-target-process-step-\d+$/.test(targetId)) return (
+    <fieldset disabled={readOnly} className="guided-review-card__fieldset">
+      <ProcessStepsEditor steps={report.inspection.process_steps || []}
+        onChange={value => updateReport('inspection.process_steps', value)} />
+    </fieldset>
+  )
+
   const field = textField(report, targetId)
   if (field) {
     const change = (value: string) => updateReport(field.path, field.transform ? field.transform(value) : value)
@@ -457,13 +510,5 @@ export function GuidedReviewCard({
     )
   }
 
-  return (
-    <div className="guided-review-card__fallback">
-      <Tooltip title="在完整审核编辑中处理此项">
-        <Button type="primary" shape="circle" size="large" className="guided-review-icon-action"
-          icon={<EditOutlined />} aria-label="在完整审核编辑中处理此项"
-          onClick={() => onOpenFullEditor?.(targetId)} />
-      </Tooltip>
-    </div>
-  )
+  return <Alert type="error" showIcon message="当前事项暂时无法编辑，请返回案件工作台后重试。" />
 }

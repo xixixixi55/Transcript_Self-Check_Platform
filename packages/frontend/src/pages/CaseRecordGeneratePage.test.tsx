@@ -5,18 +5,8 @@ import axios from 'axios'
 import { API_ENDPOINTS, WORKBENCH_REQUEST_TIMEOUT_MS } from '@biji/shared/constants'
 import type { ArchiveTaskResult, CaseDraft, CaseShell } from '@biji/shared/types'
 import CaseRecordGeneratePage from './CaseRecordGeneratePage'
-import type { GuidedReviewView } from '../components/GuidedReviewView'
 import { archiveTaskSummary, availableInspector, caseId, completedArchiveResult, defaults, detail, identity, lease, report, reportWithPhotos, task } from './CaseRecordGeneratePage.test-fixtures'
 vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn() } }))
-const fullEditorAccess = vi.hoisted(() => ({ open: null as null | (() => void) }))
-vi.mock('../components/GuidedReviewView', async importOriginal => {
-  const original = await importOriginal<typeof import('../components/GuidedReviewView')>()
-  return { ...original, GuidedReviewView: (props: Parameters<typeof GuidedReviewView>[0]) => {
-    // 保留完整编辑器的回归覆盖；测试通过回调进入，不恢复已移除的用户入口。
-    fullEditorAccess.open = props.onOpenFullEditor
-    return <original.GuidedReviewView {...props} />
-  } }
-})
 const getMock = vi.mocked(axios.get); const postMock = vi.mocked(axios.post); const patchMock = vi.mocked(axios.patch)
 
 describe('CaseRecordGeneratePage archive decision coordination', () => {
@@ -25,7 +15,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let events: string[] = []
   let rejectSave = false, conflictSave = false, failSharedDefaults = false, conflictDecision = false, holdSave = false, holdDirectory = false
   let leaseFailure = false, leaseConflict = false
-  let showCompletedArchive = false, showGuidedReady = false, showDeferredTerminal = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, showHandledDiscNumber = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false
+  let showCompletedArchive = false, showGuidedReady = false, showDeferredTerminal = false, showPhotoPending = false, showHandledHistory = false, showHandledCompleteness = false, showHandledCaseSummary = false, showHandledDiscNumber = false, useExportedLifecycle = false, sourcePending = false, recoverPhotoOnLoad = false, failPhotoAssetList = false, failPhotoAssetRead = false, unextractableWithoutReason = false, emptyInspectors = false
   let caseSummaryConfirmationSaved = false
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
@@ -37,8 +27,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   })
   beforeEach(() => {
     window.localStorage.clear()
-    fullEditorAccess.open = null
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; showHandledDiscNumber = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; showHandledDiscNumber = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; emptyInspectors = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -122,6 +111,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
             extractable: false, unextractable_reason: '',
           }]
         }
+        if (emptyInspectors && value.draft) value.draft.report.introduction.inspectors = []
         return { data: { data: value } }
       }
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
@@ -222,7 +212,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     return { ...render(<RouterProvider router={router} />), router }
   }
 
-  it('defaults to the guided shell and mounts the full editor only on demand without losing draft state', async () => {
+  it('uses the guided assistant as the only review interface', async () => {
     renderPage()
     const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
     const conversationRegion = screen.getByRole('region', { name: '当前对话' })
@@ -230,26 +220,8 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(document.querySelector('.review-editor-form')).toBeNull()
     expect(screen.queryByText('笔录生成 / 审核编辑')).toBeNull()
     expect(screen.queryByRole('button', { name: '打开结构摘要预览' })).toBeNull()
-
-    await openFullEditor()
-    expect(screen.getByText('笔录生成 / 审核编辑')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /打开结构摘要预览/ })).toBeTruthy()
-    const returnToGuidedButton = screen.getByRole('button', { name: '返回引导模式' })
-    expect(returnToGuidedButton.closest('.review-action-bar')).toBeTruthy()
-    expect(document.querySelector('.review-page-header')?.contains(returnToGuidedButton)).toBe(false)
-    expect(returnToGuidedButton.querySelector('.rounded-back-icon')).toBeTruthy()
     expect(screen.getByRole('button', { name: '返回案件工作台' }).querySelector('.anticon-home')).toBeTruthy()
-    await waitFor(() => expect(screen.getByRole('heading', { name: '审核编辑', level: 2 })).toBe(document.activeElement))
-    const discInput = screen.getByRole('textbox', { name: '介质编号' })
-    fireEvent.change(discInput, { target: { value: 'GP20260731-009' } })
-
-    fireEvent.click(screen.getByRole('button', { name: '返回引导模式' }))
-    await screen.findByRole('region', { name: '当前对话' })
-    await waitFor(() => expect(screen.getByRole('heading', { name: '獬豸助手', level: 2 })).toBe(document.activeElement))
-    expect(document.querySelector('.review-editor-form')).toBeNull()
-
-    await openFullEditor()
-    expect((await screen.findByRole('textbox', { name: '介质编号' }) as HTMLInputElement).value).toBe('GP20260731-009')
+    expect(screen.queryByRole('button', { name: /完整审核|返回引导模式|导出 Word/ })).toBeNull()
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_LEASE(caseId))).toHaveLength(1)
   }, 15000)
 
@@ -435,19 +407,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     )).toHaveLength(1))
   }, 15000)
 
-  async function openFullEditor() {
-    await screen.findByRole('heading', { name: '獬豸助手', level: 2 })
-    const reviewCenterButton = screen.queryByRole('button', { name: /查看已填内容与待办/ })
-    if (reviewCenterButton) {
-      fireEvent.click(reviewCenterButton)
-      const panel = await screen.findByRole('region', { name: '已填内容与待办' })
-      expect(within(panel).queryByRole('button', { name: '修改其他已填内容' })).toBeNull()
-    }
-    await waitFor(() => expect(fullEditorAccess.open).toBeTypeOf('function'))
-    await act(async () => { fullEditorAccess.open?.() })
-    await waitFor(() => expect(document.querySelector('.review-editor-form')).toBeTruthy())
-  }
-
   async function selectGuidedAction(title: string) {
     fireEvent.click(await screen.findByRole('button', { name: /查看已填内容与待办/ }))
     const panel = await screen.findByRole('region', { name: '已填内容与待办' })
@@ -455,10 +414,10 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   }
 
   async function editDiscNumber() {
-    await openFullEditor()
-    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
+    await screen.findByRole('heading', { name: '獬豸助手', level: 2 })
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_LEASE(caseId), expect.anything()))
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
+    await selectGuidedAction('介质编号')
     const input = await screen.findByRole('textbox', { name: '介质编号' })
     expect((input as HTMLInputElement).value).toBe('GP20260731-001')
     fireEvent.change(input, { target: { value: 'GP20260731-002' } })
@@ -466,6 +425,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
   async function editDiscAndClick() {
     await editDiscNumber()
+    await selectGuidedAction('请选择压缩时机')
     fireEvent.click(screen.getByRole('button', { name: /立即开始压缩/ }))
   }
 
@@ -473,8 +433,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     sourcePending = true
     vi.mocked(window.confirm).mockReturnValue(false)
     renderPage()
-    await openFullEditor()
-    expect(await screen.findByText('报告来源待快速复核')).toBeTruthy()
     const button = await screen.findByRole('button', { name: /立即开始压缩/ }) as HTMLButtonElement
     await waitFor(() => expect(button.disabled).toBe(false))
     fireEvent.click(button)
@@ -497,8 +455,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   it('does not save or create an archive task when the direct-source warning is cancelled', async () => {
     vi.mocked(window.confirm).mockReturnValue(false)
     renderPage()
-    await openFullEditor()
-    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
     const button = screen.getByRole('button', { name: /立即开始压缩/ }) as HTMLButtonElement
     await waitFor(() => expect(button.disabled).toBe(false))
@@ -533,66 +489,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(postMock.mock.calls.filter(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DECISION(caseId))).toHaveLength(1)
   }, 15000)
 
-  it('locks editing before flushing an immediate edit for Word export', async () => {
-    failSharedDefaults = true; holdSave = true
-    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-    try {
-      renderPage()
-      await editDiscNumber()
-      fireEvent.click(screen.getByRole('button', { name: /导出 Word/ }))
-      fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
-      await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1)); expect((document.querySelector('.review-editor-form__fieldset') as HTMLFieldSetElement).disabled).toBe(true)
-      expect(postMock.mock.calls.some(([url]) => url.endsWith('/export-directory'))).toBe(false)
-      holdSave = false; resolveSave?.(); resolveSave = null
-      await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_EXPORT_DIRECTORY(caseId), undefined, expect.anything()))
-      await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)).toBe(true))
-      const formData = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)?.[1] as FormData
-      expect(formData.get('case_id')).toBe(caseId); expect(formData.get('case_revision')).toBe('6')
-      expect(formData.get('export_path')).toBe('D:\\SYNTHETIC\\EXPORT'); expect(formData.get('directory_token')).toBe('token-synthetic')
-      expect(events.indexOf('draft-save')).toBeLessThan(postMock.mock.calls.findIndex(([url]) => url.endsWith('/export-directory')))
-      fireEvent.click(screen.getByRole('button', { name: '返回引导模式' }))
-      const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
-      expect(await within(historyRegion).findByText('文书与委托信息')).toBeTruthy()
-      expect(within(historyRegion).queryByText('Word 已导出')).toBeNull()
-      expect(within(historyRegion).queryByText('统一导出已完成')).toBeNull()
-    } finally {
-      anchorClick.mockRestore()
-    }
-  }, 15000)
-
-  it('blocks Word export until every unextractable material has a reason', async () => {
-    unextractableWithoutReason = true
-    renderPage()
-    await openFullEditor()
-    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
-    await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-
-    fireEvent.click(screen.getByRole('button', { name: /导出 Word/ }))
-
-    expect(screen.queryByRole('button', { name: '开始导出' })).toBeNull()
-    expect(postMock.mock.calls.some(([url]) => url.endsWith('/export-directory'))).toBe(false)
-  }, 15000)
-
-  it('uses the latest revision when photo binding finishes during directory selection after timeout', async () => {
-    recoverPhotoOnLoad = true; failPhotoAssetRead = true; holdSave = true; holdDirectory = true; renderPage()
-    await openFullEditor()
-    await screen.findByRole('heading', { name: '审核编辑', level: 2 }); await waitFor(() => expect(patchMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_CASE_PHOTO_BINDING(caseId))).toBe(true))
-    fireEvent.click(screen.getByRole('button', { name: /导出 Word/ })); fireEvent.click(await screen.findByRole('button', { name: '开始导出' }))
-    await waitFor(() => expect(postMock.mock.calls.some(([url]) => url.endsWith('/export-directory'))).toBe(true), { timeout: 7000 }); await act(async () => { holdSave = false; resolveSave?.(); resolveSave = null; await Promise.resolve() }); holdDirectory = false; resolveDirectory?.(); resolveDirectory = null
-    await waitFor(() => expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)).toBe(true)); const formData = postMock.mock.calls.find(([url]) => url === API_ENDPOINTS.EXPORT_RECORD)?.[1] as FormData
-    expect(formData.getAll('photos')).toHaveLength(0); expect(formData.get('case_revision')).toBe('8')
-    const returnButton = await screen.findByRole('button', { name: '返回图片控件' })
-    expect(returnButton.closest('.ant-alert')?.textContent).toContain('本次未生成附件2')
-    fireEvent.click(returnButton)
-    await waitFor(() => expect(document.activeElement?.id).toBe('review-target-material-photos'))
-  }, 15000)
-
   it('saves a newly selected inspector once without entering a PATCH loop', async () => {
+    emptyInspectors = true
     renderPage()
-    await openFullEditor()
-    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_LEASE(caseId), expect.anything()))
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
+    await selectGuidedAction('检查人员')
 
     fireEvent.click(screen.getByRole('button', { name: '添加检查人员' }))
     fireEvent.click(await screen.findByRole('button', { name: '添加张三' }))
@@ -603,8 +505,8 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   it.each(['archive_queued', 'archive_deferred'] as const)('accepts and autosaves a YP number without medium guidance while lifecycle is %s', async lifecycle => {
     initialLifecycle = lifecycle
     renderPage()
-    await openFullEditor()
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
+    await selectGuidedAction('介质编号')
     expect(screen.queryByText(/压缩正在后台进行，可以先填写编号/)).toBeNull()
     expect(screen.queryByText(/最终介质由压缩前归档总量决定，可以先填写编号/)).toBeNull()
     expect(screen.queryByText('GPyyyyMMddXX-序号 · 光盘')).toBeNull()
@@ -619,7 +521,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     archiveResultParts = completedArchiveResult.parts.map(part => ({ ...part, disc_number: '', disc_date: '' }))
     showCompletedArchive = true
     renderPage()
-    await openFullEditor()
+    await selectGuidedAction('介质编号')
     expect(await screen.findByText('待补盘号')).toBeTruthy()
     fireEvent.change(await screen.findByPlaceholderText('如 GP2026073102-01'), { target: { value: 'GP2026073102-01' } })
     fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
@@ -636,8 +538,6 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     recoverPhotoOnLoad = true
     holdSave = true
     const view = renderPage()
-    await openFullEditor()
-    await screen.findByRole('heading', { name: '审核编辑', level: 2 })
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
 
     await act(async () => { void view.router.navigate(-1) })
@@ -666,8 +566,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(screen.queryByRole('button', { name: /查看已填内容与待办/ })).toBeNull()
     expect(screen.queryByRole('button', { name: '更新盘号映射' })).toBeNull()
     expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
-    await openFullEditor()
-    expect(screen.queryByRole('button', { name: /开始导出|再次导出/ })).toBeNull()
+    expect(document.querySelector('.review-editor-form')).toBeNull()
     expect(postMock.mock.calls.some(([url]) => String(url).includes('/export-bundle'))).toBe(false)
   }, 15000)
 
@@ -690,7 +589,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       .toContain('归档完成'))
     const assistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
     const reply = screen.getByRole('group', { name: '你的回复' })
-    expect(assistantMessage.textContent).toContain('全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台统一导出。')
+    expect(assistantMessage.textContent).toContain('全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台完成导出。')
     expect(within(reply).queryByText('归档完成')).toBeNull()
     expect(within(reply).queryByText(/全部 RAR、文件哈希与盘号已对应完成/)).toBeNull()
     expect(within(reply).getByRole('textbox', { name: '首个光盘编号' })).toBeTruthy()
@@ -710,13 +609,12 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(decisionBodies[0]).toEqual(expect.objectContaining({ decision: 'immediate' }))
   }, 15000)
 
-  it('retains the full editor Word export after removing the guided assistant action', async () => {
+  it('does not expose a standalone Word export or full editor after archive completion', async () => {
     showCompletedArchive = true
     renderPage()
     await screen.findByRole('heading', { name: '獬豸助手', level: 2 })
-    expect(screen.queryByRole('button', { name: '单独导出 Word' })).toBeNull()
-    await openFullEditor()
-    expect(await screen.findByRole('button', { name: '导出 Word' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /单独导出 Word|导出 Word|完整审核|返回引导模式/ })).toBeNull()
+    expect(document.querySelector('.review-editor-form')).toBeNull()
   }, 15000)
 
   it('shows the exported state for a re-exported case', async () => {
@@ -724,11 +622,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     renderPage()
     const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
     expect(await within(historyRegion).findByText('文书与委托信息')).toBeTruthy()
-    expect(within(historyRegion).queryByText('统一导出已完成')).toBeNull()
+    expect(within(historyRegion).queryByText('已完成导出')).toBeNull()
     expect(within(historyRegion).queryByText('案件材料已完成导出')).toBeNull()
-    await openFullEditor()
-    expect(await screen.findByText('统一导出已完成；如需再次导出，请返回案件工作台。')).toBeTruthy()
+    expect(await screen.findByText('已完成导出')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /再次导出|开始导出/ })).toBeNull()
-    expect(screen.getByText('已导出')).toBeTruthy()
   }, 15000)
 })

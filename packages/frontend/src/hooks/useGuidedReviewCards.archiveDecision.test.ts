@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { REVIEW_TARGET_IDS } from './useReviewChecklist'
 import { deriveGuidedReviewProjection, useGuidedReviewCards } from './useGuidedReviewCards'
@@ -95,5 +95,36 @@ describe('guided review deferred archive navigation', () => {
     ])
     expect(projection.allActions[0]?.title).toBe('草稿已保存')
     expect(projection.allActions[0]?.description).toContain('压缩已设为稍后处理')
+  })
+
+  it('removes an obsolete archive decision after immediate archiving starts', async () => {
+    const input = {
+      ...buildInput(syntheticReport), pendingItems: [documentItem], archiveTask: null,
+      caseSummaryReviewed: true,
+    }
+    const view = renderHook(({ lifecycle }) => useGuidedReviewCards({ ...input, lifecycle }), {
+      initialProps: { lifecycle: 'review_ready' as 'review_ready' | 'archive_queued' },
+    })
+    expect(view.result.current.currentAction?.kind).toBe('archive_decision')
+
+    view.rerender({ lifecycle: 'archive_queued' })
+
+    await waitFor(() => expect(view.result.current.currentAction?.pendingItem?.targetId)
+      .toBe(REVIEW_TARGET_IDS.documentNumber))
+    expect(view.result.current.allActions.some(action => action.kind === 'archive_decision')).toBe(false)
+    expect(view.result.current.canReturnToPrevious).toBe(false)
+  })
+
+  it('does not claim a deferred draft was saved while saving is unsettled', () => {
+    const projection = deriveGuidedReviewProjection({
+      ...buildInput(withMediumNumber(syntheticReport)), pendingItems: [],
+      lifecycle: 'archive_deferred', archiveTask: null, caseSummaryReviewed: true,
+      saveState: 'saving', saveHasPending: true,
+    })
+
+    expect(projection.allActions[0]).toEqual(expect.objectContaining({
+      kind: 'waiting', title: '请稍候，正在保存当前输入',
+    }))
+    expect(projection.allActions.some(action => action.kind === 'archive_deferred')).toBe(false)
   })
 })

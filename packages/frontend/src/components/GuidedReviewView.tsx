@@ -8,6 +8,7 @@ import type { EvidenceItem } from '@biji/shared/types'
 import { canRevisitGuidedHistoryField } from '../hooks/useGuidedReviewCards'
 import type {
   GuidedReviewAction, GuidedReviewActionKind, GuidedReviewHistoryField, GuidedReviewHistoryItem,
+  GuidedReviewSystemStatus,
 } from '../hooks/useGuidedReviewCards'
 import { GuidedReviewHistory } from './GuidedReviewHistory'
 
@@ -19,6 +20,7 @@ interface Props {
   previouslyHandledFields?: GuidedReviewHistoryField[]
   currentAction: GuidedReviewAction | null
   allActions: GuidedReviewAction[]
+  systemStatus?: GuidedReviewSystemStatus | null
   hasResponse: boolean
   onSelectAction: (actionId: string) => void
   onRevisitAction?: (action: GuidedReviewAction) => void
@@ -36,7 +38,6 @@ interface Props {
   onReturnToNextAction?: () => void
   onStartArchiveNow?: () => void
   startArchiveNowBusy?: boolean
-  onOpenFullEditor: (targetId?: string, focusInteractive?: boolean) => void
   onBackToWorkbench: () => void
   children: React.ReactNode
   assistantMessage?: {
@@ -77,7 +78,7 @@ const RECOVERY_ACTIONS = new Set<GuidedReviewActionKind>([
 ])
 function assistantStatus(currentAction: GuidedReviewAction | null, allActions: GuidedReviewAction[]): ActionStatus {
   if (currentAction?.kind === 'waiting') return { label: '后台处理中', tone: 'system' }
-  if (currentAction?.kind === 'ready') return { label: '可生成笔录', tone: 'success' }
+  if (currentAction?.kind === 'ready') return { label: '审核已完成', tone: 'success' }
   if (currentAction?.kind === 'archive_deferred') return { label: '已稍后处理', tone: 'success' }
   const actionableCount = allActions.filter(action => !['waiting', 'ready', 'archive_deferred'].includes(action.kind)).length
   return actionableCount > 0
@@ -87,7 +88,7 @@ function assistantStatus(currentAction: GuidedReviewAction | null, allActions: G
 
 function actionStatus(action: GuidedReviewAction, isCurrent: boolean, deferredCompletionActive: boolean): ActionStatus {
   if (action.kind === 'waiting') return { label: '后台中', tone: 'system' }
-  if (action.kind === 'ready') return { label: '可生成', tone: 'success' }
+  if (action.kind === 'ready') return { label: '已完成', tone: 'success' }
   if (action.kind === 'archive_deferred') return { label: '已稍后处理', tone: 'success' }
   if (action.kind === 'archive_decision' && deferredCompletionActive) return { label: '可选', tone: 'system' }
   if (isCurrent) return { label: '当前', tone: 'current' }
@@ -117,7 +118,7 @@ function handledHistoryItems(
   persistedFields: GuidedReviewHistoryField[],
 ): HandledHistoryItem[] {
   const persisted = persistedFields.flatMap((field, index) => (
-    field.userProvided && canRevisitGuidedHistoryField(field) ? [{
+    canRevisitGuidedHistoryField(field) ? [{
       id: `persisted-field-${index}-${field.targetId || field.label}`,
       label: field.label,
       matchLabel: field.label,
@@ -125,9 +126,9 @@ function handledHistoryItems(
       targetId: field.targetId,
       field,
     }] : []))
-  return [...persisted, ...history.flatMap(group => {
+  const candidates = [...persisted, ...history.flatMap(group => {
     const fields = (group.fields || []).flatMap((field, index) => (
-      field.userProvided && canRevisitGuidedHistoryField(field) ? [{
+      canRevisitGuidedHistoryField(field) ? [{
       id: `${group.id}-field-${index}`,
       label: field.label,
       matchLabel: field.label,
@@ -137,6 +138,13 @@ function handledHistoryItems(
     }] : []))
     return fields
   })]
+  const seenTargets = new Set<string>()
+  return candidates.filter(item => {
+    const key = item.targetId || item.matchLabel
+    if (seenTargets.has(key)) return false
+    seenTargets.add(key)
+    return true
+  })
 }
 
 function mascotMood(currentAction: GuidedReviewAction | null, completionActive: boolean): MascotMood {
@@ -148,7 +156,7 @@ function mascotMood(currentAction: GuidedReviewAction | null, completionActive: 
 }
 
 export function GuidedReviewView({
-  conversationKey, history, previouslyHandledFields = [], currentAction, allActions, hasResponse, onSelectAction,
+  conversationKey, history, previouslyHandledFields = [], currentAction, allActions, systemStatus, hasResponse, onSelectAction,
   onRevisitAction, onRevisitHandledField, evidenceItems, onEvidenceItemsChange,
   evidenceReadOnly, evidenceSaveState, evidenceSaveHasPending,
   onConfirmCurrentAction, confirmCurrentActionDisabled = false,
@@ -339,6 +347,13 @@ export function GuidedReviewView({
                       <span>{`好的，先处理“${switchedTurn.to}”。“${switchedTurn.from}”仍保留在待办中，之后可以继续。`}</span>
                     </p>
                   )}
+                  {systemStatus && currentAction?.kind !== 'waiting' && (
+                    <p className="guided-review-turn__acknowledgement" role="status"
+                      aria-label="系统处理状态">
+                      <strong>{systemStatus.title}</strong>
+                      <span>{systemStatus.detail}</span>
+                    </p>
+                  )}
                   <div key={currentAction?.id || 'guided-review-empty'} className="guided-review-card__message" role="status"
                     aria-label="獬豸助手提示" aria-atomic="true">
                     <h3>{assistantMessage?.title || currentAction?.title || '请稍候，正在整理下一步'}</h3>
@@ -473,7 +488,7 @@ export function GuidedReviewView({
               )}
               {previouslyHandledItems.length > 0 && (
                 <section className="guided-review-action-group" aria-labelledby="guided-review-previously-handled-heading">
-                  <h3 id="guided-review-previously-handled-heading">此前已处理</h3>
+                  <h3 id="guided-review-previously-handled-heading">已填内容</h3>
                   <ul className="guided-review-handled-list">
                     {previouslyHandledItems.map(item => (
                       <li key={item.id}>

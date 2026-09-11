@@ -162,7 +162,7 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
       planRowRevision: 6,
       parts: [{ disc_number: 'GP20260731-005' }, { disc_number: 'GP20260731-006' }],
     })
-    expect(screen.getByText('统一导出已完成；如需再次导出，请返回案件工作台。')).toBeTruthy()
+    expect(screen.getByText('已完成导出；如需再次导出，请返回案件工作台。')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /再次导出|开始导出/ })).toBeNull()
     expect(screen.queryByText(/截图|PNG/)).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: '首个光盘编号' }), {
@@ -190,7 +190,7 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
       lifecycle: 'archive_verified',
       parts: [{ disc_number: 'GP20260731-001', size_bytes: 22_000_000_000 }],
     })
-    expect(screen.getByText(/请返回案件工作台统一导出/)).toBeTruthy()
+    expect(screen.getByText(/请返回案件工作台完成导出/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /再次导出|开始导出/ })).toBeNull()
   })
 })

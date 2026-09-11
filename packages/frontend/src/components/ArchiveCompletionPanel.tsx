@@ -44,10 +44,10 @@ export function getArchiveCompletionGuidance(
   if (status === 'archive_complete' || status === 'exported') return {
     title: status === 'exported' ? '已导出' : '归档完成',
     description: status === 'exported'
-      ? '统一导出已完成；如需再次导出，请返回案件工作台。'
+      ? '已完成导出；如需再次导出，请返回案件工作台。'
       : hardDrive
-        ? '完整 RAR、文件哈希与硬盘编号已对应完成，请返回案件工作台统一导出。'
-        : '全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台统一导出。',
+        ? '完整 RAR、文件哈希与硬盘编号已对应完成，请返回案件工作台完成导出。'
+        : '全部 RAR、文件哈希与盘号已对应完成，请返回案件工作台完成导出。',
   }
   return {
     title: archiveMedium ? `${mediumLabel}编号` : '介质编号（可提前填写）',

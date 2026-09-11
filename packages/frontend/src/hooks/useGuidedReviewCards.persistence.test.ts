@@ -64,6 +64,21 @@ describe('guided review navigation persistence', () => {
     expect(reopened.result.current.canReturnToNext).toBe(false)
   })
 
+  it('does not append the restored middle step to the trail tail and create a forward loop', () => {
+    const first = renderHook(() => useGuidedReviewCards(journeyInput()))
+    selectTarget(first.result, REVIEW_TARGET_IDS.entrustTime)
+    selectTarget(first.result, REVIEW_TARGET_IDS.caseSummary)
+    act(() => first.result.current.returnToPreviousAction())
+    expect(first.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.entrustTime)
+    first.unmount()
+
+    const reopened = renderHook(() => useGuidedReviewCards(journeyInput()))
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.entrustTime)
+    act(() => reopened.result.current.returnToNextAction())
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.caseSummary)
+    expect(reopened.result.current.canReturnToNext).toBe(false)
+  })
+
   it('isolates checkpoints by case and stores no report field values', () => {
     const first = renderHook(() => useGuidedReviewCards(journeyInput('SYNTHETIC-CASE-A')))
     selectTarget(first.result, REVIEW_TARGET_IDS.caseSummary)

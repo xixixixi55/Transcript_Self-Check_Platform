@@ -481,7 +481,7 @@ describe('guided review projection', () => {
       archiveParts: [{ disc_number: 'GP20260825-01', size_bytes: 2048 }],
     })
     expect(ready.allActions[0]?.title).toBe('当前审核已完成')
-    expect(ready.allActions[0]?.description).toBe('请保存并退出；返回案件工作台后可统一导出。')
+    expect(ready.allActions[0]?.description).toBe('请保存并退出；返回案件工作台后可完成导出。')
   })
 
   it('keeps save and lease recovery in actions without adding them to the Word preview', () => {
@@ -550,14 +550,23 @@ describe('guided review projection', () => {
     expect(JSON.stringify(verified.history)).not.toMatch(/归档|办理完成/)
   })
 
-  it('keeps single Word and unified export status out of the Word content preview', () => {
-    const word = deriveGuidedReviewProjection({ ...buildInput(), wordExportSucceeded: true })
-    expect(JSON.stringify(word.history)).not.toMatch(/Word 已导出|统一导出已完成/)
-
-    const unified = deriveGuidedReviewProjection({
-      ...buildInput(), lifecycle: 'exported', wordExportSucceeded: false,
+  it('keeps completed export status out of the Word content preview', () => {
+    const baseline = deriveGuidedReviewProjection(buildInput())
+    const completed = deriveGuidedReviewProjection({
+      ...buildInput(), lifecycle: 'exported',
       archiveMedium: 'hard_drive', archiveParts: [{ disc_number: 'YP20260825-01', size_bytes: 2048 }],
     })
-    expect(unified.history).toEqual(word.history)
+    expect(completed.systemStatus?.title).toBe('已完成导出')
+    expect(completed.history).toEqual(baseline.history)
+  })
+
+  it('blocks archive timing whenever source status is invalid even if the legacy flag is false', () => {
+    const projection = deriveGuidedReviewProjection({
+      ...buildInput(), pendingItems: [], lifecycle: 'review_ready', archiveTask: null,
+      sourceStatus: 'invalid', sourceRequiresReselection: false,
+    })
+
+    expect(projection.allActions[0]?.kind).toBe('source_recovery')
+    expect(projection.allActions.some(action => action.kind === 'archive_decision')).toBe(false)
   })
 })

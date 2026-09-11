@@ -204,6 +204,10 @@ export function getReviewPendingItems(
       position: item.position,
       police_number: item.badge_number,
     }))
+  if (inspectorSnapshots.length === 0) {
+    addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.inspector(0),
+      '一、绪论', '检查人员', '')
+  }
   inspectorSnapshots.forEach((item, index) => {
     addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.inspector(index), '一、绪论', `检查人员${index + 1}姓名`, item.name)
     addBlankItem(items, REVIEW_SECTION_IDS.introduction, REVIEW_TARGET_IDS.inspector(index), '一、绪论', `检查人员${index + 1}单位`, item.unit)

@@ -924,3 +924,17 @@ workflow_level: 2
 - `completed_assistant_reply_tests: PASS`：先以 3 个组件失败用例确认旧实现仍将归档、压缩选择和图片指导放入控件面板；修复后 6 files / 81 tests 与 TypeScript 检查通过，页面级回归覆盖压缩选择、图片异常与数量排序提示、保存失败、归档完成和纯等待归属。
 - `completed_assistant_reply_gates: PASS`：生产构建、`npm run verify:quick`、限定范围严格文档检查、OpenSpec 严格校验与 `git diff --check` 均通过；页面集成测试继续共享同一 Router/租约/异步 API/修订竞态夹具，并以 760 行有界上限登记；Impeccable 单次检测为 0 项；delta 已同步 living spec。
 - `completed_assistant_reply_manual_acceptance: N/A`：本次不改尺寸、颜色、断点或响应式布局；内容归属、回复区显隐与控件保留均由 SYNTHETIC DOM 回归可靠区分，且生产构建已验证，未读取或操作真实案件数据。
+
+## 2026-09-10 獬豸助手状态机审计与单一审核入口（workflow_level: 2）
+
+- [x] 6.136 将用户反馈关联到本包：案件切换隔离、步骤轨迹、恢复动作、归档决定、完成导出状态和獬豸助手单一审核入口均直接修改本包的同一动态操作集、会话导航与审核外壳；本包尚未归档，继续复用，不新建 change。`background-compression-archive-completion` 仍负责归档/介质/工作台输出合同，但不负责审核页状态机；`audit-edit-enhancement` 的完整编辑器已被新产品方向替代，不改写旧包。保留用户已有的 `packaging/portable-manifest.json` 工作区修改，不纳入本任务。
+- [x] 6.137 修复状态机边界：路由复用切换案件时严格隔离详情、草稿、报告、租约、自动保存和图片引用；恢复到轨迹中间时不得追加尾部步骤形成循环；前进、后退和确认推进同步当前选择；来源无效阻止归档决定；保存失败/冲突始终提供恢复，稍后压缩只在保存收敛后声称草稿已保存；失效的归档决定从轨迹中清除。
+- [x] 6.138 删除完整审核编辑界面、模式切换和审核页单独 Word 导出入口，案件内只保留獬豸助手；把检查人员、检查软件、检查步骤和其他已填内容纳入助手回访，并为零检查人员生成可办理事项；检材逐项字段继续由 Word 内容预览原位编辑，照片恢复直接留在助手；工作台输出统一使用“完成导出”，助手完成状态使用“已完成导出”。
+- [x] 6.139 使用 SYNTHETIC 回归覆盖案件隔离、导航环路、来源/保存/归档竞态、结构化内容回访、单一审核入口和完成导出文案；核对并同步 delta/living spec，运行受影响测试、`npm run verify:quick`、`npm run verify:docs:strict -- --change conversational-review-shell`、OpenSpec 严格校验和 `git diff --check`。
+  - 人工验收：N/A；状态转换、入口缺席、结构化控件可达性、保存顺序和导出文案均可由 SYNTHETIC Hook/DOM/页面回归可靠区分，不读取或提交真实案件数据。
+
+- `guided_state_machine_contract: PASS`：路由复用时按 `caseId` 隔离案件详情、草稿、租约、自动保存与图片引用；步骤游标只在轨迹前沿追加，前进/后退同步当前选择，失效归档决定被清除；来源不可用、保存失败/冲突和稍后压缩的保存收敛语义保持一致。
+- `guided_single_review_surface: PASS`：完整审核编辑组件、模式切换、审核页单独 Word 导出和专用风险入口已删除；检查人员、检查软件、检查步骤、照片及其他已填内容均可在獬豸助手内回访，检材逐项字段继续在 Word 内容预览原位编辑；工作台输出统一显示“完成导出”，助手最终状态显示“已完成导出”。
+- `guided_state_machine_tests: PASS`：受影响 Hook/组件 13 files / 105 tests 与页面 1 file / 27 tests 通过；新增案件隔离、恢复轨迹中点、防失效归档步骤、来源阻断、保存未收敛、零检查人员和单一审核入口回归，测试数据均为 SYNTHETIC/TEST。
+- `guided_state_machine_gates: PASS`：架构、TypeScript、治理文档、仓库资产及 `npm run verify:quick` 通过；系统状态投影按自然职责拆出后主 Hook 为 705 行，保持既有 740 行上限；OpenSpec change 严格校验和 `git diff --check` 通过，delta 已同步 living spec。限定范围严格文档检查初次仅因本验证任务未勾选而失败，补全记录后复核通过；Impeccable 单次检测的 2 个 warning 均位于已删除组件遗留、无生产引用的旧 CSS 选择器，当前獬豸助手界面为 0 个适用问题。
+- `guided_state_machine_manual_acceptance: N/A`：本次状态转换、DOM 入口缺席、结构化控件可达性、保存顺序和完成导出文案均由 SYNTHETIC Hook/DOM/页面集成回归可靠区分；未读取、操作或提交真实案件数据。

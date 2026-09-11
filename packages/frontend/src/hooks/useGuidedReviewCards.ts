@@ -17,6 +17,10 @@ import {
   type GuidedReviewHistoryField,
   type GuidedReviewHistoryItem,
 } from './useGuidedReviewHistoryProjection'
+import {
+  buildGuidedReviewSystemStatus,
+  type GuidedReviewSystemStatus,
+} from './useGuidedReviewSystemStatus'
 
 export type {
   GuidedReviewHistoryField,
@@ -53,10 +57,7 @@ export interface GuidedReviewAction {
   requiresExplicitAdvance?: boolean
 }
 
-export interface GuidedReviewSystemStatus {
-  title: string
-  detail: string
-}
+export type { GuidedReviewSystemStatus } from './useGuidedReviewSystemStatus'
 
 export interface GuidedReviewProjectionInput {
   caseId: string
@@ -74,7 +75,6 @@ export interface GuidedReviewProjectionInput {
   saveState: 'idle' | 'saving' | 'saved' | 'failed' | 'conflict' | 'not_changed'
   saveHasPending: boolean
   photoState: 'ready' | 'uploading' | 'error' | 'warning'
-  wordExportSucceeded: boolean
 }
 
 export interface GuidedReviewProjection {
@@ -91,38 +91,6 @@ const SYSTEM_OUTPUT_TARGETS = new Set([
   REVIEW_TARGET_IDS.result('md5_hash'),
   REVIEW_TARGET_IDS.result('file_size'),
 ])
-
-const ARCHIVE_STAGE_LABELS: Record<string, string> = {
-  queued: '归档任务正在等待处理',
-  inventory: '正在整理待归档内容',
-  preflight_verified: '归档前检查已完成',
-  winrar: '正在生成压缩分卷',
-  integrity: '正在校验压缩文件',
-  integrity_verified: '压缩文件完整性已确认',
-  hash: '正在生成文件校验值',
-  manifest: '正在整理归档清单',
-  completed: '归档产物已生成，正在确认结果',
-}
-
-function formatBytes(bytes: number | null): string | null {
-  if (!bytes || bytes < 1) return null
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB 已生成`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB 已生成`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB 已生成`
-}
-
-function archiveDetail(task: ArchiveTaskCardSummary): string {
-  const facts = [
-    formatBytes(task.output_bytes),
-    task.output_volume_count ? `已检测到 ${task.output_volume_count} 个分卷` : null,
-  ].filter(Boolean)
-  return facts.length ? facts.join('，') : '后台任务正在推进'
-}
-
-function backgroundArchiveDetail(task: ArchiveTaskCardSummary): string {
-  const stage = ARCHIVE_STAGE_LABELS[task.stage] || '后台任务正在推进'
-  return `${stage}；${archiveDetail(task)}。可继续处理其他待办。`
-}
 
 function buildFactHistory(input: GuidedReviewProjectionInput): GuidedReviewHistoryItem[] {
   return buildReportHistory(input.report, input.fieldStates)
@@ -159,19 +127,6 @@ function buildPersistedHandledFields(
 
 function isSessionNavigationAction(action: GuidedReviewAction | null): action is GuidedReviewAction {
   return Boolean(action && SESSION_NAVIGATION_ACTION_KINDS.has(action.kind))
-}
-
-function buildSystemStatus(input: GuidedReviewProjectionInput): GuidedReviewSystemStatus | null {
-  if (input.saveHasPending && input.saveState === 'saving') return {
-    title: '正在保存当前输入', detail: '保存完成前，当前输入会继续保留在本页面。',
-  }
-  if (input.photoState === 'uploading') return { title: '正在保存图片', detail: '图片上传和绑定完成后会自动沿用。' }
-  if (input.sourceStatus === 'pending') return { title: '正在复核报告来源', detail: '系统完成快速复核后会更新可办理事项。' }
-  if (input.archiveTask && ['archive_queued', 'archiving'].includes(input.lifecycle)) return {
-    title: '后台归档处理中',
-    detail: backgroundArchiveDetail(input.archiveTask),
-  }
-  return null
 }
 
 const DATE_PROMPT_TARGETS = new Set<string>([
@@ -228,6 +183,7 @@ const GUIDED_HISTORY_REVISIT_TARGETS = new Set<string>([
 function resolvedHistoryTarget(targetId: string | undefined): string | null {
   if (!targetId) return null
   if (/^review-target-evidence-\d+$/.test(targetId)) return REVIEW_TARGET_IDS.evidenceCompleteness
+  if (/^review-target-(?:inspector|software-tool|process-step)-\d+$/.test(targetId)) return targetId
   if (SYSTEM_OUTPUT_TARGETS.has(targetId)) return null
   return GUIDED_HISTORY_REVISIT_TARGETS.has(targetId) ? targetId : null
 }
@@ -400,7 +356,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
   if (input.leaseState !== 'editable' && input.leaseState !== 'acquiring') {
     allActions.push({ id: 'lease-recovery', kind: 'lease_recovery', title: '请恢复编辑权限', description: '当前页面不能写入案件，请先恢复有效编辑租约。' })
   }
-  if (input.saveHasPending && ['failed', 'conflict'].includes(input.saveState)) {
+  if (['failed', 'conflict'].includes(input.saveState)) {
     allActions.push({
       id: 'save-recovery', kind: 'save_recovery', title: '请恢复草稿保存',
       description: input.saveState === 'saving'
@@ -416,7 +372,7 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
       id: 'photo-recovery', kind: 'photo_recovery',
       title: input.photoState === 'warning' ? '请检查附件2图片' : '请处理图片保存问题',
       description: input.photoState === 'warning'
-        ? 'Word 已导出，但附件2未生成；可返回图片控件检查后重新导出。'
+        ? '附件2图片读取异常；请返回图片控件检查，完成保存后再到案件工作台重新导出。'
         : '图片尚未完成绑定，请使用现有图片控件检查并重试。',
     })
   }
@@ -426,25 +382,33 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
         ? '当前已选择稍后处理，也可以现在开始压缩。'
         : '建议现在开始压缩；也可以保留案件并稍后处理。',
   }
+  const sourceBlocksArchive = input.sourceRequiresReselection
+    || ['invalid', 'requires_reselection'].includes(input.sourceStatus)
   const canChooseArchiveTiming = ['review_ready', 'archive_deferred', 'archive_interrupted'].includes(input.lifecycle)
-    && !input.sourceRequiresReselection
+    && !sourceBlocksArchive
   if (canChooseArchiveTiming && input.lifecycle !== 'archive_deferred') {
     allActions.push(archiveDecisionAction)
   }
   allActions.push(...pendingItems.map(pendingAction))
   if (canChooseArchiveTiming && input.lifecycle === 'archive_deferred') {
-    if (allActions.length === 0) allActions.push({
-      id: 'archive-deferred', kind: 'archive_deferred', title: '草稿已保存',
-      description: '压缩已设为稍后处理。当前没有待填写事项，稍后可从案件工作台继续。',
-    })
+    if (allActions.length === 0) {
+      if (input.saveHasPending || input.saveState === 'saving') allActions.push({
+        id: 'waiting-for-deferred-save', kind: 'waiting', title: '请稍候，正在保存当前输入',
+        description: '保存完成后，才会确认草稿已保存并可返回案件工作台。',
+      })
+      else allActions.push({
+        id: 'archive-deferred', kind: 'archive_deferred', title: '草稿已保存',
+        description: '压缩已设为稍后处理。当前没有待填写事项，稍后可从案件工作台继续。',
+      })
+    }
     allActions.push(archiveDecisionAction)
   }
-  const systemStatus = buildSystemStatus(input)
+  const systemStatus = buildGuidedReviewSystemStatus(input)
   const readyToGenerate = pendingItems.length === 0
     && ['archive_verified', 'exported'].includes(input.lifecycle)
     && input.archiveParts !== null
   if (allActions.length === 0) allActions.push(readyToGenerate
-    ? { id: 'ready', kind: 'ready', title: '当前审核已完成', description: '请保存并退出；返回案件工作台后可统一导出。' }
+    ? { id: 'ready', kind: 'ready', title: '当前审核已完成', description: '请保存并退出；返回案件工作台后可完成导出。' }
     : { id: 'waiting', kind: 'waiting', title: systemStatus ? `请稍候，${systemStatus.title}` : '请稍候，正在整理下一步', description: systemStatus?.detail || '当前没有需要立即填写的事项。' })
   return {
     history: buildFactHistory(input),
@@ -568,6 +532,22 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     setSelectedActionId(nextAction?.id || '')
   }, [input.lifecycle, projection.allActions, selectedActionId])
 
+  const archiveDecisionAvailable = projection.allActions.some(action => action.kind === 'archive_decision')
+  useEffect(() => {
+    if (archiveDecisionAvailable) return
+    setNavigation(previous => {
+      const retainedEntries = previous.entries.filter(action => action.kind !== 'archive_decision')
+      if (retainedEntries.length === previous.entries.length) return previous
+      const retainedThroughCurrent = previous.entries.slice(0, previous.index + 1)
+        .filter(action => action.kind !== 'archive_decision').length
+      return {
+        ...previous,
+        entries: retainedEntries,
+        index: Math.max(0, Math.min(retainedEntries.length - 1, retainedThroughCurrent - 1)),
+      }
+    })
+  }, [archiveDecisionAvailable])
+
   useEffect(() => {
     if (!input.report || hydratedCaseIdRef.current !== input.caseId) return
     if (skipNavigationAppendRef.current === input.caseId) {
@@ -582,6 +562,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
       if (previous.caseId !== input.caseId) return previous
       if (!nextNavigationAction) return previous
       const latestIndex = previous.entries.length - 1
+      if (previous.index !== latestIndex) return previous
       if (previous.entries[latestIndex]?.id === nextNavigationAction.id) return previous
       const entries = [...previous.entries, nextNavigationAction]
       return {
@@ -645,6 +626,8 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const confirmCurrentAction = useCallback(() => {
     if (!currentAction?.advanceOnEnter && !currentAction?.requiresExplicitAdvance) return
     if (navigation.index < navigation.entries.length - 1) {
+      const nextIndex = Math.min(navigation.index + 1, navigation.entries.length - 1)
+      setSelectedActionId(navigation.entries[nextIndex]?.id || '')
       setNavigation(previous => ({ ...previous, index: Math.min(previous.index + 1, previous.entries.length - 1) }))
       return
     }
@@ -656,20 +639,26 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const returnToPreviousAction = useCallback(() => {
     if (showingTerminalAction && navigationAction) {
       setRevisitedActionId(navigationAction.id)
+      setSelectedActionId(navigationAction.id)
       return
     }
+    const previousIndex = Math.max(0, navigation.index - 1)
+    setSelectedActionId(navigation.entries[previousIndex]?.id || '')
     setNavigation(previous => ({ ...previous, index: Math.max(0, previous.index - 1) }))
-  }, [navigationAction, showingTerminalAction])
+  }, [navigation.entries, navigation.index, navigationAction, showingTerminalAction])
   const returnToNextAction = useCallback(() => {
     if (navigation.index >= navigation.entries.length - 1 && terminalBaseAction) {
       setRevisitedActionId(null)
+      setSelectedActionId(terminalBaseAction.id)
       return
     }
+    const nextIndex = Math.min(navigation.entries.length - 1, navigation.index + 1)
+    setSelectedActionId(navigation.entries[nextIndex]?.id || '')
     setNavigation(previous => ({
       ...previous,
       index: Math.min(previous.entries.length - 1, previous.index + 1),
     }))
-  }, [navigation.entries.length, navigation.index, terminalBaseAction])
+  }, [navigation.entries, navigation.index, terminalBaseAction])
   const revisitAction = useCallback((action: GuidedReviewAction) => {
     setRevisitedActionId(action.id)
     setNavigation(previous => {

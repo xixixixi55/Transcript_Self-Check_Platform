@@ -30,7 +30,7 @@ export const lease: EditLease = { schema_version: 1, lease_id: 'lease-synthetic'
 export function report(discNumber = 'GP20260731-001'): InspectionReport {
   return {
     title: '电子数据检查笔录', document_number: 'SYN-TEST〔2026〕001号', case_number: 'SYN-CASE-001',
-    introduction: { entrust_unit: 'SYNTHETIC-UNIT', entrust_persons: ['SYNTHETIC-PERSON'], entrust_time: '2026年7月31日', case_summary: 'SYNTHETIC/TEST', evidence_list: [], inspection_requirement: 'SYNTHETIC-REQUIREMENT', inspection_time_range: '2026年7月31日10点00分至2026年7月31日11点00分', inspectors: [], inspection_place: 'SYNTHETIC-PLACE' },
+    introduction: { entrust_unit: 'SYNTHETIC-UNIT', entrust_persons: ['SYNTHETIC-PERSON'], entrust_time: '2026年7月31日', case_summary: 'SYNTHETIC/TEST', evidence_list: [], inspection_requirement: 'SYNTHETIC-REQUIREMENT', inspection_time_range: '2026年7月31日10点00分至2026年7月31日11点00分', inspectors: [{ name: 'SYNTHETIC-INSPECTOR', unit: 'SYNTHETIC-UNIT', badge_number: 'SYN-000' }], inspection_place: 'SYNTHETIC-PLACE' },
     inspection: { method: 'SYNTHETIC-METHOD', hardware_device: 'SYNTHETIC-DEVICE', software_tools: [], process_steps: [], result: { evidence_number: 'SYN-1', software_name: 'SYNTHETIC-TOOL', software_version: '1.0', data_summary: 'SYNTHETIC-DATA', rar_filename: '', md5_hash: '', file_size: '' } },
     attachments: { extract_list: { columns: [], rows: [] }, photo_ids: [], disc_number: discNumber },
   }

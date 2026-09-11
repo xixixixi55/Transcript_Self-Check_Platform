@@ -70,7 +70,6 @@ export function buildInput(report = syntheticReport): GuidedReviewProjectionInpu
     saveHasPending: false,
     leaseState: 'editable',
     photoState: 'ready',
-    wordExportSucceeded: false,
   }
 }
 
