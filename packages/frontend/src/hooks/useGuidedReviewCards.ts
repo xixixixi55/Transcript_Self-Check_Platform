@@ -275,13 +275,21 @@ function completedManualActions(projection: GuidedReviewProjection): GuidedRevie
     ...projection.history.flatMap(item => item.fields || []),
     ...projection.previouslyHandledFields,
   ].flatMap(field => {
-    if (!field.userProvided || !canRevisitGuidedHistoryField(field)) return []
+    const isDocumentNumber = field.targetId === REVIEW_TARGET_IDS.documentNumber
+    if ((!field.userProvided && !isDocumentNumber) || !canRevisitGuidedHistoryField(field)) return []
     const action = handledHistoryAction(field)
     const targetId = action?.pendingItem?.targetId
     if (!action || !targetId || seenTargets.has(targetId)) return []
     seenTargets.add(targetId)
     return [action]
   }).sort((left, right) => manualStepOrder(left) - manualStepOrder(right))
+}
+
+function completedReentryIndex(actions: GuidedReviewAction[]): number {
+  const documentNumberIndex = actions.findIndex(
+    action => action.pendingItem?.targetId === REVIEW_TARGET_IDS.documentNumber,
+  )
+  return documentNumberIndex >= 0 ? documentNumberIndex : Math.max(0, actions.length - 1)
 }
 
 function actionForStoredReference(reference: GuidedReviewNavigationStepReference,
@@ -312,7 +320,7 @@ function persistedNavigation(caseId: string, projection: GuidedReviewProjection,
   if (hasOpenUserWork(projection)) return restored
   const completedActions = completedManualActions(projection)
   return completedActions.length > 0 ? {
-    caseId, entries: completedActions, index: completedActions.length - 1,
+    caseId, entries: completedActions, index: completedReentryIndex(completedActions),
   } : restored
 }
 
@@ -418,6 +426,11 @@ export function deriveGuidedReviewProjection(input: GuidedReviewProjectionInput)
 export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const projection = deriveGuidedReviewProjection(input)
   const terminalNavigationMode = !hasOpenUserWork(projection)
+  const completedReentryCaseIdRef = useRef<string | null>(
+    input.report && terminalNavigationMode ? input.caseId : null,
+  )
+  const isCompletedReentryNavigation = completedReentryCaseIdRef.current === input.caseId
+    && terminalNavigationMode
   const completedActions = terminalNavigationMode ? completedManualActions(projection) : []
   const completedActionIds = completedActions.map(action => action.id).join('\u0000')
   const [initialNavigation] = useState<GuidedReviewNavigationState<GuidedReviewAction>>(() => (
@@ -425,9 +438,8 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
       caseId: input.caseId, entries: [], index: 0,
     }
   ))
-  const initialCurrentAction = terminalNavigationMode
-    ? projection.allActions[0] || null
-    : initialNavigation.entries[initialNavigation.index] || projection.allActions[0] || null
+  const initialCurrentAction = initialNavigation.entries[initialNavigation.index]
+    || projection.allActions[0] || null
   const [selectedActionId, setSelectedActionId] = useState(initialCurrentAction?.id || '')
   const retainedAction = useRef({
     caseId: input.caseId,
@@ -446,6 +458,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     : projectedSelectedAction || projection.allActions[0] || null
   const baseCurrentAction = leaseRecoveryAction || selectedOrFallbackAction
   const [navigation, setNavigation] = useState<GuidedReviewNavigationState<GuidedReviewAction>>(initialNavigation)
+  const selectedNavigationAction = navigation.entries.find(action => action.id === selectedActionId)
   const [revisitedActionId, setRevisitedActionId] = useState<string | null>(() => (
     initialCurrentAction && !projection.allActions.some(action => action.id === initialCurrentAction.id)
       ? initialCurrentAction.id : null
@@ -458,16 +471,20 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   const navigationAction = navigation.entries[navigation.index] || null
   const revisitedNavigationAction = navigationAction?.id === revisitedActionId
     ? navigationAction : null
-  const terminalBaseAction = terminalNavigationMode && baseCurrentAction
+  const terminalEndpointAction = terminalNavigationMode
+    ? projection.allActions[0] || null : null
+  const terminalBaseAction = terminalEndpointAction && baseCurrentAction
     && projection.allActions.some(action => action.id === baseCurrentAction.id)
     ? baseCurrentAction : null
   const currentIsTransientAction = Boolean(
     baseCurrentAction
       && !isSessionNavigationAction(baseCurrentAction)
+      && !(isCompletedReentryNavigation && selectedNavigationAction)
       && (navigation.entries.length === 0 || navigation.index === navigation.entries.length - 1),
   )
   const showingTerminalAction = Boolean(
     terminalBaseAction
+      && selectedActionId === terminalBaseAction.id
       && !revisitedNavigationAction
       && (navigation.entries.length === 0 || navigation.index === navigation.entries.length - 1),
   )
@@ -486,10 +503,9 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
   useEffect(() => {
     if (!input.report || hydratedCaseIdRef.current === input.caseId) return
     const restored = persistedNavigation(input.caseId, projection)
-    const restoredCurrent = terminalNavigationMode
-      ? projection.allActions[0] || null
-      : restored.entries[restored.index] || projection.allActions[0] || null
+    const restoredCurrent = restored.entries[restored.index] || projection.allActions[0] || null
     hydratedCaseIdRef.current = input.caseId
+    completedReentryCaseIdRef.current = terminalNavigationMode ? input.caseId : null
     skipNavigationAppendRef.current = input.caseId
     skipSelectedFallbackRef.current = input.caseId
     skipCheckpointWriteRef.current = input.caseId
@@ -500,6 +516,12 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
       && !projection.allActions.some(action => action.id === restoredCurrent.id)
       ? restoredCurrent.id : null)
   }, [input.caseId, input.report, projection, terminalNavigationMode])
+
+  useEffect(() => {
+    if (!terminalNavigationMode && completedReentryCaseIdRef.current === input.caseId) {
+      completedReentryCaseIdRef.current = null
+    }
+  }, [input.caseId, terminalNavigationMode])
 
   useEffect(() => {
     retainedAction.current = { caseId: input.caseId, action: baseCurrentAction }
@@ -513,12 +535,14 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     const fallbackAction = projection.allActions[0]
     if (shouldHoldTerminalTransition()) return
     const fallbackActionId = fallbackAction?.id
-    if (!projectedSelectedAction && baseCurrentAction?.id === fallbackActionId
+    if (!projectedSelectedAction && !(isCompletedReentryNavigation && selectedNavigationAction)
+      && baseCurrentAction?.id === fallbackActionId
       && selectedActionId !== fallbackActionId) {
       setSelectedActionId(fallbackActionId || '')
     }
   }, [baseCurrentAction?.id, input.caseId, input.saveHasPending, input.saveState,
-    projectedSelectedAction, projection.allActions, selectedActionId, waitingForTerminalSave])
+    projectedSelectedAction, projection.allActions, selectedActionId,
+    isCompletedReentryNavigation, selectedNavigationAction, waitingForTerminalSave])
 
   useEffect(() => {
     const enteredDeferred = previousLifecycle.current !== 'archive_deferred'
@@ -645,9 +669,9 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     setNavigation(previous => ({ ...previous, index: Math.max(0, previous.index - 1) }))
   }, [navigation.entries, navigation.index, navigationAction, showingTerminalAction])
   const returnToNextAction = useCallback(() => {
-    if (navigation.index >= navigation.entries.length - 1 && terminalBaseAction) {
+    if (navigation.index >= navigation.entries.length - 1 && terminalEndpointAction) {
       setRevisitedActionId(null)
-      setSelectedActionId(terminalBaseAction.id)
+      setSelectedActionId(terminalEndpointAction.id)
       return
     }
     const nextIndex = Math.min(navigation.entries.length - 1, navigation.index + 1)
@@ -656,7 +680,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
       ...previous,
       index: Math.min(previous.entries.length - 1, previous.index + 1),
     }))
-  }, [navigation.entries, navigation.index, terminalBaseAction])
+  }, [navigation.entries, navigation.index, terminalEndpointAction])
   const revisitAction = useCallback((action: GuidedReviewAction) => {
     setRevisitedActionId(action.id)
     setNavigation(previous => {
@@ -691,7 +715,7 @@ export function useGuidedReviewCards(input: GuidedReviewProjectionInput) {
     ? Boolean(navigationAction)
     : showingNavigationAction && navigation.index > 0
   const canReturnToNext = showingNavigationAction && (
-    navigation.index < navigation.entries.length - 1 || Boolean(terminalBaseAction)
+    navigation.index < navigation.entries.length - 1 || Boolean(terminalEndpointAction)
   )
 
   return {

@@ -146,9 +146,6 @@ describe('GuidedReviewView', () => {
       updateReport={updateReport} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
-    expect(screen.getByText(/每行一项/)).toBeTruthy()
-    expect(screen.getByText(/换行请按 Shift \+ Enter/)).toBeTruthy()
-    expect(screen.getByText(/全角括号/)).toBeTruthy()
 
     const input = screen.getByRole('textbox', { name: '快捷批量添加检材' })
     expect(input.getAttribute('aria-describedby')).toBe('quick-evidence-format-help')

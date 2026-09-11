@@ -14,7 +14,7 @@ import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
 import { ArchiveCompletionPanel, getArchiveCompletionGuidance } from '../components/ArchiveCompletionPanel'
 import { useGuidedReviewCards } from '../hooks/useGuidedReviewCards'
 import { GuidedReviewView } from '../components/GuidedReviewView'
-import { GuidedReviewCard } from '../components/GuidedReviewCard'
+import { GuidedReviewCard, QUICK_EVIDENCE_BATCH_GUIDANCE } from '../components/GuidedReviewCard'
 import ImageUploader, { PHOTO_UPLOAD_GUIDANCE } from '../components/ImageUploader'
 
 export default function CaseRecordGeneratePage() {
@@ -24,6 +24,7 @@ export default function CaseRecordGeneratePage() {
   const photoNavigationBlocker = useBlocker(session.photoAssets.navigationUnsafe)
   const catalogs = useRecordEditorCatalogs()
   const [archiveDecisionBusy, setArchiveDecisionBusy] = useState(false)
+  const [quickEvidenceGuidanceKey, setQuickEvidenceGuidanceKey] = useState<string | null>(null)
   const archiveDecisionInFlight = useRef(false)
   // 压缩完成前，接受用户输入的任一种介质前缀。
   // 验证结果随后将同一编辑器切换为精确的 GP/YP 契约。
@@ -60,6 +61,11 @@ export default function CaseRecordGeneratePage() {
     photoState: session.photoAssets.assetError ? 'error'
         : session.photoAssets.uploading ? 'uploading' : 'ready',
   })
+  const currentGuidedAction = guidedReview.currentAction
+  const currentGuidedActionKey = `${caseId}\u0000${currentGuidedAction?.id || ''}`
+  const handleEvidenceBatchModeChange = useCallback((active: boolean) => {
+    setQuickEvidenceGuidanceKey(active ? currentGuidedActionKey : null)
+  }, [currentGuidedActionKey])
   const updateReport = useCallback((path: string, value: unknown) => {
     session.updateReport(path, value)
   }, [session.editingEnabled, session.updateReport])
@@ -176,7 +182,6 @@ export default function CaseRecordGeneratePage() {
     : session.lease.phase === 'expired' || session.leaseLost ? '编辑租约已失效，已停止自动保存。请重新获取租约后继续。'
       : session.lease.phase === 'failed' ? '编辑权限获取失败，请重新获取后继续。'
         : session.lease.phase === 'acquiring' ? '正在获取编辑租约，请稍候。' : null
-  const currentGuidedAction = guidedReview.currentAction
   let guidedSpecialContent: React.ReactNode
   let guidedAssistantMessage: { title: string; description?: React.ReactNode } | undefined
   if (currentGuidedAction?.kind === 'save_recovery') {
@@ -214,6 +219,12 @@ export default function CaseRecordGeneratePage() {
   } else if (currentGuidedAction?.kind === 'archive_decision') {
     guidedSpecialContent = <ArchiveDecisionPanel lifecycle={session.detail.shell.lifecycle} busy={archiveDecisionBusy}
       controlsOnly onImmediate={() => { void chooseArchive('immediate') }} onDeferred={() => { void chooseArchive('deferred') }} />
+  } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.evidenceCompleteness
+    && quickEvidenceGuidanceKey === currentGuidedActionKey) {
+    guidedAssistantMessage = {
+      title: '快捷批量添加检材',
+      description: <span id="quick-evidence-format-help">{QUICK_EVIDENCE_BATCH_GUIDANCE}</span>,
+    }
   } else if (currentGuidedAction?.pendingItem?.targetId === REVIEW_TARGET_IDS.photos) {
     guidedAssistantMessage = {
       title: currentGuidedAction.title,
@@ -301,7 +312,8 @@ export default function CaseRecordGeneratePage() {
             availableInspectors={catalogs.inspectors}
             inspectorLoading={catalogs.inspectorLoading}
             inspectorError={catalogs.inspectorError}
-            onEvidenceCompletenessChange={session.setEvidenceCompletenessConfirmed} />
+            onEvidenceCompletenessChange={session.setEvidenceCompletenessConfirmed}
+            onEvidenceBatchModeChange={handleEvidenceBatchModeChange} />
         </GuidedReviewView>
       ) : null}
     </div>

@@ -938,3 +938,15 @@ workflow_level: 2
 - `guided_state_machine_tests: PASS`：受影响 Hook/组件 13 files / 105 tests 与页面 1 file / 27 tests 通过；新增案件隔离、恢复轨迹中点、防失效归档步骤、来源阻断、保存未收敛、零检查人员和单一审核入口回归，测试数据均为 SYNTHETIC/TEST。
 - `guided_state_machine_gates: PASS`：架构、TypeScript、治理文档、仓库资产及 `npm run verify:quick` 通过；系统状态投影按自然职责拆出后主 Hook 为 705 行，保持既有 740 行上限；OpenSpec change 严格校验和 `git diff --check` 通过，delta 已同步 living spec。限定范围严格文档检查初次仅因本验证任务未勾选而失败，补全记录后复核通过；Impeccable 单次检测的 2 个 warning 均位于已删除组件遗留、无生产引用的旧 CSS 选择器，当前獬豸助手界面为 0 个适用问题。
 - `guided_state_machine_manual_acceptance: N/A`：本次状态转换、DOM 入口缺席、结构化控件可达性、保存顺序和完成导出文案均由 SYNTHETIC Hook/DOM/页面集成回归可靠区分；未读取、操作或提交真实案件数据。
+
+## 2026-09-11 人工填写完成后从文号重新进入（workflow_level: 2）
+
+- [x] 6.140 将用户反馈关联到本包：人工填写未完成时继续恢复上次退出步骤；全部人工内容填写完成且没有恢复事项时，重新进入案件固定打开“文号”结构化编辑步骤，不再恢复退出前游标或先展示完成端点。本包尚未归档，按归档前反馈继续复用，不新建 change；不修改案件草稿、后端 API、共享 DTO 或字段完成规则。
+- [x] 6.141 调整 `packages/frontend/src/hooks/useGuidedReviewCards.ts` 的完成态恢复入口，从当前草稿和 `FieldState` 重建可回访步骤并把文号设为重新进入时的当前步骤；保留完整步骤轨迹和向后前进至完成端点的能力，未完成、异常恢复、案件隔离及检查点隐私边界保持不变。
+- [x] 6.142 更新 SYNTHETIC 持久化回归，先区分旧完成端点与新文号入口，再同步 delta/living spec，并运行受影响 Hook 测试、`npm run verify:quick`、限定范围严格文档检查、OpenSpec 严格校验与 `git diff --check`。
+  - 人工验收：N/A；重新进入入口、未完成游标恢复、步骤前后边界和完成端点均可由确定性 Hook 回归可靠区分，不读取或操作真实案件数据。
+
+- `completed_reentry_document_number_contract: PASS`：仍有人工待办时继续恢复原检查点；全部人工内容填写完成且没有恢复事项时忽略旧游标，按当前事实重建可回访轨迹并从“文号”进入，同时保留向前抵达当前完成或等待端点的能力。
+- `completed_reentry_document_number_tests: PASS`：先以失败用例确认旧实现直接停在完成端点；修复后相关 Hook 5 files / 43 tests、页面 1 file / 27 tests及全量前端 71 files / 485 tests 通过，数据均为 SYNTHETIC/TEST。
+- `completed_reentry_document_number_gates: PASS`：架构、TypeScript、治理文档、仓库资产及 `npm run verify:quick` 通过；限定范围严格文档检查、OpenSpec change 严格校验与 `git diff --check` 通过；delta 已同步 living spec。
+- `completed_reentry_document_number_manual_acceptance: N/A`：本次不修改尺寸、颜色或响应式布局；重新进入入口、未完成游标恢复、步骤前后边界与完成端点均由确定性 Hook/页面回归可靠区分，未读取或操作真实案件数据。

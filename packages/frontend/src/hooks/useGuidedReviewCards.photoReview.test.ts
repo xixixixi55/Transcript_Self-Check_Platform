@@ -134,6 +134,7 @@ describe('guided photo review navigation', () => {
     expect(result.current.currentAction?.description).not.toContain('案件列表')
     expect(result.current.canReturnToPrevious).toBe(true)
     expect(result.current.canReturnToNext).toBe(false)
+    expect(result.current.previousAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.photos)
 
     act(() => result.current.returnToPreviousAction())
     expect(result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.photos)

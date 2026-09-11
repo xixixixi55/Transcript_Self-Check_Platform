@@ -2248,48 +2248,9 @@
 
 .guided-review-card__quick-evidence {
   min-width: 0;
-  margin-bottom: 18px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--platform-preview-border);
-}
-
-.guided-review-card__quick-evidence-intro {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  align-items: start;
-  gap: 12px;
-}
-
-.guided-review-card__quick-evidence-icon {
-  display: inline-flex;
-  width: 34px;
-  height: 34px;
-  align-items: center;
-  justify-content: center;
-  color: var(--platform-preview-primary);
-  background: var(--platform-preview-primary-soft);
-  border-radius: 10px;
-  box-shadow: 0 7px 16px rgba(74, 98, 208, 0.14);
-}
-
-.guided-review-card__quick-evidence-copy h4 {
-  margin: 0 0 4px;
-  color: var(--review-text);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 22px;
-}
-
-.guided-review-card__quick-evidence-copy p {
-  max-width: 72ch;
-  margin: 0;
-  color: var(--review-muted);
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 .guided-review-card__quick-evidence .ant-input,
-.guided-review-card__quick-evidence-copy,
 .guided-review-card__quick-evidence-preview,
 .guided-review-card__quick-evidence-preview li {
   min-width: 0;
@@ -2336,17 +2297,6 @@
   .guided-review-card__response {
     padding: 12px;
   }
-
-  .guided-review-card__quick-evidence-intro {
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 10px;
-  }
-
-  .guided-review-card__quick-evidence-icon {
-    width: 30px;
-    height: 30px;
-  }
-
 }
 
 .guided-review-card__field {

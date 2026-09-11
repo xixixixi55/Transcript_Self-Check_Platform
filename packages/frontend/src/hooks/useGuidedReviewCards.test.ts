@@ -351,6 +351,8 @@ describe('guided review projection', () => {
     }))
     const completeness = result.current.previouslyHandledFields.find(
       field => field.targetId === REVIEW_TARGET_IDS.evidenceCompleteness)
+    expect(result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.documentNumber)
+    act(() => result.current.selectAction('ready'))
     expect(result.current.currentAction?.kind).toBe('ready')
     expect(completeness).toBeTruthy()
     act(() => result.current.revisitHandledField(completeness!))

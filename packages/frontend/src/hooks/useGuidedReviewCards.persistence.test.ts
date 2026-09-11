@@ -108,6 +108,11 @@ describe('guided review navigation persistence', () => {
       pendingItems: [],
       caseSummaryReviewed: true,
       fieldStates: {
+        document_number: {
+          field_path: 'document_number', source: 'user' as const,
+          confirmation: 'confirmed' as const, revision: 1,
+          last_changed_at: '2026-09-10T16:59:00Z',
+        },
         'introduction.evidence_list.completeness': {
           field_path: 'introduction.evidence_list.completeness', source: 'user' as const,
           confirmation: 'confirmed' as const, revision: 2,
@@ -121,20 +126,28 @@ describe('guided review navigation persistence', () => {
       },
     }
     const reopened = renderHook(() => useGuidedReviewCards(currentFacts))
-    expect(reopened.result.current.currentAction?.kind).toBe('ready')
-    expect(reopened.result.current.canReturnToPrevious).toBe(true)
-    expect(reopened.result.current.canReturnToNext).toBe(false)
-
-    act(() => reopened.result.current.returnToPreviousAction())
-    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.burningDate)
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId)
+      .toBe(REVIEW_TARGET_IDS.documentNumber)
+    expect(readGuidedReviewNavigationCheckpoint('SYNTHETIC-CASE-PERSISTENCE')?.entries
+      .map(entry => entry.targetId)).toEqual([
+      REVIEW_TARGET_IDS.documentNumber,
+      REVIEW_TARGET_IDS.evidenceCompleteness,
+      REVIEW_TARGET_IDS.photos,
+      REVIEW_TARGET_IDS.burningDate,
+    ])
+    expect(reopened.result.current.canReturnToPrevious).toBe(false)
     expect(reopened.result.current.canReturnToNext).toBe(true)
-    act(() => reopened.result.current.returnToPreviousAction())
-    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.photos)
-    act(() => reopened.result.current.returnToPreviousAction())
+
+    act(() => reopened.result.current.returnToNextAction())
     expect(reopened.result.current.currentAction?.pendingItem?.targetId)
       .toBe(REVIEW_TARGET_IDS.evidenceCompleteness)
     act(() => reopened.result.current.returnToNextAction())
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.photos)
     act(() => reopened.result.current.returnToNextAction())
+    expect(reopened.result.current.currentAction).toEqual(expect.objectContaining({
+      pendingItem: expect.objectContaining({ targetId: REVIEW_TARGET_IDS.burningDate }),
+    }))
+    expect(reopened.result.current.canReturnToNext).toBe(true)
     act(() => reopened.result.current.returnToNextAction())
     expect(reopened.result.current.currentAction?.kind).toBe('ready')
     expect(reopened.result.current.canReturnToNext).toBe(false)

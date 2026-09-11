@@ -23,6 +23,7 @@ interface Props {
   readOnly: boolean
   specialContent?: React.ReactNode
   onEvidenceCompletenessChange?: (confirmed: boolean) => void
+  onEvidenceBatchModeChange?: (active: boolean) => void
   fieldStates?: Record<string, FieldState>
   availableInspectors?: InspectorLibraryRecord[]
   inspectorLoading?: boolean
@@ -35,6 +36,8 @@ interface TextField {
   multiline?: boolean
   transform?: (value: string) => unknown
 }
+
+export const QUICK_EVIDENCE_BATCH_GUIDANCE = '每行一项，换行请按 Shift + Enter。格式：设备名称＋手机/平板一部＋（原因）＋编号；全角括号，编号置于行末。'
 
 interface EvidenceBatchPreview {
   deviceName: string
@@ -216,17 +219,6 @@ function QuickEvidenceBatchAdder({ items, onChange }: {
     <>
       {messageContextHolder}
       <div className="guided-review-card__quick-evidence">
-        <div className="guided-review-card__quick-evidence-intro">
-          <span className="guided-review-card__quick-evidence-icon" aria-hidden="true">
-            <FileAddOutlined />
-          </span>
-          <div className="guided-review-card__quick-evidence-copy">
-            <h4>快捷批量添加检材</h4>
-            <div id="quick-evidence-format-help">
-              <p>每行一项，换行请按 Shift + Enter。格式：设备名称＋手机/平板一部＋（原因）＋编号；全角括号，编号置于行末。</p>
-            </div>
-          </div>
-        </div>
         <Space direction="vertical" size="small" style={{ width: '100%', marginTop: 12 }}>
           <Input.TextArea aria-label="快捷批量添加检材" aria-describedby="quick-evidence-format-help" value={value}
             placeholder={'iPhone 6手机一部（因设备损坏无法提取）JC2026089601\niPad平板一部（因无法开机无法提取）JC2026089602'}
@@ -381,13 +373,14 @@ function EvidenceCompletenessSummary({ items, onRemove, readOnly }: {
 
 export function GuidedReviewCard({
   action, report, updateReport, readOnly, specialContent,
-  onEvidenceCompletenessChange, fieldStates, availableInspectors = [],
+  onEvidenceCompletenessChange, onEvidenceBatchModeChange, fieldStates, availableInspectors = [],
   inspectorLoading = false, inspectorError = null,
 }: Props) {
   const [evidenceMode, setEvidenceMode] = useState<'closed' | 'batch'>('closed')
   useEffect(() => {
     setEvidenceMode('closed')
-  }, [action.id])
+    onEvidenceBatchModeChange?.(false)
+  }, [action.id, onEvidenceBatchModeChange])
 
   if (specialContent) return <div className="guided-review-card__control">{specialContent}</div>
   const pending = action.pendingItem
@@ -444,7 +437,10 @@ export function GuidedReviewCard({
         <Tooltip title="不完整，手工添加检材">
           <Button shape="circle" size="large" className="guided-review-icon-action" disabled={readOnly}
             icon={<FileAddOutlined />} aria-label="检材信息不完整，手工添加检材"
-            onClick={() => setEvidenceMode('batch')} />
+            onClick={() => {
+              setEvidenceMode('batch')
+              onEvidenceBatchModeChange?.(true)
+            }} />
         </Tooltip>
       </Space>
     </div>

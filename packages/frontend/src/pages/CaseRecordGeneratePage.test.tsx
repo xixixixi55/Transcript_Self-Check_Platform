@@ -302,12 +302,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     showHandledCaseSummary = true
     renderPage()
 
-    expect(await screen.findByRole('button', { name: /保存并退出/ })).toBeTruthy()
+    expect(await screen.findByRole('textbox', { name: '文号' })).toBeTruthy()
+    expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent).toContain('请输入文号')
     expect(screen.queryByRole('button', { name: /查看已填内容与待办/ })).toBeNull()
-    fireEvent.click(await screen.findByRole('button', { name: '返回上一步' }))
-    await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
-      .toContain('请核对检材照片'))
-    fireEvent.click(screen.getByRole('button', { name: '返回上一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
 
     await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
       .toContain('请确认检材完整性'))
@@ -341,7 +340,15 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
     expect(screen.getByRole('region', { name: '当前对话' })).toBeTruthy()
     expect(document.querySelector('.review-editor-form')).toBeNull()
-    expect(screen.getByRole('textbox', { name: '快捷批量添加检材' })).toBeTruthy()
+    const assistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
+    const reply = screen.getByRole('group', { name: '你的回复' })
+    await waitFor(() => expect(assistantMessage.textContent).toContain('快捷批量添加检材'))
+    expect(assistantMessage.textContent).toContain('每行一项，换行请按 Shift + Enter。')
+    expect(within(reply).queryByText('快捷批量添加检材')).toBeNull()
+    expect(within(reply).queryByText(/每行一项/)).toBeNull()
+    const batchInput = screen.getByRole('textbox', { name: '快捷批量添加检材' })
+    expect(batchInput.getAttribute('aria-describedby')).toBe('quick-evidence-format-help')
+    expect(assistantMessage.contains(document.getElementById('quick-evidence-format-help'))).toBe(true)
     expect(screen.queryByRole('button', { name: '快捷批量补充检材' })).toBeNull()
     expect(screen.queryByRole('button', { name: /逐项编辑/ })).toBeNull()
   }, 15000)
@@ -465,7 +472,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     vi.mocked(window.confirm).mockReturnValue(false)
     renderPage()
     await waitFor(() => expect(screen.queryByText('正在获取编辑租约，请稍候。')).toBeNull())
-    const button = screen.getByRole('button', { name: /立即开始压缩/ }) as HTMLButtonElement
+    const button = await screen.findByRole('button', { name: /立即开始压缩/ }) as HTMLButtonElement
     await waitFor(() => expect(button.disabled).toBe(false))
     fireEvent.click(button)
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -594,7 +601,11 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     showHandledDiscNumber = true
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: '返回上一步' }))
+    expect(await screen.findByRole('textbox', { name: '文号' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入下一步' }))
     await waitFor(() => expect(screen.getByRole('status', { name: '獬豸助手提示' }).textContent)
       .toContain('归档完成'))
     const assistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
