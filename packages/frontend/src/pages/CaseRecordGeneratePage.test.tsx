@@ -37,7 +37,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
           : showManualReviewComplete ? detail(5, 5, 'archiving', 'GP20260731-001', {
             ...archiveTaskSummary, status: 'running', stage: 'winrar', stage_label: '正在生成压缩分卷', finished_at: null,
           })
-            : showCompletedArchive || showGuidedReady ? detail(5, 5, 'archive_verified', 'GP20260731-001', archiveTaskSummary)
+            : showCompletedArchive || showGuidedReady ? detail(persistedCaseRevision, persistedCaseRevision, 'archive_verified', 'GP20260731-001', archiveTaskSummary)
               : showDeferredTerminal ? detail(5, 5, 'archive_deferred')
                 : initialLifecycle !== 'review_ready' ? detail(5, 5, initialLifecycle)
                   : read === 0 ? detail(5, 5)
@@ -535,20 +535,27 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
 
   it('allows repeated disc mapping updates without creating a competing draft revision', async () => {
     archiveResultParts = completedArchiveResult.parts.map(part => ({ ...part, disc_number: '', disc_date: '' }))
-    showCompletedArchive = true
+    showCompletedArchive = true; showGuidedReady = true; holdSave = true
     renderPage()
+    const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
+    fireEvent.click(await within(historyRegion).findByRole('button', { name: /SYNTHETIC Phone，按 Enter 编辑/ }))
+    const deviceInput = within(historyRegion).getByDisplayValue('SYNTHETIC Phone')
+    fireEvent.change(deviceInput, { target: { value: 'SYNTHETIC Updated Phone' } }); fireEvent.blur(deviceInput)
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
     await selectGuidedAction('介质编号')
     expect(await screen.findByText('待补盘号')).toBeTruthy()
     fireEvent.change(await screen.findByPlaceholderText('如 GP2026073102-01'), { target: { value: 'GP2026073102-01' } })
     fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
-    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 5, expected_plan_row_revision: 4, first_disc_number: 'GP2026073102-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+    expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId))).toBe(false)
+    holdSave = false; resolveSave?.(); resolveSave = null
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 6, expected_plan_row_revision: 4, first_disc_number: 'GP2026073102-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
     await waitFor(() => expect(screen.getByText('归档完成')).toBeTruthy())
     expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP2026073102-01')
     await new Promise(resolve => setTimeout(resolve, 800))
     fireEvent.change(screen.getByRole('textbox', { name: '首个光盘编号' }), { target: { value: 'GP2026073102-03' } })
     fireEvent.click(screen.getByRole('button', { name: '更新盘号映射' }))
     await waitFor(() => expect(archivePlanRowRevision).toBe(6))
-    expect(patchMock).not.toHaveBeenCalled()
+    expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
   it('blocks browser and SPA navigation until recovered photo bindings finish saving', async () => {
     recoverPhotoOnLoad = true

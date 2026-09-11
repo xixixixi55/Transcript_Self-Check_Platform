@@ -124,6 +124,23 @@ export default function CaseRecordGeneratePage() {
       setArchiveDecisionBusy(false)
     }
   }
+  const resolveArchiveMappingRevision = async (): Promise<number | null> => {
+    if (session.photoAssets.navigationUnsafe && !await session.photoAssets.waitForIdle()) {
+      message.warning('图片尚未成功保存到案件草稿，请完成保存后再提交介质编号。')
+      return null
+    }
+    const saved = await session.autosave.saveNow()
+    if (!saved) {
+      message.warning('当前输入尚未保存成功，请先完成保存后再提交介质编号。')
+      return null
+    }
+    const latestDetail = await session.reloadDetail(caseId, { background: true })
+    if (!latestDetail) {
+      message.warning('案件最新版本读取失败，请稍后重试。')
+      return null
+    }
+    return latestDetail.shell.revision
+  }
   useShortcuts({ onSave: saveNow, previewOpen: false, onClosePreview: () => undefined, enabled: Boolean(session.report) })
   useEffect(() => {
     const shouldWarn = session.photoAssets.navigationUnsafe || session.autosave.hasPending || session.autosave.draftState.status === 'saving'
@@ -243,11 +260,12 @@ export default function CaseRecordGeneratePage() {
       archiveMedium,
     )
     guidedSpecialContent = <ArchiveCompletionPanel lifecycle={session.detail.shell.lifecycle} caseId={caseId}
-      expectedRevision={session.detail.shell.revision} parts={session.completedArchive.result?.parts ?? null}
+      parts={session.completedArchive.result?.parts ?? null}
       planRowRevision={session.completedArchive.result?.plan_row_revision ?? null}
       archiveMedium={archiveMedium}
       firstDiscNumber={session.report.attachments?.disc_number || ''}
       onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
+      resolveExpectedRevision={resolveArchiveMappingRevision}
       readOnly={!session.editingEnabled} controlsOnly
       onCompleted={() => {
         session.completedArchive.reload()

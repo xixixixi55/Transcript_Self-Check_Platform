@@ -450,3 +450,9 @@ workflow_level: 3
   - 自动化证据：新增 SYNTHETIC 交错时序回归在旧实现上失败于同时发起两次绑定；修复后图片资产与助手图片导航 2 files / 17 tests 通过。
   - final_gate/code_review: [DEFERRED] 当前 Level 3 包尚未冻结，本反馈执行风险相称增量门控，不提前重复最终 Review/full gate。
   - manual_acceptance: [N/A] 同页面请求交错、绑定次数与当前图片保留由可控 Promise 的 SYNTHETIC Hook 回归可靠区分，不需读取真实案件数据。
+
+- [x] T057 修复归档完成后修改介质编号偶发误报“案件已被其他会话修改”的 revision 竞态。
+  - 根因与修复：同页图片绑定或其他审核字段自动保存会推进案件 shell revision，但映射入口仍携带页面初次加载的旧 revision；是否误报取决于用户操作顺序。现在映射提交前先等待本页图片与草稿保存收敛，再后台重读最新案件 revision，并与当前 plan 行 revision 一起提交；本页写入或详情读取失败时不发送映射请求，准备/提交期间忽略重复点击，真正的案件/plan 过期仍由既有 CAS 拒绝。
+  - 自动化证据：SYNTHETIC 页面回归让同页审核字段保存保持在途，将案件 revision 从 5 推进至 6 后再连续两次更新介质映射；旧实现会提前以 revision 5 提交并失败，修复后等待保存响应并使用 revision 6，页面与归档完成面板 2 files / 37 tests 通过且只产生预期的一次草稿 PATCH。后端映射与过期 revision CAS 11 tests、`npm run verify:quick`、scoped strict docs（14 checks / 0 drift）和 `git diff --check` 均通过；前端测试仅输出既有 React `act` 提示。
+  - final_gate/code_review: [DEFERRED] 当前 Level 3 包尚未冻结，本反馈执行风险相称增量门控，不提前重复最终 Review/full gate。
+  - manual_acceptance: [N/A] 同页草稿保存、案件 revision 重读、连续 plan CAS 与请求次数均由 SYNTHETIC 可控回归可靠区分，不读取或操作真实案件数据。

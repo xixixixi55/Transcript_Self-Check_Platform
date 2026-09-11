@@ -32,11 +32,11 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     render(<ArchiveCompletionPanel
       lifecycle="review_ready"
       caseId="case-synthetic-disc-input"
-      expectedRevision={1}
       planRowRevision={2}
       parts={null}
       firstDiscNumber="GP20260731-001"
       onFirstDiscNumberChange={onFirstDiscNumberChange}
+      resolveExpectedRevision={async () => 1}
       onCompleted={vi.fn()}
       {...props}
     />)
@@ -125,10 +125,9 @@ describe('ArchiveCompletionPanel unified disc-number input', () => {
     expect(input.value).toBe('GP20260731-001')
     fireEvent.change(input, { target: { value: 'GP20260731-002' } })
     fireEvent.click(screen.getByRole('button', { name: '更新盘号映射' }))
-    expect(mapping).toHaveBeenCalledWith(
+    await vi.waitFor(() => expect(mapping).toHaveBeenCalledWith(
       'case-synthetic-disc-input', 1, 2, 'GP20260731-002',
-    )
-    await vi.waitFor(() => expect(mapping).toHaveBeenCalledTimes(1))
+    ))
     expect(onFirstDiscNumberChange).not.toHaveBeenCalled()
     expect(screen.getByText('归档完成')).toBeTruthy()
     expect(screen.getByText(/全部 RAR、文件哈希与盘号已对应完成/)).toBeTruthy()

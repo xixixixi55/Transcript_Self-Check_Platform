@@ -1,5 +1,5 @@
 // 第 11 层：FE_Components — 统一的首张光盘输入与延迟映射。
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Input, Space, message } from 'antd'
 import type { ArchiveMedium, CaseLifecycle } from '@biji/shared/types'
 import {
@@ -11,12 +11,12 @@ import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 interface Props {
   lifecycle: CaseLifecycle
   caseId: string
-  expectedRevision: number
   planRowRevision: number | null
   archiveMedium?: ArchiveMedium | null
   parts: { disc_number?: string | null; size_bytes?: number | null }[] | null
   firstDiscNumber: string
   onFirstDiscNumberChange: (value: string) => void
+  resolveExpectedRevision: () => Promise<number | null>
   readOnly?: boolean
   controlsOnly?: boolean
   onCompleted: () => void
@@ -64,9 +64,10 @@ export function getArchiveCompletionGuidance(
 }
 
 export function ArchiveCompletionPanel({
-  lifecycle, caseId, expectedRevision, planRowRevision, parts,
+  lifecycle, caseId, planRowRevision, parts,
   archiveMedium = 'optical_disc',
   firstDiscNumber, onFirstDiscNumberChange,
+  resolveExpectedRevision,
   readOnly = false, controlsOnly = false, onCompleted,
 }: Props) {
   const archive = useArchiveCompletion()
@@ -74,6 +75,8 @@ export function ArchiveCompletionPanel({
   const effectiveFirstDiscNumber = persistedFirstDiscNumber || firstDiscNumber
   const [mappingDiscNumber, setMappingDiscNumber] = useState(effectiveFirstDiscNumber)
   const [mappingPlanRowRevision, setMappingPlanRowRevision] = useState(planRowRevision)
+  const [mappingPreparing, setMappingPreparing] = useState(false)
+  const mappingInFlight = useRef(false)
   const status = resolveArchiveCompletionStatusForParts(lifecycle, parts)
   const hardDrive = archiveMedium === 'hard_drive'
   const mediumLabel = hardDrive ? '硬盘' : archiveMedium === 'optical_disc' ? '光盘' : '介质'
@@ -96,9 +99,14 @@ export function ArchiveCompletionPanel({
     if (mappingPlanRowRevision === null) { message.warning('归档计划版本尚未加载，请刷新后重试。'); return }
     const candidate = mappingDiscNumber.trim()
     if (!candidate) { message.warning(`请输入${numberLabel}。`); return }
+    if (mappingInFlight.current) return
+    mappingInFlight.current = true
+    setMappingPreparing(true)
     try {
+      const latestExpectedRevision = await resolveExpectedRevision()
+      if (latestExpectedRevision === null) return
       const result = await archive.mapping(
-        caseId, expectedRevision, mappingPlanRowRevision, candidate,
+        caseId, latestExpectedRevision, mappingPlanRowRevision, candidate,
       )
       setMappingPlanRowRevision(result.plan_row_revision)
       message.success(hardDrive
@@ -106,13 +114,17 @@ export function ArchiveCompletionPanel({
         : `已按序映射 ${result.parts.length} 个光盘编号。`)
       onCompleted()
     } catch { /* error already surfaced via useArchiveCompletion.error */ }
+    finally {
+      mappingInFlight.current = false
+      setMappingPreparing(false)
+    }
   }
 
   if (status === 'disc_pending') {
     const controls = <Space className="archive-completion-panel__controls">
       <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
         disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
-      <Button type="primary" loading={archive.busy} disabled={readOnly}
+      <Button type="primary" loading={mappingPreparing || archive.busy} disabled={readOnly}
         onClick={() => { void submitMapping() }}>{hardDrive ? '提交硬盘编号' : '提交盘号映射'}</Button>
     </Space>
     if (controlsOnly) return controls
@@ -124,7 +136,7 @@ export function ArchiveCompletionPanel({
     const controls = <Space className="archive-completion-panel__controls">
       <Input id={REVIEW_TARGET_IDS.discNumber} aria-label={numberLabel} placeholder={numberPlaceholder} value={mappingDiscNumber}
         disabled={readOnly} onChange={event => setMappingDiscNumber(event.target.value)} />
-      <Button loading={archive.busy} disabled={readOnly}
+      <Button loading={mappingPreparing || archive.busy} disabled={readOnly}
         onClick={() => { void submitMapping() }}>{hardDrive ? '更新硬盘编号' : '更新盘号映射'}</Button>
     </Space>
     if (controlsOnly) return controls
