@@ -46,6 +46,7 @@ _HARDWARE_NAME_MARKERS = ("取证塔", "取证设备", "取证工作站", "采�
 class ReportFormat(str, Enum):
     LEGACY = "legacy"
     NEW = "new"
+    PINGHANG = "pinghang"
     UNSUPPORTED = "unsupported"
 
 

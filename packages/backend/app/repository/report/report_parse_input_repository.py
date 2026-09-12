@@ -19,6 +19,13 @@ from .report_format_adapter import (
     ReportFormat,
     detect_report_format_from_payloads,
 )
+from .pinghang_report_adapter import (
+    PINGHANG_ADAPTER_ID,
+    PINGHANG_ADAPTER_VERSION,
+    PinghangReportError,
+    looks_like_pinghang_report,
+    parse_pinghang_report,
+)
 from .device_field_parser import is_generic_device_label, try_parse_json
 from .report_parse_input_models import (
     DependencyRecord,
@@ -49,6 +56,8 @@ _CORE_FILES = (
 def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapshot:
     """核心数据和明确选择的设备元数据各仅读取一次。"""
     source_root = resolve_directory(source_dir)
+    if looks_like_pinghang_report(source_root):
+        return _build_pinghang_snapshot(source_root)
     data_root = source_root / "data"
     require_directory(data_root)
     dependencies: dict[str, DependencyRecord] = {}
@@ -140,16 +149,65 @@ def build_report_parse_input_snapshot(source_dir: str) -> ReportParseInputSnapsh
             })
 
     records = tuple(sorted(dependencies.values(), key=lambda item: item.relative_path.casefold()))
+    adapter_id = f"meiya-{report_format.value}-v1"
+    adapter_version = "1.0.0"
+    structure_fingerprint = hashlib.sha256(adapter_id.encode("ascii")).hexdigest()
     return ReportParseInputSnapshot(
         source_key=normalized_directory_key(str(source_root)),
         report_format=report_format,
+        adapter_id=adapter_id,
+        adapter_version=adapter_version,
+        structure_fingerprint=structure_fingerprint,
         case_info=parse_case_info_payload(core_payloads["data_case_info.json"]),
         device_rows=device_rows,
         report_info=parse_report_info_payload(core_payloads["data_report_info.json"]),
+        case_source_file="data/data_case_info.json",
+        report_source_file="data/data_report_info.json",
+        device_source_files={
+            row.get("evidence_number", ""): "data/data_device_lists.json"
+            for row in device_rows if row.get("evidence_number")
+        },
         evidence_directories=evidence_directories,
         device_base_info=device_base_info,
         dependencies=records,
-        dependency_fingerprint=_fingerprint_records(records),
+        dependency_fingerprint=_fingerprint_records(
+            records, adapter_id, adapter_version, structure_fingerprint,
+        ),
+    )
+
+
+def _build_pinghang_snapshot(source_root: Path) -> ReportParseInputSnapshot:
+    dependencies: dict[str, DependencyRecord] = {}
+
+    def read_file(path: Path) -> bytes:
+        return _read_dependency(path, source_root, dependencies)
+
+    try:
+        facts = parse_pinghang_report(source_root, read_file=read_file)
+    except PinghangReportError as error:
+        raise ReportParseInputError("平航报告结构不受支持。") from error
+    records = tuple(sorted(dependencies.values(), key=lambda item: item.relative_path.casefold()))
+    return ReportParseInputSnapshot(
+        source_key=normalized_directory_key(str(source_root)),
+        report_format=ReportFormat.PINGHANG,
+        adapter_id=PINGHANG_ADAPTER_ID,
+        adapter_version=PINGHANG_ADAPTER_VERSION,
+        structure_fingerprint=facts.structure_fingerprint,
+        case_info=facts.case_info,
+        device_rows=facts.device_rows,
+        report_info=facts.report_info,
+        case_source_file=facts.case_source_file,
+        report_source_file=facts.report_source_file,
+        device_source_files=facts.device_source_files,
+        evidence_directories={},
+        device_base_info=facts.device_base_info,
+        dependencies=records,
+        dependency_fingerprint=_fingerprint_records(
+            records,
+            PINGHANG_ADAPTER_ID,
+            PINGHANG_ADAPTER_VERSION,
+            facts.structure_fingerprint,
+        ),
     )
 
 
@@ -178,8 +236,16 @@ def _read_dependency(
     return raw
 
 
-def _fingerprint_records(records: tuple[DependencyRecord, ...]) -> str:
+def _fingerprint_records(
+    records: tuple[DependencyRecord, ...],
+    adapter_id: str,
+    adapter_version: str,
+    structure_fingerprint: str,
+) -> str:
     digest = hashlib.sha256()
+    digest.update(adapter_id.encode("utf-8"))
+    digest.update(b"\0" + adapter_version.encode("ascii"))
+    digest.update(b"\0" + structure_fingerprint.encode("ascii") + b"\0")
     for record in records:
         digest.update(record.relative_path.casefold().encode("utf-8"))
         digest.update(f"\0{record.size_bytes}\0{record.modified_time_ns}\0".encode("ascii"))

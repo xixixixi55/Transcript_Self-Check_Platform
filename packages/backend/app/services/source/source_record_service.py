@@ -14,7 +14,11 @@ from ...repository.source.source_locator_repository import SourceLocatorReposito
 from ...repository.source.source_record_repository import SourceRecordRepository
 from ...repository.workbench.workbench_database import WorkbenchDatabase
 from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
-from ...repository.report.report_format_adapter import ReportFormatError, require_supported_report_format
+from ...repository.report.report_adapter_registry import (
+    ReportAdapterDetectionError,
+    ReportAdapterMatch,
+    detect_report_adapter,
+)
 from ..archive.archive_authorization_service import ArchiveAuthorizationService
 from .source_record_fingerprint_service import (
     directory_summary,
@@ -64,11 +68,12 @@ class SourceRecordService:
         authorized = self.authorization.authorize_report_directory(
             report_dir,
         )
-        self._validate_report_structure(authorized.resolved_input_root)
+        adapter = self._validate_report_structure(authorized.resolved_input_root)
         source_id = opaque_id("source")
         allowed_root = authorized.authorized_scope or authorized.resolved_input_root.parent
         try:
             metadata = directory_summary(authorized.resolved_input_root)
+            metadata.update(self._adapter_metadata(adapter))
             self.locators.save(source_id, str(authorized.resolved_input_root), str(allowed_root))
         except OSError as error:
             self.locators.remove(source_id)
@@ -152,8 +157,9 @@ class SourceRecordService:
             locator = self.repository.get_internal_locator(source_id)
             path = Path(locator["internal_path"])
             validate_pending_locator(path, Path(locator["allowed_root"]))
-            self._validate_report_structure(path)
+            adapter = self._validate_report_structure(path)
             metadata, current_fingerprint = _fingerprint_with_metadata(path, should_cancel)
+            metadata.update(self._adapter_metadata(adapter))
             return self.repository.activate_pending(source_id, metadata, current_fingerprint)
         except SourceFingerprintCancelledError:
             return self.repository.get(source_id)
@@ -279,10 +285,18 @@ class SourceRecordService:
         if isinstance(locator_id, str):
             self.locators.remove(locator_id)
 
-    def _validate_report_structure(self, report_dir: Path) -> None:
+    def _validate_report_structure(self, report_dir: Path) -> ReportAdapterMatch:
         try:
-            require_supported_report_format(str(report_dir / "data"))
-        except ReportFormatError as error:
+            return detect_report_adapter(report_dir)
+        except ReportAdapterDetectionError as error:
             raise WorkbenchPersistenceError("SOURCE_STRUCTURE_INVALID") from error
         except OSError as error:
             raise WorkbenchPersistenceError("SOURCE_ACCESS_DENIED") from error
+
+    @staticmethod
+    def _adapter_metadata(adapter: ReportAdapterMatch) -> dict[str, str]:
+        return {
+            "adapter_id": adapter.adapter_id,
+            "adapter_version": adapter.adapter_version,
+            "adapter_structure_fingerprint": adapter.structure_fingerprint,
+        }

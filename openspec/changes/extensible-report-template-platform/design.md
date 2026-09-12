@@ -162,6 +162,56 @@ FieldProvenance {
 
 `ReportAdapter` 接口分为 `detect(input)`, `discover(input)`, `parse(input, profile)` 三步。`discover` 只能生成候选和证据；`parse` 在 Profile 未确认或低置信字段上返回 issue。Profile 命中顺序为精确结构指纹 → 厂商/版本/结构兼容指纹 → 人工确认；不能以文件名、案件名称或目录顺序作为唯一识别。
 
+### 平航手机多路取证报告 v1 内置适配
+
+本增量依据用户指定的仓库外报告样本，只固化其可验证结构，不复制、提交或记录样本中的案件、人员、设备标识、附件内容和绝对路径。支持边界命名为 `pinghang-mobile-multipath-v1`，表示“当前已观察结构的内置确定性适配”，不表示任意平航产品、任意导出版本或任意离线网页报告已经受支持。
+
+观察到的稳定入口为：报告根目录包含入口 HTML、`报告/data/navigation_data.js`、`报告/data/ViewData/*.json`，ViewData 以 `;static.report.records.data_<index>_<page> = <object>` 形式保存；其中至少存在一个 `Info.type = DeviceInfo` 页面，以及分别包含报告信息和案件信息标签集合的 Table 页面。`附件/图片文件` 是被检设备中提取的内容，不是文书附件二的检材外观照片；适配器不得将其自动绑定为 `photo_ids` 或 `MaterialPhotoGroup`。
+
+```text
+Report directory
+    │
+    ▼
+bounded source probe
+    │  exact structural evidence
+    ▼
+ReportAdapterRegistry ── no match / tie ──► safe unsupported/ambiguous issue
+    │ pinghang-mobile-multipath-v1
+    ▼
+safe JSONP literal decoder + strict navigation node reader
+    │
+    ▼
+Pinghang raw facts
+    │
+    ▼
+CanonicalInspectionCase + FieldProvenance + field issues
+    │
+    ▼
+InspectionReport compatibility projection
+    │
+    ▼
+existing review / archive / current-template-v1 renderer
+```
+
+探测只读取入口、导航和导航/版本化锚点选中的少量 ViewData 核心元数据，不枚举或打开其他 ViewData 页面，也不递归解析 `附件`、`数据`、`工具` 或 `资源` 中的大体量内容。报告总容量和非核心 ViewData 页数不得成为案件初始化上限；安全预算只约束导航、被选核心页、内存、耗时和取消。格式选择使用适配器注册表返回的结构证据和唯一匹配：无匹配或多个适配器并列命中时明确失败，不按目录名、案件名或第一个成功解析器静默选择。来源 metadata 和解析缓存键携带 `adapter_id`、`adapter_version` 与结构指纹，适配器升级后不得复用旧语义缓存。
+
+ViewData 文件虽然使用 `.json` 后缀，但不是可直接信任的 JSON。读取器必须先验证固定赋值前缀，只截取右侧数据字面量，清除 BOM/NUL，并以字符串感知方式移除对象/数组尾逗号后交给标准 JSON 解码器；被选核心页遇到函数、表达式、额外语句、不匹配变量名、超限嵌套或超限文件时拒绝。未被选择的聊天、动态、媒体等内容页既不解码也不因其中的非核心编码差异阻塞案件初始化。禁止通过 `eval`、`exec`、Node VM、浏览器或脚本宿主执行报告内容。`navigation_data.js` 只以严格语法提取节点 ID、父 ID、Base64 显示标签和 `dataIndex`，不得作为通用 JavaScript 执行。
+
+页面定位采用类似现有 legacy/new 的 v1 快速路径：报告信息页使用 v1 固定锚点 `0_1.json`，但必须同时校验赋值变量、`Info.type` 和报告字段标签，不能只相信编号；案件页由导航中严格 Base64 解码为“案件信息”的唯一 Table 节点定位；设备页由导航中全部 `viewType = DeviceInfo` 节点及其 `dataIndex`/`rangeCount` 定位。除这些核心页外不枚举 ViewData：
+
+| 规范化目标 | 平航页面语义 | 规则 |
+|---|---|---|
+| 案件名称、编号、摘要、创建时间 | 导航显示标签为“案件信息”的唯一 Table | 导航唯一定位后再校验案件名称/编号等标签；重复导航节点产生 issue |
+| 报告完成时间、软件版本候选 | v1 `0_1.json` Table | 同时校验固定赋值和数据取证软件版本/报告导出软件版本/报告完成日期标签；软件名称未由报告可靠绑定时保持待确认 |
+| 检材名称、编号、型号、标识符、取证时间 | `Info.type = DeviceInfo` | 每个页面形成一个材料候选，保留 IMEI/IMEI2/序列码来源 |
+| 附件二检材照片 | 无自动映射 | 继续使用现有人工上传和显式材料绑定 |
+
+多个 `DeviceInfo` 页面按已验证的导航顺序生成 `Material[]`；导航缺失、页面重复、检材编号重复或顺序无法确定时保留候选并阻止正式导出，不能按文件枚举偶然顺序猜测。只有报告中明确、唯一的手机/平板语义字段才能产生 `confirmed_by_report`；`Android 设备`、IMEI 是否存在、目录名和设备型号都不能单独决定类型。案件创建时间和报告完成时间分别作为案件级检查时间边界候选；设备取证起止时间只保留 provenance，不替代案件级时间。
+
+第一版不启用通用 ReportProfile 发现 UI。`pinghang-mobile-multipath-v1` 是随代码审核发布的内置 confirmed profile；结构超出该 profile 时进入“不支持/待新增版本”，而不是自动学习后导出。它可以通过 canonical 规范化后投影现有 `InspectionReport`，但正式 Word 仍走当前 legacy renderer、`ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1`，不会因此切换全局 `pipeline_mode=canonical`。
+
+备选方案一是在现有 `report_format_adapter.py`、`html_parser.py` 中继续增加平航条件分支；拒绝，因为其文件入口、JSONP 语法和字段模型与现有三 JSON 结构不同，会把厂商差异扩散到来源校验、缓存和业务组装。备选方案二是执行平航自带网页脚本后读取 DOM；拒绝，因为报告属于不可信输入，脚本执行会扩大本机文件和进程安全边界。备选方案三是把全部 ViewData 和附件内容先导入数据库；拒绝，因为当前生成文书只需要少量报告事实，复制大量取证内容会增加性能、隐私和留存风险。
+
 ### `ArchivePlan`, `ArchivePart`, `DiscSequence`
 
 ```text

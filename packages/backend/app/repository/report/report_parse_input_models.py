@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from .report_format_adapter import ReportFormat
 
@@ -26,9 +27,15 @@ class ReportParseInputSnapshot:
 
     source_key: str
     report_format: ReportFormat
+    adapter_id: str
+    adapter_version: str
+    structure_fingerprint: str
     case_info: dict[str, str]
     device_rows: tuple[dict[str, str], ...]
-    report_info: dict[str, str]
+    report_info: dict[str, Any]
+    case_source_file: str
+    report_source_file: str
+    device_source_files: dict[str, str]
     evidence_directories: dict[str, str]
     device_base_info: dict[str, dict[str, str]]
     dependencies: tuple[DependencyRecord, ...]

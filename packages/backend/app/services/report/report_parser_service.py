@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import tempfile
+from pathlib import Path
 from typing import Optional
 from ...repository.archive.file_storage import (
     extract_archive, compute_md5, detect_winrar_version,
@@ -21,7 +22,9 @@ from ...repository.report.html_parser import (
     format_inspection_time_range,
 )
 from ...repository.report.device_field_parser import is_generic_device_label
-from ...repository.report.report_format_adapter import require_supported_report_format
+from ...repository.report.report_format_adapter import ReportFormat, require_supported_report_format
+from ...repository.report.pinghang_report_adapter import looks_like_pinghang_report
+from ...repository.report.report_adapter_registry import detect_report_adapter
 from ...repository.source.filesystem_identity_repository import (
     normalized_directory_key,
 )
@@ -45,11 +48,23 @@ from ..inspection.material_policy_service import (
 )
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from ..inspection.entrust_person_service import normalize_entrust_persons
+from ..canonical.pinghang_canonical_service import project_pinghang_report
 _TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """每次读取并解析报告目录；compress 仅为兼容参数。"""
     source_key = normalized_directory_key(source_dir)
+    source_root = Path(source_dir)
+    current_core = source_root / "data"
+    has_current_structure = all((current_core / name).is_file() for name in (
+        "data_case_info.json", "data_device_lists.json", "data_report_info.json",
+    ))
+    if has_current_structure or looks_like_pinghang_report(source_root):
+        adapter = detect_report_adapter(source_root)
+        source_key = ":".join((
+            source_key, adapter.adapter_id, adapter.adapter_version,
+            adapter.structure_fingerprint,
+        ))
     return REPORT_PARSE_INFLIGHT_REGISTRY.run(
         source_key,
         lambda: _parse_report_task(source_dir, output_dir, compress),
@@ -67,10 +82,12 @@ def _parse_report_task(
             "data_case_info.json", "data_device_lists.json", "data_report_info.json",
         )
     )
+    has_pinghang_structure = looks_like_pinghang_report(Path(source_dir))
     return _build_parse_result(
         source_dir, output_dir, compress,
         input_snapshot=(
-            build_report_parse_input_snapshot(source_dir) if has_core_files else None
+            build_report_parse_input_snapshot(source_dir)
+            if has_core_files or has_pinghang_structure else None
         ),
     )
 
@@ -85,13 +102,18 @@ def _build_parse_result(
         data_dir, source_dir, output_dir, compress=compress,
         input_snapshot=input_snapshot,
     )
+    if input_snapshot is not None and input_snapshot.report_format == ReportFormat.PINGHANG:
+        report = project_pinghang_report(report, input_snapshot)
+    parsed_files = [
+        "data_case_info.json", "data_device_lists.json",
+        "data_report_info.json", "data_navigation.json",
+    ]
+    if input_snapshot is not None and input_snapshot.report_format == ReportFormat.PINGHANG:
+        parsed_files = [item.relative_path for item in input_snapshot.dependencies]
     return {
         "report": report,
         "_case_metadata": _case_metadata(data_dir, input_snapshot, report),
-        "parsed_files": [
-            "data_case_info.json", "data_device_lists.json",
-            "data_report_info.json", "data_navigation.json",
-        ],
+        "parsed_files": parsed_files,
         "rar_info": _build_rar_info(report),
     }
 
@@ -233,7 +255,8 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "evidence_number": en,
         })
 
-    evidence_items = _natural_evidence_order(evidence_items)
+    if input_snapshot is None or input_snapshot.report_format != ReportFormat.PINGHANG:
+        evidence_items = _natural_evidence_order(evidence_items)
 
     # 6. 检查过程步骤
     # 保留旧版标量 DTO 字段，但将所有证据项投影为其显示文本。
@@ -329,7 +352,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "entrust_unit": case.get("submit_unit", ""),
             "entrust_persons": _split_persons(case.get("submit_person", "")),
             "entrust_time": "",
-            "case_summary": "",
+            "case_summary": case.get("case_summary", ""),
             "evidence_list": evidence_items,
             "inspection_requirement": DEFAULT_INSPECTION_REQUIREMENT,
             "inspection_time_range": time_range,
@@ -346,9 +369,19 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
                 "confirmation_status": main_status,
                 "provenance": [{
                     "source_type": "report",
-                    "source_file": "data_report_info.json",
+                    "source_file": (
+                        input_snapshot.report_source_file
+                        if input_snapshot is not None
+                        and input_snapshot.report_format == ReportFormat.PINGHANG
+                        else "data_report_info.json"
+                    ),
                     "json_path": "contents",
-                    "adapter": "legacy-report-adapter",
+                    "adapter": (
+                        input_snapshot.adapter_id
+                        if input_snapshot is not None
+                        and input_snapshot.report_format == ReportFormat.PINGHANG
+                        else "legacy-report-adapter"
+                    ),
                     "confidence": 1 if main_status == "confirmed_by_report" else None,
                 }],
                 "candidates": main_candidates,

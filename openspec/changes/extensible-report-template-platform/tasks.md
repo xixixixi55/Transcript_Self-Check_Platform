@@ -263,6 +263,25 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [ ] 17.2 只定义 `TemplateProfile` 的段落/表格/单元格/内容控件/VML anchor、重复区、图片区、显示条件、分页和推荐草稿扩展点，不在阶段一实现通用模板设计器、无标记识别或自动推荐。输入：固定 current-template-v1 Profile；输出：阶段三可扩展接口；验收：阶段一只接受固定 Profile。 [DEFERRED]
 - [ ] 17.2T 为 TemplateProfile round-trip、版本、anchor 和“未确认不可导出”增加契约测试；验收：接口可扩展但阶段一能力边界不扩大。 [DEFERRED]
 
+### 17A. 平航手机多路取证报告 v1 确定性适配（Level 2）
+
+本增量复用当前 Level 3 变更包，但实现与验证强度按本次中等范围行为变化独立选择。用户指定样本只作为仓库外只读人工分析输入；任何测试夹具必须重新构造并明确标记 SYNTHETIC，不得复制真实案件名、人员、设备编号、标识符、附件内容、绝对路径或生成输出。
+
+- [x] 17A.1 将已观察的平航 v1 结构、支持边界、字段语义、安全读取、材料顺序、图片排除和现有输出兼容决策写入 `openspec/changes/extensible-report-template-platform/design.md`、根 `spec.md` 与 delta spec。输入：用户指定仓库外样本的脱敏结构观察；输出：`pinghang-mobile-multipath-v1` 确定性合同；验收：明确“不执行脚本、不仅凭文件编号接受页面、不自动导入提取图片、不宣称任意平航版本”。
+  - 设计证据（2026-09-12）：OpenSpec strict validate 通过，`git diff --check` 通过；针对仓库外样本中观察到的设备标识、案件值和绝对路径执行定向扫描零命中，未复制或修改样本文件。
+- [x] 17A.2 在 Layer 20 新增平航有界探测、严格导航节点读取和安全 JSONP 数据字面量解析，并把现有格式选择重构为唯一匹配的适配器注册表。预计文件：`packages/backend/app/repository/report/report_adapter_registry.py`、`pinghang_report_adapter.py`、`pinghang_jsonp_repository.py`、`report_format_adapter.py`、`report_parse_input_models.py`；验证：先增加失败用例，再覆盖固定前缀、BOM/NUL、字符串内逗号、尾逗号、非法/额外语句、函数表达式、大小/数量/深度限制、路径越界、无匹配和并列匹配。
+- [x] 17A.2T 在 `tests/test_pinghang_report_adapter.py` 与现有 `tests/test_report_parse_input_repository.py` 中使用最小 SYNTHETIC 离线报告目录验证结构探测和原始事实提取；测试必须扫描 fixture 和失败日志，确认没有真实样本值或绝对路径进入仓库、响应和日志。
+- [x] 17A.3 在 Layer 21 将平航案件页、报告页和全部 `DeviceInfo` 页面映射为 `CanonicalInspectionCase`/`FieldProvenance`，再生成现有 `InspectionReport` 兼容投影；软件名称/版本、材料类型和时间字段遵循现有确认及 ExportGate 规则。预计文件：`packages/backend/app/services/canonical/pinghang_canonical_service.py`、`canonical_adapter_service.py`、`packages/backend/app/services/report/report_parser_service.py`；验证：单材料、多材料导航顺序、重复检材编号、冲突页面、软件待确认、Android 设备不自动等同手机、案件级与设备级时间不混用。
+- [x] 17A.3T 复用并扩展 `tests/test_report_parser_service.py`、`tests/test_legacy_report_projection_service.py`、canonical/material/software/export-gate 现有测试，证明平航输入得到可审核 DTO，旧/新现有格式优先级与输出不变，未知平航变体不产生部分正确的正式结果。
+- [x] 17A.4 将适配器注册表接入报告目录登记、来源重新校验、解析输入依赖指纹和缓存版本；来源 metadata/缓存键记录 `adapter_id`、`adapter_version`、结构指纹，公共响应和日志不暴露绝对路径或原始敏感值。预计文件：`packages/backend/app/services/source/source_record_service.py`、`packages/backend/app/repository/report/report_parse_input_repository.py`、`packages/backend/app/services/report/report_parse_inflight_service.py` 及其现有测试；验证：原生目录选择成功、取消无副作用、来源变化失效、适配器升级不复用旧缓存、现有格式来源登记回归。
+- [x] 17A.4T 运行来源/解析/工作台受影响的 pytest，确认单个有效平航 v1 目录进入现有审核草稿；导航歧义、重复材料、结构漂移和恶意 JSONP 返回稳定安全诊断并阻止正式导出。前端无新增交互时不机械新增组件测试。
+- [x] 17A.5 使用用户指定的仓库外单检材样本完成只读人工验收，并另用 SYNTHETIC 多材料 fixture 验证顺序；检查解析字段来源、审核修正、零照片行为、压缩输入范围和现有 Word 输出。真实样本不得复制到仓库或测试目录，验收记录只保存脱敏结构结论。若要宣称支持另一平航版本或真实多设备导出，必须另取得相应样本并新增适配器/Profile 版本，不得沿用 v1 名义推断。
+  - 实现与验收证据（2026-09-12）：SYNTHETIC 平航适配器/解析/来源/工作台及 canonical/material/software/export-gate、DOCX 生成定向回归合计 196 passed，架构检查通过。仓库外样本只读探测命中 v1，识别 1 个检材；快速路径收敛为 5 个相对元数据依赖，解析保持材料类型和主软件待确认、照片数为 0。临时生成的 Word 文件非空且 `officecli validate` 通过，验证后关闭 resident 并删除临时产物；未复制样本、未执行报告脚本或工具。
+- [x] 17A.6 完成实现核对后同步对应 living spec，运行 `npm run verify:quick`、受影响后端测试、`npm run verify:docs:strict -- --change extensible-report-template-platform` 和 `git diff --check`；仅在全部必选任务和适用人工验收完成后记录本增量证据，不提前切换 `pipeline_mode=canonical`，不运行与本增量风险无关的全局发布门控。
+  - 收尾证据（2026-09-12）：平航 v1 最终行为已同步至 `openspec/specs/electronic-inspection-record/spec.md`；`npm run verify:quick`、196 项受影响后端测试、OpenSpec strict validate、限定 strict docs 和 `git diff --check` 通过。敏感样本标识与仓库外绝对路径定向扫描零命中；全局 `pipeline_mode` 保持不变。
+- [x] 17A.7 根据超大报告反馈将平航 v1 改为固定核心文件快速路径：报告页由 `0_1.json` 加结构/标签校验确认，案件页由导航“案件信息”节点定位，材料页由 `DeviceInfo` 节点定位；不枚举或读取非核心 ViewData，并补充手机名称/品牌/型号字段别名。验证：SYNTHETIC 1049+ 页目录中含非法/乱码非核心页仍只记录核心依赖，两个仓库外样本只读解析通过，100GB 级报告体量不成为案件初始化上限。
+  - 快速路径证据（2026-09-12）：适配器语义版本升级为 1.1.0，避免复用旧缓存。新增 SYNTHETIC 1049 页目录回归，其中非核心页含可执行样式和非法 UTF-8 数据；快照仍只读取入口、导航和 4 个核心页，共 6 个依赖，被选核心页异常仍安全失败。三个仓库外样本均只读解析成功，各记录 5 个依赖；较大样本快照约 0.11 秒、完整事实解析约 0.29 秒，补充样本完整事实解析约 0.30 秒。受影响后端回归 196 passed，未复制样本、未记录真实字段值或绝对路径。
+
 ## 2026-09-08 来源目录校验移除反馈
 
 本次增量 workflow_level: 2；关联原 8.4 来源授权模式任务，以本节和修订后的需求6为准。demo-readiness-and-source-guidance 仅承载就绪提示，工作台样式包仅承载视觉反馈，不承载该来源请求合同。manual_acceptance: N/A（界面入口上一轮已移除，本轮由请求和后端自动化覆盖）。
