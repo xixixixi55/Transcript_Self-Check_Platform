@@ -4,15 +4,15 @@ workflow_level: 2
 lifecycle_status: in-progress
 legacy_migration: true
 spec_sync_status: reconciled
-spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-029，包括移除页面级就绪状态展示
+spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spec.md REQ-029，包括移除页面级就绪状态展示及案件直接删除入口
 
 ## 级别与范围
 
 - 级别：Level 2。
 - 本变更独立于 Phase 1D、`case-shared-defaults` 和现有案件工作台变更包，只维护本文件。
-- 目标：在电子数据检查入口和案件工作台展示安全的 Demo 环境就绪状态，并修正删除预检按钮语义。来源目录校验开关及其持久化登记模式由 `extensible-report-template-platform` 变更包的 8.4 任务统一管理，本变更包不再承载来源目录授权说明或开关入口。
+- 目标：在电子数据检查入口和案件工作台展示安全的 Demo 环境就绪状态，并恢复案件卡片既有的直接删除入口。来源目录校验开关及其持久化登记模式由 `extensible-report-template-platform` 变更包的 8.4 任务统一管理，本变更包不再承载来源目录授权说明或开关入口。
 - 不改变案件登记、解析、草稿、共享默认值、Legacy Parser、Word/VML/分页、Manifest、归档合同或 `word_templates/template.docx`。
-- 不实现服务器配置修改、监控平台、后台探测队列、案件删除、保留期或产物清理。
+- 不实现服务器配置修改、监控平台、后台探测队列、新的后端删除能力、保留期或产物清理合同。
 
 ## 设计说明
 
@@ -28,7 +28,7 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 - [x] 保留的就绪 DTO、独立投影组件和 API 仍仅使用“已就绪 / 未配置 / 当前不可用 / 无法确认”，并附稳定错误码和固定处理建议。
 - [x] API 响应不含允许根目录内容、绝对路径、WinRAR 路径、PID、命令行、环境变量值或异常堆栈。
 - [x] 来源目录校验开启时，首次登记和重新登记仍能区分未授权、不可访问、报告结构不支持等安全提示；关闭时允许登记任意满足基础路径安全检查的本机报告目录。
-- [x] 案件卡片按钮显示“检查删除条件”，只调用既有删除预检，不执行删除或清理。
+- [x] 未导出案件卡片只显示“删除案件”入口，点击后直接进入不可恢复确认，不展示或调用删除条件预检；确认后调用既有删除能力。
 
 ## 任务列表
 
@@ -50,8 +50,8 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 - [x] 在 `packages/frontend/src/hooks/useDemoReadiness.test.tsx` 覆盖正常 DTO 和后端不可用降级。
 - [x] 在 `packages/frontend/src/components/DemoReadinessNotice.tsx` 和来源重新登记组件中实现安全投影；不再显示独立来源目录授权说明，来源目录校验入口由案件工作台提供。
 - [x] 在对应组件测试中覆盖固定状态文案、无路径展示和三类来源错误提示；来源目录校验开启/关闭及浏览器持久化由 `extensible-report-template-platform` 的 8.4 测试覆盖。
-- [x] 在 `ElectronicInspectionModulePage.tsx`、`CaseWorkbenchPage.tsx` 移除 DemoReadinessNotice 页面挂载；`CaseCard.tsx` 保持“检查删除条件”语义。
-- [x] 更新页面测试，确认相关入口不展示 Demo 环境就绪状态，并覆盖案件工作台来源目录校验控制项、删除预检准确语义及安全错误提示。
+- [x] 在 `ElectronicInspectionModulePage.tsx`、`CaseWorkbenchPage.tsx` 移除 DemoReadinessNotice 页面挂载；`CaseCard.tsx` 保持“删除案件”直接操作语义。
+- [x] 更新页面测试，确认相关入口不展示 Demo 环境就绪状态，并覆盖案件工作台来源目录校验控制项、直接删除且不调用预检的语义及安全错误提示。
 - [x] 根据后续产品要求移除案件前端两处 Demo 环境就绪状态展示；页面不再为该展示主动请求就绪 API，后端接口和独立安全投影组件保留。
 
 ### 验证与交付
@@ -67,14 +67,15 @@ spec_sync_evidence: 已同步到 openspec/specs/electronic-inspection-record/spe
 - 后端全量 pytest：用户独立运行并报告通过；未提供测试数量和 warning 明细，不在文档中推测。
 - 安全测试有效性：临时回显 SYNTHETIC WinRAR 路径时脱敏测试按预期失败；恢复固定投影后通过。
 - 本次调整的 `lint:arch`、typecheck、`verify:quick`、显式 `check:repository-assets` 和 `git diff --check`：通过；当前 scoped strict docs 仍受既有人工验收任务未勾选影响。
-- 轻量开发冒烟：后端健康检查与前端预览可启动；电子数据检查入口默认进入案件工作台；相关页面不再显示 Demo 就绪提示，案件工作台来源目录校验控制项和“检查删除条件”保持可用；未发现浏览器控制台错误、白屏、崩溃或数据库迁移失败。该结果不等于正式人工验收。
+- 轻量开发冒烟：后端健康检查与前端预览可启动；电子数据检查入口默认进入案件工作台；相关页面不再显示 Demo 就绪提示，案件工作台来源目录校验控制项和“删除案件”保持可用；未发现浏览器控制台错误、白屏、崩溃或数据库迁移失败。该结果不等于正式人工验收。
+- 删除入口反馈修复（2026-09-12）：失败优先测试确认旧实现仍显示“检查删除条件”，3 个相关测试文件中 3 项失败；按用户最终确认移除前端删除预检入口和结果弹窗，恢复单一“删除案件”入口，点击后直接进入既有不可恢复二次确认，确认后调用既有 DELETE API。修复后 3 个相关测试文件、27 项测试通过，并明确断言未请求 `/delete-preflight`；typecheck、前端生产构建、`verify:quick` 与 `git diff --check` 通过。Scoped strict docs 仍仅被第 77 行既有来源目录人工验收项阻断。
 
 ## 人工验收
 
 - [N/A] Demo 就绪状态已从电子数据检查入口和案件工作台移除，无需进行该状态的页面展示人工验收。
 - [N/A] 页面不再请求或展示 Demo 就绪状态，停止后端后的旧版状态降级验收不适用。
 - [ ] 分别使用未授权目录、不可访问目录和不支持的报告目录登记/重新登记，确认三类安全提示不同。
-- [ ] 点击“检查删除条件”，确认只显示预检结果，案件、草稿、来源、归档和正式产物均未删除。
+- [ENVIRONMENT-BLOCKED] “删除案件”直接进入二次确认并完成删除的真实点击复验仍受 Windows 浏览器自动化桥接失败阻断；自动化测试覆盖不调用删除预检与确认后删除，后续仍需在可用浏览器环境复验完整链路。
 
 ## 当前状态
 

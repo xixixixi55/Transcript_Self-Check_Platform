@@ -197,6 +197,7 @@ describe('CaseWorkbenchPage', () => {
     expect(screen.getByText('确认删除该案件？')).toBeTruthy()
     expect(screen.getByText('删除后，该案件将从案件工作台移除，平台内受控数据和文件不可恢复。')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '确认归档' })).toBeNull()
+    expect(getMock.mock.calls.some(([url]) => String(url).includes('/delete-preflight'))).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: /确认删除/ }))
 
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(

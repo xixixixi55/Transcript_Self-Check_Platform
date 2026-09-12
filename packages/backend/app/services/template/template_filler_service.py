@@ -183,13 +183,15 @@ def _update_attachment_summary(doc: Document, plan) -> None:
         if "1、电子数据提取固定清单" in paragraph.text:
             _replace_paragraph_text(paragraph, attachment1_summary)
             break
-    photo_summary = (
-        f"2、检材图{plan.attachment2_state.photo_count}张，"
-        f"共{len(plan.attachment2_pages)}页；"
-    )
     for paragraph in doc.paragraphs:
         if "2、检材图" in paragraph.text:
-            _replace_paragraph_text(paragraph, photo_summary)
+            if plan.attachment2_pages:
+                _replace_paragraph_text(paragraph, (
+                    f"2、检材图{plan.attachment2_state.photo_count}张，"
+                    f"共{len(plan.attachment2_pages)}页；"
+                ))
+            else:
+                paragraph._element.getparent().remove(paragraph._element)
             break
     disc_numbers = plan.attachment_summary.disc_numbers
     count = len(plan.attachment3_pages)
@@ -637,12 +639,12 @@ def _handle_photos(doc: Document, photo_paths: list[str], report: dict):
     for pe in to_remove:
         body.remove(pe)
 
-    # 2. 无照片：清空标题
+    # 2. 无照片：删除完整附件二区域，避免保留“0张”摘要和空白附件页。
     if not photo_paths:
-        for para in doc.paragraphs:
-            if para.text and "检材" in para.text and "照片" in para.text:
-                for run in para.runs:
-                    run.text = ""
+        summary = next((p for p in doc.paragraphs if "2、检材图" in p.text), None)
+        if summary is not None:
+            summary._element.getparent().remove(summary._element)
+        render_attachment2_pages(doc, (), 0, current_template_profile(), ())
         return
 
     # 3. 找到照片标题段落（图片将插在标题之前，使标题在图片下方）

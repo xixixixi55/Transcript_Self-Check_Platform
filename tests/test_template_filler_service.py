@@ -468,7 +468,7 @@ def test_fill_template_preserves_vml_and_renders_default_and_pagination(tmp_path
     assert "椒江区公安司法鉴定中心" not in signature_text
     assert _DEFAULT_SUMMARY in document_xml
     assert "<w:pageBreakBefore" not in document_xml
-    assert document_xml.count('w:type="page"') == 3
+    assert document_xml.count('w:type="page"') == 2
 
 
 def test_attachment1_signature_aligns_dynamic_long_institution_without_fixed_spaces(tmp_path):
@@ -546,11 +546,11 @@ def test_attachment_summary_uses_page_top_suppressed_spacing_and_conditional_pag
         element for element in children
         if any(marker in "".join(element.itertext()) for marker in (
             "1、电子数据提取固定清单",
-            "2、检材图",
             "3、本鉴定中心刻制的",
         ))
     ]
-    assert len(summary_paragraphs) == 3
+    assert len(summary_paragraphs) == 2
+    assert all("2、检材图" not in "".join(element.itertext()) for element in children)
     for paragraph in summary_paragraphs:
         assert paragraph.find('./{%s}pPr/{%s}keepLines' % (W_NS, W_NS)) is not None
     for paragraph in summary_paragraphs:
@@ -607,7 +607,10 @@ def test_attachment_summary_signature_and_date_layout_stay_unchanged(tmp_path):
         )
         return children[start:end]
 
-    template_region = layout_region(template_children)
+    template_region = [
+        element for element in layout_region(template_children)
+        if "2、检材图" not in "".join(element.itertext())
+    ]
     output_region = layout_region(output_children)
     assert len(output_region) == len(template_region)
 
@@ -730,6 +733,11 @@ def test_photo_regression_scenarios_keep_images_and_page_xml(tmp_path, sizes):
         root = ET.fromstring(document_xml)
 
     assert document_xml.count("<w:drawing") == len(photos)
+    document_text = "".join(root.itertext())
+    if not photos:
+        assert "附件2：" not in document_text
+        assert "检材图0张" not in document_text
+        assert document_text.count("附件3：") == 1
     doc_pr_ids = [doc_pr.get("id") for doc_pr in root.findall(
         ".//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}docPr")]
     assert len(doc_pr_ids) == len(set(doc_pr_ids))
@@ -745,7 +753,7 @@ def test_photo_regression_scenarios_keep_images_and_page_xml(tmp_path, sizes):
         )
         for width, height in sizes
     ]
-    assert document_xml.count('w:type="page"') == 3
+    assert document_xml.count('w:type="page"') == (2 if not photos else 3)
     assert 'w:type="oddPage"' not in document_xml
     assert 'w:type="evenPage"' not in document_xml
     assert "w:pageBreakBefore" not in document_xml

@@ -352,7 +352,9 @@ lifecycle_status: in-progress
   - 自动化证据：前端 4 files / 60 tests、共享排序与位置解析 6 tests、后端图片及 revision 定向 9 tests 全部通过；202 张合成图片上传与读取峰值并发均为 4，原顺序和单次绑定断言通过；三检材 `1-1` 至 `3-2` 乱序选择按位置正确配对，重复、越界、非法槽位和两种命名混用整批拒绝；页面回归真实等待 5 秒并覆盖目录选择期间图片绑定推进 revision；后端正向只容忍迟到图片绑定，非图片变化、未来 revision 及缺失/空图片等价均保持 409。临时反转位置排序后核心回归按预期失败，恢复实现后通过；`npm run verify:quick`、`lint:arch`、TypeScript 与 `git diff --check` PASS。
   - code_review: [PASS] 用户补充位置分组命名后重新冻结候选；独立复审继续识别并关闭目录选择期间 revision 竞态、未来 revision 误放行及空图片表示误判，最终确认先前跨层引用、图片读取容错、零图片提示、数量提示优先级和非图片写入失败合同均已修复，无剩余 MUST/SHOULD。最终门控仅更新一处旧帮助文案测试断言后再次复审 PASS。
   - final_gate: [ENVIRONMENT-BLOCKED] 两次使用独立可写合成数据根执行 scoped full gate：预检、架构、类型、治理、仓库资产及前端 60 files / 387 tests 均 PASS；后端两次均为 1213 passed、3 skipped、3 failed、7 errors，全部归因既有共享模板状态 `TEMPLATE_VERSION_IMMUTABLE`。对应 10 个失败/错误用例换全新数据根隔离重跑 10/10 PASS，T044 后端图片与 revision 定向 9/9 PASS；按重复失败终止规则未继续重跑，生产构建阶段因前置全量测试失败未执行。
-  - manual_acceptance: [PENDING] 真实 Windows 桌面 `.docx` 尚需确认：完整图片生成附件2、异常图片仍成功导出且附件2省略。
+  - 验收反馈修复（2026-09-12）：无照片兼容路径和 Manifest 路径统一在附件2页计划为空时移除附件2摘要与完整页面区域，保留附件1、附件3；回归覆盖附件2标签、“检材图0张”摘要及分页符数量。
+  - 修复验证：失败优先用例先稳定复现附件2标签/零张摘要残留；修复后 `test_template_filler_service.py` 26 passed、`test_record_controller.py` 35 passed、`test_document_builder_service.py` 19 passed，前端删除预检相关 3 files / 27 tests 与 TypeScript typecheck 通过。实际本地导出端点使用两张明确标记为 SYNTHETIC/TEST 的损坏 PNG 返回 200 和 `ATTACHMENT2_IMAGE_INVALID`；生成 DOCX 通过 officecli validate，文本及 4 页 HTML 渲染均无附件2和“检材图0张”，附件1后直接进入附件3；`npm run verify:quick`、本变更 scoped strict docs 与 `git diff --check` 通过。
+  - manual_acceptance: [PASS] 用户于 2026-09-12 在本机 Microsoft Word 打开两份明确标记为 SYNTHETIC/TEST 的验收 DOCX，确认正常图片文档包含附件2及两张图片且分页正常，异常图片回退文档无“检材图0张”、附件1后直接进入附件3且不存在附件2空白页。
 
 - [x] T045 超大单卷使用用户填写的硬盘编号并生成硬盘文书（用户需求反馈，补充压缩前编号体验优化）。
   - 规则：继续按压缩前归档输入总量选择现有模式；不超过 `225 × 1024³` 字节保持标准光盘分卷，超过阈值保持一个不分卷的大 RAR。`standard_split` 对应光盘，`oversized_single_volume` 对应硬盘；恰好 225GB 仍属于光盘。
