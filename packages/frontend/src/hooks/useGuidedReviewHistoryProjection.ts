@@ -22,6 +22,7 @@ export interface GuidedReviewHistoryMaterial {
   photoCount: number
   requiredPhotoCount: number
   imeiStatus?: 'complete' | 'attention'
+  attentionReason?: string
   userProvided?: boolean
   sourceLabel?: '人工添加'
   targetId?: string
@@ -99,6 +100,21 @@ function materialPhotoCount(report: InspectionReport, materialIndex: number, mat
   return Math.min(2, Math.max(0, (report.attachments.photo_ids?.length || 0) - materialIndex * 2))
 }
 
+function materialAttentionReason(
+  deviceName: string,
+  materialType: string | null,
+  imei1: string,
+  imei2: string,
+): string | undefined {
+  if (!deviceName) return '设备信息待填写'
+  if (!materialType) return '检材类型待确认'
+  if (!imei1 && !imei2) return 'IMEI1、IMEI2 待核对'
+  if (!imei1) return 'IMEI1 待核对'
+  if (!imei2) return 'IMEI2 待核对'
+  if (imei1 === imei2) return 'IMEI1 与 IMEI2 不能相同'
+  return undefined
+}
+
 function materialHistory(report: InspectionReport, fieldStates: FieldStates): GuidedReviewHistoryMaterial[] {
   return report.introduction.evidence_list.map((material, index) => {
     const label = material.evidence_number?.trim()
@@ -122,6 +138,7 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
     const evidencePrefix = material.evidence_id ? `evidence.${material.evidence_id}.` : ''
     const evidencePath = (field: string) => evidencePrefix ? `${evidencePrefix}${field}` : ''
     const userAdded = materialId.startsWith('local-evidence-')
+    const attentionReason = materialAttentionReason(deviceName, materialType, imei1, imei2)
     const editedField = (label: string, value: string | null | undefined, edited: boolean) => historyField(
       label, value, !userAdded && edited, REVIEW_TARGET_IDS.evidence(index), '已修改',
     )
@@ -133,7 +150,8 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
       label,
       photoCount: materialPhotoCount(report, index, material.id),
       requiredPhotoCount: 2,
-      imeiStatus: Boolean(deviceName && materialType && imei1 && imei2 && imei1 !== imei2) ? 'complete' : 'attention',
+      imeiStatus: attentionReason ? 'attention' : 'complete',
+      ...(attentionReason ? { attentionReason } : {}),
       targetId: REVIEW_TARGET_IDS.evidence(index),
       ...(userAdded ? { userProvided: true, sourceLabel: '人工添加' as const } : {}),
       fields: [

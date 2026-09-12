@@ -296,6 +296,11 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
   - 实现与测试证据（2026-09-12）：适配器语义版本升级为 1.4.0；聚焦用例先以 `phone` 预期产生失败，修复后覆盖有空格、无空格、小写和全角四种 Android 设备写法，未知类型仍保持待确认。平航定向回归 24 passed，平航/材料策略/报告解析/Canonical/软件策略/导出门控/来源/工作台受影响回归合计 217 passed。用户指定仓库外样本仅作只读脱敏复核，结果为 1 个 `phone`、`confirmed_by_report`、来源为报告，手机步骤不显示序列号；未复制样本或接入额外技术字段。
 - [x] 17A.13 核对本轮增量与实现并同步现行规格，运行平航及材料策略受影响测试、`npm run verify:quick`、OpenSpec strict validate、限定严格文档检查和 `git diff --check`；保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
   - 收尾证据（2026-09-12）：Android 设备映射行为已同步至现行规格；217 项受影响后端测试、`npm run verify:quick`、OpenSpec strict validate、限定严格文档检查与 `git diff --check` 通过。仓库外样本标识定向扫描零命中；全局 `pipeline_mode` 和变更包 `lifecycle_status: in-progress` 保持不变，未触发延期任务、最终 Review 或 scoped full gate。
+- [x] 17A.14 根据用户提供的平航 v1 报告反馈，将与单一 `DeviceInfo` 共享顶层设备作用域的唯一“机主信息” Table 作为该检材持有人来源，只读取明确“用户姓名”并写入 `holder_name`；电话、证件和其他人员字段不得替代姓名，同一作用域无法唯一配对时安全失败。适配器语义版本升级并失效旧缓存，不修改报告目录选择层级。
+- [x] 17A.14T 扩展 SYNTHETIC 平航单/多材料 fixture，先证明持有人为空，再覆盖跨中间导航节点的作用域配对、材料顺序、电话排除、重复机主页安全失败、无机主页兼容和依赖清单；仓库外真实报告只作只读脱敏复核。
+  - 实现与测试证据（2026-09-12）：适配器语义版本升级为 1.5.0；聚焦用例先以空持有人预期失败，修复后平航适配器 26 passed，平航/报告解析/输入快照/Legacy 投影受影响回归 91 passed。用户指定仓库外样本只读复核命中 1 项检材和 1 项非空持有人，依赖从 5 个增至导航明确选择的 6 个且包含唯一机主信息页；未记录姓名、电话、案件标识或绝对路径，未复制或执行报告内容。
+- [x] 17A.15 核对本轮增量与实现并同步现行规格，运行 `npm run verify:quick`、OpenSpec strict validate、限定严格文档检查和 `git diff --check`；保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+  - 收尾证据（2026-09-12）：平航机主信息与检材持有人映射已同步至 change delta、批准规格、设计和 living spec；`npm run verify:quick`、OpenSpec strict validate、限定 strict docs 与 `git diff --check` 通过。限定 strict docs 首次仅因 17A.15 门控尚未勾选而按预期报告 1 项 task-incomplete，门控完成并记录本证据后复跑通过；变更包继续保持 `lifecycle_status: in-progress`。
 
 ## 2026-09-08 来源目录校验移除反馈
 

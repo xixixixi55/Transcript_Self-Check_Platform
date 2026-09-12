@@ -7,11 +7,16 @@ import { buildReportHistory } from '../hooks/useGuidedReviewHistoryProjection'
 import { syntheticReport } from '../hooks/useGuidedReviewCards.testFixtures'
 import { GuidedReviewHistory } from './GuidedReviewHistory'
 
-function material(id: string, imeiStatus: 'complete' | 'attention'): GuidedReviewHistoryMaterial {
+function material(
+  id: string,
+  imeiStatus: 'complete' | 'attention',
+  attentionReason?: string,
+): GuidedReviewHistoryMaterial {
   return {
     id,
     label: `检材 ${id}`,
     imeiStatus,
+    attentionReason,
     targetId: `review-target-evidence-${id}`,
     photoCount: 0,
     requiredPhotoCount: 2,
@@ -50,6 +55,16 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     expect(completeGroup?.hasAttribute('open')).toBe(false)
     expect(screen.getByRole('listitem', { name: /检材 C/ })).toBeTruthy()
     expect(screen.getByText('C-SERIAL')).toBeTruthy()
+  })
+
+  it('shows the actionable material attention reason instead of a generic warning', () => {
+    render(<GuidedReviewHistory items={[{
+      id: 'fact-evidence', tone: 'complete', title: '检材与图片 · 1 项',
+      materials: [material('DUPLICATE', 'attention', 'IMEI1 与 IMEI2 不能相同')],
+    }]} />)
+
+    expect(screen.getByText('IMEI1 与 IMEI2 不能相同')).toBeTruthy()
+    expect(screen.queryByText('检材信息待核对')).toBeNull()
   })
 
   it('edits material values directly in the Word preview and reports automatic saving', () => {
@@ -113,7 +128,7 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     render(<EditableGroupingHarness />)
 
     expect(screen.queryByText('检材信息完整（1项）')).toBeNull()
-    expect(screen.getByText('检材信息待核对')).toBeTruthy()
+    expect(screen.getByText('设备信息待填写')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '待填写，按 Enter 编辑' }))
     const deviceInput = screen.getByRole('textbox')
@@ -121,7 +136,7 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     fireEvent.blur(deviceInput)
 
     expect(screen.queryByText('检材信息完整（1项）')).toBeNull()
-    expect(screen.getByText('检材信息待核对')).toBeTruthy()
+    expect(screen.getByText('IMEI2 待核对')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '待核对，按 Enter 编辑' }))
     const imeiInput = screen.getByRole('textbox')
@@ -129,6 +144,6 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     fireEvent.blur(imeiInput)
 
     expect(screen.getByText('检材信息完整（1项）')).toBeTruthy()
-    expect(screen.queryByText('检材信息待核对')).toBeNull()
+    expect(screen.queryByText('IMEI2 待核对')).toBeNull()
   })
 })

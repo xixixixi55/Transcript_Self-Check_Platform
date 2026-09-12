@@ -61,6 +61,13 @@ lifecycle_status: in-progress
 - [x] 脱敏回归 fixture：`useCaseRecordSession.photoBinding.test.tsx` 使用 SYNTHETIC 已绑定图片、人工检材和下一张图片，断言不调用旧草稿 `saveNow()`、绑定使用最后成功图片基线，并把人工检材重放到新 revision。
 - [x] 最终验证：图片绑定、真实 autosave 竞态、hydration 水位、图片 Hook、草稿保存、检材编辑与待核对清单共 7 个测试文件、56 项用例通过；`verify:quick`、diff 检查通过。独立 Code Review 首轮因协同测试 mock 状态机驳回；补齐两种响应顺序并修复旧服务端快照回灌后，复审 PASS、无 MUST FIX。2026-08-12 用户人工真实界面复测通过。
 
+## 第五阶段人工验收整改——检材异常提示明确具体原因
+
+- [x] 记录人工验收问题：检材字段均非空但 IMEI1 与 IMEI2 相同时，Word 内容预览持续显示笼统的“检材信息待核对”，用户无法判断未进入完整分组的原因。
+- [x] 根因分类：既有异常规则正确识别重复 IMEI，但投影只暴露二元 attention 状态，展示层丢失了设备缺失、类型未确认、IMEI 缺失或重复的具体原因。
+- [x] 修复方式：投影保留单一优先异常原因，标签直接显示可操作提示；两个 IMEI 均非空且不同后仍按既有规则立即进入完整分组，不放宽缺失、单一或重复 IMEI 校验。
+- [x] 脱敏回归和验证：使用 SYNTHETIC 重复 IMEI fixture 验证投影与组件文案，相关 2 个前端测试文件 14 项通过；`lint:arch` 和 `typecheck` 通过。本轮是恢复既有异常核对意图的 Level 1 展示修复，不修改现行规格，保留本 change 的 `lifecycle_status: in-progress`。
+
 ## 规格冻结整改（规划修订，不属于原 T020–T025 编号）
 
 - [x] 固定 publication/Word/tombstone 的清理后稳定访问模型；

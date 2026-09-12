@@ -72,6 +72,8 @@ def _write_pinghang_fixture(
     root: Path, *, duplicate_device_node: bool = False,
     duplicate_case_node: bool = False,
     include_second_device: bool = True,
+    include_owner_info: bool = False,
+    duplicate_owner_info: bool = False,
     first_device_type: str = "Android 设备",
     second_device_type: str = "Android设备",
     second_device_times: tuple[str, str] = (
@@ -85,12 +87,33 @@ def _write_pinghang_fixture(
     )
     navigation = [
         {"id": 10, "pid": 0, "name": _nav_name("案件信息"), "dataIndex": "11", "viewType": "Table", "rangeCount": 1},
-        {"id": 1, "pid": 0, "name": _nav_name("SYNTHETIC-设备-B"), "dataIndex": "7", "viewType": "DeviceInfo", "rangeCount": 1},
+        {"id": 1, "pid": 32 if include_owner_info else 0, "name": _nav_name("SYNTHETIC-设备-B"), "dataIndex": "7", "viewType": "DeviceInfo", "rangeCount": 1},
     ]
     if include_second_device:
         navigation.append(
-            {"id": 2, "pid": 0, "name": _nav_name("SYNTHETIC-设备-A"), "dataIndex": "4", "viewType": "DeviceInfo", "rangeCount": 1}
+            {"id": 2, "pid": 33 if include_owner_info else 0, "name": _nav_name("SYNTHETIC-设备-A"), "dataIndex": "4", "viewType": "DeviceInfo", "rangeCount": 1}
         )
+    if include_owner_info:
+        navigation.extend([
+            {"id": 30, "pid": 0, "name": _nav_name("SYNTHETIC-设备作用域-B"), "dataIndex": "30"},
+            {"id": 32, "pid": 30, "name": _nav_name("手机信息"), "dataIndex": "32"},
+        ])
+        if include_second_device:
+            navigation.extend([
+                {"id": 31, "pid": 0, "name": _nav_name("SYNTHETIC-设备作用域-A"), "dataIndex": "31"},
+                {"id": 33, "pid": 31, "name": _nav_name("手机信息"), "dataIndex": "33"},
+            ])
+        navigation.append(
+            {"id": 20, "pid": 30, "name": _nav_name("机主信息"), "dataIndex": "5", "viewType": "Table", "rangeCount": 1}
+        )
+        if include_second_device:
+            navigation.append(
+                {"id": 21, "pid": 31, "name": _nav_name("机主信息"), "dataIndex": "6", "viewType": "Table", "rangeCount": 1}
+            )
+        if duplicate_owner_info:
+            navigation.append(
+                {"id": 22, "pid": 30, "name": _nav_name("机主信息"), "dataIndex": "8", "viewType": "Table", "rangeCount": 1}
+            )
     if duplicate_device_node:
         navigation.append(
             {"id": 3, "pid": 0, "name": _nav_name("SYNTHETIC-重复设备"), "dataIndex": "7", "viewType": "DeviceInfo", "rangeCount": 1}
@@ -146,6 +169,19 @@ def _write_pinghang_fixture(
             ("取证开始时间", second_device_times[0]),
             ("取证结束时间", second_device_times[1]),
         ])), encoding="utf-8")
+    if include_owner_info:
+        (view_data / "5_1.json").write_text(_jsonp(5, _table([
+            ("用户姓名", "SYNTHETIC-HOLDER-B"),
+            ("电话号码1", "SYNTHETIC-NOT-A-HOLDER"),
+        ])), encoding="utf-8")
+        if include_second_device:
+            (view_data / "6_1.json").write_text(_jsonp(6, _table([
+                ("用户姓名", "SYNTHETIC-HOLDER-A"),
+            ])), encoding="utf-8")
+        if duplicate_owner_info:
+            (view_data / "8_1.json").write_text(_jsonp(8, _table([
+                ("用户姓名", "SYNTHETIC-AMBIGUOUS-HOLDER"),
+            ])), encoding="utf-8")
     return root
 
 
@@ -178,6 +214,33 @@ def test_registry_and_snapshot_parse_pinghang_semantically(tmp_path):
         "333333333333333"
     )
     assert any(item.relative_path == "报告/data/navigation_data.js" for item in snapshot.dependencies)
+
+
+def test_pinghang_owner_info_is_bound_to_its_parent_material(tmp_path):
+    source = _write_pinghang_fixture(tmp_path, include_owner_info=True)
+
+    snapshot = build_report_parse_input_snapshot(str(source))
+    report = parse_report(str(source), str(tmp_path / "output"), compress=False)["report"]
+
+    assert [row["holder_name"] for row in snapshot.device_rows] == [
+        "SYNTHETIC-HOLDER-B", "SYNTHETIC-HOLDER-A",
+    ]
+    assert [item["holder_name"] for item in report["introduction"]["evidence_list"]] == [
+        "SYNTHETIC-HOLDER-B", "SYNTHETIC-HOLDER-A",
+    ]
+    assert any(
+        item.relative_path == "报告/data/ViewData/5_1.json"
+        for item in snapshot.dependencies
+    )
+
+
+def test_pinghang_ambiguous_owner_info_fails_closed(tmp_path):
+    source = _write_pinghang_fixture(
+        tmp_path, include_owner_info=True, duplicate_owner_info=True,
+    )
+
+    with pytest.raises(ReportAdapterDetectionError, match="REPORT_ADAPTER_STRUCTURE_INVALID"):
+        detect_report_adapter(source)
 
 
 def test_pinghang_adapter_version_and_content_participate_in_input_fingerprint(tmp_path):
@@ -525,7 +588,7 @@ def test_source_registration_records_pinghang_adapter_metadata(tmp_path):
     descriptor = service.register_report_directory(str(source))
 
     assert descriptor["metadata"]["adapter_id"] == "pinghang-mobile-multipath-v1"
-    assert descriptor["metadata"]["adapter_version"] == "1.4.0"
+    assert descriptor["metadata"]["adapter_version"] == "1.5.0"
     assert len(descriptor["metadata"]["adapter_structure_fingerprint"]) == 64
     assert str(source) not in json.dumps(descriptor, ensure_ascii=False)
 

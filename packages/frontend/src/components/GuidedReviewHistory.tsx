@@ -165,7 +165,7 @@ function HistoryMaterial({ material, evidenceItems, onEvidenceItemsChange, readO
             {material.sourceLabel || '用户填写'}
           </span>}
           {material.imeiStatus === 'attention' && <span className="guided-review-history__attention-badge">
-            检材信息待核对
+            {material.attentionReason || '检材信息待核对'}
           </span>}
         </span>
         <span className={`guided-review-history__material-count${complete

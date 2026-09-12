@@ -21,7 +21,7 @@ from .report_parse_input_models import ReportParseInputError
 
 
 PINGHANG_ADAPTER_ID = "pinghang-mobile-multipath-v1"
-PINGHANG_ADAPTER_VERSION = "1.4.0"
+PINGHANG_ADAPTER_VERSION = "1.5.0"
 PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME = "平航手机多路分析取证软件"
 _MAX_SELECTED_PAGES = 4096
 _MAX_SELECTED_METADATA_BYTES = 32 * 1024 * 1024
@@ -104,9 +104,16 @@ def parse_pinghang_report(
         case_node = case_nodes[0]
         if not case_node.data_index.isdigit():
             raise PinghangReportError("PINGHANG_CASE_NODE_INVALID")
+        owner_nodes = _owner_nodes_by_device(navigation, device_nodes)
+        selected_indexes = ["0", case_node.data_index, *data_indexes]
+        selected_indexes.extend(node.data_index for node in owner_nodes.values())
+        if len(set(selected_indexes)) != len(selected_indexes):
+            raise PinghangReportError("PINGHANG_OWNER_NODE_DUPLICATE")
         selected_keys = {("0", 1)}
         selected_keys.update(_node_page_keys(case_node))
         for node in device_nodes:
+            selected_keys.update(_node_page_keys(node))
+        for node in owner_nodes.values():
             selected_keys.update(_node_page_keys(node))
         if len(selected_keys) > _MAX_SELECTED_PAGES:
             raise PinghangReportError("PINGHANG_METADATA_LIMIT_EXCEEDED")
@@ -143,6 +150,10 @@ def parse_pinghang_report(
     device_structure: list[str] = []
     for node in device_nodes:
         fields = _device_fields(node, payloads)
+        owner_node = owner_nodes.get(node.node_id)
+        owner_fields = _combined_node_fields(
+            owner_node, payloads, expected_type="Table",
+        ) if owner_node else {}
         evidence_number = fields.get("检材编号", "").strip()
         if not evidence_number or evidence_number in device_base_info:
             raise PinghangReportError("PINGHANG_EVIDENCE_ID_AMBIGUOUS")
@@ -160,7 +171,8 @@ def parse_pinghang_report(
             "imei1": _first_field(fields, "IMEI", "IMEI1"),
             "imei2": _first_field(fields, "IMEI2"),
             "serial_number": _first_field(fields, "序列码", "序列号"),
-            "holder_name": _first_field(fields, "持有人"),
+            "holder_name": _first_field(owner_fields, "用户姓名")
+            or _first_field(fields, "持有人"),
         }
         device_rows.append({
             "evidence_number": evidence_number,
@@ -181,6 +193,7 @@ def parse_pinghang_report(
         ].relative_to(source_root).as_posix()
         device_structure.append(
             f"{node.data_index}:{node.range_count}:" + ",".join(sorted(fields))
+            + "|owner:" + ",".join(sorted(owner_fields))
         )
 
     relative_files = tuple(sorted({
@@ -225,6 +238,43 @@ def _device_fields(
     node: PinghangNavigationNode, payloads: dict[tuple[str, int], dict],
 ) -> dict[str, str]:
     return _combined_node_fields(node, payloads, expected_type="DeviceInfo")
+
+
+def _owner_nodes_by_device(
+    navigation: tuple[PinghangNavigationNode, ...],
+    device_nodes: list[PinghangNavigationNode],
+) -> dict[int, PinghangNavigationNode]:
+    by_id = {node.node_id: node for node in navigation}
+    devices_by_scope: dict[int, list[PinghangNavigationNode]] = {}
+    for device in device_nodes:
+        devices_by_scope.setdefault(_node_scope(device, by_id), []).append(device)
+    owners_by_scope: dict[int, list[PinghangNavigationNode]] = {}
+    for node in navigation:
+        if node.view_type == "Table" and _decode_node_name(node.encoded_name) == "机主信息":
+            owners_by_scope.setdefault(_node_scope(node, by_id), []).append(node)
+    result: dict[int, PinghangNavigationNode] = {}
+    for scope, owners in owners_by_scope.items():
+        devices = devices_by_scope.get(scope, [])
+        if not devices:
+            continue
+        if len(owners) != 1 or len(devices) != 1:
+            raise PinghangReportError("PINGHANG_OWNER_NODE_AMBIGUOUS")
+        result[devices[0].node_id] = owners[0]
+    return result
+
+
+def _node_scope(
+    node: PinghangNavigationNode,
+    by_id: dict[int, PinghangNavigationNode],
+) -> int:
+    current = node
+    visited: set[int] = set()
+    while current.parent_id in by_id:
+        if current.node_id in visited:
+            raise PinghangReportError("PINGHANG_NAVIGATION_CYCLE")
+        visited.add(current.node_id)
+        current = by_id[current.parent_id]
+    return current.node_id
 
 
 def _combined_node_fields(

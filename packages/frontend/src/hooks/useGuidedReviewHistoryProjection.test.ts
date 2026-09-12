@@ -36,6 +36,22 @@ describe('guided Word preview source attribution', () => {
       .toEqual(['SYNTHETIC-SERIAL-A', 'SYNTHETIC-SERIAL-B', 'SYNTHETIC-SERIAL-C'])
   })
 
+  it('explains why a fully populated material still needs attention when both IMEIs match', () => {
+    const material = {
+      ...syntheticReport.introduction.evidence_list[0],
+      device_name: 'SYNTHETIC Phone', material_type: 'phone' as const,
+      imei1: 'SYNTHETIC-SAME-IMEI', imei2: 'SYNTHETIC-SAME-IMEI',
+    }
+    const projected = buildReportHistory({
+      ...syntheticReport,
+      introduction: { ...syntheticReport.introduction, evidence_list: [material] },
+    }).find(item => item.id === 'fact-evidence')?.materials?.[0]
+
+    expect(projected).toEqual(expect.objectContaining({
+      imeiStatus: 'attention', attentionReason: 'IMEI1 与 IMEI2 不能相同',
+    }))
+  })
+
   it.each([
     { device_name: '', device_type: '', brand: '', model: '' },
     { device_name: ' \t', device_type: ' ', brand: ' ', model: '\n' },
