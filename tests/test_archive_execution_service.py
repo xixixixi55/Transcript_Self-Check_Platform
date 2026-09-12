@@ -193,16 +193,21 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
     assert len(rar) == 1 and rar[0].stat().st_ino == observed[0]
     assert rar[0].name == "SYNTHETIC_TEST_Case.rar"
     assert not list(output.rglob("*.rar"))
+    from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
     registry = ArchiveManifestRepository(output, database=database)
     persisted = registry.find_for_attempt(accepted["attempt_id"])[0]
-    actual = ArchiveDirectPublicationRepository(database).resolve(registry.resolve_final_dir(persisted), attempt["manifest_id"])
+    intent = ArchivePublishIntentRepository(database).get_for_attempt(accepted["attempt_id"])
+    assert intent is not None
+    actual = ArchiveDirectPublicationRepository(database).resolve(
+        registry.resolve_final_dir(persisted), attempt["manifest_id"],
+        publication_locator=intent["publication_relative_dir"],
+    )
     assert actual == source.parent
     assert validate_manifest_files(SimpleNamespace(manifest_id=persisted.manifest_id, public_manifest=persisted.public_manifest, final_dir=actual, external_export=True)) is None
     if restart_during_publish is False:
         from app.repository.archive.archive_task_repository import ArchiveTaskRepository
         from app.repository.archive.archive_plan_repository import ArchivePlanRepository
         from app.repository.archive.archive_asset_repository import ArchiveAssetRepository
-        from app.repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
         from app.services.archive.archive_task_result_service import ArchiveTaskResultService
         from app.services.export import unified_export_service
         from app.services.disc.disc_mapping_service import build_disc_mappings, active_slots
@@ -210,11 +215,10 @@ def test_immediate_archive_writes_report_parent_and_survives_restart(tmp_path, m
             ArchiveTaskRepository(database), ArchivePlanRepository(database),
             ArchiveAssetRepository(database), attempts,
         )
-        intent = ArchivePublishIntentRepository(database).get_for_attempt(accepted["attempt_id"])
         assert Path(intent["publication_relative_dir"]).resolve(strict=False) == source.parent.resolve()
-        # 新直出发布的物理位置由 SQLite 发布意图持久化；旧 JSON 仅是兼容投影。
+        # 新直出发布的物理位置只由 SQLite 发布意图持久化；旧 JSON 不再重复写入。
         legacy_locations = database.database_path.parent / "archive-export-locations.json"
-        legacy_locations.unlink(missing_ok=True)
+        assert not legacy_locations.exists()
         shutil.rmtree(registry.resolve_final_dir(persisted))
         restarted_database = WorkbenchDatabase(database.database_path, database.deployment_instance_id)
         restarted_attempts = ArchiveAttemptService(restarted_database, output)

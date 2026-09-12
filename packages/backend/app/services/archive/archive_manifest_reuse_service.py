@@ -56,6 +56,10 @@ def restore_persisted_manifest(
         if attempt_service is not None:
             actual = ArchiveDirectPublicationRepository(attempt_service.database).resolve(
                 record.final_dir, record.manifest_id,
+                publication_locator=(
+                    intent.get("publication_relative_dir")
+                    if persisted.workbench_attempt_id is not None else None
+                ),
             )
             if actual != record.final_dir:
                 record.logical_final_dir = record.final_dir

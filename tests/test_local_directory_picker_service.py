@@ -13,7 +13,6 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository.workbench.workbench_errors import WorkbenchPersistenceError  # noqa: E402
-from app.repository.runtime.local_directory_history_repository import LocalDirectoryHistoryRepository  # noqa: E402
 from app.services.runtime.local_directory_picker_service import (  # noqa: E402
     LocalDirectoryPickerService,
     _folder_picker_script,
@@ -111,95 +110,41 @@ def test_picker_cancel_returns_none_without_path_validation(tmp_path: Path):
     assert picker.select() is None
 
 
-def test_export_picker_uses_and_updates_persisted_directory(tmp_path: Path):
-    previous = tmp_path / "SYNTHETIC-PREVIOUS"
-    selected = tmp_path / "SYNTHETIC-SELECTED"
-    previous.mkdir()
-    selected.mkdir()
-    history = LocalDirectoryHistoryRepository(tmp_path / "history.json")
-    history.remember_directory("export", previous)
-    calls: list[list[str]] = []
-
-    def runner(command: list[str], **_kwargs):
-        calls.append(command)
-        return SimpleNamespace(returncode=0, stdout=str(selected), stderr="")
-
-    picker = LocalDirectoryPickerService(
-        runner=runner,
-        platform_name="nt",
-        powershell_path="powershell.exe",
-        history=history,
-    )
-
-    assert picker.select(history_kind="export") == str(selected)
-    assert f"$dialog.SelectedPath = '{previous}'" in calls[0][-1]
-    assert history.last_directory("export") == str(selected)
-
-
-def test_export_picker_cancel_preserves_persisted_directory(tmp_path: Path):
-    previous = tmp_path / "SYNTHETIC-PREVIOUS"
-    previous.mkdir()
-    history = LocalDirectoryHistoryRepository(tmp_path / "history.json")
-    history.remember_directory("export", previous)
-    picker = LocalDirectoryPickerService(
-        runner=lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
-        platform_name="nt",
-        history=history,
-    )
-
-    assert picker.select(history_kind="export") is None
-    assert history.last_directory("export") == str(previous)
-
-
-def test_export_picker_validation_runs_before_history_update(tmp_path: Path):
-    previous = tmp_path / "SYNTHETIC-PREVIOUS"
+def test_picker_rejects_selection_when_validator_fails(tmp_path: Path):
     rejected = tmp_path / "SYNTHETIC-REJECTED"
-    previous.mkdir()
     rejected.mkdir()
-    history = LocalDirectoryHistoryRepository(tmp_path / "history.json")
-    history.remember_directory("export", previous)
     picker = LocalDirectoryPickerService(
         runner=lambda *_args, **_kwargs: SimpleNamespace(
             returncode=0, stdout=str(rejected), stderr="",
         ),
         platform_name="nt",
-        history=history,
     )
 
     def reject(_path: Path) -> None:
         raise WorkbenchPersistenceError("EXPORT_DIRECTORY_UNSAFE")
 
     with pytest.raises(WorkbenchPersistenceError) as failure:
-        picker.select(history_kind="export", selection_validator=reject)
+        picker.select(selection_validator=reject)
 
     assert failure.value.code == "EXPORT_DIRECTORY_UNSAFE"
-    assert history.last_directory("export") == str(previous)
 
 
-def test_picker_escapes_quotes_in_description_and_initial_directory(tmp_path: Path):
-    previous = tmp_path / "SYNTHETIC 中文 ' EXPORT"
-    previous.mkdir()
-    history = LocalDirectoryHistoryRepository(tmp_path / "history.json")
-    history.remember_directory("export", previous)
+def test_picker_escapes_quotes_in_description(tmp_path: Path):
     commands: list[list[str]] = []
 
     def runner(command: list[str], **_kwargs):
         commands.append(command)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    picker = LocalDirectoryPickerService(
-        runner=runner, platform_name="nt", history=history,
-    )
-    picker.select(description="选择 ' 合成目录", history_kind="export")
+    picker = LocalDirectoryPickerService(runner=runner, platform_name="nt")
+    picker.select(description="选择 ' 合成目录")
 
     script = commands[0][-1]
     assert "$dialog.Description = '选择 '' 合成目录'" in script
-    escaped_previous = str(previous).replace("'", "''")
-    assert f"$dialog.SelectedPath = '{escaped_previous}'" in script
+    assert "$dialog.SelectedPath = ''" in script
 
 
 def test_picker_keeps_valid_selection_when_native_topmost_confirmation_is_missing(tmp_path: Path):
-    history = LocalDirectoryHistoryRepository(tmp_path / "history.json")
     picker = LocalDirectoryPickerService(
         runner=lambda *_args, **_kwargs: SimpleNamespace(
             returncode=0,
@@ -207,11 +152,9 @@ def test_picker_keeps_valid_selection_when_native_topmost_confirmation_is_missin
             stderr="PICKER_TOPMOST_NOT_CONFIRMED",
         ),
         platform_name="nt",
-        history=history,
     )
 
-    assert picker.select(history_kind="export") == str(tmp_path)
-    assert history.last_directory("export") == str(tmp_path)
+    assert picker.select() == str(tmp_path)
 
 
 def test_picker_keeps_valid_selection_when_foreground_owner_or_activation_is_unconfirmed(
@@ -230,29 +173,6 @@ def test_picker_keeps_valid_selection_when_foreground_owner_or_activation_is_unc
         assert picker.select() == str(tmp_path)
     assert "fallback owner used" in caplog.text
     assert "foreground activation was not confirmed" in caplog.text
-
-
-def test_new_report_picker_ignores_previous_report_and_export_directories(tmp_path: Path):
-    report = tmp_path / "SYNTHETIC-REPORT"
-    export = tmp_path / "SYNTHETIC-EXPORT"
-    report.mkdir()
-    export.mkdir()
-    history = LocalDirectoryHistoryRepository(tmp_path / "history.json")
-    history.remember_directory("report", report)
-    history.remember_directory("export", export)
-    commands: list[list[str]] = []
-
-    def runner(command: list[str], **_kwargs):
-        commands.append(command)
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    picker = LocalDirectoryPickerService(runner=runner, platform_name="nt", history=history)
-    picker.select(history_kind="report")
-    picker.select(history_kind="export")
-
-    assert str(report) not in commands[0][-1]
-    assert str(export) not in commands[0][-1]
-    assert f"$dialog.SelectedPath = '{export}'" in commands[1][-1]
 
 
 @pytest.mark.parametrize(

@@ -53,8 +53,7 @@ class RuntimePaths:
 
     def ensure_user_directories(self) -> None:
         for path in (
-            self.data_root, self.upload_root, self.output_root,
-            self.log_root, self.backup_root,
+            self.data_root, self.output_root, self.log_root,
         ):
             path.mkdir(parents=True, exist_ok=True)
 

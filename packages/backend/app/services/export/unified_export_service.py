@@ -135,20 +135,28 @@ def unified_export(
         rar_filenames = [rar.name for rar in rar_paths]
         origin = final_dir.resolve()
         remember = None
-        if relocate:
+        if relocate and not already_at_destination:
             if database is None:
                 raise UnifiedExportError("EXPORT_DIRECTORY_RECORD_FAILED", "导出位置无法登记。")
             locations = LocalCaseExportDirectoryRepository(
                 database.database_path.parent / "archive-export-locations.json",
                 strict=True,
             )
-            previous = locations.latest(str(manifest["manifest_id"]))
-            if already_at_destination and previous and previous.get("artifact_origin"):
-                origin = Path(previous["artifact_origin"])
             def remember() -> None:
                 locations.remember(
-                    str(manifest["manifest_id"]), export_path, _utc_now(), artifact_origin=str(origin),
+                    str(manifest["manifest_id"]), export_path, _utc_now(),
+                    artifact_origin=str(origin),
                 )
+        elif relocate and database is not None:
+            # 历史迁移可能已登记目标、但尚未来得及清理工作区原件；损坏的
+            # 旧投影不得阻断以 SQLite 绝对定位的新直出结果。
+            locations = LocalCaseExportDirectoryRepository(
+                database.database_path.parent / "archive-export-locations.json",
+                strict=False,
+            )
+            previous = locations.latest(str(manifest["manifest_id"]))
+            if previous and previous.get("artifact_origin"):
+                origin = Path(previous["artifact_origin"])
         _publish_staged_bundle(
             staging_path, export_path,
             [word_filename, *([] if already_at_destination else rar_filenames)],

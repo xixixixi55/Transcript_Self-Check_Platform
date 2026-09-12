@@ -53,11 +53,14 @@ def test_case_snapshot_is_detached_from_later_library_updates(tmp_path: Path):
 def test_path_override_has_priority_and_default_windows_path_is_not_repo_path():
     override = resolve_app_data_dir({"BIJI_APP_DATA_DIR": "C:/synthetic-app-data"})
     assert str(override).endswith("synthetic-app-data")
+    shared_override = resolve_app_data_dir({"BIJI_APP_DATA_ROOT": "C:/synthetic-root"})
+    assert shared_override == Path("C:/synthetic-root") / "data"
     default = resolve_app_data_dir({"LOCALAPPDATA": "C:/SyntheticLocal"})
     assert default == Path("C:/SyntheticLocal") / "文枢" / "data"
     fallback = resolve_app_data_dir({"LOCALAPPDATA": ""})
     assert fallback != Path.cwd()
-    assert "biji-zijian-platform" in str(fallback)
+    assert fallback.name == "data"
+    assert fallback.parent.name == "文枢"
 
 
 @pytest.mark.parametrize(

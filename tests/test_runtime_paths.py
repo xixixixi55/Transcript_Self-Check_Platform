@@ -70,7 +70,7 @@ def test_portable_windows_requires_local_app_data_without_override(tmp_path: Pat
         )
 
 
-def test_ensure_user_directories_only_writes_under_data_root(tmp_path: Path) -> None:
+def test_ensure_user_directories_creates_only_eager_runtime_roots(tmp_path: Path) -> None:
     program = tmp_path / "program"
     paths = resolve_runtime_paths({
         "BIJI_PORTABLE_MODE": "1",
@@ -79,10 +79,10 @@ def test_ensure_user_directories_only_writes_under_data_root(tmp_path: Path) -> 
     }, platform_name="nt")
     paths.ensure_user_directories()
     assert paths.data_root.is_dir()
-    assert paths.upload_root.is_dir()
     assert paths.output_root.is_dir()
     assert paths.log_root.is_dir()
-    assert paths.backup_root.is_dir()
+    assert not paths.upload_root.exists()
+    assert not paths.backup_root.exists()
     assert not program.exists()
 
 

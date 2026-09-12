@@ -49,7 +49,10 @@ def test_publish_preserves_file_identity_without_copy(publication):
     assert all(file_identity(target / name) == identities[name] for name in names)
     assert not list(staging.glob("*.rar"))
     assert not list(origin.rglob("*.rar"))
-    assert repo.resolve(origin, "SYNTHETIC-manifest") == target
+    assert repo.resolve(
+        origin, "SYNTHETIC-manifest", publication_locator=str(target.resolve()),
+    ) == target
+    assert not repo.locations.file_path.exists()
 
 
 def test_existing_target_is_never_overwritten(publication):
@@ -72,16 +75,13 @@ def test_resume_after_process_stops_between_renames(publication):
     assert all((target / name).read_bytes() == b"SYNTHETIC/TEST" for name in names)
 
 
-def test_registration_failure_restores_staged_files(publication, monkeypatch):
+def test_legacy_location_registration_is_explicit(publication):
     repo, origin, staging, target, names = publication
     repo.prepare(origin, staging, target, "SYNTHETIC-manifest", names)
-    def fail(*args, **kwargs):
-        raise OSError("SYNTHETIC disk failure")
-    monkeypatch.setattr(repo.locations, "remember", fail)
-    with pytest.raises(OSError):
-        repo.publish(origin, target, "SYNTHETIC-manifest")
-    assert all((staging / name).exists() for name in names)
-    assert not list(target.glob("*.rar"))
+    repo.publish(origin, target, "SYNTHETIC-manifest")
+    assert repo.resolve(origin, "SYNTHETIC-manifest") == origin
+    repo.remember_legacy_location(origin, target, "SYNTHETIC-manifest")
+    assert repo.resolve(origin, "SYNTHETIC-manifest") == target
 
 
 def test_unfinished_publication_metadata_is_not_an_untrusted_rar(tmp_path):

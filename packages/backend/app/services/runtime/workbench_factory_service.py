@@ -10,7 +10,6 @@ from typing import Callable
 from ...config import ARCHIVE_OUTPUT_BASE, LEGACY_ARCHIVE_OUTPUT_BASE, OUTPUT_BASE
 from ...repository.workbench.workbench_database import WorkbenchDatabase, database_path_for_deployment
 from ...repository.archive.archive_task_repository import ArchiveTaskRepository
-from ...repository.runtime.local_directory_history_repository import LocalDirectoryHistoryRepository
 from ...repository.inspection.local_inspection_environment_repository import LocalInspectionEnvironmentRepository
 from ...repository.archive.resource_snapshot_repository import ResourceSnapshotRepository
 from ...repository.template.template_approval_repository import TemplateApprovalRepository
@@ -153,9 +152,7 @@ def build_workbench_services(
         template_registry=template_registry,
         template_approvals=template_approvals,
         templates=TemplateRegistryService(database, template_registry, template_approvals),
-        directory_picker=LocalDirectoryPickerService(
-            history=LocalDirectoryHistoryRepository(),
-        ),
+        directory_picker=LocalDirectoryPickerService(),
     )
     services.archive_runtime = ArchiveRuntimeCoordinator(
         archive_scheduler,

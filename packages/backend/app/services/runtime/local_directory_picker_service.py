@@ -8,10 +8,6 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-from ...repository.runtime.local_directory_history_repository import (
-    DirectoryHistoryKind,
-    LocalDirectoryHistoryRepository,
-)
 from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 
 logger = logging.getLogger(__name__)
@@ -184,19 +180,16 @@ class LocalDirectoryPickerService:
         platform_name: str | None = None,
         powershell_path: str | None = None,
         timeout_seconds: float = _PICKER_TIMEOUT_SECONDS,
-        history: LocalDirectoryHistoryRepository | None = None,
     ) -> None:
         self.runner = runner
         self.platform_name = platform_name or os.name
         self.powershell_path = powershell_path
         self.timeout_seconds = timeout_seconds
-        self.history = history
 
     def select(
         self,
         description: str = "选择报告目录",
         *,
-        history_kind: DirectoryHistoryKind | None = None,
         selection_validator: SelectionValidator | None = None,
     ) -> str | None:
         if self.platform_name != "nt":
@@ -205,11 +198,6 @@ class LocalDirectoryPickerService:
         logger.info(
             "directory picker: launching native folder dialog (timeout=%ss)",
             self.timeout_seconds,
-        )
-        initial_directory = (
-            self.history.last_directory(history_kind)
-            if history_kind not in {None, "report"} and self.history is not None
-            else None
         )
         try:
             result = self.runner(
@@ -221,7 +209,7 @@ class LocalDirectoryPickerService:
                     "-WindowStyle",
                     "Hidden",
                     "-Command",
-                    _folder_picker_script(description, initial_directory),
+                    _folder_picker_script(description),
                 ],
                 capture_output=True,
                 text=True,
@@ -263,8 +251,6 @@ class LocalDirectoryPickerService:
             logger.warning("directory picker: foreground owner was not captured; fallback owner used")
         if "PICKER_FOREGROUND_NOT_CONFIRMED" in (result.stderr or ""):
             logger.warning("directory picker: native foreground activation was not confirmed")
-        if history_kind not in {None, "report"} and self.history is not None:
-            self.history.remember_directory(history_kind, candidate)
         logger.info("directory picker: directory selected")
         return str(candidate)
 

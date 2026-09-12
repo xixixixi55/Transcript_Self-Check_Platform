@@ -1,7 +1,9 @@
 # Tasks: 后台压缩与归档完成统一导出
 
 workflow_level: 3
-lifecycle_status: in-progress
+lifecycle_status: ready-to-archive
+spec_sync_status: reconciled
+spec_sync_evidence: 后台归档、报告上级目录直出、统一导出、介质映射、Word 附件容错与历史迁移兼容的最终行为已同步至 openspec/specs/electronic-inspection-record/spec.md；本轮移除的独立归档存储设置未保留在 living spec。
 
 > 规格：`openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`
 > 设计：`openspec/changes/background-compression-archive-completion/design.md`
@@ -441,7 +443,7 @@ lifecycle_status: in-progress
   - 验证：复用统一导出审计、导出编排和工作台页面测试，覆盖路径持久化、按案件查询最新成功记录、目录不存在、无 shell 解析启动，以及 A/B 导出反序完成后两个图标分别请求自身案件端点；运行 `npm run verify:quick`、scoped strict docs、Impeccable detector 与 `git diff --check`。
   - 自动化证据：后端导出目录 Repository、统一导出、导出编排及工作台持久化 52/52 通过；案件卡片 10/10、归档完成 Hook 7/7，通过案件页 A/B 反序完成定向回归 1/1；前端生产构建、`npm run verify:quick`、scoped strict docs（14 checks / 0 drift）与 `git diff --check` 通过。Impeccable detector 仅报告 `platformShell.css:67` 既有 `margin-left` 布局动画，本任务新增样式无新告警。
   - code_review: [DEFERRED] 本任务复用当前未冻结 Level 3 变更包，按包级节奏待全部反馈收敛后统一独立审查，不为单项反馈提前冻结候选。
-  - manual_acceptance: [PENDING] 自动化已验证按案件端点和 Windows Explorer 参数列表；仍需在真实打包 Windows 客户端中点击图标，确认文件资源管理器聚焦到实际导出目录。
+  - manual_acceptance: [PASS] 用户于 2026-09-12 在真实 Windows 客户端点击“打开导出文件夹”，确认文件资源管理器正确聚焦到该案件最后一次成功统一导出的实际目录。
 
 - [x] T054 将阶段操作矩阵中的“删除案件”显示名称同步为“归档案件”，保持已导出阶段的入口权重、原删除回调、DELETE API 与平台受控产物清理合同不变；对应实现与组件回归由 `case-workbench-delete` T017 收敛，scoped strict docs 通过。实施当时保留的旧式 delta 标题格式债务已由 T058 收敛。
 
@@ -468,3 +470,15 @@ lifecycle_status: in-progress
   - 文件：`openspec/changes/background-compression-archive-completion/specs/electronic-inspection-record/spec.md`、`proposal.md`、`tasks.md`。
   - 验证：`npx openspec validate background-compression-archive-completion --strict --json` 通过（1 passed、0 failed），并继续运行 scoped strict docs、`verify:quick` 与 `git diff --check`。
   - manual_acceptance: [N/A] 仅迁移需求文档结构，不改变产品行为、界面或输出文件。
+
+- [x] T059 收敛报告上级目录直出后的本机数据目录冗余（用户反馈）。
+  - 目标：保留 `%LOCALAPPDATA%\文枢` 作为数据库、案件资产、日志和单实例锁的必要持久数据根；新归档继续只在报告上级目录生成临时与最终 RAR，不恢复独立归档存储设置。
+  - Layer 20：人员库默认数据目录复用统一 `RuntimePaths.data_root`，仅保留 `BIJI_APP_DATA_DIR` 作为显式旧测试/部署覆盖；停止在首次启动时无条件创建没有生产写入者的 `workspace/uploads` 与尚未接线的 `backups`，由实际消费者按需创建。
+  - Layer 20–21：移除当前生产调用已经断开的原生目录选择历史 Repository、picker 参数和工厂注入；报告选择继续不读取或保存历史绝对路径。
+  - 归档兼容：新工作台直出将绝对发布位置绑定到 SQLite publish intent，不再为同一新发布重复写 `archive-export-locations.json`；该 JSON 的只读解析与统一导出中的历史工作区迁移写入继续保留，确保旧案件可恢复。
+  - 文档：删除同一未归档变更中已被“报告来源决定最终目录”取代的归档存储设置增量，并把 D12 改写为最终直出与有界旧数据兼容决策。
+  - 验证：先复用并调整 RuntimePaths、人员库、目录选择器、直出归档与历史迁移测试；运行受影响 pytest、`npm run lint:arch`、`npm run typecheck`、`npm run verify:quick`、scoped strict docs 与 `git diff --check`。不读取或删除本机真实案件数据。
+  - 自动化证据：RuntimePaths、人员库、目录选择器、直出归档与统一导出定向测试 104 passed；归档生命周期及旧工作区迁移兼容测试 21 passed；审查修复后的直接发布、SQLite Manifest 恢复、归档执行与统一导出扩大测试 76 passed；后端标准命令稳定收集 1347 tests。`npm run lint:arch`、`npm run typecheck`、`npm run verify:quick` 与 OpenSpec strict validate 均通过。新直出断言旧位置 JSON 不产生且忽略损坏旧投影，历史相对意图恢复和旧工作区迁移仍通过兼容投影完成。
+  - code_review: [PASS] 冻结候选的独立审查首轮发现并关闭 Manifest 复用未传 SQLite locator、新直出读取损坏旧 JSON、同目录测试漏收集及 design 旧目录选择语义 4 项 MUST FIX；复审确认架构、代码质量、Spec、一致性、测试质量与可维护性五维 PASS，无剩余 MUST/SHOULD。
+  - final_gate: [PASS] 候选于用户完成 T053 真实 Windows 人工验收、全部开放项清零并通过最终独立复审后重新冻结；`npm run verify:full -- --change background-compression-archive-completion` 使用 `D:\harness-temp-root` 隔离数据根执行，预检、架构、类型、治理、仓库资产、全量测试（300.2s）、生产构建与 scoped strict docs 全部通过。
+  - manual_acceptance: [N/A] 本任务只收敛内部路径解析、空目录初始化和兼容登记，不改变最终 RAR/Word 位置或界面交互。

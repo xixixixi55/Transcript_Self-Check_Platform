@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from ..runtime.runtime_paths import resolve_runtime_paths
+
 SCHEMA_VERSION = 2
 LEGACY_SCHEMA_VERSION = 1
 MAX_NAME_LENGTH = 100
@@ -71,21 +73,13 @@ def project_case_inspector_snapshot(
 
 
 def resolve_app_data_dir(env: Mapping[str, str] | None = None) -> Path:
-    """解析应用数据目录，不记录用户路径。"""
+    """解析人员库数据目录，并兼容旧的显式目录覆盖。"""
 
     values = env if env is not None else os.environ
     override = str(values.get("BIJI_APP_DATA_DIR", "")).strip()
     if override:
         return Path(override).expanduser()
-    if os.name == "nt":
-        local_app_data = str(values.get("LOCALAPPDATA", "")).strip()
-        if local_app_data:
-            return Path(local_app_data) / "文枢" / "data"
-        return Path(tempfile.gettempdir()) / "biji-zijian-platform" / "data"
-    xdg_data_home = str(values.get("XDG_DATA_HOME", "")).strip()
-    if xdg_data_home:
-        return Path(xdg_data_home) / "文枢"
-    return Path.home() / ".local" / "share" / "文枢"
+    return resolve_runtime_paths(values, platform_name=os.name).data_root
 
 
 def _now() -> str:

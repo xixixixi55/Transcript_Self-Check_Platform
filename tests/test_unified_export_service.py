@@ -94,6 +94,26 @@ def test_relocation_keeps_one_rar_set_and_reuses_it_after_reload(database, tmp_p
     assert {p.name: p.stat().st_ino for p in target.glob("*.rar")} == identities
 
 
+def test_direct_export_ignores_corrupt_legacy_location_registry(database, tmp_path, monkeypatch):
+    target = tmp_path / "SYNTHETIC-DIRECT-PARENT"
+    target.mkdir()
+    for part in manifest()["parts"]:
+        (target / part["filename"]).write_bytes(b"SYNTHETIC/RAR")
+    legacy = database.database_path.parent / "archive-export-locations.json"
+    legacy.write_text("{SYNTHETIC/CORRUPT", encoding="utf-8")
+    monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
+
+    result = unified_export(
+        report={}, manifest=manifest(), final_dir=target, export_path=target,
+        photo_paths=[], template_context={}, database=database,
+        case_id=CASE_ID, relocate=True,
+    )
+
+    assert result["export_path"] == str(target)
+    assert legacy.read_text(encoding="utf-8") == "{SYNTHETIC/CORRUPT"
+    assert len(list(target.glob("*.rar"))) == 2
+
+
 @pytest.mark.parametrize("failure", ["existing", "during_copy", "registry", "corrupt_copy"])
 def test_relocation_failure_preserves_originals_and_external_files(database, tmp_path, monkeypatch, failure):
     from app.repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository

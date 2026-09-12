@@ -236,6 +236,12 @@ def _recover_published_intent(
             publisher.assert_binding(final_dir, attempt, intent["public_manifest"])
             with publisher.recovery_guard(attempt, intent):
                 actual = publisher.publish(final_dir, destination, intent["manifest_id"])
+                # v8-v11 的相对定位符仍需旧位置表完成后续校验；仅在恢复这类
+                # 历史意图时补写兼容投影，当前绝对定位符链路不再重复持久化。
+                if not Path(publication_locator).is_absolute():
+                    publisher.remember_legacy_location(
+                        final_dir, actual, intent["manifest_id"],
+                    )
         except WorkbenchPersistenceError as error:
             if error.code == "ARCHIVE_COMPLETION_EVIDENCE_CONFLICT":
                 raise _RecoveryConflictError(error.code) from error

@@ -91,9 +91,6 @@ class ArchiveDirectPublicationRepository:
                     os.link(source, target)
                     source.unlink()
                 moved.append(name)
-            self.locations.remember(
-                manifest_id, destination, utc_now(), artifact_origin=str(origin.resolve()),
-            )
         except Exception:
             for name in reversed(moved):
                 target, source = destination / name, staging / name
@@ -115,6 +112,14 @@ class ArchiveDirectPublicationRepository:
                 and Path(record["artifact_origin"]).resolve(strict=False) == origin.resolve(strict=False)):
             return Path(record["export_path"])
         return origin
+
+    def remember_legacy_location(
+        self, origin: Path, destination: Path, manifest_id: str,
+    ) -> None:
+        """仅为缺少 SQLite 绝对定位符的历史发布保存兼容投影。"""
+        self.locations.remember(
+            manifest_id, destination, utc_now(), artifact_origin=str(origin.resolve()),
+        )
 
     def assert_binding(self, origin: Path, attempt: dict[str, Any], manifest: dict[str, Any]) -> Path:
         payload = json.loads((origin / JOURNAL_NAME).read_text(encoding="utf-8"))
