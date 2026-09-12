@@ -135,7 +135,11 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 #### Scenario: 当前平航结构进入现有审核和导出链路
 
 - **WHEN** 用户选择命中全部 v1 结构签名的平航报告目录
-- **THEN** 系统将案件、报告时间、材料、标识符和软件候选映射到 canonical/provenance，再投影现有 `InspectionReport` 供审核
+- **THEN** 系统将案件、送检人员/单位、材料、标识符、软件候选和全部材料的取证起止时间映射到 canonical/provenance，再投影现有 `InspectionReport` 供审核
+- **AND** 主取证软件名称按用户确认的 v1 适配规则默认为“平航手机多路分析取证软件”并标记为 `confirmed_by_user`，版本取报告“数据取证软件版本”
+- **AND** 材料页明确“数据类型”为 `Android设备`（允许大小写、全半角和空白差异）时，按用户确认的 v1 规则归类为手机并标记为 `confirmed_by_report`；该映射不适用于其他报告格式或未知类型值
+- **AND** 检查起止时间取全部材料中最早的有效取证开始时间和最晚的有效取证结束时间；任一材料时间缺失、非法或倒置时留空待审核
+- **AND** 报告未明确绑定取证硬件时不得套用美亚硬件默认值
 - **AND** 正式 Word 继续使用当前 legacy renderer、最终 Manifest、附件计划和已选模板，不因此切换全局 canonical 模式
 
 #### Scenario: 提取内容不冒充检材照片
@@ -946,7 +950,7 @@ Windows 系统展示名称 MUST 按“系统代际 + 位数版本类型”的顺
 ### Requirement: REQ-016: 按实际操作生成 software_tools
 
 系统 MUST 满足以下现有合同：
-系统 MUST 根据报告来源和实际运行环境生成 `software_tools`。主软件名称和版本均为可靠候选时，列表包含主软件、WinRAR 和 HashMyFiles；主软件名称或版本不完整时，不加入主软件工具，只保留 WinRAR 和 HashMyFiles。主软件确认状态由 `inspection.primary_software` 和统一导出门控管理，不写死具体厂商或产品名称。
+系统 MUST 根据报告来源、已确认的版本化适配规则和实际运行环境生成 `software_tools`。主软件名称和版本均为可靠候选时，列表包含主软件、WinRAR 和 HashMyFiles；主软件名称或版本不完整时，不加入主软件工具，只保留 WinRAR 和 HashMyFiles。主软件确认状态由 `inspection.primary_software` 和统一导出门控管理，不得使用无格式边界的固定厂商或产品名称；用户明确批准的格式专属默认名称只允许在唯一命中的版本化适配器内使用，并保留 `confirmed_by_user` 来源。
 
 可靠主软件名称候选 MUST 移除表示取证塔、取证设备、取证工作站、采集设备或硬件设备的括号描述，同时保留报告识别到的软件名称和独立版本；不得擅自映射为其他产品名称，也不得把硬件描述作为软件工具名称导出。
 

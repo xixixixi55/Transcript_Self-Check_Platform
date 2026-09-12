@@ -281,6 +281,21 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
   - 收尾证据（2026-09-12）：平航 v1 最终行为已同步至 `openspec/specs/electronic-inspection-record/spec.md`；`npm run verify:quick`、196 项受影响后端测试、OpenSpec strict validate、限定 strict docs 和 `git diff --check` 通过。敏感样本标识与仓库外绝对路径定向扫描零命中；全局 `pipeline_mode` 保持不变。
 - [x] 17A.7 根据超大报告反馈将平航 v1 改为固定核心文件快速路径：报告页由 `0_1.json` 加结构/标签校验确认，案件页由导航“案件信息”节点定位，材料页由 `DeviceInfo` 节点定位；不枚举或读取非核心 ViewData，并补充手机名称/品牌/型号字段别名。验证：SYNTHETIC 1049+ 页目录中含非法/乱码非核心页仍只记录核心依赖，两个仓库外样本只读解析通过，100GB 级报告体量不成为案件初始化上限。
   - 快速路径证据（2026-09-12）：适配器语义版本升级为 1.1.0，避免复用旧缓存。新增 SYNTHETIC 1049 页目录回归，其中非核心页含可执行样式和非法 UTF-8 数据；快照仍只读取入口、导航和 4 个核心页，共 6 个依赖，被选核心页异常仍安全失败。三个仓库外样本均只读解析成功，各记录 5 个依赖；较大样本快照约 0.11 秒、完整事实解析约 0.29 秒，补充样本完整事实解析约 0.30 秒。受影响后端回归 196 passed，未复制样本、未记录真实字段值或绝对路径。
+- [x] 17A.8 根据美亚 new 与平航 v1 对比反馈，补齐平航案件页“送检人员”“送检单位”到现有委托字段的映射；检查起止时间改为全部材料中最早取证开始时间至最晚取证结束时间，任一材料时间缺失、非法或倒置时留空；报告未明确硬件时不再套用美亚 FL-901 解析初值。保持主软件、材料类型和附件图片的既有确认边界，适配器语义版本升级并失效旧缓存。
+- [x] 17A.8T 扩展现有 SYNTHETIC 平航回归，先证明委托字段、跨材料取证时间和中性硬件初值的失败，再覆盖单材料、多材料、缺失时间、非法时间、倒置时间及美亚旧/新版输出不回归；真实样本只用于只读脱敏存在性复核。
+  - 实现与测试证据（2026-09-12）：适配器语义版本升级为 1.2.0；新增 SYNTHETIC 单/多材料及缺失、非法、倒置时间回归，定向平航测试 21 passed，平航/解析/来源/投影/软件策略/导出门控/工作台/HTML 时间解析受影响回归合计 171 passed。两个用户指定的仓库外样本仅作只读脱敏存在性复核：平航委托字段和设备取证时间均可用，美亚 new 原有委托、时间、硬件和多材料结果保持可用；未复制样本、未记录真实字段值。
+- [x] 17A.9 核对本轮增量与实现并同步现行规格，运行平航/报告解析/Canonical/工作台受影响测试、`npm run verify:quick`、限定严格文档检查和 `git diff --check`；保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+  - 收尾证据（2026-09-12）：本轮最终行为已同步至 `openspec/specs/electronic-inspection-record/spec.md`；171 项受影响后端测试、`npm run verify:quick`、OpenSpec strict validate、限定 strict docs 与 `git diff --check` 均通过。全局 `pipeline_mode` 和变更包 `lifecycle_status: in-progress` 保持不变，未触发延期任务、最终 Review 或 scoped full gate。
+- [x] 17A.10 根据用户确认将平航 v1 主取证软件名称默认为“平航手机多路分析取证软件”，确认状态标记为 `confirmed_by_user`，版本继续取报告“数据取证软件版本”；仅在唯一命中 `pinghang-mobile-multipath-v1` 时应用，不影响美亚或未知报告。适配器语义版本升级并失效旧缓存。
+- [x] 17A.10T 扩展现有 SYNTHETIC 平航回归，先证明空名称/待确认状态失败，再覆盖快照、Canonical/legacy 投影、工具列表、检查步骤、结果字段和导出确认状态；保留材料类型待确认边界，并验证美亚旧/新版软件识别不回归。
+  - 实现与测试证据（2026-09-12）：适配器语义版本升级为 1.3.0；聚焦回归先以名称为空、状态未确认和旧版本号产生 3 个预期失败，修改后平航 21 passed。平航/解析/来源/投影/软件策略/导出门控/工作台/HTML 时间解析受影响回归合计 171 passed；SYNTHETIC 断言覆盖默认名称、报告版本、`confirmed_by_user`、用户/报告双来源、主工具、步骤4、结果字段和导出确认，同时保持材料类型待确认。仓库外样本仅作只读脱敏布尔复核，未记录真实字段值或复制样本。
+- [x] 17A.11 核对本轮增量与实现并同步现行规格，运行平航/软件策略/导出门控/报告解析/Canonical/工作台受影响测试、`npm run verify:quick`、OpenSpec strict validate、限定严格文档检查和 `git diff --check`；保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+  - 收尾证据（2026-09-12）：本轮默认名称行为已同步至 `openspec/specs/electronic-inspection-record/spec.md`；171 项受影响后端测试、`npm run verify:quick`、OpenSpec strict validate、限定 strict docs 与 `git diff --check` 均通过。敏感样本标识定向扫描零命中；全局 `pipeline_mode` 和变更包 `lifecycle_status: in-progress` 保持不变。
+- [x] 17A.12 根据用户确认，将平航 v1 材料页明确“数据类型”值 `Android设备`（兼容大小写、全半角和空白差异）映射为手机并标记为报告确认；仅修改 v1 内置适配语义，不接入额外设备技术字段，不改变其他报告格式或未知类型值，适配器语义版本升级并失效旧缓存。
+- [x] 17A.12T 修改现有 SYNTHETIC 平航回归，先证明带空格和不带空格的 Android 设备仍待确认，再覆盖 `phone`、`confirmed_by_report`、报告来源及手机标识显示策略；仓库外样本只作只读脱敏复核。
+  - 实现与测试证据（2026-09-12）：适配器语义版本升级为 1.4.0；聚焦用例先以 `phone` 预期产生失败，修复后覆盖有空格、无空格、小写和全角四种 Android 设备写法，未知类型仍保持待确认。平航定向回归 24 passed，平航/材料策略/报告解析/Canonical/软件策略/导出门控/来源/工作台受影响回归合计 217 passed。用户指定仓库外样本仅作只读脱敏复核，结果为 1 个 `phone`、`confirmed_by_report`、来源为报告，手机步骤不显示序列号；未复制样本或接入额外技术字段。
+- [x] 17A.13 核对本轮增量与实现并同步现行规格，运行平航及材料策略受影响测试、`npm run verify:quick`、OpenSpec strict validate、限定严格文档检查和 `git diff --check`；保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+  - 收尾证据（2026-09-12）：Android 设备映射行为已同步至现行规格；217 项受影响后端测试、`npm run verify:quick`、OpenSpec strict validate、限定严格文档检查与 `git diff --check` 通过。仓库外样本标识定向扫描零命中；全局 `pipeline_mode` 和变更包 `lifecycle_status: in-progress` 保持不变，未触发延期任务、最终 Review 或 scoped full gate。
 
 ## 2026-09-08 来源目录校验移除反馈
 

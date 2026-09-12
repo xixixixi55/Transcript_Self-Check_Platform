@@ -20,6 +20,7 @@ from ...repository.report.html_parser import (
     parse_case_info, parse_device_lists, parse_report_info,
     parse_device_base,
     format_inspection_time_range,
+    parse_report_datetime,
 )
 from ...repository.report.device_field_parser import is_generic_device_label
 from ...repository.report.report_format_adapter import ReportFormat, require_supported_report_format
@@ -336,10 +337,8 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         })
 
     # 10. 构建 InspectionReport
-    # 标准检查时间只来自案件 JSON 的创建时间和报告时间；设备表时间段不参与。
-    time_range = format_inspection_time_range(
-        case.get("create_time", ""), case.get("report_time", "")
-    )
+    # 不同报告格式按各自事实源生成检查时间。
+    time_range = _inspection_time_range(case, devices_raw, input_snapshot)
 
     # 用于前端生成文号的原始数据
     _case_number = case.get("case_number", "")
@@ -361,7 +360,11 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         },
         "inspection": {
             "method": DEFAULT_INSPECTION_METHOD,
-            "hardware_device": DEFAULT_HARDWARE_DEVICE,
+            "hardware_device": (
+                "" if input_snapshot is not None
+                and input_snapshot.report_format == ReportFormat.PINGHANG
+                else DEFAULT_HARDWARE_DEVICE
+            ),
             "primary_software": {
                 "name": main_name,
                 "version": main_version,
@@ -410,6 +413,32 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
 def _software_action_name(value: object) -> str:
     name = str(value or "").strip() or "待确认主取证软件"
     return name if name.endswith("软件") else f"{name}软件"
+
+
+def _inspection_time_range(
+    case: dict, devices: tuple[dict, ...] | list[dict],
+    input_snapshot: ReportParseInputSnapshot | None,
+) -> str:
+    """平航使用全部检材取证边界；其他格式保持案件创建/报告时间。"""
+    if input_snapshot is None or input_snapshot.report_format != ReportFormat.PINGHANG:
+        return format_inspection_time_range(
+            case.get("create_time", ""), case.get("report_time", ""),
+        )
+    if not devices:
+        return ""
+    starts = []
+    ends = []
+    for device in devices:
+        start = parse_report_datetime(str(device.get("start_time", "")))
+        end = parse_report_datetime(str(device.get("end_time", "")))
+        if start is None or end is None or start > end:
+            return ""
+        starts.append(start)
+        ends.append(end)
+    return format_inspection_time_range(
+        min(starts).strftime("%Y-%m-%d %H:%M:%S"),
+        max(ends).strftime("%Y-%m-%d %H:%M:%S"),
+    )
 
 
 def _natural_evidence_order(items: list[dict]) -> list[dict]:

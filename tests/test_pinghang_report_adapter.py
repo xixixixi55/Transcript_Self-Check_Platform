@@ -28,6 +28,9 @@ from app.services.archive.archive_authorization_service import ArchiveAuthorizat
 from app.services.case.case_draft_service import CaseDraftService  # noqa: E402
 from app.services.case.case_lifecycle_service import CaseLifecycleService  # noqa: E402
 from app.services.report.report_parser_service import parse_report  # noqa: E402
+from app.services.inspection.software_policy_service import (  # noqa: E402
+    is_primary_software_confirmed,
+)
 from app.services.source.source_record_service import SourceRecordService  # noqa: E402
 
 
@@ -68,6 +71,12 @@ def _nav_name(value: str) -> str:
 def _write_pinghang_fixture(
     root: Path, *, duplicate_device_node: bool = False,
     duplicate_case_node: bool = False,
+    include_second_device: bool = True,
+    first_device_type: str = "Android 设备",
+    second_device_type: str = "Android设备",
+    second_device_times: tuple[str, str] = (
+        "2026-01-02 02:50:00", "2026-01-02 04:30:00",
+    ),
 ) -> Path:
     view_data = root / "报告" / "data" / "ViewData"
     view_data.mkdir(parents=True)
@@ -77,8 +86,11 @@ def _write_pinghang_fixture(
     navigation = [
         {"id": 10, "pid": 0, "name": _nav_name("案件信息"), "dataIndex": "11", "viewType": "Table", "rangeCount": 1},
         {"id": 1, "pid": 0, "name": _nav_name("SYNTHETIC-设备-B"), "dataIndex": "7", "viewType": "DeviceInfo", "rangeCount": 1},
-        {"id": 2, "pid": 0, "name": _nav_name("SYNTHETIC-设备-A"), "dataIndex": "4", "viewType": "DeviceInfo", "rangeCount": 1},
     ]
+    if include_second_device:
+        navigation.append(
+            {"id": 2, "pid": 0, "name": _nav_name("SYNTHETIC-设备-A"), "dataIndex": "4", "viewType": "DeviceInfo", "rangeCount": 1}
+        )
     if duplicate_device_node:
         navigation.append(
             {"id": 3, "pid": 0, "name": _nav_name("SYNTHETIC-重复设备"), "dataIndex": "7", "viewType": "DeviceInfo", "rangeCount": 1}
@@ -102,6 +114,8 @@ def _write_pinghang_fixture(
         ("案件编号", "SYNTHETIC-CASE-001"),
         ("案件描述", "SYNTHETIC-案情摘要"),
         ("创建时间", "2026-01-02 03:04:05"),
+        ("送检人员", "SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B"),
+        ("送检单位", "SYNTHETIC-UNIT"),
     ])), encoding="utf-8")
     (view_data / "0_1.json").write_text(_jsonp(0, _table([
         ("数据取证软件版本", "SYNTHETIC-PH 1.2.3"),
@@ -111,7 +125,7 @@ def _write_pinghang_fixture(
     (view_data / "7_1.json").write_text(_jsonp(7, _device([
         ("检材名称", "SYNTHETIC-设备-B"),
         ("检材编号", "SYNTHETIC-EVIDENCE-20"),
-        ("数据类型", "Android设备"),
+        ("数据类型", first_device_type),
         ("设备品牌", "SYNTHETIC-BRAND-B"),
         ("设备型号", "SYNTHETIC-MODEL-B"),
         ("IMEI", "111111111111111"),
@@ -119,16 +133,19 @@ def _write_pinghang_fixture(
         ("取证开始时间", "2026-01-02 03:10:00"),
         ("取证结束时间", "2026-01-02 03:20:00"),
     ])), encoding="utf-8")
-    (view_data / "4_1.json").write_text(_jsonp(4, _device([
-        ("检材名称", "SYNTHETIC-设备-A"),
-        ("检材编号", "SYNTHETIC-EVIDENCE-10"),
-        ("数据类型", "Android设备"),
-        ("设备品牌", "SYNTHETIC-BRAND-A"),
-        ("设备型号", "SYNTHETIC-MODEL-A"),
-        ("IMEI", "222222222222222"),
-        ("IMEI2", "333333333333333"),
-        ("序列码", "SYNTHETIC-SERIAL-A"),
-    ])), encoding="utf-8")
+    if include_second_device:
+        (view_data / "4_1.json").write_text(_jsonp(4, _device([
+            ("检材名称", "SYNTHETIC-设备-A"),
+            ("检材编号", "SYNTHETIC-EVIDENCE-10"),
+            ("数据类型", second_device_type),
+            ("设备品牌", "SYNTHETIC-BRAND-A"),
+            ("设备型号", "SYNTHETIC-MODEL-A"),
+            ("IMEI", "222222222222222"),
+            ("IMEI2", "333333333333333"),
+            ("序列码", "SYNTHETIC-SERIAL-A"),
+            ("取证开始时间", second_device_times[0]),
+            ("取证结束时间", second_device_times[1]),
+        ])), encoding="utf-8")
     return root
 
 
@@ -144,6 +161,16 @@ def test_registry_and_snapshot_parse_pinghang_semantically(tmp_path):
     assert snapshot.adapter_version == match.adapter_version
     assert snapshot.structure_fingerprint == match.structure_fingerprint
     assert snapshot.case_info["case_summary"] == "SYNTHETIC-案情摘要"
+    assert snapshot.case_info["submit_person"] == (
+        "SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B"
+    )
+    assert snapshot.case_info["submit_unit"] == "SYNTHETIC-UNIT"
+    assert snapshot.report_info["main_software"] == {
+        "name": "平航手机多路分析取证软件",
+        "version": "SYNTHETIC-PH 1.2.3",
+        "status": "confirmed_by_user",
+        "candidates": [],
+    }
     assert [row["evidence_number"] for row in snapshot.device_rows] == [
         "SYNTHETIC-EVIDENCE-20", "SYNTHETIC-EVIDENCE-10",
     ]
@@ -176,31 +203,140 @@ def test_pinghang_adapter_version_and_content_participate_in_input_fingerprint(t
     assert changed_adapter.dependency_fingerprint != changed_content.dependency_fingerprint
 
 
-def test_parse_report_keeps_ambiguous_android_material_unconfirmed(tmp_path):
+def test_parse_report_maps_pinghang_android_device_to_phone(tmp_path):
     source = _write_pinghang_fixture(tmp_path)
 
     result = parse_report(str(source), str(tmp_path / "output"), compress=False)
 
     report = result["report"]
     assert report["introduction"]["case_summary"] == "SYNTHETIC-案情摘要"
+    assert report["introduction"]["entrust_unit"] == "SYNTHETIC-UNIT"
+    assert report["introduction"]["entrust_persons"] == [
+        "SYNTHETIC-PERSON-A", "SYNTHETIC-PERSON-B",
+    ]
     assert [item["evidence_number"] for item in report["introduction"]["evidence_list"]] == [
         "SYNTHETIC-EVIDENCE-20", "SYNTHETIC-EVIDENCE-10",
     ]
+    evidence_list = report["introduction"]["evidence_list"]
+    assert all(item["material_type"] == "phone" for item in evidence_list)
     assert all(
-        item["material_type_status"] == "unconfirmed"
-        for item in report["introduction"]["evidence_list"]
+        item["material_type_status"] == "confirmed_by_report"
+        for item in evidence_list
     )
-    assert report["inspection"]["primary_software"]["confirmation_status"] == "unconfirmed"
-    assert report["inspection"]["primary_software"]["provenance"][0] == {
+    assert all(item["material_type_source"] == "report" for item in evidence_list)
+    assert all(item["material_type_diagnostic"] is None for item in evidence_list)
+    assert "IMEI1：" in report["inspection"]["process_steps"][0]["content"]
+    assert "序列号：" not in report["inspection"]["process_steps"][0]["content"]
+    primary = report["inspection"]["primary_software"]
+    assert primary["name"] == "平航手机多路分析取证软件"
+    assert primary["version"] == "SYNTHETIC-PH 1.2.3"
+    assert primary["confirmation_status"] == "confirmed_by_user"
+    assert primary["provenance"][0] == {
+        "source_type": "user",
+        "source_file": None,
+        "json_path": None,
+        "adapter": "pinghang-mobile-multipath-v1",
+        "confidence": 1.0,
+    }
+    assert primary["provenance"][1] == {
         "source_type": "report",
         "source_file": "0_1.json",
         "json_path": "Rows",
         "adapter": "pinghang-mobile-multipath-v1",
         "confidence": 1.0,
     }
+    assert report["inspection"]["software_tools"][0]["name"] == (
+        "平航手机多路分析取证软件"
+    )
+    assert report["inspection"]["software_tools"][0]["version"] == (
+        "SYNTHETIC-PH 1.2.3"
+    )
+    assert report["inspection"]["result"]["software_name"] == (
+        "平航手机多路分析取证软件"
+    )
+    assert report["inspection"]["result"]["software_version"] == (
+        "SYNTHETIC-PH 1.2.3"
+    )
+    assert report["inspection"]["process_steps"][3]["content"] == (
+        "启动平航手机多路分析取证软件，使用该软件对检材"
+        "SYNTHETIC-EVIDENCE-20、SYNTHETIC-EVIDENCE-10进行检查。"
+    )
+    assert is_primary_software_confirmed(report)
     assert report["attachments"]["photo_ids"] == []
     assert "报告/data/navigation_data.js" in result["parsed_files"]
-    assert "3点10分" not in report["introduction"]["inspection_time_range"]
+    assert report["introduction"]["inspection_time_range"] == (
+        "2026年1月2日2点50分至2026年1月2日4点30分"
+    )
+    assert report["inspection"]["hardware_device"] == ""
+
+
+@pytest.mark.parametrize("reported_type", ["android设备", "Ａｎｄｒｏｉｄ　设备"])
+def test_pinghang_android_device_mapping_normalizes_case_width_and_space(
+    tmp_path, reported_type,
+):
+    source = _write_pinghang_fixture(
+        tmp_path, include_second_device=False, first_device_type=reported_type,
+    )
+
+    material = parse_report(
+        str(source), str(tmp_path / "output"), compress=False,
+    )["report"]["introduction"]["evidence_list"][0]
+
+    assert material["material_type"] == "phone"
+    assert material["material_type_status"] == "confirmed_by_report"
+    assert material["material_type_source"] == "report"
+
+
+def test_pinghang_unknown_device_type_still_requires_confirmation(tmp_path):
+    source = _write_pinghang_fixture(
+        tmp_path,
+        include_second_device=False,
+        first_device_type="SYNTHETIC-UNKNOWN-TYPE",
+    )
+
+    material = parse_report(
+        str(source), str(tmp_path / "output"), compress=False,
+    )["report"]["introduction"]["evidence_list"][0]
+
+    assert material["material_type"] == "unconfirmed"
+    assert material["material_type_status"] == "unconfirmed"
+    assert material["material_type_source"] == "report"
+    assert material["material_type_diagnostic"] == (
+        "MATERIAL_TYPE_DEVICE_TYPE_UNRECOGNIZED"
+    )
+
+
+def test_single_pinghang_device_uses_its_acquisition_time_range(tmp_path):
+    source = _write_pinghang_fixture(
+        tmp_path, include_second_device=False,
+    )
+
+    report = parse_report(
+        str(source), str(tmp_path / "output"), compress=False,
+    )["report"]
+
+    assert report["introduction"]["inspection_time_range"] == (
+        "2026年1月2日3点10分至2026年1月2日3点20分"
+    )
+
+
+@pytest.mark.parametrize("second_device_times", [
+    ("", "2026-01-02 04:30:00"),
+    ("SYNTHETIC-NOT-A-TIME", "2026-01-02 04:30:00"),
+    ("2026-01-02 05:00:00", "2026-01-02 04:30:00"),
+])
+def test_pinghang_incomplete_or_invalid_device_time_requires_review(
+    tmp_path, second_device_times,
+):
+    source = _write_pinghang_fixture(
+        tmp_path, second_device_times=second_device_times,
+    )
+
+    report = parse_report(
+        str(source), str(tmp_path / "output"), compress=False,
+    )["report"]
+
+    assert report["introduction"]["inspection_time_range"] == ""
 
 
 def test_pinghang_payload_decoder_rejects_executable_suffix():
@@ -389,7 +525,7 @@ def test_source_registration_records_pinghang_adapter_metadata(tmp_path):
     descriptor = service.register_report_directory(str(source))
 
     assert descriptor["metadata"]["adapter_id"] == "pinghang-mobile-multipath-v1"
-    assert descriptor["metadata"]["adapter_version"] == "1.1.0"
+    assert descriptor["metadata"]["adapter_version"] == "1.4.0"
     assert len(descriptor["metadata"]["adapter_structure_fingerprint"]) == 64
     assert str(source) not in json.dumps(descriptor, ensure_ascii=False)
 

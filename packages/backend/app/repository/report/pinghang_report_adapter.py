@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -20,13 +21,17 @@ from .report_parse_input_models import ReportParseInputError
 
 
 PINGHANG_ADAPTER_ID = "pinghang-mobile-multipath-v1"
-PINGHANG_ADAPTER_VERSION = "1.1.0"
+PINGHANG_ADAPTER_VERSION = "1.4.0"
+PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME = "平航手机多路分析取证软件"
 _MAX_SELECTED_PAGES = 4096
 _MAX_SELECTED_METADATA_BYTES = 32 * 1024 * 1024
 _MAX_SINGLE_FILE_BYTES = 2 * 1024 * 1024
 _MAX_ENTRY_FILES = 16
 _CASE_REQUIRED_LABELS = {"案件名称", "案件编号"}
-_CASE_LABELS = _CASE_REQUIRED_LABELS | {"案件类型", "创建时间", "案件描述"}
+_CASE_LABELS = _CASE_REQUIRED_LABELS | {
+    "案件类型", "创建时间", "案件描述", "调查员",
+    "送检人员", "送检人", "送检单位",
+}
 _REPORT_LABELS = {"数据取证软件版本", "报告导出软件版本", "软件序列号", "报告完成日期"}
 
 
@@ -143,7 +148,9 @@ def parse_pinghang_report(
             raise PinghangReportError("PINGHANG_EVIDENCE_ID_AMBIGUOUS")
         start_time = fields.get("取证开始时间", "").strip()
         end_time = fields.get("取证结束时间", "").strip()
-        device_type = _first_field(fields, "数据类型", "设备类型")
+        device_type = _normalize_pinhang_device_type(
+            _first_field(fields, "数据类型", "设备类型")
+        )
         device_name = _first_field(fields, "检材名称", "手机名称", "设备名称")
         base = {
             "device_name": device_name,
@@ -192,10 +199,10 @@ def parse_pinghang_report(
         case_info={
             "case_name": case_fields.get("案件名称", ""),
             "case_number": case_fields.get("案件编号", ""),
-            "collector": "",
+            "collector": case_fields.get("调查员", ""),
             "collect_unit": "",
-            "submit_person": "",
-            "submit_unit": "",
+            "submit_person": _first_field(case_fields, "送检人员", "送检人"),
+            "submit_unit": case_fields.get("送检单位", ""),
             "case_type": case_fields.get("案件类型", ""),
             "case_summary": case_fields.get("案件描述", ""),
             "report_time": report_fields.get("报告完成日期", ""),
@@ -299,9 +306,9 @@ def _report_info(fields: dict[str, str]) -> dict[str, object]:
         "product_version": acquisition_version,
         "platform_version": export_version,
         "main_software": {
-            "name": "",
+            "name": PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME,
             "version": acquisition_version,
-            "status": "unconfirmed",
+            "status": "confirmed_by_user",
             "candidates": [],
         },
     }
@@ -309,6 +316,12 @@ def _report_info(fields: dict[str, str]) -> dict[str, object]:
 
 def _first_field(fields: dict[str, str], *names: str) -> str:
     return next((fields[name].strip() for name in names if fields.get(name, "").strip()), "")
+
+
+def _normalize_pinhang_device_type(value: str) -> str:
+    """应用仅属于平航 v1 的用户确认类型映射。"""
+    normalized = "".join(unicodedata.normalize("NFKC", value).split()).casefold()
+    return "手机" if normalized == "android设备" else value
 
 
 def _read_file(path: Path) -> bytes:
@@ -335,6 +348,7 @@ def _decode(raw: bytes) -> str:
 
 
 __all__ = [
-    "PINGHANG_ADAPTER_ID", "PINGHANG_ADAPTER_VERSION", "PinghangReportError",
+    "PINGHANG_ADAPTER_ID", "PINGHANG_ADAPTER_VERSION",
+    "PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME", "PinghangReportError",
     "PinghangReportFacts", "looks_like_pinghang_report", "parse_pinghang_report",
 ]

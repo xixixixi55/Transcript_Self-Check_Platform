@@ -50,10 +50,18 @@ def project_pinghang_report(
         }))
     primary = canonical.primary_software
     if primary is not None:
+        primary_provenance = []
+        if primary.confirmation_status == "confirmed_by_user":
+            primary_provenance.append(FieldProvenance(
+                source_type="user",
+                adapter=snapshot.adapter_id,
+                confidence=1.0,
+            ))
+        primary_provenance.append(
+            _provenance(snapshot, snapshot.report_source_file, "Rows")
+        )
         primary = primary.model_copy(update={
-            "provenance": [
-                _provenance(snapshot, snapshot.report_source_file, "Rows")
-            ],
+            "provenance": primary_provenance,
         })
     canonical = canonical.model_copy(update={
         "materials": materials,

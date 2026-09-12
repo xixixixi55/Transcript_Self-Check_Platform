@@ -198,15 +198,16 @@ def format_time_range_chinese(time_range: str) -> str:
 
 
 def format_inspection_time_range(start_time: str, end_time: str) -> str:
-    """按案件创建/报告时间生成分钟精度的检查起止时间。"""
-    start_dt = _parse_datetime(start_time)
-    end_dt = _parse_datetime(end_time)
+    """按给定边界生成分钟精度的检查起止时间。"""
+    start_dt = parse_report_datetime(start_time)
+    end_dt = parse_report_datetime(end_time)
     if not start_dt or not end_dt or start_dt > end_dt:
         return ""
     return f"{_format_datetime_minute(start_dt)}至{_format_datetime_minute(end_dt)}"
 
 
-def _parse_datetime(value: str) -> datetime | None:
+def parse_report_datetime(value: str) -> datetime | None:
+    """解析报告中受支持的分钟或秒精度本地时间。"""
     if not value:
         return None
     normalized = str(value).strip()
