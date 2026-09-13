@@ -518,6 +518,18 @@ def test_pinghang_path_like_data_index_fails_closed(tmp_path):
 
 def test_pinghang_large_viewdata_uses_only_navigation_selected_core_pages(tmp_path):
     source = _write_pinghang_fixture(tmp_path / "SYNTHETIC-LARGE")
+    navigation = source / "报告/data/navigation_data.js"
+    navigation.write_text(
+        navigation.read_text(encoding="utf-8").replace(
+            "id:1,pid:0", "id:1,pid:1000",
+        ).replace(
+            "];", ", {id:1000,pid:0,name:'SYNTHETIC',dataIndex:'1000',"
+            "viewType:'undefined',rangeCount:-1}];",
+        ), encoding="utf-8",
+    )
+    nodes = parse_pinghang_navigation(navigation.read_text(encoding="utf-8"))
+    assert nodes[-1].range_count == -1
+    assert nodes[1].parent_id == nodes[-1].node_id
     view_data = source / "报告" / "data" / "ViewData"
     for index in range(1000, 2043):
         (view_data / f"{index}_1.json").write_text(
@@ -533,6 +545,7 @@ def test_pinghang_large_viewdata_uses_only_navigation_selected_core_pages(tmp_pa
     snapshot = build_report_parse_input_snapshot(str(source))
 
     assert snapshot.report_format == ReportFormat.PINGHANG
+    assert len(snapshot.device_rows) == 2
     assert {item.relative_path for item in snapshot.dependencies} == {
         "SYNTHETIC-平航手机多路取证报告.html",
         "报告/data/navigation_data.js",
@@ -639,6 +652,12 @@ def test_pinghang_source_enters_existing_review_draft(tmp_path):
     "{id:1 pid:0}", "{id:1,pid:0}{id:2,pid:0}",
     "{id:1,,pid:0}", ",{id:1,pid:0}",
     "{id:1,pid:0,rangeCount:0}", "{id:1,pid:0,rangeCount:true}",
+    "{id:1,pid:0,viewType:'undefined',rangeCount:0}",
+    "{id:1,pid:0,viewType:'undefined',rangeCount:-2}",
+    "{id:1,pid:0,viewType:'Table',rangeCount:-1}",
+    "{id:1,pid:0,viewType:'DeviceInfo',rangeCount:-1}",
+    "{id:1,pid:0,rangeCount:-1}",
+    "{id:1,pid:0,viewType:'undefined',rangeCount:-1},{id:1,pid:0}",
     "{id:1,pid:0},{id:1,pid:0}",
 ])
 def test_navigation_rejects_invalid_separators_ranges_and_duplicate_ids(body):

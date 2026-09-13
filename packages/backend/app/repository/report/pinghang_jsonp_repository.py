@@ -82,7 +82,10 @@ def parse_pinghang_navigation(text: str) -> tuple[PinghangNavigationNode, ...]:
         try:
             node_id = _required_int(properties, "id")
             range_count = _required_int({"rangeCount": 1, **properties}, "rangeCount")
-            if node_id in seen_ids or range_count < 1:
+            view_type = _optional_text(properties.get("viewType"))
+            # 已确认导出以 undefined/-1 表示无数据页的导航节点；保留其父子关系。
+            is_placeholder = view_type == "undefined" and range_count == -1
+            if node_id in seen_ids or (range_count < 1 and not is_placeholder):
                 raise PinghangPayloadError("PINGHANG_NAVIGATION_NODE_INVALID")
             seen_ids.add(node_id)
             nodes.append(PinghangNavigationNode(
@@ -90,7 +93,7 @@ def parse_pinghang_navigation(text: str) -> tuple[PinghangNavigationNode, ...]:
                 parent_id=_required_int(properties, "pid"),
                 encoded_name=_optional_text(properties.get("name")),
                 data_index=_optional_text(properties.get("dataIndex")),
-                view_type=_optional_text(properties.get("viewType")),
+                view_type=view_type,
                 range_count=range_count,
             ))
         except (TypeError, ValueError) as error:

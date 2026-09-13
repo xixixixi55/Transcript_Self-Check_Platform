@@ -314,6 +314,9 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 
 最终代码证据（2026-09-13）：受影响后端 330 项通过，覆盖平航、美亚输入快照、Parser/执行中任务、Canonical/材料/软件/导出门控、工作台及发布身份/归档复用；`verify:quick` 与 OpenSpec strict validate 通过。独立代理按五维复审通过；复审指出的指数数字溢出已以同一解码步骤中的有限值判断修复，随后平航 43 项与 `lint:arch` 通过，审查代理独立确认普通浮点数仍可用。没有引入全量扫描、媒体哈希、后台防篡改机制或新服务层；每次平航解析复用核心快照，不再为识别与解析各读取一次。规格已同步到 `openspec/specs/electronic-inspection-record/spec.md` 的“轻量来源复验和解析依赖复用”场景。限定 strict docs 15 项检查通过（0 drift），`git diff --check` 通过。本次只收敛分支审查反馈，未把便携版真实目标机验收或其他延期项记为完成。
 
+- [x] 17A.19 修复平航导航占位节点误拒绝（2026-09-13，本次增量 Level 1）：仅允许 `viewType: 'undefined'` 且 `rangeCount: -1` 的已确认无数据页节点，保留节点 ID、父子关系和原始页数；其他非正页数、重复 ID、非法语法和被选核心页校验保持不变。复用 17A 的非核心页面排除合同，不新增正式 Requirement/Scenario。
+  - 证据：扩展既有 SYNTHETIC 大目录和非法导航用例，修复前 1 failed / 13 passed，修复后聚焦 14 passed；平航适配器、输入快照和报告解析受影响回归 112 passed，`lint:arch` 与 `git diff --check` 通过。用户指定仓库外样本只读复测成功：1 个检材、6 个核心依赖；未修改或复制原报告，未记录真实字段值或路径。manual_acceptance: N/A（无 UI/Word 改动；外部结构已只读复核）。本次导航逻辑及测试修改使先前对应审查结论失效，保持 `lifecycle_status: in-progress`，最终候选收敛后统一复审。
+
 ## 2026-09-08 来源目录校验移除反馈
 
 本次增量 workflow_level: 2；关联原 8.4 来源授权模式任务，以本节和修订后的需求6为准。demo-readiness-and-source-guidance 仅承载就绪提示，工作台样式包仅承载视觉反馈，不承载该来源请求合同。manual_acceptance: N/A（界面入口上一轮已移除，本轮由请求和后端自动化覆盖）。
