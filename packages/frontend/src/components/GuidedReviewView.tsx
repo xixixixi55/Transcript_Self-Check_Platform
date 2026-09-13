@@ -118,7 +118,7 @@ function handledHistoryItems(
   persistedFields: GuidedReviewHistoryField[],
 ): HandledHistoryItem[] {
   const persisted = persistedFields.flatMap((field, index) => (
-    canRevisitGuidedHistoryField(field) ? [{
+    field.userProvided && canRevisitGuidedHistoryField(field) ? [{
       id: `persisted-field-${index}-${field.targetId || field.label}`,
       label: field.label,
       matchLabel: field.label,
@@ -128,7 +128,7 @@ function handledHistoryItems(
     }] : []))
   const candidates = [...persisted, ...history.flatMap(group => {
     const fields = (group.fields || []).flatMap((field, index) => (
-      canRevisitGuidedHistoryField(field) ? [{
+      field.userProvided && canRevisitGuidedHistoryField(field) ? [{
       id: `${group.id}-field-${index}`,
       label: field.label,
       matchLabel: field.label,

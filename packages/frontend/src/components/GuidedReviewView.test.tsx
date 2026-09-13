@@ -8,9 +8,15 @@ import { GuidedReviewView } from './GuidedReviewView'
 const history: GuidedReviewHistoryItem[] = [
   {
     id: 'SYNTHETIC-HISTORY-1', tone: 'complete', title: '文书与委托信息',
-    fields: [{
-      label: '委托人员', value: 'SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B', userProvided: true, targetId: 'review-target-entrust-persons',
-    }],
+    fields: [
+      {
+        label: '委托人员', value: 'SYNTHETIC-PERSON-A、SYNTHETIC-PERSON-B',
+        userProvided: true, targetId: 'review-target-entrust-persons',
+      },
+      {
+        label: '检查要求', value: 'SYNTHETIC SYSTEM-RECOGNIZED REQUIREMENT', targetId: 'review-target-inspection-requirement',
+      },
+    ],
   },
   {
     id: 'SYNTHETIC-HISTORY-2', tone: 'complete', title: '检材与图片 · 1 项',
@@ -43,7 +49,10 @@ const waitingAction: GuidedReviewAction = {
   id: 'SYNTHETIC-ACTION-WAITING', kind: 'waiting', title: '请稍候，正在生成压缩分卷',
   description: '后台任务仍在运行，可继续处理其他待办。',
 }
-const completedPhotoField: GuidedReviewHistoryField = { label: '检材照片', value: '已上传 2 张图片', userProvided: true, targetId: 'review-target-material-photos' }
+const completedPhotoField: GuidedReviewHistoryField = {
+  label: '检材照片', value: '已上传 2 张图片', userProvided: true,
+  targetId: 'review-target-material-photos',
+}
 
 beforeEach(() => {
   window.localStorage.clear()
@@ -325,8 +334,10 @@ describe('GuidedReviewView', () => {
     expect(within(pendingPanel).queryByText('检材 1 · SYN-JC00000001 · IMEI 1')).toBeNull()
     expect(within(pendingPanel).queryByText('SYNTHETIC-IMEI-1')).toBeNull()
     expect(within(pendingPanel).getAllByText('已上传 2 张图片')).toHaveLength(1)
-    expect(within(pendingPanel).getByText('检查步骤 1')).toBeTruthy()
-    expect(within(pendingPanel).getByText('SYNTHETIC SYSTEM-GENERATED STEP')).toBeTruthy()
+    expect(within(pendingPanel).queryByText('检查要求')).toBeNull()
+    expect(within(pendingPanel).queryByText('SYNTHETIC SYSTEM-RECOGNIZED REQUIREMENT')).toBeNull()
+    expect(within(pendingPanel).queryByText('检查步骤 1')).toBeNull()
+    expect(within(pendingPanel).queryByText('SYNTHETIC SYSTEM-GENERATED STEP')).toBeNull()
     fireEvent.click(within(pendingPanel).getByRole('button', { name: '修改检材照片' }))
     expect(revisitHandledField).toHaveBeenCalledWith(completedPhotoField)
     expect(openFullEditor).not.toHaveBeenCalled()
