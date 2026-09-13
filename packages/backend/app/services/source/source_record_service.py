@@ -139,9 +139,10 @@ class SourceRecordService:
         try:
             locator = self.repository.get_internal_locator(source_id)
             path = Path(locator["internal_path"])
+            adapter = None
             if self.repository.get(source_id)["source_type"] == "report_directory":
-                self._validate_report_structure(path)
-            current = _fingerprint(path, should_cancel)
+                adapter = self._validate_report_structure(path)
+            current = _fingerprint(path, should_cancel, report_fingerprint=getattr(adapter, "source_fingerprint", None))
         except SourceFingerprintCancelledError:
             return self.repository.get(source_id)
         except Exception as error:
@@ -158,7 +159,9 @@ class SourceRecordService:
             path = Path(locator["internal_path"])
             validate_pending_locator(path, Path(locator["allowed_root"]))
             adapter = self._validate_report_structure(path)
-            metadata, current_fingerprint = _fingerprint_with_metadata(path, should_cancel)
+            metadata, current_fingerprint = _fingerprint_with_metadata(
+                path, should_cancel, report_fingerprint=getattr(adapter, "source_fingerprint", None),
+            )
             metadata.update(self._adapter_metadata(adapter))
             return self.repository.activate_pending(source_id, metadata, current_fingerprint)
         except SourceFingerprintCancelledError:
@@ -240,9 +243,10 @@ class SourceRecordService:
     ) -> str:
         locator = self.repository.get_internal_locator(source_id)
         path = Path(locator["internal_path"])
+        adapter = None
         if self.repository.get(source_id)["source_type"] == "report_directory":
-            self._validate_report_structure(path)
-        return _fingerprint(path, should_cancel)
+            adapter = self._validate_report_structure(path)
+        return _fingerprint(path, should_cancel, report_fingerprint=getattr(adapter, "source_fingerprint", None))
 
     def recover_pending_after_startup(self, dispatcher: Any) -> list[str]:
         scheduled: list[str] = []

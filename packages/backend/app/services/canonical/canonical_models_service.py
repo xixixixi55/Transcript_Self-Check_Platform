@@ -52,6 +52,10 @@ class Material(CanonicalBaseModel):
     type: MaterialKind = "unconfirmed"
     name: str = ""
     model: str = ""
+    holder_name: str = ""
+    holder_provenance: list[FieldProvenance] = Field(default_factory=list)
+    acquisition_started_at: str = ""
+    acquisition_ended_at: str = ""
     extractable: bool | None = None
     unextractable_reason: str = ""
     identifiers: list[MaterialIdentifier] = Field(default_factory=list)

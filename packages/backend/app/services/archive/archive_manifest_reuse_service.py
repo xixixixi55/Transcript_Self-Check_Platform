@@ -7,6 +7,8 @@ import time
 from ...repository.archive.archive_publish_intent_repository import ArchivePublishIntentRepository
 from ...repository.archive.archive_direct_publication_repository import ArchiveDirectPublicationRepository
 from .archive_manifest_service import validate_manifest_files
+from .archive_publication_identity_service import assert_publication_identity
+from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_runtime_service import (
     ARCHIVE_MANIFEST_TTL_SECONDS,
     ARCHIVE_RUNTIME_STORE,
@@ -45,6 +47,11 @@ def restore_persisted_manifest(
                 or persisted.publication_id != intent.get("publication_id")
                 or persisted.publication_digest != intent.get("publication_digest")
             ):
+                continue
+            try:
+                assert_publication_identity(persisted, intent)
+            except WorkbenchPersistenceError:
+                registry.mark_invalid(persisted.manifest_id)
                 continue
         record = ArchiveManifestRecord(
             persisted.manifest_id, context.context_id, fingerprint,

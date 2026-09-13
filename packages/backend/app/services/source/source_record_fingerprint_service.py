@@ -42,19 +42,25 @@ def opaque_id(prefix: str) -> str:
     return f"{prefix}-{secrets.token_hex(16)}"
 
 
-def fingerprint(path: Path, should_cancel: Callable[[], bool] | None = None) -> str:
+def fingerprint(path: Path, should_cancel: Callable[[], bool] | None = None,
+                *, report_fingerprint: str | None = None) -> str:
     """有界报告标识：根目录、data 和核心文件元数据，不遍历媒体。
 
     完整媒体清单属于后台归档工作进程。来源审核和归档决策请求必须不受深层媒体树
     大小影响。
     """
-    return _fingerprint_entries(_stable_snapshot(path, should_cancel))
+    _raise_if_cancelled(should_cancel)
+    return report_fingerprint or _fingerprint_entries(_stable_snapshot(path, should_cancel))
 
 
 def fingerprint_with_metadata(
     path: Path, should_cancel: Callable[[], bool] | None = None,
+    *, report_fingerprint: str | None = None,
 ) -> tuple[dict[str, str | int | float | bool], str]:
     """推导公开根目录元数据和稳定的有界来源标识。"""
+    _raise_if_cancelled(should_cancel)
+    if report_fingerprint:
+        return directory_summary(path), report_fingerprint
     entries = _stable_snapshot(path, should_cancel)
     metadata = {
         "display_name": path.name,

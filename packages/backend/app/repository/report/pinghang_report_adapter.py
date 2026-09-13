@@ -16,12 +16,14 @@ from .pinghang_jsonp_repository import (
     parse_pinghang_navigation,
     parse_pinghang_payload,
 )
-from .report_parse_input_filesystem import file_entries, require_directory, require_regular_file
+from .report_parse_input_filesystem import (
+    file_entries, require_contained_path, require_directory, require_regular_file,
+)
 from .report_parse_input_models import ReportParseInputError
 
 
 PINGHANG_ADAPTER_ID = "pinghang-mobile-multipath-v1"
-PINGHANG_ADAPTER_VERSION = "1.5.0"
+PINGHANG_ADAPTER_VERSION = "1.6.0"
 PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME = "平航手机多路分析取证软件"
 _MAX_SELECTED_PAGES = 4096
 _MAX_SELECTED_METADATA_BYTES = 32 * 1024 * 1024
@@ -48,6 +50,7 @@ class PinghangReportFacts:
     case_source_file: str
     report_source_file: str
     device_source_files: dict[str, str]
+    holder_source_files: dict[str, str]
     relative_files: tuple[str, ...]
     structure_fingerprint: str
 
@@ -70,6 +73,8 @@ def parse_pinghang_report(
     report_data = source_root / "报告" / "data"
     view_root = report_data / "ViewData"
     try:
+        require_contained_path(report_data, source_root)
+        require_contained_path(view_root, source_root)
         require_directory(report_data)
         require_directory(view_root)
         entry_files = [
@@ -147,6 +152,7 @@ def parse_pinghang_report(
     device_rows: list[dict[str, str]] = []
     device_base_info: dict[str, dict[str, str]] = {}
     device_source_files: dict[str, str] = {}
+    holder_source_files: dict[str, str] = {}
     device_structure: list[str] = []
     for node in device_nodes:
         fields = _device_fields(node, payloads)
@@ -171,8 +177,7 @@ def parse_pinghang_report(
             "imei1": _first_field(fields, "IMEI", "IMEI1"),
             "imei2": _first_field(fields, "IMEI2"),
             "serial_number": _first_field(fields, "序列码", "序列号"),
-            "holder_name": _first_field(owner_fields, "用户姓名")
-            or _first_field(fields, "持有人"),
+            "holder_name": _first_field(owner_fields, "用户姓名"),
         }
         device_rows.append({
             "evidence_number": evidence_number,
@@ -191,6 +196,10 @@ def parse_pinghang_report(
         device_source_files[evidence_number] = page_paths[
             (node.data_index, 1)
         ].relative_to(source_root).as_posix()
+        if owner_node:
+            holder_source_files[evidence_number] = page_paths[
+                (owner_node.data_index, 1)
+            ].relative_to(source_root).as_posix()
         device_structure.append(
             f"{node.data_index}:{node.range_count}:" + ",".join(sorted(fields))
             + "|owner:" + ",".join(sorted(owner_fields))
@@ -229,6 +238,7 @@ def parse_pinghang_report(
         ].relative_to(source_root).as_posix(),
         report_source_file=page_paths[("0", 1)].relative_to(source_root).as_posix(),
         device_source_files=device_source_files,
+        holder_source_files=holder_source_files,
         relative_files=relative_files,
         structure_fingerprint=hashlib.sha256(structure.encode("utf-8")).hexdigest(),
     )

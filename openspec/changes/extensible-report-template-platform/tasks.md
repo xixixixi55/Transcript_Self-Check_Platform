@@ -302,6 +302,18 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 17A.15 核对本轮增量与实现并同步现行规格，运行 `npm run verify:quick`、OpenSpec strict validate、限定严格文档检查和 `git diff --check`；保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
   - 收尾证据（2026-09-12）：平航机主信息与检材持有人映射已同步至 change delta、批准规格、设计和 living spec；`npm run verify:quick`、OpenSpec strict validate、限定 strict docs 与 `git diff --check` 通过。限定 strict docs 首次仅因 17A.15 门控尚未勾选而按预期报告 1 项 task-incomplete，门控完成并记录本证据后复跑通过；变更包继续保持 `lifecycle_status: in-progress`。
 
+## 2026-09-13 分支审查反馈与轻量化约束（17A 续）
+
+本轮关联 17A 的原验收范围和核心调用链；修复既有预期，轻量化 Scenario 已按用户确认同步 delta、批准规格与 living spec。归档复用问题是当前候选所带直出归档回归，复用现有发布身份校验，不改写已归档包。包保持 `lifecycle_status: in-progress`，不启动其他延期能力。manual_acceptance: N/A（本轮字段和边界由 SYNTHETIC 自动化覆盖，不涉及版式或界面调整）。
+
+- [x] 17A.16 核实独立审查反馈：核心来源指纹遗漏、祖先链接、诊断文件名暴露、导航语法/重复 ID、机主回退与 Canonical 方向、发布位置摘要绑定；为确认的问题复用现有测试并补充区分度。
+- [x] 17A.17 按用户“原报告通常不变、保持轻量化”要求，来源复验只扩展核心文件元数据身份；解析复用已读取快照，既有非核心页面排除规则保持不变。适配器版本升级至 1.6.0。
+- [x] 17A.18 完成受影响后端回归、独立复审、verify:quick、限定 strict docs 和 diff 检查，记录最终证据。
+
+初步证据：修复前 13 项合成回归失败；平航输入及发布身份聚焦 42 项通过。额外 Windows junction 回归确认读取报告内容前拒绝祖先链接；读取次数回归确认双检材报告解析及复验各只读取 6 个核心文件、每个一次。材料策略函数复用重命名遗漏的两处调用已经修复，材料策略 18 项通过。
+
+最终代码证据（2026-09-13）：受影响后端 330 项通过，覆盖平航、美亚输入快照、Parser/执行中任务、Canonical/材料/软件/导出门控、工作台及发布身份/归档复用；`verify:quick` 与 OpenSpec strict validate 通过。独立代理按五维复审通过；复审指出的指数数字溢出已以同一解码步骤中的有限值判断修复，随后平航 43 项与 `lint:arch` 通过，审查代理独立确认普通浮点数仍可用。没有引入全量扫描、媒体哈希、后台防篡改机制或新服务层；每次平航解析复用核心快照，不再为识别与解析各读取一次。规格已同步到 `openspec/specs/electronic-inspection-record/spec.md` 的“轻量来源复验和解析依赖复用”场景。限定 strict docs 15 项检查通过（0 drift），`git diff --check` 通过。本次只收敛分支审查反馈，未把便携版真实目标机验收或其他延期项记为完成。
+
 ## 2026-09-08 来源目录校验移除反馈
 
 本次增量 workflow_level: 2；关联原 8.4 来源授权模式任务，以本节和修订后的需求6为准。demo-readiness-and-source-guidance 仅承载就绪提示，工作台样式包仅承载视觉反馈，不承载该来源请求合同。manual_acceptance: N/A（界面入口上一轮已移除，本轮由请求和后端自动化覆盖）。

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .report_format_adapter import ReportFormat
@@ -40,6 +40,7 @@ class ReportParseInputSnapshot:
     device_base_info: dict[str, dict[str, str]]
     dependencies: tuple[DependencyRecord, ...]
     dependency_fingerprint: str
+    holder_source_files: dict[str, str] = field(default_factory=dict)
 
 
 __all__ = [

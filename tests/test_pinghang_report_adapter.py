@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "ba
 
 from app.repository.report.pinghang_jsonp_repository import (  # noqa: E402
     PinghangPayloadError,
+    parse_pinghang_navigation,
     parse_pinghang_payload,
 )
 from app.repository.report.report_adapter_registry import (  # noqa: E402
@@ -217,9 +218,15 @@ def test_registry_and_snapshot_parse_pinghang_semantically(tmp_path):
 
 
 def test_pinghang_owner_info_is_bound_to_its_parent_material(tmp_path):
+    from app.services.canonical.pinghang_canonical_service import pinghang_snapshot_to_canonical
     source = _write_pinghang_fixture(tmp_path, include_owner_info=True)
 
     snapshot = build_report_parse_input_snapshot(str(source))
+    canonical = pinghang_snapshot_to_canonical(snapshot)
+    assert canonical.materials[0].holder_name == "SYNTHETIC-HOLDER-B"
+    assert canonical.materials[0].holder_provenance[0].source_file == "5_1.json"
+    assert canonical.materials[0].holder_provenance[0].json_path == "用户姓名"
+    assert all(item.provenance[0].source_type == "report" for item in canonical.materials)
     report = parse_report(str(source), str(tmp_path / "output"), compress=False)["report"]
 
     assert [row["holder_name"] for row in snapshot.device_rows] == [
@@ -326,7 +333,7 @@ def test_parse_report_maps_pinghang_android_device_to_phone(tmp_path):
     )
     assert is_primary_software_confirmed(report)
     assert report["attachments"]["photo_ids"] == []
-    assert "报告/data/navigation_data.js" in result["parsed_files"]
+    assert "navigation" in result["parsed_files"]
     assert report["introduction"]["inspection_time_range"] == (
         "2026年1月2日2点50分至2026年1月2日4点30分"
     )
@@ -588,7 +595,7 @@ def test_source_registration_records_pinghang_adapter_metadata(tmp_path):
     descriptor = service.register_report_directory(str(source))
 
     assert descriptor["metadata"]["adapter_id"] == "pinghang-mobile-multipath-v1"
-    assert descriptor["metadata"]["adapter_version"] == "1.5.0"
+    assert descriptor["metadata"]["adapter_version"] == "1.6.0"
     assert len(descriptor["metadata"]["adapter_structure_fingerprint"]) == 64
     assert str(source) not in json.dumps(descriptor, ensure_ascii=False)
 
@@ -619,3 +626,124 @@ def test_pinghang_source_enters_existing_review_draft(tmp_path):
     assert detail["draft"]["report"]["attachments"]["photo_ids"] == []
     assert available["access_status"] == "available"
     assert available["metadata"]["adapter_id"] == "pinghang-mobile-multipath-v1"
+
+    device = source / "报告/data/ViewData/7_1.json"
+    device.write_text(device.read_text(encoding="utf-8").replace(
+        "111111111111111", "999999999999999",
+    ), encoding="utf-8")
+    changed = source_service.revalidate(identifiers["source_id"])
+    assert changed["access_status"] != "available"
+
+
+@pytest.mark.parametrize("body", [
+    "{id:1 pid:0}", "{id:1,pid:0}{id:2,pid:0}",
+    "{id:1,,pid:0}", ",{id:1,pid:0}",
+    "{id:1,pid:0,rangeCount:0}", "{id:1,pid:0,rangeCount:true}",
+    "{id:1,pid:0},{id:1,pid:0}",
+])
+def test_navigation_rejects_invalid_separators_ranges_and_duplicate_ids(body):
+    with pytest.raises(PinghangPayloadError):
+        parse_pinghang_navigation(f";window.static.report.zNodes = [{body}];")
+
+
+@pytest.mark.parametrize("body", [
+    '{"v":NaN}', '{"v":Infinity}', '{"v":1,"v":2}', '{"v":1e400}', '{"v":-1e400}',
+])
+def test_payload_rejects_non_json_values_and_duplicate_keys(body):
+    with pytest.raises(PinghangPayloadError):
+        parse_pinghang_payload(f";static.report.records.data_1_1 = {body};",
+                              expected_index="1", expected_page=1)
+
+
+def test_pinghang_does_not_infer_holder_from_device_fields(tmp_path):
+    source = _write_pinghang_fixture(tmp_path, include_second_device=False)
+    device = source / "报告/data/ViewData/7_1.json"
+    payload = parse_pinghang_payload(device.read_text(encoding="utf-8"),
+                                     expected_index="7", expected_page=1)
+    payload["Data"].append({"Val1": ["持有人"], "Val2": ["SYNTHETIC-FALLBACK"]})
+    device.write_text(_jsonp(7, payload), encoding="utf-8")
+    assert build_report_parse_input_snapshot(str(source)).device_rows[0]["holder_name"] == ""
+
+
+def test_pinghang_public_diagnostics_omit_entry_filename(tmp_path):
+    source = _write_pinghang_fixture(tmp_path)
+    result = parse_report(str(source), str(tmp_path / "output"), compress=False)
+    assert "SYNTHETIC-平航手机多路取证报告.html" not in json.dumps(result, ensure_ascii=False)
+
+
+def test_pinghang_changed_content_cannot_join_an_older_parse(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from app.services.report import report_parser_service as parser
+
+    source = _write_pinghang_fixture(tmp_path)
+    entered, release = Event(), Event()
+    original = parser._build_parse_result
+    def blocked(*args, **kwargs):
+        if not entered.is_set():
+            entered.set()
+            assert release.wait(10)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(parser, "_build_parse_result", blocked)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(parse_report, str(source), str(tmp_path / "output"), False)
+        assert entered.wait(5)
+        device = source / "报告/data/ViewData/7_1.json"
+        device.write_text(device.read_text(encoding="utf-8").replace(
+            "111111111111111", "999999999999999"), encoding="utf-8")
+        second = pool.submit(parse_report, str(source), str(tmp_path / "output"), False)
+        try:
+            current = second.result(timeout=5)
+            assert current["report"]["introduction"]["evidence_list"][0]["imei1"] == "999999999999999"
+        finally:
+            release.set()
+        assert first.result()["report"]["introduction"]["evidence_list"][0]["imei1"] == "111111111111111"
+
+
+def test_pinghang_ancestor_link_is_rejected_before_reading_external_pages(tmp_path, monkeypatch):
+    import subprocess
+    from app.repository.report import pinghang_report_adapter as adapter
+
+    source = _write_pinghang_fixture(tmp_path / "SYNTHETIC-ROOT")
+    link = source / "报告"
+    target = tmp_path / "SYNTHETIC-EXTERNAL"
+    link.rename(target)
+    if os.name == "nt":
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        "New-Item -ItemType Junction -Path $env:SYNTHETIC_LINK -Target $env:SYNTHETIC_TARGET | Out-Null"],
+                       env={**os.environ, "SYNTHETIC_LINK": str(link), "SYNTHETIC_TARGET": str(target)},
+                       check=True, capture_output=True)
+    else:
+        link.symlink_to(target, target_is_directory=True)
+    def forbidden_read(_path):
+        pytest.fail("SYNTHETIC linked report content must not be read")
+    monkeypatch.setattr(adapter, "_read_file", forbidden_read)
+    try:
+        with pytest.raises(ReportAdapterDetectionError, match="REPORT_ADAPTER_STRUCTURE_INVALID"):
+            detect_report_adapter(source)
+    finally:
+        if os.name == "nt":
+            os.rmdir(link)  # 只移除测试 junction，不递归删除目标。
+        else:
+            link.unlink()
+
+
+def test_pinghang_parse_and_source_verification_read_only_core_files_once(tmp_path, monkeypatch):
+    source = _write_pinghang_fixture(tmp_path / "SYNTHETIC-LIGHTWEIGHT")
+    from collections import Counter
+    opened = Counter()
+    original = Path.open
+    def tracked(path, *args, **kwargs):
+        if path.is_relative_to(source):
+            opened[path.relative_to(source).as_posix()] += 1
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", tracked)
+    parse_report(str(source), str(tmp_path / "output"), compress=False)
+    assert len(opened) == 6
+    assert set(opened.values()) == {1}
+    opened.clear()
+    match = detect_report_adapter(source)
+    from app.services.source.source_record_fingerprint_service import fingerprint
+    assert fingerprint(source, report_fingerprint=match.source_fingerprint)
+    assert len(opened) == 6
+    assert set(opened.values()) == {1}

@@ -20,7 +20,6 @@ from ...repository.report.html_parser import (
     parse_case_info, parse_device_lists, parse_report_info,
     parse_device_base,
     format_inspection_time_range,
-    parse_report_datetime,
 )
 from ...repository.report.device_field_parser import is_generic_device_label
 from ...repository.report.report_format_adapter import ReportFormat, require_supported_report_format
@@ -60,7 +59,15 @@ def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dic
     has_current_structure = all((current_core / name).is_file() for name in (
         "data_case_info.json", "data_device_lists.json", "data_report_info.json",
     ))
-    if has_current_structure or looks_like_pinghang_report(source_root):
+    if looks_like_pinghang_report(source_root):
+        if has_current_structure:
+            detect_report_adapter(source_root)  # 并列匹配仍按注册表安全拒绝。
+        snapshot = build_report_parse_input_snapshot(source_dir)
+        return REPORT_PARSE_INFLIGHT_REGISTRY.run(
+            ":".join((source_key, snapshot.dependency_fingerprint)),
+            lambda: _build_parse_result(source_dir, output_dir, compress, input_snapshot=snapshot),
+        )
+    if has_current_structure:
         adapter = detect_report_adapter(source_root)
         source_key = ":".join((
             source_key, adapter.adapter_id, adapter.adapter_version,
@@ -103,14 +110,12 @@ def _build_parse_result(
         data_dir, source_dir, output_dir, compress=compress,
         input_snapshot=input_snapshot,
     )
-    if input_snapshot is not None and input_snapshot.report_format == ReportFormat.PINGHANG:
-        report = project_pinghang_report(report, input_snapshot)
     parsed_files = [
         "data_case_info.json", "data_device_lists.json",
         "data_report_info.json", "data_navigation.json",
     ]
     if input_snapshot is not None and input_snapshot.report_format == ReportFormat.PINGHANG:
-        parsed_files = [item.relative_path for item in input_snapshot.dependencies]
+        parsed_files = ["entry", "navigation", "case", "report", "materials"]
     return {
         "report": report,
         "_case_metadata": _case_metadata(data_dir, input_snapshot, report),
@@ -205,6 +210,11 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
                   compress: bool = True, is_rar_archive: bool = False,
                   input_snapshot: ReportParseInputSnapshot | None = None) -> dict:
     """构建 InspectionReport（parse_report / parse_from_archive 共用）"""
+    canonical_projection = (
+        project_pinghang_report(input_snapshot)
+        if input_snapshot is not None and input_snapshot.report_format == ReportFormat.PINGHANG
+        else None
+    )
     if input_snapshot is None:
         # 在解析案件字段前确认核心结构；缺少核心文件时由既有 parser 给出具体错误。
         require_supported_report_format(data_dir)
@@ -256,7 +266,11 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "evidence_number": en,
         })
 
-    if input_snapshot is None or input_snapshot.report_format != ReportFormat.PINGHANG:
+    if canonical_projection is not None:
+        for item, canonical_item in zip(evidence_items, canonical_projection["introduction"]["evidence_list"]):
+            item.update({key: value for key, value in canonical_item.items()
+                         if key not in {"device_type", "model"}})
+    else:
         evidence_items = _natural_evidence_order(evidence_items)
 
     # 6. 检查过程步骤
@@ -338,12 +352,15 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
 
     # 10. 构建 InspectionReport
     # 不同报告格式按各自事实源生成检查时间。
-    time_range = _inspection_time_range(case, devices_raw, input_snapshot)
+    time_range = (canonical_projection["introduction"]["inspection_time_range"]
+                  if canonical_projection else format_inspection_time_range(
+                      case.get("create_time", ""), case.get("report_time", ""),
+                  ))
 
     # 用于前端生成文号的原始数据
     _case_number = case.get("case_number", "")
 
-    return {
+    result = {
         "title": "电子数据检查笔录",
         "document_number": DEFAULT_DOCUMENT_NUMBER,
         "case_number": _case_number,  # 前端用此值生成文号
@@ -372,19 +389,9 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
                 "confirmation_status": main_status,
                 "provenance": [{
                     "source_type": "report",
-                    "source_file": (
-                        input_snapshot.report_source_file
-                        if input_snapshot is not None
-                        and input_snapshot.report_format == ReportFormat.PINGHANG
-                        else "data_report_info.json"
-                    ),
+                    "source_file": "data_report_info.json",
                     "json_path": "contents",
-                    "adapter": (
-                        input_snapshot.adapter_id
-                        if input_snapshot is not None
-                        and input_snapshot.report_format == ReportFormat.PINGHANG
-                        else "legacy-report-adapter"
-                    ),
+                    "adapter": "legacy-report-adapter",
                     "confidence": 1 if main_status == "confirmed_by_report" else None,
                 }],
                 "candidates": main_candidates,
@@ -408,37 +415,16 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "burning_date": "",
         },
     }
+    if canonical_projection is not None:
+        result["inspection"]["primary_software"] = canonical_projection["inspection"]["primary_software"]
+        for key in ("entrust_unit", "entrust_persons", "case_summary"):
+            result["introduction"][key] = canonical_projection["introduction"][key]
+    return result
 
 
 def _software_action_name(value: object) -> str:
     name = str(value or "").strip() or "待确认主取证软件"
     return name if name.endswith("软件") else f"{name}软件"
-
-
-def _inspection_time_range(
-    case: dict, devices: tuple[dict, ...] | list[dict],
-    input_snapshot: ReportParseInputSnapshot | None,
-) -> str:
-    """平航使用全部检材取证边界；其他格式保持案件创建/报告时间。"""
-    if input_snapshot is None or input_snapshot.report_format != ReportFormat.PINGHANG:
-        return format_inspection_time_range(
-            case.get("create_time", ""), case.get("report_time", ""),
-        )
-    if not devices:
-        return ""
-    starts = []
-    ends = []
-    for device in devices:
-        start = parse_report_datetime(str(device.get("start_time", "")))
-        end = parse_report_datetime(str(device.get("end_time", "")))
-        if start is None or end is None or start > end:
-            return ""
-        starts.append(start)
-        ends.append(end)
-    return format_inspection_time_range(
-        min(starts).strftime("%Y-%m-%d %H:%M:%S"),
-        max(ends).strftime("%Y-%m-%d %H:%M:%S"),
-    )
 
 
 def _natural_evidence_order(items: list[dict]) -> list[dict]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -55,7 +56,9 @@ def parse_pinghang_payload(
     ):
         raise PinghangPayloadError("PINGHANG_PAYLOAD_ASSIGNMENT_INVALID")
     try:
-        value = json.loads(_remove_trailing_commas(match.group("body")))
+        value = json.loads(_remove_trailing_commas(match.group("body")),
+                           parse_constant=_reject_constant, parse_float=_finite_float,
+                           object_pairs_hook=_unique_object)
     except (json.JSONDecodeError, ValueError, RecursionError) as error:
         raise PinghangPayloadError("PINGHANG_PAYLOAD_LITERAL_INVALID") from error
     if not isinstance(value, dict) or _nesting_depth(value) > _MAX_DEPTH:
@@ -72,22 +75,27 @@ def parse_pinghang_navigation(text: str) -> tuple[PinghangNavigationNode, ...]:
     body = match.group("body")
     nodes: list[PinghangNavigationNode] = []
     consumed: list[tuple[int, int]] = []
+    seen_ids: set[int] = set()
     for object_match in _OBJECT_RE.finditer(body):
         consumed.append(object_match.span())
         properties = _parse_properties(object_match.group("body"))
         try:
+            node_id = _required_int(properties, "id")
+            range_count = _required_int({"rangeCount": 1, **properties}, "rangeCount")
+            if node_id in seen_ids or range_count < 1:
+                raise PinghangPayloadError("PINGHANG_NAVIGATION_NODE_INVALID")
+            seen_ids.add(node_id)
             nodes.append(PinghangNavigationNode(
-                node_id=_required_int(properties, "id"),
+                node_id=node_id,
                 parent_id=_required_int(properties, "pid"),
                 encoded_name=_optional_text(properties.get("name")),
                 data_index=_optional_text(properties.get("dataIndex")),
                 view_type=_optional_text(properties.get("viewType")),
-                range_count=max(1, int(properties.get("rangeCount", 1))),
+                range_count=range_count,
             ))
         except (TypeError, ValueError) as error:
             raise PinghangPayloadError("PINGHANG_NAVIGATION_NODE_INVALID") from error
-    residual = _remove_spans(body, consumed)
-    if residual.strip(" \t\r\n,") or not nodes:
+    if not _valid_separators(body, consumed) or not nodes:
         raise PinghangPayloadError("PINGHANG_NAVIGATION_LITERAL_INVALID")
     return tuple(nodes)
 
@@ -101,7 +109,7 @@ def _parse_properties(body: str) -> dict[str, Any]:
             raise PinghangPayloadError("PINGHANG_NAVIGATION_PROPERTY_DUPLICATE")
         properties[key] = _parse_scalar(match.group("value"))
         spans.append(match.span())
-    if _remove_spans(body, spans).strip(" \t\r\n,"):
+    if not _valid_separators(body, spans):
         raise PinghangPayloadError("PINGHANG_NAVIGATION_PROPERTY_INVALID")
     return properties
 
@@ -192,14 +200,33 @@ def _nesting_depth(value: Any, depth: int = 0) -> int:
     return max((_nesting_depth(item, depth + 1) for item in children), default=depth + 1)
 
 
-def _remove_spans(value: str, spans: list[tuple[int, int]]) -> str:
-    parts: list[str] = []
+def _valid_separators(value: str, spans: list[tuple[int, int]]) -> bool:
     cursor = 0
-    for start, end in spans:
-        parts.append(value[cursor:start])
+    for index, (start, end) in enumerate(spans):
+        if value[cursor:start].strip() != ("," if index else ""):
+            return False
         cursor = end
-    parts.append(value[cursor:])
-    return "".join(parts)
+    return value[cursor:].strip() in ({"", ","} if spans else {""})
+
+
+def _reject_constant(value: str) -> Any:
+    raise PinghangPayloadError("PINGHANG_PAYLOAD_LITERAL_INVALID")
+
+
+def _finite_float(value: str) -> float:
+    result = float(value)
+    if not math.isfinite(result):
+        raise PinghangPayloadError("PINGHANG_PAYLOAD_LITERAL_INVALID")
+    return result
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise PinghangPayloadError("PINGHANG_PAYLOAD_LITERAL_INVALID")
+        result[key] = value
+    return result
 
 
 def _required_int(properties: dict[str, Any], key: str) -> int:

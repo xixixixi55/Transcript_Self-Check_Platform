@@ -90,7 +90,8 @@ def _legacy_provenance(path: str) -> FieldProvenance:
     )
 
 
-def _classification_from_report_item(item: Mapping[str, Any]) -> tuple[str, MaterialClassification]:
+def classify_report_material(item: Mapping[str, Any]) -> tuple[str, MaterialClassification]:
+    """从明确设备类型或既有人工确认字段获得受控材料分类。"""
     if (
         item.get("device_type_source") not in {None, "report_field"}
         and item.get("material_type_source") != "user"
@@ -130,7 +131,7 @@ def _classification_from_report_item(item: Mapping[str, Any]) -> tuple[str, Mate
 def material_from_legacy_item(item: Mapping[str, Any], index: int) -> Material:
     """构建规范检材，同时保留每个来源标识符。"""
 
-    kind, classification = _classification_from_report_item(item)
+    kind, classification = classify_report_material(item)
     identifiers: list[MaterialIdentifier] = []
     for identifier_type in ("imei1", "imei2", "serial_number"):
         value = _safe_text(item.get(identifier_type))
@@ -237,7 +238,7 @@ def enrich_report_material_types(report: Mapping[str, Any]) -> dict[str, Any]:
     for item in introduction.get("evidence_list") or []:
         if not isinstance(item, dict) or "material_type_status" in item:
             continue
-        kind, classification = _classification_from_report_item(item)
+        kind, classification = classify_report_material(item)
         item.update(
             {
                 "material_type": kind,
@@ -262,7 +263,7 @@ def unconfirmed_material_fields(report: Mapping[str, Any]) -> tuple[str, ...]:
         return f"introduction.evidence_list[{index}].material_type"
 
     def report_candidate_matches(item: Mapping[str, Any], kind: Any) -> bool:
-        derived_kind, candidate = _classification_from_report_item({
+        derived_kind, candidate = classify_report_material({
             "device_type": item.get("device_type"),
             "device_type_source": item.get("device_type_source"),
         })

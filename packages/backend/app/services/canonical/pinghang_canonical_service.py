@@ -1,110 +1,111 @@
-"""第 21 层：平航事实经 canonical 模型生成现有 DTO 投影。"""
+"""第 21 层：平航原始事实先进入 Canonical，再生成兼容投影。"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import PurePosixPath
 from typing import Any
 
 from ...repository.report.report_parse_input_models import ReportParseInputSnapshot
-from .canonical_adapter_service import (
-    canonical_to_inspection_report,
-    inspection_report_to_canonical,
+from ...repository.report.html_parser import format_inspection_time_range, parse_report_datetime
+from .canonical_adapter_service import canonical_to_inspection_report
+from .canonical_models_service import (
+    CanonicalCaseInfo, CanonicalCaseIntroduction, CanonicalInspectionCase,
+    CanonicalInspectionPeriod, FieldProvenance, Material, MaterialIdentifier,
+    PrimarySoftware,
 )
-from .canonical_models_service import FieldProvenance
+from ..inspection.material_policy_service import classify_report_material
+from ..inspection.entrust_person_service import normalize_entrust_persons
+from ..report.report_defaults_service import DEFAULT_DOCUMENT_NUMBER
 
 
-def project_pinghang_report(
-    report: Mapping[str, Any], snapshot: ReportParseInputSnapshot,
-) -> dict[str, Any]:
-    """建立带来源的 canonical 中间态，再投影至当前审核/导出 DTO。"""
-    migration = inspection_report_to_canonical(report)
-    canonical = migration.canonical_case
-    canonical = canonical.model_copy(update={
-        "case_info": canonical.case_info.model_copy(update={
-            "case_name": snapshot.case_info.get("case_name", ""),
-        }),
-        "inspection_period": canonical.inspection_period.model_copy(update={
-            "created_at": snapshot.case_info.get("create_time", ""),
-            "reported_at": snapshot.case_info.get("report_time", ""),
-        }),
-    })
-    raw_items = {
-        str(item.get("evidence_number", "")): item
-        for item in (report.get("introduction") or {}).get("evidence_list") or []
-        if isinstance(item, Mapping)
-    }
+def pinghang_snapshot_to_canonical(snapshot: ReportParseInputSnapshot) -> CanonicalInspectionCase:
+    """消费有界快照中的报告事实；不从展示 DTO 反推原始事实。"""
     materials = []
-    for material in canonical.materials:
-        source_file = snapshot.device_source_files.get(material.evidence_number)
-        provenance = _provenance(snapshot, source_file, "Rows")
-        raw_item = raw_items.get(material.evidence_number, {})
-        identifiers = [
-            identifier.model_copy(update={"provenance": [provenance]})
-            for identifier in material.identifiers
-        ]
-        materials.append(material.model_copy(update={
-            "name": str(raw_item.get("device_name") or material.name),
-            "provenance": [provenance],
-            "identifiers": identifiers,
-        }))
-    primary = canonical.primary_software
-    if primary is not None:
-        primary_provenance = []
-        if primary.confirmation_status == "confirmed_by_user":
-            primary_provenance.append(FieldProvenance(
-                source_type="user",
-                adapter=snapshot.adapter_id,
-                confidence=1.0,
-            ))
-        primary_provenance.append(
-            _provenance(snapshot, snapshot.report_source_file, "Rows")
-        )
-        primary = primary.model_copy(update={
-            "provenance": primary_provenance,
-        })
-    canonical = canonical.model_copy(update={
-        "materials": materials,
-        "primary_software": primary,
-        "provenance": [
-            _provenance(snapshot, snapshot.case_source_file, "Rows"),
-            _provenance(snapshot, snapshot.report_source_file, "Rows"),
-        ],
-    })
-    projected = canonical_to_inspection_report(canonical)
-    _restore_compatibility_details(projected, report)
-    return projected
-
-
-def _provenance(
-    snapshot: ReportParseInputSnapshot, source_file: str | None, json_path: str,
-) -> FieldProvenance:
-    return FieldProvenance(
-        source_type="report",
-        source_file=(PurePosixPath(source_file).name if source_file else None),
-        json_path=json_path,
-        adapter=snapshot.adapter_id,
-        confidence=1.0,
+    for row in snapshot.device_rows:
+        number = row["evidence_number"]
+        base = snapshot.device_base_info[number]
+        source = snapshot.device_source_files.get(number)
+        kind, classification = classify_report_material(base)
+        holder_source = snapshot.holder_source_files.get(number)
+        materials.append(Material(
+            id=number, evidence_number=number, type=kind,
+            name=base.get("device_name", ""), model=base.get("model", ""),
+            holder_name=base.get("holder_name", ""),
+            acquisition_started_at=row.get("start_time", ""),
+            acquisition_ended_at=row.get("end_time", ""),
+            holder_provenance=[_provenance(snapshot, holder_source, "用户姓名")] if holder_source else [],
+            extractable=True, classification=classification,
+            identifiers=[MaterialIdentifier(
+                type=key, value=base[key], provenance=[_provenance(snapshot, source, key)],
+            ) for key in ("imei1", "imei2", "serial_number") if base.get(key)],
+            provenance=[_provenance(snapshot, source, "Rows")],
+        ))
+    main = snapshot.report_info.get("main_software") or {}
+    primary_provenance = []
+    if main.get("status") == "confirmed_by_user":
+        primary_provenance.append(FieldProvenance(
+            source_type="user", adapter=snapshot.adapter_id, confidence=1.0,
+        ))
+    primary_provenance.append(_provenance(snapshot, snapshot.report_source_file, "Rows"))
+    case = snapshot.case_info
+    return CanonicalInspectionCase(
+        case_info=CanonicalCaseInfo(
+            title="电子数据检查笔录", document_number=DEFAULT_DOCUMENT_NUMBER,
+            case_name=case.get("case_name", ""), case_number=case.get("case_number", ""),
+            introduction=CanonicalCaseIntroduction(
+                entrust_unit=case.get("submit_unit", ""),
+                entrust_persons=normalize_entrust_persons(case.get("submit_person", "")),
+                case_summary=case.get("case_summary", ""),
+            ),
+        ),
+        inspection_period=CanonicalInspectionPeriod(
+            created_at=case.get("create_time", ""), reported_at=case.get("report_time", ""),
+            time_range=_acquisition_time_range(materials),
+        ),
+        materials=materials,
+        primary_software=PrimarySoftware(
+            name=main.get("name", ""), version=main.get("version", ""),
+            display_name=main.get("name", ""),
+            confirmation_status=main.get("status", "unconfirmed"),
+            candidates=main.get("candidates", []), provenance=primary_provenance,
+        ),
+        provenance=[_provenance(snapshot, snapshot.case_source_file, "Rows"),
+                    _provenance(snapshot, snapshot.report_source_file, "Rows")],
     )
 
 
-def _restore_compatibility_details(
-    projected: dict[str, Any], source: Mapping[str, Any],
-) -> None:
-    """保留 canonical 暂未承载、但现有审核页面仍会读取的展示字段。"""
-    source_items = {
-        str(item.get("evidence_number", "")): item
-        for item in (source.get("introduction") or {}).get("evidence_list") or []
-        if isinstance(item, Mapping)
-    }
-    target_items = (projected.get("introduction") or {}).get("evidence_list") or []
-    for item in target_items:
-        source_item = source_items.get(str(item.get("evidence_number", "")), {})
-        for key in (
-            "device_type", "device_name", "brand", "holder_name", "device_type_source",
-        ):
-            if key in source_item:
-                item[key] = source_item[key]
+def project_pinghang_report(snapshot: ReportParseInputSnapshot) -> dict[str, Any]:
+    """投影规范事实；流程文本、展示名称和环境初值由共用 Parser 补齐。"""
+    canonical = pinghang_snapshot_to_canonical(snapshot)
+    projected = canonical_to_inspection_report(canonical)
+    for item, material in zip(projected["introduction"]["evidence_list"], canonical.materials):
+        item["holder_name"] = material.holder_name
+    return projected
 
 
-__all__ = ["project_pinghang_report"]
+def _provenance(snapshot: ReportParseInputSnapshot, source_file: str | None,
+                json_path: str) -> FieldProvenance:
+    return FieldProvenance(
+        source_type="report", source_file=PurePosixPath(source_file).name if source_file else None,
+        json_path=json_path, adapter=snapshot.adapter_id, confidence=1.0,
+    )
+
+
+def _acquisition_time_range(materials: list[Material]) -> str:
+    if not materials:
+        return ""
+    starts, ends = [], []
+    for material in materials:
+        start = parse_report_datetime(material.acquisition_started_at)
+        end = parse_report_datetime(material.acquisition_ended_at)
+        if start is None or end is None or start > end:
+            return ""
+        starts.append(start)
+        ends.append(end)
+    return format_inspection_time_range(
+        min(starts).strftime("%Y-%m-%d %H:%M:%S"),
+        max(ends).strftime("%Y-%m-%d %H:%M:%S"),
+    )
+
+
+__all__ = ["pinghang_snapshot_to_canonical", "project_pinghang_report"]

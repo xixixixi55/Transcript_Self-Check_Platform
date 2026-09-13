@@ -46,8 +46,24 @@ def file_identity(info: os.stat_result) -> tuple[int, int, int, int]:
     )
 
 
+def require_contained_path(path: Path, source_root: Path) -> None:
+    """在读取前拒绝来源内部任何祖先链接或 Windows reparse point。"""
+    try:
+        relative = path.relative_to(source_root)
+        current = source_root
+        for part in (None, *relative.parts):
+            if part is not None:
+                current = current / part
+            info = current.lstat()
+            if current.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
+                raise ReportParseInputError("报告目录包含不受支持的链接。")
+        path.resolve(strict=True).relative_to(source_root.resolve(strict=True))
+    except (OSError, ValueError) as error:
+        raise ReportParseInputError("报告依赖路径无效。") from error
+
+
 def require_directory(path: Path) -> None:
-    if not path.is_dir() or path.is_symlink():
+    if not path.is_dir() or path.is_symlink() or getattr(path.lstat(), "st_file_attributes", 0) & 0x400:
         raise ReportParseInputError("报告数据目录无效。")
 
 
@@ -56,7 +72,7 @@ def require_regular_file(path: Path) -> None:
         info = path.lstat()
     except OSError as error:
         raise ReportParseInputError("报告依赖文件无法读取。") from error
-    if not stat.S_ISREG(info.st_mode) or path.is_symlink():
+    if not stat.S_ISREG(info.st_mode) or path.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
         raise ReportParseInputError("报告依赖文件类型不受支持。")
 
 
@@ -73,4 +89,5 @@ def reject_special(entry: os.DirEntry[str]) -> None:
 __all__ = [
     "directory_entries", "file_entries", "file_identity", "reject_special",
     "require_directory", "require_regular_file", "stable_identity",
+    "require_contained_path",
 ]

@@ -81,11 +81,11 @@ def test_same_synthetic_report_profiles_legacy_and_workbench_paths(profile_fixtu
     original_verify_after_parse = source_service.verify_after_parse
     original_complete_parse = cases.workflow.complete_parse
 
-    def timed_fingerprint_with_metadata(path: Path, should_cancel=None):
+    def timed_fingerprint_with_metadata(path: Path, should_cancel=None, **kwargs):
         started = time.perf_counter()
         metrics["metadata_started_perf"] = started
         metrics["fingerprint_started_perf"] = started
-        metadata, value = original_fingerprint_with_metadata(path, should_cancel)
+        metadata, value = original_fingerprint_with_metadata(path, should_cancel, **kwargs)
         metrics["source_identity_entry_count"] = int(metadata["identity_entry_count"])
         metrics["metadata_ms"] = (time.perf_counter() - started) * 1000
         metrics["fingerprint_ms"] = (time.perf_counter() - started) * 1000

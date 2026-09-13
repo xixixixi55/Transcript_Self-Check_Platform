@@ -723,10 +723,10 @@ def test_submit_returns_before_slow_source_fingerprint_finishes(app_services):
     started_fingerprint = Event()
     release_fingerprint = Event()
 
-    def slow_fingerprint(path, should_cancel=None):
+    def slow_fingerprint(path, should_cancel=None, **kwargs):
         started_fingerprint.set()
         release_fingerprint.wait(1)
-        return original_fingerprint(path, should_cancel)
+        return original_fingerprint(path, should_cancel, **kwargs)
 
     with patch.object(source_record_service, "_fingerprint_with_metadata", side_effect=slow_fingerprint):
         with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
@@ -785,11 +785,11 @@ def test_deferred_decision_does_not_conflict_with_pending_source_verification(ap
     verification_finished = Event()
     release_verification = Event()
 
-    def slow_fingerprint(path, should_cancel=None):
+    def slow_fingerprint(path, should_cancel=None, **kwargs):
         verification_started.set()
         release_verification.wait(1)
         try:
-            return original_fingerprint(path, should_cancel)
+            return original_fingerprint(path, should_cancel, **kwargs)
         finally:
             verification_finished.set()
 

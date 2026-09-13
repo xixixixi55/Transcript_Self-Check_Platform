@@ -199,6 +199,7 @@ def _build_pinghang_snapshot(source_root: Path) -> ReportParseInputSnapshot:
         case_source_file=facts.case_source_file,
         report_source_file=facts.report_source_file,
         device_source_files=facts.device_source_files,
+        holder_source_files=facts.holder_source_files,
         evidence_directories={},
         device_base_info=facts.device_base_info,
         dependencies=records,

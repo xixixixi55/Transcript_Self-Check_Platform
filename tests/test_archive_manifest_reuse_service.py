@@ -6,14 +6,17 @@ import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.archive import archive_manifest_reuse_service  # noqa: E402
+from app.services.archive.archive_publication_identity_service import publication_digest  # noqa: E402
 
 
+@pytest.mark.parametrize("tamper", [None, "locator", "file_set"])
 def test_sqlite_publication_locator_restores_direct_manifest_without_legacy_json(
-    tmp_path: Path, monkeypatch,
+    tmp_path: Path, monkeypatch, tamper,
 ) -> None:
     logical = tmp_path / "workspace" / "compressed" / "context" / "manifest"
     direct = tmp_path / "SYNTHETIC-report-parent"
@@ -25,7 +28,9 @@ def test_sqlite_publication_locator_restores_direct_manifest_without_legacy_json
         input_fingerprint="b" * 64,
         archive_fingerprint="c" * 64,
         relative_final_dir="context/manifest",
-        public_manifest={"manifest_id": "SYNTHETIC-manifest", "parts": []},
+        public_manifest={"manifest_id": "SYNTHETIC-manifest", "parts": [
+            {"filename": "SYNTHETIC.rar", "size_bytes": 4, "md5": "a" * 32},
+        ]},
         publication_id="SYNTHETIC-publication",
         publication_digest="d" * 64,
         created_at=1.0,
@@ -39,6 +44,13 @@ def test_sqlite_publication_locator_restores_direct_manifest_without_legacy_json
             "relative_final_dir", "public_manifest", "publication_id", "publication_digest",
         )},
     }
+    digest, file_set = publication_digest(intent, persisted.public_manifest)
+    persisted.publication_digest = intent["publication_digest"] = digest
+    intent["publication_file_set"] = file_set
+    if tamper == "locator":
+        intent["publication_relative_dir"] = str(tmp_path / "SYNTHETIC-unbound-parent")
+    elif tamper == "file_set":
+        intent["publication_file_set"] = []
     database = SimpleNamespace(
         database_path=tmp_path / "data" / "workbench.sqlite3",
         deployment_instance_id="SYNTHETIC-instance",
@@ -77,6 +89,10 @@ def test_sqlite_publication_locator_restores_direct_manifest_without_legacy_json
         attempt_service=attempt_service, attempt_id="SYNTHETIC-attempt",
     )
 
+    if tamper:
+        assert restored is None
+        assert captured == []  # 拒绝后不得消费被篡改的位置或读取分卷。
+        return
     assert restored is captured[0]
     assert restored.logical_final_dir == logical
     assert restored.final_dir == direct

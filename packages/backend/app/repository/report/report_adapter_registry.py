@@ -15,6 +15,7 @@ from .pinghang_report_adapter import (
     parse_pinghang_report,
 )
 from .report_format_adapter import ReportFormat, require_supported_report_format
+from .report_parse_input_filesystem import file_identity
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class ReportAdapterMatch:
     adapter_version: str
     report_format: ReportFormat
     structure_fingerprint: str
+    source_fingerprint: str | None = None
 
 
 class ReportAdapterDetectionError(ValueError):
@@ -58,12 +60,23 @@ def detect_report_adapter(source_dir: str | Path) -> ReportAdapterMatch:
             adapter_version=PINGHANG_ADAPTER_VERSION,
             report_format=ReportFormat.PINGHANG,
             structure_fingerprint=facts.structure_fingerprint,
+            source_fingerprint=_pinghang_metadata_fingerprint(root, facts),
         ))
     if not matches:
         raise ReportAdapterDetectionError("REPORT_ADAPTER_NOT_FOUND")
     if len(matches) != 1:
         raise ReportAdapterDetectionError("REPORT_ADAPTER_AMBIGUOUS")
     return matches[0]
+
+
+def _pinghang_metadata_fingerprint(root: Path, facts) -> str:
+    """复用适配器已选择的核心依赖；不二次读取内容或遍历媒体。"""
+    digest = hashlib.sha256()
+    digest.update(facts.structure_fingerprint.encode("ascii"))
+    for relative in facts.relative_files:
+        digest.update(relative.encode("utf-8"))
+        digest.update(str(file_identity((root / relative).stat())).encode("ascii"))
+    return digest.hexdigest()
 
 
 __all__ = [
