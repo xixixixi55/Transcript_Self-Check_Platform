@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 
 ARCHIVE_ROWS_PAGE_KIND = "archive_rows"
-INSPECTOR_FINAL_PAGE_KIND = "inspector_final"
 
 
 class AttachmentPlanError(ValueError):

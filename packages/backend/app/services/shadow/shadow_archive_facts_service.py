@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import Any, Mapping
 
 from ..attachment.attachment2_plan_service import build_attachment2_pages, material_photo_groups
-from ..attachment.attachment_plan_service import MAX_PART_ROWS_PER_PAGE
+from ..attachment.attachment_plan_service import attachment1_page_row_counts
 from .shadow_fact_service import (
     archive_filename_fingerprints, expected_archive_filenames, fingerprint,
     fingerprint_values,
@@ -79,9 +79,7 @@ def _expected_page_counts(
 ) -> dict[str, int | None]:
     if not isinstance(expected_part_count, int) or expected_part_count < 1:
         return {"attachment1_page_count": None, "attachment2_page_count": None, "attachment3_page_count": None}
-    attachment1_pages = (expected_part_count + MAX_PART_ROWS_PER_PAGE - 1) // MAX_PART_ROWS_PER_PAGE
-    if expected_part_count % MAX_PART_ROWS_PER_PAGE == 0:
-        attachment1_pages += 1
+    attachment1_pages = len(attachment1_page_row_counts(expected_part_count))
     attachment2_pages = None
     if isinstance(report, Mapping):
         attachment2_pages = len(build_attachment2_pages(material_photo_groups(report)))

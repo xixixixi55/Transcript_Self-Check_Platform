@@ -27,7 +27,6 @@ from .attachment_plan_models_service import (
     AttachmentPartRow,
     AttachmentPlan,
     AttachmentSummaryPlan,
-    INSPECTOR_FINAL_PAGE_KIND,
 )
 from ..template.template_profile_service import current_template_profile
 from ..report.legacy_report_projection_service import project_ordered_legacy_report
@@ -156,9 +155,22 @@ def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str
     return manifest_id, parts
 
 
+def attachment1_page_row_counts(row_count: int) -> tuple[int, ...]:
+    """按每页最多四条、从前向后优先填满的规则规划附件1。"""
+    if row_count < 1:
+        return ()
+    return tuple(
+        min(MAX_PART_ROWS_PER_PAGE, row_count - index)
+        for index in range(0, row_count, MAX_PART_ROWS_PER_PAGE)
+    )
+
+
 def _attachment1_pages(rows, source_text, extraction_method):
-    page_chunks = [rows[index:index + MAX_PART_ROWS_PER_PAGE]
-                   for index in range(0, len(rows), MAX_PART_ROWS_PER_PAGE)]
+    page_chunks = []
+    row_offset = 0
+    for row_count in attachment1_page_row_counts(len(rows)):
+        page_chunks.append(rows[row_offset:row_offset + row_count])
+        row_offset += row_count
     pages = []
     for index, page_rows in enumerate(page_chunks, 1):
         is_last_data_page = index == len(page_chunks)
@@ -174,16 +186,6 @@ def _attachment1_pages(rows, source_text, extraction_method):
             source_text=source_text,
             extraction_method=extraction_method,
             signature_blank_row_count=signature_blank_row_count,
-        ))
-    if len(rows) % MAX_PART_ROWS_PER_PAGE == 0:
-        pages.append(Attachment1PagePlan(
-            page_number=len(pages) + 1,
-            page_kind=INSPECTOR_FINAL_PAGE_KIND,
-            show_attachment_title=False,
-            serial_rows=(),
-            source_text=source_text,
-            extraction_method=extraction_method,
-            signature_blank_row_count=0,
         ))
     return pages
 

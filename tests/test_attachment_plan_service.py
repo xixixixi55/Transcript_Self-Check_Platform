@@ -110,13 +110,16 @@ def test_missing_legacy_photo_groups_are_rebuilt_from_material_and_image_order()
         (1, [1], ["archive_rows"]),
         (2, [2], ["archive_rows"]),
         (3, [3], ["archive_rows"]),
-        (4, [4, 0], ["archive_rows", "inspector_final"]),
+        (4, [4], ["archive_rows"]),
         (5, [4, 1], ["archive_rows", "archive_rows"]),
-        (8, [4, 4, 0], ["archive_rows", "archive_rows", "inspector_final"]),
+        (6, [4, 2], ["archive_rows", "archive_rows"]),
+        (7, [4, 3], ["archive_rows", "archive_rows"]),
+        (8, [4, 4], ["archive_rows", "archive_rows"]),
         (9, [4, 4, 1], ["archive_rows", "archive_rows", "archive_rows"]),
+        (10, [4, 4, 2], ["archive_rows", "archive_rows", "archive_rows"]),
     ],
 )
-def test_attachment1_uses_manifest_rows_with_four_row_page_limit(
+def test_attachment1_uses_four_row_pages_and_fills_earlier_pages_first(
     count, row_counts, page_kinds,
 ):
     plan = build_attachment_plan(manifest(count), report(0))
@@ -157,10 +160,11 @@ def test_inspectors_do_not_change_attachment1_plan_or_create_overflow(inspector_
     assert not any(page.page_kind == "inspector_final" for page in plan.attachment1_pages)
 
 
-def test_four_manifest_rows_reserve_a_new_signature_page():
+def test_four_manifest_rows_keep_data_with_the_signature_page():
     plan = build_attachment_plan(manifest(4), report(0))
-    assert [len(page.serial_rows) for page in plan.attachment1_pages] == [4, 0]
-    assert plan.attachment1_pages[-1].page_kind == "inspector_final"
+    assert [len(page.serial_rows) for page in plan.attachment1_pages] == [4]
+    assert all(page.page_kind == "archive_rows" for page in plan.attachment1_pages)
+    assert plan.attachment1_pages[-1].serial_rows
 
 
 def test_attachment3_is_one_page_per_manifest_part_and_uses_manifest_values():

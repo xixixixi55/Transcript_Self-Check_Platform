@@ -10,7 +10,6 @@ from .attachment2_docx_renderer_service import render_attachment2
 from .attachment2_image_service import Attachment2PhotoAsset
 from .attachment_plan_models_service import (
     ARCHIVE_ROWS_PAGE_KIND,
-    INSPECTOR_FINAL_PAGE_KIND,
     Attachment1PagePlan,
     AttachmentPlan,
 )
@@ -42,6 +41,64 @@ from ..integrity.hash_algorithm_service import hash_display_name, hash_field_tit
 _LEGACY_ATTACHMENT1_INSTITUTION = "椒江区公安司法鉴定中心"
 _ATTACHMENT1_SIGNATURE_LABEL = "检查人员："
 _DEFAULT_TABLE_CELL_MARGIN_TWIPS = 108
+_ATTACHMENT1_DENSE_FIRST_PAGE_ROW_HEIGHT_TWIPS = "1300"
+_ATTACHMENT1_DENSE_FIRST_PAGE_SIGNATURE_HEIGHT_TWIPS = "1900"
+_ATTACHMENT1_DENSE_FIRST_PAGE_LINE_TWIPS = "300"
+
+
+def _remove_attachment1_redundant_paragraphs(cell: Any) -> None:
+    paragraphs = cell.findall("./%s" % qn(W_NS, "p"))
+    for paragraph in paragraphs[1:]:
+        cell.remove(paragraph)
+
+
+def _set_attachment1_row_minimum_height(row: Any, height_twips: str) -> None:
+    row_height = row.find("./%s/%s" % (qn(W_NS, "trPr"), qn(W_NS, "trHeight")))
+    if row_height is not None:
+        row_height.set(qn(W_NS, "val"), height_twips)
+        row_height.attrib.pop(qn(W_NS, "hRule"), None)
+
+
+def _compact_attachment1_dense_first_page_spacing(element: Any) -> None:
+    from lxml import etree
+
+    for paragraph in element.findall(".//%s" % qn(W_NS, "p")):
+        paragraph_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
+        if paragraph_pr is None:
+            paragraph_pr = etree.Element(qn(W_NS, "pPr"))
+            paragraph.insert(0, paragraph_pr)
+        snap_to_grid = paragraph_pr.find("./%s" % qn(W_NS, "snapToGrid"))
+        if snap_to_grid is None:
+            snap_to_grid = etree.Element(qn(W_NS, "snapToGrid"))
+            insertion_index = next(
+                (
+                    index for index, child in enumerate(paragraph_pr)
+                    if child.tag in {
+                        qn(W_NS, "spacing"), qn(W_NS, "ind"),
+                        qn(W_NS, "jc"), qn(W_NS, "rPr"),
+                    }
+                ),
+                len(paragraph_pr),
+            )
+            paragraph_pr.insert(insertion_index, snap_to_grid)
+        snap_to_grid.set(qn(W_NS, "val"), "0")
+        spacing = paragraph_pr.find("./%s" % qn(W_NS, "spacing"))
+        if spacing is None:
+            spacing = etree.Element(qn(W_NS, "spacing"))
+            insertion_index = next(
+                (
+                    index for index, child in enumerate(paragraph_pr)
+                    if child.tag in {
+                        qn(W_NS, "ind"), qn(W_NS, "jc"), qn(W_NS, "rPr"),
+                    }
+                ),
+                len(paragraph_pr),
+            )
+            paragraph_pr.insert(insertion_index, spacing)
+        spacing.set(qn(W_NS, "before"), "0")
+        spacing.set(qn(W_NS, "after"), "0")
+        spacing.set(qn(W_NS, "line"), _ATTACHMENT1_DENSE_FIRST_PAGE_LINE_TWIPS)
+        spacing.set(qn(W_NS, "lineRule"), "auto")
 
 
 def replace_attachment1_institution(doc: Any, inspection_place: object) -> None:
@@ -180,13 +237,7 @@ def _render_attachment1(body: Any, label: Any, heading: Any, table: Any,
         nodes.append(label if page_index == 0 else clone_page_break(page_break_anchor))
         if page_index == 0:
             nodes.append(heading)
-        include_signature = (
-            page.page_kind == INSPECTOR_FINAL_PAGE_KIND
-            or (
-                page_index == len(plan.attachment1_pages) - 1
-                and page.page_kind == ARCHIVE_ROWS_PAGE_KIND
-            )
-        )
+        include_signature = page_index == len(plan.attachment1_pages) - 1
         nodes.append(_build_attachment1_table(
             original_table, template_rows, page, page_index == 0,
             include_signature, plan.hash_algorithm,
@@ -198,10 +249,10 @@ def _render_attachment1(body: Any, label: Any, heading: Any, table: Any,
 def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1PagePlan,
                              include_header: bool, include_signature: bool,
                              hash_algorithm: str) -> Any:
-    if page.page_kind not in {ARCHIVE_ROWS_PAGE_KIND, INSPECTOR_FINAL_PAGE_KIND}:
+    if page.page_kind != ARCHIVE_ROWS_PAGE_KIND:
         raise TemplateProfileError("附件一页面类型不受 current-template-v1 支持。")
-    if page.page_kind == INSPECTOR_FINAL_PAGE_KIND and page.serial_rows:
-        raise TemplateProfileError("inspector final page cannot contain archive rows")
+    if not page.serial_rows:
+        raise TemplateProfileError("附件一数据页不得缺少归档分卷。")
     table = copy.deepcopy(template)
     clear_table_rows(table)
     if include_header:
@@ -213,6 +264,10 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
             )
         table.append(header)
     data_template = rows[1]
+    dense_signature_page = include_signature and len(page.serial_rows) >= 3
+    compact_dense_first_page = (
+        include_header and include_signature and len(page.serial_rows) == 4
+    )
     for index, item in enumerate(page.serial_rows):
         row = copy.deepcopy(data_template)
         cells = row.findall("./%s" % qn(W_NS, "tc"))
@@ -226,6 +281,14 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
             if index:
                 _set_attachment1_cell_text(cells[2], "", 2)
                 _set_attachment1_cell_text(cells[3], "", 3)
+        if dense_signature_page:
+            for cell in cells:
+                _remove_attachment1_redundant_paragraphs(cell)
+        if compact_dense_first_page:
+            _set_attachment1_row_minimum_height(
+                row, _ATTACHMENT1_DENSE_FIRST_PAGE_ROW_HEIGHT_TWIPS,
+            )
+            _compact_attachment1_dense_first_page_spacing(row)
         table.append(row)
     if include_signature:
         blank_count = min(page.signature_blank_row_count, len(rows[2:-1]))
@@ -234,6 +297,12 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
             trim_vml_line_vertical_span(blank_copies[0], blank_count, len(rows[2:-1]))
         table.extend(blank_copies)
         signature_row = copy.deepcopy(rows[-1])
+        if compact_dense_first_page:
+            _set_attachment1_row_minimum_height(
+                signature_row,
+                _ATTACHMENT1_DENSE_FIRST_PAGE_SIGNATURE_HEIGHT_TWIPS,
+            )
+            _compact_attachment1_dense_first_page_spacing(signature_row)
         for cell in signature_row.findall("./%s" % qn(W_NS, "tc")):
             set_element_font(cell, "仿宋_GB2312", 32)
         table.append(signature_row)

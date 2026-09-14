@@ -232,7 +232,8 @@ def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
 @pytest.mark.parametrize(
     ("count", "table_rows"),
     [
-        (8, [5, 4, 1]), (9, [5, 4, 2]),
+        (7, [5, 4]), (8, [5, 5]),
+        (9, [5, 4, 2]), (10, [5, 4, 3]),
     ],
 )
 def test_attachment1_final_page_keeps_template_signature_row(tmp_path, count, table_rows):
@@ -265,9 +266,14 @@ def test_attachment1_final_page_keeps_template_signature_row(tmp_path, count, ta
 def test_attachment1_three_rows_match_customer_font_baseline(tmp_path):
     output = tmp_path / "attachment-1-three.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(3))
-    table = attachment_tables(document_root(output))[0]
-    rows = table.findall("./{%s}tr" % W_NS)
-    assert len(rows) == 5
+    tables = attachment_tables(document_root(output))
+    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5]
+    rows = tables[0].findall("./{%s}tr" % W_NS)
+    assert all(
+        len(cell.findall("./{%s}p" % W_NS)) == 1
+        for row in rows[1:4]
+        for cell in row.findall("./{%s}tc" % W_NS)
+    )
     expected = [
         ("\u6977\u4f53", "32"),
         ("\u4eff\u5b8b_GB2312", "32"),
@@ -282,7 +288,7 @@ def test_attachment1_three_rows_match_customer_font_baseline(tmp_path):
         fonts = r_pr.find("./{%s}rFonts" % W_NS)
         assert fonts.get("{%s}eastAsia" % W_NS) == east_asia
         assert r_pr.find("./{%s}sz" % W_NS).get("{%s}val" % W_NS) == size
-    signature = "".join(rows[-1].itertext())
+    signature = "".join(tables[-1].findall("./{%s}tr" % W_NS)[-1].itertext())
     assert "\u68c0\u67e5\u4eba\u5458" in signature
     assert "\u76d6\u7ae0" in signature
 
@@ -361,20 +367,47 @@ def test_attachment1_source_puts_each_material_number_on_its_own_line(tmp_path):
             assert continuation_merge.get("{%s}val" % W_NS) is None
 
 
-def test_attachment1_four_rows_put_signature_on_new_page(tmp_path):
+def test_attachment1_four_rows_keep_data_on_signature_page(tmp_path):
     output = tmp_path / "attachment-1-four.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(4))
     tables = attachment_tables(document_root(output))
-    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 1]
-    first_text = "".join(tables[0].itertext())
-    second_text = "".join(tables[1].itertext())
-    assert "server.part4.rar" in first_text
-    assert "\u68c0\u67e5\u4eba\u5458" not in first_text
-    assert "\u68c0\u67e5\u4eba\u5458" in second_text
-    assert "\u76d6\u7ae0" in second_text
+    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [6]
+    text = "".join(tables[0].itertext())
+    assert all(f"server.part{index}.rar" in text for index in range(1, 5))
+    assert "\u68c0\u67e5\u4eba\u5458" in text
+    assert "\u76d6\u7ae0" in text
+    for row in tables[0].findall("./{%s}tr" % W_NS)[1:5]:
+        height = row.find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS))
+        assert height.get("{%s}val" % W_NS) == "1300"
+        assert height.get("{%s}hRule" % W_NS) is None
+        assert all(
+            paragraph.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS)).get(
+                "{%s}line" % W_NS
+            ) == "300"
+            for paragraph in row.findall(".//{%s}p" % W_NS)
+        )
+        assert all(
+            paragraph.find("./{%s}pPr/{%s}snapToGrid" % (W_NS, W_NS)).get(
+                "{%s}val" % W_NS
+            ) == "0"
+            for paragraph in row.findall(".//{%s}p" % W_NS)
+        )
+    signature_height = tables[0].findall("./{%s}tr" % W_NS)[-1].find(
+        "./{%s}trPr/{%s}trHeight" % (W_NS, W_NS)
+    )
+    assert signature_height.get("{%s}val" % W_NS) == "1900"
+    assert signature_height.get("{%s}hRule" % W_NS) is None
+    assert all(
+        paragraph.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS)).get(
+            "{%s}line" % W_NS
+        ) == "300"
+        for paragraph in tables[0].findall("./{%s}tr" % W_NS)[-1].findall(
+            ".//{%s}p" % W_NS
+        )
+    )
 
 
-def test_attachment1_six_rows_use_one_blank_row_before_signature(tmp_path):
+def test_attachment1_six_rows_use_four_then_two_with_signature(tmp_path):
     output = tmp_path / "attachment-1-six.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(6))
     tables = attachment_tables(document_root(output))
