@@ -192,6 +192,16 @@ export function canRevisitGuidedHistoryField(field: GuidedReviewHistoryField): b
   return resolvedHistoryTarget(field.targetId) !== null
 }
 
+const PREFILLED_REVISIT_TARGETS = new Set<string>([
+  REVIEW_TARGET_IDS.documentNumber,
+  REVIEW_TARGET_IDS.discNumber,
+])
+
+export function shouldExposeGuidedHistoryField(field: GuidedReviewHistoryField): boolean {
+  return canRevisitGuidedHistoryField(field)
+    && (Boolean(field.userProvided) || PREFILLED_REVISIT_TARGETS.has(field.targetId || ''))
+}
+
 function historySection(targetId: string): { id: string; label: string } {
   if (targetId === REVIEW_TARGET_IDS.documentNumber) {
     return { id: REVIEW_SECTION_IDS.document, label: '文书信息' }
@@ -275,8 +285,7 @@ function completedManualActions(projection: GuidedReviewProjection): GuidedRevie
     ...projection.history.flatMap(item => item.fields || []),
     ...projection.previouslyHandledFields,
   ].flatMap(field => {
-    const isDocumentNumber = field.targetId === REVIEW_TARGET_IDS.documentNumber
-    if ((!field.userProvided && !isDocumentNumber) || !canRevisitGuidedHistoryField(field)) return []
+    if (!shouldExposeGuidedHistoryField(field)) return []
     const action = handledHistoryAction(field)
     const targetId = action?.pendingItem?.targetId
     if (!action || !targetId || seenTargets.has(targetId)) return []
@@ -303,7 +312,7 @@ function actionForStoredReference(reference: GuidedReviewNavigationStepReference
   if (!reference.targetId) return null
   const handledField = [...projection.previouslyHandledFields,
     ...projection.history.flatMap(item => item.fields || [])]
-    .find(field => field.userProvided && canRevisitGuidedHistoryField(field)
+    .find(field => shouldExposeGuidedHistoryField(field)
       && field.targetId === reference.targetId)
   return handledField ? handledHistoryAction(handledField) : null
 }

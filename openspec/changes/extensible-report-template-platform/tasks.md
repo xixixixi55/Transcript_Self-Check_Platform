@@ -326,3 +326,51 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 核对增量与实现并同步现行规格，完成定向测试、verify:quick 和限定严格文档检查。
 
 验证证据（2026-09-08）：受影响后端 154 passed、前端 26 passed；verify:quick 通过（架构、类型、治理、文档及资产检查）。独立审查发现的规格残留与废弃 JSON 字段覆盖缺口已修复，复审通过。增量与现行规格已同步；限定 strict docs 14 项检查通过，git diff --check 通过。后端首次执行因默认工作台数据库只读失败，使用独立 SYNTHETIC 临时数据根完整重跑后通过。
+
+## 2026-09-13 三种内置报告格式统一适配器边界（17B）
+
+本次增量复用阶段一既定的 `ReportAdapter → CanonicalInspectionCase → InspectionReport` 设计，属于不新增公开输入格式的核心链路重构；保持美亚 legacy、美亚 new、平航 v1 的识别、字段和正式输出语义不变，不切换全局 `pipeline_mode`，不启用任意未知格式发现。
+
+- [x] 17B.1 在 Layer 20 建立可注册的来源适配器契约，将美亚 legacy/new 家族与平航 v1 的探测、版本身份和输入快照构建收口到唯一匹配注册表；解析服务不再直接探测厂商结构，输入依赖保持单次读取和版本化指纹。
+- [x] 17B.1T 复用现有 SYNTHETIC legacy/new/平航测试，增加注册身份、唯一匹配、输入快照与读取次数断言，证明三种格式均经相同注册表入口且未知/并列结构安全失败。
+- [x] 17B.2 在 Layer 21 建立按 `adapter_id` 注册的 Canonical 投影器，美亚 legacy/new 与平航 v1 均先形成 `CanonicalInspectionCase` 再生成兼容投影；主解析编排只消费适配器能力和投影结果，不再判断厂商枚举，现有硬件、软件、时间和材料顺序保持不变。
+- [x] 17B.2T 扩展现有解析/Canonical 回归，覆盖三种 adapter id、字段来源、材料顺序、软件确认和硬件初值，并证明现有公开 DTO 与正式导出合同不回归。
+- [x] 17B.3 运行架构检查和受影响后端测试，核对 diff 与既定设计；记录证据并保持 `lifecycle_status: in-progress`，不触发延期 canonical 正式切换、最终 Review 或 scoped full gate。
+
+实现证据（2026-09-13）：三种内置 adapter id 与 Canonical projector 注册一致；解析编排已移除平航/美亚厂商探测分支，美亚 legacy/new 均以完整 DTO 前后等价断言证明兼容，平航继续保留导航材料顺序、专属字段覆盖和中性硬件初值；并发回归证明共享任务沿用开始时选中的适配器且只构建一次快照。最终受影响后端回归 253 passed，架构检查、TypeScript 类型检查、治理测试、OpenSpec 规格检查、OpenSpec strict validate、仓库资产检查和 `git diff --check` 通过；适配器歧义拒绝的突变验证按预期失败，恢复后聚焦用例通过。`verify:quick` 和限定 strict docs 仅因仓库既有 `harness/iteration-guide.md` 指向不存在的 `harness/archive/iterations/` 产生 4 项 broken-link 而停止，本次未修改或补造该无关目录。额外全量后端回归为 1369 passed、3 failed、3 skipped；3 项失败来自本次未修改的既有合同/来源恢复基线：Python/TypeScript `Material` 字段及 `ODD_PHOTO_COUNT` 合同漂移，以及两个旧 `_fingerprint` monkeypatch 未接受现有 `report_fingerprint` 参数。manual_acceptance: N/A（内部解析边界重构，无 UI、Word 版式或真实外部格式变化）。变更包继续保持 `lifecycle_status: in-progress`。
+
+## 2026-09-13 奇安信网页版报告 v1 内置适配（17C）
+
+本增量 `workflow_level: 2`，复用 17B 建立的来源适配器与 Canonical projector 注册边界，正式新增第四种输入格式 `qianxin-web-report-v1`。用户指定目录只作为仓库外只读结构确认和最终脱敏验收输入；测试必须使用重新构造并标记为 SYNTHETIC 的最小报告，不得复制案件、人员、设备标识、媒体、绝对路径或生成输出。变更包保持 `lifecycle_status: in-progress`。
+
+- [x] 17C.1 固化奇安信 v1 的入口/profile/JSONP 签名、核心依赖预算和统一字段映射；明确缺失检材编号不伪造、Android 平台不自动确认手机、媒体和编号明细目录不读取。
+- [x] 17C.1T 用最小 SYNTHETIC 单/多检材目录验证固定赋值、安全失败、数字索引顺序、核心文件读取范围和适配器冲突；断言聚焦可区分的业务与安全合同，不按字段机械堆叠。
+- [x] 17C.2 在 Layer 20 实现奇安信来源适配器，在 Layer 21 映射 `CanonicalInspectionCase` 并注册第四个 adapter id；主解析编排、现有三格式和正式导出链路不增加厂商分支。
+- [x] 17C.2T 验证奇安信案件/送检/材料/设备/标识符/时间/主软件投影及缺失值语义，并以现有三格式回归证明输出不变。
+- [x] 17C.3 对用户指定仓库外报告执行只读脱敏验收，输出四格式统一字段能力矩阵；同步 living spec，运行受影响测试、`verify:quick`、OpenSpec strict validate、限定 strict docs、资产与 diff 检查，记录无关基线失败并保持 `lifecycle_status: in-progress`。
+
+实现与验收证据（2026-09-13）：新增 `qianxin-web-report-v1@1.0.0`，只读取唯一根入口 HTML、`data_navigation`、`data_report_profile` 和按数字索引排序的 package profiles，统一映射 Canonical 后投影现有 DTO；SYNTHETIC 合同覆盖多检材顺序、空检材编号不伪造、Android 类型待确认、字段来源、主软件确认、时间聚合、核心依赖范围、适配器冲突和 JSONP 安全失败。重复 JSON 属性拒绝逻辑临时突变后聚焦用例按预期 1 failed / 2 passed，恢复后 3 passed。四格式及工作台受影响回归 260 passed；全量后端 1377 passed、3 failed、3 skipped，3 项仍是本次未修改的 Python/TypeScript `Material`/`ODD_PHOTO_COUNT` 合同漂移和两个来源恢复既有基线。用户指定约 780 MB、8212 文件的仓库外报告只读解析成功：单次约 60 ms 构建 Canonical 快照、159–194 ms 完成 `parse_report`，仅记录 4 个核心依赖，识别 1 个材料、案件名称、检查时间、主软件名称/版本、设备型号和有效设备标识；原报告为空的案件编号、送检信息、检材编号及硬件保持为空，Android 类型保持待确认。架构、TypeScript 类型、治理、OpenSpec 规格与 strict validate、仓库资产和 `git diff --check` 通过；`verify:quick` 与限定 strict docs 仅因既有 `harness/iteration-guide.md` 的 4 个 broken-link 停止。未复制、修改或执行真实报告内容，未记录真实案件、人员、设备值或绝对路径；`lifecycle_status` 保持 `in-progress`。
+
+## 2026-09-13 陌生报告发现与 ReportProfile MVP（17D）
+
+本轮启动阶段二的受限 MVP，`workflow_level: 3`。只实现确定性的 JSON/JSONP 结构发现、用户确认后的版本化 Profile 和精确结构复用；不实现 AI 推断、模糊兼容、任意脚本/JSONPath、媒体发现或未确认自动导出。内置四格式必须保持快速路径和现有输出语义。
+
+- [x] 17D.1 定义共享 `ReportProfile`、发现候选、确认请求和来源 DTO；补充 SQLite 版本化存储，确保 Profile 不保存案件字段原值、绝对路径或可执行表达式。
+- [x] 17D.1T 复用数据库升级测试并增加一个组合持久化合同，证明 confirmed 版本不可覆盖、draft 不可复用、敏感原值不落库。
+- [x] 17D.2 实现有界 JSON/JSONP 结构发现、确定性字段候选和结构指纹；只在内置适配器未命中时调用，适配器冲突安全失败。
+- [x] 17D.2T 用少量 SYNTHETIC 组合场景证明发现预算、安全解析、候选证据及“已知四格式零发现调用”；对预算/路径校验核心逻辑做断言区分度验证。
+- [x] 17D.3 实现候选确认、confirmed Profile 精确复用、通用 `ReportParseInputSnapshot` 与 Canonical 投影；结构或类型漂移回到待确认，不生成错误正式结果。
+- [x] 17D.3T 以首次发现→确认→同结构复用→变体拒绝的端到端合同证明统一字段投影和确认门控，不按字段机械堆叠断言。
+- [x] 17D.4 接入工作台本机目录选择与候选确认界面；公共响应不暴露绝对路径，确认成功后才创建案件并进入现有审核链路。
+- [x] 17D.4T 验证取消/确认/过期/冲突和已知格式直通交互；人工验收确认候选来源可读、正式导出在确认前不可达。
+- [x] 17D.5 运行阶段二受影响架构、类型、后端和前端定向验证，核对四格式输出与性能保护；记录证据并保持 `lifecycle_status: in-progress`，不提前冻结候选或运行最终 Review/full gate。
+
+实现与验收证据（2026-09-13）：陌生报告仅在四个内置适配器返回 `REPORT_ADAPTER_NOT_FOUND` 后进入有界 JSON/JSONP 发现；结构预算限制为 4 层、128 个候选文件、单文件 1 MiB、总计 4 MiB、2048 个目录项、JSON 深度 32 和 8192 个节点，不执行脚本、HTML、附件或媒体。用户显式选择后才写入 SQLite v12 的 confirmed Profile，持久内容只含相对文件、受限数据路径、类型、规则和证据；组合合同证明案件原值/预览不落库、同结构二次保存不覆盖首个版本、draft 不可复用。确认后统一构造 `ReportParseInputSnapshot → CanonicalInspectionCase → InspectionReport`；结构指纹或值类型漂移安全拒绝。
+
+有效断言集中在会改变安全或业务结论的组合场景：已知适配器零 Profile 仓储调用、确认前零案件、确认后多检材统一投影、同结构复用、键漂移拒绝、深度预算拒绝、会话过期、同一 canonical 字段冲突、公共响应无绝对路径，以及确认后工作台建案。深度校验被临时移除时预算用例按预期失败，恢复后通过。Profile 聚焦 5 passed；数据库、控制器与 Profile 受影响回归 84 passed；四个内置格式/解析/Canonical/并发受影响回归 124 passed；前端弹窗、hook 与工作台页面 22 passed。全量后端为 1382 passed、3 failed、3 skipped，3 项与此前基线相同，来自本次未修改的合同检查器和来源恢复测试；全量前端的 6 个失败均位于本次未修改的 `CaseRecordGeneratePage` 引导操作基线，新增及受影响前端用例全部通过。
+
+候选弹窗经 Impeccable 静态检查无发现，并用实际本地浏览器在默认窄屏和 1200×900 桌面宽度完成视觉/交互验收：未选择时确认按钮禁用，选择后显示相对来源与数据路径，按钮可用，滚动区、底部操作和响应式单列/双列布局可见；临时预览文件已删除。架构、TypeScript、治理、OpenSpec 规格与 strict validate、仓库资产和 `git diff --check` 通过；`verify:quick` 与限定 strict docs 仅因既有 `harness/iteration-guide.md` 的 4 个 broken-link 停止。`lifecycle_status` 保持 `in-progress`，不冻结整个候选，也不提前运行最终 Review/scoped full gate。
+
+用户确认该工作属于 Level 3 后冻结候选并启动独立 Review Sub-Agent。第一轮审查结论为驳回：发现器可能读取敏感子树、候选读取存在枚举后替换窗口、确认未校验标量/检材集合基数、竞争确认可能静默复用，并建议绑定 Profile 精确版本及拒绝非有限 JSON 数值。修复后，发现器硬排除附件/媒体/明细/工具/资源/编号数据子树，候选使用枚举身份、祖先链复验、绑定句柄和流式上限读取；映射持久化集合锚点并在确认前验证唯一标量、同源同集合、相同索引和同质类型；同结构仅允许名称与规范化映射完全一致的幂等确认；来源记录 Profile ID + version，解析精确取版本；JSON 拒绝 `NaN`/`Infinity`/`-Infinity`。新增证据只覆盖这些可区分风险：文件替换/增长、祖先替换且外部内容零读取、敏感子树零读取且不影响指纹、标量歧义、跨集合检材、混合类型、竞争确认和版本漂移。修复后 Profile/解析/工作台受影响后端 155 passed，Profile 聚焦 13 passed，弹窗 1 passed，TypeScript 类型检查通过。
+
+最终冻结证据（2026-09-14）：同一独立审查者完成复审，结论通过，MUST FIX 与 SHOULD FIX 均为 0；审查者独立相关后端范围 213 passed。最终来源兼容修复后，Profile/解析/工作台定向范围 164 passed，复审确认精确 Profile、奇安信和平航的来源指纹保护未被绕过，非报告来源恢复既有取消和临时失败语义。随后对齐 TypeScript/Python Canonical `Material` 的持有人、持有人来源和取证起止时间字段；独立聚焦复审再次通过，MUST FIX 与 SHOULD FIX 仍为 0，合同检查及 Profile/奇安信/平航聚焦回归 76 passed。最终门控发现的 6 个引导复核用例已按真实行为修复：仅将文书编号和介质编号纳入可回访的系统预填字段白名单，并以完整操作轨迹断言覆盖文书编号、检材完整性、照片、介质编号、刻录时间和完成态；普通系统识别字段仍不暴露，未以弱化断言绕过。补充归档迭代目录说明后，既有 4 个文档链接漂移清零；受影响前端回归 77 passed，同一审查者最终复审再次通过且无 MUST FIX/SHOULD FIX。`npm run verify:full -- --change extensible-report-template-platform` 使用 D 盘隔离短临时根执行，预检、架构、TypeScript、治理、仓库资产、全仓测试、生产构建和限定 strict docs 全部通过；其中全仓测试 296.6 秒、构建 30.0 秒、限定 strict docs 3.8 秒。C 盘短临时根首次预检因可用空间仅 690 MB 而拒绝执行，属于环境预检且未进入测试。OpenSpec strict validate、仓库资产检查与 `git diff --check` 同步通过。本次冻结候选已达到 scoped full gate 要求；变更包因阶段二/三延期任务继续保持 `lifecycle_status: in-progress`，不误记为全部路线或归档完成。

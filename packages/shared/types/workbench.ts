@@ -232,7 +232,74 @@ export interface DirectorySelectionCancelled {
   cancelled: true
 }
 
-export type CaseDirectorySubmissionResult = CaseSubmission | DirectorySelectionCancelled
+export interface ReportFieldCandidate {
+  candidate_id: string
+  canonical_field: string
+  source_file: string
+  json_path: string
+  collection_path: string
+  value_type: 'string' | 'number' | 'boolean' | 'null'
+  confidence: number
+  evidence: string[]
+  preview_values: string[]
+}
+
+export interface ReportProfileMapping {
+  canonical_field: string
+  source_file: string
+  json_path: string
+  collection_path: string
+  value_type: 'string' | 'number' | 'boolean' | 'null'
+  normalizers: string[]
+  required: boolean
+  confidence: number
+  evidence: string[]
+  confirmation: 'user_confirmed'
+}
+
+export interface ReportProfile {
+  profile_id: string
+  version: number
+  display_name: string
+  structure_fingerprint: string
+  adapter_id: 'report-profile-v1'
+  adapter_version: string
+  status: 'draft' | 'confirmed' | 'retired'
+  mappings: ReportProfileMapping[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ReportProfileDiscovery {
+  kind: 'discovery'
+  discovery_token: string
+  structure_fingerprint: string
+  candidate_count: number
+  candidates: ReportFieldCandidate[]
+  limits: {
+    max_depth: number
+    max_files: number
+    max_file_bytes: number
+    max_total_bytes: number
+  }
+}
+
+export interface ReportProfileConfirmationRequest {
+  discovery_token: string
+  candidate_ids: string[]
+  display_name: string
+  case_name?: string
+  case_summary?: string
+  case_number?: string | null
+  client_instance_id?: string
+  session_id?: string
+  local_display_name?: string | null
+}
+
+export type CaseDirectorySubmissionResult =
+  | CaseSubmission
+  | DirectorySelectionCancelled
+  | ReportProfileDiscovery
 
 export interface DeletePreflight {
   allowed: boolean

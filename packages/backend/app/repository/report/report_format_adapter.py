@@ -47,6 +47,8 @@ class ReportFormat(str, Enum):
     LEGACY = "legacy"
     NEW = "new"
     PINGHANG = "pinghang"
+    QIANXIN = "qianxin"
+    PROFILE = "profile"
     UNSUPPORTED = "unsupported"
 
 

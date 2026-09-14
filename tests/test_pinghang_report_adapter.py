@@ -262,7 +262,7 @@ def test_pinghang_adapter_version_and_content_participate_in_input_fingerprint(t
     )
     changed_content = build_report_parse_input_snapshot(str(source))
     with patch(
-        "app.repository.report.report_parse_input_repository.PINGHANG_ADAPTER_VERSION",
+        "app.repository.report.pinghang_report_source_adapter.PINGHANG_ADAPTER_VERSION",
         "1.0.1-TEST",
     ):
         changed_adapter = build_report_parse_input_snapshot(str(source))

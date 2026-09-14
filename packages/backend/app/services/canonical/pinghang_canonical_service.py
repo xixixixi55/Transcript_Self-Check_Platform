@@ -23,12 +23,13 @@ def pinghang_snapshot_to_canonical(snapshot: ReportParseInputSnapshot) -> Canoni
     materials = []
     for row in snapshot.device_rows:
         number = row["evidence_number"]
-        base = snapshot.device_base_info[number]
-        source = snapshot.device_source_files.get(number)
+        material_id = row.get("material_id") or number
+        base = snapshot.device_base_info[material_id]
+        source = snapshot.device_source_files.get(material_id)
         kind, classification = classify_report_material(base)
-        holder_source = snapshot.holder_source_files.get(number)
+        holder_source = snapshot.holder_source_files.get(material_id)
         materials.append(Material(
-            id=number, evidence_number=number, type=kind,
+            id=material_id, evidence_number=number, type=kind,
             name=base.get("device_name", ""), model=base.get("model", ""),
             holder_name=base.get("holder_name", ""),
             acquisition_started_at=row.get("start_time", ""),

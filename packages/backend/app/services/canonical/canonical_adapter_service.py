@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping
 
 from .canonical_models_service import (
     CanonicalCaseInfo,
@@ -23,18 +23,6 @@ from .canonical_models_service import (
 from ..disc.disc_sequence_service import parse_disc_sequence
 from ..inspection.material_policy_service import material_from_legacy_item
 from ..inspection.software_policy_service import migrate_legacy_software
-
-class ReportAdapter(Protocol):
-    """未来用于报告结构发现和解析的适配器契约。"""
-
-    adapter_id: str
-
-    def detect(self, report: Mapping[str, Any]) -> float: ...
-
-    def discover(self, report: Mapping[str, Any]) -> list[FieldProvenance]: ...
-
-    def parse(self, report: Mapping[str, Any]) -> CanonicalInspectionCase: ...
-
 
 @dataclass(frozen=True)
 class LegacyMigrationResult:

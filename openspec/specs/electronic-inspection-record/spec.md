@@ -9,7 +9,9 @@
 
 当前生产输出仍由 `InspectionReport` legacy DTO 管线生成：生产 Controller 校验最终 `ArchiveManifest`，将其投影到兼容 DTO，并以 `ArchiveManifest` + `AttachmentPlan` + 案件明确引用且当前重新校验通过的 approved TemplateProfile 渲染唯一正式 DOCX；没有模板引用的兼容案件继续使用 `current-template-v1`。Shadow 已接入解析、归档/预览和 Legacy DOCX 成功后的导出输入旁路，结果只通过受限脱敏诊断查询查看；Canonical 正式输出未启用，`DocumentRenderPlan` 尚无生产构造和消费。
 
-当前生产事实：旧版报告、同厂商新版报告与已确认结构的平航手机多路取证报告 v1 均识别后继续输出 Legacy DTO；每次顺序解析请求读取当前来源，不持久化或复用解析结果，同一来源同时进行的请求可共享在途任务；`ArchiveContext` 元数据使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整清单、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，在途任务共享和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，Canonical 正式生产切换未启用，OpenSpec 归档尚未执行。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证；它仍限制 Canonical 成为默认唯一正式输出和未声明的大规模能力。本变更的生产审查已记录当前仅 Legacy、单 Windows 支持模型下的发布负责人风险接受，因此当前只进入归档就绪性核对，不把延期资源验收写成已完成能力。
+陌生 JSON/JSONP 报告仅在内置适配器未命中时进入有界字段发现；用户确认后保存不含案件原值的版本化 `ReportProfile`，并经 Canonical 投影到同一 Legacy DTO。这里复用的是字段结构映射，不持久化报告解析结果。
+
+当前生产事实：美亚旧版、美亚新版、已确认结构的平航手机多路取证报告 v1 与奇安信网页版报告 v1 均识别后继续输出 Legacy DTO；每次顺序解析请求读取当前来源，不持久化或复用解析结果，同一来源同时进行的请求可共享在途任务；`ArchiveContext` 元数据使用有 TTL 和容量限制的快照。正式归档仍在生产路径执行完整清单、全量内容指纹、可读性、符号链接、路径越界及 Manifest/RAR 校验，在途任务共享和快照不会降低这些安全边界。Shadow 的生产接线已完成，但真实样本差异治理尚未完成；Phase 1–4 最终集成人工验收已于 2026-07-31 通过，Canonical 正式生产切换未启用，OpenSpec 归档尚未执行。延期资源验收不阻塞 Shadow 差异治理或 Canonical 预切换开发与验证；它仍限制 Canonical 成为默认唯一正式输出和未声明的大规模能力。本变更的生产审查已记录当前仅 Legacy、单 Windows 支持模型下的发布负责人风险接受，因此当前只进入归档就绪性核对，不把延期资源验收写成已完成能力。
 
 当前有两个必须区分的入口边界：持久化案件工作台是前端主生产入口，先持久化
 CaseShell、SourceRecord 和解析任务，解析成功后保存 CaseDraft；用户审核和保存草稿后，
@@ -165,6 +167,63 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - **THEN** 仅消费导航选中的核心依赖，复验使用这些依赖的大小、修改时间、文件身份及适配器版本，不额外扫描媒体或重读核心内容计算哈希
 - **AND** 解析直接复用本次已读取的快照及其依赖指纹，不为适配探测和解析重复读取核心文件；不同依赖指纹不得加入同一个执行中任务
 - **AND** 常规核心文件变化使来源需要重新选择；来源复验不承诺识别刻意保留文件元数据的内容改写
+
+### Requirement: 已确认奇安信网页版报告 v1 使用安全的内置适配器
+
+系统 MUST 通过版本化内置适配器 `qianxin-web-report-v1` 支持当前已确认结构的奇安信网页版离线报告。识别 MUST 联合使用根入口 HTML、`data/data_report_profile.json`、`data/data_navigation.json`、一个或多个 `data/data_package_profile_<index>.json`、固定 `static.report.context.<filename-stem>` 赋值和载荷字段签名，不得依赖案件目录名或原始样本值。适配器 MUST 只把这些根级元数据文件作为解析依赖，不递归读取编号数据目录、`files`、`public` 或媒体内容，不执行 HTML、JavaScript、附件或工具程序。非法赋值、额外语句、重复 JSON 属性、超限元数据、重复包索引或适配器并列匹配 MUST 安全失败。
+
+#### Scenario: 奇安信 v1 进入统一 Canonical 审核链路
+
+- **WHEN** 用户选择命中全部 v1 结构签名的奇安信网页版报告目录
+- **THEN** 系统将案件名称/编号、送检人员/单位、案件与报告时间、每个 package profile 的检材事实、设备名称/型号、持有人、IMEI1/IMEI2/序列号、提取与解析时间及报告绑定的主软件名称/版本映射到 `CanonicalInspectionCase` 和字段来源，再投影现有 `InspectionReport`
+- **AND** 多检材按 package profile 数字索引稳定排序；源报告缺少检材编号时业务字段保持为空，仅使用稳定技术材料 ID，禁止把文件索引写入 `evidence_number` 或文书正文冒充检材编号
+- **AND** 检查时间取全部材料中最早的有效提取时间至最晚的有效解析时间；任一材料时间缺失、非法或倒置时留空待审核
+- **AND** `source.name` 与 `source.appVersion` 作为报告明确提供的主软件名称和版本并标记为 `confirmed_by_report`
+- **AND** 仅有 `检材平台=Android` 时不得自动断言材料一定是手机；类型保持待确认，直到报告提供无歧义类型或用户审核确认
+- **AND** 报告未提供取证硬件时保持为空，不套用美亚硬件默认值；正式 Word 继续走现有兼容 DTO、导出门控和 legacy renderer
+
+#### Scenario: 大体量明细和媒体不进入案件初始化
+
+- **WHEN** 奇安信报告包含大量编号数据目录、图片、音视频、通讯录或其他提取内容
+- **THEN** 适配器只枚举 `data` 根级元数据文件并读取报告、导航和 package profile，不递归扫描或读取明细及媒体
+- **AND** 报告总体积和非核心文件数量不线性增加案件事实解析量，也不把提取图片自动绑定为附件二照片
+
+### Requirement: 陌生报告发现与 ReportProfile 复用安全隔离于内置适配器
+
+系统 MUST 先执行内置适配器唯一匹配；仅在结果为 `REPORT_ADAPTER_NOT_FOUND` 时才可启动陌生结构发现，适配器冲突或已知格式不得进入发现链路。结构发现 MUST 是只读、非执行、有界的，仅检查允许深度和数量内的 JSON/JSONP 元数据候选，不执行 HTML、JavaScript、附件、媒体或工具程序。发现结果 MUST 只形成待确认候选；用户确认前不得创建 `InspectionReport`、案件草稿或正式导出。确认后的 `ReportProfile` MUST 版本化持久化，且不得保存案件字段原值；后续仅在已确认 Profile 的结构指纹精确命中时复用，并统一投影到 `CanonicalInspectionCase`。
+
+#### Scenario: 已知格式保持快速路径和原输出合同
+
+- **WHEN** 输入命中美亚 legacy、美亚 new、平航 v1 或奇安信网页版 v1 内置适配器
+- **THEN** 系统直接使用唯一命中的内置适配器及对应 canonical projector
+- **AND** 不扫描未知元数据候选、不读取 ReportProfile 仓储，原输出合同保持不变
+
+#### Scenario: 首次陌生结构只生成待确认候选
+
+- **WHEN** 输入未命中任何内置适配器且有界发现识别到受支持的 JSON/JSONP 字段
+- **THEN** 系统返回结构指纹、字段候选、来源相对路径、数据路径、类型证据和置信度
+- **AND** 不保存字段原值、绝对路径或可执行表达式，不创建案件或进入正式导出链路
+- **AND** 用户必须显式选择字段映射并确认 Profile，未选择的候选不得自动成为正式事实
+
+#### Scenario: 已确认 Profile 精确复用并拒绝结构漂移
+
+- **WHEN** 后续陌生报告的结构指纹精确命中处于 confirmed 状态的 ReportProfile
+- **THEN** 系统按已确认的相对文件和数据路径读取字段，构造统一 canonical/provenance，再投影现有 `InspectionReport`
+- **AND** 结构变化、必要字段缺失、路径类型变化、读取预算超限或 Profile 非 confirmed 时停止复用并重新进入候选确认，不静默套用旧映射
+
+#### Scenario: 发现范围与读取身份保持安全稳定
+
+- **WHEN** 陌生报告包含附件、媒体、明细、工具、资源或编号数据子树，或候选文件/祖先在枚举后被替换、增长或变成链接
+- **THEN** 发现器不进入被排除子树，其内容不参与候选、预览、结构指纹或来源指纹
+- **AND** 每个候选以枚举身份、受控句柄和流式字节上限读取；身份、大小、时间或祖先链变化时安全失败，不读取替换后的外部内容
+- **AND** 重复 JSON 属性及 `NaN`、`Infinity`、`-Infinity` 等非有限数值不得进入候选或 Profile
+
+#### Scenario: 确认映射保持字段和版本身份
+
+- **WHEN** 用户确认案件标量字段和多个检材字段，或两个会话竞争确认同一结构
+- **THEN** 案件标量必须唯一命中；检材字段必须来自同一来源文件和集合锚点，并具有相同索引集合、基数及同质值类型
+- **AND** 同结构仅允许名称与规范化映射完全一致的幂等确认；不同名称或映射返回稳定冲突且不覆盖先前 Profile
+- **AND** 案件来源记录 Profile ID 与版本，后续解析始终读取该精确版本，不因新版本出现而切换到 latest
 
 
 ### Requirement: REQ-003: 解析设备信息

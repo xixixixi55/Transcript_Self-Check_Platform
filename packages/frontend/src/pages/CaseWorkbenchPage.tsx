@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Col, Modal, Row, Space, Spin, Typography, message } from 'antd'
 import type {
   ArchiveCompletionStatus, ArchiveTaskAction, ArchiveTaskHistory,
-  ArchiveTaskPublicDetail, ArchiveTaskResult, CaseShell,
+  ArchiveTaskPublicDetail, ArchiveTaskResult, CaseShell, ReportProfileDiscovery,
 } from '@biji/shared/types'
 import { API_ENDPOINTS } from '@biji/shared/constants'
 import { allPartsDiscMapped, resolveArchiveCompletionStatus } from '@biji/shared/utils'
@@ -13,6 +13,7 @@ import { useArchiveCompletionStatuses } from '../hooks/useArchiveCompletionStatu
 import { CaseCard } from '../components/CaseCard'
 import { CaseWorkbenchDirectoryPickerCard } from '../components/CaseWorkbenchDirectoryPickerCard'
 import { WordDownloadNameDialog } from '../components/WordDownloadNameDialog'
+import { ReportProfileDiscoveryModal } from '../components/ReportProfileDiscoveryModal'
 import '../caseWorkbench.css'
 
 const { Title } = Typography
@@ -45,6 +46,8 @@ export default function CaseWorkbenchPage() {
   )
   const archiveCompletion = useArchiveCompletion()
   const [submitBusy, setSubmitBusy] = useState(false)
+  const [profileDiscovery, setProfileDiscovery] = useState<ReportProfileDiscovery | null>(null)
+  const [profileConfirmBusy, setProfileConfirmBusy] = useState(false)
   const [actionCaseId, setActionCaseId] = useState<string | null>(null)
   const [exportingCaseIds, setExportingCaseIds] = useState<ReadonlySet<string>>(() => new Set())
   const [successfulExportCaseIds, setSuccessfulExportCaseIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -72,7 +75,9 @@ export default function CaseWorkbenchPage() {
     setSubmitBusy(true)
     try {
       const submission = await workbench.selectDirectoryAndSubmitCase()
-      if (submission) {
+      if (submission && 'kind' in submission && submission.kind === 'discovery') {
+        setProfileDiscovery(submission)
+      } else if (submission) {
         message.success('案件壳已创建，解析任务已进入工作台。')
       }
     } catch (error) {
@@ -94,6 +99,22 @@ export default function CaseWorkbenchPage() {
     try { await workbench.cancelTask(task); message.info('已向后端提交取消请求，状态以任务记录为准。') }
     catch { message.error('取消请求未完成，请刷新后重试。') }
     finally { setActionCaseId(null) }
+  }
+
+  const confirmProfile = async (candidateIds: string[], displayName: string) => {
+    if (!profileDiscovery) return
+    setProfileConfirmBusy(true)
+    try {
+      await workbench.confirmReportProfile(
+        profileDiscovery.discovery_token, candidateIds, displayName,
+      )
+      setProfileDiscovery(null)
+      message.success('字段映射已保存，案件解析任务已进入工作台。')
+    } catch (error) {
+      message.error(resolveWorkbenchError(error).message)
+    } finally {
+      setProfileConfirmBusy(false)
+    }
   }
 
   const confirmDelete = async () => {
@@ -269,6 +290,12 @@ export default function CaseWorkbenchPage() {
         exporting={Boolean(exportNameCaseId && exportingCaseIds.has(exportNameCaseId))}
         onCancel={() => setExportNameCaseId(null)}
         onConfirm={downloadName => { void confirmExportName(downloadName) }}
+      />
+      <ReportProfileDiscoveryModal
+        discovery={profileDiscovery}
+        confirming={profileConfirmBusy}
+        onCancel={() => { if (!profileConfirmBusy) setProfileDiscovery(null) }}
+        onConfirm={(candidateIds, displayName) => { void confirmProfile(candidateIds, displayName) }}
       />
     </div>
   )

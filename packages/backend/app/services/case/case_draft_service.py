@@ -44,6 +44,7 @@ class CaseDraftService:
         self, database: WorkbenchDatabase, parser: Parser | None = None,
         source_service: SourceRecordService | None = None,
         environment_service: InspectionEnvironmentService | None = None,
+        report_profiles: Any | None = None,
     ) -> None:
         self.database = database
         self.workflow = CaseWorkflowRepository(database)
@@ -58,6 +59,7 @@ class CaseDraftService:
             self.sources = source_service
         self.defaults = SharedDefaultsService(database)
         self.parser = parser or _parse_source
+        self.report_profiles = report_profiles
         self.environment = environment_service or InspectionEnvironmentService()
 
     def submit(
@@ -92,9 +94,25 @@ class CaseDraftService:
             if source_id != shell["source_id"]:
                 raise WorkbenchPersistenceError("SOURCE_CASE_MISMATCH")
             self.workflow.start_parse(case_id, task_id)
-            self.sources.require_parse_ready(source_id)
+            source = self.sources.require_parse_ready(source_id)
             source_path = self.sources.internal_path(source_id)
-            parsed = self.parser(source_path, self.database.database_path.parent / "parse-output")
+            profile_id = source.get("metadata", {}).get("report_profile_id")
+            profile_version = source.get("metadata", {}).get("report_profile_version")
+            if isinstance(profile_id, str) and self.report_profiles is not None:
+                try:
+                    bound_profile_version = int(profile_version)
+                except (TypeError, ValueError) as error:
+                    raise WorkbenchPersistenceError("REPORT_PROFILE_INVALID") from error
+                if bound_profile_version <= 0:
+                    raise WorkbenchPersistenceError("REPORT_PROFILE_INVALID")
+                parsed = self.report_profiles.parse_report(
+                    source_path,
+                    self.database.database_path.parent / "parse-output",
+                    profile_id,
+                    bound_profile_version,
+                )
+            else:
+                parsed = self.parser(source_path, self.database.database_path.parent / "parse-output")
             report = parsed.get("report")
             if not isinstance(report, Mapping):
                 raise WorkbenchPersistenceError("INVALID_LEGACY_REPORT")

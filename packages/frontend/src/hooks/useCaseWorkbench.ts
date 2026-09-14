@@ -6,7 +6,8 @@ import type {
   ArchiveTaskHistory, ArchiveTaskPublicDetail, ArchiveTaskResult,
   CaseDeletionResult, CaseDetail, CaseListPage, CaseShell, CaseSubmission,
   CaseDirectorySubmissionRequest, CaseDirectorySubmissionResult,
-  CaseSubmissionRequest, TaskRecord,
+  CaseSubmissionRequest, ReportProfileConfirmationRequest, ReportProfileDiscovery,
+  TaskRecord,
 } from '@biji/shared/types'
 
 export const CASE_PAGE_SIZE = 6
@@ -126,7 +127,7 @@ export function useCaseWorkbench(caseId?: string) {
 
   const selectDirectoryAndSubmitCase = useCallback(async (
     fields: CaseSubmissionFields = {},
-  ): Promise<CaseSubmission | null> => {
+  ): Promise<CaseSubmission | ReportProfileDiscovery | null> => {
     const request: CaseDirectorySubmissionRequest = {
       case_name: fields.caseName || '',
       case_summary: fields.caseSummary || '',
@@ -141,12 +142,42 @@ export function useCaseWorkbench(caseId?: string) {
     )
     const result = dataOf(response)
     if ('cancelled' in result) return null
+    if ('kind' in result) return result
     setTaskSyncVersion(version => version + 1)
     setPage(current => current.offset === 0
       ? { ...current, items: [result.shell, ...current.items.filter(item => item.case_id !== result.shell.case_id)].slice(0, CASE_PAGE_SIZE) }
       : current)
     void loadPage(page.offset)
     return result
+  }, [loadPage, page.offset])
+
+  const confirmReportProfile = useCallback(async (
+    discoveryToken: string,
+    candidateIds: string[],
+    displayName: string,
+    fields: CaseSubmissionFields = {},
+  ): Promise<CaseSubmission> => {
+    const request: ReportProfileConfirmationRequest = {
+      discovery_token: discoveryToken,
+      candidate_ids: candidateIds,
+      display_name: displayName,
+      case_name: fields.caseName || '',
+      case_summary: fields.caseSummary || '',
+      case_number: fields.caseNumber || null,
+      client_instance_id: fields.clientInstanceId || undefined,
+      session_id: fields.sessionId || undefined,
+    }
+    const response = await axios.post<{ data: CaseSubmission }>(
+      API_ENDPOINTS.WORKBENCH_CONFIRM_REPORT_PROFILE,
+      request,
+    )
+    const submission = dataOf(response)
+    setTaskSyncVersion(version => version + 1)
+    setPage(current => current.offset === 0
+      ? { ...current, items: [submission.shell, ...current.items.filter(item => item.case_id !== submission.shell.case_id)].slice(0, CASE_PAGE_SIZE) }
+      : current)
+    void loadPage(page.offset)
+    return submission
   }, [loadPage, page.offset])
 
   const retryCase = useCallback(async (requestedCaseId: string) => {
@@ -229,7 +260,8 @@ export function useCaseWorkbench(caseId?: string) {
   }, [])
 
   return {
-    page, pageLoading, pageError, loadPage, submitCase, selectDirectoryAndSubmitCase, retryCase, cancelTask, checkDelete, deleteCase,
+    page, pageLoading, pageError, loadPage, submitCase, selectDirectoryAndSubmitCase,
+    confirmReportProfile, retryCase, cancelTask, checkDelete, deleteCase,
     archiveTaskDetails, cancelArchiveTask, retryArchiveTask, archiveHistory, archiveResult,
     detail, detailLoading, detailError, reloadDetail: loadDetail, taskSyncVersion,
   }

@@ -162,6 +162,16 @@ FieldProvenance {
 
 `ReportAdapter` 接口分为 `detect(input)`, `discover(input)`, `parse(input, profile)` 三步。`discover` 只能生成候选和证据；`parse` 在 Profile 未确认或低置信字段上返回 issue。Profile 命中顺序为精确结构指纹 → 厂商/版本/结构兼容指纹 → 人工确认；不能以文件名、案件名称或目录顺序作为唯一识别。
 
+阶段二第一版采用严格的双通道编排。内置适配器注册表先做有界唯一匹配；匹配成功后直接构建既有快照，既不调用发现器也不查询 Profile。只有 `REPORT_ADAPTER_NOT_FOUND` 才允许进入未知结构发现；`REPORT_ADAPTER_AMBIGUOUS` 继续安全失败。发现器仅枚举有限深度、有限数量和有限总字节的 `.json`/`.jsonp`/JSON 数据脚本，使用受限数据字面量解析，不解释或执行脚本，不读取媒体、附件和二进制文件。
+
+未知结构以“相对文件集合 + JSON 容器/键路径/值类型骨架”计算结构指纹；案件原值、绝对路径和目录名不得进入指纹或 Profile。候选响应可以为当前本地会话显示字段预览，但持久化的 draft/confirmed Profile 只保存相对文件选择器、JSON 路径、规范化规则、置信证据和确认状态。第一版只允许用户从发现候选中选择映射，不接受任意 JSONPath 或可执行转换表达式。
+
+发现遍历硬排除附件、媒体、明细、工具、资源和编号数据子树；被排除内容不打开，也不参与候选、预览或任何指纹。入选文件在枚举时记录身份，随后以受控句柄流式读取并在打开前、读取中和读取后复验祖先链、reparse 状态、路径/句柄身份、大小与时间；任何替换、增长或祖先交换都安全失败。JSON 继续拒绝重复属性，并显式拒绝非有限数值。
+
+confirmed Profile 只按精确结构指纹复用。复用时重新执行同一读取预算、类型和必要字段校验，任何漂移都返回待重新发现，不以旧 Profile 猜测。通用 Profile 适配器产出与内置适配器相同的 `ReportParseInputSnapshot`，再经唯一的通用 Canonical projector 进入审核；未确认 Profile 不能产生 `InspectionReport`，因此不会触达导出门控之后的正式链路。
+
+确认门控要求案件标量唯一命中；检材字段必须共享来源文件与集合锚点，并具有一致的索引集合、基数和同质值类型，Profile 显式保存该集合身份。同一结构的竞争确认只有在规范化名称与映射完全一致时可幂等返回；不同配置返回稳定冲突。来源元数据同时绑定 Profile ID 和版本，解析和快照键始终消费该精确版本，未来新增版本不会改变已建案件的解释语义。
+
 ### 平航手机多路取证报告 v1 内置适配
 
 本增量依据用户指定的仓库外报告样本，只固化其可验证结构，不复制、提交或记录样本中的案件、人员、设备标识、附件内容和绝对路径。支持边界命名为 `pinghang-mobile-multipath-v1`，表示“当前已观察结构的内置确定性适配”，不表示任意平航产品、任意导出版本或任意离线网页报告已经受支持。
@@ -359,6 +369,10 @@ ReportAdapter → CanonicalInspectionCase → InspectionReport → 现有前端�
 - `canonical_to_inspection_report(case, renderContext)`：主路径的兼容投影，为现有预览/编辑页面生成 `InspectionReport`；不能表达的 archive parts/plan 通过扩展响应或服务端 manifest 保存。
 - `inspection_report_to_canonical(dto, context)`：仅处理旧前端提交和历史数据迁移，返回 best-effort canonical case + issues，不承诺完整回填。
 - 现有 `ParseReportResponse` 先保持 `report`, `parsed_files`, `rar_info` 字段；可选增加 `case_id`, `archive_manifest_id`, `warnings`，前端旧代码忽略未知字段。
+
+三种已确认输入格式先统一到两个分层注册点。Layer 20 的 `ReportSourceAdapter` 只负责有界结构探测、适配器身份和不可变输入快照；美亚 legacy/new 共享同一来源家族实现，但产出独立的版本化 adapter id，平航 v1 使用独立来源实现。Layer 21 的 `CanonicalReportProjector` 按 adapter id 选择规范化函数。解析编排不得直接调用厂商 `looks_like_*` 函数或以 `ReportFormat` 分支决定厂商业务语义；材料排序、默认硬件和来源路径由适配器输出及 Canonical 投影表达。该重构不等于把全局 `pipeline_mode` 切换为 canonical，最终 Word 仍使用现有兼容 DTO 和 legacy renderer。
+
+第四种内置格式 `qianxin-web-report-v1` 复用同一边界。已确认奇安信网页版报告根包含入口 HTML，以及 `data` 根级的 `data_report_profile.json`、`data_navigation.json` 和一个或多个数字索引 `data_package_profile_<index>.json`；这些文件都是严格 `static.report.context.<filename-stem> = <JSON>` 赋值。来源适配器只枚举 `data` 根级文件并读取上述核心元数据，不递归读取编号明细目录、`files`、`public` 或媒体，也不执行入口 HTML/脚本。报告 profile 提供案件、送检和主软件事实；每个 package profile 形成一个 Canonical `Material`，数字索引只作为稳定内部 ID 和排序依据，源检材编号为空时不得外显索引冒充业务编号。提取时间到解析时间形成材料级时间边界，全部材料均有效时聚合为检查时间；仅有 Android 平台不足以确认手机类型。奇安信未报告硬件时保持中性空值。
 
 反向兼容输入可能缺少或无法恢复：字段来源和 JSON 路径、通用 `Identifier` 类型及其置信信息、有序 `InspectorSnapshot[]`、实际 `ArchiveManifest`（文件名/大小/MD5/连续性/光盘绑定）、`TemplateProfile`/模板版本、规划状态和未被 `InspectionReport` 表示的新字段。后端必须在 issues/diagnostics 中标记这些缺失，不能把默认值伪装成原始事实。后端导出入口在旧 DTO 模式下先转换为 canonical；待前端改用 canonical/plan API 并通过验收后，才考虑收紧公共契约。
 

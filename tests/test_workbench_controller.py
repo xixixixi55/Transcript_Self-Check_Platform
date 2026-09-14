@@ -32,6 +32,7 @@ from app.services.case.shared_defaults_service import SharedDefaultsService  # n
 from app.services.source.source_record_service import SourceRecordService  # noqa: E402
 from app.services.case.task_record_service import TaskRecordService  # noqa: E402
 from app.services.runtime.workbench_factory_service import WorkbenchServices  # noqa: E402
+from app.services.report.report_profile_service import ReportProfileService  # noqa: E402
 
 REPORT = {
     "title": "SYNTHETIC/TEST/InspectionReport", "document_number": "SYNTHETIC-DOC-001",
@@ -186,6 +187,119 @@ def test_select_directory_endpoint_submits_selected_directory_without_exposing_p
         assert str(app_services.synthetic_report_dir) not in response.text
         picker.select.assert_called_once_with()
         _wait_for_parse(client, data["shell"]["case_id"])
+
+
+def test_unknown_directory_creates_no_case_until_profile_confirmation(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    profile_service = ReportProfileService(app_services.database)
+    app_services.report_profiles = profile_service
+    app_services.sources.report_profiles = profile_service
+    app_services.cases.report_profiles = profile_service
+    unknown = app_services.synthetic_report_dir.parent / "SYNTHETIC-UNKNOWN"
+    unknown.mkdir()
+    (unknown / "metadata.json").write_text(json.dumps({
+        "案件名称": "SYNTHETIC-UNKNOWN-CASE",
+        "案件编号": "SYNTHETIC-UNKNOWN-NO",
+        "materials": [{
+            "检材编号": "SYNTHETIC-MATERIAL-01",
+            "设备型号": "SYNTHETIC-MODEL-01",
+        }],
+    }, ensure_ascii=False), encoding="utf-8")
+    picker = MagicMock()
+    picker.select.return_value = str(unknown)
+    app_services.directory_picker = picker
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        discovery_response = client.post(
+            "/api/v1/workbench/cases/select-directory", json={},
+        )
+        discovery = discovery_response.json()["data"]
+        assert discovery_response.status_code == 200
+        assert discovery["kind"] == "discovery"
+        assert client.get("/api/v1/workbench/cases").json()["data"]["items"] == []
+        assert str(unknown) not in discovery_response.text
+
+        selected = [
+            item["candidate_id"] for item in discovery["candidates"]
+            if item["canonical_field"] in {
+                "case.case_name", "case.case_number",
+                "material.evidence_number", "material.model",
+            }
+        ]
+        confirmed_response = client.post(
+            "/api/v1/workbench/report-profiles/confirm",
+            json={
+                "discovery_token": discovery["discovery_token"],
+                "candidate_ids": selected,
+                "display_name": "SYNTHETIC UNKNOWN PROFILE",
+            },
+        )
+        assert confirmed_response.status_code == 200, confirmed_response.text
+        submission = confirmed_response.json()["data"]
+        assert submission["source"]["metadata"]["report_profile_version"] == "1"
+        detail = _wait_for_parse(client, submission["shell"]["case_id"])
+        assert detail["shell"]["case_name"] == "SYNTHETIC-UNKNOWN-CASE"
+        assert detail["draft"]["report"]["introduction"]["evidence_list"][0]["model"] == "SYNTHETIC-MODEL-01"
+        assert str(unknown) not in confirmed_response.text
+
+
+def test_profile_cardinality_drift_returns_to_discovery_without_creating_case(app_services):
+    from app.main import app
+    from app.controllers import workbench_controller
+
+    profile_service = ReportProfileService(app_services.database)
+    app_services.report_profiles = profile_service
+    app_services.sources.report_profiles = profile_service
+    app_services.cases.report_profiles = profile_service
+    source = app_services.synthetic_report_dir.parent / "SYNTHETIC-PROFILE-DRIFT"
+    source.mkdir()
+    metadata = source / "metadata.json"
+    payload = {
+        "案件名称": "SYNTHETIC-DRIFT",
+        "materials": [
+            {"型号": "SYNTHETIC-MODEL-1"},
+            {"型号": "SYNTHETIC-MODEL-2"},
+        ],
+    }
+    metadata.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    discovery = profile_service.prepare_selection(source)
+    selected = [
+        item["candidate_id"] for item in discovery["candidates"]
+        if item["canonical_field"] in {"case.case_name", "material.model"}
+    ]
+    profile_service.confirm(
+        discovery["discovery_token"], selected, "SYNTHETIC PROFILE",
+    )
+    payload["materials"][1].pop("型号")
+    metadata.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    picker = MagicMock()
+    picker.select.return_value = str(source)
+    app_services.directory_picker = picker
+
+    with patch.object(workbench_controller, "get_workbench_services", return_value=app_services):
+        client = TestClient(app)
+        response = client.post("/api/v1/workbench/cases/select-directory", json={})
+        assert response.status_code == 200, response.text
+        corrected_discovery = response.json()["data"]
+        assert corrected_discovery["kind"] == "discovery"
+        assert client.get("/api/v1/workbench/cases").json()["data"]["items"] == []
+        corrected_selection = [
+            item["candidate_id"] for item in corrected_discovery["candidates"]
+            if item["canonical_field"] == "case.case_name"
+        ]
+        confirmed = client.post(
+            "/api/v1/workbench/report-profiles/confirm",
+            json={
+                "discovery_token": corrected_discovery["discovery_token"],
+                "candidate_ids": corrected_selection,
+                "display_name": "SYNTHETIC CORRECTED PROFILE",
+            },
+        )
+        assert confirmed.status_code == 200, confirmed.text
+        assert len(client.get("/api/v1/workbench/cases").json()["data"]["items"]) == 1
 
 
 def test_select_directory_endpoint_cancel_does_not_create_case(app_services):

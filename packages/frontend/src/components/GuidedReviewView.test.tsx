@@ -53,6 +53,10 @@ const completedPhotoField: GuidedReviewHistoryField = {
   label: '检材照片', value: '已上传 2 张图片', userProvided: true,
   targetId: 'review-target-material-photos',
 }
+const prefilledDiscNumberField: GuidedReviewHistoryField = {
+  label: '介质编号', value: 'GP2026082501-01',
+  targetId: 'review-target-first-disc-number',
+}
 
 beforeEach(() => {
   window.localStorage.clear()
@@ -261,7 +265,7 @@ describe('GuidedReviewView', () => {
       history={history}
       previouslyHandledFields={[{
         label: '检材完整性', value: '已确认', userProvided: true, targetId: 'review-target-evidence-completeness',
-      }, completedPhotoField]}
+      }, completedPhotoField, prefilledDiscNumberField]}
       currentAction={documentAction}
       allActions={[documentAction, waitingAction]}
       hasResponse
@@ -334,6 +338,8 @@ describe('GuidedReviewView', () => {
     expect(within(pendingPanel).queryByText('检材 1 · SYN-JC00000001 · IMEI 1')).toBeNull()
     expect(within(pendingPanel).queryByText('SYNTHETIC-IMEI-1')).toBeNull()
     expect(within(pendingPanel).getAllByText('已上传 2 张图片')).toHaveLength(1)
+    expect(within(pendingPanel).getByRole('button', { name: '修改介质编号' })).toBeTruthy()
+    expect(within(pendingPanel).getByText('GP2026082501-01')).toBeTruthy()
     expect(within(pendingPanel).queryByText('检查要求')).toBeNull()
     expect(within(pendingPanel).queryByText('SYNTHETIC SYSTEM-RECOGNIZED REQUIREMENT')).toBeNull()
     expect(within(pendingPanel).queryByText('检查步骤 1')).toBeNull()

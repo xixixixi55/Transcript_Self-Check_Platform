@@ -143,7 +143,7 @@ def _build_v10_graph(path: Path) -> None:
 
 def _assert_graph(database: WorkbenchDatabase) -> None:
     with database.connect() as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 11
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 12
         assert connection.execute("SELECT source_id FROM case_shells WHERE case_id=?", (_CASE,)).fetchone()[0] == _SOURCE
         assert connection.execute("SELECT source_id FROM archive_attempts WHERE attempt_id=?", (_ATTEMPT,)).fetchone()[0] == _SOURCE
         assert connection.execute("SELECT source_id FROM archive_input_snapshots WHERE snapshot_id=?", (_SNAPSHOT,)).fetchone()[0] == _SOURCE

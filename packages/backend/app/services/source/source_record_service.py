@@ -45,11 +45,13 @@ class SourceRecordService:
         self,
         database: WorkbenchDatabase,
         authorization: ArchiveAuthorizationService | None = None,
+        report_profiles: Any | None = None,
     ) -> None:
         self.database = database
         self.repository = SourceRecordRepository(database)
         self.locators = SourceLocatorRepository(database)
         self.authorization = authorization or ArchiveAuthorizationService(OUTPUT_BASE)
+        self.report_profiles = report_profiles
 
     _PENDING_FINGERPRINT_PREFIX = "pending:"
     _MAX_REVISION_CONFLICT_RETRIES = 3
@@ -142,7 +144,12 @@ class SourceRecordService:
             adapter = None
             if self.repository.get(source_id)["source_type"] == "report_directory":
                 adapter = self._validate_report_structure(path)
-            current = _fingerprint(path, should_cancel, report_fingerprint=getattr(adapter, "source_fingerprint", None))
+            report_fingerprint = getattr(adapter, "source_fingerprint", None)
+            current = (
+                _fingerprint(path, should_cancel, report_fingerprint=report_fingerprint)
+                if report_fingerprint is not None
+                else _fingerprint(path, should_cancel)
+            )
         except SourceFingerprintCancelledError:
             return self.repository.get(source_id)
         except Exception as error:
@@ -246,7 +253,12 @@ class SourceRecordService:
         adapter = None
         if self.repository.get(source_id)["source_type"] == "report_directory":
             adapter = self._validate_report_structure(path)
-        return _fingerprint(path, should_cancel, report_fingerprint=getattr(adapter, "source_fingerprint", None))
+        report_fingerprint = getattr(adapter, "source_fingerprint", None)
+        if report_fingerprint is None:
+            return _fingerprint(path, should_cancel)
+        return _fingerprint(
+            path, should_cancel, report_fingerprint=report_fingerprint,
+        )
 
     def recover_pending_after_startup(self, dispatcher: Any) -> list[str]:
         scheduled: list[str] = []
@@ -293,14 +305,28 @@ class SourceRecordService:
         try:
             return detect_report_adapter(report_dir)
         except ReportAdapterDetectionError as error:
+            if (
+                str(error) == "REPORT_ADAPTER_NOT_FOUND"
+                and self.report_profiles is not None
+            ):
+                try:
+                    return self.report_profiles.detect_confirmed(report_dir)
+                except ReportAdapterDetectionError:
+                    pass
             raise WorkbenchPersistenceError("SOURCE_STRUCTURE_INVALID") from error
         except OSError as error:
             raise WorkbenchPersistenceError("SOURCE_ACCESS_DENIED") from error
 
     @staticmethod
     def _adapter_metadata(adapter: ReportAdapterMatch) -> dict[str, str]:
-        return {
+        metadata = {
             "adapter_id": adapter.adapter_id,
             "adapter_version": adapter.adapter_version,
             "adapter_structure_fingerprint": adapter.structure_fingerprint,
         }
+        if adapter.profile_id:
+            metadata["report_profile_id"] = adapter.profile_id
+            if adapter.profile_version is None:
+                raise WorkbenchPersistenceError("REPORT_PROFILE_INVALID")
+            metadata["report_profile_version"] = str(adapter.profile_version)
+        return metadata

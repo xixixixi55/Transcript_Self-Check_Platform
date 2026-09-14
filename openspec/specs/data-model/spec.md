@@ -27,3 +27,14 @@
 - **WHEN** 检材已经保存显式的 `extractable: false`
 - **THEN** 系统保持无法提取状态，不因 IMEI 或序列号内容重新覆盖用户选择
 - **AND** 无法提取原因留空时继续进入既有待核对和导出阻止流程，填写原因后继续使用既有文书投影规则
+
+### Requirement: 陌生报告候选与已确认 Profile 使用共享合同
+
+前后端 MUST 使用 `ReportFieldCandidate` 表达只读发现候选，使用 `ReportProfileMapping` 表达用户确认后的相对文件、数据路径与集合锚点映射，并使用版本化 `ReportProfile` 表达可复用配置。`ReportProfileDiscovery` MUST 只包含发现会话令牌、结构指纹、候选和公开预算，不得包含报告根目录绝对路径。客户端 MUST 通过 `ReportProfileConfirmationRequest` 显式提交所选候选；未确认发现结果不得作为案件解析结果或正式导出输入。创建案件的 `SourceRecord` MUST 同时绑定 Profile ID 与精确版本。
+
+#### Scenario: 发现响应不等于已确认配置
+
+- **WHEN** 后端对陌生 JSON/JSONP 报告返回 `ReportProfileDiscovery`
+- **THEN** 客户端只展示 `ReportFieldCandidate` 供用户选择，不自动形成 `ReportProfileMapping`
+- **AND** 只有有效 `ReportProfileConfirmationRequest` 成功后才保存 confirmed `ReportProfile` 并创建案件
+- **AND** 后续解析按来源记录的 Profile ID 与版本读取，不隐式选择最新版本

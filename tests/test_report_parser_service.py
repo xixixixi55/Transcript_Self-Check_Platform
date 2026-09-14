@@ -208,8 +208,7 @@ _MOCK_PARSE_RESULT = {
 def test_parse_report_compress_true():
     """文件夹 + compress=True → compress 参数正确传递，rar_info 非 null"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        data_dir = os.path.join(tmpdir, "data")
-        os.makedirs(data_dir)
+        _write_service_fixture(tmpdir)
         output_dir = os.path.join(tmpdir, "output")
 
         with patch("app.services.report.report_parser_service._build_report") as mock_build:
@@ -224,8 +223,7 @@ def test_parse_report_compress_true():
 def test_parse_report_compress_false():
     """文件夹 + compress=False → rar_info 为 None"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        data_dir = os.path.join(tmpdir, "data")
-        os.makedirs(data_dir)
+        _write_service_fixture(tmpdir)
         output_dir = os.path.join(tmpdir, "output")
 
         with patch("app.services.report.report_parser_service._build_report") as mock_build:
@@ -241,8 +239,7 @@ def test_parse_report_compress_false():
 def test_parse_report_rebuilds_each_sequential_request_without_persistent_cache():
     """完成的解析结果不会被后续请求复用或写入磁盘。"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        data_dir = os.path.join(tmpdir, "data")
-        os.makedirs(data_dir)
+        _write_service_fixture(tmpdir)
         output_dir = os.path.join(tmpdir, "output")
 
         def build_report(*_args, **kwargs):

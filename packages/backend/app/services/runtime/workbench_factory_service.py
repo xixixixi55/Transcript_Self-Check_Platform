@@ -41,6 +41,7 @@ from .local_directory_picker_service import LocalDirectoryPickerService
 from ..inspection.inspection_environment_service import InspectionEnvironmentService
 from ..case.shared_defaults_service import SharedDefaultsService
 from ..source.source_record_service import SourceRecordService
+from ..report.report_profile_service import ReportProfileService
 from ..case.task_record_service import TaskRecordService
 from ..template.template_profile_service import (
     BUILTIN_TEMPLATE_ID,
@@ -75,16 +76,19 @@ class WorkbenchServices:
     template_approvals: TemplateApprovalRepository | None = None
     templates: TemplateRegistryService | None = None
     directory_picker: LocalDirectoryPickerService | None = None
+    report_profiles: ReportProfileService | None = None
 
 
 def build_workbench_services(
     database: WorkbenchDatabase,
     archive_admission_config: ArchiveAdmissionConfig | None = None,
 ) -> WorkbenchServices:
+    report_profiles = ReportProfileService(database)
     sources = SourceRecordService(
         database, ArchiveAuthorizationService(
             OUTPUT_BASE, (ARCHIVE_OUTPUT_BASE,),
         ),
+        report_profiles=report_profiles,
     )
     leases = EditLeaseService(database)
     assets = CaseAssetService(database, leases)
@@ -127,6 +131,7 @@ def build_workbench_services(
             database,
             source_service=sources,
             environment_service=inspection_environment,
+            report_profiles=report_profiles,
         ),
         lifecycle=CaseLifecycleService(
             database, asset_service=assets,
@@ -153,6 +158,7 @@ def build_workbench_services(
         template_approvals=template_approvals,
         templates=TemplateRegistryService(database, template_registry, template_approvals),
         directory_picker=LocalDirectoryPickerService(),
+        report_profiles=report_profiles,
     )
     services.archive_runtime = ArchiveRuntimeCoordinator(
         archive_scheduler,

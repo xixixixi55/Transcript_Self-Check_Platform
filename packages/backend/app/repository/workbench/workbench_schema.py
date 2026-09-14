@@ -6,6 +6,7 @@ import sqlite3
 
 from .workbench_errors import SchemaIncompatibleError
 from .workbench_schema_v11 import V11_MIGRATION
+from .workbench_schema_v12 import V12_MIGRATION
 
 REQUIRED_SCHEMA = {
     "schema_migrations": {"version", "applied_at"},
@@ -31,6 +32,7 @@ REQUIRED_SCHEMA = {
     "case_retention_records": {"retention_record_id", "deployment_instance_id", "case_id", "eligibility", "status", "last_meaningful_mutation_at", "latest_verified_formal_publication_at", "latest_successful_word_export_at", "retention_anchor_utc", "expires_at_utc", "last_blocker_code", "policy_revision", "case_revision", "cleanup_revision", "created_at", "updated_at"},
     "case_cleanup_runs": {"cleanup_run_id", "deployment_instance_id", "case_id", "policy_revision", "case_revision_at_plan", "case_revision_at_claim", "owner_instance_id", "claim_token", "lease_expires_at", "fence_epoch", "current_phase", "retry_count", "file_step_result", "result_code", "error_code", "created_at", "updated_at", "completed_at"},
     "formal_word_artifacts": {"word_artifact_id", "deployment_instance_id", "case_id", "publication_id", "internal_relative_path", "file_digest", "file_size", "source_manifest_digest", "template_identity", "template_version", "generated_at", "verified_at", "status", "created_at", "updated_at"},
+    "report_profiles": {"profile_id", "version", "schema_version", "display_name", "structure_fingerprint", "adapter_id", "adapter_version", "status", "mappings_json", "created_at", "updated_at"},
 }
 
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
@@ -141,6 +143,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
         "CREATE INDEX archive_attempt_deployment_status ON archive_attempts(deployment_instance_id, status, created_at)",
     )),
     (11, V11_MIGRATION),
+    (12, V12_MIGRATION),
 )
 
 REQUIRED_INDEXES = {
@@ -154,6 +157,7 @@ REQUIRED_INDEXES = {
     "archive_publication_verified", "case_retention_case", "cleanup_run_active_case",
     "cleanup_run_recoverable", "cleanup_run_lease", "cleanup_run_deployment_scan",
     "formal_word_case", "formal_word_publication",
+    "report_profile_confirmed_structure", "report_profile_history",
 }
 
 

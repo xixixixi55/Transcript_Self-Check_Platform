@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
   PHOTO_FILE: (id: string) => `${API_PREFIX}/photos/${id}`,
   WORKBENCH_CASES: `${API_PREFIX}/workbench/cases`,
   WORKBENCH_SELECT_DIRECTORY_CASE: `${API_PREFIX}/workbench/cases/select-directory`,
+  WORKBENCH_CONFIRM_REPORT_PROFILE: `${API_PREFIX}/workbench/report-profiles/confirm`,
   WORKBENCH_EXPORT_DIRECTORY: (caseId: string) => `${API_PREFIX}/workbench/cases/${caseId}/export-directory`,
   WORKBENCH_CASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}`,
   WORKBENCH_DELETE_CASE: (caseId: string) => `${API_PREFIX}/workbench/cases/${encodeURIComponent(caseId)}`,

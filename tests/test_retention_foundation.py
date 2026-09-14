@@ -81,8 +81,8 @@ def _publication_authority(database: WorkbenchDatabase) -> None:
 
 def test_v11_schema_has_safe_defaults_and_no_cleanup_run(tmp_path: Path) -> None:
     database = _database(tmp_path)
-    assert WORKBENCH_SCHEMA_VERSION == 11
-    assert database.schema_version() == 11
+    assert WORKBENCH_SCHEMA_VERSION == 12
+    assert database.schema_version() == 12
     assert {
         "case_retention_policies", "case_retention_records", "case_cleanup_runs",
         "formal_word_artifacts",

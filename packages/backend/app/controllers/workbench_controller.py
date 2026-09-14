@@ -55,6 +55,12 @@ class DirectoryCaseSubmissionRequest(BaseModel):
     local_display_name: str | None = None
 
 
+class ReportProfileConfirmationRequest(DirectoryCaseSubmissionRequest):
+    discovery_token: str = Field(min_length=1)
+    candidate_ids: list[str] = Field(min_length=1)
+    display_name: str = Field(min_length=1, max_length=120)
+
+
 class ArchiveDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     decision: str
@@ -91,16 +97,30 @@ def select_directory_case_endpoint(body: DirectoryCaseSubmissionRequest):
         selected_path = services.directory_picker.select()
         if selected_path is None:
             return _envelope({"cancelled": True})
-        return _envelope(submit_case(
-            services,
-            selected_path,
-            case_name=body.case_name,
-            case_summary=body.case_summary,
-            case_number=body.case_number,
-            client_instance_id=body.client_instance_id,
-            session_id=body.session_id,
-            local_display_name=body.local_display_name,
-        ))
+        try:
+            return _envelope(_submit_selected_path(services, selected_path, body))
+        except WorkbenchPersistenceError as error:
+            if error.code != "SOURCE_STRUCTURE_INVALID" or services.report_profiles is None:
+                raise
+            prepared = services.report_profiles.prepare_selection(selected_path)
+            if prepared["kind"] == "discovery":
+                return _envelope(prepared)
+            return _envelope(_submit_selected_path(services, selected_path, body))
+    except Exception as error:
+        _handle(error)
+
+
+@router.post("/workbench/report-profiles/confirm")
+def confirm_report_profile_endpoint(body: ReportProfileConfirmationRequest):
+    """确认当前候选映射后保存 Profile，并用同一受控目录创建案件。"""
+    services = get_workbench_services()
+    try:
+        if services.report_profiles is None:
+            raise WorkbenchPersistenceError("REPORT_PROFILE_UNAVAILABLE")
+        _profile, selected_path = services.report_profiles.confirm(
+            body.discovery_token, body.candidate_ids, body.display_name,
+        )
+        return _envelope(_submit_selected_path(services, str(selected_path), body))
     except Exception as error:
         _handle(error)
 
@@ -225,6 +245,23 @@ def _envelope(data: Any) -> dict[str, Any]:
 
 def _dispatch_parse(services: Any, case_id: str, task_id: str) -> None:
     services.dispatcher.dispatch(services.cases, case_id, task_id)
+
+
+def _submit_selected_path(
+    services: Any,
+    selected_path: str,
+    body: DirectoryCaseSubmissionRequest,
+) -> dict[str, Any]:
+    return submit_case(
+        services,
+        selected_path,
+        case_name=body.case_name,
+        case_summary=body.case_summary,
+        case_number=body.case_number,
+        client_instance_id=body.client_instance_id,
+        session_id=body.session_id,
+        local_display_name=body.local_display_name,
+    )
 
 
 def _handle(error: Exception) -> None:

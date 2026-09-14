@@ -1,67 +1,30 @@
-"""第 20 层：报告目录适配器唯一匹配注册表。"""
+"""Layer 20：内置来源报告适配器的唯一匹配注册表。"""
 
 from __future__ import annotations
 
-import hashlib
-from dataclasses import dataclass
 from pathlib import Path
 
 from ..source.filesystem_identity_repository import resolve_directory
-from .pinghang_report_adapter import (
-    PINGHANG_ADAPTER_ID,
-    PINGHANG_ADAPTER_VERSION,
-    PinghangReportError,
-    looks_like_pinghang_report,
-    parse_pinghang_report,
+from .meiya_report_source_adapter import MEIYA_REPORT_SOURCE_ADAPTER
+from .pinghang_report_source_adapter import PINGHANG_REPORT_SOURCE_ADAPTER
+from .qianxin_report_source_adapter import QIANXIN_REPORT_SOURCE_ADAPTER
+from .report_source_adapter import (
+    ReportAdapterDetectionError,
+    ReportAdapterMatch,
+    ReportSourceAdapter,
 )
-from .report_format_adapter import ReportFormat, require_supported_report_format
-from .report_parse_input_filesystem import file_identity
+
+_BUILTIN_REPORT_ADAPTERS: tuple[ReportSourceAdapter, ...] = (
+    MEIYA_REPORT_SOURCE_ADAPTER,
+    PINGHANG_REPORT_SOURCE_ADAPTER,
+    QIANXIN_REPORT_SOURCE_ADAPTER,
+)
 
 
-@dataclass(frozen=True)
-class ReportAdapterMatch:
-    adapter_id: str
-    adapter_version: str
-    report_format: ReportFormat
-    structure_fingerprint: str
-    source_fingerprint: str | None = None
-
-
-class ReportAdapterDetectionError(ValueError):
-    """不含本地路径或报告字段值的安全适配诊断。"""
-
-
-def detect_report_adapter(source_dir: str | Path) -> ReportAdapterMatch:
+def select_report_adapter(source_dir: str | Path) -> ReportSourceAdapter:
+    """只按有界入口结构选择来源家族；无匹配或并列匹配均安全失败。"""
     root = resolve_directory(source_dir)
-    matches: list[ReportAdapterMatch] = []
-    current_data = root / "data"
-    current_core = (
-        "data_case_info.json", "data_device_lists.json", "data_report_info.json",
-    )
-    if current_data.is_dir() and all((current_data / name).is_file() for name in current_core):
-        try:
-            report_format = require_supported_report_format(str(current_data))
-        except ValueError as error:
-            raise ReportAdapterDetectionError("REPORT_ADAPTER_STRUCTURE_INVALID") from error
-        adapter_id = f"meiya-{report_format.value}-v1"
-        matches.append(ReportAdapterMatch(
-            adapter_id=adapter_id,
-            adapter_version="1.0.0",
-            report_format=report_format,
-            structure_fingerprint=hashlib.sha256(adapter_id.encode("ascii")).hexdigest(),
-        ))
-    if looks_like_pinghang_report(root):
-        try:
-            facts = parse_pinghang_report(root)
-        except PinghangReportError as error:
-            raise ReportAdapterDetectionError("REPORT_ADAPTER_STRUCTURE_INVALID") from error
-        matches.append(ReportAdapterMatch(
-            adapter_id=PINGHANG_ADAPTER_ID,
-            adapter_version=PINGHANG_ADAPTER_VERSION,
-            report_format=ReportFormat.PINGHANG,
-            structure_fingerprint=facts.structure_fingerprint,
-            source_fingerprint=_pinghang_metadata_fingerprint(root, facts),
-        ))
+    matches = [adapter for adapter in _BUILTIN_REPORT_ADAPTERS if adapter.matches(root)]
     if not matches:
         raise ReportAdapterDetectionError("REPORT_ADAPTER_NOT_FOUND")
     if len(matches) != 1:
@@ -69,16 +32,21 @@ def detect_report_adapter(source_dir: str | Path) -> ReportAdapterMatch:
     return matches[0]
 
 
-def _pinghang_metadata_fingerprint(root: Path, facts) -> str:
-    """复用适配器已选择的核心依赖；不二次读取内容或遍历媒体。"""
-    digest = hashlib.sha256()
-    digest.update(facts.structure_fingerprint.encode("ascii"))
-    for relative in facts.relative_files:
-        digest.update(relative.encode("utf-8"))
-        digest.update(str(file_identity((root / relative).stat())).encode("ascii"))
-    return digest.hexdigest()
+def detect_report_adapter(source_dir: str | Path) -> ReportAdapterMatch:
+    root = resolve_directory(source_dir)
+    return select_report_adapter(root).detect(root)
+
+
+def registered_report_adapter_ids() -> tuple[str, ...]:
+    """供能力展示和契约回归使用的稳定内置格式身份。"""
+    return tuple(
+        adapter_id
+        for adapter in _BUILTIN_REPORT_ADAPTERS
+        for adapter_id in adapter.supported_adapter_ids
+    )
 
 
 __all__ = [
     "ReportAdapterDetectionError", "ReportAdapterMatch", "detect_report_adapter",
+    "registered_report_adapter_ids", "select_report_adapter",
 ]

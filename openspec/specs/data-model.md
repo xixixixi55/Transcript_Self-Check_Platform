@@ -362,15 +362,20 @@ interface SelectedArchivePartHash 定义新 Manifest 的 `hash_algorithm/hash_va
 
 `CaseDirectorySubmissionRequest` 是受信任的本地 Windows 文件夹选择器桥接所使用的无路径工作台请求。它携带可选案件元数据；浏览器绝不提供选定的绝对路径。后端选择目录后，立即将该路径送入同一来源登记和解析提交链路。
 
+`ReportFieldCandidate` 是陌生 JSON/JSONP 报告的只读候选，包含 canonical 字段、来源相对路径、受限数据路径、集合锚点、值类型、置信证据和当前值预览。`ReportProfileMapping` 只保存用户确认后的结构位置、集合身份和归一化规则；版本化 `ReportProfile` 不保存报告字段原值或绝对路径。`ReportProfileDiscovery` 只携带短期发现令牌、结构指纹、候选和公开预算，确认前不创建案件。`ReportProfileConfirmationRequest` 显式提交所选候选和配置名称；确认成功后才保存 Profile 并继续既有案件提交链路，来源记录同时绑定 Profile ID 与精确版本。
+
 类型索引：
 `interface CaseSubmissionRequest`, `interface SourceReplacementRequest`,
-`interface ParseReportDirectoryRequest`、`interface CaseDirectorySubmissionRequest`。
+`interface ParseReportDirectoryRequest`、`interface CaseDirectorySubmissionRequest`、
+`interface ReportFieldCandidate`、`interface ReportProfileMapping`、
+`interface ReportProfile`、`interface ReportProfileDiscovery`、
+`interface ReportProfileConfirmationRequest`。
 
 第 1D 阶段恢复使解析和来源验证状态跨进程重启保持持久。排队/运行/取消中的解析任务依其持久状态变为可重试或已中断；待定来源验证继续保持待定，以便后续受控重新调度；上一部署实例的有效编辑租约到期。没有已验证正式产物且处于 `archive_queued` 或 `archiving` 的案件变为 `archive_interrupted`；它仍可查看/编辑，只能通过显式延期决定或新接受的立即尝试离开该状态。恢复不会创建持久归档 Worker、进度合同、自动重试或自动继续 WinRAR。
 
 `ArchiveAttemptRecord` 是围绕既有 Legacy 显式归档入口的最小无路径公共记录。状态为 `accepted | running | succeeded | failed | interrupted`，清理状态为 `not_required | pending | succeeded | failed | unknown`。公共字段只包含不透明 ID、修订、稳定错误码和时间戳；进程 ID、命令行、暂存定位符和所有权标记仅限后端。重启恢复不会回滚成功尝试和已验证正式产物。内部单向上下文哈希将恰好一次尝试和一个案件绑定，用于区分工作台归档上下文与 Legacy 上下文；可执行上下文本身不持久化，也不在重启后恢复。尝试还可持久化内部 Manifest 标识证据（`manifest_source_key`、输入指纹和归档指纹）。内部无路径 Manifest 索引在数据库成功转换前记录不透明工作台尝试 ID，以封闭索引发布与尝试完成之间的崩溃窗口。只有已登记 Manifest、案件、尝试、来源修订和物理 RAR 内容全部通过校验时，恢复才接受任一侧持久证据，并原子完成同一尝试而非发布第二份产物。这些内部绑定和恢复字段不向公共 DTO 或公共 Manifest 暴露。
 
-持久工作台数据库的模式版本为 10。这是内部持久化版本，不是公共 API 版本。工作台服务启动前，由部署范围内的持久所有者认领 SQLite 数据库；共享该数据库的第二个部署实例会被拒绝。该所有者是本地存储边界，并不宣称提供已认证多用户隔离。
+持久工作台数据库的模式版本为 12。这是内部持久化版本，不是公共 API 版本。工作台服务启动前，由部署范围内的持久所有者认领 SQLite 数据库；共享该数据库的第二个部署实例会被拒绝。该所有者是本地存储边界，并不宣称提供已认证多用户隔离。版本 12 增加 `report_profiles` 与 confirmed 结构指纹唯一索引，用于保存不含案件原值的版本化字段映射。
 
 正式归档执行前，每个工作台任务/尝试都创建处于 `copying` 状态的绑定输入快照，并且只能在快照封存后使用。封存快照是清单、WinRAR 和 Manifest 生成的执行输入；来源定位符、快照定位符和绑定证据仅限后端。失败、取消或中断的快照不得被后续尝试复用。
 
@@ -411,7 +416,7 @@ SQLite 持久意图/发布记录是工作台直出归档的唯一权威发布事
 
 `CaseListPage` 携带带 offset/limit 元数据的不透明案件外壳卡片；列表中的 `CaseShell` 可额外携带从既有 `CaseDraft.report.introduction` 只读投影的 `entrust_unit` 与 `entrust_persons`，解析前或草稿不可用时分别为空字符串和空数组，不创建新的持久化事实副本。`CaseDetail` 组合外壳、可选草稿、来源摘要和解析任务；`CaseSubmission` 是授权报告目录被接受并持久化后的即时响应。`ArchiveDecision` 为 `immediate` 或 `deferred`；`ArchiveDecisionResult` 报告持久生命周期，并在立即决定时返回新排队归档任务的安全公共摘要，但不暴露内部 Legacy 上下文或归档尝试绑定。延期决定刷新后仍以 `archive_deferred` 可见。`DeletePreflight` 是向后兼容的只读确认预览：案件存在时返回无阻塞项的 `allowed: true`，但不删除记录或产物。`CaseListResponse`、`CaseDetailResponse` 和 `CaseSubmissionResponse` 是对应的带版本信封。`CaseSubmission` 还暴露服务端当前读取的共享默认值，使新案件在解析前显示预填内容；部署实例仍是权威来源。
 
-`DirectorySelectionCancelled` 是取消原生文件夹对话框时返回的无路径 `{ cancelled: true }` 结果。`CaseDirectorySubmissionResult` 是该取消结果与 `CaseSubmission` 的联合类型，`CaseDirectorySubmissionResponse` 是其带版本信封；这些类型均不暴露选定绝对路径。`CaseDeletionResult` 是确认删除案件后的最小成功响应，只包含不透明案件 ID 和 `deleted: true`。对应服务端操作删除案件工作台记录及平台所有的归档、Word 和图片文件；用户提供的来源目录不属于删除边界。
+`DirectorySelectionCancelled` 是取消原生文件夹对话框时返回的无路径 `{ cancelled: true }` 结果。`CaseDirectorySubmissionResult` 是取消结果、`CaseSubmission` 与 `ReportProfileDiscovery` 的联合类型，`CaseDirectorySubmissionResponse` 是其带版本信封；这些类型均不暴露选定绝对路径。`CaseDeletionResult` 是确认删除案件后的最小成功响应，只包含不透明案件 ID 和 `deleted: true`。对应服务端操作删除案件工作台记录及平台所有的归档、Word 和图片文件；用户提供的来源目录不属于删除边界。
 
 `DemoReadiness` 是只读 Demo 能力快照，包含后端服务、WinRAR 和归档输出三项固定 `DemoReadinessItem`。首页来源授权开关是独立持久化的前端偏好，不是就绪项。`DemoReadinessKey` 固定这些标识，`DemoReadinessState` 仅限 `ready`、`not_configured`、`unavailable` 和 `unknown`。各项只暴露安全标签、稳定错误码和固定指引；绝不包含配置根目录、绝对路径、可执行文件详情、进程数据、环境值或异常文本。
 
@@ -568,6 +573,8 @@ interface DualSaveResult, interface RevisionConflictDto, interface WorkbenchApiE
 interface CaseShellResponse, interface CaseDraftResponse, interface SourceRecordResponse,
 interface SharedDefaultsResponse, interface TaskRecordResponse, interface CaseListPage,
 interface CaseDetail, interface CaseSubmission, interface DirectorySelectionCancelled,
+interface ReportFieldCandidate, interface ReportProfileMapping, interface ReportProfile,
+interface ReportProfileDiscovery, interface ReportProfileConfirmationRequest,
 type CaseDirectorySubmissionResult, type ArchiveDecision,
 type ArchiveDecisionStatus, interface ArchiveDecisionResult, interface DeletePreflight,
 interface CaseDeletionResult,

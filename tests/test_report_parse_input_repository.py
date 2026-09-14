@@ -7,6 +7,8 @@ from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.repository.report.html_parser import (  # noqa: E402
@@ -17,6 +19,12 @@ from app.repository.report.html_parser import (  # noqa: E402
 )
 from app.repository.report.report_parse_input_repository import (  # noqa: E402
     build_report_parse_input_snapshot,
+)
+from app.repository.report.report_adapter_registry import (  # noqa: E402
+    registered_report_adapter_ids,
+)
+from app.services.canonical.canonical_report_projector_service import (  # noqa: E402
+    project_report_snapshot, registered_canonical_adapter_ids,
 )
 from app.services.report.report_parser_service import _build_report, parse_report  # noqa: E402
 
@@ -88,6 +96,34 @@ def _count_data_opens(data_root: Path):
         return original_open(path, *args, **kwargs)
 
     return calls, counted_open
+
+
+def test_four_builtin_formats_share_source_and_canonical_registries():
+    expected = (
+        "meiya-legacy-v1", "meiya-new-v1", "pinghang-mobile-multipath-v1",
+        "qianxin-web-report-v1",
+    )
+    assert registered_report_adapter_ids() == expected
+    assert registered_canonical_adapter_ids() == expected
+
+
+@pytest.mark.parametrize(("legacy", "adapter_id"), [
+    (True, "meiya-legacy-v1"),
+    (False, "meiya-new-v1"),
+])
+def test_meiya_formats_build_canonical_projection_through_registered_adapter(
+    tmp_path, legacy, adapter_id,
+):
+    _write_snapshot_fixture(tmp_path, legacy=legacy)
+    snapshot = build_report_parse_input_snapshot(str(tmp_path))
+    projection = project_report_snapshot(snapshot)
+
+    assert snapshot.adapter_id == adapter_id
+    assert projection.report["case_number"] == "SYNTHETIC-CASE-001"
+    assert projection.report["inspection"]["primary_software"]["provenance"][0][
+        "adapter"
+    ] == adapter_id
+    assert projection.material_overlay is False
 
 
 def test_snapshot_reads_core_and_selected_device_json_once(tmp_path):
@@ -387,8 +423,9 @@ def test_parser_uses_snapshot_dto_without_reopening_legacy_readers(tmp_path):
     assert report["introduction"]["evidence_list"][0]["model"] == "SYNTHETIC-OLD-MODEL-1"
 
 
-def test_snapshot_report_matches_existing_report_assembly(tmp_path):
-    data_root = _write_snapshot_fixture(tmp_path, legacy=True)
+@pytest.mark.parametrize("legacy", [True, False])
+def test_snapshot_report_matches_existing_report_assembly(tmp_path, legacy):
+    data_root = _write_snapshot_fixture(tmp_path, legacy=legacy)
     snapshot = build_report_parse_input_snapshot(str(tmp_path))
     with patch("app.services.report.report_parser_service.detect_winrar_version", return_value=None):
         before = _build_report(str(data_root), str(tmp_path), str(tmp_path / "output"), compress=False)

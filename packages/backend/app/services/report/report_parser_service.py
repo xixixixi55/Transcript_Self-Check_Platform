@@ -10,7 +10,6 @@ import os
 import re
 import shutil
 import tempfile
-from pathlib import Path
 from typing import Optional
 from ...repository.archive.file_storage import (
     extract_archive, compute_md5, detect_winrar_version,
@@ -22,16 +21,16 @@ from ...repository.report.html_parser import (
     format_inspection_time_range,
 )
 from ...repository.report.device_field_parser import is_generic_device_label
-from ...repository.report.report_format_adapter import ReportFormat, require_supported_report_format
-from ...repository.report.pinghang_report_adapter import looks_like_pinghang_report
-from ...repository.report.report_adapter_registry import detect_report_adapter
+from ...repository.report.report_format_adapter import require_supported_report_format
+from ...repository.report.report_adapter_registry import select_report_adapter
 from ...repository.source.filesystem_identity_repository import (
-    normalized_directory_key,
+    normalized_directory_key, resolve_directory,
 )
 from ...repository.report.report_parse_input_repository import (
     ReportParseInputSnapshot,
     build_report_parse_input_snapshot,
 )
+from ...repository.report.report_source_adapter import ReportSourceAdapter
 from ...repository.integrity.hashmyfiles_repository import HASHMYFILES_DISPLAY_VERSION
 from .report_defaults_service import (
     DEFAULT_DATA_SUMMARY,
@@ -48,55 +47,40 @@ from ..inspection.material_policy_service import (
 )
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from ..inspection.entrust_person_service import normalize_entrust_persons
-from ..canonical.pinghang_canonical_service import project_pinghang_report
+from ..canonical.canonical_report_projector_service import project_report_snapshot
 _TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
     """每次读取并解析报告目录；compress 仅为兼容参数。"""
     source_key = normalized_directory_key(source_dir)
-    source_root = Path(source_dir)
-    current_core = source_root / "data"
-    has_current_structure = all((current_core / name).is_file() for name in (
-        "data_case_info.json", "data_device_lists.json", "data_report_info.json",
-    ))
-    if looks_like_pinghang_report(source_root):
-        if has_current_structure:
-            detect_report_adapter(source_root)  # 并列匹配仍按注册表安全拒绝。
+    source_root = resolve_directory(source_dir)
+    adapter = select_report_adapter(source_root)
+    if adapter.snapshot_before_inflight:
         snapshot = build_report_parse_input_snapshot(source_dir)
         return REPORT_PARSE_INFLIGHT_REGISTRY.run(
             ":".join((source_key, snapshot.dependency_fingerprint)),
             lambda: _build_parse_result(source_dir, output_dir, compress, input_snapshot=snapshot),
         )
-    if has_current_structure:
-        adapter = detect_report_adapter(source_root)
-        source_key = ":".join((
-            source_key, adapter.adapter_id, adapter.adapter_version,
-            adapter.structure_fingerprint,
-        ))
+    match = adapter.detect(source_root)
+    source_key = ":".join((
+        source_key, match.adapter_id, match.adapter_version,
+        match.structure_fingerprint,
+    ))
     return REPORT_PARSE_INFLIGHT_REGISTRY.run(
         source_key,
-        lambda: _parse_report_task(source_dir, output_dir, compress),
+        lambda: _parse_report_task(source_dir, output_dir, compress, adapter),
     )
 
 
 def _parse_report_task(
     source_dir: str, output_dir: str, compress: bool,
+    adapter: ReportSourceAdapter,
 ) -> dict:
     """在同一个共享任务中读取当前输入并运行 Parser。"""
-    data_dir = os.path.join(source_dir, "data")
-    has_core_files = all(
-        os.path.isfile(os.path.join(data_dir, name))
-        for name in (
-            "data_case_info.json", "data_device_lists.json", "data_report_info.json",
-        )
-    )
-    has_pinghang_structure = looks_like_pinghang_report(Path(source_dir))
+    snapshot = adapter.build_snapshot(resolve_directory(source_dir))
     return _build_parse_result(
         source_dir, output_dir, compress,
-        input_snapshot=(
-            build_report_parse_input_snapshot(source_dir)
-            if has_core_files or has_pinghang_structure else None
-        ),
+        input_snapshot=snapshot,
     )
 
 
@@ -110,16 +94,10 @@ def _build_parse_result(
         data_dir, source_dir, output_dir, compress=compress,
         input_snapshot=input_snapshot,
     )
-    parsed_files = [
-        "data_case_info.json", "data_device_lists.json",
-        "data_report_info.json", "data_navigation.json",
-    ]
-    if input_snapshot is not None and input_snapshot.report_format == ReportFormat.PINGHANG:
-        parsed_files = ["entry", "navigation", "case", "report", "materials"]
     return {
         "report": report,
         "_case_metadata": _case_metadata(data_dir, input_snapshot, report),
-        "parsed_files": parsed_files,
+        "parsed_files": list(input_snapshot.parsed_files) if input_snapshot else [],
         "rar_info": _build_rar_info(report),
     }
 
@@ -210,11 +188,10 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
                   compress: bool = True, is_rar_archive: bool = False,
                   input_snapshot: ReportParseInputSnapshot | None = None) -> dict:
     """构建 InspectionReport（parse_report / parse_from_archive 共用）"""
-    canonical_projection = (
-        project_pinghang_report(input_snapshot)
-        if input_snapshot is not None and input_snapshot.report_format == ReportFormat.PINGHANG
-        else None
+    canonical_result = (
+        project_report_snapshot(input_snapshot) if input_snapshot is not None else None
     )
+    canonical_projection = canonical_result.report if canonical_result else None
     if input_snapshot is None:
         # 在解析案件字段前确认核心结构；缺少核心文件时由既有 parser 给出具体错误。
         require_supported_report_format(data_dir)
@@ -234,8 +211,12 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
     evidence_items = []
     for dev in devices_raw:
         en = dev["evidence_number"]
+        material_id = dev.get("material_id") or en
         # 尝试从 Base 目录解析设备详情
-        base_info = device_base_info.get(en) if input_snapshot else parse_device_base(data_dir, en)
+        base_info = (
+            device_base_info.get(material_id)
+            if input_snapshot else parse_device_base(data_dir, en)
+        )
         # Base 解析失败时，回退到 data_device_lists 中的 device_name
         dev_name = str(base_info.get("device_name") or dev.get("device_name", "")).strip()
         brand = str(base_info.get("brand") or "").strip()
@@ -250,7 +231,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         imei2 = dev.get("imei2", "") or base_info.get("imei2", "")
         serial_number = base_info.get("serial_number", "") or dev.get("serial_number", "")
         evidence_items.append({
-            "id": en,
+            "id": material_id,
             "device_type": device_type,
             "device_type_source": "report_field" if explicit_device_type else "legacy_display",
             "device_name": display_name,
@@ -266,12 +247,18 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "evidence_number": en,
         })
 
-    if canonical_projection is not None:
-        for item, canonical_item in zip(evidence_items, canonical_projection["introduction"]["evidence_list"]):
-            item.update({key: value for key, value in canonical_item.items()
-                         if key not in {"device_type", "model"}})
-    else:
+    if input_snapshot is None or not input_snapshot.preserve_material_order:
         evidence_items = _natural_evidence_order(evidence_items)
+    if canonical_result is not None and canonical_result.material_overlay:
+        canonical_items = {
+            item.get("id"): item
+            for item in canonical_projection["introduction"]["evidence_list"]
+        }
+        for item in evidence_items:
+            canonical_item = canonical_items.get(item.get("id"))
+            if canonical_item:
+                item.update({key: value for key, value in canonical_item.items()
+                             if key not in {"device_type", "model"}})
 
     # 6. 检查过程步骤
     # 保留旧版标量 DTO 字段，但将所有证据项投影为其显示文本。
@@ -378,9 +365,8 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         "inspection": {
             "method": DEFAULT_INSPECTION_METHOD,
             "hardware_device": (
-                "" if input_snapshot is not None
-                and input_snapshot.report_format == ReportFormat.PINGHANG
-                else DEFAULT_HARDWARE_DEVICE
+                canonical_projection["inspection"]["hardware_device"]
+                if canonical_projection else DEFAULT_HARDWARE_DEVICE
             ),
             "primary_software": {
                 "name": main_name,
@@ -415,8 +401,9 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             "burning_date": "",
         },
     }
-    if canonical_projection is not None:
+    if canonical_result is not None and canonical_result.replace_primary_software:
         result["inspection"]["primary_software"] = canonical_projection["inspection"]["primary_software"]
+    if canonical_result is not None and canonical_result.replace_introduction:
         for key in ("entrust_unit", "entrust_persons", "case_summary"):
             result["introduction"][key] = canonical_projection["introduction"][key]
     return result

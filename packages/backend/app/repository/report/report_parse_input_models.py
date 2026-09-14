@@ -40,7 +40,10 @@ class ReportParseInputSnapshot:
     device_base_info: dict[str, dict[str, str]]
     dependencies: tuple[DependencyRecord, ...]
     dependency_fingerprint: str
+    parsed_files: tuple[str, ...]
+    preserve_material_order: bool = False
     holder_source_files: dict[str, str] = field(default_factory=dict)
+    field_mappings: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 __all__ = [

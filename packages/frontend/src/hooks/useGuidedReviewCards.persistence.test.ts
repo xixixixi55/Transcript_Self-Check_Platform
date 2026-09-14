@@ -133,6 +133,7 @@ describe('guided review navigation persistence', () => {
       REVIEW_TARGET_IDS.documentNumber,
       REVIEW_TARGET_IDS.evidenceCompleteness,
       REVIEW_TARGET_IDS.photos,
+      REVIEW_TARGET_IDS.discNumber,
       REVIEW_TARGET_IDS.burningDate,
     ])
     expect(reopened.result.current.canReturnToPrevious).toBe(false)
@@ -143,6 +144,9 @@ describe('guided review navigation persistence', () => {
       .toBe(REVIEW_TARGET_IDS.evidenceCompleteness)
     act(() => reopened.result.current.returnToNextAction())
     expect(reopened.result.current.currentAction?.pendingItem?.targetId).toBe(REVIEW_TARGET_IDS.photos)
+    act(() => reopened.result.current.returnToNextAction())
+    expect(reopened.result.current.currentAction?.pendingItem?.targetId)
+      .toBe(REVIEW_TARGET_IDS.discNumber)
     act(() => reopened.result.current.returnToNextAction())
     expect(reopened.result.current.currentAction).toEqual(expect.objectContaining({
       pendingItem: expect.objectContaining({ targetId: REVIEW_TARGET_IDS.burningDate }),

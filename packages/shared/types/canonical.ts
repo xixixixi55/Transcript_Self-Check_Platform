@@ -44,6 +44,10 @@ export interface Material {
   type: MaterialKind
   name: string
   model: string
+  holder_name: string
+  holder_provenance: FieldProvenance[]
+  acquisition_started_at: string
+  acquisition_ended_at: string
   extractable?: boolean
   unextractable_reason?: string
   identifiers: MaterialIdentifier[]

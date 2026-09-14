@@ -5,7 +5,9 @@ import {
 import { Badge, Button, Tooltip } from 'antd'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { EvidenceItem } from '@biji/shared/types'
-import { canRevisitGuidedHistoryField } from '../hooks/useGuidedReviewCards'
+import {
+  canRevisitGuidedHistoryField, shouldExposeGuidedHistoryField,
+} from '../hooks/useGuidedReviewCards'
 import type {
   GuidedReviewAction, GuidedReviewActionKind, GuidedReviewHistoryField, GuidedReviewHistoryItem,
   GuidedReviewSystemStatus,
@@ -118,7 +120,7 @@ function handledHistoryItems(
   persistedFields: GuidedReviewHistoryField[],
 ): HandledHistoryItem[] {
   const persisted = persistedFields.flatMap((field, index) => (
-    field.userProvided && canRevisitGuidedHistoryField(field) ? [{
+    shouldExposeGuidedHistoryField(field) ? [{
       id: `persisted-field-${index}-${field.targetId || field.label}`,
       label: field.label,
       matchLabel: field.label,
@@ -128,7 +130,7 @@ function handledHistoryItems(
     }] : []))
   const candidates = [...persisted, ...history.flatMap(group => {
     const fields = (group.fields || []).flatMap((field, index) => (
-      field.userProvided && canRevisitGuidedHistoryField(field) ? [{
+      shouldExposeGuidedHistoryField(field) ? [{
       id: `${group.id}-field-${index}`,
       label: field.label,
       matchLabel: field.label,

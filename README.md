@@ -71,7 +71,7 @@ SQLite 不保存完整原始报告、Base64 图片、RAR 或 Word 文件，只�
 - `CanonicalInspectionCase`：统一内部模型已有基础实现，尚未接入正式输出。
 - `pipeline_mode`：支持 legacy/shadow/canonical 集中配置；当前默认仍为 legacy。
 - Shadow：生产旁路已接线，只生成脱敏诊断，不生成第二份正式产物，也不阻塞 Legacy；真实样本差异仍在治理。
-- `DocumentRenderPlan`、通用 `ReportProfile` / `TemplateProfile`：属于后续演进方向，尚未成为生产合同。
+- `DocumentRenderPlan` / `TemplateProfile`：属于后续演进方向；通用 `ReportProfile` 已用于陌生 JSON/JSONP 报告的人工确认后复用，但未确认候选不会自动建案或导出。
 
 Canonical 在补充验收通过或发布负责人明确接受风险前，不会成为默认且唯一的正式输出。
 
