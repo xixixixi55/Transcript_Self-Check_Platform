@@ -250,6 +250,15 @@ def test_discovery_entry_budget_stops_scandir_before_unbounded_materialization(
         def __init__(self, index: int) -> None:
             self.name = f"entry-{index:05d}.json"
 
+        def is_symlink(self) -> bool:
+            return False
+
+        def is_dir(self, *, follow_symlinks: bool) -> bool:
+            return False
+
+        def is_file(self, *, follow_symlinks: bool) -> bool:
+            return True
+
     class FakeScandir:
         def __enter__(self):
             return self
@@ -268,6 +277,117 @@ def test_discovery_entry_budget_stops_scandir_before_unbounded_materialization(
         discovery_module._candidate_files(tmp_path)
     assert error.value.code == "REPORT_DISCOVERY_BUDGET_EXCEEDED"
     assert yielded == discovery_module.MAX_DISCOVERY_ENTRIES + 1
+
+
+def test_discovery_excluded_numeric_directories_do_not_consume_candidate_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    yielded = 0
+
+    class FakeEntry:
+        def __init__(self, index: int) -> None:
+            self.name = str(index)
+            self.path = str(tmp_path / self.name)
+
+        def is_symlink(self) -> bool:
+            return False
+
+        def is_dir(self, *, follow_symlinks: bool) -> bool:
+            return True
+
+        def is_file(self, *, follow_symlinks: bool) -> bool:
+            return False
+
+        def stat(self, *, follow_symlinks: bool):
+            return type("SyntheticStat", (), {"st_file_attributes": 0})()
+
+    class FakeScandir:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __iter__(self):
+            nonlocal yielded
+            for index in range(discovery_module.MAX_DISCOVERY_ENTRIES + 100):
+                yielded += 1
+                yield FakeEntry(index)
+
+    monkeypatch.setattr(discovery_module.os, "scandir", lambda _path: FakeScandir())
+
+    assert discovery_module._candidate_files(tmp_path) == []
+    assert yielded == discovery_module.MAX_DISCOVERY_ENTRIES + 100
+
+
+def test_discovery_total_scan_budget_still_bounds_irrelevant_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    yielded = 0
+
+    class FakeEntry:
+        def __init__(self, index: int) -> None:
+            self.name = f"irrelevant-{index:05d}.txt"
+
+        def is_symlink(self) -> bool:
+            return False
+
+        def is_dir(self, *, follow_symlinks: bool) -> bool:
+            return False
+
+        def is_file(self, *, follow_symlinks: bool) -> bool:
+            return True
+
+    class FakeScandir:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __iter__(self):
+            nonlocal yielded
+            for index in range(discovery_module.MAX_DISCOVERY_SCANNED_ENTRIES + 100):
+                yielded += 1
+                yield FakeEntry(index)
+
+    monkeypatch.setattr(discovery_module.os, "scandir", lambda _path: FakeScandir())
+
+    with pytest.raises(WorkbenchPersistenceError) as error:
+        discovery_module._candidate_files(tmp_path)
+    assert error.value.code == "REPORT_DISCOVERY_BUDGET_EXCEEDED"
+    assert yielded == discovery_module.MAX_DISCOVERY_SCANNED_ENTRIES + 1
+
+
+def test_discovery_accepts_metadata_larger_than_old_one_mibibyte_limit(
+    tmp_path: Path,
+) -> None:
+    root = _unknown_report(tmp_path / "SYNTHETIC-LARGE-METADATA")
+    (root / "large-metadata.json").write_text(
+        json.dumps({"notes": "X" * (2 * 1024 * 1024)}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    result = discovery_module.discover_report_structure(root)
+
+    assert "large-metadata.json" in result.payloads
+
+
+def test_discovery_skips_one_oversized_candidate_without_rejecting_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "SYNTHETIC-OVERSIZED-NOISE"
+    root.mkdir()
+    (root / "metadata.json").write_text(
+        json.dumps({"案件名称": "SYNTHETIC-CASE"}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (root / "oversized-noise.json").write_text("X" * 1025, encoding="utf-8")
+    monkeypatch.setattr(discovery_module, "MAX_DISCOVERY_FILE_BYTES", 1024)
+
+    result = discovery_module.discover_report_structure(root)
+
+    assert set(result.payloads) == {"metadata.json"}
 
 
 def test_confirmation_rejects_expired_session_and_conflicting_field_choices(
@@ -374,6 +494,8 @@ def test_discovery_rejects_file_replacement_or_growth_after_enumeration(
             expected_ancestors=expected_ancestors,
         )
 
+    if mutation == "grow":
+        monkeypatch.setattr(discovery_module, "MAX_DISCOVERY_FILE_BYTES", 1024)
     monkeypatch.setattr(discovery_module, "read_bounded_dependency", mutate_before_read)
     with pytest.raises(WorkbenchPersistenceError) as error:
         discovery_module.discover_report_structure(root)
@@ -573,6 +695,9 @@ def test_total_byte_budget_is_passed_to_reader_as_a_hard_remaining_limit(
         read_limits.append(max_bytes)
         return original_read(path, dependency_root, max_bytes, **kwargs)
 
+    monkeypatch.setattr(
+        discovery_module, "MAX_DISCOVERY_TOTAL_BYTES", 4 * 1024 * 1024,
+    )
     monkeypatch.setattr(discovery_module, "read_bounded_dependency", track_limit)
     with pytest.raises(WorkbenchPersistenceError) as error:
         discovery_module.discover_report_structure(root)

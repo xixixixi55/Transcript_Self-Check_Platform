@@ -556,6 +556,20 @@ def test_pinghang_large_viewdata_uses_only_navigation_selected_core_pages(tmp_pa
     }
 
 
+def test_pinghang_accepts_navigation_larger_than_two_mibibytes(tmp_path):
+    source = _write_pinghang_fixture(tmp_path / "SYNTHETIC-LARGE-NAVIGATION")
+    navigation = source / "报告/data/navigation_data.js"
+    navigation.write_text(
+        " " * (3 * 1024 * 1024) + navigation.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    snapshot = build_report_parse_input_snapshot(str(source))
+
+    assert snapshot.adapter_id == "pinghang-mobile-multipath-v1"
+    assert navigation.stat().st_size > 2 * 1024 * 1024
+
+
 def test_pinghang_selected_core_page_still_fails_closed(tmp_path):
     source = _write_pinghang_fixture(tmp_path / "SYNTHETIC-INVALID-CORE")
     case_page = source / "报告" / "data" / "ViewData" / "11_1.json"

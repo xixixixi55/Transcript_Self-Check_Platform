@@ -13,7 +13,7 @@ _ASSIGNMENT_RE = re.compile(
     r"\s*=\s*(?P<body>[\[{].*[\]}])\s*;?\s*\Z",
     re.DOTALL,
 )
-_MAX_PAYLOAD_CHARS = 2 * 1024 * 1024
+_DEFAULT_MAX_PAYLOAD_CHARS = 2 * 1024 * 1024
 _MAX_DEPTH = 64
 
 
@@ -21,11 +21,14 @@ class QianxinPayloadError(ValueError):
     """奇安信核心元数据不是受支持的单一 JSON 数据赋值。"""
 
 
-def parse_qianxin_payload(text: str, *, expected_stem: str) -> Any:
+def parse_qianxin_payload(
+    text: str, *, expected_stem: str,
+    max_chars: int = _DEFAULT_MAX_PAYLOAD_CHARS,
+) -> Any:
     """只解析固定变量名后的 JSON；绝不执行报告脚本。"""
     if (
         not isinstance(text, str)
-        or len(text) > _MAX_PAYLOAD_CHARS
+        or len(text) > max_chars
         or "\x00" in text
     ):
         raise QianxinPayloadError("QIANXIN_PAYLOAD_SIZE_INVALID")

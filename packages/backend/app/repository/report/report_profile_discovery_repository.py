@@ -25,9 +25,10 @@ from .report_parse_input_models import ReportParseInputError
 
 MAX_DISCOVERY_DEPTH = 4
 MAX_DISCOVERY_FILES = 128
-MAX_DISCOVERY_FILE_BYTES = 1024 * 1024
-MAX_DISCOVERY_TOTAL_BYTES = 4 * 1024 * 1024
+MAX_DISCOVERY_FILE_BYTES = 16 * 1024 * 1024
+MAX_DISCOVERY_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_DISCOVERY_ENTRIES = 2048
+MAX_DISCOVERY_SCANNED_ENTRIES = 65_536
 MAX_JSON_DEPTH = 32
 MAX_JSON_NODES = 8192
 _REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
@@ -115,6 +116,8 @@ class ReportStructureDiscovery:
                 "max_files": MAX_DISCOVERY_FILES,
                 "max_file_bytes": MAX_DISCOVERY_FILE_BYTES,
                 "max_total_bytes": MAX_DISCOVERY_TOTAL_BYTES,
+                "max_entries": MAX_DISCOVERY_ENTRIES,
+                "max_scanned_entries": MAX_DISCOVERY_SCANNED_ENTRIES,
             },
         }
 
@@ -255,15 +258,29 @@ def extract_profile_collection_indices(
 def _candidate_files(root: Path) -> list[_DiscoveryCandidateFile]:
     selected: list[_DiscoveryCandidateFile] = []
     stack: list[tuple[Path, int]] = [(root, 0)]
-    visited_entries = 0
+    scanned_entries = 0
+    candidate_entries = 0
     while stack:
         directory, depth = stack.pop()
         entries: list[os.DirEntry[str]] = []
         try:
             with os.scandir(directory) as iterator:
                 for entry in iterator:
-                    visited_entries += 1
-                    if visited_entries > MAX_DISCOVERY_ENTRIES:
+                    scanned_entries += 1
+                    if scanned_entries > MAX_DISCOVERY_SCANNED_ENTRIES:
+                        raise WorkbenchPersistenceError("REPORT_DISCOVERY_BUDGET_EXCEEDED")
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        if depth >= MAX_DISCOVERY_DEPTH or _is_excluded_directory(entry.name):
+                            continue
+                    elif (
+                        not entry.is_file(follow_symlinks=False)
+                        or Path(entry.name).suffix.casefold() not in _SUPPORTED_SUFFIXES
+                    ):
+                        continue
+                    candidate_entries += 1
+                    if candidate_entries > MAX_DISCOVERY_ENTRIES:
                         raise WorkbenchPersistenceError("REPORT_DISCOVERY_BUDGET_EXCEEDED")
                     entries.append(entry)
         except OSError as error:
@@ -277,13 +294,10 @@ def _candidate_files(root: Path) -> list[_DiscoveryCandidateFile]:
                 continue
             path = Path(entry.path)
             if entry.is_dir(follow_symlinks=False):
-                if depth < MAX_DISCOVERY_DEPTH and not _is_excluded_directory(entry.name):
-                    stack.append((path, depth + 1))
-                continue
-            if not entry.is_file(follow_symlinks=False) or path.suffix.casefold() not in _SUPPORTED_SUFFIXES:
+                stack.append((path, depth + 1))
                 continue
             if info.st_size > MAX_DISCOVERY_FILE_BYTES:
-                raise WorkbenchPersistenceError("REPORT_DISCOVERY_BUDGET_EXCEEDED")
+                continue
             try:
                 enumerated_identity = file_identity(path.lstat())
             except OSError as error:
@@ -520,5 +534,6 @@ __all__ = [
     "extract_profile_collection_indices", "extract_profile_values",
     "MAX_DISCOVERY_DEPTH", "MAX_DISCOVERY_FILES",
     "MAX_DISCOVERY_FILE_BYTES", "MAX_DISCOVERY_TOTAL_BYTES",
-    "MAX_DISCOVERY_ENTRIES", "MAX_JSON_DEPTH", "MAX_JSON_NODES",
+    "MAX_DISCOVERY_ENTRIES", "MAX_DISCOVERY_SCANNED_ENTRIES",
+    "MAX_JSON_DEPTH", "MAX_JSON_NODES",
 ]

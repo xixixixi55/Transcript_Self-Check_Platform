@@ -26,6 +26,7 @@ _PROPERTY_RE = re.compile(
     re.DOTALL,
 )
 _MAX_PAGE_CHARS = 2 * 1024 * 1024
+_MAX_NAVIGATION_CHARS = 64 * 1024 * 1024
 _MAX_DEPTH = 64
 
 
@@ -47,7 +48,7 @@ def parse_pinghang_payload(
     text: str, *, expected_index: str, expected_page: int,
 ) -> dict[str, Any]:
     """仅接受单一、完整的平航数据赋值；绝不执行输入。"""
-    cleaned = _clean_text(text)
+    cleaned = _clean_text(text, _MAX_PAGE_CHARS)
     match = _PAYLOAD_RE.fullmatch(cleaned)
     if (
         match is None
@@ -68,7 +69,7 @@ def parse_pinghang_payload(
 
 def parse_pinghang_navigation(text: str) -> tuple[PinghangNavigationNode, ...]:
     """解析导航中的扁平节点对象；函数、表达式和嵌套对象均被拒绝。"""
-    cleaned = _clean_text(text)
+    cleaned = _clean_text(text, _MAX_NAVIGATION_CHARS)
     match = _NAVIGATION_RE.fullmatch(cleaned)
     if match is None:
         raise PinghangPayloadError("PINGHANG_NAVIGATION_ASSIGNMENT_INVALID")
@@ -154,8 +155,8 @@ def _parse_scalar(value: str) -> Any:
     return int(value)
 
 
-def _clean_text(text: str) -> str:
-    if not isinstance(text, str) or len(text) > _MAX_PAGE_CHARS:
+def _clean_text(text: str, max_chars: int) -> str:
+    if not isinstance(text, str) or len(text) > max_chars:
         raise PinghangPayloadError("PINGHANG_PAYLOAD_SIZE_INVALID")
     return text.lstrip("\ufeff").replace("\x00", "").strip()
 

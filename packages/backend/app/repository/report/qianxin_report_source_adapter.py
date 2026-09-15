@@ -34,9 +34,9 @@ QIANXIN_ADAPTER_VERSION = "1.0.0"
 _REPORT_PROFILE = "data_report_profile.json"
 _NAVIGATION = "data_navigation.json"
 _PACKAGE_RE = re.compile(r"data_package_profile_(?P<index>\d+)\.json\Z")
-_MAX_HTML_BYTES = 4 * 1024 * 1024
+_MAX_HTML_BYTES = 64 * 1024 * 1024
 _MAX_PROFILE_BYTES = 512 * 1024
-_MAX_NAVIGATION_BYTES = 2 * 1024 * 1024
+_MAX_NAVIGATION_BYTES = 64 * 1024 * 1024
 _MAX_PACKAGES = 256
 _HTML_MARKERS = (
     "static.report.context", "data_report_profile",
@@ -225,7 +225,7 @@ def _read_payload(
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError as error:
         raise ReportParseInputError("奇安信报告核心元数据编码无效。") from error
-    return parse_qianxin_payload(text, expected_stem=stem)
+    return parse_qianxin_payload(text, expected_stem=stem, max_chars=limit)
 
 
 def _validate_html(raw: bytes) -> None:

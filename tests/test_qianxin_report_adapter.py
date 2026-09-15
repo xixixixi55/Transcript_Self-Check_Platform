@@ -193,6 +193,41 @@ def test_qianxin_v1_maps_unified_business_contract_without_scanning_content(tmp_
     }
 
 
+def test_qianxin_accepts_bounded_navigation_larger_than_four_mibibytes(tmp_path):
+    source = _write_qianxin_fixture(tmp_path / "SYNTHETIC-LARGE-NAVIGATION")
+    navigation_path = source / "data" / "data_navigation.json"
+    navigation = [{
+        "id": 1,
+        "pid": 0,
+        "name": "SYNTHETIC-LARGE-NODE",
+        "contextConfig": "SYNTHETIC-CONTEXT-" + "X" * (5 * 1024 * 1024),
+        "parserConfig": "SYNTHETIC-PARSER",
+    }]
+    navigation_path.write_text(
+        _jsonp("data_navigation", navigation), encoding="utf-8",
+    )
+
+    snapshot = build_report_parse_input_snapshot(str(source))
+
+    assert snapshot.adapter_id == "qianxin-web-report-v1"
+    assert len(snapshot.device_rows) == 2
+    assert navigation_path.stat().st_size > 4 * 1024 * 1024
+
+
+def test_qianxin_accepts_entry_html_larger_than_four_mibibytes(tmp_path):
+    source = _write_qianxin_fixture(tmp_path / "SYNTHETIC-LARGE-ENTRY")
+    html_path = source / "SYNTHETIC-取证报告.html"
+    html_path.write_text(
+        html_path.read_text(encoding="utf-8") + " " * (5 * 1024 * 1024),
+        encoding="utf-8",
+    )
+
+    snapshot = build_report_parse_input_snapshot(str(source))
+
+    assert snapshot.adapter_id == "qianxin-web-report-v1"
+    assert html_path.stat().st_size > 4 * 1024 * 1024
+
+
 @pytest.mark.parametrize("body", [
     '{"source":{},"source":{}}',
     '{"source":{}};alert("SYNTHETIC")',

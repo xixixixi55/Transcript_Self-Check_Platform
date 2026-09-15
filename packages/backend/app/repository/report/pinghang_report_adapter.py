@@ -28,6 +28,7 @@ PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME = "平航手机多路分析取证软件"
 _MAX_SELECTED_PAGES = 4096
 _MAX_SELECTED_METADATA_BYTES = 32 * 1024 * 1024
 _MAX_SINGLE_FILE_BYTES = 2 * 1024 * 1024
+_MAX_NAVIGATION_BYTES = 64 * 1024 * 1024
 _MAX_ENTRY_FILES = 16
 _CASE_REQUIRED_LABELS = {"案件名称", "案件编号"}
 _CASE_LABELS = _CASE_REQUIRED_LABELS | {
@@ -92,7 +93,7 @@ def parse_pinghang_report(
 
         navigation_path = report_data / "navigation_data.js"
         navigation = parse_pinghang_navigation(
-            _decode(_read_bounded(reader, navigation_path))
+            _decode(_read_bounded(reader, navigation_path, _MAX_NAVIGATION_BYTES))
         )
         case_nodes = [
             node for node in navigation
@@ -389,8 +390,10 @@ def _read_file(path: Path) -> bytes:
     return path.read_bytes()
 
 
-def _read_bounded(reader: ReadFile, path: Path) -> bytes:
-    if _bounded_file_size(path) > _MAX_SINGLE_FILE_BYTES:
+def _read_bounded(
+    reader: ReadFile, path: Path, max_bytes: int = _MAX_SINGLE_FILE_BYTES,
+) -> bytes:
+    if _bounded_file_size(path) > max_bytes:
         raise PinghangReportError("PINGHANG_METADATA_LIMIT_EXCEEDED")
     return reader(path)
 
