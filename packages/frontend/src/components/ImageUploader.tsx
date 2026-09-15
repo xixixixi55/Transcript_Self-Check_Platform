@@ -42,7 +42,7 @@ export default function ImageUploader({ materials, photos, onChange, showGuidanc
   const toggleLabel = expanded ? '收起图片' : '展开图片'
 
   return (
-    <div className="material-photo-uploader">
+    <div className={`material-photo-uploader${showGuidance ? '' : ' material-photo-uploader--response'}`}>
       {materials.length ? <>
         <div className="material-photo-uploader__header">
           {expanded && showGuidance && <p className="material-photo-uploader__hint">{PHOTO_UPLOAD_GUIDANCE}</p>}

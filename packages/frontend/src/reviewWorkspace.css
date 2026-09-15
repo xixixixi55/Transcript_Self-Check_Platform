@@ -698,6 +698,10 @@
   margin-bottom: 12px;
 }
 
+.material-photo-uploader--response .material-photo-uploader__header {
+  margin-top: -22px;
+}
+
 .material-photo-uploader__hint,
 .material-photo-overflow p {
   margin: 0 0 12px;
@@ -718,6 +722,7 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
+  margin-left: auto;
   gap: 4px;
 }
 
@@ -807,6 +812,7 @@
 }
 
 .material-photo-slot__waiting {
+  box-sizing: border-box;
   height: 116px;
   display: flex;
   align-items: center;
