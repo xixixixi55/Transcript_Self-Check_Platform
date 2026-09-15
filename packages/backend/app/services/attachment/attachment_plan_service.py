@@ -36,7 +36,7 @@ from ..integrity.hash_algorithm_service import (
 )
 
 PROFILE_ID = "current-template-v1"
-MAX_PART_ROWS_PER_PAGE = 4
+MAX_PART_ROWS_PER_PAGE = 3
 _TEMPLATE_PROFILE = current_template_profile()
 _CONFIRMED_SOFTWARE = {"confirmed", "confirmed_by_report", "confirmed_by_user"}
 
@@ -156,7 +156,7 @@ def _validated_parts(manifest: Mapping[str, Any]) -> tuple[str, list[Mapping[str
 
 
 def attachment1_page_row_counts(row_count: int) -> tuple[int, ...]:
-    """按每页最多四条、从前向后优先填满的规则规划附件1。"""
+    """按每页最多三条、从前向后优先填满的规则规划附件1。"""
     if row_count < 1:
         return ()
     return tuple(
@@ -175,8 +175,7 @@ def _attachment1_pages(rows, source_text, extraction_method):
     for index, page_rows in enumerate(page_chunks, 1):
         is_last_data_page = index == len(page_chunks)
         signature_blank_row_count = (
-            max(0, 3 - len(page_rows))
-            if is_last_data_page and len(rows) < 3 else 0
+            max(0, 3 - len(page_rows)) if is_last_data_page else 0
         )
         pages.append(Attachment1PagePlan(
             page_number=index,

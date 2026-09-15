@@ -14,6 +14,7 @@ from .attachment_plan_models_service import (
     AttachmentPlan,
 )
 from .docx_attachment_xml_service import (
+    V_NS,
     W_NS,
     allow_latin_character_wrap,
     attachment1_source_lines,
@@ -30,7 +31,6 @@ from .docx_attachment_xml_service import (
     set_paragraph_alignment,
     set_vertical_merge,
     text_of,
-    trim_vml_line_vertical_span,
 )
 from ..template.template_profile_service import (
     CurrentTemplateProfile,
@@ -40,10 +40,13 @@ from ..integrity.hash_algorithm_service import hash_display_name, hash_field_tit
 
 _LEGACY_ATTACHMENT1_INSTITUTION = "椒江区公安司法鉴定中心"
 _ATTACHMENT1_SIGNATURE_LABEL = "检查人员："
+_ATTACHMENT1_END_MARKER = "以下空白"
+_ATTACHMENT1_CONTINUATION_FILLER_TOTAL_HEIGHT_TWIPS = 4500
+_ATTACHMENT1_BASELINE_SOURCE_LINE_COUNT = 3
+_ATTACHMENT1_FILLER_REDUCTION_PER_EXTRA_SOURCE_LINE_TWIPS = 180
+_ATTACHMENT1_MIN_FILLER_ROW_HEIGHT_TWIPS = 600
+_ATTACHMENT1_SHA256_HASH_CHARACTER_SCALE_PERCENT = 54
 _DEFAULT_TABLE_CELL_MARGIN_TWIPS = 108
-_ATTACHMENT1_DENSE_FIRST_PAGE_ROW_HEIGHT_TWIPS = "1300"
-_ATTACHMENT1_DENSE_FIRST_PAGE_SIGNATURE_HEIGHT_TWIPS = "1900"
-_ATTACHMENT1_DENSE_FIRST_PAGE_LINE_TWIPS = "300"
 
 
 def _remove_attachment1_redundant_paragraphs(cell: Any) -> None:
@@ -52,53 +55,70 @@ def _remove_attachment1_redundant_paragraphs(cell: Any) -> None:
         cell.remove(paragraph)
 
 
-def _set_attachment1_row_minimum_height(row: Any, height_twips: str) -> None:
+def _attachment1_row_height(row: Any) -> int | None:
+    row_height = row.find("./%s/%s" % (qn(W_NS, "trPr"), qn(W_NS, "trHeight")))
+    if row_height is None:
+        return None
+    value = row_height.get(qn(W_NS, "val"))
+    try:
+        return int(value) if value is not None else None
+    except ValueError:
+        return None
+
+
+def _set_attachment1_row_height(row: Any, height_twips: int) -> None:
     row_height = row.find("./%s/%s" % (qn(W_NS, "trPr"), qn(W_NS, "trHeight")))
     if row_height is not None:
-        row_height.set(qn(W_NS, "val"), height_twips)
+        row_height.set(qn(W_NS, "val"), str(height_twips))
         row_height.attrib.pop(qn(W_NS, "hRule"), None)
 
 
-def _compact_attachment1_dense_first_page_spacing(element: Any) -> None:
+def _set_attachment1_character_scale(element: Any, scale_percent: int) -> None:
     from lxml import etree
 
-    for paragraph in element.findall(".//%s" % qn(W_NS, "p")):
-        paragraph_pr = paragraph.find("./%s" % qn(W_NS, "pPr"))
-        if paragraph_pr is None:
-            paragraph_pr = etree.Element(qn(W_NS, "pPr"))
-            paragraph.insert(0, paragraph_pr)
-        snap_to_grid = paragraph_pr.find("./%s" % qn(W_NS, "snapToGrid"))
-        if snap_to_grid is None:
-            snap_to_grid = etree.Element(qn(W_NS, "snapToGrid"))
+    following_properties = {
+        qn(W_NS, local)
+        for local in (
+            "kern", "position", "sz", "szCs", "highlight", "u",
+            "effect", "bdr", "shd", "fitText", "vertAlign", "rtl", "cs",
+        )
+    }
+    for run in element.findall(".//%s" % qn(W_NS, "r")):
+        run_properties = run.find("./%s" % qn(W_NS, "rPr"))
+        if run_properties is None:
+            run_properties = etree.Element(qn(W_NS, "rPr"))
+            run.insert(0, run_properties)
+        character_scale = run_properties.find("./%s" % qn(W_NS, "w"))
+        if character_scale is None:
+            character_scale = etree.Element(qn(W_NS, "w"))
             insertion_index = next(
                 (
-                    index for index, child in enumerate(paragraph_pr)
-                    if child.tag in {
-                        qn(W_NS, "spacing"), qn(W_NS, "ind"),
-                        qn(W_NS, "jc"), qn(W_NS, "rPr"),
-                    }
+                    index for index, child in enumerate(run_properties)
+                    if child.tag in following_properties
                 ),
-                len(paragraph_pr),
+                len(run_properties),
             )
-            paragraph_pr.insert(insertion_index, snap_to_grid)
-        snap_to_grid.set(qn(W_NS, "val"), "0")
-        spacing = paragraph_pr.find("./%s" % qn(W_NS, "spacing"))
-        if spacing is None:
-            spacing = etree.Element(qn(W_NS, "spacing"))
-            insertion_index = next(
-                (
-                    index for index, child in enumerate(paragraph_pr)
-                    if child.tag in {
-                        qn(W_NS, "ind"), qn(W_NS, "jc"), qn(W_NS, "rPr"),
-                    }
-                ),
-                len(paragraph_pr),
-            )
-            paragraph_pr.insert(insertion_index, spacing)
-        spacing.set(qn(W_NS, "before"), "0")
-        spacing.set(qn(W_NS, "after"), "0")
-        spacing.set(qn(W_NS, "line"), _ATTACHMENT1_DENSE_FIRST_PAGE_LINE_TWIPS)
-        spacing.set(qn(W_NS, "lineRule"), "auto")
+            run_properties.insert(insertion_index, character_scale)
+        character_scale.set(qn(W_NS, "val"), str(scale_percent))
+
+
+def _attachment1_continuation_filler_total_height(
+    page: Attachment1PagePlan, filler_row_count: int,
+) -> int:
+    extra_source_lines = max(
+        0,
+        len(attachment1_source_lines(page.source_text))
+        - _ATTACHMENT1_BASELINE_SOURCE_LINE_COUNT,
+    )
+    content_adjusted_height = (
+        _ATTACHMENT1_CONTINUATION_FILLER_TOTAL_HEIGHT_TWIPS
+        - extra_source_lines
+        * _ATTACHMENT1_FILLER_REDUCTION_PER_EXTRA_SOURCE_LINE_TWIPS
+    )
+    return max(
+        filler_row_count * _ATTACHMENT1_MIN_FILLER_ROW_HEIGHT_TWIPS,
+        content_adjusted_height,
+    )
 
 
 def replace_attachment1_institution(doc: Any, inspection_place: object) -> None:
@@ -264,10 +284,6 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
             )
         table.append(header)
     data_template = rows[1]
-    dense_signature_page = include_signature and len(page.serial_rows) >= 3
-    compact_dense_first_page = (
-        include_header and include_signature and len(page.serial_rows) == 4
-    )
     for index, item in enumerate(page.serial_rows):
         row = copy.deepcopy(data_template)
         cells = row.findall("./%s" % qn(W_NS, "tc"))
@@ -275,34 +291,51 @@ def _build_attachment1_table(template: Any, rows: list[Any], page: Attachment1Pa
                   page.extraction_method, item.md5]
         for cell_index, (cell, value) in enumerate(zip(cells, values)):
             _set_attachment1_cell_text(cell, value, cell_index)
+            _remove_attachment1_redundant_paragraphs(cell)
+            if cell_index == 4 and hash_algorithm == "sha256":
+                _set_attachment1_character_scale(
+                    cell,
+                    _ATTACHMENT1_SHA256_HASH_CHARACTER_SCALE_PERCENT,
+                )
         if len(cells) >= 4:
             set_vertical_merge(cells[2], index == 0)
             set_vertical_merge(cells[3], index == 0)
             if index:
                 _set_attachment1_cell_text(cells[2], "", 2)
                 _set_attachment1_cell_text(cells[3], "", 3)
-        if dense_signature_page:
-            for cell in cells:
-                _remove_attachment1_redundant_paragraphs(cell)
-        if compact_dense_first_page:
-            _set_attachment1_row_minimum_height(
-                row, _ATTACHMENT1_DENSE_FIRST_PAGE_ROW_HEIGHT_TWIPS,
-            )
-            _compact_attachment1_dense_first_page_spacing(row)
         table.append(row)
     if include_signature:
         blank_count = min(page.signature_blank_row_count, len(rows[2:-1]))
         blank_copies = [copy.deepcopy(row) for row in rows[2:2 + blank_count]]
+        for blank_row in blank_copies:
+            for line in blank_row.findall(".//%s" % qn(V_NS, "line")):
+                parent = line.getparent()
+                if parent is not None:
+                    parent.remove(line)
         if blank_copies:
-            trim_vml_line_vertical_span(blank_copies[0], blank_count, len(rows[2:-1]))
+            marker_cells = blank_copies[0].findall("./%s" % qn(W_NS, "tc"))
+            if len(marker_cells) >= 2:
+                _set_attachment1_cell_text(
+                    marker_cells[1], _ATTACHMENT1_END_MARKER, 1,
+                )
+            if not include_header:
+                filler_height = (
+                    _attachment1_continuation_filler_total_height(
+                        page, len(blank_copies),
+                    )
+                    // len(blank_copies)
+                )
+                for blank_row in blank_copies:
+                    _set_attachment1_row_height(blank_row, filler_height)
         table.extend(blank_copies)
         signature_row = copy.deepcopy(rows[-1])
-        if compact_dense_first_page:
-            _set_attachment1_row_minimum_height(
-                signature_row,
-                _ATTACHMENT1_DENSE_FIRST_PAGE_SIGNATURE_HEIGHT_TWIPS,
-            )
-            _compact_attachment1_dense_first_page_spacing(signature_row)
+        if include_header and not blank_copies and len(rows) > 2:
+            signature_height = _attachment1_row_height(signature_row)
+            removed_filler_height = _attachment1_row_height(rows[2])
+            if signature_height is not None and removed_filler_height is not None:
+                _set_attachment1_row_height(
+                    signature_row, signature_height + removed_filler_height,
+                )
         for cell in signature_row.findall("./%s" % qn(W_NS, "tc")):
             set_element_font(cell, "仿宋_GB2312", 32)
         table.append(signature_row)

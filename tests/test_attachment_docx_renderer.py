@@ -217,9 +217,11 @@ def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
     page_breaks = root.findall(".//{%s}br" % W_NS)
     assert any(br.get("{%s}type" % W_NS) == "page" for br in page_breaks)
     tables = attachment_tables(root)
-    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 2]
+    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [4, 4]
     assert "附件：1、电子数据提取固定清单，共2页；" in text
     assert "检查人员" not in "".join(tables[0].itertext())
+    assert "以下空白" not in "".join(tables[0].itertext())
+    assert "以下空白" in "".join(tables[-1].itertext())
     assert "人员0" not in "".join("".join(node.itertext()) for node in tables[-1].iter())
     signature = "".join("".join(node.itertext()) for node in tables[-1].findall("./{%s}tr" % W_NS)[-1].iter())
     assert "检查人员" in signature and "盖章" in signature
@@ -232,8 +234,7 @@ def test_attachment1_starts_on_its_own_page_and_titles_are_single(tmp_path):
 @pytest.mark.parametrize(
     ("count", "table_rows"),
     [
-        (7, [5, 4]), (8, [5, 5]),
-        (9, [5, 4, 2]), (10, [5, 4, 3]),
+        (5, [4, 4]),
     ],
 )
 def test_attachment1_final_page_keeps_template_signature_row(tmp_path, count, table_rows):
@@ -291,6 +292,7 @@ def test_attachment1_three_rows_match_customer_font_baseline(tmp_path):
     signature = "".join(tables[-1].findall("./{%s}tr" % W_NS)[-1].itertext())
     assert "\u68c0\u67e5\u4eba\u5458" in signature
     assert "\u76d6\u7ae0" in signature
+    assert "以下空白" not in "".join(tables[-1].itertext())
 
 
 def test_attachment1_latin_fields_allow_character_wrap_on_every_page(tmp_path):
@@ -300,7 +302,13 @@ def test_attachment1_latin_fields_allow_character_wrap_on_every_page(tmp_path):
     for table in attachment_tables(document_root(output)):
         for row in table.findall("./{%s}tr" % W_NS):
             cells = row.findall("./{%s}tc" % W_NS)
-            if len(cells) < 5 or "检查人员" in "".join(row.itertext()):
+            row_text = "".join(row.itertext())
+            if (
+                len(cells) < 5
+                or "检查人员" in row_text
+                or "以下空白" in row_text
+                or not row_text.strip()
+            ):
                 continue
             for cell_index in (1, 3, 4):
                 paragraphs = cells[cell_index].findall(".//{%s}p" % W_NS)
@@ -366,84 +374,134 @@ def test_attachment1_source_puts_each_material_number_on_its_own_line(tmp_path):
             assert continuation_merge is not None
             assert continuation_merge.get("{%s}val" % W_NS) is None
 
+    final_rows = tables[-1].findall("./{%s}tr" % W_NS)
+    final_filler_rows = final_rows[2:-1]
+    assert [
+        row.find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS)).get(
+            "{%s}val" % W_NS
+        )
+        for row in final_filler_rows
+    ] == ["3780"]
 
-def test_attachment1_four_rows_keep_data_on_signature_page(tmp_path):
+
+def test_attachment1_four_rows_use_three_then_one_with_signature(tmp_path):
     output = tmp_path / "attachment-1-four.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(4))
     tables = attachment_tables(document_root(output))
-    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [6]
-    text = "".join(tables[0].itertext())
-    assert all(f"server.part{index}.rar" in text for index in range(1, 5))
-    assert "\u68c0\u67e5\u4eba\u5458" in text
-    assert "\u76d6\u7ae0" in text
-    for row in tables[0].findall("./{%s}tr" % W_NS)[1:5]:
-        height = row.find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS))
-        assert height.get("{%s}val" % W_NS) == "1300"
-        assert height.get("{%s}hRule" % W_NS) is None
-        assert all(
-            paragraph.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS)).get(
-                "{%s}line" % W_NS
-            ) == "300"
-            for paragraph in row.findall(".//{%s}p" % W_NS)
-        )
-        assert all(
-            paragraph.find("./{%s}pPr/{%s}snapToGrid" % (W_NS, W_NS)).get(
-                "{%s}val" % W_NS
-            ) == "0"
-            for paragraph in row.findall(".//{%s}p" % W_NS)
-        )
-    signature_height = tables[0].findall("./{%s}tr" % W_NS)[-1].find(
-        "./{%s}trPr/{%s}trHeight" % (W_NS, W_NS)
-    )
-    assert signature_height.get("{%s}val" % W_NS) == "1900"
-    assert signature_height.get("{%s}hRule" % W_NS) is None
-    assert all(
-        paragraph.find("./{%s}pPr/{%s}spacing" % (W_NS, W_NS)).get(
-            "{%s}line" % W_NS
-        ) == "300"
-        for paragraph in tables[0].findall("./{%s}tr" % W_NS)[-1].findall(
-            ".//{%s}p" % W_NS
-        )
-    )
+    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [4, 4]
+    first_text = "".join(tables[0].itertext())
+    second_text = "".join(tables[1].itertext())
+    assert all(f"server.part{index}.rar" in first_text for index in range(1, 4))
+    assert "server.part4.rar" not in first_text
+    assert "server.part4.rar" in second_text
+    assert "以下空白" in second_text
+    assert "\u68c0\u67e5\u4eba\u5458" not in first_text
+    assert "\u68c0\u67e5\u4eba\u5458" in second_text
+    assert "\u76d6\u7ae0" in second_text
+    assert "附件：1、电子数据提取固定清单，共2页；" in visible_text(output)
 
 
-def test_attachment1_six_rows_use_four_then_two_with_signature(tmp_path):
-    output = tmp_path / "attachment-1-six.docx"
-    fill_template(report(), str(TEMPLATE), str(output), [], manifest(6))
-    tables = attachment_tables(document_root(output))
-    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [5, 3]
-    second_rows = tables[1].findall("./{%s}tr" % W_NS)
-    assert "server.part5.rar" in "".join(second_rows[0].itertext())
-    assert "server.part6.rar" in "".join(second_rows[1].itertext())
-    assert "\u68c0\u67e5\u4eba\u5458" not in "".join(tables[0].itertext())
-    signature = "".join(second_rows[2].itertext())
-    assert "\u68c0\u67e5\u4eba\u5458" in signature
-    assert "\u76d6\u7ae0" in signature
-
-
-@pytest.mark.parametrize(("count", "max_end_y"), [(1, 100), (2, 50)])
-def test_attachment1_blank_diagonal_stays_inside_blank_rows(tmp_path, count, max_end_y):
-    output = tmp_path / f"attachment-{count}-diagonal.docx"
+@pytest.mark.parametrize(
+    ("count", "expected_filler_count"),
+    [(1, 2), (2, 1), (3, 0), (4, 2), (5, 1)],
+)
+def test_attachment1_filler_rows_start_with_end_marker_and_have_no_diagonal(
+    tmp_path, count, expected_filler_count,
+):
+    output = tmp_path / f"attachment-{count}-filler.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(count))
     table = attachment_tables(document_root(output))[-1]
     rows = table.findall("./{%s}tr" % W_NS)
-    lines = table.findall(".//{%s}line" % V_NS)
+    data_indices = [
+        index for index, row in enumerate(rows)
+        if ".rar" in "".join(row.itertext())
+    ]
+    filler_rows = rows[max(data_indices) + 1:-1]
 
-    assert len(lines) == 1
-    end_y = float(lines[0].get("to").rsplit(",", 1)[1].removesuffix("pt"))
-    assert end_y < max_end_y
-    assert not rows[-1].findall(".//{%s}line" % V_NS)
-    assert len(rows) == 5
+    assert len(filler_rows) == expected_filler_count
+    if filler_rows:
+        marker_cells = filler_rows[0].findall("./{%s}tc" % W_NS)
+        assert "".join(marker_cells[1].itertext()) == "以下空白"
+        assert all(
+            "".join(cell.itertext()) == ""
+            for index, cell in enumerate(marker_cells) if index != 1
+        )
+        assert all("".join(row.itertext()) == "" for row in filler_rows[1:])
+    else:
+        assert "以下空白" not in "".join(table.itertext())
+    assert not any(
+        row.findall(".//{%s}line" % V_NS) for row in filler_rows
+    )
+    expected_height = 2250 if count == 4 else 4500 if count == 5 else 954
+    assert all(
+        row.find("./{%s}trPr/{%s}trHeight" % (W_NS, W_NS)).get(
+            "{%s}val" % W_NS
+        ) == str(expected_height)
+        for row in filler_rows
+    )
     signature = "".join(rows[-1].itertext())
     assert "\u68c0\u67e5\u4eba\u5458" in signature
     assert "\u76d6\u7ae0" in signature
+    if count == 3:
+        signature_height = rows[-1].find(
+            "./{%s}trPr/{%s}trHeight" % (W_NS, W_NS)
+        )
+        assert signature_height.get("{%s}val" % W_NS) == "3876"
 
 
-def test_attachment1_three_rows_do_not_copy_blank_diagonal(tmp_path):
-    output = tmp_path / "attachment-3-no-diagonal.docx"
-    fill_template(report(), str(TEMPLATE), str(output), [], manifest(3))
-    table = attachment_tables(document_root(output))[0]
-    assert not table.findall(".//{%s}line" % V_NS)
+def test_attachment1_sha256_header_values_and_wrap_survive_five_volume_layout(
+    tmp_path,
+):
+    current_report = report()
+    current_report["inspection"]["result"]["hash_algorithm"] = "sha256"
+    current_manifest = manifest(5)
+    expected_hashes = []
+    for index, part in enumerate(current_manifest["parts"], 1):
+        value = f"{index:064x}"
+        part["hash_algorithm"] = "sha256"
+        part["hash_value"] = value
+        expected_hashes.append(value.upper())
+
+    output = tmp_path / "attachment-1-sha256-five-volumes.docx"
+    fill_template(current_report, str(TEMPLATE), str(output), [], current_manifest)
+
+    tables = attachment_tables(document_root(output))
+    assert [len(table.findall("./{%s}tr" % W_NS)) for table in tables] == [4, 4]
+    header_text = "".join(
+        tables[0].findall("./{%s}tr" % W_NS)[0].itertext()
+    )
+    assert "文件SHA-256哈希值" in header_text
+
+    actual_hashes = []
+    for table in tables:
+        for row in table.findall("./{%s}tr" % W_NS):
+            if ".rar" not in "".join(row.itertext()):
+                continue
+            data_cells = row.findall("./{%s}tc" % W_NS)
+            assert all(
+                len(cell.findall("./{%s}p" % W_NS)) == 1
+                for cell in data_cells
+            )
+            hash_cell = data_cells[4]
+            actual_hashes.append("".join(hash_cell.itertext()))
+            word_wrap = hash_cell.find(
+                ".//{%s}pPr/{%s}wordWrap" % (W_NS, W_NS)
+            )
+            assert word_wrap is not None
+            assert word_wrap.get("{%s}val" % W_NS) == "off"
+            hash_size = hash_cell.find(
+                ".//{%s}r/{%s}rPr/{%s}sz" % (W_NS, W_NS, W_NS)
+            )
+            assert hash_size.get("{%s}val" % W_NS) == "32"
+            character_scale = hash_cell.find(
+                ".//{%s}r/{%s}rPr/{%s}w" % (W_NS, W_NS, W_NS)
+            )
+            assert character_scale.get("{%s}val" % W_NS) == "54"
+            assert hash_cell.find(
+                ".//{%s}r/{%s}rPr/{%s}spacing" % (W_NS, W_NS, W_NS)
+            ) is None
+            assert len(hash_cell.findall("./{%s}p" % W_NS)) == 1
+    assert actual_hashes == expected_hashes
 
 
 def test_body_keeps_dynamic_inspector_snapshots_but_attachment1_does_not(tmp_path):
