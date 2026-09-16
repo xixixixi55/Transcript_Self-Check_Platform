@@ -10,6 +10,9 @@ from ...repository.report.meiya_report_source_adapter import (
     MEIYA_NEW_ADAPTER_ID,
 )
 from ...repository.report.pinghang_report_adapter import PINGHANG_ADAPTER_ID
+from ...repository.report.pinghang_report_source_adapter import (
+    PINGHANG_BUNDLE_ADAPTER_ID,
+)
 from ...repository.report.qianxin_report_source_adapter import QIANXIN_ADAPTER_ID
 from ...repository.report.report_parse_input_models import ReportParseInputSnapshot
 from ...repository.report.report_profile_repository import REPORT_PROFILE_ADAPTER_ID
@@ -42,7 +45,7 @@ _BUILTIN_PROJECTORS = (
         project=project_meiya_report,
     ),
     CanonicalReportProjector(
-        adapter_ids=(PINGHANG_ADAPTER_ID,),
+        adapter_ids=(PINGHANG_ADAPTER_ID, PINGHANG_BUNDLE_ADAPTER_ID),
         project=project_pinghang_report,
         material_overlay=True,
         replace_primary_software=True,

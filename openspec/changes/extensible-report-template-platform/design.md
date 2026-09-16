@@ -221,6 +221,8 @@ ViewData 文件虽然使用 `.json` 后缀，但不是可直接信任的 JSON。
 
 第一版不启用通用 ReportProfile 发现 UI。`pinghang-mobile-multipath-v1` 是随代码审核发布的内置 confirmed profile；结构超出该 profile 时进入“不支持/待新增版本”，而不是自动学习后导出。它可以通过 canonical 规范化后投影现有 `InspectionReport`，但正式 Word 仍走当前 legacy renderer、`ArchiveManifest`、`AttachmentPlan` 和 `current-template-v1`，不会因此切换全局 `pipeline_mode=canonical`。
 
+用户后续提供的已确认样本显示，平航会把同一案件的多个检材导出为一个外层目录下的多个并列单报告包，而不是在一个导航内生成多个 `DeviceInfo`。该布局仍由同一个 `PinghangReportSourceAdapter` 来源家族处理，但使用独立版本化身份 `pinghang-mobile-multipath-bundle-v1`，避免改变或失效现有单包 `pinghang-mobile-multipath-v1@1.7.0`。来源层只枚举外层直接子目录并限制最多 256 个候选包；每个子包完整复用现有 `parse_pinghang_report`，一次读取其已选核心依赖，再将案件、软件和材料事实组合为一个 `ReportParseInputSnapshot`。组合只执行案件/软件一致性、检材编号唯一性和自然顺序检查，不增加递归发现、全局媒体扫描、临时副本或第二套解析管线。依赖和来源文件以外层根为基准保留子目录前缀，来源登记、轻量复验和正式归档均继续绑定外层目录；任一候选包损坏或事实冲突时整体失败，不返回部分材料。
+
 备选方案一是在现有 `report_format_adapter.py`、`html_parser.py` 中继续增加平航条件分支；拒绝，因为其文件入口、JSONP 语法和字段模型与现有三 JSON 结构不同，会把厂商差异扩散到来源校验、缓存和业务组装。备选方案二是执行平航自带网页脚本后读取 DOM；拒绝，因为报告属于不可信输入，脚本执行会扩大本机文件和进程安全边界。备选方案三是把全部 ViewData 和附件内容先导入数据库；拒绝，因为当前生成文书只需要少量报告事实，复制大量取证内容会增加性能、隐私和留存风险。
 
 ### `ArchivePlan`, `ArchivePart`, `DiscSequence`

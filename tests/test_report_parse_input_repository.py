@@ -98,9 +98,10 @@ def _count_data_opens(data_root: Path):
     return calls, counted_open
 
 
-def test_four_builtin_formats_share_source_and_canonical_registries():
+def test_builtin_formats_share_source_and_canonical_registries():
     expected = (
         "meiya-legacy-v1", "meiya-new-v1", "pinghang-mobile-multipath-v1",
+        "pinghang-mobile-multipath-bundle-v1",
         "qianxin-web-report-v1",
     )
     assert registered_report_adapter_ids() == expected

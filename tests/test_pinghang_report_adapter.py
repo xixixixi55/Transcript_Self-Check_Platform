@@ -186,6 +186,26 @@ def _write_pinghang_fixture(
     return root
 
 
+def _write_pinghang_bundle(root: Path, *, unique_numbers: bool = True) -> Path:
+    first = _write_pinghang_fixture(
+        root / "SYNTHETIC-PACKAGE-Z", include_second_device=False,
+        include_owner_info=True,
+    )
+    second = _write_pinghang_fixture(
+        root / "SYNTHETIC-PACKAGE-A", include_second_device=False,
+        include_owner_info=True,
+    )
+    if unique_numbers:
+        device = second / "报告" / "data" / "ViewData" / "7_1.json"
+        device.write_text(
+            device.read_text(encoding="utf-8")
+            .replace("SYNTHETIC-EVIDENCE-20", "SYNTHETIC-EVIDENCE-10")
+            .replace("111111111111111", "444444444444444"),
+            encoding="utf-8",
+        )
+    return root
+
+
 def test_registry_and_snapshot_parse_pinghang_semantically(tmp_path):
     source = _write_pinghang_fixture(tmp_path)
 
@@ -215,6 +235,86 @@ def test_registry_and_snapshot_parse_pinghang_semantically(tmp_path):
         "333333333333333"
     )
     assert any(item.relative_path == "报告/data/navigation_data.js" for item in snapshot.dependencies)
+
+
+def test_pinghang_bundle_merges_direct_child_reports_into_one_snapshot(tmp_path):
+    source = _write_pinghang_bundle(tmp_path / "SYNTHETIC-BUNDLE")
+
+    match = detect_report_adapter(source)
+    snapshot = build_report_parse_input_snapshot(str(source))
+    report = parse_report(
+        str(source), str(tmp_path / "SYNTHETIC-OUTPUT"), compress=False,
+    )["report"]
+
+    assert match.adapter_id == "pinghang-mobile-multipath-bundle-v1"
+    assert snapshot.adapter_id == match.adapter_id
+    assert [row["evidence_number"] for row in snapshot.device_rows] == [
+        "SYNTHETIC-EVIDENCE-10", "SYNTHETIC-EVIDENCE-20",
+    ]
+    assert [item["evidence_number"] for item in report["introduction"]["evidence_list"]] == [
+        "SYNTHETIC-EVIDENCE-10", "SYNTHETIC-EVIDENCE-20",
+    ]
+    assert len(snapshot.dependencies) == 12
+    assert all(
+        item.relative_path.startswith("SYNTHETIC-PACKAGE-")
+        for item in snapshot.dependencies
+    )
+
+
+def test_pinghang_bundle_rejects_case_conflict_and_duplicate_material(tmp_path):
+    conflict = _write_pinghang_bundle(tmp_path / "SYNTHETIC-CONFLICT")
+    case_page = (
+        conflict / "SYNTHETIC-PACKAGE-A" / "报告" / "data" / "ViewData" / "11_1.json"
+    )
+    case_page.write_text(
+        case_page.read_text(encoding="utf-8").replace(
+            "SYNTHETIC-案件", "SYNTHETIC-冲突案件",
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ReportAdapterDetectionError, match="REPORT_ADAPTER_STRUCTURE_INVALID"):
+        detect_report_adapter(conflict)
+
+    duplicate = _write_pinghang_bundle(
+        tmp_path / "SYNTHETIC-DUPLICATE", unique_numbers=False,
+    )
+    with pytest.raises(ReportAdapterDetectionError, match="REPORT_ADAPTER_STRUCTURE_INVALID"):
+        detect_report_adapter(duplicate)
+
+    damaged = _write_pinghang_bundle(tmp_path / "SYNTHETIC-DAMAGED")
+    damaged_page = (
+        damaged / "SYNTHETIC-PACKAGE-A" / "报告" / "data" / "ViewData" / "11_1.json"
+    )
+    damaged_page.write_text(
+        ";static.report.records.data_11_1 = function(){return 'SYNTHETIC';};",
+        encoding="utf-8",
+    )
+    with pytest.raises(ReportAdapterDetectionError, match="REPORT_ADAPTER_STRUCTURE_INVALID"):
+        detect_report_adapter(damaged)
+
+
+def test_pinghang_bundle_does_not_recursively_discover_reports(tmp_path):
+    source = tmp_path / "SYNTHETIC-NESTED"
+    _write_pinghang_fixture(
+        source / "SYNTHETIC-CONTAINER-A" / "SYNTHETIC-PACKAGE-A",
+        include_second_device=False,
+    )
+    _write_pinghang_fixture(
+        source / "SYNTHETIC-CONTAINER-B" / "SYNTHETIC-PACKAGE-B",
+        include_second_device=False,
+    )
+
+    with pytest.raises(ReportAdapterDetectionError, match="REPORT_ADAPTER_NOT_FOUND"):
+        detect_report_adapter(source)
+
+
+def test_pinghang_bundle_rejects_more_than_256_direct_packages(tmp_path):
+    source = tmp_path / "SYNTHETIC-TOO-MANY"
+    for index in range(257):
+        (source / f"SYNTHETIC-PACKAGE-{index}" / "报告").mkdir(parents=True)
+
+    with pytest.raises(ReportAdapterDetectionError, match="REPORT_ADAPTER_STRUCTURE_INVALID"):
+        detect_report_adapter(source)
 
 
 def test_pinghang_device_name_prefers_phone_brand_and_internal_model(tmp_path):
@@ -659,6 +759,53 @@ def test_source_registration_records_pinghang_adapter_metadata(tmp_path):
     assert str(source) not in json.dumps(descriptor, ensure_ascii=False)
 
 
+def test_pinghang_bundle_source_enters_review_and_revalidates_child_core_files(tmp_path):
+    source = _write_pinghang_bundle(tmp_path / "SYNTHETIC-BUNDLE")
+    database = WorkbenchDatabase(
+        database_path_for_deployment(tmp_path, "SYNTHETIC-BUNDLE-DEPLOYMENT"),
+        "SYNTHETIC-BUNDLE-DEPLOYMENT",
+    )
+    source_service = SourceRecordService(
+        database,
+        ArchiveAuthorizationService(str(tmp_path / "SYNTHETIC-OUTPUT")),
+    )
+
+    descriptor = source_service.register_report_directory(str(source))
+    assert descriptor["metadata"]["adapter_id"] == (
+        "pinghang-mobile-multipath-bundle-v1"
+    )
+    assert descriptor["metadata"]["adapter_version"] == "1.0.0"
+
+    cases = CaseDraftService(
+        database,
+        source_service=source_service,
+        environment_service=_PassthroughEnvironment(),
+    )
+    identifiers = cases.submit(descriptor)
+    cases.run_parse_task(**identifiers)
+
+    detail = CaseLifecycleService(database).detail(identifiers["case_id"])
+    assert detail["shell"]["lifecycle"] == "review_ready"
+    assert [
+        item["evidence_number"]
+        for item in detail["draft"]["report"]["introduction"]["evidence_list"]
+    ] == ["SYNTHETIC-EVIDENCE-10", "SYNTHETIC-EVIDENCE-20"]
+    available = source_service.revalidate(identifiers["source_id"])
+    assert available["access_status"] == "available"
+
+    device = (
+        source / "SYNTHETIC-PACKAGE-Z" / "报告" / "data" / "ViewData" / "7_1.json"
+    )
+    device.write_text(
+        device.read_text(encoding="utf-8").replace(
+            "111111111111111", "999999999999999",
+        ),
+        encoding="utf-8",
+    )
+    changed = source_service.revalidate(identifiers["source_id"])
+    assert changed["access_status"] != "available"
+
+
 def test_pinghang_source_enters_existing_review_draft(tmp_path):
     source = _write_pinghang_fixture(tmp_path / "SYNTHETIC-REPORT")
     database = WorkbenchDatabase(
@@ -811,4 +958,28 @@ def test_pinghang_parse_and_source_verification_read_only_core_files_once(tmp_pa
     from app.services.source.source_record_fingerprint_service import fingerprint
     assert fingerprint(source, report_fingerprint=match.source_fingerprint)
     assert len(opened) == 6
+    assert set(opened.values()) == {1}
+
+
+def test_pinghang_bundle_parse_reads_each_child_core_file_once(tmp_path, monkeypatch):
+    source = _write_pinghang_bundle(tmp_path / "SYNTHETIC-BUNDLE-LIGHTWEIGHT")
+    from collections import Counter
+    opened = Counter()
+    original = Path.open
+
+    def tracked(path, *args, **kwargs):
+        if path.is_relative_to(source):
+            opened[path.relative_to(source).as_posix()] += 1
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", tracked)
+    parse_report(str(source), str(tmp_path / "SYNTHETIC-OUTPUT"), compress=False)
+
+    assert len(opened) == 12
+    assert set(opened.values()) == {1}
+    opened.clear()
+    match = detect_report_adapter(source)
+    from app.services.source.source_record_fingerprint_service import fingerprint
+    assert fingerprint(source, report_fingerprint=match.source_fingerprint)
+    assert len(opened) == 12
     assert set(opened.values()) == {1}
