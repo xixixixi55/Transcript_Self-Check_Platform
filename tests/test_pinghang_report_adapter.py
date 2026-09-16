@@ -217,6 +217,38 @@ def test_registry_and_snapshot_parse_pinghang_semantically(tmp_path):
     assert any(item.relative_path == "报告/data/navigation_data.js" for item in snapshot.dependencies)
 
 
+def test_pinghang_device_name_prefers_phone_brand_and_internal_model(tmp_path):
+    source = _write_pinghang_fixture(tmp_path, include_second_device=False)
+    device_page = source / "报告" / "data" / "ViewData" / "7_1.json"
+    device_page.write_text(_jsonp(7, _device([
+        ("设备名称", "SYNTHETIC OPPO A5 活力版 5G"),
+        ("显示名称", "SYNTHETIC OPPO A5 活力版 5G"),
+        ("检材编号", "SYNTHETIC-EVIDENCE-20"),
+        ("数据类型", "Android设备"),
+        ("手机厂商", "SYNTHETIC-MANUFACTURER-NOT-USED"),
+        ("设备品牌", "SYNTHETIC-DEVICE-BRAND-NOT-USED"),
+        ("手机品牌", "SYNTHETIC-OPPO"),
+        ("手机内部型号", "SYNTHETIC-PKV110"),
+        ("手机型号", "SYNTHETIC OPPO A5 活力版 5G"),
+        ("IMEI", "111111111111111"),
+        ("取证开始时间", "2026-01-02 03:10:00"),
+        ("取证结束时间", "2026-01-02 03:20:00"),
+    ])), encoding="utf-8")
+
+    snapshot = build_report_parse_input_snapshot(str(source))
+    report = parse_report(str(source), str(tmp_path / "output"), compress=False)["report"]
+    material = report["introduction"]["evidence_list"][0]
+
+    assert snapshot.device_base_info["SYNTHETIC-EVIDENCE-20"]["brand"] == (
+        "SYNTHETIC-OPPO"
+    )
+    assert snapshot.device_base_info["SYNTHETIC-EVIDENCE-20"]["model"] == (
+        "SYNTHETIC-PKV110"
+    )
+    assert material["device_name"] == "SYNTHETIC-OPPO SYNTHETIC-PKV110"
+    assert material["model"] == "SYNTHETIC-PKV110"
+
+
 def test_pinghang_owner_info_is_bound_to_its_parent_material(tmp_path):
     from app.services.canonical.pinghang_canonical_service import pinghang_snapshot_to_canonical
     source = _write_pinghang_fixture(tmp_path, include_owner_info=True)
@@ -622,7 +654,7 @@ def test_source_registration_records_pinghang_adapter_metadata(tmp_path):
     descriptor = service.register_report_directory(str(source))
 
     assert descriptor["metadata"]["adapter_id"] == "pinghang-mobile-multipath-v1"
-    assert descriptor["metadata"]["adapter_version"] == "1.6.0"
+    assert descriptor["metadata"]["adapter_version"] == "1.7.0"
     assert len(descriptor["metadata"]["adapter_structure_fingerprint"]) == 64
     assert str(source) not in json.dumps(descriptor, ensure_ascii=False)
 

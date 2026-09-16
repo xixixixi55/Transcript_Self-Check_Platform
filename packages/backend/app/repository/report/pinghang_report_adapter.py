@@ -23,7 +23,7 @@ from .report_parse_input_models import ReportParseInputError
 
 
 PINGHANG_ADAPTER_ID = "pinghang-mobile-multipath-v1"
-PINGHANG_ADAPTER_VERSION = "1.6.0"
+PINGHANG_ADAPTER_VERSION = "1.7.0"
 PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME = "平航手机多路分析取证软件"
 _MAX_SELECTED_PAGES = 4096
 _MAX_SELECTED_METADATA_BYTES = 32 * 1024 * 1024
@@ -173,8 +173,8 @@ def parse_pinghang_report(
         base = {
             "device_name": device_name,
             "device_type": device_type,
-            "brand": _first_field(fields, "设备品牌", "手机品牌"),
-            "model": _first_field(fields, "设备型号", "手机型号", "手机内部型号"),
+            "brand": _first_field(fields, "手机品牌", "设备品牌"),
+            "model": _first_field(fields, "手机内部型号", "设备型号", "手机型号"),
             "imei1": _first_field(fields, "IMEI", "IMEI1"),
             "imei2": _first_field(fields, "IMEI2"),
             "serial_number": _first_field(fields, "序列码", "序列号"),
