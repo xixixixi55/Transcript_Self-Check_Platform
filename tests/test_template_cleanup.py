@@ -64,6 +64,32 @@ def test_current_template_has_stable_fingerprint_and_no_retired_assets():
     assert sorted(path.name for path in CURRENT.parent.glob("*.docx")) == ["template.docx"]
 
 
+def test_current_template_uses_28_point_spacing_only_for_visible_body_paragraphs():
+    with zipfile.ZipFile(CURRENT) as package:
+        root = etree.fromstring(package.read("word/document.xml"))
+    body = root.find(f"{{{W_NS}}}body")
+    paragraphs = body.findall(f"./{{{W_NS}}}p")
+
+    visible_exact_28 = []
+    blank_exact_26 = []
+    for paragraph in paragraphs:
+        spacing = paragraph.find(f"./{{{W_NS}}}pPr/{{{W_NS}}}spacing")
+        if spacing is None or spacing.get(f"{{{W_NS}}}lineRule") != "exact":
+            continue
+        line = spacing.get(f"{{{W_NS}}}line")
+        text = "".join(paragraph.itertext()).strip()
+        if line == "560" and text:
+            visible_exact_28.append(paragraph)
+        elif line == "520" and not text:
+            blank_exact_26.append(paragraph)
+        else:
+            pytest.fail(f"unexpected exact line spacing: line={line}, text={text!r}")
+
+    assert len(visible_exact_28) == 27
+    assert len(blank_exact_26) == 3
+    assert len(root.findall(f".//{{{W_NS}}}spacing[@{{{W_NS}}}line='360'][@{{{W_NS}}}lineRule='auto']")) == 40
+
+
 def test_current_template_document_number_slot_is_right_aligned_without_padding():
     document_number = Document(CURRENT).paragraphs[1]
 

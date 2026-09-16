@@ -238,7 +238,7 @@ def _register_builtin_templates(
         asset_id,
         approval_id,
         current_asset,
-        "current-template-v1 已清除隐藏隐私元数据，正文与版式保持不变。",
+        "current-template-v1 已清除隐藏隐私元数据，可见正文使用固定 28 磅行距。",
     )
     retired_references = tuple(
         {"template_id": BUILTIN_TEMPLATE_ID, "version": version}

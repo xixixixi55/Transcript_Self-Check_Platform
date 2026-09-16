@@ -234,7 +234,7 @@ def _p(text: str, bold: bool = False, size: int = 16, align: str = "left",
         "size": f"{size}pt",
         "align": align,
         "font.ea": font_ea,
-        "spacing.line": "26pt",
+        "spacing.line": "28pt",
         "lineRule": "exact",
     }
     if spacing_after:

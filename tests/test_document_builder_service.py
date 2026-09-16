@@ -78,6 +78,17 @@ def test_build_document_right_aligns_document_number():
     assert document_number["props"]["align"] == "right"
 
 
+def test_build_document_uses_28_point_exact_line_spacing():
+    commands = build_record_document(_report())
+
+    introduction = next(
+        command for command in commands
+        if command.get("props", {}).get("text") == "一、绪论"
+    )
+    assert introduction["props"]["spacing.line"] == "28pt"
+    assert introduction["props"]["lineRule"] == "exact"
+
+
 def test_build_document_includes_inspector_position_without_blank_separator():
     report = _report()
     report["introduction"]["inspectors"] = [
