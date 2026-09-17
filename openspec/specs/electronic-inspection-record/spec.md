@@ -1366,9 +1366,9 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 
 应用停止达到有界等待上限时，属于本部署实例的 pending/running claim MUST 在 owner、attempt、task revision、lease 和 fence 条件仍成立时收敛为现有 `interrupted`/可恢复状态；不得把未完成工作标为 succeeded、completed 或 100%，不得改写其他部署实例的 claim。已经完成 durable 发布并通过可信完成门控的 attempt MUST 保持成功。重复停止、Worker 超时后的迟到返回和重启恢复 MUST 幂等。
 
-用户确认压缩期间不修改源目录后，归档执行 MUST 以 Worker 唯一完整 inventory 的路径、类型、大小和 mtime 作为容量规划与 Manifest 输入统计，WinRAR 直接读取授权源目录。产物生成后不得为证明源目录持续不变而再次执行全目录枚举；完成权威收敛到 RAR 完整性、连续分卷/容量、每卷所选算法摘要、durable intent、Manifest 与发布代次的物理文件校验。
+用户确认压缩期间不修改源目录后，归档执行 MUST 以 Worker 唯一完整 inventory 的路径、类型、大小和 mtime 作为容量规划与 Manifest 输入统计，WinRAR 直接读取授权源目录。产物生成后不得为证明源目录持续不变而再次执行全目录枚举；完成权威收敛到 RAR 完整性、连续分卷/容量、每卷首次计算的案件所选算法摘要、durable intent、Manifest 与发布代次的物理文件校验。
 
-正式发布到索引、Manifest/所选算法摘要确认和完成状态提交之间 MUST 继续核对同一 durable intent、fence、public Manifest、文件集合、顺序、字节数和摘要。正式卷、Manifest 或索引被替换、修改、删除、新增或重命名时 MUST 拒绝成功、复用、下载和 Word 导出；恢复遇到部分发布目录也不得直接提升为完成，不得删除或覆盖历史正式资产掩盖冲突。marker MUST 在 durable intent/fence 已建立且正式移动完成后才由明确发布所有者删除一次。
+正式发布到索引、Manifest/所选算法摘要确认和完成状态提交之间 MUST 继续核对同一 durable intent、fence、public Manifest、文件集合、顺序、字节数和首次计算的摘要。重启恢复若必须对尚未完成提交的密封发布执行内容校验，每个分卷 MUST 只计算一次案件所选算法摘要，并将本次已验证摘要与文件身份继续用于同一次完成提交，不得再次顺序读取完整 RAR。归档任务成功以后，结果查看、介质映射、下载和 Word 导出 MUST 复用已持久化的摘要，只核对发布绑定、文件安全类型、名称、存在性、字节数和 Manifest 结构元数据；这些后续操作 MUST NOT 再次顺序读取完整 RAR 或重新计算内容摘要。正式卷、Manifest 或索引出现可由上述身份或元数据检查观察到的替换、删除、新增、重命名或大小变化时 MUST 拒绝成功、复用、下载和 Word 导出；恢复遇到部分发布目录也不得直接提升为完成，不得删除或覆盖历史正式资产掩盖冲突。marker MUST 在 durable intent/fence 已建立且正式移动完成后才由明确发布所有者删除一次。
 
 归档尝试内部状态为 `accepted | running | succeeded | failed | interrupted`，另有 `cleanup_status` 为 `not_required | pending | succeeded | failed | unknown`。恢复主要处理未完成的 accepted/running；已完成但停在 indexed 的 intent 只允许补写最终 verified，绝不把 succeeded 改回 interrupted。新的用户确认必须创建新的 attempt_id，不得复用旧记录。attempt_id、revision、PID、内部 staging locator 和 marker 摘要只能用于后端归属证明和诊断，API、DTO、错误和普通日志不得返回这些内部字段。
 
@@ -1388,9 +1388,16 @@ SourceRecord 的生产可用性身份 MUST 使用 REQ-021 的授权路径、报�
 - THEN 系统不在 WinRAR 前后或发布前重复全量扫描源目录
 - AND 用户违反承诺导致的混合时点源内容不在额外检测保证内，但 WinRAR 或输出门观察到失败时不得发布成功
 
-#### Scenario: 正式产物变化
-- WHEN staging 或正式发布目录中的任一卷、Manifest 或索引在后续门控前被修改、替换、删除、新增或重命名
-- THEN 系统拒绝完成、复用、下载和 Word 导出，不污染历史正式资产
+#### Scenario: 正式产物在完成后被复用
+- WHEN 已成功发布的 RAR 被当前工作台或兼容旧接口用于结果查看、介质映射、下载或完成导出
+- THEN 系统验证其发布绑定、普通文件安全类型、文件名、存在性、字节数和 Manifest 结构元数据
+- AND 系统直接使用 Manifest 中首次计算并持久化的案件所选算法摘要，不重新读取完整 RAR 计算摘要
+- AND 文件缺失、名称变化、大小变化、非普通文件或发布绑定不一致仍须拒绝复用；仅内容变化且所有受检元数据保持不变不在后续重复校验保证内
+
+#### Scenario: 重启恢复复用单次内容校验
+- WHEN 重启恢复对尚未完成提交但已有密封发布证据的 RAR 执行完整内容校验
+- THEN 系统对每个分卷只计算一次案件所选算法摘要
+- AND 完成状态提交复用本次已验证摘要及文件身份；文件在校验后被替换时仍须拒绝，不得以避免重复哈希绕过发布一致性
 
 #### Scenario: 重启后不自动接管归档资源
 - WHEN 应用重启时存在未完成的 Legacy 归档尝试、WinRAR 进程或 staging
@@ -1865,7 +1872,7 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 #### Scenario: 压缩后输入首个盘号自动映射
 - WHEN 压缩完成后用户输入首个光盘编号
 - THEN 标准分卷系统校验盘号格式与日期，同时接受 `GPyyyyMMdd-序号` 和 `GPyyyyMMddXX-序号`（`XX` 为两位用户标识），按 part 顺序自动生成全序列并一一映射到各 RAR
-- AND 映射结果持久化，案件从「待补盘号」转为「归档完成」候选
+- AND 映射结果持久化到该成功任务 Manifest 明确绑定的归档计划，案件从「待补盘号」转为「归档完成」候选；不得因同一案件存在较新的其他计划而更新错误计划
 - AND 盘号仍可按 REQ-018 约定在案件内唯一前提下由用户修改，允许不连续，刻录日期独立保存
 
 #### Scenario: 超大单卷输入硬盘编号
@@ -1879,7 +1886,8 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - THEN 审核编辑界面保持可用的编号编辑入口，并以当前持久化映射作为输入初值
 - AND 系统按当前归档模式重建并持久化 RAR↔介质编号映射，不重新压缩 RAR
 - AND 提交必须携带界面读取映射时的 plan 行 revision；过期 revision 必须拒绝，不能静默覆盖另一页面的新映射
-- AND 每次成功后界面必须重读最新映射及 plan 行 revision，并允许继续修改；压缩后的映射以归档计划为事实源，不得因额外写回草稿兼容字段制造案件 revision 冲突
+- AND 每次成功后界面必须重读最新映射及 plan 行 revision，并允许继续修改；压缩后的映射以成功任务 Manifest 绑定的归档计划为事实源，不得因额外写回草稿兼容字段制造案件 revision 冲突
+- AND Word 内容预览、附件待核对状态和当前介质输入 MUST 使用重读后的归档映射即时投影介质编号及其日期，不要求刷新页面，也不得等待或依赖案件草稿写回
 - AND 若同一页面存在尚未收敛的图片绑定或其他审核字段保存，介质编号提交前必须先等待本页写入完成并重读最新案件 revision；不得把本页保存推进的 revision 误报为其他会话修改，真正过期的案件 revision 仍必须由并发保护拒绝
 - AND 修改后的映射用于后续工作台完成导出
 
@@ -2062,12 +2070,17 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 
 ### Requirement: REQ-UNIFIED-EXPORT-TIMEOUT: 大体积统一导出不得使用普通请求超时
 
-前端 MUST 为包含 Word、RAR 复制和哈希校验的统一导出使用专用长超时，并将后端安全拒绝映射为可区分的业务提示。
+前端 MUST 为包含 Word 生成和必要 RAR 迁移的统一导出使用专用长超时，并将后端安全拒绝映射为可区分的业务提示。归档成功后的统一导出 MUST 复用 Manifest 已持久化的摘要，不因 RAR 体积增加而再次执行整包哈希校验。
 
 #### Scenario: 统一导出超过三十秒
-- WHEN Word、RAR 复制和 HashMyFiles 校验合计耗时超过普通工作台请求超时
+- WHEN Word 生成和必要 RAR 迁移合计耗时超过普通工作台请求超时
 - THEN 前端继续等待统一导出的专用长超时结果
 - AND 若后端拒绝目录授权、归档结果不可用或导出路径无效，界面显示对应安全提示而非通用“请求未完成”
+
+#### Scenario: 已发布 RAR 参与完成导出
+- WHEN 工作台完成导出读取已成功发布并登记到 Manifest 的一个或多个 RAR
+- THEN 后端不得重新读取完整 RAR 计算摘要，导出耗时不应随 RAR 内容体积产生第二次哈希扫描
+- AND 历史工作区 RAR 必须迁移时，副本发布前仍检查安全文件类型和预期字节数，但不得对原件或副本执行内容摘要重算
 
 ### Requirement: REQ-ARCHIVE-OWNERSHIP-CAS
 
@@ -2312,15 +2325,15 @@ Phase 3 开始前 MUST 完成 WinRAR 进度能力 spike 和明确产品/架构�
 - **THEN** 拒绝导出并保留可重试产物，不退回历史路径
 
 ### Requirement: 最终压缩包仅保留一份
-系统 SHALL 在用户点击立即压缩时，以案件绑定的 HTML 报告文件夹的上一级目录作为压缩输出工作位置。在该目录的任务独占临时子目录中生成并校验 RAR 后，系统 SHALL 通过同卷排他重命名将分卷发布到该上级目录，持久登记其唯一最终位置；不得先在应用输出工作区生成 RAR 再复制。工作台以 SQLite 保存发布权威，应用工作区只为无数据库旧流程保留文件索引兼容。完成导出 SHALL 直接复用已校验 RAR，仅生成 Word。历史工作区产物保留兼容迁移能力。
+系统 SHALL 在用户点击立即压缩时，以案件绑定的 HTML 报告文件夹的上一级目录作为压缩输出工作位置。在该目录的任务独占临时子目录中生成并完成首次 RAR 内容校验后，系统 SHALL 通过同卷排他重命名将分卷发布到该上级目录，持久登记其唯一最终位置；不得先在应用输出工作区生成 RAR 再复制。工作台以 SQLite 保存发布权威，应用工作区只为无数据库旧流程保留文件索引兼容。完成导出 SHALL 直接复用已校验 RAR 及其 Manifest 摘要，仅生成 Word，不再次执行完整 RAR 内容校验。历史工作区产物保留兼容迁移能力。
 
 #### Scenario: 立即压缩直接落盘
 - **WHEN** 用户选择 `D:\案件A\报告\index.html` 所在报告目录并点击立即压缩
-- **THEN** 临时 RAR 与最终 RAR 均位于 `D:\案件A` 所在卷，完成后 RAR 直接位于 `D:\案件A`，后续完成导出不复制该 RAR
+- **THEN** 临时 RAR 与最终 RAR 均位于 `D:\案件A` 所在卷，完成后 RAR 直接位于 `D:\案件A`，后续完成导出不复制该 RAR，也不重新读取完整 RAR 计算摘要
 
 #### Scenario: 成功压缩并重启
 - **WHEN** 压缩成功并重启服务后导出
-- **THEN** 读取并校验报告上级目录中的同一份 RAR，不再次复制或压缩，只生成最新 Word
+- **THEN** 读取并核对报告上级目录中同一份 RAR 的发布绑定、安全文件类型、名称、存在性、字节数和 Manifest 结构元数据，不再次复制、压缩或计算内容摘要，只生成最新 Word
 
 #### Scenario: 发布失败或冲突
 - **WHEN** 目标同名 RAR 已存在且非本次拥有的文件，或写入、登记失败

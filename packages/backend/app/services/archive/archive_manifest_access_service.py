@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ...repository.source.filesystem_identity_repository import directory_content_fingerprint
 from .archive_manifest_output_security_service import compute_manifest_disc_capacity
-from .archive_manifest_service import validate_manifest_files
+from .archive_manifest_service import validate_manifest_metadata
 from .archive_runtime_service import ARCHIVE_RUNTIME_STORE, ArchiveManifestRecord, ArchiveRuntimeError
 from ..export.export_gate_service import ExportGateCode, ExportGateIssue
 from ..integrity.hash_algorithm_service import report_hash_algorithm
@@ -122,7 +122,7 @@ def get_manifest_part_download(
 
 
 def _raise_manifest_file_error(record: ArchiveManifestRecord) -> None:
-    code = validate_manifest_files(record)
+    code = validate_manifest_metadata(record)
     if code:
         messages = {
             "ARCHIVE_MANIFEST_PART_MISSING": "归档分卷不存在。",

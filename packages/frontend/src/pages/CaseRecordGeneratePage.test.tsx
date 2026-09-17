@@ -20,6 +20,8 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   let initialLifecycle: CaseShell['lifecycle'] = 'review_ready'
   let resolveSave: (() => void) | null = null, resolveDirectory: (() => void) | null = null
   let archiveResultParts: ArchiveTaskResult['parts'] | null = null
+  let archiveResultMode: ArchiveTaskResult['archive_mode'] = 'standard_split'
+  let archiveResultMedium: ArchiveTaskResult['archive_medium'] = 'optical_disc'
   let persistedCaseRevision = 5, archivePlanRowRevision = 4
   beforeAll(() => {
     Object.defineProperty(window, 'matchMedia', { writable: true, value: () => ({ matches: false, media: '', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }) })
@@ -27,7 +29,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
   })
   beforeEach(() => {
     window.localStorage.clear()
-    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showManualReviewComplete = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; showHandledDiscNumber = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; emptyInspectors = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; persistedCaseRevision = 5; archivePlanRowRevision = 4
+    vi.clearAllMocks(); detailReads = 0; decisionBodies = []; events = []; rejectSave = false; conflictSave = false; failSharedDefaults = false; conflictDecision = false; holdSave = false; holdDirectory = false; leaseFailure = false; leaseConflict = false; showCompletedArchive = false; showGuidedReady = false; showManualReviewComplete = false; showDeferredTerminal = false; showPhotoPending = false; showHandledHistory = false; showHandledCompleteness = false; showHandledCaseSummary = false; showHandledDiscNumber = false; caseSummaryConfirmationSaved = false; useExportedLifecycle = false; sourcePending = false; recoverPhotoOnLoad = false; failPhotoAssetList = false; failPhotoAssetRead = false; unextractableWithoutReason = false; emptyInspectors = false; initialLifecycle = 'review_ready'; resolveSave = null; resolveDirectory = null; archiveResultParts = null; archiveResultMode = 'standard_split'; archiveResultMedium = 'optical_disc'; persistedCaseRevision = 5; archivePlanRowRevision = 4
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     getMock.mockImplementation(async (url: string) => {
       if (url === API_ENDPOINTS.WORKBENCH_DEFAULTS) return { data: { data: defaults } }
@@ -125,7 +127,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
       }
       if (url === API_ENDPOINTS.WORKBENCH_TASK(task.task_id)) return { data: { data: task } }
       if (url === API_ENDPOINTS.WORKBENCH_ARCHIVE_TASK_RESULT(archiveTaskSummary.task_id)) {
-        return { data: { data: { ...completedArchiveResult, plan_row_revision: archivePlanRowRevision, parts: archiveResultParts ?? completedArchiveResult.parts } } }
+        return { data: { data: { ...completedArchiveResult, archive_mode: archiveResultMode, archive_medium: archiveResultMedium, plan_row_revision: archivePlanRowRevision, parts: archiveResultParts ?? completedArchiveResult.parts } } }
       }
       if (url === API_ENDPOINTS.WORKBENCH_CASE_ASSETS(caseId)) {
         if (failPhotoAssetList) throw { response: { data: { detail: { code: 'PHOTO_BINDING_CONFLICT' } } } }
@@ -533,8 +535,9 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     expect(savedDraft.report.attachments.disc_number).toBe('YP2026073102-009')
   }, 15000)
 
-  it('allows repeated disc mapping updates without creating a competing draft revision', async () => {
-    archiveResultParts = completedArchiveResult.parts.map(part => ({ ...part, disc_number: '', disc_date: '' }))
+  it('projects repeated hard-drive mappings into the Word preview without a draft writeback', async () => {
+    archiveResultMode = 'oversized_single_volume'; archiveResultMedium = 'hard_drive'
+    archiveResultParts = [{ ...completedArchiveResult.parts[0], disc_number: '', disc_date: '' }]
     showCompletedArchive = true; showGuidedReady = true; holdSave = true
     renderPage()
     const historyRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
@@ -542,19 +545,26 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     const deviceInput = within(historyRegion).getByDisplayValue('SYNTHETIC Phone')
     fireEvent.change(deviceInput, { target: { value: 'SYNTHETIC Updated Phone' } }); fireEvent.blur(deviceInput)
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1))
-    await selectGuidedAction('介质编号')
-    expect(await screen.findByText('待补盘号')).toBeTruthy()
-    fireEvent.change(await screen.findByPlaceholderText('如 GP2026073102-01'), { target: { value: 'GP2026073102-01' } })
-    fireEvent.click(screen.getByRole('button', { name: /提交盘号映射/ }))
+    await selectGuidedAction('硬盘编号')
+    expect(await screen.findByText('待补硬盘编号')).toBeTruthy()
+    fireEvent.change(await screen.findByPlaceholderText('如 YP2026041302-01'), { target: { value: 'YP2026073102-01' } })
+    fireEvent.click(screen.getByRole('button', { name: /提交硬盘编号/ }))
     expect(postMock.mock.calls.some(([url]) => url === API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId))).toBe(false)
     holdSave = false; resolveSave?.(); resolveSave = null
-    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 6, expected_plan_row_revision: 4, first_disc_number: 'GP2026073102-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
+    await waitFor(() => expect(postMock).toHaveBeenCalledWith(API_ENDPOINTS.WORKBENCH_ARCHIVE_DISC_MAPPING(caseId), { expected_revision: 6, expected_plan_row_revision: 4, first_disc_number: 'YP2026073102-01' }, { timeout: WORKBENCH_REQUEST_TIMEOUT_MS }))
     await waitFor(() => expect(screen.getByText('归档完成')).toBeTruthy())
-    expect((screen.getByRole('textbox', { name: '首个光盘编号' }) as HTMLInputElement).value).toBe('GP2026073102-01')
+    let currentHistoryRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
+    await within(currentHistoryRegion).findByText('YP2026073102-01')
+    let burningDateField = within(currentHistoryRegion).getByText('刻录时间：').closest('.guided-review-history__field')
+    expect(within(burningDateField as HTMLElement).getByText('2026年7月31日')).toBeTruthy()
     await new Promise(resolve => setTimeout(resolve, 800))
-    fireEvent.change(screen.getByRole('textbox', { name: '首个光盘编号' }), { target: { value: 'GP2026073102-03' } })
-    fireEvent.click(screen.getByRole('button', { name: '更新盘号映射' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '硬盘编号' }), { target: { value: 'YP2026080102-03' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新硬盘编号' }))
     await waitFor(() => expect(archivePlanRowRevision).toBe(6))
+    currentHistoryRegion = await screen.findByRole('region', { name: 'Word 内容预览' })
+    await within(currentHistoryRegion).findByText('YP2026080102-03')
+    burningDateField = within(currentHistoryRegion).getByText('刻录时间：').closest('.guided-review-history__field')
+    expect(within(burningDateField as HTMLElement).getByText('2026年8月1日')).toBeTruthy()
     expect(patchMock).toHaveBeenCalledTimes(1)
   }, 15000)
   it('blocks browser and SPA navigation until recovered photo bindings finish saving', async () => {

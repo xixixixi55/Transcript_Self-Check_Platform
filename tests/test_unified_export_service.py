@@ -114,7 +114,7 @@ def test_direct_export_ignores_corrupt_legacy_location_registry(database, tmp_pa
     assert len(list(target.glob("*.rar"))) == 2
 
 
-@pytest.mark.parametrize("failure", ["existing", "during_copy", "registry", "corrupt_copy"])
+@pytest.mark.parametrize("failure", ["existing", "during_copy", "registry", "short_copy"])
 def test_relocation_failure_preserves_originals_and_external_files(database, tmp_path, monkeypatch, failure):
     from app.repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
     source = tmp_path / "SYNTHETIC-WORK"
@@ -127,11 +127,11 @@ def test_relocation_failure_preserves_originals_and_external_files(database, tmp
     word = target / "SYNTHETIC-CASE.docx"
     word.write_bytes(b"SYNTHETIC/OLD-WORD")
     monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
-    if failure == "corrupt_copy":
+    if failure == "short_copy":
         original_copy = unified_export_service.shutil.copy2
         def corrupt_copy(source_path, target_path):
             original_copy(source_path, target_path)
-            Path(target_path).write_bytes(b"SYNTHETIC/BAD")  # 与原件长度相同的损坏副本。
+            Path(target_path).write_bytes(b"BAD")
         monkeypatch.setattr(unified_export_service.shutil, "copy2", corrupt_copy)
     elif failure == "existing":
         (target / filename).write_bytes(b"SYNTHETIC/UNRELATED")
@@ -152,6 +152,31 @@ def test_relocation_failure_preserves_originals_and_external_files(database, tmp
         assert (target / filename).read_bytes() == b"SYNTHETIC/UNRELATED"
     else:
         assert not list(target.glob("*.rar"))
+
+
+def test_relocation_does_not_rehash_same_size_copy(database, tmp_path, monkeypatch):
+    """SYNTHETIC：历史迁移只检查安全文件类型与字节数，不做第二次内容哈希。"""
+    source = tmp_path / "SYNTHETIC-WORK"
+    target = tmp_path / "SYNTHETIC-PARENT"
+    source.mkdir(); target.mkdir()
+    for part in manifest()["parts"]:
+        (source / part["filename"]).write_bytes(b"SYNTHETIC/RAR")
+    original_copy = unified_export_service.shutil.copy2
+
+    def same_size_copy(source_path, target_path):
+        original_copy(source_path, target_path)
+        Path(target_path).write_bytes(b"SYNTHETIC/BAD")
+
+    monkeypatch.setattr(unified_export_service.shutil, "copy2", same_size_copy)
+    monkeypatch.setattr(unified_export_service, "generate_docx", fake_docx)
+
+    result = unified_export(
+        report={}, manifest=manifest(), final_dir=source, export_path=target,
+        photo_paths=[], template_context={}, database=database, case_id=CASE_ID,
+        relocate=True,
+    )
+
+    assert result["rar_filenames"] == [part["filename"] for part in manifest()["parts"]]
 
 
 @pytest.mark.parametrize("ordinals", [[], [1], [1, 1], [1, 3]])

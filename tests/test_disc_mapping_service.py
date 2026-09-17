@@ -172,6 +172,29 @@ def test_apply_disc_mapping_uses_plan_revision_for_cas(database: WorkbenchDataba
     assert active_slots(reopened)[0]["disc_mapping"]["disc_number"] == "GP2026071802-01"
 
 
+def test_apply_disc_mapping_targets_manifest_bound_plan(database: WorkbenchDatabase) -> None:
+    """SYNTHETIC：成功任务绑定计划不能被同案件较新计划替代。"""
+    repository = ArchivePlanRepository(database)
+    bound = repository.create({
+        "plan_id": "SYNTHETIC-BOUND-PLAN", "case_id": CASE_ID,
+        "plan_revision": 1, "input_inventory_revision": 4, "mapping_revision": 0,
+        "volume_slots": [slot("SYNTHETIC-BOUND-SLOT", 1)],
+    })
+    newer = repository.create({
+        "plan_id": "SYNTHETIC-NEWER-PLAN", "case_id": CASE_ID,
+        "plan_revision": 2, "input_inventory_revision": 5, "mapping_revision": 0,
+        "volume_slots": [slot("SYNTHETIC-NEWER-SLOT", 1)],
+    })
+
+    apply_disc_mapping(
+        database, CASE_ID, 9, bound["revision"], "GP2026071802-01",
+        plan_id=bound["plan_id"],
+    )
+
+    assert active_slots(repository.get(bound["plan_id"]))[0]["disc_mapping"]["disc_number"] == "GP2026071802-01"
+    assert active_slots(repository.get(newer["plan_id"]))[0]["disc_mapping"] is None
+
+
 def test_first_mapped_disc_number_requires_every_active_slot_confirmed(database: WorkbenchDatabase) -> None:
     ArchivePlanRepository(database).create({
         "plan_id": "SYNTHETIC-DISC-PLAN-INCOMPLETE", "case_id": CASE_ID,

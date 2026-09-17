@@ -22,8 +22,6 @@ from ...config import OUTPUT_BASE
 from ...repository.case.audit_event_repository import AuditEventRepository
 from ...repository.case.local_case_export_directory_repository import LocalCaseExportDirectoryRepository
 from ...repository.workbench.workbench_database import WorkbenchDatabase
-from ...repository.archive.archive_hash_repository import compute_hash_streaming
-from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash
 from ..attachment.attachment2_image_service import Attachment2ImageError
 from ..attachment.attachment_plan_models_service import AttachmentPlanError
 from ..document.record_generator_service import generate_docx
@@ -118,15 +116,13 @@ def unified_export(
             if not already_at_destination:
                 shutil.copy2(rar, staging_path / rar.name)
         if not already_at_destination:
-            # 历史工作区迁移只有副本校验通过后才能发布、登记并清理原件。
+            # 历史工作区迁移只复核安全文件类型和预期字节数。内容摘要已经在
+            # 归档发布时计算并进入 Manifest，完成导出不得再次顺序读取大 RAR。
             for part in parts:
                 copied = staging_path / str(part["filename"])
                 try:
                     assert_safe_output_file(copied)
-                    algorithm, expected_hash = manifest_part_business_hash(part)
-                    if copied.stat().st_size != part["size_bytes"] or compute_hash_streaming(
-                        copied, staging_path, algorithm,
-                    ).lower() != expected_hash.lower():
+                    if copied.stat().st_size != part["size_bytes"]:
                         raise ValueError("ARCHIVE_COPY_CHANGED")
                 except (OSError, ValueError, KeyError) as error:
                     raise UnifiedExportError(

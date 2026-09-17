@@ -394,30 +394,41 @@ def validate_manifest_files(
 def validate_manifest_metadata(record) -> str | None:
     """验证已认证的 Manifest 标识和物理元数据，不执行内容 I/O。
 
-    调用方必须先根据持久发布摘要认证 Manifest 及其所选哈希。正式下载、导出和复用
-    路径仍在不提供可信哈希的情况下调用 `validate_manifest_files`。
+    调用方必须先根据持久发布摘要认证 Manifest 及其所选哈希。归档成功后的结果查看、
+    下载、导出和复用路径使用本函数，不再重新读取完整 RAR 计算内容摘要。
     """
 
-    parts = record.public_manifest.get("parts")
-    if not isinstance(parts, list) or not parts:
+    trusted_hashes = persisted_manifest_hashes(record.public_manifest)
+    if trusted_hashes is None:
         return "ARCHIVE_MANIFEST_INVALID"
+    return validate_manifest_files(record, verified_hashes=trusted_hashes)
+
+
+def persisted_manifest_hashes(manifest: object) -> dict[str, str] | None:
+    """读取持久 Manifest 的单一算法摘要，不触碰归档文件内容。"""
+
+    if not isinstance(manifest, dict):
+        return None
+    parts = manifest.get("parts")
+    if not isinstance(parts, list) or not parts:
+        return None
     trusted_hashes: dict[str, str] = {}
     algorithms: set[str] = set()
     for item in parts:
         if not isinstance(item, dict):
-            return "ARCHIVE_MANIFEST_INVALID"
+            return None
         filename = item.get("filename")
         try:
             algorithm, digest = manifest_part_business_hash(item)
         except ValueError:
-            return "ARCHIVE_MANIFEST_INVALID"
+            return None
         if (
             not isinstance(filename, str)
             or filename in trusted_hashes
         ):
-            return "ARCHIVE_MANIFEST_INVALID"
+            return None
         algorithms.add(algorithm)
         trusted_hashes[filename] = digest
     if len(algorithms) != 1:
-        return "ARCHIVE_MANIFEST_INVALID"
-    return validate_manifest_files(record, verified_hashes=trusted_hashes)
+        return None
+    return trusted_hashes

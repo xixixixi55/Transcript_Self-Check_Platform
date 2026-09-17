@@ -112,15 +112,19 @@ def apply_disc_mapping(
     expected_plan_row_revision: int,
     first_disc_number: str,
     archive_mode: str = "standard_split",
+    *,
+    plan_id: str | None = None,
 ) -> dict[str, Any]:
-    """将 `first_disc_number` 的序列映射到最新案件计划。
+    """将首个介质编号的序列映射到指定或最新案件计划。
 
     `expected_revision` 保护案件外壳（由调用方检查）；计划写入本身由计划记录自身的
     修订号通过 CAS 保护，因此两个独立计数器不会冲突。返回更新后的计划投影。
     """
     repository = ArchivePlanRepository(database)
-    plan = repository.get_latest_for_case(case_id)
+    plan = repository.get(plan_id) if plan_id else repository.get_latest_for_case(case_id)
     if plan is None:
+        raise DiscMappingError("ARCHIVE_PLAN_NOT_FOUND", "案件尚无归档计划。")
+    if plan["case_id"] != case_id:
         raise DiscMappingError("ARCHIVE_PLAN_NOT_FOUND", "案件尚无归档计划。")
     slots = active_slots(plan)
     if not slots:

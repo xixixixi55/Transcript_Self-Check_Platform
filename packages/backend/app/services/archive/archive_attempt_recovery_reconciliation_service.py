@@ -21,7 +21,12 @@ from .archive_input_snapshot_files_service import (
     assert_marker, assert_snapshot_tree_safe, make_tree_writable,
     resolve_snapshot_dir, snapshot_name_matches_id,
 )
-from .archive_manifest_service import validate_manifest_files
+from .archive_manifest_service import (
+    ArchiveFileIdentity,
+    capture_archive_file_identities,
+    persisted_manifest_hashes,
+    validate_manifest_files,
+)
 from .archive_runtime_service import ArchiveManifestRecord
 from .archive_staging_security_service import cleanup_owned_staging
 from .archive_publication_identity_service import publication_digest
@@ -251,11 +256,25 @@ def _recover_published_intent(
         record.logical_final_dir = final_dir
         record.final_dir = actual
         record.external_export = True
+    verified_hashes = persisted_manifest_hashes(record.public_manifest)
+    if verified_hashes is None:
+        raise _RecoveryConflictError("ARCHIVE_MANIFEST_INVALID")
+    verified_file_identities: dict[str, ArchiveFileIdentity]
     try:
         if not final_dir.is_dir():
             return False
-        integrity_error = validate_manifest_files(record)
-    except (OSError, PermissionError) as error:
+        metadata_error = validate_manifest_files(
+            record, verified_hashes=verified_hashes,
+        )
+        if metadata_error is not None:
+            raise _RecoveryConflictError(metadata_error)
+        verified_file_identities = capture_archive_file_identities(
+            Path(record.final_dir), set(verified_hashes),
+        )
+        integrity_error = validate_manifest_files(
+            record, verified_file_identities=verified_file_identities,
+        )
+    except (OSError, PermissionError, ValueError) as error:
         raise _RecoveryTransientError() from error
     if integrity_error is not None:
         raise _RecoveryConflictError(integrity_error)
@@ -298,7 +317,12 @@ def _recover_published_intent(
         if intent["phase"] == "published":
             intents.mark_phase(attempt["attempt_id"], "indexed")
         from .archive_attempt_completion_service import complete_verified
-        complete_verified(service, attempt["attempt_id"], registry, record, recovery=attempt["status"] != "succeeded")
+        complete_verified(
+            service, attempt["attempt_id"], registry, record,
+            recovery=attempt["status"] != "succeeded",
+            verified_hashes=verified_hashes,
+            verified_file_identities=verified_file_identities,
+        )
         if record.external_export:
             _cleanup_interrupted(service, attempt)
         current = intents.get_for_attempt(attempt["attempt_id"])

@@ -7,7 +7,7 @@ import { useCaseRecordSession } from '../hooks/useCaseRecordSession'
 import { useRecordEditorCatalogs } from '../hooks/useRecordEditorCatalogs'
 import { CASE_SUMMARY_CONFIRMATION_FIELD_PATH, getReviewPendingItems, REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
 import { useReviewWorkspaceShortcuts as useShortcuts } from '../hooks/useReviewWorkspaceShortcuts'
-import { projectEvidenceDerivedContent } from '@biji/shared/utils'
+import { applyReportEdit, projectEvidenceDerivedContent } from '@biji/shared/utils'
 import { CaseStatusBadge } from '../components/CaseStatusBadge'
 import { SourceReselectionPanel } from '../components/SourceReselectionPanel'
 import { ArchiveDecisionPanel } from '../components/ArchiveDecisionPanel'
@@ -29,10 +29,16 @@ export default function CaseRecordGeneratePage() {
   // 压缩完成前，接受用户输入的任一种介质前缀。
   // 验证结果随后将同一编辑器切换为精确的 GP/YP 契约。
   const archiveMedium = session.completedArchive.result?.archive_medium ?? null
-  const projectedReport = useMemo(
-    () => session.report ? projectEvidenceDerivedContent(session.report) : null,
-    [session.report],
-  )
+  const archiveMappedDiscNumber = session.completedArchive.result
+    ? String(session.completedArchive.result.parts[0]?.disc_number || '').trim()
+    : null
+  const projectedReport = useMemo(() => {
+    if (!session.report) return null
+    const projected = projectEvidenceDerivedContent(session.report)
+    return archiveMappedDiscNumber === null
+      ? projected
+      : applyReportEdit(projected, 'attachments.disc_number', archiveMappedDiscNumber)
+  }, [archiveMappedDiscNumber, session.report])
   const pendingItems = useMemo(
     () => projectedReport ? getReviewPendingItems(projectedReport, undefined, archiveMedium, session.draft?.field_states) : [],
     [archiveMedium, projectedReport, session.draft?.field_states],
@@ -263,7 +269,7 @@ export default function CaseRecordGeneratePage() {
       parts={session.completedArchive.result?.parts ?? null}
       planRowRevision={session.completedArchive.result?.plan_row_revision ?? null}
       archiveMedium={archiveMedium}
-      firstDiscNumber={session.report.attachments?.disc_number || ''}
+      firstDiscNumber={projectedReport?.attachments?.disc_number || ''}
       onFirstDiscNumberChange={value => updateReport('attachments.disc_number', value)}
       resolveExpectedRevision={resolveArchiveMappingRevision}
       readOnly={!session.editingEnabled} controlsOnly

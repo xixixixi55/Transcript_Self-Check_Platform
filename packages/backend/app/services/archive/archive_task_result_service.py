@@ -16,7 +16,7 @@ from ...repository.case.local_case_export_directory_repository import LocalCaseE
 from ...repository.integrity.hash_algorithm_repository import manifest_part_business_hash
 from ...repository.workbench.workbench_errors import WorkbenchPersistenceError
 from .archive_attempt_service import ArchiveAttemptService
-from .archive_manifest_service import validate_manifest_files, validate_manifest_metadata
+from .archive_manifest_service import validate_manifest_metadata
 from .archive_publication_identity_service import assert_publication_identity
 from ..disc.disc_sequence_service import archive_medium_for_mode
 
@@ -60,7 +60,6 @@ class ArchiveTaskResultService:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")
         manifest, _repository = self._verified_manifest(
             task_id, str(attempt_id), str(attempt["manifest_id"]),
-            verify_content=False,
         )
         archive_mode = str(manifest.public_manifest.get("archive_mode") or "standard_split")
         plan_id = str(manifest.public_manifest.get("plan_id") or "")
@@ -160,8 +159,7 @@ class ArchiveTaskResultService:
         return str(part["filename"]), path
 
     def _verified_manifest(
-        self, task_id: str, attempt_id: str, manifest_id: str, *,
-        verify_content: bool = True,
+        self, task_id: str, attempt_id: str, manifest_id: str,
     ) -> Any:
         matches = []
         intent = ArchivePublishIntentRepository(self.attempts.database).get_for_attempt(attempt_id)
@@ -232,11 +230,9 @@ class ArchiveTaskResultService:
             assert_publication_identity(record, intent)
         except WorkbenchPersistenceError as error:
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE") from error
-        validation_error = (
-            validate_manifest_files(view)
-            if verify_content
-            else validate_manifest_metadata(view)
-        )
+        # RAR 内容摘要已在归档发布前计算并持久化。成功后的结果查看、下载和
+        # 完成导出只复核发布绑定与文件元数据，避免按 RAR 体积再次顺序读取。
+        validation_error = validate_manifest_metadata(view)
         if validation_error is not None:
             logger.warning("Archive result unavailable: task=%s reason=%s", task_id, validation_error)
             raise WorkbenchPersistenceError("ARCHIVE_RESULT_NOT_AVAILABLE")

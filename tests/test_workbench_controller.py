@@ -1373,6 +1373,7 @@ def test_archive_mapping_and_verified_result_routes(app_services):
         (final_dir / filename).write_bytes(payload)
         public_manifest = {
             "manifest_id": "SYNTHETIC-MANIFEST-API",
+            "plan_id": plan["plan_id"],
             "archive_base_name": "SYNTHETIC-RESULT",
             "volume_size_bytes": 4_000_000_000,
             "max_part_count": 1,
@@ -1436,13 +1437,10 @@ def test_archive_mapping_and_verified_result_routes(app_services):
         assert case_shell["archive_task_summary"]["status"] == "succeeded"
         with patch(
             "app.services.archive.archive_manifest_service.compute_hash_streaming",
-            side_effect=lambda path, _root, algorithm: hashlib.new(
-                algorithm, path.read_bytes(),
-            ).hexdigest(),
-        ) as compute_hash:
+            side_effect=AssertionError("已成功归档的 RAR 不得在结果复用时重新计算哈希"),
+        ):
             result = client.get(f"/api/v1/workbench/tasks/{done['task_id']}/result")
             assert result.status_code == 200, result.text
-            assert compute_hash.call_count == 0
             assert result.json()["data"]["manifest_id"] == "SYNTHETIC-MANIFEST-API"
             assert result.json()["data"]["archive_mode"] == "standard_split"
             assert result.json()["data"]["archive_medium"] == "optical_disc"
@@ -1451,10 +1449,35 @@ def test_archive_mapping_and_verified_result_routes(app_services):
             download = client.get(
                 f"/api/v1/workbench/tasks/{done['task_id']}/result/parts/SYNTHETIC-PART-API",
             )
-            assert compute_hash.call_count == 1
         assert download.status_code == 200
         assert download.content == payload
         assert filename in download.headers["content-disposition"]
+
+        bound = ArchivePlanRepository(app_services.database).get(plan["plan_id"])
+        newer = ArchivePlanRepository(app_services.database).create({
+            "plan_id": "SYNTHETIC-NEWER-PLAN-API", "case_id": case_id,
+            "plan_revision": 2, "input_inventory_revision": 2, "mapping_revision": 0,
+            "volume_slots": [{
+                "slot_id": "SYNTHETIC-NEWER-SLOT-API", "ordinal": 1,
+                "plan_revision": 2, "lineage_key": "SYNTHETIC-NEWER-LINEAGE",
+                "planned_input_bytes": 2048, "status": "active", "disc_mapping": None,
+            }],
+        })
+        remapped = client.post(
+            f"/api/v1/workbench/cases/{case_id}/disc-mapping",
+            json={
+                "expected_revision": case_shell["revision"],
+                "expected_plan_row_revision": bound["revision"],
+                "first_disc_number": "GP2026073102-01",
+            },
+        )
+        assert remapped.status_code == 200, remapped.text
+        assert ArchivePlanRepository(app_services.database).get(
+            bound["plan_id"],
+        )["volume_slots"][0]["disc_mapping"]["disc_number"] == "GP2026073102-01"
+        assert ArchivePlanRepository(app_services.database).get(
+            newer["plan_id"],
+        )["volume_slots"][0]["disc_mapping"] is None
 
 
 def test_workbench_archive_context_requires_its_bound_attempt_but_legacy_does_not(app_services):

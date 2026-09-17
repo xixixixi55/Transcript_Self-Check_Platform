@@ -244,11 +244,15 @@ class ArchiveTaskApiService:
 
         try:
             archive_mode = "standard_split"
+            plan_id = None
             if current is not None and current["status"] == "succeeded":
-                archive_mode = str(self.results.result(current["task_id"])["archive_mode"])
+                manifest = self.results.manifest_bundle(current["task_id"])["public_manifest"]
+                archive_mode = str(manifest.get("archive_mode") or "standard_split")
+                plan_id = str(manifest.get("plan_id") or "") or None
             result = apply_disc_mapping(
                 self.database, case_id, expected_revision,
                 expected_plan_row_revision, first_disc_number, archive_mode,
+                plan_id=plan_id,
             )
             if current is not None:
                 result["task_id"] = current["task_id"]
