@@ -44,7 +44,7 @@ from .report_source_adapter import (
     ReportAdapterMatch,
 )
 
-MEIYA_ADAPTER_VERSION = "1.0.0"
+MEIYA_ADAPTER_VERSION = "1.1.0"
 MEIYA_LEGACY_ADAPTER_ID = "meiya-legacy-v1"
 MEIYA_NEW_ADAPTER_ID = "meiya-new-v1"
 _CORE_FILES = (

@@ -405,7 +405,7 @@ def test_pinghang_adapter_version_and_content_participate_in_input_fingerprint(t
     assert changed_adapter.dependency_fingerprint != changed_content.dependency_fingerprint
 
 
-def test_parse_report_maps_pinghang_android_device_to_phone(tmp_path):
+def test_parse_report_uses_dual_imei_instead_of_android_platform_label(tmp_path):
     source = _write_pinghang_fixture(tmp_path)
 
     result = parse_report(str(source), str(tmp_path / "output"), compress=False)
@@ -420,13 +420,17 @@ def test_parse_report_maps_pinghang_android_device_to_phone(tmp_path):
         "SYNTHETIC-EVIDENCE-20", "SYNTHETIC-EVIDENCE-10",
     ]
     evidence_list = report["introduction"]["evidence_list"]
-    assert all(item["material_type"] == "phone" for item in evidence_list)
-    assert all(
-        item["material_type_status"] == "confirmed_by_report"
-        for item in evidence_list
-    )
+    assert [item["material_type"] for item in evidence_list] == [
+        "unconfirmed", "phone",
+    ]
+    assert [item["material_type_status"] for item in evidence_list] == [
+        "unconfirmed", "confirmed_by_report",
+    ]
     assert all(item["material_type_source"] == "report" for item in evidence_list)
-    assert all(item["material_type_diagnostic"] is None for item in evidence_list)
+    assert [item["material_type_diagnostic"] for item in evidence_list] == [
+        "MATERIAL_TYPE_DEVICE_TYPE_UNRECOGNIZED",
+        "MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI",
+    ]
     assert "IMEI1：" in report["inspection"]["process_steps"][0]["content"]
     assert "序列号：" not in report["inspection"]["process_steps"][0]["content"]
     primary = report["inspection"]["primary_software"]
@@ -473,7 +477,7 @@ def test_parse_report_maps_pinghang_android_device_to_phone(tmp_path):
 
 
 @pytest.mark.parametrize("reported_type", ["android设备", "Ａｎｄｒｏｉｄ　设备"])
-def test_pinghang_android_device_mapping_normalizes_case_width_and_space(
+def test_pinghang_android_platform_with_single_imei_stays_unconfirmed(
     tmp_path, reported_type,
 ):
     source = _write_pinghang_fixture(
@@ -484,8 +488,8 @@ def test_pinghang_android_device_mapping_normalizes_case_width_and_space(
         str(source), str(tmp_path / "output"), compress=False,
     )["report"]["introduction"]["evidence_list"][0]
 
-    assert material["material_type"] == "phone"
-    assert material["material_type_status"] == "confirmed_by_report"
+    assert material["material_type"] == "unconfirmed"
+    assert material["material_type_status"] == "unconfirmed"
     assert material["material_type_source"] == "report"
 
 
@@ -754,7 +758,7 @@ def test_source_registration_records_pinghang_adapter_metadata(tmp_path):
     descriptor = service.register_report_directory(str(source))
 
     assert descriptor["metadata"]["adapter_id"] == "pinghang-mobile-multipath-v1"
-    assert descriptor["metadata"]["adapter_version"] == "1.7.0"
+    assert descriptor["metadata"]["adapter_version"] == "1.8.0"
     assert len(descriptor["metadata"]["adapter_structure_fingerprint"]) == 64
     assert str(source) not in json.dumps(descriptor, ensure_ascii=False)
 
@@ -774,7 +778,7 @@ def test_pinghang_bundle_source_enters_review_and_revalidates_child_core_files(t
     assert descriptor["metadata"]["adapter_id"] == (
         "pinghang-mobile-multipath-bundle-v1"
     )
-    assert descriptor["metadata"]["adapter_version"] == "1.0.0"
+    assert descriptor["metadata"]["adapter_version"] == "1.1.0"
 
     cases = CaseDraftService(
         database,

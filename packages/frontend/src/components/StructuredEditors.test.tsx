@@ -113,6 +113,18 @@ describe('结构化编辑器', () => {
     expect(screen.getByText('IMEI2：')).toBeTruthy()
   })
 
+  it('双 IMEI 推断类型不会标成报告明确字段', () => {
+    render(<EvidenceEditor items={[{
+      id: '1', device_type: 'Android设备', model: '', evidence_number: 'JC01',
+      material_type: 'phone', material_type_status: 'confirmed_by_report',
+      material_type_source: 'report',
+      material_type_diagnostic: 'MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI',
+    }]} onChange={vi.fn()} />)
+
+    expect(screen.getByText('（根据双 IMEI 推断）')).toBeTruthy()
+    expect(screen.queryByText('（报告明确字段候选）')).toBeNull()
+  })
+
   it('缺失 extractable 字段时默认可提取且不依赖设备标识', () => {
     render(<EvidenceEditor items={[{
       id: 'serial-only', device_type: '平板', material_type: 'tablet', model: '',

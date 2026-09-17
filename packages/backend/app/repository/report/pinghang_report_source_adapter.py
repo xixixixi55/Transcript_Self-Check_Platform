@@ -34,7 +34,7 @@ from .report_source_adapter import (
 
 
 PINGHANG_BUNDLE_ADAPTER_ID = "pinghang-mobile-multipath-bundle-v1"
-PINGHANG_BUNDLE_ADAPTER_VERSION = "1.0.0"
+PINGHANG_BUNDLE_ADAPTER_VERSION = "1.1.0"
 _MAX_BUNDLE_PACKAGES = 256
 _NATURAL_PART_RE = re.compile(r"(\d+)")
 

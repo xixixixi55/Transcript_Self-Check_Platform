@@ -120,8 +120,14 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
     const label = material.evidence_number?.trim()
       ? `检材 ${index + 1} · ${material.evidence_number.trim()}`
       : `检材 ${index + 1} · 编号待填写`
-    const materialType = material.material_type === 'phone'
-      ? '手机' : material.material_type === 'tablet' ? '平板' : null
+    const materialTypeConfirmed = (
+      (material.material_type_status === 'confirmed_by_report'
+        || material.material_type_status === 'confirmed_by_user')
+      && (material.material_type_source === 'report'
+        || material.material_type_source === 'user')
+    )
+    const materialType = materialTypeConfirmed && material.material_type === 'phone'
+      ? '手机' : materialTypeConfirmed && material.material_type === 'tablet' ? '平板' : null
     const brand = material.brand?.trim() || ''
     const model = material.model?.trim() || ''
     const deviceName = brand && model

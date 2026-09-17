@@ -26,9 +26,14 @@ function evidenceIdentifiers(item: EvidenceItem): string {
   if (!isEvidenceExtractable(item)) return text(item.unextractable_reason) || '无法提取'
   const imeiValues = [text(item.imei1), text(item.imei2)].filter(Boolean)
   const serialNumber = text(item.serial_number)
-  const identifiers = item.material_type === 'tablet'
+  const materialTypeConfirmed = (
+    (item.material_type_status === 'confirmed_by_report'
+      || item.material_type_status === 'confirmed_by_user')
+    && (item.material_type_source === 'report' || item.material_type_source === 'user')
+  )
+  const identifiers = materialTypeConfirmed && item.material_type === 'tablet'
     ? (serialNumber ? [`序列号：${serialNumber}`] : [])
-    : item.material_type === 'phone'
+    : materialTypeConfirmed && item.material_type === 'phone'
       ? imeiValues.map((value, index) => `IMEI${index + 1}：${value}`)
       : [
           ...imeiValues.map((value, index) => `IMEI${index + 1}：${value}`),

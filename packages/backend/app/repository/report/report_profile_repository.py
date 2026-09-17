@@ -14,7 +14,7 @@ from ..workbench.workbench_errors import WorkbenchPersistenceError
 from ..workbench.workbench_serialization import validate_opaque_id
 
 REPORT_PROFILE_ADAPTER_ID = "report-profile-v1"
-REPORT_PROFILE_ADAPTER_VERSION = "1.0.0"
+REPORT_PROFILE_ADAPTER_VERSION = "1.1.0"
 _ALLOWED_MAPPING_KEYS = {
     "canonical_field", "source_file", "json_path", "collection_path", "value_type",
     "normalizers", "required", "confidence", "evidence", "confirmation",

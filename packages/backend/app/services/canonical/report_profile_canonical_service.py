@@ -23,7 +23,9 @@ def project_report_profile(snapshot: ReportParseInputSnapshot) -> dict[str, Any]
     for row in snapshot.device_rows:
         material_id = row.get("material_id") or row.get("evidence_number", "")
         base = snapshot.device_base_info.get(material_id) or {}
-        kind, classification = classify_report_material(base)
+        kind, classification = classify_report_material({
+            **base, "device_type_source": "report_field",
+        })
         materials.append(Material(
             id=material_id,
             evidence_number=row.get("evidence_number", ""),

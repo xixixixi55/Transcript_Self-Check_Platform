@@ -38,6 +38,7 @@ def extract_device_fields(
     旧格式的 ``信息/内容``、``c1/c2`` 和明确字段名行为。
     """
     result = {"device_type": "", "device_name": "", "brand": "", "model": "", "imei1": "", "imei2": "", "serial_number": ""}
+    device_type_candidates: list[str] = []
 
     def assign(label: str, value: Any):
         if value is None or isinstance(value, (dict, list)):
@@ -49,7 +50,13 @@ def extract_device_fields(
         if key in {
             "device_type", "devicetype", "materialtype", "设备类型", "检材类型", "终端类型",
         }:
-            result["device_type"] = result["device_type"] or value_text
+            candidate_key = " ".join(unicodedata.normalize("NFKC", value_text).split()).casefold()
+            if candidate_key and all(
+                " ".join(unicodedata.normalize("NFKC", candidate).split()).casefold()
+                != candidate_key
+                for candidate in device_type_candidates
+            ):
+                device_type_candidates.append(value_text)
         elif key in {
             "设备名称", "检材名称", "手机名称", "devicename", "phonename", "productname",
         }:
@@ -81,6 +88,8 @@ def extract_device_fields(
     for label, content in _iter_label_values(payload, allow_tt_ct=allow_tt_ct):
         assign(label, content)
 
+    result["device_type"] = " / ".join(device_type_candidates)
+
     if allow_text_fallback:
         for field, aliases in {
             "imei1": r"IMEI(?!\s*[/／]\s*MEID)(?:\s*[-:：]?\s*1)?(?!\s*[-:：]?\s*2)",
@@ -91,6 +100,8 @@ def extract_device_fields(
             "model": r"设备型号|产品型号|手机型号|设备机型|手机机型|硬件型号|机型|型号|model",
             "device_type": r"设备类型|检材类型|终端类型|device[_ ]?type|material[_ ]?type",
         }.items():
+            if field == "device_type":
+                continue
             match = re.search(
                 rf"(?:{aliases})\D{{0,20}}([A-Za-z0-9][A-Za-z0-9 ._-]{{2,60}})",
                 text,

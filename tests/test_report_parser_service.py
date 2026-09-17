@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'packages', 'ba
 
 from app.services.report.report_parser_service import (
     _build_report, _build_software_tools, _device_display_name,
-    _normalize_case_name, _split_persons, parse_from_archive,
+    _merge_device_type_candidates, _normalize_case_name, _split_persons, parse_from_archive,
     parse_report,
 )
 from app.services.report.report_defaults_service import DEFAULT_DATA_SUMMARY, normalize_data_summary
@@ -32,6 +32,11 @@ def test_device_display_name_uses_brand_and_model_without_duplication(
     brand, model, expected,
 ):
     assert _device_display_name(brand, model, "手机") == expected
+
+
+def test_device_type_candidates_preserve_cross_source_conflict():
+    assert _merge_device_type_candidates("手机", "平板") == "手机 / 平板"
+    assert _merge_device_type_candidates(" 手机 ", "手机") == "手机"
 
 
 def test_backend_data_summary_preserves_non_empty_value():

@@ -38,6 +38,9 @@ def meiya_snapshot_to_canonical(
         material_facts = {
             **base,
             "device_type": base.get("device_type") or row.get("device_type", ""),
+            "device_type_source": "report_field",
+            "imei1": row.get("imei1", "") or base.get("imei1", ""),
+            "imei2": row.get("imei2", "") or base.get("imei2", ""),
         }
         kind, classification = classify_report_material(material_facts)
         source = snapshot.device_source_files.get(material_id)

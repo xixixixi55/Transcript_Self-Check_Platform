@@ -144,7 +144,11 @@ export default function EvidenceEditor({
                 style={{ minWidth: 140 }}
               />
               {item.material_type_status === 'confirmed_by_report' && (
-                <Text type="secondary">（报告明确字段候选）</Text>
+                <Text type="secondary">
+                  {item.material_type_diagnostic === 'MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI'
+                    ? '（根据双 IMEI 推断）'
+                    : '（报告明确字段候选）'}
+                </Text>
               )}
               {item.material_type_status === 'confirmed_by_user' && (
                 <Text type="secondary">（用户已确认）</Text>

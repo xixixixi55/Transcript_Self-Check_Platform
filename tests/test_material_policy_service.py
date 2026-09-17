@@ -3,6 +3,8 @@
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "backend"))
 
 from app.services.export.export_gate_service import ExportGateInput, evaluate_export_gate
@@ -103,6 +105,77 @@ def test_unknown_or_conflicting_device_type_stays_unconfirmed():
     assert classify_material_type(None).source == "none"
 
 
+@pytest.mark.parametrize("reported_type", ["手机壳", "非手机设备", "平板扫描仪"])
+def test_chinese_type_substrings_do_not_confirm_material_type(reported_type):
+    classification = classify_material_type(reported_type)
+
+    assert classification.status == "unconfirmed"
+    assert classification.diagnostic_code == "MATERIAL_TYPE_DEVICE_TYPE_UNRECOGNIZED"
+
+
+def test_two_distinct_valid_imeis_infer_phone_when_explicit_type_is_missing():
+    material = material_from_legacy_item(
+        {
+            "device_type": "",
+            "device_type_source": "report_field",
+            "imei1": "123456789012345",
+            "imei2": "543210987654321",
+        },
+        0,
+    )
+
+    assert material.type == "phone"
+    assert material.classification.status == "confirmed_by_report"
+    assert material.classification.diagnostic_code == "MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI"
+
+
+@pytest.mark.parametrize(
+    ("imei1", "imei2"),
+    [
+        ("123456789012345", ""),
+        ("123456789012345", "123456789012345"),
+        ("123456789012345", "not-an-imei"),
+    ],
+)
+def test_incomplete_invalid_or_duplicate_imeis_do_not_infer_phone(imei1, imei2):
+    material = material_from_legacy_item(
+        {
+            "device_type": "",
+            "device_type_source": "report_field",
+            "imei1": imei1,
+            "imei2": imei2,
+        },
+        0,
+    )
+
+    assert material.type == "unconfirmed"
+
+
+def test_explicit_tablet_and_type_conflict_are_not_overridden_by_dual_imei():
+    tablet = material_from_legacy_item(
+        {
+            "device_type": "平板",
+            "device_type_source": "report_field",
+            "imei1": "123456789012345",
+            "imei2": "543210987654321",
+        },
+        0,
+    )
+    conflict = material_from_legacy_item(
+        {
+            "device_type": "手机 / 平板",
+            "device_type_source": "report_field",
+            "imei1": "123456789012345",
+            "imei2": "543210987654321",
+        },
+        1,
+    )
+
+    assert tablet.type == "tablet"
+    assert conflict.type == "unconfirmed"
+    assert conflict.classification.diagnostic_code == "MATERIAL_TYPE_CONFLICT"
+
+
 def test_classification_does_not_use_identifier_or_model_values():
     material = material_from_legacy_item(
         {
@@ -147,6 +220,7 @@ def test_display_policy_selects_only_allowed_valid_identifiers():
     phone = material_from_legacy_item(
         {
             "device_type": "手机",
+            "device_type_source": "report_field",
             "imei1": "123456789012345",
             "imei2": "not-an-imei",
             "serial_number": "SERIAL-SYNTHETIC-1",
@@ -157,6 +231,7 @@ def test_display_policy_selects_only_allowed_valid_identifiers():
     tablet = material_from_legacy_item(
         {
             "device_type": "tablet",
+            "device_type_source": "report_field",
             "imei1": "123456789012345",
             "serial_number": " SERIAL-SYNTHETIC-2 ",
             "evidence_number": "E-SYNTHETIC-2",
@@ -171,6 +246,7 @@ def test_missing_extractable_defaults_true_and_preserves_identifiers():
     material = material_from_legacy_item(
         {
             "device_type": "平板",
+            "device_type_source": "report_field",
             "serial_number": "SERIAL-SYNTHETIC-ONLY",
             "evidence_number": "E-SYNTHETIC-SERIAL",
         },
@@ -237,7 +313,11 @@ def test_enrichment_preserves_manual_state_and_adds_report_candidate():
     report = {
         "introduction": {
             "evidence_list": [
-                {"device_type": "手机", "evidence_number": "E-SYNTHETIC-1"},
+                {
+                    "device_type": "手机",
+                    "device_type_source": "report_field",
+                    "evidence_number": "E-SYNTHETIC-1",
+                },
                 {
                     "device_type": "Unknown",
                     "material_type": "tablet",
@@ -262,6 +342,7 @@ def test_export_gate_locates_each_unconfirmed_material_without_sensitive_values(
                 {
                     "id": "material-1",
                     "device_type": "手机",
+                    "device_type_source": "report_field",
                     "material_type": "phone",
                     "material_type_status": "confirmed_by_report",
                     "material_type_source": "report",
@@ -280,12 +361,40 @@ def test_export_gate_locates_each_unconfirmed_material_without_sensitive_values(
     assert result.blockers[0].field == fields[0]
 
 
+def test_dual_imei_inference_passes_export_gate_without_manual_confirmation():
+    report = enrich_report_material_types({
+        "introduction": {
+            "evidence_list": [{
+                "id": "material-SYNTHETIC-dual-imei",
+                "device_type": "Android设备",
+                "device_type_source": "report_field",
+                "imei1": "123456789012345",
+                "imei2": "543210987654321",
+            }]
+        }
+    })
+
+    material = report["introduction"]["evidence_list"][0]
+    fields = unconfirmed_material_fields(report)
+    result = evaluate_export_gate(
+        ExportGateInput(material_types_confirmed=not fields, material_type_fields=fields)
+    )
+
+    assert material["material_type"] == "phone"
+    assert material["material_type_status"] == "confirmed_by_report"
+    assert material["material_type_diagnostic"] == "MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI"
+    assert fields == ()
+    assert result.allowed
+    assert result.blockers == ()
+
+
 def test_export_gate_rechecks_report_confirmed_material_type_against_device_type():
     report = {
         "introduction": {
             "evidence_list": [{
                 "id": "material-forged",
                 "device_type": "未知设备",
+                "device_type_source": "report_field",
                 "material_type": "phone",
                 "material_type_status": "confirmed_by_report",
                 "material_type_source": "report",

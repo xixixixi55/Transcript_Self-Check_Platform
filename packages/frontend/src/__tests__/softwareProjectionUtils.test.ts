@@ -107,6 +107,23 @@ function evidenceReport(): InspectionReport {
 }
 
 describe('evidence list projection', () => {
+  it('keeps all identifiers visible while a stored material type is unconfirmed', () => {
+    const unconfirmed = {
+      ...firstMaterial,
+      material_type_status: 'unconfirmed' as const,
+      material_type_source: 'report' as const,
+      serial_number: 'SYNTHETIC-SERIAL-1',
+    }
+    const staleReport = evidenceReport()
+    staleReport.introduction.evidence_list = [unconfirmed]
+
+    const updated = projectEvidenceDerivedContent(staleReport)
+    const content = updated.inspection.process_steps.find(step => step.step_number === 1)?.content
+
+    expect(content).toContain('IMEI1：SYNTHETIC-IMEI-1')
+    expect(content).toContain('序列号：SYNTHETIC-SERIAL-1')
+  })
+
   it('defaults a material without an explicit extractable value to extractable', () => {
     const serialOnly = { ...secondMaterial, extractable: undefined }
     const staleReport = evidenceReport()

@@ -37,6 +37,27 @@ def _write_json(path, payload):
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
+def test_device_type_text_fallback_does_not_capture_adjacent_device_name():
+    text = '{"设备类型":"","设备名称":"SYNTHETIC iPhone 15"}'
+
+    fields = extract_device_fields({}, text)
+
+    assert fields["device_type"] == ""
+
+
+def test_conflicting_structured_device_types_are_preserved_as_conflict():
+    payload = {
+        "rows": [
+            {"c1": "设备类型", "c2": "手机"},
+            {"c1": "检材类型", "c2": "平板"},
+        ]
+    }
+
+    fields = extract_device_fields(payload, json.dumps(payload, ensure_ascii=False))
+
+    assert fields["device_type"] == "手机 / 平板"
+
+
 def _case_payload():
     values = {
         "案件名称": "合成案件",

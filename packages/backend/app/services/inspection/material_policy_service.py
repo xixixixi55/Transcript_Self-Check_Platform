@@ -16,7 +16,7 @@ from ..canonical.canonical_models_service import (
     MaterialIdentifier,
 )
 
-MATERIAL_TYPE_RULE_ID = "device_type_controlled_v1"
+MATERIAL_TYPE_RULE_ID = "device_type_evidence_v2"
 _PHONE_WORDS = ("手机", "智能手机", "phone", "smartphone", "iphone")
 _TABLET_WORDS = ("平板", "平板电脑", "tablet", "ipad")
 _PHONE_DISPLAY_TYPE_WORDS = ("手机", "智能手机", "phone", "smartphone")
@@ -38,8 +38,43 @@ def _normalise_device_type(value: Any) -> str:
 
 def _contains_word(value: str, word: str) -> bool:
     if any("\u4e00" <= char <= "\u9fff" for char in word):
-        return word in value
+        return re.search(
+            rf"(?<![\u4e00-\u9fff]){re.escape(word)}(?![\u4e00-\u9fff])",
+            value,
+        ) is not None
     return re.search(rf"(?<![a-z]){re.escape(word)}(?![a-z])", value) is not None
+
+
+def _classified_material_kind(device_type: Any) -> tuple[str, MaterialClassification]:
+    classification = classify_material_type(device_type)
+    value = _normalise_device_type(device_type)
+    phone_hit = any(_contains_word(value, word) for word in _PHONE_WORDS)
+    tablet_hit = any(_contains_word(value, word) for word in _TABLET_WORDS)
+    kind = (
+        "phone" if phone_hit and not tablet_hit
+        else "tablet" if tablet_hit and not phone_hit
+        else "unconfirmed"
+    )
+    return kind, classification
+
+
+def _has_two_distinct_valid_imeis(item: Mapping[str, Any]) -> bool:
+    imei1 = _safe_text(item.get("imei1"))
+    imei2 = _safe_text(item.get("imei2"))
+    return (
+        re.fullmatch(r"\d{15}", imei1) is not None
+        and re.fullmatch(r"\d{15}", imei2) is not None
+        and imei1 != imei2
+    )
+
+
+def _dual_imei_phone_classification() -> MaterialClassification:
+    return MaterialClassification(
+        status="confirmed_by_report",
+        source="report",
+        rule_id=MATERIAL_TYPE_RULE_ID,
+        diagnostic_code="MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI",
+    )
 
 
 def classify_material_type(device_type: Any) -> MaterialClassification:
@@ -92,40 +127,40 @@ def _legacy_provenance(path: str) -> FieldProvenance:
 
 def classify_report_material(item: Mapping[str, Any]) -> tuple[str, MaterialClassification]:
     """从明确设备类型或既有人工确认字段获得受控材料分类。"""
-    if (
-        item.get("device_type_source") not in {None, "report_field"}
-        and item.get("material_type_source") != "user"
-    ):
+    if "material_type" in item:
+        kind = item.get("material_type")
+        status = item.get("material_type_status")
+        source = item.get("material_type_source")
+        if kind in {"phone", "tablet"} and status in _CONFIRMED_STATUSES and source in {"report", "user"}:
+            return kind, MaterialClassification(
+                status=status,
+                source=source,
+                rule_id=MATERIAL_TYPE_RULE_ID,
+                diagnostic_code=item.get("material_type_diagnostic"),
+            )
         return "unconfirmed", MaterialClassification(
+            status="unconfirmed",
+            source=source if source in {"report", "user"} else "none",
+            rule_id=MATERIAL_TYPE_RULE_ID,
+            diagnostic_code="MATERIAL_TYPE_STATUS_MISSING",
+        )
+
+    device_type_source = item.get("device_type_source")
+    if device_type_source == "report_field":
+        kind, candidate = _classified_material_kind(item.get("device_type"))
+        if kind != "unconfirmed" or candidate.diagnostic_code == "MATERIAL_TYPE_CONFLICT":
+            return kind, candidate
+    else:
+        candidate = MaterialClassification(
             status="unconfirmed",
             source="none",
             rule_id=MATERIAL_TYPE_RULE_ID,
             diagnostic_code="MATERIAL_TYPE_DEVICE_TYPE_NOT_EXPLICIT",
         )
-    if "material_type" not in item:
-        candidate = classify_material_type(item.get("device_type"))
-        value = _normalise_device_type(item.get("device_type"))
-        phone_hit = any(_contains_word(value, word) for word in _PHONE_WORDS)
-        tablet_hit = any(_contains_word(value, word) for word in _TABLET_WORDS)
-        kind = "phone" if phone_hit and not tablet_hit else "tablet" if tablet_hit and not phone_hit else "unconfirmed"
-        return kind, candidate
 
-    kind = item.get("material_type")
-    status = item.get("material_type_status")
-    source = item.get("material_type_source")
-    if kind in {"phone", "tablet"} and status in _CONFIRMED_STATUSES and source in {"report", "user"}:
-        return kind, MaterialClassification(
-            status=status,
-            source=source,
-            rule_id=MATERIAL_TYPE_RULE_ID,
-            diagnostic_code=item.get("material_type_diagnostic"),
-        )
-    return "unconfirmed", MaterialClassification(
-        status="unconfirmed",
-        source=source if source in {"report", "user"} else "none",
-        rule_id=MATERIAL_TYPE_RULE_ID,
-        diagnostic_code="MATERIAL_TYPE_STATUS_MISSING",
-    )
+    if _has_two_distinct_valid_imeis(item):
+        return "phone", _dual_imei_phone_classification()
+    return "unconfirmed", candidate
 
 
 def material_from_legacy_item(item: Mapping[str, Any], index: int) -> Material:
@@ -266,6 +301,8 @@ def unconfirmed_material_fields(report: Mapping[str, Any]) -> tuple[str, ...]:
         derived_kind, candidate = classify_report_material({
             "device_type": item.get("device_type"),
             "device_type_source": item.get("device_type_source"),
+            "imei1": item.get("imei1"),
+            "imei2": item.get("imei2"),
         })
         return (
             kind == derived_kind

@@ -26,7 +26,9 @@ def pinghang_snapshot_to_canonical(snapshot: ReportParseInputSnapshot) -> Canoni
         material_id = row.get("material_id") or number
         base = snapshot.device_base_info[material_id]
         source = snapshot.device_source_files.get(material_id)
-        kind, classification = classify_report_material(base)
+        kind, classification = classify_report_material({
+            **base, "device_type_source": "report_field",
+        })
         holder_source = snapshot.holder_source_files.get(material_id)
         materials.append(Material(
             id=material_id, evidence_number=number, type=kind,

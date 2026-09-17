@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,7 @@ from .report_source_adapter import ReportAdapterDetectionError, ReportAdapterMat
 
 
 QIANXIN_ADAPTER_ID = "qianxin-web-report-v1"
-QIANXIN_ADAPTER_VERSION = "1.0.0"
+QIANXIN_ADAPTER_VERSION = "1.1.0"
 _REPORT_PROFILE = "data_report_profile.json"
 _NAVIGATION = "data_navigation.json"
 _PACKAGE_RE = re.compile(r"data_package_profile_(?P<index>\d+)\.json\Z")
@@ -291,10 +292,20 @@ def _map_package_profile(
     imei1 = _identifier(info.get("IMEI1")) or _identifier(device.get("IMEI"))
     imei2 = _identifier(info.get("IMEI2"))
     serial_number = _text(device.get("序列号")) or _text(device.get("Mtp序列号"))
+    explicit_types = [
+        _text(source.get(label))
+        for source in (info, device)
+        for label in ("检材类型", "设备类型")
+        if _text(source.get(label))
+    ]
+    device_type = (
+        _merge_distinct_values(explicit_types)
+        if explicit_types else info.get("检材平台", "")
+    )
     row = {
         "material_id": material_id,
         "evidence_number": info.get("检材编号", ""),
-        "device_type": info.get("检材平台", ""),
+        "device_type": device_type,
         "device_name": device.get("设备名称", ""),
         "holder_name": info.get("机主姓名", ""),
         "imei1": imei1,
@@ -336,6 +347,17 @@ def _text(value: Any) -> str:
     if value is None or isinstance(value, (dict, list, tuple, set, bool)):
         return ""
     return str(value).strip()
+
+
+def _merge_distinct_values(values: list[str]) -> str:
+    unique: list[str] = []
+    normalized: set[str] = set()
+    for value in values:
+        key = " ".join(unicodedata.normalize("NFKC", value).split()).casefold()
+        if key and key not in normalized:
+            normalized.add(key)
+            unique.append(value.strip())
+    return " / ".join(unique)
 
 
 def _identifier(value: Any) -> str:

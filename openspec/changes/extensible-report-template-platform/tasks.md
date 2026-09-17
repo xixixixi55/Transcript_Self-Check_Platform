@@ -50,9 +50,9 @@ Shadow 工作包的输出只能是隔离的规范化、规划和脱敏比较结�
 
 ## 3. 手机/平板业务规则（Layer 2/21）
 
-阶段一最终类型只允许 `phone`/`tablet`；报告明确且可靠时可预选，否则审核页面保持待确认。不得仅根据 IMEI 推断手机；审核保存可继续，但统一导出门控要求每个检材完成确认。
+阶段一最终类型只允许 `phone`/`tablet`；报告明确且无冲突时可预选。缺少可靠类型时，两个有效、不同的 15 位 IMEI 可兜底推断手机并直接通过类型导出门控；其他情况由审核页面确认。
 
-- [x] 3.1 实现 `Material.kind` 分类确认和 `MaterialDisplayPolicy`。自动候选只能读取报告明确的 `device_type` 语义字段，经全半角/大小写归一化后匹配受控词表：`手机`、`智能手机`、`phone`、`smartphone`、`iPhone` → `phone`；`平板`、`平板电脑`、`tablet`、`iPad` → `tablet`。同一字段同时命中两类或未命中时为 `unconfirmed`；分类记录报告来源、诊断和 `confirmed_by_report`/`confirmed_by_user`/`unconfirmed` 状态，不使用 IMEI、序列号、型号、案件名、文件名或全文搜索。输入：ReportAdapter 的原始标识候选、设备类型来源和确认状态；输出：手机只保留 IMEI1/IMEI2、平板只保留序列号的结构化展示数据和 `select_display_identifiers(material)` 结果；验收：规则位于业务规划层，parser 不删除候选，renderer 不重新判断。
+- [x] 3.1 实现 `Material.kind` 分类确认和 `MaterialDisplayPolicy`。自动候选优先读取报告明确的 `device_type` 语义字段，经全半角/大小写归一化后匹配受控词表：`手机`、`智能手机`、`phone`、`smartphone`、`iPhone` → `phone`；`平板`、`平板电脑`、`tablet`、`iPad` → `tablet`。同一字段同时命中两类时为 `unconfirmed`；缺少可靠类型时仅允许 17F 定义的双 IMEI 兜底，不使用序列号、型号、案件名、文件名或全文搜索。分类记录报告来源、诊断和 `confirmed_by_report`/`confirmed_by_user`/`unconfirmed` 状态。输入：ReportAdapter 的原始标识候选、设备类型来源和确认状态；输出：手机只保留 IMEI1/IMEI2、平板只保留序列号的结构化展示数据和 `select_display_identifiers(material)` 结果；验收：规则位于业务规划层，parser 不删除候选，renderer 不重新判断。
 - [x] 3.1T 增加手机、平板、大小写/全半角、首尾空白、缺失标识、非法标识、冲突分类、低置信阻止和人工确认状态测试；验收：不出现两组标识混排，错误可解释且 `unconfirmed` 阻止导出，多检材 blocker 指向稳定材料 ID/字段路径。
 
 ## 4. 检查人员 Repository 与有序快照（Layer 20/21）
@@ -426,3 +426,14 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 12.9T 增加模板 XML 范围、兼容导出行距和内置版本迁移回归，运行模板/生成定向测试、架构与类型检查、`officecli validate` 和 `git diff --check`。
   - 证据：两个新增断言在旧实现上稳定 `2 failed`，分别区分正式模板 520 twips 与兼容导出 `26pt`；修复后模板、包指纹、Profile、注册迁移、兼容生成和正式填充链路 `110 passed, 1 skipped`。当前模板发布为 `electronic-inspection-record@1.0.9`，指纹为 `E10220DAAD8F0447519924F42B10757EF21098E54E6E422F0F14838050A955C0`；与旧资产逐部件对比仅 `word/document.xml` 变化，XML 回归确认 27 个有文字正文段落为固定 560 twips、3 个空白留距段落仍为固定 520 twips、40 个附件相关 1.5 倍行距节点仍为 `360 + auto`。普通和长文本 SYNTHETIC DOCX 均生成成功并通过 `officecli validate`；`lint:arch`、`typecheck`、`npm run pre-commit`、仓库资产检查与 `git diff --check` 通过。
 - [ ] 12.9M 使用 Microsoft Word/PDF 复核普通与长文本 SYNTHETIC 输出的分页、裁切和附件起页。Computer Use 可启动本机 Word，但连续两次窗口状态读取均返回 `0x80004002（不支持此接口）`，未取得可靠视觉证据，不伪报通过。 [DEFERRED]
+
+## 2026-09-17 双 IMEI 设备类型兜底（17F）
+
+本次增量 `workflow_level: 2`；继续复用当前包的 `MaterialDisplayPolicy`、四种内置报告适配器、ReportProfile Canonical 投影和统一 ExportGate。稳定先例为既有报告明确类型的 `confirmed_by_report` 流程；双 IMEI 仅作为缺少可靠类型时的受控兜底，不覆盖用户确认、明确平板或报告类型冲突。`manual_acceptance: N/A`（业务分类、门控和来源提示均由自动化覆盖，无 Word/PDF 版式或桌面工具变化）。
+
+- [x] 17F.1 同步 delta、批准规格与设计：IMEI1/IMEI2 均为有效、不同的 15 位数字时默认推断 `phone`，保留 `MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI` 诊断并以 `confirmed_by_report` 直接通过类型导出门控；单个、非法、重复 IMEI、明确平板及类型冲突不得触发或覆盖。
+- [x] 17F.1T 复用材料策略、报告解析、Canonical、审核摘要和结构化编辑器现有测试，增加“双 IMEI 推断无需人工确认即可通过 ExportGate”的可区分回归；测试数据必须明确标记为 SYNTHETIC。
+- [x] 17F.2 在统一材料策略层应用兜底，并让美亚 legacy/new、平航、奇安信和 confirmed ReportProfile 保留明确类型优先级与冲突；审核界面区分“根据双 IMEI 推断”和“报告明确字段候选”，旧缓存通过版本身份失效。
+- [x] 17F.3 核对实现并同步 living spec，运行受影响后端/前端测试、`lint:arch`、`typecheck`、`verify:quick`、限定 strict docs、OpenSpec strict validate 和 `git diff --check`；保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+
+实现与验证证据（2026-09-17）：统一材料策略以两个有效、不同的 15 位 IMEI 生成 `phone`、`confirmed_by_report` 和 `MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI`；用户确认、明确平板和类型冲突优先。审核编辑器区分推断来源，ExportGate 聚焦回归证明该状态无需人工二次确认即可通过检材类型门控。关闭推断的进程内突变使新增用例按预期失败，恢复后材料策略 27 passed；四格式解析、Canonical、缓存版本和归档关联的受影响后端 259 passed，前端审核摘要、结构化编辑器和文书内容投影 38 passed。`lint:arch`、`typecheck`、`verify:quick`、OpenSpec strict validate、living spec 校验与 `git diff --check` 通过；限定 strict docs 首次仅因本任务尚未勾选而按预期报告 1 项 `task-incomplete`，勾选后复跑为 15 项检查、0 drift。变更包保持 `lifecycle_status: in-progress`，不启动延期任务、最终 Review 或 scoped full gate。

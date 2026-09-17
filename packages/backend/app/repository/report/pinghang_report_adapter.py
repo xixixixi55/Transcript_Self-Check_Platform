@@ -23,7 +23,7 @@ from .report_parse_input_models import ReportParseInputError
 
 
 PINGHANG_ADAPTER_ID = "pinghang-mobile-multipath-v1"
-PINGHANG_ADAPTER_VERSION = "1.7.0"
+PINGHANG_ADAPTER_VERSION = "1.8.0"
 PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME = "平航手机多路分析取证软件"
 _MAX_SELECTED_PAGES = 4096
 _MAX_SELECTED_METADATA_BYTES = 32 * 1024 * 1024
@@ -166,9 +166,7 @@ def parse_pinghang_report(
             raise PinghangReportError("PINGHANG_EVIDENCE_ID_AMBIGUOUS")
         start_time = fields.get("取证开始时间", "").strip()
         end_time = fields.get("取证结束时间", "").strip()
-        device_type = _normalize_pinhang_device_type(
-            _first_field(fields, "数据类型", "设备类型")
-        )
+        device_type = _preferred_pinhang_device_type(fields)
         device_name = _first_field(fields, "检材名称", "手机名称", "设备名称")
         base = {
             "device_name": device_name,
@@ -379,10 +377,27 @@ def _first_field(fields: dict[str, str], *names: str) -> str:
     return next((fields[name].strip() for name in names if fields.get(name, "").strip()), "")
 
 
-def _normalize_pinhang_device_type(value: str) -> str:
-    """应用仅属于平航 v1 的用户确认类型映射。"""
-    normalized = "".join(unicodedata.normalize("NFKC", value).split()).casefold()
-    return "手机" if normalized == "android设备" else value
+def _preferred_pinhang_device_type(fields: dict[str, str]) -> str:
+    """优先保留明确类型；平台/数据类型只作为未确认的原始候选。"""
+    explicit_values = [
+        fields[name].strip()
+        for name in ("设备类型", "检材类型")
+        if fields.get(name, "").strip()
+    ]
+    if explicit_values:
+        return _merge_distinct_values(explicit_values)
+    return fields.get("数据类型", "").strip()
+
+
+def _merge_distinct_values(values: list[str]) -> str:
+    unique: list[str] = []
+    normalized: set[str] = set()
+    for value in values:
+        key = " ".join(unicodedata.normalize("NFKC", value).split()).casefold()
+        if key and key not in normalized:
+            normalized.add(key)
+            unique.append(value.strip())
+    return " / ".join(unique)
 
 
 def _read_file(path: Path) -> bytes:

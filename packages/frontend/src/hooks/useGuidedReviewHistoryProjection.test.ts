@@ -52,6 +52,24 @@ describe('guided Word preview source attribution', () => {
     }))
   })
 
+  it('does not present an unconfirmed stored type as complete', () => {
+    const material = {
+      ...syntheticReport.introduction.evidence_list[0],
+      device_name: 'SYNTHETIC Device', material_type: 'phone' as const,
+      material_type_status: 'unconfirmed' as const, material_type_source: 'report' as const,
+      imei1: '111111111111111', imei2: '222222222222222',
+    }
+    const projected = buildReportHistory({
+      ...syntheticReport,
+      introduction: { ...syntheticReport.introduction, evidence_list: [material] },
+    }).find(item => item.id === 'fact-evidence')?.materials?.[0]
+
+    expect(projected).toEqual(expect.objectContaining({
+      imeiStatus: 'attention', attentionReason: '检材类型待确认',
+    }))
+    expect(projected?.fields.find(field => field.label === '类型')?.value).toBe('待确认')
+  })
+
   it.each([
     { device_name: '', device_type: '', brand: '', model: '' },
     { device_name: ' \t', device_type: ' ', brand: ' ', model: '\n' },

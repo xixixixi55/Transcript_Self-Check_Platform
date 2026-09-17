@@ -13,6 +13,9 @@ from app.repository.report.qianxin_jsonp_repository import (  # noqa: E402
     QianxinPayloadError,
     parse_qianxin_payload,
 )
+from app.repository.report.qianxin_report_source_adapter import (  # noqa: E402
+    _map_package_profile,
+)
 from app.repository.report.report_adapter_registry import (  # noqa: E402
     ReportAdapterDetectionError,
     detect_report_adapter,
@@ -41,6 +44,22 @@ def _jsonp(stem: str, payload: object) -> str:
 
 def _pairs(values: dict[str, str]) -> list[dict[str, str]]:
     return [{"key": key, "value": value} for key, value in values.items()]
+
+
+def test_qianxin_explicit_material_type_takes_precedence_over_platform():
+    row, base = _map_package_profile({
+        "info": _pairs({
+            "检材编号": "SYNTHETIC-E-1",
+            "检材平台": "Android",
+            "检材类型": "平板",
+            "提取时间": "2026/06/17 10:30:00 +08:00",
+            "解析时间": "2026/06/17 12:00:00 +08:00",
+        }),
+        "deviceInfo": _pairs({"设备名称": "SYNTHETIC-TABLET", "型号": "T-1"}),
+    }, 1)
+
+    assert row["device_type"] == "平板"
+    assert base["device_type"] == "平板"
 
 
 def _write_qianxin_fixture(root: Path) -> Path:
@@ -284,7 +303,7 @@ def test_qianxin_source_registration_uses_versioned_adapter_identity(tmp_path):
         "path_leaked": str(source) in json.dumps(descriptor, ensure_ascii=False),
     } == {
         "adapter_id": "qianxin-web-report-v1",
-        "adapter_version": "1.0.0",
+        "adapter_version": "1.1.0",
         "path_leaked": False,
     }
 

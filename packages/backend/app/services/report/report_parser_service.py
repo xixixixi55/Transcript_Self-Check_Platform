@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import tempfile
+import unicodedata
 from typing import Optional
 from ...repository.archive.file_storage import (
     extract_archive, compute_md5, detect_winrar_version,
@@ -225,7 +226,9 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
             dev.get("device_name", ""),
         )
         display_name = _device_display_name(brand, raw_model, "")
-        explicit_device_type = base_info.get("device_type") or dev.get("device_type", "")
+        explicit_device_type = _merge_device_type_candidates(
+            base_info.get("device_type"), dev.get("device_type", ""),
+        )
         device_type = explicit_device_type or base_info.get("device_name") or base_info.get("model") or dev.get("device_name", "")
         imei1 = dev.get("imei1", "") or base_info.get("imei1", "")
         imei2 = dev.get("imei2", "") or base_info.get("imei2", "")
@@ -451,6 +454,19 @@ def _first_concrete_device_value(*values: object) -> str:
         if normalized and not is_generic_device_label(normalized):
             return normalized
     return ""
+
+
+def _merge_device_type_candidates(*values: object) -> str:
+    """保留来源间冲突，避免先出现的类型静默覆盖后出现的类型。"""
+    unique: list[str] = []
+    normalized: set[str] = set()
+    for raw_value in values:
+        value = str(raw_value or "").strip()
+        key = " ".join(unicodedata.normalize("NFKC", value).split()).casefold()
+        if key and key not in normalized:
+            normalized.add(key)
+            unique.append(value)
+    return " / ".join(unique)
 
 
 def _build_software_tools(
