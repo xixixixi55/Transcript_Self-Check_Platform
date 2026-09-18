@@ -32,6 +32,9 @@ from app.services.canonical.canonical_report_projector_service import (  # noqa:
     project_report_snapshot,
 )
 from app.services.report.report_parser_service import parse_report  # noqa: E402
+from app.services.inspection.material_policy_service import (  # noqa: E402
+    classify_report_material,
+)
 from app.services.source.source_record_service import SourceRecordService  # noqa: E402
 
 
@@ -60,6 +63,170 @@ def test_qianxin_explicit_material_type_takes_precedence_over_platform():
 
     assert row["device_type"] == "平板"
     assert base["device_type"] == "平板"
+
+
+def test_qianxin_normalizes_ios_and_android_identifier_variants():
+    ios_row, ios_base = _map_package_profile({
+        "info": _pairs({
+            "检材编号": "SYNTHETIC-IOS",
+            "检材平台": "iOS",
+            "IMEI1": "111111111111111",
+            "IMEI2": "",
+            "提取时间": "2026/06/17 10:30:00 +08:00",
+            "解析时间": "2026/06/17 12:00:00 +08:00",
+        }),
+        "deviceInfo": _pairs({
+            "设备名称": "SYNTHETIC-IPHONE",
+            "产品类型": "iPhone 17 Pro Max (iPhone18,2)",
+            "型号": "SYNTHETIC-IOS-PART-NUMBER",
+            "IMEI": "111111111111111,222222222222222",
+            "序列号": "SYNTHETIC-IOS-SERIAL",
+        }),
+    }, 1)
+    android_row, android_base = _map_package_profile({
+        "info": _pairs({
+            "检材编号": "SYNTHETIC-ANDROID",
+            "检材平台": "Android",
+            "IMEI1": "",
+            "IMEI2": "",
+            "提取时间": "2026/06/17 10:30:00 +08:00",
+            "解析时间": "2026/06/17 12:00:00 +08:00",
+        }),
+        "deviceInfo": _pairs({
+            "设备名称": "SYNTHETIC-ANDROID-PHONE",
+            "品牌": "SYNTHETIC-ANDROID-BRAND",
+            "型号": "SYNTHETIC-ANDROID-MODEL",
+            "IMEI": "333333333333333,",
+            "Mtp序列号": "SYNTHETIC-ANDROID-SERIAL",
+        }),
+    }, 2)
+
+    ios_kind, ios_classification = classify_report_material({
+        **ios_base, "device_type_source": "report_field",
+    })
+    android_kind, android_classification = classify_report_material({
+        **android_base, "device_type_source": "report_field",
+    })
+
+    assert {
+        "ios_identifiers": (
+            ios_row["imei1"], ios_row["imei2"], ios_row["serial_number"],
+        ),
+        "ios_model": ios_base["model"],
+        "ios_type": (
+            ios_kind, ios_classification.status,
+            ios_classification.diagnostic_code,
+        ),
+        "android_identifiers": (
+            android_row["imei1"], android_row["imei2"],
+            android_row["serial_number"],
+        ),
+        "android_brand_model": (
+            android_base["brand"], android_base["model"],
+        ),
+        "android_type": (
+            android_kind, android_classification.status,
+            android_classification.diagnostic_code,
+        ),
+    } == {
+        "ios_identifiers": (
+            "111111111111111", "222222222222222", "SYNTHETIC-IOS-SERIAL",
+        ),
+        "ios_model": "iPhone 17 Pro Max",
+        "ios_type": (
+            "phone", "confirmed_by_report",
+            "MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI",
+        ),
+        "android_identifiers": (
+            "333333333333333", "", "SYNTHETIC-ANDROID-SERIAL",
+        ),
+        "android_brand_model": (
+            "SYNTHETIC-ANDROID-BRAND", "SYNTHETIC-ANDROID-MODEL",
+        ),
+        "android_type": (
+            "unconfirmed", "unconfirmed",
+            "MATERIAL_TYPE_DEVICE_TYPE_UNRECOGNIZED",
+        ),
+    }
+
+
+@pytest.mark.parametrize(("product_type", "device_name", "model", "expected"), [
+    (
+        "iPhone 17 Pro Max（iPhone18,2）",
+        "SYNTHETIC-IPHONE",
+        "SYNTHETIC-IOS-PART-NUMBER",
+        "iPhone 17 Pro Max",
+    ),
+    (
+        "iPhone Special Edition (PRODUCT RED)",
+        "SYNTHETIC-IPHONE",
+        "SYNTHETIC-IOS-PART-NUMBER",
+        "iPhone Special Edition (PRODUCT RED)",
+    ),
+    (
+        "",
+        "SYNTHETIC-IOS-DEVICE-NAME",
+        "SYNTHETIC-IOS-PART-NUMBER",
+        "SYNTHETIC-IOS-DEVICE-NAME",
+    ),
+])
+def test_qianxin_ios_model_uses_controlled_product_type_normalization(
+    product_type: str, device_name: str, model: str, expected: str,
+):
+    _, base = _map_package_profile({
+        "info": _pairs({
+            "检材编号": "SYNTHETIC-IOS",
+            "检材平台": "iOS",
+            "提取时间": "2026/06/17 10:30:00 +08:00",
+            "解析时间": "2026/06/17 12:00:00 +08:00",
+        }),
+        "deviceInfo": _pairs({
+            "设备名称": device_name,
+            "产品类型": product_type,
+            "型号": model,
+        }),
+    }, 1)
+
+    assert base["model"] == expected
+
+
+@pytest.mark.parametrize((
+    "platform", "device_category", "lower_priority_type", "expected_kind",
+), [
+    ("iOS", "iPhone", "平板", "phone"),
+    ("iOS", "iPad", "手机", "tablet"),
+    ("Android", "iPhone", "", "unconfirmed"),
+])
+def test_qianxin_ios_device_category_has_classification_priority(
+    platform: str,
+    device_category: str,
+    lower_priority_type: str,
+    expected_kind: str,
+):
+    _, base = _map_package_profile({
+        "info": _pairs({
+            "检材编号": "SYNTHETIC-CATEGORY",
+            "检材平台": platform,
+            "检材类型": lower_priority_type,
+            "IMEI1": "111111111111111",
+            "提取时间": "2026/06/17 10:30:00 +08:00",
+            "解析时间": "2026/06/17 12:00:00 +08:00",
+        }),
+        "deviceInfo": _pairs({
+            "设备名称": "SYNTHETIC-DEVICE",
+            "设备类别": device_category,
+            "型号": "SYNTHETIC-MODEL",
+        }),
+    }, 1)
+
+    kind, classification = classify_report_material({
+        **base, "device_type_source": "report_field",
+    })
+
+    assert (kind, classification.status) == (
+        expected_kind,
+        "confirmed_by_report" if expected_kind != "unconfirmed" else "unconfirmed",
+    )
 
 
 def _write_qianxin_fixture(root: Path) -> Path:
@@ -303,7 +470,7 @@ def test_qianxin_source_registration_uses_versioned_adapter_identity(tmp_path):
         "path_leaked": str(source) in json.dumps(descriptor, ensure_ascii=False),
     } == {
         "adapter_id": "qianxin-web-report-v1",
-        "adapter_version": "1.1.0",
+        "adapter_version": "1.4.0",
         "path_leaked": False,
     }
 

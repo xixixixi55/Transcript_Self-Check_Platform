@@ -130,6 +130,26 @@
 - **AND** 明确“检材类型”或“设备类型”优先于 `检材平台`；仅有 `检材平台=Android` 时不得自动断言材料一定是手机；缺少可靠类型且 IMEI1/IMEI2 为两个有效、不同的 15 位数字时可兜底推断为手机，否则保持待确认
 - **AND** 报告未提供取证硬件时保持为空，不套用美亚硬件默认值；正式 Word 继续走现有兼容 DTO、导出门控和 legacy renderer
 
+#### Scenario: 奇安信 iOS 与 Android 标识字段归一
+
+- **WHEN** iOS 或 Android package profile 在 `info.IMEI1/IMEI2` 与 `deviceInfo.IMEI` 中以平台差异形式提供设备标识
+- **THEN** 有效的 `info.IMEI1/IMEI2` 按槽位优先，缺失槽位从 `deviceInfo.IMEI` 中按出现顺序补入不同的 15 位 IMEI；单值尾部分隔符不得导致该有效 IMEI 丢失，重复或非 15 位候选不得外显
+- **AND** iOS 的 `序列号` 与 Android 的 `Mtp序列号` 统一映射为原始序列号候选；Android 仅得到一个有效 IMEI 时仍保持检材类型待确认
+- **AND** 本场景不新增鸿蒙字段别名、平台推断或设备类型规则
+
+#### Scenario: 奇安信 iOS 产品类型生成设备显示名
+
+- **WHEN** 奇安信 iOS package profile 的 `deviceInfo.产品类型` 为“产品名称 + 末尾 Apple 硬件标识括号”，例如 `iPhone 17 Pro Max (iPhone18,2)`
+- **THEN** 系统将去除末尾硬件标识后的产品名称作为设备型号候选，使 Word 设备字段显示 `iPhone 17 Pro Max`，不得优先显示 Apple 销售料号或用户自定义设备名称
+- **AND** 只移除末尾形如 `iPhone数字,数字`、`iPad数字,数字`或`iPod数字,数字`的半角/全角括号组；其他产品名称括号内容不得被泛化删除
+- **AND** iOS 产品类型缺失或清理后为空时依次回退设备名称和型号；Android 继续保留既有品牌与型号映射，不受本场景影响
+
+#### Scenario: 奇安信 iOS 设备类别优先确定检材类型
+
+- **WHEN** 奇安信 iOS package profile 的 `deviceInfo.设备类别` 明确提供 `iPhone` 或 `iPad`
+- **THEN** 系统优先以该字段将检材分别确认为手机或平板，不依赖双 IMEI 兜底，也不被同一 package 中优先级较低的`检材类型`或`设备类型`覆盖
+- **AND** `设备类别`缺失时继续使用既有明确类型与双 IMEI 规则；Android 不读取该 iOS 专用优先字段，既有分类行为保持不变
+
 #### Scenario: 大体量明细和媒体不进入案件初始化
 
 - **WHEN** 奇安信报告包含大量编号数据目录、图片、音视频、通讯录或其他提取内容

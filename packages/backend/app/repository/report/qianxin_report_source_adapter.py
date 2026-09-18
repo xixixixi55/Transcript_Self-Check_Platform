@@ -31,10 +31,14 @@ from .report_source_adapter import ReportAdapterDetectionError, ReportAdapterMat
 
 
 QIANXIN_ADAPTER_ID = "qianxin-web-report-v1"
-QIANXIN_ADAPTER_VERSION = "1.1.0"
+QIANXIN_ADAPTER_VERSION = "1.4.0"
 _REPORT_PROFILE = "data_report_profile.json"
 _NAVIGATION = "data_navigation.json"
 _PACKAGE_RE = re.compile(r"data_package_profile_(?P<index>\d+)\.json\Z")
+_APPLE_HARDWARE_SUFFIX_RE = re.compile(
+    r"\s*[（(](?:iphone|ipad|ipod)\d+,\d+[)）]\s*\Z",
+    re.IGNORECASE,
+)
 _MAX_HTML_BYTES = 64 * 1024 * 1024
 _MAX_PROFILE_BYTES = 512 * 1024
 _MAX_NAVIGATION_BYTES = 64 * 1024 * 1024
@@ -289,19 +293,17 @@ def _map_package_profile(
     )
     device = _pair_map(value.get("deviceInfo"), required={"设备名称", "型号"})
     material_id = f"qianxin-package-{index}"
-    imei1 = _identifier(info.get("IMEI1")) or _identifier(device.get("IMEI"))
-    imei2 = _identifier(info.get("IMEI2"))
-    serial_number = _text(device.get("序列号")) or _text(device.get("Mtp序列号"))
-    explicit_types = [
-        _text(source.get(label))
-        for source in (info, device)
-        for label in ("检材类型", "设备类型")
-        if _text(source.get(label))
-    ]
-    device_type = (
-        _merge_distinct_values(explicit_types)
-        if explicit_types else info.get("检材平台", "")
+    info_imei1 = _identifier(info.get("IMEI1"))
+    info_imei2 = _identifier(info.get("IMEI2"))
+    device_imeis = _identifier_candidates(device.get("IMEI"))
+    imei1 = info_imei1 or _first_distinct_identifier(
+        device_imeis, excluded={info_imei2},
     )
+    imei2 = info_imei2 or _first_distinct_identifier(
+        device_imeis, excluded={imei1},
+    )
+    serial_number = _text(device.get("序列号")) or _text(device.get("Mtp序列号"))
+    device_type = _device_type(info, device)
     row = {
         "material_id": material_id,
         "evidence_number": info.get("检材编号", ""),
@@ -318,7 +320,7 @@ def _map_package_profile(
         "device_type": row["device_type"],
         "device_name": row["device_name"],
         "brand": device.get("品牌", ""),
-        "model": device.get("型号", "") or info.get("手机型号", ""),
+        "model": _device_model(info, device),
         "holder_name": row["holder_name"],
         "imei1": imei1,
         "imei2": imei2,
@@ -363,6 +365,63 @@ def _merge_distinct_values(values: list[str]) -> str:
 def _identifier(value: Any) -> str:
     text = _text(value)
     return text if re.fullmatch(r"\d{15}", text) else ""
+
+
+def _device_type(info: dict[str, str], device: dict[str, str]) -> str:
+    platform = unicodedata.normalize(
+        "NFKC", _text(info.get("检材平台")),
+    ).casefold()
+    if platform == "ios":
+        device_category = _text(device.get("设备类别"))
+        if device_category:
+            return device_category
+    explicit_types = [
+        _text(source.get(label))
+        for source in (info, device)
+        for label in ("检材类型", "设备类型")
+        if _text(source.get(label))
+    ]
+    return (
+        _merge_distinct_values(explicit_types)
+        if explicit_types else _text(info.get("检材平台"))
+    )
+
+
+def _device_model(info: dict[str, str], device: dict[str, str]) -> str:
+    platform = unicodedata.normalize(
+        "NFKC", _text(info.get("检材平台")),
+    ).casefold()
+    if platform == "ios":
+        product_type = _text(device.get("产品类型"))
+        if product_type:
+            display_name = _APPLE_HARDWARE_SUFFIX_RE.sub("", product_type).strip()
+            if display_name:
+                return display_name
+        device_name = _text(device.get("设备名称"))
+        if device_name:
+            return device_name
+    return _text(device.get("型号")) or _text(info.get("手机型号"))
+
+
+def _identifier_candidates(value: Any) -> tuple[str, ...]:
+    text = _text(value)
+    candidates: list[str] = []
+    for match in re.finditer(r"(?<!\d)\d{15}(?!\d)", text):
+        candidate = match.group(0)
+        if candidate not in candidates:
+            candidates.append(candidate)
+        if len(candidates) == 2:
+            break
+    return tuple(candidates)
+
+
+def _first_distinct_identifier(
+    candidates: tuple[str, ...], *, excluded: set[str],
+) -> str:
+    return next(
+        (candidate for candidate in candidates if candidate not in excluded),
+        "",
+    )
 
 
 def _normalize_datetime(value: Any) -> str:

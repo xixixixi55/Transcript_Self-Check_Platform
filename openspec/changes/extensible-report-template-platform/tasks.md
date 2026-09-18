@@ -437,3 +437,36 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 17F.3 核对实现并同步 living spec，运行受影响后端/前端测试、`lint:arch`、`typecheck`、`verify:quick`、限定 strict docs、OpenSpec strict validate 和 `git diff --check`；保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
 
 实现与验证证据（2026-09-17）：统一材料策略以两个有效、不同的 15 位 IMEI 生成 `phone`、`confirmed_by_report` 和 `MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI`；用户确认、明确平板和类型冲突优先。审核编辑器区分推断来源，ExportGate 聚焦回归证明该状态无需人工二次确认即可通过检材类型门控。关闭推断的进程内突变使新增用例按预期失败，恢复后材料策略 27 passed；四格式解析、Canonical、缓存版本和归档关联的受影响后端 259 passed，前端审核摘要、结构化编辑器和文书内容投影 38 passed。`lint:arch`、`typecheck`、`verify:quick`、OpenSpec strict validate、living spec 校验与 `git diff --check` 通过；限定 strict docs 首次仅因本任务尚未勾选而按预期报告 1 项 `task-incomplete`，勾选后复跑为 15 项检查、0 drift。变更包保持 `lifecycle_status: in-progress`，不启动延期任务、最终 Review 或 scoped full gate。
+
+## 2026-09-17 奇安信 iOS/Android 标识字段归一（17G）
+
+本次增量 `workflow_level: 2`；继续复用 17C 的奇安信 package profile 映射和 17F 的双 IMEI 类型兜底。用户指定仓库外报告仅用于只读、脱敏确认 iOS 与 Android 字段形态；自动化只使用 SYNTHETIC 数据。范围限定为已观察到的 iOS/Android `info.IMEI1/IMEI2`、`deviceInfo.IMEI`、`序列号`和`Mtp序列号`，不增加鸿蒙字段别名或类型推断。`manual_acceptance: N/A`（来源字段归一与分类结果由自动化和脱敏解析覆盖，无 UI、Word/PDF 版式或桌面工具变化）。
+
+- [x] 17G.1 补充 delta，明确 info 分槽 IMEI 优先、deviceInfo 单/双 IMEI 有界回退、iOS/Android 序列号别名及 Android 单 IMEI 继续待确认；不扩展鸿蒙范围。
+- [x] 17G.1T 先增加可区分的 SYNTHETIC iOS/Android 回归，证明旧实现会丢失 deviceInfo 中以逗号分隔或带尾部分隔符的有效 IMEI。
+- [x] 17G.2 在奇安信 Layer 20 适配器内完成稳定去重和缺失槽位回填，提升适配器版本以使旧来源缓存失效；不得改变显式 info 值优先级或全局材料分类规则。
+- [x] 17G.3 对用户指定目录执行只读脱敏复验，核对实现并同步 living spec；运行奇安信及受影响报告测试、`verify:quick`、限定 strict docs、OpenSpec strict validate 和 `git diff --check`，保持 `lifecycle_status: in-progress`。
+
+实现与验证证据（2026-09-17）：新增 SYNTHETIC iOS/Android 组合回归在旧实现上按预期 `1 failed`，可区分 iOS 设备层第二个 IMEI 与 Android 尾部分隔符单 IMEI 的丢失；适配器现按 `info.IMEI1/IMEI2` 槽位优先，从 `deviceInfo.IMEI` 最多提取两个稳定去重的 15 位候选补齐缺失槽位，并继续统一 `序列号`/`Mtp序列号`。适配器版本提升为 `qianxin-web-report-v1@1.2.0`，未修改全局材料分类；修复后奇安信聚焦 `12 passed`。用户指定仓库外报告只读脱敏复验仍只读取 5 个核心依赖并投影 2 项材料：iOS 保持双 IMEI 推断手机，Android 保持单 IMEI 待确认；未记录案件、人员、设备标识或绝对路径。最终行为已同步 living spec；`npm run verify:quick`、OpenSpec strict validate 与 `git diff --check` 通过，限定 strict docs 首次仅因 17G.3 尚未勾选而按预期报告 1 项 `task-incomplete`。本增量不包含鸿蒙字段或规则，变更包保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+
+## 2026-09-18 奇安信 iOS 产品类型显示名（17H）
+
+本次增量 `workflow_level: 2`；继续复用 17C/17G 的奇安信 package profile 映射和现有 Word 检材显示策略。用户确认 Android 的品牌加型号展示正确，因此 Android 映射必须保持不变；仅修复 iOS 将 Apple 销售料号误作 Word 设备字段的问题。测试使用 SYNTHETIC 字段组合，仓库外报告只作只读脱敏复验。`manual_acceptance: N/A`（来源字段归一和 Word 展示输入由自动化及脱敏投影覆盖，无模板版式变化）。
+
+- [x] 17H.1 补充 delta，规定 iOS 优先使用清理后的`产品类型`、仅移除末尾 Apple 硬件标识括号，并在缺失时回退设备名称和型号；Android 品牌与型号映射保持不变。
+- [x] 17H.1T 扩展现有奇安信 iOS/Android 合成回归，先证明旧实现仍把 iOS `型号`销售料号投影为 Word 设备型号，同时断言 Android 品牌和型号不回归。
+- [x] 17H.2 在奇安信 Layer 20 适配器内实现受控 iOS 产品类型规范化并提升适配器版本；不修改 Canonical、通用 Word 渲染器或 Android 分支。
+- [x] 17H.3 对用户指定目录执行只读脱敏复验，同步 living spec，运行奇安信及受影响报告测试、`verify:quick`、限定 strict docs、OpenSpec strict validate 和`git diff --check`；保持`lifecycle_status: in-progress`。
+
+实现与验证证据（2026-09-18）：扩展现有 SYNTHETIC iOS/Android 回归后，旧实现按预期 `1 failed`，且唯一差异是 iOS 仍将销售料号投影为设备型号，Android 品牌与型号断言保持通过。适配器现仅在 `检材平台=iOS` 时优先读取 `deviceInfo.产品类型`，受控移除末尾 iPhone/iPad/iPod 硬件标识括号，并按产品类型、设备名称、型号顺序回退；普通产品名括号不被删除，Android 分支未变，适配器版本提升为 `qianxin-web-report-v1@1.3.0`。修复后奇安信聚焦 `15 passed`。用户指定仓库外报告只读脱敏复验读取 5 个核心依赖并投影 2 项材料：1 项 iOS 型号等于清理后的预期产品名且不含硬件标识，1 项 Android 品牌与型号均保持非空；未记录案件、人员、设备标识或绝对路径。最终行为已同步 living spec；`npm run verify:quick`、OpenSpec strict validate 与 `git diff --check` 通过，限定 strict docs 首次仅因 17H.3 尚未勾选而按预期报告 1 项 `task-incomplete`。本增量不包含鸿蒙字段或规则，变更包保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+
+## 2026-09-18 奇安信 iOS 设备类别分类（17I）
+
+本次反馈增量 `workflow_level: 2`；真实报告仅作只读脱敏字段位置确认，自动化使用 SYNTHETIC 数据。范围限定为 iOS `deviceInfo.设备类别`对手机/平板分类的优先输入，不修改产品类型显示名、Android 字段映射或全局材料分类词表。`manual_acceptance: N/A`（来源分类输入与结果由自动化和脱敏投影覆盖，无 UI、Word/PDF 版式或桌面工具变化）。
+
+- [x] 17I.1 补充 delta，规定 iOS `设备类别=iPhone/iPad`分别优先确认为手机/平板；缺失时沿用既有规则，Android 不受影响。
+- [x] 17I.1T 新增可区分的 SYNTHETIC iPhone/iPad/Android 回归，先证明旧适配器未读取 iOS `deviceInfo.设备类别`。
+- [x] 17I.2 在奇安信 Layer 20 适配器内实现 iOS 设备类别优先映射并提升适配器版本；不修改统一材料分类器。
+- [x] 17I.3 对用户指定目录执行只读脱敏复验，同步 living spec，运行奇安信测试、`verify:quick`、限定 strict docs、OpenSpec strict validate 和`git diff --check`；保持`lifecycle_status: in-progress`。
+
+实现与验证证据（2026-09-18）：新增 SYNTHETIC iPhone/iPad/Android 分类回归在旧实现上按预期 `2 failed, 1 passed`，证明 iOS 仍被较低优先级字段错误覆盖，而 Android 对照行为未变化。适配器现仅对 `检材平台=iOS` 优先投影 `deviceInfo.设备类别`，缺失时继续使用既有明确类型与平台回退；统一材料分类器未修改，适配器版本提升为 `qianxin-web-report-v1@1.4.0`。修复后聚焦回归 `3 passed`、奇安信全量 `18 passed`。用户指定仓库外报告只读脱敏复验读取 5 个核心依赖并投影 2 项材料：iOS 来源类型为 iPhone 且确认为手机，Android 来源类型保持 Android 且继续待确认；未记录案件、人员、设备标识或绝对路径。最终行为已同步 living spec；`npm run verify:quick`、OpenSpec strict validate 与 `git diff --check` 通过，限定 strict docs 首次仅因 17I.3 尚未勾选而按预期报告 1 项 `task-incomplete`。本增量不包含鸿蒙字段或规则，变更包保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
