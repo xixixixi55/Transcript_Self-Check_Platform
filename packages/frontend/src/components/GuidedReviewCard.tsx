@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { EvidenceItem, FieldState, InspectionReport, InspectorLibraryRecord, InspectorSnapshot } from '@biji/shared/types'
 import type { GuidedReviewAction } from '../hooks/useGuidedReviewCards'
 import { REVIEW_TARGET_IDS } from '../hooks/useReviewChecklist'
+import { useQuickEvidenceBatchDraft } from '../hooks/useQuickEvidenceBatchDraft'
 import { DateTimeField } from './DateTimeField'
 import { DocumentNumberEditor } from './DocumentNumberEditor'
 import EvidenceEditor from './EvidenceEditor'
@@ -17,6 +18,7 @@ import {
 } from './ReviewIntroductionSection'
 
 interface Props {
+  caseId?: string
   action: GuidedReviewAction
   report: InspectionReport
   updateReport: (path: string, value: unknown) => void
@@ -37,7 +39,7 @@ interface TextField {
   transform?: (value: string) => unknown
 }
 
-export const QUICK_EVIDENCE_BATCH_GUIDANCE = '每行一项，换行请按 Shift + Enter。格式：设备名称＋手机/平板一部＋（原因）＋编号；全角括号，编号置于行末。'
+export const QUICK_EVIDENCE_BATCH_GUIDANCE = '每行一项，按 Enter 换行。格式：设备名称＋手机/平板一部＋（原因）＋编号；全角括号，编号置于行末。'
 
 interface EvidenceBatchPreview {
   deviceName: string
@@ -130,11 +132,12 @@ function parseEvidenceBatch(value: string, existingItems: EvidenceItem[]): Evide
   return { preview, errors }
 }
 
-function QuickEvidenceBatchAdder({ items, onChange }: {
+function QuickEvidenceBatchAdder({ caseId, items, onChange }: {
+  caseId: string
   items: EvidenceItem[]
   onChange: (items: EvidenceItem[]) => void
 }) {
-  const [value, setValue] = useState('')
+  const { value, setValue, clear } = useQuickEvidenceBatchDraft(caseId)
   const [result, setResult] = useState<EvidenceBatchResult | null>(null)
   const [sortRequested, setSortRequested] = useState(false)
   const [sortFeedback, setSortFeedback] = useState<{ message: string } | null>(null)
@@ -208,7 +211,7 @@ function QuickEvidenceBatchAdder({ items, onChange }: {
     onChange(sortRequested
       ? naturalEvidenceOrder(nextItems, item => item.evidence_number).items
       : nextItems)
-    setValue('')
+    clear()
     setResult(null)
     setSortRequested(false)
     setSortFeedback(null)
@@ -221,6 +224,7 @@ function QuickEvidenceBatchAdder({ items, onChange }: {
       <div className="guided-review-card__quick-evidence">
         <Space direction="vertical" size="small" style={{ width: '100%', marginTop: 12 }}>
           <Input.TextArea aria-label="快捷批量添加检材" aria-describedby="quick-evidence-format-help" value={value}
+            data-enter-behavior="newline"
             placeholder={'iPhone 6手机一部（因设备损坏无法提取）JC2026089601\niPad平板一部（因无法开机无法提取）JC2026089602'}
             autoSize={{ minRows: 4, maxRows: 10 }} maxLength={5000}
             onChange={event => {
@@ -372,7 +376,7 @@ function EvidenceCompletenessSummary({ items, onRemove, readOnly }: {
 }
 
 export function GuidedReviewCard({
-  action, report, updateReport, readOnly, specialContent,
+  caseId = '', action, report, updateReport, readOnly, specialContent,
   onEvidenceCompletenessChange, onEvidenceBatchModeChange, fieldStates, availableInspectors = [],
   inspectorLoading = false, inspectorError = null,
 }: Props) {
@@ -422,7 +426,7 @@ export function GuidedReviewCard({
     <div className="guided-review-card__evidence-editor">
       <fieldset disabled={readOnly} className="guided-review-card__fieldset">
         {evidenceSummary}
-        <QuickEvidenceBatchAdder items={evidenceItems}
+        <QuickEvidenceBatchAdder caseId={caseId} items={evidenceItems}
           onChange={items => {
             updateReport('introduction.evidence_list', items)
             onEvidenceCompletenessChange?.(false)

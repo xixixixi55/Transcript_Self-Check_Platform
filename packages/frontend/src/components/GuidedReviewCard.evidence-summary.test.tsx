@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { InspectionReport } from '@biji/shared/types'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GuidedReviewAction } from '../hooks/useGuidedReviewCards'
 import { GuidedReviewCard } from './GuidedReviewCard'
 
@@ -13,6 +13,8 @@ const action: GuidedReviewAction = {
     reason: '请确认检材是否完整。', severity: 'warning', kind: 'confirmation_required',
   },
 }
+
+beforeEach(() => window.localStorage.clear())
 
 function reportWithEvidence(evidenceList: InspectionReport['introduction']['evidence_list']): InspectionReport {
   return {
@@ -119,5 +121,38 @@ describe('GuidedReviewCard evidence completeness summary', () => {
     rerender(<GuidedReviewCard action={action} report={reportWithEvidence([])} updateReport={updateReport}
       readOnly={false} onEvidenceCompletenessChange={vi.fn()} />)
     expect(screen.getByRole('status').textContent).toContain('当前未识别到检材')
+  })
+
+  it('restores an unsubmitted batch draft only for the same case and clears it after adding', () => {
+    const draft = 'SYNTHETIC Phone手机一部（SYNTHETIC/TEST：无法开机）SYN-JC00000006'
+    const report = reportWithEvidence([])
+    const renderCard = (caseId: string) => render(
+      <GuidedReviewCard caseId={caseId} action={action} report={report}
+        updateReport={vi.fn()} readOnly={false} onEvidenceCompletenessChange={vi.fn()} />,
+    )
+
+    const first = renderCard('SYNTHETIC-CASE-A')
+    fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '快捷批量添加检材' }), {
+      target: { value: draft },
+    })
+    first.unmount()
+
+    const otherCase = renderCard('SYNTHETIC-CASE-B')
+    fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    expect((screen.getByRole('textbox', { name: '快捷批量添加检材' }) as HTMLTextAreaElement).value).toBe('')
+    otherCase.unmount()
+
+    const restored = renderCard('SYNTHETIC-CASE-A')
+    fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    const restoredInput = screen.getByRole('textbox', { name: '快捷批量添加检材' }) as HTMLTextAreaElement
+    expect(restoredInput.value).toBe(draft)
+    fireEvent.click(screen.getByRole('button', { name: '解析、排序并预览' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认添加 1 项检材' }))
+    restored.unmount()
+
+    renderCard('SYNTHETIC-CASE-A')
+    fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    expect((screen.getByRole('textbox', { name: '快捷批量添加检材' }) as HTMLTextAreaElement).value).toBe('')
   })
 })

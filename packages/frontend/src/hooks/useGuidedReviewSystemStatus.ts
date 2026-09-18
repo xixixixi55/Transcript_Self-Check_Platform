@@ -10,8 +10,6 @@ interface GuidedReviewSystemStatusInput {
   lifecycle: CaseLifecycle
   archiveTask?: ArchiveTaskCardSummary | null
   sourceStatus: SourceAccessStatus
-  saveState: 'idle' | 'saving' | 'saved' | 'failed' | 'conflict' | 'not_changed'
-  saveHasPending: boolean
   photoState: 'ready' | 'uploading' | 'error' | 'warning'
 }
 
@@ -46,9 +44,6 @@ function backgroundArchiveDetail(task: ArchiveTaskCardSummary): string {
 export function buildGuidedReviewSystemStatus(
   input: GuidedReviewSystemStatusInput,
 ): GuidedReviewSystemStatus | null {
-  if (input.saveHasPending && input.saveState === 'saving') return {
-    title: '正在保存当前输入', detail: '保存完成前，当前输入会继续保留在本页面。',
-  }
   if (input.photoState === 'uploading') return { title: '正在保存图片', detail: '图片上传和绑定完成后会自动沿用。' }
   if (input.sourceStatus === 'pending') return { title: '正在复核报告来源', detail: '系统完成快速复核后会更新可办理事项。' }
   if (input.archiveTask && ['archive_queued', 'archiving'].includes(input.lifecycle)) return {

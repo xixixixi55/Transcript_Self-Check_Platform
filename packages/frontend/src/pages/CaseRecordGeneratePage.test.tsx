@@ -345,7 +345,7 @@ describe('CaseRecordGeneratePage archive decision coordination', () => {
     const assistantMessage = screen.getByRole('status', { name: '獬豸助手提示' })
     const reply = screen.getByRole('group', { name: '你的回复' })
     await waitFor(() => expect(assistantMessage.textContent).toContain('快捷批量添加检材'))
-    expect(assistantMessage.textContent).toContain('每行一项，换行请按 Shift + Enter。')
+    expect(assistantMessage.textContent).toContain('每行一项，按 Enter 换行。')
     expect(within(reply).queryByText('快捷批量添加检材')).toBeNull()
     expect(within(reply).queryByText(/每行一项/)).toBeNull()
     const batchInput = screen.getByRole('textbox', { name: '快捷批量添加检材' })

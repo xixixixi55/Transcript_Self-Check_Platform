@@ -419,6 +419,7 @@ describe('guided review projection', () => {
     expect(result.current.currentAction?.kind).toBe('pending_item')
     expect(result.current.currentAction?.pendingItem?.fieldLabel).toBe('委托时间')
     expect(result.current.allActions.some(action => action.kind === 'save_recovery')).toBe(false)
+    expect(result.current.systemStatus?.title).not.toBe('正在保存当前输入')
 
     rerender({ input: {
       ...buildInput(withMediumNumber({

@@ -329,7 +329,7 @@ export default function CaseRecordGeneratePage() {
           onStartArchiveNow={() => { void chooseArchive('immediate') }}
           startArchiveNowBusy={archiveDecisionBusy}
           onBackToWorkbench={() => { void handleBackToWorkbench() }}>
-          <GuidedReviewCard action={currentGuidedAction} report={projectedReport || session.report}
+          <GuidedReviewCard caseId={caseId} action={currentGuidedAction} report={projectedReport || session.report}
             updateReport={updateReport} readOnly={guidedInteractionDisabled}
             specialContent={guidedSpecialContent}
             fieldStates={session.draft?.field_states}

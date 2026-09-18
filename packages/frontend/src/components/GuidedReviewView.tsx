@@ -292,6 +292,7 @@ export function GuidedReviewView({
       || event.altKey || event.ctrlKey || event.metaKey) return
     const target = event.target
     if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return
+    if (target.dataset.enterBehavior === 'newline') return
     if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
     event.preventDefault()
     onConfirmCurrentAction?.()

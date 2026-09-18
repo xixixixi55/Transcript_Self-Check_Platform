@@ -57,6 +57,31 @@ describe('GuidedReviewView text confirmation', () => {
     expect(confirm).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps plain Enter as a newline inside quick evidence batch input', () => {
+    const confirm = vi.fn()
+    const quickEvidenceAction: GuidedReviewAction = {
+      ...action,
+      id: 'SYNTHETIC-EVIDENCE-COMPLETENESS',
+      title: '请确认检材完整性',
+      pendingItem: {
+        ...action.pendingItem!,
+        targetId: 'review-target-evidence-completeness',
+        fieldLabel: '检材完整性',
+      },
+    }
+    render(<GuidedReviewView conversationKey="SYNTHETIC-CASE" history={[]}
+      currentAction={quickEvidenceAction} allActions={[quickEvidenceAction]} hasResponse
+      onSelectAction={vi.fn()} onConfirmCurrentAction={confirm} onBackToWorkbench={vi.fn()}>
+      <GuidedReviewCard caseId="SYNTHETIC-CASE" action={quickEvidenceAction} report={report}
+        updateReport={vi.fn()} readOnly={false} />
+    </GuidedReviewView>)
+
+    fireEvent.click(screen.getByRole('button', { name: '检材信息不完整，手工添加检材' }))
+    const input = screen.getByRole('textbox', { name: '快捷批量添加检材' })
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true)
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
   it('disables the action button while editing is unavailable', () => {
     render(confirmationView(vi.fn(), true))
     const button = screen.getByRole('button', { name: '进入下一步' }) as HTMLButtonElement
