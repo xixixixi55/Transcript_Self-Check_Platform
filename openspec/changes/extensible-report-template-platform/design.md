@@ -493,7 +493,7 @@ Shadow 比较至少覆盖案件字段、检材类型、IMEI1/IMEI2或序列号�
 
 ### 第一阶段实现澄清
 
-- 检材自动候选优先读取报告明确的 `device_type` 语义字段，不搜索报告全文，也不读取案件名称、单位、文件名、目录名或设备型号作为分类依据。字段值先去除首尾空白并做必要的全半角/英文大小写归一化，再匹配固定词表：`手机`、`智能手机`、`phone`、`smartphone`、`iPhone` 映射 `phone`；`平板`、`平板电脑`、`tablet`、`iPad` 映射 `tablet`。中文词必须具有中文边界，`手机壳`、`非手机设备`、`平板扫描仪` 不得命中；多个明确字段同时命中两类时保留冲突。没有可靠类型且 IMEI1/IMEI2 均为有效、不同的 15 位数字时可兜底为 `phone`；该诊断与报告明确类型在审核界面区分显示。自动候选的来源和诊断必须保留，状态与人工确认严格区分为 `confirmed_by_report`、`confirmed_by_user`、`unconfirmed`。
+- 检材自动候选不搜索报告全文，也不读取案件名称、单位、文件名、目录名或设备型号作为分类依据。稳定优先级为：既有人工确认；规范化后精确为 `iPhone`/`iPad` 的“手机品牌”；明确平板或同时命中手机/平板的类型冲突；两个有效且不同的 15 位 IMEI；设备类型手机；待确认。“手机品牌”只允许精确 Apple 产品族值，不能以包含关系猜测。`device_type` 字段仍做全半角/大小写归一化并匹配固定词表：`手机`、`智能手机`、`phone`、`smartphone`、`iPhone` 映射 `phone`；`平板`、`平板电脑`、`tablet`、`iPad` 映射 `tablet`。中文词必须具有中文边界，`手机壳`、`非手机设备`、`平板扫描仪` 不得命中；类型冲突不得被双 IMEI 或手机候选覆盖。Apple 品牌、双 IMEI 与设备类型候选使用可区分诊断，自动候选来源和诊断必须保留，状态与人工确认严格区分为 `confirmed_by_report`、`confirmed_by_user`、`unconfirmed`。
 - `MaterialDisplayPolicy` 是业务规划层的唯一标识显示决策：`phone` 只返回合法 `imei1`/`imei2`，`tablet` 只返回合法 `serial_number`，`unconfirmed` 不返回推测标识；Canonical/解析层始终完整保留原始 identifiers，Renderer 不重新判断。
 - 单机人员库正式使用 `BIJI_APP_DATA_DIR` 覆盖目录；未设置时 Windows 使用 `%LOCALAPPDATA%\\文枢\\data`，默认目录由后端创建，正式文件为 `inspectors.json`，最近有效备份为 `inspectors.json.bak`。写入采用同目录临时文件、flush/fsync、原子替换和进程内锁；测试必须显式传入临时目录，日志和错误不得暴露完整用户主目录。
 - `InspectionReport.introduction.inspector_snapshots` 是新增可选的唯一权威快照字段。新审核页只编辑该数组，保存时按其顺序派生 legacy `introduction.inspectors` 投影，字段映射为 `police_number` → `badge_number`。读取旧 DTO 时，若没有快照但有 `inspectors`，按原顺序 best-effort 转换，不伪造人员库 ID、确认来源或当前人员库关系；两者冲突时快照优先并重建兼容投影。人员库变化不反向修改既有快照。

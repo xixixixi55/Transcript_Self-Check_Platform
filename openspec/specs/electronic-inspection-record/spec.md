@@ -378,10 +378,16 @@ Legacy 兼容入口和唯一正式输出管线保留；兼容客户端可以继�
 - AND 原始解析字段继续保留，显示策略不得通过删除原始标识实现
 
 #### Scenario: 双 IMEI 推断手机并直接通过类型门控
-- WHEN 检材没有用户确认类型，也没有可靠且无冲突的报告类型，且 IMEI1、IMEI2 均为有效、不同的 15 位数字
+- WHEN 检材没有用户确认类型、Apple 手机品牌、明确平板或报告类型冲突，且 IMEI1、IMEI2 均为有效、不同的 15 位数字
 - THEN 系统默认将检材类型推断为手机，标记为 `confirmed_by_report` 并保留 `MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI` 诊断
 - AND 该检材无需人工二次确认即可通过检材类型导出门控，审核界面明确显示“根据双 IMEI 推断”并允许用户修改
 - AND 单个、非法或重复 IMEI 不触发推断；用户确认、明确平板或同时命中手机与平板的报告类型不被覆盖
+
+#### Scenario: 美亚 Apple 手机品牌优先确定检材类型
+- WHEN 美亚报告“手机品牌”规范化后精确为 `iPhone` 或 `iPad`，且“设备类型”写为“手机”
+- THEN 系统分别将检材确认为手机或平板，并保留 `MATERIAL_TYPE_INFERRED_FROM_APPLE_BRAND` 诊断
+- AND Apple 品牌优先于双 IMEI 和设备类型手机；非精确 Apple 品牌值不得触发本规则
+- AND 缺少 Apple 品牌、明确平板及类型冲突时，双 IMEI 先于设备类型手机生效，设备类型手机只作为最后一个自动候选
 
 #### Scenario: 工作台预览不自动启动归档
 - WHEN 工作台案件已解析并进入审核或 Word 预览

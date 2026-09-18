@@ -481,3 +481,14 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 17J.3 对用户指定目录执行只读脱敏复验，同步 living spec，运行平航及受影响报告测试、`verify:quick`、限定 strict docs、OpenSpec strict validate 和 `git diff --check`；保持 `lifecycle_status: in-progress`。
 
 实现与验证证据（2026-09-18）：新增 SYNTHETIC iOS 回归在旧实现上按预期 `1 failed, 1 passed`，唯一失败证明 iOS 仍错误优先内部型号，Android 对照行为保持通过。平航适配器现仅在材料页明确为 iOS 且“手机型号”非空时，将该字段直接投影为设备显示名与型号并移除展示用品牌前缀；缺失“手机型号”时回退既有品牌与内部型号，Android 分支不变。单报告适配器提升为 `pinghang-mobile-multipath-v1@1.9.0`，bundle 提升为 `pinghang-mobile-multipath-bundle-v1@1.2.0`。修复后聚焦 `3 passed`、平航全量 `59 passed`、报告输入与解析受影响范围 `68 passed`。用户指定仓库外 bundle 只读脱敏复验识别 2 项材料：Android 仍保留品牌并组合内部型号，iOS 最终设备显示等于面向用户的手机型号且无品牌前缀；未记录案件、人员或设备标识值，未复制或修改来源报告。当前工作区 `verify:quick` 的架构阶段通过，但两个正在运行的项目开发服务器占用既有 `shared/dist`、`frontend/dist` 增量产物，使标准 TypeScript 阶段以 `EPERM` 停止；未擅自终止用户进程。标准 `npm run typecheck` 在同步当前跟踪文件并隔离构建输出的临时 detached worktree 中通过；当前工作区的治理测试、OpenSpec living specs 校验、文档 quick、仓库资产检查分别通过，限定 strict docs 为 15 项检查、0 drift，OpenSpec strict validate 与 `git diff --check` 通过。变更包保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+
+## 2026-09-18 美亚 Apple 品牌检材类型优先级（17K）
+
+本次反馈增量 `workflow_level: 2`；继续复用 17F 的统一材料分类与导出门控。美亚报告的“设备类型=手机”不能可靠区分 iPhone 与 iPad，因此只将规范化后精确为 `iPhone`/`iPad` 的“手机品牌”作为 Apple 类型优先事实；明确平板和类型冲突继续保持原保护，双 IMEI 继续作为手机推断，报告“设备类型=手机”降为最后一个自动候选。测试仅使用 SYNTHETIC 字段组合。`manual_acceptance: N/A`（后端分类优先级和诊断由自动化覆盖，无 UI、Word/PDF 版式或桌面工具变化）。
+
+- [x] 17K.1 更新 delta、批准规格与设计，明确人工确认 → Apple 手机品牌 → 明确平板/类型冲突 → 双 IMEI → 设备类型手机 → 待确认的优先级。
+- [x] 17K.1T 扩展现有材料策略回归，先证明 `手机品牌=iPad + 设备类型=手机` 会被旧实现误判，并覆盖 iPhone、双 IMEI 优先诊断、设备类型手机最终兜底及非 Apple 品牌不误命中。
+- [x] 17K.2 在统一材料策略层实现优先级，不修改美亚字段解析、前端或渲染器；核对美亚 legacy/new 兼容投影。
+- [x] 17K.3 同步 living spec，运行材料策略与美亚受影响测试、`verify:quick`、限定 strict docs、OpenSpec strict validate 和 `git diff --check`；保持 `lifecycle_status: in-progress`。
+
+实现与验证证据（2026-09-18）：新增 SYNTHETIC Apple 品牌与优先级回归在旧实现上按预期 `3 failed`，分别证明 iPad 被“设备类型=手机”误判、Apple 品牌缺少独立诊断，以及双 IMEI 未先于手机类型候选。统一材料策略现按人工确认、精确 Apple 手机品牌、明确平板/类型冲突、双 IMEI、设备类型手机、待确认的顺序分类，规则身份提升为 `device_type_evidence_v3`；非精确 Apple 品牌不触发，缺少来源标记的 legacy 报告字段继续兼容，显式 `legacy_display` 仍不作为类型事实。修复后材料策略聚焦 `31 passed`，加入美亚 legacy/new 输入、Parser、Canonical 与工作台后的受影响后端 `170 passed`。`lint:arch`、前端 TypeScript、共享 TypeScript 的等价无输出检查、治理测试、living spec、快速文档和仓库资产检查通过；标准 `verify:quick` 在架构阶段通过后，因现有 Node 进程占用 `packages/shared/dist` 的声明映射而以 `EPERM` 停止，沙箱外重试结果相同，未擅自终止用户进程。OpenSpec strict validate 通过；限定 strict docs 首次仅因 17K.3 尚未勾选而按预期报告 1 项 `task-incomplete`，勾选后复跑。变更包保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。

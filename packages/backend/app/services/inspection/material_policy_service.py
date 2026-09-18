@@ -16,9 +16,10 @@ from ..canonical.canonical_models_service import (
     MaterialIdentifier,
 )
 
-MATERIAL_TYPE_RULE_ID = "device_type_evidence_v2"
+MATERIAL_TYPE_RULE_ID = "device_type_evidence_v3"
 _PHONE_WORDS = ("手机", "智能手机", "phone", "smartphone", "iphone")
 _TABLET_WORDS = ("平板", "平板电脑", "tablet", "ipad")
+_APPLE_BRAND_TYPES = {"iphone": "phone", "ipad": "tablet"}
 _PHONE_DISPLAY_TYPE_WORDS = ("手机", "智能手机", "phone", "smartphone")
 _TABLET_DISPLAY_TYPE_WORDS = ("平板", "平板电脑", "tablet")
 _CONFIRMED_STATUSES = {"confirmed_by_report", "confirmed_by_user"}
@@ -74,6 +75,22 @@ def _dual_imei_phone_classification() -> MaterialClassification:
         source="report",
         rule_id=MATERIAL_TYPE_RULE_ID,
         diagnostic_code="MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI",
+    )
+
+
+def _apple_brand_material_kind(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = unicodedata.normalize("NFKC", value).strip().casefold()
+    return _APPLE_BRAND_TYPES.get(normalized)
+
+
+def _apple_brand_classification() -> MaterialClassification:
+    return MaterialClassification(
+        status="confirmed_by_report",
+        source="report",
+        rule_id=MATERIAL_TYPE_RULE_ID,
+        diagnostic_code="MATERIAL_TYPE_INFERRED_FROM_APPLE_BRAND",
     )
 
 
@@ -145,11 +162,18 @@ def classify_report_material(item: Mapping[str, Any]) -> tuple[str, MaterialClas
             diagnostic_code="MATERIAL_TYPE_STATUS_MISSING",
         )
 
+    apple_brand_kind = _apple_brand_material_kind(item.get("brand"))
+    if apple_brand_kind is not None:
+        return apple_brand_kind, _apple_brand_classification()
+
     device_type_source = item.get("device_type_source")
-    if device_type_source == "report_field":
+    phone_candidate: MaterialClassification | None = None
+    if device_type_source in {None, "report_field"}:
         kind, candidate = _classified_material_kind(item.get("device_type"))
-        if kind != "unconfirmed" or candidate.diagnostic_code == "MATERIAL_TYPE_CONFLICT":
+        if kind == "tablet" or candidate.diagnostic_code == "MATERIAL_TYPE_CONFLICT":
             return kind, candidate
+        if kind == "phone":
+            phone_candidate = candidate
     else:
         candidate = MaterialClassification(
             status="unconfirmed",
@@ -160,6 +184,8 @@ def classify_report_material(item: Mapping[str, Any]) -> tuple[str, MaterialClas
 
     if _has_two_distinct_valid_imeis(item):
         return "phone", _dual_imei_phone_classification()
+    if phone_candidate is not None:
+        return "phone", phone_candidate
     return "unconfirmed", candidate
 
 

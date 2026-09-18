@@ -130,6 +130,73 @@ def test_two_distinct_valid_imeis_infer_phone_when_explicit_type_is_missing():
 
 
 @pytest.mark.parametrize(
+    ("brand", "expected_type"),
+    [("iPhone", "phone"), (" iＰad ", "tablet")],
+)
+def test_apple_phone_brand_overrides_unreliable_phone_device_type(
+    brand, expected_type,
+):
+    material = material_from_legacy_item(
+        {
+            "brand": brand,
+            "device_type": "手机",
+            "device_type_source": "report_field",
+            "imei1": "123456789012345",
+            "imei2": "543210987654321",
+        },
+        0,
+    )
+
+    assert material.type == expected_type
+    assert material.classification.status == "confirmed_by_report"
+    assert material.classification.diagnostic_code == "MATERIAL_TYPE_INFERRED_FROM_APPLE_BRAND"
+
+
+def test_dual_imei_precedes_phone_device_type_and_phone_type_remains_last_fallback():
+    dual_imei = material_from_legacy_item(
+        {
+            "brand": "SYNTHETIC-BRAND",
+            "device_type": "手机",
+            "device_type_source": "report_field",
+            "imei1": "123456789012345",
+            "imei2": "543210987654321",
+        },
+        0,
+    )
+    phone_type_only = material_from_legacy_item(
+        {
+            "brand": "SYNTHETIC-BRAND",
+            "device_type": "手机",
+            "device_type_source": "report_field",
+            "imei1": "123456789012345",
+            "imei2": "",
+        },
+        1,
+    )
+
+    assert dual_imei.type == "phone"
+    assert dual_imei.classification.diagnostic_code == "MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI"
+    assert phone_type_only.type == "phone"
+    assert phone_type_only.classification.diagnostic_code is None
+
+
+def test_non_exact_apple_brand_does_not_override_device_type():
+    material = material_from_legacy_item(
+        {
+            "brand": "SYNTHETIC iPad ACCESSORY",
+            "device_type": "手机",
+            "device_type_source": "report_field",
+            "imei1": "",
+            "imei2": "",
+        },
+        0,
+    )
+
+    assert material.type == "phone"
+    assert material.classification.diagnostic_code is None
+
+
+@pytest.mark.parametrize(
     ("imei1", "imei2"),
     [
         ("123456789012345", ""),
