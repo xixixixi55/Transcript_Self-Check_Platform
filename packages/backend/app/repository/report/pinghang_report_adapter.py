@@ -23,7 +23,7 @@ from .report_parse_input_models import ReportParseInputError
 
 
 PINGHANG_ADAPTER_ID = "pinghang-mobile-multipath-v1"
-PINGHANG_ADAPTER_VERSION = "1.8.0"
+PINGHANG_ADAPTER_VERSION = "1.9.0"
 PINGHANG_DEFAULT_MAIN_SOFTWARE_NAME = "平航手机多路分析取证软件"
 _MAX_SELECTED_PAGES = 4096
 _MAX_SELECTED_METADATA_BYTES = 32 * 1024 * 1024
@@ -167,12 +167,23 @@ def parse_pinghang_report(
         start_time = fields.get("取证开始时间", "").strip()
         end_time = fields.get("取证结束时间", "").strip()
         device_type = _preferred_pinhang_device_type(fields)
-        device_name = _first_field(fields, "检材名称", "手机名称", "设备名称")
+        phone_model = _first_field(fields, "手机型号")
+        use_ios_phone_model = bool(phone_model and _is_pinhang_ios(fields))
+        device_name = (
+            phone_model if use_ios_phone_model
+            else _first_field(fields, "检材名称", "手机名称", "设备名称")
+        )
         base = {
             "device_name": device_name,
             "device_type": device_type,
-            "brand": _first_field(fields, "手机品牌", "设备品牌"),
-            "model": _first_field(fields, "手机内部型号", "设备型号", "手机型号"),
+            "brand": (
+                "" if use_ios_phone_model
+                else _first_field(fields, "手机品牌", "设备品牌")
+            ),
+            "model": (
+                phone_model if use_ios_phone_model
+                else _first_field(fields, "手机内部型号", "设备型号", "手机型号")
+            ),
             "imei1": _first_field(fields, "IMEI", "IMEI1"),
             "imei2": _first_field(fields, "IMEI2"),
             "serial_number": _first_field(fields, "序列码", "序列号"),
@@ -387,6 +398,16 @@ def _preferred_pinhang_device_type(fields: dict[str, str]) -> str:
     if explicit_values:
         return _merge_distinct_values(explicit_values)
     return fields.get("数据类型", "").strip()
+
+
+def _is_pinhang_ios(fields: dict[str, str]) -> bool:
+    for name in ("设备类型", "检材类型", "数据类型"):
+        value = "".join(
+            unicodedata.normalize("NFKC", fields.get(name, "")).split()
+        ).casefold()
+        if value in {"ios", "ios设备"}:
+            return True
+    return False
 
 
 def _merge_distinct_values(values: list[str]) -> str:

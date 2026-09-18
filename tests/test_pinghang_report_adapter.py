@@ -349,6 +349,59 @@ def test_pinghang_device_name_prefers_phone_brand_and_internal_model(tmp_path):
     assert material["model"] == "SYNTHETIC-PKV110"
 
 
+def test_pinghang_ios_device_name_uses_phone_model_without_brand_prefix(tmp_path):
+    source = _write_pinghang_fixture(
+        tmp_path, include_second_device=False, first_device_type="iOS 设备",
+    )
+    device_page = source / "报告" / "data" / "ViewData" / "7_1.json"
+    device_page.write_text(_jsonp(7, _device([
+        ("设备名称", "SYNTHETIC-APPLE-INTERNAL-NAME"),
+        ("检材编号", "SYNTHETIC-EVIDENCE-20"),
+        ("数据类型", "iOS 设备"),
+        ("手机品牌", "SYNTHETIC-APPLE"),
+        ("手机内部型号", "SYNTHETIC-IPHONE-INTERNAL"),
+        ("手机型号", "iPhone SYNTHETIC Pro"),
+        ("IMEI", "111111111111111"),
+        ("取证开始时间", "2026-01-02 03:10:00"),
+        ("取证结束时间", "2026-01-02 03:20:00"),
+    ])), encoding="utf-8")
+
+    snapshot = build_report_parse_input_snapshot(str(source))
+    report = parse_report(str(source), str(tmp_path / "output"), compress=False)["report"]
+    base = snapshot.device_base_info["SYNTHETIC-EVIDENCE-20"]
+    material = report["introduction"]["evidence_list"][0]
+
+    assert base["model"] == "iPhone SYNTHETIC Pro"
+    assert material["device_name"] == "iPhone SYNTHETIC Pro"
+    assert material["model"] == "iPhone SYNTHETIC Pro"
+
+
+def test_pinghang_ios_without_phone_model_keeps_internal_model_fallback(tmp_path):
+    source = _write_pinghang_fixture(
+        tmp_path, include_second_device=False, first_device_type="iOS设备",
+    )
+    device_page = source / "报告" / "data" / "ViewData" / "7_1.json"
+    device_page.write_text(_jsonp(7, _device([
+        ("设备名称", "SYNTHETIC-APPLE-INTERNAL-NAME"),
+        ("检材编号", "SYNTHETIC-EVIDENCE-20"),
+        ("数据类型", "iOS设备"),
+        ("手机品牌", "SYNTHETIC-APPLE"),
+        ("手机内部型号", "SYNTHETIC-IPHONE-INTERNAL"),
+        ("IMEI", "111111111111111"),
+        ("取证开始时间", "2026-01-02 03:10:00"),
+        ("取证结束时间", "2026-01-02 03:20:00"),
+    ])), encoding="utf-8")
+
+    snapshot = build_report_parse_input_snapshot(str(source))
+    report = parse_report(str(source), str(tmp_path / "output"), compress=False)["report"]
+    base = snapshot.device_base_info["SYNTHETIC-EVIDENCE-20"]
+    material = report["introduction"]["evidence_list"][0]
+
+    assert base["brand"] == "SYNTHETIC-APPLE"
+    assert base["model"] == "SYNTHETIC-IPHONE-INTERNAL"
+    assert material["device_name"] == "SYNTHETIC-APPLE SYNTHETIC-IPHONE-INTERNAL"
+
+
 def test_pinghang_owner_info_is_bound_to_its_parent_material(tmp_path):
     from app.services.canonical.pinghang_canonical_service import pinghang_snapshot_to_canonical
     source = _write_pinghang_fixture(tmp_path, include_owner_info=True)
@@ -758,7 +811,7 @@ def test_source_registration_records_pinghang_adapter_metadata(tmp_path):
     descriptor = service.register_report_directory(str(source))
 
     assert descriptor["metadata"]["adapter_id"] == "pinghang-mobile-multipath-v1"
-    assert descriptor["metadata"]["adapter_version"] == "1.8.0"
+    assert descriptor["metadata"]["adapter_version"] == "1.9.0"
     assert len(descriptor["metadata"]["adapter_structure_fingerprint"]) == 64
     assert str(source) not in json.dumps(descriptor, ensure_ascii=False)
 
@@ -778,7 +831,7 @@ def test_pinghang_bundle_source_enters_review_and_revalidates_child_core_files(t
     assert descriptor["metadata"]["adapter_id"] == (
         "pinghang-mobile-multipath-bundle-v1"
     )
-    assert descriptor["metadata"]["adapter_version"] == "1.1.0"
+    assert descriptor["metadata"]["adapter_version"] == "1.2.0"
 
     cases = CaseDraftService(
         database,

@@ -470,3 +470,14 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 17I.3 对用户指定目录执行只读脱敏复验，同步 living spec，运行奇安信测试、`verify:quick`、限定 strict docs、OpenSpec strict validate 和`git diff --check`；保持`lifecycle_status: in-progress`。
 
 实现与验证证据（2026-09-18）：新增 SYNTHETIC iPhone/iPad/Android 分类回归在旧实现上按预期 `2 failed, 1 passed`，证明 iOS 仍被较低优先级字段错误覆盖，而 Android 对照行为未变化。适配器现仅对 `检材平台=iOS` 优先投影 `deviceInfo.设备类别`，缺失时继续使用既有明确类型与平台回退；统一材料分类器未修改，适配器版本提升为 `qianxin-web-report-v1@1.4.0`。修复后聚焦回归 `3 passed`、奇安信全量 `18 passed`。用户指定仓库外报告只读脱敏复验读取 5 个核心依赖并投影 2 项材料：iOS 来源类型为 iPhone 且确认为手机，Android 来源类型保持 Android 且继续待确认；未记录案件、人员、设备标识或绝对路径。最终行为已同步 living spec；`npm run verify:quick`、OpenSpec strict validate 与 `git diff --check` 通过，限定 strict docs 首次仅因 17I.3 尚未勾选而按预期报告 1 项 `task-incomplete`。本增量不包含鸿蒙字段或规则，变更包保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+
+## 2026-09-18 平航 iOS 手机型号显示（17J）
+
+本次反馈增量 `workflow_level: 2`；继续复用 17A 的平航 v1 字段映射和 17A.21 的外层多报告包聚合。用户指定仓库外报告仅作只读脱敏字段确认，自动化使用 SYNTHETIC iOS/Android 组合。范围限定为平航 iOS 设备显示名与型号来源，不修改 Android、其他报告格式或通用显示规则。`manual_acceptance: N/A`（来源字段映射和最终展示输入由自动化及脱敏投影覆盖，无模板版式变化）。
+
+- [x] 17J.1 补充 delta，规定平航 iOS 直接使用“手机型号”，缺失时回退既有品牌与内部型号规则；Android 保持“手机品牌 + 手机内部型号”。
+- [x] 17J.1T 扩展现有平航 SYNTHETIC 回归，先证明旧适配器对 iOS 仍优先内部型号且拼接品牌，同时断言 Android 对照行为不回归。
+- [x] 17J.2 在平航 Layer 20 适配器内实现 iOS 专用字段优先级，并提升单报告与 bundle 适配器版本以失效旧来源缓存；不修改通用显示层。
+- [x] 17J.3 对用户指定目录执行只读脱敏复验，同步 living spec，运行平航及受影响报告测试、`verify:quick`、限定 strict docs、OpenSpec strict validate 和 `git diff --check`；保持 `lifecycle_status: in-progress`。
+
+实现与验证证据（2026-09-18）：新增 SYNTHETIC iOS 回归在旧实现上按预期 `1 failed, 1 passed`，唯一失败证明 iOS 仍错误优先内部型号，Android 对照行为保持通过。平航适配器现仅在材料页明确为 iOS 且“手机型号”非空时，将该字段直接投影为设备显示名与型号并移除展示用品牌前缀；缺失“手机型号”时回退既有品牌与内部型号，Android 分支不变。单报告适配器提升为 `pinghang-mobile-multipath-v1@1.9.0`，bundle 提升为 `pinghang-mobile-multipath-bundle-v1@1.2.0`。修复后聚焦 `3 passed`、平航全量 `59 passed`、报告输入与解析受影响范围 `68 passed`。用户指定仓库外 bundle 只读脱敏复验识别 2 项材料：Android 仍保留品牌并组合内部型号，iOS 最终设备显示等于面向用户的手机型号且无品牌前缀；未记录案件、人员或设备标识值，未复制或修改来源报告。当前工作区 `verify:quick` 的架构阶段通过，但两个正在运行的项目开发服务器占用既有 `shared/dist`、`frontend/dist` 增量产物，使标准 TypeScript 阶段以 `EPERM` 停止；未擅自终止用户进程。标准 `npm run typecheck` 在同步当前跟踪文件并隔离构建输出的临时 detached worktree 中通过；当前工作区的治理测试、OpenSpec living specs 校验、文档 quick、仓库资产检查分别通过，限定 strict docs 为 15 项检查、0 drift，OpenSpec strict validate 与 `git diff --check` 通过。变更包保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
