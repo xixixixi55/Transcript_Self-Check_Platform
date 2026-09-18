@@ -10,6 +10,7 @@ export type GuidedReviewHistoryTone = 'complete' | 'system' | 'warning' | 'recov
 export interface GuidedReviewHistoryField {
   label: string
   value: string
+  annotation?: string
   userProvided?: boolean
   sourceLabel?: '已修改'
   targetId?: string
@@ -128,6 +129,12 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
     )
     const materialType = materialTypeConfirmed && material.material_type === 'phone'
       ? '手机' : materialTypeConfirmed && material.material_type === 'tablet' ? '平板' : null
+    const materialTypeAnnotation = (
+      materialType === '手机'
+      && material.material_type_status === 'confirmed_by_report'
+      && material.material_type_source === 'report'
+      && material.material_type_diagnostic === 'MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI'
+    ) ? '（根据imei判断，不一定100%准确）' : undefined
     const brand = material.brand?.trim() || ''
     const model = material.model?.trim() || ''
     const deviceName = brand && model
@@ -151,6 +158,11 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
     const visibleField = (label: string, value: string | null | undefined, fallback: string, edited: boolean) => (
       editedField(label, value?.trim() || fallback, edited)!
     )
+    const materialTypeField = visibleField(
+      '类型', materialType, '待确认', material.material_type_source === 'user'
+        || isUserProvided(fieldStates, evidencePath('material_type')),
+    )
+    if (materialTypeAnnotation) materialTypeField.annotation = materialTypeAnnotation
     return {
       id: materialId,
       label,
@@ -165,8 +177,7 @@ function materialHistory(report: InspectionReport, fieldStates: FieldStates): Gu
           evidencePath('device_name'), evidencePath('brand'), evidencePath('model'), evidencePath('device_type'))),
         visibleField('持有人', material.holder_name, '未填写',
           isUserProvided(fieldStates, evidencePath('holder_name'))),
-        visibleField('类型', materialType, '待确认', material.material_type_source === 'user'
-          || isUserProvided(fieldStates, evidencePath('material_type'))),
+        materialTypeField,
         visibleField('IMEI 1', imei1, '待核对', isUserProvided(fieldStates, evidencePath('imei1'))),
         visibleField('IMEI 2', imei2, '待核对', isUserProvided(fieldStates, evidencePath('imei2'))),
         visibleField('序列号', material.serial_number, '未识别', isUserProvided(fieldStates, evidencePath('serial_number'))),

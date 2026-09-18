@@ -70,6 +70,41 @@ describe('guided Word preview source attribution', () => {
     expect(projected?.fields.find(field => field.label === '类型')?.value).toBe('待确认')
   })
 
+  it('marks only dual-IMEI inferred phone types in the Word content preview', () => {
+    const base = syntheticReport.introduction.evidence_list[0]
+    const materials = [
+      {
+        ...base,
+        id: 'SYNTHETIC-DUAL-IMEI',
+        material_type: 'phone' as const,
+        material_type_status: 'confirmed_by_report' as const,
+        material_type_source: 'report' as const,
+        material_type_diagnostic: 'MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI',
+      },
+      {
+        ...base,
+        id: 'SYNTHETIC-EXPLICIT-PHONE',
+        material_type: 'phone' as const,
+        material_type_status: 'confirmed_by_report' as const,
+        material_type_source: 'report' as const,
+        material_type_diagnostic: undefined,
+      },
+    ]
+    const projected = buildReportHistory({
+      ...syntheticReport,
+      introduction: { ...syntheticReport.introduction, evidence_list: materials },
+    }).find(item => item.id === 'fact-evidence')?.materials || []
+
+    expect(projected[0].fields.find(field => field.label === '类型')).toEqual(
+      expect.objectContaining({
+        value: '手机', annotation: '（根据imei判断，不一定100%准确）',
+      }),
+    )
+    const explicitTypeField = projected[1].fields.find(field => field.label === '类型')
+    expect(explicitTypeField?.value).toBe('手机')
+    expect(explicitTypeField?.annotation).toBeUndefined()
+  })
+
   it.each([
     { device_name: '', device_type: '', brand: '', model: '' },
     { device_name: ' \t', device_type: ' ', brand: ' ', model: '\n' },

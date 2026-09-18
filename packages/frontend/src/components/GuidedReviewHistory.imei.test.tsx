@@ -67,6 +67,29 @@ describe('GuidedReviewHistory IMEI grouping', () => {
     expect(screen.queryByText('检材信息待核对')).toBeNull()
   })
 
+  it('shows the dual-IMEI inference warning beside the editable preview type only', () => {
+    const inferred = {
+      ...syntheticReport.introduction.evidence_list[0],
+      id: 'SYNTHETIC-DUAL-IMEI',
+      evidence_id: 'SYNTHETIC-DUAL-IMEI',
+      material_type: 'phone' as const,
+      material_type_status: 'confirmed_by_report' as const,
+      material_type_source: 'report' as const,
+      material_type_diagnostic: 'MATERIAL_TYPE_INFERRED_FROM_DUAL_IMEI',
+      imei1: '111111111111111',
+      imei2: '222222222222222',
+    }
+    const report = {
+      ...syntheticReport,
+      introduction: { ...syntheticReport.introduction, evidence_list: [inferred] },
+    }
+
+    render(<GuidedReviewHistory items={buildReportHistory(report)} evidenceItems={[inferred]}
+      onEvidenceItemsChange={vi.fn()} />)
+
+    expect(screen.getByText('（根据imei判断，不一定100%准确）')).toBeTruthy()
+  })
+
   it('edits material values directly in the Word preview and reports automatic saving', () => {
     const evidenceItems = [{
       id: 'SYNTHETIC-C', evidence_id: 'SYNTHETIC-C', device_type: 'SYNTHETIC Phone',

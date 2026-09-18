@@ -1541,6 +1541,13 @@
   overflow-wrap: anywhere;
 }
 
+.guided-review-history__field-annotation {
+  display: inline-block;
+  margin-left: 6px;
+  color: #6b7f91;
+  font-size: 12px;
+}
+
 .guided-review-history__user-badge {
   display: inline-block;
   margin-left: 6px;

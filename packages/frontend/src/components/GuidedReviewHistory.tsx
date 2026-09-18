@@ -34,6 +34,9 @@ function HistoryFields({ fields }: { fields: NonNullable<GuidedReviewHistoryItem
           <dt>{field.label}：</dt>
           <dd>
             <span>{field.value}</span>
+            {field.annotation && <span className="guided-review-history__field-annotation">
+              {field.annotation}
+            </span>}
             {field.userProvided && <span className="guided-review-history__user-badge">
               {field.sourceLabel || '用户填写'}
             </span>}
@@ -86,6 +89,7 @@ function EditableMaterialFields({ material, item, onChange }: {
   onChange: (item: EvidenceItem, options?: { affectsCompleteness?: boolean }) => void
 }) {
   const extractable = typeof item.extractable === 'boolean' ? item.extractable : true
+  const materialTypeAnnotation = material.fields.find(field => field.label === '类型')?.annotation
   const update = (values: Partial<EvidenceItem>) => onChange({ ...item, ...values })
   return (
     <dl className="guided-review-history__fields guided-review-history__fields--editable">
@@ -105,6 +109,9 @@ function EditableMaterialFields({ material, item, onChange }: {
               material_type_status: value === 'unconfirmed' ? 'unconfirmed' : 'confirmed_by_user',
               material_type_source: 'user', material_type_diagnostic: undefined,
             })} />
+          {materialTypeAnnotation && <span className="guided-review-history__field-annotation">
+            {materialTypeAnnotation}
+          </span>}
         </MaterialField>
         <MaterialField label="IMEI 1" material={material}>
           <EditableField type="text" value={item.imei1 || ''} placeholder="待核对"
