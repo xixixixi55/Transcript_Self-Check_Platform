@@ -49,6 +49,7 @@ from ..inspection.material_policy_service import (
 from .report_parse_inflight_service import REPORT_PARSE_INFLIGHT_REGISTRY
 from ..inspection.entrust_person_service import normalize_entrust_persons
 from ..canonical.canonical_report_projector_service import project_report_snapshot
+from ..attachment.attachment_plan_service import format_attachment1_source
 _TRAILING_CASE_NAME_MARK_RE = re.compile(r"(案)\s*(?:（[^（）]*）|\([^()]*\))\s*$")
 
 def parse_report(source_dir: str, output_dir: str, compress: bool = True) -> dict:
@@ -335,7 +336,7 @@ def _build_report(data_dir: str, source_dir: str, output_dir: str,
         extract_rows.append({
             "no": "1",
             "electronic_data": rar_info["filename"],
-            "source": f"{evidence_label}检材内提取" if evidence_numbers else "",
+            "source": format_attachment1_source(evidence_numbers),
             "extraction_method": "使用美亚手机取证塔对检材进行检查，将检出数据生成报告，然后对报告压缩并计算MD5值",
             "md5_hash": str(rar_info["md5"]).upper(),
         })

@@ -136,6 +136,21 @@ def test_attachment1_has_complete_source_and_method_on_every_page():
     assert all("将检出数据生成报告" in page.extraction_method for page in plan.attachment1_pages)
 
 
+@pytest.mark.parametrize(
+    ("count", "expected"),
+    [
+        (10, "、".join(f"SYNTHETIC-MANUAL-{index}" for index in range(1, 11)) + "检材内提取"),
+        (11, "SYNTHETIC-MANUAL-1至SYNTHETIC-MANUAL-11检材内提取"),
+    ],
+)
+def test_attachment1_source_collapses_only_after_ten_manual_numbers(count, expected):
+    numbers = [f"SYNTHETIC-MANUAL-{index}" for index in range(1, count + 1)]
+
+    plan = build_attachment_plan(manifest(1), report(0, numbers))
+
+    assert plan.attachment1_pages[0].source_text == expected
+
+
 def test_attachment1_prefers_case_extraction_method_snapshot():
     current = report(2)
     current["attachments"]["extraction_method"] = "SYNTHETIC/CUSTOM-EXTRACTION-METHOD"

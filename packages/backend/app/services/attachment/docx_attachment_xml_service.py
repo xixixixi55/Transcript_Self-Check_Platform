@@ -7,6 +7,11 @@ from typing import Any, Mapping
 
 from lxml import etree
 
+from .attachment_plan_service import (
+    MAX_EXPANDED_EVIDENCE_NUMBERS,
+    format_attachment1_source,
+)
+
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 V_NS = "urn:schemas-microsoft-com:vml"
 
@@ -102,6 +107,9 @@ def attachment1_source_lines(value: str) -> list[str]:
     material_numbers = [item.strip() for item in material_text.split("、") if item.strip()]
     if not material_numbers:
         return [normalized]
+    if len(material_numbers) > MAX_EXPANDED_EVIDENCE_NUMBERS:
+        collapsed = format_attachment1_source(material_numbers)
+        return [collapsed[:-len(suffix)], suffix]
     lines = [
         number + ("、" if index < len(material_numbers) - 1 else "")
         for index, number in enumerate(material_numbers)

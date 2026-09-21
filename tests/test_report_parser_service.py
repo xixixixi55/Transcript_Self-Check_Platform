@@ -355,6 +355,36 @@ def test_multiple_devices_keep_tb2_and_base_fields_matched(tmp_path):
     assert report["attachments"]["extract_list"]["rows"][0]["source"] == "JC01、JC02检材内提取"
 
 
+def test_more_than_ten_devices_use_first_and_last_manual_number_in_extract_source(tmp_path):
+    _write_service_fixture(str(tmp_path), known_software=True)
+    data_dir = tmp_path / "data"
+    import json
+    device_file = data_dir / "data_device_lists.json"
+    devices = json.loads(device_file.read_text(encoding="utf-8"))
+    for index in range(2, 12):
+        evidence_number = f"SYNTHETIC-MANUAL-{index:02d}"
+        devices["contents"].append({
+            "c1": str(index), "c2": evidence_number, "tb2": [
+                {"tt": "IMEI1", "ct": f"{index:015d}"},
+            ],
+        })
+        base_dir = data_dir / evidence_number / "Base"
+        base_dir.mkdir(parents=True)
+        (base_dir / "device_table.json").write_text(json.dumps({"rows": [
+            {"c1": "设备名称", "c2": f"SYNTHETIC-DEVICE-{index:02d}"},
+        ]}, ensure_ascii=False), encoding="utf-8")
+    device_file.write_text(json.dumps(devices, ensure_ascii=False), encoding="utf-8")
+
+    with patch("app.services.report.report_parser_service._build_rar_info_from_compress", return_value={
+        "filename": "SYNTHETIC-output.rar", "md5": "a" * 32, "size_bytes": 1,
+    }):
+        report = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)["report"]
+
+    assert report["attachments"]["extract_list"]["rows"][0]["source"] == (
+        "JC01至SYNTHETIC-MANUAL-11检材内提取"
+    )
+
+
 def test_new_report_normalizes_fields_without_model_or_time_regression(tmp_path):
     _write_service_fixture(str(tmp_path), known_software=True)
     result = parse_report(str(tmp_path), str(tmp_path / "output"), compress=False)

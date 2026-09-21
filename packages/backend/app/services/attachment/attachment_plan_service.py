@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import PurePath, PureWindowsPath
 from typing import Any, Mapping
 
@@ -37,6 +38,7 @@ from ..integrity.hash_algorithm_service import (
 
 PROFILE_ID = "current-template-v1"
 MAX_PART_ROWS_PER_PAGE = 3
+MAX_EXPANDED_EVIDENCE_NUMBERS = 10
 _TEMPLATE_PROFILE = current_template_profile()
 _CONFIRMED_SOFTWARE = {"confirmed", "confirmed_by_report", "confirmed_by_user"}
 
@@ -199,7 +201,24 @@ def _source_text(report: Mapping[str, Any]) -> str:
             values.append(value)
     if not values:
         raise AttachmentPlanError("ATTACHMENT_PLAN_INVALID", "缺少有效检材编号，无法生成来源。")
-    return "、".join(values) + "检材内提取"
+    return format_attachment1_source(values)
+
+
+def format_attachment1_source(evidence_numbers: Iterable[Any]) -> str:
+    """按稳定顺序格式化附件一来源，保留人工编号原文。"""
+    values = []
+    for item in evidence_numbers:
+        value = _text(item)
+        if value and value not in values:
+            values.append(value)
+    if not values:
+        return ""
+    material_text = (
+        f"{values[0]}至{values[-1]}"
+        if len(values) > MAX_EXPANDED_EVIDENCE_NUMBERS
+        else "、".join(values)
+    )
+    return material_text + "检材内提取"
 
 
 def _extraction_method(report: Mapping[str, Any], hash_algorithm: str) -> str:

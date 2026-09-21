@@ -384,6 +384,31 @@ def test_attachment1_source_puts_each_material_number_on_its_own_line(tmp_path):
     ] == ["3780"]
 
 
+def test_attachment1_source_collapses_more_than_ten_manual_numbers_to_range(tmp_path):
+    current_report = report()
+    material_numbers = [
+        "SYNTHETIC-MANUAL-FIRST",
+        *[f"SYNTHETIC-MANUAL-MIDDLE-{index}" for index in range(2, 11)],
+        "SYNTHETIC-MANUAL-LAST",
+    ]
+    current_report["introduction"]["evidence_list"] = [
+        {"evidence_number": number, "device_type": "手机"}
+        for number in material_numbers
+    ]
+    output = tmp_path / "attachment-1-source-range.docx"
+
+    fill_template(current_report, str(TEMPLATE), str(output), [], manifest(1))
+
+    table = attachment_tables(document_root(output))[0]
+    source_cell = table.findall("./{%s}tr" % W_NS)[1].findall("./{%s}tc" % W_NS)[2]
+    paragraph = source_cell.find(".//{%s}p" % W_NS)
+    assert [node.text for node in paragraph.findall(".//{%s}t" % W_NS)] == [
+        "SYNTHETIC-MANUAL-FIRST至SYNTHETIC-MANUAL-LAST",
+        "检材内提取",
+    ]
+    assert len(paragraph.findall(".//{%s}br" % W_NS)) == 1
+
+
 def test_attachment1_four_rows_use_three_then_one_with_signature(tmp_path):
     output = tmp_path / "attachment-1-four.docx"
     fill_template(report(), str(TEMPLATE), str(output), [], manifest(4))

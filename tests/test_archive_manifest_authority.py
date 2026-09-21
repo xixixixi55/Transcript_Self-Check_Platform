@@ -120,6 +120,28 @@ def test_verified_attachment_projection_fills_extraction_method_before_review_is
     }
 
 
+def test_verified_attachment_projection_collapses_more_than_ten_evidence_numbers():
+    incomplete = report()
+    incomplete["inspection"].pop("primary_software")
+    incomplete["introduction"]["evidence_list"] = [
+        {"evidence_number": "SYNTHETIC-MANUAL-FIRST"},
+        *[
+            {"evidence_number": f"SYNTHETIC-MANUAL-MIDDLE-{index}"}
+            for index in range(2, 11)
+        ],
+        {"evidence_number": "SYNTHETIC-MANUAL-LAST"},
+    ]
+    incomplete["attachments"]["extract_list"] = {
+        "rows": [{"source": "STALE检材内提取", "extraction_method": ""}],
+    }
+
+    projection = project_verified_manifest_to_legacy_attachments(incomplete, manifest())
+
+    assert {row["source"] for row in projection["extract_list"]["rows"]} == {
+        "SYNTHETIC-MANUAL-FIRST至SYNTHETIC-MANUAL-LAST检材内提取",
+    }
+
+
 def test_verified_attachment_projection_prefers_case_extraction_method_snapshot():
     incomplete = report()
     incomplete["inspection"].pop("primary_software")

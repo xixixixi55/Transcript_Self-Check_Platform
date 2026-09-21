@@ -492,3 +492,12 @@ Shadow 回归只比较新旧结构化结果和非执行性归档投影；测试�
 - [x] 17K.3 同步 living spec，运行材料策略与美亚受影响测试、`verify:quick`、限定 strict docs、OpenSpec strict validate 和 `git diff --check`；保持 `lifecycle_status: in-progress`。
 
 实现与验证证据（2026-09-18）：新增 SYNTHETIC Apple 品牌与优先级回归在旧实现上按预期 `3 failed`，分别证明 iPad 被“设备类型=手机”误判、Apple 品牌缺少独立诊断，以及双 IMEI 未先于手机类型候选。统一材料策略现按人工确认、精确 Apple 手机品牌、明确平板/类型冲突、双 IMEI、设备类型手机、待确认的顺序分类，规则身份提升为 `device_type_evidence_v3`；非精确 Apple 品牌不触发，缺少来源标记的 legacy 报告字段继续兼容，显式 `legacy_display` 仍不作为类型事实。修复后材料策略聚焦 `31 passed`，加入美亚 legacy/new 输入、Parser、Canonical 与工作台后的受影响后端 `170 passed`。`lint:arch`、前端 TypeScript、共享 TypeScript 的等价无输出检查、治理测试、living spec、快速文档和仓库资产检查通过；标准 `verify:quick` 在架构阶段通过后，因现有 Node 进程占用 `packages/shared/dist` 的声明映射而以 `EPERM` 停止，沙箱外重试结果相同，未擅自终止用户进程。OpenSpec strict validate 通过；限定 strict docs 首次仅因 17K.3 尚未勾选而按预期报告 1 项 `task-incomplete`，勾选后复跑。变更包保持 `lifecycle_status: in-progress`，不触发延期任务、最终 Review 或 scoped full gate。
+
+## 2026-09-18 附件一多检材来源折叠（14A 续）
+
+本次反馈增量 `workflow_level: 2`；继续复用 14A.12 的有序检材来源与显式换行渲染。范围只调整附件一“来源”字段：一至十个检材保持逐项展示，超过十个时使用人工填写的首、末编号原文展示范围，不解析或重编编号。预览、归档投影与正式 Word 使用同一格式规则。`manual_acceptance: N/A`（确定性文本格式与 OOXML 换行由自动化覆盖，不改变模板几何、分页或桌面交互）。
+
+- [x] 14A.20 更新批准规格与 delta，并扩展现有附件规划、归档投影和 DOCX 渲染回归，覆盖十个保持逐项、十一个折叠为首末范围及人工编号原文保留。
+- [x] 14A.21 在 Layer 21 集中实现附件一来源格式规则，接入解析预览、Manifest 规划和归档兼容投影；同步 living spec，运行受影响测试、`lint:arch`、`typecheck`、`verify:quick`、限定 strict docs、OpenSpec strict validate 和 `git diff --check`，保持 `lifecycle_status: in-progress`。
+
+实现与验证证据（2026-09-18）：新增的十/十一个检材边界、归档兼容投影和 DOCX 换行用例在旧实现上得到 `3 failed, 1 passed`，唯一通过项证明十个检材继续保持现行逐项格式；实现后四项聚焦回归通过。附件规划、Manifest 权威投影、DOCX 渲染和报告解析四个受影响测试文件共 `139 passed`，其中解析集成用例确认十一项 SYNTHETIC 检材的预览来源使用人工填写的首末编号。统一 Layer 21 格式规则按稳定顺序去重：不超过十个仍以顿号连接并逐项换行，超过十个只生成“首编号至末编号”，兼容渲染也会折叠历史展开文本；“检材内提取”继续独占下一行。`lint:arch`、`typecheck`、`verify:quick`、OpenSpec strict validate、限定 strict docs（15 项检查、0 drift）与 `git diff --check` 通过。本增量不改变模板几何或分页，人工验收为 N/A，变更包保持 `lifecycle_status: in-progress`。

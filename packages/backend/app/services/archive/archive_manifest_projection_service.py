@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ..attachment.attachment_plan_service import build_attachment_plan
+from ..attachment.attachment_plan_service import (
+    build_attachment_plan,
+    format_attachment1_source,
+)
 from ..attachment.attachment_plan_models_service import AttachmentPlanError
 from ..report.legacy_report_projection_service import project_ordered_legacy_report
 from ..integrity.hash_algorithm_service import (
@@ -91,8 +94,8 @@ def _project_manifest_rows_without_review_fields(
     result = project_ordered_legacy_report(report)
     parts = _ordered_manifest_parts(manifest)
     attachments = result.setdefault("attachments", {})
-    source = _normalize_extract_source(
-        _existing_extract_value(report, "source") or _source_from_evidence(report)
+    source = _source_from_evidence(report) or _normalize_extract_source(
+        _existing_extract_value(report, "source")
     )
     hash_algorithm, _ = manifest_part_business_hash(parts[0])
     extraction_method = _hardware_extraction_method(report, hash_algorithm)
@@ -164,7 +167,7 @@ def _source_from_evidence(report: Mapping[str, Any]) -> str:
             value = _text(item.get("evidence_number")) if isinstance(item, Mapping) else ""
             if value and value not in values:
                 values.append(value)
-    return "、".join(values) + "检材内提取" if values else ""
+    return format_attachment1_source(values)
 
 
 def _hardware_extraction_method(
